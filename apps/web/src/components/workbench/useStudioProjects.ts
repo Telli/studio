@@ -2,21 +2,29 @@ import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
 import { studioProjectAt } from "@t3tools/shared/studioProjects";
 import { useCallback, useMemo } from "react";
 
-import { useEnvironmentSettings, useUpdateEnvironmentSettings } from "~/hooks/useSettings";
-import { randomUUID } from "~/lib/utils";
+import { useEnvironmentQuery } from "~/state/query";
+import { studioProjectsEnvironment } from "~/state/studioProjects";
+import { useAtomCommand } from "~/state/use-atom-command";
 
 const NONE: Readonly<Record<string, StudioProject>> = {};
 
 /**
  * Studio's projects on an environment: named groupings of its folders with a
- * brief, kept in the server's settings (`studioProjects`) so every window and
- * device sees the same ones, and the server can hand a thread's agent the
- * project's other folders and brief.
+ * brief. Each is a file in the environment's projects folder, a git
+ * repository the server commits every change to, so the projects can be
+ * pushed and shared; the server also hands a thread's agent its project's
+ * other folders and brief. Null reads nothing.
  */
+export function useStudioProjectsList(environmentId: EnvironmentId | null) {
+  return useEnvironmentQuery(
+    environmentId === null ? null : studioProjectsEnvironment.list({ environmentId, input: {} }),
+  );
+}
+
 export function useStudioProjects(
-  environmentId: EnvironmentId,
+  environmentId: EnvironmentId | null,
 ): Readonly<Record<string, StudioProject>> {
-  return useEnvironmentSettings(environmentId, (settings) => settings.studioProjects ?? NONE);
+  return useStudioProjectsList(environmentId).data?.projects ?? NONE;
 }
 
 /** The project a folder belongs to, with its id; null when it is in none. */
@@ -32,17 +40,20 @@ export function useStudioProjectAt(
 }
 
 /**
- * Saves a project whole under its id, or removes it with null. The change
- * shows at once; T3's settings save reports a failure itself.
+ * Saves a project whole (a null id makes a new one, named from the project)
+ * or removes it with null, then rereads the list. Resolves to the project's
+ * id, or null when the save failed (which it reports itself).
  */
 export function useSaveStudioProject(environmentId: EnvironmentId) {
-  const update = useUpdateEnvironmentSettings(environmentId);
+  const save = useAtomCommand(studioProjectsEnvironment.save, { reportFailure: true });
+  const { refresh } = useStudioProjectsList(environmentId);
   return useCallback(
-    (id: string, project: StudioProject | null) => {
-      update({ studioProjects: { [id]: project } });
+    async (id: string | null, project: StudioProject | null): Promise<string | null> => {
+      const result = await save({ environmentId, input: { id, project } });
+      if (result._tag !== "Success") return null;
+      refresh();
+      return result.value.id;
     },
-    [update],
+    [save, environmentId, refresh],
   );
 }
-
-export const newStudioProjectId = (): string => randomUUID();

@@ -6,8 +6,8 @@ import {
   ProviderInstanceId,
   type RuntimeMode,
   type ServerProvider,
-  ServerSettingsError,
   type StudioProject,
+  StudioProjectsError,
   ThreadId,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
@@ -18,7 +18,7 @@ import * as Stream from "effect/Stream";
 
 import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
-import * as ServerSettings from "../serverSettings.ts";
+import * as StudioProjects from "../studio/StudioProjects.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
 
@@ -186,7 +186,11 @@ const studioProject: StudioProject = {
 const layerWithStudioProject = RuntimePolicy.layerFromProjectStore.pipe(
   Layer.provide(layerProviderInstances),
   Layer.provide(layerProjects),
-  Layer.provide(ServerSettings.layerTest({ studioProjects: { rig: studioProject } })),
+  Layer.provide(
+    Layer.mock(StudioProjects.StudioProjects)({
+      list: Effect.succeed({ folder: "/studio", git: true, projects: { rig: studioProject } }),
+    }),
+  ),
 );
 
 it.layer(layerWithStudioProject)("RuntimePolicyV2 Studio projects", (it) => {
@@ -234,19 +238,17 @@ it.layer(layerWithStudioProject)("RuntimePolicyV2 Studio projects", (it) => {
   );
 });
 
-const layerWithUnreadableSettings = RuntimePolicy.layerFromProjectStore.pipe(
+const layerWithUnreadableProjects = RuntimePolicy.layerFromProjectStore.pipe(
   Layer.provide(layerProviderInstances),
   Layer.provide(layerProjects),
   Layer.provide(
-    Layer.mock(ServerSettings.ServerSettingsService)({
-      getSettings: Effect.fail(
-        new ServerSettingsError({ settingsPath: "/settings.json", operation: "read-file" }),
-      ),
+    Layer.mock(StudioProjects.StudioProjects)({
+      list: Effect.fail(new StudioProjectsError({ failure: "read", folder: "/studio" })),
     }),
   ),
 );
 
-it.layer(layerWithUnreadableSettings)("RuntimePolicyV2 unreadable settings", (it) => {
+it.layer(layerWithUnreadableProjects)("RuntimePolicyV2 unreadable Studio projects", (it) => {
   it.effect("still resolves the turn without a Studio project", () =>
     Effect.gen(function* () {
       const policy = yield* RuntimePolicy.RuntimePolicyV2;

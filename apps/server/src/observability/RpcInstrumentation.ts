@@ -80,6 +80,8 @@ const RPC_AGGREGATES = {
   [WS_METHODS.pluginsOpenView]: "server",
   [WS_METHODS.pluginsRequest]: "server",
   [WS_METHODS.pluginsModelPictures]: "server",
+  [WS_METHODS.studioProjectsList]: "server",
+  [WS_METHODS.studioProjectsSave]: "server",
   [WS_METHODS.serverGetTraceDiagnostics]: "server",
   [WS_METHODS.serverGetProcessDiagnostics]: "server",
   [WS_METHODS.serverGetHostResources]: "server",

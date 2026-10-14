@@ -40,7 +40,7 @@ import { ProjectThreads } from "./ProjectThreads";
 import { usePictures } from "./usePictures";
 import { groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
-import { newStudioProjectId, useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
+import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
 const GROUP_ICONS: Record<ProjectGroup, typeof BoxIcon> = {
   Models: BoxIcon,
@@ -368,8 +368,8 @@ export function ProjectPage(props: {
   );
 
   const addFolder = (folder: string) =>
-    saveProject(
-      studio?.id ?? newStudioProjectId(),
+    void saveProject(
+      studio?.id ?? null,
       studio === null
         ? {
             name: props.projectName,
@@ -382,7 +382,7 @@ export function ProjectPage(props: {
     );
   const removeFolder = (folder: string) => {
     if (studio === null) return;
-    saveProject(studio.id, {
+    void saveProject(studio.id, {
       ...studio.project,
       folders: studio.project.folders.filter(
         (entry) => studioFolderKey(entry) !== studioFolderKey(folder),

@@ -10,7 +10,7 @@ import { projectEnvironment } from "~/state/projects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { toastManager } from "../ui/toast";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
-import { newStudioProjectId, useSaveStudioProject } from "./useStudioProjects";
+import { useSaveStudioProject } from "./useStudioProjects";
 
 export interface NewStudioProject {
   readonly environmentId: EnvironmentId;
@@ -55,7 +55,7 @@ export function useCreateStudioProject(environmentId: EnvironmentId) {
         folders = [created.value.workspaceRoot];
         firstProjectId = created.value.projectId;
       }
-      save(newStudioProjectId(), {
+      const id = await save(null, {
         name,
         template: input.kind.id,
         brief: {
@@ -68,6 +68,7 @@ export function useCreateStudioProject(environmentId: EnvironmentId) {
         folders,
         createdAt: new Date().toISOString(),
       });
+      if (id === null) return false;
       toastManager.add({
         type: "success",
         title: `Created ${name}`,

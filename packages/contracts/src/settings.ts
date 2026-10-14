@@ -28,7 +28,6 @@ import {
   ProviderOptionSelections,
 } from "./model.ts";
 import { ModelSelection } from "./modelSelection.ts";
-import { StudioProject } from "./studioProjects.ts";
 import { ProjectScript, type ProjectMutation } from "./project.ts";
 import { DEFAULT_RUNTIME_MODE, RuntimeMode } from "./providerPolicy.ts";
 import { BrowserProfile, BrowserProfileId, DEFAULT_BROWSER_PROFILE_ID } from "./browserProfile.ts";
@@ -1343,10 +1342,6 @@ export const ServerSettings = Schema.Struct({
   usageModelAliases: Schema.Record(TrimmedNonEmptyString, TrimmedNonEmptyString).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
-  /** Studio's projects by id: named groupings of folders with a brief (`studioProjects.ts`). */
-  studioProjects: Schema.Record(TrimmedNonEmptyString, StudioProject).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
 });
 export type ServerSettings = typeof ServerSettings.Type;
 
@@ -1645,10 +1640,6 @@ export const ServerSettingsPatch = Schema.Struct({
   /** Each entry replaces one model's mapping; `null` removes it. */
   usageModelAliases: Schema.optionalKey(
     Schema.Record(TrimmedNonEmptyString, Schema.NullOr(TrimmedNonEmptyString)),
-  ),
-  /** Each entry replaces one Studio project whole; `null` removes it. */
-  studioProjects: Schema.optionalKey(
-    Schema.Record(TrimmedNonEmptyString, Schema.NullOr(StudioProject)),
   ),
 });
 export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;

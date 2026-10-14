@@ -403,6 +403,10 @@
       "types": "./src/state/plugins.ts",
       "default": "./src/state/plugins.ts"
     },
+    "./state/studioProjects": {
+      "types": "./src/state/studioProjects.ts",
+      "default": "./src/state/studioProjects.ts"
+    },
     "./state/pluginFollow": {
       "types": "./src/state/pluginFollow.ts",
       "default": "./src/state/pluginFollow.ts"

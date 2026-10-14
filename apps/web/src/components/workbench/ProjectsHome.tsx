@@ -24,7 +24,7 @@ import { NewProjectDialog } from "./NewProjectDialog";
 import { groupProjectFiles } from "./projectFiles";
 import { usePictures } from "./usePictures";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
-import { useStudioProjects } from "./useStudioProjects";
+import { useStudioProjectsList } from "./useStudioProjects";
 
 /** The file that pictures a project: its first folder's first model, else board or drawing. */
 const COVER_GROUPS = ["Models", "Boards and wiring", "Drawings", "Studies"] as const;
@@ -137,7 +137,8 @@ export function ProjectsHome() {
 
 function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
-  const projects = useStudioProjects(environmentId);
+  const list = useStudioProjectsList(environmentId).data;
+  const projects = useMemo(() => list?.projects ?? {}, [list]);
   const knownFolders = useEnvironmentFolders(environmentId);
   const threads = useThreadShells();
   const handleNewThread = useNewThreadHandler();
@@ -197,6 +198,15 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                 <h1 className="mt-1 text-xl font-semibold text-foreground">
                   {cards.length === 1 ? "1 project" : `${cards.length} projects`}
                 </h1>
+                {!list ? null : (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Each project is a folder in{" "}
+                    <span className="text-foreground select-all">{list.folder}</span>
+                    {list.git
+                      ? " and its own git repository: every change is a commit, and pushing it shares the project."
+                      : ". Install git to give each one its own history."}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button

@@ -119,6 +119,7 @@ import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as ThreadManagementService from "./orchestration-v2/ThreadManagementService.ts";
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
 import * as PluginService from "./plugins/PluginService.ts";
+import * as StudioProjects from "./studio/StudioProjects.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
 import * as ThreadLaunchService from "./orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadMessageIntake from "./orchestration-v2/ThreadMessageIntake.ts";
@@ -1226,6 +1227,7 @@ const layerWsRpc = (
       const providerSessionsV2 = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const mcpAppRequests = yield* McpAppRequests.McpAppRequests;
       const plugins = yield* PluginService.PluginService;
+      const studioProjects = yield* StudioProjects.StudioProjects;
       const analytics = yield* AnalyticsService.AnalyticsService;
       // Client-origin attribution (#7774): every thread/turn the connecting
       // client starts is credited to its surface + app version. Best-effort:
@@ -2286,6 +2288,8 @@ const layerWsRpc = (
         [WS_METHODS.pluginsOpenView]: (input) => plugins.openView(input),
         [WS_METHODS.pluginsRequest]: (input) => plugins.request(input),
         [WS_METHODS.pluginsModelPictures]: (input) => plugins.modelPictures(input),
+        [WS_METHODS.studioProjectsList]: () => studioProjects.list,
+        [WS_METHODS.studioProjectsSave]: (input) => studioProjects.save(input),
         [WS_METHODS.providerUploadFeedback]: (input) =>
           Effect.gen(function* () {
             const projection = yield* threadManagement.getThreadRecords(input.threadId, [

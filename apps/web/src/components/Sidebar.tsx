@@ -136,6 +136,7 @@ import {
   getSidebarProjectSettingsKey,
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
+import { useStudioSidebarGroups } from "./workbench/studioSidebarGroups";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
 import {
   getThreadKeysToDeselectAfterDelete,
@@ -2560,7 +2561,7 @@ export default function Sidebar() {
       }),
     [projectOrder, projects],
   );
-  const unsortedProjectGroups = useMemo(
+  const folderProjectGroups = useMemo(
     () =>
       buildSidebarProjectSnapshots({
         projects: sidebarProjectSortOrder === "manual" ? orderedProjects : projects,
@@ -2578,6 +2579,8 @@ export default function Sidebar() {
       sidebarProjectSortOrder,
     ],
   );
+  // Studio's engineering interface lists projects, each holding all its folders.
+  const unsortedProjectGroups = useStudioSidebarGroups(folderProjectGroups);
   const projectGroups = useMemo(
     () => sortSidebarV2ProjectGroups(unsortedProjectGroups, threads, sidebarProjectSortOrder),
     [sidebarProjectSortOrder, threads, unsortedProjectGroups],

@@ -17,7 +17,7 @@ import {
 } from "@t3tools/shared/studioProjects";
 
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
-import * as ServerSettings from "../serverSettings.ts";
+import * as StudioProjects from "../studio/StudioProjects.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ProjectStore from "./ProjectStore.ts";
 
@@ -103,9 +103,9 @@ export const layerFromProjectStore: Layer.Layer<
   Effect.gen(function* () {
     const projects = yield* ProjectStore.ProjectStoreV2;
     const providerInstances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
-    // Optional so tests that assemble this layer by hand need no settings stub;
+    // Optional so tests that assemble this layer by hand need no projects stub;
     // the production composition always provides it.
-    const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
+    const studioProjects = yield* Effect.serviceOption(StudioProjects.StudioProjects);
 
     const projectWorkspaceRoot = (input: RuntimePolicyV2ResolveInput) =>
       projects.get(input.thread.projectId).pipe(
@@ -135,19 +135,19 @@ export const layerFromProjectStore: Layer.Layer<
     /**
      * What the thread's Studio project adds to its turns: the project's other
      * folders and its context. Matched by the project's folder, so a worktree
-     * thread gets its project's. Settings that cannot be read add nothing
+     * thread gets its project's. Projects that cannot be read add nothing
      * rather than fail the turn.
      */
     const studioProjectPolicy = Effect.fn("RuntimePolicyV2.studioProjectPolicy")(function* (
       input: RuntimePolicyV2ResolveInput,
       workspaceRoot: string | null,
     ) {
-      if (Option.isNone(serverSettings)) return {};
+      if (Option.isNone(studioProjects)) return {};
       return yield* Effect.gen(function* () {
-        const { studioProjects } = yield* serverSettings.value.getSettings;
-        if (Object.keys(studioProjects).length === 0) return {};
+        const { projects } = yield* studioProjects.value.list;
+        if (Object.keys(projects).length === 0) return {};
         const root = workspaceRoot ?? (yield* projectWorkspaceRoot(input));
-        const match = studioProjectAt(studioProjects, root);
+        const match = studioProjectAt(projects, root);
         if (match === null) return {};
         const otherFolders = studioOtherFolders(match.project, root);
         return {

@@ -1,7 +1,6 @@
-import { DEFAULT_SERVER_SETTINGS, type StudioProject } from "@t3tools/contracts";
+import type { StudioProject } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { applyServerSettingsPatch } from "./serverSettings.ts";
 import {
   EMPTY_STUDIO_BRIEF,
   studioOtherFolders,
@@ -47,18 +46,5 @@ describe("studio projects", () => {
     expect(studioProjectContext({ ...rover, template: "blank" }, "/work/rover-cad")).not.toContain(
       "## Where work goes",
     );
-  });
-
-  it("saves, replaces and removes projects one at a time in settings", () => {
-    const added = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
-      studioProjects: { a: rover, b: { ...rover, name: "Bench PSU" } },
-    });
-    const renamed = applyServerSettingsPatch(added, {
-      studioProjects: { a: { ...rover, folders: ["/work/rover-cad"] } },
-    });
-    expect(renamed.studioProjects.a?.folders).toEqual(["/work/rover-cad"]);
-    expect(renamed.studioProjects.b?.name).toBe("Bench PSU");
-    const removed = applyServerSettingsPatch(renamed, { studioProjects: { b: null } });
-    expect(Object.keys(removed.studioProjects)).toEqual(["a"]);
   });
 });

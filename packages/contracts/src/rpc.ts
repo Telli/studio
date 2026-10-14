@@ -384,6 +384,13 @@ import {
   PluginViewDocument,
 } from "./plugins.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
+import {
+  StudioProjectsError,
+  StudioProjectsListInput,
+  StudioProjectsListResult,
+  StudioProjectsSaveInput,
+  StudioProjectsSaveResult,
+} from "./studioProjects.ts";
 
 export const WS_METHODS = {
   // Project registry methods
@@ -511,6 +518,8 @@ export const WS_METHODS = {
   pluginsOpenView: "plugins.openView",
   pluginsRequest: "plugins.request",
   pluginsModelPictures: "plugins.modelPictures",
+  studioProjectsList: "studioProjects.list",
+  studioProjectsSave: "studioProjects.save",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
   serverPrepareAcpRegistryAgent: "server.prepareAcpRegistryAgent",
   serverUninstallAcpRegistryManagedBinary: "server.uninstallAcpRegistryManagedBinary",
@@ -859,6 +868,22 @@ const WsPluginsModelPicturesRpc = Rpc.make(WS_METHODS.pluginsModelPictures, {
   payload: PluginModelPicturesInput,
   success: PluginModelPicturesResult,
   error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+});
+
+// No union with EnvironmentAuthorizationError here: the group's
+// RpcScopeAuthorization middleware adds it to every RPC's error, and one more
+// union pushes `ServerWsRpcGroup.toLayer` in ws.ts past TypeScript's
+// instantiation limit (TS2589).
+const WsStudioProjectsListRpc = Rpc.make(WS_METHODS.studioProjectsList, {
+  payload: StudioProjectsListInput,
+  success: StudioProjectsListResult,
+  error: StudioProjectsError,
+});
+
+const WsStudioProjectsSaveRpc = Rpc.make(WS_METHODS.studioProjectsSave, {
+  payload: StudioProjectsSaveInput,
+  success: StudioProjectsSaveResult,
+  error: StudioProjectsError,
 });
 
 const WsServerSearchAcpRegistryRpc = Rpc.make(WS_METHODS.serverSearchAcpRegistry, {
@@ -1993,6 +2018,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsPluginsOpenViewRpc,
   WsPluginsRequestRpc,
   WsPluginsModelPicturesRpc,
+  WsStudioProjectsListRpc,
+  WsStudioProjectsSaveRpc,
   WsServerSearchAcpRegistryRpc,
   WsServerPrepareAcpRegistryAgentRpc,
   WsServerUninstallAcpRegistryManagedBinaryRpc,

@@ -1,4 +1,4 @@
-import { AuthSettingsWriteScope, type EnvironmentId } from "@t3tools/contracts";
+import { AuthOrchestrationOperateScope, type EnvironmentId } from "@t3tools/contracts";
 import { studioFolderName } from "@t3tools/shared/studioProjects";
 import { PaperclipIcon } from "lucide-react";
 import { type ReactNode, useId, useRef, useState } from "react";
@@ -26,7 +26,7 @@ import {
   type ProjectBrief as Brief,
   briefSummary,
 } from "./briefFolder";
-import { newStudioProjectId, useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
+import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
 /** One line of the spec sheet: its label in a drawing's tracked capitals, its field beside it. */
 function SpecRow(props: {
@@ -123,17 +123,19 @@ function BriefSheet(props: {
 }) {
   const id = useId();
   const [draft, setDraft] = useState<Brief>(props.initial);
+  const [saving, setSaving] = useState(false);
   const [attached, setAttached] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
-  const canWrite = useEnvironmentScope(props.environmentId, AuthSettingsWriteScope);
+  const canWrite = useEnvironmentScope(props.environmentId, AuthOrchestrationOperateScope);
   const current = useStudioProjectAt(props.environmentId, props.cwd);
   const saveProject = useSaveStudioProject(props.environmentId);
   const set = <K extends keyof Brief>(key: K, value: Brief[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
-  const save = () => {
-    saveProject(
-      current?.id ?? newStudioProjectId(),
+  const save = async () => {
+    setSaving(true);
+    const saved = await saveProject(
+      current?.id ?? null,
       current === null
         ? {
             name: studioFolderName(props.cwd),
@@ -144,6 +146,8 @@ function BriefSheet(props: {
           }
         : { ...current.project, brief: draft },
     );
+    setSaving(false);
+    if (saved === null) return;
     props.onSaved(draft);
     props.onOpenChange(false);
     toastManager.add({
@@ -311,8 +315,8 @@ function BriefSheet(props: {
           <Button variant="outline" size="sm" onClick={() => props.onOpenChange(false)}>
             Cancel
           </Button>
-          <Button size="sm" onClick={save} disabled={!canWrite}>
-            Save brief
+          <Button size="sm" onClick={() => void save()} disabled={!canWrite || saving}>
+            {saving ? "Saving..." : "Save brief"}
           </Button>
         </DialogFooter>
       </DialogPopup>
