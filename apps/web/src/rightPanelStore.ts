@@ -158,7 +158,7 @@ interface RightPanelStoreState {
     ref: ScopedThreadRef,
     surface: Extract<
       RightPanelSurface,
-      { kind: "diff" | "pull-request" | "pull-requests" | "plugin-app" }
+      { kind: "diff" | "pull-request" | "pull-requests" | "plugin-app" | "file" }
     >,
     expectedUserActionRevision: number,
   ) => boolean;

@@ -7,10 +7,9 @@ import { useFilesystemReadAccess } from "~/state/filesystem";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
-import { HARDWARE_FOCUS } from "./hardwareActions";
 import { PartActions } from "./PartActions";
 import { describePart, fileName } from "./partContext";
-import { WORKBENCH_LAYOUT } from "./workbenchLayout";
+import { useEngineeringInterface } from "./studioInterface";
 
 /** How many of the project's parts a new thread lists, most recently used first. */
 const SHOWN = 8;
@@ -63,16 +62,15 @@ function useSearch(environmentId: EnvironmentId, cwd: string, query: string, ena
 /**
  * A new thread starts from a part: the project's CAD files, and once one is
  * picked, the jobs it takes (Check, Make, Document) naming it by its path.
- * Hardware focus only.
+ * In the engineering interface only.
  */
 export function ProjectParts(props: {
   readonly environmentId: EnvironmentId | null;
   readonly cwd: string | null;
   readonly composerRef: ComposerHandleRef;
 }) {
-  if (!WORKBENCH_LAYOUT || !HARDWARE_FOCUS || props.environmentId === null || props.cwd === null) {
-    return null;
-  }
+  const engineering = useEngineeringInterface();
+  if (!engineering || props.environmentId === null || props.cwd === null) return null;
   return (
     <ProjectPartList
       environmentId={props.environmentId}
@@ -132,30 +130,44 @@ function ProjectPartList(props: {
   }
 
   return (
-    <section className="pointer-events-auto mt-5" aria-label="Parts in this project">
-      <h2 className="mb-1 px-2 text-xs text-muted-foreground">Start from a part</h2>
-      <ul className="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+    <section className="pointer-events-auto mt-6 text-left" aria-label="Parts in this project">
+      <h2 className="mb-1.5 px-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+        Parts in this project
+      </h2>
+      <div role="table" className="border-t border-border">
+        <div
+          role="row"
+          className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)] gap-3 border-b border-border px-2 py-1 text-2xs tracking-widest text-muted-foreground/80 uppercase"
+        >
+          <span role="columnheader">Name</span>
+          <span role="columnheader">Type</span>
+          <span role="columnheader">Folder</span>
+        </div>
         {parts.map((path) => {
           const { name, kind } = describePart(path, null);
           const folder = folderOf(path);
           return (
-            <li key={path} className="min-w-0">
-              <button
-                type="button"
-                onClick={() => setPicked(path)}
-                className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-              >
+            <button
+              key={path}
+              type="button"
+              role="row"
+              onClick={() => setPicked(path)}
+              className="grid h-8 w-full grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 border-b border-border px-2 text-left text-xs text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <span role="cell" className="flex min-w-0 items-center gap-2">
                 <PartIcon kind={kind} />
-                <span className="shrink-0 font-medium text-foreground">{name}</span>
-                <span className="shrink-0">{kind}</span>
-                {folder === "" ? null : (
-                  <span className="min-w-0 truncate text-muted-foreground/70">{folder}</span>
-                )}
-              </button>
-            </li>
+                <span className="truncate font-medium text-foreground">{name}</span>
+              </span>
+              <span role="cell" className="truncate">
+                {kind}
+              </span>
+              <span role="cell" className="truncate text-muted-foreground/70">
+                {folder}
+              </span>
+            </button>
           );
         })}
-      </ul>
+      </div>
     </section>
   );
 }

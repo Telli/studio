@@ -617,6 +617,8 @@ import { usePluginFollow } from "./plugins/usePluginFollow";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { ProjectParts } from "./workbench/ProjectParts";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
+import { useEngineeringInterface } from "./workbench/studioInterface";
+import { useDocumentFollow } from "./workbench/useDocumentFollow";
 import { useWorkbenchViewer } from "./workbench/useWorkbenchViewer";
 import { addViewContextToComposer } from "./workbench/viewContext";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
@@ -5906,6 +5908,14 @@ export default function ChatView(props: ChatViewProps) {
     enabled: WORKBENCH_LAYOUT,
     environmentId,
     threadRef: isServerThread ? activeThreadRef : null,
+  });
+  const engineeringInterface = useEngineeringInterface();
+  useDocumentFollow({
+    threadRef: isServerThread ? activeThreadRef : null,
+    threadKey: activeThreadKey,
+    runningRunId: activeRunningTurnId,
+    items: serverVisibleTurnItems,
+    workspaceRoot: gitCwd,
   });
   const closePreviewPanel = useCallback(() => {
     if (activeThreadRef) {
@@ -12076,7 +12086,8 @@ export default function ChatView(props: ChatViewProps) {
               </AlertDialogPopup>
             </AlertDialog>
 
-            <ThreadDetailsPanel {...threadDetailsPanelProps} />
+            {/* Only workspace and version control: the engineering interface leaves it out. */}
+            {engineeringInterface ? null : <ThreadDetailsPanel {...threadDetailsPanelProps} />}
 
             {pullRequestDialogState ? (
               <PullRequestThreadDialog

@@ -27,7 +27,7 @@ export interface Brand {
   readonly splashLogoUrl: string | null;
   /** `"workbench"`: the right panel is the main surface and the chat docks beside it. */
   readonly layout: "workbench" | null;
-  /** `"hardware"`: hardware first, code second (`components/workbench/hardwareFocus.ts`). */
+  /** `"hardware"`: offers the engineering interface, the default (`components/workbench/studioInterface.ts`). */
   readonly focus: "hardware" | null;
   /** A new thread's starters, in place of the plugins' own (`components/plugins/brandStarters.ts`). */
   readonly starters: ReadonlyArray<BrandStarter>;
@@ -115,6 +115,10 @@ export function brandHtml(html: string, brand: Brand): string {
   }
   if (brand.css !== null) {
     out = out.replace("</head>", `<style data-brand>${brand.css}</style></head>`);
+  }
+  if (brand.focus !== null) {
+    // `theme.css` keys its quieter, hardware-first chrome on this.
+    out = out.replace('<html lang="en">', `<html lang="en" data-studio-focus="${brand.focus}">`);
   }
   return out;
 }

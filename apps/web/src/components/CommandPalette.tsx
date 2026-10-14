@@ -236,6 +236,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./u
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { ComposerHandleContext, useComposerHandleContext } from "../composerHandleContext";
+import { studioInterfaceCommand } from "./workbench/studioInterface";
 import type { ChatComposerHandle } from "./chat/ChatComposer";
 import { getProjectOrderKey, selectProjectGroupingSettings } from "../logicalProject";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
@@ -2255,6 +2256,18 @@ function OpenCommandPaletteDialog(props: {
       await navigate({ to: "/settings/plugins" });
     },
   });
+
+  const interfaceCommand = studioInterfaceCommand();
+  if (interfaceCommand) {
+    actionItems.push({
+      kind: "action",
+      value: "action:studio-interface",
+      searchTerms: [...interfaceCommand.searchTerms],
+      title: interfaceCommand.title,
+      icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
+      run: async () => interfaceCommand.run(),
+    });
+  }
 
   // Target the active thread or draft's project, falling back to the first sidebar group.
   const contextualProjectGroup =

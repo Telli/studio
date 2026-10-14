@@ -1,4 +1,7 @@
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
+import { engineeringGroupLabel, engineeringStepLabel } from "../workbench/engineeringLabels";
+import { isEngineeringInterface } from "../workbench/studioInterface";
+
 export { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { isLiveSubagentTurnItem } from "@t3tools/client-runtime/state/subagentRuntime";
 import * as DateTime from "effect/DateTime";
@@ -92,6 +95,10 @@ function workEntryIsActiveTurnActivity(entry: WorkLogEntry): boolean {
   );
 }
 
+/** A group's summary, in an engineer's words in the engineering interface. */
+const engineeringSummary = (summary: string) =>
+  isEngineeringInterface() ? engineeringGroupLabel(summary) : summary;
+
 function singleToolCallLabel(entry: WorkLogEntry): string {
   if (entry.itemType === "reasoning") return entry.detail?.trim().replace(/\s+/g, " ") || "Thought";
   const toolPresentation = resolveWorkEntryToolPresentation(entry, "completed");
@@ -138,7 +145,12 @@ export function workEntryDisplayLabel(entry: WorkLogEntry, workspaceRoot: string
   }
   const toolPresentation = resolveWorkEntryToolPresentation(entry);
   if (toolPresentation) return toolPresentation.displayName;
-  if (entry.command?.trim()) return commandDisplayText(entry.command);
+  if (entry.command?.trim()) {
+    // The engineering interface says what a command did to the design, not the command line.
+    return isEngineeringInterface()
+      ? engineeringStepLabel(entry.command).done
+      : commandDisplayText(entry.command);
+  }
   const action = toolGroupAction(entry);
   if (action === "code-search" || action === "search") {
     // Adapters title file searches with their target; the item keeps only the pattern.
@@ -258,6 +270,14 @@ export function liveWorkEntryLabel(
   });
   if (toolPresentation) return toolPresentation.displayName;
   const command = entry.command?.trim();
+  if (command && isEngineeringInterface()) {
+    const step = engineeringStepLabel(command);
+    return status === "inProgress"
+      ? step.doing
+      : status === "completed" || status === null || status === undefined
+        ? step.done
+        : `${step.done} (${status})`;
+  }
   if (command) {
     const verb =
       status === "inProgress"
@@ -1733,7 +1753,7 @@ export function deriveMessagesTimelineRows(input: {
             isExpandedToolGroup: false,
             displayLabel:
               toolGroupAction(singleEntry) === "edit"
-                ? summarizeToolGroup(visibleGroupedEntries).summary
+                ? engineeringSummary(summarizeToolGroup(visibleGroupedEntries).summary)
                 : singleToolCallLabel(singleEntry),
           });
         } else {
@@ -1778,7 +1798,7 @@ export function deriveMessagesTimelineRows(input: {
               ? singleToolCallLabel(singleEntry)
               : singleEntry !== null && !workLogEntryIsToolLike(singleEntry)
                 ? singleEntry.label
-                : summarizeToolGroup(visibleGroupedEntries).summary,
+                : engineeringSummary(summarizeToolGroup(visibleGroupedEntries).summary),
             summaryKind,
             ...(groupToolSurface ? { toolSurface: groupToolSurface } : {}),
             ...(groupToolIcon ? { toolIcon: groupToolIcon } : {}),

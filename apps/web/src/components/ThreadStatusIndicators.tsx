@@ -296,6 +296,7 @@ function PullRequestBadge({
     props: {
       render: element,
       "aria-label": presentation.label,
+      "data-pull-request-badge": "",
       onPointerDown: (event: MouseEvent<HTMLElement>) => event.stopPropagation(),
       onClick,
     },
@@ -1011,6 +1012,7 @@ export function ThreadRowLeadingStatus({
             render={
               <span
                 aria-label={prStatus.tooltip}
+                data-pull-request-badge=""
                 className={`inline-flex items-center justify-center ${prStatus.colorClass}`}
               />
             }

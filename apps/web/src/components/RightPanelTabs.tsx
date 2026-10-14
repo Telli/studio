@@ -96,6 +96,7 @@ import { PierreEntryIcon } from "./chat/PierreEntryIcon";
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { observeResize } from "~/lib/observeResize";
+import { CODE_SURFACE_LABELS, useEngineeringInterface } from "./workbench/studioInterface";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
 
 interface RightPanelTabsProps {
@@ -356,6 +357,7 @@ function RightPanelEmptyState(props: {
 }) {
   // -1 means no highlight: it only appears on hover or arrow use.
   const [highlight, setHighlight] = useState(-1);
+  const engineering = useEngineeringInterface();
 
   const actions = [
     {
@@ -419,7 +421,10 @@ function RightPanelEmptyState(props: {
 
   type SurfaceAction = (typeof actions)[number];
 
-  const availableActions = actions.filter((action) => action.available);
+  // The engineering interface offers no coding surfaces (`workbench/studioInterface.ts`).
+  const availableActions = actions.filter(
+    (action) => action.available && !(engineering && CODE_SURFACE_LABELS.has(action.label)),
+  );
   const highlightIndex =
     availableActions.length === 0 ? -1 : Math.min(highlight, availableActions.length - 1);
 

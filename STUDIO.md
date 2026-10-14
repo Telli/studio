@@ -60,6 +60,15 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
 A branch on top of `amy/hardware` for people who know hardware before code: `brand.json`
 `"focus": "hardware"`. `amy/hardware` stays the base text-to-cad pins; this one rebases onto it.
 
+Its interface is a setting, Engineering or Code (Settings, Appearance, Interface; or "Switch to the
+code interface" in the command palette), Engineering by default, per device. Engineering puts every
+coding tool away (version control, editors, terminals, scripts, branches, pull requests, diffs), says
+what the agent's steps did to the design ("FEA study on bracket.step", "Built bracket") instead of
+the command lines, and reads like a shop drawing: a title block over the viewer with the part's
+type, units, material and build, and documents the agent writes (plans, reports) opening beside the
+thread as documents with a title block of their own. Code shows T3 Code's surfaces as they are.
+`<html data-studio-focus>` carries the choice for `brand/theme.css`.
+
 - **Point, then ask.** What the viewer adds to the chat (Quick Edit's references, a picture of the
   view) lands in the composer, to read and edit before it goes. The viewer is then told the
   context was taken, so the next addition carries only what is new.

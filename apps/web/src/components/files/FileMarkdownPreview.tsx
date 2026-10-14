@@ -1,6 +1,7 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 
 import ChatMarkdown from "~/components/ChatMarkdown";
+import { DocumentHeader } from "~/components/workbench/DocumentHeader";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 
 export function FileMarkdownPreview(props: {
@@ -22,13 +23,18 @@ export function FileMarkdownPreview(props: {
       : props.cwd;
 
   return (
-    <ChatMarkdown
-      text={props.text}
-      cwd={props.cwd}
-      imageBaseDir={imageBaseDir}
-      threadRef={props.threadRef}
-      className="mx-auto max-w-4xl px-6 py-5"
-      onTaskListChange={props.onTaskListChange}
-    />
+    <>
+      <DocumentHeader text={props.text} relativePath={props.relativePath} />
+      <div data-document="">
+        <ChatMarkdown
+          text={props.text}
+          cwd={props.cwd}
+          imageBaseDir={imageBaseDir}
+          threadRef={props.threadRef}
+          className="mx-auto max-w-4xl px-6 py-5"
+          onTaskListChange={props.onTaskListChange}
+        />
+      </div>
+    </>
   );
 }

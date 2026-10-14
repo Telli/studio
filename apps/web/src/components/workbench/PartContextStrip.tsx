@@ -7,28 +7,13 @@ import { useMemo } from "react";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
 import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelStore";
-import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { fileName, type PartBuild, type PartContext } from "./partContext";
-import { HARDWARE_FOCUS } from "./hardwareActions";
+import { fileName, type PartContext } from "./partContext";
+import { buildLabel, materialLabel } from "./partLabels";
 import { PartActions } from "./PartActions";
+import { useEngineeringInterface } from "./studioInterface";
 import { usePartContext } from "./usePartContext";
 import { WORKBENCH_LAYOUT } from "./workbenchLayout";
-
-function buildLabel(build: PartBuild | null): { text: string; failed: boolean } | null {
-  if (build === null) return null;
-  switch (build.state) {
-    case "building":
-      return { text: "Building", failed: false };
-    case "failed":
-      return { text: "Build failed", failed: true };
-    case "built":
-    case "saved": {
-      const ago = formatRelativeTimeLabel(new Date(build.at).toISOString());
-      return { text: `${build.state === "built" ? "Built" : "Saved"} ${ago}`, failed: false };
-    }
-  }
-}
 
 /** The facts after the name: kind, units, material, last build. */
 export function partFacts(part: PartContext) {
@@ -39,17 +24,9 @@ export function partFacts(part: PartContext) {
   }> = [{ id: "kind", text: part.kind, tone: "muted" }];
   if (part.units !== null) facts.push({ id: "units", text: part.units, tone: "muted" });
   // Unread yet: said nothing about, rather than "No material".
-  if (part.materials !== null) {
-    const [first, ...rest] = part.materials;
-    facts.push(
-      first === undefined
-        ? { id: "material", text: "No material", tone: "faint" }
-        : {
-            id: "material",
-            text: rest.length === 0 ? first : `${first} and ${rest.length} more`,
-            tone: "muted",
-          },
-    );
+  const material = materialLabel(part.materials);
+  if (material !== null) {
+    facts.push({ id: "material", text: material.text, tone: material.missing ? "faint" : "muted" });
   }
   const build = buildLabel(part.build);
   if (build !== null) {
@@ -68,7 +45,7 @@ export function partFacts(part: PartContext) {
  */
 export function PartContextStrip(props: {
   readonly threadRef: ScopedThreadRef | null;
-  /** Where the hardware focus's Check, Make and Document write their jobs. */
+  /** Where the engineering interface's Check, Make and Document write their jobs. */
   readonly composerRef: ComposerHandleRef;
 }) {
   if (!WORKBENCH_LAYOUT || props.threadRef === null) return null;
@@ -92,10 +69,13 @@ function ThreadPartContext(props: {
     );
     return views.find((surface) => surface.id === panel.activeSurfaceId) ?? views[0] ?? null;
   }, [panel, shown]);
+  const engineering = useEngineeringInterface();
   // Re-reads "Built 3m ago" each minute.
   useNowMinute();
-  // A viewer the user closed takes its context with it.
+  // A viewer the user closed takes its context with it. In the engineering interface, the title block
+  // over the viewer says all of this while the viewer is on screen.
   if (shown === null || view === null) return null;
+  if (engineering && panel.isOpen && panel.activeSurfaceId === view.id) return null;
   const { part } = shown;
   const facts = partFacts(part);
   const failure = part.build?.state === "failed" ? part.build.error : null;
@@ -144,7 +124,7 @@ function ThreadPartContext(props: {
           {failure === null ? null : <span className="mt-1 block text-destructive">{failure}</span>}
         </TooltipPopup>
       </Tooltip>
-      {HARDWARE_FOCUS ? (
+      {engineering ? (
         <PartActions
           environmentId={threadRef.environmentId}
           file={fileName(part.path)}
