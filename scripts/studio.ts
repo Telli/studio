@@ -10,6 +10,9 @@
  * - keeps its state in `~/.text-to-cad-studio`, never in T3 Code's own home.
  *
  * TEXT_TO_CAD_ROOT points at another checkout; TEXT_TO_CAD_STUDIO_HOME moves the state.
+ * TEXT_TO_CAD_DEV=1 runs the checkout's working copy instead of the released cadgen: its
+ * development plugin (scripts/studio-dev-plugin.py), with state of its own in
+ * `~/.text-to-cad-studio-dev`, so it never mixes with a release's installs.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
@@ -32,9 +35,28 @@ if (mode !== "dev" && mode !== "dev:desktop") {
   process.stderr.write(`Usage: node scripts/studio.ts [dev|dev:desktop]\n`);
   process.exit(1);
 }
+const dev = process.env.TEXT_TO_CAD_DEV?.trim() === "1";
+// The checkout's development plugin: its skills and server on its .venv, its page built fresh.
+let marketplace = checkout;
+if (dev) {
+  process.stderr.write(`Building the development plugin from ${checkout}...\n`);
+  const built = NodeChildProcess.spawnSync(
+    "python3",
+    [NodePath.join(appRoot, "scripts", "studio-dev-plugin.py"), checkout],
+    {
+      cwd: appRoot,
+      stdio: ["ignore", "pipe", "inherit"],
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  );
+  const folder = built.stdout.trim().split("\n").at(-1) ?? "";
+  if (built.status !== 0 || folder === "") process.exit(built.status || 1);
+  marketplace = folder;
+}
 const home =
   process.env.TEXT_TO_CAD_STUDIO_HOME?.trim() ||
-  NodePath.join(NodeOS.homedir(), ".text-to-cad-studio");
+  NodePath.join(NodeOS.homedir(), dev ? ".text-to-cad-studio-dev" : ".text-to-cad-studio");
 // text-to-cad's name, mark, icons and accent (brand/README.md).
 const brandDir = NodePath.join(appRoot, "brand");
 const brand = JSON.parse(NodeFS.readFileSync(NodePath.join(brandDir, "brand.json"), "utf8"));
@@ -53,7 +75,7 @@ const run = NodeChildProcess.spawnSync(
     stdio: "inherit",
     env: {
       ...process.env,
-      T3CODE_PLUGIN_MARKETPLACE: checkout,
+      T3CODE_PLUGIN_MARKETPLACE: marketplace,
       T3CODE_DEFAULT_PLUGINS: "text-to-cad",
       VITE_APP_BASE_NAME: brand.name,
       T3CODE_BRAND_DIR: brandDir,

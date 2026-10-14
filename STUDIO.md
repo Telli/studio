@@ -70,6 +70,11 @@ A branch on top of `amy/hardware` for people who know hardware before code: `bra
   naming the part, into the composer.
 - **Start from a part.** A new thread lists the project's CAD files (a mesh exported beside its
   STEP counts once); picking one offers the same three menus for it.
+- **A checkout's working copy.** `TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs the checkout's own
+  cadgen instead of the release, so branch work (FEA, CAM, KiCad) reaches Studio: the launcher
+  builds the development plugin with the checkout's `scripts/install/dev_install.py`
+  (`scripts/studio-dev-plugin.py`) and keeps its state in `~/.text-to-cad-studio-dev`. The
+  checkout needs its `.venv` (with the `fea` extra), `npm ci` and `scripts/bundle/bundle.sh`.
 
 One command takes in a new T3 Code: from the fork's `main` checkout,
 `scripts/sync-upstream.sh --push` rebases `main` and `amy/plugins` onto upstream, and
