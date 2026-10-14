@@ -73,6 +73,12 @@ MIRRORS: dict[str, tuple[str, str]] = {
     "fea solve": ("cadgen.fea", "solve"),
     "cam features": ("cadgen.cam", "features"),
     "cam plan": ("cadgen.cam", "plan"),
+    "pcb validate": ("cadgen.pcb", "validate"),
+    "pcb review": ("cadgen.pcb", "review"),
+    "pcb gerber": ("cadgen.pcb", "gerber"),
+    "pcb bom": ("cadgen.pcb", "bom"),
+    "pcb pos": ("cadgen.pcb", "pos"),
+    "harness bom": ("cadgen.harness", "bom"),
     # Snapshot was the schema's LAST adapter. Its rich options are typed
     # `str | dict | None` — one string CLI-side, a real dict library-side — so
     # there is nothing left to declare: the structural check below is the whole
@@ -83,6 +89,8 @@ MIRRORS: dict[str, tuple[str, str]] = {
     "3mf snapshot": ("cadgen.threemf", "snapshot"),
     "glb snapshot": ("cadgen.glb", "snapshot"),
     "dxf snapshot": ("cadgen.dxf", "snapshot"),
+    "pcb snapshot": ("cadgen.pcb", "snapshot"),
+    "harness snapshot": ("cadgen.harness", "snapshot"),
     "urdf snapshot": ("cadgen.urdf", "snapshot"),
     "sdf snapshot": ("cadgen.sdf", "snapshot"),
     # The polymorphic door's verb has no format namespace to live on: there is
