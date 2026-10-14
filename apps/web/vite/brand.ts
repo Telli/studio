@@ -27,6 +27,8 @@ export interface Brand {
   readonly splashLogoUrl: string | null;
   /** `"workbench"`: the right panel is the main surface and the chat docks beside it. */
   readonly layout: "workbench" | null;
+  /** `"hardware"`: hardware first, code second (`components/workbench/hardwareFocus.ts`). */
+  readonly focus: "hardware" | null;
   /** A new thread's starters, in place of the plugins' own (`components/plugins/brandStarters.ts`). */
   readonly starters: ReadonlyArray<BrandStarter>;
 }
@@ -86,6 +88,7 @@ export function readBrand(dir: string | undefined): Brand | null {
     splashLogoUrl:
       splashLogo === null ? null : `data:image/svg+xml;base64,${splashLogo.toString("base64")}`,
     layout: raw.layout === "workbench" ? "workbench" : null,
+    focus: raw.focus === "hardware" ? "hardware" : null,
     starters: readStarters(raw.starters),
   };
 }
@@ -131,6 +134,7 @@ export function brandPlugin(dir = process.env.T3CODE_BRAND_DIR?.trim()): Plugin 
       define: {
         "import.meta.env.VITE_APP_MARK_URL": JSON.stringify(brand.markUrl ?? ""),
         "import.meta.env.VITE_APP_LAYOUT": JSON.stringify(brand.layout ?? ""),
+        "import.meta.env.VITE_APP_FOCUS": JSON.stringify(brand.focus ?? ""),
         "import.meta.env.VITE_APP_STARTERS": JSON.stringify(JSON.stringify(brand.starters)),
       },
     }),

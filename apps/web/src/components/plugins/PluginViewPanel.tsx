@@ -9,6 +9,7 @@ export default function PluginViewPanel(props: {
   readonly threadId: ThreadId;
   readonly surface: PluginAppSurface;
   readonly onSendMessage?: ((text: string) => Promise<void>) | undefined;
+  readonly onAddContext?: ((content: ReadonlyArray<unknown>) => void) | undefined;
 }) {
   const { surface } = props;
   return (
@@ -26,6 +27,7 @@ export default function PluginViewPanel(props: {
         ...(surface.file === undefined ? {} : { file: surface.file }),
       }}
       onSendMessage={props.onSendMessage}
+      onAddContext={props.onAddContext}
     />
   );
 }

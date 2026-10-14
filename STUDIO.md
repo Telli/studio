@@ -55,7 +55,21 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
   its small stage pill. Other mentions of T3 Code stay: they describe T3's own machinery (T3
   Connect, its desktop updates), and rewording them would make every rebase conflict.
 
-## Updating
+## Hardware first (`amy/hardware-first`)
+
+A branch on top of `amy/hardware` for people who know hardware before code: `brand.json`
+`"focus": "hardware"`. `amy/hardware` stays the base text-to-cad pins; this one rebases onto it.
+
+- **Point, then ask.** What the viewer adds to the chat (Quick Edit's references, a picture of the
+  view) lands in the composer, to read and edit before it goes. The viewer is then told the
+  context was taken, so the next addition carries only what is new.
+- **Check, Make, Document.** Beside the part's name, the jobs its kind takes: strength under load,
+  CNC, sheet metal, molding, 3D printing, board fab checks; G-code for grbl, slicing, a Bambu
+  print, cut-ready DXF, a SendCutSend order, routing; drawings, standard parts, exports, URDF.
+  Each needs its text-to-cad skill (`components/workbench/hardwareActions.ts`) and writes the job,
+  naming the part, into the composer.
+- **Start from a part.** A new thread lists the project's CAD files (a mesh exported beside its
+  STEP counts once); picking one offers the same three menus for it.
 
 One command takes in a new T3 Code: from the fork's `main` checkout,
 `scripts/sync-upstream.sh --push` rebases `main` and `amy/plugins` onto upstream, and

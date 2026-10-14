@@ -42,7 +42,8 @@ export interface PartContext {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const baseName = (path: string) =>
+/** A path's last segment, on either separator. */
+export const fileName = (path: string) =>
   path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1) || path;
 
 /**
@@ -77,7 +78,7 @@ export function describePart(
   path: string,
   catalogKind: string | null,
 ): Pick<PartContext, "name" | "kind" | "units"> {
-  const file = baseName(path);
+  const file = fileName(path);
   const lower = file.toLowerCase();
   const match = KINDS.find((entry) => lower.endsWith(entry.ending) && lower !== entry.ending);
   if (match === undefined) return { name: file, kind: "File", units: null };

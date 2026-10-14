@@ -41,6 +41,8 @@ describe("brand plugin", () => {
   it("lays Studio out as a workbench and gives it hardware starters", () => {
     const brand = readBrand(studioBrand)!;
     expect(brand.layout).toBe("workbench");
+    // This branch is hardware first: Check, Make and Document, point then ask, start from a part.
+    expect(brand.focus).toBe("hardware");
     expect(brand.starters.map((starter) => starter.prompt)).toContain("Route this board");
     // Every starter names the text-to-cad skill it needs, so none is offered without it.
     expect(brand.starters.every((starter) => starter.skill !== null)).toBe(true);

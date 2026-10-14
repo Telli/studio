@@ -6,6 +6,7 @@
     "darkBackground": "#2b2b2b"
   },
   "layout": "workbench",
+  "focus": "hardware",
   "starters": [
     { "prompt": "Check this bracket under load", "skill": "fea" },
     { "prompt": "Route this board", "skill": "pcb" },

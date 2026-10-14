@@ -10,6 +10,7 @@ interface ImportMetaEnv {
   readonly VITE_APP_BASE_NAME: string;
   readonly VITE_APP_MARK_URL: string;
   readonly VITE_APP_LAYOUT: string;
+  readonly VITE_APP_FOCUS: string;
   /** JSON: the brand's starters (`vite/brand.ts`). */
   readonly VITE_APP_STARTERS: string;
   readonly VITE_CLERK_PUBLISHABLE_KEY: string;

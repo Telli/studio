@@ -86,6 +86,11 @@ export function PluginViewFrame(props: {
   readonly target: PluginViewTarget;
   /** Sends text to the thread as the user, after the user approves it. */
   readonly onSendMessage?: ((text: string) => Promise<void>) | undefined;
+  /**
+   * Takes what the view adds to the chat (`ui/update-model-context`, the CAD
+   * viewer's "Add to chat") into the composer; without it the view is told no.
+   */
+  readonly onAddContext?: ((content: ReadonlyArray<unknown>) => void) | undefined;
 }) {
   const { target } = props;
   const theme = useHtmlRenderTheme();
@@ -194,6 +199,9 @@ export function PluginViewFrame(props: {
     latest.current = live;
   });
   const hostRef = useRef<McpAppHost | null>(null);
+  // `openai/modelContext` as the view last heard it. The view keeps what it added and
+  // resends all of it until the host says the context is gone (null), as a sent message does.
+  const modelContext = useRef<{ readonly taken: number } | null>(null);
 
   useEffect(() => {
     if (frame === null || document_ === null) return;
@@ -216,7 +224,8 @@ export function PluginViewFrame(props: {
           hover: window.matchMedia("(hover: hover)").matches,
         },
         safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
-      };
+        "openai/modelContext": modelContext.current,
+      } as McpAppHostContext;
     };
     const call = async (
       method: "tools/call" | "resources/read",
@@ -288,8 +297,23 @@ export function PluginViewFrame(props: {
         await ask(`Send this message from ${latest.current.props.target.title}?\n${text}`);
         await send(text);
       },
-      updateModelContext: async () => {
-        throw new McpAppHostRefusal("Plugin views cannot add model context yet.");
+      updateModelContext: async (context) => {
+        const add = latest.current.props.onAddContext;
+        if (add === undefined) {
+          throw new McpAppHostRefusal("Plugin views cannot add model context here.");
+        }
+        const content = context.content ?? [];
+        if (content.length === 0) return;
+        add(content);
+        // Taken into the composer, so the context is spent: once this answer has gone, tell
+        // the view (a change to null) so its next addition carries only what is new.
+        const taken = (modelContext.current?.taken ?? 0) + 1;
+        setTimeout(() => {
+          modelContext.current = { taken };
+          hostRef.current?.updateHostContext();
+          modelContext.current = null;
+          hostRef.current?.updateHostContext();
+        }, 0);
       },
       requestDisplayMode: async () => "inline",
       downloadFile: async (files) => {

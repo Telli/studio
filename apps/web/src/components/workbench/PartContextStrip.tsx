@@ -1,4 +1,6 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
+
+import type { ComposerHandleRef } from "~/composerHandleContext";
 import { BoxIcon } from "lucide-react";
 import { useMemo } from "react";
 
@@ -7,7 +9,9 @@ import { cn } from "~/lib/utils";
 import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelStore";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import type { PartBuild, PartContext } from "./partContext";
+import { fileName, type PartBuild, type PartContext } from "./partContext";
+import { HARDWARE_FOCUS } from "./hardwareActions";
+import { PartActions } from "./PartActions";
 import { usePartContext } from "./usePartContext";
 import { WORKBENCH_LAYOUT } from "./workbenchLayout";
 
@@ -62,12 +66,19 @@ export function partFacts(part: PartContext) {
  * the viewer's tab takes it away. Workbench layout only; `threadRef` is null
  * for a draft.
  */
-export function PartContextStrip(props: { readonly threadRef: ScopedThreadRef | null }) {
+export function PartContextStrip(props: {
+  readonly threadRef: ScopedThreadRef | null;
+  /** Where the hardware focus's Check, Make and Document write their jobs. */
+  readonly composerRef: ComposerHandleRef;
+}) {
   if (!WORKBENCH_LAYOUT || props.threadRef === null) return null;
-  return <ThreadPartContext threadRef={props.threadRef} />;
+  return <ThreadPartContext threadRef={props.threadRef} composerRef={props.composerRef} />;
 }
 
-function ThreadPartContext(props: { readonly threadRef: ScopedThreadRef }) {
+function ThreadPartContext(props: {
+  readonly threadRef: ScopedThreadRef;
+  readonly composerRef: ComposerHandleRef;
+}) {
   const { threadRef } = props;
   const shown = usePartContext(threadRef);
   const panel = useRightPanelStore((state) =>
@@ -90,45 +101,57 @@ function ThreadPartContext(props: { readonly threadRef: ScopedThreadRef }) {
   const failure = part.build?.state === "failed" ? part.build.error : null;
 
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            data-part-context=""
-            aria-label={`Show ${part.name} in the viewer`}
-            onClick={() => useRightPanelStore.getState().activateSurface(threadRef, view.id)}
-            className="mb-1 flex h-7 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-          >
-            <BoxIcon className="size-3.5 shrink-0" aria-hidden="true" />
-            <span className="min-w-0 shrink truncate font-medium text-foreground">{part.name}</span>
-            <span className="flex min-w-0 shrink-[2] items-center gap-1.5 truncate">
-              {facts.map((fact, index) => (
-                <span key={fact.id} className="flex min-w-0 items-center gap-1.5">
-                  {index > 0 ? (
-                    <span aria-hidden="true" className="text-muted-foreground/50">
-                      ·
+    <div className="mb-1 flex min-w-0 items-center gap-1">
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              data-part-context=""
+              aria-label={`Show ${part.name} in the viewer`}
+              onClick={() => useRightPanelStore.getState().activateSurface(threadRef, view.id)}
+              className="flex h-7 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-xs text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <BoxIcon className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 shrink truncate font-medium text-foreground">
+                {part.name}
+              </span>
+              <span className="flex min-w-0 shrink-[2] items-center gap-1.5 truncate">
+                {facts.map((fact, index) => (
+                  <span key={fact.id} className="flex min-w-0 items-center gap-1.5">
+                    {index > 0 ? (
+                      <span aria-hidden="true" className="text-muted-foreground/50">
+                        ·
+                      </span>
+                    ) : null}
+                    <span
+                      className={cn(
+                        "truncate",
+                        fact.tone === "faint" && "text-muted-foreground/60",
+                        fact.tone === "error" && "text-destructive",
+                      )}
+                    >
+                      {fact.text}
                     </span>
-                  ) : null}
-                  <span
-                    className={cn(
-                      "truncate",
-                      fact.tone === "faint" && "text-muted-foreground/60",
-                      fact.tone === "error" && "text-destructive",
-                    )}
-                  >
-                    {fact.text}
                   </span>
-                </span>
-              ))}
-            </span>
-          </button>
-        }
-      />
-      <TooltipPopup side="top" className="max-w-96">
-        <span className="block break-all">{part.path}</span>
-        {failure === null ? null : <span className="mt-1 block text-destructive">{failure}</span>}
-      </TooltipPopup>
-    </Tooltip>
+                ))}
+              </span>
+            </button>
+          }
+        />
+        <TooltipPopup side="top" className="max-w-96">
+          <span className="block break-all">{part.path}</span>
+          {failure === null ? null : <span className="mt-1 block text-destructive">{failure}</span>}
+        </TooltipPopup>
+      </Tooltip>
+      {HARDWARE_FOCUS ? (
+        <PartActions
+          environmentId={threadRef.environmentId}
+          file={fileName(part.path)}
+          kind={part.kind}
+          composerRef={props.composerRef}
+        />
+      ) : null}
+    </div>
   );
 }

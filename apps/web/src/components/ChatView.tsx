@@ -615,8 +615,10 @@ import { PluginThreadViewMenuItems } from "./plugins/PluginThreadViewMenuItems";
 import { PluginStarterPrompts } from "./plugins/PluginStarterPrompts";
 import { usePluginFollow } from "./plugins/usePluginFollow";
 import { PartContextStrip } from "./workbench/PartContextStrip";
+import { ProjectParts } from "./workbench/ProjectParts";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
 import { useWorkbenchViewer } from "./workbench/useWorkbenchViewer";
+import { addViewContextToComposer } from "./workbench/viewContext";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
 
 const EMPTY_PROVIDERS: ServerProvider[] = [];
@@ -11244,6 +11246,7 @@ export default function ChatView(props: ChatViewProps) {
           threadId={activeThread.id}
           surface={renderedRightPanelSurface}
           onSendMessage={isServerThread ? sendAppMessage : undefined}
+          onAddContext={(content) => addViewContextToComposer(composerRef.current, content)}
         />
       </Suspense>
     ) : renderedRightPanelSurface?.kind === "pull-requests" && activeThreadRef ? (
@@ -11734,10 +11737,18 @@ export default function ChatView(props: ChatViewProps) {
                           environmentId={activeProjectRef?.environmentId ?? null}
                           composerRef={composerRef}
                         />
+                        <ProjectParts
+                          environmentId={activeProjectRef?.environmentId ?? null}
+                          cwd={gitCwd}
+                          composerRef={composerRef}
+                        />
                       </div>
                     </div>
                   ) : (
-                    <PartContextStrip threadRef={isServerThread ? activeThreadRef : null} />
+                    <PartContextStrip
+                      threadRef={isServerThread ? activeThreadRef : null}
+                      composerRef={composerRef}
+                    />
                   )}
                   <div
                     ref={draftHeroTransition.composerAnchorRef}
