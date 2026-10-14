@@ -235,6 +235,21 @@ export type PluginRequestInput = typeof PluginRequestInput.Type;
 export const PluginRequestResult = Schema.Struct({ result: Schema.Unknown });
 export type PluginRequestResult = typeof PluginRequestResult.Type;
 
+/** Pictures of a project's models, rendered by an enabled plugin that renders them (text-to-cad). */
+export const PluginModelPicturesInput = Schema.Struct({
+  /** The project's workspace root. */
+  cwd: Text(4096),
+  /** Workspace-relative files to picture. */
+  paths: Schema.Array(Text(1024)).check(Schema.isMaxLength(64)),
+});
+export type PluginModelPicturesInput = typeof PluginModelPicturesInput.Type;
+
+export const PluginModelPicturesResult = Schema.Struct({
+  /** A base64 PNG per path, null where there is none (gone, or it would not render). */
+  pictures: Schema.Array(Schema.Struct({ path: Schema.String, png: Schema.NullOr(Schema.String) })),
+});
+export type PluginModelPicturesResult = typeof PluginModelPicturesResult.Type;
+
 export const PluginOperationErrorReason = Schema.Literals([
   "not_found",
   "install_failed",

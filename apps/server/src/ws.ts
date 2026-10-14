@@ -2285,6 +2285,7 @@ const layerWsRpc = (
         [WS_METHODS.pluginsUpdate]: (input) => plugins.update(input.pluginId),
         [WS_METHODS.pluginsOpenView]: (input) => plugins.openView(input),
         [WS_METHODS.pluginsRequest]: (input) => plugins.request(input),
+        [WS_METHODS.pluginsModelPictures]: (input) => plugins.modelPictures(input),
         [WS_METHODS.providerUploadFeedback]: (input) =>
           Effect.gen(function* () {
             const projection = yield* threadManagement.getThreadRecords(input.threadId, [

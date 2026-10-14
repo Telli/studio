@@ -14,6 +14,8 @@ import {
   type PluginCatalogInput,
   type PluginCatalogResult,
   type PluginListResult,
+  type PluginModelPicturesInput,
+  type PluginModelPicturesResult,
   PluginOperationError,
   type PluginOpenViewInput,
   type PluginRequestInput,
@@ -37,9 +39,13 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import type * as Stream from "effect/Stream";
 
+import * as HostProcess from "@t3tools/shared/HostProcess";
+
+import * as ServerConfig from "../config.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as PluginFiles from "./pluginFiles.ts";
+import * as ModelPictures from "./modelPictures.ts";
 import * as PluginHost from "./PluginHost.ts";
 import * as PluginStore from "./PluginStore.ts";
 
@@ -87,6 +93,13 @@ export class PluginService extends Context.Service<
     readonly request: (
       input: PluginRequestInput,
     ) => Effect.Effect<PluginRequestResult, PluginOperationError>;
+    /**
+     * Pictures of a project's models, rendered by the first enabled plugin whose
+     * CAD server renders them (`modelPictures.ts`); none when no plugin does.
+     */
+    readonly modelPictures: (
+      input: PluginModelPicturesInput,
+    ) => Effect.Effect<PluginModelPicturesResult, PluginOperationError>;
     /** Every enabled plugin tool an agent may call, from the servers' last listing. */
     readonly agentTools: Effect.Effect<ReadonlyArray<AgentTool>>;
     /** Call a plugin tool for an agent in its thread's scope. Answers the server's `CallToolResult`. */
@@ -107,6 +120,32 @@ const make = Effect.gen(function* () {
   const projects = yield* ProjectStore.ProjectStoreV2;
   const path = yield* Path.Path;
   const scope = yield* Effect.scope;
+  const config = yield* ServerConfig.ServerConfig;
+  const environment = yield* HostProcess.Environment;
+
+  const modelPictures = (input: PluginModelPicturesInput) =>
+    Effect.gen(function* () {
+      const plugins = yield* store.enabledPlugins;
+      const launch =
+        plugins
+          .map((plugin) => ModelPictures.snapshotLaunch(plugin, environment))
+          .find((candidate) => candidate !== null) ?? null;
+      if (launch === null) {
+        return { pictures: input.paths.map((entry) => ({ path: entry, png: null })) };
+      }
+      const pictures = yield* Effect.tryPromise({
+        try: () =>
+          ModelPictures.renderModelPictures({
+            launch,
+            cwd: input.cwd,
+            paths: input.paths,
+            cacheDir: path.join(config.stateDir, "plugins", "pictures"),
+          }),
+        catch: (cause) =>
+          fail("request_failed", cause instanceof Error ? cause.message : "Rendering failed."),
+      });
+      return { pictures };
+    }).pipe(Effect.withSpan("PluginService.modelPictures"));
 
   /** The thread's workspace: its worktree, else its project's root. */
   const workspaceOf = (threadId: ThreadId) =>
@@ -291,6 +330,7 @@ const make = Effect.gen(function* () {
         ),
         Effect.map((result) => ({ result })),
       ),
+    modelPictures,
     agentTools,
     callAgentTool,
     changes: store.changes,

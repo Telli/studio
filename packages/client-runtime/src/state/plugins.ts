@@ -97,6 +97,10 @@ export function createPluginEnvironmentAtoms<R, E>(
       label: "environment-command:plugins:request",
       tag: WS_METHODS.pluginsRequest,
     }),
+    modelPictures: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:plugins:model-pictures",
+      tag: WS_METHODS.pluginsModelPictures,
+    }),
   };
 }
 

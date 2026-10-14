@@ -374,6 +374,8 @@ import {
   PluginIdInput,
   PluginInstallInput,
   PluginListResult,
+  PluginModelPicturesInput,
+  PluginModelPicturesResult,
   PluginOpenViewInput,
   PluginOperationError,
   PluginRequestInput,
@@ -508,6 +510,7 @@ export const WS_METHODS = {
   pluginsUpdate: "plugins.update",
   pluginsOpenView: "plugins.openView",
   pluginsRequest: "plugins.request",
+  pluginsModelPictures: "plugins.modelPictures",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
   serverPrepareAcpRegistryAgent: "server.prepareAcpRegistryAgent",
   serverUninstallAcpRegistryManagedBinary: "server.uninstallAcpRegistryManagedBinary",
@@ -849,6 +852,12 @@ const WsPluginsOpenViewRpc = Rpc.make(WS_METHODS.pluginsOpenView, {
 const WsPluginsRequestRpc = Rpc.make(WS_METHODS.pluginsRequest, {
   payload: PluginRequestInput,
   success: PluginRequestResult,
+  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+});
+
+const WsPluginsModelPicturesRpc = Rpc.make(WS_METHODS.pluginsModelPictures, {
+  payload: PluginModelPicturesInput,
+  success: PluginModelPicturesResult,
   error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
 });
 
@@ -1983,6 +1992,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsPluginsUpdateRpc,
   WsPluginsOpenViewRpc,
   WsPluginsRequestRpc,
+  WsPluginsModelPicturesRpc,
   WsServerSearchAcpRegistryRpc,
   WsServerPrepareAcpRegistryAgentRpc,
   WsServerUninstallAcpRegistryManagedBinaryRpc,

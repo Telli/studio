@@ -193,13 +193,3 @@ export async function readTunnelJson(result: unknown): Promise<unknown> {
       : new TextDecoder().decode(bytes);
   return JSON.parse(text) as unknown;
 }
-
-/** A `cad_http` reply's body as a data URL (a library picture), or null for any failure. */
-export function readTunnelDataUrl(result: unknown): string | null {
-  const reply = isRecord(result) ? result.structuredContent : null;
-  if (!isRecord(reply) || reply.status !== 200 || typeof reply.body !== "string") return null;
-  if (reply.encoding === "gzip" || reply.body === "") return null;
-  const headers = isRecord(reply.headers) ? reply.headers : {};
-  const type = typeof headers["content-type"] === "string" ? headers["content-type"] : "image/png";
-  return type.startsWith("image/") ? `data:${type.split(";")[0]};base64,${reply.body}` : null;
-}

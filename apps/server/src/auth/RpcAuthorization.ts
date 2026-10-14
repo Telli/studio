@@ -107,6 +107,7 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.pluginsUpdate]: AuthProvidersManageScope,
   [WS_METHODS.pluginsOpenView]: AuthOrchestrationOperateScope,
   [WS_METHODS.pluginsRequest]: AuthOrchestrationOperateScope,
+  [WS_METHODS.pluginsModelPictures]: AuthOrchestrationOperateScope,
   [WS_METHODS.serverGetTraceDiagnostics]: AuthDiagnosticsReadScope,
   [WS_METHODS.serverGetProcessDiagnostics]: AuthDiagnosticsReadScope,
   // Load-balancing new threads reads host load; that is part of operating

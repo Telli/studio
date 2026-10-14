@@ -1,4 +1,4 @@
-import { pluginFileHandlers, type PluginViewChoice } from "@t3tools/client-runtime/state/plugins";
+import { pluginFileHandlers } from "@t3tools/client-runtime/state/plugins";
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import {
   ActivityIcon,
@@ -31,7 +31,6 @@ import { Input } from "../ui/input";
 import { BRIEF_JSON, parseBrief } from "./briefFolder";
 import { NewDialog } from "./NewDialog";
 import { availableTemplates } from "./newTemplates";
-import { readTunnelDataUrl, readTunnelJson } from "./partContext";
 import { ProjectBriefRow } from "./ProjectBrief";
 import { groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
 
@@ -46,8 +45,15 @@ const GROUP_ICONS: Record<ProjectGroup, typeof BoxIcon> = {
   "Reference parts": PackageIcon,
   References: FileIcon,
 };
-/** Groups whose files the viewer has pictures of. */
-const PICTURED: ReadonlySet<ProjectGroup> = new Set(["Models", "Studies", "Reference parts"]);
+/** Groups whose files have pictures: everything the CAD plugin can render. */
+const PICTURED: ReadonlySet<ProjectGroup> = new Set([
+  "Models",
+  "Boards and wiring",
+  "Drawings",
+  "Studies",
+  "Manufacturing",
+  "Reference parts",
+]);
 /** A section shows this many before "Show all". */
 const FIRST = 8;
 const VIEW_KEY = "studio:project-view";
@@ -60,67 +66,57 @@ function readView(): "grid" | "list" {
   }
 }
 
-/** Pictures the viewer's library took, by workspace path; one fetch per page and picture. */
+/** Pictures by project and path, for the session: a page shown again draws at once. */
 const pictureCache = new Map<string, string | null>();
+/** The server renders at most this many pictures per call. */
+const BATCH = 24;
 
+/**
+ * Pictures of the project's models, boards and drawings, rendered on the
+ * server by the CAD plugin (`plugins.modelPictures`, cached there by file
+ * size and time), a batch at a time, the first files first.
+ */
 function usePictures(input: {
-  readonly threadRef: ScopedThreadRef;
+  readonly environmentId: EnvironmentId;
   readonly cwd: string;
-  readonly cad: PluginViewChoice | null;
   readonly paths: ReadonlyArray<string>;
 }): ReadonlyMap<string, string> {
-  const { threadRef, cwd, cad } = input;
-  const request = useAtomCommand(pluginEnvironment.request, { reportFailure: false });
-  const [pictures, setPictures] = useState<ReadonlyMap<string, string>>(new Map());
+  const { environmentId, cwd } = input;
+  const render = useAtomCommand(pluginEnvironment.modelPictures, { reportFailure: false });
+  const [, setRevision] = useState(0);
   const wanted = input.paths.join("\n");
 
   useEffect(() => {
-    if (cad === null || wanted === "") return;
+    if (wanted === "") return;
     let cancelled = false;
-    const route = async (url: string) => {
-      const result = await request({
-        environmentId: threadRef.environmentId,
-        input: {
-          threadId: threadRef.threadId,
-          pluginId: cad.pluginId,
-          server: cad.view.server,
-          method: "tools/call",
-          params: { name: "cad_http", arguments: { method: "GET", url } },
-        },
-      });
-      return result._tag === "Success" ? result.value.result : null;
-    };
+    const missing = wanted.split("\n").filter((path) => !pictureCache.has(`${cwd}\n${path}`));
     void (async () => {
-      const recents = await readTunnelJson(await route("/__cad/recents")).catch(() => null);
-      const list =
-        typeof recents === "object" && recents !== null && "recents" in recents
-          ? (recents as { recents: Array<{ path?: unknown; thumbnail?: unknown }> }).recents
-          : [];
-      const root = cwd.replace(/[\\/]+$/, "");
-      const found = new Map<string, string>();
-      for (const path of wanted.split("\n")) {
-        const absolute = `${root}/${path}`;
-        const entry = list.find((recent) => recent.path === absolute);
-        if (typeof entry?.thumbnail !== "string") continue;
-        const key = `${absolute}\n${entry.thumbnail}`;
-        if (!pictureCache.has(key)) {
+      for (let start = 0; start < missing.length; start += BATCH) {
+        if (cancelled) return;
+        const result = await render({
+          environmentId,
+          input: { cwd, paths: missing.slice(start, start + BATCH) },
+        });
+        if (result._tag !== "Success") return;
+        for (const picture of result.value.pictures) {
           pictureCache.set(
-            key,
-            readTunnelDataUrl(
-              await route(`/__cad/thumbnail?name=${encodeURIComponent(entry.thumbnail)}`),
-            ),
+            `${cwd}\n${picture.path}`,
+            picture.png === null ? null : `data:image/png;base64,${picture.png}`,
           );
         }
-        const picture = pictureCache.get(key);
-        if (picture) found.set(path, picture);
+        if (!cancelled) setRevision((value) => value + 1);
       }
-      if (!cancelled) setPictures(found);
     })();
     return () => {
       cancelled = true;
     };
-  }, [request, threadRef.environmentId, threadRef.threadId, cwd, cad, wanted]);
+  }, [render, environmentId, cwd, wanted]);
 
+  const pictures = new Map<string, string>();
+  for (const path of input.paths) {
+    const picture = pictureCache.get(`${cwd}\n${path}`);
+    if (picture) pictures.set(path, picture);
+  }
   return pictures;
 }
 
@@ -296,14 +292,9 @@ export function ProjectPage(props: {
     tab === "references" ? group === "References" : group !== "References",
   );
   const referenceCount = groups.find(({ group }) => group === "References")?.files.length ?? 0;
-  const cad = useMemo(
-    () => (plugins === undefined ? null : (pluginFileHandlers(plugins, "model.step")[0] ?? null)),
-    [plugins],
-  );
   const pictures = usePictures({
-    threadRef,
+    environmentId,
     cwd,
-    cad,
     paths: shown.flatMap(({ files }) =>
       files.filter((file) => PICTURED.has(file.group)).map((file) => file.path),
     ),
