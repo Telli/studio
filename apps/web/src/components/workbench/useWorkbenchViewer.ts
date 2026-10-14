@@ -7,6 +7,7 @@ import { useRightPanelStore } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { pluginAppSurface } from "../plugins/pluginSurfaces";
+import { isEngineeringInterface } from "./studioInterface";
 
 const OFFERED_STORAGE_KEY = "studio:viewer-offered";
 /** Threads remembered as offered their viewer; the oldest are forgotten past this. */
@@ -67,10 +68,11 @@ export function useWorkbenchViewer(input: {
     if (!offerOnce(threadKey)) return;
     const panels = useRightPanelStore.getState();
     if (threadKey in panels.byThreadKey) return;
-    panels.openProactive(
-      threadRef,
-      pluginAppSurface(choice),
-      panels.getUserActionRevision(threadRef),
-    );
+    const revision = panels.getUserActionRevision(threadRef);
+    // The engineering interface keeps the project page a tab away, the viewer in front.
+    if (isEngineeringInterface()) {
+      panels.openProactive(threadRef, { id: "files", kind: "files" }, revision);
+    }
+    panels.openProactive(threadRef, pluginAppSurface(choice), revision);
   }, [enabled, threadRef, plugins]);
 }

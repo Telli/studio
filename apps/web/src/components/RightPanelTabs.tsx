@@ -96,7 +96,11 @@ import { PierreEntryIcon } from "./chat/PierreEntryIcon";
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { observeResize } from "~/lib/observeResize";
-import { CODE_SURFACE_LABELS, useEngineeringInterface } from "./workbench/studioInterface";
+import {
+  CODE_SURFACE_LABELS,
+  isEngineeringInterface,
+  useEngineeringInterface,
+} from "./workbench/studioInterface";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
 
 interface RightPanelTabsProps {
@@ -614,7 +618,7 @@ function surfaceTitle(
     case "diff":
       return "Diff";
     case "files":
-      return "Files";
+      return isEngineeringInterface() ? "Project" : "Files";
     case "file":
       return surface.relativePath.slice(
         Math.max(surface.relativePath.lastIndexOf("/"), surface.relativePath.lastIndexOf("\\")) + 1,

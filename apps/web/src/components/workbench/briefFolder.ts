@@ -1,7 +1,8 @@
 /**
  * A project's brief: what Studio and the agent should know before any design
- * work, gathered once in a folder of its own. `brief/brief.json` holds the fields (so the form can
- * be edited again); `brief/project.md` is written from them for the agent;
+ * work, gathered once in a folder of its own. `brief/brief.json` holds the
+ * fields (so the form can be edited again); `brief/project.md` is written from
+ * them for the agent;
  * `brief/references/` holds the sketches, photos, datasheets and mating parts.
  * A pointer in AGENTS.md (Codex and most agents) and CLAUDE.md (Claude Code)
  * makes every agent read the brief on every turn.

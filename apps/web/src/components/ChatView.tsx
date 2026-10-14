@@ -615,6 +615,7 @@ import { PluginThreadViewMenuItems } from "./plugins/PluginThreadViewMenuItems";
 import { PluginStarterPrompts } from "./plugins/PluginStarterPrompts";
 import { usePluginFollow } from "./plugins/usePluginFollow";
 import { PartContextStrip } from "./workbench/PartContextStrip";
+import { ProjectPage } from "./workbench/ProjectPage";
 import { ProjectParts } from "./workbench/ProjectParts";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
 import { useEngineeringInterface } from "./workbench/studioInterface";
@@ -5911,10 +5912,12 @@ export default function ChatView(props: ChatViewProps) {
   });
   const engineeringInterface = useEngineeringInterface();
   useDocumentFollow({
+    environmentId,
     threadRef: isServerThread ? activeThreadRef : null,
     threadKey: activeThreadKey,
     runningRunId: activeRunningTurnId,
     items: serverVisibleTurnItems,
+    checkpoints: turnDiffSummaries,
     workspaceRoot: gitCwd,
   });
   const closePreviewPanel = useCallback(() => {
@@ -11275,6 +11278,18 @@ export default function ChatView(props: ChatViewProps) {
           }}
         />
       </Suspense>
+    ) : renderedRightPanelSurface?.kind === "files" &&
+      engineeringInterface &&
+      activeProject &&
+      activeWorkspaceRoot ? (
+      // The engineering interface's Project tab: the project page, not the file explorer.
+      <ProjectPage
+        environmentId={activeThread.environmentId}
+        cwd={activeWorkspaceRoot}
+        projectName={activeProject.title}
+        threadRef={activeThreadRef}
+        workspaceMutationId={workspaceMutationId}
+      />
     ) : (renderedRightPanelSurface?.kind === "files" ||
         renderedRightPanelSurface?.kind === "file") &&
       ((activeProject && activeWorkspaceRoot) ||

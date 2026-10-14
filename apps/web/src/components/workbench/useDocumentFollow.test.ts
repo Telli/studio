@@ -1,7 +1,7 @@
 import type { OrchestrationV2TurnItem } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { writtenDocuments } from "./useDocumentFollow";
+import { bestOutput, writtenDocuments } from "./useDocumentFollow";
 
 const edit = (paths: Array<[string, string]>) =>
   ({
@@ -37,5 +37,19 @@ describe("document follow", () => {
         "/work",
       ),
     ).toEqual([]);
+  });
+});
+
+describe("output follow", () => {
+  it("opens the best thing a run made: a document, then a table or G-code, then a picture", () => {
+    expect(
+      bestOutput(["src/bracket.py", "out/bracket.png", "out/bracket.nc", "plans/review.md"]),
+    ).toBe("plans/review.md");
+    expect(bestOutput(["PCB/board.bom.csv", "PCB/board.gerbers.zip", "src/board.py"])).toBe(
+      "PCB/board.bom.csv",
+    );
+    expect(
+      bestOutput(["src/bracket.py", "pyproject.toml", ".venv/x.md", "brief/brief.json"]),
+    ).toBeNull();
   });
 });
