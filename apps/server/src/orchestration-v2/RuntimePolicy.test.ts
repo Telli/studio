@@ -6,6 +6,8 @@ import {
   ProviderInstanceId,
   type RuntimeMode,
   type ServerProvider,
+  ServerSettingsError,
+  type StudioProject,
   ThreadId,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
@@ -16,6 +18,7 @@ import * as Stream from "effect/Stream";
 
 import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
 
@@ -30,13 +33,14 @@ function makeThread(input: {
   readonly now: DateTime.Utc;
   readonly worktreePath: string | null;
   readonly runtimeMode?: RuntimeMode;
+  readonly projectId?: ProjectId;
 }): OrchestrationV2AppThread {
   const threadId = ThreadId.make("thread:runtime-policy");
   return {
     createdBy: "user",
     creationSource: "web",
     id: threadId,
-    projectId,
+    projectId: input.projectId ?? projectId,
     title: "Runtime policy",
     providerInstanceId,
     modelSelection,
@@ -76,37 +80,44 @@ const providerInstanceFor = (instanceId: ProviderInstanceId) =>
     },
   }) as ProviderInstance;
 
+// A second project whose folder is in no Studio project.
+const looseProjectId = ProjectId.make("project:runtime-policy-loose");
+const workspaceRoots = new Map<ProjectId, string>([
+  [projectId, "/project-root"],
+  [looseProjectId, "/loose-root"],
+]);
+
+const layerProviderInstances = Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, {
+  getInstance: (instanceId) => Effect.succeed(providerInstanceFor(instanceId)),
+  listInstances: Effect.succeed([]),
+  listUnavailable: Effect.succeed([]),
+  streamChanges: Stream.empty,
+  subscribeChanges: Effect.never,
+});
+
+const layerProjects = Layer.mock(ProjectStore.ProjectStoreV2)({
+  get: (id) =>
+    Effect.succeed(
+      Option.some({
+        projectId: id,
+        title: "Project",
+        workspaceRoot: workspaceRoots.get(id) ?? "/unknown",
+        defaultModelSelection: null,
+        defaultThreadEnvMode: null,
+        autoPull: false,
+        faviconPath: null,
+        projectIcon: null,
+        scripts: [],
+        createdAt: "2026-06-21T00:00:00.000Z",
+        updatedAt: "2026-06-21T00:00:00.000Z",
+        deletedAt: null,
+      }),
+    ),
+});
+
 const layerTest = RuntimePolicy.layerFromProjectStore.pipe(
-  Layer.provide(
-    Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, {
-      getInstance: (instanceId) => Effect.succeed(providerInstanceFor(instanceId)),
-      listInstances: Effect.succeed([]),
-      listUnavailable: Effect.succeed([]),
-      streamChanges: Stream.empty,
-      subscribeChanges: Effect.never,
-    }),
-  ),
-  Layer.provide(
-    Layer.mock(ProjectStore.ProjectStoreV2)({
-      get: () =>
-        Effect.succeed(
-          Option.some({
-            projectId,
-            title: "Project",
-            workspaceRoot: "/project-root",
-            defaultModelSelection: null,
-            defaultThreadEnvMode: null,
-            autoPull: false,
-            faviconPath: null,
-            projectIcon: null,
-            scripts: [],
-            createdAt: "2026-06-21T00:00:00.000Z",
-            updatedAt: "2026-06-21T00:00:00.000Z",
-            deletedAt: null,
-          }),
-        ),
-    }),
-  ),
+  Layer.provide(layerProviderInstances),
+  Layer.provide(layerProjects),
 );
 
 it.layer(layerTest)("RuntimePolicyV2", (it) => {
@@ -151,6 +162,102 @@ it.layer(layerTest)("RuntimePolicyV2", (it) => {
       assert.equal(yield* modeFor(grokInstanceId, "full-access"), "full-access");
       // A provider that advertises no restriction runs every mode as stored.
       assert.equal(yield* modeFor(providerInstanceId, "auto-accept-edits"), "auto-accept-edits");
+    }),
+  );
+});
+
+const studioProject: StudioProject = {
+  name: "Test rig",
+  template: "part",
+  brief: {
+    purpose: "Hold the sensor steady",
+    requirements: "",
+    units: "mm",
+    material: "6061 aluminum",
+    process: "CNC machining",
+    quantity: "2",
+    links: "",
+    notes: "",
+  },
+  folders: ["/project-root/", "/project-cad", "/project-firmware"],
+  createdAt: "2026-10-01T00:00:00.000Z",
+};
+
+const layerWithStudioProject = RuntimePolicy.layerFromProjectStore.pipe(
+  Layer.provide(layerProviderInstances),
+  Layer.provide(layerProjects),
+  Layer.provide(ServerSettings.layerTest({ studioProjects: { rig: studioProject } })),
+);
+
+it.layer(layerWithStudioProject)("RuntimePolicyV2 Studio projects", (it) => {
+  it.effect("gives a thread in a Studio project folder the other folders and the brief", () =>
+    Effect.gen(function* () {
+      const policy = yield* RuntimePolicy.RuntimePolicyV2;
+      const now = yield* DateTime.now;
+      const resolved = yield* policy.resolve({
+        thread: makeThread({ now, worktreePath: null }),
+        modelSelection,
+      });
+      assert.equal(resolved.cwd, "/project-root");
+      assert.deepEqual(resolved.additionalDirectories, ["/project-cad", "/project-firmware"]);
+      assert.include(resolved.projectContext ?? "", "# Studio project: Test rig");
+      assert.include(resolved.projectContext ?? "", "- Material: 6061 aluminum");
+    }),
+  );
+
+  it.effect("matches a worktree thread by its project's folder", () =>
+    Effect.gen(function* () {
+      const policy = yield* RuntimePolicy.RuntimePolicyV2;
+      const now = yield* DateTime.now;
+      const resolved = yield* policy.resolve({
+        thread: makeThread({ now, worktreePath: "/project-worktree" }),
+        modelSelection,
+      });
+      assert.equal(resolved.cwd, "/project-worktree");
+      assert.deepEqual(resolved.additionalDirectories, ["/project-cad", "/project-firmware"]);
+      assert.isDefined(resolved.projectContext);
+    }),
+  );
+
+  it.effect("leaves both off for a thread whose folder is in no Studio project", () =>
+    Effect.gen(function* () {
+      const policy = yield* RuntimePolicy.RuntimePolicyV2;
+      const now = yield* DateTime.now;
+      const resolved = yield* policy.resolve({
+        thread: makeThread({ now, worktreePath: null, projectId: looseProjectId }),
+        modelSelection,
+      });
+      assert.equal(resolved.cwd, "/loose-root");
+      assert.notProperty(resolved, "additionalDirectories");
+      assert.notProperty(resolved, "projectContext");
+    }),
+  );
+});
+
+const layerWithUnreadableSettings = RuntimePolicy.layerFromProjectStore.pipe(
+  Layer.provide(layerProviderInstances),
+  Layer.provide(layerProjects),
+  Layer.provide(
+    Layer.mock(ServerSettings.ServerSettingsService)({
+      getSettings: Effect.fail(
+        new ServerSettingsError({ settingsPath: "/settings.json", operation: "read-file" }),
+      ),
+    }),
+  ),
+);
+
+it.layer(layerWithUnreadableSettings)("RuntimePolicyV2 unreadable settings", (it) => {
+  it.effect("still resolves the turn without a Studio project", () =>
+    Effect.gen(function* () {
+      const policy = yield* RuntimePolicy.RuntimePolicyV2;
+      const now = yield* DateTime.now;
+      const resolved = yield* policy.resolve({
+        thread: makeThread({ now, worktreePath: null }),
+        modelSelection,
+      });
+      assert.equal(resolved.cwd, "/project-root");
+      assert.notProperty(resolved, "additionalDirectories");
+      assert.notProperty(resolved, "projectContext");
     }),
   );
 });

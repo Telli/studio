@@ -3,14 +3,16 @@ import type {
   EnvironmentProject,
   EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/models";
-import { FolderOpenIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
+import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
+import { studioFolderKey } from "@t3tools/shared/studioProjects";
+import { FolderIcon, FolderOpenIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { isElectron } from "~/env";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useNowMinute } from "~/hooks/useNowMinute";
-import { useProjects, useThreadShells } from "~/state/entities";
+import { useThreadShells } from "~/state/entities";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
@@ -19,22 +21,33 @@ import { Button } from "../ui/button";
 import { SidebarInset } from "../ui/sidebar";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { NewProjectDialog } from "./NewProjectDialog";
-import { usePictures } from "./usePictures";
 import { groupProjectFiles } from "./projectFiles";
-import { useProjectBrief } from "./useProjectBrief";
+import { usePictures } from "./usePictures";
+import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
+import { useStudioProjects } from "./useStudioProjects";
 
-/** The file that pictures a project: its first model, else its first board or drawing. */
+/** The file that pictures a project: its first folder's first model, else board or drawing. */
 const COVER_GROUPS = ["Models", "Boards and wiring", "Drawings", "Studies"] as const;
 
+const threadCount = (count: number) => (count === 1 ? "1 thread" : `${count} threads`);
+
+function newestOf(threads: ReadonlyArray<EnvironmentThreadShell>, since: string): string {
+  return threads.reduce(
+    (newest, thread) => (thread.updatedAt > newest ? thread.updatedAt : newest),
+    since,
+  );
+}
+
 function ProjectCard(props: {
-  readonly project: EnvironmentProject;
+  readonly environmentId: EnvironmentId;
+  readonly project: StudioProject;
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
   readonly onOpen: () => void;
 }) {
-  const { project } = props;
-  const cwd = project.workspaceRoot;
+  const { environmentId, project } = props;
+  const cwd = project.folders[0] ?? "";
   const listing = useEnvironmentQuery(
-    projectEnvironment.listEntries({ environmentId: project.environmentId, input: { cwd } }),
+    cwd === "" ? null : projectEnvironment.listEntries({ environmentId, input: { cwd } }),
   );
   const groups = useMemo(
     () =>
@@ -48,21 +61,10 @@ function ProjectCard(props: {
   const cover =
     COVER_GROUPS.flatMap((group) => groups.find((entry) => entry.group === group)?.files ?? [])[0]
       ?.path ?? null;
-  const pictures = usePictures({
-    environmentId: project.environmentId,
-    cwd,
-    paths: cover === null ? [] : [cover],
-  });
-  const { brief } = useProjectBrief(project.environmentId, cwd);
-  const counts = groups
-    .filter(({ group }) => group !== "References")
-    .slice(0, 3)
-    .map(({ group, files }) => `${files.length} ${group.toLowerCase()}`);
-  const latest = props.threads.reduce<string | null>(
-    (newest, thread) => (newest === null || thread.updatedAt > newest ? thread.updatedAt : newest),
-    null,
-  );
+  const pictures = usePictures({ environmentId, cwd, paths: cover === null ? [] : [cover] });
   const picture = cover === null ? undefined : pictures.get(cover);
+  const latest = props.threads.length === 0 ? null : newestOf(props.threads, "");
+  const folders = project.folders.length === 1 ? "1 folder" : `${project.folders.length} folders`;
 
   return (
     <button
@@ -78,12 +80,12 @@ function ProjectCard(props: {
         )}
       </span>
       <span className="flex min-w-0 flex-col gap-1 px-3 py-2.5">
-        <span className="truncate text-sm font-medium text-foreground">{project.title}</span>
+        <span className="truncate text-sm font-medium text-foreground">{project.name}</span>
         <span className="line-clamp-2 min-h-8 text-xs text-muted-foreground">
-          {brief?.purpose.trim() || (counts.length > 0 ? counts.join(", ") : "Nothing in it yet")}
+          {project.brief.purpose.trim() || "No brief yet"}
         </span>
         <span className="text-2xs text-muted-foreground/80 tabular-nums">
-          {props.threads.length === 1 ? "1 thread" : `${props.threads.length} threads`}
+          {folders} · {threadCount(props.threads.length)}
           {latest === null ? "" : ` · ${formatRelativeTimeLabel(latest)}`}
         </span>
       </span>
@@ -91,37 +93,93 @@ function ProjectCard(props: {
   );
 }
 
+function LooseFolderRow(props: {
+  readonly folder: EnvironmentProject;
+  readonly threads: number;
+  readonly onOpen: () => void;
+  readonly onMakeProject: () => void;
+}) {
+  return (
+    <li className="flex min-w-0 items-center gap-2 border-b border-border">
+      <button
+        type="button"
+        onClick={props.onOpen}
+        className="flex min-w-0 flex-1 items-center gap-2.5 px-1 py-2 text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      >
+        <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="shrink-0 text-xs font-medium text-foreground">{props.folder.title}</span>
+        <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground">
+          {props.folder.workspaceRoot}
+        </span>
+        <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">
+          {threadCount(props.threads)}
+        </span>
+      </button>
+      <Button variant="ghost-muted" size="xs" onClick={props.onMakeProject}>
+        Make a project
+      </Button>
+    </li>
+  );
+}
+
 /**
- * Studio's Projects page: every project as a card, pictured by its first part,
- * with what it is for and how recently it was worked on, newest first; New
- * project starts one from a template, and an existing folder can be added.
- * Opening one starts a thread in it, on its project page.
+ * Studio's Projects page. A project is a grouping of folders with a brief
+ * (`useStudioProjects.ts`): each is a card pictured by its first part, with
+ * what it is for and how recently it was worked on, newest first. Folders in
+ * no project are listed below, to open or make a project of. New project
+ * starts one from a kind and any folders; opening one starts a thread in its
+ * first folder, on its project page.
  */
 export function ProjectsHome() {
-  const projects = useProjects();
-  const threads = useThreadShells();
   const environmentId = usePrimaryEnvironmentId();
+  return environmentId === null ? null : <ProjectsHomeFor environmentId={environmentId} />;
+}
+
+function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
+  const { environmentId } = props;
+  const projects = useStudioProjects(environmentId);
+  const knownFolders = useEnvironmentFolders(environmentId);
+  const threads = useThreadShells();
   const handleNewThread = useNewThreadHandler();
-  const [newOpen, setNewOpen] = useState(false);
+  const [dialog, setDialog] = useState<{ count: number; open: boolean; folder: string | null }>({
+    count: 0,
+    open: false,
+    folder: null,
+  });
   useNowMinute();
 
-  const cards = useMemo(() => {
-    const live = threads.filter((thread) => thread.archivedAt === null);
-    return projects
-      .filter((project) => project.isScratch !== true)
-      .map((project) => {
-        const own = live.filter(
-          (thread) =>
-            thread.environmentId === project.environmentId && thread.projectId === project.id,
-        );
-        const latest = own.reduce(
-          (newest, thread) => (thread.updatedAt > newest ? thread.updatedAt : newest),
-          project.createdAt,
-        );
-        return { project, threads: own, latest };
+  const openDialog = (folder: string | null) =>
+    setDialog((current) => ({ count: current.count + 1, open: true, folder }));
+  const openFolder = (folder: EnvironmentProject | null) => {
+    if (folder !== null) void handleNewThread(scopeProjectRef(folder.environmentId, folder.id));
+  };
+
+  const { cards, loose } = useMemo(() => {
+    const live = threads.filter(
+      (thread) => thread.archivedAt === null && thread.environmentId === environmentId,
+    );
+    const threadsIn = (folder: EnvironmentProject | null) =>
+      folder === null ? [] : live.filter((thread) => thread.projectId === folder.id);
+    const grouped = new Set<string>();
+    const cards = Object.entries(projects)
+      .map(([id, project]) => {
+        const own = project.folders.flatMap((folder) => {
+          grouped.add(studioFolderKey(folder));
+          return threadsIn(folderProject(knownFolders, folder));
+        });
+        return { id, project, threads: own, latest: newestOf(own, project.createdAt) };
       })
       .toSorted((a, b) => b.latest.localeCompare(a.latest));
-  }, [projects, threads]);
+    const loose = knownFolders
+      .filter((folder) => !grouped.has(studioFolderKey(folder.workspaceRoot)))
+      .map((folder) => ({ folder, threads: threadsIn(folder) }))
+      .toSorted((a, b) =>
+        newestOf(b.threads, b.folder.createdAt).localeCompare(
+          newestOf(a.threads, a.folder.createdAt),
+        ),
+      );
+    return { cards, loose };
+  }, [projects, knownFolders, threads, environmentId]);
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -149,38 +207,63 @@ export function ProjectsHome() {
                   <FolderOpenIcon />
                   Add a folder
                 </Button>
-                {environmentId === null ? null : (
-                  <Button size="sm" onClick={() => setNewOpen(true)}>
-                    <PlusIcon />
-                    New project
-                  </Button>
-                )}
+                <Button size="sm" onClick={() => openDialog(null)}>
+                  <PlusIcon />
+                  New project
+                </Button>
               </div>
             </div>
             {cards.length === 0 ? (
-              <p className="py-16 text-center text-sm text-muted-foreground">
-                No projects yet. Start one with New project, or add a folder you already have.
+              <p className="py-12 text-center text-sm text-muted-foreground">
+                No projects yet. Start one with New project, or make one of a folder below.
               </p>
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">
-                {cards.map(({ project, threads: own }) => (
+                {cards.map(({ id, project, threads: own }) => (
                   <ProjectCard
-                    key={`${project.environmentId}:${project.id}`}
+                    key={id}
+                    environmentId={environmentId}
                     project={project}
                     threads={own}
                     onOpen={() =>
-                      void handleNewThread(scopeProjectRef(project.environmentId, project.id))
+                      openFolder(
+                        project.folders[0] === undefined
+                          ? null
+                          : folderProject(knownFolders, project.folders[0]),
+                      )
                     }
                   />
                 ))}
               </div>
             )}
+            {loose.length === 0 ? null : (
+              <section aria-label="Folders in no project" className="mt-4">
+                <h2 className="mb-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+                  Folders in no project
+                </h2>
+                <ul className="flex flex-col border-t border-border">
+                  {loose.map(({ folder, threads: own }) => (
+                    <LooseFolderRow
+                      key={folder.id}
+                      folder={folder}
+                      threads={own.length}
+                      onOpen={() => openFolder(folder)}
+                      onMakeProject={() => openDialog(folder.workspaceRoot)}
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         </div>
       </div>
-      {environmentId === null ? null : (
-        <NewProjectDialog open={newOpen} onOpenChange={setNewOpen} environmentId={environmentId} />
-      )}
+      <NewProjectDialog
+        key={dialog.count}
+        open={dialog.open}
+        onOpenChange={(open) => setDialog((current) => ({ ...current, open }))}
+        environmentId={environmentId}
+        initialFolder={dialog.folder}
+      />
     </SidebarInset>
   );
 }

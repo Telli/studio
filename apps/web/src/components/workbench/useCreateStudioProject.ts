@@ -1,6 +1,7 @@
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
-import type { EnvironmentId } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
+import { EMPTY_STUDIO_BRIEF, type StudioProjectKind } from "@t3tools/shared/studioProjects";
 import { useCallback } from "react";
 
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
@@ -8,79 +9,78 @@ import { waitForProject } from "~/state/entities";
 import { projectEnvironment } from "~/state/projects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { toastManager } from "../ui/toast";
-import { agentsWithBrief, briefMarkdown, claudeWithBrief } from "./briefFolder";
-import {
-  PROJECT_FILE,
-  type ProjectTemplate,
-  agentsWithLayout,
-  newProjectBrief,
-  studioProjectJson,
-} from "./studioProject";
+import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
+import { newStudioProjectId, useSaveStudioProject } from "./useStudioProjects";
 
 export interface NewStudioProject {
   readonly environmentId: EnvironmentId;
   readonly name: string;
-  readonly template: ProjectTemplate;
+  readonly kind: StudioProjectKind;
   readonly units: "mm" | "in";
   readonly material: string;
   readonly purpose: string;
+  /** Folders the project starts with; none makes a new folder named after it. */
+  readonly folders: ReadonlyArray<string>;
 }
 
 /**
- * Starts a Studio project: T3's own new project (a folder in the app's
- * projects folder, a repository and a first commit), then what makes it
- * Studio's: its project file (`studio.json`), its brief for the agent, and an
- * AGENTS.md that says where each kind of work goes and points every agent at
- * the brief. Then a new thread opens in it. Resolves to whether it was made.
+ * Starts a Studio project: a grouping of the chosen folders (or, with none, a
+ * new folder T3 makes in its projects folder, with a repository) under one
+ * name and brief, saved with the server's settings. Then a new thread opens
+ * in its first folder. Resolves to whether it was made.
  */
-export function useCreateStudioProject() {
+export function useCreateStudioProject(environmentId: EnvironmentId) {
   const createNew = useAtomCommand(projectEnvironment.createNew, { reportFailure: false });
-  const writeFile = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
+  const save = useSaveStudioProject(environmentId);
+  const knownFolders = useEnvironmentFolders(environmentId);
   const handleNewThread = useNewThreadHandler();
 
   return useCallback(
     async (input: NewStudioProject): Promise<boolean> => {
-      const created = await createNew({
-        environmentId: input.environmentId,
-        input: { name: input.name.trim() },
-      });
-      if (created._tag !== "Success") {
-        const error = squashAtomCommandFailure(created);
-        toastManager.add({
-          type: "error",
-          title: "Could not create the project",
-          description: error instanceof Error ? error.message : "Creating the folder failed.",
-        });
-        return false;
+      const name = input.name.trim();
+      let folders = input.folders;
+      let firstProjectId: ProjectId | null =
+        folders[0] === undefined ? null : (folderProject(knownFolders, folders[0])?.id ?? null);
+      if (folders.length === 0) {
+        const created = await createNew({ environmentId: input.environmentId, input: { name } });
+        if (created._tag !== "Success") {
+          const error = squashAtomCommandFailure(created);
+          toastManager.add({
+            type: "error",
+            title: "Could not create the project",
+            description: error instanceof Error ? error.message : "Creating its folder failed.",
+          });
+          return false;
+        }
+        folders = [created.value.workspaceRoot];
+        firstProjectId = created.value.projectId;
       }
-      const { projectId, workspaceRoot } = created.value;
-      const brief = newProjectBrief(input);
-      const write = (relativePath: string, contents: string) =>
-        writeFile({
-          environmentId: input.environmentId,
-          input: { cwd: workspaceRoot, relativePath, contents },
-        });
-      const agents = agentsWithBrief(agentsWithLayout(null, input.template));
-      await Promise.all([
-        write(
-          PROJECT_FILE,
-          studioProjectJson({ name: input.name.trim(), template: input.template.id, brief }),
-        ),
-        write("brief/project.md", briefMarkdown(brief, input.name.trim())),
-        agents === null ? null : write("AGENTS.md", agents),
-        write("CLAUDE.md", claudeWithBrief(null) ?? "@AGENTS.md\n"),
-      ]);
+      save(newStudioProjectId(), {
+        name,
+        template: input.kind.id,
+        brief: {
+          ...EMPTY_STUDIO_BRIEF,
+          units: input.units,
+          material: input.material.trim(),
+          process: input.kind.process,
+          purpose: input.purpose.trim(),
+        },
+        folders,
+        createdAt: new Date().toISOString(),
+      });
       toastManager.add({
         type: "success",
-        title: `Created ${input.name.trim()}`,
-        description: workspaceRoot,
+        title: `Created ${name}`,
+        description: folders.length === 1 ? folders[0] : `${folders.length} folders`,
       });
 
-      const projectRef = scopeProjectRef(input.environmentId, projectId);
-      const project = await waitForProject(projectRef).catch(() => null);
-      if (project !== null) await handleNewThread(projectRef).catch(() => undefined);
+      if (firstProjectId !== null) {
+        const projectRef = scopeProjectRef(input.environmentId, firstProjectId);
+        const project = await waitForProject(projectRef).catch(() => null);
+        if (project !== null) await handleNewThread(projectRef).catch(() => undefined);
+      }
       return true;
     },
-    [createNew, writeFile, handleNewThread],
+    [createNew, save, knownFolders, handleNewThread],
   );
 }

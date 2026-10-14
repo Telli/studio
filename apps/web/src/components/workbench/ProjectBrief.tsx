@@ -1,12 +1,10 @@
-import { AuthFilesystemWriteScope, type EnvironmentId } from "@t3tools/contracts";
+import { AuthSettingsWriteScope, type EnvironmentId } from "@t3tools/contracts";
+import { studioFolderName } from "@t3tools/shared/studioProjects";
 import { PaperclipIcon } from "lucide-react";
 import { type ReactNode, useId, useRef, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
-import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentScope } from "~/state/session";
-import { useAtomCommand } from "~/state/use-atom-command";
-import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -22,24 +20,13 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Textarea } from "../ui/textarea";
 import { toastManager } from "../ui/toast";
 import {
-  BRIEF_MARKDOWN,
   BRIEF_REFERENCES,
   EMPTY_BRIEF,
   PROCESSES,
   type ProjectBrief as Brief,
-  agentsWithBrief,
-  briefMarkdown,
   briefSummary,
-  claudeWithBrief,
 } from "./briefFolder";
-import { PROJECT_FILE, parseStudioProject, studioProjectJson } from "./studioProject";
-import { useProjectBrief } from "./useProjectBrief";
-
-const projectNameOf = (cwd: string) =>
-  cwd
-    .replace(/[\\/]+$/, "")
-    .split(/[\\/]/)
-    .pop() || "This project";
+import { newStudioProjectId, useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
 /** One line of the spec sheet: its label in a drawing's tracked capitals, its field beside it. */
 function SpecRow(props: {
@@ -63,18 +50,19 @@ function SpecRow(props: {
 /**
  * The project brief on a new thread, in the engineering interface: one line
  * saying what the project is set up for, or asking to set it up. The sheet it
- * opens gathers the brief into `brief/` (`briefFolder.ts`) and hands
- * reference files to the agent to file under `brief/references/`.
+ * opens saves the brief on the project (the folder becomes a one-folder project
+ * if it is in none) and hands reference files to the agent to file under
+ * `brief/references/`.
  */
 export function ProjectBriefRow(props: {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly composerRef: ComposerHandleRef;
 }) {
-  const stored = useProjectBrief(props.environmentId, props.cwd);
+  const stored = useStudioProjectAt(props.environmentId, props.cwd)?.project ?? null;
   // What this sheet last saved wins over a read that has not caught up yet.
   const [saved, setSaved] = useState<{ readonly cwd: string; readonly brief: Brief } | null>(null);
-  const brief = saved !== null && saved.cwd === props.cwd ? saved.brief : stored.brief;
+  const brief = saved !== null && saved.cwd === props.cwd ? saved.brief : (stored?.brief ?? null);
   const [open, setOpen] = useState(false);
   // Each opening starts the sheet from the brief as it stands.
   const [opened, setOpened] = useState(0);
@@ -135,64 +123,34 @@ function BriefSheet(props: {
 }) {
   const id = useId();
   const [draft, setDraft] = useState<Brief>(props.initial);
-  const [saving, setSaving] = useState(false);
   const [attached, setAttached] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
-  const canWrite = useEnvironmentScope(props.environmentId, AuthFilesystemWriteScope);
-  const writeFile = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
-  const readFile = useAtomQueryRunner(projectEnvironment.readFile, {
-    reportFailure: false,
-    refresh: true,
-  });
+  const canWrite = useEnvironmentScope(props.environmentId, AuthSettingsWriteScope);
+  const current = useStudioProjectAt(props.environmentId, props.cwd);
+  const saveProject = useSaveStudioProject(props.environmentId);
   const set = <K extends keyof Brief>(key: K, value: Brief[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
-  const read = async (relativePath: string) => {
-    const result = await readFile({
-      environmentId: props.environmentId,
-      input: { cwd: props.cwd, relativePath },
+  const save = () => {
+    saveProject(
+      current?.id ?? newStudioProjectId(),
+      current === null
+        ? {
+            name: studioFolderName(props.cwd),
+            template: null,
+            brief: draft,
+            folders: [props.cwd],
+            createdAt: new Date().toISOString(),
+          }
+        : { ...current.project, brief: draft },
+    );
+    props.onSaved(draft);
+    props.onOpenChange(false);
+    toastManager.add({
+      type: "success",
+      title: "Brief saved",
+      description: "Every agent in the project reads it before it starts.",
     });
-    return result._tag === "Success" ? result.value.contents : null;
-  };
-  const write = async (relativePath: string, contents: string) => {
-    const result = await writeFile({
-      environmentId: props.environmentId,
-      input: { cwd: props.cwd, relativePath, contents },
-    });
-    if (result._tag !== "Success") throw new Error(`Could not write ${relativePath}`);
-  };
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      // The project file holds the brief; the project keeps its name and template.
-      const project = parseStudioProject(await read(PROJECT_FILE));
-      const name = project?.name || projectNameOf(props.cwd);
-      await write(
-        PROJECT_FILE,
-        studioProjectJson({ name, template: project?.template ?? null, brief: draft }),
-      );
-      await write(BRIEF_MARKDOWN, briefMarkdown(draft, name));
-      const agents = agentsWithBrief(await read("AGENTS.md"));
-      if (agents !== null) await write("AGENTS.md", agents);
-      const claude = claudeWithBrief(await read("CLAUDE.md"));
-      if (claude !== null) await write("CLAUDE.md", claude);
-      props.onSaved(draft);
-      props.onOpenChange(false);
-      toastManager.add({
-        type: "success",
-        title: "Brief saved",
-        description: `${BRIEF_MARKDOWN}, which every agent reads first`,
-      });
-    } catch (error) {
-      toastManager.add({
-        type: "error",
-        title: "Could not save the brief",
-        description: error instanceof Error ? error.message : "Writing to the project failed.",
-      });
-    } finally {
-      setSaving(false);
-    }
   };
 
   // Reference files go to the agent, which files them: the project takes text writes only.
@@ -200,26 +158,20 @@ function BriefSheet(props: {
     const composer = props.composerRef.current;
     if (!composer || files.length === 0) return;
     composer.addDroppedFiles(files);
-    composer.insertTextAtEnd(
-      `File the attached references under ${BRIEF_REFERENCES}/ and list them in ${BRIEF_MARKDOWN}.`,
-      { ensureLeadingBoundary: true },
-    );
+    composer.insertTextAtEnd(`File the attached references under ${BRIEF_REFERENCES}/.`, {
+      ensureLeadingBoundary: true,
+    });
     setAttached((count) => count + files.length);
   };
 
   return (
-    <Dialog
-      open={props.open}
-      onOpenChange={(next) => {
-        if (!saving) props.onOpenChange(next);
-      }}
-    >
+    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogPopup className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Project brief</DialogTitle>
           <DialogDescription>
-            What this project is for, before any design work. Saved in the project file
-            (studio.json) and {BRIEF_MARKDOWN}, which AGENTS.md points every agent to.
+            What this project is for, before any design work. Every agent working in the project's
+            folders reads it first.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
@@ -356,16 +308,11 @@ function BriefSheet(props: {
           </div>
         </DialogPanel>
         <DialogFooter>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => props.onOpenChange(false)}
-            disabled={saving}
-          >
+          <Button variant="outline" size="sm" onClick={() => props.onOpenChange(false)}>
             Cancel
           </Button>
-          <Button size="sm" onClick={() => void save()} disabled={!canWrite || saving}>
-            {saving ? "Saving..." : "Save brief"}
+          <Button size="sm" onClick={save} disabled={!canWrite}>
+            Save brief
           </Button>
         </DialogFooter>
       </DialogPopup>

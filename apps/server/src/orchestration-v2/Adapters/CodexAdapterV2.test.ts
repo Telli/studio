@@ -489,6 +489,41 @@ describe("CodexAdapterV2 runtime policy", () => {
     }),
   );
 
+  it.effect("lets Codex write a Studio project's other folders and tells it the brief", () =>
+    Effect.gen(function* () {
+      const modelSelection = { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" };
+      const build = (
+        runtimeMode: "approval-required" | "auto-accept-edits" | "auto" | "full-access",
+      ) =>
+        CodexAdapterV2.buildCodexTurnStartParams({
+          nativeThreadId: `native-studio-${runtimeMode}`,
+          codexInput: [{ type: "text", text: "add a mounting hole" }],
+          runtimePolicy: {
+            runtimeMode,
+            interactionMode: "default",
+            cwd: "/workspace",
+            additionalDirectories: ["/workspace-cad"],
+            projectContext: "# Studio project: Test rig",
+          },
+          modelSelection,
+          hasT3Mcp: false,
+        });
+
+      const auto = yield* build("auto");
+      assert.deepEqual(auto.sandboxPolicy, {
+        type: "workspaceWrite",
+        writableRoots: ["/workspace-cad"],
+      });
+      // Without T3's MCP server the project context still goes in, alone.
+      assert.deepEqual(auto.additionalContext, {
+        t3_code_project: { kind: "application", value: "# Studio project: Test rig" },
+      });
+      // Read-only and full-access sandboxes are left as they are.
+      assert.deepEqual((yield* build("approval-required")).sandboxPolicy, { type: "readOnly" });
+      assert.deepEqual((yield* build("full-access")).sandboxPolicy, { type: "dangerFullAccess" });
+    }),
+  );
+
   it.effect("adds default-mode developer instructions when the T3 MCP server is attached", () =>
     Effect.gen(function* () {
       const params = yield* CodexAdapterV2.buildCodexTurnStartParams({

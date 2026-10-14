@@ -1,6 +1,6 @@
-import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { threadRuntimeIsActive } from "@t3tools/client-runtime/state/models";
-import type { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
+import type { ScopedProjectRef, ThreadId } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { MessageSquareIcon } from "lucide-react";
 import { useMemo } from "react";
@@ -12,23 +12,22 @@ import { buildThreadRouteParams } from "~/threadRoutes";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
 
 /**
- * Every conversation in the project, newest first, the way a project holds
- * its chats: the one open now is marked, one at work says so, and archived
- * ones stay out. Opening one goes to it; the project page comes along.
+ * Every conversation in the project's folders, newest first, the way a
+ * project holds its chats: the one open now is marked, one at work says so,
+ * each says its folder when there are several, and archived ones stay out.
+ * Opening one goes to it; the project page comes along.
  */
 export function ProjectThreads(props: {
-  readonly environmentId: EnvironmentId;
-  readonly projectId: ProjectId;
+  /** The project's folders' records (stable between renders). */
+  readonly projectRefs: ReadonlyArray<ScopedProjectRef>;
+  /** Folder names by folder record id; null when the project has one folder. */
+  readonly folderNames: ReadonlyMap<string, string> | null;
   readonly currentThreadId: ThreadId | null;
   readonly query: string;
 }) {
   const navigate = useNavigate();
   useNowMinute();
-  const refs = useMemo(
-    () => [scopeProjectRef(props.environmentId, props.projectId)],
-    [props.environmentId, props.projectId],
-  );
-  const shells = useThreadShellsForProjectRefs(refs);
+  const shells = useThreadShellsForProjectRefs(props.projectRefs);
   const needle = props.query.trim().toLowerCase();
   const threads = useMemo(
     () =>
@@ -74,6 +73,11 @@ export function ProjectThreads(props: {
               <span className="min-w-0 flex-1 truncate text-xs text-foreground">
                 {thread.title || "New thread"}
               </span>
+              {props.folderNames === null ? null : (
+                <span className="max-w-32 shrink-0 truncate text-2xs text-muted-foreground">
+                  {props.folderNames.get(thread.projectId) ?? ""}
+                </span>
+              )}
               <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">
                 {current
                   ? "Open now"

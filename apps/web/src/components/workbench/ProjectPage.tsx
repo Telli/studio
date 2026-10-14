@@ -1,5 +1,7 @@
+import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { pluginFileHandlers } from "@t3tools/client-runtime/state/plugins";
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
+import { studioFolderKey, studioFolderName } from "@t3tools/shared/studioProjects";
 import {
   ActivityIcon,
   BoxIcon,
@@ -8,12 +10,14 @@ import {
   FileCogIcon,
   FileIcon,
   FileTextIcon,
+  FolderIcon,
   ImageIcon,
   LayoutGridIcon,
   ListIcon,
   PackageIcon,
   PencilRulerIcon,
   PlusIcon,
+  XIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -27,13 +31,16 @@ import { useEnvironmentQuery } from "~/state/query";
 import { pluginAppSurface } from "../plugins/pluginSurfaces";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { AddFolderMenu } from "./AddFolderMenu";
+import { EMPTY_BRIEF } from "./briefFolder";
 import { NewDialog } from "./NewDialog";
 import { availableTemplates } from "./newTemplates";
 import { ProjectBriefRow } from "./ProjectBrief";
 import { ProjectThreads } from "./ProjectThreads";
-import { useProjectBrief } from "./useProjectBrief";
 import { usePictures } from "./usePictures";
 import { groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
+import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
+import { newStudioProjectId, useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
 const GROUP_ICONS: Record<ProjectGroup, typeof BoxIcon> = {
   Models: BoxIcon,
@@ -180,19 +187,109 @@ function Section(props: {
   );
 }
 
+/** One folder's files on the project page, filed by kind; named when the project has several. */
+function FolderFiles(props: {
+  readonly environmentId: EnvironmentId;
+  readonly root: string;
+  /** The folder's name, shown when the project has more than one. */
+  readonly label: string | null;
+  readonly tab: "files" | "references";
+  readonly query: string;
+  readonly view: "grid" | "list";
+  /** The thread's own folder refreshes when its agent changes files. */
+  readonly mutationId: string | null;
+  readonly emptyText: string;
+  readonly onOpen: (file: ProjectFile) => void;
+}) {
+  const { environmentId, root } = props;
+  const listing = useEnvironmentQuery(
+    projectEnvironment.listEntries({ environmentId, input: { cwd: root } }),
+  );
+  useWorkspaceMutationRefresh({
+    mutationId: props.mutationId,
+    refresh: listing.refresh,
+    resourceKey: `project-page:${root}`,
+  });
+  const groups = useMemo(
+    () =>
+      groupProjectFiles(
+        (listing.data?.entries ?? [])
+          .filter((entry) => entry.kind === "file" && entry.ignored !== true)
+          .map((entry) => entry.path),
+        props.query,
+      ),
+    [listing.data, props.query],
+  );
+  const shown = groups.filter(({ group }) =>
+    props.tab === "references" ? group === "References" : group !== "References",
+  );
+  const pictures = usePictures({
+    environmentId,
+    cwd: root,
+    paths: shown.flatMap(({ files }) =>
+      files.filter((file) => PICTURED.has(file.group)).map((file) => file.path),
+    ),
+  });
+  const count = shown.reduce((total, { files }) => total + files.length, 0);
+
+  return (
+    <section aria-label={props.label ?? "Files"} className="flex flex-col gap-4">
+      {props.label === null ? null : (
+        <h2 className="flex min-w-0 items-baseline gap-2 border-b border-border pb-1.5">
+          <FolderIcon
+            className="size-3.5 shrink-0 self-center text-muted-foreground"
+            aria-hidden="true"
+          />
+          <span className="truncate text-sm font-medium text-foreground">{props.label}</span>
+          <span className="min-w-0 truncate text-2xs text-muted-foreground">{root}</span>
+          <span className="ms-auto shrink-0 text-2xs text-muted-foreground tabular-nums">
+            {count}
+          </span>
+        </h2>
+      )}
+      {shown.map(({ group, files }) => (
+        <Section
+          key={`${props.tab}:${group}`}
+          group={group}
+          files={files}
+          view={props.view}
+          pictures={pictures}
+          onOpen={props.onOpen}
+        />
+      ))}
+      {shown.length === 0 ? (
+        <p
+          className={cn(
+            "text-xs text-muted-foreground",
+            props.label === null ? "py-10 text-center" : "py-1",
+          )}
+        >
+          {listing.data === undefined
+            ? "Reading the folder"
+            : props.query.trim() !== ""
+              ? "Nothing matches that."
+              : props.emptyText}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 /**
  * The project page, the engineering interface's Project tab (in place of the
- * file explorer): the project's name and brief, then everything it holds,
- * filed as an engineer files it (models, boards, drawings, studies and jobs,
- * documents, fabrication files), each a tile that opens in the viewer or as a
- * document. References are the brief and what it gathered. Source stays in
- * the code interface's explorer.
+ * file explorer). A project is a grouping of folders with one brief
+ * (`useStudioProjects.ts`); a folder in none is a project of its own. The page
+ * shows the project's name and brief, its folders (add or take one out), then
+ * everything they hold, folder by folder and filed as an engineer files it
+ * (models, boards, drawings, studies and jobs, documents, fabrication files),
+ * each a tile that opens in the viewer or as a document, and every thread in
+ * any of its folders. Source stays in the code interface's explorer.
  */
 export function ProjectPage(props: {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly projectName: string;
-  /** The project's record; null for a thread's own scratch folder, which has no other threads. */
+  /** The folder's record; null for a thread's own scratch folder, which is no project. */
   readonly projectId: ProjectId | null;
   readonly threadRef: ScopedThreadRef;
   readonly workspaceMutationId: string | null;
@@ -211,45 +308,22 @@ export function ProjectPage(props: {
     }
   };
   const composerRef = useComposerHandleContext();
-  const listing = useEnvironmentQuery(
-    projectEnvironment.listEntries({ environmentId, input: { cwd } }),
-  );
-  useWorkspaceMutationRefresh({
-    mutationId: props.workspaceMutationId,
-    refresh: listing.refresh,
-    resourceKey: `project-page:${cwd}`,
-  });
-  const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
-    ?.plugins;
-  const { brief } = useProjectBrief(environmentId, cwd);
-  const links = (brief?.links ?? "")
+  const studio = useStudioProjectAt(environmentId, cwd);
+  const saveProject = useSaveStudioProject(environmentId);
+  const knownFolders = useEnvironmentFolders(environmentId);
+  const isProject = props.projectId !== null;
+  const folders = studio?.project.folders ?? [cwd];
+  const name = studio?.project.name ?? props.projectName;
+  const links = (studio?.project.brief.links ?? "")
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const paths = useMemo(
-    () =>
-      (listing.data?.entries ?? [])
-        .filter((entry) => entry.kind === "file" && entry.ignored !== true)
-        .map((entry) => entry.path),
-    [listing.data],
+  const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
+    ?.plugins;
+  const listing = useEnvironmentQuery(
+    projectEnvironment.listEntries({ environmentId, input: { cwd } }),
   );
-  const groups = useMemo(() => groupProjectFiles(paths, query), [paths, query]);
-  const shown = groups.filter(({ group }) =>
-    tab === "threads"
-      ? false
-      : tab === "references"
-        ? group === "References"
-        : group !== "References",
-  );
-  const referenceCount = groups.find(({ group }) => group === "References")?.files.length ?? 0;
-  const pictures = usePictures({
-    environmentId,
-    cwd,
-    paths: shown.flatMap(({ files }) =>
-      files.filter((file) => PICTURED.has(file.group)).map((file) => file.path),
-    ),
-  });
   const templates = useMemo(
     () =>
       availableTemplates(
@@ -257,20 +331,75 @@ export function ProjectPage(props: {
       ),
     [plugins],
   );
-  // What a template can work from: the project's own models and boards.
+  // What a template can work from: the models and boards in this thread's folder.
   const parts = useMemo(
     () =>
-      groupProjectFiles(paths)
+      groupProjectFiles(
+        (listing.data?.entries ?? [])
+          .filter((entry) => entry.kind === "file" && entry.ignored !== true)
+          .map((entry) => entry.path),
+      )
         .filter(({ group }) => group === "Models" || group === "Boards and wiring")
         .flatMap(({ files }) => files.map((file) => file.path)),
-    [paths],
+    [listing.data],
+  );
+  // Every folder's record, for the threads in it.
+  const folderKey = folders.join("\n");
+  const projectRefs = useMemo(
+    () =>
+      folderKey
+        .split("\n")
+        .map((folder) => folderProject(knownFolders, folder))
+        .filter((project) => project !== null)
+        .map((project) => scopeProjectRef(project.environmentId, project.id)),
+    [folderKey, knownFolders],
+  );
+  const folderNames = useMemo(
+    () =>
+      folders.length < 2
+        ? null
+        : new Map(
+            folders.flatMap((folder) => {
+              const project = folderProject(knownFolders, folder);
+              return project === null ? [] : [[project.id, studioFolderName(folder)] as const];
+            }),
+          ),
+    [folders, knownFolders],
   );
 
-  const open = (file: ProjectFile) => {
+  const addFolder = (folder: string) =>
+    saveProject(
+      studio?.id ?? newStudioProjectId(),
+      studio === null
+        ? {
+            name: props.projectName,
+            template: null,
+            brief: EMPTY_BRIEF,
+            folders: [cwd, folder],
+            createdAt: new Date().toISOString(),
+          }
+        : { ...studio.project, folders: [...studio.project.folders, folder] },
+    );
+  const removeFolder = (folder: string) => {
+    if (studio === null) return;
+    saveProject(studio.id, {
+      ...studio.project,
+      folders: studio.project.folders.filter(
+        (entry) => studioFolderKey(entry) !== studioFolderKey(folder),
+      ),
+    });
+  };
+
+  const openIn = (root: string) => (file: ProjectFile) => {
+    // A file in another of the project's folders opens by its full path.
+    const path =
+      studioFolderKey(root) === studioFolderKey(cwd)
+        ? file.path
+        : `${studioFolderKey(root)}/${file.path}`;
     const panels = useRightPanelStore.getState();
-    const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, file.path)[0];
-    if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, file.path));
-    else panels.openFile(threadRef, file.path);
+    const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
+    if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
+    else panels.openFile(threadRef, path);
   };
 
   return (
@@ -280,9 +409,7 @@ export function ProjectPage(props: {
           Project
         </div>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
-          <h1 className="min-w-0 truncate text-xl font-semibold text-foreground">
-            {props.projectName}
-          </h1>
+          <h1 className="min-w-0 truncate text-xl font-semibold text-foreground">{name}</h1>
           <div className="flex items-center gap-2">
             {templates.length === 0 || composerRef === null ? null : (
               <Button
@@ -297,11 +424,8 @@ export function ProjectPage(props: {
               {(
                 [
                   ["files", "Files"],
-                  [
-                    "references",
-                    referenceCount > 0 ? `References ${referenceCount}` : "References",
-                  ],
-                  ...(props.projectId === null ? [] : [["threads", "Threads"] as const]),
+                  ["references", "References"],
+                  ...(isProject ? [["threads", "Threads"] as const] : []),
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -326,6 +450,43 @@ export function ProjectPage(props: {
         {composerRef === null ? null : (
           <ProjectBriefRow environmentId={environmentId} cwd={cwd} composerRef={composerRef} />
         )}
+        {isProject ? (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Folders">
+            <span className="me-1 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+              Folders
+            </span>
+            {folders.map((folder) => {
+              const own = studioFolderKey(folder) === studioFolderKey(cwd);
+              const folderName = studioFolderName(folder);
+              return (
+                <span
+                  key={folder}
+                  className={cn(
+                    "inline-flex h-6 min-w-0 items-center gap-1.5 rounded-md border border-border ps-2 text-xs text-foreground",
+                    own ? "bg-accent/60 pe-2" : "pe-0.5",
+                  )}
+                >
+                  <FolderIcon
+                    className="size-3 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <span className="max-w-40 truncate">{folderName}</span>
+                  {own || studio === null ? null : (
+                    <Button
+                      variant="ghost-muted"
+                      size="icon-xs"
+                      aria-label={`Take ${folderName} out of the project`}
+                      onClick={() => removeFolder(folder)}
+                    >
+                      <XIcon />
+                    </Button>
+                  )}
+                </span>
+              );
+            })}
+            <AddFolderMenu environmentId={environmentId} exclude={folders} onAdd={addFolder} />
+          </div>
+        ) : null}
         <div className="mt-3 flex items-center gap-2">
           <Input
             value={query}
@@ -366,17 +527,40 @@ export function ProjectPage(props: {
         </div>
       </header>
 
-      <div className="flex flex-col gap-6 px-5 py-4">
-        {shown.map(({ group, files }) => (
-          <Section
-            key={`${tab}:${group}`}
-            group={group}
-            files={files}
-            view={view}
-            pictures={pictures}
-            onOpen={open}
+      <div className="flex flex-col gap-8 px-5 py-4">
+        {tab === "threads" ? (
+          <ProjectThreads
+            projectRefs={projectRefs}
+            folderNames={folderNames}
+            currentThreadId={threadRef.threadId}
+            query={query}
           />
-        ))}
+        ) : (
+          folders.map((folder) => (
+            <FolderFiles
+              key={folder}
+              environmentId={environmentId}
+              root={folder}
+              label={folders.length > 1 ? studioFolderName(folder) : null}
+              tab={tab}
+              query={query}
+              view={view}
+              mutationId={
+                studioFolderKey(folder) === studioFolderKey(cwd) ? props.workspaceMutationId : null
+              }
+              emptyText={
+                tab === "files"
+                  ? folders.length > 1
+                    ? "Nothing filed here yet."
+                    : "Nothing here yet. The models, boards and documents the agent makes show up here."
+                  : folders.length > 1
+                    ? "No references here."
+                    : "No references yet. Add sketches, photos, datasheets or links in the brief."
+              }
+              onOpen={openIn(folder)}
+            />
+          ))
+        )}
         {tab === "references" && links.length > 0 ? (
           <section aria-label="Links">
             <h2 className="mb-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
@@ -396,25 +580,6 @@ export function ProjectPage(props: {
               ))}
             </ul>
           </section>
-        ) : null}
-        {tab === "threads" && props.projectId !== null ? (
-          <ProjectThreads
-            environmentId={environmentId}
-            projectId={props.projectId}
-            currentThreadId={threadRef.threadId}
-            query={query}
-          />
-        ) : null}
-        {tab !== "threads" && shown.length === 0 && !(tab === "references" && links.length > 0) ? (
-          <p className="py-10 text-center text-xs text-muted-foreground">
-            {listing.data === undefined
-              ? "Reading the project"
-              : query.trim() !== ""
-                ? "Nothing matches that."
-                : tab === "files"
-                  ? "Nothing here yet. The models, boards and documents the agent makes show up here."
-                  : "No references yet. Add sketches, photos, datasheets or links in the brief."}
-          </p>
         ) : null}
       </div>
       {composerRef === null ? null : (

@@ -24,7 +24,7 @@ import {
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
-import { useProjectBrief } from "./useProjectBrief";
+import { useStudioProjectAt } from "./useStudioProjects";
 import {
   DISCIPLINES,
   type Discipline,
@@ -83,7 +83,7 @@ export function NewDialog(props: {
     templates.find((template) => template.id === props.initialTemplateId) ?? templates[0] ?? null;
   const [selected, setSelected] = useState<NewTemplate | null>(initial);
   const [discipline, setDiscipline] = useState<Discipline>(initial?.discipline ?? "Mechanical");
-  const { brief } = useProjectBrief(props.environmentId, props.cwd);
+  const brief = useStudioProjectAt(props.environmentId, props.cwd)?.project.brief ?? null;
   const [name, setName] = useState(initial?.defaultName ?? "");
   const [folder, setFolder] = useState(initial?.folder ?? "");
   const [units, setUnits] = useState<"mm" | "in">(brief?.units ?? "mm");

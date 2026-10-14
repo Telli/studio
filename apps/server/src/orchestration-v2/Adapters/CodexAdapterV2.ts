@@ -715,6 +715,21 @@ function codexRuntimeModeTurnDefaults(runtimeMode: RuntimeMode): {
   }
 }
 
+/**
+ * A workspace-write sandbox also lets the agent write the thread's other
+ * Studio project folders. Read-only and full-access sandboxes are left alone:
+ * one writes nowhere, the other everywhere.
+ */
+function withWritableRoots(
+  sandboxPolicy: CodexSchema.V2TurnStartParams__SandboxPolicy | null,
+  roots: ReadonlyArray<string> | undefined,
+): CodexSchema.V2TurnStartParams__SandboxPolicy | null {
+  if (sandboxPolicy?.type !== "workspaceWrite" || roots === undefined || roots.length === 0) {
+    return sandboxPolicy;
+  }
+  return { ...sandboxPolicy, writableRoots: [...(sandboxPolicy.writableRoots ?? []), ...roots] };
+}
+
 export function buildCodexTurnStartParams(input: {
   readonly nativeThreadId: string;
   readonly codexInput: ReadonlyArray<CodexSchema.V2TurnStartParams__UserInput>;
@@ -734,10 +749,12 @@ export function buildCodexTurnStartParams(input: {
       input.runtimePolicy.approvalPolicy === undefined
         ? runtimeModeDefaults.approvalPolicy
         : yield* decodeTurnApprovalPolicy(input.runtimePolicy.approvalPolicy);
-    const sandboxPolicy =
+    const sandboxPolicy = withWritableRoots(
       input.runtimePolicy.sandboxPolicy === undefined
         ? runtimeModeDefaults.sandboxPolicy
-        : yield* decodeTurnSandboxPolicy(input.runtimePolicy.sandboxPolicy);
+        : yield* decodeTurnSandboxPolicy(input.runtimePolicy.sandboxPolicy),
+      input.runtimePolicy.additionalDirectories,
+    );
     const selectedEffort = getModelSelectionStringOptionValue(
       input.modelSelection,
       "reasoningEffort",
@@ -771,10 +788,22 @@ export function buildCodexTurnStartParams(input: {
             },
           )
         : undefined;
-    const additionalContext =
-      t3Context === undefined && Object.keys(appContext).length === 0
+    // The Studio project's context goes in with or without T3's MCP server.
+    const projectContext =
+      input.runtimePolicy.projectContext === undefined
         ? undefined
-        : { ...t3Context, ...appContext };
+        : {
+            t3_code_project: {
+              kind: "application" as const,
+              value: input.runtimePolicy.projectContext,
+            },
+          };
+    const additionalContext =
+      t3Context === undefined &&
+      projectContext === undefined &&
+      Object.keys(appContext).length === 0
+        ? undefined
+        : { ...t3Context, ...projectContext, ...appContext };
     const collaborationMode: CodexSchema.ClientRequest__CollaborationMode | undefined =
       input.runtimePolicy.interactionMode !== "plan" && developerInstructions === undefined
         ? undefined

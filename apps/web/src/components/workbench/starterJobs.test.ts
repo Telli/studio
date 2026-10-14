@@ -39,7 +39,7 @@ describe("project starters", () => {
       {
         label: "Start the design from the brief",
         prompt:
-          "Design the first part of this project from its brief (brief/project.md): A wall bracket for a 5 kg shelf.",
+          "Design the first part of this project from its brief: A wall bracket for a 5 kg shelf.",
       },
     ]);
     expect(projectStarters([], new Set(["cad"]), null)).toEqual([]);

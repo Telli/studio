@@ -10,8 +10,14 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import {
+  studioOtherFolders,
+  studioProjectAt,
+  studioProjectContext,
+} from "@t3tools/shared/studioProjects";
 
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ProjectStore from "./ProjectStore.ts";
 
@@ -45,11 +51,15 @@ export type RuntimePolicyV2Override = typeof RuntimePolicyV2Override.Type;
 /**
  * SERVICE DEFINITION
  */
+export interface RuntimePolicyV2ResolveInput {
+  readonly thread: OrchestrationV2AppThread;
+  readonly modelSelection: ModelSelection;
+}
+
 export interface RuntimePolicyV2Shape {
-  readonly resolve: (input: {
-    readonly thread: OrchestrationV2AppThread;
-    readonly modelSelection: ModelSelection;
-  }) => Effect.Effect<ProviderAdapter.ProviderAdapterV2RuntimePolicy, RuntimePolicyV2Error>;
+  readonly resolve: (
+    input: RuntimePolicyV2ResolveInput,
+  ) => Effect.Effect<ProviderAdapter.ProviderAdapterV2RuntimePolicy, RuntimePolicyV2Error>;
 }
 
 export class RuntimePolicyV2 extends Context.Service<RuntimePolicyV2, RuntimePolicyV2Shape>()(
@@ -93,6 +103,67 @@ export const layerFromProjectStore: Layer.Layer<
   Effect.gen(function* () {
     const projects = yield* ProjectStore.ProjectStoreV2;
     const providerInstances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
+    // Optional so tests that assemble this layer by hand need no settings stub;
+    // the production composition always provides it.
+    const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
+
+    const projectWorkspaceRoot = (input: RuntimePolicyV2ResolveInput) =>
+      projects.get(input.thread.projectId).pipe(
+        Effect.mapError(
+          (cause) =>
+            new RuntimePolicyResolveError({
+              projectId: input.thread.projectId,
+              providerInstanceId: input.modelSelection.instanceId,
+              cause,
+            }),
+        ),
+        Effect.flatMap(
+          Option.match({
+            onNone: () =>
+              Effect.fail(
+                new RuntimePolicyResolveError({
+                  projectId: input.thread.projectId,
+                  providerInstanceId: input.modelSelection.instanceId,
+                  cause: "Project not found.",
+                }),
+              ),
+            onSome: (project) => Effect.succeed(project.workspaceRoot),
+          }),
+        ),
+      );
+
+    /**
+     * What the thread's Studio project adds to its turns: the project's other
+     * folders and its context. Matched by the project's folder, so a worktree
+     * thread gets its project's. Settings that cannot be read add nothing
+     * rather than fail the turn.
+     */
+    const studioProjectPolicy = Effect.fn("RuntimePolicyV2.studioProjectPolicy")(function* (
+      input: RuntimePolicyV2ResolveInput,
+      workspaceRoot: string | null,
+    ) {
+      if (Option.isNone(serverSettings)) return {};
+      return yield* Effect.gen(function* () {
+        const { studioProjects } = yield* serverSettings.value.getSettings;
+        if (Object.keys(studioProjects).length === 0) return {};
+        const root = workspaceRoot ?? (yield* projectWorkspaceRoot(input));
+        const match = studioProjectAt(studioProjects, root);
+        if (match === null) return {};
+        const otherFolders = studioOtherFolders(match.project, root);
+        return {
+          ...(otherFolders.length === 0 ? {} : { additionalDirectories: otherFolders }),
+          projectContext: studioProjectContext(match.project, root),
+        };
+      }).pipe(
+        Effect.catch((cause) =>
+          Effect.logWarning("Could not resolve the thread's Studio project; leaving it out.", {
+            threadId: input.thread.id,
+            cause,
+          }).pipe(Effect.as({})),
+        ),
+      );
+    });
+
     return RuntimePolicyV2.of({
       resolve: Effect.fn("RuntimePolicyV2.resolve")(function* (input) {
         const instance = yield* providerInstances.getInstance(input.modelSelection.instanceId);
@@ -100,35 +171,14 @@ export const layerFromProjectStore: Layer.Layer<
           instance === undefined
             ? undefined
             : (yield* instance.snapshot.getSnapshot).supportedRuntimeModes;
-        const cwd =
-          input.thread.worktreePath ??
-          (yield* projects.get(input.thread.projectId).pipe(
-            Effect.mapError(
-              (cause) =>
-                new RuntimePolicyResolveError({
-                  projectId: input.thread.projectId,
-                  providerInstanceId: input.modelSelection.instanceId,
-                  cause,
-                }),
-            ),
-            Effect.flatMap(
-              Option.match({
-                onNone: () =>
-                  Effect.fail(
-                    new RuntimePolicyResolveError({
-                      projectId: input.thread.projectId,
-                      providerInstanceId: input.modelSelection.instanceId,
-                      cause: "Project not found.",
-                    }),
-                  ),
-                onSome: (project) => Effect.succeed(project.workspaceRoot),
-              }),
-            ),
-          ));
+        const workspaceRoot =
+          input.thread.worktreePath === null ? yield* projectWorkspaceRoot(input) : null;
+        const studio = yield* studioProjectPolicy(input, workspaceRoot);
         return ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
           runtimeMode: providerRuntimeMode(input.thread.runtimeMode, supportedRuntimeModes),
           interactionMode: input.thread.interactionMode,
-          cwd,
+          cwd: input.thread.worktreePath ?? workspaceRoot,
+          ...studio,
         });
       }),
     });

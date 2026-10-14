@@ -402,6 +402,7 @@ export function applyServerSettingsPatch(
     sourceControlHosts: sourceControlHostsPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
+    studioProjects: studioProjectsPatch,
     // Entry replacement: deepMerge would keep keys the client meant to clear.
     projectSettingsOverrides: projectSettingsOverridesPatch,
     // Already translated into `projectSettingsOverrides` above; the legacy
@@ -579,6 +580,9 @@ export function applyServerSettingsPatch(
       : {}),
     ...(patch.defaultProjectScripts !== undefined
       ? { defaultProjectScripts: patch.defaultProjectScripts }
+      : {}),
+    ...(studioProjectsPatch !== undefined
+      ? { studioProjects: mergeSettingsEntries(current.studioProjects, studioProjectsPatch) }
       : {}),
     ...(usageLimitSourcesPatch !== undefined
       ? {

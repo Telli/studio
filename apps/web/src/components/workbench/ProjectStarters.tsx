@@ -7,7 +7,7 @@ import { pluginEnvironment } from "~/state/plugins";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
-import { useProjectBrief } from "./useProjectBrief";
+import { useStudioProjectAt } from "./useStudioProjects";
 import { classifyProjectFile, type ProjectFile } from "./projectFiles";
 import { projectStarters } from "./starterJobs";
 
@@ -33,7 +33,7 @@ export function ProjectStarters(props: {
   ).data?.entries;
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
-  const { brief } = useProjectBrief(environmentId, cwd);
+  const brief = useStudioProjectAt(environmentId, cwd)?.project.brief ?? null;
   const starters = useMemo(() => {
     const files = (recent ?? [])
       .map((entry) => classifyProjectFile(entry.path))

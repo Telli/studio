@@ -1,5 +1,19 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { BotIcon, BoxIcon, CircuitBoardIcon, PackageIcon, SquareIcon } from "lucide-react";
+import {
+  STUDIO_PROJECT_KINDS,
+  type StudioProjectKind,
+  studioFolderKey,
+  studioFolderName,
+} from "@t3tools/shared/studioProjects";
+import {
+  BotIcon,
+  BoxIcon,
+  CircuitBoardIcon,
+  FolderIcon,
+  PackageIcon,
+  SquareIcon,
+  XIcon,
+} from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 
 import { cn } from "~/lib/utils";
@@ -15,7 +29,7 @@ import {
 } from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
-import { PROJECT_TEMPLATES, type ProjectTemplate } from "./studioProject";
+import { AddFolderMenu } from "./AddFolderMenu";
 import { useCreateStudioProject } from "./useCreateStudioProject";
 
 const TEMPLATE_ICONS: Record<string, typeof BoxIcon> = {
@@ -45,20 +59,27 @@ function Field(props: {
 }
 
 /**
- * A new project: what it is called, what kind of project it is (a template
- * that lays out its folders), its units and material, and a line on what it is
- * for. Create makes the folder with its project file and brief and opens a
- * thread in it.
+ * A new project: what it is called, what kind of project it is (which tells
+ * the agent where its work goes), the folders it is made of (none makes a new
+ * one), its units and material, and a line on what it is for. Create saves it
+ * and opens a thread in its first folder.
  */
 export function NewProjectDialog(props: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly environmentId: EnvironmentId;
+  /** A folder to start from, as when making a project of a loose folder. */
+  readonly initialFolder?: string | null;
 }) {
   const id = useId();
-  const create = useCreateStudioProject();
-  const [name, setName] = useState("");
-  const [template, setTemplate] = useState<ProjectTemplate>(PROJECT_TEMPLATES[0]!);
+  const create = useCreateStudioProject(props.environmentId);
+  const [name, setName] = useState(
+    props.initialFolder ? studioFolderName(props.initialFolder) : "",
+  );
+  const [template, setTemplate] = useState<StudioProjectKind>(STUDIO_PROJECT_KINDS[0]!);
+  const [folders, setFolders] = useState<ReadonlyArray<string>>(
+    props.initialFolder ? [props.initialFolder] : [],
+  );
   const [units, setUnits] = useState<"mm" | "in">("mm");
   const [material, setMaterial] = useState("");
   const [purpose, setPurpose] = useState("");
@@ -70,10 +91,11 @@ export function NewProjectDialog(props: {
     const made = await create({
       environmentId: props.environmentId,
       name,
-      template,
+      kind: template,
       units,
       material,
       purpose,
+      folders,
     });
     setCreating(false);
     if (made) props.onOpenChange(false);
@@ -90,8 +112,8 @@ export function NewProjectDialog(props: {
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
           <DialogDescription>
-            A folder for one piece of work: its parts, boards, drawings, studies and outputs, with a
-            brief every agent reads first.
+            One piece of work, made of one folder or several (the CAD, the board, the firmware),
+            with a brief every agent in it reads first.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
@@ -113,7 +135,7 @@ export function NewProjectDialog(props: {
               aria-label="Kind of project"
               className="grid gap-2 sm:grid-cols-2"
             >
-              {PROJECT_TEMPLATES.map((entry) => {
+              {STUDIO_PROJECT_KINDS.map((entry) => {
                 const Icon = TEMPLATE_ICONS[entry.id] ?? BoxIcon;
                 const active = template.id === entry.id;
                 return (
@@ -144,6 +166,46 @@ export function NewProjectDialog(props: {
                 );
               })}
             </div>
+            <Field label="Folders">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {folders.map((folder) => (
+                  <span
+                    key={folder}
+                    className="inline-flex h-6 min-w-0 items-center gap-1.5 rounded-md border border-border ps-2 pe-0.5 text-xs text-foreground"
+                  >
+                    <FolderIcon
+                      className="size-3 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <span className="max-w-40 truncate">{studioFolderName(folder)}</span>
+                    <Button
+                      variant="ghost-muted"
+                      size="icon-xs"
+                      aria-label={`Leave ${studioFolderName(folder)} out`}
+                      onClick={() =>
+                        setFolders((current) =>
+                          current.filter(
+                            (entry) => studioFolderKey(entry) !== studioFolderKey(folder),
+                          ),
+                        )
+                      }
+                    >
+                      <XIcon />
+                    </Button>
+                  </span>
+                ))}
+                <AddFolderMenu
+                  environmentId={props.environmentId}
+                  exclude={folders}
+                  onAdd={(folder) => setFolders((current) => [...current, folder])}
+                />
+                {folders.length === 0 ? (
+                  <span className="text-2xs text-muted-foreground">
+                    None: Studio makes a new folder for it.
+                  </span>
+                ) : null}
+              </div>
+            </Field>
             <Field label="Units">
               <Select
                 value={units}

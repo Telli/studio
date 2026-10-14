@@ -1,4 +1,4 @@
-import { BRIEF_MARKDOWN, type ProjectBrief } from "./briefFolder";
+import type { ProjectBrief } from "./briefFolder";
 import { hardwareActions } from "./hardwareActions";
 import { describePart } from "./partContext";
 import type { ProjectFile } from "./projectFiles";
@@ -50,7 +50,7 @@ export function projectStarters(
   if (starters.length === 0 && brief !== null && brief.purpose.trim() !== "") {
     add({
       label: "Start the design from the brief",
-      prompt: `Design the first part of this project from its brief (${BRIEF_MARKDOWN}): ${brief.purpose.trim()}`,
+      prompt: `Design the first part of this project from its brief: ${brief.purpose.trim()}`,
     });
   }
   return starters;

@@ -35,6 +35,10 @@
       "types": "./src/themePreview.ts",
       "import": "./src/themePreview.ts"
     },
+    "./studioProjects": {
+      "types": "./src/studioProjects.ts",
+      "import": "./src/studioProjects.ts"
+    },
     "./projectFavicon": {
       "types": "./src/projectFavicon.ts",
       "import": "./src/projectFavicon.ts"

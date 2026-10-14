@@ -51,6 +51,14 @@ export const ProviderAdapterV2RuntimePolicy = Schema.Struct({
   approvalPolicy: Schema.optional(Schema.Unknown),
   sandboxPolicy: Schema.optional(Schema.Unknown),
   reasoningEffort: Schema.optional(Schema.String),
+  /**
+   * The thread's Studio project, when its folder is in one: the project's other
+   * folders, which the agent may read and edit as extra working directories,
+   * and what the agent is told about the project. Claude and Codex honor them;
+   * the other adapters ignore them for now.
+   */
+  additionalDirectories: Schema.optionalKey(Schema.Array(Schema.String)),
+  projectContext: Schema.optionalKey(Schema.String),
 });
 export type ProviderAdapterV2RuntimePolicy = typeof ProviderAdapterV2RuntimePolicy.Type;
 
