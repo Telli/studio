@@ -6,18 +6,21 @@ import type { ComposerHandleRef } from "~/composerHandleContext";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
-import { useEngineeringInterface } from "../workbench/studioInterface";
+import { ProjectStarters } from "../workbench/ProjectStarters";
+import { WORKBENCH_LAYOUT } from "../workbench/workbenchLayout";
 import { BRAND_STARTERS, brandStarterPrompts } from "./brandStarters";
 
 /**
  * What the enabled plugins suggest asking first, under a new thread's
  * headline (text-to-cad: "Design a 3D-printable phone stand…"), or the
- * brand's own starters when it has them (Studio's hardware jobs: "Route this
- * board"). A pick goes into the composer to edit before sending.
+ * brand's own starters when it has them. Studio's are made from the project.
+ * A pick goes into the composer to edit before sending.
  */
 export function PluginStarterPrompts(props: {
   readonly environmentId: EnvironmentId | null;
   readonly composerRef: ComposerHandleRef;
+  /** The project's workspace root; null for no project (a scratch thread). */
+  readonly cwd?: string | null;
 }) {
   const list = useEnvironmentQuery(
     props.environmentId === null
@@ -28,9 +31,17 @@ export function PluginStarterPrompts(props: {
     const plugins = list.data?.plugins ?? [];
     return brandStarterPrompts(BRAND_STARTERS, plugins, 4) ?? pluginStarterPrompts(plugins, 3);
   }, [list.data]);
-  // The engineering interface starts new work from the project page's New (`workbench/NewDialog.tsx`).
-  const engineering = useEngineeringInterface();
-  if (engineering || prompts.length === 0) return null;
+  // Studio suggests from the project itself, and nothing without one (`workbench/ProjectStarters.tsx`).
+  if (WORKBENCH_LAYOUT) {
+    return props.environmentId !== null && props.cwd ? (
+      <ProjectStarters
+        environmentId={props.environmentId}
+        cwd={props.cwd}
+        composerRef={props.composerRef}
+      />
+    ) : null;
+  }
+  if (prompts.length === 0) return null;
   return (
     <div className="pointer-events-auto mt-4 flex flex-wrap justify-center gap-2">
       {prompts.map((prompt) => (

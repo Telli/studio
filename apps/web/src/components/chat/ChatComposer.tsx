@@ -1453,6 +1453,8 @@ const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(
 
 export interface ChatComposerHandle {
   focusAtEnd: () => void;
+  /** Sends what the composer holds, as its send button does (Studio's New dialog starts work). */
+  submit: () => void;
   focusAt: (cursor: number) => void;
   /** Expand the desktop composer at the timeline end without taking focus. */
   restoreAfterTimelineReachedEnd: () => void;
@@ -6670,8 +6672,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         setProviderInputSubmissionError(validationMessage);
         return validationMessage === null;
       },
+      submit: () => submitComposer(),
     }),
     [
+      submitComposer,
       activeThread,
       addComposerAttachments,
       foldPastedText,

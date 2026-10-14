@@ -19,6 +19,8 @@ export interface HardwareAction {
   /** The part kinds it applies to, as the context strip names them (`describePart`). */
   readonly kinds: ReadonlyArray<string>;
   readonly prompt: (file: string) => string;
+  /** The job as a starter names it, short: "Check l_bracket for CNC machining". */
+  readonly short: (name: string) => string;
 }
 
 const SOLID = ["Part", "Assembly"];
@@ -33,6 +35,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: SOLID,
     prompt: (file) =>
       `Check ${file} for strength under its working load. Ask me for the loads, supports and material you need, then tell me where it is weakest and what to change.`,
+    short: (name) => `Check ${name} under load`,
   },
   {
     id: "fea-results",
@@ -42,6 +45,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: ["FEA study"],
     prompt: (file) =>
       `Walk me through the results in ${file}: what fails, by how much, and what to change.`,
+    short: (name) => `Explain the ${name} study`,
   },
   {
     id: "cnc",
@@ -50,6 +54,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     skill: "dfm",
     kinds: SOLID,
     prompt: (file) => `Check ${file} for CNC machining and tell me what to change.`,
+    short: (name) => `Check ${name} for CNC machining`,
   },
   {
     id: "sheet-metal",
@@ -59,6 +64,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: ["Part"],
     prompt: (file) =>
       `Check ${file} as a sheet metal part: bend radii, reliefs, and hole and edge distances. Tell me what to change.`,
+    short: (name) => `Check ${name} as sheet metal`,
   },
   {
     id: "molding",
@@ -68,6 +74,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: ["Part"],
     prompt: (file) =>
       `Check ${file} for injection molding: draft, wall thickness and undercuts. Tell me what to change.`,
+    short: (name) => `Check ${name} for injection molding`,
   },
   {
     id: "printing",
@@ -77,6 +84,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: PRINTABLE,
     prompt: (file) =>
       `Check ${file} for 3D printing: overhangs, thin walls and the best build orientation.`,
+    short: (name) => `Check ${name} for 3D printing`,
   },
   {
     id: "board-fab",
@@ -86,6 +94,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: ["Board"],
     prompt: (file) =>
       `Check ${file} against the fab's limits and tell me what to fix before ordering.`,
+    short: (name) => `Check ${name} for fabrication`,
   },
   {
     id: "cam-results",
@@ -95,6 +104,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: ["CAM job"],
     prompt: (file) =>
       `Walk me through ${file}: cycle time, tools, and anything to fix before cutting.`,
+    short: (name) => `Explain the ${name} job`,
   },
   {
     id: "grbl",
@@ -104,6 +114,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: ["Part"],
     prompt: (file) =>
       `Post G-code for ${file} for a grbl router. Ask me for the stock, tools and workholding you need.`,
+    short: (name) => `Post G-code for ${name}`,
   },
   {
     id: "slice",
@@ -112,6 +123,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     skill: "gcode",
     kinds: PRINTABLE,
     prompt: (file) => `Slice ${file} for FDM printing and check the G-code.`,
+    short: (name) => `Slice ${name} for printing`,
   },
   {
     id: "bambu",
@@ -121,6 +133,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: PRINTABLE,
     prompt: (file) =>
       `Slice ${file} and get it ready on my Bambu printer. Check with me before the print starts.`,
+    short: (name) => `Print ${name} on the Bambu`,
   },
   {
     id: "dxf",
@@ -129,6 +142,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     skill: "dxf",
     kinds: ["Part", "Drawing"],
     prompt: (file) => `Make a cut-ready DXF of ${file} for laser or waterjet cutting.`,
+    short: (name) => `Make a cut file of ${name}`,
   },
   {
     id: "sendcutsend",
@@ -138,6 +152,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: ["Part", "Drawing"],
     prompt: (file) =>
       `Check ${file} for a SendCutSend order: material, thickness and any services it needs.`,
+    short: (name) => `Get ${name} ready for SendCutSend`,
   },
   {
     id: "route",
@@ -146,6 +161,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     skill: "pcb",
     kinds: ["Board"],
     prompt: (file) => `Route ${file}.`,
+    short: (name) => `Route ${name}`,
   },
   {
     id: "drawing",
@@ -155,6 +171,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: SOLID,
     prompt: (file) =>
       `Make an engineering drawing of ${file} with its key dimensions and tolerances.`,
+    short: (name) => `Draw ${name}`,
   },
   {
     id: "standard-parts",
@@ -164,6 +181,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     kinds: SOLID,
     prompt: (file) =>
       `Find the off-the-shelf parts ${file} needs, such as fasteners and bearings, and bring in their STEP files.`,
+    short: (name) => `Find standard parts for ${name}`,
   },
   {
     id: "exports",
@@ -172,6 +190,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     skill: "cad",
     kinds: SOLID,
     prompt: (file) => `Export ${file} as STL and 3MF.`,
+    short: (name) => `Export ${name} as STL and 3MF`,
   },
   {
     id: "urdf",
@@ -180,6 +199,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     skill: "urdf",
     kinds: ["Assembly"],
     prompt: (file) => `Make a URDF for ${file}, with its joints and limits.`,
+    short: (name) => `Describe ${name} as a robot`,
   },
 ];
 

@@ -11763,6 +11763,7 @@ export default function ChatView(props: ChatViewProps) {
                         <PluginStarterPrompts
                           environmentId={activeProjectRef?.environmentId ?? null}
                           composerRef={composerRef}
+                          cwd={activeProjectIsScratch ? null : gitCwd}
                         />
                       </div>
                     </div>

@@ -117,8 +117,9 @@ export function NewDialog(props: {
       newWorkPrompt({ template: selected, name, folder, units, part, description }),
       { ensureLeadingBoundary: true },
     );
-    composer.focusAtEnd();
     props.onOpenChange(false);
+    // Create starts the work: the composer sends once it holds the job.
+    requestAnimationFrame(() => composer.submit());
   };
 
   return (
@@ -127,7 +128,7 @@ export function NewDialog(props: {
         <DialogHeader>
           <DialogTitle>New</DialogTitle>
           <DialogDescription>
-            Start a part, a board, a study or a job. Create writes it into the chat to send.
+            Start a part, a board, a study or a job. Create hands it to the agent.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
