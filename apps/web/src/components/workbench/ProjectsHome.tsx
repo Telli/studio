@@ -19,7 +19,7 @@ import { Button } from "../ui/button";
 import { SidebarInset } from "../ui/sidebar";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { NewProjectDialog } from "./NewProjectDialog";
-import { usePictures } from "./ProjectPage";
+import { usePictures } from "./usePictures";
 import { groupProjectFiles } from "./projectFiles";
 import { useProjectBrief } from "./useProjectBrief";
 

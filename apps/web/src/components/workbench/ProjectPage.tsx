@@ -15,7 +15,7 @@ import {
   PencilRulerIcon,
   PlusIcon,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
@@ -24,7 +24,6 @@ import { useRightPanelStore } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
-import { useAtomCommand } from "~/state/use-atom-command";
 import { pluginAppSurface } from "../plugins/pluginSurfaces";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -33,6 +32,7 @@ import { availableTemplates } from "./newTemplates";
 import { ProjectBriefRow } from "./ProjectBrief";
 import { ProjectThreads } from "./ProjectThreads";
 import { useProjectBrief } from "./useProjectBrief";
+import { usePictures } from "./usePictures";
 import { groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
 
 const GROUP_ICONS: Record<ProjectGroup, typeof BoxIcon> = {
@@ -65,60 +65,6 @@ function readView(): "grid" | "list" {
   } catch {
     return "grid";
   }
-}
-
-/** Pictures by project and path, for the session: a page shown again draws at once. */
-const pictureCache = new Map<string, string | null>();
-/** The server renders at most this many pictures per call. */
-const BATCH = 24;
-
-/**
- * Pictures of the project's models, boards and drawings, rendered on the
- * server by the CAD plugin (`plugins.modelPictures`, cached there by file
- * size and time), a batch at a time, the first files first.
- */
-export function usePictures(input: {
-  readonly environmentId: EnvironmentId;
-  readonly cwd: string;
-  readonly paths: ReadonlyArray<string>;
-}): ReadonlyMap<string, string> {
-  const { environmentId, cwd } = input;
-  const render = useAtomCommand(pluginEnvironment.modelPictures, { reportFailure: false });
-  const [, setRevision] = useState(0);
-  const wanted = input.paths.join("\n");
-
-  useEffect(() => {
-    if (wanted === "") return;
-    let cancelled = false;
-    const missing = wanted.split("\n").filter((path) => !pictureCache.has(`${cwd}\n${path}`));
-    void (async () => {
-      for (let start = 0; start < missing.length; start += BATCH) {
-        if (cancelled) return;
-        const result = await render({
-          environmentId,
-          input: { cwd, paths: missing.slice(start, start + BATCH) },
-        });
-        if (result._tag !== "Success") return;
-        for (const picture of result.value.pictures) {
-          pictureCache.set(
-            `${cwd}\n${picture.path}`,
-            picture.png === null ? null : `data:image/png;base64,${picture.png}`,
-          );
-        }
-        if (!cancelled) setRevision((value) => value + 1);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [render, environmentId, cwd, wanted]);
-
-  const pictures = new Map<string, string>();
-  for (const path of input.paths) {
-    const picture = pictureCache.get(`${cwd}\n${path}`);
-    if (picture) pictures.set(path, picture);
-  }
-  return pictures;
 }
 
 function FileTile(props: {
