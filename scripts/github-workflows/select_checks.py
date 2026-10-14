@@ -186,6 +186,24 @@ def _mcp_change(path: str) -> Select:
     return select(flags=["packaging"], cadgen=_cadgen_tests_naming(_NAMES_MCP, ("mcp",)))
 
 
+# A support module that only some suites import (a part library, a stand-in) reaches only the
+# tests that import it; the rest of tests/python/support is shared machinery, and runs everything.
+SUITE_FIXTURES = ("tests/python/support/cam_fixtures.py", "tests/python/support/fea_fixtures.py")
+
+
+def _fixture_users(path: str) -> Select:
+    """The tests that name the support module at `path` (they import it), in every Python suite;
+    the FEA solver's job too when they are its tests."""
+    stem = re.compile(rf"\b{re.escape(Path(path).stem)}\b")
+    cadgen, policy_tests, skills = [], [], []
+    for suite, found in ((CADGEN_SUITE, cadgen), (POLICY_SUITE, policy_tests), (SKILL_SUITES, skills)):
+        for test in sorted((ROOT / suite).rglob("test*.py")):
+            if stem.search(test.read_text(encoding="utf-8", errors="replace")):
+                found.append(test.relative_to(ROOT).as_posix())
+    fea = any(Path(test).name.startswith("test_fea") for test in cadgen)
+    return select(flags=["fea"] if fea else [], cadgen=cadgen, policy=policy_tests, skills=skills)
+
+
 _MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 
 
@@ -221,6 +239,7 @@ RULES: tuple[Rule, ...] = (
     Rule(("apps/web/**/*.md",), select(flags=["web_client"]), final=True),  # its links must resolve
     Rule(("packages/**/*.md", "apps/**/*.md"), NOTHING, final=True),
 
+    Rule(SUITE_FIXTURES, _fixture_users, final=True),
     # Shared by every job, or the selection itself: everything runs.
     Rule((
         "VERSION",                       # a release is tested whole
@@ -243,9 +262,13 @@ RULES: tuple[Rule, ...] = (
     # installs: it, its commands, the result types it returns, the extra's pins and its skill.
     Rule((
         f"{CADGEN_SRC}/_internal/fea/**", f"{CADGEN_SRC}/fea.py", f"{CADGEN_SRC}/cli/fea_*",
+        f"{CADGEN_SRC}/_internal/step_open.py",   # how the solver opens a STEP and picks its part
         f"{CADGEN_SRC}/results.py", "packages/cadgen/pyproject.toml", "skills/fea/**",
         f"{CADGEN_SUITE}/test_fea*.py",
     ), select(flags=["fea"])),
+    # CAM needs no extra: its code is cadgen's, and runs the cadgen suite above. Its skill is read
+    # by the protocol suite, which holds the skill's tables and links to the operation registry.
+    Rule(("skills/cam/**",), select(cadgen=[f"{CADGEN_SUITE}/test_cam_protocol.py"])),
 
     # The shared UI and the apps. The snapshot runtime is built from core alone, so ui
     # reaches the two hosts and the wheel, not cadgen's suites.

@@ -279,6 +279,41 @@ class ChangesRunWhatCanBreak(unittest.TestCase):
         self.assertEqual(jobs_for(f"{CADGEN}/test_fea.py"), {"cadgen-linux", "cadgen-windows", "fea", "skills"})
         self.assertNotIn("fea", jobs_for("packages/cadgen/src/cadgen/step.py"))
 
+    def test_cam_runs_in_the_cadgen_job_with_no_extra(self):
+        cadgen = {"cadgen-linux", "cadgen-windows", "skills"}
+        # Its code reaches every CAM suite (and, as cadgen, the whole package suite and its consumers).
+        for path in ("packages/cadgen/src/cadgen/_internal/cam/run.py", "packages/cadgen/src/cadgen/cam.py",
+                     "packages/cadgen/src/cadgen/cli/cam_plan.py"):
+            with self.subTest(path=path):
+                self.assertEqual(jobs_for(path), GATED - {"core-js", "mcp", "api", "docs", "fea"})
+                self.assertEqual(tests_for(path)["cadgen_tests"], [CADGEN])
+        # Its skill is read by the protocol suite alone, which holds its tables to the registry.
+        for path in ("skills/cam/SKILL.md", "skills/cam/references/job-file.md", "skills/cam/agents/openai.yaml"):
+            with self.subTest(path=path):
+                self.assertEqual(jobs_for(path), cadgen)
+                self.assertEqual(tests_for(path)["cadgen_tests"], [f"{CADGEN}/test_cam_protocol.py"])
+        # A CAM test file runs itself, in the cadgen job.
+        self.assertEqual(jobs_for(f"{CADGEN}/test_cam_plan.py"), cadgen)
+        self.assertEqual(tests_for(f"{CADGEN}/test_cam_plan.py")["cadgen_tests"], [f"{CADGEN}/test_cam_plan.py"])
+
+    def test_a_suites_own_fixtures_run_the_tests_that_import_them(self):
+        # cam_fixtures and fea_fixtures are imported by their suites alone: a change to one runs those, not
+        # everything (the rest of tests/python/support is shared machinery, and does).
+        cam = sorted(f"{CADGEN}/{path.name}" for path in (REPO_ROOT / CADGEN).glob("test_cam*.py")
+                     if "cam_fixtures" in path.read_text(encoding="utf-8"))
+        self.assertIn(f"{CADGEN}/test_cam_plan.py", cam)
+        self.assertEqual(route("tests/python/support/cam_fixtures.py")["full"], "false")
+        self.assertEqual(tests_for("tests/python/support/cam_fixtures.py")["cadgen_tests"], cam)
+        self.assertEqual(jobs_for("tests/python/support/cam_fixtures.py"), {"cadgen-linux", "cadgen-windows", "skills"})
+        fea = tests_for("tests/python/support/fea_fixtures.py")["cadgen_tests"]
+        self.assertIn(f"{CADGEN}/test_fea_assembly.py", fea)
+        self.assertTrue(all(path.rsplit("/", 1)[1].startswith("test_fea") for path in fea), fea)
+        self.assertEqual(jobs_for("tests/python/support/fea_fixtures.py"),
+                         {"cadgen-linux", "cadgen-windows", "fea", "skills"})
+
+    def test_the_step_opener_the_solver_shares_runs_the_solver(self):
+        self.assertIn("fea", jobs_for("packages/cadgen/src/cadgen/_internal/step_open.py"))
+
     def test_the_viewer_and_the_mcp_server_reach_only_what_reaches_them(self):
         viewer = tests_for("packages/cadgen/src/cadgen/viewer/scanner.py")
         self.assertIn(f"{CADGEN}/viewer/test_launcher.py", viewer["cadgen_tests"])
