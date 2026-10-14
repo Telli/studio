@@ -13,6 +13,8 @@ const demo = [
   "electronics/PCB/servo_power.gerbers.zip",
   "out/l_bracket.cam.glb",
   "out/l_bracket.nc",
+  "fea/results/charging-thermal.glb",
+  "reference/raytac/MDBT50Q.step",
   "plans/bracket-review.md",
   "AGENTS.md",
   "brief/brief.json",
@@ -29,9 +31,13 @@ describe("project files", () => {
     ).toEqual([
       ["Models", ["l_bracket.step", "mounting_plate.step"]],
       ["Boards and wiring", ["servo_power.kicad_pcb", "servo_power.kicad_sch"]],
-      ["Studies and jobs", ["l_bracket.cam.glb", "l_bracket.nc"]],
+      ["Studies", ["charging-thermal.glb"]],
+      [
+        "Manufacturing",
+        ["servo_power.bom.csv", "servo_power.gerbers.zip", "l_bracket.cam.glb", "l_bracket.nc"],
+      ],
       ["Documents", ["bracket-review.md"]],
-      ["Fabrication files", ["servo_power.bom.csv", "servo_power.gerbers.zip"]],
+      ["Reference parts", ["MDBT50Q.step"]],
       ["References", ["project.md", "sketch.jpg"]],
     ]);
   });

@@ -3,7 +3,7 @@ import { pluginViewsWithEntrypoint } from "@t3tools/client-runtime/state/plugins
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { useEffect } from "react";
 
-import { useRightPanelStore } from "~/rightPanelStore";
+import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { pluginAppSurface } from "../plugins/pluginSurfaces";
@@ -40,39 +40,55 @@ function offerOnce(threadKey: string): boolean {
 }
 
 /**
- * In the workbench layout a thread opens on its viewer: the first time a
- * thread shows, the panel opens on the thread view of the first enabled
- * plugin that has one (text-to-cad's CAD tab), so the agent's `cad_show` has
- * a viewer to switch. Each thread is offered it once, remembered apart from
- * the panel's own state (which forgets a thread whose last tab closed), so a
- * viewer the user closed stays closed; the panel's "+" menu brings it back.
- * A thread whose panel already holds something is left as it is.
+ * In the workbench layout a thread opens on its project and its viewer. Every
+ * thread, a new one included, is offered the project page once in the
+ * engineering interface (the pinned Project tab); a thread the agent works in
+ * is offered the thread view of the first enabled plugin that has one (text-to-
+ * cad's CAD tab), in front, so the agent's `cad_show` has a viewer to switch.
+ * Each offer is made once per thread, remembered apart from the panel's own
+ * state (which forgets a thread whose last tab closed), so what the user
+ * closed stays closed; the panel's "+" menu brings it back.
  */
 export function useWorkbenchViewer(input: {
   readonly enabled: boolean;
   readonly environmentId: EnvironmentId;
-  /** The server thread; null for a draft, whose plugin servers do not run yet. */
+  /** The thread, a draft included. */
   readonly threadRef: ScopedThreadRef | null;
+  /** Whether the thread has started: a draft's plugin servers do not run yet. */
+  readonly serverThread: boolean;
 }) {
-  const { enabled, environmentId, threadRef } = input;
+  const { enabled, environmentId, threadRef, serverThread } = input;
   const list = useEnvironmentQuery(
-    enabled && threadRef !== null ? pluginEnvironment.list({ environmentId, input: {} }) : null,
+    enabled && serverThread && threadRef !== null
+      ? pluginEnvironment.list({ environmentId, input: {} })
+      : null,
   );
   const plugins = list.data?.plugins;
 
   useEffect(() => {
-    if (!enabled || threadRef === null || plugins === undefined) return;
-    const choice = pluginViewsWithEntrypoint(plugins, "thread")[0];
-    if (choice === undefined) return;
+    if (!enabled || threadRef === null) return;
     const threadKey = scopedThreadKey(threadRef);
-    if (!offerOnce(threadKey)) return;
-    const panels = useRightPanelStore.getState();
-    if (threadKey in panels.byThreadKey) return;
-    const revision = panels.getUserActionRevision(threadRef);
-    // The engineering interface keeps the project page a tab away, the viewer in front.
-    if (isEngineeringInterface()) {
-      panels.openProactive(threadRef, { id: "files", kind: "files" }, revision);
+    const surfaces = () =>
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, threadRef).surfaces;
+    if (isEngineeringInterface() && offerOnce(`project:${threadKey}`)) {
+      const panels = useRightPanelStore.getState();
+      if (!surfaces().some((surface) => surface.kind === "files")) {
+        panels.openProactive(
+          threadRef,
+          { id: "files", kind: "files" },
+          panels.getUserActionRevision(threadRef),
+        );
+      }
     }
-    panels.openProactive(threadRef, pluginAppSurface(choice), revision);
-  }, [enabled, threadRef, plugins]);
+    if (!serverThread || plugins === undefined) return;
+    const choice = pluginViewsWithEntrypoint(plugins, "thread")[0];
+    if (choice === undefined || !offerOnce(threadKey)) return;
+    if (surfaces().some((surface) => surface.kind === "plugin-app")) return;
+    const panels = useRightPanelStore.getState();
+    panels.openProactive(
+      threadRef,
+      pluginAppSurface(choice),
+      panels.getUserActionRevision(threadRef),
+    );
+  }, [enabled, threadRef, serverThread, plugins]);
 }

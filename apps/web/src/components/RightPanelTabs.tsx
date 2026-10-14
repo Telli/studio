@@ -101,6 +101,7 @@ import {
   isEngineeringInterface,
   useEngineeringInterface,
 } from "./workbench/studioInterface";
+import { PinnedProjectTab } from "./workbench/PinnedProjectTab";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
 
 interface RightPanelTabsProps {
@@ -889,6 +890,10 @@ function SortableTab({
 }
 
 export function RightPanelTabs(props: RightPanelTabsProps) {
+  const engineering = useEngineeringInterface();
+  const tabSurfaces = engineering
+    ? props.surfaces.filter((surface) => surface.kind !== "files")
+    : props.surfaces;
   const ownsDesktopTitleBar = isElectron && props.mode === "inline";
   const browserProfiles = useBrowserDefaults().profiles;
   const { resolvedTheme } = useTheme();
@@ -1202,6 +1207,17 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         )}
         data-right-panel-tabbar
       >
+        {engineering ? (
+          // The project is home, not one tab among many: pinned first, apart from the rest.
+          <PinnedProjectTab
+            active={props.activeSurfaceId === "files"}
+            onSelect={() => {
+              const project = props.surfaces.find((surface) => surface.kind === "files");
+              if (project) props.onActivate(project);
+              else props.onAddFiles();
+            }}
+          />
+        ) : null}
         <ScrollArea
           radius="none"
           ref={tabListRef}
@@ -1211,8 +1227,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           data-right-panel-tab-list
         >
           <div className="flex h-full w-max min-w-full items-center gap-1">
-            <SortableTabList surfaces={props.surfaces} onMove={props.onMoveSurface}>
-              {props.surfaces.map((surface) => {
+            <SortableTabList surfaces={tabSurfaces} onMove={props.onMoveSurface}>
+              {tabSurfaces.map((surface) => {
                 const active = surface.id === props.activeSurfaceId;
                 const pending = props.pendingSurfaceIds.has(surface.id);
                 const title = surfaceTitle(

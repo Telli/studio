@@ -616,7 +616,6 @@ import { PluginStarterPrompts } from "./plugins/PluginStarterPrompts";
 import { usePluginFollow } from "./plugins/usePluginFollow";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { ProjectPage } from "./workbench/ProjectPage";
-import { ProjectParts } from "./workbench/ProjectParts";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
 import { useEngineeringInterface } from "./workbench/studioInterface";
 import { useDocumentFollow } from "./workbench/useDocumentFollow";
@@ -5908,7 +5907,8 @@ export default function ChatView(props: ChatViewProps) {
   useWorkbenchViewer({
     enabled: WORKBENCH_LAYOUT,
     environmentId,
-    threadRef: isServerThread ? activeThreadRef : null,
+    threadRef: activeThreadRef,
+    serverThread: isServerThread,
   });
   const engineeringInterface = useEngineeringInterface();
   useDocumentFollow({
@@ -11286,7 +11286,9 @@ export default function ChatView(props: ChatViewProps) {
       <ProjectPage
         environmentId={activeThread.environmentId}
         cwd={activeWorkspaceRoot}
-        projectName={activeProject.title}
+        projectName={
+          activeProjectIsScratch ? activeThread.title || "This thread" : activeProject.title
+        }
         threadRef={activeThreadRef}
         workspaceMutationId={workspaceMutationId}
       />
@@ -11760,11 +11762,6 @@ export default function ChatView(props: ChatViewProps) {
                         />
                         <PluginStarterPrompts
                           environmentId={activeProjectRef?.environmentId ?? null}
-                          composerRef={composerRef}
-                        />
-                        <ProjectParts
-                          environmentId={activeProjectRef?.environmentId ?? null}
-                          cwd={gitCwd}
                           composerRef={composerRef}
                         />
                       </div>

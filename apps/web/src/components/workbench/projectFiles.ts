@@ -9,20 +9,22 @@ export type ProjectGroup =
   | "Models"
   | "Boards and wiring"
   | "Drawings"
-  | "Studies and jobs"
+  | "Studies"
+  | "Manufacturing"
   | "Documents"
-  | "Fabrication files"
   | "Images"
+  | "Reference parts"
   | "References";
 
 const GROUP_ORDER: ReadonlyArray<ProjectGroup> = [
   "Models",
   "Boards and wiring",
   "Drawings",
-  "Studies and jobs",
+  "Studies",
+  "Manufacturing",
   "Documents",
-  "Fabrication files",
   "Images",
+  "Reference parts",
   "References",
 ];
 
@@ -40,9 +42,9 @@ const RULES: ReadonlyArray<{
   readonly group: ProjectGroup;
   readonly kind: string;
 }> = [
-  { test: /\.fea\.(?:glb|json)$/i, group: "Studies and jobs", kind: "FEA study" },
-  { test: /\.cam\.(?:glb|json)$/i, group: "Studies and jobs", kind: "CAM job" },
-  { test: /\.(?:nc|gcode|ngc|tap|gco)$/i, group: "Studies and jobs", kind: "G-code" },
+  { test: /\.fea\.(?:glb|json)$/i, group: "Studies", kind: "FEA study" },
+  { test: /\.cam\.(?:glb|json)$/i, group: "Manufacturing", kind: "CAM job" },
+  { test: /\.(?:nc|gcode|ngc|tap|gco)$/i, group: "Manufacturing", kind: "G-code" },
   { test: /\.(?:step|stp)$/i, group: "Models", kind: "STEP" },
   { test: /\.(?:stl|3mf|obj|glb)$/i, group: "Models", kind: "Mesh" },
   { test: /\.(?:urdf|sdf|srdf)$/i, group: "Models", kind: "Robot" },
@@ -51,10 +53,10 @@ const RULES: ReadonlyArray<{
   { test: /\.harness\.ya?ml$/i, group: "Boards and wiring", kind: "Harness" },
   { test: /\.(?:dxf|dwg|svg)$/i, group: "Drawings", kind: "Drawing" },
   { test: /\.(?:md|mdx|pdf|txt)$/i, group: "Documents", kind: "Document" },
-  { test: /gerbers?\.zip$|\.(?:gbr|drl)$/i, group: "Fabrication files", kind: "Gerbers" },
-  { test: /bom\.(?:csv|tsv)$/i, group: "Fabrication files", kind: "BOM" },
-  { test: /pos\.(?:csv|tsv)$/i, group: "Fabrication files", kind: "Pick and place" },
-  { test: /\.(?:csv|tsv|xlsx)$/i, group: "Fabrication files", kind: "Table" },
+  { test: /gerbers?\.zip$|\.(?:gbr|drl)$/i, group: "Manufacturing", kind: "Gerbers" },
+  { test: /bom\.(?:csv|tsv)$/i, group: "Manufacturing", kind: "BOM" },
+  { test: /pos\.(?:csv|tsv)$/i, group: "Manufacturing", kind: "Pick and place" },
+  { test: /\.(?:csv|tsv|xlsx)$/i, group: "Documents", kind: "Table" },
   { test: /\.(?:png|jpe?g|webp|gif|heic)$/i, group: "Images", kind: "Image" },
 ];
 
@@ -79,8 +81,26 @@ export function classifyProjectFile(path: string): ProjectFile | null {
   }
   const rule = RULES.find((entry) => entry.test.test(normalized));
   if (rule === undefined) return null;
-  return { path: normalized, name, folder, group: rule.group, kind: rule.kind };
+  const file = { path: normalized, name, folder, group: rule.group, kind: rule.kind };
+  if (rule.group !== "Models") return file;
+  // A model's folder says what it is: a study's result, a CAM job's, or a part someone else made.
+  const folders = segments.slice(0, -1);
+  if (folders.some((segment) => STUDY_FOLDER.test(segment))) {
+    return { ...file, group: "Studies", kind: "Result" };
+  }
+  if (folders.some((segment) => CAM_FOLDER.test(segment))) {
+    return { ...file, group: "Manufacturing", kind: "Toolpath" };
+  }
+  if (folders.some((segment) => REFERENCE_FOLDER.test(segment))) {
+    return { ...file, group: "Reference parts" };
+  }
+  return file;
 }
+
+const STUDY_FOLDER = /^(?:fea|sim|simulations?|stud(?:y|ies)|results?|analysis|analyses)$/i;
+const CAM_FOLDER = /^(?:cam|toolpaths?|machining)$/i;
+const REFERENCE_FOLDER =
+  /^(?:references?|vendor|vendors|suppliers?|library|libs?|third[-_]?party|purchased|datasheets?|off[-_]?the[-_]?shelf)$/i;
 
 /**
  * The project's files by group, in the page's order, each by folder then
