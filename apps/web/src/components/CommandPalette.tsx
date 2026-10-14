@@ -73,6 +73,7 @@ import {
   MoonIcon,
   PaletteIcon,
   RotateCcwIcon,
+  LayoutGridIcon,
   SettingsIcon,
   PuzzleIcon,
   SquarePenIcon,
@@ -236,7 +237,7 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./u
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { ComposerHandleContext, useComposerHandleContext } from "../composerHandleContext";
-import { studioInterfaceCommand } from "./workbench/studioInterface";
+import { isEngineeringInterface, studioInterfaceCommand } from "./workbench/studioInterface";
 import type { ChatComposerHandle } from "./chat/ChatComposer";
 import { getProjectOrderKey, selectProjectGroupingSettings } from "../logicalProject";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
@@ -2257,6 +2258,18 @@ function OpenCommandPaletteDialog(props: {
     },
   });
 
+  if (isEngineeringInterface()) {
+    actionItems.push({
+      kind: "action",
+      value: "action:studio-projects",
+      searchTerms: ["projects", "project", "home", "new project", "open project"],
+      title: "Open projects",
+      icon: <LayoutGridIcon className={ITEM_ICON_CLASS} />,
+      run: async () => {
+        await navigate({ to: "/projects" });
+      },
+    });
+  }
   const interfaceCommand = studioInterfaceCommand();
   if (interfaceCommand) {
     actionItems.push({

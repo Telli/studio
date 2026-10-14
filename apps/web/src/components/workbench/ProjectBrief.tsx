@@ -4,7 +4,6 @@ import { type ReactNode, useId, useRef, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { projectEnvironment } from "~/state/projects";
-import { useEnvironmentQuery } from "~/state/query";
 import { useEnvironmentScope } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
@@ -23,7 +22,6 @@ import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../
 import { Textarea } from "../ui/textarea";
 import { toastManager } from "../ui/toast";
 import {
-  BRIEF_JSON,
   BRIEF_MARKDOWN,
   BRIEF_REFERENCES,
   EMPTY_BRIEF,
@@ -33,8 +31,9 @@ import {
   briefMarkdown,
   briefSummary,
   claudeWithBrief,
-  parseBrief,
 } from "./briefFolder";
+import { PROJECT_FILE, parseStudioProject, studioProjectJson } from "./studioProject";
+import { useProjectBrief } from "./useProjectBrief";
 
 const projectNameOf = (cwd: string) =>
   cwd
@@ -72,16 +71,10 @@ export function ProjectBriefRow(props: {
   readonly cwd: string;
   readonly composerRef: ComposerHandleRef;
 }) {
-  const stored = useEnvironmentQuery(
-    projectEnvironment.readFile({
-      environmentId: props.environmentId,
-      input: { cwd: props.cwd, relativePath: BRIEF_JSON },
-    }),
-  );
+  const stored = useProjectBrief(props.environmentId, props.cwd);
   // What this sheet last saved wins over a read that has not caught up yet.
   const [saved, setSaved] = useState<{ readonly cwd: string; readonly brief: Brief } | null>(null);
-  const brief =
-    saved !== null && saved.cwd === props.cwd ? saved.brief : parseBrief(stored.data?.contents);
+  const brief = saved !== null && saved.cwd === props.cwd ? saved.brief : stored.brief;
   const [open, setOpen] = useState(false);
   // Each opening starts the sheet from the brief as it stands.
   const [opened, setOpened] = useState(0);
@@ -172,8 +165,14 @@ function BriefSheet(props: {
   const save = async () => {
     setSaving(true);
     try {
-      await write(BRIEF_JSON, `${JSON.stringify(draft, null, 2)}\n`);
-      await write(BRIEF_MARKDOWN, briefMarkdown(draft, projectNameOf(props.cwd)));
+      // The project file holds the brief; the project keeps its name and template.
+      const project = parseStudioProject(await read(PROJECT_FILE));
+      const name = project?.name || projectNameOf(props.cwd);
+      await write(
+        PROJECT_FILE,
+        studioProjectJson({ name, template: project?.template ?? null, brief: draft }),
+      );
+      await write(BRIEF_MARKDOWN, briefMarkdown(draft, name));
       const agents = agentsWithBrief(await read("AGENTS.md"));
       if (agents !== null) await write("AGENTS.md", agents);
       const claude = claudeWithBrief(await read("CLAUDE.md"));
@@ -219,8 +218,8 @@ function BriefSheet(props: {
         <DialogHeader>
           <DialogTitle>Project brief</DialogTitle>
           <DialogDescription>
-            What this project is for, before any design work. Saved in {BRIEF_MARKDOWN}, which
-            AGENTS.md points every agent to.
+            What this project is for, before any design work. Saved in the project file
+            (studio.json) and {BRIEF_MARKDOWN}, which AGENTS.md points every agent to.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>

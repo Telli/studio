@@ -11,8 +11,6 @@ import { type ReactNode, useId, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { cn } from "~/lib/utils";
-import { projectEnvironment } from "~/state/projects";
-import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -26,7 +24,7 @@ import {
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
-import { BRIEF_JSON, parseBrief } from "./briefFolder";
+import { useProjectBrief } from "./useProjectBrief";
 import {
   DISCIPLINES,
   type Discipline,
@@ -85,14 +83,7 @@ export function NewDialog(props: {
     templates.find((template) => template.id === props.initialTemplateId) ?? templates[0] ?? null;
   const [selected, setSelected] = useState<NewTemplate | null>(initial);
   const [discipline, setDiscipline] = useState<Discipline>(initial?.discipline ?? "Mechanical");
-  const brief = parseBrief(
-    useEnvironmentQuery(
-      projectEnvironment.readFile({
-        environmentId: props.environmentId,
-        input: { cwd: props.cwd, relativePath: BRIEF_JSON },
-      }),
-    ).data?.contents,
-  );
+  const { brief } = useProjectBrief(props.environmentId, props.cwd);
   const [name, setName] = useState(initial?.defaultName ?? "");
   const [folder, setFolder] = useState(initial?.folder ?? "");
   const [units, setUnits] = useState<"mm" | "in">(brief?.units ?? "mm");

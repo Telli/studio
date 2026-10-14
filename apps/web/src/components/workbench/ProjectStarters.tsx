@@ -7,7 +7,7 @@ import { pluginEnvironment } from "~/state/plugins";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
-import { BRIEF_JSON, parseBrief } from "./briefFolder";
+import { useProjectBrief } from "./useProjectBrief";
 import { classifyProjectFile, type ProjectFile } from "./projectFiles";
 import { projectStarters } from "./starterJobs";
 
@@ -33,11 +33,7 @@ export function ProjectStarters(props: {
   ).data?.entries;
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
-  const brief = parseBrief(
-    useEnvironmentQuery(
-      projectEnvironment.readFile({ environmentId, input: { cwd, relativePath: BRIEF_JSON } }),
-    ).data?.contents,
-  );
+  const { brief } = useProjectBrief(environmentId, cwd);
   const starters = useMemo(() => {
     const files = (recent ?? [])
       .map((entry) => classifyProjectFile(entry.path))

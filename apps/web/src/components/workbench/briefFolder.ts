@@ -1,15 +1,14 @@
 /**
  * A project's brief: what Studio and the agent should know before any design
- * work, gathered once in a folder of its own. `brief/brief.json` holds the
- * fields (so the form can be edited again); `brief/project.md` is written from
- * them for the agent;
+ * work. The project file (`studio.json`, `studioProject.ts`) holds its fields,
+ * so the form can be edited again; `brief/project.md` is written from them for
+ * the agent;
  * `brief/references/` holds the sketches, photos, datasheets and mating parts.
  * A pointer in AGENTS.md (Codex and most agents) and CLAUDE.md (Claude Code)
  * makes every agent read the brief on every turn.
  */
 
 export const BRIEF_DIR = "brief";
-export const BRIEF_JSON = `${BRIEF_DIR}/brief.json`;
 export const BRIEF_MARKDOWN = `${BRIEF_DIR}/project.md`;
 export const BRIEF_REFERENCES = `${BRIEF_DIR}/references`;
 
@@ -51,7 +50,7 @@ export const EMPTY_BRIEF: ProjectBrief = {
 
 const text = (value: unknown) => (typeof value === "string" ? value : "");
 
-/** A brief from `brief/brief.json`; null when the file is missing or is not a brief. */
+/** A brief from its JSON (`studio.json`, or an older `brief/brief.json`); null when it is not one. */
 export function parseBrief(json: string | null | undefined): ProjectBrief | null {
   if (!json) return null;
   try {
@@ -96,8 +95,8 @@ export function briefMarkdown(brief: ProjectBrief, projectName: string): string 
   return [
     `# ${projectName}: project brief`,
     "",
-    "Written by Studio from the project's brief (`brief/brief.json`). Read it before any design",
-    `work. Work in ${brief.units}, and design for the material and process below unless asked otherwise.`,
+    "Written by Studio from the project file (`studio.json`). Read it before any design work.",
+    `Work in ${brief.units}, and design for the material and process below unless asked otherwise.`,
     `Reference files (sketches, photos, datasheets, mating parts) are in \`${BRIEF_REFERENCES}/\`.`,
     "",
     ...section("Purpose", brief.purpose),

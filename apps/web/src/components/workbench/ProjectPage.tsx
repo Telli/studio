@@ -1,5 +1,5 @@
 import { pluginFileHandlers } from "@t3tools/client-runtime/state/plugins";
-import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
 import {
   ActivityIcon,
   BoxIcon,
@@ -28,10 +28,11 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { pluginAppSurface } from "../plugins/pluginSurfaces";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { BRIEF_JSON, parseBrief } from "./briefFolder";
 import { NewDialog } from "./NewDialog";
 import { availableTemplates } from "./newTemplates";
 import { ProjectBriefRow } from "./ProjectBrief";
+import { ProjectThreads } from "./ProjectThreads";
+import { useProjectBrief } from "./useProjectBrief";
 import { groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
 
 const GROUP_ICONS: Record<ProjectGroup, typeof BoxIcon> = {
@@ -76,7 +77,7 @@ const BATCH = 24;
  * server by the CAD plugin (`plugins.modelPictures`, cached there by file
  * size and time), a batch at a time, the first files first.
  */
-function usePictures(input: {
+export function usePictures(input: {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly paths: ReadonlyArray<string>;
@@ -245,11 +246,13 @@ export function ProjectPage(props: {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly projectName: string;
+  /** The project's record; null for a thread's own scratch folder, which has no other threads. */
+  readonly projectId: ProjectId | null;
   readonly threadRef: ScopedThreadRef;
   readonly workspaceMutationId: string | null;
 }) {
   const { environmentId, cwd, threadRef } = props;
-  const [tab, setTab] = useState<"files" | "references">("files");
+  const [tab, setTab] = useState<"files" | "references" | "threads">("files");
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"grid" | "list">(readView);
   const [newOpen, setNewOpen] = useState({ open: false, count: 0 });
@@ -272,10 +275,8 @@ export function ProjectPage(props: {
   });
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
-  const storedBrief = useEnvironmentQuery(
-    projectEnvironment.readFile({ environmentId, input: { cwd, relativePath: BRIEF_JSON } }),
-  ).data?.contents;
-  const links = (parseBrief(storedBrief)?.links ?? "")
+  const { brief } = useProjectBrief(environmentId, cwd);
+  const links = (brief?.links ?? "")
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
@@ -289,7 +290,11 @@ export function ProjectPage(props: {
   );
   const groups = useMemo(() => groupProjectFiles(paths, query), [paths, query]);
   const shown = groups.filter(({ group }) =>
-    tab === "references" ? group === "References" : group !== "References",
+    tab === "threads"
+      ? false
+      : tab === "references"
+        ? group === "References"
+        : group !== "References",
   );
   const referenceCount = groups.find(({ group }) => group === "References")?.files.length ?? 0;
   const pictures = usePictures({
@@ -350,6 +355,7 @@ export function ProjectPage(props: {
                     "references",
                     referenceCount > 0 ? `References ${referenceCount}` : "References",
                   ],
+                  ...(props.projectId === null ? [] : [["threads", "Threads"] as const]),
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -378,10 +384,20 @@ export function ProjectPage(props: {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={tab === "files" ? "Find a part, board or document" : "Find a reference"}
+            placeholder={
+              tab === "files"
+                ? "Find a part, board or document"
+                : tab === "threads"
+                  ? "Find a thread"
+                  : "Find a reference"
+            }
             aria-label="Find in the project"
           />
-          <div role="group" aria-label="View" className="flex shrink-0 gap-0.5">
+          <div
+            role="group"
+            aria-label="View"
+            className={cn("flex shrink-0 gap-0.5", tab === "threads" && "invisible")}
+          >
             <Button
               variant={view === "grid" ? "secondary" : "ghost-muted"}
               size="icon-sm"
@@ -435,7 +451,15 @@ export function ProjectPage(props: {
             </ul>
           </section>
         ) : null}
-        {shown.length === 0 && !(tab === "references" && links.length > 0) ? (
+        {tab === "threads" && props.projectId !== null ? (
+          <ProjectThreads
+            environmentId={environmentId}
+            projectId={props.projectId}
+            currentThreadId={threadRef.threadId}
+            query={query}
+          />
+        ) : null}
+        {tab !== "threads" && shown.length === 0 && !(tab === "references" && links.length > 0) ? (
           <p className="py-10 text-center text-xs text-muted-foreground">
             {listing.data === undefined
               ? "Reading the project"

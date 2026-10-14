@@ -1,9 +1,10 @@
-import { ArrowLeftIcon, ChartNoAxesColumnIcon, SettingsIcon } from "lucide-react";
+import { ArrowLeftIcon, ChartNoAxesColumnIcon, LayoutGridIcon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { APP_MARK_URL, APP_WORDMARK_SUFFIX } from "../../branding";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { usePullRequestsSupported } from "../../state/environments";
@@ -196,6 +197,12 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
     closeMobileSidebar();
     void navigate({ to: "/settings" });
   }, [closeMobileSidebar, navigate]);
+  // Studio's engineering interface keeps its projects a press away (`workbench/ProjectsHome.tsx`).
+  const engineering = useEngineeringInterface();
+  const handleProjectsClick = useCallback(() => {
+    closeMobileSidebar();
+    void navigate({ to: "/projects" });
+  }, [closeMobileSidebar, navigate]);
 
   const handleUsageClick = useCallback(() => {
     if (isMobile) {
@@ -220,6 +227,13 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
         </SidebarMenuItem>
       ) : (
         <>
+          {engineering ? (
+            <SidebarUtilityItem
+              icon={<LayoutGridIcon />}
+              label="Projects"
+              onClick={handleProjectsClick}
+            />
+          ) : null}
           <SidebarUtilityItem
             icon={<SettingsIcon />}
             label="Settings"

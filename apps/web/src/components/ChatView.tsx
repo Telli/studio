@@ -11289,6 +11289,7 @@ export default function ChatView(props: ChatViewProps) {
         projectName={
           activeProjectIsScratch ? activeThread.title || "This thread" : activeProject.title
         }
+        projectId={activeProjectIsScratch ? null : activeProject.id}
         threadRef={activeThreadRef}
         workspaceMutationId={workspaceMutationId}
       />
