@@ -36,7 +36,11 @@ export function projectStarters(
   const jobs = subjects.map((file) => {
     const { name, kind } = describePart(file.path, null);
     const groups = hardwareActions(kind, skills);
-    const of = (group: string) => groups.find((entry) => entry.group === group)?.actions ?? [];
+    // Starters start jobs; a write-up (no skill of its own) comes after the work.
+    const of = (group: string) =>
+      (groups.find((entry) => entry.group === group)?.actions ?? []).filter(
+        (action) => action.skill !== null,
+      );
     return { file, name, check: of("Check")[0], make: of("Make")[0], document: of("Document")[0] };
   });
   for (const job of jobs) {

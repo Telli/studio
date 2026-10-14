@@ -121,6 +121,19 @@ export function studioOtherFolders(project: StudioProject, folder: string): Read
   return project.folders.filter((entry) => studioFolderKey(entry) !== key);
 }
 
+/**
+ * How an agent shows its work in Studio, in measure: one thing at a time in
+ * the viewer, and a report when a job's results are worth keeping. Studio
+ * opens the report, or the result, beside the chat.
+ */
+const SHOW_YOUR_WORK = [
+  "The person works beside you in Studio, with the viewer next to this chat. Show them what you make, one thing at a time:",
+  "",
+  "- When you make or change something they should look at (a part, an assembly, a board, a drawing, a study's result, a toolpath), show it in the viewer (text-to-cad's `cad_open` or `cad_show`) and say in a line what they are looking at. Show the one that matters; do not open every file you touch.",
+  "- When a job gives results worth keeping (an analysis, a check, a comparison, a CAM plan, a board review), round them up in a short report in `docs/` in this thread's folder: what was asked, what you did, the results with units, a picture of the result where it helps (made with `cadgen snapshot`, saved beside the report and linked from it), the verdict, and what to do next. Write it for an engineer, in plain words, without code. Studio opens it beside the chat.",
+  "- A small change or a quick answer needs no report.",
+].join("\n");
+
 const section = (title: string, body: string) =>
   body.trim() === "" ? [] : [`## ${title}`, "", body.trim(), ""];
 
@@ -162,6 +175,7 @@ export function studioProjectContext(project: StudioProject, folder: string): st
     "",
     ...section("Links", links),
     ...section("Notes", brief.notes),
+    ...section("Show your work", SHOW_YOUR_WORK),
     ...section(
       "Where work goes",
       layout.length === 0

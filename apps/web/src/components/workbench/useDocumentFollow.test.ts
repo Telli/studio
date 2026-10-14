@@ -1,7 +1,7 @@
 import type { OrchestrationV2TurnItem } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { bestOutput, writtenDocuments } from "./useDocumentFollow";
+import { bestOutput, pickFollow, writtenDocuments } from "./useDocumentFollow";
 
 const edit = (paths: Array<[string, string]>) =>
   ({
@@ -51,5 +51,41 @@ describe("output follow", () => {
     expect(
       bestOutput(["src/bracket.py", "pyproject.toml", ".venv/x.md", "brief/brief.json"]),
     ).toBeNull();
+  });
+});
+
+describe("one thing per run", () => {
+  const viewer = (path: string) => /\.(?:step|glb|kicad_pcb|dxf)$/i.test(path);
+  const none = () => false;
+
+  it("opens a report over a result, a result over a model, a model over a table", () => {
+    const made = [
+      "parts/bracket.step",
+      "parts/bracket.fea.glb",
+      "out/bom.csv",
+      "docs/bracket-strength.md",
+    ];
+    expect(pickFollow(made, viewer, none)).toEqual({
+      kind: "file",
+      path: "docs/bracket-strength.md",
+    });
+    expect(pickFollow(made.slice(0, 3), viewer, none)).toEqual({
+      kind: "viewer",
+      path: "parts/bracket.fea.glb",
+    });
+    expect(pickFollow(["out/bom.csv", "parts/bracket.step"], viewer, none)).toEqual({
+      kind: "viewer",
+      path: "parts/bracket.step",
+    });
+    expect(pickFollow(["out/bracket.png", "out/bom.csv"], viewer, none)).toEqual({
+      kind: "file",
+      path: "out/bom.csv",
+    });
+  });
+
+  it("leaves what the viewer already shows, and source and tool files, alone", () => {
+    const showing = (path: string) => path === "parts/bracket.step";
+    expect(pickFollow(["parts/bracket.step", "src/bracket.py"], viewer, showing)).toBeNull();
+    expect(pickFollow([".claude/plan.md", "AGENTS.md", "pyproject.toml"], viewer, none)).toBeNull();
   });
 });

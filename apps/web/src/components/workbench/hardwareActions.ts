@@ -14,10 +14,10 @@ export interface HardwareAction {
   readonly id: string;
   readonly group: HardwareActionGroup;
   readonly label: string;
-  /** The text-to-cad skill the job runs on. */
-  readonly skill: string;
-  /** The part kinds it applies to, as the context strip names them (`describePart`). */
-  readonly kinds: ReadonlyArray<string>;
+  /** The text-to-cad skill the job runs on; null for one any agent can do. */
+  readonly skill: string | null;
+  /** The part kinds it applies to, as the context strip names them (`describePart`); null for any. */
+  readonly kinds: ReadonlyArray<string> | null;
   readonly prompt: (file: string) => string;
   /** The job as a starter names it, short: "Check l_bracket for CNC machining". */
   readonly short: (name: string) => string;
@@ -201,6 +201,16 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     prompt: (file) => `Make a URDF for ${file}, with its joints and limits.`,
     short: (name) => `Describe ${name} as a robot`,
   },
+  {
+    id: "write-up",
+    group: "Document",
+    label: "Write up the results",
+    skill: null,
+    kinds: null,
+    prompt: (file) =>
+      `Round up what this thread did and found on ${file} in a short report in docs/: what was asked, what was done, the results with units, pictures of the results, the verdict, and what to do next.`,
+    short: (name) => `Write up the results for ${name}`,
+  },
 ];
 
 const GROUPS: ReadonlyArray<HardwareActionGroup> = ["Check", "Make", "Document"];
@@ -212,7 +222,10 @@ export function hardwareActions(
 ): Array<{ readonly group: HardwareActionGroup; readonly actions: HardwareAction[] }> {
   return GROUPS.flatMap((group) => {
     const actions = HARDWARE_ACTIONS.filter(
-      (action) => action.group === group && action.kinds.includes(kind) && skills.has(action.skill),
+      (action) =>
+        action.group === group &&
+        (action.kinds === null || action.kinds.includes(kind)) &&
+        (action.skill === null || skills.has(action.skill)),
     );
     return actions.length === 0 ? [] : [{ group, actions }];
   });

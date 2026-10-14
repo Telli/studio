@@ -5894,6 +5894,8 @@ export default function ChatView(props: ChatViewProps) {
     shouldUsePlanSidebarSheet,
     threadDetailLoading,
   ]);
+  // Studio's engineering interface follows files once per run instead (`workbench/useDocumentFollow.ts`).
+  const engineeringInterface = useEngineeringInterface();
   usePluginFollow({
     environmentId,
     threadRef: isServerThread ? activeThreadRef : null,
@@ -5902,7 +5904,7 @@ export default function ChatView(props: ChatViewProps) {
     items: serverVisibleTurnItems,
     workspaceRoot: gitCwd,
     // Unlike proactive diffs, this opens a view only when none of the plugin's is open.
-    followFiles: !shouldUsePlanSidebarSheet,
+    followFiles: !shouldUsePlanSidebarSheet && !engineeringInterface,
   });
   useWorkbenchViewer({
     enabled: WORKBENCH_LAYOUT,
@@ -5910,7 +5912,6 @@ export default function ChatView(props: ChatViewProps) {
     threadRef: activeThreadRef,
     serverThread: isServerThread,
   });
-  const engineeringInterface = useEngineeringInterface();
   useDocumentFollow({
     environmentId,
     threadRef: isServerThread ? activeThreadRef : null,
