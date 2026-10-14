@@ -9,6 +9,7 @@ import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
 import { PartActions } from "./PartActions";
 import { describePart, fileName } from "./partContext";
+import { ProjectBriefRow } from "./ProjectBrief";
 import { useEngineeringInterface } from "./studioInterface";
 
 /** How many of the project's parts a new thread lists, most recently used first. */
@@ -60,8 +61,9 @@ function useSearch(environmentId: EnvironmentId, cwd: string, query: string, ena
 }
 
 /**
- * A new thread starts from a part: the project's CAD files, and once one is
- * picked, the jobs it takes (Check, Make, Document) naming it by its path.
+ * A new thread starts from the project: its brief (`ProjectBrief.tsx`) and its
+ * parts, the CAD files, and once one is picked, the jobs it takes (Check,
+ * Make, Document) naming it by its path.
  * In the engineering interface only.
  */
 export function ProjectParts(props: {
@@ -72,11 +74,18 @@ export function ProjectParts(props: {
   const engineering = useEngineeringInterface();
   if (!engineering || props.environmentId === null || props.cwd === null) return null;
   return (
-    <ProjectPartList
-      environmentId={props.environmentId}
-      cwd={props.cwd}
-      composerRef={props.composerRef}
-    />
+    <>
+      <ProjectBriefRow
+        environmentId={props.environmentId}
+        cwd={props.cwd}
+        composerRef={props.composerRef}
+      />
+      <ProjectPartList
+        environmentId={props.environmentId}
+        cwd={props.cwd}
+        composerRef={props.composerRef}
+      />
+    </>
   );
 }
 
