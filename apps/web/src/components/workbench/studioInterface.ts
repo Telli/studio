@@ -7,16 +7,24 @@ import { WORKBENCH_LAYOUT } from "./workbenchLayout";
  * How Studio presents itself, the person's choice (Settings, Appearance,
  * Interface; or the command palette):
  *
- * - `engineering`: parts, checks and outputs first. The title block over the
- *   viewer, Check, Make and Document, the project's parts on a new thread,
- *   and the coding tools (branches, diffs, terminal, raw commands) put away.
+ * - `engineering`: parts, checks and outputs first. The projects home, the
+ *   project's overview, the title block over the viewer, Check, Make and
+ *   Document, and the coding tools (branches, diffs, terminal, raw commands)
+ *   put away, with things named in an engineer's words.
+ * - `both`: the same engineering surfaces with every coding tool kept in view
+ *   and T3 Code's own words, for an engineer who also works on the code.
  * - `code`: T3 Code's own surfaces, for working on the code behind a model.
  *
  * Offered only by a brand with a hardware focus (`brand.json` `"focus":
  * "hardware"`), which also makes `engineering` the default. Per device, like
- * the panel widths: `<html data-studio-focus>` carries it for `theme.css`.
+ * the panel widths: `<html data-studio-focus>` carries it for `theme.css`
+ * (`hardware`, `both` or `code`).
  */
-export type StudioInterface = "engineering" | "code";
+export type StudioInterface = "engineering" | "both" | "code";
+
+const INTERFACES: ReadonlyArray<StudioInterface> = ["engineering", "both", "code"];
+const isStudioInterface = (value: unknown): value is StudioInterface =>
+  INTERFACES.includes(value as StudioInterface);
 
 /** The panel surfaces the engineering interface leaves out of its launcher and "+" menu. */
 export const CODE_SURFACE_LABELS: ReadonlySet<string> = new Set([
@@ -66,7 +74,7 @@ function read(): StudioInterface {
   if (!STUDIO_INTERFACE_AVAILABLE) return "code";
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    return stored === "code" || stored === "engineering" ? stored : DEFAULT_INTERFACE;
+    return isStudioInterface(stored) ? stored : DEFAULT_INTERFACE;
   } catch {
     return DEFAULT_INTERFACE;
   }
@@ -75,10 +83,20 @@ function read(): StudioInterface {
 let current: StudioInterface = typeof window === "undefined" ? "code" : read();
 const listeners = new Set<() => void>();
 
-/** The stylesheet's switch: `hardware` dresses the app as an engineering tool. */
+const FOCUS: Record<StudioInterface, string> = {
+  engineering: "hardware",
+  both: "both",
+  code: "code",
+};
+
+/**
+ * The stylesheet's switch: `hardware` dresses the app as an engineering tool and
+ * puts the coding tools away; `both` keeps the engineering surfaces' own styles
+ * (documents as spec sheets) and leaves the coding tools be.
+ */
 function apply() {
   if (typeof document === "undefined" || !STUDIO_INTERFACE_AVAILABLE) return;
-  document.documentElement.dataset.studioFocus = current === "engineering" ? "hardware" : "code";
+  document.documentElement.dataset.studioFocus = FOCUS[current];
 }
 apply();
 
@@ -119,19 +137,26 @@ export function useStudioInterface(): StudioInterface {
   );
 }
 
+const SWITCH_TITLES: Record<StudioInterface, string> = {
+  engineering: "Switch to the engineering interface",
+  both: "Switch to engineering with code tools",
+  code: "Switch to the code interface",
+};
+
 /**
- * The command palette's switch to the other interface, or null where Studio
- * offers none. Read when the palette lists its actions.
+ * The command palette's switches to the other interfaces, none where Studio
+ * offers no choice. Read when the palette lists its actions.
  */
-export function studioInterfaceCommand(): {
+export function studioInterfaceCommands(): ReadonlyArray<{
+  readonly id: StudioInterface;
   readonly title: string;
   readonly searchTerms: ReadonlyArray<string>;
   readonly run: () => void;
-} | null {
-  if (!STUDIO_INTERFACE_AVAILABLE) return null;
-  const next: StudioInterface = current === "engineering" ? "code" : "engineering";
-  return {
-    title: next === "code" ? "Switch to the code interface" : "Switch to the engineering interface",
+}> {
+  if (!STUDIO_INTERFACE_AVAILABLE) return [];
+  return INTERFACES.filter((next) => next !== current).map((next) => ({
+    id: next,
+    title: SWITCH_TITLES[next],
     searchTerms: [
       "studio",
       "interface",
@@ -142,17 +167,37 @@ export function studioInterfaceCommand(): {
       "mode",
       "view",
       "hardware",
+      ...(next === "both" ? ["both", "hybrid", "mixed", "tools"] : []),
     ],
     run: () => setStudioInterface(next),
-  };
+  }));
 }
 
-/** Whether Studio is dressed as an engineering app, for code outside React (timeline labels). */
+/**
+ * Whether the coding tools are put away and things are named in an engineer's
+ * words ("Mark done", "AI agents"), for code outside React (timeline labels):
+ * the engineering interface only.
+ */
 export function isEngineeringInterface(): boolean {
   return current === "engineering";
 }
 
-/** Whether Studio is dressed as an engineering app right now. */
+/** Whether the coding tools are put away and things are named in an engineer's words. */
 export function useEngineeringInterface(): boolean {
   return useStudioInterface() === "engineering";
+}
+
+/**
+ * Whether Studio shows its engineering surfaces (the projects home, the
+ * project's overview, the title block over the viewer, documents opened
+ * rendered, one output followed per run), for code outside React: in the
+ * engineering interface and in engineering with code tools.
+ */
+export function hasEngineeringSurfaces(): boolean {
+  return current !== "code";
+}
+
+/** Whether Studio shows its engineering surfaces: engineering, or engineering with code tools. */
+export function useEngineeringSurfaces(): boolean {
+  return useStudioInterface() !== "code";
 }

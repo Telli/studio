@@ -1,4 +1,4 @@
-import { useEngineeringInterface } from "./studioInterface";
+import { useEngineeringSurfaces } from "./studioInterface";
 
 /** The document's own title: its first top-level heading, else its file name without the ending. */
 export function documentTitle(text: string, relativePath: string): string {
@@ -36,13 +36,13 @@ function Cell(props: {
 }
 
 /**
- * A document's title block in the engineering interface: what it is called,
+ * A document's title block with the engineering surfaces on: what it is called,
  * what kind of document it is and where it lives, the way a drawing's title
  * block heads the sheet. Its body below reads as a document (`theme.css`,
  * `[data-document]`), not as a file.
  */
 export function DocumentHeader(props: { readonly text: string; readonly relativePath: string }) {
-  if (!useEngineeringInterface()) return null;
+  if (!useEngineeringSurfaces()) return null;
   return (
     <dl
       data-document-header=""

@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import type { SidebarProjectSnapshot } from "~/sidebarProjectGrouping";
 import { usePrimaryEnvironmentId } from "~/state/environments";
-import { useEngineeringInterface } from "./studioInterface";
+import { useEngineeringSurfaces } from "./studioInterface";
 import { useStudioProjects } from "./useStudioProjects";
 
 /**
@@ -55,11 +55,11 @@ export function mergeStudioProjectGroups(
   return merged;
 }
 
-/** The sidebar's groups, gathered into Studio projects in the engineering interface. */
+/** The sidebar's groups, gathered into Studio projects while the engineering surfaces are on. */
 export function useStudioSidebarGroups(
   groups: ReadonlyArray<SidebarProjectSnapshot>,
 ): ReadonlyArray<SidebarProjectSnapshot> {
-  const engineering = useEngineeringInterface();
+  const engineering = useEngineeringSurfaces();
   const environmentId = usePrimaryEnvironmentId();
   const projects = useStudioProjects(engineering ? environmentId : null);
   return useMemo(

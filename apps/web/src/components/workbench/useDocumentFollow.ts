@@ -15,13 +15,13 @@ import { useEnvironmentQuery } from "~/state/query";
 import type { TurnDiffSummary } from "~/types";
 import { pluginAppSurface } from "../plugins/pluginSurfaces";
 import { shownView } from "./shownModels";
-import { useEngineeringInterface } from "./studioInterface";
+import { useEngineeringSurfaces } from "./studioInterface";
 
 /**
  * What a run makes that a person opens, by kind: a document (a plan, a
  * report) above a table (a BOM) or machine code (G-code) above a picture.
- * Source and configuration never open: in the engineering interface code
- * stays put away.
+ * Source and configuration never open: with the engineering surfaces on,
+ * code stays put away.
  */
 const OUTPUT_RANKS: ReadonlyArray<readonly [RegExp, number]> = [
   [/\.(?:md|mdx|pdf)$/i, 4],
@@ -133,7 +133,7 @@ const followed = new Map<
 >();
 
 /**
- * In the engineering interface, what the agent makes comes to the person, in
+ * With the engineering surfaces on, what the agent makes comes to the person, in
  * measure: one thing per run, the most worth seeing (`pickFollow`). A
  * document it writes opens as soon as it is written; otherwise, when the run
  * ends, its checkpoint names everything it made (models its commands built, a
@@ -154,7 +154,7 @@ export function useDocumentFollow(input: {
 }) {
   const { environmentId, threadRef, threadKey, runningRunId, items, checkpoints, workspaceRoot } =
     input;
-  const engineering = useEngineeringInterface();
+  const engineering = useEngineeringSurfaces();
   const list = useEnvironmentQuery(
     engineering && threadRef !== null ? pluginEnvironment.list({ environmentId, input: {} }) : null,
   );

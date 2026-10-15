@@ -238,9 +238,10 @@ import { stackedThreadToast, toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { ComposerHandleContext, useComposerHandleContext } from "../composerHandleContext";
 import {
+  hasEngineeringSurfaces,
   isEngineeringInterface,
   settingsSectionLabel,
-  studioInterfaceCommand,
+  studioInterfaceCommands,
 } from "./workbench/studioInterface";
 import type { ChatComposerHandle } from "./chat/ChatComposer";
 import { getProjectOrderKey, selectProjectGroupingSettings } from "../logicalProject";
@@ -2262,7 +2263,7 @@ function OpenCommandPaletteDialog(props: {
     },
   });
 
-  if (isEngineeringInterface()) {
+  if (hasEngineeringSurfaces()) {
     actionItems.push({
       kind: "action",
       value: "action:studio-projects",
@@ -2274,11 +2275,10 @@ function OpenCommandPaletteDialog(props: {
       },
     });
   }
-  const interfaceCommand = studioInterfaceCommand();
-  if (interfaceCommand) {
+  for (const interfaceCommand of studioInterfaceCommands()) {
     actionItems.push({
       kind: "action",
-      value: "action:studio-interface",
+      value: `action:studio-interface:${interfaceCommand.id}`,
       searchTerms: [...interfaceCommand.searchTerms],
       title: interfaceCommand.title,
       icon: <SettingsIcon className={ITEM_ICON_CLASS} />,

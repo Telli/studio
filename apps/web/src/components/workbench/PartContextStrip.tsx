@@ -11,7 +11,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { fileName, type PartContext } from "./partContext";
 import { buildLabel, materialLabel } from "./partLabels";
 import { PartActions } from "./PartActions";
-import { useEngineeringInterface } from "./studioInterface";
+import { useEngineeringSurfaces } from "./studioInterface";
 import { usePartContext } from "./usePartContext";
 import { WORKBENCH_LAYOUT } from "./workbenchLayout";
 
@@ -45,7 +45,7 @@ export function partFacts(part: PartContext) {
  */
 export function PartContextStrip(props: {
   readonly threadRef: ScopedThreadRef | null;
-  /** Where the engineering interface's Check, Make and Document write their jobs. */
+  /** Where the engineering surfaces' Check, Make and Document write their jobs. */
   readonly composerRef: ComposerHandleRef;
 }) {
   if (!WORKBENCH_LAYOUT || props.threadRef === null) return null;
@@ -69,10 +69,10 @@ function ThreadPartContext(props: {
     );
     return views.find((surface) => surface.id === panel.activeSurfaceId) ?? views[0] ?? null;
   }, [panel, shown]);
-  const engineering = useEngineeringInterface();
+  const engineering = useEngineeringSurfaces();
   // Re-reads "Built 3m ago" each minute.
   useNowMinute();
-  // A viewer the user closed takes its context with it. In the engineering interface, the title block
+  // A viewer the user closed takes its context with it. With the engineering surfaces on, the title block
   // over the viewer says all of this while the viewer is on screen.
   if (shown === null || view === null) return null;
   if (engineering && panel.isOpen && panel.activeSurfaceId === view.id) return null;

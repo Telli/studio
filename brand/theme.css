@@ -115,21 +115,23 @@
 }
 
 /*
- * The engineering interface (Settings, Appearance, Interface; `components/workbench/studioInterface.ts`
- * sets `data-studio-focus` on <html>). Documents read like a spec sheet: sections headed in tracked
- * capitals over a hairline, tables ruled, numbers in tabular figures. A plan is a document too, not
- * a chat bubble.
+ * The engineering surfaces (Settings, Appearance, Interface: Engineering, or Engineering with
+ * code; `components/workbench/studioInterface.ts` sets `data-studio-focus` on <html>). Documents
+ * read like a spec sheet: sections headed in tracked capitals over a hairline, tables ruled,
+ * numbers in tabular figures. A plan is a document too, not a chat bubble.
  */
-html[data-studio-focus="hardware"] [data-document] {
+html:is([data-studio-focus="hardware"], [data-studio-focus="both"]) [data-document] {
   font-variant-numeric: tabular-nums;
 }
-html[data-studio-focus="hardware"] [data-document] h1 {
+html:is([data-studio-focus="hardware"], [data-studio-focus="both"]) [data-document] h1 {
   font-size: 1.375rem;
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.25;
 }
-html[data-studio-focus="hardware"] :is([data-document], [data-proposed-plan]) h2 {
+html:is([data-studio-focus="hardware"], [data-studio-focus="both"])
+  :is([data-document], [data-proposed-plan])
+  h2 {
   margin-top: 2rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
@@ -139,19 +141,27 @@ html[data-studio-focus="hardware"] :is([data-document], [data-proposed-plan]) h2
   text-transform: uppercase;
   color: var(--muted-foreground);
 }
-html[data-studio-focus="hardware"] :is([data-document], [data-proposed-plan]) h3 {
+html:is([data-studio-focus="hardware"], [data-studio-focus="both"])
+  :is([data-document], [data-proposed-plan])
+  h3 {
   font-size: 0.875rem;
   font-weight: 600;
 }
-html[data-studio-focus="hardware"] :is([data-document], [data-proposed-plan]) table {
+html:is([data-studio-focus="hardware"], [data-studio-focus="both"])
+  :is([data-document], [data-proposed-plan])
+  table {
   border-collapse: collapse;
   font-variant-numeric: tabular-nums;
 }
-html[data-studio-focus="hardware"] :is([data-document], [data-proposed-plan]) :is(th, td) {
+html:is([data-studio-focus="hardware"], [data-studio-focus="both"])
+  :is([data-document], [data-proposed-plan])
+  :is(th, td) {
   border: 1px solid var(--border);
   padding: 0.375rem 0.625rem;
 }
-html[data-studio-focus="hardware"] :is([data-document], [data-proposed-plan]) th {
+html:is([data-studio-focus="hardware"], [data-studio-focus="both"])
+  :is([data-document], [data-proposed-plan])
+  th {
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -160,7 +170,7 @@ html[data-studio-focus="hardware"] :is([data-document], [data-proposed-plan]) th
   text-align: left;
 }
 
-html[data-studio-focus="hardware"] [data-proposed-plan] {
+html:is([data-studio-focus="hardware"], [data-studio-focus="both"]) [data-proposed-plan] {
   border-radius: 0.375rem;
   border-color: var(--border);
   background: var(--background);
@@ -169,8 +179,8 @@ html[data-studio-focus="hardware"] [data-proposed-plan] {
 
 /*
  * The engineering interface puts the coding tools away: version control, editors, terminals,
- * scripts, branches and pull requests. Code view (the setting) brings every one back. Rows the
- * timeline measures are never hidden whole, only what sits inside them.
+ * scripts, branches and pull requests. Code, or Engineering with code (the setting), brings every
+ * one back. Rows the timeline measures are never hidden whole, only what sits inside them.
  */
 html[data-studio-focus="hardware"]
   :is(

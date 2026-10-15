@@ -7,7 +7,7 @@ import { cn } from "~/lib/utils";
 import { PartActions } from "./PartActions";
 import { fileName } from "./partContext";
 import { buildLabel, materialLabel } from "./partLabels";
-import { useEngineeringInterface } from "./studioInterface";
+import { useEngineeringSurfaces } from "./studioInterface";
 import { usePartContext } from "./usePartContext";
 
 function Cell(props: {
@@ -46,14 +46,14 @@ function Cell(props: {
  * The drawing's title block, over the viewer: the part on screen, its type,
  * units, material and last build, read the way a shop drawing reads, and the
  * jobs it takes (Check, Make, Document) as the ribbon beside it. In the
- * engineering interface only, and only while the viewer shows a part of this plugin.
+ * engineering surfaces only (`useEngineeringSurfaces`), and only while the viewer shows a part of this plugin.
  */
 export function TitleBlock(props: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly pluginId: string;
 }) {
-  if (!useEngineeringInterface()) return null;
+  if (!useEngineeringSurfaces()) return null;
   return <ThreadTitleBlock {...props} />;
 }
 

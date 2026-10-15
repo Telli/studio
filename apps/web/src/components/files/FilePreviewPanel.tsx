@@ -77,7 +77,7 @@ import { BrowserDocumentFrame, isPdfPreviewFile } from "./BrowserDocumentFrame";
 import { DelimitedTablePreview } from "./DelimitedTablePreview";
 import FileBrowserPanel from "./FileBrowserPanel";
 import { FileBreadcrumbs } from "./FileBreadcrumbs";
-import { useEngineeringInterface } from "../workbench/studioInterface";
+import { useEngineeringSurfaces } from "../workbench/studioInterface";
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
 import {
   type FileCommentAnnotationEntry,
@@ -137,7 +137,7 @@ interface FilePreviewPanelProps {
 
 const FILE_EXPLORER_STORAGE_KEY = "t3code.fileExplorerOpen";
 const RENDER_MARKDOWN_STORAGE_KEY = "t3code.renderMarkdown";
-// Studio's engineering interface reads documents rendered unless the person chose source.
+// Studio's engineering surfaces read documents rendered unless the person chose source.
 const STUDIO_RENDER_MARKDOWN_STORAGE_KEY = "studio.renderMarkdown";
 const RENDER_BROWSER_FILE_STORAGE_KEY = "t3code.renderBrowserFile";
 const RENDER_TABLE_STORAGE_KEY = "t3code.renderTable";
@@ -1112,7 +1112,7 @@ export default function FilePreviewPanel({
     true,
     Schema.Boolean,
   );
-  const engineering = useEngineeringInterface();
+  const engineering = useEngineeringSurfaces();
   const renderMarkdownPreferred = engineering ? studioRenderMarkdown : codeRenderMarkdown;
   const setRenderMarkdownPreferred = engineering ? setStudioRenderMarkdown : setCodeRenderMarkdown;
   const [renderBrowserFilePreferred, setRenderBrowserFilePreferred] = useLocalStorage(
@@ -1139,7 +1139,7 @@ export default function FilePreviewPanel({
   const revealHandled =
     revealLine === null ||
     (handledReveal?.path === relativePath && handledReveal.requestId === revealRequestId);
-  // A document stays rendered in the engineering interface even when a link names a line.
+  // A document stays rendered with the engineering surfaces on, even when a link names a line.
   const renderMarkdown = isMarkdown && renderMarkdownPreferred && (revealHandled || engineering);
   const renderBrowserFile = isPdf || (isHtml && renderBrowserFilePreferred && revealHandled);
   const renderTable = tableDelimiter !== null && renderTablePreferred && revealHandled;

@@ -7,7 +7,7 @@ import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelSto
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { pluginAppSurface } from "../plugins/pluginSurfaces";
-import { isEngineeringInterface } from "./studioInterface";
+import { hasEngineeringSurfaces } from "./studioInterface";
 
 const OFFERED_STORAGE_KEY = "studio:viewer-offered";
 /** Threads remembered as offered their viewer; the oldest are forgotten past this. */
@@ -41,8 +41,8 @@ function offerOnce(threadKey: string): boolean {
 
 /**
  * In the workbench layout a thread opens on its project and its viewer. Every
- * thread, a new one included, is offered the project page once in the
- * engineering interface (the pinned Project tab); a thread the agent works in
+ * thread, a new one included, is offered the project page once while the
+ * engineering surfaces are on (the pinned Project tab); a thread the agent works in
  * is offered the thread view of the first enabled plugin that has one (text-to-
  * cad's CAD tab), in front, so the agent's `cad_show` has a viewer to switch.
  * Each offer is made once per thread, remembered apart from the panel's own
@@ -70,7 +70,7 @@ export function useWorkbenchViewer(input: {
     const threadKey = scopedThreadKey(threadRef);
     const surfaces = () =>
       selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, threadRef).surfaces;
-    if (isEngineeringInterface() && offerOnce(`project:${threadKey}`)) {
+    if (hasEngineeringSurfaces() && offerOnce(`project:${threadKey}`)) {
       const panels = useRightPanelStore.getState();
       if (!surfaces().some((surface) => surface.kind === "files")) {
         panels.openProactive(

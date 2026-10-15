@@ -4,7 +4,7 @@ import { memo, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { APP_MARK_URL, APP_WORDMARK_SUFFIX } from "../../branding";
-import { useEngineeringInterface } from "../workbench/studioInterface";
+import { useEngineeringSurfaces } from "../workbench/studioInterface";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { usePullRequestsSupported } from "../../state/environments";
@@ -197,8 +197,8 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
     closeMobileSidebar();
     void navigate({ to: "/settings" });
   }, [closeMobileSidebar, navigate]);
-  // Studio's engineering interface keeps its projects a press away (`workbench/ProjectsHome.tsx`).
-  const engineering = useEngineeringInterface();
+  // Studio's engineering surfaces keep its projects a press away (`workbench/ProjectsHome.tsx`).
+  const engineering = useEngineeringSurfaces();
   const handleProjectsClick = useCallback(() => {
     closeMobileSidebar();
     void navigate({ to: "/projects" });

@@ -98,9 +98,11 @@ import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { observeResize } from "~/lib/observeResize";
 import {
   CODE_SURFACE_LABELS,
-  isEngineeringInterface,
+  hasEngineeringSurfaces,
   useEngineeringInterface,
+  useEngineeringSurfaces,
 } from "./workbench/studioInterface";
+import { useProjectViewStore } from "./workbench/projectView";
 import { PinnedProjectTab } from "./workbench/PinnedProjectTab";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
 
@@ -619,7 +621,7 @@ function surfaceTitle(
     case "diff":
       return "Diff";
     case "files":
-      return isEngineeringInterface() ? "Project" : "Files";
+      return hasEngineeringSurfaces() ? "Project" : "Files";
     case "file":
       return surface.relativePath.slice(
         Math.max(surface.relativePath.lastIndexOf("/"), surface.relativePath.lastIndexOf("\\")) + 1,
@@ -890,8 +892,11 @@ function SortableTab({
 }
 
 export function RightPanelTabs(props: RightPanelTabsProps) {
+  // The engineering surfaces pin the project (and, with code tools, its source) ahead of the tabs.
+  const engineeringSurfaces = useEngineeringSurfaces();
   const engineering = useEngineeringInterface();
-  const tabSurfaces = engineering
+  const projectView = useProjectViewStore((state) => state.view);
+  const tabSurfaces = engineeringSurfaces
     ? props.surfaces.filter((surface) => surface.kind !== "files")
     : props.surfaces;
   const ownsDesktopTitleBar = isElectron && props.mode === "inline";
@@ -1207,11 +1212,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         )}
         data-right-panel-tabbar
       >
-        {engineering ? (
+        {engineeringSurfaces ? (
           // The project is home, not one tab among many: pinned first, apart from the rest.
           <PinnedProjectTab
             active={props.activeSurfaceId === "files"}
-            onSelect={() => {
+            view={engineering ? "project" : projectView}
+            withSource={!engineering}
+            onSelect={(view) => {
+              useProjectViewStore.getState().setView(view);
               const project = props.surfaces.find((surface) => surface.kind === "files");
               if (project) props.onActivate(project);
               else props.onAddFiles();

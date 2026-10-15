@@ -7,7 +7,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { isLocalEnvironmentDisabled } from "../localEnvironment";
 import { isElectron } from "../env";
 import { NoProjectsHero } from "../components/NoProjectsHero";
-import { useEngineeringInterface } from "../components/workbench/studioInterface";
+import { useEngineeringSurfaces } from "../components/workbench/studioInterface";
 import { sortScopedProjectsForSidebar } from "../components/Sidebar.logic";
 import { Button } from "../components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../components/ui/empty";
@@ -26,8 +26,8 @@ import { hasCloudPublicConfig } from "~/cloud/publicConfig";
 function ChatIndexRouteView() {
   const { authGateState } = Route.useRouteContext();
   const { environments, isReady } = useEnvironments();
-  // Studio's engineering interface starts on its projects (`workbench/ProjectsHome.tsx`).
-  const engineering = useEngineeringInterface();
+  // Studio's engineering surfaces start on its projects (`workbench/ProjectsHome.tsx`).
+  const engineering = useEngineeringSurfaces();
 
   if (authGateState.status === "hosted-static") {
     if (!isReady) return null;

@@ -617,7 +617,8 @@ import { usePluginFollow } from "./plugins/usePluginFollow";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
-import { useEngineeringInterface } from "./workbench/studioInterface";
+import { useProjectViewStore } from "./workbench/projectView";
+import { useEngineeringInterface, useEngineeringSurfaces } from "./workbench/studioInterface";
 import { useDocumentFollow } from "./workbench/useDocumentFollow";
 import { useWorkbenchViewer } from "./workbench/useWorkbenchViewer";
 import { addViewContextToComposer } from "./workbench/viewContext";
@@ -5894,8 +5895,11 @@ export default function ChatView(props: ChatViewProps) {
     shouldUsePlanSidebarSheet,
     threadDetailLoading,
   ]);
-  // Studio's engineering interface follows files once per run instead (`workbench/useDocumentFollow.ts`).
+  // Studio's engineering surfaces follow files once per run instead (`workbench/useDocumentFollow.ts`).
   const engineeringInterface = useEngineeringInterface();
+  const engineeringSurfaces = useEngineeringSurfaces();
+  // Engineering with code tools lets the pinned tab show the source files instead (`workbench/projectView.ts`).
+  const projectView = useProjectViewStore((state) => state.view);
   usePluginFollow({
     environmentId,
     threadRef: isServerThread ? activeThreadRef : null,
@@ -5904,7 +5908,7 @@ export default function ChatView(props: ChatViewProps) {
     items: serverVisibleTurnItems,
     workspaceRoot: gitCwd,
     // Unlike proactive diffs, this opens a view only when none of the plugin's is open.
-    followFiles: !shouldUsePlanSidebarSheet && !engineeringInterface,
+    followFiles: !shouldUsePlanSidebarSheet && !engineeringSurfaces,
   });
   useWorkbenchViewer({
     enabled: WORKBENCH_LAYOUT,
@@ -11292,10 +11296,11 @@ export default function ChatView(props: ChatViewProps) {
         />
       </Suspense>
     ) : renderedRightPanelSurface?.kind === "files" &&
-      engineeringInterface &&
+      engineeringSurfaces &&
+      (engineeringInterface || projectView === "project") &&
       activeProject &&
       activeWorkspaceRoot ? (
-      // The engineering interface's Project tab: the project page, not the file explorer.
+      // The engineering surfaces' Project tab: the project page, not the file explorer.
       <ProjectPage
         environmentId={activeThread.environmentId}
         cwd={activeWorkspaceRoot}
