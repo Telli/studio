@@ -1,3 +1,5 @@
+import { MANUFACTURING_PROCESSES } from "./checkResults";
+
 /**
  * A project the way an engineer files it, for the project page: models,
  * boards, drawings, studies and jobs, documents, fabrication files, images,
@@ -37,12 +39,16 @@ export interface ProjectFile {
   readonly kind: string;
 }
 
+/** A manufacturing check's result model, `<stem>.<process>.glb` (`checkResults.ts`). */
+const MANUFACTURING_RESULT = new RegExp(`\\.(?:${MANUFACTURING_PROCESSES.join("|")})\\.glb$`, "i");
+
 const RULES: ReadonlyArray<{
   readonly test: RegExp;
   readonly group: ProjectGroup;
   readonly kind: string;
 }> = [
   { test: /\.fea\.(?:glb|json)$/i, group: "Studies", kind: "FEA study" },
+  { test: MANUFACTURING_RESULT, group: "Studies", kind: "Manufacturing check" },
   { test: /\.cam\.(?:glb|json)$/i, group: "Manufacturing", kind: "CAM job" },
   { test: /\.(?:nc|gcode|ngc|tap|gco)$/i, group: "Manufacturing", kind: "G-code" },
   { test: /\.(?:step|stp)$/i, group: "Models", kind: "STEP" },

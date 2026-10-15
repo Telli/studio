@@ -36,6 +36,7 @@ import { EMPTY_BRIEF } from "./briefFolder";
 import { NewDialog } from "./NewDialog";
 import { availableTemplates } from "./newTemplates";
 import { ProjectBriefRow } from "./ProjectBrief";
+import { ProjectOverview } from "./ProjectOverview";
 import { ProjectThreads } from "./ProjectThreads";
 import { usePictures } from "./usePictures";
 import { groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
@@ -276,14 +277,16 @@ function FolderFiles(props: {
 }
 
 /**
- * The project page, the engineering interface's Project tab (in place of the
+ * The project page, the engineering surfaces' Project tab (in place of the
  * file explorer). A project is a grouping of folders with one brief
  * (`useStudioProjects.ts`); a folder in none is a project of its own. The page
  * shows the project's name and brief, its folders (add or take one out), then
- * everything they hold, folder by folder and filed as an engineer files it
- * (models, boards, drawings, studies and jobs, documents, fabrication files),
- * each a tile that opens in the viewer or as a document, and every thread in
- * any of its folders. Source stays in the code interface's explorer.
+ * its overview first (`ProjectOverview.tsx`: the lead part, the open issues
+ * its checks found, every part with its checks, recent work), everything its
+ * folders hold, folder by folder and filed as an engineer files it (models,
+ * boards, drawings, studies and jobs, documents, fabrication files), each a
+ * tile that opens in the viewer or as a document, and every thread in any of
+ * its folders. Source stays in T3 Code's explorer (Source, with code tools).
  */
 export function ProjectPage(props: {
   readonly environmentId: EnvironmentId;
@@ -295,7 +298,7 @@ export function ProjectPage(props: {
   readonly workspaceMutationId: string | null;
 }) {
   const { environmentId, cwd, threadRef } = props;
-  const [tab, setTab] = useState<"files" | "references" | "threads">("files");
+  const [tab, setTab] = useState<"overview" | "files" | "references" | "threads">("overview");
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"grid" | "list">(readView);
   const [newOpen, setNewOpen] = useState({ open: false, count: 0 });
@@ -390,25 +393,23 @@ export function ProjectPage(props: {
     });
   };
 
-  const openIn = (root: string) => (file: ProjectFile) => {
+  const openPath = (root: string, relativePath: string) => {
     // A file in another of the project's folders opens by its full path.
     const path =
       studioFolderKey(root) === studioFolderKey(cwd)
-        ? file.path
-        : `${studioFolderKey(root)}/${file.path}`;
+        ? relativePath
+        : `${studioFolderKey(root)}/${relativePath}`;
     const panels = useRightPanelStore.getState();
     const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
     if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
     else panels.openFile(threadRef, path);
   };
+  const openIn = (root: string) => (file: ProjectFile) => openPath(root, file.path);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-project-page="">
       <header className="border-b border-border px-5 pt-5 pb-3">
-        <div className="text-2xs font-medium tracking-widest text-muted-foreground uppercase">
-          Project
-        </div>
-        <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <h1 className="min-w-0 truncate text-xl font-semibold text-foreground">{name}</h1>
           <div className="flex items-center gap-2">
             {templates.length === 0 || composerRef === null ? null : (
@@ -423,6 +424,7 @@ export function ProjectPage(props: {
             <div role="tablist" aria-label="Project contents" className="flex gap-1">
               {(
                 [
+                  ["overview", "Overview"],
                   ["files", "Files"],
                   ["references", "References"],
                   ...(isProject ? [["threads", "Threads"] as const] : []),
@@ -487,7 +489,7 @@ export function ProjectPage(props: {
             <AddFolderMenu environmentId={environmentId} exclude={folders} onAdd={addFolder} />
           </div>
         ) : null}
-        <div className="mt-3 flex items-center gap-2">
+        <div className={cn("mt-3 flex items-center gap-2", tab === "overview" && "hidden")}>
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -528,7 +530,19 @@ export function ProjectPage(props: {
       </header>
 
       <div className="flex flex-col gap-8 px-5 py-4">
-        {tab === "threads" ? (
+        {tab === "overview" ? (
+          <ProjectOverview
+            environmentId={environmentId}
+            folders={folders}
+            mutationId={props.workspaceMutationId}
+            composerRef={composerRef}
+            projectRefs={projectRefs}
+            folderNames={folderNames}
+            currentThreadId={threadRef.threadId}
+            onOpen={openPath}
+            onShowThreads={isProject ? () => setTab("threads") : null}
+          />
+        ) : tab === "threads" ? (
           <ProjectThreads
             projectRefs={projectRefs}
             folderNames={folderNames}

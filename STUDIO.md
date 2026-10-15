@@ -60,14 +60,24 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
 A branch on top of `amy/hardware` for people who know hardware before code: `brand.json`
 `"focus": "hardware"`. `amy/hardware` stays the base text-to-cad pins; this one rebases onto it.
 
-Its interface is a setting, Engineering or Code (Settings, Appearance, Interface; or "Switch to the
-code interface" in the command palette), Engineering by default, per device. Engineering puts every
-coding tool away (version control, editors, terminals, scripts, branches, pull requests, diffs), says
-what the agent's steps did to the design ("FEA study on bracket.step", "Built bracket") instead of
-the command lines, and reads like a shop drawing: a title block over the viewer with the part's
-type, units, material and build, and documents the agent writes (plans, reports) opening beside the
-thread as documents with a title block of their own. Code shows T3 Code's surfaces as they are.
-`<html data-studio-focus>` carries the choice for `brand/theme.css`.
+Its interface is a setting, Engineering, Engineering with code, or Code (Settings, Appearance,
+Interface; or the "Switch to ..." commands in the command palette, which "dev" also finds),
+Engineering by default, per device. Engineering puts every coding tool away (version control,
+editors, terminals, scripts, branches, pull requests, diffs), says what the agent's steps did to the
+design ("FEA study on bracket.step", "Built bracket") instead of the command lines, and reads like a
+shop drawing: a title block over the viewer with the part's type, units, material and build, and
+documents the agent writes (plans, reports) opening beside the thread as documents with a title
+block of their own. Engineering with code keeps those surfaces (the projects home, the project's
+overview, the title block, documents) and brings every coding tool back in T3 Code's own words,
+with Source beside the pinned Project tab for the explorer. Code shows T3 Code's surfaces as they
+are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choice for
+`brand/theme.css`.
+
+- **The project's overview.** The Project tab opens on it: the lead part large, the open issues its
+  checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
+  propose and wait), every part with how its checks went, and recent work. Checks are the results
+  text-to-cad writes beside the parts, `<name>.fea.json` and `<stem>.<process>.result.json`
+  (`components/workbench/checkResults.ts`).
 
 - **Point, then ask.** What the viewer adds to the chat (Quick Edit's references, a picture of the
   view) lands in the composer, to read and edit before it goes. The viewer is then told the

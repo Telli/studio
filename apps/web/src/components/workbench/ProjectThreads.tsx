@@ -14,6 +14,7 @@ import { formatRelativeTimeLabel } from "~/timestampFormat";
 /**
  * Every conversation in the project's folders, newest first, the way a
  * project holds its chats: the one open now is marked, one at work says so,
+ * one waiting on the person (an approval, a question, a plan) says so too,
  * each says its folder when there are several, and archived ones stay out.
  * Opening one goes to it; the project page comes along.
  */
@@ -24,6 +25,8 @@ export function ProjectThreads(props: {
   readonly folderNames: ReadonlyMap<string, string> | null;
   readonly currentThreadId: ThreadId | null;
   readonly query: string;
+  /** The newest this many, for the overview; all when absent. */
+  readonly limit?: number;
 }) {
   const navigate = useNavigate();
   useNowMinute();
@@ -34,8 +37,9 @@ export function ProjectThreads(props: {
       shells
         .filter((thread) => thread.archivedAt === null)
         .filter((thread) => needle === "" || thread.title.toLowerCase().includes(needle))
-        .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [shells, needle],
+        .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+        .slice(0, props.limit),
+    [shells, needle, props.limit],
   );
 
   if (threads.length === 0) {
@@ -50,6 +54,10 @@ export function ProjectThreads(props: {
       {threads.map((thread) => {
         const current = thread.id === props.currentThreadId;
         const working = threadRuntimeIsActive(thread.runtime);
+        const waiting =
+          thread.hasPendingApprovals ||
+          thread.hasPendingUserInput ||
+          thread.hasActionableProposedPlan;
         return (
           <li key={thread.id} className="border-b border-border">
             <button
@@ -78,12 +86,19 @@ export function ProjectThreads(props: {
                   {props.folderNames.get(thread.projectId) ?? ""}
                 </span>
               )}
-              <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">
+              <span
+                className={cn(
+                  "shrink-0 text-2xs tabular-nums",
+                  waiting && !current ? "text-warning-foreground" : "text-muted-foreground",
+                )}
+              >
                 {current
                   ? "Open now"
-                  : working
-                    ? "Working"
-                    : formatRelativeTimeLabel(thread.updatedAt)}
+                  : waiting
+                    ? "Needs you"
+                    : working
+                      ? "Working"
+                      : formatRelativeTimeLabel(thread.updatedAt)}
               </span>
             </button>
           </li>
