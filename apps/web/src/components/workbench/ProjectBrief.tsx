@@ -48,8 +48,8 @@ function SpecRow(props: {
 }
 
 /**
- * The project brief on a new thread, in the engineering interface: one line
- * saying what the project is set up for, or asking to set it up. The sheet it
+ * The project brief on the project page: one line of what has been decided
+ * (purpose, material, process, quantity), or, while nothing is, just Set up. The sheet it
  * opens saves the brief on the project (the folder becomes a one-folder project
  * if it is in none) and hands reference files to the agent to file under
  * `brief/references/`.
@@ -66,6 +66,7 @@ export function ProjectBriefRow(props: {
   const [open, setOpen] = useState(false);
   // Each opening starts the sheet from the brief as it stands.
   const [opened, setOpened] = useState(0);
+  const summary = brief === null ? [] : briefSummary(brief);
 
   return (
     <div className="pointer-events-auto mt-6 text-left">
@@ -73,13 +74,9 @@ export function ProjectBriefRow(props: {
         <span className="text-2xs font-medium tracking-widest text-muted-foreground uppercase">
           Project brief
         </span>
-        {brief === null ? (
-          <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-            What the agent should know first: purpose, requirements, material, process
-          </span>
-        ) : (
+        {summary.length === 0 ? null : (
           <dl className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-xs">
-            {briefSummary(brief).map((entry) => (
+            {summary.map((entry) => (
               <div key={entry.label} className="flex min-w-0 shrink items-baseline gap-1.5">
                 <dt className="sr-only">{entry.label}</dt>
                 <dd className="truncate text-foreground">{entry.value}</dd>
@@ -88,14 +85,14 @@ export function ProjectBriefRow(props: {
           </dl>
         )}
         <Button
-          variant={brief === null ? "default" : "ghost-muted"}
+          variant={summary.length === 0 ? "outline" : "ghost-muted"}
           size="xs"
           onClick={() => {
             setOpened((count) => count + 1);
             setOpen(true);
           }}
         >
-          {brief === null ? "Set up the brief" : "Edit"}
+          {summary.length === 0 ? "Set up" : "Edit"}
         </Button>
       </div>
       <BriefSheet

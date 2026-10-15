@@ -7,6 +7,8 @@ import type { StudioProjectBrief } from "@t3tools/contracts";
  * datasheets and mating parts it gathers are filed under `brief/references/`.
  */
 
+import { EMPTY_STUDIO_BRIEF as EMPTY_BRIEF } from "@t3tools/shared/studioProjects";
+
 export {
   EMPTY_STUDIO_BRIEF as EMPTY_BRIEF,
   STUDIO_PROCESSES as PROCESSES,
@@ -16,12 +18,19 @@ export type ProjectBrief = StudioProjectBrief;
 
 export const BRIEF_REFERENCES = "brief/references";
 
-/** The brief in a line, for the new-thread screen once it is set. */
+/**
+ * The brief in a line, for the project page: only what has been decided (the
+ * purpose's first line, material, process, quantity), then the units once
+ * anything is. Empty while nothing is, so an unset brief says nothing.
+ */
 export function briefSummary(brief: ProjectBrief): ReadonlyArray<{ label: string; value: string }> {
-  return [
-    { label: "Material", value: brief.material.trim() || "Not decided" },
-    { label: "Process", value: brief.process.trim() || "Not decided" },
-    { label: "Units", value: brief.units },
-    { label: "Quantity", value: brief.quantity.trim() || "Not decided" },
-  ];
+  const quantity = brief.quantity.trim();
+  const decided = [
+    { label: "Purpose", value: brief.purpose.trim().split("\n")[0]?.trim() ?? "" },
+    { label: "Material", value: brief.material.trim() },
+    { label: "Process", value: brief.process === EMPTY_BRIEF.process ? "" : brief.process.trim() },
+    { label: "Quantity", value: quantity === "" ? "" : `Quantity ${quantity}` },
+  ].filter((entry) => entry.value !== "");
+  if (decided.length === 0) return [];
+  return [...decided, { label: "Units", value: brief.units === "in" ? "Inches" : "Millimeters" }];
 }
