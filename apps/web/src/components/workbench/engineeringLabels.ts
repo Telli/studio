@@ -5,6 +5,8 @@
  * itself stays one click away, in the step's details.
  */
 
+import { APP_BASE_NAME } from "../../branding";
+
 export interface StepLabel {
   /** Settled: "FEA study on bracket.step". */
   readonly done: string;
@@ -134,12 +136,53 @@ export function engineeringStepLabel(command: string): StepLabel {
   return { done: "Worked on the design", doing: "Working on the design" };
 }
 
-/** A group of steps in an engineer's words: "Ran 3 commands" reads "3 steps". */
+/** The text-to-cad plugin's viewer tools, by their name after any server or plugin prefix. */
+const CAD_VIEWER_TOOLS: Readonly<Record<string, StepLabel>> = {
+  cad_view: { done: "Looked at the model", doing: "Looking at the model" },
+  cad_show: { done: "Showed the model", doing: "Showing the model" },
+  cad_open: {
+    done: "Opened the model in the viewer",
+    doing: "Opening the model in the viewer",
+  },
+  cad_screenshot: {
+    done: "Took a picture of the model",
+    doing: "Taking a picture of the model",
+  },
+};
+
+/**
+ * A plugin tool's step in an engineer's words, or null for a tool without a
+ * rule. Takes the tool's name however the provider spelled it
+ * (`mcp__t3-code__text-to-cad__cad_show`, `t3-code.text-to-cad__cad_show`,
+ * `cad.cad_show`) or the title made from it ("text to cad cad show").
+ */
+export function engineeringToolLabel(tool: string | null | undefined): StepLabel | null {
+  const name = /(?:^|[.:\s]|__)(cad[_\s][a-z]+)$/i
+    .exec(tool?.trim() ?? "")?.[1]
+    ?.toLowerCase()
+    .replace(/\s/, "_");
+  return (name !== undefined && CAD_VIEWER_TOOLS[name]) || null;
+}
+
+/**
+ * A group of steps in an engineer's words: "Ran 3 commands" reads "3 steps",
+ * and the tools on T3's own server read as the app's ("Used Studio's tools
+ * and took 3 steps").
+ */
 export function engineeringGroupLabel(label: string): string {
   const cased = (word: string, like: string) =>
     like[0] === like[0]?.toUpperCase() ? word[0]!.toUpperCase() + word.slice(1) : word;
   return label
-    .replace(/\b([Rr])an (\d+) commands?\b/g, (_m, _r: string, count: string) =>
+    .replace(
+      /\bUsed (.+?) integrations?\b/g,
+      (_m, names: string) =>
+        `Used ${names.replace(/\bt3[ -]code\b/gi, `${APP_BASE_NAME}'s`)} tools`,
+    )
+    .replace(
+      /\bran (\d+) commands?\b/g,
+      (_m, count: string) => `took ${count} ${count === "1" ? "step" : "steps"}`,
+    )
+    .replace(/\bRan (\d+) commands?\b/g, (_m, count: string) =>
       count === "1" ? "1 step" : `${count} steps`,
     )
     .replace(

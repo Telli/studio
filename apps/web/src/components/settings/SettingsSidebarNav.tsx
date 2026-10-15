@@ -51,6 +51,11 @@ import {
 } from "./settingsSearch";
 import { useAvailableSettingsSearchItems } from "./useAvailableSettingsSearchItems";
 import { validateSettingsScopeSearch } from "./settingsScope";
+import {
+  CODE_SETTINGS_SECTIONS,
+  settingsSectionLabel,
+  useEngineeringInterface,
+} from "../workbench/studioInterface";
 
 const SnapShotIcon = createLucideIcon("snap-shot", [
   [
@@ -116,8 +121,11 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const currentHash = useLocation({ select: (location) => location.hash });
   const currentSearch = useLocation({ select: (location) => location.search });
   const scopeSearch = useMemo(() => validateSettingsScopeSearch(currentSearch), [currentSearch]);
+  const engineering = useEngineeringInterface();
   const navItems = SETTINGS_NAV_ITEMS.filter(
-    (item) => item.to !== "/settings/projects" || isSettingsOverviewVisible(scopeSearch),
+    (item) =>
+      (item.to !== "/settings/projects" || isSettingsOverviewVisible(scopeSearch)) &&
+      !(engineering && CODE_SETTINGS_SECTIONS.has(item.to)),
   );
   const { isMobile, setOpenMobile, open, setOpen } = useSidebar();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -330,7 +338,11 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                           {item.title}
                         </span>
                         <span className="block truncate text-2xs text-sidebar-muted-foreground/75">
-                          {SETTINGS_SECTION_LABELS[item.to]}
+                          {settingsSectionLabel(
+                            item.to,
+                            SETTINGS_SECTION_LABELS[item.to],
+                            engineering,
+                          )}
                         </span>
                       </span>
                     </SidebarMenuButton>
@@ -355,7 +367,9 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                         onClick={() => handleSectionClick(item.to)}
                       >
                         <Icon />
-                        <span className="truncate">{item.label}</span>
+                        <span className="truncate">
+                          {settingsSectionLabel(item.to, item.label, engineering)}
+                        </span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );

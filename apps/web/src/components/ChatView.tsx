@@ -7737,11 +7737,22 @@ export default function ChatView(props: ChatViewProps) {
       <ThreadStatusLine
         icon={<CheckCircle2Icon />}
         label={
+          // The engineering interface calls a settled thread done.
           activeThreadShell?.settledAt
-            ? `Settled ${formatRelativeTimeLabel(activeThreadShell.settledAt)}`
-            : "Settled"
+            ? `${engineeringInterface ? "Done" : "Settled"} ${formatRelativeTimeLabel(activeThreadShell.settledAt)}`
+            : engineeringInterface
+              ? "Done"
+              : "Settled"
         }
-        actionLabel={isUnsettling ? "Un-settling..." : "Un-settle"}
+        actionLabel={
+          engineeringInterface
+            ? isUnsettling
+              ? "Reopening..."
+              : "Reopen"
+            : isUnsettling
+              ? "Un-settling..."
+              : "Un-settle"
+        }
         actionDisabled={!canOperateThread || isUnsettling}
         onAction={() => void handleUnsettleActiveThread()}
       />
@@ -7761,6 +7772,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadSnoozed,
     activeThreadWokeVisible,
     canOperateThread,
+    engineeringInterface,
     handleUnsettleActiveThread,
     handleUnsnoozeActiveThread,
     isUnsettling,

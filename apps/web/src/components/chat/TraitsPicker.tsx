@@ -40,6 +40,8 @@ import {
 } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
 import { useComposerMenuState } from "./useComposerMenuState";
+import { engineeringTraitDescriptor } from "../workbench/engineeringTraits";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 
 type ProviderOptions = ReadonlyArray<ProviderOptionSelection>;
 
@@ -296,6 +298,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
   planModeEnabled,
   ...persistence
 }: TraitsMenuContentProps & TraitsPersistence) {
+  const engineering = useEngineeringInterface();
   const modelSelection =
     instanceId && model ? { instanceId, model, options: modelOptions ?? [] } : null;
   const setProviderModelOptions = useComposerDraftStore((store) => store.setProviderModelOptions);
@@ -397,13 +400,18 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
           ultrathinkPromptControlled && descriptor.id === primarySelectDescriptor?.id
             ? "ultrathink"
             : (getDescriptorStringValue(descriptor, modelSelection, reportedModelSelection) ?? "");
+        // The engineering interface renames the group and its choices; picks keep their values.
+        const shown = engineering
+          ? engineeringTraitDescriptor(descriptor, selectedValue)
+          : descriptor;
+        const shownOptions = shown.type === "select" ? shown.options : descriptor.options;
 
         return (
           <div key={descriptor.id}>
             {index > 0 ? <MenuDivider /> : null}
             <MenuGroup>
               <div className="px-2 pt-1.5 pb-1 font-medium text-muted-foreground text-xs">
-                {descriptor.label}
+                {shown.label}
               </div>
               {ultrathinkInBodyText && descriptor.id === primarySelectDescriptor?.id ? (
                 <div className="px-2 pb-1.5 text-muted-foreground/80 text-xs">
@@ -415,7 +423,7 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
                 value={selectedValue}
                 onValueChange={(value) => handleSelectChange(descriptor, value)}
               >
-                {descriptor.options.map((option) => (
+                {shownOptions.map((option) => (
                   <MenuRadioItem
                     key={option.id}
                     value={option.id}
@@ -591,6 +599,7 @@ export const TraitsPicker = memo(function TraitsPicker({
   }) {
   const composerFloatingLayerProps = useComposerMenuProps();
   const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled);
+  const engineering = useEngineeringInterface();
   const { descriptors, primarySelectDescriptor, ultrathinkPromptControlled } =
     getTraitsSectionVisibility({
       provider,
@@ -615,12 +624,27 @@ export const TraitsPicker = memo(function TraitsPicker({
     return null;
   }
 
+  const triggerModelSelection =
+    instanceId && model ? { instanceId, model, options: modelOptions ?? [] } : null;
   const { label: triggerLabel } = buildTraitsTriggerDisplay({
     provider,
-    descriptors,
+    // The trigger names the pick as the engineering menu does ("Careful", not "High").
+    descriptors: engineering
+      ? descriptors.map((descriptor) => {
+          const current = getProviderOptionCurrentValue(
+            descriptor,
+            triggerModelSelection,
+            reportedModelSelection,
+          );
+          return engineeringTraitDescriptor(
+            descriptor,
+            typeof current === "string" ? current : null,
+          );
+        })
+      : descriptors,
     primarySelectDescriptorId: primarySelectDescriptor?.id ?? null,
     ultrathinkPromptControlled,
-    modelSelection: instanceId && model ? { instanceId, model, options: modelOptions ?? [] } : null,
+    modelSelection: triggerModelSelection,
     reportedModelSelection,
   });
   const isCodexStyle = provider === "codex";

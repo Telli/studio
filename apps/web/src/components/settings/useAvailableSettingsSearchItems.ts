@@ -13,6 +13,11 @@ import { isWslSettingsRowVisible } from "./ConnectionsSettings.logic";
 import { isProviderSettingsEnvironmentAvailable } from "./ProviderSettingsPanel.logic";
 import type { SettingsScopeSearch } from "./settingsScope";
 import {
+  CODE_SETTINGS_SECTIONS,
+  settingsSectionLabel,
+  useEngineeringInterface,
+} from "../workbench/studioInterface";
+import {
   filterAvailableSettingsSearchItems,
   getThreadAutoSettlementSearchAvailability,
 } from "./settingsSearch";
@@ -30,8 +35,9 @@ export function useAvailableSettingsSearchItems(scopeSearch: SettingsScopeSearch
   // Same fallback as the Connections row: older servers imply a tunnel from `linked`.
   const managedTunnelActive =
     cloudLinkState?.managedTunnelActive ?? cloudLinkState?.linked ?? false;
+  const engineering = useEngineeringInterface();
 
-  return useMemo(
+  const available = useMemo(
     () =>
       filterAvailableSettingsSearchItems({
         localEnvironmentDisabled,
@@ -71,5 +77,19 @@ export function useAvailableSettingsSearchItems(scopeSearch: SettingsScopeSearch
       localEnvironmentDisabled,
       scopeSearch.machine,
     ],
+  );
+  // The engineering interface searches only the sections its nav lists, by their names there.
+  return useMemo(
+    () =>
+      engineering
+        ? available
+            .filter((item) => !CODE_SETTINGS_SECTIONS.has(item.to))
+            .map((item) =>
+              item.id === "providers"
+                ? { ...item, title: settingsSectionLabel(item.to, item.title, true) }
+                : item,
+            )
+        : available,
+    [available, engineering],
   );
 }

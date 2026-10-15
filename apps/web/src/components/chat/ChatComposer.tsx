@@ -1143,8 +1143,10 @@ import { serverEnvironment } from "../../state/server";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
 import {
   ENGINEERING_COMPOSER_PLACEHOLDER,
+  ENGINEERING_FOLLOW_UP_PLACEHOLDER,
   useEngineeringInterface,
 } from "../workbench/studioInterface";
+import { ENGINEERING_RUNTIME_MODES } from "../workbench/engineeringTraits";
 
 const WORKSPACE_SNAPSHOT_RETRY_COOLDOWN_MS = 10_000;
 
@@ -2208,10 +2210,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const selectedProvider: ProviderDriverKind =
     selectedProviderEntry?.driverKind ?? requestedDriverKind;
   const supportedRuntimeModes = selectedProviderEntry?.snapshot.supportedRuntimeModes;
-  const compatibleRuntimeModeOptions =
+  const supportedRuntimeModeOptions =
     supportedRuntimeModes && supportedRuntimeModes.length > 0
       ? runtimeModeOptions.filter((option) => supportedRuntimeModes.includes(option.mode))
       : runtimeModeOptions;
+  // The engineering interface names each mode by what the agent may do.
+  const compatibleRuntimeModeOptions = engineeringInterface
+    ? supportedRuntimeModeOptions.map((option) => ({
+        ...option,
+        ...ENGINEERING_RUNTIME_MODES[option.mode],
+      }))
+    : supportedRuntimeModeOptions;
   // Older threads can contain a mode their current provider no longer offers.
   // Display the provider's first supported mode, which is also its safe legacy
   // fallback, without mutating persisted state until the user makes a choice.
@@ -7611,7 +7620,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               : showProviderUnavailable
                                 ? "Enable a provider in Settings to send a message"
                                 : phase === "disconnected"
-                                  ? DISCONNECTED_COMPOSER_PLACEHOLDER
+                                  ? engineeringInterface
+                                    ? ENGINEERING_FOLLOW_UP_PLACEHOLDER
+                                    : DISCONNECTED_COMPOSER_PLACEHOLDER
                                   : engineeringInterface
                                     ? ENGINEERING_COMPOSER_PLACEHOLDER
                                     : "Ask anything, @tag files/folders, $use skills, or / for commands"

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { engineeringGroupLabel, engineeringStepLabel } from "./engineeringLabels";
+import { APP_BASE_NAME } from "../../branding";
+import {
+  engineeringGroupLabel,
+  engineeringStepLabel,
+  engineeringToolLabel,
+} from "./engineeringLabels";
 
 const venv = "/Users/amy/code/text-to-cad-hw/.venv/bin/python -m cadgen.cli";
 
@@ -48,5 +53,36 @@ describe("engineering group labels", () => {
     expect(engineeringGroupLabel("Changed 1 file")).toBe("Updated 1 file");
     expect(engineeringGroupLabel("Read 4 files")).toBe("Looked at 4 files");
     expect(engineeringGroupLabel("Searched code 2 times")).toBe("Searched the project 2 times");
+  });
+
+  it("reads the tools on T3's own server as the app's, and later commands as steps taken", () => {
+    expect(engineeringGroupLabel("Used t3 code integration and ran 3 commands")).toBe(
+      `Used ${APP_BASE_NAME}'s tools and took 3 steps`,
+    );
+    expect(engineeringGroupLabel("Used t3 code integration")).toBe(`Used ${APP_BASE_NAME}'s tools`);
+    expect(engineeringGroupLabel("Changed 2 files and ran 1 command")).toBe(
+      "Updated 2 files and took 1 step",
+    );
+  });
+});
+
+describe("engineering tool labels", () => {
+  it("names the CAD viewer's tools by what they did, however the provider spelled them", () => {
+    expect(engineeringToolLabel("mcp__t3-code__text-to-cad__cad_view")).toEqual({
+      done: "Looked at the model",
+      doing: "Looking at the model",
+    });
+    expect(engineeringToolLabel("t3-code.text-to-cad__cad_show")?.done).toBe("Showed the model");
+    expect(engineeringToolLabel("cad.cad_open")?.done).toBe("Opened the model in the viewer");
+    expect(engineeringToolLabel("Text to cad cad screenshot")?.doing).toBe(
+      "Taking a picture of the model",
+    );
+  });
+
+  it("leaves other tools to their own titles", () => {
+    expect(engineeringToolLabel("t3-code.text-to-cad__cad_telemetry")).toBeNull();
+    expect(engineeringToolLabel("mcp__other__arcad_show")).toBeNull();
+    expect(engineeringToolLabel("t3-code.html_preview")).toBeNull();
+    expect(engineeringToolLabel(undefined)).toBeNull();
   });
 });

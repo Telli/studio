@@ -31,6 +31,33 @@ export const CODE_SURFACE_LABELS: ReadonlySet<string> = new Set([
 export const ENGINEERING_COMPOSER_PLACEHOLDER =
   "Describe a change to the part, or ask about the design";
 
+/** The composer on a thread that has already run, in place of T3's "send follow-ups". */
+export const ENGINEERING_FOLLOW_UP_PLACEHOLDER =
+  "Ask for a change, a check, or attach a sketch or photo";
+
+/**
+ * Settings sections the engineering interface leaves out of its nav and
+ * search. Their pages still open when visited, and the code interface lists them.
+ */
+export const CODE_SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
+  "/settings/keybindings",
+  "/settings/snap-shot",
+  "/settings/integrations",
+  "/settings/scheduled-tasks",
+  "/settings/source-control",
+  "/settings/storage",
+  "/settings/connections",
+]);
+
+const ENGINEERING_SETTINGS_LABELS: Readonly<Record<string, string>> = {
+  "/settings/providers": "AI agents",
+};
+
+/** A settings section's name in the given interface: engineering calls Providers "AI agents". */
+export function settingsSectionLabel(path: string, label: string, engineering: boolean): string {
+  return (engineering ? ENGINEERING_SETTINGS_LABELS[path] : undefined) ?? label;
+}
+
 export const STUDIO_INTERFACE_AVAILABLE = WORKBENCH_LAYOUT && HARDWARE_FOCUS;
 const STORAGE_KEY = "studio:interface";
 const DEFAULT_INTERFACE: StudioInterface = "engineering";

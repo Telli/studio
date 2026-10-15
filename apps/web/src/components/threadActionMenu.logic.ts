@@ -1,5 +1,6 @@
 import type { ContextMenuItem } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
+import { isEngineeringInterface } from "./workbench/studioInterface";
 
 /**
  * Ids for the per-thread action menu. Snooze presets are dispatched as
@@ -144,9 +145,18 @@ export function buildThreadActionMenuItems(
     // card until wake with the pin intact.
     ...(state.supports.settlement
       ? [
+          // The engineering interface calls settling a thread marking it done.
           state.isSettled
-            ? { id: "unsettle" as const, label: "Un-settle thread", icon: "circle-check" }
-            : { id: "settle" as const, label: "Settle thread", icon: "circle-check" },
+            ? {
+                id: "unsettle" as const,
+                label: isEngineeringInterface() ? "Reopen" : "Un-settle thread",
+                icon: "circle-check",
+              }
+            : {
+                id: "settle" as const,
+                label: isEngineeringInterface() ? "Mark done" : "Settle thread",
+                icon: "circle-check",
+              },
         ]
       : []),
     ...(state.supports.snooze

@@ -4,6 +4,7 @@ import {
   WorkspaceBreadcrumbSeparator,
 } from "../WorkspaceBreadcrumb";
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
+import { settingsSectionLabel, useEngineeringInterface } from "../workbench/studioInterface";
 
 const SETTINGS_BREADCRUMB_LABELS: Readonly<Record<string, string>> = {
   ...SETTINGS_SECTION_LABELS,
@@ -21,7 +22,10 @@ function settingsBreadcrumbLabel(pathname: string): string | null {
  * page content, see `SettingsScopeSentence`.
  */
 export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
-  const sectionLabel = settingsBreadcrumbLabel(pathname);
+  const engineering = useEngineeringInterface();
+  const label = settingsBreadcrumbLabel(pathname);
+  const sectionLabel =
+    label === null ? null : settingsSectionLabel(pathname.replace(/\/+$/, ""), label, engineering);
 
   return (
     <WorkspaceBreadcrumb ariaLabel="Settings breadcrumb">

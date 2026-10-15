@@ -1,5 +1,9 @@
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
-import { engineeringGroupLabel, engineeringStepLabel } from "../workbench/engineeringLabels";
+import {
+  engineeringGroupLabel,
+  engineeringStepLabel,
+  engineeringToolLabel,
+} from "../workbench/engineeringLabels";
 import { isEngineeringInterface } from "../workbench/studioInterface";
 
 export { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
@@ -99,6 +103,15 @@ function workEntryIsActiveTurnActivity(entry: WorkLogEntry): boolean {
 const engineeringSummary = (summary: string) =>
   isEngineeringInterface() ? engineeringGroupLabel(summary) : summary;
 
+/** A plugin tool's step in an engineer's words ("Showed the model"), in the engineering interface. */
+function engineeringToolStep(entry: WorkLogEntry) {
+  if (!isEngineeringInterface()) return null;
+  const item = entry.structuredPayload;
+  return engineeringToolLabel(
+    (item?.type === "dynamic_tool" ? item.toolName : null) ?? entry.toolTitle ?? entry.label,
+  );
+}
+
 function singleToolCallLabel(entry: WorkLogEntry): string {
   if (entry.itemType === "reasoning") return entry.detail?.trim().replace(/\s+/g, " ") || "Thought";
   const toolPresentation = resolveWorkEntryToolPresentation(entry, "completed");
@@ -145,6 +158,8 @@ export function workEntryDisplayLabel(entry: WorkLogEntry, workspaceRoot: string
   }
   const toolPresentation = resolveWorkEntryToolPresentation(entry);
   if (toolPresentation) return toolPresentation.displayName;
+  const toolStep = engineeringToolStep(entry);
+  if (toolStep) return toolStep.done;
   if (entry.command?.trim()) {
     // The engineering interface says what a command did to the design, not the command line.
     return isEngineeringInterface()
@@ -270,8 +285,11 @@ export function liveWorkEntryLabel(
   });
   if (toolPresentation) return toolPresentation.displayName;
   const command = entry.command?.trim();
-  if (command && isEngineeringInterface()) {
-    const step = engineeringStepLabel(command);
+  const step =
+    command && isEngineeringInterface()
+      ? engineeringStepLabel(command)
+      : engineeringToolStep(entry);
+  if (step) {
     return status === "inProgress"
       ? step.doing
       : status === "completed" || status === null || status === undefined

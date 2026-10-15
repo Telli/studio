@@ -189,6 +189,9 @@ html[data-studio-focus="hardware"]
     [data-testid^="thread-worktree-"],
     [data-testid^="sidebar-terminal-status-"],
     [data-app-sidebar] li:has(> [aria-label="Pull Requests"]),
+    [data-app-sidebar] li:has(> [aria-label="Usage"]),
+    /* Which agent ran a thread is bookkeeping: the row keeps its title and time. */
+    [data-sidebar-provider-stack],
     div:has(> svg.lucide-git-branch),
     [data-slot="composer-context-strip"] [aria-label="Workspace"],
     [data-slot="composer-context-strip"] button:has(> svg.lucide-git-branch),
@@ -205,6 +208,21 @@ html[data-studio-focus="hardware"]
     [aria-label^="Context window"]
   ) {
   display: none !important;
+}
+
+/*
+ * A work-log row says what a step did to the design; a terminal prompt beside it reads as a
+ * coding tool. Only the icon goes: its slot keeps the rows aligned.
+ */
+html[data-studio-focus="hardware"]
+  [data-timeline-root]
+  :is(
+    [data-timeline-row-kind="work"],
+    [data-timeline-row-kind="work-live"],
+    [data-timeline-row-kind="work-toggle"]
+  )
+  svg:is(.lucide-terminal, .lucide-square-terminal) {
+  display: none;
 }
 
 /*
