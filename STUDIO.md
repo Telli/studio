@@ -103,3 +103,27 @@ Rebases stay clean because the branch adds files rather than editing T3's: an ed
 file is a seam of a line or a few (`scripts/fork-diff.sh amy/hardware` on `main` lists them). Keep it that
 way: new behaviour goes in new files, and a T3 string or style is changed through `brand/`, not
 in place.
+
+## Who the engineering interface is for (Amy, 2026-10-15)
+
+Mechanical engineers who design in SolidWorks, Creo, NX, Fusion or Onshape today, or sketch and
+hand the CAD to someone else. Studio is meant to replace that CAD, not sit beside it. What would
+prove it: a real product made only in Studio and shipped; a handful of working engineers using it
+for a week on their own parts; the same part done in SolidWorks and in Studio, compared.
+
+- **What it owns.** Idea to first model, will-it-make checks, changes from feedback, and the
+  documents a shop gets.
+- **The unit is a product.** Its parts, assemblies, checks, documents and history together.
+  Opening one shows the model with the chat docked, each part's checks, what changed lately and
+  the open issues.
+- **Steering.** Click a face and ask, mark up a picture, or say it. Exact values are said in chat
+  ("make that hole 6.35"), not typed into a table. The code behind a part is there on request,
+  one click away.
+- **Trust.** A hand check beside every simulation, a source for every number and a list of the
+  guesses, the assumptions up front, and a track record: test results logged against a revision,
+  a supplier's notes and quotes, and photos of the made part come back in and are compared with
+  the model.
+- **A failed check.** The agent proposes the fix and waits for a go; it does not change the part
+  on its own.
+- **People.** One engineer, a small team editing the same product, and suppliers who see the
+  released files and send back notes.
