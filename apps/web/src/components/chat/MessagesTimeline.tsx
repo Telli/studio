@@ -232,6 +232,7 @@ import {
   type TimelineLatestRun,
   type WorkGroupScrollAnchor,
 } from "./MessagesTimeline.logic";
+import { TurnDesignChanges } from "../workbench/TurnDesignChanges";
 import { useEngineeringInterface, useFileChipLabel } from "../workbench/studioInterface";
 import { type ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
@@ -4256,13 +4257,15 @@ const AssistantChangedFilesSection = memo(function AssistantChangedFilesSection(
   if (checkpointFiles.length === 0) return null;
 
   return (
-    <AssistantChangedFilesSectionInner
-      turnSummary={turnSummary}
-      checkpointFiles={checkpointFiles}
-      routeThreadKey={routeThreadKey}
-      resolvedTheme={resolvedTheme}
-      onOpenTurnDiff={onOpenTurnDiff}
-    />
+    <TurnDesignChanges threadRef={use(TimelineRowCtx).threadRef} files={checkpointFiles}>
+      <AssistantChangedFilesSectionInner
+        turnSummary={turnSummary}
+        checkpointFiles={checkpointFiles}
+        routeThreadKey={routeThreadKey}
+        resolvedTheme={resolvedTheme}
+        onOpenTurnDiff={onOpenTurnDiff}
+      />
+    </TurnDesignChanges>
   );
 });
 

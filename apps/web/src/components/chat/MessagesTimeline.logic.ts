@@ -100,9 +100,14 @@ function workEntryIsActiveTurnActivity(entry: WorkLogEntry): boolean {
   );
 }
 
-/** A group's summary, in an engineer's words in the engineering interface. */
-const engineeringSummary = (summary: string) =>
-  isEngineeringInterface() ? engineeringGroupLabel(summary) : summary;
+/** A group's summary, in an engineer's words in the engineering interface, naming the parts it changed. */
+const engineeringSummary = (summary: string, entries: ReadonlyArray<WorkLogEntry>) =>
+  isEngineeringInterface()
+    ? engineeringGroupLabel(
+        summary,
+        entries.flatMap((entry) => entry.changedFiles ?? []),
+      )
+    : summary;
 
 /** A plugin tool's step in an engineer's words ("Showed the model"), in the engineering interface. */
 function engineeringToolStep(entry: WorkLogEntry) {
@@ -1774,7 +1779,10 @@ export function deriveMessagesTimelineRows(input: {
             isExpandedToolGroup: false,
             displayLabel:
               toolGroupAction(singleEntry) === "edit"
-                ? engineeringSummary(summarizeToolGroup(visibleGroupedEntries).summary)
+                ? engineeringSummary(
+                    summarizeToolGroup(visibleGroupedEntries).summary,
+                    visibleGroupedEntries,
+                  )
                 : singleToolCallLabel(singleEntry),
           });
         } else {
@@ -1819,7 +1827,10 @@ export function deriveMessagesTimelineRows(input: {
               ? singleToolCallLabel(singleEntry)
               : singleEntry !== null && !workLogEntryIsToolLike(singleEntry)
                 ? singleEntry.label
-                : engineeringSummary(summarizeToolGroup(visibleGroupedEntries).summary),
+                : engineeringSummary(
+                    summarizeToolGroup(visibleGroupedEntries).summary,
+                    visibleGroupedEntries,
+                  ),
             summaryKind,
             ...(groupToolSurface ? { toolSurface: groupToolSurface } : {}),
             ...(groupToolIcon ? { toolIcon: groupToolIcon } : {}),

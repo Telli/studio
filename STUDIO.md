@@ -81,6 +81,12 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   propose and wait), every part with how its checks went, and recent work. Checks are the results
   text-to-cad writes beside the parts, `<name>.fea.json` and `<stem>.<process>.result.json`
   (`components/workbench/checkResults.ts`).
+- **Design history.** A turn that changed files ends with what it changed in the design, by part
+  and document (a part's script, model, drawing and studies are one entry), each opening beside
+  the thread; the work log's groups say which parts they updated ("3 steps, updated the L
+  bracket"). The project's Threads tab is its History: the work newest first under its day, each
+  piece with how it came out (done, needs you, working, stopped). With code tools on, the turn
+  keeps T3 Code's changed-files card and the tab is Threads.
 - **Setup, as a CAD tool shows it.** Under the project's name, its units, material (from a library
   of common grades, or any name typed), process and quantity. Picking a value writes the request
   into the composer ("Change the project's material to PETG."); the agent changes the project's

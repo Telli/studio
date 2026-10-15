@@ -7,6 +7,7 @@
  */
 
 import { APP_BASE_NAME } from "../../branding";
+import { changesPhrase, designChanges } from "./designChanges";
 import { humanName, inSentence, partLabel } from "./partNames";
 
 export interface StepLabel {
@@ -171,10 +172,13 @@ export function engineeringToolLabel(tool: string | null | undefined): StepLabel
 
 /**
  * A group of steps in an engineer's words: "Ran 3 commands" reads "3 steps",
- * and the tools on T3's own server read as the app's ("Used Studio's tools
- * and took 3 steps").
+ * the tools on T3's own server read as the app's ("Used Studio's tools and
+ * took 3 steps"), and the files it changed are the parts they are ("updated
+ * the servo bracket"), given the paths it changed.
  */
-export function engineeringGroupLabel(label: string): string {
+export function engineeringGroupLabel(label: string, changed: ReadonlyArray<string> = []): string {
+  const { changes, other } = designChanges(changed);
+  const phrase = changesPhrase(changes, other);
   const cased = (word: string, like: string) =>
     like[0] === like[0]?.toUpperCase() ? word[0]!.toUpperCase() + word.slice(1) : word;
   return label
@@ -193,7 +197,7 @@ export function engineeringGroupLabel(label: string): string {
     .replace(
       /\b([Cc]hanged) (\d+) (files?)\b/g,
       (_m, verb: string, count: string, noun: string) =>
-        `${cased("updated", verb)} ${count} ${noun}`,
+        `${cased("updated", verb)} ${phrase ?? `${count} ${noun}`}`,
     )
     .replace(/\b([Ss]earched) code\b/g, (_m, verb: string) => `${verb} the project`)
     .replace(
@@ -204,14 +208,18 @@ export function engineeringGroupLabel(label: string): string {
 }
 
 /**
- * A step that read or changed files, by what they are: "Looked at the servo
- * bracket", "Updated the bracket drawing and 2 more". A file with no
- * engineer's name keeps its file name.
+ * A step that read or changed files, by the parts and documents they are:
+ * "Looked at the servo bracket" (its script, its model and its drawing are
+ * all the bracket), "Updated the bracket drawing and 2 more". Files with no
+ * engineer's name keep their file names.
  */
 export function engineeringFilesLabel(verb: string, paths: ReadonlyArray<string>): string {
+  const { changes, other } = designChanges(paths);
+  const phrase = changesPhrase(changes, other);
+  if (phrase !== null) return `${verb} ${phrase}`;
   const [first, ...rest] = paths;
   if (first === undefined) return verb;
-  const label = partLabel(first);
-  const what = label === base(first) ? label : inSentence(label);
-  return rest.length === 0 ? `${verb} ${what}` : `${verb} ${what} and ${rest.length} more`;
+  return rest.length === 0
+    ? `${verb} ${base(first)}`
+    : `${verb} ${base(first)} and ${rest.length} more`;
 }

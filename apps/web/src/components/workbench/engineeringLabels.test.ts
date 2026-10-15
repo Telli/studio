@@ -59,6 +59,9 @@ describe("engineering file labels", () => {
       "Updated the bracket drawing and 2 more",
     );
     expect(engineeringFilesLabel("Looked at", ["src/util.ts"])).toBe("Looked at util.ts");
+    expect(
+      engineeringFilesLabel("Updated", ["parts/src/l_bracket.py", "parts/STEP/l_bracket.step"]),
+    ).toBe("Updated the L bracket");
   });
 });
 
@@ -80,6 +83,13 @@ describe("engineering group labels", () => {
     expect(engineeringGroupLabel("Changed 2 files and ran 1 command")).toBe(
       "Updated 2 files and took 1 step",
     );
+    expect(
+      engineeringGroupLabel("Ran 3 commands, changed 3 files", [
+        "parts/src/l_bracket.py",
+        "parts/STEP/l_bracket.step",
+        "drawings/l_bracket.dxf",
+      ]),
+    ).toBe("3 steps, updated the L bracket");
   });
 });
 

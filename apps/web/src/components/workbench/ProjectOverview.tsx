@@ -477,7 +477,7 @@ export function ProjectOverview(props: {
               onClick={props.onShowThreads}
               className="text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
             >
-              Every thread
+              {engineering ? "Full history" : "Every thread"}
             </button>
           </div>
           <div className="mt-1.5">

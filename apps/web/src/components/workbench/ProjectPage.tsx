@@ -1,5 +1,4 @@
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
-import { pluginFileHandlers } from "@t3tools/client-runtime/state/plugins";
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { studioFolderKey, studioFolderName } from "@t3tools/shared/studioProjects";
@@ -25,11 +24,9 @@ import { useMemo, useState } from "react";
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { cn } from "~/lib/utils";
-import { useRightPanelStore } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
-import { pluginAppSurface } from "../plugins/pluginSurfaces";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { AddFolderMenu } from "./AddFolderMenu";
@@ -43,6 +40,7 @@ import { usePictures } from "./usePictures";
 import { filePlaces, groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import { useEngineeringInterface } from "./studioInterface";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
+import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
 const GROUP_ICONS: Record<ProjectGroup, typeof BoxIcon> = {
@@ -336,6 +334,7 @@ export function ProjectPage(props: {
     }
   };
   const composerRef = useComposerHandleContext();
+  const plainWords = useEngineeringInterface();
   const studio = useStudioProjectAt(environmentId, cwd);
   const saveProject = useSaveStudioProject(environmentId);
   const knownFolders = useEnvironmentFolders(environmentId);
@@ -425,13 +424,8 @@ export function ProjectPage(props: {
     studioFolderKey(root) === studioFolderKey(cwd)
       ? relativePath
       : `${studioFolderKey(root)}/${relativePath}`;
-  const openPath = (root: string, relativePath: string) => {
-    const path = threadPath(root, relativePath);
-    const panels = useRightPanelStore.getState();
-    const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
-    if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
-    else panels.openFile(threadRef, path);
-  };
+  const open = useOpenInWorkbench(threadRef);
+  const openPath = (root: string, relativePath: string) => open(threadPath(root, relativePath));
   const openIn = (root: string) => (file: ProjectFile) => openPath(root, file.path);
 
   return (
@@ -460,7 +454,7 @@ export function ProjectPage(props: {
                   ["overview", "Overview"],
                   ["files", "Files"],
                   ["references", "References"],
-                  ...(isProject ? [["threads", "Threads"] as const] : []),
+                  ...(isProject ? [["threads", plainWords ? "History" : "Threads"] as const] : []),
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -535,7 +529,9 @@ export function ProjectPage(props: {
               tab === "files"
                 ? "Find a part, board or document"
                 : tab === "threads"
-                  ? "Find a thread"
+                  ? plainWords
+                    ? "Find in the history"
+                    : "Find a thread"
                   : "Find a reference"
             }
             aria-label="Find in the project"
