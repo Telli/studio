@@ -133,6 +133,7 @@ import {
   DownloadIcon,
   EyeIcon,
   GitForkIcon,
+  SplitIcon,
   GlobeIcon,
   type LucideIcon,
   MessageCircleIcon,
@@ -231,6 +232,7 @@ import {
   type TimelineLatestRun,
   type WorkGroupScrollAnchor,
 } from "./MessagesTimeline.logic";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import { type ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
 import { readThreadFindPosition } from "./threadFindPosition";
@@ -2898,8 +2900,12 @@ function AssistantForkButton({
     capabilities: support.providerSession?.capabilities,
   });
 
+  // Studio's engineering interface calls a fork what it is to a design: another way from here.
+  const engineering = useEngineeringInterface();
   if (!canFork || projectedItem.item.runId === null) return null;
   const runId = projectedItem.item.runId;
+  const forkLabel = engineering ? "Try another way from here" : "Fork from this response";
+  const ForkIcon = engineering ? SplitIcon : GitForkIcon;
 
   return (
     <Tooltip>
@@ -2916,13 +2922,13 @@ function AssistantForkButton({
                 .onForkFromRun({ sourceThreadId: projectedItem.sourceThreadId, runId })
                 .finally(() => setBusy(false));
             }}
-            aria-label="Fork from this response"
+            aria-label={forkLabel}
           />
         }
       >
-        <GitForkIcon className={cn("size-3", busy && "animate-pulse")} />
+        <ForkIcon className={cn("size-3", busy && "animate-pulse")} />
       </TooltipTrigger>
-      <TooltipPopup side="top">Fork from this response</TooltipPopup>
+      <TooltipPopup side="top">{forkLabel}</TooltipPopup>
     </Tooltip>
   );
 }

@@ -200,7 +200,18 @@ html[data-studio-focus="hardware"]
       [aria-keyshortcuts="M"]
     ),
     [aria-label="Run in terminal"],
-    [data-changed-files-state]
+    [data-changed-files-state],
+    /* The model's context window is the agent's bookkeeping, not the engineer's. */
+    [aria-label^="Context window"]
   ) {
   display: none !important;
+}
+
+/*
+ * What the agent sets apart in a reply (a part's name, a value, a file) reads in the interface's
+ * own face, as a label, not in a code font. Real code blocks keep theirs.
+ */
+html[data-studio-focus="hardware"] .chat-markdown :not(pre) > code {
+  font-family: inherit;
+  font-size: 0.875em;
 }
