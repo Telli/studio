@@ -35,6 +35,8 @@ import {
   scopedSettingsSource,
 } from "./scopedSettings";
 import { useClearProjectOverrides, useClearScopedSettings } from "./useScopedSettings";
+import { CODE_SETTINGS_ROWS, engineeringSettingCopy } from "../workbench/engineeringSettings";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import {
   SettingInheritance,
   type SettingInheritanceState,
@@ -287,6 +289,10 @@ export function SettingsRow({
   children?: ReactNode;
 }) {
   const targetRef = useSettingsSearchTarget<HTMLDivElement>(rowProps.id);
+  // The engineering interface leaves coding rows out and words others plainly.
+  const engineering = useEngineeringInterface();
+  const engineeringCopy = engineeringSettingCopy(rowProps.id, engineering);
+  const shownTitle = engineeringCopy?.title ?? title;
   const primarySettingsAvailable = usePrimarySettingsAvailable();
   const context = useOptionalSettingsScope();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -360,7 +366,7 @@ export function SettingsRow({
   const renderedReset = unavailable ? null : isProjectScope && scopedKeys.length > 0 ? (
     source === "project" || source === "mixed" ? (
       <SettingResetButton
-        label={typeof title === "string" ? title : "override"}
+        label={typeof shownTitle === "string" ? shownTitle : "override"}
         tooltip="Reset to inherited value"
         onClick={() => (onResetOverride ? onResetOverride() : clearOverrides(scopedKeys))}
       />
@@ -453,6 +459,7 @@ export function SettingsRow({
       />
     ) : null;
   const renderedStatus = status;
+  if (engineering && CODE_SETTINGS_ROWS.has(rowProps.id ?? "")) return null;
 
   return (
     <div
@@ -469,7 +476,7 @@ export function SettingsRow({
       <div className="flex flex-col gap-3 @min-[32rem]/settings-row:grid @min-[32rem]/settings-row:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)] @min-[32rem]/settings-row:items-center @min-[32rem]/settings-row:gap-8">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
-            <h3 className="text-sm font-medium text-foreground">{title}</h3>
+            <h3 className="text-sm font-medium text-foreground">{shownTitle}</h3>
             {renderedInheritance ? (
               <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
                 {renderedInheritance}
@@ -481,7 +488,7 @@ export function SettingsRow({
           </div>
           {description ? (
             <p className="max-w-xl text-xs leading-normal text-muted-foreground/80">
-              {description}
+              {engineeringCopy?.description ?? description}
             </p>
           ) : null}
           {renderedStatus ? (

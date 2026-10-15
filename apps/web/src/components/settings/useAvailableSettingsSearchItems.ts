@@ -12,11 +12,8 @@ import { useEnvironmentScope } from "~/state/session";
 import { isWslSettingsRowVisible } from "./ConnectionsSettings.logic";
 import { isProviderSettingsEnvironmentAvailable } from "./ProviderSettingsPanel.logic";
 import type { SettingsScopeSearch } from "./settingsScope";
-import {
-  CODE_SETTINGS_SECTIONS,
-  settingsSectionLabel,
-  useEngineeringInterface,
-} from "../workbench/studioInterface";
+import { useEngineeringInterface } from "../workbench/studioInterface";
+import { engineeringSettingsSearchItems } from "../workbench/engineeringSettings";
 import {
   filterAvailableSettingsSearchItems,
   getThreadAutoSettlementSearchAvailability,
@@ -78,18 +75,9 @@ export function useAvailableSettingsSearchItems(scopeSearch: SettingsScopeSearch
       scopeSearch.machine,
     ],
   );
-  // The engineering interface searches only the sections its nav lists, by their names there.
+  // The engineering interface searches only the sections and rows it shows, by their names there.
   return useMemo(
-    () =>
-      engineering
-        ? available
-            .filter((item) => !CODE_SETTINGS_SECTIONS.has(item.to))
-            .map((item) =>
-              item.id === "providers"
-                ? { ...item, title: settingsSectionLabel(item.to, item.title, true) }
-                : item,
-            )
-        : available,
+    () => (engineering ? engineeringSettingsSearchItems(available) : available),
     [available, engineering],
   );
 }

@@ -17,6 +17,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "../ui/menu";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import { useOptionalSettingsScope } from "./SettingsScopeContext";
 import { resolveSettingsScope, type SettingsScopeSearch } from "./settingsScope";
 import {
@@ -54,6 +55,9 @@ export function SettingsScopeSentence() {
   const scope = useOptionalSettingsScope();
   const pathname = useLocation({ select: (location) => location.pathname });
   const { environments } = useEnvironments();
+  // The engineering interface names the environment only when there is another to pick.
+  const engineering = useEngineeringInterface();
+  const showEnvironment = !engineering || environments.length > 1;
   if (scope === null || SETTINGS_DEVICE_ONLY_PATHS.has(pathname)) return null;
   const props: SettingsScopeMenuProps = {
     value: scope.search,
@@ -69,13 +73,15 @@ export function SettingsScopeSentence() {
         <span className="shrink-0">Applying settings for</span>
         <ProjectScopeMenu {...props} />
       </span>
-      <span className="flex min-w-0 items-center gap-1.5">
-        <span className="shrink-0">
-          {/* A legacy checkout link names one environment without `machine`. */}
-          {scope.search.machine || scope.scope.kind === "checkout" ? "on" : "across"}
+      {showEnvironment ? (
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0">
+            {/* A legacy checkout link names one environment without `machine`. */}
+            {scope.search.machine || scope.scope.kind === "checkout" ? "on" : "across"}
+          </span>
+          <EnvironmentScopeMenu {...props} />
         </span>
-        <EnvironmentScopeMenu {...props} />
-      </span>
+      ) : null}
     </p>
   );
 }

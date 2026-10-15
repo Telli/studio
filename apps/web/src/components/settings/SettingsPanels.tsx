@@ -138,6 +138,8 @@ import {
 } from "../ui/number-field";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { StudioInterfaceSetting } from "../workbench/StudioInterfaceSetting";
+import { engineeringSettingCopy } from "../workbench/engineeringSettings";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import { Switch } from "../ui/switch";
 import { ScopedSwitch } from "./ScopedSwitch";
 import { stackedThreadToast, toastManager } from "../ui/toast";
@@ -2265,6 +2267,8 @@ export function GeneralSettingsPanel() {
     settings.backgroundActivity,
     DEFAULT_UNIFIED_SETTINGS.backgroundActivity,
   );
+  const engineering = useEngineeringInterface();
+  const autoSettleDaysCopy = engineeringSettingCopy("days-before-auto-settle", engineering);
 
   return (
     <SettingsPageContainer>
@@ -2474,8 +2478,13 @@ export function GeneralSettingsPanel() {
               <SettingsRow
                 serverScoped
                 settingKeys={["sidebarAutoSettleAfterDays"]}
-                title={searchableSetting("days-before-auto-settle").title}
-                description="Any new activity un-settles a thread automatically."
+                title={
+                  autoSettleDaysCopy?.title ?? searchableSetting("days-before-auto-settle").title
+                }
+                description={
+                  autoSettleDaysCopy?.description ??
+                  "Any new activity un-settles a thread automatically."
+                }
                 control={
                   <AutoSettleDaysInput
                     value={settings.sidebarAutoSettleAfterDays}
@@ -3409,7 +3418,7 @@ export function GeneralSettingsPanel() {
         />
       </SettingsSection>
 
-      <LegacyFeaturesSection />
+      {engineering ? null : <LegacyFeaturesSection />}
     </SettingsPageContainer>
   );
 }
