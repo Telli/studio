@@ -77,6 +77,7 @@ import { BrowserDocumentFrame, isPdfPreviewFile } from "./BrowserDocumentFrame";
 import { DelimitedTablePreview } from "./DelimitedTablePreview";
 import FileBrowserPanel from "./FileBrowserPanel";
 import { FileBreadcrumbs } from "./FileBreadcrumbs";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
 import {
   type FileCommentAnnotationEntry,
@@ -136,6 +137,8 @@ interface FilePreviewPanelProps {
 
 const FILE_EXPLORER_STORAGE_KEY = "t3code.fileExplorerOpen";
 const RENDER_MARKDOWN_STORAGE_KEY = "t3code.renderMarkdown";
+// Studio's engineering interface reads documents rendered unless the person chose source.
+const STUDIO_RENDER_MARKDOWN_STORAGE_KEY = "studio.renderMarkdown";
 const RENDER_BROWSER_FILE_STORAGE_KEY = "t3code.renderBrowserFile";
 const RENDER_TABLE_STORAGE_KEY = "t3code.renderTable";
 // Shared by the read-only and annotated surfaces, so it is generic over annotation metadata.
@@ -1099,11 +1102,19 @@ export default function FilePreviewPanel({
   });
   // Reading markdown rendered is a preference, not a property of one file. Keeping
   // it on the panel meant a thread switch dropped it and forced source back.
-  const [renderMarkdownPreferred, setRenderMarkdownPreferred] = useLocalStorage(
+  const [codeRenderMarkdown, setCodeRenderMarkdown] = useLocalStorage(
     RENDER_MARKDOWN_STORAGE_KEY,
     false,
     Schema.Boolean,
   );
+  const [studioRenderMarkdown, setStudioRenderMarkdown] = useLocalStorage(
+    STUDIO_RENDER_MARKDOWN_STORAGE_KEY,
+    true,
+    Schema.Boolean,
+  );
+  const engineering = useEngineeringInterface();
+  const renderMarkdownPreferred = engineering ? studioRenderMarkdown : codeRenderMarkdown;
+  const setRenderMarkdownPreferred = engineering ? setStudioRenderMarkdown : setCodeRenderMarkdown;
   const [renderBrowserFilePreferred, setRenderBrowserFilePreferred] = useLocalStorage(
     RENDER_BROWSER_FILE_STORAGE_KEY,
     true,
@@ -1128,7 +1139,8 @@ export default function FilePreviewPanel({
   const revealHandled =
     revealLine === null ||
     (handledReveal?.path === relativePath && handledReveal.requestId === revealRequestId);
-  const renderMarkdown = isMarkdown && renderMarkdownPreferred && revealHandled;
+  // A document stays rendered in the engineering interface even when a link names a line.
+  const renderMarkdown = isMarkdown && renderMarkdownPreferred && (revealHandled || engineering);
   const renderBrowserFile = isPdf || (isHtml && renderBrowserFilePreferred && revealHandled);
   const renderTable = tableDelimiter !== null && renderTablePreferred && revealHandled;
   const renderedMode = isMarkdown
