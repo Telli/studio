@@ -203,9 +203,14 @@ it.layer(layerWithStudioProject)("RuntimePolicyV2 Studio projects", (it) => {
         modelSelection,
       });
       assert.equal(resolved.cwd, "/project-root");
-      assert.deepEqual(resolved.additionalDirectories, ["/project-cad", "/project-firmware"]);
+      assert.deepEqual(resolved.additionalDirectories, [
+        "/project-cad",
+        "/project-firmware",
+        "/studio/rig",
+      ]);
       assert.include(resolved.projectContext ?? "", "# Studio project: Test rig");
       assert.include(resolved.projectContext ?? "", "- Material: 6061 aluminum");
+      assert.include(resolved.projectContext ?? "", "kept in `/studio/rig/project.json`");
     }),
   );
 
@@ -218,7 +223,11 @@ it.layer(layerWithStudioProject)("RuntimePolicyV2 Studio projects", (it) => {
         modelSelection,
       });
       assert.equal(resolved.cwd, "/project-worktree");
-      assert.deepEqual(resolved.additionalDirectories, ["/project-cad", "/project-firmware"]);
+      assert.deepEqual(resolved.additionalDirectories, [
+        "/project-cad",
+        "/project-firmware",
+        "/studio/rig",
+      ]);
       assert.isDefined(resolved.projectContext);
     }),
   );

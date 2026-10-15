@@ -134,9 +134,10 @@ export const layerFromProjectStore: Layer.Layer<
 
     /**
      * What the thread's Studio project adds to its turns: the project's other
-     * folders and its context. Matched by the project's folder, so a worktree
-     * thread gets its project's. Projects that cannot be read add nothing
-     * rather than fail the turn.
+     * folders, its own record's folder (so the agent can change the setup when
+     * asked, `studioProjectContext`), and its context. Matched by the
+     * project's folder, so a worktree thread gets its project's. Projects that
+     * cannot be read add nothing rather than fail the turn.
      */
     const studioProjectPolicy = Effect.fn("RuntimePolicyV2.studioProjectPolicy")(function* (
       input: RuntimePolicyV2ResolveInput,
@@ -144,15 +145,16 @@ export const layerFromProjectStore: Layer.Layer<
     ) {
       if (Option.isNone(studioProjects)) return {};
       return yield* Effect.gen(function* () {
-        const { projects } = yield* studioProjects.value.list;
+        const { folder, projects } = yield* studioProjects.value.list;
         if (Object.keys(projects).length === 0) return {};
         const root = workspaceRoot ?? (yield* projectWorkspaceRoot(input));
         const match = studioProjectAt(projects, root);
         if (match === null) return {};
-        const otherFolders = studioOtherFolders(match.project, root);
+        // The project's own folder under Studio's projects folder (an absolute path the server made).
+        const record = `${folder.replace(/[\\/]+$/, "")}/${match.id}`;
         return {
-          ...(otherFolders.length === 0 ? {} : { additionalDirectories: otherFolders }),
-          projectContext: studioProjectContext(match.project, root),
+          additionalDirectories: [...studioOtherFolders(match.project, root), record],
+          projectContext: studioProjectContext(match.project, root, `${record}/project.json`),
         };
       }).pipe(
         Effect.catch((cause) =>

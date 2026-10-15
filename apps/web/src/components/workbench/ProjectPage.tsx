@@ -35,7 +35,7 @@ import { AddFolderMenu } from "./AddFolderMenu";
 import { EMPTY_BRIEF } from "./briefFolder";
 import { NewDialog } from "./NewDialog";
 import { availableTemplates } from "./newTemplates";
-import { ProjectBriefRow } from "./ProjectBrief";
+import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
 import { ProjectThreads } from "./ProjectThreads";
 import { usePictures } from "./usePictures";
@@ -317,6 +317,8 @@ export function ProjectPage(props: {
   const isProject = props.projectId !== null;
   const folders = studio?.project.folders ?? [cwd];
   const name = studio?.project.name ?? props.projectName;
+  // What it is, as the brief says it: the project's description under its name.
+  const purpose = studio?.project.brief.purpose.trim().split("\n")[0]?.trim() ?? "";
   const links = (studio?.project.brief.links ?? "")
     .split("\n")
     .map((line) => line.trim())
@@ -410,7 +412,12 @@ export function ProjectPage(props: {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-project-page="">
       <header className="border-b border-border px-5 pt-5 pb-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="min-w-0 truncate text-xl font-semibold text-foreground">{name}</h1>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold text-foreground">{name}</h1>
+            {purpose === "" ? null : (
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{purpose}</p>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {templates.length === 0 || composerRef === null ? null : (
               <Button
@@ -450,7 +457,12 @@ export function ProjectPage(props: {
           </div>
         </div>
         {composerRef === null ? null : (
-          <ProjectBriefRow environmentId={environmentId} cwd={cwd} composerRef={composerRef} />
+          <ProjectSetup
+            environmentId={environmentId}
+            cwd={cwd}
+            composerRef={composerRef}
+            workspaceMutationId={props.workspaceMutationId}
+          />
         )}
         {isProject ? (
           <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Folders">

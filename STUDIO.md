@@ -78,6 +78,12 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   propose and wait), every part with how its checks went, and recent work. Checks are the results
   text-to-cad writes beside the parts, `<name>.fea.json` and `<stem>.<process>.result.json`
   (`components/workbench/checkResults.ts`).
+- **Setup, as a CAD tool shows it.** Under the project's name, its units, material (from a library
+  of common grades, or any name typed), process and quantity. Picking a value writes the request
+  into the composer ("Change the project's material to PETG."); the agent changes the project's
+  `project.json`, which it is told about and may edit, says what the change means for the parts,
+  and waits. A folder in no project yet is set up in place. What the project is for and must meet
+  is the brief behind Brief.
 
 - **Point, then ask.** What the viewer adds to the chat (Quick Edit's references, a picture of the
   view) lands in the composer, to read and edit before it goes. The viewer is then told the

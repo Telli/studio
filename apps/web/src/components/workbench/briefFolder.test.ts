@@ -1,22 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { EMPTY_BRIEF, briefSummary } from "./briefFolder";
+import { setupRequest } from "./briefFolder";
 
-describe("brief summary", () => {
-  it("says nothing while nothing is decided", () => {
-    expect(briefSummary(EMPTY_BRIEF)).toEqual([]);
-    expect(briefSummary({ ...EMPTY_BRIEF, units: "in" })).toEqual([]);
-  });
-
-  it("lists only what is decided, then the units", () => {
-    expect(
-      briefSummary({
-        ...EMPTY_BRIEF,
-        purpose: "A hair clip that holds a small camera\nworn at a concert",
-        material: "PETG",
-        quantity: "20",
-        units: "in",
-      }).map((entry) => entry.value),
-    ).toEqual(["A hair clip that holds a small camera", "PETG", "Quantity 20", "Inches"]);
+describe("setup requests", () => {
+  it("asks the agent for one change in plain words", () => {
+    expect(setupRequest("material", "PETG")).toBe("Change the project's material to PETG.");
+    expect(setupRequest("units", "in")).toBe("Change the project's units to inches.");
+    expect(setupRequest("quantity", "20")).toBe("Change the project's quantity to 20.");
+    expect(setupRequest("material", "")).toBe("Clear the project's material.");
   });
 });

@@ -1,9 +1,10 @@
 import { AuthOrchestrationOperateScope, type EnvironmentId } from "@t3tools/contracts";
 import { studioFolderName } from "@t3tools/shared/studioProjects";
-import { PaperclipIcon } from "lucide-react";
+import { ChevronDownIcon, FileTextIcon, PaperclipIcon } from "lucide-react";
 import { type ReactNode, useId, useRef, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
+import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { useEnvironmentScope } from "~/state/session";
 import { Button } from "../ui/button";
 import {
@@ -19,14 +20,21 @@ import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
 import { toastManager } from "../ui/toast";
+import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import {
   BRIEF_REFERENCES,
   EMPTY_BRIEF,
   PROCESSES,
   type ProjectBrief as Brief,
-  briefSummary,
+  type SetupKey,
+  setupRequest,
 } from "./briefFolder";
-import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
+import { MaterialPicker } from "./MaterialPicker";
+import {
+  useSaveStudioProject,
+  useStudioProjectAt,
+  useStudioProjectsList,
+} from "./useStudioProjects";
 
 /** One line of the spec sheet: its label in a drawing's tracked capitals, its field beside it. */
 function SpecRow(props: {
@@ -48,73 +56,233 @@ function SpecRow(props: {
 }
 
 /**
- * The project brief on the project page: one line of what has been decided
- * (purpose, material, process, quantity), or, while nothing is, just Set up. The sheet it
- * opens saves the brief on the project (the folder becomes a one-folder project
- * if it is in none) and hands reference files to the agent to file under
- * `brief/references/`.
+ * Saves the brief on the folder's project, making the folder a one-folder
+ * project if it is in none. Saves run one after another, so two quick edits
+ * on a folder in no project make one project, not two.
  */
-export function ProjectBriefRow(props: {
+function useSaveBrief(environmentId: EnvironmentId, cwd: string) {
+  const current = useStudioProjectAt(environmentId, cwd);
+  const saveProject = useSaveStudioProject(environmentId);
+  const created = useRef<string | null>(null);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  return (brief: Brief): Promise<boolean> => {
+    const run = queue.current.then(async () => {
+      const id = current?.id ?? created.current;
+      const saved = await saveProject(
+        id,
+        current === null
+          ? {
+              name: studioFolderName(cwd),
+              template: null,
+              brief,
+              folders: [cwd],
+              createdAt: new Date().toISOString(),
+            }
+          : { ...current.project, brief },
+      );
+      if (saved !== null) created.current = saved;
+      return saved !== null;
+    });
+    queue.current = run;
+    return run;
+  };
+}
+
+/** One property of the setup bar: its name, then its control. */
+function Property(props: { readonly label: string; readonly children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span className="text-2xs text-muted-foreground">{props.label}</span>
+      {props.children}
+    </div>
+  );
+}
+
+/**
+ * The project's setup, shown the way a CAD tool shows its document
+ * properties: units, material (from the library, `MaterialPicker`), process
+ * and quantity. Picking a value does not change it: it writes the request
+ * into the composer, and the agent changes the setup (the project's
+ * `project.json`, `studioProjectContext`), says what it means for the parts,
+ * and waits for a go. Only a folder in no project yet is set up in place,
+ * since there is no project for the agent to change. What the project is for
+ * and must meet, with its links, notes and references, is the brief behind
+ * Brief. Every agent in the project reads all of it first.
+ */
+export function ProjectSetup(props: {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly composerRef: ComposerHandleRef;
+  /** The thread's workspace changes: the agent may have changed the setup. */
+  readonly workspaceMutationId: string | null;
 }) {
-  const stored = useStudioProjectAt(props.environmentId, props.cwd)?.project ?? null;
-  // What this sheet last saved wins over a read that has not caught up yet.
-  const [saved, setSaved] = useState<{ readonly cwd: string; readonly brief: Brief } | null>(null);
-  const brief = saved !== null && saved.cwd === props.cwd ? saved.brief : (stored?.brief ?? null);
+  const studio = useStudioProjectAt(props.environmentId, props.cwd);
+  const stored = studio?.project.brief ?? null;
+  const { refresh } = useStudioProjectsList(props.environmentId);
+  useWorkspaceMutationRefresh({
+    mutationId: props.workspaceMutationId,
+    refresh,
+    resourceKey: `project-setup:${props.cwd}`,
+  });
+  // What this page last saved wins until the next read of the project, which may carry the agent's change.
+  const [local, setLocal] = useState<{
+    readonly cwd: string;
+    readonly brief: Brief;
+    readonly over: Brief | null;
+  } | null>(null);
+  const brief =
+    local !== null && local.cwd === props.cwd && local.over === stored
+      ? local.brief
+      : (stored ?? EMPTY_BRIEF);
+  const saveBrief = useSaveBrief(props.environmentId, props.cwd);
+  const canWrite = useEnvironmentScope(props.environmentId, AuthOrchestrationOperateScope);
   const [open, setOpen] = useState(false);
   // Each opening starts the sheet from the brief as it stands.
   const [opened, setOpened] = useState(0);
-  const summary = brief === null ? [] : briefSummary(brief);
+  // The quantity field's text while it is being typed; saved on Enter or leaving it.
+  const [quantity, setQuantity] = useState<string | null>(null);
+
+  const update = (key: SetupKey, value: string) => {
+    if (studio === null) {
+      // No project yet: this is its first setup, saved in place.
+      const next = { ...brief, [key]: value };
+      setLocal({ cwd: props.cwd, brief: next, over: stored });
+      void saveBrief(next).then((saved) => {
+        if (!saved) setLocal(null);
+      });
+      return;
+    }
+    const composer = props.composerRef.current;
+    if (!composer) return;
+    composer.insertTextAtEnd(setupRequest(key, value), { ensureLeadingBoundary: true });
+    composer.focusAtEnd();
+  };
+  const commitQuantity = () => {
+    if (quantity === null) return;
+    setQuantity(null);
+    if (quantity.trim() !== brief.quantity.trim()) update("quantity", quantity.trim());
+  };
+  const described = brief.purpose.trim() !== "" || brief.requirements.trim() !== "";
 
   return (
-    <div className="pointer-events-auto mt-6 text-left">
-      <div className="flex min-h-9 items-center gap-3 border-y border-border px-2">
-        <span className="text-2xs font-medium tracking-widest text-muted-foreground uppercase">
-          Project brief
-        </span>
-        {summary.length === 0 ? null : (
-          <dl className="flex min-w-0 flex-1 items-center gap-3 overflow-hidden text-xs">
-            {summary.map((entry) => (
-              <div key={entry.label} className="flex min-w-0 shrink items-baseline gap-1.5">
-                <dt className="sr-only">{entry.label}</dt>
-                <dd className="truncate text-foreground">{entry.value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-        <Button
-          variant={summary.length === 0 ? "outline" : "ghost-muted"}
-          size="xs"
-          onClick={() => {
-            setOpened((count) => count + 1);
-            setOpen(true);
-          }}
-        >
-          {summary.length === 0 ? "Set up" : "Edit"}
-        </Button>
+    <div className="pointer-events-auto mt-4 text-left">
+      <div
+        role="group"
+        aria-label="Project setup"
+        className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-border px-2 py-1.5"
+      >
+        <Property label="Units">
+          <ToggleGroup
+            aria-label="Units"
+            value={[brief.units]}
+            disabled={!canWrite}
+            onValueChange={(next) => {
+              const units = next[0];
+              if ((units === "mm" || units === "in") && units !== brief.units)
+                update("units", units);
+            }}
+          >
+            <Toggle value="mm">mm</Toggle>
+            <Toggle value="in">in</Toggle>
+          </ToggleGroup>
+        </Property>
+        <Property label="Material">
+          <MaterialPicker
+            value={brief.material.trim()}
+            onChange={(material) => {
+              if (material !== brief.material.trim()) update("material", material);
+            }}
+            trigger={
+              <Button variant="ghost" size="xs" disabled={!canWrite} aria-label="Material">
+                {brief.material.trim() === "" ? (
+                  <span className="text-muted-foreground">Choose</span>
+                ) : (
+                  brief.material.trim()
+                )}
+                <ChevronDownIcon className="opacity-60" aria-hidden="true" />
+              </Button>
+            }
+          />
+        </Property>
+        <Property label="Process">
+          <Select
+            value={brief.process}
+            disabled={!canWrite}
+            onValueChange={(value) => {
+              const process = PROCESSES.find((entry) => entry === value);
+              if (process && process !== brief.process) update("process", process);
+            }}
+          >
+            <SelectTrigger size="xs" aria-label="Process">
+              <SelectValue>
+                {brief.process === EMPTY_BRIEF.process ? (
+                  <span className="text-muted-foreground">Choose</span>
+                ) : (
+                  brief.process
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup alignItemWithTrigger={false}>
+              {PROCESSES.map((process) => (
+                <SelectItem key={process} hideIndicator value={process}>
+                  {process}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        </Property>
+        <Property label="Quantity">
+          <Input
+            size="sm"
+            className="w-16"
+            inputMode="numeric"
+            aria-label="Quantity"
+            placeholder="1"
+            disabled={!canWrite}
+            value={quantity ?? brief.quantity}
+            onChange={(event) => setQuantity(event.target.value)}
+            onBlur={commitQuantity}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+              if (event.key === "Escape") setQuantity(null);
+            }}
+          />
+        </Property>
+        <div className="ms-auto">
+          <Button
+            variant={described ? "ghost-muted" : "outline"}
+            size="xs"
+            onClick={() => {
+              setOpened((count) => count + 1);
+              setOpen(true);
+            }}
+          >
+            <FileTextIcon />
+            {described ? "Brief" : "Write the brief"}
+          </Button>
+        </div>
       </div>
       <BriefSheet
         key={opened}
         open={open}
         onOpenChange={setOpen}
         environmentId={props.environmentId}
-        cwd={props.cwd}
-        initial={brief ?? EMPTY_BRIEF}
+        initial={brief}
+        save={saveBrief}
         composerRef={props.composerRef}
-        onSaved={(next) => setSaved({ cwd: props.cwd, brief: next })}
+        onSaved={(next) => setLocal({ cwd: props.cwd, brief: next, over: stored })}
       />
     </div>
   );
 }
 
+/** The brief: what the project is for and must meet, its links, notes and references. */
 function BriefSheet(props: {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly environmentId: EnvironmentId;
-  readonly cwd: string;
   readonly initial: Brief;
+  readonly save: (brief: Brief) => Promise<boolean>;
   readonly composerRef: ComposerHandleRef;
   readonly onSaved: (brief: Brief) => void;
 }) {
@@ -124,27 +292,14 @@ function BriefSheet(props: {
   const [attached, setAttached] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const canWrite = useEnvironmentScope(props.environmentId, AuthOrchestrationOperateScope);
-  const current = useStudioProjectAt(props.environmentId, props.cwd);
-  const saveProject = useSaveStudioProject(props.environmentId);
   const set = <K extends keyof Brief>(key: K, value: Brief[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
 
   const save = async () => {
     setSaving(true);
-    const saved = await saveProject(
-      current?.id ?? null,
-      current === null
-        ? {
-            name: studioFolderName(props.cwd),
-            template: null,
-            brief: draft,
-            folders: [props.cwd],
-            createdAt: new Date().toISOString(),
-          }
-        : { ...current.project, brief: draft },
-    );
+    const saved = await props.save(draft);
     setSaving(false);
-    if (saved === null) return;
+    if (!saved) return;
     props.onSaved(draft);
     props.onOpenChange(false);
     toastManager.add({
@@ -169,15 +324,15 @@ function BriefSheet(props: {
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogPopup className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Project brief</DialogTitle>
+          <DialogTitle>Brief</DialogTitle>
           <DialogDescription>
-            What this project is for, before any design work. Every agent working in the project's
-            folders reads it first.
+            What the project is for and what it must meet. Every agent working in the project reads
+            it first, with the units, material and process above.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
           <div className="border-t border-border">
-            <SpecRow label="Purpose" htmlFor={`${id}-purpose`}>
+            <SpecRow label="What it is" htmlFor={`${id}-purpose`}>
               <Textarea
                 id={`${id}-purpose`}
                 size="sm"
@@ -193,62 +348,6 @@ function BriefSheet(props: {
                 value={draft.requirements}
                 onChange={(event) => set("requirements", event.target.value)}
                 placeholder="Loads, environment, fits, standards it must meet"
-              />
-            </SpecRow>
-            <SpecRow label="Units">
-              <Select
-                value={draft.units}
-                onValueChange={(value) => set("units", value === "in" ? "in" : "mm")}
-              >
-                <SelectTrigger size="sm" className="w-40" aria-label="Units">
-                  <SelectValue>{draft.units === "in" ? "Inches" : "Millimeters"}</SelectValue>
-                </SelectTrigger>
-                <SelectPopup alignItemWithTrigger={false}>
-                  <SelectItem hideIndicator value="mm">
-                    Millimeters
-                  </SelectItem>
-                  <SelectItem hideIndicator value="in">
-                    Inches
-                  </SelectItem>
-                </SelectPopup>
-              </Select>
-            </SpecRow>
-            <SpecRow label="Material" htmlFor={`${id}-material`}>
-              <Input
-                id={`${id}-material`}
-                value={draft.material}
-                onChange={(event) => set("material", event.target.value)}
-                placeholder="6061-T6 aluminum, PETG, FR-4..."
-              />
-            </SpecRow>
-            <SpecRow label="Process">
-              <Select
-                value={draft.process}
-                onValueChange={(value) => {
-                  const process = PROCESSES.find((entry) => entry === value);
-                  if (process) set("process", process);
-                }}
-              >
-                <SelectTrigger size="sm" className="w-64" aria-label="Process">
-                  <SelectValue>{draft.process}</SelectValue>
-                </SelectTrigger>
-                <SelectPopup alignItemWithTrigger={false}>
-                  {PROCESSES.map((process) => (
-                    <SelectItem key={process} hideIndicator value={process}>
-                      {process}
-                    </SelectItem>
-                  ))}
-                </SelectPopup>
-              </Select>
-            </SpecRow>
-            <SpecRow label="Quantity" htmlFor={`${id}-quantity`}>
-              <Input
-                id={`${id}-quantity`}
-                className="w-40"
-                inputMode="numeric"
-                value={draft.quantity}
-                onChange={(event) => set("quantity", event.target.value)}
-                placeholder="1"
               />
             </SpecRow>
             <SpecRow label="Links" htmlFor={`${id}-links`}>

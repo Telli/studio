@@ -48,5 +48,14 @@ describe("studio projects", () => {
     expect(studioProjectContext({ ...rover, template: "blank" }, "/work/rover-cad")).not.toContain(
       "## Where work goes",
     );
+    expect(context).not.toContain("## Changing the setup");
+  });
+
+  it("tells the agent where the setup is kept, and to propose what it means before changing parts", () => {
+    const context = studioProjectContext(rover, "/work/rover-cad", "/studio/rover/project.json");
+    expect(context).toContain("## Changing the setup");
+    expect(context).toContain("kept in `/studio/rover/project.json`");
+    expect(context).toContain('"Casting"');
+    expect(context).toContain("wait\nfor a go before changing any part");
   });
 });

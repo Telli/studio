@@ -8,6 +8,7 @@ import {
 import {
   BotIcon,
   BoxIcon,
+  ChevronDownIcon,
   CircuitBoardIcon,
   FolderIcon,
   PackageIcon,
@@ -30,6 +31,7 @@ import {
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { AddFolderMenu } from "./AddFolderMenu";
+import { MaterialPicker } from "./MaterialPicker";
 import { useCreateStudioProject } from "./useCreateStudioProject";
 
 const TEMPLATE_ICONS: Record<string, typeof BoxIcon> = {
@@ -224,12 +226,20 @@ export function NewProjectDialog(props: {
                 </SelectPopup>
               </Select>
             </Field>
-            <Field label="Material" htmlFor={`${id}-material`}>
-              <Input
-                id={`${id}-material`}
+            <Field label="Material">
+              <MaterialPicker
                 value={material}
-                onChange={(event) => setMaterial(event.target.value)}
-                placeholder="6061-T6 aluminum, PETG, FR-4 (or leave it for later)"
+                onChange={setMaterial}
+                trigger={
+                  <Button variant="outline" size="sm" aria-label="Material">
+                    {material === "" ? (
+                      <span className="text-muted-foreground">Choose, or leave it for later</span>
+                    ) : (
+                      material
+                    )}
+                    <ChevronDownIcon className="opacity-60" aria-hidden="true" />
+                  </Button>
+                }
               />
             </Field>
             <Field label="What it is" htmlFor={`${id}-purpose`}>

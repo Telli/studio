@@ -12,9 +12,13 @@ export const STUDIO_PROCESSES = [
   "CNC machining",
   "3D printing (FDM)",
   "3D printing (resin)",
+  "3D printing (SLS)",
+  "3D printing (metal)",
   "Sheet metal",
   "Laser or waterjet cutting",
   "Injection molding",
+  "Casting",
+  "Welded fabrication",
   "Printed circuit board",
 ] as const;
 
@@ -141,7 +145,12 @@ const section = (title: string, body: string) =>
  * What the agent is told about the project before any work: its folders
  * (which it can read and edit), how to work, the brief and where work goes.
  */
-export function studioProjectContext(project: StudioProject, folder: string): string {
+export function studioProjectContext(
+  project: StudioProject,
+  folder: string,
+  /** The project's own `project.json`, where the agent changes the setup when asked. */
+  record: string | null = null,
+): string {
   const { brief } = project;
   const key = studioFolderKey(folder);
   const folders = project.folders.map(
@@ -173,6 +182,20 @@ export function studioProjectContext(project: StudioProject, folder: string): st
     `- Process: ${brief.process.trim() || "Not decided"}`,
     `- Quantity: ${brief.quantity.trim() || "Not decided"}`,
     "",
+    ...section(
+      "Changing the setup",
+      record === null
+        ? ""
+        : [
+            `The units, material, process and quantity are the project's setup, kept in \`${record}\``,
+            `under \`brief\`: \`units\` is "mm" or "in", \`process\` is one of`,
+            `${STUDIO_PROCESSES.map((process) => `"${process}"`).join(", ")}, and \`material\``,
+            "and `quantity` are text. When asked to change the setup, change only those keys in that",
+            "file, keep it valid JSON, and commit it in its folder with git. Then say what the change",
+            "means for the parts (checks to rerun, features or wall thicknesses to revisit) and wait",
+            "for a go before changing any part.",
+          ].join("\n"),
+    ),
     ...section("Links", links),
     ...section("Notes", brief.notes),
     ...section("Show your work", SHOW_YOUR_WORK),
