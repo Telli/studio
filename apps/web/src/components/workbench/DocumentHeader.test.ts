@@ -7,7 +7,7 @@ describe("document header", () => {
     expect(documentTitle("Intro\n\n# Bracket **rev B** plan\n\n## Steps", "plans/x.md")).toBe(
       "Bracket rev B plan",
     );
-    expect(documentTitle("no heading here", "reports/fea-summary.md")).toBe("fea-summary");
+    expect(documentTitle("no heading here", "reports/fea-summary.md")).toBe("FEA summary");
   });
 
   it("files a document by its name", () => {

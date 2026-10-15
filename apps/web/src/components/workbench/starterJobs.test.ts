@@ -15,13 +15,13 @@ describe("project starters", () => {
       null,
     );
     expect(starters.map((starter) => starter.label)).toEqual([
-      "Check l_bracket for CNC machining",
-      "Check servo_power for fabrication",
-      "Post G-code for l_bracket",
-      "Route servo_power",
+      "Check L bracket for CNC machining",
+      "Check servo power for fabrication",
+      "Post G-code for L bracket",
+      "Route servo power",
     ]);
     expect(starters[0]?.prompt).toBe(
-      "Check parts/STEP/l_bracket.step for CNC machining and tell me what to change.",
+      "Check [l_bracket.step](parts/STEP/l_bracket.step) for CNC machining and tell me what to change.",
     );
   });
 
@@ -30,7 +30,7 @@ describe("project starters", () => {
       projectStarters(files("parts/STEP/l_bracket.step"), new Set(["gcode"]), null).map(
         (starter) => starter.label,
       ),
-    ).toEqual(["Slice l_bracket for printing"]);
+    ).toEqual(["Slice L bracket for printing"]);
   });
 
   it("starts an empty project from its brief, and suggests nothing without one", () => {

@@ -1,0 +1,55 @@
+import { describe, expect, it } from "vite-plus/test";
+
+import { humanName, inSentence, partLabel, partName } from "./partNames";
+
+describe("part names", () => {
+  it("reads a file's stem as a name, keeping part numbers and an engineer's capitals", () => {
+    expect(humanName("servo_bracket_v2")).toBe("Servo bracket v2");
+    expect(humanName("l_bracket")).toBe("L bracket");
+    expect(humanName("enclosureLid")).toBe("Enclosure lid");
+    expect(humanName("M3_STANDOFF")).toBe("M3 standoff");
+    expect(humanName("MDBT50Q")).toBe("MDBT50Q");
+    expect(humanName("pcb-mount-rev-b")).toBe("PCB mount rev B");
+    expect(humanName("README")).toBe("Readme");
+    expect(humanName("fea-summary")).toBe("FEA summary");
+  });
+
+  it("names a part by its name and what was made from it by the part", () => {
+    expect(partName("parts/STEP/servo_bracket.step")).toEqual({
+      name: "Servo bracket",
+      kind: "Part",
+      label: "Servo bracket",
+    });
+    expect(partLabel("drawings/l_bracket.dxf")).toBe("L bracket drawing");
+    expect(partLabel("parts/l_bracket.fea.json")).toBe("L bracket FEA study");
+    expect(partName("parts/l_bracket.heat_treatment.result.json")).toMatchObject({
+      kind: "Heat treatment check",
+      label: "L bracket heat treatment check",
+    });
+    expect(partLabel("out/l_bracket.cam.glb")).toBe("L bracket CAM job");
+    expect(partLabel("out/l_bracket.nc")).toBe("L bracket G-code");
+    expect(partLabel("electronics/servo_power.kicad_pcb")).toBe("Servo power board");
+    expect(partLabel("electronics/main_board.kicad_pcb")).toBe("Main board");
+    expect(partLabel("electronics/servo_power.bom.csv")).toBe("Servo power bill of materials");
+  });
+
+  it("calls a file named for what it is by that, and a document by its name", () => {
+    expect(partLabel("fab/bom.csv")).toBe("Bill of materials");
+    expect(partLabel("fab/gerbers.zip")).toBe("Gerbers");
+    expect(partLabel("plans/bracket-review.md")).toBe("Bracket review");
+    expect(partLabel("PLAN.md")).toBe("Plan");
+    expect(partLabel("/Users/me/studio-projects/abc/project.json")).toBe("Project setup");
+    expect(partLabel("brief/project.md")).toBe("Project brief");
+  });
+
+  it("leaves a file it cannot name by its file name", () => {
+    expect(partName("package.json")).toBeNull();
+    expect(partLabel("src/lib/util.ts")).toBe("util.ts");
+  });
+
+  it("puts a name in a sentence without shouting or losing its capitals", () => {
+    expect(inSentence("Servo bracket")).toBe("the servo bracket");
+    expect(inSentence("PCB mount")).toBe("the PCB mount");
+    expect(inSentence("L bracket")).toBe("the L bracket");
+  });
+});

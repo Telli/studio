@@ -1,16 +1,18 @@
 /**
  * The agent's steps in an engineer's words, for the engineering interface: a
- * shell command reads as what it did to the design ("FEA study on
- * bracket.step", "Built bracket") instead of the command line. The command
- * itself stays one click away, in the step's details.
+ * shell command reads as what it did to the design ("FEA study on the L
+ * bracket", "Built the L bracket") instead of the command line, and a step
+ * that read or changed files names the parts and documents they are. The
+ * command itself stays one click away, in the step's details.
  */
 
 import { APP_BASE_NAME } from "../../branding";
+import { humanName, inSentence, partLabel } from "./partNames";
 
 export interface StepLabel {
-  /** Settled: "FEA study on bracket.step". */
+  /** Settled: "FEA study on the L bracket". */
   readonly done: string;
-  /** In progress: "Running an FEA study on bracket.step". */
+  /** In progress: "Running an FEA study on the L bracket". */
   readonly doing: string;
 }
 
@@ -20,19 +22,20 @@ const base = (path: string) =>
     .split(/[\\/]/)
     .pop() ?? path;
 
-/** The first argument after `marker` that names a file of these endings. */
+/** The part named by the first argument after `marker` with one of these endings: "the L bracket". */
 function fileAfter(command: string, marker: RegExp, endings: RegExp): string | null {
   const at = command.search(marker);
   if (at < 0) return null;
   for (const token of command.slice(at).split(/\s+/)) {
-    if (endings.test(token.replace(/["']/g, ""))) return base(token);
+    const file = base(token);
+    if (endings.test(file)) return inSentence(partLabel(file));
   }
   return null;
 }
 
 const STEP = /\.(?:step|stp)$/i;
 const BOARD = /\.(?:kicad_pcb|kicad_sch)$/i;
-const of = (file: string | null, joiner: string) => (file === null ? "" : ` ${joiner} ${file}`);
+const of = (part: string | null, joiner: string) => (part === null ? "" : ` ${joiner} ${part}`);
 
 const RULES: ReadonlyArray<(command: string) => StepLabel | null> = [
   (command) => {
@@ -66,15 +69,17 @@ const RULES: ReadonlyArray<(command: string) => StepLabel | null> = [
   (command) => {
     const verb = /\bpcb\s+(validate|review|gerber|bom|pos)\b/.exec(command)?.[1];
     if (verb === undefined) return null;
-    const file = fileAfter(command, /\bpcb\b/, BOARD);
-    const what = {
-      validate: ["Checked the board", "Checking the board"],
-      review: ["Reviewed the board", "Reviewing the board"],
-      gerber: ["Wrote the Gerbers", "Writing the Gerbers"],
-      bom: ["Wrote the bill of materials", "Writing the bill of materials"],
-      pos: ["Wrote the pick-and-place file", "Writing the pick-and-place file"],
+    const board = fileAfter(command, /\bpcb\b/, BOARD);
+    const named = board ?? "the board";
+    const [done, doing]: readonly [string, string] = {
+      validate: [`Checked ${named}`, `Checking ${named}`] as const,
+      review: [`Reviewed ${named}`, `Reviewing ${named}`] as const,
+      gerber: ["Wrote the Gerbers", "Writing the Gerbers"] as const,
+      bom: ["Wrote the bill of materials", "Writing the bill of materials"] as const,
+      pos: ["Wrote the pick-and-place file", "Writing the pick-and-place file"] as const,
     }[verb as "validate" | "review" | "gerber" | "bom" | "pos"];
-    return { done: `${what[0]}${of(file, "for")}`, doing: `${what[1]}${of(file, "for")}` };
+    if (verb === "validate" || verb === "review") return { done, doing };
+    return { done: `${done}${of(board, "for")}`, doing: `${doing}${of(board, "for")}` };
   },
   (command) => {
     if (!/\b(?:snapshot|render)\b/.test(command) || !/\bcadgen\b/.test(command)) return null;
@@ -87,7 +92,7 @@ const RULES: ReadonlyArray<(command: string) => StepLabel | null> = [
         command,
       )?.[1];
     if (script === undefined) return null;
-    const name = base(script).replace(/\.py$/, "");
+    const name = inSentence(humanName(base(script).replace(/\.py$/, "")));
     return { done: `Built ${name}`, doing: `Building ${name}` };
   },
   (command) => {
@@ -196,4 +201,17 @@ export function engineeringGroupLabel(label: string): string {
       (_m, verb: string, count: string, noun: string) =>
         `${cased("looked at", verb)} ${count} ${noun}`,
     );
+}
+
+/**
+ * A step that read or changed files, by what they are: "Looked at the servo
+ * bracket", "Updated the bracket drawing and 2 more". A file with no
+ * engineer's name keeps its file name.
+ */
+export function engineeringFilesLabel(verb: string, paths: ReadonlyArray<string>): string {
+  const [first, ...rest] = paths;
+  if (first === undefined) return verb;
+  const label = partLabel(first);
+  const what = label === base(first) ? label : inSentence(label);
+  return rest.length === 0 ? `${verb} ${what}` : `${verb} ${what} and ${rest.length} more`;
 }

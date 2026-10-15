@@ -8,6 +8,8 @@
  * left out, or said to be missing.
  */
 
+import { humanName } from "./partNames";
+
 /** What a thread's viewer shows, from its last sync. */
 export interface ShownView {
   /** The plugin and server the view belongs to, which answer `cad_http`. */
@@ -73,7 +75,7 @@ const KINDS: ReadonlyArray<{
   { ending: ".sdf", kind: "Simulation model", units: "m" },
 ];
 
-/** What the file is and what it is called, from its path and the catalog's `kind` for a STEP. */
+/** What the file is and what it is called ("L bracket"), from its path and the catalog's `kind` for a STEP. */
 export function describePart(
   path: string,
   catalogKind: string | null,
@@ -82,7 +84,7 @@ export function describePart(
   const lower = file.toLowerCase();
   const match = KINDS.find((entry) => lower.endsWith(entry.ending) && lower !== entry.ending);
   if (match === undefined) return { name: file, kind: "File", units: null };
-  const name = file.slice(0, file.length - match.ending.length);
+  const name = humanName(file.slice(0, file.length - match.ending.length));
   const kind = match.kind === "Part" && catalogKind === "assembly" ? "Assembly" : match.kind;
   return { name, kind, units: match.units };
 }

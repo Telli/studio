@@ -1,0 +1,179 @@
+import { MANUFACTURING_PROCESSES } from "./checkResults";
+
+/**
+ * Files as an engineer names them, for the engineering interface: a part, a
+ * drawing, a study or a document by what it is called ("Servo bracket",
+ * "Servo bracket drawing", "FEA summary"), not by its path or ending. The
+ * name is the file's own, with its endings and separators taken off; a
+ * study, a check or a job is named after the part it was run on.
+ */
+
+export interface PartName {
+  /** What it is called: "Servo bracket". */
+  readonly name: string;
+  /** What it is: "Part", "Drawing", "FEA study". */
+  readonly kind: string;
+  /** Both, where one label must say both: "Servo bracket drawing"; a part or a document is its name. */
+  readonly label: string;
+}
+
+/** Words an engineer writes in capitals. "cam" is left out: it is a part as often as a job. */
+const ACRONYMS = new Set([
+  "abs",
+  "ac",
+  "asa",
+  "ble",
+  "bom",
+  "cad",
+  "cfd",
+  "cnc",
+  "dc",
+  "esc",
+  "fdm",
+  "fea",
+  "gpio",
+  "hdmi",
+  "i2c",
+  "imu",
+  "lcd",
+  "led",
+  "mcu",
+  "nema",
+  "pcb",
+  "pcba",
+  "petg",
+  "pla",
+  "psu",
+  "rf",
+  "sla",
+  "sls",
+  "spi",
+  "tpu",
+  "uart",
+  "usb",
+]);
+
+const capitalize = (text: string) => (text === "" ? text : text[0]!.toUpperCase() + text.slice(1));
+
+/**
+ * A file's stem as a name: "servo_bracket_v2" reads "Servo bracket v2",
+ * "enclosureLid" "Enclosure lid", "M3_STANDOFF" "M3 standoff". Part numbers
+ * (MDBT50Q, XT60) and the capitals an engineer uses (PCB, FEA) are kept.
+ */
+export function humanName(stem: string): string {
+  const words = stem
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .split(/[\s_.-]+/)
+    .filter(Boolean);
+  if (words.length === 0) return stem;
+  // A name in capitals throughout ("README", "FINAL_ASSEMBLY") is shouted, not spelled.
+  const shouted = !/[a-z]/.test(stem);
+  const cased = words.map((word) => {
+    const lower = word.toLowerCase();
+    if (ACRONYMS.has(lower)) return lower.toUpperCase();
+    if (word.length === 1) return word.toUpperCase();
+    if (shouted ? /^[A-Z]+$/.test(word) : /^[A-Z][a-z]+$/.test(word)) return lower;
+    return word;
+  });
+  return capitalize(cased.join(" "));
+}
+
+/** The name mid-sentence: "servo bracket", but "PCB mount" and "L bracket" keep their capitals. */
+export function lowerName(name: string): string {
+  return /^[A-Z][a-z]/.test(name) ? name[0]!.toLowerCase() + name.slice(1) : name;
+}
+
+/** The name as it reads inside a sentence: "the servo bracket", "the PCB mount", "the L bracket". */
+export function inSentence(name: string): string {
+  return `the ${lowerName(name)}`;
+}
+
+const PROCESS_ENDING = MANUFACTURING_PROCESSES.join("|");
+
+/**
+ * Endings, compound ones first, each with what the file is and what its label
+ * adds to the name. `stemmed` endings are part of the name ("bom.csv" alone
+ * is the bill of materials).
+ */
+const ENDINGS: ReadonlyArray<{
+  readonly ending: RegExp;
+  readonly kind: string | ((match: RegExpExecArray) => string);
+  /** Added to the name in a label; empty for a part or a document, named by its name alone. */
+  readonly suffix: string | ((match: RegExpExecArray) => string);
+}> = [
+  { ending: /\.fea\.(?:json|glb)$/i, kind: "FEA study", suffix: "FEA study" },
+  {
+    ending: new RegExp(`\\.(${PROCESS_ENDING})\\.(?:result\\.json|glb)$`, "i"),
+    kind: (match) => `${humanName(match[1]!)} check`,
+    suffix: (match) => `${humanName(match[1]!).toLowerCase()} check`,
+  },
+  { ending: /\.cam\.(?:json|glb)$/i, kind: "CAM job", suffix: "CAM job" },
+  { ending: /\.harness\.ya?ml$/i, kind: "Harness", suffix: "harness" },
+  { ending: /(?:^|[._-])gerbers?\.zip$/i, kind: "Gerbers", suffix: "Gerbers" },
+  {
+    ending: /(?:^|[._-])bom\.(?:csv|tsv)$/i,
+    kind: "Bill of materials",
+    suffix: "bill of materials",
+  },
+  {
+    ending: /(?:^|[._-])pos\.(?:csv|tsv)$/i,
+    kind: "Pick and place",
+    suffix: "pick and place file",
+  },
+  { ending: /\.(?:nc|gcode|ngc|tap|gco)$/i, kind: "G-code", suffix: "G-code" },
+  { ending: /\.(?:gbr|drl)$/i, kind: "Gerbers", suffix: "Gerbers" },
+  { ending: /\.(?:step|stp)$/i, kind: "Part", suffix: "" },
+  { ending: /\.(?:stl|3mf|obj|glb)$/i, kind: "Mesh", suffix: "mesh" },
+  { ending: /\.urdf$/i, kind: "Robot", suffix: "robot description" },
+  { ending: /\.srdf$/i, kind: "Planning groups", suffix: "planning groups" },
+  { ending: /\.sdf$/i, kind: "Simulation model", suffix: "simulation model" },
+  { ending: /\.kicad_pcb$/i, kind: "Board", suffix: "board" },
+  { ending: /\.kicad_sch$/i, kind: "Schematic", suffix: "schematic" },
+  { ending: /\.(?:dxf|dwg|svg)$/i, kind: "Drawing", suffix: "drawing" },
+  { ending: /\.(?:md|mdx|txt|pdf)$/i, kind: "Document", suffix: "" },
+  { ending: /\.(?:csv|tsv|xlsx)$/i, kind: "Table", suffix: "" },
+  { ending: /\.(?:png|jpe?g|webp|gif|heic)$/i, kind: "Image", suffix: "" },
+  { ending: /\.py$/i, kind: "Source", suffix: "source" },
+];
+
+/** Files every project has, named for what they hold. */
+const KNOWN: ReadonlyArray<readonly [RegExp, string, string]> = [
+  [/(?:^|\/)project\.json$/i, "Project setup", "Setup"],
+  [/(?:^|\/)brief\/project\.md$/i, "Project brief", "Document"],
+  [/(?:^|\/)(?:AGENTS|CLAUDE)\.md$/i, "Notes for the agent", "Document"],
+];
+
+const baseName = (path: string) => path.replaceAll("\\", "/").split("/").at(-1) ?? path;
+
+/** The file as an engineer names it, or null for one that is not a part or a document of theirs. */
+export function partName(path: string): PartName | null {
+  const normalized = path.replaceAll("\\", "/");
+  for (const [test, name, kind] of KNOWN) {
+    if (test.test(normalized)) return { name, kind, label: name };
+  }
+  const file = baseName(normalized);
+  for (const rule of ENDINGS) {
+    const match = rule.ending.exec(file);
+    if (match === null) continue;
+    const kind = typeof rule.kind === "string" ? rule.kind : rule.kind(match);
+    const suffix = typeof rule.suffix === "string" ? rule.suffix : rule.suffix(match);
+    const stem = file.slice(0, match.index);
+    // A file named for what it is ("bom.csv", "gerbers.zip") is called that.
+    if (stem === "") {
+      const name = capitalize(suffix === "" ? kind : suffix);
+      return { name, kind, label: name };
+    }
+    const name = humanName(stem);
+    const label =
+      suffix === "" || name.toLowerCase().endsWith(suffix.toLowerCase())
+        ? name
+        : `${name} ${suffix}`;
+    return { name, kind, label };
+  }
+  return null;
+}
+
+/** The label for a file anywhere it is named: an engineer's name where one is known, else its file name. */
+export function partLabel(path: string): string {
+  return partName(path)?.label ?? baseName(path);
+}

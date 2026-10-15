@@ -1,6 +1,7 @@
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { pluginFileHandlers } from "@t3tools/client-runtime/state/plugins";
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
+import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { studioFolderKey, studioFolderName } from "@t3tools/shared/studioProjects";
 import {
   ActivityIcon,
@@ -39,7 +40,8 @@ import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
 import { ProjectThreads } from "./ProjectThreads";
 import { usePictures } from "./usePictures";
-import { groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
+import { filePlaces, groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
+import { useEngineeringInterface } from "./studioInterface";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
 import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
@@ -75,9 +77,13 @@ function readView(): "grid" | "list" {
   }
 }
 
+/** A file's place after its kind: its path with code tools on, else its folder where two are alike. */
+type FilePlaces = ReadonlyMap<string, string>;
+
 function FileTile(props: {
   readonly file: ProjectFile;
   readonly picture: string | undefined;
+  readonly where: string | undefined;
   readonly onOpen: () => void;
 }) {
   const { file } = props;
@@ -96,17 +102,21 @@ function FileTile(props: {
         )}
       </span>
       <span className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">
-        <span className="truncate text-xs font-medium text-foreground">{file.name}</span>
+        <span className="truncate text-xs font-medium text-foreground">{file.title}</span>
         <span className="truncate text-2xs text-muted-foreground">
           {file.kind}
-          {file.folder === "" ? "" : ` · ${file.folder}`}
+          {props.where === undefined ? "" : ` · ${props.where}`}
         </span>
       </span>
     </button>
   );
 }
 
-function FileRow(props: { readonly file: ProjectFile; readonly onOpen: () => void }) {
+function FileRow(props: {
+  readonly file: ProjectFile;
+  readonly where: string | undefined;
+  readonly onOpen: () => void;
+}) {
   const { file } = props;
   const Icon = GROUP_ICONS[file.group];
   return (
@@ -117,10 +127,10 @@ function FileRow(props: { readonly file: ProjectFile; readonly onOpen: () => voi
     >
       <span className="flex min-w-0 items-center gap-2">
         <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="truncate font-medium text-foreground">{file.name}</span>
+        <span className="truncate font-medium text-foreground">{file.title}</span>
       </span>
       <span className="truncate">{file.kind}</span>
-      <span className="truncate text-muted-foreground/70">{file.folder}</span>
+      <span className="truncate text-muted-foreground/70">{props.where}</span>
     </button>
   );
 }
@@ -131,6 +141,7 @@ function Section(props: {
   readonly files: ReadonlyArray<ProjectFile>;
   readonly view: "grid" | "list";
   readonly pictures: ReadonlyMap<string, string>;
+  readonly places: FilePlaces;
   readonly onOpen: (file: ProjectFile) => void;
 }) {
   const [folded, setFolded] = useState(false);
@@ -162,6 +173,7 @@ function Section(props: {
                   key={file.path}
                   file={file}
                   picture={props.pictures.get(file.path)}
+                  where={props.places.get(file.path)}
                   onOpen={() => props.onOpen(file)}
                 />
               ))}
@@ -169,7 +181,12 @@ function Section(props: {
           ) : (
             <div className="mt-1 border-t border-border">
               {files.map((file) => (
-                <FileRow key={file.path} file={file} onOpen={() => props.onOpen(file)} />
+                <FileRow
+                  key={file.path}
+                  file={file}
+                  where={props.places.get(file.path)}
+                  onOpen={() => props.onOpen(file)}
+                />
               ))}
             </div>
           )}
@@ -232,6 +249,11 @@ function FolderFiles(props: {
     ),
   });
   const count = shown.reduce((total, { files }) => total + files.length, 0);
+  const engineering = useEngineeringInterface();
+  const shownFiles = shown.flatMap((section) => section.files);
+  const places: FilePlaces = engineering
+    ? filePlaces(shownFiles)
+    : new Map(shownFiles.map((file) => [file.path, file.path] as const));
 
   return (
     <section aria-label={props.label ?? "Files"} className="flex flex-col gap-4">
@@ -242,7 +264,9 @@ function FolderFiles(props: {
             aria-hidden="true"
           />
           <span className="truncate text-sm font-medium text-foreground">{props.label}</span>
-          <span className="min-w-0 truncate text-2xs text-muted-foreground">{root}</span>
+          {engineering ? null : (
+            <span className="min-w-0 truncate text-2xs text-muted-foreground">{root}</span>
+          )}
           <span className="ms-auto shrink-0 text-2xs text-muted-foreground tabular-nums">
             {count}
           </span>
@@ -255,6 +279,7 @@ function FolderFiles(props: {
           files={files}
           view={props.view}
           pictures={pictures}
+          places={places}
           onOpen={props.onOpen}
         />
       ))}
@@ -395,12 +420,13 @@ export function ProjectPage(props: {
     });
   };
 
+  // A file in another of the project's folders is reached by its full path.
+  const threadPath = (root: string, relativePath: string) =>
+    studioFolderKey(root) === studioFolderKey(cwd)
+      ? relativePath
+      : `${studioFolderKey(root)}/${relativePath}`;
   const openPath = (root: string, relativePath: string) => {
-    // A file in another of the project's folders opens by its full path.
-    const path =
-      studioFolderKey(root) === studioFolderKey(cwd)
-        ? relativePath
-        : `${studioFolderKey(root)}/${relativePath}`;
+    const path = threadPath(root, relativePath);
     const panels = useRightPanelStore.getState();
     const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
     if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
@@ -552,6 +578,7 @@ export function ProjectPage(props: {
             folderNames={folderNames}
             currentThreadId={threadRef.threadId}
             onOpen={openPath}
+            linkTo={(root, path) => serializeComposerFileLink(threadPath(root, path))}
             onShowThreads={isProject ? () => setTab("threads") : null}
           />
         ) : tab === "threads" ? (

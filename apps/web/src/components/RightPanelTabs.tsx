@@ -99,9 +99,11 @@ import { observeResize } from "~/lib/observeResize";
 import {
   CODE_SURFACE_LABELS,
   hasEngineeringSurfaces,
+  isEngineeringInterface,
   useEngineeringInterface,
   useEngineeringSurfaces,
 } from "./workbench/studioInterface";
+import { partLabel, partName } from "./workbench/partNames";
 import { useProjectViewStore } from "./workbench/projectView";
 import { PinnedProjectTab } from "./workbench/PinnedProjectTab";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
@@ -622,10 +624,12 @@ function surfaceTitle(
       return "Diff";
     case "files":
       return hasEngineeringSurfaces() ? "Project" : "Files";
-    case "file":
-      return surface.relativePath.slice(
+    case "file": {
+      const name = surface.relativePath.slice(
         Math.max(surface.relativePath.lastIndexOf("/"), surface.relativePath.lastIndexOf("\\")) + 1,
       );
+      return isEngineeringInterface() ? partLabel(name) : name;
+    }
     case "terminal":
       return (
         terminalLabelsById.get(surface.activeTerminalId) ??
@@ -638,7 +642,7 @@ function surfaceTitle(
     case "device":
       return surface.title ?? surface.target?.name ?? "Device";
     case "plugin-app":
-      return surface.title;
+      return (isEngineeringInterface() && partName(surface.title)?.label) || surface.title;
     case "preview": {
       const snapshot = surface.resourceId ? sessions[surface.resourceId] : null;
       if (!snapshot || snapshot.navStatus._tag === "Idle") return "Browser";

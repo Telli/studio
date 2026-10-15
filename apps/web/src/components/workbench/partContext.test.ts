@@ -27,8 +27,8 @@ const tunnel = async (value: unknown, gzip = false) => {
 
 describe("describePart", () => {
   it("names a STEP after its file and says part or assembly as the catalog does", () => {
-    expect(describePart("/work/bracket.step", "part")).toEqual({
-      name: "bracket",
+    expect(describePart("/work/servo_bracket.step", "part")).toEqual({
+      name: "Servo bracket",
       kind: "Part",
       units: "mm",
     });
@@ -37,7 +37,7 @@ describe("describePart", () => {
 
   it("names a result after the model it came from", () => {
     expect(describePart("/work/bracket.fea.glb", null)).toEqual({
-      name: "bracket",
+      name: "Bracket",
       kind: "FEA study",
       units: "mm",
     });

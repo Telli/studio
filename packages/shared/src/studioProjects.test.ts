@@ -44,6 +44,7 @@ describe("studio projects", () => {
     expect(context).toContain("- `robots/`: robot descriptions (URDF, SRDF, SDF)");
     expect(context).not.toContain("## Requirements");
     expect(context).toContain("## Show your work");
+    expect(context).toContain("Call parts and documents by their names");
     expect(context).toContain("round them up in a short report in `docs/`");
     expect(studioProjectContext({ ...rover, template: "blank" }, "/work/rover-cad")).not.toContain(
       "## Where work goes",

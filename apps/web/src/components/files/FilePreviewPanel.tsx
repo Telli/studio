@@ -77,7 +77,7 @@ import { BrowserDocumentFrame, isPdfPreviewFile } from "./BrowserDocumentFrame";
 import { DelimitedTablePreview } from "./DelimitedTablePreview";
 import FileBrowserPanel from "./FileBrowserPanel";
 import { FileBreadcrumbs } from "./FileBreadcrumbs";
-import { useEngineeringSurfaces } from "../workbench/studioInterface";
+import { isEngineeringInterface, useEngineeringSurfaces } from "../workbench/studioInterface";
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
 import {
   type FileCommentAnnotationEntry,
@@ -1021,7 +1021,10 @@ function renderedToggleLabel(mode: "markdown" | "html" | "table", rendered: bool
 
 function initialExplorerOpen(): boolean {
   try {
-    return getLocalStorageItem(FILE_EXPLORER_STORAGE_KEY, Schema.Boolean) ?? true;
+    // The engineering interface opens a document on its own, its folders put away.
+    return (
+      getLocalStorageItem(FILE_EXPLORER_STORAGE_KEY, Schema.Boolean) ?? !isEngineeringInterface()
+    );
   } catch (error) {
     console.error(error);
     return true;

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { HARDWARE_FOCUS } from "./hardwareActions";
+import { partLabel } from "./partNames";
 import { WORKBENCH_LAYOUT } from "./workbenchLayout";
 
 /**
@@ -200,4 +201,13 @@ export function hasEngineeringSurfaces(): boolean {
 /** Whether Studio shows its engineering surfaces: engineering, or engineering with code tools. */
 export function useEngineeringSurfaces(): boolean {
   return useStudioInterface() !== "code";
+}
+
+/**
+ * A file chip's label (a file in the composer, a message or the agent's
+ * reply): in the engineering interface, the part or document it is
+ * ("Servo bracket drawing"), else as given. The chip still opens the file.
+ */
+export function useFileChipLabel(path: string, label: string): string {
+  return useEngineeringInterface() ? partLabel(path) : label;
 }

@@ -23,8 +23,10 @@ import {
   resultsFor,
   worstStatus,
 } from "./checkResults";
-import { classifyProjectFile, type ProjectFile } from "./projectFiles";
+import { humanName, partName } from "./partNames";
+import { classifyProjectFile, filePlaces, type ProjectFile } from "./projectFiles";
 import { ProjectThreads } from "./ProjectThreads";
+import { useEngineeringInterface } from "./studioInterface";
 import { usePictures } from "./usePictures";
 import { useProjectChecks } from "./useProjectChecks";
 
@@ -72,7 +74,13 @@ interface Issue {
   readonly root: string;
   readonly result: CheckResult;
   readonly issue: CheckIssue;
+  /** The part it was found on, where the folder holds it. */
+  readonly part: ProjectFile | null;
 }
+
+/** How an issue names its part: the part's own name, else the name its result gives. */
+const issuePart = (entry: Issue) =>
+  entry.part?.title ?? partName(entry.result.part)?.name ?? humanName(entry.result.part);
 
 /** A part's stand-in until its picture comes: a board or a model. */
 function PartIcon(props: { readonly file: ProjectFile; readonly className: string }) {
@@ -115,6 +123,8 @@ function CheckBadge(props: { readonly result: CheckResult; readonly onOpen: () =
 function LeadPart(props: {
   readonly environmentId: EnvironmentId;
   readonly part: FolderPart;
+  /** Its path, with code tools on. */
+  readonly where: string | undefined;
   readonly onOpen: () => void;
 }) {
   const { part } = props;
@@ -130,7 +140,7 @@ function LeadPart(props: {
       <button
         type="button"
         onClick={props.onOpen}
-        aria-label={`Open ${part.file.name} in the viewer`}
+        aria-label={`Open ${part.file.title} in the viewer`}
         className="flex aspect-[4/3] max-h-80 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50 outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {picture ? (
@@ -141,11 +151,12 @@ function LeadPart(props: {
       </button>
       <div className="flex min-w-0 items-baseline gap-2">
         <span className="min-w-0 truncate text-sm font-medium text-foreground">
-          {part.file.name}
+          {part.file.title}
         </span>
-        <span className="shrink-0 text-2xs text-muted-foreground">
+        <span className="min-w-0 truncate text-2xs text-muted-foreground">
           {part.file.kind}
           {status === null ? " · not checked yet" : ` · ${STATUS[status].caption}`}
+          {props.where === undefined ? "" : ` · ${props.where}`}
         </span>
       </div>
     </section>
@@ -157,6 +168,7 @@ function OpenIssues(props: {
   readonly issues: ReadonlyArray<Issue>;
   readonly checked: boolean;
   readonly composerRef: ComposerHandleRef | null;
+  readonly linkTo: (root: string, path: string) => string;
   readonly onShow: (issue: Issue) => void;
 }) {
   const [all, setAll] = useState(false);
@@ -164,7 +176,8 @@ function OpenIssues(props: {
   const propose = (entry: Issue) => {
     const composer = props.composerRef?.current;
     if (!composer) return;
-    composer.insertTextAtEnd(proposeFixPrompt(entry.result, entry.issue), {
+    const part = entry.part === null ? undefined : props.linkTo(entry.root, entry.part.path);
+    composer.insertTextAtEnd(proposeFixPrompt(entry.result, entry.issue, part), {
       ensureLeadingBoundary: true,
     });
     composer.focusAtEnd();
@@ -204,7 +217,7 @@ function OpenIssues(props: {
                   <p className="min-w-0 flex-1 text-xs text-foreground">{entry.issue.summary}</p>
                 </div>
                 <p className="text-2xs text-muted-foreground">
-                  {entry.result.part} · {entry.result.check}
+                  {issuePart(entry)} · {entry.result.check}
                 </p>
                 {entry.issue.fix === null ? null : (
                   <p className="line-clamp-2 text-2xs text-muted-foreground">
@@ -260,6 +273,11 @@ function FolderParts(props: {
 }) {
   const [all, setAll] = useState(false);
   const shown = all ? props.parts : props.parts.slice(0, FIRST_PARTS);
+  const engineering = useEngineeringInterface();
+  const files = props.parts.map((part) => part.file);
+  const places = engineering
+    ? filePlaces(files)
+    : new Map(files.map((file) => [file.path, file.path] as const));
   const pictures = usePictures({
     environmentId: props.environmentId,
     cwd: props.root,
@@ -292,11 +310,11 @@ function FolderParts(props: {
                 </span>
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate text-xs font-medium text-foreground">
-                    {part.file.name}
+                    {part.file.title}
                   </span>
                   <span className="truncate text-2xs text-muted-foreground">
                     {part.file.kind}
-                    {part.file.folder === "" ? "" : ` · ${part.file.folder}`}
+                    {places.has(part.file.path) ? ` · ${places.get(part.file.path)}` : ""}
                   </span>
                 </span>
               </button>
@@ -341,6 +359,8 @@ export function ProjectOverview(props: {
   readonly folderNames: ReadonlyMap<string, string> | null;
   readonly currentThreadId: ThreadId | null;
   readonly onOpen: (root: string, path: string) => void;
+  /** A link to the file, as the composer writes one (a chip naming the part). */
+  readonly linkTo: (root: string, path: string) => string;
   /** Opens the Threads tab; null where the page has none (a thread's own scratch folder). */
   readonly onShowThreads: (() => void) | null;
 }) {
@@ -365,10 +385,12 @@ export function ProjectOverview(props: {
       return { root: folder.root, parts };
     });
     const issues = folders
-      .flatMap((folder) =>
-        folder.results.flatMap((result) =>
-          result.issues.map((issue) => ({ root: folder.root, result, issue })),
-        ),
+      .flatMap((folder, index) =>
+        folder.results.flatMap((result) => {
+          const part =
+            byFolder[index]!.parts.find((entry) => entry.results.includes(result))?.file ?? null;
+          return result.issues.map((issue) => ({ root: folder.root, result, issue, part }));
+        }),
       )
       .toSorted((a, b) =>
         a.issue.severity === b.issue.severity ? 0 : a.issue.severity === "error" ? -1 : 1,
@@ -395,6 +417,7 @@ export function ProjectOverview(props: {
     return null;
   }, [folders]);
   const partCount = byFolder.reduce((total, folder) => total + folder.parts.length, 0);
+  const engineering = useEngineeringInterface();
 
   return (
     <div className="@container flex min-w-0 flex-col gap-8">
@@ -409,6 +432,7 @@ export function ProjectOverview(props: {
           <LeadPart
             environmentId={props.environmentId}
             part={lead}
+            where={engineering ? undefined : lead.file.path}
             onOpen={() => props.onOpen(lead.root, lead.file.path)}
           />
         )}
@@ -416,6 +440,7 @@ export function ProjectOverview(props: {
           issues={issues}
           checked={checked}
           composerRef={props.composerRef}
+          linkTo={props.linkTo}
           onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
         />
       </div>

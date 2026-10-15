@@ -1,4 +1,5 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
+import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { BoxIcon } from "lucide-react";
@@ -8,10 +9,10 @@ import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
 import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelStore";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { fileName, type PartContext } from "./partContext";
+import type { PartContext } from "./partContext";
 import { buildLabel, materialLabel } from "./partLabels";
 import { PartActions } from "./PartActions";
-import { useEngineeringSurfaces } from "./studioInterface";
+import { useEngineeringInterface, useEngineeringSurfaces } from "./studioInterface";
 import { usePartContext } from "./usePartContext";
 import { WORKBENCH_LAYOUT } from "./workbenchLayout";
 
@@ -70,6 +71,7 @@ function ThreadPartContext(props: {
     return views.find((surface) => surface.id === panel.activeSurfaceId) ?? views[0] ?? null;
   }, [panel, shown]);
   const engineering = useEngineeringSurfaces();
+  const plainWords = useEngineeringInterface();
   // Re-reads "Built 3m ago" each minute.
   useNowMinute();
   // A viewer the user closed takes its context with it. With the engineering surfaces on, the title block
@@ -120,14 +122,16 @@ function ThreadPartContext(props: {
           }
         />
         <TooltipPopup side="top" className="max-w-96">
-          <span className="block break-all">{part.path}</span>
+          <span className="block break-all">
+            {plainWords ? `Show ${part.name} in the viewer` : part.path}
+          </span>
           {failure === null ? null : <span className="mt-1 block text-destructive">{failure}</span>}
         </TooltipPopup>
       </Tooltip>
       {engineering ? (
         <PartActions
           environmentId={threadRef.environmentId}
-          file={fileName(part.path)}
+          file={serializeComposerFileLink(part.path)}
           kind={part.kind}
           composerRef={props.composerRef}
         />

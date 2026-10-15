@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { classifyProjectFile, groupProjectFiles } from "./projectFiles";
+import { classifyProjectFile, filePlaces, groupProjectFiles } from "./projectFiles";
 
 const demo = [
   "parts/STEP/l_bracket.step",
@@ -42,13 +42,32 @@ describe("project files", () => {
     ]);
   });
 
-  it("names what each file is", () => {
+  it("names what each file is and what it is called", () => {
     expect(classifyProjectFile("electronics/PCB/servo_power.bom.csv")).toMatchObject({
-      kind: "BOM",
+      title: "Servo power",
+      kind: "Bill of materials",
       folder: "electronics/PCB",
+    });
+    expect(classifyProjectFile("parts/STEP/l_bracket.step")).toMatchObject({
+      title: "L bracket",
+      kind: "Part",
+    });
+    expect(classifyProjectFile("brief/references/sketch.jpg")).toMatchObject({
+      title: "Sketch",
+      kind: "Image",
     });
     expect(classifyProjectFile("out/l_bracket.nc")?.kind).toBe("G-code");
     expect(classifyProjectFile("parts/src/l_bracket.py")).toBeNull();
+  });
+
+  it("says where a file sits only to tell two alike apart", () => {
+    const files = ["parts/v1/bracket.step", "parts/v2/bracket.step", "bracket.dxf", "plate.step"]
+      .map(classifyProjectFile)
+      .filter((file) => file !== null);
+    expect(Object.fromEntries(filePlaces(files))).toEqual({
+      "parts/v1/bracket.step": "V1",
+      "parts/v2/bracket.step": "V2",
+    });
   });
 
   it("narrows by a search over paths", () => {

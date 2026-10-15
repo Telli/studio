@@ -18,8 +18,9 @@ export interface HardwareAction {
   readonly skill: string | null;
   /** The part kinds it applies to, as the context strip names them (`describePart`); null for any. */
   readonly kinds: ReadonlyArray<string> | null;
+  /** The job, naming the part as given: a link to its file, which the composer shows as the part. */
   readonly prompt: (file: string) => string;
-  /** The job as a starter names it, short: "Check l_bracket for CNC machining". */
+  /** The job as a starter names it, short: "Check L bracket for CNC machining". */
   readonly short: (name: string) => string;
 }
 
@@ -44,7 +45,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     skill: "fea",
     kinds: ["FEA study"],
     prompt: (file) =>
-      `Walk me through the results in ${file}: what fails, by how much, and what to change.`,
+      `Walk me through the results in ${file} and tell me what fails, by how much, and what to change.`,
     short: (name) => `Explain the ${name} study`,
   },
   {
@@ -103,7 +104,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     skill: "cam",
     kinds: ["CAM job"],
     prompt: (file) =>
-      `Walk me through ${file}: cycle time, tools, and anything to fix before cutting.`,
+      `Walk me through ${file} and tell me the cycle time, the tools, and anything to fix before cutting.`,
     short: (name) => `Explain the ${name} job`,
   },
   {
@@ -160,7 +161,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Route the board",
     skill: "pcb",
     kinds: ["Board"],
-    prompt: (file) => `Route ${file}.`,
+    prompt: (file) => `Route ${file} and run the board checks.`,
     short: (name) => `Route ${name}`,
   },
   {
@@ -198,7 +199,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Robot description (URDF)",
     skill: "urdf",
     kinds: ["Assembly"],
-    prompt: (file) => `Make a URDF for ${file}, with its joints and limits.`,
+    prompt: (file) => `Make a URDF for ${file} with its joints and limits.`,
     short: (name) => `Describe ${name} as a robot`,
   },
   {

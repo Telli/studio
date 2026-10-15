@@ -1,11 +1,11 @@
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import type { ReactNode } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
 import { PartActions } from "./PartActions";
-import { fileName } from "./partContext";
 import { buildLabel, materialLabel } from "./partLabels";
 import { useEngineeringSurfaces } from "./studioInterface";
 import { usePartContext } from "./usePartContext";
@@ -106,7 +106,7 @@ function ThreadTitleBlock(props: {
         <div className="flex shrink-0 items-center px-1.5">
           <PartActions
             environmentId={props.environmentId}
-            file={fileName(part.path)}
+            file={serializeComposerFileLink(part.path)}
             kind={part.kind}
             composerRef={composerRef}
           />

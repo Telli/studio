@@ -1,11 +1,11 @@
-import { useEngineeringSurfaces } from "./studioInterface";
+import { partLabel } from "./partNames";
+import { useEngineeringInterface, useEngineeringSurfaces } from "./studioInterface";
 
-/** The document's own title: its first top-level heading, else its file name without the ending. */
+/** The document's own title: its first top-level heading, else its name ("fea-summary.md" is "FEA summary"). */
 export function documentTitle(text: string, relativePath: string): string {
   const heading = /^#\s+(.+?)\s*#*\s*$/m.exec(text)?.[1];
   if (heading) return heading.replace(/[*_`]/g, "").trim();
-  const name = relativePath.slice(Math.max(relativePath.lastIndexOf("/"), 0)).replace(/^\//, "");
-  return name.replace(/\.(?:md|mdx)$/i, "");
+  return partLabel(relativePath);
 }
 
 /** What kind of document it is, from its name: an engineer files by this. */
@@ -37,11 +37,12 @@ function Cell(props: {
 
 /**
  * A document's title block with the engineering surfaces on: what it is called,
- * what kind of document it is and where it lives, the way a drawing's title
- * block heads the sheet. Its body below reads as a document (`theme.css`,
+ * what kind of document it is and, with code tools on, its file, the way a
+ * drawing's title block heads the sheet. Its body below reads as a document (`theme.css`,
  * `[data-document]`), not as a file.
  */
 export function DocumentHeader(props: { readonly text: string; readonly relativePath: string }) {
+  const plainWords = useEngineeringInterface();
   if (!useEngineeringSurfaces()) return null;
   return (
     <dl
@@ -52,7 +53,7 @@ export function DocumentHeader(props: { readonly text: string; readonly relative
         {documentTitle(props.text, props.relativePath)}
       </Cell>
       <Cell label="Type">{documentType(props.relativePath)}</Cell>
-      <Cell label="File">{props.relativePath}</Cell>
+      {plainWords ? null : <Cell label="File">{props.relativePath}</Cell>}
     </dl>
   );
 }

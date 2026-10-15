@@ -192,7 +192,7 @@ export interface NewWork {
   readonly name: string;
   readonly folder: string;
   readonly units: "mm" | "in";
-  /** For a `from-part` template: the part's path in the project. */
+  /** For a `from-part` template: the part as the job names it, a link to its file. */
   readonly part: string | null;
   /** What the person wants, in their words. */
   readonly description: string;
@@ -221,7 +221,7 @@ export function newWorkPrompt(work: NewWork): string {
     case "drawing":
       return `Make an engineering drawing of ${part} with its key dimensions and tolerances, in ${units}.${ask}`;
     case "strength-study":
-      return `Run a strength study on ${part}. Ask me for the loads, supports and material you need, then tell me where it is weakest and what to change.${ask}`;
+      return `Run a strength study on ${part} under its working load. Ask me for the loads, supports and material you need, then tell me where it is weakest and what to change.${ask}`;
     case "cam-job":
       return `Plan a CAM job for ${part} and post its G-code. Ask me for the machine, stock, tools and workholding you need.${ask}`;
     case "print":
@@ -229,7 +229,7 @@ export function newWorkPrompt(work: NewWork): string {
     case "cut-file":
       return `Make a cut-ready DXF of ${part} for laser or waterjet cutting.${ask}`;
     case "robot":
-      return `Make a URDF for ${part}, with its links, joints and limits.${ask}`;
+      return `Make a URDF for ${part} with its links, joints and limits.${ask}`;
     case "test-plan":
       return `Write a test plan for ${part} as ${folder}/${fileStem(work.name)}.md: what to test, how, and the pass criteria.${ask}`;
     case "instructions":

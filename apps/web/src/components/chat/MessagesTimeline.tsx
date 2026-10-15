@@ -232,7 +232,7 @@ import {
   type TimelineLatestRun,
   type WorkGroupScrollAnchor,
 } from "./MessagesTimeline.logic";
-import { useEngineeringInterface } from "../workbench/studioInterface";
+import { useEngineeringInterface, useFileChipLabel } from "../workbench/studioInterface";
 import { type ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
 import { readThreadFindPosition } from "./threadFindPosition";
@@ -4334,6 +4334,7 @@ function UserMessageMentionChip(props: {
   copyMarkdown: string;
 }) {
   const ctx = use(TimelineRowCtx);
+  const label = useFileChipLabel(props.record.path, props.record.label);
   return (
     <Tooltip>
       <TooltipTrigger
@@ -4354,7 +4355,7 @@ function UserMessageMentionChip(props: {
               cwd={ctx.workspaceRoot}
               theme={ctx.resolvedTheme}
             />
-            <ContextChipLabel>{props.record.label}</ContextChipLabel>
+            <ContextChipLabel>{label}</ContextChipLabel>
           </ContextChip>
         }
       />

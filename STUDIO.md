@@ -63,9 +63,12 @@ A branch on top of `amy/hardware` for people who know hardware before code: `bra
 Its interface is a setting, Engineering, Engineering with code, or Code (Settings, Appearance,
 Interface; or the "Switch to ..." commands in the command palette, which "dev" also finds),
 Engineering by default, per device. Engineering puts every coding tool away (version control,
-editors, terminals, scripts, branches, pull requests, diffs), says what the agent's steps did to the
-design ("FEA study on bracket.step", "Built bracket") instead of the command lines, and reads like a
-shop drawing: a title block over the viewer with the part's type, units, material and build, and
+editors, terminals, scripts, branches, pull requests, diffs), names parts and documents rather than
+files ("Servo bracket", "Servo bracket drawing", not `parts/servo_bracket.step`) on the project
+page, tabs, file chips in the chat and the work log (`components/workbench/partNames.ts`), says what
+the agent's steps did to the design ("FEA study on the L bracket", "Built the L bracket") instead of
+the command lines, and reads like a shop drawing: a title block over the viewer with the part's
+type, units, material and build, and
 documents the agent writes (plans, reports) opening beside the thread as documents with a title
 block of their own. Engineering with code keeps those surfaces (the projects home, the project's
 overview, the title block, documents) and brings every coding tool back in T3 Code's own words,

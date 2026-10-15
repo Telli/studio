@@ -221,6 +221,14 @@ html[data-studio-focus="hardware"]
 }
 
 /*
+ * A document is named by its title block (`DocumentHeader`), not by the folders its file sits in:
+ * the breadcrumbs above it go, and their room stays so the buttons beside them keep their place.
+ */
+html[data-studio-focus="hardware"] [data-file-breadcrumbs] {
+  visibility: hidden;
+}
+
+/*
  * A work-log row says what a step did to the design; a terminal prompt beside it reads as a
  * coding tool. Only the icon goes: its slot keeps the rows aligned.
  */

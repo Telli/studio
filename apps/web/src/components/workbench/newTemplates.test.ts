@@ -41,7 +41,7 @@ describe("new templates", () => {
         template: template("strength-study"),
         part: "parts/STEP/l_bracket.step",
       }),
-    ).toMatch(/^Run a strength study on parts\/STEP\/l_bracket\.step\. Ask me for the loads/);
+    ).toMatch(/^Run a strength study on parts\/STEP\/l_bracket\.step under its working load\. /);
     expect(
       newWorkPrompt({ ...work, template: template("drawing"), part: "parts/STEP/l_bracket.step" }),
     ).toContain("in inches.");

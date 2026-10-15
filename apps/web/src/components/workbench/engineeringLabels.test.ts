@@ -2,6 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { APP_BASE_NAME } from "../../branding";
 import {
+  engineeringFilesLabel,
   engineeringGroupLabel,
   engineeringStepLabel,
   engineeringToolLabel,
@@ -10,25 +11,29 @@ import {
 const venv = "/Users/amy/code/text-to-cad-hw/.venv/bin/python -m cadgen.cli";
 
 describe("engineering step labels", () => {
-  it("names a study, a CAM job and a board check by what they did to which file", () => {
+  it("names a study, a CAM job and a board check by what they did to which part", () => {
     expect(
       engineeringStepLabel(`${venv} fea solve parts/STEP/l_bracket.step --study s.json`),
     ).toEqual({
-      done: "FEA study on l_bracket.step",
-      doing: "Running an FEA study on l_bracket.step",
+      done: "FEA study on the L bracket",
+      doing: "Running an FEA study on the L bracket",
     });
     expect(engineeringStepLabel(`${venv} cam plan l_bracket.step --job job.json`).done).toBe(
-      "CAM plan for l_bracket.step",
+      "CAM plan for the L bracket",
     );
     expect(engineeringStepLabel(`${venv} pcb validate PCB/servo_power.kicad_pcb`).done).toBe(
-      "Checked the board for servo_power.kicad_pcb",
+      "Checked the servo power board",
     );
+    expect(engineeringStepLabel(`${venv} pcb gerber "PCB/servo_power.kicad_pcb"`).done).toBe(
+      "Wrote the Gerbers for the servo power board",
+    );
+    expect(engineeringStepLabel(`${venv} pcb validate`).done).toBe("Checked the board");
   });
 
   it("reads running a model script as building the part, through any chain", () => {
     expect(engineeringStepLabel("cd parts/src && python3 l_bracket.py")).toEqual({
-      done: "Built l_bracket",
-      doing: "Building l_bracket",
+      done: "Built the L bracket",
+      doing: "Building the L bracket",
     });
     expect(
       engineeringStepLabel(`${venv.replace(" -m cadgen.cli", "")} "src/gusset plate.py"`).done,
@@ -42,6 +47,18 @@ describe("engineering step labels", () => {
       "Recorded the project's history",
     );
     expect(engineeringStepLabel("make -j8").done).toBe("Worked on the design");
+  });
+});
+
+describe("engineering file labels", () => {
+  it("names what a step read or changed by the parts and documents they are", () => {
+    expect(engineeringFilesLabel("Looked at", ["/w/parts/servo_bracket.step"])).toBe(
+      "Looked at the servo bracket",
+    );
+    expect(engineeringFilesLabel("Updated", ["drawings/bracket.dxf", "a.step", "b.step"])).toBe(
+      "Updated the bracket drawing and 2 more",
+    );
+    expect(engineeringFilesLabel("Looked at", ["src/util.ts"])).toBe("Looked at util.ts");
   });
 });
 

@@ -132,7 +132,7 @@ export function overviewParts(files: ReadonlyArray<ProjectFile>): ProjectFile[] 
   );
   const steps = new Set(
     parts
-      .filter((file) => file.kind === "STEP")
+      .filter((file) => file.kind === "Part")
       .map((file) => `${file.folder}/${stemOf(file.name)}`),
   );
   return parts.filter(
@@ -162,13 +162,18 @@ export function worstStatus(results: ReadonlyArray<CheckResult>): CheckStatus | 
 /**
  * What "Propose a fix" writes into the composer: the issue, the fix the check
  * suggests, and the ask to propose and wait. A failed check never changes the
- * part on its own; the engineer says go.
+ * part on its own; the engineer says go. `part` is how the ask names the part,
+ * a link to its file where the overview knows it; else its file name.
  */
-export function proposeFixPrompt(result: CheckResult, issue: CheckIssue): string {
+export function proposeFixPrompt(
+  result: CheckResult,
+  issue: CheckIssue,
+  part: string = result.part,
+): string {
   const check = result.check === "FEA" ? "FEA" : result.check.toLowerCase();
   const suggestion = issue.fix === null ? "" : ` The check suggests: ${sentence(issue.fix)}.`;
   return (
-    `The ${check} check on ${result.part} found: ${sentence(issue.summary)}.${suggestion} ` +
+    `The ${check} check on ${part} found: ${sentence(issue.summary)}.${suggestion} ` +
     `Propose a fix: say what you would change and why, then wait for my go before changing the part.`
   );
 }

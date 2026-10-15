@@ -12,11 +12,11 @@ import { hardwareActions } from "./hardwareActions";
 /**
  * Check, Make and Document beside the part's name: the jobs its kind takes
  * that the enabled plugins have skills for. A pick writes the job, naming the
- * file, into the composer.
+ * part by a link to its file, into the composer.
  */
 export function PartActions(props: {
   readonly environmentId: EnvironmentId;
-  /** The part as the jobs name it: its file name, or its path in the project. */
+  /** The part as the jobs name it: a link to its file, which the composer shows as the part. */
   readonly file: string;
   readonly kind: string;
   readonly composerRef: ComposerHandleRef;

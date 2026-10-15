@@ -1,4 +1,5 @@
 import type { EnvironmentId } from "@t3tools/contracts";
+import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import {
   ActivityIcon,
   BotIcon,
@@ -24,6 +25,8 @@ import {
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
+import { partLabel } from "./partNames";
+import { useEngineeringInterface } from "./studioInterface";
 import { useStudioProjectAt } from "./useStudioProjects";
 import {
   DISCIPLINES,
@@ -99,13 +102,23 @@ export function NewDialog(props: {
     templates.some((template) => template.discipline === entry),
   );
   const needsPart = selected?.source === "from-part";
+  // A part by its name in the engineering interface, by its path with code tools on.
+  const plainWords = useEngineeringInterface();
+  const partShown = (path: string) => (plainWords ? partLabel(path) : path);
   const ready = selected !== null && (needsPart ? part !== null : name.trim() !== "");
 
   const create = () => {
     const composer = props.composerRef.current;
     if (selected === null || composer === null) return;
     composer.insertTextAtEnd(
-      newWorkPrompt({ template: selected, name, folder, units, part, description }),
+      newWorkPrompt({
+        template: selected,
+        name,
+        folder,
+        units,
+        part: part === null ? null : serializeComposerFileLink(part),
+        description,
+      }),
       { ensureLeadingBoundary: true },
     );
     props.onOpenChange(false);
@@ -198,12 +211,14 @@ export function NewDialog(props: {
                           onValueChange={(value) => setPart(value || null)}
                         >
                           <SelectTrigger size="sm" className="w-full" aria-label="Part">
-                            <SelectValue>{part ?? "Choose a part"}</SelectValue>
+                            <SelectValue>
+                              {part === null ? "Choose a part" : partShown(part)}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectPopup alignItemWithTrigger={false}>
                             {props.parts.map((path) => (
                               <SelectItem key={path} hideIndicator value={path}>
-                                {path}
+                                {partShown(path)}
                               </SelectItem>
                             ))}
                           </SelectPopup>

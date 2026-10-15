@@ -1,12 +1,15 @@
+import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
+
 import type { ProjectBrief } from "./briefFolder";
 import { hardwareActions } from "./hardwareActions";
 import { describePart } from "./partContext";
+import { lowerName } from "./partNames";
 import type { ProjectFile } from "./projectFiles";
 
 export interface Starter {
-  /** What the chip says: "Check l_bracket for CNC machining". */
+  /** What the chip says: "Check L bracket for CNC machining". */
   readonly label: string;
-  /** What goes into the composer, naming the file by its path. */
+  /** What goes into the composer, naming the part by a link to its file. */
   readonly prompt: string;
 }
 
@@ -41,15 +44,20 @@ export function projectStarters(
       (groups.find((entry) => entry.group === group)?.actions ?? []).filter(
         (action) => action.skill !== null,
       );
-    return { file, name, check: of("Check")[0], make: of("Make")[0], document: of("Document")[0] };
+    return {
+      link: serializeComposerFileLink(file.path),
+      name: lowerName(name),
+      check: of("Check")[0],
+      make: of("Make")[0],
+      document: of("Document")[0],
+    };
   });
   for (const job of jobs) {
-    if (job.check)
-      add({ label: job.check.short(job.name), prompt: job.check.prompt(job.file.path) });
+    if (job.check) add({ label: job.check.short(job.name), prompt: job.check.prompt(job.link) });
   }
   for (const job of jobs) {
     const next = job.make ?? job.document;
-    if (next) add({ label: next.short(job.name), prompt: next.prompt(job.file.path) });
+    if (next) add({ label: next.short(job.name), prompt: next.prompt(job.link) });
   }
   if (starters.length === 0 && brief !== null && brief.purpose.trim() !== "") {
     add({

@@ -155,5 +155,8 @@ describe("check results", () => {
         "The check suggests: Feed it from #o1.f7: a riser of modulus 2.9 mm. " +
         "Propose a fix: say what you would change and why, then wait for my go before changing the part.",
     );
+    expect(
+      proposeFixPrompt(result, result.issues[0]!, "[bossbar.step](parts/bossbar.step)"),
+    ).toMatch(/^The casting check on \[bossbar\.step\]\(parts\/bossbar\.step\) found: /);
   });
 });

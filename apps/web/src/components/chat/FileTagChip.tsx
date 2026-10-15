@@ -1,6 +1,7 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { ContextChipLabel } from "../ContextChip";
 import { WorkspaceEntryIcon } from "./WorkspaceEntryIcon";
+import { useFileChipLabel } from "../workbench/studioInterface";
 
 /** Icon and label for a file mention; render inside `<ContextChip kind="mention">`. */
 export function FileTagChipContent(props: {
@@ -10,6 +11,7 @@ export function FileTagChipContent(props: {
   environmentId?: EnvironmentId | null | undefined;
   cwd?: string | undefined;
 }) {
+  const label = useFileChipLabel(props.path, props.label);
   return (
     <>
       <WorkspaceEntryIcon
@@ -18,7 +20,7 @@ export function FileTagChipContent(props: {
         cwd={props.cwd}
         theme={props.theme}
       />
-      <ContextChipLabel>{props.label}</ContextChipLabel>
+      <ContextChipLabel>{label}</ContextChipLabel>
     </>
   );
 }

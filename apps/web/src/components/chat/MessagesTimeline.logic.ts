@@ -1,5 +1,6 @@
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import {
+  engineeringFilesLabel,
   engineeringGroupLabel,
   engineeringStepLabel,
   engineeringToolLabel,
@@ -173,10 +174,11 @@ export function workEntryDisplayLabel(entry: WorkLogEntry, workspaceRoot: string
       entry.itemType === "file_search"
         ? entry.label
         : formatSearchToolLabel(workEntryToolDataRecord(entry));
-    if (searchLabel) return searchLabel;
+    if (searchLabel) return isEngineeringInterface() ? "Searched the project" : searchLabel;
   }
   const readPaths = action === "read" ? workEntryReadPaths(entry, workspaceRoot) : [];
   if (action === "read" && readPaths[0]) {
+    if (isEngineeringInterface()) return engineeringFilesLabel("Looked at", readPaths);
     return formatReadToolLabel(readPaths[0], readPaths.length - 1);
   }
   // Retrying providers keep their progress label; other diagnostics expose
@@ -196,6 +198,7 @@ export function workEntryDisplayLabel(entry: WorkLogEntry, workspaceRoot: string
   }
   const [firstPath] = entry.changedFiles ?? [];
   if (firstPath) {
+    if (isEngineeringInterface()) return engineeringFilesLabel("Updated", entry.changedFiles!);
     const path = formatWorkspaceRelativePath(firstPath, workspaceRoot);
     return entry.changedFiles!.length === 1
       ? path

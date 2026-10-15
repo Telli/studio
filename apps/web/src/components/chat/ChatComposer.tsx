@@ -1144,8 +1144,10 @@ import type { ReviewCommentContext } from "../../reviewCommentContext";
 import {
   ENGINEERING_COMPOSER_PLACEHOLDER,
   ENGINEERING_FOLLOW_UP_PLACEHOLDER,
+  isEngineeringInterface,
   useEngineeringInterface,
 } from "../workbench/studioInterface";
+import { partLabel } from "../workbench/partNames";
 import { ENGINEERING_RUNTIME_MODES } from "../workbench/engineeringTraits";
 
 const WORKSPACE_SNAPSHOT_RETRY_COOLDOWN_MS = 10_000;
@@ -2721,7 +2723,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           type: "path" as const,
           path: entry.path,
           pathKind: entry.kind,
-          label: basenameOfPath(entry.path),
+          label: isEngineeringInterface() ? partLabel(entry.path) : basenameOfPath(entry.path),
           description: entry.path.slice(0, Math.max(0, entry.path.lastIndexOf("/"))),
         })),
       ];
