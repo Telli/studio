@@ -132,7 +132,17 @@ export function studioInterfaceCommand(): {
   const next: StudioInterface = current === "engineering" ? "code" : "engineering";
   return {
     title: next === "code" ? "Switch to the code interface" : "Switch to the engineering interface",
-    searchTerms: ["studio", "interface", "engineering", "code", "mode", "view", "hardware"],
+    searchTerms: [
+      "studio",
+      "interface",
+      "engineering",
+      "code",
+      "dev",
+      "developer",
+      "mode",
+      "view",
+      "hardware",
+    ],
     run: () => setStudioInterface(next),
   };
 }
