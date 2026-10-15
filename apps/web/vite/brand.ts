@@ -144,6 +144,12 @@ export function brandPlugin(dir = process.env.T3CODE_BRAND_DIR?.trim()): Plugin 
     }),
     // Ahead of Vite's own static files, so the brand's icons win over public/.
     configureServer(server) {
+      // `theme.css` is inlined into the page, so an edit to it reloads the page rather than waiting for a restart.
+      const theme = NodePath.join(brand.dir, "theme.css");
+      server.watcher.add(theme);
+      server.watcher.on("change", (file) => {
+        if (NodePath.resolve(file) === theme) server.ws.send({ type: "full-reload" });
+      });
       server.middlewares.use((req, res, next) => {
         const urlPath = (req.url ?? "").split("?")[0] ?? "";
         const file = brandIcon(brand, urlPath);
@@ -152,7 +158,12 @@ export function brandPlugin(dir = process.env.T3CODE_BRAND_DIR?.trim()): Plugin 
         res.end(NodeFS.readFileSync(file));
       });
     },
-    transformIndexHtml: (html) => brandHtml(html, brand),
+    // Read `theme.css` per page, so the page a reload serves has the stylesheet as it is now.
+    transformIndexHtml: (html) =>
+      brandHtml(html, {
+        ...brand,
+        css: readIfFile(NodePath.join(brand.dir, "theme.css"))?.toString("utf8") ?? null,
+      }),
     writeBundle(options) {
       if (!options.dir) return;
       for (const urlPath of Object.keys(ICONS)) {
