@@ -131,7 +131,7 @@ import { applySourceAppearanceToMeshData, sourceAppearanceGeometry } from "@text
 import EditBrowser from "./edit/EditBrowser.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
-import { featureNames, rowDimensions } from "./edit/editMode.js";
+import { editCommand, featureNames, rowDimensions } from "./edit/editMode.js";
 import { useEditMode } from "./edit/useEditMode.js";
 // The selection filters that pick faces or edges, never the part.
 const TOPOLOGY_FILTERS = new Set(["faces", "edges"]);
@@ -3176,6 +3176,18 @@ function StepSurfaceBody({ view, data }) {
   const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
   const editDimensions = useMemo(() => (edit.status === "ready" ? rowDimensions(edit.state, edit.selected) : EMPTY_LIST),
     [edit.status, edit.state, edit.selected]);
+  // A modeling command opens with Select in hand, its mode turned to what the command picks (a
+  // fillet's edges, a hole's face) and the part's faces and edges loaded to be picked, keeping
+  // what is already selected: picked first, then Fillet.
+  const startEditCommand = id => {
+    const picks = editCommand(id)?.picks;
+    if (picks) {
+      changeSelectMode(picks);
+      if (!isAssemblyView) loadInspectionTopology();
+    }
+    handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES);
+    edit.open(id);
+  };
 
   // ---- the strip ------------------------------------------------------------------------------
   // An assembly, as the catalog says or as the model on screen shows (several parts, as Explode
@@ -3303,8 +3315,8 @@ function StepSurfaceBody({ view, data }) {
     contextMenuItems={selectionToolActive
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}
     onContextMenuOpenChange={handleViewportContextMenuOpenChange}
-    ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} /> : null}
-    leftDock={editing ? <EditBrowser edit={edit} names={editNames} /> : null}
+    ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} /> : null}
+    leftDock={editing ? <EditBrowser edit={edit} names={editNames} references={selectedReferences} /> : null}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
       return <>

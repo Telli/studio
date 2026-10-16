@@ -1,18 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPromptContext, referencePart, textPart } from "@text-to-cad/core/prompt";
 import { useViewerHost } from "../../../host/context.js";
-import { changeNote, defaultRow, emptyHistory, recordChange, redoStep, undoStep } from "./editMode.js";
+import {
+  changeNote,
+  commandNote,
+  commandUndoNote,
+  defaultRow,
+  emptyHistory,
+  featureNames,
+  recordChange,
+  redoStep,
+  undoStep
+} from "./editMode.js";
 
 // How often the view asks whether the part's files changed (the agent's edits, another view's):
 // an unchanged answer is a hash comparison on the server, and the part is not run.
 const POLL_MS = 1500;
 const describe = error => (error instanceof Error ? error.message : String(error || "The change could not be made."));
+// A feature's title in the history a reply describes: "Fillet2".
+const titleOf = (state, row) => featureNames(state?.rows || []).find(name => name.key === row)?.title || "";
 
 /**
  * Edit mode for the file on screen (`cadgen/edit`, through the CAD client): the part's script read
- * as a design, kept current while the view is up, and one number of it changed by hand. A change
- * applies at once; the agent hears of it with the person's next message (a note queued in the
- * chat, never a message of its own), so it never starts work because of one.
+ * as a design, kept current while the view is up, one number of it changed by hand, and the
+ * ribbon's modeling commands (`command`, the one whose panel is open; `run` writes its line). A
+ * change applies at once; the agent hears of it with the person's next message (a note queued in
+ * the chat, never a message of its own), so it never starts work because of one.
  *
  * `status`: `reading` until the first answer, then `ready`, `none` (no part script beside this
  * file: nothing to edit, and the view stays as it was) or `error`.
@@ -29,6 +42,7 @@ export function useEditMode({ client, file, resource, active }) {
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState(null);
   const [history, setHistory] = useState(emptyHistory);
+  const [command, setCommand] = useState(null);
   const files = useRef(null);
   const historyRef = useRef(history);
   historyRef.current = history;
@@ -36,7 +50,7 @@ export function useEditMode({ client, file, resource, active }) {
   // Another file is another part: everything starts again.
   useEffect(() => {
     files.current = null;
-    setState(null); setError(""); setChoice(null); setSelected(null); setHistory(emptyHistory());
+    setState(null); setError(""); setChoice(null); setSelected(null); setHistory(emptyHistory()); setCommand(null);
     setStatus(supported && file ? "reading" : "none");
   }, [file, supported]);
 
@@ -75,12 +89,12 @@ export function useEditMode({ client, file, resource, active }) {
   }, [client, file, active, supported, take]);
 
   // The note the agent reads with the person's next message.
-  const tell = useCallback(change => {
+  const tell = useCallback(note => {
     const port = host?.promptContext;
-    if (!port?.deliver || !resource) return;
+    if (!port?.deliver || !resource || !note) return;
     try {
       const context = createPromptContext([
-        textPart(changeNote(change), "hand-edit"),
+        textPart(note, "hand-edit"),
         referencePart({ resource: { ...resource }, target: { kind: "whole-resource" } }, "file"),
       ]);
       void Promise.resolve(port.deliver(context)).catch(() => {});
@@ -89,7 +103,8 @@ export function useEditMode({ client, file, resource, active }) {
     }
   }, [host, resource]);
 
-  const send = useCallback(async (request, { record = true } = {}) => {
+  // `note`: what the agent is told of the reply's change (a number's, unless said otherwise).
+  const send = useCallback(async (request, { record = true, note = null } = {}) => {
     if (!supported || !file) return null;
     setSaving(true);
     setChoice(null);
@@ -100,7 +115,7 @@ export function useEditMode({ client, file, resource, active }) {
       take(reply);
       if (reply.change) {
         if (record) setHistory(current => recordChange(current, reply.change));
-        tell(reply.change);
+        tell(note ? note(reply) : changeNote(reply.change));
       }
       return reply;
     } catch (failure) {
@@ -112,23 +127,35 @@ export function useEditMode({ client, file, resource, active }) {
   }, [client, file, supported, take, tell]);
 
   const change = useCallback(request => send(request), [send]);
-  const undo = useCallback(async () => {
-    const step = undoStep(historyRef.current);
-    if (!step) return;
-    const reply = await send(step.request, { record: false });
-    if (reply?.ok) setHistory(step.next);
+  // A command's OK: its line written after the body, the new feature selected and its panel shut.
+  const run = useCallback(async request => {
+    const reply = await send({ command: request }, { record: false,
+      note: answer => commandNote(answer.change, titleOf(answer, answer.change.row)) });
+    if (reply?.ok && reply.change) {
+      const title = titleOf(reply, reply.change.row);
+      setHistory(current => recordChange(current, { ...reply.change, title }));
+      setSelected(reply.change.row);
+      setCommand(null);
+    }
+    return reply;
   }, [send]);
-  const redo = useCallback(async () => {
-    const step = redoStep(historyRef.current);
-    if (!step) return;
-    const reply = await send(step.request, { record: false });
-    if (reply?.ok) setHistory(step.next);
+  const step = useCallback(async (next, redo) => {
+    const move = next(historyRef.current);
+    if (!move) return;
+    const made = move.change.kind === "command";
+    const reply = await send(move.request, { record: false,
+      note: made ? () => commandUndoNote(move.change, move.change.title, redo) : null });
+    if (reply?.ok) setHistory(move.next);
   }, [send]);
+  const undo = useCallback(() => step(undoStep, false), [step]);
+  const redo = useCallback(() => step(redoStep, true), [step]);
 
   return {
-    status, state, error, choice, saving, selected,
+    status, state, error, choice, saving, selected, command,
     select: setSelected,
-    change, undo, redo,
+    change, undo, redo, run,
+    open: id => { setError(""); setCommand(id); },
+    close: () => setCommand(null),
     canUndo: history.done.length > 0 && !saving,
     canRedo: history.undone.length > 0 && !saving,
     choose: leaf => { if (choice) void send({ ...choice.request, leaf }); },

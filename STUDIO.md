@@ -113,12 +113,23 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   behind it), and the feature's dimensions drawn on the model, each changed by a double-click. A
   change rewrites one number in the script, as it was written, and rebuilds every part that uses
   the file, so the model reloads as any rebuild does; a value made of several sizes asks which to
-  change, and a file changed since it was read is refused. The agent hears of each change with
-  the next message (a Hand edit note queued in the composer), never by a message of its own. The
-  engine is `text-to-cad/packages/cadgen/src/cadgen/edit/` (a tracer that runs the script with
-  every number remembering where it is written, in a process of its own, behind the viewer's
-  `/__cad/edit/*` routes); the frame is `text-to-cad/packages/ui/src/renderers/step/edit/`. The
-  CAD skill's `references/edit-mode.md` tells the agent how to write parts that edit well.
+  change, and a file changed since it was read is refused. The ribbon's Create and Modify groups
+  (Hole, Pattern, Mirror; Fillet, Chamfer, Shell) open a panel at the left in the sizes' place, as
+  SolidWorks' PropertyManager does: what the command acts on (the edges or faces selected on the
+  model, Select turned to them as it opens; for Mirror and Pattern, the feature picked in the
+  history, or the whole body), its inputs in the part's units, and OK and Cancel. OK writes one
+  line of build123d after the statement that makes the part's body, its faces and edges written
+  as build123d's own selectors by where they are, never their numbers (the top face's outer
+  edges: `tray.faces().sort_by(bd.Axis.Z)[-1].outer_wire().edges()`), and the line reads back as
+  a new feature, selected, with its inputs to change like any other; a line that does not run,
+  or picks something other than the selection, is not written. Undo takes a command's line back. The
+  agent hears of each change with the next message (a Hand edit note queued in the composer),
+  never by a message of its own. The engine is `text-to-cad/packages/cadgen/src/cadgen/edit/` (a
+  tracer that runs the script with every number remembering where it is written, in a process of
+  its own, behind the viewer's `/__cad/edit/*` routes, and `commands.py`, which matches a
+  selection to the part by its geometry and writes a command's line); the frame is
+  `text-to-cad/packages/ui/src/renderers/step/edit/`. The CAD skill's `references/edit-mode.md`
+  tells the agent how to write parts that edit well.
 - **SolidCraft, on request.** `STUDIO_SOLIDCRAFT=1`, with SolidCraft (a parametric CAD engine,
   Apache-2.0) in Applications, adds `studio-plugins/solidcraft`: its engine headless per thread
   behind an editor page of its own, for `.solidcraft` designs (the overview lists a design and its STEP as

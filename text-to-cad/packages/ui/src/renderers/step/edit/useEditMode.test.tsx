@@ -76,3 +76,36 @@ it('a client without edit mode has nothing to edit', () => {
     { wrapper: hostWith(() => Promise.resolve()) });
   expect(result.current.status).toBe('none');
 });
+
+it('a command writes its line, the new feature is selected and its panel shut, the agent hears of it, and Undo takes the line back', async () => {
+  const base = { ok: true, units: 'mm', files: { 'block.py': 'h1' }, params: [], dimensions: [], building: { scripts: [], done: 0, error: null },
+    rows: [{ key: 'block.py:6', name: 'part', kind: 'Box', inputs: [] }] };
+  const undo = { file: 'block.py', hunks: [{ start: 6, old: ['    part = fillet(...)\n'], new: [] }] };
+  const filleted = { ...base, files: { 'block.py': 'h2' },
+    rows: [...base.rows, { key: 'block.py:7', name: 'part', kind: 'Fillet', inputs: [] }],
+    change: { kind: 'command', command: 'fillet', feature: 'Fillet', what: '4 edges', inputs: [{ label: 'Radius', display: '1', unit: 'mm' }],
+      file: 'block.py', line: 7, row: 'block.py:7', undo, redo: { file: 'block.py', hunks: [] } } };
+  const client = {
+    editState: vi.fn(async () => base),
+    editChange: vi.fn(async (request: { command?: object; splice?: object }) => (request.command ? filleted
+      : { ...base, change: { kind: 'splice', file: 'block.py', line: 7 } })),
+  };
+  const notes: unknown[] = [];
+  const { result } = renderHook(() => useEditMode({ client, file: FILE, resource: RESOURCE, active: true }),
+    { wrapper: hostWith(context => { notes.push(context); return Promise.resolve({ status: 'added', partIds: [] }); }) });
+  await act(async () => {});
+  act(() => result.current.open('fillet'));
+  expect(result.current.command).toBe('fillet');
+
+  const request = { command: 'fillet', selection: [{ selector: 'e3' }], inputs: { radius: '1' } };
+  await act(async () => { await result.current.run(request); });
+  expect(client.editChange).toHaveBeenLastCalledWith({ command: request, file: FILE, files: { 'block.py': 'h1' } });
+  expect(result.current.selected).toBe('block.py:7');
+  expect(result.current.command).toBe(null);
+  expect(JSON.stringify(notes)).toContain('In edit mode I added Fillet1, radius 1 mm, 4 edges (block.py, line 7).');
+
+  await act(async () => { await result.current.undo(); });
+  expect(client.editChange).toHaveBeenLastCalledWith({ splice: undo, file: FILE, files: { 'block.py': 'h2' } });
+  expect(JSON.stringify(notes)).toContain('In edit mode I removed Fillet1 (block.py, line 7).');
+  expect(result.current.canRedo).toBe(true);
+});

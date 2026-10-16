@@ -1,7 +1,7 @@
 /**
  * Edit mode's rules, pure: how a part's history, sizes and dimensions read in the viewer
- * (`cadgen/edit` reads them from the part's script), what the note of a hand change says, and the
- * undo history of hand changes.
+ * (`cadgen/edit` reads them from the part's script), the modeling commands of the ribbon and
+ * what each sends, what the note of a hand change says, and the undo history of hand changes.
  */
 
 const ACRONYMS = new Set(["id", "od", "pcb", "usb", "led", "cnc", "fdm", "sla"]);
@@ -9,6 +9,11 @@ const UNIT_WORDS = Object.freeze({ mm: "Millimeters", in: "Inches", cm: "Centime
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in", cm: "cm", m: "m" });
 // The tracer's kinds, in the words a CAD tree uses for them.
 const KIND_NAMES = Object.freeze({ Join: "Combine", Move: "Move", Cut: "Cut", Intersect: "Intersect" });
+// A command's sizes, in the part's own units, as it opens: small next to a part a hand holds.
+const DEFAULTS = Object.freeze({
+  mm: { radius: "1", distance: "1", diameter: "3", depth: "5", thickness: "1", spacing: "10" },
+  in: { radius: ".03", distance: ".03", diameter: ".125", depth: ".25", thickness: ".04", spacing: ".5" },
+});
 const HISTORY_LIMIT = 50;
 
 /** A size's name as an engineer says it: `TRAY_HEIGHT` reads "Tray height"; a bare number stays as written. */
@@ -73,6 +78,124 @@ export function changeNote(change) {
   return `In edit mode I changed ${said} from ${change.from} to ${change.to} (${change.file}, line ${change.line}).`;
 }
 
+/**
+ * The ribbon's modeling commands, as a CAD tool groups them: Create (Hole, Pattern, Mirror) and
+ * Modify (Fillet, Chamfer, Shell). `picks` is what the command acts on, which the Select tool's
+ * mode turns to when it opens: edges, faces, or none (Pattern copies a history feature).
+ */
+export const EDIT_COMMANDS = Object.freeze([
+  { id: "hole", label: "Hole", group: "Create", picks: "faces", prompt: "Select a flat face for the hole." },
+  { id: "pattern", label: "Pattern", group: "Create", picks: null, prompt: "" },
+  { id: "mirror", label: "Mirror", group: "Create", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
+  { id: "fillet", label: "Fillet", group: "Modify", picks: "edges", prompt: "Select the edges to round." },
+  { id: "chamfer", label: "Chamfer", group: "Modify", picks: "edges", prompt: "Select the edges to bevel." },
+  { id: "shell", label: "Shell", group: "Modify", picks: "faces", prompt: "Select the faces to open." },
+]);
+
+export const editCommand = id => EDIT_COMMANDS.find(command => command.id === id) || null;
+
+/** A command's inputs as it opens, in the part's units: what the panel shows before anything is typed. */
+export function commandDefaults(id, units) {
+  const size = DEFAULTS[units] || DEFAULTS.mm;
+  switch (id) {
+    case "fillet": return { radius: size.radius };
+    case "chamfer": return { distance: size.distance };
+    case "hole": return { diameter: size.diameter, depth: size.depth, through: true, x: "0", y: "0", z: "0" };
+    case "shell": return { thickness: size.thickness };
+    case "mirror": return { plane: "YZ" };
+    case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
+    default: return {};
+  }
+}
+
+/**
+ * What the viewer's selection is to a command: each face or edge by its selector, with what the
+ * viewer read of it (its kind, centre, and area or length), so `cadgen/edit` finds it on the part
+ * as its script makes it now.
+ */
+export function selectionItems(references = []) {
+  return references.filter(reference => reference?.selectorType === "face" || reference?.selectorType === "edge").map(reference => {
+    const pick = reference.pickData || {};
+    const face = reference.selectorType === "face";
+    const center = pick.center && pick.center.length === 3 ? Array.from(pick.center, Number) : null;
+    const size = Number(face ? pick.area : pick.length);
+    return {
+      selector: String(reference.displaySelector || reference.normalizedSelector || ""),
+      type: String((face ? pick.surfaceType : pick.curveType) || ""),
+      ...(center ? { center } : {}),
+      ...(Number.isFinite(size) ? { size } : {}),
+    };
+  });
+}
+
+/** A selected face or edge as the panel lists it: "Edge 12", "Face 4". */
+export function selectionLabel(item) {
+  const match = /([fe])(\d+)$/.exec(String(item?.selector || ""));
+  if (!match) return String(item?.selector || "");
+  return `${match[1] === "f" ? "Face" : "Edge"} ${match[2]}`;
+}
+
+/** The axes a hole moves along on a flat face: the two that lie in it, when its normal runs along the third. */
+export function faceOffsetAxes(normal) {
+  if (!normal || normal.length !== 3) return [];
+  const [x, y, z] = Array.from(normal, value => Math.abs(Number(value)));
+  if (Math.abs(z - 1) < 1e-6) return ["x", "y"];
+  if (Math.abs(x - 1) < 1e-6) return ["y", "z"];
+  if (Math.abs(y - 1) < 1e-6) return ["x", "z"];
+  return [];
+}
+
+/**
+ * The request a command's OK sends (`cadgen/edit`): the command, its selection, its inputs as
+ * typed and, for Mirror and Pattern, the history feature they copy (none copies the body).
+ */
+export function commandRequest(id, values, items, feature) {
+  const inputs = {};
+  switch (id) {
+    case "fillet": inputs.radius = values.radius; break;
+    case "chamfer": inputs.distance = values.distance; break;
+    case "shell": inputs.thickness = values.thickness; break;
+    case "hole":
+      Object.assign(inputs, { diameter: values.diameter, depth: values.through ? "" : values.depth });
+      for (const axis of ["x", "y", "z"]) if (String(values[axis] ?? "").trim() && Number(values[axis]) !== 0) inputs[axis] = values[axis];
+      break;
+    case "mirror": inputs.plane = values.plane; break;
+    case "pattern":
+      Object.assign(inputs, { type: values.type, count: values.count });
+      if (values.type === "linear") {
+        const spacing = String(values.spacing ?? "").trim();
+        Object.assign(inputs, { direction: values.direction, spacing: values.reverse ? `-(${spacing})` : spacing });
+      }
+      break;
+    default: break;
+  }
+  const picks = editCommand(id)?.picks;
+  const selection = picks === "edges" ? items : picks === "faces" ? items.filter(item => /f\d+$/.test(item.selector)) : [];
+  return { command: id, selection, inputs, ...(feature?.row && (id === "mirror" || id === "pattern") ? { feature } : {}) };
+}
+
+/** Why a command's OK cannot go yet, or "" when it can. */
+export function commandBlocked(id, items) {
+  const faces = items.filter(item => /f\d+$/.test(item.selector));
+  if (id === "fillet" || id === "chamfer") return items.length ? "" : "Select edges on the model.";
+  if (id === "hole") return faces.length === 1 ? "" : faces.length ? "Select one face." : "Select a flat face on the model.";
+  if (id === "shell") return faces.length ? "" : "Select the faces to open.";
+  if (id === "mirror") return faces.length > 1 ? "Select one face, or none to pick a plane." : "";
+  return "";
+}
+
+/** What a command tells the agent: "In edit mode I added Fillet2, radius 0.02 in, 4 edges (parts/tray.py, line 37)." */
+export function commandNote(change, title) {
+  const said = [...(change.inputs || []).map(input => `${input.label.toLowerCase()} ${withUnit(input.display, input.unit)}`),
+    change.what].filter(Boolean);
+  return `In edit mode I added ${title || change.feature}${said.length ? `, ${said.join(", ")}` : ""} (${change.file}, line ${change.line}).`;
+}
+
+/** What Undo or Redo of a command tells the agent. */
+export function commandUndoNote(change, title, redo) {
+  return `In edit mode I ${redo ? "added" : "removed"} ${title || change.feature}${redo ? " again" : ""} (${change.file}, line ${change.line}).`;
+}
+
 /** Where a build of the parts that use a change stands, in a line; empty when it is done. */
 export function buildingText(building) {
   if (!building || !building.scripts?.length) return "";
@@ -87,18 +210,18 @@ export const emptyHistory = () => ({ done: [], undone: [] });
 /** A change made by hand: Undo may take it back, and nothing undone can be redone after it. */
 export const recordChange = (history, change) => ({ done: [...history.done, change].slice(-HISTORY_LIMIT), undone: [] });
 
-/** Undo: the last change, and the request that writes its number back. */
+/** Undo: the last change, and the request that takes it back: its number written back, or a command's lines put back. */
 export function undoStep(history) {
   const change = history.done.at(-1);
   if (!change) return null;
-  return { request: { literal: change.literal, text: change.from },
+  return { change, request: change.kind === "command" ? { splice: change.undo } : { literal: change.literal, text: change.from },
     next: { done: history.done.slice(0, -1), undone: [...history.undone, change] } };
 }
 
-/** Redo: the last change undone, and the request that writes it again. */
+/** Redo: the last change undone, and the request that makes it again. */
 export function redoStep(history) {
   const change = history.undone.at(-1);
   if (!change) return null;
-  return { request: { literal: change.literal, text: change.to },
+  return { change, request: change.kind === "command" ? { splice: change.redo } : { literal: change.literal, text: change.to },
     next: { done: [...history.done, change], undone: history.undone.slice(0, -1) } };
 }

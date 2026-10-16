@@ -16,7 +16,7 @@ Read only the references needed for the request.
 | Task | First action | Reference |
 | --- | --- | --- |
 | **Create or edit a part or assembly** | Find the existing Python model, or create a decorated model below; edit source and run `python <model>.py`. | [Model contract](references/step-generation.md), [shape construction](references/build123d-modeling.md); [positioning](references/positioning.md) for assemblies |
-| **A part the engineer edits by hand** | Write it so the viewer's edit mode reads it: named sizes at the top, one feature per line. A hand change arrives as a note: read the script again and keep their values. | [Edit mode](references/edit-mode.md) |
+| **A part the engineer edits by hand** | Write it so the viewer's edit mode reads it: named sizes at the top, one feature per line, the body in one name. A hand change or a command's line (Fillet, Hole) arrives as a note: read the script again and keep what they wrote. | [Edit mode](references/edit-mode.md) |
 | **Organize a CAD project** | Follow its existing layout; for a new multi-model project use `src/`, format output folders, and a model catalog. | [Project layout](references/project-layout.md), [minimal starters](references/project-template.md) |
 | **Export STL, 3MF or GLB** | Add a mesh decorator for a maintained output, or run the format's `build INPUT.step OUT` command for a one-off export. | [Mesh exports](references/supported-exports.md) |
 | **Resolve a reference from a prompt** | Identify its saved STEP/STP document, open it with `read_scene`, and call `scene.resolve(ref)` as shown below. | [Reference syntax and inspection](references/inspection-and-validation.md#reference-syntax) |

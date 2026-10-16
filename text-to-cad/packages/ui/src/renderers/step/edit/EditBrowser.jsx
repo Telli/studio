@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { Box, Circle, Combine, FlipHorizontal2, Grid3x3, Move3d, Rotate3d, Scissors, Shapes, Square, SquareRoundCorner, X } from "lucide-react";
+import {
+  Box, Circle, CircleDot, Combine, FlipHorizontal2, Grid3x3, Move3d, Octagon, PackageOpen, Rotate3d, Scissors, Shapes, Square,
+  SquareRoundCorner, X
+} from "lucide-react";
 import { ScrollArea } from "@text-to-cad/ui/primitives/scroll-area";
 import { TREE_GLYPH_CLASS, TREE_GLYPH_STROKE, TreeRowSurface } from "@text-to-cad/ui/primitives/tree-row";
 import {
@@ -9,12 +12,13 @@ import {
   FileSheetValueInput
 } from "../../kit/inspector/FileSheet.js";
 import { TOOL_PANEL_BUTTON_CLASS } from "../../kit/tools/ToolPanel.jsx";
+import EditCommand from "./EditCommand.jsx";
 import { formulaWords, restates, sizeName } from "./editMode.js";
 
 const KIND_ICONS = Object.freeze({
-  Extrude: Box, Box, Cylinder: Box, Sphere: Box, Revolve: Rotate3d, Fillet: SquareRoundCorner, Chamfer: SquareRoundCorner,
+  Extrude: Box, Box, Cylinder: Box, Sphere: Box, Revolve: Rotate3d, Fillet: SquareRoundCorner, Chamfer: Octagon,
   Cut: Scissors, Combine: Combine, Intersect: Combine, Move: Move3d, Mirror: FlipHorizontal2, Pattern: Grid3x3,
-  Rectangle: Square, RectangleRounded: Square, Circle: Circle,
+  Hole: CircleDot, Shell: PackageOpen, Rectangle: Square, RectangleRounded: Square, Circle: Circle,
 });
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 
@@ -31,11 +35,13 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
  * Edit mode's browser, docked at the viewer's left as a CAD tool's design tree: the part's named
  * sizes (Parameters), its history (each operation of its script, numbered as a CAD tree numbers
  * it), and under them the feature selected, with its inputs. Every value is typed over to change
- * it; a change is one number in the part's script (`cadgen/edit`).
+ * it; a change is one number in the part's script (`cadgen/edit`). While a modeling command is
+ * open, its panel takes the sizes' place above the history, where a feature to copy is picked.
  *
- * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, names: ReturnType<typeof import("./editMode.js").featureNames> }} props
+ * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, names: ReturnType<typeof import("./editMode.js").featureNames>,
+ *   references?: object[] }} props  `references`: the faces and edges selected on the model.
  */
-export default function EditBrowser({ edit, names }) {
+export default function EditBrowser({ edit, names, references = [] }) {
   const [open, setOpen] = useState({ parameters: true, history: true, feature: true });
   const toggle = id => value => setOpen(current => ({ ...current, [id]: value }));
   const { state, status } = edit;
@@ -50,14 +56,15 @@ export default function EditBrowser({ edit, names }) {
       <span className="min-w-0 flex-1">{edit.error}</span>
       <button type="button" aria-label="Dismiss" className={TOOL_PANEL_BUTTON_CLASS} onClick={edit.dismissError}><X className="size-3" aria-hidden="true" /></button>
     </div> : null}
+    {edit.command ? <EditCommand key={edit.command} edit={edit} names={names} references={references} /> : null}
     <ScrollArea className="min-h-0 flex-1">
-      <FileSheetSettingsSection title="Parameters" sectionId="edit-parameters" open={open.parameters} onOpenChange={toggle("parameters")}>
+      {edit.command ? null : <FileSheetSettingsSection title="Parameters" sectionId="edit-parameters" open={open.parameters} onOpenChange={toggle("parameters")}>
         {status === "reading" ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>Reading the part</p>
           : params.length === 0 ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>No named sizes. Ask the agent to name the sizes that matter at the top of the script.</p>
             : params.map(param => <FileSheetControlRow key={param.id} label={sizeName(param.name)}
               trailing={<ValueField value={param.text} unit={param.unit} label={sizeName(param.name)} disabled={disabled}
                 onCommit={text => edit.change({ literal: param.id, text })} />} />)}
-      </FileSheetSettingsSection>
+      </FileSheetSettingsSection>}
       <FileSheetSettingsSection title="History" sectionId="edit-history" open={open.history} onOpenChange={toggle("history")}>
         <div role="listbox" aria-label="History" className="flex flex-col px-1 pb-1">
           {rows.map((row, index) => {
@@ -73,7 +80,7 @@ export default function EditBrowser({ edit, names }) {
           })}
         </div>
       </FileSheetSettingsSection>
-      {selectedRow ? <FileSheetSettingsSection title={selectedName?.name ? `${selectedName.title}, ${selectedName.name}` : selectedName?.title}
+      {selectedRow && !edit.command ? <FileSheetSettingsSection title={selectedName?.name ? `${selectedName.title}, ${selectedName.name}` : selectedName?.title}
         sectionId="edit-feature" open={open.feature} onOpenChange={toggle("feature")}>
         {selectedRow.inputs.length === 0 ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>Nothing to set here.</p>
           : selectedRow.inputs.map((input, index) => <FileSheetControlRow key={`${input.label}:${index}`} label={input.label}
