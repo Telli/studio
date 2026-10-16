@@ -156,17 +156,28 @@ describe("bundled plugins", () => {
         assert.deepEqual(BundledPlugins.defaultPluginKeys([repo, own], ["solidcraft"]), [
           "local-studio-plugins/solidcraft",
         ]);
-        yield* BundledPlugins.offerDefaults;
-        const plugins = yield* PluginService.PluginService;
-        assert.deepEqual(
-          (yield* plugins.list).plugins.map((plugin) => [plugin.id, plugin.enabled]).toSorted(),
-          [
-            ["solidcraft", true],
-            ["text-to-cad", true],
-          ],
-        );
+        const home = NodePath.join(dir, "home");
+        const installed = Effect.gen(function* () {
+          yield* BundledPlugins.offerDefaults;
+          const plugins = yield* PluginService.PluginService;
+          return (yield* plugins.list).plugins
+            .map((plugin) => [plugin.id, plugin.enabled])
+            .toSorted();
+        });
+        assert.deepEqual(yield* installed.pipe(Effect.provide(layerFor(env, home))), [
+          ["solidcraft", true],
+          ["text-to-cad", true],
+        ]);
+        // A start that no longer names it removes it; naming it again offers it again.
+        const without = { ...env, T3CODE_DEFAULT_PLUGINS: "text-to-cad" };
+        assert.deepEqual(yield* installed.pipe(Effect.provide(layerFor(without, home))), [
+          ["text-to-cad", true],
+        ]);
+        assert.deepEqual(yield* installed.pipe(Effect.provide(layerFor(env, home))), [
+          ["solidcraft", true],
+          ["text-to-cad", true],
+        ]);
       }).pipe(
-        Effect.provide(layerFor(env, NodePath.join(dir, "home"))),
         Effect.ensuring(Effect.sync(() => NodeFS.rmSync(dir, { recursive: true, force: true }))),
       );
     });

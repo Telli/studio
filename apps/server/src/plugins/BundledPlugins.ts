@@ -9,7 +9,8 @@
  *   enable on first start, each from the first of those folders that lists it.
  *
  * Each default is offered once (`plugins/offered.json`), so one the user
- * uninstalls stays uninstalled. A default still installed is updated when its
+ * uninstalls stays uninstalled; one the app stops naming is uninstalled, and
+ * offered again if it is named again. A default still installed is updated when its
  * folder changed since the last start (`plugins/bundled.json`), so the tools
  * and views T3 lists for it follow the app. Without the variables nothing
  * changes.
@@ -126,8 +127,32 @@ export const offerDefaults = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const path = yield* Path.Path;
   const offeredFile = path.join(config.stateDir, "plugins", "offered.json");
+  const current = defaultPluginKeys(folders, names);
+  // A default the app no longer ships is removed (its folder may be gone), and offered again
+  // should the app ship it again.
+  const withdrawn = readOffered(offeredFile).filter((key) => !current.includes(key));
+  if (withdrawn.length > 0) {
+    const { plugins: installed } = yield* plugins.list;
+    for (const key of withdrawn) {
+      // A plugin's id is its name, the key's last part: T3 installs one plugin of a name.
+      const plugin = installed.find((entry) => entry.id === key.slice(key.lastIndexOf("/") + 1));
+      yield* (plugin === undefined ? Effect.void : plugins.uninstall(plugin.id)).pipe(
+        Effect.andThen(
+          Effect.sync(() =>
+            PluginFiles.writeJsonFile(
+              offeredFile,
+              readOffered(offeredFile).filter((each) => each !== key),
+            ),
+          ),
+        ),
+        Effect.catch((error) =>
+          Effect.logWarning("bundled plugin was not removed", { key, error: error.message }),
+        ),
+      );
+    }
+  }
   const installedNow = new Set<string>();
-  for (const key of defaultPluginKeys(folders, names)) {
+  for (const key of current) {
     if (readOffered(offeredFile).includes(key)) continue;
     // Recorded only once installed: a failure (an unreadable checkout, a clash with the same
     // plugin from another catalog) is tried again at the next start.

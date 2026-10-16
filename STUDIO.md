@@ -110,7 +110,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   behind the same editor, for `.solidcraft` designs (the overview lists a design and its STEP as
   one part). `STUDIO_SOLIDCRAFT_APP=1` bridges it to the SolidCraft app instead. Bundled plugins
   come from several marketplace folders (`T3CODE_PLUGIN_MARKETPLACE`, separated as PATH is), and
-  one whose folder changed is updated at the next start, so its tools and views are listed again.
+  one whose folder changed is updated at the next start, so its tools and views are listed again;
+  one the app stops offering is uninstalled, and offered again if it is offered again.
 - **Setup, as a CAD tool shows it.** Under the project's name, its units, material (from a library
   of common grades, or any name typed), process and quantity. Picking a value writes the request
   into the composer ("Change the project's material to PETG."); the agent changes the project's
