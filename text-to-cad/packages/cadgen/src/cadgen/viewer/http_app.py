@@ -546,6 +546,8 @@ class CadApp:
             try:
                 if pathname == "/__cad/artifact":
                     self._handle_artifact_build(request, response, query)
+                elif pathname in ("/__cad/edit/state", "/__cad/edit/change"):
+                    self._handle_edit(request, response, pathname)
                 elif pathname in ("/__cad/analytics", "/__cad/analytics/activity") and self.analytics is not None:
                     # A page's crash report carries its frames (``_report_activity``): room for them, and no more.
                     if int(request.headers.get("content-length") or 0) > (16384 if pathname.endswith("/activity") else 4096):
@@ -787,6 +789,29 @@ class CadApp:
         # Only the literal string "1" forces; anything else is a normal build.
         result = self.ops.build_artifact(file_ref, force=query.get("force") == "1")
         response.send_json(500 if result.get("ok") is False else 200, result)
+
+    def _handle_edit(self, request, response, pathname):
+        """Edit mode (``cadgen/edit``): the part script read as a design (``state``), and one
+        number of it changed (``change``). The work is the edit service's processes, never this
+        one's. Its failures are answered, not reported as crashes: nothing about edit mode goes
+        into analytics."""
+        if int(request.headers.get("content-length") or 0) > 16384:
+            response.send_empty(413, [("connection", "close")])
+            return
+        try:
+            payload = json.loads(request.body() or b"{}")
+            if type(payload) is not dict:
+                raise ValueError("an edit request is an object")
+            from cadgen.edit.service import shared_service
+
+            service = shared_service()
+            if pathname.endswith("/state"):
+                result = service.state(str(payload.get("file") or ""), payload.get("files"))
+            else:
+                result = service.change(payload)
+        except Exception as error:  # noqa: BLE001
+            result = {"ok": False, "error": str(error) or type(error).__name__}
+        response.send_json(200, result)
 
     def _handle_store_asset(self, request, response, query):
         """A tree served as if it were a directory: ``<tree>/assembly.json`` is

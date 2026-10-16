@@ -1,4 +1,4 @@
-"""Studio's part tracer: a text-to-cad part script run so that its program reads as a design.
+"""Edit mode's tracer: a part script run so that its program reads as a design.
 
 The script stays the only thing anyone writes. Running it here records it as an engineer reads a
 part: a timeline of the build123d operations it performed, in order, each traced to the line of
@@ -8,9 +8,11 @@ where it was written (`LENGTH = 2.80`, line 8) and the formula it went through (
 while behaving exactly as a float or an int to build123d and OCCT. A hand edit is then one number
 changed in the source, solved back from the dimension the engineer typed, and the part traced again.
 
-It runs warm (`--serve`): one JSON request per line on stdin, one reply per line on stdout, with
-build123d imported once. Nothing here changes how cadgen builds: the STEP files are still written
-by running the scripts as text-to-cad does.
+It runs warm in a process of its own (`python -m cadgen.edit.tracer --serve`, started by
+`service.py`): one JSON request per line on stdin, one reply per line on stdout, with build123d
+imported once. It patches build123d and cadgen's model decorator for its own process only, so it is
+never imported anywhere else. Nothing here changes how cadgen builds: the STEP files are still
+written by running the scripts as the agent does.
 """
 
 from __future__ import annotations
@@ -1000,7 +1002,8 @@ def trace(request):
         "params": params,
         "rows": [{**row, "inputs": [_clean(item) for item in row["inputs"]]} for row in rows],
         "dimensions": [_clean(d) for d in dimensions],
-        "mesh": _export_mesh(shape) if isinstance(shape, B.Shape) else None,
+        # The viewer draws the model from its STEP; a page of its own asks for the mesh.
+        "mesh": _export_mesh(shape) if request.get("mesh", True) and isinstance(shape, B.Shape) else None,
         "printed": printed.getvalue()[-2000:],
     }
 
