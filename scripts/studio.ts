@@ -144,6 +144,10 @@ if (process.env.STUDIO_SOLIDCRAFT?.trim() === "1" && NodeFS.existsSync(SOLIDCRAF
 }
 if (defaults.length > 1) markets.push(own);
 
+// text-to-cad's name, mark, icons and accent (brand/README.md).
+const brandDir = NodePath.join(appRoot, "brand");
+const brand = JSON.parse(NodeFS.readFileSync(NodePath.join(brandDir, "brand.json"), "utf8"));
+
 const run = NodeChildProcess.spawnSync(
   process.execPath,
   [
