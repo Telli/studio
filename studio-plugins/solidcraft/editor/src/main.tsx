@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
-import { createBridge } from "../../../part-editor/editor/src/bridge";
+import { createBridge } from "./bridge";
 
 const bridge = createBridge();
 const root = document.getElementById("root")!;

@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - a build step the launcher runs before the app starts.
 /**
- * Builds Studio's editor pages (studio-plugins/part-editor/editor, studio-plugins/solidcraft/editor)
- * into the one HTML file each plugin serves as an MCP Apps view: Studio frames views from a single
+ * Builds a Studio plugin's editor page (studio-plugins/solidcraft/editor) into the one HTML file
+ * the plugin serves as an MCP Apps view: Studio frames views from a single
  * document, so the script and styles are inlined. esbuild is the one beside the web app's Vite;
  * React and lucide come from the web app, three.js from client-runtime, so the pages need no
  * packages of their own.
@@ -42,11 +42,7 @@ export async function buildEditorPage(
     logLevel: "silent",
   });
   const script = built.outputFiles[0]?.text ?? "";
-  // Every page wears the part editor's styles.
-  const styles = NodeFS.readFileSync(
-    NodePath.join(appRoot, "studio-plugins", "part-editor", "editor", "src", "styles.css"),
-    "utf8",
-  );
+  const styles = NodeFS.readFileSync(NodePath.join(editor, "src", "styles.css"), "utf8");
   const page = NodeFS.readFileSync(NodePath.join(editor, "index.html"), "utf8")
     .replace("/*STYLES*/", () => styles.replaceAll("</style", "<\\/style"))
     .replace("/*SCRIPT*/", () => script.replaceAll("</script", "<\\/script"));

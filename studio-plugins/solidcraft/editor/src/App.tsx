@@ -24,13 +24,9 @@ import {
   type TimelineFeature,
 } from "../../../../apps/web/src/components/workbench/solidcraft/designState";
 import { humanName } from "../../../../apps/web/src/components/workbench/partNames";
-import type { Bridge, HostContext } from "../../../part-editor/editor/src/bridge";
-import {
-  describeError,
-  EditableValue,
-  featureIcon,
-} from "../../../part-editor/editor/src/controls";
-import { PartViewport, type ViewportColors } from "../../../part-editor/editor/src/viewport";
+import type { Bridge, HostContext } from "./bridge";
+import { describeError, EditableValue, featureIcon } from "./controls";
+import { PartViewport, type ViewportColors } from "./viewport";
 
 interface DesignState {
   readonly unchanged: false;

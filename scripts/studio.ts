@@ -10,10 +10,9 @@
  * - names and brands the app from `brand/` (text-to-cad's mark, icons and accent);
  * - keeps its state in `~/.text-to-cad-studio`, never in T3 Code's own home.
  *
- * - offers Studio's own plugins (`studio-plugins/`) beside it: the part editor,
- *   which edits text-to-cad parts by hand in cadgen's Python (the checkout's in
- *   development, else CADGEN_PYTHON), and SolidCraft behind the same editor only
- *   with STUDIO_SOLIDCRAFT=1 (STUDIO_SOLIDCRAFT_APP=1 bridges it to the app);
+ * - edits parts by hand in text-to-cad's own viewer (its edit mode, `cadgen/edit`);
+ *   Studio's own plugins (`studio-plugins/`) are offered beside it: SolidCraft,
+ *   only with STUDIO_SOLIDCRAFT=1 (STUDIO_SOLIDCRAFT_APP=1 bridges it to the app);
  *
  * TEXT_TO_CAD_ROOT points at another checkout; TEXT_TO_CAD_STUDIO_HOME moves the state.
  * TEXT_TO_CAD_DEV=1 runs the checkout's working copy instead of the released cadgen: its
@@ -79,26 +78,7 @@ const writeConfig = (plugin: string, name: string, args: ReadonlyArray<string>) 
     JSON.stringify({ mcpServers: { [name]: { command: process.execPath, args } } }, null, 2),
   );
 
-// The part editor: a text-to-cad part's sizes and dimensions changed by hand, each change one
-// number in its script. It runs the scripts in cadgen's Python: the checkout's in development.
-const cadgenPython =
-  process.env.CADGEN_PYTHON?.trim() ||
-  (dev ? NodePath.join(checkout, ".venv", "bin", "python") : "");
-if (cadgenPython !== "" && NodeFS.existsSync(cadgenPython)) {
-  await buildEditorPage(
-    appRoot,
-    NodePath.join(appRoot, "studio-plugins", "part-editor", "editor"),
-    NodePath.join(own, "part-editor", "editor", "editor.html"),
-  );
-  writeConfig("part-editor", "part-editor", [
-    NodePath.join(own, "part-editor", "server", "server.mjs"),
-    "--python",
-    cadgenPython,
-  ]);
-  defaults.push("part-editor");
-}
-
-// SolidCraft (a parametric CAD engine) behind the same editor, only when asked:
+// SolidCraft (a parametric CAD engine) behind an editor page of its own, only when asked:
 // STUDIO_SOLIDCRAFT=1, with it installed in Applications. STUDIO_SOLIDCRAFT_APP=1 bridges its
 // engine to the SolidCraft app instead of running it headless.
 const SOLIDCRAFT_APP = process.env.SOLIDCRAFT_APP?.trim() || "/Applications/SolidCraft.app";
