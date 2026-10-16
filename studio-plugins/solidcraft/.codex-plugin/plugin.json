@@ -1,0 +1,21 @@
+{
+  "name": "solidcraft",
+  "version": "0.13.1",
+  "description": "Models and edits parts in SolidCraft, the parametric CAD app open beside Studio, through its MCP server. The engineer edits the same design by hand; the agent reads it first and builds on it.",
+  "author": { "name": "bherbruck", "url": "https://github.com/bherbruck/solidcraft" },
+  "homepage": "https://github.com/bherbruck/solidcraft",
+  "repository": "https://github.com/bherbruck/solidcraft",
+  "license": "Apache-2.0",
+  "keywords": ["cad", "parametric", "sketch", "step"],
+  "skills": "./skills/",
+  "mcpServers": "./codex.mcp.json",
+  "interface": {
+    "displayName": "SolidCraft",
+    "shortDescription": "Edit parts like a CAD tool",
+    "longDescription": "SolidCraft is a parametric CAD app with sketches, constraints and a feature timeline. With it open beside Studio, the engineer changes dimensions and features by hand and the agent works on the same design through its MCP server.",
+    "developerName": "bherbruck",
+    "category": "Creativity",
+    "capabilities": ["Write", "Interactive"],
+    "websiteURL": "https://github.com/bherbruck/solidcraft"
+  }
+}

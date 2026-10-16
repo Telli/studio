@@ -1,0 +1,13 @@
+{
+  "name": "studio-plugins",
+  "owner": { "name": "Studio" },
+  "description": "Plugins Studio ships with beside text-to-cad",
+  "plugins": [
+    {
+      "name": "solidcraft",
+      "source": "./solidcraft",
+      "description": "Edit parts in SolidCraft, a parametric CAD app, beside the engineer",
+      "version": "0.13.1"
+    }
+  ]
+}

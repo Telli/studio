@@ -90,6 +90,14 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **A sidebar of projects.** In Engineering the sidebar lists the projects, not their threads,
   then the folders in no project: each opens on its page, where its history is, and says whether
   work in it needs you or is under way. Engineering with code keeps T3 Code's thread sidebar.
+- **SolidCraft beside Studio (spike).** With SolidCraft (a parametric CAD app, Apache-2.0) in
+  Applications, the launcher offers Studio's own plugin (`studio-plugins/solidcraft`): SolidCraft's
+  MCP server bridged to the app, which it opens with its control port (7878), with SolidCraft's
+  skills and Studio's (`studio-solidcraft`). The engineer edits the design by hand in SolidCraft
+  (dimensions, parameters, the timeline); the agent reads it first each turn, keeps their edits,
+  doesn't recheck on every one, and exports STEP beside the design for Studio's viewer and checks.
+  `STUDIO_SOLIDCRAFT=0` leaves it out. Bundled plugins come from several marketplace folders
+  (`T3CODE_PLUGIN_MARKETPLACE`, separated as PATH is).
 - **Setup, as a CAD tool shows it.** Under the project's name, its units, material (from a library
   of common grades, or any name typed), process and quantity. Picking a value writes the request
   into the composer ("Change the project's material to PETG."); the agent changes the project's

@@ -123,6 +123,8 @@ const ENDINGS: ReadonlyArray<{
   { ending: /\.(?:nc|gcode|ngc|tap|gco)$/i, kind: "G-code", suffix: "G-code" },
   { ending: /\.(?:gbr|drl)$/i, kind: "Gerbers", suffix: "Gerbers" },
   { ending: /\.(?:step|stp)$/i, kind: "Part", suffix: "" },
+  // A SolidCraft design: the part itself, as the engineer edits it in SolidCraft.
+  { ending: /\.solidcraft$/i, kind: "Design", suffix: "" },
   { ending: /\.(?:stl|3mf|obj|glb)$/i, kind: "Mesh", suffix: "mesh" },
   { ending: /\.urdf$/i, kind: "Robot", suffix: "robot description" },
   { ending: /\.srdf$/i, kind: "Planning groups", suffix: "planning groups" },

@@ -80,7 +80,7 @@ describe("bundled plugins", () => {
         return (yield* plugins.list).plugins.map((plugin) => [plugin.id, plugin.enabled]);
       });
       return Effect.gen(function* () {
-        assert.deepEqual(BundledPlugins.defaultPluginKeys(repo, ["text-to-cad"]), [
+        assert.deepEqual(BundledPlugins.defaultPluginKeys([repo], ["text-to-cad"]), [
           "local-text-to-cad/text-to-cad",
         ]);
 
@@ -118,6 +118,42 @@ describe("bundled plugins", () => {
           assert.deepEqual(yield* listIds, []);
         }).pipe(Effect.provide(layerFor({}, NodePath.join(dir, "other-home"))));
       }).pipe(
+        Effect.ensuring(Effect.sync(() => NodeFS.rmSync(dir, { recursive: true, force: true }))),
+      );
+    });
+
+    it.effect("installs each default from the folder that lists it", () => {
+      const { dir, repo } = checkout();
+      // The app's own marketplace: a folder of plugins beside the checkout's.
+      const own = NodePath.join(dir, "studio-plugins");
+      write(NodePath.join(own, ".claude-plugin", "marketplace.json"), {
+        name: "studio-plugins",
+        plugins: [{ name: "solidcraft", source: "./solidcraft", description: "Edit parts" }],
+      });
+      write(NodePath.join(own, "solidcraft", ".codex-plugin", "plugin.json"), {
+        name: "solidcraft",
+        version: "1.0.0",
+        skills: "./skills/",
+      });
+      const env = {
+        T3CODE_PLUGIN_MARKETPLACE: [repo, own].join(NodePath.delimiter),
+        T3CODE_DEFAULT_PLUGINS: "text-to-cad,solidcraft",
+      };
+      return Effect.gen(function* () {
+        assert.deepEqual(BundledPlugins.defaultPluginKeys([repo, own], ["solidcraft"]), [
+          "local-studio-plugins/solidcraft",
+        ]);
+        yield* BundledPlugins.offerDefaults;
+        const plugins = yield* PluginService.PluginService;
+        assert.deepEqual(
+          (yield* plugins.list).plugins.map((plugin) => [plugin.id, plugin.enabled]).toSorted(),
+          [
+            ["solidcraft", true],
+            ["text-to-cad", true],
+          ],
+        );
+      }).pipe(
+        Effect.provide(layerFor(env, NodePath.join(dir, "home"))),
         Effect.ensuring(Effect.sync(() => NodeFS.rmSync(dir, { recursive: true, force: true }))),
       );
     });

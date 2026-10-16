@@ -42,6 +42,21 @@ describe("design changes", () => {
     ]);
   });
 
+  it("reads a SolidCraft design and its STEP as one part, opening the STEP", () => {
+    expect(designChanges(["parts/servo_bracket.solidcraft", "parts/servo_bracket.step"])).toEqual({
+      changes: [
+        {
+          name: "Servo bracket",
+          label: "Servo bracket",
+          aspects: ["model"],
+          kind: "Part",
+          open: "parts/servo_bracket.step",
+        },
+      ],
+      other: 0,
+    });
+  });
+
   it("has nothing to open for a model script on its own", () => {
     expect(designChanges(["parts/bracket.py"]).changes[0]).toMatchObject({
       label: "Bracket",

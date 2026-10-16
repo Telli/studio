@@ -27,6 +27,7 @@ const STANDALONE = new Set(["Document", "Table", "Image", "Setup"]);
 /** What a file of this kind is of its part. A model script is the model. */
 const ASPECT: Readonly<Record<string, string>> = {
   Part: "model",
+  Design: "model",
   Source: "model",
   Mesh: "mesh",
   Drawing: "drawing",
