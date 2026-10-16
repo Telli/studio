@@ -419,3 +419,69 @@ button:disabled {
   right: auto;
   left: 22px;
 }
+
+/* The part editor's own pieces. */
+.feature-kind {
+  margin-left: auto;
+  padding-right: 6px;
+  color: var(--faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.code-ref {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  padding: 0 14px 8px 32px;
+  color: var(--faint);
+  font-size: 11px;
+}
+.picker {
+  padding: 18px;
+}
+.picker h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pick {
+  text-align: left;
+  color: var(--text);
+}
+.pick:hover {
+  color: var(--accent);
+}
+.choose {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 30;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  max-width: 340px;
+}
+.choose p {
+  margin: 0 0 8px;
+  color: var(--muted);
+}
+.choose-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.choose-option {
+  padding: 3px 9px;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  color: var(--text);
+}
+.choose-option:hover {
+  background: var(--accent);
+  color: #fff;
+}

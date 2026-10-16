@@ -6,24 +6,8 @@
  * and tells the agent on its next call. The page asks for the design again every second and a
  * half, so the agent's changes show up too.
  */
-import {
-  Box,
-  CircleDot,
-  CornerDownLeft,
-  Eye,
-  EyeOff,
-  FlipHorizontal2,
-  Grid3x3,
-  Layers,
-  PencilRuler,
-  Redo2,
-  RotateCw,
-  Ruler,
-  Scan,
-  Squircle,
-  Undo2,
-} from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CornerDownLeft, Eye, EyeOff, Redo2, Ruler, Scan, Undo2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   type ModelDimension,
@@ -40,8 +24,13 @@ import {
   type TimelineFeature,
 } from "../../../../apps/web/src/components/workbench/solidcraft/designState";
 import { humanName } from "../../../../apps/web/src/components/workbench/partNames";
-import type { Bridge, HostContext } from "./bridge";
-import { PartViewport, type ViewportColors } from "./viewport";
+import type { Bridge, HostContext } from "../../../part-editor/editor/src/bridge";
+import {
+  describeError,
+  EditableValue,
+  featureIcon,
+} from "../../../part-editor/editor/src/controls";
+import { PartViewport, type ViewportColors } from "../../../part-editor/editor/src/viewport";
 
 interface DesignState {
   readonly unchanged: false;
@@ -87,103 +76,6 @@ function applyContext(context: HostContext) {
   for (const [name, value] of Object.entries(context.styles?.variables ?? {})) {
     root.style.setProperty(name, value);
   }
-}
-
-const describeError = (error: unknown) => (error instanceof Error ? error.message : String(error));
-
-/** A value an engineer changes in place: double-click, type a number or a formula, Enter. */
-function EditableValue(props: {
-  readonly expression: string;
-  readonly display: string;
-  readonly onCommit: (expression: string) => Promise<void>;
-  readonly onActive?: (active: boolean) => void;
-  readonly label: string;
-  readonly hint?: string;
-  readonly className?: string;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(props.expression);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing) input.current?.select();
-  }, [editing]);
-
-  const start = () => {
-    setDraft(props.expression);
-    setError(null);
-    setEditing(true);
-    props.onActive?.(true);
-  };
-  const stop = () => {
-    setEditing(false);
-    props.onActive?.(false);
-  };
-  const commit = async () => {
-    const next = draft.trim();
-    if (next === "" || next === props.expression) return stop();
-    setBusy(true);
-    try {
-      await props.onCommit(next);
-      stop();
-    } catch (cause) {
-      setError(describeError(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        className={`value ${props.className ?? ""}`}
-        data-tip={props.hint ?? "Double-click to change"}
-        aria-label={`${props.label}, ${props.display}. Double-click to change`}
-        onDoubleClick={start}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") start();
-        }}
-        onMouseEnter={() => props.onActive?.(true)}
-        onMouseLeave={() => props.onActive?.(false)}
-      >
-        {props.display}
-      </button>
-    );
-  }
-  return (
-    <span className={`value-edit ${props.className ?? ""}`}>
-      <input
-        ref={input}
-        value={draft}
-        disabled={busy}
-        aria-label={`New value for ${props.label}`}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={() => {
-          if (!busy) stop();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") void commit();
-          if (event.key === "Escape") stop();
-        }}
-      />
-      {error === null ? null : <span className="value-error">{error}</span>}
-    </span>
-  );
-}
-
-function featureIcon(kind: string): ReactNode {
-  const props = { size: 14, "aria-hidden": true } as const;
-  if (kind === "Sketch") return <PencilRuler {...props} />;
-  if (/extrude/i.test(kind)) return <Box {...props} />;
-  if (/revolve/i.test(kind)) return <RotateCw {...props} />;
-  if (/hole|thread/i.test(kind)) return <CircleDot {...props} />;
-  if (/pattern/i.test(kind)) return <Grid3x3 {...props} />;
-  if (/fillet|chamfer/i.test(kind)) return <Squircle {...props} />;
-  if (/mirror/i.test(kind)) return <FlipHorizontal2 {...props} />;
-  return <Layers {...props} />;
 }
 
 function ParameterRow(props: {
@@ -443,7 +335,10 @@ export function App(props: { readonly bridge: Bridge; readonly context: HostCont
   }, [state, showDimensions, selectedSketch]);
 
   useEffect(() => {
-    viewport?.setDimensions(dimensions, activeDimension);
+    viewport?.setDimensions(
+      dimensions.map((dimension) => ({ key: dimension.param, lines: dimension.lines })),
+      activeDimension,
+    );
   }, [viewport, dimensions, activeDimension]);
 
   // Each design is framed once, with its dimensions, when it first shows; then the camera is the engineer's.

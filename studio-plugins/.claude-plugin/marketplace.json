@@ -1,8 +1,16 @@
 {
   "name": "studio-plugins",
-  "owner": { "name": "Studio" },
+  "owner": {
+    "name": "Studio"
+  },
   "description": "Plugins Studio ships with beside text-to-cad",
   "plugins": [
+    {
+      "name": "part-editor",
+      "source": "./part-editor",
+      "description": "Change a text-to-cad part's sizes by hand; each change is one number edited in its script",
+      "version": "0.1.0"
+    },
     {
       "name": "solidcraft",
       "source": "./solidcraft",

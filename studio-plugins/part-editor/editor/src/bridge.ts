@@ -95,6 +95,10 @@ export function createBridge() {
       }
       return result.structuredContent as T;
     },
+    /** Tells the thread what the engineer did, for the agent's next turn (Studio puts it in the composer). */
+    async tellThread(text: string): Promise<void> {
+      await request("ui/update-model-context", { content: [{ type: "text", text }] });
+    },
     onContext(listener: (context: HostContext) => void) {
       contextListeners.add(listener);
       return () => {

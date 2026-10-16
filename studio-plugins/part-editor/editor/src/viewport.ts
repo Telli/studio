@@ -8,10 +8,13 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 
-import type {
-  ModelDimension,
-  Vec3,
-} from "../../../../apps/web/src/components/workbench/solidcraft/dimensions";
+type Vec3 = readonly [number, number, number];
+
+/** A dimension as the view draws it: its lines, and a key to light it up by. */
+export interface DrawnDimension {
+  readonly key: string;
+  readonly lines: ReadonlyArray<readonly [Vec3, Vec3]>;
+}
 
 export interface ViewportColors {
   readonly background: string;
@@ -40,7 +43,7 @@ export class PartViewport {
   private frame = 0;
   private scheduled = false;
   private colors: ViewportColors;
-  private dimensions: ReadonlyArray<ModelDimension> = [];
+  private dimensions: ReadonlyArray<DrawnDimension> = [];
   private active: string | null = null;
 
   constructor(
@@ -112,7 +115,7 @@ export class PartViewport {
     this.request();
   }
 
-  setDimensions(dimensions: ReadonlyArray<ModelDimension>, active: string | null) {
+  setDimensions(dimensions: ReadonlyArray<DrawnDimension>, active: string | null) {
     this.dimensions = dimensions;
     this.active = active;
     for (const child of this.annotations.children) disposeObject(child);
@@ -131,13 +134,13 @@ export class PartViewport {
     };
     build(
       dimensions
-        .filter((dimension) => dimension.param !== active)
+        .filter((dimension) => dimension.key !== active)
         .flatMap((dimension) => dimension.lines),
       this.colors.dimension,
     );
     build(
       dimensions
-        .filter((dimension) => dimension.param === active)
+        .filter((dimension) => dimension.key === active)
         .flatMap((dimension) => dimension.lines),
       this.colors.dimensionActive,
     );

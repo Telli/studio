@@ -9,10 +9,10 @@
  * - names and brands the app from `brand/` (text-to-cad's mark, icons and accent);
  * - keeps its state in `~/.text-to-cad-studio`, never in T3 Code's own home.
  *
- * - offers Studio's own plugins (`studio-plugins/`) beside it: SolidCraft, when
- *   it is installed in Applications, its engine run headless per thread behind
- *   Studio's part editor (STUDIO_SOLIDCRAFT=0 leaves it out; STUDIO_SOLIDCRAFT_APP=1
- *   bridges it to the SolidCraft app instead, which it opens);
+ * - offers Studio's own plugins (`studio-plugins/`) beside it: the part editor,
+ *   which edits text-to-cad parts by hand in cadgen's Python (the checkout's in
+ *   development, else CADGEN_PYTHON), and SolidCraft behind the same editor only
+ *   with STUDIO_SOLIDCRAFT=1 (STUDIO_SOLIDCRAFT_APP=1 bridges it to the app);
  *
  * TEXT_TO_CAD_ROOT points at another checkout; TEXT_TO_CAD_STUDIO_HOME moves the state.
  * TEXT_TO_CAD_DEV=1 runs the checkout's working copy instead of the released cadgen: its
@@ -24,7 +24,7 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
-import { buildSolidcraftEditor } from "./solidcraft-editor.ts";
+import { buildEditorPage } from "./editor-pages.ts";
 
 const appRoot = NodePath.dirname(import.meta.dirname);
 const checkout = NodePath.resolve(
@@ -65,18 +65,45 @@ const home =
   process.env.TEXT_TO_CAD_STUDIO_HOME?.trim() ||
   NodePath.join(NodeOS.homedir(), dev ? ".text-to-cad-studio-dev" : ".text-to-cad-studio");
 
-// SolidCraft, a parametric CAD engine the engineer edits by hand in Studio's part editor while the
-// agent works on the same design: Studio's server runs it per thread (studio-plugins/solidcraft).
-const SOLIDCRAFT_APP = process.env.SOLIDCRAFT_APP?.trim() || "/Applications/SolidCraft.app";
-const bridged = process.env.STUDIO_SOLIDCRAFT_APP?.trim() === "1";
-const SOLIDCRAFT_PORT = "7878";
+// Studio's own plugins (studio-plugins/), copied fresh each start with this computer's paths
+// written into their MCP configs, so nothing in the repository names a path on one computer.
+const own = NodePath.join(home, "studio-plugins");
+NodeFS.rmSync(own, { recursive: true, force: true });
+NodeFS.cpSync(NodePath.join(appRoot, "studio-plugins"), own, { recursive: true });
 const markets = [marketplace];
 const defaults = ["text-to-cad"];
-if (process.env.STUDIO_SOLIDCRAFT?.trim() !== "0" && NodeFS.existsSync(SOLIDCRAFT_APP)) {
-  // The plugin is copied fresh each start, with this computer's paths written into its MCP config.
-  const own = NodePath.join(home, "studio-plugins");
-  NodeFS.rmSync(own, { recursive: true, force: true });
-  NodeFS.cpSync(NodePath.join(appRoot, "studio-plugins"), own, { recursive: true });
+const writeConfig = (plugin: string, name: string, args: ReadonlyArray<string>) =>
+  NodeFS.writeFileSync(
+    NodePath.join(own, plugin, "codex.mcp.json"),
+    JSON.stringify({ mcpServers: { [name]: { command: process.execPath, args } } }, null, 2),
+  );
+
+// The part editor: a text-to-cad part's sizes and dimensions changed by hand, each change one
+// number in its script. It runs the scripts in cadgen's Python: the checkout's in development.
+const cadgenPython =
+  process.env.CADGEN_PYTHON?.trim() ||
+  (dev ? NodePath.join(checkout, ".venv", "bin", "python") : "");
+if (cadgenPython !== "" && NodeFS.existsSync(cadgenPython)) {
+  await buildEditorPage(
+    appRoot,
+    NodePath.join(appRoot, "studio-plugins", "part-editor", "editor"),
+    NodePath.join(own, "part-editor", "editor", "editor.html"),
+  );
+  writeConfig("part-editor", "part-editor", [
+    NodePath.join(own, "part-editor", "server", "server.mjs"),
+    "--python",
+    cadgenPython,
+  ]);
+  defaults.push("part-editor");
+}
+
+// SolidCraft (a parametric CAD engine) behind the same editor, only when asked:
+// STUDIO_SOLIDCRAFT=1, with it installed in Applications. STUDIO_SOLIDCRAFT_APP=1 bridges its
+// engine to the SolidCraft app instead of running it headless.
+const SOLIDCRAFT_APP = process.env.SOLIDCRAFT_APP?.trim() || "/Applications/SolidCraft.app";
+const SOLIDCRAFT_PORT = "7878";
+const bridged = process.env.STUDIO_SOLIDCRAFT_APP?.trim() === "1";
+if (process.env.STUDIO_SOLIDCRAFT?.trim() === "1" && NodeFS.existsSync(SOLIDCRAFT_APP)) {
   const projects =
     process.env.STUDIO_PROJECTS_DIR?.trim() || NodePath.join(NodeOS.homedir(), "studio-projects");
   const allowed = [
@@ -85,29 +112,18 @@ if (process.env.STUDIO_SOLIDCRAFT?.trim() !== "0" && NodeFS.existsSync(SOLIDCRAF
   ]
     .map((folder) => folder.trim())
     .filter(Boolean);
-  await buildSolidcraftEditor(appRoot, NodePath.join(own, "solidcraft", "editor", "editor.html"));
-  NodeFS.writeFileSync(
-    NodePath.join(own, "solidcraft", "codex.mcp.json"),
-    JSON.stringify(
-      {
-        mcpServers: {
-          solidcraft: {
-            command: process.execPath,
-            args: [
-              NodePath.join(own, "solidcraft", "server", "server.mjs"),
-              "--cli",
-              NodePath.join(SOLIDCRAFT_APP, "Contents", "MacOS", "solidcraft-cli"),
-              ...(bridged ? ["--connect", `127.0.0.1:${SOLIDCRAFT_PORT}`] : []),
-              ...allowed.flatMap((folder) => ["--allow-path", folder]),
-            ],
-          },
-        },
-      },
-      null,
-      2,
-    ),
+  await buildEditorPage(
+    appRoot,
+    NodePath.join(appRoot, "studio-plugins", "solidcraft", "editor"),
+    NodePath.join(own, "solidcraft", "editor", "editor.html"),
   );
-  markets.push(own);
+  writeConfig("solidcraft", "solidcraft", [
+    NodePath.join(own, "solidcraft", "server", "server.mjs"),
+    "--cli",
+    NodePath.join(SOLIDCRAFT_APP, "Contents", "MacOS", "solidcraft-cli"),
+    ...(bridged ? ["--connect", `127.0.0.1:${SOLIDCRAFT_PORT}`] : []),
+    ...allowed.flatMap((folder) => ["--allow-path", folder]),
+  ]);
   defaults.push("solidcraft");
   if (bridged) {
     // Opens SolidCraft beside Studio, ready for the agent; one already open keeps its own window.
@@ -116,10 +132,17 @@ if (process.env.STUDIO_SOLIDCRAFT?.trim() !== "0" && NodeFS.existsSync(SOLIDCRAF
       detached: true,
     }).unref();
   }
+} else {
+  // Left out entirely, so its skills never point the agent at tools that are not there.
+  NodeFS.rmSync(NodePath.join(own, "solidcraft"), { recursive: true, force: true });
+  const listing = NodePath.join(own, ".claude-plugin", "marketplace.json");
+  const market = JSON.parse(NodeFS.readFileSync(listing, "utf8"));
+  market.plugins = market.plugins.filter(
+    (plugin: { name: string }) => plugin.name !== "solidcraft",
+  );
+  NodeFS.writeFileSync(listing, JSON.stringify(market, null, 2));
 }
-// text-to-cad's name, mark, icons and accent (brand/README.md).
-const brandDir = NodePath.join(appRoot, "brand");
-const brand = JSON.parse(NodeFS.readFileSync(NodePath.join(brandDir, "brand.json"), "utf8"));
+if (defaults.length > 1) markets.push(own);
 
 const run = NodeChildProcess.spawnSync(
   process.execPath,

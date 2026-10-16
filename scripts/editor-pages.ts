@@ -1,16 +1,21 @@
 // @effect-diagnostics nodeBuiltinImport:off - a build step the launcher runs before the app starts.
 /**
- * Builds Studio's part editor (studio-plugins/solidcraft/editor) into the one HTML file its server
- * serves as an MCP Apps view: Studio frames views from a single document, so the script and styles
- * are inlined. esbuild is the one beside the web app's Vite; React and lucide come from the web
- * app, three.js from client-runtime, so the editor needs no packages of its own.
+ * Builds Studio's editor pages (studio-plugins/part-editor/editor, studio-plugins/solidcraft/editor)
+ * into the one HTML file each plugin serves as an MCP Apps view: Studio frames views from a single
+ * document, so the script and styles are inlined. esbuild is the one beside the web app's Vite;
+ * React and lucide come from the web app, three.js from client-runtime, so the pages need no
+ * packages of their own.
  */
 import * as NodeFS from "node:fs";
 import * as NodeModule from "node:module";
 import * as NodePath from "node:path";
 
-export async function buildSolidcraftEditor(appRoot: string, outFile: string): Promise<void> {
-  const editor = NodePath.join(appRoot, "studio-plugins", "solidcraft", "editor");
+/** Builds the page in `editor` (its index.html and src/main.tsx) to `outFile`. */
+export async function buildEditorPage(
+  appRoot: string,
+  editor: string,
+  outFile: string,
+): Promise<void> {
   const viteRoot = NodePath.dirname(
     NodeFS.realpathSync(
       NodePath.join(appRoot, "apps", "web", "node_modules", "vite", "package.json"),
@@ -37,7 +42,11 @@ export async function buildSolidcraftEditor(appRoot: string, outFile: string): P
     logLevel: "silent",
   });
   const script = built.outputFiles[0]?.text ?? "";
-  const styles = NodeFS.readFileSync(NodePath.join(editor, "src", "styles.css"), "utf8");
+  // Every page wears the part editor's styles.
+  const styles = NodeFS.readFileSync(
+    NodePath.join(appRoot, "studio-plugins", "part-editor", "editor", "src", "styles.css"),
+    "utf8",
+  );
   const page = NodeFS.readFileSync(NodePath.join(editor, "index.html"), "utf8")
     .replace("/*STYLES*/", () => styles.replaceAll("</style", "<\\/style"))
     .replace("/*SCRIPT*/", () => script.replaceAll("</script", "<\\/script"));

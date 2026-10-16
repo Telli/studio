@@ -90,19 +90,27 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **A sidebar of projects.** In Engineering the sidebar lists the projects, not their threads,
   then the folders in no project: each opens on its page, where its history is, and says whether
   work in it needs you or is under way. Engineering with code keeps T3 Code's thread sidebar.
-- **The part editor (SolidCraft).** With SolidCraft (a parametric CAD engine, Apache-2.0) in
-  Applications, Studio's own plugin (`studio-plugins/solidcraft`) runs its engine headless for each
-  thread, behind a part editor tab beside the chat: the model with its sketch dimensions (double-click
-  one and type a value or a formula; a dimension driven by a named size changes that size), the named
-  sizes, and the feature timeline (rename, suppress, roll back, each feature's own inputs). The
-  thread's agent works on the same design through SolidCraft's tools; a hand edit saves the design,
-  writes its STEP beside it for Studio's viewer and checks, and is told to the agent on its next
-  call, so it never starts on its own. A `.solidcraft` file opens in the editor, and the overview
-  lists a design and its STEP as one part. The editor page is built at launch
-  (`scripts/solidcraft-editor.ts`). `STUDIO_SOLIDCRAFT=0` leaves it out; `STUDIO_SOLIDCRAFT_APP=1`
-  bridges the engine to the SolidCraft app instead. Bundled plugins come from several marketplace
-  folders (`T3CODE_PLUGIN_MARKETPLACE`, separated as PATH is), and one whose folder changed is
-  updated at the next start, so its tools and views are listed again.
+- **The part editor.** A text-to-cad part's script stays its source, and the part editor
+  (`studio-plugins/part-editor`) reads it as a design: a tracer runs the script in cadgen's Python
+  with every number in the project's files remembering where it is written, and records each
+  build123d operation. The editor tab beside the chat shows the model with its dimensions, the
+  named sizes the part uses (`TRAY_HEIGHT` reads "Tray height") and a timeline, one row per
+  operation in the script, each with its own inputs and the formula behind them. Double-click a
+  value and type a number or a formula: the change is that one number rewritten in the source, as
+  it was written (`.060` to `.050`); a dimension from a formula of several sizes asks which to
+  change; a file changed since the editor read it is refused. Every part that uses the changed file
+  is built again, so its STEP, Studio's viewer and the checks follow, and the note of the change
+  goes into the composer for the agent, which is not run. The editor follows the agent's own edits
+  to the script. It is offered when cadgen's Python is known: the checkout's in development, else
+  `CADGEN_PYTHON`. Open it from the panel's + menu, on a part script, or by the agent
+  (`part_editor_open`). Its page is built at launch (`scripts/editor-pages.ts`). Test:
+  `python studio-plugins/part-editor/tracer/test_tracer.py` in cadgen's Python.
+- **SolidCraft, on request.** `STUDIO_SOLIDCRAFT=1`, with SolidCraft (a parametric CAD engine,
+  Apache-2.0) in Applications, adds `studio-plugins/solidcraft`: its engine headless per thread
+  behind the same editor, for `.solidcraft` designs (the overview lists a design and its STEP as
+  one part). `STUDIO_SOLIDCRAFT_APP=1` bridges it to the SolidCraft app instead. Bundled plugins
+  come from several marketplace folders (`T3CODE_PLUGIN_MARKETPLACE`, separated as PATH is), and
+  one whose folder changed is updated at the next start, so its tools and views are listed again.
 - **Setup, as a CAD tool shows it.** Under the project's name, its units, material (from a library
   of common grades, or any name typed), process and quantity. Picking a value writes the request
   into the composer ("Change the project's material to PETG."); the agent changes the project's
