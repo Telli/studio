@@ -5,6 +5,7 @@ import { cn } from "@text-to-cad/ui/utils";
 import { sizeName } from "./editMode.js";
 
 const ARROW_PX = 7;
+const EMPTY = Object.freeze([]);
 const CHIP_CLASS = "pointer-events-auto absolute left-0 top-0 z-10 whitespace-nowrap rounded-md border bg-background px-1.5 py-0.5 text-micro tabular-nums text-foreground shadow-sm";
 
 /** One dimension's lines on the canvas: its witness lines, and the dimension line with an arrow at each end. */
@@ -75,13 +76,19 @@ function DimensionChip({ dimension, units, editing, active, disabled, onEdit, on
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
  *   dimensions: object[], units: string, disabled?: boolean, choice?: object | null,
- *   onChange(dimension: object, text: string): void, onChoose(leaf: string): void, onDismissChoice(): void }} props
+ *   onChange(dimension: object, text: string): void, onChoose(leaf: string): void, onDismissChoice(): void,
+ *   planes?: { points: number[][], strong: boolean }[], origin?: number | null }} props
+ *   `planes`: the origin planes the design tree has selected or under its pointer (`planeOutline`);
+ *   `origin`: the length of the origin's axes, drawn while the tree selects the Origin.
  */
-export default function EditDimensions({ viewport, dimensions, units, disabled = false, choice = null, onChange, onChoose, onDismissChoice }) {
+export default function EditDimensions({ viewport, dimensions, units, disabled = false, choice = null, onChange, onChoose, onDismissChoice,
+  planes = EMPTY, origin = null }) {
   const canvasRef = useRef(null);
   const chips = useRef(new Map());
   const dimensionsRef = useRef(dimensions);
   dimensionsRef.current = dimensions;
+  const marksRef = useRef({ planes, origin });
+  marksRef.current = { planes, origin };
   const [editing, setEditing] = useState(null);
   const [hovered, setHovered] = useState(null);
   const activeRef = useRef(null);
@@ -95,6 +102,7 @@ export default function EditDimensions({ viewport, dimensions, units, disabled =
     let painted = "";
     let paintedDimensions = null;
     let paintedActive = null;
+    let paintedMarks = null;
     const paint = () => {
       frame = requestAnimationFrame(paint);
       const runtime = viewport.runtimeRef?.current;
@@ -109,10 +117,12 @@ export default function EditDimensions({ viewport, dimensions, units, disabled =
       const key = [width, height, dpr, camera.zoom, camera.matrixWorld.elements.join(), camera.projectionMatrix.elements.join(),
         modelGroup.matrixWorld.elements.join()].join("|");
       const list = dimensionsRef.current;
-      if (key === painted && list === paintedDimensions && activeRef.current === paintedActive) return;
+      const marks = marksRef.current;
+      if (key === painted && list === paintedDimensions && activeRef.current === paintedActive && marks === paintedMarks) return;
       painted = key;
       paintedDimensions = list;
       paintedActive = activeRef.current;
+      paintedMarks = marks;
       if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
         canvas.width = Math.round(width * dpr);
         canvas.height = Math.round(height * dpr);
@@ -123,10 +133,42 @@ export default function EditDimensions({ viewport, dimensions, units, disabled =
       const scratch = new THREE.Vector3();
       const toScreen = point => {
         scratch.set(point[0], point[1], point[2]).applyMatrix4(modelGroup.matrixWorld);
-        const inFront = scratch.clone().applyMatrix4(camera.matrixWorldInverse).z < -camera.near;
+        // In front of the camera at all: the viewer's orthographic camera sits well back, with its
+        // near plane far in front of it, and a plane's corner can come closer than that.
+        const inFront = scratch.clone().applyMatrix4(camera.matrixWorldInverse).z < 0;
         scratch.project(camera);
         return inFront ? [((scratch.x + 1) * width) / 2, ((1 - scratch.y) * height) / 2] : null;
       };
+      // An origin plane, as a CAD tool shows one: a square through the origin, filled faintly.
+      for (const plane of marks.planes) {
+        const corners = plane.points.map(toScreen);
+        if (corners.some(corner => !corner)) continue;
+        context.beginPath();
+        corners.forEach(([x, y], index) => (index ? context.lineTo(x, y) : context.moveTo(x, y)));
+        context.closePath();
+        context.globalAlpha = plane.strong ? 0.16 : 0.08;
+        context.fillStyle = MEASURE_DIMENSION_COMMITTED_COLOR;
+        context.fill();
+        context.globalAlpha = plane.strong ? 0.9 : 0.5;
+        context.strokeStyle = MEASURE_DIMENSION_COMMITTED_COLOR;
+        context.lineWidth = 1.25;
+        context.stroke();
+        context.globalAlpha = 1;
+      }
+      // The origin: its three axes in the colors every CAD tool gives them.
+      if (marks.origin) {
+        const center = toScreen([0, 0, 0]);
+        for (const [axis, color] of [[[marks.origin, 0, 0], "#ef4444"], [[0, marks.origin, 0], "#22c55e"], [[0, 0, marks.origin], "#3b82f6"]]) {
+          const tip = toScreen(axis);
+          if (!center || !tip) continue;
+          context.strokeStyle = color;
+          context.lineWidth = 2;
+          context.beginPath();
+          context.moveTo(center[0], center[1]);
+          context.lineTo(tip[0], tip[1]);
+          context.stroke();
+        }
+      }
       for (const dimension of list) {
         const segments = (dimension.lines || []).map(([start, end]) => [toScreen(start), toScreen(end)]).filter(([a, b]) => a && b);
         drawDimension(context, segments, MEASURE_DIMENSION_COMMITTED_COLOR, dimension.id === activeRef.current);

@@ -132,6 +132,48 @@ class EditService(unittest.TestCase):
         self.assertEqual(self.service.state("relative/plate.step")["reason"], "no-script")
 
 
+TRAY = {
+    "tray.py": """
+        from build123d import Axis, Pos, Rectangle, RectangleRounded, extrude, fillet
+        from cadgen import step
+
+        LENGTH = 70
+        WIDTH = 26
+        WALL = 1.5
+        FLOOR = 1.5
+        HEIGHT = 12
+
+        @step
+        def tray():
+            outer = extrude(RectangleRounded(LENGTH, WIDTH, 6), amount=HEIGHT)
+            outer = fillet(outer.edges().group_by(Axis.Z)[0], radius=0.6)
+            cavity = Pos(0, 0, FLOOR) * extrude(Rectangle(LENGTH - 2*WALL, WIDTH - 2*WALL), amount=HEIGHT)
+            return outer - cavity
+    """,
+}
+
+
+class FeatureTree(unittest.TestCase):
+    def test_the_history_reads_as_a_cad_tree_with_sketches_under_their_features(self):
+        service = edit.EditService(build=False)
+        self.addCleanup(service.close)
+        root = project(TRAY)
+        self.addCleanup(shutil.rmtree, root, True)
+        state = service.state(str(root / "tray.step"))
+        self.assertTrue(state["ok"], state.get("error"))
+        features = state["features"]
+        # The cavity's extrude and the line that cuts it are one Cut-Extrude, its rectangle its sketch.
+        self.assertEqual([(f["kind"], f["name"]) for f in features],
+                         [("Boss-Extrude", "outer"), ("Fillet", "outer"), ("Cut-Extrude", "cavity")])
+        self.assertEqual((features[0]["sketch"]["op"], features[0]["sketch"]["plane"]), ("RectangleRounded", "Top"))
+        self.assertEqual(features[2]["sketch"]["op"], "Rectangle")
+        self.assertEqual(len(features[2]["rows"]), 2)
+        self.assertIsNone(features[1]["sketch"])
+        (x0, y0, z0), (x1, y1, z1) = state["bounds"]
+        self.assertAlmostEqual(x1 - x0, 70, places=3)
+        self.assertAlmostEqual(z1 - z0, 12, places=3)
+
+
 class WhatAChangeBuilds(unittest.TestCase):
     def test_the_parts_that_use_the_changed_file(self):
         root = project(PLATE)

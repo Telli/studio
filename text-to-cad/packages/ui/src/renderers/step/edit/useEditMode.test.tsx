@@ -46,7 +46,8 @@ it('a part reads as its sizes and history, a change applies at once and the agen
   expect(result.current.status).toBe('reading');
   await act(async () => {});
   expect(result.current.status).toBe('ready');
-  expect(result.current.selected).toBe('r1');
+  // As a CAD tool opens a part: nothing selected until the person picks a feature.
+  expect(result.current.selected).toBe(null);
   expect(viewer.client.editState).toHaveBeenCalledWith(FILE, null);
 
   await act(async () => { await result.current.change({ literal: 'sizes.py:2:8', text: '25' }); });

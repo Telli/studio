@@ -131,7 +131,7 @@ import { applySourceAppearanceToMeshData, sourceAppearanceGeometry } from "@text
 import EditBrowser from "./edit/EditBrowser.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
-import { editCommand, featureNames, rowDimensions } from "./edit/editMode.js";
+import { editCommand, featureNames, featureTree, originAxis, planeOutline, selectionDimensions } from "./edit/editMode.js";
 import { useEditMode } from "./edit/useEditMode.js";
 // The selection filters that pick faces or edges, never the part.
 const TOPOLOGY_FILTERS = new Set(["faces", "edges"]);
@@ -3174,8 +3174,15 @@ function StepSurfaceBody({ view, data }) {
   const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading });
   const editing = edit.status !== "none";
   const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
-  const editDimensions = useMemo(() => (edit.status === "ready" ? rowDimensions(edit.state, edit.selected) : EMPTY_LIST),
-    [edit.status, edit.state, edit.selected]);
+  const editTree = useMemo(() => featureTree(edit.state), [edit.state]);
+  const editDimensions = useMemo(() => (edit.status === "ready" ? selectionDimensions(edit.state, editTree, edit.selected) : EMPTY_LIST),
+    [edit.status, edit.state, editTree, edit.selected]);
+  // A plane or the origin the design tree selects, or has under its pointer, drawn on the model.
+  const editPlanes = useMemo(() => [[edit.selected, true], [edit.hovered, false]].flatMap(([id, strong]) => {
+    const points = typeof id === "string" && id.startsWith("plane:") ? planeOutline(id.slice("plane:".length), edit.state?.bounds) : null;
+    return points ? [{ points, strong }] : [];
+  }), [edit.selected, edit.hovered, edit.state?.bounds]);
+  const editOrigin = edit.selected === "origin" || edit.hovered === "origin" ? originAxis(edit.state?.bounds) : null;
   // A modeling command opens with Select in hand, its mode turned to what the command picks (a
   // fillet's edges, a hole's face) and the part's faces and edges loaded to be picked, keeping
   // what is already selected: picked first, then Fillet.
@@ -3227,7 +3234,8 @@ function StepSurfaceBody({ view, data }) {
       onSelect: () => handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES),
       // Its own panel, which a person can close (`ModelingTree.jsx`'s Features, by its X): a press
       // on Select while it is the tool opens it again. A single part opens with it closed.
-      panel: { id: "tree", label: "Features", startsClosed: !assemblyOnScreen },
+      // In edit mode the design tree at the left lists the parts, so this one starts closed there.
+      panel: { id: "tree", label: "Features", startsClosed: editing || !assemblyOnScreen },
     }),
     // Position comes straight after Select; only files with movable joints offer it.
     poseAvailable ? shell.tools.own({ id: TAB_TOOL_MODE.POSE, label: "Position",
@@ -3316,12 +3324,13 @@ function StepSurfaceBody({ view, data }) {
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}
     onContextMenuOpenChange={handleViewportContextMenuOpenChange}
     ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} /> : null}
-    leftDock={editing ? <EditBrowser edit={edit} names={editNames} references={selectedReferences} /> : null}
+    leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences} /> : null}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
       return <>
         <StepSceneLayers viewport={viewport} stepScene={stepScene} policy={viewPolicyResolved} props={layerProps} api={layersApiRef} />
         {editing ? <EditDimensions viewport={viewport} dimensions={editDimensions} units={edit.state?.units || ""} disabled={edit.saving}
+          planes={editPlanes} origin={editOrigin}
           choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
           onChoose={edit.choose} onDismissChoice={edit.dismissChoice} /> : null}
       </>;

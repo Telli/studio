@@ -52,6 +52,92 @@ export function featureNames(rows = []) {
 /** The dimensions a feature draws on the model. */
 export const rowDimensions = (state, rowKey) => (state?.dimensions || []).filter(dimension => dimension.row === rowKey);
 
+/** The origin's planes, as a CAD tree lists them under the part (SolidWorks' order). */
+export const ORIGIN_PLANES = Object.freeze(["Front", "Top", "Right"]);
+// A sketch's own dimensions: its profile's sizes, not the depth its feature gives it.
+const SKETCH_DIMENSION = /:(x|y|r|diameter)$/;
+
+/**
+ * The part as a CAD tool's design tree shows it (SolidWorks' FeatureManager): its features
+ * numbered by kind within each part (Boss-Extrude1, Boss-Extrude2, Cut-Extrude1, Fillet1),
+ * each solid's sketch under it (Sketch1, on the plane it lies on), and an assembly's parts as
+ * its components (Daisy tray<1>), each with its own features. A feature's id is the line of the
+ * history that makes it, so a command that copies a feature finds its row by it.
+ */
+export function featureTree(state) {
+  const partFeatures = features => {
+    const counts = new Map();
+    let sketches = 0;
+    return (features || []).map(feature => {
+      const count = (counts.get(feature.kind) || 0) + 1;
+      counts.set(feature.kind, count);
+      return {
+        id: feature.key, kind: feature.kind, title: `${feature.kind}${count}`,
+        name: feature.name ? sizeName(feature.name) : "", count: feature.count || 1,
+        rows: feature.rows || [feature.key], file: feature.file, line: feature.line,
+        sketch: feature.sketch ? { id: `sketch:${feature.key}`, title: `Sketch${++sketches}`, plane: feature.sketch.plane || "" } : null,
+      };
+    });
+  };
+  if (state?.components?.length) {
+    return { assembly: true, components: state.components.map(component => ({
+      id: `component:${component.file}`, title: `${sizeName(component.name)}<1>`, features: partFeatures(component.features),
+    })) };
+  }
+  return { assembly: false, features: partFeatures(state?.features) };
+}
+
+/** Every feature of a tree, an assembly's parts' too, in order. */
+export const treeFeatures = tree => (tree?.assembly ? tree.components.flatMap(component => component.features) : tree?.features || []);
+
+/** What can be selected in a tree: its features, their sketches, the origin, its planes and an assembly's parts. */
+export function treeIds(tree) {
+  const ids = new Set(["origin", ...ORIGIN_PLANES.map(plane => `plane:${plane}`)]);
+  for (const feature of treeFeatures(tree)) {
+    ids.add(feature.id);
+    if (feature.sketch) ids.add(feature.sketch.id);
+  }
+  for (const component of tree?.components || []) ids.add(component.id);
+  return ids;
+}
+
+/**
+ * The dimensions the selection draws on the model: a feature's (its sketch's and its depth), a
+ * sketch's own (its profile's sizes), none for a plane, the origin or a part.
+ */
+export function selectionDimensions(state, tree, selected) {
+  if (!selected) return [];
+  const sketch = selected.startsWith("sketch:");
+  const id = sketch ? selected.slice("sketch:".length) : selected;
+  const feature = treeFeatures(tree).find(each => each.id === id);
+  if (!feature) return [];
+  const rows = new Set(feature.rows);
+  return (state?.dimensions || []).filter(dimension => rows.has(dimension.row) && (!sketch || SKETCH_DIMENSION.test(dimension.id)));
+}
+
+/** How long the origin's axes are drawn: a third of the part's reach, in its millimetres. */
+export function originAxis(bounds) {
+  const [min, max] = bounds || [[-30, -30, -30], [30, 30, 30]];
+  return (Math.max(...[0, 1, 2].map(axis => Math.max(Math.abs(min[axis]), Math.abs(max[axis])))) || 30) / 3;
+}
+
+/**
+ * An origin plane drawn on the model, as a CAD tool shows a plane: a square through the origin
+ * a little larger than the part, in the part's own millimetres. `null` for anything else.
+ */
+export function planeOutline(name, bounds) {
+  if (!ORIGIN_PLANES.includes(name)) return null;
+  const [min, max] = bounds || [[-50, -50, -50], [50, 50, 50]];
+  const reach = Math.max(...[0, 1, 2].map(axis => Math.max(Math.abs(min[axis]), Math.abs(max[axis])))) * 1.15 || 50;
+  const square = (u, v) => [[-reach, -reach], [reach, -reach], [reach, reach], [-reach, reach]].map(([a, b]) => {
+    const point = [0, 0, 0];
+    point[u] = a;
+    point[v] = b;
+    return point;
+  });
+  return name === "Top" ? square(0, 1) : name === "Front" ? square(0, 2) : square(1, 2);
+}
+
 /** The feature edit mode opens on: the first that draws dimensions (the part's base), else the first. */
 export function defaultRow(state) {
   const drawn = new Set((state?.dimensions || []).map(dimension => dimension.row));

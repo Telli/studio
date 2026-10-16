@@ -137,3 +137,37 @@ test("a command's note says what was added and where, and Undo takes its lines b
   assert.deepEqual(undoStep(history).request, { splice: change.undo });
   assert.deepEqual(redoStep(undoStep(history).next).request, { splice: change.redo });
 });
+
+test("the design tree numbers features by kind and sketches in order, as SolidWorks does", async () => {
+  const { featureTree, treeIds, selectionDimensions, planeOutline } = await import("./editMode.js");
+  const state = {
+    features: [
+      { key: "p.py:3", kind: "Boss-Extrude", name: "outer", rows: ["p.py:3"], sketch: { op: "RectangleRounded", plane: "Top" } },
+      { key: "p.py:4", kind: "Fillet", name: "outer", rows: ["p.py:4"], sketch: null },
+      { key: "p.py:5", kind: "Cut-Extrude", name: "cavity", rows: ["p.py:5", "p.py:6"], sketch: { op: "Rectangle", plane: "Top" } },
+      { key: "p.py:7", kind: "Boss-Extrude", name: "pad", count: 2, rows: ["p.py:7", "p.py:8"], sketch: { op: "Rectangle", plane: "Top" } },
+    ],
+    dimensions: [{ id: "1:x", row: "p.py:5" }, { id: "1:z", row: "p.py:5" }, { id: "0:x", row: "p.py:3" }],
+  };
+  const tree = featureTree(state);
+  assert.deepEqual(tree.features.map(f => [f.title, f.name, f.sketch?.title || ""]),
+    [["Boss-Extrude1", "Outer", "Sketch1"], ["Fillet1", "Outer", ""], ["Cut-Extrude1", "Cavity", "Sketch2"], ["Boss-Extrude2", "Pad", "Sketch3"]]);
+  assert.ok(treeIds(tree).has("plane:Top") && treeIds(tree).has("origin") && treeIds(tree).has("sketch:p.py:5"));
+  // A feature draws its sketch's sizes and its depth; its sketch draws the sizes alone.
+  assert.deepEqual(selectionDimensions(state, tree, "p.py:5").map(d => d.id), ["1:x", "1:z"]);
+  assert.deepEqual(selectionDimensions(state, tree, "sketch:p.py:5").map(d => d.id), ["1:x"]);
+  assert.deepEqual(selectionDimensions(state, tree, "plane:Top"), []);
+  // The Top plane is a square through the origin on XY, a little larger than the part.
+  const top = planeOutline("Top", [[-10, -5, 0], [10, 5, 4]]);
+  assert.ok(top.every(([, , z]) => z === 0) && Math.abs(top[2][0] - 11.5) < 1e-9);
+});
+
+test("an assembly's tree lists its parts as components, each numbered on its own", async () => {
+  const { featureTree } = await import("./editMode.js");
+  const tree = featureTree({ components: [
+    { name: "daisy_tray", file: "parts/daisy_tray.py", features: [{ key: "h.py:26", kind: "Boss-Extrude", name: "outer", sketch: null }] },
+    { name: "daisy_cover", file: "parts/daisy_cover.py", features: [{ key: "h.py:43", kind: "Boss-Extrude", name: "lid", sketch: null }] },
+  ] });
+  assert.ok(tree.assembly);
+  assert.deepEqual(tree.components.map(c => [c.title, c.features[0].title]), [["Daisy tray<1>", "Boss-Extrude1"], ["Daisy cover<1>", "Boss-Extrude1"]]);
+});

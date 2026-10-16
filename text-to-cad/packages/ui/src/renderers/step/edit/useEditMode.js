@@ -5,11 +5,13 @@ import {
   changeNote,
   commandNote,
   commandUndoNote,
-  defaultRow,
   emptyHistory,
   featureNames,
+  featureTree,
   recordChange,
   redoStep,
+  treeFeatures,
+  treeIds,
   undoStep
 } from "./editMode.js";
 
@@ -17,8 +19,9 @@ import {
 // an unchanged answer is a hash comparison on the server, and the part is not run.
 const POLL_MS = 1500;
 const describe = error => (error instanceof Error ? error.message : String(error || "The change could not be made."));
-// A feature's title in the history a reply describes: "Fillet2".
-const titleOf = (state, row) => featureNames(state?.rows || []).find(name => name.key === row)?.title || "";
+// A feature's title in the design tree a reply describes: "Fillet2".
+const titleOf = (state, row) => treeFeatures(featureTree(state)).find(feature => feature.id === row)?.title
+  || featureNames(state?.rows || []).find(name => name.key === row)?.title || "";
 
 /**
  * Edit mode for the file on screen (`cadgen/edit`, through the CAD client): the part's script read
@@ -41,6 +44,8 @@ export function useEditMode({ client, file, active }) {
   const [choice, setChoice] = useState(null);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState(null);
+  // The design tree's row under the pointer: a plane hovered there is drawn on the model.
+  const [hovered, setHovered] = useState(null);
   const [history, setHistory] = useState(emptyHistory);
   const [command, setCommand] = useState(null);
   const files = useRef(null);
@@ -69,7 +74,9 @@ export function useEditMode({ client, file, active }) {
     setState(reply);
     setStatus("ready");
     setError("");
-    setSelected(current => (current && reply.rows?.some(row => row.key === current) ? current : defaultRow(reply)));
+    // As a CAD tool opens a part: nothing selected until the person picks a feature. A selection
+    // the part no longer has (its line removed) is let go.
+    setSelected(current => (current && treeIds(featureTree(reply)).has(current) ? current : null));
   }, []);
 
   useEffect(() => {
@@ -150,8 +157,9 @@ export function useEditMode({ client, file, active }) {
   const redo = useCallback(() => step(redoStep, true), [step]);
 
   return {
-    status, state, error, choice, saving, selected, command,
+    status, state, error, choice, saving, selected, hovered, command,
     select: setSelected,
+    hover: setHovered,
     change, undo, redo, run,
     open: id => { setError(""); setCommand(id); },
     close: () => setCommand(null),

@@ -985,6 +985,143 @@ def _row_summary(row, units):
     }
 
 
+# A profile an extrude or revolve makes a solid from: what a CAD tree shows as its sketch.
+SKETCH_PROFILES = {"Rectangle", "RectangleRounded", "Circle", "Ellipse", "Polygon", "RegularPolygon",
+                   "SlotOverall", "SlotCenterToCenter", "Trapezoid", "Triangle", "Text"}
+# A primitive solid reads as an extrude of the sketch it implies.
+PRIMITIVE_SKETCHES = {"Box": ("Rectangle", "Rectangle"), "Cylinder": ("Circle", "Circle")}
+MAKES_SOLID = {"Extrude", "Revolve", "Box", "Cylinder"}
+
+
+def _plane_of(shape):
+    """The plane a profile lies on, as a CAD tree names the origin's planes (Top is XY)."""
+    try:
+        normal = shape.faces()[0].normal_at()
+    except Exception:
+        return None
+    weights = {"Top": abs(normal.Z), "Front": abs(normal.Y), "Right": abs(normal.X)}
+    name, weight = max(weights.items(), key=lambda item: item[1])
+    return name if weight > 0.999 else "Plane"
+
+
+def _sketch_of(steps):
+    """The sketch a row makes its solid from: the profile its extrude or revolve takes, or the
+    rectangle or circle a box or cylinder implies, with the plane it lies on."""
+    for step in steps:
+        if step["op"] in ("extrude", "revolve") and step["args"]:
+            index = getattr(step["args"][0][1], "_studio_step", None)
+            if index is not None and STEPS[index]["op"] in SKETCH_PROFILES:
+                profile = STEPS[index]
+                return {"op": profile["op"], "label": profile["label"], "step": index, "plane": _plane_of(profile["result"])}
+        if step["op"] in PRIMITIVE_SKETCHES:
+            op, label = PRIMITIVE_SKETCHES[step["op"]]
+            return {"op": op, "label": label, "step": step["index"], "plane": "Top"}
+    return None
+
+
+def _is_flat(step):
+    """A step that draws: a profile, or a profile placed, joined or cut (a sketch's own lines)."""
+    if step["op"] in SKETCH_PROFILES:
+        return True
+    return step["op"] in ("join", "cut", "intersect", "move") and isinstance(step.get("result"), (B.Sketch, B.Face))
+
+
+def _features(summaries, timeline):
+    """The history as a CAD tree reads it:
+    - a solid made from a sketch and then cut from the body, or joined to it, is one Cut-Extrude
+      or Boss-Extrude, the line that cut or joined it folded in;
+    - lines that only draw a profile (`bloom = Circle(...)`, `bloom += Pos(...) * Circle(...)`) are
+      the sketch of the extrude that makes a solid of it, under it, not features of their own;
+    - every other line is a feature of its own (Fillet, Hole, Shell).
+    Each feature keeps the rows of the history it stands for, in order."""
+    row_of = {index: summary["key"] for summary in summaries for index in summary["steps"]}
+    features, feature_of_row = [], {}
+    for summary, row in zip(summaries, timeline):
+        kind = summary["kind"]
+        booleans = [step for step in row["steps"] if step["op"] in ("cut", "join", "intersect")]
+        flat = bool(row["steps"]) and all(_is_flat(step) for step in row["steps"])
+        if kind in ("Cut", "Join", "Intersect") and booleans and not flat:
+            tool_rows = {row_of.get(tool) for step in booleans for tool in step.get("tools") or [] if tool is not None}
+            targets = [feature_of_row.get(key) for key in tool_rows]
+            if targets and all(target is not None and target["solid"] and not target["folded"] for target in targets):
+                for target in {id(target): target for target in targets}.values():
+                    target["kind"] = {"Cut": "Cut", "Join": "Boss", "Intersect": "Intersect"}[kind] + "-" + target["base"]
+                    target["rows"].append(summary["key"])
+                    target["folded"] = True
+                feature_of_row[summary["key"]] = targets[0]
+                continue
+        makes = {step["op"] for step in row["steps"]} & {"extrude", "revolve", "Box", "Cylinder"}
+        # A cut or join whose tool is made on the same line is that tool's feature: a Cut-Extrude.
+        inline = kind in ("Cut", "Join", "Intersect") and booleans and makes and not flat
+        solid = kind in MAKES_SOLID or bool(inline)
+        base = "Revolve" if kind == "Revolve" or "revolve" in makes else "Extrude"
+        sketch = _sketch_of(row["steps"]) if solid else None
+        if solid and sketch is None:
+            # A profile drawn over earlier lines (`bloom = Circle(...)`, `bloom += ...`): those
+            # lines are this feature's sketch. They are the drawing lines just before it that
+            # assign the variable it extrudes.
+            drawn_name = re.search(r"(?:extrude|revolve)\(\s*([A-Za-z_]\w*)", summary["code"] or "")
+            drawn = []
+            for previous in reversed(features):
+                if not previous["flat"] or not drawn_name or previous["name"] != drawn_name.group(1):
+                    break
+                drawn.insert(0, previous)
+            if drawn:
+                profile = next((step["args"][0][1] for step in row["steps"] if step["op"] in ("extrude", "revolve") and step["args"]), None)
+                sketch = {"op": "Sketch", "label": "Sketch", "step": None, "plane": _plane_of(profile) if profile is not None else None,
+                          "rows": [key for f in drawn for key in f["rows"]]}
+                features = [f for f in features if f not in drawn]
+        if inline:
+            kind = {"Cut": "Cut", "Join": "Boss", "Intersect": "Intersect"}[kind]
+        feature = {
+            "key": summary["key"], "rows": [summary["key"]], "name": summary["name"], "count": summary["count"],
+            "file": summary["file"], "line": summary["line"], "sketch": sketch,
+            "kind": (f"{kind}-{base}" if inline else f"Boss-{base}") if solid else {"Move": "Move/Copy"}.get(kind, kind),
+            "base": base, "solid": solid and not inline, "folded": bool(inline), "flat": flat,
+        }
+        if sketch and sketch.get("rows"):
+            feature["rows"] = sketch["rows"] + feature["rows"]
+        feature_of_row[summary["key"]] = feature
+        features.append(feature)
+    return [{key: value for key, value in feature.items() if key not in ("base", "solid", "folded", "flat")} for feature in features]
+
+
+def _is_model(file, function):
+    """Whether a project function is a part's model (`@step`), so an assembly's call to it is a component."""
+    try:
+        return re.search(rf"^\s*@step\b[^\n]*\n(?:\s*@[^\n]*\n)*\s*def\s+{re.escape(function)}\s*\(", _read(ROOT / file), re.M) is not None
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def _components(steps):
+    """An assembly's parts: the operations split by the part model each runs in (`daisy_tray()`),
+    when the assembly calls more than one; empty for a single part."""
+    chains = [step["frames"] for step in steps if step["frames"]]
+    if not chains:
+        return []
+    depth = 0
+    while all(len(chain) > depth for chain in chains) and len({(c[depth]["file"], c[depth]["function"]) for c in chains}) == 1:
+        depth += 1
+    groups: dict[tuple, list] = {}
+    for step in steps:
+        frames = step["frames"]
+        if len(frames) <= depth:
+            return []
+        groups.setdefault((frames[depth]["file"], frames[depth]["function"]), []).append(step)
+    if len(groups) < 2 or not all(_is_model(file, function) for file, function in groups):
+        return []
+    return [{"file": file, "function": function, "steps": group} for (file, function), group in groups.items()]
+
+
+def _bounds(shape):
+    try:
+        box = shape.bounding_box()
+        return [[box.min.X, box.min.Y, box.min.Z], [box.max.X, box.max.Y, box.max.Z]]
+    except Exception:
+        return None
+
+
 def _clean(item):
     return {key: value for key, value in item.items() if key != "expr"}
 
@@ -1056,8 +1193,19 @@ def trace(request):
 
     units = request.get("units") or _units() or ("in" if any(lit.get("name", "") and lit["name"].upper() in UNIT_NAMES for lit in LITERALS.values()) else "mm")
     steps = list(STEPS)
-    timeline, level = _rows(steps)
-    rows = [_row_summary(row, units) for row in timeline]
+    # An assembly's history is its parts' histories, each read from that part's own model.
+    components = _components(steps)
+    if components:
+        timeline, rows, level = [], [], 0
+        for component in components:
+            part_timeline, level = _rows(component["steps"])
+            part_rows = [_row_summary(row, units) for row in part_timeline]
+            component["features"] = _features(part_rows, part_timeline)
+            timeline += part_timeline
+            rows += part_rows
+    else:
+        timeline, level = _rows(steps)
+        rows = [_row_summary(row, units) for row in timeline]
     dimensions = _dimensions(steps, units)
     row_of = {index: row["key"] for row in rows for index in row["steps"]}
     for dimension in dimensions:
@@ -1089,6 +1237,10 @@ def trace(request):
         "files": dict(FILES),
         "params": params,
         "rows": [{**row, "inputs": [_clean(item) for item in row["inputs"]]} for row in rows],
+        # The same history as a CAD tree reads it, and the part's extent for the origin's planes.
+        "features": [] if components else _features(rows, timeline),
+        "components": [{"name": c["function"], "file": c["file"], "features": c["features"]} for c in components],
+        "bounds": _bounds(shape) if isinstance(shape, B.Shape) else None,
         "dimensions": [_clean(d) for d in dimensions],
         # The viewer draws the model from its STEP; a page of its own asks for the mesh.
         "mesh": _export_mesh(shape) if request.get("mesh", True) and isinstance(shape, B.Shape) else None,
