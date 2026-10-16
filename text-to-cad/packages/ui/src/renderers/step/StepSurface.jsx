@@ -3171,7 +3171,7 @@ function StepSurfaceBody({ view, data }) {
   // A model with a part script beside it is edited here (`edit/`): the script's history and named
   // sizes in a design tree at the viewer's left, the selected feature's dimensions on the model,
   // and the tools in a ribbon across the top. A model with none keeps the view as it is.
-  const edit = useEditMode({ client, file: selectedEntry?.file || "", resource: shell.frame.resource, active: !viewerLoading });
+  const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading });
   const editing = edit.status !== "none";
   const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
   const editDimensions = useMemo(() => (edit.status === "ready" ? rowDimensions(edit.state, edit.selected) : EMPTY_LIST),

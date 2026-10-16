@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPromptContext, referencePart, textPart } from "@text-to-cad/core/prompt";
+import { createPromptContext, textPart } from "@text-to-cad/core/prompt";
 import { useViewerHost } from "../../../host/context.js";
 import {
   changeNote,
@@ -30,9 +30,9 @@ const titleOf = (state, row) => featureNames(state?.rows || []).find(name => nam
  * `status`: `reading` until the first answer, then `ready`, `none` (no part script beside this
  * file: nothing to edit, and the view stays as it was) or `error`.
  *
- * @param {{ client: object | null, file: string, resource: object | null, active: boolean }} options
+ * @param {{ client: object | null, file: string, active: boolean }} options
  */
-export function useEditMode({ client, file, resource, active }) {
+export function useEditMode({ client, file, active }) {
   const host = useViewerHost();
   const supported = typeof client?.editState === "function" && typeof client?.editChange === "function";
   const [status, setStatus] = useState(supported && file ? "reading" : "none");
@@ -91,17 +91,16 @@ export function useEditMode({ client, file, resource, active }) {
   // The note the agent reads with the person's next message.
   const tell = useCallback(note => {
     const port = host?.promptContext;
-    if (!port?.deliver || !resource || !note) return;
+    if (!port?.deliver || !note) return;
     try {
-      const context = createPromptContext([
-        textPart(note, "hand-edit"),
-        referencePart({ resource: { ...resource }, target: { kind: "whole-resource" } }, "file"),
-      ]);
+      // The note names the script and its line; a reference to the file would add the STEP's
+      // absolute path to the person's message (Studio writes context into the composer).
+      const context = createPromptContext([textPart(note, "hand-edit")]);
       void Promise.resolve(port.deliver(context)).catch(() => {});
     } catch {
       // A chat that takes no context: the change stands, the note is simply not queued.
     }
-  }, [host, resource]);
+  }, [host]);
 
   // `note`: what the agent is told of the reply's change (a number's, unless said otherwise).
   const send = useCallback(async (request, { record = true, note = null } = {}) => {
