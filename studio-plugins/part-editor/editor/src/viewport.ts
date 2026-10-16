@@ -45,6 +45,8 @@ export class PartViewport {
   private colors: ViewportColors;
   private dimensions: ReadonlyArray<DrawnDimension> = [];
   private active: string | null = null;
+  /** Whether the engineer has turned or zoomed the view since it was last framed. */
+  private moved = false;
 
   constructor(
     private readonly container: HTMLElement,
@@ -63,6 +65,7 @@ export class PartViewport {
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = false;
     this.controls.addEventListener("change", () => this.request());
+    this.controls.addEventListener("start", () => (this.moved = true));
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.container);
     this.applyColors();
@@ -166,8 +169,13 @@ export class PartViewport {
     const centre = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3()).length() || 50;
     const direction = new THREE.Vector3(1, -1.25, 0.95).normalize();
+    // Far enough that the whole model fits the narrower way of the view (a tall, narrow panel).
+    const vertical = THREE.MathUtils.degToRad(this.camera.fov);
+    const horizontal = 2 * Math.atan(Math.tan(vertical / 2) * this.camera.aspect);
+    const distance = (size / 2 / Math.sin(Math.min(vertical, horizontal) / 2)) * 1.08;
     this.controls.target.copy(centre);
-    this.camera.position.copy(centre).addScaledVector(direction, size * 1.55);
+    this.camera.position.copy(centre).addScaledVector(direction, distance);
+    this.moved = false;
     this.camera.near = size / 100;
     this.camera.far = size * 100;
     this.camera.updateProjectionMatrix();
@@ -202,6 +210,8 @@ export class PartViewport {
     this.renderer.domElement.style.height = `${height}px`;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    // The panel settling its size after the model arrived: frame it again, unless they moved it.
+    if (!this.moved) this.fit();
     this.request();
   }
 

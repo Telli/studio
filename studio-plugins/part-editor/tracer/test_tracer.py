@@ -11,8 +11,10 @@ from pathlib import Path
 import tracer
 
 
-def project(files):
-    root = Path(tempfile.mkdtemp(prefix="part-editor-"))
+def project(files, hidden=False):
+    # Studio keeps its projects in a hidden state folder; the tracer must still read them.
+    root = Path(tempfile.mkdtemp(prefix="part-editor-")) / (".studio" if hidden else "")
+    root.mkdir(exist_ok=True)
     for name, text in files.items():
         (root / name).write_text(textwrap.dedent(text))
     return root
@@ -60,6 +62,12 @@ class TraceAndEdit(unittest.TestCase):
         self.assertEqual([(p["name"], p["text"]) for p in state["params"]], [("WIDTH", "20"), ("THICKNESS", "2.50")])
         width = next(d for d in state["dimensions"] if d["formula"] == "WIDTH")
         self.assertEqual((width["name"], width["display"]), ("Length", "20"))
+
+    def test_a_project_in_a_hidden_folder(self):
+        root = project(PLATE, hidden=True)
+        state = tracer.trace({"script": str(root / "plate.py"), "root": str(root)})
+        self.assertEqual([p["name"] for p in state["params"]], ["WIDTH", "THICKNESS"])
+        self.assertEqual(len(state["rows"]), 1)
 
     def test_a_size_edit_changes_one_number(self):
         state = tracer.trace(self.request)

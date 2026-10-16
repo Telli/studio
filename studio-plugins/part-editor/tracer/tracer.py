@@ -211,11 +211,13 @@ def _relative(path: str) -> str:
 
 
 def _inside(path: str) -> bool:
+    """A file of the project's own: under its folder, not in a hidden folder or an environment
+    inside it (`.venv`). The project itself may sit in a hidden folder (Studio's state folder)."""
     try:
-        Path(path).resolve().relative_to(ROOT)
+        parts = Path(path).resolve().relative_to(ROOT).parts
     except ValueError:
         return False
-    return "/." not in str(Path(path).resolve()) and "site-packages" not in path
+    return not any(part.startswith(".") or part == "site-packages" for part in parts)
 
 
 class _ProjectLoader(importlib.abc.Loader):
