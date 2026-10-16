@@ -18,7 +18,7 @@ import { ViewportAnimationBar, animationControlsHaveContent } from "../tools/pla
 import QuickEdit from "../tools/quick-edit/QuickEdit.jsx";
 import { ViewportTopRight } from "./ViewportTopRight.jsx";
 import ShellViewport from "./ShellViewport.jsx";
-import ToolColumn from "./ToolColumn.jsx";
+import ToolColumn, { useStripTools } from "./ToolColumn.jsx";
 import ViewportContextMenu from "./ViewportContextMenu.jsx";
 
 /** One of the view's controls: an icon button, the navbar's, with its name on hover, below it. */
@@ -92,10 +92,16 @@ function NavbarControl({ label, disabled = false, onClick, children }) {
  *   `onCanvasPointerDown`: a press that landed on the canvas, before anything in the viewport sees
  *   it. The frame focuses itself on such a press whatever the renderer does; this is for a renderer
  *   that also has something to put down when the person reaches for the model.
+ *   `ribbon`, `leftDock`: edit mode's frame (`step/edit/`), laid out as a CAD tool lays out its
+ *   window: a ribbon across the top, given the tools as the strip draws them (it holds them in
+ *   the strip's place, which is not drawn), and a design tree docked at the left, beside the
+ *   viewport rather than over it, so a camera fit still centres in what is visible. The tool
+ *   stack's panels stay over the model. Both are put away with the rest of the tools (loading,
+ *   preview, a compact view), and the dock in a view too narrow for it and the model.
  */
 export default function RendererShell({ shell, tools, playback = null, toolPanels = null, references = null, onClearReferences = null, copySelection = null, contextMenuItems = null,
   onContextMenuOpenChange = null, viewportOverlay = null,
-  alertBody = null, alertStartsDismissed = false, frameProvider = null, onCanvasPointerDown = null }) {
+  alertBody = null, alertStartsDismissed = false, frameProvider = null, onCanvasPointerDown = null, ribbon = null, leftDock = null }) {
   const frame = shell.frame;
   const mobile = useViewerMobile();
   const { view, resolvedScene, viewerLoading, scene } = frame;
@@ -181,6 +187,8 @@ export default function RendererShell({ shell, tools, playback = null, toolPanel
   // box, so nothing a pick or a sketch opens and no keyboard it takes.
   const quickEdit = view.features?.quickEdit !== false;
   const toolsHidden = chromeHidden || compact;
+  const { stripTools } = useStripTools(tools, frame.toolStack, frame.changeToolStack, mobile);
+  const editFrame = !toolsHidden && !previewing;
   const copyAction = () => {
     if (previewing) return false;
     if (frame.drawToolActive && frame.drawing.hasContent) { frame.copyDrawing(); return true; }
@@ -212,8 +220,11 @@ export default function RendererShell({ shell, tools, playback = null, toolPanel
       ref={frame.hostRef}
     >
       <div className="relative flex h-full min-w-0 flex-col overflow-hidden bg-transparent">
+        {ribbon && editFrame ? ribbon(stripTools) : null}
         <div className="relative min-h-0 flex-1 overflow-hidden">
-          <div className="flex h-full min-w-0">
+          <div className="@container/cad-frame flex h-full min-w-0">
+            {leftDock && editFrame ? <aside aria-label="Design tree" data-cad-dock="left"
+              className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-background @max-xl/cad-frame:hidden">{leftDock}</aside> : null}
             {/* The render pane's box. The canvas fills exactly this area, so a camera fit
                 centres in what is visible and a change of the pane's size reaches the scene
                 as a plain resize. Its background is the
@@ -295,7 +306,7 @@ export default function RendererShell({ shell, tools, playback = null, toolPanel
 
               {/* The file explorer floats over this corner, above the tools, which stay drawn under it. */}
               {toolsHidden ? null : <ToolColumn tools={tools} layout={frame.toolStack} onLayoutChange={frame.changeToolStack} mobile={mobile}
-                hidden={previewing}>{shellPanels}{toolPanels}</ToolColumn>}
+                hidden={previewing} stripHidden={Boolean(ribbon)}>{shellPanels}{toolPanels}</ToolColumn>}
               {/* The top-right: the host's notice once a model is on screen (`view.notice`), and Quick Edit
                   under it -- hidden, not unmounted, while the view loads: a note being written outlives a
                   reload of the model. */}

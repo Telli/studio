@@ -103,6 +103,15 @@ class EditService(unittest.TestCase):
         self.assertTrue(changed["ok"], changed.get("error"))
         self.assertIn("WIDTH = 25\n", (self.root / "sizes.py").read_text(encoding="utf-8"))
 
+    def test_a_change_is_undone_by_writing_its_number_back(self):
+        state = self.service.state(self.file)
+        width = next(p for p in state["params"] if p["name"] == "WIDTH")
+        changed = self.service.change({"file": self.file, "literal": width["id"], "text": "24", "files": state["files"]})
+        undone = self.service.change({"file": self.file, "literal": changed["change"]["literal"], "text": changed["change"]["from"],
+                                      "files": changed["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertIn("WIDTH = 20\n", (self.root / "sizes.py").read_text(encoding="utf-8"))
+
     def test_a_file_changed_since_it_was_read_is_refused(self):
         state = self.service.state(self.file)
         width = next(p for p in state["params"] if p["name"] == "WIDTH")

@@ -214,11 +214,86 @@ export interface CadWorkspaceService {
   dispose(): void;
 }
 /** Reusable HTTP implementation, also used by existing catalog adapters. */
+/** A number in a part's source, as edit mode shows it: a named size, or a feature's input. */
+export interface CadEditValue {
+  label?: string;
+  name?: string | null;
+  value: number;
+  display?: string;
+  text?: string;
+  unit?: string;
+  formula?: string;
+  leaves?: string[];
+  length?: boolean;
+  id?: string;
+  file?: string;
+  line?: number;
+}
+
+/** A dimension of a feature, drawn on the model in its own millimetres. */
+export interface CadEditDimension {
+  id: string;
+  name: string;
+  label: string;
+  display: string;
+  formula: string;
+  leaves: string[];
+  row: string | null;
+  anchor: [number, number, number];
+  lines: [number, number, number][][];
+}
+
+/** One feature of a part's history: an operation of its script, at the line that asked for it. */
+export interface CadEditRow {
+  key: string;
+  name: string | null;
+  kind: string;
+  code?: string;
+  file?: string;
+  line?: number;
+  count?: number;
+  inputs: CadEditValue[];
+}
+
+export interface CadEditState {
+  ok: boolean;
+  unchanged?: boolean;
+  reason?: 'no-script';
+  error?: string;
+  script?: string;
+  name?: string;
+  units?: 'mm' | 'in';
+  files?: Record<string, string>;
+  params?: (CadEditValue & { id: string; name: string; text: string })[];
+  rows?: CadEditRow[];
+  dimensions?: CadEditDimension[];
+  choose?: { id: string; name: string; file: string; line: number }[];
+  change?: { literal: string; name: string; file: string; line: number; from: string; to: string };
+  building?: { scripts: string[]; done: number; error: string | null };
+}
+
+export interface CadEditChangeRequest {
+  file: string;
+  files?: Record<string, string>;
+  text: string;
+  literal?: string;
+  dimension?: string;
+  input?: { row: string; index: number };
+  leaf?: string;
+}
+
 export interface CadClient extends CadWorkspaceService {
   readonly origin: string;
   requestSurfaces(body: CadSurfaceRequest, options?: CadRequestOptions): Promise<CadSurfaceResponse>;
   cancelSurfaceRequest(body: { job: string }, options?: CadRequestOptions): Promise<{ok?: boolean}>;
   editingPreview(file: string, options?: CadRequestOptions & { after?: string }): Promise<CadEditingPreview>;
+  /**
+   * Edit mode: the part script behind `file` (the script beside a STEP) read as a design. `files`
+   * is the hashes the page read last; when none changed the answer is `{ ok: true, unchanged: true }`.
+   */
+  editState(file: string, files?: Record<string, string> | null, options?: CadRequestOptions): Promise<CadEditState>;
+  /** Edit mode: one number of the part's source changed, then the parts that use it built again. */
+  editChange(change: CadEditChangeRequest, options?: CadRequestOptions): Promise<CadEditState>;
 }
 export interface CadClientOptions {
   resources?: CadResourceProvider;

@@ -314,6 +314,15 @@ export function createCadClient({ origin = '', fetch: fetchImpl = globalThis.fet
         headers: { 'content-type': 'application/json', 'x-cadgen-viewer': '1' },
       });
     },
+    // Edit mode (`cadgen/edit`): the part script behind `file` read as a design, and one number
+    // of it changed. A cold read runs the part once, so its bound is far past the house 10 s.
+    editState(file, files = null, { signal } = {}) {
+      if (!file) return Promise.reject(new Error('Missing file'));
+      return request('/__cad/edit/state', { body: { file, files }, signal, method: 'POST', timeoutMs: 200_000, operation: 'edit', headers: JSON_POST });
+    },
+    editChange(change, { signal } = {}) {
+      return request('/__cad/edit/change', { body: change, signal, method: 'POST', timeoutMs: 200_000, operation: 'edit', headers: JSON_POST });
+    },
     editingPreview(file, { after = '', signal } = {}) {
       return request('/__cad/preview', { file, signal, params: { after }, operation: 'preview' });
     },

@@ -128,6 +128,11 @@ import { modelMenuDescriptor, partMenuDescriptor, topologyMenuDescriptor } from 
 import { nodeCopyText, selectionCopyPayload } from "./file-view/stepCopy.js";
 import { referenceLabel, referencesFromCopyText, resolveSelectorSelection } from "./file-view/hostReference.js";
 import { applySourceAppearanceToMeshData, sourceAppearanceGeometry } from "@text-to-cad/core/common/sourceSidecar.js";
+import EditBrowser from "./edit/EditBrowser.jsx";
+import EditDimensions from "./edit/EditDimensions.jsx";
+import EditRibbon from "./edit/EditRibbon.jsx";
+import { featureNames, rowDimensions } from "./edit/editMode.js";
+import { useEditMode } from "./edit/useEditMode.js";
 // The selection filters that pick faces or edges, never the part.
 const TOPOLOGY_FILTERS = new Set(["faces", "edges"]);
 const EMPTY_MATERIAL_OVERRIDES = Object.freeze({});
@@ -3162,6 +3167,16 @@ function StepSurfaceBody({ view, data }) {
   });
   lodSelectedPartIdsRef.current = layerProps.selectedPartIds;
 
+  // ---- edit mode ------------------------------------------------------------------------------
+  // A model with a part script beside it is edited here (`edit/`): the script's history and named
+  // sizes in a design tree at the viewer's left, the selected feature's dimensions on the model,
+  // and the tools in a ribbon across the top. A model with none keeps the view as it is.
+  const edit = useEditMode({ client, file: selectedEntry?.file || "", resource: shell.frame.resource, active: !viewerLoading });
+  const editing = edit.status !== "none";
+  const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
+  const editDimensions = useMemo(() => (edit.status === "ready" ? rowDimensions(edit.state, edit.selected) : EMPTY_LIST),
+    [edit.status, edit.state, edit.selected]);
+
   // ---- the strip ------------------------------------------------------------------------------
   // An assembly, as the catalog says or as the model on screen shows (several parts, as Explode
   // counts them): the model survives an update the catalog has not finished, or one that failed,
@@ -3288,8 +3303,15 @@ function StepSurfaceBody({ view, data }) {
     contextMenuItems={selectionToolActive
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}
     onContextMenuOpenChange={handleViewportContextMenuOpenChange}
+    ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} /> : null}
+    leftDock={editing ? <EditBrowser edit={edit} names={editNames} /> : null}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
-      return <StepSceneLayers viewport={viewport} stepScene={stepScene} policy={viewPolicyResolved} props={layerProps} api={layersApiRef} />;
+      return <>
+        <StepSceneLayers viewport={viewport} stepScene={stepScene} policy={viewPolicyResolved} props={layerProps} api={layersApiRef} />
+        {editing ? <EditDimensions viewport={viewport} dimensions={editDimensions} units={edit.state?.units || ""} disabled={edit.saving}
+          choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
+          onChoose={edit.choose} onDismissChoice={edit.dismissChoice} /> : null}
+      </>;
     }} />;
 }

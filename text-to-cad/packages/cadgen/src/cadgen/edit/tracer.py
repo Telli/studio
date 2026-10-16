@@ -1068,7 +1068,7 @@ def edit(request):
             return {"ok": False, "error": f"{request['text']} is not a number."}
         old_value = literal["value"]
         _write_literal(literal, literal_text(value, literal["text"]), files.get(literal["file"]))
-        change = {"name": literal["name"] or literal["text"], "file": literal["file"], "line": literal["line"], "from": literal["text"], "to": literal_text(value, literal["text"]), "was": old_value}
+        change = {"literal": literal["id"], "name": literal["name"] or literal["text"], "file": literal["file"], "line": literal["line"], "from": literal["text"], "to": literal_text(value, literal["text"]), "was": old_value}
     else:
         state = STATE[script]
         if "input" in request:
@@ -1103,7 +1103,7 @@ def edit(request):
         value = _solve(expr, leaf, target)
         text = literal_text(round(value, 6), literal["text"])
         _write_literal(literal, text, files.get(literal["file"]))
-        change = {"name": literal["name"] or literal["text"], "file": literal["file"], "line": literal["line"], "from": literal["text"], "to": text, "was": literal["value"]}
+        change = {"literal": literal["id"], "name": literal["name"] or literal["text"], "file": literal["file"], "line": literal["line"], "from": literal["text"], "to": text, "was": literal["value"]}
     traced = trace(request)
     traced["change"] = change
     return traced
