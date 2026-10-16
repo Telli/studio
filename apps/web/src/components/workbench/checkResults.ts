@@ -123,29 +123,41 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
 }
 
 /**
- * A project's parts as its overview lists them: its models and boards, a mesh
- * exported beside its STEP folded into it, so each part appears once.
+ * A project's parts as its overview lists them: its models and boards, each
+ * part once. A mesh exported beside its STEP folds into the STEP, and a STEP
+ * exported beside its SolidCraft design folds into the design, which opens in
+ * the part editor and is pictured by its STEP.
  */
 export function overviewParts(files: ReadonlyArray<ProjectFile>): ProjectFile[] {
   const parts = files.filter(
     (file) => file.group === "Models" || file.group === "Boards and wiring",
   );
-  const steps = new Set(
-    parts
-      .filter((file) => file.kind === "Part")
-      .map((file) => `${file.folder}/${stemOf(file.name)}`),
+  const key = (file: ProjectFile) => `${file.folder}/${stemOf(file.name)}`;
+  const steps = new Map(
+    parts.filter((file) => file.kind === "Part").map((file) => [key(file), file]),
   );
-  return parts.filter(
-    (file) => file.kind !== "Mesh" || !steps.has(`${file.folder}/${stemOf(file.name)}`),
-  );
+  const designs = new Set(parts.filter((file) => file.kind === "Design").map(key));
+  return parts.flatMap((file) => {
+    if (file.kind === "Mesh" && steps.has(key(file))) return [];
+    if (file.kind === "Part" && designs.has(key(file))) return [];
+    if (file.kind === "Design") {
+      const step = steps.get(key(file));
+      return [step === undefined ? file : { ...file, picture: step.path }];
+    }
+    return [file];
+  });
 }
 
-/** The results about this part: those naming its file, or, naming none, its stem. */
+/**
+ * The results about this part: those naming its file, or, naming none, its
+ * stem. A design's checks run on its STEP, so a design takes those naming its stem.
+ */
 export function resultsFor(part: ProjectFile, results: ReadonlyArray<CheckResult>): CheckResult[] {
   const name = part.name.toLowerCase();
   const stem = stemOf(part.name);
   return results.filter((result) => {
     const named = result.part.toLowerCase();
+    if (part.kind === "Design") return stemOf(named) === stem;
     return named === name || (!named.includes(".") && named === stem);
   });
 }

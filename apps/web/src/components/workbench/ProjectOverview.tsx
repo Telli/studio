@@ -131,9 +131,9 @@ function LeadPart(props: {
   const pictures = usePictures({
     environmentId: props.environmentId,
     cwd: part.root,
-    paths: [part.file.path],
+    paths: [part.file.picture ?? part.file.path],
   });
-  const picture = pictures.get(part.file.path);
+  const picture = pictures.get(part.file.picture ?? part.file.path);
   const status = worstStatus(part.results);
   return (
     <section aria-label="Lead part" className="flex min-w-0 flex-col gap-2">
@@ -281,7 +281,7 @@ function FolderParts(props: {
   const pictures = usePictures({
     environmentId: props.environmentId,
     cwd: props.root,
-    paths: shown.map((part) => part.file.path),
+    paths: shown.map((part) => part.file.picture ?? part.file.path),
   });
   return (
     <div className="flex min-w-0 flex-col">
@@ -290,7 +290,7 @@ function FolderParts(props: {
       )}
       <ul className="flex flex-col">
         {shown.map((part) => {
-          const picture = pictures.get(part.file.path);
+          const picture = pictures.get(part.file.picture ?? part.file.path);
           return (
             <li
               key={part.file.path}

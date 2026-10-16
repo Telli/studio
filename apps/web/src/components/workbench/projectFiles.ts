@@ -41,6 +41,8 @@ export interface ProjectFile {
   readonly group: ProjectGroup;
   /** What it is, in a word or two: "Part", "Board", "G-code", "Bill of materials". */
   readonly kind: string;
+  /** The file that pictures it, when it is not itself pictured: a SolidCraft design's STEP. */
+  readonly picture?: string;
 }
 
 /** A manufacturing check's result model, `<stem>.<process>.glb` (`checkResults.ts`). */
@@ -53,6 +55,7 @@ const RULES: ReadonlyArray<{ readonly test: RegExp; readonly group: ProjectGroup
   { test: /\.cam\.(?:glb|json)$/i, group: "Manufacturing" },
   { test: /\.(?:nc|gcode|ngc|tap|gco)$/i, group: "Manufacturing" },
   { test: /\.(?:step|stp)$/i, group: "Models" },
+  { test: /\.solidcraft$/i, group: "Models" },
   { test: /\.(?:stl|3mf|obj|glb)$/i, group: "Models" },
   { test: /\.(?:urdf|sdf|srdf)$/i, group: "Models" },
   { test: /\.kicad_pcb$/i, group: "Boards and wiring" },

@@ -9,7 +9,10 @@
  *   enable on first start, each from the first of those folders that lists it.
  *
  * Each default is offered once (`plugins/offered.json`), so one the user
- * uninstalls stays uninstalled. Without the variables nothing changes.
+ * uninstalls stays uninstalled. A default still installed is updated when its
+ * folder changed since the last start (`plugins/bundled.json`), so the tools
+ * and views T3 lists for it follow the app. Without the variables nothing
+ * changes.
  */
 import { catalogKey } from "@t3tools/plugins";
 import * as HostProcess from "@t3tools/shared/HostProcess";
@@ -43,8 +46,10 @@ const defaultPluginNames = Config.String("T3CODE_DEFAULT_PLUGINS").pipe(
   Config.withDefault<ReadonlyArray<string>>([]),
 );
 
-/** The plugin names a folder's marketplace lists. */
-function listedNames(folder: string): ReadonlyArray<string> {
+/** The plugins a folder's marketplace lists, each with its folder inside it. */
+function listedPlugins(
+  folder: string,
+): ReadonlyArray<{ readonly name: string; readonly source: string }> {
   const raw = PluginFiles.readJsonFile(`${folder}/.claude-plugin/marketplace.json`);
   const plugins =
     typeof raw === "object" && raw !== null && "plugins" in raw && Array.isArray(raw.plugins)
@@ -55,9 +60,30 @@ function listedNames(folder: string): ReadonlyArray<string> {
     plugin !== null &&
     "name" in plugin &&
     typeof plugin.name === "string"
-      ? [plugin.name]
+      ? [
+          {
+            name: plugin.name,
+            source: "source" in plugin && typeof plugin.source === "string" ? plugin.source : "./",
+          },
+        ]
       : [],
   );
+}
+
+const listedNames = (folder: string) => listedPlugins(folder).map((plugin) => plugin.name);
+
+/**
+ * The installed defaults to update: those whose folder's fingerprint is not the one recorded at
+ * the last start, leaving out any installed in this start, whose listing is already fresh.
+ */
+export function staleDefaults(
+  prints: Readonly<Record<string, string>>,
+  seen: Readonly<Record<string, string>>,
+  installedNow: ReadonlySet<string>,
+): ReadonlyArray<string> {
+  return Object.entries(prints)
+    .filter(([key, print]) => !installedNow.has(key) && seen[key] !== print)
+    .map(([key]) => key);
 }
 
 /**
@@ -100,6 +126,7 @@ export const offerDefaults = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const path = yield* Path.Path;
   const offeredFile = path.join(config.stateDir, "plugins", "offered.json");
+  const installedNow = new Set<string>();
   for (const key of defaultPluginKeys(folders, names)) {
     if (readOffered(offeredFile).includes(key)) continue;
     // Recorded only once installed: a failure (an unreadable checkout, a clash with the same
@@ -109,15 +136,57 @@ export const offerDefaults = Effect.gen(function* () {
         installed.enabled ? Effect.void : plugins.setEnabled(installed.id, true),
       ),
       Effect.tap(() =>
-        Effect.sync(() =>
-          PluginFiles.writeJsonFile(offeredFile, [...readOffered(offeredFile), key]),
-        ),
+        Effect.sync(() => {
+          installedNow.add(key);
+          PluginFiles.writeJsonFile(offeredFile, [...readOffered(offeredFile), key]);
+        }),
       ),
       Effect.catch((error) =>
         Effect.logWarning("bundled plugin was not installed", { key, error: error.message }),
       ),
     );
   }
+
+  // Each offered default's folder as it is now, keyed like the offers.
+  const offered = new Set(readOffered(offeredFile));
+  const located = new Map<string, { readonly name: string }>();
+  const prints: Record<string, string> = {};
+  for (const folder of folders) {
+    const market = PluginStore.folderMarketplaceId(folder);
+    for (const plugin of listedPlugins(folder)) {
+      const key = catalogKey(market, plugin.name);
+      if (!names.includes(plugin.name) || !offered.has(key) || located.has(key)) continue;
+      located.set(key, { name: plugin.name });
+      prints[key] = PluginFiles.fingerprintHash(path.join(folder, plugin.source));
+    }
+  }
+  const seenFile = path.join(config.stateDir, "plugins", "bundled.json");
+  const raw = PluginFiles.readJsonFile(seenFile);
+  const seen: Record<string, string> =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw)
+      ? Object.fromEntries(
+          Object.entries(raw).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        )
+      : {};
+  const stale = staleDefaults(prints, seen, installedNow);
+  if (stale.length > 0) {
+    const { plugins: installed } = yield* plugins.list;
+    for (const key of stale) {
+      // A plugin's id is its name: T3 installs one plugin of a name, from one catalog.
+      const plugin = installed.find((entry) => entry.id === located.get(key)?.name);
+      if (plugin === undefined) continue;
+      yield* plugins
+        .update(plugin.id)
+        .pipe(
+          Effect.catch((error) =>
+            Effect.logWarning("bundled plugin was not updated", { key, error: error.message }),
+          ),
+        );
+    }
+  }
+  PluginFiles.writeJsonFile(seenFile, prints);
 });
 
 /** Offers the defaults in the background, so startup never waits on a plugin's first listing. */

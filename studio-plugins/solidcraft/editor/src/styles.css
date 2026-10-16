@@ -1,0 +1,421 @@
+/* Studio's look, from the host's MCP Apps variables, with Studio's own values as fallbacks. */
+:root {
+  --bg: var(--color-background-primary, #1b1c1f);
+  --panel: var(--color-background-secondary, #222327);
+  --raised: var(--color-background-tertiary, #2a2b30);
+  --text: var(--color-text-primary, #e9e9ec);
+  --muted: var(--color-text-secondary, #9b9ca3);
+  --faint: var(--color-text-tertiary, #6f7077);
+  --border: var(--color-border-primary, rgba(255, 255, 255, 0.09));
+  --accent: var(--color-ring-primary, #5b9cff);
+  --danger: var(--color-text-danger, #ff7a7a);
+  --warning: var(--color-text-warning, #e6b450);
+  --viewport: var(--color-background-secondary, #1f2023);
+  --radius: var(--border-radius-md, 6px);
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: var(--color-background-primary, #ffffff);
+  --panel: var(--color-background-secondary, #f6f6f7);
+  --raised: var(--color-background-tertiary, #eeeef0);
+  --text: var(--color-text-primary, #17171a);
+  --muted: var(--color-text-secondary, #62636b);
+  --faint: var(--color-text-tertiary, #8d8e95);
+  --border: var(--color-border-primary, rgba(0, 0, 0, 0.09));
+  --viewport: var(--color-background-secondary, #f4f5f7);
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 12px/1.4 var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 44px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.title .name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.title .meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.status.error {
+  color: var(--danger);
+}
+.status.warning {
+  color: var(--warning);
+}
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 4px;
+}
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  color: var(--muted);
+  transition:
+    background-color 120ms,
+    color 120ms;
+}
+.icon:hover:not(:disabled) {
+  background: var(--raised);
+  color: var(--text);
+}
+.icon[aria-pressed="true"] {
+  color: var(--text);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.view {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--viewport);
+}
+.view canvas {
+  display: block;
+}
+.chips {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.chip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: auto;
+}
+.chip .value {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+.chip .value:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.chip .value-edit input {
+  width: 110px;
+}
+.empty,
+.problem {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 300px;
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+.problem {
+  top: auto;
+  bottom: 14px;
+  transform: translateX(-50%);
+  color: var(--danger);
+}
+
+.side {
+  width: 272px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+  padding: 10px 0 16px;
+}
+.side section + section {
+  margin-top: 14px;
+}
+.side h2 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0 0 4px;
+  padding: 0 14px;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.link {
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--accent);
+}
+.hint {
+  margin: 0;
+  padding: 4px 14px;
+  color: var(--faint);
+  font-size: 11px;
+}
+.rows,
+.features,
+.inputs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 28px;
+  padding: 2px 14px;
+  border-top: 1px solid var(--border);
+}
+.row:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-formula {
+  grid-column: 1 / -1;
+  order: 3;
+  color: var(--faint);
+  font-size: 11px;
+  margin-top: -2px;
+}
+.row-error,
+.feature-error {
+  grid-column: 1 / -1;
+  color: var(--danger);
+  font-size: 11px;
+  margin: 0;
+}
+.value {
+  justify-self: end;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.row .value:hover {
+  background: var(--raised);
+}
+.value-edit {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  justify-self: end;
+}
+.value-edit input,
+.rename {
+  width: 120px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--accent);
+  background: var(--bg);
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.value-error {
+  color: var(--danger);
+  font-size: 11px;
+  max-width: 200px;
+}
+
+.feature {
+  border-top: 1px solid var(--border);
+}
+.feature:last-child {
+  border-bottom: 1px solid var(--border);
+}
+.feature-line {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 6px 0 10px;
+}
+.feature-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  text-align: left;
+}
+.feature-icon {
+  display: inline-flex;
+  color: var(--muted);
+}
+.feature-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feature.selected {
+  background: var(--panel);
+}
+.feature.selected .feature-name {
+  font-weight: 600;
+}
+.feature.off .feature-name,
+.feature.off .feature-icon {
+  color: var(--faint);
+}
+.feature.off .feature-name {
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
+.feature-actions {
+  display: flex;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.feature:hover .feature-actions,
+.feature-actions:focus-within,
+.feature.selected .feature-actions {
+  opacity: 1;
+}
+.feature-actions .icon {
+  width: 24px;
+  height: 24px;
+}
+.feature-error {
+  padding: 0 14px 6px 32px;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot.error {
+  background: var(--danger);
+}
+.dot.warning {
+  background: var(--warning);
+}
+.inputs {
+  padding: 0 0 6px 18px;
+}
+.inputs .row {
+  border: 0;
+  min-height: 26px;
+}
+
+/* Tooltips: Studio's own Tooltip cannot run in a view, so a hint from data-tip. */
+[data-tip] {
+  position: relative;
+}
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  padding: 4px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition-delay: 400ms;
+}
+.chip [data-tip]:hover::after {
+  top: auto;
+  bottom: calc(100% + 6px);
+  right: 50%;
+  transform: translateX(50%);
+}
+/* In the side panel a hint sits above its row, clear of the inputs opened under it. */
+.side [data-tip]:hover::after,
+.side [data-tip]:focus-visible::after {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.feature-main[data-tip]:hover::after {
+  right: auto;
+  left: 22px;
+}

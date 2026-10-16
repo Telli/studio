@@ -66,6 +66,19 @@ const layerFor = (env: Record<string, string>, base: string) => {
   );
 };
 
+describe("bundled plugin updates", () => {
+  it("updates a default whose folder changed since the last start, not one installed now", () => {
+    assert.deepEqual(
+      BundledPlugins.staleDefaults(
+        { "m/a": "1", "m/b": "2", "m/c": "3", "m/d": "4" },
+        { "m/a": "1", "m/b": "old", "m/c": "old" },
+        new Set(["m/c"]),
+      ),
+      ["m/b", "m/d"],
+    );
+  });
+});
+
 describe("bundled plugins", () => {
   it.layer(NodeServices.layer)((it) => {
     it.effect("installs a checkout's plugin once, and an uninstall sticks", () => {

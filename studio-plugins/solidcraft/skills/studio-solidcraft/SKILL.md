@@ -1,35 +1,46 @@
 ---
 name: studio-solidcraft
-description: Use whenever a part is designed in SolidCraft from Studio, before any solidcraft-modeling or solidcraft-editing step. The engineer has the design open in the SolidCraft app and edits it by hand there; you reach the same open design through the solidcraft MCP tools.
+description: Use whenever a part is designed in SolidCraft from Studio, before any solidcraft-modeling or solidcraft-editing step. The engineer sees the design in Studio's part editor tab and changes it by hand there; you work on the same design through the solidcraft tools.
 ---
 
-# Working beside an engineer in SolidCraft
+# Working beside an engineer in Studio's part editor
 
-The engineer has the design open in the SolidCraft app and changes it there themselves: they double-click dimensions, edit parameters, add and suppress features. You work on the same open design through the `solidcraft` MCP tools, which are bridged to the app. Their edits and yours land in one design.
+The thread's SolidCraft design is open in Studio's part editor, a tab beside the chat. The engineer
+sees the model there and changes it by hand: they double-click a dimension on the model and type a
+value or a formula, edit the named sizes, and rename, suppress or roll back features in the
+timeline. You work on the same design through the `solidcraft` tools. Their edits and yours land in
+one design, and the editor shows yours as you make them.
 
-## Every turn, first
+## Their edits
 
-- Run `inspect_design {"measure":false,"sketches":false}` before anything else. The design may have changed since you last looked.
-- When it has, say what they changed in a line, in the design's own terms ("You set the wall to 3 mm and filleted the rim").
-- Their edits stand. Never undo, revert or "fix" a value they set unless they ask. If one of their changes breaks a later feature, say which and propose the fix, then wait for a go.
-- Do not recheck or rebuild because they edited something. Check when they ask, or when your own change needs it.
+- When the engineer changed the design since your last call, the next SolidCraft tool result begins
+  with what they changed ("set width from `75 mm` to `70 mm`"). Their edits stand: never undo,
+  revert or "fix" a value they set unless they ask.
+- Mention their change in a line when it bears on what you do next ("You set the wall to 3 mm, so
+  the boss fits at 6 mm").
+- If one of their changes breaks a later feature, say which and propose the fix, then wait for a go.
+- Do not recheck or rebuild because they edited something. Check when they ask, or when your own
+  change needs it.
 
-## Starting a part
+## Starting or opening a part
 
-- Use `new_design` only when they asked for a new part, and only after `inspect_design` shows nothing unsaved (ask first if it does).
-- Save a new design into this thread's folder right away: `save {"path":"<folder>/<name>.solidcraft"}`, named for the part (`servo_bracket.solidcraft`).
-- Put the sizes that matter in user parameters with plain names (`width`, `wall`, `hole_d`), so they show in SolidCraft's Parameters for the engineer to change.
+- Run `inspect_design {"measure":false,"sketches":false}` first.
+- Use `new_design` only when they asked for a new part, and only when nothing unsaved is open (ask
+  first if it is).
+- Save a new design into this thread's folder right away, named for the part:
+  `save {"path":"<folder>/servo_bracket.solidcraft"}`.
+- Then call `editor_open` so the engineer sees it (`editor_open {"path": ...}` opens a file first).
+- Put the sizes that matter in user parameters with plain names (`width`, `wall`, `hole_d`): the
+  editor lists them for the engineer to change, and sketch dimensions that use them follow.
 
 ## After a change you make
 
-- Export the part as STEP beside the design: `export {"path":"<folder>/<name>.step"}`. Studio shows that STEP in its viewer and runs its manufacturing and FEA checks on it. Export again after every change.
-- Do not `save {}` over a design they opened unless they asked; SolidCraft keeps their unsaved state. A design you created and saved yourself can be saved again.
+- `save {}`, then export the part as STEP beside the design:
+  `export {"path":"<folder>/<name>.step"}`. Studio's viewer and its manufacturing and FEA checks
+  read that STEP. The editor saves and exports the same way after the engineer's own edits.
 - Say what you changed in a line: which parameters and features, from what to what.
 
 ## Failed checks
 
-When a Studio check on the exported STEP fails, propose the change to the design (which parameter or feature, to what, and why) and wait for a go before making it.
-
-## When SolidCraft is not running
-
-If a tool says no SolidCraft app is listening, open it yourself with `open -a SolidCraft --args --control 7878`, wait a few seconds, and try again. Tell the engineer you opened it. If SolidCraft is not installed, say so and stop.
+When a Studio check on the exported STEP fails, propose the change to the design (which parameter
+or feature, to what, and why) and wait for a go before making it.

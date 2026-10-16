@@ -148,6 +148,28 @@ describe("check results", () => {
     expect(worstStatus([])).toBeNull();
   });
 
+  it("lists a SolidCraft design once, pictured by its STEP and checked through it", () => {
+    const files = [
+      "parts/plate.solidcraft",
+      "parts/plate.step",
+      "parts/plate.glb",
+      "parts/arm.step",
+    ]
+      .map(classifyProjectFile)
+      .filter((file): file is ProjectFile => file !== null);
+    const parts = overviewParts(files);
+    expect(parts.map((part) => [part.name, part.kind, part.picture])).toEqual([
+      ["plate.solidcraft", "Design", "parts/plate.step"],
+      ["arm.step", "Part", undefined],
+    ]);
+    const result = parseCheckResult(
+      "parts/plate.fea.json",
+      JSON.stringify({ document: "plate.step", findings: [] }),
+    )!;
+    expect(resultsFor(parts[0]!, [result])).toHaveLength(1);
+    expect(resultsFor(parts[1]!, [result])).toHaveLength(0);
+  });
+
   it("asks the agent to propose a fix and wait, never to change the part", () => {
     const result = parseCheckResult("bossbar.casting.result.json", casting)!;
     expect(proposeFixPrompt(result, result.issues[0]!)).toBe(

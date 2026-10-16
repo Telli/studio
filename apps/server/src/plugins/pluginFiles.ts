@@ -236,6 +236,11 @@ export function fingerprint(dir: string): string {
   return parts.join("|");
 }
 
+/** The folder's fingerprint in short: a hash, for keeping beside other records. */
+export function fingerprintHash(dir: string): string {
+  return NodeCrypto.createHash("sha256").update(fingerprint(dir)).digest("hex").slice(0, 16);
+}
+
 /** The JSON file, or `undefined` when it is missing. A file that does not parse is set aside as `.bad`. */
 export function readJsonFile(file: string): unknown {
   if (!isFile(file)) return undefined;

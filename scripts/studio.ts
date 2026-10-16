@@ -10,8 +10,9 @@
  * - keeps its state in `~/.text-to-cad-studio`, never in T3 Code's own home.
  *
  * - offers Studio's own plugins (`studio-plugins/`) beside it: SolidCraft, when
- *   it is installed in Applications, bridged to the app, which it starts with
- *   its control port open (STUDIO_SOLIDCRAFT=0 leaves it out);
+ *   it is installed in Applications, its engine run headless per thread behind
+ *   Studio's part editor (STUDIO_SOLIDCRAFT=0 leaves it out; STUDIO_SOLIDCRAFT_APP=1
+ *   bridges it to the SolidCraft app instead, which it opens);
  *
  * TEXT_TO_CAD_ROOT points at another checkout; TEXT_TO_CAD_STUDIO_HOME moves the state.
  * TEXT_TO_CAD_DEV=1 runs the checkout's working copy instead of the released cadgen: its
@@ -22,6 +23,8 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+
+import { buildSolidcraftEditor } from "./solidcraft-editor.ts";
 
 const appRoot = NodePath.dirname(import.meta.dirname);
 const checkout = NodePath.resolve(
@@ -62,9 +65,10 @@ const home =
   process.env.TEXT_TO_CAD_STUDIO_HOME?.trim() ||
   NodePath.join(NodeOS.homedir(), dev ? ".text-to-cad-studio-dev" : ".text-to-cad-studio");
 
-// SolidCraft, a parametric CAD app the engineer edits by hand while the agent works on the same
-// design through its MCP server, bridged to the running app over its control port.
+// SolidCraft, a parametric CAD engine the engineer edits by hand in Studio's part editor while the
+// agent works on the same design: Studio's server runs it per thread (studio-plugins/solidcraft).
 const SOLIDCRAFT_APP = process.env.SOLIDCRAFT_APP?.trim() || "/Applications/SolidCraft.app";
+const bridged = process.env.STUDIO_SOLIDCRAFT_APP?.trim() === "1";
 const SOLIDCRAFT_PORT = "7878";
 const markets = [marketplace];
 const defaults = ["text-to-cad"];
@@ -81,17 +85,19 @@ if (process.env.STUDIO_SOLIDCRAFT?.trim() !== "0" && NodeFS.existsSync(SOLIDCRAF
   ]
     .map((folder) => folder.trim())
     .filter(Boolean);
+  await buildSolidcraftEditor(appRoot, NodePath.join(own, "solidcraft", "editor", "editor.html"));
   NodeFS.writeFileSync(
     NodePath.join(own, "solidcraft", "codex.mcp.json"),
     JSON.stringify(
       {
         mcpServers: {
           solidcraft: {
-            command: NodePath.join(SOLIDCRAFT_APP, "Contents", "MacOS", "solidcraft-cli"),
+            command: process.execPath,
             args: [
-              "mcp",
-              "--connect",
-              `127.0.0.1:${SOLIDCRAFT_PORT}`,
+              NodePath.join(own, "solidcraft", "server", "server.mjs"),
+              "--cli",
+              NodePath.join(SOLIDCRAFT_APP, "Contents", "MacOS", "solidcraft-cli"),
+              ...(bridged ? ["--connect", `127.0.0.1:${SOLIDCRAFT_PORT}`] : []),
               ...allowed.flatMap((folder) => ["--allow-path", folder]),
             ],
           },
@@ -103,11 +109,13 @@ if (process.env.STUDIO_SOLIDCRAFT?.trim() !== "0" && NodeFS.existsSync(SOLIDCRAF
   );
   markets.push(own);
   defaults.push("solidcraft");
-  // Opens SolidCraft beside Studio, ready for the agent; one already open keeps its own window.
-  NodeChildProcess.spawn("open", ["-a", SOLIDCRAFT_APP, "--args", "--control", SOLIDCRAFT_PORT], {
-    stdio: "ignore",
-    detached: true,
-  }).unref();
+  if (bridged) {
+    // Opens SolidCraft beside Studio, ready for the agent; one already open keeps its own window.
+    NodeChildProcess.spawn("open", ["-a", SOLIDCRAFT_APP, "--args", "--control", SOLIDCRAFT_PORT], {
+      stdio: "ignore",
+      detached: true,
+    }).unref();
+  }
 }
 // text-to-cad's name, mark, icons and accent (brand/README.md).
 const brandDir = NodePath.join(appRoot, "brand");
