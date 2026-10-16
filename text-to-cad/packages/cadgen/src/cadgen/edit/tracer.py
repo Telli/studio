@@ -971,6 +971,19 @@ def _row_summary(row, units):
                 continue
             seen.add(key)
             inputs.append(item)
+    # A constrained sketch's dimensions are the feature's inputs too, named as a CAD tool names
+    # them (D1@Sketch1), so the sizes that drive the sketch are changed where the feature is.
+    for step in row["steps"]:
+        drawn = getattr(step["args"][0][1], "_cadgen_sketch", None) if step["op"] in ("extrude", "revolve") and step["args"] else None
+        for relation in getattr(drawn, "relations", []):
+            if not relation.dimension or not isinstance(relation.raw, (TFloat, TInt)):
+                continue
+            item = _input(SKETCH_DIMENSION_INPUTS.get(relation.kind, relation.kind), relation.raw, units)
+            key = tuple(item["leaves"]) if item else ()
+            if item is None or not key or key in seen:
+                continue
+            seen.add(key)
+            inputs.append({**item, "label": f"{relation.name}@{drawn.name}"})
     repeats = len([s for s in row["steps"] if s["op"] == row["steps"][0]["op"]])
     return {
         "key": row["key"],
@@ -988,6 +1001,11 @@ def _row_summary(row, units):
 # A profile an extrude or revolve makes a solid from: what a CAD tree shows as its sketch.
 SKETCH_PROFILES = {"Rectangle", "RectangleRounded", "Circle", "Ellipse", "Polygon", "RegularPolygon",
                    "SlotOverall", "SlotCenterToCenter", "Trapezoid", "Triangle", "Text"}
+# A constrained sketch's plane as the tree names it (`cadgen.sketch` takes either).
+SKETCH_PLANES = {"XY": "Top", "XZ": "Front", "YZ": "Right"}
+# A sketch dimension's kind as the input it is: linear ones are lengths, an angle is not.
+SKETCH_DIMENSION_INPUTS = {"length": "length", "distance": "length", "horizontal_distance": "length",
+                           "vertical_distance": "length", "radius": "radius", "diameter": "diameter", "angle": "angle"}
 # A primitive solid reads as an extrude of the sketch it implies.
 PRIMITIVE_SKETCHES = {"Box": ("Rectangle", "Rectangle"), "Cylinder": ("Circle", "Circle")}
 MAKES_SOLID = {"Extrude", "Revolve", "Box", "Cylinder"}
@@ -1009,6 +1027,12 @@ def _sketch_of(steps):
     rectangle or circle a box or cylinder implies, with the plane it lies on."""
     for step in steps:
         if step["op"] in ("extrude", "revolve") and step["args"]:
+            # A face made from a constrained sketch (`cadgen.sketch`): that sketch, by its name.
+            drawn = getattr(step["args"][0][1], "_cadgen_sketch", None)
+            if drawn is not None:
+                plane = drawn.plane if isinstance(drawn.plane, str) else _plane_of(step["args"][0][1])
+                return {"op": "Sketch", "label": "Sketch", "name": drawn.name, "step": None,
+                        "plane": SKETCH_PLANES.get(plane, plane), "status": drawn.status}
             index = getattr(step["args"][0][1], "_studio_step", None)
             if index is not None and STEPS[index]["op"] in SKETCH_PROFILES:
                 profile = STEPS[index]

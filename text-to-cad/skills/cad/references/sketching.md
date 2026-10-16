@@ -1,0 +1,77 @@
+# Sketching
+
+`cadgen.sketch` draws a part's profiles the way a CAD tool's sketcher does: points, lines, arcs
+and circles on a plane, held by relations and dimensions, solved when the script runs. Use it
+for a profile an engineer will want to read and change as a sketch: a bracket's outline, a slot,
+a plate with holes. The CAD viewer's edit mode shows it under its feature in the design tree
+(Boss-Extrude1, then Sketch1) with its dimensions as the feature's inputs, marked (-) while it is
+under defined, as SolidWorks marks it.
+
+```python
+from build123d import extrude
+from cadgen import step
+from cadgen.sketch import Sketch
+
+LENGTH = 70
+WIDTH = 25
+HOLE = 8
+THICKNESS = 5
+
+@step
+def plate():
+    s = Sketch("Sketch1", plane="Top")
+    bottom, right, top, left = s.rectangle((0, 0), (70, 25))
+    s.coincident(bottom.start, s.origin)
+    s.length(bottom, LENGTH)
+    s.length(left, WIDTH)
+    hole = s.circle((35, 12.5), 4)
+    s.diameter(hole, HOLE)
+    s.horizontal_distance(bottom.start, hole.center, LENGTH / 2)
+    s.vertical_distance(bottom.start, hole.center, WIDTH / 2)
+    return extrude(s.face(), amount=THICKNESS)
+```
+
+## Planes
+
+- `plane="Top"` is XY, `"Front"` is XZ, `"Right"` is YZ: the origin's planes as a CAD tree names
+  them. A build123d `Plane`, or a planar `Face` of a solid, sketches on that. `offset=` moves the
+  sketch along the plane's normal.
+- An extrude of `s.face()` goes the way the plane faces (Top: up, Front: toward -Y, Right: +X).
+
+## Geometry
+
+- `s.point(x, y)`, `s.line(a, b)`, `s.polyline(*points, closed=True)`, `s.circle(center, r)`,
+  `s.arc(center, start, end, clockwise=False)`, `s.three_point_arc(start, through, end)`.
+- Helpers that add their own relations, as the sketcher's tools do: `s.rectangle(corner,
+  opposite)` (bottom and top horizontal, sides vertical; returns bottom, right, top, left),
+  `s.center_rectangle(center, corner)`, `s.slot(center1, center2, radius)`.
+- Points are shared: a line from a rectangle's corner is joined to it. An (x, y) pair makes a
+  new point. `s.origin` is the sketch's fixed origin to dimension from.
+- `construction=True` keeps a line out of the profile (a centerline, a diagonal).
+
+## Relations and dimensions
+
+- Relations: `coincident`, `horizontal`, `vertical`, `parallel`, `perpendicular`, `tangent`,
+  `equal`, `midpoint`, `symmetric(a, b, about)`, `concentric`, `fix`.
+- Dimensions: `distance(a, b, size)`, `length(line, size)`, `horizontal_distance(a, b, size)`,
+  `vertical_distance(a, b, size)`, `radius(curve, size)`, `diameter(curve, size)`,
+  `angle(line1, line2, degrees)`.
+- Give dimensions the part's named sizes (`LENGTH`, `LENGTH / 2`), not bare numbers, so a change
+  of a size moves the sketch, and so the engineer changes it by name in edit mode.
+- Draw each point near where it ends up: the solver starts from the drawing and leaves what no
+  dimension fixes where it was drawn.
+
+## How defined it is
+
+- `s.status` is Fully defined, Under defined or Over defined, and `s.dof` the ways it can still
+  move. Tie the sketch to `s.origin` and dimension every size to fully define it.
+- Relations that cannot all hold raise `SketchError` naming them. Over defined (a dimension that
+  adds nothing) still solves, and `s.solve().redundant` names the extra one: remove it.
+- `s.face()` is the one closed region, holes cut out. `s.faces()` lists several regions. An open
+  profile raises `SketchError` naming the point where it is open.
+
+## Editing
+
+When the engineer changes a sketch's dimension in edit mode, it rewrites the named size in the
+script, and the next run solves the sketch again. Read the script again before changing it, and
+keep their values.

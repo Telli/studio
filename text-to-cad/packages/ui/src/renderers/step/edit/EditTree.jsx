@@ -5,6 +5,8 @@ import { ORIGIN_PLANES, sizeName } from "./editMode.js";
 import { AssemblyIcon, FeatureIcon, OriginIcon, ParametersIcon, PartIcon, PlaneIcon, SketchIcon } from "./featureIcons.jsx";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
+// How defined a sketch is, marked before its name as SolidWorks marks it: (-) under, (+) over.
+const SKETCH_MARKS = Object.freeze({ "Under defined": "(-) ", "Over defined": "(+) " });
 
 /** One row of the tree: its place (depth), its disclosure when it has rows under it, its icon and name. */
 function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, selected, onSelect, onHover, muted = false }) {
@@ -64,7 +66,8 @@ export default function EditTree({ edit, tree }) {
     return [
       <Row key={feature.id} id={feature.id} depth={depth} icon={<FeatureIcon kind={feature.kind} />} title={feature.title} detail={detail}
         expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null} {...rowProps} />,
-      branch && expanded ? <Row key={feature.sketch.id} id={feature.sketch.id} depth={depth + 1} icon={<SketchIcon />} title={feature.sketch.title}
+      branch && expanded ? <Row key={feature.sketch.id} id={feature.sketch.id} depth={depth + 1} icon={<SketchIcon />}
+        title={`${SKETCH_MARKS[feature.sketch.status] || ""}${feature.sketch.title}`}
         detail={feature.sketch.plane && feature.sketch.plane !== "Plane" ? `${feature.sketch.plane} Plane` : ""} {...rowProps} /> : null,
     ];
   });

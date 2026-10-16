@@ -75,7 +75,9 @@ export function featureTree(state) {
         id: feature.key, kind: feature.kind, title: `${feature.kind}${count}`,
         name: feature.name ? sizeName(feature.name) : "", count: feature.count || 1,
         rows: feature.rows || [feature.key], file: feature.file, line: feature.line,
-        sketch: feature.sketch ? { id: `sketch:${feature.key}`, title: `Sketch${++sketches}`, plane: feature.sketch.plane || "" } : null,
+        // A constrained sketch keeps the name its script gives it; a profile is numbered in order.
+        sketch: feature.sketch ? { id: `sketch:${feature.key}`, title: feature.sketch.name || `Sketch${++sketches}`,
+          plane: feature.sketch.plane || "", status: feature.sketch.status || "" } : null,
       };
     });
   };

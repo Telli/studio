@@ -1,0 +1,469 @@
+"""The sketch itself: its entities, its relations and dimensions, and what it reports.
+
+Entities and relations are named as a CAD tool's sketcher names them (Point1, Line1, Arc1,
+Circle1; Horizontal1, Tangent1; D1 for a dimension), and each remembers the line of the script
+that made it, so an editor can show and change the sketch through the script. A sketch is solved
+on demand (``solve``), and again only when something changed.
+"""
+
+from __future__ import annotations
+
+import math
+import os
+import sys
+from dataclasses import dataclass, field
+
+__all__ = ["Arc", "Circle", "Line", "Point", "Relation", "Sketch", "SketchError"]
+
+
+class SketchError(ValueError):
+    """A sketch that cannot be solved or made into a face, said in a CAD tool's words."""
+
+
+# The origin's planes as a CAD tree names them (Top is XY), and build123d's own names.
+PLANE_NAMES = {"Top": "XY", "Front": "XZ", "Right": "YZ", "XY": "XY", "XZ": "XZ", "YZ": "YZ"}
+STATUS_FULLY, STATUS_UNDER, STATUS_OVER = "Fully defined", "Under defined", "Over defined"
+
+
+def _source():
+    """The script line that called into the sketch: the first frame outside this package."""
+    frame = sys._getframe(1)
+    here = os.path.dirname(os.path.abspath(__file__))
+    while frame is not None and os.path.dirname(os.path.abspath(frame.f_code.co_filename)) == here:
+        frame = frame.f_back
+    return (frame.f_code.co_filename, frame.f_lineno) if frame is not None else None
+
+
+@dataclass(eq=False)
+class Point:
+    name: str
+    x: float
+    y: float
+    fixed: bool = False
+    construction: bool = False
+    source: tuple | None = None
+
+    def __iter__(self):
+        yield self.x
+        yield self.y
+
+    def __repr__(self) -> str:
+        return f"{self.name}({self.x:g}, {self.y:g})"
+
+
+@dataclass(eq=False)
+class Line:
+    name: str
+    start: Point
+    end: Point
+    construction: bool = False
+    source: tuple | None = None
+
+    @property
+    def length(self) -> float:
+        return math.hypot(self.end.x - self.start.x, self.end.y - self.start.y)
+
+    def __repr__(self) -> str:
+        return f"{self.name}({self.start!r} to {self.end!r})"
+
+
+@dataclass(eq=False)
+class Circle:
+    name: str
+    center: Point
+    radius: float
+    construction: bool = False
+    source: tuple | None = None
+
+    def __repr__(self) -> str:
+        return f"{self.name}(center {self.center!r}, radius {self.radius:g})"
+
+
+@dataclass(eq=False)
+class Arc:
+    """A center-point arc: from ``start`` to ``end`` around ``center``, counterclockwise unless
+    ``clockwise``. Its radius is its start's distance from the center; its end keeps to it."""
+
+    name: str
+    center: Point
+    start: Point
+    end: Point
+    clockwise: bool = False
+    construction: bool = False
+    source: tuple | None = None
+
+    @property
+    def radius(self) -> float:
+        return math.hypot(self.start.x - self.center.x, self.start.y - self.center.y)
+
+    def __repr__(self) -> str:
+        return f"{self.name}(center {self.center!r}, {self.start!r} to {self.end!r})"
+
+
+@dataclass(eq=False)
+class Relation:
+    """A relation (``dimension`` False: Horizontal1, Tangent1) or a dimension (D1) on entities.
+    ``value`` is a dimension's size (in the part's units, or degrees for an angle) and ``raw``
+    what the script passed (a named size, traced in edit mode); ``data`` keeps what the drawing
+    decided once (which side a distance is measured to, whether a tangent arc is inside)."""
+
+    name: str
+    kind: str
+    refs: tuple
+    value: float | None = None
+    raw: object = None
+    dimension: bool = False
+    source: tuple | None = None
+    data: dict = field(default_factory=dict)
+
+    def __repr__(self) -> str:
+        sized = f" = {self.value:g}" if self.value is not None else ""
+        return f"{self.name}({', '.join(ref.name for ref in self.refs)}){sized}"
+
+
+def _number(value, what: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise SketchError(f"{what} must be a number, not {value!r}.") from None
+    if not math.isfinite(number):
+        raise SketchError(f"{what} must be a finite number.")
+    return number
+
+
+class Sketch:
+    """A constrained 2D sketch on a plane: ``plane`` is Top, Front or Right (XY, XZ, YZ), a
+    build123d Plane, or a planar Face to sketch on; ``offset`` moves it along its normal.
+    ``origin`` is the sketch's origin, a fixed point to dimension from."""
+
+    def __init__(self, name: str = "Sketch1", plane="Top", offset: float = 0.0):
+        self.name = str(name)
+        self.plane = plane
+        self.offset = _number(offset, "The offset")
+        self.points: list[Point] = []
+        self.curves: list[Line | Arc | Circle] = []
+        self.relations: list[Relation] = []
+        self._counts: dict[str, int] = {}
+        self._solution = None
+        self.source = _source()
+        self.origin = Point("Origin", 0.0, 0.0, fixed=True, construction=True, source=self.source)
+
+    # --- naming and bookkeeping ---------------------------------------------------------------
+
+    def _named(self, kind: str) -> str:
+        self._counts[kind] = self._counts.get(kind, 0) + 1
+        return f"{kind}{self._counts[kind]}"
+
+    def _changed(self):
+        self._solution = None
+
+    def _point(self, value, *, construction: bool = False) -> Point:
+        if isinstance(value, Point):
+            return value
+        try:
+            x, y = value
+        except (TypeError, ValueError):
+            raise SketchError(f"A point is a sketch Point or an (x, y) pair, not {value!r}.") from None
+        point = Point(self._named("Point"), _number(x, "A point's x"), _number(y, "A point's y"),
+                      construction=construction, source=_source())
+        self.points.append(point)
+        self._changed()
+        return point
+
+    def _relate(self, kind: str, refs, value=None, *, label: str | None = None, data: dict | None = None) -> Relation:
+        dimension = value is not None
+        relation = Relation(
+            name=f"D{self._counts.get('D', 0) + 1}" if dimension else self._named(label or kind.capitalize()),
+            kind=kind, refs=tuple(refs), value=_number(value, "A dimension") if dimension else None,
+            raw=value, dimension=dimension, source=_source(), data=dict(data or {}),
+        )
+        if dimension:
+            self._counts["D"] = self._counts.get("D", 0) + 1
+        self.relations.append(relation)
+        self._changed()
+        return relation
+
+    # --- geometry --------------------------------------------------------------------------------
+
+    def point(self, x, y, *, fixed: bool = False, construction: bool = False) -> Point:
+        """A point at (x, y) on the sketch; ``fixed`` holds it where it is."""
+        point = Point(self._named("Point"), _number(x, "A point's x"), _number(y, "A point's y"),
+                      fixed=fixed, construction=construction, source=_source())
+        self.points.append(point)
+        self._changed()
+        return point
+
+    def line(self, start, end, *, construction: bool = False) -> Line:
+        """A line between two points (sketch Points, or (x, y) pairs made into points)."""
+        a, b = self._point(start), self._point(end)
+        if a is b:
+            raise SketchError("A line needs two different points.")
+        line = Line(self._named("Line"), a, b, construction, _source())
+        self.curves.append(line)
+        self._changed()
+        return line
+
+    def polyline(self, *points, closed: bool = False, construction: bool = False) -> list[Line]:
+        """Lines through the points in order, each starting where the last ended; ``closed``
+        returns to the first."""
+        made = [self._point(point) for point in points]
+        if len(made) < 2:
+            raise SketchError("A polyline needs at least two points.")
+        pairs = list(zip(made, made[1:])) + ([(made[-1], made[0])] if closed else [])
+        return [self.line(a, b, construction=construction) for a, b in pairs]
+
+    def circle(self, center, radius, *, construction: bool = False) -> Circle:
+        """A circle around a center point."""
+        r = _number(radius, "A radius")
+        if r <= 0:
+            raise SketchError("A circle's radius must be more than zero.")
+        circle = Circle(self._named("Circle"), self._point(center), r, construction, _source())
+        self.curves.append(circle)
+        self._changed()
+        return circle
+
+    def arc(self, center, start, end, *, clockwise: bool = False, construction: bool = False) -> Arc:
+        """A center-point arc from ``start`` to ``end``, counterclockwise unless ``clockwise``."""
+        c, a, b = self._point(center), self._point(start), self._point(end)
+        if len({id(c), id(a), id(b)}) < 3:
+            raise SketchError("An arc needs a center, a start and an end that are different points.")
+        arc = Arc(self._named("Arc"), c, a, b, clockwise, construction, _source())
+        self.curves.append(arc)
+        self._changed()
+        return arc
+
+    def three_point_arc(self, start, through, end, *, construction: bool = False) -> Arc:
+        """An arc from ``start`` through a point to ``end``: its center is placed where the three
+        points say, and it keeps to the side ``through`` is on."""
+        (ax, ay), (bx, by), (cx, cy) = tuple(start), tuple(through), tuple(end)
+        d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+        if abs(d) < 1e-12:
+            raise SketchError("A three-point arc's points are in a line.")
+        ux = ((ax**2 + ay**2) * (by - cy) + (bx**2 + by**2) * (cy - ay) + (cx**2 + cy**2) * (ay - by)) / d
+        uy = ((ax**2 + ay**2) * (cx - bx) + (bx**2 + by**2) * (ax - cx) + (cx**2 + cy**2) * (bx - ax)) / d
+        # Start, through, end turning counterclockwise is a counterclockwise arc.
+        counterclockwise = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax) > 0
+        return self.arc((ux, uy), start, end, clockwise=not counterclockwise, construction=construction)
+
+    def rectangle(self, corner, opposite, *, construction: bool = False) -> tuple[Line, Line, Line, Line]:
+        """A rectangle from one corner to the opposite one, as a CAD tool's corner rectangle draws
+        it: four lines, the bottom and top horizontal, the sides vertical. Returns them as
+        (bottom, right, top, left)."""
+        (x0, y0), (x1, y1) = tuple(corner), tuple(opposite)
+        p0 = self._point(corner) if isinstance(corner, Point) else self.point(x0, y0, construction=construction)
+        p1 = self.point(x1, y0, construction=construction)
+        p2 = self._point(opposite) if isinstance(opposite, Point) else self.point(x1, y1, construction=construction)
+        p3 = self.point(x0, y1, construction=construction)
+        bottom, right, top, left = (self.line(a, b, construction=construction) for a, b in ((p0, p1), (p1, p2), (p2, p3), (p3, p0)))
+        self.horizontal(bottom)
+        self.horizontal(top)
+        self.vertical(left)
+        self.vertical(right)
+        return bottom, right, top, left
+
+    def center_rectangle(self, center, corner, *, construction: bool = False) -> tuple[Line, Line, Line, Line]:
+        """A rectangle around a center point, to one corner: a rectangle whose center (the middle
+        of a construction diagonal) is held at the center point."""
+        (cx, cy), (x1, y1) = tuple(center), tuple(corner)
+        bottom, right, top, left = self.rectangle((2 * cx - x1, 2 * cy - y1), (x1, y1), construction=construction)
+        diagonal = self.line(bottom.start, top.start, construction=True)
+        self.midpoint(self._point(center), diagonal)
+        return bottom, right, top, left
+
+    def slot(self, center1, center2, radius, *, construction: bool = False) -> tuple[Arc, Line, Arc, Line]:
+        """A straight slot between two arc centers, as a CAD tool's slot draws it: two arcs of one
+        radius joined by two lines tangent to both. Returns (arc1, line1, arc2, line2)."""
+        c1, c2 = self._point(center1), self._point(center2)
+        r = _number(radius, "A slot's radius")
+        dx, dy = c2.x - c1.x, c2.y - c1.y
+        length = math.hypot(dx, dy)
+        if length <= 0 or r <= 0:
+            raise SketchError("A slot needs two different centers and a radius more than zero.")
+        nx, ny = -dy / length * r, dx / length * r
+        a1 = self.point(c1.x - nx, c1.y - ny, construction=construction)
+        b1 = self.point(c1.x + nx, c1.y + ny, construction=construction)
+        a2 = self.point(c2.x - nx, c2.y - ny, construction=construction)
+        b2 = self.point(c2.x + nx, c2.y + ny, construction=construction)
+        arc1 = self.arc(c1, b1, a1, construction=construction)
+        line1 = self.line(a1, a2, construction=construction)
+        arc2 = self.arc(c2, a2, b2, construction=construction)
+        line2 = self.line(b2, b1, construction=construction)
+        for line in (line1, line2):
+            self.tangent(line, arc1)
+            self.tangent(line, arc2)
+        self.equal(arc1, arc2)
+        return arc1, line1, arc2, line2
+
+    # --- relations ---------------------------------------------------------------------------------
+
+    def fix(self, point: Point) -> Relation:
+        """Hold a point where it is."""
+        point.fixed = True
+        return self._relate("fixed", (point,), label="Fixed")
+
+    def coincident(self, a, b) -> Relation:
+        """A point on another point, or on a line, arc or circle."""
+        if isinstance(a, Point) and isinstance(b, Point):
+            return self._relate("coincident", (a, b))
+        point, curve = (a, b) if isinstance(a, Point) else (b, a)
+        if not isinstance(point, Point):
+            raise SketchError("Coincident takes a point and a point, line, arc or circle.")
+        return self._relate("coincident", (point, curve))
+
+    def horizontal(self, a, b=None) -> Relation:
+        """A line horizontal, or two points at one height."""
+        return self._relate("horizontal", (a,) if b is None else (a, b))
+
+    def vertical(self, a, b=None) -> Relation:
+        """A line vertical, or two points one above the other."""
+        return self._relate("vertical", (a,) if b is None else (a, b))
+
+    def parallel(self, a: Line, b: Line) -> Relation:
+        return self._relate("parallel", (a, b))
+
+    def perpendicular(self, a: Line, b: Line) -> Relation:
+        return self._relate("perpendicular", (a, b))
+
+    def tangent(self, a, b) -> Relation:
+        """A line tangent to an arc or circle, or two arcs or circles tangent to each other (inside
+        or outside, as they are drawn)."""
+        if isinstance(a, Line) and isinstance(b, Line):
+            raise SketchError("Tangent takes a line and an arc or circle, or two arcs or circles.")
+        line, curve = (a, b) if isinstance(a, Line) else (b, a) if isinstance(b, Line) else (None, None)
+        if line is not None:
+            # Where they share an end, tangency is the radius square to the line there.
+            shared = _shared_end(line, curve)
+            return self._relate("tangent", (line, curve), data={"side": _side(line, curve.center), "at": shared})
+        inside = math.hypot(a.center.x - b.center.x, a.center.y - b.center.y) < max(_radius(a), _radius(b))
+        return self._relate("tangent", (a, b), data={"inside": inside, "at": _shared_end(a, b)})
+
+    def equal(self, a, b) -> Relation:
+        """Two lines of one length, or two arcs or circles of one radius."""
+        return self._relate("equal", (a, b))
+
+    def midpoint(self, point: Point, line: Line) -> Relation:
+        return self._relate("midpoint", (point, line))
+
+    def symmetric(self, a: Point, b: Point, about: Line) -> Relation:
+        """Two points mirrored about a line (a construction centerline, usually)."""
+        return self._relate("symmetric", (a, b, about))
+
+    def concentric(self, a, b) -> Relation:
+        return self._relate("concentric", (a, b))
+
+    # --- dimensions --------------------------------------------------------------------------------
+
+    def distance(self, a, b, value) -> Relation:
+        """The distance between two points, a point and a line, or two parallel lines."""
+        if isinstance(a, Line) and isinstance(b, Point):
+            a, b = b, a
+        data = {}
+        if isinstance(b, Line):
+            data["side"] = _side(b, a.start if isinstance(a, Line) else a)
+        return self._relate("distance", (a, b), value, data=data)
+
+    def length(self, line: Line, value) -> Relation:
+        return self._relate("length", (line,), value)
+
+    def horizontal_distance(self, a: Point, b: Point, value) -> Relation:
+        """How far right ``b`` is of ``a`` (left, when it is drawn left of it)."""
+        return self._relate("horizontal_distance", (a, b), value, data={"sign": 1.0 if b.x >= a.x else -1.0})
+
+    def vertical_distance(self, a: Point, b: Point, value) -> Relation:
+        """How far above ``a`` ``b`` is (below, when it is drawn below it)."""
+        return self._relate("vertical_distance", (a, b), value, data={"sign": 1.0 if b.y >= a.y else -1.0})
+
+    def radius(self, curve, value) -> Relation:
+        return self._relate("radius", (curve,), value)
+
+    def diameter(self, curve, value) -> Relation:
+        return self._relate("diameter", (curve,), value)
+
+    def angle(self, a: Line, b: Line, degrees) -> Relation:
+        """The angle between two lines, in degrees (0 to 180)."""
+        return self._relate("angle", (a, b), degrees)
+
+    # --- results -----------------------------------------------------------------------------------
+
+    def solve(self):
+        """The sketch solved: every point where its relations and dimensions put it. Raises
+        SketchError naming the relations that disagree when none can hold."""
+        if self._solution is None:
+            from .solver import solve
+
+            self._solution = solve(self)
+        return self._solution
+
+    @property
+    def status(self) -> str:
+        """Fully defined, Under defined or Over defined, as a CAD tool says it."""
+        return self.solve().status
+
+    @property
+    def dof(self) -> int:
+        """How many ways the sketch can still move: 0 when it is fully defined."""
+        return self.solve().dof
+
+    def faces(self):
+        """The sketch's closed regions as build123d Faces on its plane, holes cut out."""
+        from .regions import faces
+
+        self.solve()
+        return faces(self)
+
+    def face(self):
+        """The sketch's one closed region (with any holes) as a build123d Face on its plane."""
+        made = self.faces()
+        if len(made) != 1:
+            raise SketchError(f"{self.name} has {len(made)} separate regions; use faces() and pick one.")
+        return made[0]
+
+    def state(self) -> dict:
+        """The sketch for an editor to draw, as JSON: its entities where it solved them, its
+        relations and dimensions, and how defined it is."""
+        solution = self.solve()
+        where = lambda item: {"file": item.source[0], "line": item.source[1]} if item.source else {}  # noqa: E731
+        curves = []
+        for curve in self.curves:
+            entry = {"id": curve.name, "kind": type(curve).__name__.lower(), "construction": curve.construction, **where(curve)}
+            if isinstance(curve, Line):
+                entry.update(start=curve.start.name, end=curve.end.name)
+            elif isinstance(curve, Circle):
+                entry.update(center=curve.center.name, radius=curve.radius)
+            else:
+                entry.update(center=curve.center.name, start=curve.start.name, end=curve.end.name, radius=curve.radius,
+                             clockwise=curve.clockwise)
+            curves.append(entry)
+        return {
+            "name": self.name,
+            "plane": self.plane if isinstance(self.plane, str) else "Plane",
+            "status": solution.status,
+            "dof": solution.dof,
+            "redundant": [relation.name for relation in solution.redundant],
+            "points": [{"id": p.name, "x": p.x, "y": p.y, "fixed": p.fixed, "construction": p.construction, **where(p)}
+                       for p in [self.origin, *self.points]],
+            "curves": curves,
+            "relations": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs], **where(r)}
+                          for r in self.relations if not r.dimension],
+            "dimensions": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs], "value": r.value, **where(r)}
+                           for r in self.relations if r.dimension],
+        }
+
+    def __repr__(self) -> str:
+        return f"Sketch({self.name!r}, {len(self.curves)} curves, {len(self.relations)} relations)"
+
+
+def _radius(curve) -> float:
+    return curve.radius
+
+
+def _shared_end(a, b) -> Point | None:
+    """The end point two curves share, when they share one (a line's and an arc's, two arcs')."""
+    ends = lambda curve: (curve.start, curve.end) if hasattr(curve, "start") else ()  # noqa: E731
+    return next((point for point in ends(a) if any(point is other for other in ends(b))), None)
+
+
+def _side(line: Line, point: Point) -> float:
+    """Which side of a line a point is drawn on: 1 left of start-to-end, -1 right (1 on it)."""
+    cross = (line.end.x - line.start.x) * (point.y - line.start.y) - (line.end.y - line.start.y) * (point.x - line.start.x)
+    return 1.0 if cross >= 0 else -1.0

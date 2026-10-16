@@ -174,6 +174,55 @@ class FeatureTree(unittest.TestCase):
         self.assertAlmostEqual(z1 - z0, 12, places=3)
 
 
+SKETCHED = {
+    "bracket.py": """
+        from build123d import extrude
+        from cadgen import step
+        from cadgen.sketch import Sketch
+
+        LENGTH = 40
+        WIDTH = 20
+        HOLE = 6
+        THICKNESS = 4
+
+        @step
+        def bracket():
+            s = Sketch("Sketch1", plane="Top")
+            bottom, right, top, left = s.rectangle((0, 0), (40, 20))
+            s.coincident(bottom.start, s.origin)
+            s.length(bottom, LENGTH)
+            s.length(left, WIDTH)
+            hole = s.circle((20, 10), 3)
+            s.diameter(hole, HOLE)
+            s.horizontal_distance(bottom.start, hole.center, LENGTH / 2)
+            s.vertical_distance(bottom.start, hole.center, WIDTH / 2)
+            return extrude(s.face(), amount=THICKNESS)
+    """,
+}
+
+
+class ConstrainedSketches(unittest.TestCase):
+    def test_a_sketch_sits_under_its_feature_and_its_dimensions_are_the_features_inputs(self):
+        service = edit.EditService(build=False)
+        self.addCleanup(service.close)
+        root = project(SKETCHED)
+        self.addCleanup(shutil.rmtree, root, True)
+        file = str(root / "bracket.step")
+        state = service.state(file)
+        self.assertTrue(state["ok"], state.get("error"))
+        (feature,) = state["features"]
+        self.assertEqual(feature["kind"], "Boss-Extrude")
+        self.assertEqual({key: feature["sketch"][key] for key in ("name", "plane", "status")},
+                         {"name": "Sketch1", "plane": "Top", "status": "Fully defined"})
+        row = next(row for row in state["rows"] if row["key"] == feature["key"])
+        labels = [item["label"] for item in row["inputs"]]
+        self.assertIn("D1@Sketch1", labels)
+        length = labels.index("D1@Sketch1")
+        changed = service.change({"file": file, "input": {"row": row["key"], "index": length}, "text": "50", "files": state["files"]})
+        self.assertTrue(changed["ok"], changed.get("error"))
+        self.assertIn("LENGTH = 50\n", (root / "bracket.py").read_text(encoding="utf-8"))
+
+
 class WhatAChangeBuilds(unittest.TestCase):
     def test_the_parts_that_use_the_changed_file(self):
         root = project(PLATE)
