@@ -230,9 +230,10 @@ class _ProjectLoader(importlib.abc.Loader):
         return None
 
     def exec_module(self, module):
-        source = Path(self.path).read_text()
+        raw = Path(self.path).read_bytes()
+        source = raw.decode("utf-8")
         rel = _relative(self.path)
-        FILES[rel] = hashlib.sha256(Path(self.path).read_bytes()).hexdigest()[:16]
+        FILES[rel] = hashlib.sha256(raw).hexdigest()[:16]
         tree = ast.parse(source, self.path)
         numbers = _Numbers(self.path, rel, source)
         numbers.name_assignments(tree)
@@ -296,7 +297,11 @@ CLASSES = {
     "Hole": "Hole",
     "CounterBoreHole": "Counterbore",
     "CounterSinkHole": "Countersink",
+    # Where a pattern puts its copies: a row that uses them is a Pattern.
+    "GridLocations": "Pattern",
+    "PolarLocations": "Pattern",
 }
+PATTERNS = {"GridLocations", "PolarLocations"}
 
 
 def _project_frames():
@@ -420,6 +425,12 @@ def _wrap_boolean(cls, method, op, label):
         result = original(self, other)
         if RECORDING and _called_from_project():
             others = other if isinstance(other, (list, tuple)) else [other]
+            for each in others:
+                # A tool used once: a copy of it later (a pattern's) leaves its place on the model.
+                try:
+                    each._studio_used = True
+                except Exception:
+                    pass
             step = _record(
                 op,
                 label,
@@ -475,9 +486,11 @@ def _moved(self, other):
         result._studio_step = getattr(self, "_studio_step", None)
     except Exception:
         pass
-    if origin is not None:
+    # `Pos(...) * shape` and `Plane(face) * shape` place a shape; a copy of a tool already used
+    # (a pattern's `loc * hole`) is another instance, and the dimensions stay on the first.
+    if origin is not None and not getattr(self, "_studio_used", False):
         PLACED[origin] = result
-    if isinstance(other, B.Location) and getattr(other, "_studio_args", None) and _called_from_project():
+    if getattr(other, "_studio_args", None) and _called_from_project():
         STEPS.append(
             {
                 "index": len(STEPS),
@@ -493,6 +506,24 @@ def _moved(self, other):
 
 
 B.Shape.__rmul__ = _moved
+
+_plane_rmul = B.Plane.__rmul__
+
+
+@functools.wraps(_plane_rmul)
+def _plane_moved(self, other):
+    # `Pos(x, y) * Plane(face)`: the plane keeps where its numbers came from, so the shape it
+    # places (a hole) is a Place with them.
+    result = _plane_rmul(self, other)
+    if getattr(other, "_studio_args", None) and isinstance(result, B.Plane):
+        try:
+            result._studio_args = other._studio_args
+        except Exception:
+            pass
+    return result
+
+
+B.Plane.__rmul__ = _plane_moved
 PLACED: dict[int, object] = {}
 """The latest placed copy of each step's shape: where it sits in the world."""
 
@@ -664,6 +695,13 @@ LABELS = {
     ("move", "x"): "X",
     ("move", "y"): "Y",
     ("move", "z"): "Z",
+    ("chamfer", "length"): "Distance",
+    ("offset", "amount"): "Offset",
+    ("GridLocations", "x_spacing"): "Spacing",
+    ("GridLocations", "y_spacing"): "Spacing",
+    ("GridLocations", "x_count"): "Instances",
+    ("GridLocations", "y_count"): "Instances",
+    ("PolarLocations", "count"): "Instances",
 }
 
 
@@ -831,10 +869,11 @@ def _box_dimensions(step, shape, x_size, y_size, z_size, radius, units):
 def _rows(steps):
     """The timeline as the design reads it: one row per line of the function that designs the
     part (the deepest one every operation passes through), each with the operations it performed
-    inside any helper it calls, a loop's repeats counted once."""
+    inside any helper it calls, a loop's repeats counted once. With the rows, the depth of that
+    function in each operation's frames."""
     chains = [step["frames"] for step in steps if step["frames"]]
     if not chains:
-        return []
+        return [], 0
     depth = 0
     while all(len(chain) > depth for chain in chains) and len(
         {(chain[depth]["file"], chain[depth]["function"]) for chain in chains}
@@ -854,29 +893,75 @@ def _rows(steps):
             by_key[key] = row
             rows.append(row)
         row["steps"].append(step)
-    return rows
+    return rows, level
+
+
+def _read(path):
+    """A project file's text exactly as written: UTF-8, its line endings kept."""
+    return Path(path).read_bytes().decode("utf-8")
+
+
+def _write(path, text):
+    Path(path).write_bytes(text.encode("utf-8"))
 
 
 def _source_line(rel, line):
     try:
-        return (ROOT / rel).read_text().splitlines()[line - 1].strip()
-    except (OSError, IndexError):
+        return _read(ROOT / rel).splitlines()[line - 1].strip()
+    except (OSError, IndexError, UnicodeDecodeError):
         return ""
 
 
-def _row_summary(row, units):
-    ops = [step["op"] for step in row["steps"]]
-    text = _source_line(row["file"], row["line"])
-    target = re.match(r"^([A-Za-z_]\w*)\s*(?:[-+*]?=)", text)
+def _row_kind(steps):
+    """What a row of the history is, as a CAD tree names it."""
+    ops = [step["op"] for step in steps]
+    if PATTERNS & set(ops):
+        return "Pattern"
+    if "mirror" in ops:
+        return "Mirror"
+    if any(step["op"] == "offset" and dict(step["args"]).get("openings") is not None for step in steps):
+        return "Shell"
+    # A cut by a cylinder alone is a hole.
+    if "cut" in ops and "Cylinder" in ops and not {"extrude", "revolve", "Box", "sweep", "loft"} & set(ops):
+        return "Hole"
     kind = next(
         (FUNCTIONS.get(op, CLASSES.get(op, op.capitalize())) for op in ("cut", "fillet", "chamfer", "extrude", "revolve", "join") if op in ops),
         None,
     ) or (CLASSES.get(ops[0], FUNCTIONS.get(ops[0], ops[0].capitalize())) if ops else "Step")
-    kind = {"cut": "Cut", "join": "Join"}.get(kind, kind)
+    return {"cut": "Cut", "join": "Join"}.get(kind, kind)
+
+
+def _feature_input(kind, step, name, value, units):
+    """A step's number as the feature's input reads it: a hole's radius as its diameter, a
+    shell's inward offset as its thickness, a pattern's unused direction left out."""
+    item = _input(name, value, units, step["op"])
+    if item is None:
+        return None
+    if kind == "Hole" and step["op"] == "Cylinder" and name in ("radius", "height"):
+        if name == "height":
+            return {**item, "label": "Depth"}
+        shown, _ = strip_unit(value._e)
+        half = shown[0] == "/" and shown[2] == ("num", 2)
+        return {**item, "label": "Diameter", "value": float(value) * 2, "display": display(float(value) * 2, units),
+                "formula": formula(shown[1]) if half else formula(("*", shown, ("num", 2))), "expr": ("*", value._e, ("num", 2))}
+    if kind == "Shell" and step["op"] == "offset" and name == "amount":
+        shown, _ = strip_unit(value._e)
+        plain = shown[0] == "lit" and not LITERALS[shown[1]]["name"]
+        return {**item, "label": "Thickness", "value": -float(value), "display": display(-float(value), units),
+                "formula": LITERALS[shown[1]]["text"].lstrip("-") if plain else formula(("neg", shown)), "expr": ("neg", value._e)}
+    if kind == "Pattern" and step["op"] in PATTERNS and float(value) in (0, 1) and name.endswith(("count", "spacing")):
+        return None  # the direction a one-row pattern does not use
+    return item
+
+
+def _row_summary(row, units):
+    text = _source_line(row["file"], row["line"])
+    target = re.match(r"^([A-Za-z_]\w*)\s*(?:[-+*]?=)", text)
+    kind = _row_kind(row["steps"])
     inputs, seen = [], set()
     for step in row["steps"]:
         for name, value in step["args"]:
-            item = _input(name, value, units, step["op"])
+            item = _feature_input(kind, step, name, value, units)
             if item is None:
                 continue
             key = tuple(item["leaves"])
@@ -918,7 +1003,7 @@ def _units():
     project = ROOT / "project.json"
     for candidate in [project, *[p / "project.json" for p in ROOT.parents]]:
         try:
-            data = json.loads(candidate.read_text())
+            data = json.loads(candidate.read_text(encoding="utf-8"))
             units = data.get("brief", {}).get("units") or data.get("units")
             if units in ("in", "mm"):
                 return units
@@ -971,7 +1056,8 @@ def trace(request):
 
     units = request.get("units") or _units() or ("in" if any(lit.get("name", "") and lit["name"].upper() in UNIT_NAMES for lit in LITERALS.values()) else "mm")
     steps = list(STEPS)
-    rows = [_row_summary(row, units) for row in _rows(steps)]
+    timeline, level = _rows(steps)
+    rows = [_row_summary(row, units) for row in timeline]
     dimensions = _dimensions(steps, units)
     row_of = {index: row["key"] for row in rows for index in row["steps"]}
     for dimension in dimensions:
@@ -992,7 +1078,9 @@ def trace(request):
         if literal["name"] and literal["id"] in used and literal["name"].upper() not in UNIT_NAMES
     ]
     params.sort(key=lambda p: (p["file"], p["line"]))
-    STATE[str(script)] = {"dimensions": {d["id"]: d for d in dimensions}, "rows": rows, "units": units}
+    # The body and its making, for a command to act on (`commands.py`).
+    STATE[str(script)] = {"dimensions": {d["id"]: d for d in dimensions}, "rows": rows, "units": units,
+                          "shape": shape, "steps": steps, "level": level}
     return {
         "ok": True,
         "script": str(script),
@@ -1019,10 +1107,14 @@ def _scale_of_leaf(literal_id, step):
 # Edits: one number in the source, then the part traced again.
 
 
+def _changed_since(path, expected_hash):
+    return bool(expected_hash) and hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16] != expected_hash
+
+
 def _write_literal(literal, text, expected_hash):
     path = Path(literal["path"])
-    source = path.read_text()
-    if expected_hash and hashlib.sha256(path.read_bytes()).hexdigest()[:16] != expected_hash:
+    source = _read(path)
+    if _changed_since(path, expected_hash):
         raise RuntimeError(f"{literal['file']} changed since the editor read it. Look again and retry.")
     lines = source.splitlines(keepends=True)
     row = lines[literal["line"] - 1].encode()
@@ -1030,7 +1122,7 @@ def _write_literal(literal, text, expected_hash):
     if old != literal["text"]:
         raise RuntimeError(f"{literal['file']} line {literal['line']} no longer reads {literal['text']}.")
     lines[literal["line"] - 1] = (row[: literal["col"]] + text.encode() + row[literal["end"] :]).decode()
-    path.write_text("".join(lines))
+    _write(path, "".join(lines))
 
 
 def _solve(expr, leaf, target):
@@ -1052,6 +1144,10 @@ def _solve(expr, leaf, target):
 
 
 def edit(request):
+    if isinstance(request.get("command"), dict):
+        return command(request)
+    if isinstance(request.get("splice"), dict):
+        return splice(request)
     script = str(Path(request["script"]).resolve())
     if script not in STATE:
         traced = trace(request)
@@ -1106,6 +1202,110 @@ def edit(request):
         change = {"literal": literal["id"], "name": literal["name"] or literal["text"], "file": literal["file"], "line": literal["line"], "from": literal["text"], "to": text, "was": literal["value"]}
     traced = trace(request)
     traced["change"] = change
+    return traced
+
+
+# ---------------------------------------------------------------------------------------------
+# Commands: a line of build123d written after the part's body (`commands.py`), then the part
+# traced again. The line stands only if it runs and makes the feature asked for, on the faces or
+# edges selected; otherwise the file is put back as it was.
+
+
+def _refused_change(files):
+    """Why a change is refused when a file it read changed since: the agent's edit, another view's."""
+    for rel, digest in (files or {}).items():
+        if FILES.get(rel) not in (None, digest):
+            return {"ok": False, "error": f"{rel} changed since the editor read it. Look again and retry."}
+    return None
+
+
+def _check(script, traced, plan, scale):
+    from cadgen.edit import commands
+
+    if not traced.get("ok"):
+        return commands.failure_words(plan.command, traced.get("error") or "")
+    key = f"{plan.rel}:{plan.line}"
+    row = next((row for row in traced["rows"] if row["key"] == key), None)
+    made = [STATE[script]["steps"][index] for index in row["steps"]] if row else []
+    step = next((step for step in made if step["op"] in plan.records), None)
+    if step is None:
+        return "The new line did not make the feature, so nothing changed. Ask the agent to make it."
+    if plan.selected and not commands.same_items(dict(step["args"]).get(plan.selected["argument"]), plan.selected["items"], scale):
+        return "The new line picked other faces or edges than the ones selected, so nothing changed."
+    return None
+
+
+def command(request):
+    from cadgen.edit import commands
+
+    script = str(Path(request["script"]).resolve())
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    state = STATE[script]
+    try:
+        plan = commands.plan(request["command"], steps=state["steps"], shape=state["shape"], level=state["level"],
+                             units=state["units"], literals=LITERALS, root=ROOT, parse=parse_number)
+    except commands.CommandError as error:
+        return {"ok": False, "error": str(error)}
+    scale = state["shape"].bounding_box().diagonal or 1.0
+    _write(plan.path, plan.new)
+    after = trace(request)
+    failure = _check(script, after, plan, scale)
+    if failure:
+        _write(plan.path, plan.old)
+        trace(request)
+        return {"ok": False, "error": failure}
+    after["change"] = {
+        "kind": "command",
+        "command": plan.command,
+        **plan.summary,
+        "file": plan.rel,
+        "line": plan.line,
+        "row": f"{plan.rel}:{plan.line}",
+        "code": plan.code,
+        # Undo puts the lines back as they were; Redo writes them again.
+        "undo": {"file": plan.rel, "hunks": commands.hunks(plan.new, plan.old)},
+        "redo": {"file": plan.rel, "hunks": commands.hunks(plan.old, plan.new)},
+    }
+    return after
+
+
+def splice(request):
+    """Lines of a project file put back, or written again: a command's Undo and Redo."""
+    from cadgen.edit import commands
+
+    global ROOT
+    script = Path(request["script"]).resolve()
+    ROOT = Path(request.get("root") or script.parent).resolve()
+    spec = request["splice"]
+    rel = str(spec.get("file") or "")
+    path = (ROOT / rel).resolve()
+    try:
+        path.relative_to(ROOT)
+    except ValueError:
+        return {"ok": False, "error": "That change is not in this project."}
+    if path.suffix != ".py" or not path.is_file():
+        return {"ok": False, "error": f"{rel} is no longer in the project."}
+    if _changed_since(path, (request.get("files") or {}).get(rel)):
+        return {"ok": False, "error": f"{rel} changed since the editor read it. Look again and retry."}
+    old = _read(path)
+    try:
+        new = commands.splice(old, spec.get("hunks") or [])
+    except commands.CommandError as error:
+        return {"ok": False, "error": str(error)}
+    _write(path, new)
+    traced = trace(request)
+    if not traced["ok"]:
+        _write(path, old)
+        trace(request)
+        return {"ok": False, "error": "The part does not build with that change, so nothing changed."}
+    first = min((int(each["start"]) for each in spec.get("hunks") or []), default=1)
+    traced["change"] = {"kind": "splice", "file": rel, "line": first,
+                        "undo": {"file": rel, "hunks": commands.hunks(new, old)}, "redo": spec}
     return traced
 
 

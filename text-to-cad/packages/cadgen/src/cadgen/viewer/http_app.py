@@ -795,7 +795,8 @@ class CadApp:
         number of it changed (``change``). The work is the edit service's processes, never this
         one's. Its failures are answered, not reported as crashes: nothing about edit mode goes
         into analytics."""
-        if int(request.headers.get("content-length") or 0) > 16384:
+        # A command names its faces and edges with the geometry the viewer read of each.
+        if int(request.headers.get("content-length") or 0) > 65536:
             response.send_empty(413, [("connection", "close")])
             return
         try:

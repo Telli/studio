@@ -36,8 +36,10 @@ _SCAN_LIMIT = 4000
 _PART = re.compile(r"^\s*@step\b", re.M)
 _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M)
 # What a change may name: a number (`literal`), a dimension on the model, or a feature's input, and
-# the value typed; `leaf` answers which size to change when several make the value.
-_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files")
+# the value typed; `leaf` answers which size to change when several make the value. A `command`
+# writes a feature's line after the part's body (`commands.py`); a `splice` puts lines back or
+# writes them again (a command's Undo and Redo).
+_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice")
 
 
 def _no_window() -> dict:
@@ -151,14 +153,25 @@ class _Tracer:
 
     @staticmethod
     def _read(process: subprocess.Popen, lines: queue.Queue) -> None:
-        for line in process.stdout:
-            lines.put(line)
+        with process.stdout:
+            for line in process.stdout:
+                lines.put(line)
         lines.put(None)
 
     def stop(self) -> None:
-        if self._process is not None and self._process.poll() is None:
-            self._process.kill()
-        self._process = None
+        process, self._process = self._process, None
+        if process is None:
+            return
+        if process.poll() is None:
+            process.kill()
+        try:
+            process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            pass
+        try:
+            process.stdin.close()  # its stdout is the reader's, closed when it reads the end
+        except OSError:
+            pass
 
     def ask(self, request: dict, timeout: float = TRACE_TIMEOUT) -> dict:
         with self._lock:
@@ -265,7 +278,8 @@ class EditService:
         return {**reply, "root": str(root), "building": self.building()}
 
     def change(self, payload: dict) -> dict:
-        """One number changed in the part's source, then the parts that use it built again."""
+        """One number changed in the part's source, or a command's line written, then the parts
+        that use the changed file built again."""
         script = script_for(payload.get("file") or "")
         if script is None:
             return {"ok": False, "error": "This model has no part script to change."}
