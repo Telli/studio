@@ -84,6 +84,9 @@ export default defineConfig({
   fmt: {
     ignorePatterns: [
       ".repos/**",
+      // text-to-cad (Jake's CAD harness, merged in as a subtree) keeps its own formatting, so his
+      // updates still merge.
+      "text-to-cad/**",
       // Macroscope's glob-per-line ignore grammar, not Markdown: formatting
       // it rewrites `*` as `_` and joins lines.
       ".macroscope/ignore.md",
@@ -113,6 +116,7 @@ export default defineConfig({
     ignorePatterns: [
       ".repos",
       ".repos/**",
+      "text-to-cad/**",
       "dist",
       "dist-electron",
       "node_modules",
