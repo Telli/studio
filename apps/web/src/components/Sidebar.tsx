@@ -136,6 +136,7 @@ import {
   getSidebarProjectSettingsKey,
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
+import { StudioSidebar } from "./workbench/StudioSidebar";
 import { useStudioSidebarGroups } from "./workbench/studioSidebarGroups";
 import { isEngineeringInterface, useEngineeringInterface } from "./workbench/studioInterface";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
@@ -5064,6 +5065,8 @@ export default function Sidebar() {
     shortcutLabelForCommand(keybindings, "chat.new") ??
     (projectGroups.length <= 1 ? shortcutLabelForCommand(keybindings, "chat.newLocal") : undefined);
   const newThreadInProjectShortcutLabel = shortcutLabelForCommand(keybindings, "chat.newLocal");
+  // Studio's engineering interface lists projects, not threads: each project's history is on its page.
+  if (engineering) return <StudioSidebar />;
   return (
     <>
       <ThreadContextDragGhost />

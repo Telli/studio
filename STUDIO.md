@@ -87,6 +87,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   bracket"). The project's Threads tab is its History: the work newest first under its day, each
   piece with how it came out (done, needs you, working, stopped). With code tools on, the turn
   keeps T3 Code's changed-files card and the tab is Threads.
+- **A sidebar of projects.** In Engineering the sidebar lists the projects, not their threads,
+  then the folders in no project: each opens on its page, where its history is, and says whether
+  work in it needs you or is under way. Engineering with code keeps T3 Code's thread sidebar.
 - **Setup, as a CAD tool shows it.** Under the project's name, its units, material (from a library
   of common grades, or any name typed), process and quantity. Picking a value writes the request
   into the composer ("Change the project's material to PETG."); the agent changes the project's

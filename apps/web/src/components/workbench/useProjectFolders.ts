@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/models";
-import { studioFolderKey, studioFolderName } from "@t3tools/shared/studioProjects";
+import { studioFolderName } from "@t3tools/shared/studioProjects";
 import { useCallback, useMemo } from "react";
 
 import { newProjectId } from "~/lib/utils";
@@ -9,6 +9,7 @@ import { useProjects } from "~/state/entities";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { projectEnvironment } from "~/state/projects";
 import { useAtomCommand } from "~/state/use-atom-command";
+import { folderProject } from "./projectList";
 
 /**
  * The folders an environment knows, each one T3 project: what a Studio
@@ -28,14 +29,7 @@ export function useEnvironmentFolders(
   );
 }
 
-/** The folder's project record, by path; null when the environment does not know it. */
-export function folderProject(
-  folders: ReadonlyArray<EnvironmentProject>,
-  folder: string,
-): EnvironmentProject | null {
-  const key = studioFolderKey(folder);
-  return folders.find((project) => studioFolderKey(project.workspaceRoot) === key) ?? null;
-}
+export { folderProject };
 
 /**
  * Picks a folder on this computer and makes sure the environment knows it,

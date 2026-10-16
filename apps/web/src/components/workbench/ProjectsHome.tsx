@@ -4,7 +4,6 @@ import type {
   EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
-import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { FolderIcon, FolderOpenIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -12,7 +11,6 @@ import { openCommandPalette } from "~/commandPaletteBus";
 import { isElectron } from "~/env";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useNowMinute } from "~/hooks/useNowMinute";
-import { useThreadShells } from "~/state/entities";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
@@ -23,20 +21,13 @@ import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { NewProjectDialog } from "./NewProjectDialog";
 import { groupProjectFiles } from "./projectFiles";
 import { usePictures } from "./usePictures";
-import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
-import { useStudioProjectsList } from "./useStudioProjects";
+import { newestOf } from "./projectList";
+import { useProjectList } from "./useProjectList";
 
 /** The file that pictures a project: its first folder's first model, else board or drawing. */
 const COVER_GROUPS = ["Models", "Boards and wiring", "Drawings", "Studies"] as const;
 
 const threadCount = (count: number) => (count === 1 ? "1 thread" : `${count} threads`);
-
-function newestOf(threads: ReadonlyArray<EnvironmentThreadShell>, since: string): string {
-  return threads.reduce(
-    (newest, thread) => (thread.updatedAt > newest ? thread.updatedAt : newest),
-    since,
-  );
-}
 
 function ProjectCard(props: {
   readonly environmentId: EnvironmentId;
@@ -137,10 +128,7 @@ export function ProjectsHome() {
 
 function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
-  const list = useStudioProjectsList(environmentId).data;
-  const projects = useMemo(() => list?.projects ?? {}, [list]);
-  const knownFolders = useEnvironmentFolders(environmentId);
-  const threads = useThreadShells();
+  const { list, cards, loose } = useProjectList(environmentId);
   const handleNewThread = useNewThreadHandler();
   const [dialog, setDialog] = useState<{ count: number; open: boolean; folder: string | null }>({
     count: 0,
@@ -154,33 +142,6 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const openFolder = (folder: EnvironmentProject | null) => {
     if (folder !== null) void handleNewThread(scopeProjectRef(folder.environmentId, folder.id));
   };
-
-  const { cards, loose } = useMemo(() => {
-    const live = threads.filter(
-      (thread) => thread.archivedAt === null && thread.environmentId === environmentId,
-    );
-    const threadsIn = (folder: EnvironmentProject | null) =>
-      folder === null ? [] : live.filter((thread) => thread.projectId === folder.id);
-    const grouped = new Set<string>();
-    const cards = Object.entries(projects)
-      .map(([id, project]) => {
-        const own = project.folders.flatMap((folder) => {
-          grouped.add(studioFolderKey(folder));
-          return threadsIn(folderProject(knownFolders, folder));
-        });
-        return { id, project, threads: own, latest: newestOf(own, project.createdAt) };
-      })
-      .toSorted((a, b) => b.latest.localeCompare(a.latest));
-    const loose = knownFolders
-      .filter((folder) => !grouped.has(studioFolderKey(folder.workspaceRoot)))
-      .map((folder) => ({ folder, threads: threadsIn(folder) }))
-      .toSorted((a, b) =>
-        newestOf(b.threads, b.folder.createdAt).localeCompare(
-          newestOf(a.threads, a.folder.createdAt),
-        ),
-      );
-    return { cards, loose };
-  }, [projects, knownFolders, threads, environmentId]);
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -229,19 +190,13 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
               </p>
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">
-                {cards.map(({ id, project, threads: own }) => (
+                {cards.map(({ id, project, folder, threads: own }) => (
                   <ProjectCard
                     key={id}
                     environmentId={environmentId}
                     project={project}
                     threads={own}
-                    onOpen={() =>
-                      openFolder(
-                        project.folders[0] === undefined
-                          ? null
-                          : folderProject(knownFolders, project.folders[0]),
-                      )
-                    }
+                    onOpen={() => openFolder(folder)}
                   />
                 ))}
               </div>
