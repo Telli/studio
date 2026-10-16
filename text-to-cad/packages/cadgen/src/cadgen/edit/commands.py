@@ -140,7 +140,9 @@ def resolve(topology: Topology, items: list[dict], scale: float) -> list[int]:
     Each item is a selector with what the viewer read of it (``type``, ``center``, ``size``). The
     selector's own number is tried first, as the STEP numbers it; a face or edge that is not there
     is looked for by its geometry, so a part that rebuilt with its faces in another order still
-    finds them. A selector with no geometry is taken at its number."""
+    finds them. Last, the face or edge at the selector's number is taken when its kind and size
+    are the ones read, wherever the viewer placed it. A selector with no geometry is taken at its
+    number."""
     tolerance = 1e-4 + 1e-6 * scale
     numbers: list[int] = []
     for item in items:
@@ -153,10 +155,13 @@ def resolve(topology: Topology, items: list[dict], scale: float) -> list[int]:
         elif described:
             nearest = [(distance, candidate) for candidate in range(1, len(topology) + 1)
                        if (distance := _distance(topology.describe(candidate), item, tolerance)) is not None]
-            if not nearest:
+            if nearest:
+                found = min(nearest)[1]
+            elif 1 <= number <= len(topology) and _distance(topology.describe(number), {**item, "center": topology.describe(number)["center"]}, tolerance) is not None:
+                found = number
+            else:
                 raise CommandError(f"{_said(item)} is not on the part as its script makes it now. "
                                    "Wait for the model to update, then select it again.")
-            found = min(nearest)[1]
         else:
             raise CommandError(f"{_said(item)} is not on the part.")
         if found not in numbers:
@@ -776,8 +781,22 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         numbers = resolve(selections.topology[kind], items, scale)
         return numbers, selections.write(kind, numbers, one=one)
 
+    def chosen_edges():
+        # A face selected for a fillet or a chamfer stands for all its edges, as in a CAD tool.
+        edge_items = [item for item in selection if selector_ordinal(item.get("selector"))[0] == "edge"]
+        face_items = [item for item in selection if selector_ordinal(item.get("selector"))[0] == "face"]
+        if not edge_items and not face_items:
+            raise CommandError("Select edges on the model first.")
+        numbers = resolve(selections.topology["edge"], edge_items, scale) if edge_items else []
+        edges = selections.topology["edge"]
+        for face_number in resolve(selections.topology["face"], face_items, scale) if face_items else []:
+            for each in selections.topology["face"].item(face_number).edges():
+                if (number := edges.number(each)) and number not in numbers:
+                    numbers.append(number)
+        return numbers, selections.write("edge", numbers)
+
     if command in ("fillet", "chamfer"):
-        numbers, edges = chosen("edge")
+        numbers, edges = chosen_edges()
         if command == "fillet":
             radius = _value(inputs, "radius", "Radius", parse)
             code = f"{var} = {names('fillet')}({edges}, radius={writer.length(radius)})"

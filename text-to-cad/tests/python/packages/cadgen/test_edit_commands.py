@@ -143,6 +143,13 @@ class BlockCommands(Commands):
         self.assertIn("    part = chamfer(part.edges(), length=0.5)\n", (root / "block.py").read_text(encoding="utf-8"))
         self.assertEqual(reply["rows"][-1]["inputs"][0]["label"], "Distance")
 
+    def test_a_face_selected_for_a_chamfer_stands_for_its_edges(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        reply = self.command(file, state, "chamfer", BLOCK_TOP, {"distance": "0.5"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("    part = chamfer(part.edges().group_by(Axis.Z)[-1], length=0.5)\n", (root / "block.py").read_text(encoding="utf-8"))
+        self.assertEqual(reply["change"]["what"], "4 edges")
+
     def test_a_line_that_does_not_run_is_not_written(self):
         root, file, state = self.open(BLOCK, "block.step")
         before = (root / "block.py").read_bytes()
