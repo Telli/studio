@@ -1,8 +1,9 @@
 // @effect-diagnostics nodeBuiltinImport:off - a launcher that only sets the environment and runs the dev runner.
 /**
  * Runs this app as text-to-cad Studio: T3 Code with the text-to-cad plugin
- * built in. It lives at `apps/studio` inside a text-to-cad checkout, so
- * `node scripts/studio.ts [dev|dev:desktop]` from here:
+ * built in. text-to-cad lives in this repository at `text-to-cad/` (a subtree
+ * of Jake's repository, STUDIO.md), so `node scripts/studio.ts [dev|dev:desktop]`
+ * from here:
  *
  * - reads the checkout as a plugin marketplace and installs and enables its
  *   `text-to-cad` plugin on first start (apps/server/src/plugins/BundledPlugins.ts);
@@ -28,11 +29,11 @@ import { buildEditorPage } from "./editor-pages.ts";
 
 const appRoot = NodePath.dirname(import.meta.dirname);
 const checkout = NodePath.resolve(
-  process.env.TEXT_TO_CAD_ROOT?.trim() || NodePath.join(appRoot, "..", ".."),
+  process.env.TEXT_TO_CAD_ROOT?.trim() || NodePath.join(appRoot, "text-to-cad"),
 );
 if (!NodeFS.existsSync(NodePath.join(checkout, ".claude-plugin", "marketplace.json"))) {
   process.stderr.write(
-    `No text-to-cad checkout at ${checkout}. Run Studio from apps/studio in text-to-cad, or set TEXT_TO_CAD_ROOT.\n`,
+    `No text-to-cad at ${checkout}. It lives in this repository at text-to-cad/; TEXT_TO_CAD_ROOT points at another checkout.\n`,
   );
   process.exit(1);
 }
