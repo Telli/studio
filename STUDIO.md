@@ -4,6 +4,21 @@ T3 Code made into a hardware app: agents design parts with the text-to-cad plugi
 view follows their work beside the thread. It is this fork's `amy/hardware` branch, pinned inside
 [text-to-cad](https://github.com/earthtojake/text-to-cad) as the `apps/studio` submodule.
 
+This branch, `amy/hardware-first`, is the hardware engineer's version and lives in a private
+repository, never pushed to the public fork. It is one repository: text-to-cad is in it at
+`text-to-cad/`, a subtree of Jake's repository with its history, so the viewer and cadgen change
+here beside the app. His updates merge in (the `jake` remote is fetch-only):
+
+```sh
+git fetch jake main && git merge -X subtree=text-to-cad/ jake/main
+```
+
+Set it up once: `vp i` here; in `text-to-cad/`, a `.venv` with `requirements-dev.txt` and
+`-e packages/cadgen[fea]`, `npm ci` and `scripts/bundle/bundle.sh`. Then
+`TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs it from this repository's `text-to-cad/`
+(`TEXT_TO_CAD_ROOT` points at another checkout). A change to the viewer needs its packages built
+(`npm run build` in `text-to-cad/packages/core` and `packages/ui`) before Studio starts.
+
 ## Run it
 
 In a text-to-cad checkout, `git submodule update --init apps/studio`, then from `apps/studio`,
@@ -90,24 +105,23 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **A sidebar of projects.** In Engineering the sidebar lists the projects, not their threads,
   then the folders in no project: each opens on its page, where its history is, and says whether
   work in it needs you or is under way. Engineering with code keeps T3 Code's thread sidebar.
-- **The part editor.** A text-to-cad part's script stays its source, and the part editor
-  (`studio-plugins/part-editor`) reads it as a design: a tracer runs the script in cadgen's Python
-  with every number in the project's files remembering where it is written, and records each
-  build123d operation. The editor tab beside the chat shows the model with its dimensions, the
-  named sizes the part uses (`TRAY_HEIGHT` reads "Tray height") and a timeline, one row per
-  operation in the script, each with its own inputs and the formula behind them. Double-click a
-  value and type a number or a formula: the change is that one number rewritten in the source, as
-  it was written (`.060` to `.050`); a dimension from a formula of several sizes asks which to
-  change; a file changed since the editor read it is refused. Every part that uses the changed file
-  is built again, so its STEP, Studio's viewer and the checks follow, and the note of the change
-  goes into the composer for the agent, which is not run. The editor follows the agent's own edits
-  to the script. It is offered when cadgen's Python is known: the checkout's in development, else
-  `CADGEN_PYTHON`. Open it from the panel's + menu, on a part script, or by the agent
-  (`part_editor_open`). Its page is built at launch (`scripts/editor-pages.ts`). Test:
-  `python studio-plugins/part-editor/tracer/test_tracer.py` in cadgen's Python.
+- **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
+  script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
+  its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode
+  and Position; Draw), a design tree docked at the left (the part's named sizes, its history
+  numbered as a CAD tree numbers it, and the selected feature's inputs, each with the formula
+  behind it), and the feature's dimensions drawn on the model, each changed by a double-click. A
+  change rewrites one number in the script, as it was written, and rebuilds every part that uses
+  the file, so the model reloads as any rebuild does; a value made of several sizes asks which to
+  change, and a file changed since it was read is refused. The agent hears of each change with
+  the next message (a Hand edit note queued in the composer), never by a message of its own. The
+  engine is `text-to-cad/packages/cadgen/src/cadgen/edit/` (a tracer that runs the script with
+  every number remembering where it is written, in a process of its own, behind the viewer's
+  `/__cad/edit/*` routes); the frame is `text-to-cad/packages/ui/src/renderers/step/edit/`. The
+  CAD skill's `references/edit-mode.md` tells the agent how to write parts that edit well.
 - **SolidCraft, on request.** `STUDIO_SOLIDCRAFT=1`, with SolidCraft (a parametric CAD engine,
   Apache-2.0) in Applications, adds `studio-plugins/solidcraft`: its engine headless per thread
-  behind the same editor, for `.solidcraft` designs (the overview lists a design and its STEP as
+  behind an editor page of its own, for `.solidcraft` designs (the overview lists a design and its STEP as
   one part). `STUDIO_SOLIDCRAFT_APP=1` bridges it to the SolidCraft app instead. Bundled plugins
   come from several marketplace folders (`T3CODE_PLUGIN_MARKETPLACE`, separated as PATH is), and
   one whose folder changed is updated at the next start, so its tools and views are listed again;
