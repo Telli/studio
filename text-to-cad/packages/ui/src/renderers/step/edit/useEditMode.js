@@ -3,6 +3,7 @@ import { createPromptContext, textPart } from "@text-to-cad/core/prompt";
 import { useViewerHost } from "../../../host/context.js";
 import {
   changeNote,
+  changesSince,
   commandNote,
   commandUndoNote,
   emptyHistory,
@@ -225,10 +226,12 @@ export function useEditMode({ client, file, active }) {
 
   // ---- sketch mode ---------------------------------------------------------------------------
 
-  // `start`: where the session begins in the history, so Discard Changes takes back what came after
-  // (a new sketch's own making too).
-  const begin = useCallback((view, created, start = historyRef.current.done.length) => {
-    setSketch({ ...view, created, made: {}, changed: false, start });
+  // `before`: the change made last before the session began, so Undo and Discard Changes reach
+  // back only over what came after it (a new sketch's own making too). As a CAD tool's sketcher,
+  // Redo begins again with the session.
+  const begin = useCallback((view, created, before = historyRef.current.done.at(-1) ?? null) => {
+    setSketch({ ...view, created, made: {}, changed: false, before });
+    setHistory(current => (current.undone.length ? { ...current, undone: [] } : current));
     setSketchTool(null);
     setSketchSelection([]);
     setSketchStep(0);
@@ -241,9 +244,9 @@ export function useEditMode({ client, file, active }) {
 
   /** A new sketch, on an origin plane (`"Top"`) or a flat face of the body (a selection item). */
   const startSketch = useCallback(async (plane, name = "") => {
-    const start = historyRef.current.done.length;
+    const before = historyRef.current.done.at(-1) ?? null;
     const reply = await send({ sketch: { op: { kind: "new", plane, name } } }, { note: null });
-    if (reply?.ok && reply.sketch) begin(reply.sketch, true, start);
+    if (reply?.ok && reply.sketch) begin(reply.sketch, true, before);
     return reply;
   }, [send, begin]);
 
@@ -293,7 +296,7 @@ export function useEditMode({ client, file, active }) {
     // from a render between them.
     let walked = historyRef.current;
     let gone = false;
-    while (walked.done.length > current.start) {
+    while (changesSince(walked, current.before) > 0) {
       const move = undoStep(walked);
       const reply = await send({ ...move.request, sketch: sketchTarget(current) }, { record: false, note: null });
       if (!reply?.ok) break;
@@ -302,7 +305,7 @@ export function useEditMode({ client, file, active }) {
       setHistory(walked);
       if (!reply.sketchOnly) { gone = true; break; } // the sketch's own making undone
     }
-    if (!gone) await send({ sketch: { ...sketchTarget(current), op: { kind: "exit", changed: walked.done.length !== current.start } } }, { record: false, note: null });
+    if (!gone) await send({ sketch: { ...sketchTarget(current), op: { kind: "exit", changed: changesSince(walked, current.before) > 0 } } }, { record: false, note: null });
     setSketch(null); setSketchTool(null); setSketchSelection([]);
   }, [send]);
 
@@ -313,7 +316,8 @@ export function useEditMode({ client, file, active }) {
     change, undo, redo, run,
     open: id => { setError(""); setPicking(false); setCommand(id); },
     close: () => setCommand(null),
-    canUndo: history.done.length > 0 && !saving,
+    // In sketch mode, Undo takes back the session's own changes only.
+    canUndo: (sketch ? changesSince(history, sketch.before) : history.done.length) > 0 && !saving,
     canRedo: history.undone.length > 0 && !saving,
     choose: leaf => { if (choice) void send({ ...choice.request, leaf }); },
     dismissChoice: () => setChoice(null),

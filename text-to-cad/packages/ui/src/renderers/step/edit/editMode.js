@@ -198,13 +198,17 @@ export function changeNote(change) {
 }
 
 /**
- * The ribbon's modeling commands, as a CAD tool groups them: Create (Hole, Pattern, Mirror) and
- * Modify (Fillet, Chamfer, Shell). `picks` is what the command acts on, which the Select tool's
- * mode turns to when it opens: edges, faces, or none (Pattern copies a history feature).
+ * The ribbon's modeling commands, as a CAD tool groups them: Create (the Extruded and Revolved
+ * Boss/Base and Cut a sketch makes, `sketch`; Hole, Pattern, Mirror) and Modify (Fillet, Chamfer,
+ * Shell). `picks` is what the command acts on, which the Select tool's mode turns to when it
+ * opens: edges, faces, or none (Pattern copies a history feature; the sketch features take the
+ * sketch selected in the design tree).
  */
 export const EDIT_COMMANDS = Object.freeze([
   { id: "extrude", label: "Extruded Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
+  { id: "revolve", label: "Revolved Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
   { id: "cut", label: "Extruded Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
+  { id: "revolve_cut", label: "Revolved Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
   { id: "hole", label: "Hole", group: "Create", picks: "faces", prompt: "Select a flat face for the hole." },
   { id: "pattern", label: "Pattern", group: "Create", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Create", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
@@ -227,6 +231,8 @@ export function commandDefaults(id, units) {
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
     case "extrude": return { end: "blind", depth: size.depth, reverse: false };
     case "cut": return { end: "blind", depth: size.depth, reverse: false };
+    case "revolve":
+    case "revolve_cut": return { axis: "", angle: "360", reverse: false };
     default: return {};
   }
 }
@@ -277,6 +283,10 @@ export function commandRequest(id, values, items, feature, sketch = null) {
     return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title } : null,
       inputs: { end: values.end, ...(values.end === "through" ? {} : { depth: values.depth }), reverse: Boolean(values.reverse) } };
   }
+  if (id === "revolve" || id === "revolve_cut") {
+    return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title, axis: values.axis } : null,
+      inputs: { angle: values.angle, reverse: Boolean(values.reverse) } };
+  }
   const inputs = {};
   switch (id) {
     case "fillet": inputs.radius = values.radius; break;
@@ -302,10 +312,12 @@ export function commandRequest(id, values, items, feature, sketch = null) {
 }
 
 /** Why a command's OK cannot go yet, or "" when it can. */
-export function commandBlocked(id, items, sketch = null) {
-  if (id === "extrude" || id === "cut") {
+export function commandBlocked(id, items, sketch = null, values = {}) {
+  if (id === "extrude" || id === "cut" || id === "revolve" || id === "revolve_cut") {
     if (!sketch) return "Select a sketch in the design tree.";
-    if (!sketch.constrained) return `${sketch.title} is drawn with build123d's shapes, not as a sketch. Ask the agent to extrude it.`;
+    const making = id.startsWith("revolve") ? "revolve" : "extrude";
+    if (!sketch.constrained) return `${sketch.title} is drawn with build123d's shapes, not as a sketch. Ask the agent to ${making} it.`;
+    if (making === "revolve" && !values.axis) return `Draw a centerline in ${sketch.title} to revolve about.`;
     return "";
   }
   const faces = items.filter(item => /f\d+$/.test(item.selector));
@@ -314,6 +326,13 @@ export function commandBlocked(id, items, sketch = null) {
   if (id === "shell") return faces.length ? "" : "Select the faces to open.";
   if (id === "mirror") return faces.length > 1 ? "Select one face, or none to pick a plane." : "";
   return "";
+}
+
+/** The lines of a sketch a revolve can turn about, its centerlines first, as the panel lists them. */
+export function revolveAxes(view) {
+  const lines = (view?.state?.curves || []).filter(curve => curve.kind === "line");
+  return [...lines.filter(line => line.construction), ...lines.filter(line => !line.construction)]
+    .map(line => ({ value: line.id, label: line.construction ? `${line.id}, centerline` : line.id }));
 }
 
 /** What a command tells the agent: "In edit mode I added Fillet2, radius 0.02 in, 4 edges (parts/tray.py, line 37)." */
@@ -341,6 +360,16 @@ export const emptyHistory = () => ({ done: [], undone: [] });
 
 /** A change made by hand: Undo may take it back, and nothing undone can be redone after it. */
 export const recordChange = (history, change) => ({ done: [...history.done, change].slice(-HISTORY_LIMIT), undone: [] });
+
+/**
+ * How many of the history's changes came after `before` (a sketch session's: the change made last
+ * before it began). Counted from that change, not a length, as the history keeps only its last
+ * changes: once `before` has gone from it, every change left came after.
+ */
+export function changesSince(history, before) {
+  const at = before ? history.done.lastIndexOf(before) : -1;
+  return history.done.length - (at + 1);
+}
 
 // A change whose lines are put back as they were (a command's, a sketch's), rather than one number.
 const spliced = change => Boolean(change.undo?.hunks);

@@ -7,15 +7,15 @@ the selected feature's dimensions on the model. When the engineer changes a valu
 rewrites that one number in the script, keeping how it was written, and builds again every part
 that uses the changed file.
 
-Its ribbon also has modeling commands: Extruded Boss/Base, Extruded Cut, Hole, Pattern and Mirror
-(Create), Fillet, Chamfer and Shell (Modify). Each acts on what the engineer selects (edges or
+Its ribbon also has modeling commands: Extruded and Revolved Boss/Base, Extruded and Revolved
+Cut, Hole, Pattern and Mirror (Create), Fillet, Chamfer and Shell (Modify). Each acts on what the engineer selects (edges or
 faces on the model, a sketch or a feature in the history) and writes one line of build123d into
 the script, after the statement that makes the part's body, which then reads back as a new feature
 of the history.
 
 The engineer also sketches there, as in SolidWorks: Sketch on a plane or a flat face, draw lines,
 rectangles, circles, arcs, slots and points, add relations and Smart Dimensions, Exit Sketch, then
-Extruded Boss/Base or Extruded Cut. Each stroke is a line of `cadgen.sketch` code
+extrude or revolve it, as a boss or a cut. Each stroke is a line of `cadgen.sketch` code
 ([sketching.md](sketching.md)) in the part's script, written as it is drawn; see "Sketches drawn
 by hand" below.
 
@@ -61,6 +61,10 @@ by hand" below.
   amount goes the other way along the sketch's normal; Mid Plane is `both=True` with half the
   depth; a cut Through All is `amount=-part.bounding_box().diagonal`). The line goes after the
   sketch's own lines.
+- **Revolved Boss/Base and Revolved Cut** turn the selected sketch about one of its lines (its
+  centerline, usually): `part += revolve(sketch2.face(), axis=sketch2.axis(line1),
+  revolution_arc=360)`, or `part -= revolve(...)` for a cut; Reverse direction is a negative
+  angle.
 - Sizes are written in the project's units, as the file writes them (`.03*INCH` in an inch part).
 - A line that does not run, or does not make the feature on what was selected, is not written.
 

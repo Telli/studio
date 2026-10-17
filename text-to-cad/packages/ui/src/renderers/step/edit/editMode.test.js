@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildingText,
   changeNote,
+  changesSince,
   commandBlocked,
   commandDefaults,
   commandNote,
@@ -78,6 +79,17 @@ test("undo writes a change's number back, and redo writes it again", () => {
   assert.deepEqual(redo.request, { literal: "sizes.py:2:8", text: "25" });
   // A new change after an undo leaves nothing to redo.
   assert.equal(redoStep(recordChange(history, { literal: "x", from: "1", to: "2" })), null);
+});
+
+test("a sketch session's changes are counted from the change before it, past the history's limit", () => {
+  const before = { literal: "a", from: "1", to: "2" };
+  let history = recordChange(emptyHistory(), before);
+  assert.equal(changesSince(history, before), 0);
+  for (let stroke = 0; stroke < 60; stroke += 1) history = recordChange(history, { undo: { hunks: [] }, stroke });
+  // The history keeps its last 50 changes: all of them the session's once `before` has gone.
+  assert.equal(changesSince(history, before), 50);
+  assert.equal(changesSince(recordChange(recordChange(emptyHistory(), before), { stroke: 0 }), before), 1);
+  assert.equal(changesSince(recordChange(emptyHistory(), { stroke: 0 }), null), 1);
 });
 
 // The viewer's references for a face and an edge, as the selector runtime hands them over.

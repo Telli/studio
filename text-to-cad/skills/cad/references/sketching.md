@@ -75,6 +75,9 @@ def plate():
   adds nothing) still solves, and `s.solve().redundant` names the extra one: remove it.
 - `s.face()` is the one closed region, holes cut out. `s.faces()` lists several regions. An open
   profile raises `SketchError` naming the point where it is open.
+- `s.axis(line)` is one of the sketch's lines as a build123d `Axis` in the part, for a revolve:
+  `revolve(s.face(), axis=s.axis(centerline), revolution_arc=360)`. Draw the axis as construction
+  geometry (`construction=True`) so it is not part of the profile.
 
 ## Editing
 

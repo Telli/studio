@@ -15,16 +15,17 @@ import {
   commandRequest,
   editCommand,
   faceOffsetAxes,
+  revolveAxes,
   selectionItems,
   selectionLabel,
   sketchView,
   treeSketch
 } from "./editMode.js";
-import { ExtrudedBossIcon, ExtrudedCutIcon } from "./sketchIcons.jsx";
+import { ExtrudedBossIcon, ExtrudedCutIcon, RevolvedBossIcon, RevolvedCutIcon } from "./sketchIcons.jsx";
 
 /** Each command's mark, in the ribbon and on its panel. */
 export const COMMAND_ICONS = Object.freeze({
-  extrude: ExtrudedBossIcon, cut: ExtrudedCutIcon,
+  extrude: ExtrudedBossIcon, cut: ExtrudedCutIcon, revolve: RevolvedBossIcon, revolve_cut: RevolvedCutIcon,
   hole: CircleDot, pattern: Grid3x3, mirror: FlipHorizontal2, fillet: SquareRoundCorner, chamfer: Octagon, shell: PackageOpen,
 });
 // An extrude's end conditions, as SolidWorks' Direction 1 names them; a cut can go through all.
@@ -75,6 +76,13 @@ export default function EditCommand({ edit, names, references, tree = null }) {
   const sketch = command?.sketch ? treeSketch(tree, edit.selected) : null;
   const onFace = sketch ? (sketchView(edit.state, sketch)?.plane || sketch.plane) === "Plane" : false;
   useEffect(() => { if (edit.command === "cut") setValues(current => ({ ...current, reverse: onFace })); }, [edit.command, onFace]);
+  // A revolve turns about a line of its sketch: its centerline, as it opens, when it has one.
+  const revolving = edit.command === "revolve" || edit.command === "revolve_cut";
+  const axes = useMemo(() => (revolving && sketch ? revolveAxes(sketchView(edit.state, sketch)) : []), [revolving, sketch, edit.state]);
+  const firstAxis = axes[0]?.value || "";
+  useEffect(() => {
+    if (revolving) setValues(current => (axes.some(axis => axis.value === current.axis) ? current : { ...current, axis: firstAxis }));
+  }, [revolving, axes, firstAxis]);
   const items = useMemo(() => selectionItems(references), [references]);
   const rows = edit.state?.rows || [];
   const featureIndex = rows.findIndex(row => row.key === edit.selected);
@@ -87,7 +95,7 @@ export default function EditCommand({ edit, names, references, tree = null }) {
   const disabled = edit.saving || edit.status !== "ready";
   const faces = items.filter(item => /f\d+$/.test(item.selector));
   const listed = command.picks === "edges" ? items : faces;
-  const blocked = commandBlocked(command.id, items, sketch);
+  const blocked = commandBlocked(command.id, items, sketch, values);
   const feature = !wholeBody && featureIndex > 0 ? { row: rows[featureIndex].key, name: names[featureIndex]?.title || "" } : null;
   const ok = () => { if (!blocked && !disabled) void edit.run(commandRequest(command.id, values, items, feature, sketch)); };
   const copies = command.id === "mirror" || command.id === "pattern";
@@ -114,8 +122,15 @@ export default function EditCommand({ edit, names, references, tree = null }) {
         options={[...(featureIndex > 0 ? [{ value: "feature", label: names[featureIndex]?.title || "Feature" }] : []), { value: "body", label: "Whole body" }]} />
       <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Pick a feature in the history to copy it.</p>
     </FileSheetSettingsSection> : null}
+    {revolving ? <FileSheetSettingsSection title="Axis of Revolution" sectionId="edit-command-axis">
+      {axes.length ? <FileSheetSelectRow label="About" value={values.axis} options={axes} onValueChange={set("axis")} />
+        : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>{sketch ? "Draw a centerline in the sketch to revolve about." : command.prompt}</p>}
+    </FileSheetSettingsSection> : null}
     <FileSheetSettingsSection title={command.sketch ? "Direction 1" : "Parameters"} sectionId="edit-command-parameters">
-      {command.sketch ? <>
+      {revolving ? <>
+        <NumberRow label="Angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} />
+        <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />
+      </> : command.sketch ? <>
         <FileSheetSelectRow label="End condition" value={values.end} options={command.id === "cut" ? CUT_ENDS : BOSS_ENDS} onValueChange={set("end")} />
         {values.end === "through" ? null : <NumberRow label="Depth" value={values.depth} unit={units} disabled={disabled} onChange={set("depth")} />}
         {values.end === "mid" ? null : <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />}

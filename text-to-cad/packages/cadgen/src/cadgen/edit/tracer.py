@@ -738,7 +738,10 @@ LABELS = {
     ("GridLocations", "x_count"): "Instances",
     ("GridLocations", "y_count"): "Instances",
     ("PolarLocations", "count"): "Instances",
+    ("revolve", "revolution_arc"): "Angle",
 }
+# The sizes that are angles, shown in degrees.
+ANGLES = {("revolve", "revolution_arc")}
 
 
 def _input(name, value, units, op=None):
@@ -750,7 +753,7 @@ def _input(name, value, units, op=None):
         "label": LABELS.get((op, name)) or name.replace("_", " ").capitalize(),
         "value": float(value),
         "display": display(float(value), units) if length else _number_text(_plain(value)),
-        "unit": (units if length else ""),
+        "unit": (units if length else "deg" if (op, name) in ANGLES else ""),
         "formula": formula(shown),
         "leaves": [leaf for leaf in leaves(value._e) if not _is_unit(("lit", leaf))],
         "expr": value._e,
@@ -1540,15 +1543,24 @@ def command(request):
         return refused
     state = STATE[script]
     spec = request["command"]
-    drawn = spec.get("sketch") if spec.get("command") in ("extrude", "cut") else None
+    drawn = spec.get("sketch") if spec.get("command") in ("extrude", "cut", "revolve", "revolve_cut") else None
     if isinstance(drawn, dict):
-        # How many regions the sketch makes: one is extruded as its face, more as its faces.
-        entry = SKETCHES.get((str((ROOT / str(drawn.get("file") or "")).resolve()), int(drawn.get("line") or 0)))
+        # How many regions the sketch makes: one is extruded as its face, more as its faces; and a
+        # revolve's axis, a line of the sketch, as the script names it (`line5`).
+        from cadgen.edit import sketching
+
+        path = (ROOT / str(drawn.get("file") or "")).resolve()
+        entry = SKETCHES.get((str(path), int(drawn.get("line") or 0)))
         if entry is None:
             return {"ok": False, "error": "That sketch is not made when the part runs. Pick it again in the design tree."}
         try:
             spec = {**spec, "sketch": {**drawn, "name": entry["sketch"].name, "regions": len(entry["sketch"].faces())}}
-        except _sketch_api.SketchError as error:
+            if spec["command"] in ("revolve", "revolve_cut") and drawn.get("axis"):
+                text = _read(path)
+                block = sketching.find_block(text, int(drawn["line"]), str(path))
+                names = sketching.Names(block, _sketch_view(entry["sketch"], path, int(drawn["line"]), entry["function"])["state"])
+                spec["sketch"]["axis_code"] = names.curve(str(drawn["axis"]))
+        except (_sketch_api.SketchError, sketching.SketchEditError) as error:
             return {"ok": False, "error": str(error)}
     try:
         plan = commands.plan(spec, steps=state["steps"], shape=state["shape"], level=state["level"],
@@ -1606,7 +1618,8 @@ def splice(request):
     # In sketch mode, Undo and Redo of a stroke answer with the sketch solved again; a sketch the
     # change takes away (its making undone) answers with the part.
     drawn = request.get("sketch") if isinstance(request.get("sketch"), dict) else None
-    if drawn and str(drawn.get("file") or "") == rel:
+    sketching_here = drawn is not None and str(drawn.get("file") or "") == rel
+    if sketching_here:
         from cadgen.edit import sketching
 
         try:
@@ -1624,7 +1637,9 @@ def splice(request):
         _write(path, old)
         trace(request)
         return {"ok": False, "error": "The part does not build with that change, so nothing changed."}
-    traced["change"] = {"kind": "splice", "file": rel, "line": first,
+    # Undo in sketch mode reaches only that sketch's session (a new sketch's making the furthest),
+    # and nothing of it was built yet: the part builds again when the sketch is left, if at all.
+    traced["change"] = {"kind": "splice", "file": rel, "line": first, "build": not sketching_here,
                         "undo": {"file": rel, "hunks": commands.hunks(new, old)}, "redo": spec}
     return traced
 

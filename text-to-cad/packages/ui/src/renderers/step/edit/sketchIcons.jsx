@@ -28,6 +28,9 @@ export const DiscardIcon = ({ className }) => <Glyph className={className}><path
 export const ExtrudedBossIcon = ({ className }) => <Glyph className={className}><path d="M3 9.5 8 7l5 2.5v3L8 15l-5-2.5z" /><path d="M3 9.5 8 12l5-2.5M8 12v3" /><path d="M8 6V1.5M6.4 3.1 8 1.5l1.6 1.6" /></Glyph>;
 export const ExtrudedCutIcon = ({ className }) => <Glyph className={className}><path d="M2.5 6.5 8 4l5.5 2.5V12L8 14.5 2.5 12z" /><path d="m5.5 7.5 2.5 1.2 2.5-1.2v2.5L8 11.2 5.5 10z" /><path d="M8 1v4.5" strokeOpacity=".6" /></Glyph>;
 
+export const RevolvedBossIcon = ({ className }) => <Glyph className={className}><path d="M3 2v12" strokeDasharray="2 1.5" /><path d="M6 4h4v8H6" /><path d="M10 4c2.5.6 3.5 2 3.5 4s-1 3.4-3.5 4" strokeOpacity=".6" /></Glyph>;
+export const RevolvedCutIcon = ({ className }) => <Glyph className={className}><path d="M3 2v12" strokeDasharray="2 1.5" /><rect x="5.5" y="3.5" width="8" height="9" rx=".5" /><path d="M8 6h3v4H8z" strokeOpacity=".6" /></Glyph>;
+
 /** Each sketch tool's icon, by its id in `SKETCH_TOOLS`. */
 export const SKETCH_TOOL_ICONS = Object.freeze({
   line: LineIcon, rectangle: CornerRectangleIcon, center_rectangle: CenterRectangleIcon, circle: CircleIcon, arc: ArcIcon,

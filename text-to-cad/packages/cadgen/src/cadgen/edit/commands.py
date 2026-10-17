@@ -640,12 +640,13 @@ def splice(text: str, changes: list[dict]) -> str:
 # ---------------------------------------------------------------------------------------------
 # The commands.
 
-COMMANDS = ("fillet", "chamfer", "hole", "shell", "mirror", "pattern", "extrude", "cut")
+COMMANDS = ("fillet", "chamfer", "hole", "shell", "mirror", "pattern", "extrude", "cut", "revolve", "revolve_cut")
 FEATURE_WORDS = {"fillet": "Fillet", "chamfer": "Chamfer", "hole": "Hole", "shell": "Shell", "mirror": "Mirror", "pattern": "Pattern",
-                 "extrude": "Boss-Extrude", "cut": "Cut-Extrude"}
+                 "extrude": "Boss-Extrude", "cut": "Cut-Extrude", "revolve": "Boss-Revolve", "revolve_cut": "Cut-Revolve"}
 # The operation each command's line records in the tracer.
 RECORDS = {"fillet": ("fillet",), "chamfer": ("chamfer",), "hole": ("cut",), "shell": ("offset",),
-           "mirror": ("mirror",), "pattern": ("GridLocations", "PolarLocations"), "extrude": ("extrude",), "cut": ("extrude",)}
+           "mirror": ("mirror",), "pattern": ("GridLocations", "PolarLocations"), "extrude": ("extrude",), "cut": ("extrude",),
+           "revolve": ("revolve",), "revolve_cut": ("revolve",)}
 
 
 @dataclass
@@ -859,6 +860,35 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         code = f"{var} {sign} {names('mirror')}({tool}, about={plane_code})"
         shown = []
         what = f"about {plane_words}"
+    elif command in ("revolve", "revolve_cut"):
+        # A sketch turned about one of its lines, as Revolved Boss/Base and Revolved Cut turn one:
+        # `sketch.axis(line)` is that line in the part; the angle runs from the sketch, the other
+        # way when reversed. Its line goes after the sketch's lines and the body's.
+        from cadgen.edit import sketching
+
+        drawn = spec.get("sketch") or {}
+        if str(drawn.get("file") or "") != body.rel:
+            raise CommandError("Pick a sketch of this part's body in the design tree.")
+        try:
+            block = sketching.find_block(body.text, int(drawn.get("line") or 0), str(body.path))
+        except (sketching.SketchEditError, ValueError) as error:
+            raise CommandError(str(error)) from None
+        if block.function is None or block.function.lineno != body.function.lineno:
+            raise CommandError("That sketch is made outside the function that makes this part's body. Ask the agent to revolve it.")
+        axis = str(drawn.get("axis_code") or "")
+        if not axis:
+            raise CommandError("Pick the line to revolve about: a centerline of the sketch.")
+        angle = _value(inputs, "angle", "Angle", parse)
+        if angle > 360:
+            raise CommandError("An angle is at most 360 degrees.")
+        if inputs.get("reverse") in (True, "true", "1", 1):
+            angle = -angle
+        profile = f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
+        sign = "+=" if command == "revolve" else "-="
+        code = f"{var} {sign} {names('revolve')}({profile}, axis={block.var}.axis({axis}), revolution_arc={writer.number(angle)})"
+        at = max(at, block.last_line)
+        shown = [("Angle", abs(angle), "deg")]
+        what = f"from {drawn.get('name') or 'the sketch'}, about {drawn.get('axis') or 'its centerline'}"
     elif command in ("extrude", "cut"):
         # A sketch made a solid of, as Extruded Boss/Base and Extruded Cut make one: from its
         # face, along its plane's normal (Reverse direction the other way), joined to the body or

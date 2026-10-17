@@ -135,6 +135,21 @@ class SketchMode(unittest.TestCase):
         self.assertEqual(self.source(), before)
         self.assertEqual(undone["sketch"]["state"]["curves"], [])
 
+    def test_discarding_a_new_sketch_puts_the_script_back_and_builds_nothing(self):
+        original = self.source()
+        made = self.start()
+        target = {"file": self.sketch["file"], "line": self.sketch["line"], "name": "Sketch1"}
+        drawn = self.send({"kind": "draw", "entity": "circle", "center": {"at": [5, 5]}, "radius": 2})
+        for change in (drawn["change"], made["change"]):
+            undone = self.service.change({"file": self.file, "files": self.files, "splice": change["undo"], "sketch": target})
+            self.assertTrue(undone["ok"], undone.get("error"))
+            self.files = {**self.files, **(undone.get("files") or {})}
+        # The sketch's making undone answers with the part, which nothing of the sketch was built into.
+        self.assertFalse(undone.get("sketchOnly"))
+        self.assertIs(undone["change"]["build"], False)
+        self.assertEqual(self.source(), original)
+        self.assertNotIn("Sketch1", [sketch["name"] for sketch in undone.get("sketches") or []])
+
     def test_a_finished_sketch_is_in_the_tree_and_extrudes_as_a_boss(self):
         self.start()
         self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [10, 6]}})
@@ -181,6 +196,18 @@ class SketchMode(unittest.TestCase):
         self.send({"kind": "new", "plane": top, "name": "Sketch2"})
         self.assertEqual(self.sketch["state"]["frame"]["origin"], [0.0, 0.0, 3.0])
         self.assertEqual(self.sketch["state"]["frame"]["x"], [1.0, 0.0, 0.0])
+
+    def test_a_sketch_revolved_about_its_centerline_is_a_boss_revolve(self):
+        self.start("Front")
+        self.send({"kind": "draw", "entity": "rectangle", "corner": {"at": [5, 0]}, "opposite": {"at": [10, 4]}})
+        self.send({"kind": "draw", "entity": "centerline", "start": {"point": "Origin"}, "end": {"at": [0, 10]}})
+        left = self.send({"kind": "exit"})
+        revolved = self.service.change({"file": self.file, "files": left["files"], "command": {
+            "command": "revolve", "sketch": {"file": "plate.py", "line": self.sketch["line"], "axis": "Line5"},
+            "inputs": {"angle": "360"}}})
+        self.assertTrue(revolved["ok"], revolved.get("error"))
+        self.assertIn("part += revolve(sketch1.face(), axis=sketch1.axis(line5), revolution_arc=360)", self.source())
+        self.assertIn("Boss-Revolve", [f["kind"] for f in revolved["features"]])
 
     def test_an_inch_part_sketches_in_inches(self):
         root = project("""

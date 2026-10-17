@@ -450,6 +450,23 @@ class Sketch:
             raise SketchError(f"{self.name} has {len(made)} separate regions; use faces() and pick one.")
         return made[0]
 
+    def axis(self, line: Line):
+        """A line of the sketch as a build123d Axis in the part, through its start and along it:
+        what a revolve turns the sketch about (a centerline, usually)."""
+        import build123d as B
+
+        from .regions import plane_of
+
+        if not isinstance(line, Line):
+            raise SketchError("A sketch's axis is one of its lines.")
+        self.solve()
+        plane = plane_of(self)
+        start = plane.from_local_coords((line.start.x * self.unit, line.start.y * self.unit))
+        end = plane.from_local_coords((line.end.x * self.unit, line.end.y * self.unit))
+        if (end - start).length < 1e-9:
+            raise SketchError(f"{line.name} has no length to be an axis.")
+        return B.Axis(start, (end - start).normalized())
+
     def frame(self) -> dict | None:
         """Where the sketch's plane is in the part, in millimetres: its origin, the directions of
         the sketch's x and y, and its normal. None where build123d cannot place it."""
