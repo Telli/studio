@@ -640,11 +640,12 @@ def splice(text: str, changes: list[dict]) -> str:
 # ---------------------------------------------------------------------------------------------
 # The commands.
 
-COMMANDS = ("fillet", "chamfer", "hole", "shell", "mirror", "pattern")
-FEATURE_WORDS = {"fillet": "Fillet", "chamfer": "Chamfer", "hole": "Hole", "shell": "Shell", "mirror": "Mirror", "pattern": "Pattern"}
+COMMANDS = ("fillet", "chamfer", "hole", "shell", "mirror", "pattern", "extrude", "cut")
+FEATURE_WORDS = {"fillet": "Fillet", "chamfer": "Chamfer", "hole": "Hole", "shell": "Shell", "mirror": "Mirror", "pattern": "Pattern",
+                 "extrude": "Boss-Extrude", "cut": "Cut-Extrude"}
 # The operation each command's line records in the tracer.
 RECORDS = {"fillet": ("fillet",), "chamfer": ("chamfer",), "hole": ("cut",), "shell": ("offset",),
-           "mirror": ("mirror",), "pattern": ("GridLocations", "PolarLocations")}
+           "mirror": ("mirror",), "pattern": ("GridLocations", "PolarLocations"), "extrude": ("extrude",), "cut": ("extrude",)}
 
 
 @dataclass
@@ -766,6 +767,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         var, returned = body.name, []
     writer = _Writer(body, units, literals, names)
     inputs = spec.get("inputs") or {}
+    at = body.statement.end_lineno
     selection = [item for item in spec.get("selection") or [] if isinstance(item, dict)]
     scale = shape.bounding_box().diagonal or 1.0
     selections = Selections(shape, var, names)
@@ -857,6 +859,35 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         code = f"{var} {sign} {names('mirror')}({tool}, about={plane_code})"
         shown = []
         what = f"about {plane_words}"
+    elif command in ("extrude", "cut"):
+        # A sketch made a solid of, as Extruded Boss/Base and Extruded Cut make one: from its
+        # face, along its plane's normal (Reverse direction the other way), joined to the body or
+        # cut from it. Its line goes after the sketch's lines and the body's.
+        from cadgen.edit import sketching
+
+        drawn = spec.get("sketch") or {}
+        if str(drawn.get("file") or "") != body.rel:
+            raise CommandError("Pick a sketch of this part's body in the design tree.")
+        try:
+            block = sketching.find_block(body.text, int(drawn.get("line") or 0), str(body.path))
+        except (sketching.SketchEditError, ValueError) as error:
+            raise CommandError(str(error)) from None
+        if block.function is None or block.function.lineno != body.function.lineno:
+            raise CommandError("That sketch is made outside the function that makes this part's body. Ask the agent to extrude it.")
+        end = str(inputs.get("end") or "blind").lower()
+        through = command == "cut" and end == "through"
+        depth = None if through else _value(inputs, "depth", "Depth", parse)
+        # Mid Plane: half the depth each way (build123d's `both`), so Reverse does not apply.
+        both = ", both=True" if end == "mid" else ""
+        amount = f"{var}.bounding_box().diagonal" if through else writer.length(depth / 2 if both else depth)
+        if inputs.get("reverse") in (True, "true", "1", 1) and not both:
+            amount = f"-{amount}"
+        profile = f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
+        sign = "+=" if command == "extrude" else "-="
+        code = f"{var} {sign} {names('extrude')}({profile}, amount={amount}{both})"
+        at = max(at, block.last_line)
+        shown = [] if through else [("Depth", depth, units_word)]
+        what = f"from {drawn.get('name') or 'the sketch'}" + (", through all" if through else ", mid plane" if end == "mid" else "")
     else:  # pattern
         kind = str(inputs.get("type") or "linear").lower()
         count = _value(inputs, "count", "Instances", parse, integer=True, minimum=2)
@@ -885,10 +916,10 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             edits.put(line, col, text)
         code = f"{var} {sign} [loc * {tool} for loc in {locations}.locations[1:]]"
 
-    edits.after(body.statement.end_lineno, [f"{body.indent}{code}", *returned])
+    edits.after(at, [f"{body.indent}{code}", *returned])
     added_lines = _imports(edits, body, module, named_import, names)
     new = edits.apply()
-    line = body.statement.end_lineno + 1 + added_lines
+    line = at + 1 + added_lines
     return Plan(command=command, path=body.path, rel=body.rel, old=body.text, new=new, line=line, code=code,
                 records=RECORDS[command], selected=selected,
                 summary={"feature": FEATURE_WORDS[command], "what": what,

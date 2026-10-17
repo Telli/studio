@@ -4,6 +4,9 @@ Entities and relations are named as a CAD tool's sketcher names them (Point1, Li
 Circle1; Horizontal1, Tangent1; D1 for a dimension), and each remembers the line of the script
 that made it, so an editor can show and change the sketch through the script. A sketch is solved
 on demand (``solve``), and again only when something changed.
+
+A sketch's numbers are in its own unit: millimetres unless ``unit`` says otherwise (``unit=INCH``
+in a part sized in inches, so its sketch reads in inches too).
 """
 
 from __future__ import annotations
@@ -23,15 +26,31 @@ class SketchError(ValueError):
 # The origin's planes as a CAD tree names them (Top is XY), and build123d's own names.
 PLANE_NAMES = {"Top": "XY", "Front": "XZ", "Right": "YZ", "XY": "XY", "XZ": "XZ", "YZ": "YZ"}
 STATUS_FULLY, STATUS_UNDER, STATUS_OVER = "Fully defined", "Under defined", "Over defined"
+# Told of every sketch made, with the frame of the script that made it: edit mode's tracer keeps
+# where each sketch is made, to solve it again from its own lines as they are edited.
+WATCHERS: list = []
+_HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def _caller():
+    """The frame of the script that called into the sketch: the first one outside this package."""
+    frame = sys._getframe(1)
+    while frame is not None and os.path.dirname(os.path.abspath(frame.f_code.co_filename)) == _HERE:
+        frame = frame.f_back
+    return frame
 
 
 def _source():
-    """The script line that called into the sketch: the first frame outside this package."""
-    frame = sys._getframe(1)
-    here = os.path.dirname(os.path.abspath(__file__))
-    while frame is not None and os.path.dirname(os.path.abspath(frame.f_code.co_filename)) == here:
-        frame = frame.f_back
+    """The script line that called into the sketch."""
+    frame = _caller()
     return (frame.f_code.co_filename, frame.f_lineno) if frame is not None else None
+
+
+def _literal(value) -> str | None:
+    """The number in the script a value was written as, when edit mode's tracer runs the script
+    (it reads each number as one that remembers where it is written); None otherwise."""
+    expr = getattr(value, "_e", None)
+    return expr[1] if isinstance(expr, tuple) and len(expr) == 2 and expr[0] == "lit" else None
 
 
 @dataclass(eq=False)
@@ -42,6 +61,8 @@ class Point:
     fixed: bool = False
     construction: bool = False
     source: tuple | None = None
+    # Where its x and y are written in the script, under edit mode's tracer.
+    literals: tuple = (None, None)
 
     def __iter__(self):
         yield self.x
@@ -74,6 +95,7 @@ class Circle:
     radius: float
     construction: bool = False
     source: tuple | None = None
+    literal: str | None = None  # where its radius is written
 
     def __repr__(self) -> str:
         return f"{self.name}(center {self.center!r}, radius {self.radius:g})"
@@ -91,6 +113,7 @@ class Arc:
     clockwise: bool = False
     construction: bool = False
     source: tuple | None = None
+    literal: str | None = None  # where a slot's radius is written
 
     @property
     def radius(self) -> float:
@@ -134,19 +157,26 @@ def _number(value, what: str) -> float:
 class Sketch:
     """A constrained 2D sketch on a plane: ``plane`` is Top, Front or Right (XY, XZ, YZ), a
     build123d Plane, or a planar Face to sketch on; ``offset`` moves it along its normal.
+    ``unit`` is how many millimetres one of the sketch's units is (25.4 for a sketch in inches).
     ``origin`` is the sketch's origin, a fixed point to dimension from."""
 
-    def __init__(self, name: str = "Sketch1", plane="Top", offset: float = 0.0):
+    def __init__(self, name: str = "Sketch1", plane="Top", offset: float = 0.0, unit: float = 1.0):
         self.name = str(name)
         self.plane = plane
         self.offset = _number(offset, "The offset")
+        self.unit = _number(unit, "The unit")
+        if self.unit <= 0:
+            raise SketchError("A sketch's unit must be more than zero.")
         self.points: list[Point] = []
         self.curves: list[Line | Arc | Circle] = []
         self.relations: list[Relation] = []
         self._counts: dict[str, int] = {}
         self._solution = None
-        self.source = _source()
+        frame = _caller()
+        self.source = (frame.f_code.co_filename, frame.f_lineno) if frame is not None else None
         self.origin = Point("Origin", 0.0, 0.0, fixed=True, construction=True, source=self.source)
+        for watch in WATCHERS:
+            watch(self, frame)
 
     # --- naming and bookkeeping ---------------------------------------------------------------
 
@@ -165,7 +195,7 @@ class Sketch:
         except (TypeError, ValueError):
             raise SketchError(f"A point is a sketch Point or an (x, y) pair, not {value!r}.") from None
         point = Point(self._named("Point"), _number(x, "A point's x"), _number(y, "A point's y"),
-                      construction=construction, source=_source())
+                      construction=construction, source=_source(), literals=(_literal(x), _literal(y)))
         self.points.append(point)
         self._changed()
         return point
@@ -188,7 +218,7 @@ class Sketch:
     def point(self, x, y, *, fixed: bool = False, construction: bool = False) -> Point:
         """A point at (x, y) on the sketch; ``fixed`` holds it where it is."""
         point = Point(self._named("Point"), _number(x, "A point's x"), _number(y, "A point's y"),
-                      fixed=fixed, construction=construction, source=_source())
+                      fixed=fixed, construction=construction, source=_source(), literals=(_literal(x), _literal(y)))
         self.points.append(point)
         self._changed()
         return point
@@ -217,7 +247,7 @@ class Sketch:
         r = _number(radius, "A radius")
         if r <= 0:
             raise SketchError("A circle's radius must be more than zero.")
-        circle = Circle(self._named("Circle"), self._point(center), r, construction, _source())
+        circle = Circle(self._named("Circle"), self._point(center), r, construction, _source(), literal=_literal(radius))
         self.curves.append(circle)
         self._changed()
         return circle
@@ -288,6 +318,7 @@ class Sketch:
         line1 = self.line(a1, a2, construction=construction)
         arc2 = self.arc(c2, a2, b2, construction=construction)
         line2 = self.line(b2, b1, construction=construction)
+        arc1.literal = arc2.literal = _literal(radius)
         for line in (line1, line2):
             self.tangent(line, arc1)
             self.tangent(line, arc2)
@@ -385,13 +416,14 @@ class Sketch:
 
     # --- results -----------------------------------------------------------------------------------
 
-    def solve(self):
+    def solve(self, prefer=()):
         """The sketch solved: every point where its relations and dimensions put it. Raises
-        SketchError naming the relations that disagree when none can hold."""
-        if self._solution is None:
+        SketchError naming the relations that disagree when none can hold. ``prefer`` names
+        points held more firmly where they are drawn than the rest (a point being dragged)."""
+        if self._solution is None or prefer:
             from .solver import solve
 
-            self._solution = solve(self)
+            self._solution = solve(self, prefer=prefer)
         return self._solution
 
     @property
@@ -418,34 +450,58 @@ class Sketch:
             raise SketchError(f"{self.name} has {len(made)} separate regions; use faces() and pick one.")
         return made[0]
 
+    def frame(self) -> dict | None:
+        """Where the sketch's plane is in the part, in millimetres: its origin, the directions of
+        the sketch's x and y, and its normal. None where build123d cannot place it."""
+        try:
+            from .regions import plane_of
+
+            plane = plane_of(self)
+        except Exception:  # noqa: BLE001 - a frame is for drawing; the sketch still solves without one
+            return None
+        y_dir = plane.z_dir.cross(plane.x_dir)
+        return {key: [float(c) for c in (vector.X, vector.Y, vector.Z)]
+                for key, vector in (("origin", plane.origin), ("x", plane.x_dir), ("y", y_dir), ("z", plane.z_dir))}
+
     def state(self) -> dict:
-        """The sketch for an editor to draw, as JSON: its entities where it solved them, its
-        relations and dimensions, and how defined it is."""
+        """The sketch for an editor to draw, as JSON: its entities where it solved them, each
+        marked defined when nothing can move it (black in a CAD tool, blue while it can move),
+        its relations and dimensions, how defined it is, and its plane's frame in the part."""
         solution = self.solve()
+        moving = solution.movable
         where = lambda item: {"file": item.source[0], "line": item.source[1]} if item.source else {}  # noqa: E731
+        defined = lambda point: point.name not in moving  # noqa: E731
         curves = []
         for curve in self.curves:
             entry = {"id": curve.name, "kind": type(curve).__name__.lower(), "construction": curve.construction, **where(curve)}
             if isinstance(curve, Line):
-                entry.update(start=curve.start.name, end=curve.end.name)
+                entry.update(start=curve.start.name, end=curve.end.name, defined=defined(curve.start) and defined(curve.end))
             elif isinstance(curve, Circle):
-                entry.update(center=curve.center.name, radius=curve.radius)
+                entry.update(center=curve.center.name, radius=curve.radius, literal=curve.literal,
+                             defined=defined(curve.center) and curve.name not in moving)
             else:
                 entry.update(center=curve.center.name, start=curve.start.name, end=curve.end.name, radius=curve.radius,
-                             clockwise=curve.clockwise)
+                             clockwise=curve.clockwise, literal=curve.literal,
+                             defined=all(defined(p) for p in (curve.center, curve.start, curve.end)))
             curves.append(entry)
+        redundant = {relation.name for relation in solution.redundant}
         return {
             "name": self.name,
             "plane": self.plane if isinstance(self.plane, str) else "Plane",
+            "unit": self.unit,
+            "frame": self.frame(),
             "status": solution.status,
             "dof": solution.dof,
-            "redundant": [relation.name for relation in solution.redundant],
-            "points": [{"id": p.name, "x": p.x, "y": p.y, "fixed": p.fixed, "construction": p.construction, **where(p)}
+            "redundant": sorted(redundant),
+            "points": [{"id": p.name, "x": p.x, "y": p.y, "fixed": p.fixed, "construction": p.construction,
+                        "defined": defined(p), "literals": list(p.literals), **where(p)}
                        for p in [self.origin, *self.points]],
             "curves": curves,
-            "relations": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs], **where(r)}
+            "relations": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs], "redundant": r.name in redundant, **where(r)}
                           for r in self.relations if not r.dimension],
-            "dimensions": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs], "value": r.value, **where(r)}
+            "dimensions": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs], "value": r.value,
+                            "literal": _literal(r.raw), "redundant": r.name in redundant,
+                            "data": {key: value.name if isinstance(value, Point) else value for key, value in r.data.items()}, **where(r)}
                            for r in self.relations if r.dimension],
         }
 

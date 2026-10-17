@@ -67,17 +67,30 @@ const SKETCH_DIMENSION = /:(x|y|r|diameter)$/;
 export function featureTree(state) {
   const partFeatures = features => {
     const counts = new Map();
+    // A sketch with relations keeps the name its script gives it; a profile is numbered in order,
+    // past the names those take, so no two sketches of a part share one.
+    const taken = new Set((features || []).map(feature => feature.sketch?.name).filter(Boolean));
     let sketches = 0;
+    const nextName = () => {
+      do { sketches += 1; } while (taken.has(`Sketch${sketches}`));
+      return `Sketch${sketches}`;
+    };
+    const sketchOf = (feature, id) => ({ id, title: feature.sketch.name || nextName(), plane: feature.sketch.plane || "",
+      status: feature.sketch.status || "", file: feature.sketch.file || null, line: feature.sketch.line || null,
+      constrained: Boolean(feature.sketch.name && feature.sketch.file) });
     return (features || []).map(feature => {
+      if (feature.kind === "Sketch") {
+        // A sketch nothing makes a solid of yet: a row of its own, as a CAD tree lists it.
+        const sketch = sketchOf(feature, feature.key);
+        return { id: feature.key, kind: "Sketch", title: sketch.title, name: "", count: 1, rows: [], file: feature.file, line: feature.line, sketch };
+      }
       const count = (counts.get(feature.kind) || 0) + 1;
       counts.set(feature.kind, count);
       return {
         id: feature.key, kind: feature.kind, title: `${feature.kind}${count}`,
         name: feature.name ? sizeName(feature.name) : "", count: feature.count || 1,
         rows: feature.rows || [feature.key], file: feature.file, line: feature.line,
-        // A constrained sketch keeps the name its script gives it; a profile is numbered in order.
-        sketch: feature.sketch ? { id: `sketch:${feature.key}`, title: feature.sketch.name || `Sketch${++sketches}`,
-          plane: feature.sketch.plane || "", status: feature.sketch.status || "" } : null,
+        sketch: feature.sketch ? sketchOf(feature, `sketch:${feature.key}`) : null,
       };
     });
   };
@@ -87,6 +100,24 @@ export function featureTree(state) {
     })) };
   }
   return { assembly: false, features: partFeatures(state?.features) };
+}
+
+/** The sketch a tree row is (its own, or a feature's): what Edit Sketch opens and Extrude makes a solid of. */
+export function treeSketch(tree, id) {
+  if (!id) return null;
+  for (const feature of treeFeatures(tree)) {
+    if (feature.sketch && (feature.sketch.id === id || (feature.kind === "Sketch" && feature.id === id))) return feature.sketch;
+  }
+  return null;
+}
+
+/** A constrained sketch as the part's last trace solved it, by where its script makes it. */
+export const sketchView = (state, sketch) => (state?.sketches || []).find(view => sketch && view.file === sketch.file && view.line === sketch.line) || null;
+
+/** The name a new sketch of the part takes: one past the last its tree shows, as SolidWorks numbers them. */
+export function nextSketchName(tree) {
+  const numbers = treeFeatures(tree).map(feature => /^Sketch(\d+)$/.exec(feature.sketch?.title || "")?.[1]).filter(Boolean).map(Number);
+  return `Sketch${Math.max(0, ...numbers) + 1}`;
 }
 
 /** Every feature of a tree, an assembly's parts' too, in order. */
@@ -172,6 +203,8 @@ export function changeNote(change) {
  * mode turns to when it opens: edges, faces, or none (Pattern copies a history feature).
  */
 export const EDIT_COMMANDS = Object.freeze([
+  { id: "extrude", label: "Extruded Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
+  { id: "cut", label: "Extruded Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
   { id: "hole", label: "Hole", group: "Create", picks: "faces", prompt: "Select a flat face for the hole." },
   { id: "pattern", label: "Pattern", group: "Create", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Create", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
@@ -192,6 +225,8 @@ export function commandDefaults(id, units) {
     case "shell": return { thickness: size.thickness };
     case "mirror": return { plane: "YZ" };
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
+    case "extrude": return { end: "blind", depth: size.depth, reverse: false };
+    case "cut": return { end: "blind", depth: size.depth, reverse: false };
     default: return {};
   }
 }
@@ -237,7 +272,11 @@ export function faceOffsetAxes(normal) {
  * The request a command's OK sends (`cadgen/edit`): the command, its selection, its inputs as
  * typed and, for Mirror and Pattern, the history feature they copy (none copies the body).
  */
-export function commandRequest(id, values, items, feature) {
+export function commandRequest(id, values, items, feature, sketch = null) {
+  if (id === "extrude" || id === "cut") {
+    return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title } : null,
+      inputs: { end: values.end, ...(values.end === "through" ? {} : { depth: values.depth }), reverse: Boolean(values.reverse) } };
+  }
   const inputs = {};
   switch (id) {
     case "fillet": inputs.radius = values.radius; break;
@@ -263,7 +302,12 @@ export function commandRequest(id, values, items, feature) {
 }
 
 /** Why a command's OK cannot go yet, or "" when it can. */
-export function commandBlocked(id, items) {
+export function commandBlocked(id, items, sketch = null) {
+  if (id === "extrude" || id === "cut") {
+    if (!sketch) return "Select a sketch in the design tree.";
+    if (!sketch.constrained) return `${sketch.title} is drawn with build123d's shapes, not as a sketch. Ask the agent to extrude it.`;
+    return "";
+  }
   const faces = items.filter(item => /f\d+$/.test(item.selector));
   if (id === "fillet" || id === "chamfer") return items.length ? "" : "Select edges on the model.";
   if (id === "hole") return faces.length === 1 ? "" : faces.length ? "Select one face." : "Select a flat face on the model.";
@@ -298,11 +342,14 @@ export const emptyHistory = () => ({ done: [], undone: [] });
 /** A change made by hand: Undo may take it back, and nothing undone can be redone after it. */
 export const recordChange = (history, change) => ({ done: [...history.done, change].slice(-HISTORY_LIMIT), undone: [] });
 
-/** Undo: the last change, and the request that takes it back: its number written back, or a command's lines put back. */
+// A change whose lines are put back as they were (a command's, a sketch's), rather than one number.
+const spliced = change => Boolean(change.undo?.hunks);
+
+/** Undo: the last change, and the request that takes it back: its number written back, or its lines put back. */
 export function undoStep(history) {
   const change = history.done.at(-1);
   if (!change) return null;
-  return { change, request: change.kind === "command" ? { splice: change.undo } : { literal: change.literal, text: change.from },
+  return { change, request: spliced(change) ? { splice: change.undo } : { literal: change.literal, text: change.from },
     next: { done: history.done.slice(0, -1), undone: [...history.undone, change] } };
 }
 
@@ -310,6 +357,6 @@ export function undoStep(history) {
 export function redoStep(history) {
   const change = history.undone.at(-1);
   if (!change) return null;
-  return { change, request: change.kind === "command" ? { splice: change.redo } : { literal: change.literal, text: change.to },
+  return { change, request: spliced(change) ? { splice: change.redo } : { literal: change.literal, text: change.to },
     next: { done: [...history.done, change], undone: history.undone.slice(0, -1) } };
 }

@@ -806,7 +806,10 @@ class CadApp:
             from cadgen.edit.service import shared_service
 
             service = shared_service()
-            if pathname.endswith("/state"):
+            if pathname.endswith("/state") and payload.get("probe"):
+                # Whether the file has a part script to edit, answered without running it.
+                result = service.editable(str(payload.get("file") or ""))
+            elif pathname.endswith("/state"):
                 result = service.state(str(payload.get("file") or ""), payload.get("files"))
             else:
                 result = service.change(payload)

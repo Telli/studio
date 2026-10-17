@@ -38,8 +38,9 @@ _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M
 # What a change may name: a number (`literal`), a dimension on the model, or a feature's input, and
 # the value typed; `leaf` answers which size to change when several make the value. A `command`
 # writes a feature's line after the part's body (`commands.py`); a `splice` puts lines back or
-# writes them again (a command's Undo and Redo).
-_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice")
+# writes them again (a command's Undo and Redo). A `sketch` change is sketch mode's
+# (`sketching.py`): its strokes are not built, as a CAD tool rebuilds when the sketch is left.
+_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice", "sketch")
 
 
 def _no_window() -> dict:
@@ -265,6 +266,11 @@ class EditService:
     def building(self) -> dict:
         return self._builds.snapshot() if self._builds else {"scripts": [], "done": 0, "error": None}
 
+    def editable(self, file_ref: str) -> dict:
+        """Whether a viewer file has a part script beside it to edit: answered at once, so a view
+        that cannot be edited never changes its layout for edit mode while the part is read."""
+        return {"ok": True, "editable": script_for(file_ref) is not None}
+
     def state(self, file_ref: str, files: dict | None = None) -> dict:
         """The part as a design: its history, named sizes and dimensions. ``files`` is the hashes a
         page read last; when none of them changed, the answer says so and the part is not run."""
@@ -286,8 +292,9 @@ class EditService:
         root = project_root(script)
         request = {key: payload[key] for key in _CHANGE_KEYS if key in payload}
         reply = self._tracer.ask({**request, "script": str(script), "root": str(root), "op": "edit", "mesh": False})
-        if reply.get("ok") and isinstance(reply.get("change"), dict) and self._builds is not None:
-            self._builds.start(dependents(root, reply["change"]["file"]))
+        made = reply.get("change") if reply.get("ok") else None
+        if isinstance(made, dict) and made.get("build", True) and self._builds is not None:
+            self._builds.start(dependents(root, made["file"]))
         return {**reply, "root": str(root), "building": self.building()}
 
     def close(self) -> None:

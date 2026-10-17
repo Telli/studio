@@ -212,12 +212,20 @@ def _relative(path: str) -> str:
         return path
 
 
+# cadgen itself, which a checkout of text-to-cad holds beside its projects: never a project's file.
+_RUNTIME = Path(__file__).resolve().parents[1]
+
+
 def _inside(path: str) -> bool:
     """A file of the project's own: under its folder, not in a hidden folder or an environment
-    inside it (`.venv`). The project itself may sit in a hidden folder (Studio's state folder)."""
+    inside it (`.venv`), and not cadgen's own. The project itself may sit in a hidden folder
+    (Studio's state folder)."""
     try:
-        parts = Path(path).resolve().relative_to(ROOT).parts
+        resolved = Path(path).resolve()
+        parts = resolved.relative_to(ROOT).parts
     except ValueError:
+        return False
+    if resolved == _RUNTIME or _RUNTIME in resolved.parents:
         return False
     return not any(part.startswith(".") or part == "site-packages" for part in parts)
 
@@ -454,6 +462,11 @@ for _cls in (B.Shape, B.Compound):
     _wrap_boolean(_cls, "__add__", "join", "Join")
     _wrap_boolean(_cls, "__sub__", "cut", "Cut")
     _wrap_boolean(_cls, "__and__", "intersect", "Intersect")
+# `part += tool` on a Part or a Sketch is build123d's own `__iadd__`, whose `self + other` runs
+# from inside build123d, where the join above does not record it: it is recorded here, as the
+# project's line asked for it.
+for _cls in (B.Part, B.Sketch):
+    _wrap_boolean(_cls, "__iadd__", "join", "Join")
 
 
 
@@ -554,6 +567,29 @@ B.Shape.faces = _tag_children(_shape_faces)
 import cadgen.authoring as _authoring  # noqa: E402
 
 _authoring._model_wrapper = lambda func, defn: func
+
+# Constrained sketches (`cadgen.sketch`), each kept with the place the script made it in (the
+# frame's globals and its locals then), so sketch mode runs its block again on its own.
+from cadgen.sketch import sketch as _sketch_api  # noqa: E402
+
+SKETCHES: dict[tuple[str, int], dict] = {}
+_CAPTURING = [True]
+
+
+def _watch_sketch(sketch, frame):
+    if not _CAPTURING[0] or frame is None or not _inside(frame.f_code.co_filename):
+        return
+    local = frame.f_locals
+    SKETCHES[(str(Path(frame.f_code.co_filename).resolve()), frame.f_lineno)] = {
+        "sketch": sketch,
+        "globals": frame.f_globals,
+        # A sketch made at a module's top level has no locals of its own.
+        "locals": None if local is frame.f_globals else dict(local),
+        "function": frame.f_code.co_name,
+    }
+
+
+_sketch_api.WATCHERS.append(_watch_sketch)
 
 # ---------------------------------------------------------------------------------------------
 # Formulas, units and numbers as an engineer writes them.
@@ -1031,8 +1067,9 @@ def _sketch_of(steps):
             drawn = getattr(step["args"][0][1], "_cadgen_sketch", None)
             if drawn is not None:
                 plane = drawn.plane if isinstance(drawn.plane, str) else _plane_of(step["args"][0][1])
+                where = {"file": _relative(drawn.source[0]), "line": drawn.source[1]} if drawn.source else {}
                 return {"op": "Sketch", "label": "Sketch", "name": drawn.name, "step": None,
-                        "plane": SKETCH_PLANES.get(plane, plane), "status": drawn.status}
+                        "plane": SKETCH_PLANES.get(plane, plane), "status": _status_of(drawn), **where}
             index = getattr(step["args"][0][1], "_studio_step", None)
             if index is not None and STEPS[index]["op"] in SKETCH_PROFILES:
                 profile = STEPS[index]
@@ -1041,6 +1078,79 @@ def _sketch_of(steps):
             op, label = PRIMITIVE_SKETCHES[step["op"]]
             return {"op": op, "label": label, "step": step["index"], "plane": "Top"}
     return None
+
+
+def _status_of(drawn):
+    """How defined a constrained sketch is, or that it cannot be solved."""
+    try:
+        return drawn.status
+    except Exception:  # noqa: BLE001 - a sketch whose relations disagree still shows in the tree
+        return "Not solved"
+
+
+def _sketch_view(sketch, path, line, function):
+    """A constrained sketch as sketch mode reads it: its solved state, where it is made, and the
+    formula behind each dimension (``LENGTH/2``), its files named as the project names them."""
+    view = {"name": sketch.name, "file": _relative(path), "line": line, "function": function, "state": None, "error": None}
+    try:
+        state = sketch.state()
+    except Exception as error:  # noqa: BLE001 - said to the engineer: the relations that disagree
+        view["error"] = str(error)
+        return view
+    for item in [*state["points"], *state["curves"], *state["relations"], *state["dimensions"]]:
+        if item.get("file"):
+            item["file"] = _relative(item["file"])
+    raws = {relation.name: relation.raw for relation in sketch.relations if relation.dimension}
+    for dimension in state["dimensions"]:
+        raw = raws.get(dimension["id"])
+        if isinstance(raw, (TFloat, TInt)):
+            dimension["formula"] = formula(raw._e)
+            dimension["named"] = any(LITERALS.get(leaf, {}).get("name") for leaf in leaves(raw._e))
+        else:
+            dimension["formula"] = _number_text(dimension["value"])
+            dimension["named"] = False
+    view["state"] = state
+    return view
+
+
+def _sketches(steps, rows):
+    """Every constrained sketch the part made, with the history row of the feature that makes a
+    solid of it (none for a sketch nothing uses yet)."""
+    row_of = {index: row["key"] for row in rows for index in row["steps"]}
+    consumed = {}
+    for step in steps:
+        if step["op"] in ("extrude", "revolve") and step["args"]:
+            drawn = getattr(step["args"][0][1], "_cadgen_sketch", None)
+            if drawn is not None:
+                consumed.setdefault(id(drawn), row_of.get(step["index"]))
+    found = []
+    for (path, line), entry in SKETCHES.items():
+        view = _sketch_view(entry["sketch"], path, line, entry["function"])
+        view["consumed"] = consumed.get(id(entry["sketch"]))
+        plane = entry["sketch"].plane
+        view["plane"] = SKETCH_PLANES.get(_sketch_api.PLANE_NAMES.get(plane, plane), "Plane") if isinstance(plane, str) else "Plane"
+        found.append(view)
+    return found
+
+
+def _with_sketches(features, sketches, component=None):
+    """A part's features with its sketches nothing uses yet among them, where the script makes
+    them, as a CAD tree lists a sketch of its own (Sketch3, after the feature before it)."""
+    out = list(features)
+    for sketch in sketches:
+        if sketch["consumed"] is not None:
+            continue
+        if component is not None and (sketch["file"], sketch["function"]) != (component["file"], component["function"]):
+            continue
+        status = sketch["state"]["status"] if sketch["state"] else "Not solved"
+        item = {"key": f"sketch@{sketch['file']}:{sketch['line']}", "rows": [], "name": None, "count": 1,
+                "file": sketch["file"], "line": sketch["line"], "kind": "Sketch",
+                "sketch": {"op": "Sketch", "label": "Sketch", "name": sketch["name"], "file": sketch["file"], "line": sketch["line"],
+                           "plane": sketch["plane"], "status": status, "step": None}}
+        at = next((index for index, feature in enumerate(out)
+                   if feature.get("file") == sketch["file"] and (feature.get("line") or 0) > sketch["line"]), len(out))
+        out.insert(at, item)
+    return out
 
 
 def _is_flat(step):
@@ -1190,6 +1300,7 @@ def trace(request):
     FILES.clear()
     STEPS.clear()
     PLACED.clear()
+    SKETCHES.clear()
     sys.path[:0] = [str(script.parent)]
     try:
         spec = importlib.util.spec_from_file_location("__studio_part__", script, loader=_ProjectLoader(str(script)))
@@ -1230,6 +1341,9 @@ def trace(request):
     else:
         timeline, level = _rows(steps)
         rows = [_row_summary(row, units) for row in timeline]
+    sketches = _sketches(steps, rows)
+    for component in components:
+        component["features"] = _with_sketches(component["features"], sketches, component)
     dimensions = _dimensions(steps, units)
     row_of = {index: row["key"] for row in rows for index in row["steps"]}
     for dimension in dimensions:
@@ -1262,7 +1376,8 @@ def trace(request):
         "params": params,
         "rows": [{**row, "inputs": [_clean(item) for item in row["inputs"]]} for row in rows],
         # The same history as a CAD tree reads it, and the part's extent for the origin's planes.
-        "features": [] if components else _features(rows, timeline),
+        "features": [] if components else _with_sketches(_features(rows, timeline), sketches),
+        "sketches": sketches,
         "components": [{"name": c["function"], "file": c["file"], "features": c["features"]} for c in components],
         "bounds": _bounds(shape) if isinstance(shape, B.Shape) else None,
         "dimensions": [_clean(d) for d in dimensions],
@@ -1324,6 +1439,8 @@ def edit(request):
         return command(request)
     if isinstance(request.get("splice"), dict):
         return splice(request)
+    if isinstance(request.get("sketch"), dict):
+        return sketch_edit(request)
     script = str(Path(request["script"]).resolve())
     if script not in STATE:
         traced = trace(request)
@@ -1422,8 +1539,19 @@ def command(request):
     if refused:
         return refused
     state = STATE[script]
+    spec = request["command"]
+    drawn = spec.get("sketch") if spec.get("command") in ("extrude", "cut") else None
+    if isinstance(drawn, dict):
+        # How many regions the sketch makes: one is extruded as its face, more as its faces.
+        entry = SKETCHES.get((str((ROOT / str(drawn.get("file") or "")).resolve()), int(drawn.get("line") or 0)))
+        if entry is None:
+            return {"ok": False, "error": "That sketch is not made when the part runs. Pick it again in the design tree."}
+        try:
+            spec = {**spec, "sketch": {**drawn, "name": entry["sketch"].name, "regions": len(entry["sketch"].faces())}}
+        except _sketch_api.SketchError as error:
+            return {"ok": False, "error": str(error)}
     try:
-        plan = commands.plan(request["command"], steps=state["steps"], shape=state["shape"], level=state["level"],
+        plan = commands.plan(spec, steps=state["steps"], shape=state["shape"], level=state["level"],
                              units=state["units"], literals=LITERALS, root=ROOT, parse=parse_number)
     except commands.CommandError as error:
         return {"ok": False, "error": str(error)}
@@ -1474,15 +1602,355 @@ def splice(request):
     except commands.CommandError as error:
         return {"ok": False, "error": str(error)}
     _write(path, new)
+    first = min((int(each["start"]) for each in spec.get("hunks") or []), default=1)
+    # In sketch mode, Undo and Redo of a stroke answer with the sketch solved again; a sketch the
+    # change takes away (its making undone) answers with the part.
+    drawn = request.get("sketch") if isinstance(request.get("sketch"), dict) else None
+    if drawn and str(drawn.get("file") or "") == rel:
+        from cadgen.edit import sketching
+
+        try:
+            block, sketch, entry = _sketch_run(request, path, new, int(drawn.get("line") or 0))
+        except (sketching.SketchEditError, _sketch_api.SketchError, SyntaxError):
+            sketch = None
+        if sketch is not None:
+            FILES[rel] = _hash(path)
+            return {"ok": True, "sketchOnly": True, "sketch": _sketch_view(sketch, path, int(drawn["line"]), entry["function"]),
+                    "files": {rel: FILES[rel]},
+                    "change": {"kind": "splice", "file": rel, "line": first, "build": False,
+                               "undo": {"file": rel, "hunks": commands.hunks(new, old)}, "redo": spec}}
     traced = trace(request)
     if not traced["ok"]:
         _write(path, old)
         trace(request)
         return {"ok": False, "error": "The part does not build with that change, so nothing changed."}
-    first = min((int(each["start"]) for each in spec.get("hunks") or []), default=1)
     traced["change"] = {"kind": "splice", "file": rel, "line": first,
                         "undo": {"file": rel, "hunks": commands.hunks(new, old)}, "redo": spec}
     return traced
+
+
+# ---------------------------------------------------------------------------------------------
+# Sketch mode: a sketch changed as a CAD tool's sketcher changes it, a statement of its block at a
+# time (`sketching.py`), then its block run again on its own, in the place its last trace made it,
+# and solved: milliseconds, where the whole part takes seconds. Each drawn number the solve moved
+# is written where it now is, so the script reads as the sketch stands. The part is built again
+# when the engineer leaves the sketch.
+
+
+class _Unplaced(Exception):
+    """A sketch no trace has made yet: the part is run first."""
+
+
+def _sketch_entry(path, line, statement):
+    entry = SKETCHES.get((str(path), line))
+    if entry is not None:
+        return entry
+    return next((value for (file, at), value in SKETCHES.items()
+                 if file == str(path) and statement.lineno <= at <= statement.end_lineno), None)
+
+
+def _run_block(path, text, line, prefer=()):
+    """The sketch made at ``line`` of ``text`` (the file at ``path``), its block run on its own
+    where the part's last trace made it, and solved. Raises SketchError when it cannot be."""
+    from cadgen.edit import sketching
+
+    block = sketching.find_block(text, line, str(path))
+    entry = _sketch_entry(path, line, block.body[block.start])
+    if entry is None:
+        raise _Unplaced()
+    module = ast.Module(body=block.statements, type_ignores=[])
+    numbers = _Numbers(str(path), _relative(str(path)), text)
+    code = compile(ast.fix_missing_locations(numbers.visit(module)), str(path), "exec")
+    names = dict(entry["globals"] if entry["locals"] is None else entry["locals"])
+    _CAPTURING[0] = False
+    try:
+        with redirect_stdout(io.StringIO()):
+            exec(code, entry["globals"], names)  # noqa: S102 - the project's own lines, as the part runs them
+    finally:
+        _CAPTURING[0] = True
+    sketch = names.get(block.var)
+    if not isinstance(sketch, _sketch_api.Sketch):
+        raise sketching.SketchEditError(f"{block.var} is not a sketch when its lines run. Ask the agent to look at it.")
+    sketch.solve(prefer=prefer)
+    return block, sketch, entry
+
+
+def _sketch_run(request, path, text, line, prefer=()):
+    from cadgen.edit import sketching
+
+    try:
+        return _run_block(path, text, line, prefer)
+    except _Unplaced:
+        trace(request)
+    try:
+        return _run_block(path, text, line, prefer)
+    except _Unplaced:
+        raise sketching.SketchEditError("This sketch is not made when the part runs, so edit mode cannot solve it.") from None
+
+
+def _block_literal(literal, path, block):
+    """A number written in the sketch's own lines, unnamed: one sketch mode may write."""
+    return (literal is not None and not literal["name"] and Path(literal["path"]).resolve() == Path(path).resolve()
+            and block.first_line <= literal["line"] <= block.last_line)
+
+
+def _settle(text, path, block, sketch):
+    """``text`` with each drawn number of the sketch's own lines that the solve moved written where
+    it now is: a point's x and y, a circle's radius."""
+    from cadgen.edit import sketching
+
+    edits = sketching.TextEdits(text)
+    done = set()
+    scale = max([1.0, *(abs(c) for p in sketch.points for c in (p.x, p.y))])
+
+    def put(literal_id, value):
+        literal = LITERALS.get(literal_id) if literal_id else None
+        if literal_id in done or not _block_literal(literal, path, block):
+            return
+        done.add(literal_id)
+        if abs(float(literal["value"]) - value) > 1e-9 * scale:
+            edits.replace(literal["line"], literal["col"], literal["line"], literal["end"], sketching.number(value))
+
+    for point in sketch.points:
+        for literal_id, value in zip(point.literals, (point.x, point.y)):
+            put(literal_id, value)
+    for curve in sketch.curves:
+        if getattr(curve, "literal", None):
+            put(curve.literal, curve.radius)
+    return edits.apply()
+
+
+def _hash(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
+
+
+def _sketch_new(request, op):
+    """A new sketch on a plane of the origin or a flat face of the body, written before the line
+    that returns the part: ``sketch2 = Sketch("Sketch2", plane="Top")``."""
+    from cadgen.edit import commands, sketching
+
+    script = str(Path(request["script"]).resolve())
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    if traced.get("components"):
+        return {"ok": False, "error": "A sketch goes in a part. Open the part to sketch on it."}
+    state = STATE[script]
+    shape = state["shape"]
+    if not isinstance(shape, B.Shape):
+        return {"ok": False, "error": "This part's script makes no body to sketch on yet. Ask the agent to start it."}
+    try:
+        body = commands.find_body(state["steps"], shape, state["level"], ROOT)
+    except commands.CommandError as error:
+        return {"ok": False, "error": str(error)}
+    name, var = sketching.sketch_names(body.tree, str(op.get("name") or ""))
+    module, named_import = commands.build123d_names(body.tree)
+    names = commands.Names(module if module is not None else "bd")
+    edits = commands.Edits(body.text)
+    plane = op.get("plane")
+    body_var, returned = body.name, []
+    if plane in ("Top", "Front", "Right"):
+        plane_code = f'"{plane}"'
+    elif isinstance(plane, dict) and plane.get("selector"):
+        # A flat face of the body, said as build123d's selectors say where it is; a body returned
+        # outright is named first (`part = ...`, then `return part`) so the face can be.
+        if body_var is None:
+            body_var = commands.fresh_name(body.tree, "part")
+            value = body.statement.value
+            if value is None or value.lineno != body.statement.lineno:
+                return {"ok": False, "error": "Edit mode cannot tell what this part returns. Ask the agent to add the sketch."}
+            edits.put(body.statement.lineno, body.statement.col_offset, f"{body_var} = ", until=value.col_offset)
+            returned = [f"{body.indent}return {body_var}"]
+        selections = commands.Selections(shape, body_var, names)
+        scale = shape.bounding_box().diagonal or 1.0
+        try:
+            numbers = commands.resolve(selections.topology["face"], [plane], scale)
+        except commands.CommandError as error:
+            return {"ok": False, "error": str(error)}
+        if selections.topology["face"].describe(numbers[0])["type"] != "plane":
+            return {"ok": False, "error": "A sketch goes on a flat face. Select a flat one, or a plane."}
+        plane_code = selections.write("face", numbers, one=True)
+    else:
+        return {"ok": False, "error": "Pick a plane or a flat face to sketch on."}
+    unit_code = None
+    if state["units"] == "in":
+        unit_code = commands.unit_name(body.tree) or "25.4"
+    line_text = sketching.sketch_line(var, name, plane_code, unit_code)
+    # Before the line that returns the part, or after the body's line when it is that line.
+    function = body.function
+    last = function.body[-1]
+    if returned:
+        at = body.statement.end_lineno
+    elif isinstance(last, ast.Return):
+        at = last.lineno - 1
+    else:
+        at = last.end_lineno
+    edits.after(at, [f"{body.indent}{line_text}", *returned])
+    added = commands._imports(edits, body, module, named_import, names)
+    importing = sketching.sketch_import(body.tree)
+    if importing:
+        edits.after(importing[0], [importing[1]])
+        added += 1
+    new = edits.apply()
+    line = at + 1 + added
+    _write(body.path, new)
+    after = trace(request)
+    view = next((sketch for sketch in after.get("sketches") or [] if sketch["file"] == body.rel and sketch["name"] == name), None)
+    if not after.get("ok") or view is None:
+        _write(body.path, body.text)
+        trace(request)
+        return {"ok": False, "error": after.get("error") or "The new sketch did not run, so nothing changed."}
+    after["sketch"] = view
+    after["change"] = {"kind": "sketch", "op": "new", "sketch": name, "file": body.rel, "line": view["line"], "build": False,
+                       "undo": {"file": body.rel, "hunks": commands.hunks(new, body.text)},
+                       "redo": {"file": body.rel, "hunks": commands.hunks(body.text, new)}}
+    return after
+
+
+def _sketch_value(request, path, text, block, sketch, state, op, files):
+    """A dimension's value typed: a number changes the number behind it (a plain one in the
+    sketch's lines, or the named size it is, which the part's other features use too); a size's
+    name or a formula is written as the dimension's value."""
+    from cadgen.edit import sketching
+
+    dimension = next((relation for relation in sketch.relations if relation.dimension and relation.name == op.get("dimension")), None)
+    if dimension is None:
+        raise sketching.SketchEditError("That dimension is no longer in the sketch. Look again.")
+    typed = str(op.get("text") or "").strip()
+    try:
+        target = parse_number(typed)
+    except Exception:  # noqa: BLE001 - a size's name, or a formula of them
+        target = None
+    if target is None:
+        _known(block, sketch, typed)
+        return sketching.set_value(text, block.first_line, state, dimension.name, typed, str(path)), None
+    raw = dimension.raw
+    if not isinstance(raw, (TFloat, TInt)):
+        raise sketching.SketchEditError(f"{dimension.name} is not written as a number edit mode can change. Ask the agent to change it.")
+    found = leaves(raw._e)
+    named = [leaf for leaf in found if LITERALS[leaf]["name"]]
+    candidates = named or found
+    leaf = op.get("leaf") or (candidates[0] if len(candidates) == 1 else None)
+    if leaf is None:
+        return None, {"ok": False, "choose": [{"id": c, "name": LITERALS[c]["name"] or LITERALS[c]["text"], "file": LITERALS[c]["file"],
+                                               "line": LITERALS[c]["line"]} for c in candidates]}
+    literal = LITERALS[leaf]
+    value = _solve(raw._e, leaf, target)
+    written = literal_text(round(value, 6), literal["text"])
+    if _block_literal(literal, path, block):
+        edits = sketching.TextEdits(text)
+        edits.replace(literal["line"], literal["col"], literal["line"], literal["end"], written)
+        return edits.apply(), None
+    # A named size: written where it is, and the part read again, as any size's change.
+    _write_literal(literal, written, files.get(literal["file"]))
+    traced = trace(request)
+    traced["change"] = {"literal": literal["id"], "name": literal["name"] or literal["text"], "file": literal["file"],
+                        "line": literal["line"], "from": literal["text"], "to": written, "was": literal["value"], "build": True}
+    traced["sketch"] = next((view for view in traced.get("sketches") or []
+                             if view["file"] == _relative(str(path)) and view["name"] == sketch.name), None)
+    return None, traced
+
+
+def _known(block, sketch, typed):
+    """Refuses a typed formula whose names the part does not have."""
+    from cadgen.edit import sketching
+
+    entry = _sketch_entry(Path(block.path), sketch.source[1] if sketch.source else block.first_line, block.body[block.start])
+    scope = {**(entry["globals"] if entry else {}), **((entry or {}).get("locals") or {})}
+    missing = [name for name in sketching.typed_names(typed) if name not in scope]
+    if missing:
+        raise sketching.SketchEditError(f"This part has no size called {missing[0]}.")
+
+
+def sketch_edit(request):
+    """A sketch mode change (``request["sketch"]``: the sketch's ``file`` and ``line``, and the
+    ``op``): a new sketch, a stroke, a relation, a dimension or its value, entities moved or
+    deleted or made construction geometry, or leaving the sketch (``exit``)."""
+    from cadgen.edit import commands, sketching
+
+    global ROOT
+    script = Path(request["script"]).resolve()
+    ROOT = Path(request.get("root") or script.parent).resolve()
+    spec = request["sketch"]
+    op = spec.get("op") if isinstance(spec.get("op"), dict) else {}
+    kind = op.get("kind")
+    files = request.get("files") or {}
+    if kind == "new":
+        return _sketch_new(request, op)
+    if kind == "exit":
+        traced = trace(request)
+        if traced.get("ok"):
+            # The parts that use the sketch's file are built again when the sketch changed.
+            traced["change"] = {"kind": "sketch-exit", "file": str(spec.get("file") or ""), "build": bool(op.get("changed", True))}
+        return traced
+    rel = str(spec.get("file") or "")
+    path = (ROOT / rel).resolve()
+    try:
+        path.relative_to(ROOT)
+    except ValueError:
+        return {"ok": False, "error": "That sketch is not in this project."}
+    if path.suffix != ".py" or not path.is_file():
+        return {"ok": False, "error": f"{rel} is no longer in the project."}
+    if _changed_since(path, files.get(rel)):
+        return {"ok": False, "error": f"{rel} changed since the editor read it. Look again and retry."}
+    line = int(spec.get("line") or 0)
+    old = _read(path)
+    try:
+        block, sketch, entry = _sketch_run(request, path, old, line)
+        state = _sketch_view(sketch, path, line, entry["function"])["state"]
+        text, prefer = old, []
+        if kind == "move":
+            edits = sketching.TextEdits(text)
+            seen = set()
+            for move in op.get("points") or []:
+                point = next((p for p in sketch.points if p.name == move.get("point")), None)
+                if point is None or point.fixed:
+                    continue
+                for literal_id, value in zip(point.literals, move.get("to") or ()):
+                    literal = LITERALS.get(literal_id) if literal_id else None
+                    if literal_id in seen or not _block_literal(literal, path, block):
+                        continue
+                    seen.add(literal_id)
+                    edits.replace(literal["line"], literal["col"], literal["line"], literal["end"], sketching.number(float(value)))
+                prefer.append(point.name)
+            text = edits.apply()
+        elif kind == "value":
+            text, reply = _sketch_value(request, path, text, block, sketch, state, op, files)
+            if reply is not None:
+                return reply
+        elif kind == "delete":
+            items = [str(item) for item in op.get("items") or []]
+            if sketching.explodes(text, line, state, items, str(path)):
+                text = sketching.explode(text, line, state, items, str(path))
+                block, sketch, entry = _sketch_run(request, path, text, line)
+                state = _sketch_view(sketch, path, line, entry["function"])["state"]
+            text = sketching.delete(text, line, state, items, str(path))
+        elif kind in ("draw", "relate", "dimension", "construction"):
+            if kind == "dimension":
+                _known(block, sketch, str(op.get("value") or ""))
+            text = sketching.change(text, line, state, op, str(path))
+        else:
+            return {"ok": False, "error": f"Edit mode cannot make that sketch change ({kind or 'none'})."}
+        block, sketch, entry = _sketch_run(request, path, text, line, prefer=prefer)
+        text = _settle(text, path, block, sketch)
+    except (sketching.SketchEditError, _sketch_api.SketchError) as error:
+        return {"ok": False, "error": str(error)}
+    if text != old:
+        _write(path, text)
+        FILES[rel] = _hash(path)
+    view = _sketch_view(sketch, path, line, entry["function"])
+    return {
+        "ok": True,
+        "sketchOnly": True,
+        "sketch": view,
+        "files": {rel: FILES.get(rel) or _hash(path)},
+        "change": {"kind": "sketch", "op": kind, "sketch": sketch.name, "file": rel, "line": line, "build": False,
+                   "undo": {"file": rel, "hunks": commands.hunks(text, old)},
+                   "redo": {"file": rel, "hunks": commands.hunks(old, text)}},
+    }
 
 
 # ---------------------------------------------------------------------------------------------

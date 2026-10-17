@@ -16,13 +16,20 @@ import {
   editCommand,
   faceOffsetAxes,
   selectionItems,
-  selectionLabel
+  selectionLabel,
+  sketchView,
+  treeSketch
 } from "./editMode.js";
+import { ExtrudedBossIcon, ExtrudedCutIcon } from "./sketchIcons.jsx";
 
 /** Each command's mark, in the ribbon and on its panel. */
 export const COMMAND_ICONS = Object.freeze({
+  extrude: ExtrudedBossIcon, cut: ExtrudedCutIcon,
   hole: CircleDot, pattern: Grid3x3, mirror: FlipHorizontal2, fillet: SquareRoundCorner, chamfer: Octagon, shell: PackageOpen,
 });
+// An extrude's end conditions, as SolidWorks' Direction 1 names them; a cut can go through all.
+const BOSS_ENDS = Object.freeze([{ value: "blind", label: "Blind" }, { value: "mid", label: "Mid Plane" }]);
+const CUT_ENDS = Object.freeze([...BOSS_ENDS, { value: "through", label: "Through All" }]);
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 const LISTED = 8;
 const PLANES = Object.freeze([{ value: "XY", label: "XY plane" }, { value: "XZ", label: "XZ plane" }, { value: "YZ", label: "YZ plane" }]);
@@ -58,11 +65,16 @@ function SelectionList({ items, prompt }) {
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
  *   names: ReturnType<typeof import("./editMode.js").featureNames>, references: object[] }} props
  */
-export default function EditCommand({ edit, names, references }) {
+export default function EditCommand({ edit, names, references, tree = null }) {
   const command = editCommand(edit.command);
   const units = edit.state?.units || "mm";
   const [values, setValues] = useState(() => commandDefaults(edit.command, units));
   useEffect(() => { setValues(commandDefaults(edit.command, units)); }, [edit.command, units]);
+  // The sketch an extrude makes a solid of: the one selected in the design tree. One on a face
+  // of the part cuts into it, as SolidWorks' Extruded Cut does.
+  const sketch = command?.sketch ? treeSketch(tree, edit.selected) : null;
+  const onFace = sketch ? (sketchView(edit.state, sketch)?.plane || sketch.plane) === "Plane" : false;
+  useEffect(() => { if (edit.command === "cut") setValues(current => ({ ...current, reverse: onFace })); }, [edit.command, onFace]);
   const items = useMemo(() => selectionItems(references), [references]);
   const rows = edit.state?.rows || [];
   const featureIndex = rows.findIndex(row => row.key === edit.selected);
@@ -75,9 +87,9 @@ export default function EditCommand({ edit, names, references }) {
   const disabled = edit.saving || edit.status !== "ready";
   const faces = items.filter(item => /f\d+$/.test(item.selector));
   const listed = command.picks === "edges" ? items : faces;
-  const blocked = commandBlocked(command.id, items);
+  const blocked = commandBlocked(command.id, items, sketch);
   const feature = !wholeBody && featureIndex > 0 ? { row: rows[featureIndex].key, name: names[featureIndex]?.title || "" } : null;
-  const ok = () => { if (!blocked && !disabled) void edit.run(commandRequest(command.id, values, items, feature)); };
+  const ok = () => { if (!blocked && !disabled) void edit.run(commandRequest(command.id, values, items, feature, sketch)); };
   const copies = command.id === "mirror" || command.id === "pattern";
   const offsets = command.id === "hole"
     ? faceOffsetAxes(references.find(reference => reference?.selectorType === "face")?.pickData?.normal) : [];
@@ -92,12 +104,22 @@ export default function EditCommand({ edit, names, references }) {
       sectionId="edit-command-selection">
       <SelectionList items={listed} prompt={command.prompt} />
     </FileSheetSettingsSection> : null}
+    {command.sketch ? <FileSheetSettingsSection title="Sketch" sectionId="edit-command-sketch">
+      {sketch ? <ul aria-label="Sketch" className="mx-2 mb-1 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">
+        <li className="truncate">{sketch.plane && sketch.plane !== "Plane" ? `${sketch.title}, ${sketch.plane} Plane` : sketch.title}</li>
+      </ul> : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>{command.prompt}</p>}
+    </FileSheetSettingsSection> : null}
     {copies ? <FileSheetSettingsSection title={command.id === "mirror" ? "Mirror" : "Copies"} sectionId="edit-command-copies">
       <FileSheetSelectRow label="Of" value={feature ? "feature" : "body"} onValueChange={value => setWholeBody(value === "body")}
         options={[...(featureIndex > 0 ? [{ value: "feature", label: names[featureIndex]?.title || "Feature" }] : []), { value: "body", label: "Whole body" }]} />
       <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Pick a feature in the history to copy it.</p>
     </FileSheetSettingsSection> : null}
-    <FileSheetSettingsSection title="Parameters" sectionId="edit-command-parameters">
+    <FileSheetSettingsSection title={command.sketch ? "Direction 1" : "Parameters"} sectionId="edit-command-parameters">
+      {command.sketch ? <>
+        <FileSheetSelectRow label="End condition" value={values.end} options={command.id === "cut" ? CUT_ENDS : BOSS_ENDS} onValueChange={set("end")} />
+        {values.end === "through" ? null : <NumberRow label="Depth" value={values.depth} unit={units} disabled={disabled} onChange={set("depth")} />}
+        {values.end === "mid" ? null : <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />}
+      </> : null}
       {command.id === "fillet" ? <NumberRow label="Radius" value={values.radius} unit={units} disabled={disabled} onChange={set("radius")} /> : null}
       {command.id === "chamfer" ? <NumberRow label="Distance" value={values.distance} unit={units} disabled={disabled} onChange={set("distance")} /> : null}
       {command.id === "shell" ? <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} /> : null}
@@ -121,7 +143,7 @@ export default function EditCommand({ edit, names, references }) {
       </> : null}
     </FileSheetSettingsSection>
     {/* Why OK waits, where the list does not already say: two faces for one hole. */}
-    {blocked && (listed.length || !command.picks) ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>{blocked}</p> : null}
+    {blocked && (listed.length || !command.picks) && !(command.sketch && !sketch) ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>{blocked}</p> : null}
     <div className="flex border-t border-border">
       <button type="button" className={`${FOOTER_BUTTON_CLASS} text-muted-foreground hover:bg-accent/70 hover:text-foreground`}
         onClick={edit.close}>Cancel</button>

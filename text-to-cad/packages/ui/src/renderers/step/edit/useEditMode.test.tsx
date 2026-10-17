@@ -22,7 +22,8 @@ function server() {
   let width = '20';
   const changes: object[] = [];
   const client = {
-    editState: vi.fn(async () => read(width)),
+    // A probe asks only whether there is a part script to edit.
+    editState: vi.fn(async (_file: string, _files: unknown, options?: { probe?: boolean }) => (options?.probe ? { ok: true, editable: true } : read(width))),
     editChange: vi.fn(async (change: { literal?: string; text: string }) => {
       changes.push(change);
       const from = width;
@@ -43,11 +44,13 @@ it('a part reads as its sizes and history, a change applies at once and the agen
   const notes: unknown[] = [];
   const { result } = renderHook(() => useEditMode({ client: viewer.client, file: FILE, resource: RESOURCE, active: true }),
     { wrapper: hostWith(context => { notes.push(context); return Promise.resolve({ status: 'added', partIds: [] }); }) });
-  expect(result.current.status).toBe('reading');
+  // Until the server says the file has a part script, the view is not laid out for editing.
+  expect(result.current.status).toBe('probing');
   await act(async () => {});
   expect(result.current.status).toBe('ready');
   // As a CAD tool opens a part: nothing selected until the person picks a feature.
   expect(result.current.selected).toBe(null);
+  expect(viewer.client.editState).toHaveBeenCalledWith(FILE, null, { probe: true });
   expect(viewer.client.editState).toHaveBeenCalledWith(FILE, null);
 
   await act(async () => { await result.current.change({ literal: 'sizes.py:2:8', text: '25' }); });
@@ -65,8 +68,18 @@ it('a part reads as its sizes and history, a change applies at once and the agen
 });
 
 it('a model with no part script beside it is not edited, and the view stays as it was', async () => {
-  const client = { editState: vi.fn(async () => ({ ok: false, reason: 'no-script' })), editChange: vi.fn() };
+  const client = { editState: vi.fn(async () => ({ ok: true, editable: false })), editChange: vi.fn() };
   const { result } = renderHook(() => useEditMode({ client, file: '/project/imported.step', resource: RESOURCE, active: true }),
+    { wrapper: hostWith(() => Promise.resolve()) });
+  await act(async () => {});
+  expect(result.current.status).toBe('none');
+  // The part is never run to find out.
+  expect(client.editState).toHaveBeenCalledTimes(1);
+});
+
+it('a server without edit mode leaves the view as it was', async () => {
+  const client = { editState: vi.fn(async () => { throw new Error('404'); }), editChange: vi.fn() };
+  const { result } = renderHook(() => useEditMode({ client, file: FILE, resource: RESOURCE, active: true }),
     { wrapper: hostWith(() => Promise.resolve()) });
   await act(async () => {});
   expect(result.current.status).toBe('none');
@@ -87,7 +100,7 @@ it('a command writes its line, the new feature is selected and its panel shut, t
     change: { kind: 'command', command: 'fillet', feature: 'Fillet', what: '4 edges', inputs: [{ label: 'Radius', display: '1', unit: 'mm' }],
       file: 'block.py', line: 7, row: 'block.py:7', undo, redo: { file: 'block.py', hunks: [] } } };
   const client = {
-    editState: vi.fn(async () => base),
+    editState: vi.fn(async (_file: string, _files: unknown, options?: { probe?: boolean }) => (options?.probe ? { ok: true, editable: true } : base)),
     editChange: vi.fn(async (request: { command?: object; splice?: object }) => (request.command ? filleted
       : { ...base, change: { kind: 'splice', file: 'block.py', line: 7 } })),
   };

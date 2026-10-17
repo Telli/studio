@@ -131,7 +131,21 @@ import { applySourceAppearanceToMeshData, sourceAppearanceGeometry } from "@text
 import EditBrowser from "./edit/EditBrowser.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
-import { editCommand, featureNames, featureTree, originAxis, planeOutline, selectionDimensions } from "./edit/editMode.js";
+import SketchOverlay from "./edit/SketchOverlay.jsx";
+import SketchesLayer from "./edit/SketchesLayer.jsx";
+import {
+  ORIGIN_PLANES,
+  editCommand,
+  featureNames,
+  featureTree,
+  nextSketchName,
+  originAxis,
+  planeOutline,
+  selectionDimensions,
+  selectionItems,
+  sketchView,
+  treeSketch
+} from "./edit/editMode.js";
 import { useEditMode } from "./edit/useEditMode.js";
 // The selection filters that pick faces or edges, never the part.
 const TOPOLOGY_FILTERS = new Set(["faces", "edges"]);
@@ -3091,12 +3105,82 @@ function StepSurfaceBody({ view, data }) {
     });
   }, [poseToolActive, stepPoseDefinition, selectedStepParameterRuntime, stepPoseFeatures, motion.onParameterChange]);
 
+  // ---- edit mode ------------------------------------------------------------------------------
+  // A model with a part script beside it is edited here (`edit/`): the script's history and named
+  // sizes in a design tree at the viewer's left, the selected feature's dimensions on the model,
+  // and the tools in a ribbon across the top. A model with none keeps the view as it is. While a
+  // sketch is edited (`edit/SketchOverlay.jsx`) the model is not picked: presses are the sketch's.
+  const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading });
+  // Laid out for editing only once the server says the file has a part script.
+  const editing = edit.status !== "none" && edit.status !== "probing";
+  const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
+  const editTree = useMemo(() => featureTree(edit.state), [edit.state]);
+  const editDimensions = useMemo(() => (edit.status === "ready" && !edit.sketch ? selectionDimensions(edit.state, editTree, edit.selected) : EMPTY_LIST),
+    [edit.status, edit.state, editTree, edit.selected, edit.sketch]);
+  // A plane or the origin the design tree selects, or has under its pointer, drawn on the model;
+  // all three while the Sketch command waits for one.
+  const editPlanes = useMemo(() => (edit.sketch ? [] : [...(edit.picking ? ORIGIN_PLANES.map(plane => [`plane:${plane}`, false]) : []),
+    [edit.selected, true], [edit.hovered, false]]).flatMap(([id, strong]) => {
+    const points = typeof id === "string" && id.startsWith("plane:") ? planeOutline(id.slice("plane:".length), edit.state?.bounds) : null;
+    return points ? [{ points, strong }] : [];
+  }), [edit.selected, edit.hovered, edit.picking, edit.sketch, edit.state?.bounds]);
+  const editOrigin = !edit.sketch && (edit.selected === "origin" || edit.hovered === "origin") ? originAxis(edit.state?.bounds) : null;
+  // A modeling command opens with Select in hand, its mode turned to what the command picks (a
+  // fillet's edges, a hole's face) and the part's faces and edges loaded to be picked, keeping
+  // what is already selected: picked first, then Fillet.
+  const startEditCommand = id => {
+    const picks = editCommand(id)?.picks;
+    if (picks) {
+      changeSelectMode(picks);
+      if (!isAssemblyView) loadInspectionTopology();
+    }
+    handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES);
+    edit.open(id);
+  };
+  // Sketch, as SolidWorks' Sketch button: on the plane or the flat face already selected, or
+  // waiting for one (the origin's planes drawn, the model's faces pickable); with a sketch
+  // selected in the tree, Edit Sketch.
+  const selectedTreeSketch = treeSketch(editTree, edit.selected);
+  const openTreeSketch = sketch => {
+    const view = sketchView(edit.state, sketch);
+    edit.openSketch(view || { error: `${sketch.title} is drawn with build123d's shapes, not as a sketch with relations, so it opens as `
+      + "its sizes only. Change them in the panel, or ask the agent to redraw it as a sketch." });
+  };
+  const sketchOnPlane = plane => void edit.startSketch(plane, nextSketchName(editTree));
+  const startSketchCommand = () => {
+    if (selectedTreeSketch) { openTreeSketch(selectedTreeSketch); return; }
+    if (typeof edit.selected === "string" && edit.selected.startsWith("plane:")) { sketchOnPlane(edit.selected.slice("plane:".length)); return; }
+    const faces = selectionItems(selectedReferences).filter(item => /f\d+$/.test(item.selector));
+    if (faces.length === 1 && faces[0].type === "plane") { sketchOnPlane(faces[0]); return; }
+    changeSelectMode("faces");
+    if (!isAssemblyView) loadInspectionTopology();
+    handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES);
+    edit.startPicking();
+  };
+  // While Sketch waits: a plane picked in the tree, or one flat face on the model, starts the sketch.
+  const pickedFaces = edit.picking ? selectionItems(selectedReferences).filter(item => /f\d+$/.test(item.selector)) : EMPTY_LIST;
+  const pickedFace = pickedFaces.length === 1 && pickedFaces[0].type === "plane" ? pickedFaces[0] : null;
+  useEffect(() => {
+    if (!edit.picking || edit.saving) return;
+    if (typeof edit.selected === "string" && edit.selected.startsWith("plane:")) sketchOnPlane(edit.selected.slice("plane:".length));
+    else if (pickedFace) sketchOnPlane(pickedFace);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edit.picking, edit.selected, pickedFace?.selector]);
+  // The sketches drawn on the model while none is edited: those nothing uses yet, and the one
+  // selected in the tree.
+  const shownSketches = useMemo(() => (edit.sketch ? EMPTY_LIST : (edit.state?.sketches || EMPTY_LIST).filter(view => view.state
+    && (view.consumed === null || (selectedTreeSketch && view.file === selectedTreeSketch.file && view.line === selectedTreeSketch.line)))),
+  [edit.sketch, edit.state?.sketches, selectedTreeSketch]);
+  // A sketch opened: what was selected on the model is let go, as the sketch takes the presses.
+  const sketchKey = edit.sketch ? `${edit.sketch.file}:${edit.sketch.line}` : "";
+  useEffect(() => { if (sketchKey) clearAssemblySelection(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [sketchKey]);
+
   // ---- the viewport ---------------------------------------------------------------------------
   // What the viewport is ALLOWED to show and pick just now: nothing of the model under Pose
   // or in preview; no topology while a previous mesh is held over an update.
   const topologySelectionDeferred = Boolean(selectedTopologyDeferredByCost && selectedMeshData);
   // Preview is watching, and Pose offers its knobs alone.
-  const watching = previewing || Boolean(jointHandles);
+  const watching = previewing || Boolean(jointHandles) || Boolean(edit.sketch);
   const pickMode = watching || retainingPreviousStepMesh ? VIEWER_PICK_MODE.NONE : viewerPickModeForRenderPane({
     selectionFilter,
     topologySelectionPending: referenceSelectionPending,
@@ -3166,35 +3250,6 @@ function StepSurfaceBody({ view, data }) {
     focusedPartId: focusedAssemblyRenderPartIds
   });
   lodSelectedPartIdsRef.current = layerProps.selectedPartIds;
-
-  // ---- edit mode ------------------------------------------------------------------------------
-  // A model with a part script beside it is edited here (`edit/`): the script's history and named
-  // sizes in a design tree at the viewer's left, the selected feature's dimensions on the model,
-  // and the tools in a ribbon across the top. A model with none keeps the view as it is.
-  const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading });
-  const editing = edit.status !== "none";
-  const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
-  const editTree = useMemo(() => featureTree(edit.state), [edit.state]);
-  const editDimensions = useMemo(() => (edit.status === "ready" ? selectionDimensions(edit.state, editTree, edit.selected) : EMPTY_LIST),
-    [edit.status, edit.state, editTree, edit.selected]);
-  // A plane or the origin the design tree selects, or has under its pointer, drawn on the model.
-  const editPlanes = useMemo(() => [[edit.selected, true], [edit.hovered, false]].flatMap(([id, strong]) => {
-    const points = typeof id === "string" && id.startsWith("plane:") ? planeOutline(id.slice("plane:".length), edit.state?.bounds) : null;
-    return points ? [{ points, strong }] : [];
-  }), [edit.selected, edit.hovered, edit.state?.bounds]);
-  const editOrigin = edit.selected === "origin" || edit.hovered === "origin" ? originAxis(edit.state?.bounds) : null;
-  // A modeling command opens with Select in hand, its mode turned to what the command picks (a
-  // fillet's edges, a hole's face) and the part's faces and edges loaded to be picked, keeping
-  // what is already selected: picked first, then Fillet.
-  const startEditCommand = id => {
-    const picks = editCommand(id)?.picks;
-    if (picks) {
-      changeSelectMode(picks);
-      if (!isAssemblyView) loadInspectionTopology();
-    }
-    handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES);
-    edit.open(id);
-  };
 
   // ---- the strip ------------------------------------------------------------------------------
   // An assembly, as the catalog says or as the model on screen shows (several parts, as Explode
@@ -3323,8 +3378,10 @@ function StepSurfaceBody({ view, data }) {
     contextMenuItems={selectionToolActive
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}
     onContextMenuOpenChange={handleViewportContextMenuOpenChange}
-    ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} /> : null}
-    leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences} /> : null}
+    ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
+      sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} /> : null}
+    leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
+      onEditSketch={openTreeSketch} onPlane={sketchOnPlane} /> : null}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
       return <>
@@ -3333,6 +3390,8 @@ function StepSurfaceBody({ view, data }) {
           planes={editPlanes} origin={editOrigin}
           choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
           onChoose={edit.choose} onDismissChoice={edit.dismissChoice} /> : null}
+        {editing && edit.sketch ? <SketchOverlay viewport={viewport} edit={edit} units={edit.state?.units || ""} /> : null}
+        {editing && shownSketches.length ? <SketchesLayer viewport={viewport} sketches={shownSketches} selected={selectedTreeSketch} /> : null}
       </>;
     }} />;
 }

@@ -8,7 +8,9 @@ dimension fixes stays where it was drawn, as in a CAD tool's sketcher.
 
 How defined a sketch is comes from the residuals' Jacobian at the solution: its rank short of the
 unknowns is the degrees of freedom left (Under defined while any are), and a relation that adds
-nothing to its rank is redundant (Over defined, the relations named).
+nothing to its rank is redundant (Over defined, the relations named). The directions the sketch
+can still move in (the Jacobian's null space) say which points and radii can move: a CAD tool
+draws those blue and the rest black.
 """
 
 from __future__ import annotations
@@ -23,8 +25,10 @@ from .sketch import STATUS_FULLY, STATUS_OVER, STATUS_UNDER, Arc, Circle, Line, 
 
 __all__ = ["Solution", "solve"]
 
-# How lightly the first pass holds each unknown where it was drawn.
+# How lightly the first pass holds each unknown where it was drawn, and how firmly a point the
+# engineer is dragging (`prefer`): the rest gives way to it.
 STAY_WEIGHT = 1e-3
+PREFER_WEIGHT = 1.0
 
 
 @dataclass
@@ -33,6 +37,8 @@ class Solution:
     dof: int
     redundant: list = field(default_factory=list)
     residual: float = 0.0
+    # The points (by name) and circles whose radius can still move.
+    movable: set = field(default_factory=set)
 
 
 class _Unknowns:
@@ -40,15 +46,19 @@ class _Unknowns:
 
     def __init__(self, sketch):
         self.slots: dict[int, int] = {}
+        # Each slot's owner, by name: a point's x and y, a circle's radius.
+        self.owners: list[str] = []
         values: list[float] = []
         for point in sketch.points:
             if not point.fixed:
                 self.slots[id(point)] = len(values)
                 values += [point.x, point.y]
+                self.owners += [point.name, point.name]
         for curve in sketch.curves:
             if isinstance(curve, Circle):
                 self.slots[id(curve)] = len(values)
                 values.append(curve.radius)
+                self.owners.append(curve.name)
         self.x0 = np.array(values, dtype=float)
 
     def point(self, point: Point, x) -> np.ndarray:
@@ -186,7 +196,7 @@ def _rank(matrix: np.ndarray) -> int:
     return int((values > 1e-8 * max(1.0, float(values[0]))).sum())
 
 
-def solve(sketch) -> Solution:
+def solve(sketch, prefer=()) -> Solution:
     u = _Unknowns(sketch)
     coordinates = [abs(c) for p in sketch.points for c in (p.x, p.y)] + [abs(float(r.value)) for r in sketch.relations if r.value is not None]
     scale = max([1.0, *coordinates])
@@ -200,9 +210,11 @@ def solve(sketch) -> Solution:
 
     x = u.x0.copy()
     n, m = len(x), len(residuals(x))
+    preferred = {getattr(point, "name", point) for point in prefer}
+    weights = np.array([PREFER_WEIGHT if owner in preferred else STAY_WEIGHT for owner in u.owners], dtype=float)
     if n and m:
         # First held lightly where it was drawn, so what no dimension fixes stays put; then exactly.
-        held = least_squares(lambda x: np.concatenate([residuals(x), STAY_WEIGHT * (x - u.x0)]), x, method="lm",
+        held = least_squares(lambda x: np.concatenate([residuals(x), weights * (x - u.x0)]), x, method="lm",
                              xtol=1e-12, ftol=1e-12, gtol=1e-12, max_nfev=400 * (n + 1))
         exact = least_squares(residuals, held.x, method="lm" if m >= n else "trf",
                               xtol=1e-14, ftol=1e-14, gtol=1e-14, max_nfev=400 * (n + 1))
@@ -213,18 +225,33 @@ def solve(sketch) -> Solution:
         off = sorted(((float(np.max(np.abs(np.atleast_1d(fn(x))))), item) for item, fn in terms), key=lambda pair: -pair[0])
         named = [item.name for size, item in off if size > 1e-7 * scale][:3]
         raise SketchError(f"{sketch.name} can't be solved: {', '.join(named)} can't all hold. Remove one, or change its value.")
+    # A line or circle drawn with a size that solves to nothing (Horizontal and Vertical on one
+    # line) is relations that cannot hold, as a CAD tool refuses them.
+    for curve in sketch.curves:
+        if isinstance(curve, Line):
+            size, drawn = (float(np.linalg.norm(u.point(curve.end, v) - u.point(curve.start, v))) for v in (x, u.x0))
+        elif isinstance(curve, Circle):
+            size, drawn = abs(u.radius(curve, x)), abs(u.radius(curve, u.x0))
+        else:
+            continue
+        if size <= 1e-9 * scale < drawn:
+            ends = {id(curve), *(id(getattr(curve, role)) for role in ("start", "end", "center") if hasattr(curve, role))}
+            named = [relation.name for relation in sketch.relations if any(id(ref) in ends for ref in relation.refs)][:3]
+            raise SketchError(f"{sketch.name} can't be solved: {', '.join(named) or 'its relations'} can't all hold without "
+                              f"{curve.name} shrinking to nothing. Remove one, or change its value.")
     u.write(sketch, x)
 
     # How defined: the Jacobian's rank against the unknowns, and each relation's share of it.
     if not (n and m):
-        return Solution(STATUS_FULLY if n == 0 else STATUS_UNDER, n, [], worst)
+        return Solution(STATUS_FULLY if n == 0 else STATUS_UNDER, n, [], worst, set(u.owners))
     step = 1e-6 * scale
     jacobian = np.empty((m, n))
     for column in range(n):
         delta = np.zeros(n)
         delta[column] = step
         jacobian[:, column] = (residuals(x + delta) - residuals(x - delta)) / (2 * step)
-    dof = n - _rank(jacobian)
+    rank_all = _rank(jacobian)
+    dof = n - rank_all
     redundant, rows, rank = [], 0, 0
     for item, fn in terms:
         count = len(np.atleast_1d(fn(x)))
@@ -233,5 +260,12 @@ def solve(sketch) -> Solution:
             redundant.append(item)
         rows += count
         rank = new_rank
+    # What can still move: each unknown the null space reaches (a direction the sketch can move
+    # in without breaking a relation).
+    movable: set = set()
+    if dof:
+        _, _, vt = np.linalg.svd(jacobian, full_matrices=True)
+        reach = np.abs(vt[rank_all:]).max(axis=0)
+        movable = {owner for owner, size in zip(u.owners, reach) if size > 1e-6}
     status = STATUS_OVER if redundant else STATUS_FULLY if dof == 0 else STATUS_UNDER
-    return Solution(status, dof, redundant, worst)
+    return Solution(status, dof, redundant, worst, movable)

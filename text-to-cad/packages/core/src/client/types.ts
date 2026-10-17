@@ -258,6 +258,8 @@ export interface CadEditRow {
 export interface CadEditState {
   ok: boolean;
   unchanged?: boolean;
+  /** A probe's answer: whether the file has a part script to edit. */
+  editable?: boolean;
   reason?: 'no-script';
   error?: string;
   script?: string;
@@ -275,11 +277,16 @@ export interface CadEditState {
 export interface CadEditChangeRequest {
   file: string;
   files?: Record<string, string>;
-  text: string;
+  text?: string;
   literal?: string;
   dimension?: string;
   input?: { row: string; index: number };
   leaf?: string;
+  /** A modeling command's line (`cadgen/edit/commands.py`), or lines put back by Undo and Redo. */
+  command?: Record<string, unknown>;
+  splice?: { file: string; hunks: unknown[] };
+  /** A sketch mode change (`cadgen/edit/sketching.py`): the sketch's file and line, and what to do to it. */
+  sketch?: { file?: string; line?: number; name?: string; op: Record<string, unknown> };
 }
 
 export interface CadClient extends CadWorkspaceService {
@@ -291,7 +298,7 @@ export interface CadClient extends CadWorkspaceService {
    * Edit mode: the part script behind `file` (the script beside a STEP) read as a design. `files`
    * is the hashes the page read last; when none changed the answer is `{ ok: true, unchanged: true }`.
    */
-  editState(file: string, files?: Record<string, string> | null, options?: CadRequestOptions): Promise<CadEditState>;
+  editState(file: string, files?: Record<string, string> | null, options?: CadRequestOptions & { probe?: boolean }): Promise<CadEditState>;
   /** Edit mode: one number of the part's source changed, then the parts that use it built again. */
   editChange(change: CadEditChangeRequest, options?: CadRequestOptions): Promise<CadEditState>;
 }

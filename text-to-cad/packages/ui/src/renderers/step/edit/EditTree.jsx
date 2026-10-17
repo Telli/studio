@@ -8,15 +8,16 @@ const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 // How defined a sketch is, marked before its name as SolidWorks marks it: (-) under, (+) over.
 const SKETCH_MARKS = Object.freeze({ "Under defined": "(-) ", "Over defined": "(+) " });
 
-/** One row of the tree: its place (depth), its disclosure when it has rows under it, its icon and name. */
-function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, selected, onSelect, onHover, muted = false }) {
+/** One row of the tree: its place (depth), its disclosure when it has rows under it, its icon and
+ * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch), else opens or closes it. */
+function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, onActivate = null, selected, onSelect, onHover, muted = false }) {
   const active = Boolean(id) && selected === id;
   return <TreeRowSurface as="div" dense active={active} role="treeitem" aria-selected={active}
     aria-expanded={expanded === null ? undefined : expanded} tabIndex={-1}
     className="cursor-default select-none" style={{ paddingLeft: 4 + depth * (TREE_INDENT_PX + 2) }}
     data-cad-edit-tree-row={id || title}
     onClick={() => { if (id) onSelect(id); else onToggle?.(); }}
-    onDoubleClick={() => onToggle?.()}
+    onDoubleClick={() => (onActivate ? onActivate() : onToggle?.())}
     onPointerEnter={() => onHover(id || null)} onPointerLeave={() => onHover(null)}>
     <span className="flex w-3 shrink-0 justify-center" onClick={event => { if (onToggle) { event.stopPropagation(); onToggle(); } }}>
       <TreeRowChevron expanded={Boolean(expanded)} branch={expanded !== null} />
@@ -30,14 +31,15 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
 /**
  * Edit mode's design tree, as SolidWorks' FeatureManager shows a part: its name at the top, its
  * Parameters (the named sizes, typed over to change), the Front, Top and Right planes and the
- * Origin, then its features in the order the script makes them, each solid's sketch under it. An
- * assembly lists its parts as components, each opening to its own features. Selecting a feature
- * draws its dimensions on the model and shows its inputs under the tree; selecting a plane draws it.
+ * Origin, then its features in the order the script makes them, each solid's sketch under it and a
+ * sketch nothing uses yet on a row of its own. An assembly lists its parts as components, each
+ * opening to its own features. Selecting a feature draws its dimensions on the model and shows its
+ * inputs under the tree; selecting a plane draws it; double-clicking a sketch edits it.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
- *   tree: ReturnType<typeof import("./editMode.js").featureTree> }} props
+ *   tree: ReturnType<typeof import("./editMode.js").featureTree>, onEditSketch?: (sketch: object) => void }} props
  */
-export default function EditTree({ edit, tree }) {
+export default function EditTree({ edit, tree, onEditSketch = () => {} }) {
   const [open, setOpen] = useState(() => new Set(["parameters"]));
   // A selection inside a closed part, or a sketch under a closed feature, opens them to it.
   useEffect(() => {
@@ -59,16 +61,18 @@ export default function EditTree({ edit, tree }) {
   const disabled = edit.saving || edit.status !== "ready";
   const rowProps = { selected: edit.selected, onSelect: edit.select, onHover: edit.hover };
   const name = sizeName(edit.state?.name || "") || "Part";
+  const sketchRow = (sketch, depth) => <Row key={sketch.id} id={sketch.id} depth={depth} icon={<SketchIcon />}
+    title={`${SKETCH_MARKS[sketch.status] || ""}${sketch.title}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane` : ""}
+    onActivate={() => onEditSketch(sketch)} {...rowProps} />;
   const features = (list, depth) => list.flatMap(feature => {
+    if (feature.kind === "Sketch") return [sketchRow(feature.sketch, depth)];
     const branch = Boolean(feature.sketch);
     const expanded = open.has(feature.id);
     const detail = `${feature.name}${feature.count > 1 ? ` ×${feature.count}` : ""}`;
     return [
       <Row key={feature.id} id={feature.id} depth={depth} icon={<FeatureIcon kind={feature.kind} />} title={feature.title} detail={detail}
         expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null} {...rowProps} />,
-      branch && expanded ? <Row key={feature.sketch.id} id={feature.sketch.id} depth={depth + 1} icon={<SketchIcon />}
-        title={`${SKETCH_MARKS[feature.sketch.status] || ""}${feature.sketch.title}`}
-        detail={feature.sketch.plane && feature.sketch.plane !== "Plane" ? `${feature.sketch.plane} Plane` : ""} {...rowProps} /> : null,
+      branch && expanded ? sketchRow(feature.sketch, depth + 1) : null,
     ];
   });
   return <div role="tree" aria-label="Design tree" className="flex flex-col px-1 py-1" data-cad-edit-tree="">

@@ -14,6 +14,7 @@ import {
   treeIds,
   undoStep
 } from "./editMode.js";
+import { countChange, sketchNote } from "./sketchMode.js";
 
 // How often the view asks whether the part's files changed (the agent's edits, another view's):
 // an unchanged answer is a hash comparison on the server, and the part is not run.
@@ -22,23 +23,31 @@ const describe = error => (error instanceof Error ? error.message : String(error
 // A feature's title in the design tree a reply describes: "Fillet2".
 const titleOf = (state, row) => treeFeatures(featureTree(state)).find(feature => feature.id === row)?.title
   || featureNames(state?.rows || []).find(name => name.key === row)?.title || "";
+// A change worth a step of Undo: one that changed some line.
+const changedLines = change => !change?.undo?.hunks || change.undo.hunks.length > 0;
+// The sketch a session edits, as a request names it.
+const sketchTarget = sketch => ({ file: sketch.file, line: sketch.line, name: sketch.name });
 
 /**
  * Edit mode for the file on screen (`cadgen/edit`, through the CAD client): the part's script read
- * as a design, kept current while the view is up, one number of it changed by hand, and the
- * ribbon's modeling commands (`command`, the one whose panel is open; `run` writes its line). A
- * change applies at once; the agent hears of it with the person's next message (a note queued in
- * the chat, never a message of its own), so it never starts work because of one.
+ * as a design, kept current while the view is up, one number of it changed by hand, the ribbon's
+ * modeling commands (`command`, the one whose panel is open; `run` writes its line), and sketch
+ * mode (`sketch`: the sketch being edited, solved again with each stroke, relation and
+ * dimension). A change applies at once; the agent hears of it with the person's next message (a
+ * note queued in the chat, never a message of its own), so it never starts work because of one.
+ * A sketch's strokes are told once, when the person leaves the sketch.
  *
- * `status`: `reading` until the first answer, then `ready`, `none` (no part script beside this
- * file: nothing to edit, and the view stays as it was) or `error`.
+ * `status`: `probing` while the server says whether the file has a part script (the view stays as
+ * it is), `reading` until the first answer, then `ready`, `none` (no part script beside this file,
+ * or no edit mode on the server: nothing to edit, and the view stays as it was) or `error`.
  *
  * @param {{ client: object | null, file: string, active: boolean }} options
  */
 export function useEditMode({ client, file, active }) {
   const host = useViewerHost();
   const supported = typeof client?.editState === "function" && typeof client?.editChange === "function";
-  const [status, setStatus] = useState(supported && file ? "reading" : "none");
+  // `probing` until the server says whether the file has a part script: the view stays as it is.
+  const [status, setStatus] = useState(supported && file ? "probing" : "none");
   const [state, setState] = useState(null);
   const [error, setError] = useState("");
   const [choice, setChoice] = useState(null);
@@ -48,15 +57,32 @@ export function useEditMode({ client, file, active }) {
   const [hovered, setHovered] = useState(null);
   const [history, setHistory] = useState(emptyHistory);
   const [command, setCommand] = useState(null);
+  // Sketch mode: the sketch being edited, the tool in hand (none: select and drag), what is
+  // selected in it, whether new strokes are construction geometry, and the Sketch command waiting
+  // for a plane or a face to sketch on.
+  const [sketch, setSketch] = useState(null);
+  const [sketchTool, setSketchTool] = useState(null);
+  const [sketchSelection, setSketchSelection] = useState([]);
+  const [construction, setConstruction] = useState(false);
+  const [picking, setPicking] = useState(false);
+  // How many clicks the tool in hand has had, for its prompt ("Click the opposite corner").
+  const [sketchStep, setSketchStep] = useState(0);
+  // A press of Normal To: the view turns to look straight at the sketch again.
+  const [normalTo, setNormalTo] = useState(0);
   const files = useRef(null);
+  const probed = useRef("");
   const historyRef = useRef(history);
   historyRef.current = history;
+  const sketchRef = useRef(sketch);
+  sketchRef.current = sketch;
 
   // Another file is another part: everything starts again.
   useEffect(() => {
     files.current = null;
     setState(null); setError(""); setChoice(null); setSelected(null); setHistory(emptyHistory()); setCommand(null);
-    setStatus(supported && file ? "reading" : "none");
+    setSketch(null); setSketchTool(null); setSketchSelection([]); setPicking(false);
+    probed.current = "";
+    setStatus(supported && file ? "probing" : "none");
   }, [file, supported]);
 
   const take = useCallback(reply => {
@@ -70,6 +96,12 @@ export function useEditMode({ client, file, active }) {
       setError(reply.error || "The part could not be read.");
       return;
     }
+    if (reply.sketchOnly) {
+      // A sketch solved on its own: the part is as it was, its file's hash moved on.
+      files.current = { ...(files.current || {}), ...(reply.files || {}) };
+      setState(current => (current ? { ...current, building: reply.building } : current));
+      return;
+    }
     files.current = reply.files || null;
     setState(reply);
     setStatus("ready");
@@ -77,6 +109,12 @@ export function useEditMode({ client, file, active }) {
     // As a CAD tool opens a part: nothing selected until the person picks a feature. A selection
     // the part no longer has (its line removed) is let go.
     setSelected(current => (current && treeIds(featureTree(reply)).has(current) ? current : null));
+    // The sketch being edited, as the part now makes it (the agent changed the file, say).
+    setSketch(current => {
+      if (!current) return current;
+      const found = (reply.sketches || []).find(view => view.file === current.file && view.name === current.name);
+      return found ? { ...current, ...found } : current;
+    });
   }, []);
 
   useEffect(() => {
@@ -84,6 +122,21 @@ export function useEditMode({ client, file, active }) {
     let stopped = false;
     let timer = null;
     const ask = async () => {
+      if (stopped) return;
+      // First only whether there is a part script to edit, answered at once: a file with none
+      // (or a server without edit mode) keeps the viewer as it is, never laid out for editing.
+      if (files.current === null && probed.current !== file) {
+        try {
+          const reply = await client.editState(file, null, { probe: true });
+          if (stopped) return;
+          probed.current = file;
+          if (!reply?.editable) { setStatus("none"); return; }
+          setStatus(current => (current === "probing" ? "reading" : current));
+        } catch {
+          if (!stopped) setStatus("none");
+          return;
+        }
+      }
       if (stopped) return;
       if (typeof document === "undefined" || !document.hidden) {
         try { take(await client.editState(file, files.current)); }
@@ -109,8 +162,9 @@ export function useEditMode({ client, file, active }) {
     }
   }, [host]);
 
-  // `note`: what the agent is told of the reply's change (a number's, unless said otherwise).
-  const send = useCallback(async (request, { record = true, note = null } = {}) => {
+  // `note`: what the agent is told of the reply's change (a number's, unless said otherwise; null
+  // tells nothing).
+  const send = useCallback(async (request, { record = true, note } = {}) => {
     if (!supported || !file) return null;
     setSaving(true);
     setChoice(null);
@@ -118,10 +172,12 @@ export function useEditMode({ client, file, active }) {
       const reply = await client.editChange({ ...request, file, files: files.current || undefined });
       if (reply.choose) { setChoice({ request, options: reply.choose }); return reply; }
       if (!reply.ok) { setError(reply.error || "The change could not be made."); return reply; }
+      setError("");
       take(reply);
       if (reply.change) {
-        if (record) setHistory(current => recordChange(current, reply.change));
-        tell(note ? note(reply) : changeNote(reply.change));
+        if (record && changedLines(reply.change)) setHistory(current => recordChange(current, reply.change));
+        const said = note === null ? null : note ? note(reply) : reply.change.kind ? null : changeNote(reply.change);
+        tell(said);
       }
       return reply;
     } catch (failure) {
@@ -149,24 +205,127 @@ export function useEditMode({ client, file, active }) {
     const move = next(historyRef.current);
     if (!move) return;
     const made = move.change.kind === "command";
-    const reply = await send(move.request, { record: false,
+    const current = sketchRef.current;
+    // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
+    const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
+    const reply = await send(request, { record: false,
       note: made ? () => commandUndoNote(move.change, move.change.title, redo) : null });
-    if (reply?.ok) setHistory(move.next);
+    if (!reply?.ok) return;
+    setHistory(move.next);
+    if (current) {
+      if (reply.sketchOnly && reply.sketch) setSketch(session => (session ? { ...session, ...reply.sketch } : session));
+      // The sketch itself undone: sketch mode ends with it.
+      else if (!reply.sketchOnly && !(reply.sketches || []).some(view => view.file === current.file && view.name === current.name)) {
+        setSketch(null); setSketchTool(null); setSketchSelection([]);
+      }
+    }
   }, [send]);
   const undo = useCallback(() => step(undoStep, false), [step]);
   const redo = useCallback(() => step(redoStep, true), [step]);
+
+  // ---- sketch mode ---------------------------------------------------------------------------
+
+  // `start`: where the session begins in the history, so Discard Changes takes back what came after
+  // (a new sketch's own making too).
+  const begin = useCallback((view, created, start = historyRef.current.done.length) => {
+    setSketch({ ...view, created, made: {}, changed: false, start });
+    setSketchTool(null);
+    setSketchSelection([]);
+    setSketchStep(0);
+    setPicking(false);
+    setCommand(null);
+    // As a CAD tool opens a sketch: the tree's selection (the plane it was started on) let go.
+    setSelected(null);
+    setNormalTo(tick => tick + 1);
+  }, []);
+
+  /** A new sketch, on an origin plane (`"Top"`) or a flat face of the body (a selection item). */
+  const startSketch = useCallback(async (plane, name = "") => {
+    const start = historyRef.current.done.length;
+    const reply = await send({ sketch: { op: { kind: "new", plane, name } } }, { note: null });
+    if (reply?.ok && reply.sketch) begin(reply.sketch, true, start);
+    return reply;
+  }, [send, begin]);
+
+  /** Edit Sketch: an existing constrained sketch opened in sketch mode. */
+  const openSketch = useCallback(view => {
+    if (!view?.state) {
+      setError(view?.error || "This sketch cannot be solved as it is. Ask the agent to look at it.");
+      return;
+    }
+    begin(view, false);
+  }, [begin]);
+
+  /** A stroke, relation, dimension, move or delete, written into the sketch and solved again. */
+  const sketchOp = useCallback(async op => {
+    const current = sketchRef.current;
+    if (!current) return null;
+    const reply = await send({ sketch: { ...sketchTarget(current), op } }, { note: null });
+    if (reply?.ok) {
+      setSketch(session => (session ? { ...session, ...(reply.sketch || {}), made: countChange(session.made, op),
+        changed: session.changed || changedLines(reply.change) } : session));
+      if (op.kind === "delete") setSketchSelection([]);
+    }
+    return reply;
+  }, [send]);
+
+  /** Exit Sketch: the part built again with it, and the agent told what changed. */
+  const exitSketch = useCallback(async () => {
+    const current = sketchRef.current;
+    if (!current) return null;
+    const changed = current.changed || current.created;
+    const reply = await send({ sketch: { ...sketchTarget(current), op: { kind: "exit", changed } } },
+      { record: false, note: changed ? () => sketchNote(current) : null });
+    if (reply?.ok) {
+      setSketch(null); setSketchTool(null); setSketchSelection([]);
+      const tree = featureTree(reply);
+      const owner = treeFeatures(tree).find(feature => feature.sketch?.file === current.file && feature.sketch?.line === current.line);
+      if (owner) setSelected(owner.kind === "Sketch" ? owner.id : owner.sketch.id);
+    }
+    return reply;
+  }, [send]);
+
+  /** The sketch's changes in this session taken back, and sketch mode left, as SolidWorks' Cancel does. */
+  const cancelSketch = useCallback(async () => {
+    const current = sketchRef.current;
+    if (!current) return;
+    // Each change since the session began, last first; the history is walked here, not read back
+    // from a render between them.
+    let walked = historyRef.current;
+    let gone = false;
+    while (walked.done.length > current.start) {
+      const move = undoStep(walked);
+      const reply = await send({ ...move.request, sketch: sketchTarget(current) }, { record: false, note: null });
+      if (!reply?.ok) break;
+      walked = move.next;
+      historyRef.current = walked;
+      setHistory(walked);
+      if (!reply.sketchOnly) { gone = true; break; } // the sketch's own making undone
+    }
+    if (!gone) await send({ sketch: { ...sketchTarget(current), op: { kind: "exit", changed: walked.done.length !== current.start } } }, { record: false, note: null });
+    setSketch(null); setSketchTool(null); setSketchSelection([]);
+  }, [send]);
 
   return {
     status, state, error, choice, saving, selected, hovered, command,
     select: setSelected,
     hover: setHovered,
     change, undo, redo, run,
-    open: id => { setError(""); setCommand(id); },
+    open: id => { setError(""); setPicking(false); setCommand(id); },
     close: () => setCommand(null),
     canUndo: history.done.length > 0 && !saving,
     canRedo: history.undone.length > 0 && !saving,
     choose: leaf => { if (choice) void send({ ...choice.request, leaf }); },
     dismissChoice: () => setChoice(null),
     dismissError: () => setError(""),
+    sketch, sketchTool, sketchSelection, construction, picking, normalTo, sketchStep,
+    setSketchTool: tool => { setSketchTool(tool); setSketchSelection([]); setSketchStep(0); },
+    setSketchStep,
+    selectInSketch: setSketchSelection,
+    setConstruction,
+    startPicking: () => { setError(""); setCommand(null); setPicking(true); },
+    stopPicking: () => setPicking(false),
+    lookNormalTo: () => setNormalTo(tick => tick + 1),
+    startSketch, openSketch, sketchOp, exitSketch, cancelSketch,
   };
 }

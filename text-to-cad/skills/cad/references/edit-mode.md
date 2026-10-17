@@ -7,10 +7,17 @@ the selected feature's dimensions on the model. When the engineer changes a valu
 rewrites that one number in the script, keeping how it was written, and builds again every part
 that uses the changed file.
 
-Its ribbon also has modeling commands: Hole, Pattern and Mirror (Create), Fillet, Chamfer and
-Shell (Modify). Each acts on what the engineer selects (edges or faces on the model, or a feature
-in the history) and writes one line of build123d into the script, after the statement that makes
-the part's body, which then reads back as a new feature of the history.
+Its ribbon also has modeling commands: Extruded Boss/Base, Extruded Cut, Hole, Pattern and Mirror
+(Create), Fillet, Chamfer and Shell (Modify). Each acts on what the engineer selects (edges or
+faces on the model, a sketch or a feature in the history) and writes one line of build123d into
+the script, after the statement that makes the part's body, which then reads back as a new feature
+of the history.
+
+The engineer also sketches there, as in SolidWorks: Sketch on a plane or a flat face, draw lines,
+rectangles, circles, arcs, slots and points, add relations and Smart Dimensions, Exit Sketch, then
+Extruded Boss/Base or Extruded Cut. Each stroke is a line of `cadgen.sketch` code
+([sketching.md](sketching.md)) in the part's script, written as it is drawn; see "Sketches drawn
+by hand" below.
 
 ## Write the script so it edits well
 
@@ -49,14 +56,40 @@ the part's body, which then reads back as a new feature of the history.
   `plate -= bd.mirror(hole1, about=bd.Plane.YZ)` or
   `plate -= [loc * hole1 for loc in bd.GridLocations(-.4*INCH, 0, 3, 1, align=(bd.Align.MIN, bd.Align.CENTER)).locations[1:]]`
   (a circular pattern uses `bd.PolarLocations(0, count)`, about the Z axis).
+- **Extruded Boss/Base and Extruded Cut** make a solid of the sketch selected in the design tree:
+  `part += extrude(sketch2.face(), amount=5)`, or `part -= extrude(...)` for a cut (a negative
+  amount goes the other way along the sketch's normal; Mid Plane is `both=True` with half the
+  depth; a cut Through All is `amount=-part.bounding_box().diagonal`). The line goes after the
+  sketch's own lines.
 - Sizes are written in the project's units, as the file writes them (`.03*INCH` in an inch part).
 - A line that does not run, or does not make the feature on what was selected, is not written.
+
+## Sketches drawn by hand
+
+- A new sketch is a line before the part is returned: `sketch2 = Sketch("Sketch2", plane="Top")`
+  (on a face of the body: `plane=part.faces().sort_by(Axis.Z)[-1]`; in an inch part, `unit=INCH`).
+- Each stroke, relation and dimension is one more line at the end of the sketch's own lines,
+  the entities named as the sketch names them where the name is free (`line1, line2, line3, line4
+  = sketch2.rectangle(sketch2.origin, (30, 20))`, `sketch2.length(line1, 30)`). A point drawn on
+  another sketch's point shares it (`line5 = sketch2.line(line4.end, ...)`); one drawn on a curve
+  is held to it (`sketch2.coincident(...)`); a line drawn level or plumb gets `horizontal` or
+  `vertical`.
+- After each change the drawn coordinates are written where the sketch solved them, so the lines
+  read as the sketch stands: a dimension of 30 turns `(14.32, 8.8)` into `(30, 8.8)`.
+- Deleting an entity takes out its line and the relations and dimensions on it; a curve drawn
+  from one of its points keeps the point where it was. A corner rectangle's line is deleted on its
+  own: the rectangle is written as its four lines first.
+- Keep this shape when you change a sketch the engineer drew: its block of lines after the
+  `Sketch(...)` line, entities assigned to names, so the engineer can open it again with Edit
+  Sketch. Change sizes by their numbers or names, as in any sketch.
 
 ## Hand edits
 
 - A hand edit is an ordinary edit to the script. The engineer's next message carries a note of
   each one ("In edit mode I changed Length (LENGTH) from 2.80 to 3.00 (parts/sizes.py, line 8).",
   "In edit mode I added Fillet2, radius 0.03 in, 1 edge (parts/housing_geometry.py, line 37).").
+  A sketch is told once, when the engineer leaves it ("In edit mode I drew Sketch2 on the Top
+  Plane (parts/plate.py, line 13): drew 4 lines and a circle, added 5 dimensions.").
 - A command's line is the engineer's: keep it, and keep its selector unless a change you make
   moves what it selects (then say so, and propose the new selector).
 - Read the script again before you change it, and keep their values unless they ask.

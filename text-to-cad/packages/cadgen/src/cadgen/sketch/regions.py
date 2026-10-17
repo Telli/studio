@@ -33,10 +33,18 @@ def plane_of(sketch):
     elif isinstance(plane, B.Plane):
         base = plane
     elif isinstance(plane, B.Face):
-        base = B.Plane(plane)
+        # As a CAD tool places a sketch on a face: its origin where the part's origin falls on the
+        # face's plane, and its x along the part's X (its Y, on a face square to X), so the
+        # sketch's dimensions from its origin are the part's.
+        normal = B.Plane(plane).z_dir
+        origin = normal * normal.dot(B.Plane(plane).origin)
+        along = B.Vector(1, 0, 0) - normal * normal.X
+        if along.length < 1e-6:
+            along = B.Vector(0, 1, 0) - normal * normal.Y
+        base = B.Plane(origin=origin, x_dir=along.normalized(), z_dir=normal)
     else:
         raise SketchError(f"{sketch.name}: a sketch's plane is Top, Front or Right, or a build123d Plane or Face.")
-    return base.offset(sketch.offset) if sketch.offset else base
+    return base.offset(sketch.offset * sketch.unit) if sketch.offset else base
 
 
 def _arc_angles(arc):
@@ -132,20 +140,21 @@ def loops(sketch) -> list[_Loop]:
     return found
 
 
-def _edges(loop: _Loop, plane, clockwise: bool):
-    """A loop's edges on the plane, in order, turning the way asked."""
+def _edges(loop: _Loop, plane, clockwise: bool, unit: float = 1.0):
+    """A loop's edges on the plane, in order, turning the way asked, in millimetres (``unit`` is
+    the sketch's unit)."""
     import build123d as B
 
     if (loop.area < 0) != clockwise:
         parts = [(curve, not forward) for curve, forward in reversed(loop.parts)]
     else:
         parts = loop.parts
-    at = lambda x, y: plane.from_local_coords((x, y))  # noqa: E731
+    at = lambda x, y: plane.from_local_coords((x * unit, y * unit))  # noqa: E731
     edges = []
     for curve, forward in parts:
         if isinstance(curve, Circle):
-            edges.append(B.Edge.make_circle(curve.radius, B.Plane(origin=at(curve.center.x, curve.center.y), x_dir=plane.x_dir,
-                                                                  z_dir=plane.z_dir if not clockwise else -plane.z_dir)))
+            edges.append(B.Edge.make_circle(curve.radius * unit, B.Plane(origin=at(curve.center.x, curve.center.y), x_dir=plane.x_dir,
+                                                                         z_dir=plane.z_dir if not clockwise else -plane.z_dir)))
             continue
         a, b = (curve.start, curve.end) if forward else (curve.end, curve.start)
         if isinstance(curve, Arc):
@@ -171,10 +180,13 @@ def faces(sketch) -> list:
     made = []
     for outer in (loop for loop in found if depth[id(loop)] % 2 == 0):
         holes = [loop for loop in found if depth[id(loop)] == depth[id(outer)] + 1 and outer.contains(loop)]
-        face = B.Face(B.Wire(_edges(outer, plane, clockwise=False)), [B.Wire(_edges(hole, plane, clockwise=True)) for hole in holes])
+        face = B.Face(B.Wire(_edges(outer, plane, clockwise=False, unit=sketch.unit)),
+                      [B.Wire(_edges(hole, plane, clockwise=True, unit=sketch.unit)) for hole in holes])
         if face.normal_at().dot(plane.z_dir) < 0:
             face = -face
         # Which sketch a face was made from, for edit mode's tree (Boss-Extrude1 > Sketch1).
         face._cadgen_sketch = sketch
         made.append(face)
+    made = B.ShapeList(made)
+    made._cadgen_sketch = sketch
     return made

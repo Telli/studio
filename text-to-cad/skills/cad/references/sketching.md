@@ -34,9 +34,15 @@ def plate():
 ## Planes
 
 - `plane="Top"` is XY, `"Front"` is XZ, `"Right"` is YZ: the origin's planes as a CAD tree names
-  them. A build123d `Plane`, or a planar `Face` of a solid, sketches on that. `offset=` moves the
-  sketch along the plane's normal.
-- An extrude of `s.face()` goes the way the plane faces (Top: up, Front: toward -Y, Right: +X).
+  them. A build123d `Plane` sketches on that. A planar `Face` of a solid sketches on the face's
+  plane as a CAD tool does: its origin where the part's origin falls on that plane, its x along the
+  part's X (Y on a face square to X), facing out of the solid. `offset=` moves the sketch along
+  the plane's normal.
+- An extrude of `s.face()` goes the way the plane faces (Top: up, Front: toward -Y, Right: +X, a
+  face: out of the solid); a negative amount goes the other way.
+- `unit=` is how many millimetres one of the sketch's units is: `unit=INCH` in a part sized in
+  inches, so its coordinates and dimensions read in inches (`s.length(line, LENGTH)` with
+  `LENGTH = 2.80`). Angles are in degrees either way.
 
 ## Geometry
 
@@ -72,6 +78,7 @@ def plate():
 
 ## Editing
 
-When the engineer changes a sketch's dimension in edit mode, it rewrites the named size in the
-script, and the next run solves the sketch again. Read the script again before changing it, and
-keep their values.
+The engineer edits sketches in the CAD viewer's sketch mode, which writes these same lines: see
+[edit-mode.md](edit-mode.md), "Sketches drawn by hand". When they change a sketch's dimension, it
+rewrites that number (or the named size it is) in the script, and the next run solves the sketch
+again. Read the script again before changing it, and keep their values.
