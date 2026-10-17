@@ -76,9 +76,17 @@ by hand" below.
   with its lines.
 - **Edit Feature** (a feature's menu, or a double-click on it) reopens the command that wrote the
   feature's line, with its values, and writes that same line again in its place. What the line
-  acts on stays as written (its edges, faces, the feature it copies, its sketch), and a value
-  left as it was keeps how it was written (`radius=WALL` stays `radius=WALL`). A line written in
-  the commands' form opens this way even when you wrote it.
+  acts on stays as written (its edges, faces, the feature it copies, its sketch) unless the
+  engineer picks others: a fillet's, chamfer's, shell's or hole's panel rolls the part back to
+  just before the feature, and edges or faces picked there are written as selectors on the body
+  as it was at that line (`outer = fillet(outer.faces().sort_by(Axis.Z)[-1].edges(), radius=2)`).
+  A value left as it was keeps how it was written (`radius=WALL` stays `radius=WALL`). A line
+  written in the commands' form opens this way even when you wrote it.
+- **The rollback bar** under the features (dragged up, or a feature's Rollback) shows the part as
+  it was above a feature, the features below it greyed. While it is up, commands act on the body
+  there and write their line right above the feature below the bar (a new sketch goes there too),
+  so a feature can be put in early in the history. Nothing below the bar changes. Roll to End
+  brings the part back.
 - **Suppress** takes a feature out of the part but keeps its lines, as comments under a line that
   says what they are; Unsuppress puts them back exactly. A boolean that starts a name keeps the
   name meanwhile, on a line of its own:

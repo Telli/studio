@@ -141,6 +141,7 @@ import {
   nextSketchName,
   originAxis,
   planeOutline,
+  rolledBack,
   selectionDimensions,
   selectionItems,
   sketchView,
@@ -156,6 +157,18 @@ const TOPOLOGY_EXPANSION_INTERVAL_MS = 150;
 // --- zoom to selection -------------------------------------------------------
 // What a selection occupies NOW: the boxes of its references, from the selector runtime as
 // posed, merged with the boxes of its parts, from the records on screen (explosion included).
+/**
+ * The store URL of a rollback bar's tree, from the part's own (`/__cad/store?file=<tree>`, which a
+ * tunneled host writes absolute): the same route, naming the bar's tree, with no document of its own.
+ */
+function rollbackStoreUrl(url, tree) {
+  const absolute = /^[a-z][a-z\d+.-]*:\/\//i.test(url);
+  const parsed = new URL(url, "http://viewer.invalid");
+  parsed.searchParams.set("file", tree);
+  parsed.searchParams.delete("documentHash");
+  return absolute ? parsed.toString() : `${parsed.pathname}${parsed.search}`;
+}
+
 function pointBounds(center) {
   if (!Array.isArray(center) && !ArrayBuffer.isView(center)) return null;
   const point = [toNumber(center[0]), toNumber(center[1]), toNumber(center[2])];
@@ -305,6 +318,10 @@ function StepSurfaceBody({ view, data }) {
   const resolvedScene = useMemo(() => sceneForRenderProfile(viewUpdate.scene,
     previewing ? VIEWER_RENDER_PROFILE.PREVIEW : VIEWER_RENDER_PROFILE.TOOLS), [viewUpdate.scene, previewing]);
   const [stepUpdateInProgress, setStepUpdateInProgress] = useState(false);
+  // Edit mode's rollback bar: the body above a feature, as a tree of the store the server published
+  // ({ tree, kind }), drawn and picked in place of the part's while the bar is up. Set below, once
+  // edit mode has read the part; the entry is swapped as the same file's next revision is.
+  const [rollbackTree, setRollbackTree] = useState(null);
   // The viewport's own alert, kept HERE: this renderer folds it into an alert of its own
   // (`viewerAlert` below) and hands the shell the composed result.
   const [viewerRuntimeAlert, setViewerRuntimeAlert] = useState(null);
@@ -378,7 +395,7 @@ function StepSurfaceBody({ view, data }) {
   const referencePath = view.file.path;
   // While the artifact is missing/stale/building/broken, hide the (possibly stale) render assets so
   // the viewer shows a loading or error state and renders only the fresh artifact once ready.
-  const selectedEntry = useMemo(
+  const viewedEntry = useMemo(
     () => {
       const base = !liveEntry || selectedArtifact.status === "compiled" || entryHasMesh(liveEntry)
         ? liveEntry
@@ -390,6 +407,12 @@ function StepSurfaceBody({ view, data }) {
     },
     [liveEntry, selectedArtifact.status, referencePath]
   );
+  // While rolled back, the same file drawn from the bar's tree: its own mesh and faces and edges,
+  // none of the part's appearance, pose or motion.
+  const selectedEntry = useMemo(() => (rollbackTree && viewedEntry?.url ? {
+    ...viewedEntry, url: rollbackStoreUrl(viewedEntry.url, rollbackTree.tree), hash: rollbackTree.tree, kind: rollbackTree.kind,
+    appearanceHash: undefined, poseUrl: undefined, animationHash: undefined,
+  } : viewedEntry), [viewedEntry, rollbackTree]);
   // This renderer is only ever handed a STEP (its `matches`, index.ts), keyed per file, and an
   // entry is always present: so every capability a STEP has (parts, topology, Measure, a
   // sidecar's parameters, the Select and Draw tools) is simply on here, and nothing below asks
@@ -852,7 +875,8 @@ function StepSurfaceBody({ view, data }) {
   // measurements and the routine are not in it: every open starts those afresh.
   const scheduleRecordSave = useCallback(() => { shellRef.current?.scheduleStateSave(); }, []);
   const session = useStepView({
-    state: view.state, entry: selectedEntry,
+    // Saved under the part's own revision, never a rollback's.
+    state: view.state, entry: viewedEntry,
     tree: { expandedStepTreeNodeIds, hiddenPartIds, isolatedAssemblyNodeIds },
     parameterValues: stepModuleParameterValues, largeFileState,
     scheduleSave: scheduleRecordSave,
@@ -3117,8 +3141,14 @@ function StepSurfaceBody({ view, data }) {
   useEditShortcuts(edit, editing);
   const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
   const editTree = useMemo(() => featureTree(edit.state), [edit.state]);
-  const editDimensions = useMemo(() => (edit.status === "ready" && !edit.sketch ? selectionDimensions(edit.state, editTree, edit.selected) : EMPTY_LIST),
-    [edit.status, edit.state, editTree, edit.selected, edit.sketch]);
+  // The rollback bar's body in place of the part's, while edit mode has the bar up.
+  const barTree = editing && edit.bar?.tree ? edit.bar.tree : null;
+  const barKind = edit.bar?.kind === "assembly" ? "assembly" : "part";
+  useEffect(() => { setRollbackTree(barTree ? { tree: barTree, kind: barKind } : null); }, [barTree, barKind]);
+  // A feature below the bar is not on the model: its dimensions are not drawn.
+  const editDimensions = useMemo(() => (edit.status === "ready" && !edit.sketch && !rolledBack(editTree, edit.bar).has(edit.selected)
+    ? selectionDimensions(edit.state, editTree, edit.selected) : EMPTY_LIST),
+  [edit.status, edit.state, editTree, edit.selected, edit.sketch, edit.bar]);
   // A plane or the origin the design tree selects, or has under its pointer, drawn on the model;
   // all three while the Sketch command waits for one.
   const editPlanes = useMemo(() => (edit.sketch ? [] : [...(edit.picking ? ORIGIN_PLANES.map(plane => [`plane:${plane}`, false]) : []),
@@ -3173,6 +3203,18 @@ function StepSurfaceBody({ view, data }) {
   const shownSketches = useMemo(() => (edit.sketch ? EMPTY_LIST : (edit.state?.sketches || EMPTY_LIST).filter(view => view.state
     && (view.consumed === null || (selectedTreeSketch && view.file === selectedTreeSketch.file && view.line === selectedTreeSketch.line)))),
   [edit.sketch, edit.state?.sketches, selectedTreeSketch]);
+  // Edit Feature on a fillet, a chamfer, a shell or a hole rolls the part back to just before it:
+  // Select is in hand, turned to what the feature picks, so others can be picked on that body.
+  const repickKey = edit.editing?.rolled ? edit.editing.id : "";
+  useEffect(() => {
+    const picks = repickKey ? editCommand(edit.editing.command)?.picks : null;
+    if (!picks) return;
+    clearAssemblySelection();
+    changeSelectMode(picks);
+    if (!isAssemblyView) loadInspectionTopology();
+    handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [repickKey]);
   // A sketch opened: what was selected on the model is let go, as the sketch takes the presses.
   const sketchKey = edit.sketch ? `${edit.sketch.file}:${edit.sketch.line}` : "";
   useEffect(() => { if (sketchKey) clearAssemblySelection(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [sketchKey]);
@@ -3315,8 +3357,9 @@ function StepSurfaceBody({ view, data }) {
   // ---- copying the selection ----------------------------------------------------------------
   // The Reference panel's Copy (Copy All) and the copy key, under Select, while the selection's
   // references can be read; Quick Edit attaches them only then, too.
+  // Not while rolled back: the faces and edges picked are the rolled-back body's, not the file's.
   const selectionActionVisible = selectionToolActive && selectionCount > 0 && !stepUpdateInProgress && !referenceSelectionPending
-    && !referenceSelectionUnavailable && !topologySelectionDeferred;
+    && !referenceSelectionUnavailable && !topologySelectionDeferred && !rollbackTree;
   const copySelection = selectionActionVisible ? copySelectedReferences : null;
   const selectionCopy = useMemo(() => copySelection ? { label: copyButtonLabel, shortcut: shell.frame.copyShortcut, onCopy: copySelection } : null,
     [copySelection, copyButtonLabel, shell.frame.copyShortcut]);

@@ -291,6 +291,14 @@ export interface CadEditChangeRequest {
   remove?: { feature: string; title?: string };
   /** Suppress (`on`) or Unsuppress on a feature of the design tree (`cadgen/edit/deleting.py`). */
   suppress?: { feature: string; title?: string; on: boolean };
+  /** Where the rollback bar is for this change (alone, the change only moves it), and where it goes once made. */
+  bar?: CadEditBar | null;
+  bar_after?: CadEditBar | null;
+}
+
+/** The rollback bar: above the tree item whose first line is `before` (`<file>:<line>`). */
+export interface CadEditBar {
+  before: string;
 }
 
 export interface CadClient extends CadWorkspaceService {
@@ -302,7 +310,7 @@ export interface CadClient extends CadWorkspaceService {
    * Edit mode: the part script behind `file` (the script beside a STEP) read as a design. `files`
    * is the hashes the page read last; when none changed the answer is `{ ok: true, unchanged: true }`.
    */
-  editState(file: string, files?: Record<string, string> | null, options?: CadRequestOptions & { probe?: boolean }): Promise<CadEditState>;
+  editState(file: string, files?: Record<string, string> | null, options?: CadRequestOptions & { probe?: boolean; bar?: CadEditBar | null }): Promise<CadEditState>;
   /** Edit mode: one number of the part's source changed, then the parts that use it built again. */
   editChange(change: CadEditChangeRequest, options?: CadRequestOptions): Promise<CadEditState>;
 }

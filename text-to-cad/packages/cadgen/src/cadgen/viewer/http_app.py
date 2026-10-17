@@ -810,7 +810,7 @@ class CadApp:
                 # Whether the file has a part script to edit, answered without running it.
                 result = service.editable(str(payload.get("file") or ""))
             elif pathname.endswith("/state"):
-                result = service.state(str(payload.get("file") or ""), payload.get("files"))
+                result = service.state(str(payload.get("file") or ""), payload.get("files"), payload.get("bar"))
             else:
                 result = service.change(payload)
         except Exception as error:  # noqa: BLE001

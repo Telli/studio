@@ -474,5 +474,50 @@ class Suppressing(Commands):
                          [("Boss-Extrude", False), ("Hole", True), ("Shell", False)])
 
 
+
+class RollingBack(Commands):
+    """The rollback bar, and Edit Feature picking a feature's edges again on the body before it."""
+
+    def test_the_bar_shows_the_body_above_a_feature_and_a_command_goes_there(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2", "depth": "3"})
+        self.assertTrue(made["ok"], made.get("error"))
+        hole = next(feature for feature in made["features"] if feature["kind"] == "Hole")
+        bar = {"before": f"block.py:{hole['line']}"}
+        rolled = self.service.change({"file": file, "files": made["files"], "bar": bar})
+        self.assertTrue(rolled["ok"], rolled.get("error"))
+        self.assertEqual((rolled["bar"]["before"], rolled["bar"]["item"], rolled["bar"]["name"], rolled["bar"]["kind"]),
+                         (bar["before"], hole["key"], "part", "part"))
+        # The body there, as the store's tree the viewer draws: the block before its hole.
+        from cadgen.store.lazy import materialize_model
+
+        self.assertAlmostEqual(materialize_model(rolled["bar"]["tree"], label="block").volume, 20 * 10 * 4, places=3)
+        filleted = self.service.change({"file": file, "files": rolled["files"], "bar": rolled["bar"], "command": {
+            "command": "fillet", "selection": BLOCK_TOP_EDGES, "inputs": {"radius": "1"}}})
+        self.assertTrue(filleted["ok"], filleted.get("error"))
+        lines = (root / "block.py").read_text(encoding="utf-8").splitlines()
+        at = next(index for index, line in enumerate(lines) if "fillet(" in line)
+        self.assertIn("Cylinder(", lines[at + 1])
+        self.assertEqual([feature["kind"] for feature in filleted["features"]], ["Boss-Extrude", "Fillet", "Hole"])
+        # The bar stays above the hole, which moved down a line.
+        self.assertEqual(filleted["bar"]["before"], f"block.py:{hole['line'] + 1}")
+        forward = self.service.change({"file": file, "files": filleted["files"], "bar": None})
+        self.assertIsNone(forward["bar"])
+
+    def test_edit_feature_picks_a_fillets_edges_again_on_the_body_before_it(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        fillet = next(feature for feature in state["features"] if feature["kind"] == "Fillet")
+        # The box's four top edges, as the viewer reads them on the body before the fillet.
+        top = [edge("e1", (0, -10, 5), 40), edge("e2", (0, 10, 5), 40), edge("e3", (-20, 0, 5), 20), edge("e4", (20, 0, 5), 20)]
+        edited = self.service.change({"file": file, "files": state["files"], "bar": {"before": "tray.py:8"}, "bar_after": None, "command": {
+            "command": "fillet", "selection": top, "inputs": {"radius": "2"}, "replace": {"row": fillet["key"]}}})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        line = (root / "tray.py").read_text(encoding="utf-8").splitlines()[7]
+        self.assertTrue(line.startswith("    outer = fillet(outer.") and line.endswith(", radius=2)"), line)
+        self.assertNotIn("filter_by(Axis.Z)", line)
+        self.assertIsNone(edited["bar"])
+        self.assertEqual(next(f for f in edited["features"] if f["kind"] == "Fillet")["edit"]["keeps"], "4 edges")
+
+
 if __name__ == "__main__":
     unittest.main()

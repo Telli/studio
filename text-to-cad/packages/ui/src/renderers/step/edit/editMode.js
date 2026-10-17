@@ -124,6 +124,22 @@ export function nextSketchName(tree) {
   return `Sketch${Math.max(0, ...numbers) + 1}`;
 }
 
+/**
+ * Where the rollback bar sits in a part's tree, as SolidWorks' FeatureManager draws it: the index
+ * of the item it is above (`bar.item`), or past the last one when the part is not rolled back.
+ */
+export function barIndex(tree, bar) {
+  const features = tree?.assembly ? [] : tree?.features || [];
+  const index = bar?.item ? features.findIndex(feature => feature.id === bar.item) : -1;
+  return index < 0 ? features.length : index;
+}
+
+/** The items a rollback bar leaves out of the part: those below it, greyed as SolidWorks greys them. */
+export const rolledBack = (tree, bar) => new Set((tree?.assembly ? [] : tree?.features || []).slice(barIndex(tree, bar)).map(feature => feature.id));
+
+/** The commands Edit Feature rolls back for, so their edges or faces are picked again on the body before them. */
+export const REPICKS = Object.freeze(new Set(["fillet", "chamfer", "shell", "hole"]));
+
 /** Every feature of a tree, an assembly's parts' too, in order. */
 export const treeFeatures = tree => (tree?.assembly ? tree.components.flatMap(component => component.features) : tree?.features || []);
 
@@ -312,9 +328,10 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       break;
     default: break;
   }
-  if (editing) return { command: id, selection: [], inputs, ...replace };
   const picks = editCommand(id)?.picks;
   const selection = picks === "edges" ? items : picks === "faces" ? items.filter(item => /f\d+$/.test(item.selector)) : [];
+  // Edit Feature keeps what the feature acts on, unless edges or faces were picked again.
+  if (editing) return { command: id, selection: REPICKS.has(id) ? selection : [], inputs, ...replace };
   return { command: id, selection, inputs, ...(feature?.row && (id === "mirror" || id === "pattern") ? { feature } : {}) };
 }
 
@@ -334,8 +351,9 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
     if (making === "revolve" && !values.axis) return `Draw a centerline in ${sketch.title} to revolve about.`;
     return "";
   }
-  if (editing) return "";
   const faces = items.filter(item => /f\d+$/.test(item.selector));
+  // Edit Feature keeps what the feature acts on: it waits only on a hole picked onto two faces.
+  if (editing) return id === "hole" && faces.length > 1 ? "Select one face." : "";
   if (id === "fillet" || id === "chamfer") return items.length ? "" : "Select edges on the model.";
   if (id === "hole") return faces.length === 1 ? "" : faces.length ? "Select one face." : "Select a flat face on the model.";
   if (id === "shell") return faces.length ? "" : "Select the faces to open.";

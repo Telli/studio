@@ -1565,7 +1565,13 @@ def _solve(expr, leaf, target):
     raise RuntimeError("That value cannot be reached by changing this number.")
 
 
+# What a change request may change; one with none of them only moves the rollback bar.
+_CHANGES = ("command", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
+
+
 def edit(request):
+    if not any(key in request for key in _CHANGES):
+        return trace(request)
     if isinstance(request.get("command"), dict):
         return command(request)
     if isinstance(request.get("splice"), dict):
@@ -1694,9 +1700,11 @@ def command(request):
                 spec["sketch"]["axis_code"] = names.curve(str(drawn["axis"]))
         except (_sketch_api.SketchError, sketching.SketchEditError) as error:
             return {"ok": False, "error": str(error)}
+    bar = _bar_place(request.get("bar"))
     try:
         plan = commands.plan(spec, steps=state["steps"], shape=state["shape"], level=state["level"],
-                             units=state["units"], literals=LITERALS, root=ROOT, parse=parse_number)
+                             units=state["units"], literals=LITERALS, root=ROOT, parse=parse_number,
+                             bar=bar[1] if bar and not spec.get("replace") else None)
     except commands.CommandError as error:
         return {"ok": False, "error": str(error)}
     scale = state["shape"].bounding_box().diagonal or 1.0
@@ -2069,6 +2077,11 @@ def _sketch_new(request, op):
         return {"ok": False, "error": "This part's script makes no body to sketch on yet. Ask the agent to start it."}
     try:
         body = commands.find_body(state["steps"], shape, state["level"], ROOT)
+        bar = _bar_place(request.get("bar"))
+        bar = bar[1] if bar and bar[0] == body.rel else None
+        if bar is not None:
+            # Rolled back: the sketch goes right above the bar, on the body as it is there.
+            shape, at_bar = commands.body_at(state["steps"], shape, state["level"], ROOT, body.rel, bar)
     except commands.CommandError as error:
         return {"ok": False, "error": str(error)}
     name, var = sketching.sketch_names(body.tree, str(op.get("name") or ""))
@@ -2076,13 +2089,13 @@ def _sketch_new(request, op):
     names = commands.Names(module if module is not None else "bd")
     edits = commands.Edits(body.text)
     plane = op.get("plane")
-    body_var, returned = body.name, []
+    body_var, returned = (at_bar.name if bar is not None else body.name), []
     if plane in ("Top", "Front", "Right"):
         plane_code = f'"{plane}"'
     elif isinstance(plane, dict) and plane.get("selector"):
         # A flat face of the body, said as build123d's selectors say where it is; a body returned
         # outright is named first (`part = ...`, then `return part`) so the face can be.
-        if body_var is None:
+        if body_var is None and bar is None:
             body_var = commands.fresh_name(body.tree, "part")
             value = body.statement.value
             if value is None or value.lineno != body.statement.lineno:
@@ -2107,7 +2120,9 @@ def _sketch_new(request, op):
     # Before the line that returns the part, or after the body's line when it is that line.
     function = body.function
     last = function.body[-1]
-    if returned:
+    if bar is not None:
+        at = bar - 1
+    elif returned:
         at = body.statement.end_lineno
     elif isinstance(last, ast.Return):
         at = last.lineno - 1
@@ -2303,11 +2318,106 @@ def sketch_edit(request):
 # ---------------------------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------------------------
+# The rollback bar, as SolidWorks' FeatureManager has it: the part shown as it was above a feature
+# of the tree, the features below it not made yet. A request names where it is (``bar``:
+# ``{"before": "<file>:<line>"}``, the first line of the statement it sits above, as a reply said
+# it; or ``{"item": <key>}``, the tree item it goes above), and the reply says where it is now
+# (``bar``, or None once rolled forward): lines a change puts in or takes out above it move it with
+# them. Commands act on the body there, and write their line at it.
+
+
+def _bar_place(spec, features=None):
+    """``(file, line)`` of a request's bar, or None. A tree item is found among ``features``."""
+    if not isinstance(spec, dict):
+        return None
+    if spec.get("item") and features is not None:
+        feature = next((each for each in features if each.get("key") == spec["item"]), None)
+        rel = str((feature or {}).get("file") or "")
+        try:
+            return (rel, _statement_line(ast.parse(_read(ROOT / rel)), _first_line(feature, rel))) if rel else None
+        except (OSError, SyntaxError, UnicodeDecodeError):
+            return None
+    rel, _, line = str(spec.get("before") or "").rpartition(":")
+    return (rel, int(line)) if rel and line.isdigit() else None
+
+
+def _statement_line(tree, line):
+    """The first line of the statement of a function's own body that holds ``line``: a loop's line
+    for a line inside it. A suppressed feature's first line is its own (`deleting.py`)."""
+    functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                 and node.lineno <= line <= node.end_lineno]
+    function = max(functions, key=lambda node: node.lineno, default=None)
+    statement = next((each for each in function.body if each.lineno <= line <= each.end_lineno), None) if function else None
+    return statement.lineno if statement is not None else line
+
+
+def _first_line(feature, rel):
+    lines = [int(row.rpartition(":")[2]) for row in feature.get("rows") or [] if row.rpartition(":")[0] == rel]
+    return min(lines) if lines else int(feature.get("line") or 0)
+
+
+def _bar(script, rel, line, reply):
+    """The rollback bar at ``line`` of ``rel``: the tree item it sits above, the body there as a
+    tree of cadgen's store the viewer draws in place of the part's (`_bar_tree`), and the name that
+    holds it. None when that line no longer starts a tree item (the agent changed the file)."""
+    from cadgen.edit import commands
+
+    state = STATE.get(str(script))
+    if state is None or reply.get("components") or not isinstance(state["shape"], B.Shape):
+        return None
+    try:
+        tree = ast.parse(_read(ROOT / rel))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return None
+    item = next((feature for feature in reply.get("features") or [] if feature.get("file") == rel
+                 and _statement_line(tree, _first_line(feature, rel)) == line), None)
+    if item is None:
+        return None
+    where = {"before": f"{rel}:{line}", "item": item["key"]}
+    try:
+        shape, body = commands.body_at(state["steps"], state["shape"], state["level"], ROOT, rel, line)
+    except commands.CommandError as error:
+        return {**where, "step": None, "error": str(error)}
+    return {**where, **_bar_tree(script, shape), "name": body.name}
+
+
+def _bar_tree(script, shape):
+    """The body at a bar published to cadgen's store as the tree of a part, as a built model's is,
+    so the viewer draws it, and picks its faces and edges, as it does the part's own. The store is
+    addressed by content: a bar that did not move answers with the same tree."""
+    from cadgen.store.build import build_tree_from_compound
+
+    tree, built, _ = build_tree_from_compound(shape, root_name=Path(script).stem)
+    return {"tree": tree, "kind": "assembly" if built.get("entryKind") == "assembly" else "part"}
+
+
+def _with_bar(request, reply):
+    """``reply`` with the bar the part is at after ``request``: ``bar_after`` when the request says
+    where it goes once made (Edit Feature's own rollback ends with it), else ``bar``, moved with
+    the lines the change put in or took out above it."""
+    if ("bar" not in request and "bar_after" not in request) or not reply.get("ok") or reply.get("choose"):
+        return reply
+    where = _bar_place(request.get("bar_after") if "bar_after" in request else request.get("bar"), reply.get("features"))
+    if where is None:
+        reply["bar"] = None
+        return reply
+    from cadgen.edit import commands
+
+    rel, line = where
+    applied = request["splice"] if isinstance(request.get("splice"), dict) else (reply.get("change") or {}).get("redo") or {}
+    if applied.get("file") == rel:
+        line = commands.shifted(line, applied.get("hunks") or [])
+    # A sketch solved on its own leaves the body as it was: only where the bar is moves.
+    reply["bar"] = {"before": f"{rel}:{line}"} if reply.get("sketchOnly") else _bar(Path(request["script"]).resolve(), rel, line, reply)
+    return reply
+
+
 def handle(request):
     try:
         if request.get("op") == "edit":
-            return edit(request)
-        return trace(request)
+            return _with_bar(request, edit(request))
+        return _with_bar(request, trace(request))
     except Exception as error:
         return {"ok": False, "error": str(error), "detail": traceback.format_exc(limit=4)}
 

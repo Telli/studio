@@ -9,8 +9,10 @@ import {
   deleteNote,
   deleteRefusal,
   emptyHistory,
+  editCommand,
   featureNames,
   featureTree,
+  REPICKS,
   recordChange,
   redoStep,
   suppressNote,
@@ -62,8 +64,16 @@ export function useEditMode({ client, file, active }) {
   const [history, setHistory] = useState(emptyHistory);
   const [command, setCommand] = useState(null);
   // Edit Feature: the feature whose command's panel is open, filled with its values (its id, title,
-  // command, values, what it keeps, and the sketch it is made from).
+  // command, values, what it keeps, and the sketch it is made from), and the rollback bar it puts
+  // back when it closes, having rolled back to the feature for its edges or faces to be picked again.
   const [editing, setEditing] = useState(null);
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+  // The rollback bar, as the server last said it: above the tree item `item` (the line `before`),
+  // with the body there as a STEP file (`step`) the view shows in place of the part's.
+  const [bar, setBar] = useState(null);
+  const barRef = useRef(bar);
+  barRef.current = bar;
   // Sketch mode: the sketch being edited, the tool in hand (none: select and drag), what is
   // selected in it, whether new strokes are construction geometry, and the Sketch command waiting
   // for a plane or a face to sketch on.
@@ -90,6 +100,7 @@ export function useEditMode({ client, file, active }) {
   useEffect(() => {
     files.current = null;
     setState(null); setError(""); setChoice(null); setSelected(null); setHistory(emptyHistory()); setCommand(null); setEditing(null);
+    setBar(null);
     setSketch(null); setSketchTool(null); setSketchSelection([]); setPicking(false);
     probed.current = "";
     setStatus(supported && file ? "probing" : "none");
@@ -107,13 +118,16 @@ export function useEditMode({ client, file, active }) {
       return;
     }
     if (reply.sketchOnly) {
-      // A sketch solved on its own: the part is as it was, its file's hash moved on.
+      // A sketch solved on its own: the part is as it was, its file's hash moved on, and only
+      // where the rollback bar is (its lines may have moved it).
       files.current = { ...(files.current || {}), ...(reply.files || {}) };
       setState(current => (current ? { ...current, building: reply.building } : current));
+      if ("bar" in reply) setBar(current => (current && reply.bar ? { ...current, ...reply.bar } : reply.bar));
       return;
     }
     files.current = reply.files || null;
     setState(reply);
+    if ("bar" in reply) setBar(reply.bar);
     setStatus("ready");
     setError("");
     // As a CAD tool opens a part: nothing selected until the person picks a feature. A selection
@@ -149,7 +163,9 @@ export function useEditMode({ client, file, active }) {
       }
       if (stopped) return;
       if (typeof document === "undefined" || !document.hidden) {
-        try { take(await client.editState(file, files.current)); }
+        // While the bar is up, the server says it again with the part, in case the file moved it.
+        const bar = barRef.current ? [{ bar: { before: barRef.current.before } }] : [];
+        try { take(await client.editState(file, files.current, ...bar)); }
         catch (failure) { if (!stopped) { setError(describe(failure)); setStatus(current => (current === "ready" ? current : "error")); } }
       }
       if (!stopped) timer = setTimeout(ask, POLL_MS);
@@ -179,7 +195,9 @@ export function useEditMode({ client, file, active }) {
     setSaving(true);
     setChoice(null);
     try {
-      const reply = await client.editChange({ ...request, file, files: files.current || undefined });
+      // Every change is made where the rollback bar is, unless the request says where.
+      const placed = "bar" in request || !barRef.current ? request : { ...request, bar: { before: barRef.current.before } };
+      const reply = await client.editChange({ ...placed, file, files: files.current || undefined });
       if (reply.choose) { setChoice({ request, options: reply.choose }); return reply; }
       if (!reply.ok) { setError(reply.error || "The change could not be made."); return reply; }
       setError("");
@@ -201,7 +219,10 @@ export function useEditMode({ client, file, active }) {
   const change = useCallback(request => send(request), [send]);
   // A command's OK: its line written after the body, the new feature selected and its panel shut.
   const run = useCallback(async request => {
-    const reply = await send({ command: request }, { record: false,
+    // Edit Feature rolled back to the feature: its line written there, then the bar put back.
+    const rolled = editingRef.current?.rolled;
+    const placed = rolled ? { bar: barRef.current ? { before: barRef.current.before } : null, bar_after: editingRef.current.previousBar } : {};
+    const reply = await send({ command: request, ...placed }, { record: false,
       note: answer => commandNote(answer.change, titleOf(answer, answer.change.row)) });
     if (reply?.ok && reply.change) {
       const title = titleOf(reply, reply.change.row);
@@ -221,9 +242,34 @@ export function useEditMode({ client, file, active }) {
     if (!feature?.edit) return;
     setError(""); setPicking(false);
     setSelected(feature.id);
-    setEditing({ ...feature.edit, id: feature.id, title: feature.title, sketch: feature.sketch });
+    // A fillet's edges, a shell's or a hole's faces, are picked again on the body before the
+    // feature, as SolidWorks rolls back to a feature it edits.
+    const rolled = REPICKS.has(feature.edit.command) && Boolean(editCommand(feature.edit.command)?.picks);
+    const previousBar = barRef.current ? { before: barRef.current.before } : null;
+    setEditing({ ...feature.edit, id: feature.id, title: feature.title, sketch: feature.sketch, rolled, previousBar });
     setCommand(feature.edit.command);
-  }, []);
+    if (rolled) void send({ bar: { item: feature.id } }, { record: false, note: null });
+  }, [send]);
+
+  /**
+   * Rollback, as SolidWorks' rollback bar: the part shown as it was above a tree item (`item`, its
+   * id), its features below it left out, until it is rolled to the end (null). Commands then act
+   * on the body there and write their line at the bar.
+   */
+  const rollTo = useCallback(async item => {
+    if (!item) { setBar(null); return null; }
+    return send({ bar: { item } }, { record: false, note: null });
+  }, [send]);
+
+  // Edit Feature's panel shut (Cancel, or another command opened): its own rollback ends, and the
+  // bar goes back where it was.
+  const endEditing = useCallback(() => {
+    const current = editingRef.current;
+    setEditing(null);
+    if (!current?.rolled) return;
+    if (current.previousBar) void send({ bar: current.previousBar }, { record: false, note: null });
+    else setBar(null);
+  }, [send]);
   const step = useCallback(async (next, redo) => {
     const move = next(historyRef.current);
     if (!move) return;
@@ -371,12 +417,12 @@ export function useEditMode({ client, file, active }) {
   }, [send]);
 
   return {
-    status, state, error, choice, saving, selected, hovered, command, editing,
+    status, state, error, choice, saving, selected, hovered, command, editing, bar,
     select: setSelected,
     hover: setHovered,
-    change, undo, redo, run, remove, suppress, editFeature,
-    open: id => { setError(""); setPicking(false); setEditing(null); setCommand(id); },
-    close: () => { setCommand(null); setEditing(null); },
+    change, undo, redo, run, remove, suppress, editFeature, rollTo,
+    open: id => { setError(""); setPicking(false); endEditing(); setCommand(id); },
+    close: () => { setCommand(null); endEditing(); },
     // In sketch mode, Undo takes back the session's own changes only.
     canUndo: (sketch ? changesSince(history, sketch.before) : history.done.length) > 0 && !saving,
     canRedo: history.undone.length > 0 && !saving,
@@ -391,7 +437,7 @@ export function useEditMode({ client, file, active }) {
     setSketchStep,
     selectInSketch: setSketchSelection,
     setConstruction,
-    startPicking: () => { setError(""); setCommand(null); setEditing(null); setPicking(true); },
+    startPicking: () => { setError(""); setCommand(null); endEditing(); setPicking(true); },
     stopPicking: () => setPicking(false),
     lookNormalTo: () => setNormalTo(tick => tick + 1),
     startSketch, openSketch, sketchOp, exitSketch, cancelSketch,

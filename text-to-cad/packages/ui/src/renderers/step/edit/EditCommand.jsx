@@ -16,6 +16,7 @@ import {
   editCommand,
   editingValues,
   faceOffsetAxes,
+  REPICKS,
   revolveAxes,
   sameValues,
   selectionItems,
@@ -77,7 +78,9 @@ function KeptList({ text, hint }) {
  * inputs in the part's units, and OK and Cancel at its foot. OK writes the command's line into
  * the part's script (`cadgen/edit`) and the new feature is selected in the history below; Cancel,
  * or Escape, leaves the script as it was. Reopened by Edit Feature (`edit.editing`), it opens with
- * the feature's values and keeps what the feature acts on, and its OK writes the feature's line again.
+ * the feature's values and keeps what the feature acts on (a fillet's edges, a hole's face), unless
+ * others are picked on the body as it was before it, which the view shows while the panel is open;
+ * its OK writes the feature's line again.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
  *   names: ReturnType<typeof import("./editMode.js").featureNames>, references: object[] }} props
@@ -115,19 +118,21 @@ export default function EditCommand({ edit, names, references, tree = null }) {
   const listed = command.picks === "edges" ? items : faces;
   const blocked = commandBlocked(command.id, items, sketch, values, editing);
   const feature = !editing && !wholeBody && featureIndex > 0 ? { row: rows[featureIndex].key, name: names[featureIndex]?.title || "" } : null;
+  // Edges or faces picked while a feature is reopened replace its own.
+  const repicked = Boolean(editing) && REPICKS.has(command.id) && listed.length > 0;
   const ok = () => {
     if (blocked || disabled) return;
     // A reopened feature left as it was: nothing to write.
-    if (editing && sameValues(values, opened)) { edit.close(); return; }
+    if (editing && !repicked && sameValues(values, opened)) { edit.close(); return; }
     void edit.run(commandRequest(command.id, values, items, feature, sketch, editing));
   };
   const copies = command.id === "mirror" || command.id === "pattern";
-  const offsets = command.id !== "hole" ? []
-    : editing ? editing.axes || [] : faceOffsetAxes(references.find(reference => reference?.selectorType === "face")?.pickData?.normal);
+  const pickedFace = references.find(reference => reference?.selectorType === "face")?.pickData?.normal;
+  const offsets = command.id !== "hole" ? [] : editing && !repicked ? editing.axes || [] : faceOffsetAxes(pickedFace);
   const title = editing ? editing.title : command.label;
-  // What a reopened feature acts on stays as it is: picking others is a new feature.
-  const keptHint = editing ? command.id === "hole" ? `To put it on another face, delete ${editing.title} and add it again.`
-    : `To pick other ${command.picks === "edges" ? "edges" : "faces"}, delete ${editing.title} and add it again.` : "";
+  // What a reopened feature acts on stays as it is until others are picked, on the body before it.
+  const keptHint = command.id === "hole" ? "Select a flat face on the model to move it there."
+    : `Select ${command.picks === "edges" ? "edges" : "faces"} on the model to pick others.`;
 
   return <div role="dialog" aria-label={title} data-cad-edit-command={command.id} className="flex shrink-0 flex-col border-b border-border"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.close(); } }}>
@@ -137,7 +142,7 @@ export default function EditCommand({ edit, names, references, tree = null }) {
     </div>
     {command.picks && !(editing && command.id === "mirror") ? <FileSheetSettingsSection
       title={command.picks === "edges" ? "Edges" : command.id === "mirror" ? "Mirror face" : "Faces"} sectionId="edit-command-selection">
-      {editing ? <KeptList text={editing.keeps} hint={keptHint} /> : <SelectionList items={listed} prompt={command.prompt} />}
+      {editing && !repicked ? <KeptList text={editing.keeps} hint={keptHint} /> : <SelectionList items={listed} prompt={command.prompt} />}
     </FileSheetSettingsSection> : null}
     {command.sketch ? <FileSheetSettingsSection title="Sketch" sectionId="edit-command-sketch">
       {sketch ? <ul aria-label="Sketch" className="mx-2 mb-1 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">

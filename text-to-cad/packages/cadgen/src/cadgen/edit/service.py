@@ -40,8 +40,11 @@ _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M
 # writes a feature's line after the part's body (`commands.py`); a `splice` puts lines back or
 # writes them again (a command's Undo and Redo). A `sketch` change is sketch mode's
 # (`sketching.py`): its strokes are not built, as a CAD tool rebuilds when the sketch is left. A
-# `remove` deletes a feature of the design tree (`deleting.py`).
-_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice", "sketch", "remove", "suppress")
+# `remove` deletes a feature of the design tree (`deleting.py`), and `suppress` sets one aside. `bar`
+# is where the rollback bar is (the part shown as it was above a feature; a change with nothing else
+# only moves it), and `bar_after` where it goes once the change is made.
+_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice", "sketch", "remove", "suppress",
+                "bar", "bar_after")
 
 
 def _no_window() -> dict:
@@ -272,16 +275,17 @@ class EditService:
         that cannot be edited never changes its layout for edit mode while the part is read."""
         return {"ok": True, "editable": script_for(file_ref) is not None}
 
-    def state(self, file_ref: str, files: dict | None = None) -> dict:
+    def state(self, file_ref: str, files: dict | None = None, bar: dict | None = None) -> dict:
         """The part as a design: its history, named sizes and dimensions. ``files`` is the hashes a
-        page read last; when none of them changed, the answer says so and the part is not run."""
+        page read last; when none of them changed, the answer says so and the part is not run.
+        ``bar``: where the page has the rollback bar, said again as the part now reads."""
         script = script_for(file_ref)
         if script is None:
             return {"ok": False, "reason": "no-script", "error": "This model has no part script beside it."}
         root = project_root(script)
         if isinstance(files, dict) and files and all(_hash_inside(root, rel) == digest for rel, digest in files.items()):
             return {"ok": True, "unchanged": True, "building": self.building()}
-        reply = self._tracer.ask({"script": str(script), "root": str(root), "mesh": False})
+        reply = self._tracer.ask({"script": str(script), "root": str(root), "mesh": False, **({"bar": bar} if bar else {})})
         return {**reply, "root": str(root), "building": self.building()}
 
     def change(self, payload: dict) -> dict:

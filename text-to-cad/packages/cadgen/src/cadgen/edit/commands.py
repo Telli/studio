@@ -535,6 +535,47 @@ def find_body(steps: list[dict], shape, level: int, root: Path) -> Body:
                 indent=source[: len(source) - len(source.lstrip())])
 
 
+def _solid(shape) -> bool:
+    try:
+        return isinstance(shape, B.Shape) and len(shape.solids()) > 0
+    except Exception:  # noqa: BLE001 - a shape that cannot list its solids is no body
+        return False
+
+
+def body_at(steps: list[dict], shape, level: int, root: Path, rel: str, line: int):
+    """The part's body as it is just before the top-level statement at ``line`` of ``rel`` runs, as
+    a rollback bar there shows it: the shape the last operation on the body above that line made,
+    and where it is made (``Body``). The body is the final shape's lineage: the operations whose
+    result carries its origin, or the origin of a body it was made from (a shell's, a mirror's)."""
+    origins: set[int] = set()
+    origin = getattr(shape, "_studio_origin", None)
+    while isinstance(origin, int) and origin not in origins and 0 <= origin < len(steps):
+        origins.add(origin)
+        origin = steps[origin].get("from")
+    found = None
+    for step in steps:
+        frames = step.get("frames")
+        if not frames:
+            continue
+        frame = frames[min(level, len(frames) - 1)]
+        if frame["file"] == rel and frame["line"] < line and getattr(step.get("result"), "_studio_origin", None) in origins \
+                and _solid(step["result"]):
+            found = step
+    if found is None:
+        raise CommandError("There is no body above that point yet. Move the rollback bar below the first feature.")
+    return found["result"], find_body(steps, found["result"], level, root)
+
+
+def shifted(line: int, changes: list[dict]) -> int:
+    """Where line ``line`` of a file is after ``changes`` (``hunks`` of its old text to its new)
+    were made: moved by what they took out or put in above it, a line put in right above it too."""
+    moved = line
+    for change in changes:
+        if int(change["start"]) + len(change["old"]) <= line:
+            moved += len(change["new"]) - len(change["old"])
+    return moved
+
+
 def build123d_names(tree: ast.Module) -> tuple[str | None, ast.ImportFrom | None]:
     """How a file reaches build123d: a module name (``bd``), or ``""`` for bare names, with the
     named import that bare names would be added to (None for a star import)."""
@@ -720,7 +761,7 @@ def _value(inputs: dict, key: str, label: str, parse, *, positive: bool = True, 
     return value
 
 
-def _tool(body: Body, var: str, feature: dict | None):
+def _tool(body: Body, var: str, feature: dict | None, bar: int | None = None):
     """What Mirror and Pattern copy: the tool a feature cuts or adds (``lid -= <tool>``), named
     so it can be used again, or the body itself (``var``). Returns (tool, operator, edits)."""
     if not feature or not feature.get("row"):
@@ -729,6 +770,8 @@ def _tool(body: Body, var: str, feature: dict | None):
     if file != body.rel or not line.isdigit():
         raise CommandError("Pick a feature of this part's body in the history.")
     line = int(line)
+    if bar is not None and line >= bar:
+        raise CommandError(f"{feature.get('name') or 'That feature'} is below the rollback bar. Move the bar below it first.")
     statement = _top_statement(body.function, line)
     if statement is None:
         raise CommandError("Pick a feature of this part's body in the history.")
@@ -785,11 +828,15 @@ def _feature_line(body: Body, replacing: dict, command: str, units: str, steps: 
     return statement, feature
 
 
-def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, literals: dict, root: Path, parse) -> Plan:
+def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, literals: dict, root: Path, parse,
+         bar: int | None = None) -> Plan:
     """A command (``spec``: its ``command``, the ``selection`` it acts on, its ``inputs`` as
     typed and the history ``feature`` it copies) made into the part's script. ``parse`` reads a
     typed number (plain arithmetic allowed). With ``replace`` (a feature's history row) it is Edit
-    Feature: that feature's own line written again in its place, with what it acts on kept."""
+    Feature: that feature's own line written again in its place, with what it acts on kept, or
+    picked again (a ``selection``) on the body as it was before it. ``bar``: the line of the
+    top-level statement a rollback bar sits above; the command acts on the body there and its
+    line goes right above that statement."""
     command = str(spec.get("command") or "")
     if command not in COMMANDS:
         raise CommandError(f"Edit mode has no command {command or 'by that name'}.")
@@ -799,11 +846,29 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     module, named_import = build123d_names(body.tree)
     names = Names(module if module is not None else "bd")
     edits = Edits(body.text)
+    selection = [item for item in spec.get("selection") or [] if isinstance(item, dict)]
     replacing = spec.get("replace") if isinstance(spec.get("replace"), dict) else None
     old = kept = None
+    # The body the selection is on, and the name that holds it there: the part's, unless rolled back.
+    picked_on, picked_var = shape, None
+    if bar is not None and not replacing:
+        from cadgen.edit.deleting import suppressed_span
+
+        statement = _top_statement(body.function, bar)
+        if (statement is None or statement.lineno != bar) and suppressed_span(body.lines, bar) is None:
+            raise CommandError("The rollback bar is no longer between two features. Move it again.")
     if replacing:
         old, kept = _feature_line(body, replacing, command, units, steps, level)
         var, returned = kept.target, []
+        if selection and command in ("fillet", "chamfer", "hole", "shell"):
+            # Picked again, as a CAD tool rolls back to the feature: on the body as it was before it.
+            picked_on, before = body_at(steps, shape, level, root, body.rel, old.lineno)
+            picked_var = before.name
+    elif bar is not None:
+        picked_on, before = body_at(steps, shape, level, root, body.rel, bar)
+        if before.name is None:
+            raise CommandError("Edit mode cannot tell which name holds the body there. Ask the agent to make the change.")
+        var, returned = before.name, []
     elif body.name is None:
         # `return <body>` becomes `part = <body>`, the command's line, and `return part`.
         var = fresh_name(body.tree, "part")
@@ -822,6 +887,10 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     at = body.statement.end_lineno
     while (span := suppressed_span(body.lines, at + 1)) is not None:
         at = span["last"]
+    if bar is not None and not replacing:
+        at = bar - 1
+    # Edges or faces picked again replace the feature's own; otherwise it keeps them as written.
+    fixed = None if kept is not None and selection and picked_var else kept
 
     def same(role: str, value: float, fresh: str) -> str:
         """``fresh``, unless Edit Feature left this value as it was: then the line's own code for it."""
@@ -831,9 +900,8 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                 return written
         return fresh
 
-    selection = [item for item in spec.get("selection") or [] if isinstance(item, dict)]
-    scale = shape.bounding_box().diagonal or 1.0
-    selections = Selections(shape, var, names)
+    scale = picked_on.bounding_box().diagonal or 1.0
+    selections = Selections(picked_on, picked_var or var, names)
     selected = None
     units_word = units if units in ("mm", "in") else ""
 
@@ -861,7 +929,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         return numbers, selections.write("edge", numbers)
 
     if command in ("fillet", "chamfer"):
-        numbers, edges = ([], kept.parts["edges"]) if kept else chosen_edges()
+        numbers, edges = ([], fixed.parts["edges"]) if fixed else chosen_edges()
         if command == "fillet":
             radius = _value(inputs, "radius", "Radius", parse)
             code = f"{var} = {names('fillet')}({edges}, radius={same('radius', radius, writer.length(radius))})"
@@ -870,11 +938,11 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             distance = _value(inputs, "distance", "Distance", parse)
             code = f"{var} = {names('chamfer')}({edges}, length={same('distance', distance, writer.length(distance))})"
             shown = [("Distance", distance, units_word)]
-        selected = None if kept else {"argument": "objects", "items": [selections.topology["edge"].describe(n) for n in numbers]}
-        what = kept.keeps if kept else counted(len(numbers), "edge")
+        selected = None if fixed else {"argument": "objects", "items": [selections.topology["edge"].describe(n) for n in numbers]}
+        what = fixed.keeps if fixed else counted(len(numbers), "edge")
     elif command == "hole":
-        if kept:
-            face = kept.parts["face"]
+        if fixed:
+            face = fixed.parts["face"]
         else:
             numbers, face = chosen("face", one=True)
             if selections.topology["face"].describe(numbers[0])["type"] != "plane":
@@ -883,12 +951,12 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         through = str(inputs.get("depth", "")).strip().lower() in ("", "through", "through all")
         depth = None if through else _value(inputs, "depth", "Depth", parse)
         depth_code = f"{var}.bounding_box().diagonal" if through else same("depth", depth, writer.length(depth))
-        plane = None if kept else B.Plane(selections.topology["face"].item(numbers[0]))
+        plane = None if fixed else B.Plane(selections.topology["face"].item(numbers[0]))
         offsets = {axis: 0.0 for axis in AXES}
-        for axis in (("X", "Y", "Z") if kept else offset_axes(plane.z_dir)):
+        for axis in (("X", "Y", "Z") if fixed else offset_axes(plane.z_dir)):
             if str(inputs.get(axis.lower(), "")).strip():
                 offsets[axis] = _value(inputs, axis.lower(), axis, parse, positive=False)
-        if not kept:
+        if not fixed:
             center = plane.origin + B.Vector(*(offsets[axis] * (25.4 if units == "in" else 1.0) for axis in ("X", "Y", "Z")))
             if selections.topology["face"].item(numbers[0]).distance_to(center) > 1e-4 + 1e-6 * scale:
                 raise CommandError("The hole's center is off that face. Set where it goes on the face, from the face's center.")
@@ -902,12 +970,12 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         shown = [("Diameter", diameter, units_word)] + ([("Depth", depth, units_word)] if depth is not None else [])
         what = "through all" if through else "a blind hole"
     elif command == "shell":
-        numbers, faces = ([], kept.parts["openings"]) if kept else chosen("face")
+        numbers, faces = ([], fixed.parts["openings"]) if fixed else chosen("face")
         thickness = _value(inputs, "thickness", "Thickness", parse)
         code = f"{var} = {names('offset')}({var}, amount=-{same('thickness', thickness, writer.length(thickness))}, openings={faces})"
         shown = [("Thickness", thickness, units_word)]
-        selected = None if kept else {"argument": "openings", "items": [selections.topology["face"].describe(n) for n in numbers]}
-        what = kept.keeps if kept else f"{counted(len(numbers), 'face')} open"
+        selected = None if fixed else {"argument": "openings", "items": [selections.topology["face"].describe(n) for n in numbers]}
+        what = fixed.keeps if fixed else f"{counted(len(numbers), 'face')} open"
     elif command == "mirror":
         faces = [item for item in selection if selector_ordinal(item.get("selector"))[0] == "face"]
         if faces:
@@ -923,7 +991,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                 raise CommandError("Pick the plane to mirror about.")
             else:
                 plane_code, plane_words = f"{names('Plane')}.{plane}", f"the {plane} plane"
-        tool, sign, tool_edits = (kept.parts["tool"], kept.operator, []) if kept else _tool(body, var, spec.get("feature"))
+        tool, sign, tool_edits = (kept.parts["tool"], kept.operator, []) if kept else _tool(body, var, spec.get("feature"), bar)
         for line, col, text in tool_edits:
             edits.put(line, col, text)
         code = f"{var} {sign} {names('mirror')}({tool}, about={plane_code})"
@@ -944,6 +1012,8 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             raise CommandError(str(error)) from None
         if block.function is None or block.function.lineno != body.function.lineno:
             raise CommandError("That sketch is made outside the function that makes this part's body. Ask the agent to revolve it.")
+        if bar is not None and not replacing and block.last_line >= bar:
+            raise CommandError(f"{drawn.get('name') or 'That sketch'} is below the rollback bar. Move the bar below it first.")
         axis = str(drawn.get("axis_code") or "")
         if not axis:
             raise CommandError("Pick the line to revolve about: a centerline of the sketch.")
@@ -973,6 +1043,8 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             raise CommandError(str(error)) from None
         if block.function is None or block.function.lineno != body.function.lineno:
             raise CommandError("That sketch is made outside the function that makes this part's body. Ask the agent to extrude it.")
+        if bar is not None and not replacing and block.last_line >= bar:
+            raise CommandError(f"{drawn.get('name') or 'That sketch'} is below the rollback bar. Move the bar below it first.")
         end = str(inputs.get("end") or "blind").lower()
         through = command == "cut" and end == "through"
         depth = None if through else _value(inputs, "depth", "Depth", parse)
@@ -1014,7 +1086,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             what = f"{count} along {direction}"
         else:
             raise CommandError("A pattern is linear or circular.")
-        tool, sign, tool_edits = (kept.parts["tool"], kept.operator, []) if kept else _tool(body, var, spec.get("feature"))
+        tool, sign, tool_edits = (kept.parts["tool"], kept.operator, []) if kept else _tool(body, var, spec.get("feature"), bar)
         for line, col, text in tool_edits:
             edits.put(line, col, text)
         code = f"{var} {sign} [loc * {tool} for loc in {locations}.locations[1:]]"

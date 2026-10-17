@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  barIndex,
   buildingText,
   changeNote,
   changesSince,
@@ -22,6 +23,7 @@ import {
   recordChange,
   redoStep,
   restates,
+  rolledBack,
   sameValues,
   selectionItems,
   selectionLabel,
@@ -102,6 +104,21 @@ test("a delete the server refuses names the features that use what it makes", ()
   assert.equal(deleteNote(change, { undo: true }), "In edit mode I put back Fillet1 (tray.py, line 8).");
 });
 
+test("the rollback bar greys what is below it, and sits past the last item when rolled forward", () => {
+  const tree = featureTree({ features: [
+    { key: "tray.py:7", kind: "Boss-Extrude", rows: ["tray.py:7"], file: "tray.py", line: 7, name: "outer" },
+    { key: "tray.py:8", kind: "Fillet", rows: ["tray.py:8"], file: "tray.py", line: 8, name: "outer" },
+    { key: "tray.py:9", kind: "Cut-Extrude", rows: ["tray.py:9", "tray.py:10"], file: "tray.py", line: 9, name: "cavity" },
+  ] });
+  assert.equal(barIndex(tree, null), 3);
+  assert.deepEqual([...rolledBack(tree, null)], []);
+  const bar = { before: "tray.py:8", item: "tray.py:8", step: "/cache/tray.step" };
+  assert.equal(barIndex(tree, bar), 1);
+  assert.deepEqual([...rolledBack(tree, bar)], ["tray.py:8", "tray.py:9"]);
+  // A bar whose item is gone (the agent changed the file) is past the last item.
+  assert.equal(barIndex(tree, { ...bar, item: "tray.py:40" }), 3);
+});
+
 test("a suppressed feature stays in the tree, and its note says its lines are comments", () => {
   const tree = featureTree({ features: [
     { key: "tray.py:7", kind: "Boss-Extrude", rows: ["tray.py:7"], file: "tray.py", line: 7, name: "outer" },
@@ -124,11 +141,15 @@ test("Edit Feature opens a command with the feature's values and writes its line
   assert.deepEqual(opened, { radius: ".05" });
   assert.ok(sameValues({ radius: " .05" }, opened));
   assert.ok(!sameValues({ radius: ".06" }, opened));
-  // What the feature acts on stays as it is: no selection is sent, and none is waited for.
+  // What the feature acts on stays as it is unless edges are picked again (on the body before it),
+  // so none is waited for.
   const items = selectionItems([EDGE]);
-  assert.deepEqual(commandRequest("fillet", { radius: ".06" }, items, null, null, editing),
+  assert.deepEqual(commandRequest("fillet", { radius: ".06" }, [], null, null, editing),
     { command: "fillet", selection: [], inputs: { radius: ".06" }, replace: { row: "a.py:9" } });
+  assert.deepEqual(commandRequest("fillet", { radius: ".06" }, items, null, null, editing).selection, items);
   assert.equal(commandBlocked("fillet", [], null, {}, editing), "");
+  const [face] = selectionItems([FACE]);
+  assert.equal(commandBlocked("hole", [face, { ...face, selector: "f2" }], null, {}, { ...editing, command: "hole" }), "Select one face.");
   const sketch = { file: "a.py", line: 4, title: "Sketch1", constrained: true };
   assert.deepEqual(commandRequest("extrude", { end: "mid", depth: "8", reverse: false }, [], null, sketch, { ...editing, command: "extrude" }), {
     command: "extrude", sketch: { file: "a.py", line: 4, name: "Sketch1" }, inputs: { end: "mid", depth: "8", reverse: false },
