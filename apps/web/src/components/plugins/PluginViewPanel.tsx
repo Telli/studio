@@ -22,6 +22,9 @@ export default function PluginViewPanel(props: {
   readonly draftWorkspaceRoot?: string | undefined;
   readonly onSendMessage?: ((text: string) => Promise<void>) | undefined;
   readonly onAddContext?: ((content: ReadonlyArray<unknown>) => void) | undefined;
+  /** The thread's folder and its latest file changes, for the title block's checks. */
+  readonly workspaceRoot?: string | undefined;
+  readonly workspaceMutationId?: string | null | undefined;
 }) {
   const { surface, draftWorkspaceRoot } = props;
   const named =
@@ -49,6 +52,8 @@ export default function PluginViewPanel(props: {
         environmentId={props.environmentId}
         threadId={props.threadId}
         pluginId={surface.pluginId}
+        cwd={props.workspaceRoot}
+        mutationId={props.workspaceMutationId}
       />
       <PluginViewFrame
         key={surface.id}

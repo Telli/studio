@@ -6,7 +6,7 @@ import { WorkLogBlock, WorkLogButton, WorkLogDetails, WorkLogList, WorkLogRow } 
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 import type { WorktreeSetupSnapshot } from "@t3tools/contracts";
 import { ReadOnlySourcePreview } from "../files/AttachmentFilePreview";
-import { useRightPanelStore } from "~/rightPanelStore";
+import { useOpenChatFile } from "../workbench/useOpenInWorkbench";
 import {
   getQuestionAnswerPreview,
   getQuestionAnswerText,
@@ -4338,6 +4338,7 @@ function UserMessageMentionChip(props: {
 }) {
   const ctx = use(TimelineRowCtx);
   const label = useFileChipLabel(props.record.path, props.record.label);
+  const openChatFile = useOpenChatFile(ctx.threadRef ?? null);
   return (
     <Tooltip>
       <TooltipTrigger
@@ -4347,10 +4348,7 @@ function UserMessageMentionChip(props: {
             render={<button type="button" />}
             aria-label={`Preview ${props.record.path}`}
             data-markdown-copy={props.copyMarkdown}
-            onClick={() => {
-              if (ctx.threadRef)
-                useRightPanelStore.getState().openFile(ctx.threadRef, props.record.path);
-            }}
+            onClick={() => openChatFile(props.record.path)}
           >
             <WorkspaceEntryIcon
               path={props.record.path}

@@ -51,6 +51,7 @@ const MANUFACTURING_RESULT = new RegExp(`\\.(?:${MANUFACTURING_PROCESSES.join("|
 /** Where each kind of file is filed; what it is and what it is called are `partNames.ts`'s. */
 const RULES: ReadonlyArray<{ readonly test: RegExp; readonly group: ProjectGroup }> = [
   { test: /\.fea\.(?:glb|json)$/i, group: "Studies" },
+  { test: /(?:^|\/)FEA\/[^/]+\.(?:glb|json)$/i, group: "Studies" },
   { test: MANUFACTURING_RESULT, group: "Studies" },
   { test: /\.cam\.(?:glb|json)$/i, group: "Manufacturing" },
   { test: /\.(?:nc|gcode|ngc|tap|gco)$/i, group: "Manufacturing" },
@@ -62,6 +63,7 @@ const RULES: ReadonlyArray<{ readonly test: RegExp; readonly group: ProjectGroup
   { test: /\.kicad_sch$/i, group: "Boards and wiring" },
   { test: /\.harness\.ya?ml$/i, group: "Boards and wiring" },
   { test: /\.(?:dxf|dwg|svg)$/i, group: "Drawings" },
+  { test: /[._-]drawing\.pdf$/i, group: "Drawings" },
   { test: /\.(?:md|mdx|pdf|txt)$/i, group: "Documents" },
   { test: /gerbers?\.zip$|\.(?:gbr|drl)$/i, group: "Manufacturing" },
   { test: /bom\.(?:csv|tsv)$/i, group: "Manufacturing" },

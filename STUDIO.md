@@ -57,7 +57,9 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
   viewer's own sync (`cad_sync`, relayed by the frame) says which model and its build; the
   viewer's routes, through `cad_http` once per revision, say the rest. Studio makes no call the
   plugin would count, and a fact the server does not hold is left out or said to be missing. A
-  press brings the viewer back.
+  press brings the viewer back. The title block over the viewer also lists the part's checks, each
+  opening its result, and a result on screen names the part it checked, a click away. A model a
+  chat link or file chip names opens in the viewer, not as text.
 - **Hardware starters.** A new thread offers hardware jobs from `brand.json` `starters` ("Route
   this board", "Post G-code for grbl"), each only while an enabled plugin has the skill it needs
   (`pcb`, `cam`). Without brand starters, it offers what the enabled plugins suggest
@@ -93,9 +95,12 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 
 - **The project's overview.** The Project tab opens on it: the lead part large, the open issues its
   checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
-  propose and wait), every part with how its checks went, and recent work. Checks are the results
-  text-to-cad writes beside the parts, `<name>.fea.json` and `<stem>.<process>.result.json`
-  (`components/workbench/checkResults.ts`).
+  propose and wait), every part with how its checks went and its drawing, and recent work. Checks
+  are the results text-to-cad writes beside the parts, `<name>.fea.json` (or a named study's
+  `FEA/<name>.<study>.json`) and `<stem>.<process>.result.json`
+  (`components/workbench/checkResults.ts`), named as an engineer says them (Strength, Vibration,
+  Casting), a study that passes saying its safety factor; a drawing is the engineering drawing's
+  `<part>_drawing.pdf`. Each opens with a click.
 - **Design history.** A turn that changed files ends with what it changed in the design, by part
   and document (a part's script, model, drawing and studies are one entry), each opening beside
   the thread; the work log's groups say which parts they updated ("3 steps, updated the L
@@ -124,7 +129,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   a new feature, selected, with its inputs to change like any other; a line that does not run,
   or picks something other than the selection, is not written. Undo takes a command's line back. The
   agent hears of each change with the next message (a Hand edit note queued in the composer),
-  never by a message of its own. The engine is `text-to-cad/packages/cadgen/src/cadgen/edit/` (a
+  never by a message of its own. Edit Feature reopens a feature's panel, Suppress sets one aside,
+  and the rollback bar shows the part as it was above a feature, new features going in there. An
+  assembly places its parts: double-click one in its design tree (Open Part) and the part opens on
+  its own, in a tab of its own when the assembly is a project file's tab
+  (`studio/open-file`, a plugin view's request to open a file beside the thread). The engine is `text-to-cad/packages/cadgen/src/cadgen/edit/` (a
   tracer that runs the script with every number remembering where it is written, in a process of
   its own, behind the viewer's `/__cad/edit/*` routes, and `commands.py`, which matches a
   selection to the part by its geometry and writes a command's line); the frame is

@@ -132,6 +132,8 @@ const ENDINGS: ReadonlyArray<{
   { ending: /\.kicad_pcb$/i, kind: "Board", suffix: "board" },
   { ending: /\.kicad_sch$/i, kind: "Schematic", suffix: "schematic" },
   { ending: /\.(?:dxf|dwg|svg)$/i, kind: "Drawing", suffix: "drawing" },
+  // The engineering drawing's sheet: `bracket_drawing.pdf`, beside its script.
+  { ending: /[._-]drawing\.pdf$/i, kind: "Drawing", suffix: "drawing" },
   { ending: /\.(?:md|mdx|txt|pdf)$/i, kind: "Document", suffix: "" },
   { ending: /\.(?:csv|tsv|xlsx)$/i, kind: "Table", suffix: "" },
   { ending: /\.(?:png|jpe?g|webp|gif|heic)$/i, kind: "Image", suffix: "" },
@@ -152,6 +154,12 @@ export function partName(path: string): PartName | null {
   const normalized = path.replaceAll("\\", "/");
   for (const [test, name, kind] of KNOWN) {
     if (test.test(normalized)) return { name, kind, label: name };
+  }
+  // A named study, kept as the FEA skill keeps several: `FEA/bracket.bracket-load.glb`.
+  const study = /(?:^|\/)FEA\/([^/]+?)(?:\.fea)?\.(?:json|glb)$/i.exec(normalized);
+  if (study !== null) {
+    const name = humanName(study[1]!);
+    return { name, kind: "FEA study", label: `${name} FEA study` };
   }
   const file = baseName(normalized);
   for (const rule of ENDINGS) {

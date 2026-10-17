@@ -3,7 +3,8 @@ import type { ProjectFile } from "./projectFiles";
 /**
  * The checks a project's parts have been through, read from the results the
  * text-to-cad plugin writes beside each part: an FEA study's `<name>.fea.json`
- * and a manufacturing check's `<stem>.<process>.result.json`, each beside the
+ * (or a named study's `<name>.<study>.json`, beside its `.glb`) and a
+ * manufacturing check's `<stem>.<process>.result.json`, each beside the
  * model of its result (`.glb`) that the viewer opens. A result holds its
  * findings (`check`, `severity` error, warning or info, `summary`, and a
  * `fix` with its own `summary` when the check names one) and, from newer
@@ -26,6 +27,50 @@ const RESULT_FILE = /\.(?:fea\.json|result\.json)$/i;
 /** Whether the file is a check's result the overview reads. */
 export const isCheckResultPath = (path: string) => RESULT_FILE.test(path);
 
+/**
+ * Whether the file is a named FEA study's numbers, beside its picture: the FEA
+ * skill keeps several studies of a part as `FEA/part.bracket-load.glb` and its
+ * `part.bracket-load.json`. `paths` are the folder's files.
+ */
+export const isNamedStudyPath = (path: string, paths: ReadonlySet<string>) =>
+  /\.[^./\\]+\.json$/i.test(path) &&
+  !RESULT_FILE.test(path) &&
+  paths.has(path.replace(/\.json$/i, ".glb"));
+
+/** An FEA study's analysis, in the plain word the FEA skill gives it. */
+const ANALYSIS_WORDS: Record<string, string> = {
+  static: "Strength",
+  modal: "Vibration",
+  buckling: "Buckling",
+  thermal: "Heat",
+  thermal_transient: "Heat over time",
+  thermal_stress: "Heat stress",
+  harmonic: "Shaking",
+  random_vibration: "Random vibration",
+  shock: "Shock",
+  transient: "Over time",
+  fatigue: "Fatigue life",
+  drop: "Drop",
+  impact: "Drop impact",
+  cfd: "Flow",
+  cfd_turbulent: "Flow",
+  cfd_compressible: "Fast gas flow",
+  conjugate_heat: "Cooled by flow",
+  fsi: "Flow and bending",
+  nonlinear: "Permanent bend",
+  creep: "Creep",
+  composite: "Composite",
+  contact: "Contact",
+  bolt: "Bolted joint",
+  electromagnetic: "Magnetic and electric",
+  topology: "Lighten it",
+  acoustic: "Sound",
+  piezo: "Piezo",
+  fracture: "Cracks",
+  rotordynamics: "Spinning",
+  multiphase: "Two fluids",
+};
+
 /** `fix`: an error to fix; `warnings`: passed with something to look at; `ready`: passed. */
 export type CheckStatus = "fix" | "warnings" | "ready";
 
@@ -43,7 +88,7 @@ export interface CheckResult {
   readonly model: string;
   /** The checked part's file name ("bracket.step"), or the result's stem when it names none. */
   readonly part: string;
-  /** What was checked, in a word or two: "FEA", "Casting", "Heat treatment". */
+  /** What was checked, in a word or two: "Strength", "Vibration", "Casting", "Heat treatment". */
   readonly check: string;
   readonly status: CheckStatus;
   /** The verdict in a line: "1 to fix · shrinkage hot spot", "Ready to cast". */
@@ -105,19 +150,38 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
         ? "warnings"
         : "ready";
 
-  const fea = /\.fea\.json$/i.test(path);
-  const analysis = text(data.analysis);
+  const fea = /\.fea\.json$/i.test(path) || data.generator === "cadgen fea";
+  const study = isRecord(data.study) ? data.study : null;
+  const summary = isRecord(data.summary) ? data.summary : null;
+  const analysis = text(data.analysis) ?? text(study?.analysis);
+  // An FEA study's check as the viewer's verdict names it ("Strength"), else its analysis's word.
+  const named =
+    Array.isArray(summary?.checks) && isRecord(summary.checks[0])
+      ? text(summary.checks[0].label)
+      : null;
+  const safety = typeof summary?.safety_factor === "number" ? summary.safety_factor : null;
+  const picture = isRecord(data.files) ? text(data.files.glb) : null;
   const name = baseName(path);
+  const folder = path
+    .replaceAll("\\", "/")
+    .slice(0, path.replaceAll("\\", "/").lastIndexOf("/") + 1);
   return {
     path,
-    model: path.replace(fea ? /\.json$/i : /\.result\.json$/i, ".glb"),
+    model:
+      fea && picture !== null
+        ? `${folder}${baseName(picture)}`
+        : path.replace(fea ? /\.json$/i : /\.result\.json$/i, ".glb"),
     part: baseName(text(data.document) ?? name.slice(0, name.indexOf("."))),
-    check: fea ? "FEA" : humanize(analysis ?? name.split(".").at(-3) ?? "Check"),
+    check: fea
+      ? (named ?? ANALYSIS_WORDS[analysis ?? "static"] ?? humanize(analysis ?? "simulation"))
+      : humanize(analysis ?? name.split(".").at(-3) ?? "Check"),
     status,
     headline:
       (verdict === null ? null : text(verdict.headline)) ??
       issues[0]?.summary ??
-      "Passed every check",
+      (fea && safety !== null
+        ? `Holds the load, safety factor ${safety.toFixed(safety < 10 ? 1 : 0)}`
+        : "Passed every check"),
     issues,
   };
 }
@@ -162,6 +226,18 @@ export function resultsFor(part: ProjectFile, results: ReadonlyArray<CheckResult
   });
 }
 
+/**
+ * A part's drawing sheets, anywhere in its folder: the engineering drawing's
+ * PDF, `bracket_drawing.pdf`, as its script names it.
+ */
+export function drawingsFor(part: ProjectFile, paths: ReadonlyArray<string>): string[] {
+  const stem = stemOf(part.name);
+  return paths.filter((path) => {
+    const name = baseName(path).toLowerCase();
+    return /[._-]drawing\.pdf$/.test(name) && name.slice(0, -"_drawing.pdf".length) === stem;
+  });
+}
+
 /** The worst status among the results, or null when none has run. */
 export function worstStatus(results: ReadonlyArray<CheckResult>): CheckStatus | null {
   return results.reduce<CheckStatus | null>(
@@ -182,7 +258,7 @@ export function proposeFixPrompt(
   issue: CheckIssue,
   part: string = result.part,
 ): string {
-  const check = result.check === "FEA" ? "FEA" : result.check.toLowerCase();
+  const check = result.check.toLowerCase();
   const suggestion = issue.fix === null ? "" : ` The check suggests: ${sentence(issue.fix)}.`;
   return (
     `The ${check} check on ${part} found: ${sentence(issue.summary)}.${suggestion} ` +

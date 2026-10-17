@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  drawingsFor,
   isCheckResultPath,
+  isNamedStudyPath,
   overviewParts,
   parseCheckResult,
   proposeFixPrompt,
@@ -94,7 +96,7 @@ describe("check results", () => {
     expect(result).toMatchObject({
       model: "mount.fea.glb",
       part: "rover_mount.step",
-      check: "FEA",
+      check: "Strength",
       status: "warnings",
       headline: "Safety factor 1.4 at the boss",
     });
@@ -168,6 +170,58 @@ describe("check results", () => {
     )!;
     expect(resultsFor(parts[0]!, [result])).toHaveLength(1);
     expect(resultsFor(parts[1]!, [result])).toHaveLength(0);
+  });
+
+  it("names an FEA study's check as the engineer says it, with its safety factor when it passes", () => {
+    // As `cadgen fea solve` writes it: the check's label, the safety factor, and its picture.
+    const passed = parseCheckResult(
+      "FEA/bracket.bracket-load.json",
+      JSON.stringify({
+        generator: "cadgen fea",
+        document: "bracket.step",
+        study: { material: "aluminum-6061-t6" },
+        summary: { safety_factor: 3.24, checks: [{ kind: "stress", label: "Strength" }] },
+        files: { glb: "bracket.bracket-load.glb" },
+        findings: [],
+      }),
+    );
+    expect(passed).toMatchObject({
+      model: "FEA/bracket.bracket-load.glb",
+      part: "bracket.step",
+      check: "Strength",
+      status: "ready",
+      headline: "Holds the load, safety factor 3.2",
+    });
+    const modal = parseCheckResult(
+      "plate.fea.json",
+      JSON.stringify({ document: "plate.step", study: { analysis: "modal" }, findings: [] }),
+    );
+    expect(modal?.check).toBe("Vibration");
+    // A named study is found beside its picture; a JSON with none is not a study.
+    const folder = new Set([
+      "FEA/bracket.bracket-load.json",
+      "FEA/bracket.bracket-load.glb",
+      "package.json",
+      "data.v2.json",
+    ]);
+    expect([...folder].map((path) => isNamedStudyPath(path, folder))).toEqual([
+      true,
+      false,
+      false,
+      false,
+    ]);
+  });
+
+  it("finds a part's drawing sheet, wherever it is filed", () => {
+    const part = file("parts/bracket.step");
+    expect(
+      drawingsFor(part, [
+        "drawings/bracket_drawing.pdf",
+        "parts/bracket_drawing.py",
+        "drawings/bracket_mount_drawing.pdf",
+        "docs/bracket.pdf",
+      ]),
+    ).toEqual(["drawings/bracket_drawing.pdf"]);
   });
 
   it("asks the agent to propose a fix and wait, never to change the part", () => {

@@ -7,7 +7,12 @@ import { useCallback } from "react";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { projectEnvironment } from "~/state/projects";
-import { type CheckResult, isCheckResultPath, parseCheckResult } from "./checkResults";
+import {
+  type CheckResult,
+  isCheckResultPath,
+  isNamedStudyPath,
+  parseCheckResult,
+} from "./checkResults";
 
 /** One of the project's folders: its files and the check results among them. */
 export interface FolderChecks {
@@ -41,12 +46,15 @@ const checksFamily = Atom.family((key: string) =>
       const paths = entries
         .filter((entry) => entry.kind === "file" && entry.ignored !== true)
         .map((entry) => entry.path);
-      const results = paths.filter(isCheckResultPath).flatMap((path) => {
-        const file = Option.getOrNull(AsyncResult.value(get(reading(environmentId, root, path))));
-        const result =
-          file === null || file.truncated ? null : parseCheckResult(path, file.contents);
-        return result === null ? [] : [result];
-      });
+      const present = new Set(paths);
+      const results = paths
+        .filter((path) => isCheckResultPath(path) || isNamedStudyPath(path, present))
+        .flatMap((path) => {
+          const file = Option.getOrNull(AsyncResult.value(get(reading(environmentId, root, path))));
+          const result =
+            file === null || file.truncated ? null : parseCheckResult(path, file.contents);
+          return result === null ? [] : [result];
+        });
       return { root, paths, results };
     });
   }).pipe(Atom.withLabel(`studio:project-checks:${key}`)),

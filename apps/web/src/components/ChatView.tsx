@@ -11278,6 +11278,8 @@ export default function ChatView(props: ChatViewProps) {
           draftWorkspaceRoot={isServerThread ? undefined : activeProject?.workspaceRoot}
           onSendMessage={isServerThread ? sendAppMessage : undefined}
           onAddContext={(content) => addViewContextToComposer(composerRef.current, content)}
+          workspaceRoot={activeWorkspaceRoot ?? undefined}
+          workspaceMutationId={workspaceMutationId}
         />
       </Suspense>
     ) : renderedRightPanelSurface?.kind === "pull-requests" && activeThreadRef ? (

@@ -2,10 +2,9 @@ import type { EnvironmentId, ScopedProjectRef, ThreadId } from "@t3tools/contrac
 import { studioFolderName } from "@t3tools/shared/studioProjects";
 import {
   BoxIcon,
-  CircleCheckIcon,
   CircleXIcon,
   CircuitBoardIcon,
-  type LucideIcon,
+  FileTextIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -13,11 +12,12 @@ import { useMemo, useState } from "react";
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { CHECK_STATUS as STATUS, CheckBadge } from "./CheckBadge";
 import {
   type CheckIssue,
   type CheckResult,
   type CheckStatus,
+  drawingsFor,
   overviewParts,
   proposeFixPrompt,
   resultsFor,
@@ -30,26 +30,6 @@ import { useEngineeringInterface } from "./studioInterface";
 import { usePictures } from "./usePictures";
 import { useProjectChecks } from "./useProjectChecks";
 
-const STATUS: Record<
-  CheckStatus,
-  {
-    readonly variant: "error" | "warning" | "success";
-    /** How one check went: "Casting fails". */
-    readonly word: string;
-    /** How a part's checks went: "a check fails". */
-    readonly caption: string;
-    readonly Icon: LucideIcon;
-  }
-> = {
-  fix: { variant: "error", word: "fails", caption: "a check fails", Icon: CircleXIcon },
-  warnings: {
-    variant: "warning",
-    word: "passes with warnings",
-    caption: "checks pass with warnings",
-    Icon: TriangleAlertIcon,
-  },
-  ready: { variant: "success", word: "passes", caption: "checks pass", Icon: CircleCheckIcon },
-};
 const STATUS_ORDER: Record<CheckStatus | "none", number> = {
   fix: 0,
   warnings: 1,
@@ -68,6 +48,8 @@ interface FolderPart {
   readonly root: string;
   readonly file: ProjectFile;
   readonly results: ReadonlyArray<CheckResult>;
+  /** Its drawing sheets, relative to the folder. */
+  readonly drawings: ReadonlyArray<string>;
 }
 
 interface Issue {
@@ -92,33 +74,6 @@ function PartIcon(props: { readonly file: ProjectFile; readonly className: strin
 }
 
 /** A check as a badge: its name, tinted and marked by how it went; it opens the result. */
-function CheckBadge(props: { readonly result: CheckResult; readonly onOpen: () => void }) {
-  const { result } = props;
-  const { variant, word, Icon } = STATUS[result.status];
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            onClick={props.onOpen}
-            aria-label={`${result.check} ${word}: ${result.headline}. Show the result`}
-            className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-          />
-        }
-      >
-        <Badge variant={variant} size="sm">
-          <Icon aria-hidden="true" />
-          {result.check}
-        </Badge>
-      </TooltipTrigger>
-      <TooltipPopup side="top" className="max-w-80">
-        {result.headline}
-      </TooltipPopup>
-    </Tooltip>
-  );
-}
-
 /** The project's lead part, large: the first model of its first folder. */
 function LeadPart(props: {
   readonly environmentId: EnvironmentId;
@@ -318,7 +273,7 @@ function FolderParts(props: {
                   </span>
                 </span>
               </button>
-              <div className="flex max-w-[55%] shrink-0 flex-wrap justify-end gap-1">
+              <div className="flex max-w-[55%] shrink-0 flex-wrap items-center justify-end gap-1">
                 {part.results.length === 0 ? (
                   <span className="text-2xs text-muted-foreground">Not checked yet</span>
                 ) : (
@@ -330,6 +285,20 @@ function FolderParts(props: {
                     />
                   ))
                 )}
+                {part.drawings.map((drawing) => (
+                  <button
+                    key={drawing}
+                    type="button"
+                    onClick={() => props.onOpen(props.root, drawing)}
+                    aria-label={`Open the drawing of ${part.file.title}`}
+                    className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                  >
+                    <Badge variant="outline" size="sm">
+                      <FileTextIcon aria-hidden="true" />
+                      Drawing
+                    </Badge>
+                  </button>
+                ))}
               </div>
             </li>
           );
@@ -376,7 +345,12 @@ export function ProjectOverview(props: {
         .map(classifyProjectFile)
         .filter((file): file is ProjectFile => file !== null);
       const parts = overviewParts(files)
-        .map((file) => ({ root: folder.root, file, results: resultsFor(file, folder.results) }))
+        .map((file) => ({
+          root: folder.root,
+          file,
+          results: resultsFor(file, folder.results),
+          drawings: drawingsFor(file, folder.paths ?? []),
+        }))
         .toSorted(
           (a, b) =>
             STATUS_ORDER[worstStatus(a.results) ?? "none"] -
@@ -411,7 +385,12 @@ export function ProjectOverview(props: {
         .filter((file): file is ProjectFile => file !== null);
       const file = overviewParts(files)[0];
       if (file !== undefined) {
-        return { root: folder.root, file, results: resultsFor(file, folder.results) };
+        return {
+          root: folder.root,
+          file,
+          results: resultsFor(file, folder.results),
+          drawings: drawingsFor(file, folder.paths ?? []),
+        };
       }
     }
     return null;

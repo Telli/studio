@@ -179,6 +179,7 @@ import { useAssetUrlRefresh, useAssetUrlState } from "../assets/assetUrls";
 import { cn } from "../lib/utils";
 import { useRemoteOpenResolution, type RemoteOpenMode } from "../remoteOpen";
 import { useRightPanelStore } from "../rightPanelStore";
+import { useOpenChatFile } from "./workbench/useOpenInWorkbench";
 import { readThreadShell, useProjects } from "../state/entities";
 import { serverEnvironment } from "../state/server";
 import { shellEnvironment } from "../state/shell";
@@ -2611,14 +2612,15 @@ function useChatMarkdownState({
   );
   // A bare filename resolves to the workspace root, which is rarely where the
   // file is, so ask the index before opening. Absolute host paths open as-is.
+  // A model a link names opens in its viewer (Studio), anything else in the preview.
+  const openChatFile = useOpenChatFile(threadRef ?? null);
   const openFileInPanel = useCallback(
     (panelPath: string, line: number | undefined) => {
       if (!threadRef) return;
       // Claimed on every open so a synchronous one supersedes a lookup already
       // in flight.
       const isLatestLookup = claimWorkspaceBasenameLookup();
-      const openAt = (path: string) =>
-        useRightPanelStore.getState().openFile(threadRef, path, line);
+      const openAt = (path: string) => openChatFile(path, line);
       if (!cwd || !needsWorkspaceBasenameLookup(panelPath)) {
         openAt(panelPath);
         return;
@@ -2629,7 +2631,7 @@ function useChatMarkdownState({
         openAt(match ?? panelPath);
       })();
     },
-    [cwd, findWorkspaceBasenameMatch, threadRef],
+    [cwd, findWorkspaceBasenameMatch, openChatFile, threadRef],
   );
   const revealMarkdownFileInFileManager = useCallback(
     async (fileLinkMeta: MarkdownFileLinkMeta) => {
