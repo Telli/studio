@@ -11275,6 +11275,7 @@ export default function ChatView(props: ChatViewProps) {
           environmentId={activeThread.environmentId}
           threadId={activeThread.id}
           surface={renderedRightPanelSurface}
+          draftWorkspaceRoot={isServerThread ? undefined : activeProject?.workspaceRoot}
           onSendMessage={isServerThread ? sendAppMessage : undefined}
           onAddContext={(content) => addViewContextToComposer(composerRef.current, content)}
         />

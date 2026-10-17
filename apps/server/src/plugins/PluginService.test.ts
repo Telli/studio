@@ -109,20 +109,30 @@ function fixture() {
 
 const threadId = ThreadId.make("thread-plugins");
 
-/** The thread and project lookups the service makes, answering one thread whose worktree is `work`. */
+// A new thread: still a draft in its client, so the server has no record of it.
+const draftThreadId = ThreadId.make("thread-draft");
+
+/**
+ * The thread and project lookups the service makes: every thread but a draft one has its
+ * worktree at `work`, and the environment's one project is rooted at `work`.
+ */
 const layerThreads = (work: string) =>
   Layer.mergeAll(
     Layer.succeed(
       ThreadManagementService.ThreadManagementService,
       // Only getThreadRecords is reached.
       ThreadManagementService.ThreadManagementService.of({
-        getThreadRecords: () => Effect.succeed({ thread: { worktreePath: work, projectId: "p" } }),
+        getThreadRecords: (id: ThreadId) =>
+          id.startsWith("thread-draft")
+            ? Effect.fail("not found")
+            : Effect.succeed({ thread: { worktreePath: work, projectId: "p" } }),
       } as unknown as ThreadManagementService.ThreadManagementService["Service"]),
     ),
     Layer.succeed(
       ProjectStore.ProjectStoreV2,
       ProjectStore.ProjectStoreV2.of({
         get: () => Effect.succeed(Option.none()),
+        list: () => Effect.succeed([{ workspaceRoot: work }]),
       } as unknown as ProjectStore.ProjectStoreV2["Service"]),
     ),
   );
@@ -211,6 +221,38 @@ describe("plugins", () => {
             })
             .pipe(Effect.flip);
           assert.strictEqual(outside.reason, "request_failed");
+
+          // A view opened in a new thread, which the server has no record of yet, names its
+          // file by its absolute path: it works in the project that holds it, and its requests
+          // after go on working there. One named any other way is refused.
+          const drafted = yield* plugins.openView({
+            threadId: draftThreadId,
+            pluginId: "demo",
+            server: "main",
+            tool: "show",
+            arguments: {},
+            file: absolute,
+          });
+          assert.deepEqual(drafted.toolInput, file.toolInput);
+          const draftSync = yield* plugins.request({
+            threadId: draftThreadId,
+            pluginId: "demo",
+            server: "main",
+            method: "tools/call",
+            params: { name: "sync", arguments: {} },
+          });
+          assert.include(JSON.stringify(draftSync.result), "sync");
+          const gone = yield* plugins
+            .openView({
+              threadId: ThreadId.make("thread-draft-unnamed"),
+              pluginId: "demo",
+              server: "main",
+              tool: "show",
+              arguments: {},
+              file: "parts/bracket.step",
+            })
+            .pipe(Effect.flip);
+          assert.strictEqual(gone.reason, "thread_not_found");
 
           // A view's own request may call an app-only tool.
           const sync = yield* plugins.request({

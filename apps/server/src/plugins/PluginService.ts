@@ -147,20 +147,42 @@ const make = Effect.gen(function* () {
       return { pictures };
     }).pipe(Effect.withSpan("PluginService.modelPictures"));
 
-  /** The thread's workspace: its worktree, else its project's root. */
-  const workspaceOf = (threadId: ThreadId) =>
+  // A new thread lives only in its client until its first message is sent, so the server has no
+  // record of it. A view opened in one names its file by its absolute path, and works in the folder
+  // of the environment's project that holds it, kept here for the view's later requests until the
+  // server has the thread.
+  const draftRoots = new Map<ThreadId, string>();
+
+  /** The thread's workspace: its worktree, else its project's root; a new thread's, as above. */
+  const workspaceOf = (threadId: ThreadId, file: string | undefined) =>
     Effect.gen(function* () {
-      const records = yield* threads.getThreadRecords(threadId, []);
-      if (records.thread.worktreePath !== null) return records.thread.worktreePath;
-      const project = yield* projects.get(records.thread.projectId);
-      if (Option.isNone(project)) return yield* Effect.fail("missing project");
-      return project.value.workspaceRoot;
+      const records = yield* threads.getThreadRecords(threadId, []).pipe(Effect.option);
+      if (Option.isSome(records)) {
+        draftRoots.delete(threadId);
+        if (records.value.thread.worktreePath !== null) return records.value.thread.worktreePath;
+        const project = yield* projects.get(records.value.thread.projectId);
+        if (Option.isNone(project)) return yield* Effect.fail("missing project");
+        return project.value.workspaceRoot;
+      }
+      if (file !== undefined && path.isAbsolute(file)) {
+        const holding = (yield* projects.list())
+          .map((project) => project.workspaceRoot)
+          .filter((root) => PluginFiles.isInside(root, file))
+          .sort((a, b) => b.length - a.length)[0];
+        if (holding !== undefined) {
+          draftRoots.set(threadId, holding);
+          return holding;
+        }
+      }
+      const remembered = draftRoots.get(threadId);
+      if (remembered === undefined) return yield* Effect.fail("missing thread");
+      return remembered;
     }).pipe(Effect.mapError(() => fail("thread_not_found", "that thread is gone")));
 
-  const rootsOf = (threadId: ThreadId | null) =>
+  const rootsOf = (threadId: ThreadId | null, file?: string) =>
     threadId === null
       ? Effect.succeed([])
-      : workspaceOf(threadId).pipe(Effect.map((root) => [root]));
+      : workspaceOf(threadId, file).pipe(Effect.map((root) => [root]));
 
   const scopeOf = (threadId: ThreadId | null) => threadId ?? PluginHost.ENVIRONMENT_SCOPE;
 
@@ -184,7 +206,7 @@ const make = Effect.gen(function* () {
     );
 
   const openView = Effect.fn("PluginService.openView")(function* (input: PluginOpenViewInput) {
-    const roots = yield* rootsOf(input.threadId);
+    const roots = yield* rootsOf(input.threadId, input.file);
     let toolInput: Record<string, unknown> = { ...input.arguments };
     let meta: Record<string, unknown> | undefined;
     if (input.file !== undefined) {
