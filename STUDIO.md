@@ -48,8 +48,11 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
 - **A workbench, not a chat with a CAD tab.** `brand.json` `"layout": "workbench"` makes the right
   panel the main surface: the model or board viewer takes the window and the chat docks beside it
   at a width the user drags, one width for every thread, while the viewer absorbs a wider window
-  (`apps/web/src/components/workbench`). A thread opens on its viewer the first time it shows, so
-  the agent's `cad_show` has one to switch; one the user closes stays closed. With the room, the
+  (`apps/web/src/components/workbench`). With the engineering surfaces on, a thread opens on its
+  project page, and the viewer comes forward when there is a model to show: the agent's `cad_open`
+  (which `cad_show` asks for when no viewer is open), a model it writes, or a part the person
+  opens. Without them a thread opens on its viewer the first time it shows, so the agent's
+  `cad_show` has one to switch. One the user closes stays closed. With the room, the
   viewer's own findings show where it puts them: the verdict at the top of an FEA study, the
   findings in a CAM job, a board's checks. Studio lists none of its own.
 - **The part stays in view.** Above the composer, what the viewer shows: its name, what it is
@@ -108,7 +111,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   piece with how it came out (done, needs you, working, stopped). With code tools on, the turn
   keeps T3 Code's changed-files card and the tab is Threads.
 - **A sidebar of projects.** In Engineering the sidebar lists the projects, not their threads,
-  then the folders in no project: each opens on its page, where its history is, and says whether
+  then the folders in no project: each opens on its page, where its history is, in the thread
+  last open in it on this device (else the one last worked on, else a new one), and says whether
   work in it needs you or is under way. Engineering with code keeps T3 Code's thread sidebar.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of

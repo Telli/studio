@@ -1,4 +1,3 @@
-import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -10,7 +9,6 @@ import { useMemo, useState } from "react";
 
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { isElectron } from "~/env";
-import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
 import { useThreadShell } from "~/state/entities";
@@ -29,16 +27,13 @@ import {
 } from "../ui/sidebar";
 import { NewProjectDialog } from "./NewProjectDialog";
 import { historyOutcome } from "./projectHistory";
+import { useOpenProject, useRememberOpened } from "./useOpenProject";
 import { useProjectList } from "./useProjectList";
 
 const headingClass = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 
 /** The folder record the open thread or draft works in, to mark its project. */
-function useCurrentFolderId(): string | null {
-  const threadRef: ScopedThreadRef | null = useParams({
-    strict: false,
-    select: (params) => resolveThreadRouteRef(params),
-  });
+function useCurrentFolderId(threadRef: ScopedThreadRef | null): string | null {
   const draftId = useParams({
     strict: false,
     select: (params) => (params as { readonly draftId?: string }).draftId ?? null,
@@ -91,16 +86,23 @@ function ProjectRow(props: {
 function Projects(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
   const { list, cards, loose } = useProjectList(environmentId);
-  const handleNewThread = useNewThreadHandler();
+  const openProject = useOpenProject();
   const { isMobile, setOpenMobile } = useSidebar();
-  const currentFolderId = useCurrentFolderId();
+  const threadRef: ScopedThreadRef | null = useParams({
+    strict: false,
+    select: (params) => resolveThreadRouteRef(params),
+  });
+  useRememberOpened(threadRef);
+  const currentFolderId = useCurrentFolderId(threadRef);
   const [dialog, setDialog] = useState({ count: 0, open: false });
   useNowMinute();
 
-  const open = (folder: EnvironmentProject | null) => {
-    if (folder === null) return;
+  const open = (
+    folder: EnvironmentProject | null,
+    threads: ReadonlyArray<EnvironmentThreadShell>,
+  ) => {
     if (isMobile) setOpenMobile(false);
-    void handleNewThread(scopeProjectRef(folder.environmentId, folder.id));
+    void openProject(folder, threads);
   };
   const currentProjectId = useMemo(
     () =>
@@ -139,7 +141,7 @@ function Projects(props: { readonly environmentId: EnvironmentId }) {
                 threads={card.threads}
                 latest={card.latest}
                 current={card.id === currentProjectId}
-                onOpen={() => open(card.folder)}
+                onOpen={() => open(card.folder, card.threads)}
               />
             ))}
           </SidebarMenu>
@@ -159,7 +161,7 @@ function Projects(props: { readonly environmentId: EnvironmentId }) {
                 threads={threads}
                 latest={latest}
                 current={currentProjectId === null && folder.id === currentFolderId}
-                onOpen={() => open(folder)}
+                onOpen={() => open(folder, threads)}
               />
             ))}
           </SidebarMenu>
@@ -177,7 +179,8 @@ function Projects(props: { readonly environmentId: EnvironmentId }) {
 
 /**
  * The sidebar in the engineering interface: the projects, not their
- * threads. Each opens on its page, where its history is (`ProjectThreads`);
+ * threads. Each opens on its page, where its history is (`ProjectThreads`), in
+ * the thread last open in it (`useOpenProject`);
  * one with work waiting on the person says so, one at work says so, else when
  * it was last worked on, and the one open now is marked. Folders in no project
  * follow, each a project of its own. T3 Code's header and footer stay; with

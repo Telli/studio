@@ -1,4 +1,3 @@
-import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -9,7 +8,6 @@ import { useMemo, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { isElectron } from "~/env";
-import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { projectEnvironment } from "~/state/projects";
@@ -22,6 +20,7 @@ import { NewProjectDialog } from "./NewProjectDialog";
 import { groupProjectFiles } from "./projectFiles";
 import { usePictures } from "./usePictures";
 import { newestOf } from "./projectList";
+import { useOpenProject } from "./useOpenProject";
 import { useProjectList } from "./useProjectList";
 
 /** The file that pictures a project: its first folder's first model, else board or drawing. */
@@ -118,8 +117,9 @@ function LooseFolderRow(props: {
  * (`useStudioProjects.ts`): each is a card pictured by its first part, with
  * what it is for and how recently it was worked on, newest first. Folders in
  * no project are listed below, to open or make a project of. New project
- * starts one from a kind and any folders; opening one starts a thread in its
- * first folder, on its project page.
+ * starts one from a kind and any folders; opening one goes back to the thread
+ * last open in it (a new one in its first folder when it has none), on its
+ * project page.
  */
 export function ProjectsHome() {
   const environmentId = usePrimaryEnvironmentId();
@@ -129,7 +129,7 @@ export function ProjectsHome() {
 function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
   const { list, cards, loose } = useProjectList(environmentId);
-  const handleNewThread = useNewThreadHandler();
+  const openProject = useOpenProject();
   const [dialog, setDialog] = useState<{ count: number; open: boolean; folder: string | null }>({
     count: 0,
     open: false,
@@ -139,9 +139,6 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
 
   const openDialog = (folder: string | null) =>
     setDialog((current) => ({ count: current.count + 1, open: true, folder }));
-  const openFolder = (folder: EnvironmentProject | null) => {
-    if (folder !== null) void handleNewThread(scopeProjectRef(folder.environmentId, folder.id));
-  };
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -196,7 +193,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                     environmentId={environmentId}
                     project={project}
                     threads={own}
-                    onOpen={() => openFolder(folder)}
+                    onOpen={() => void openProject(folder, own)}
                   />
                 ))}
               </div>
@@ -212,7 +209,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                       key={folder.id}
                       folder={folder}
                       threads={own.length}
-                      onOpen={() => openFolder(folder)}
+                      onOpen={() => void openProject(folder, own)}
                       onMakeProject={() => openDialog(folder.workspaceRoot)}
                     />
                   ))}
