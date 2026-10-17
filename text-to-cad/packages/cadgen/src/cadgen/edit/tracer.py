@@ -1371,6 +1371,20 @@ def _components(steps):
     return [{"file": file, "function": function, "steps": group} for (file, function), group in groups.items()]
 
 
+def _component_step(component):
+    """The STEP file a component's own part model writes, which Open Part opens: None for one that
+    writes none."""
+    from cadgen.authoring import registered_model
+
+    try:
+        model = registered_model((ROOT / component["file"]).resolve(), component["function"])
+    except Exception:  # noqa: BLE001 - a part the registry cannot name opens nothing
+        return None
+    if model is None or model.fmt != "step" or not getattr(model, "step_output", True):
+        return None
+    return str(model.output_path)
+
+
 def _bounds(shape):
     try:
         box = shape.bounding_box()
@@ -1509,7 +1523,7 @@ def trace(request):
         # The same history as a CAD tree reads it, and the part's extent for the origin's planes.
         "features": [] if components else features,
         "sketches": sketches,
-        "components": [{"name": c["function"], "file": c["file"], "features": c["features"]} for c in components],
+        "components": [{"name": c["function"], "file": c["file"], "features": c["features"], "step": _component_step(c)} for c in components],
         "bounds": _bounds(shape) if isinstance(shape, B.Shape) else None,
         "dimensions": [_clean(d) for d in dimensions],
         # The viewer draws the model from its STEP; a page of its own asks for the mesh.

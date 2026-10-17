@@ -83,10 +83,49 @@ TRAY = {
 }
 
 
+# An assembly of two parts, each a model of its own beside its STEP, as a project lays them out.
+ASSEMBLY = {
+    "parts/base.py": """
+        from build123d import Box
+        from cadgen import step
+
+
+        @step
+        def base():
+            return Box(20, 10, 4)
+    """,
+    "parts/pin.py": """
+        from build123d import Cylinder, Pos
+        from cadgen import step
+
+
+        @step
+        def pin():
+            return Pos(0, 0, 5) * Cylinder(2, 6)
+    """,
+    "assemblies/stack.py": """
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "parts"))
+        from build123d import Compound
+        from cadgen import step
+        from base import base
+        from pin import pin
+
+
+        @step
+        def stack():
+            return Compound(children=[base(), pin()], label="stack")
+    """,
+}
+
+
 def project(files: dict[str, str]) -> Path:
     root = Path(tempfile.mkdtemp(prefix="cadgen-edit-commands-"))
     (root / ".git").mkdir()
     for name, text in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text(textwrap.dedent(text).lstrip(), encoding="utf-8")
     return root
 
@@ -517,6 +556,18 @@ class RollingBack(Commands):
         self.assertNotIn("filter_by(Axis.Z)", line)
         self.assertIsNone(edited["bar"])
         self.assertEqual(next(f for f in edited["features"] if f["kind"] == "Fillet")["edit"]["keeps"], "4 edges")
+
+
+
+class Assemblies(Commands):
+    """An assembly places its parts: each is modeled on its own, opened from the design tree."""
+
+    def test_each_part_names_the_model_open_part_opens_and_the_assembly_takes_no_commands(self):
+        root, file, state = self.open(ASSEMBLY, "assemblies/stack.step")
+        self.assertEqual([(c["name"], Path(c["step"]).parent.name, Path(c["step"]).name) for c in state["components"]],
+                         [("base", "parts", "base.step"), ("pin", "parts", "pin.step")])
+        refused = self.command(file, state, "fillet", BLOCK_TOP_EDGES, {"radius": "1"})
+        self.assertFalse(refused["ok"])
 
 
 if __name__ == "__main__":

@@ -106,7 +106,7 @@ function RollbackBar({ index, count, label, disabled, slotAt, onPreview, onMove 
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
  *   tree: ReturnType<typeof import("./editMode.js").featureTree>, onEditSketch?: (sketch: object) => void }} props
  */
-export default function EditTree({ edit, tree, onEditSketch = () => {} }) {
+export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPart = null, backTo = null }) {
   const [open, setOpen] = useState(() => new Set(["parameters"]));
   // A selection inside a closed part, or a sketch under a closed feature, opens them to it.
   useEffect(() => {
@@ -215,6 +215,10 @@ export default function EditTree({ edit, tree, onEditSketch = () => {} }) {
     void edit.remove(id, tree);
   };
   return <div ref={treeRef} role="tree" aria-label="Design tree" className="flex flex-col px-1 py-1" data-cad-edit-tree="" onKeyDown={onKeyDown}>
+    {backTo ? <button type="button" className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1 text-left text-tiny text-muted-foreground hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
+      onClick={backTo.open} data-cad-edit-back="">
+      <AssemblyIcon /><span className="truncate">{`Back to ${backTo.title}`}</span>
+    </button> : null}
     <Row id="" depth={0} icon={tree.assembly ? <AssemblyIcon /> : <PartIcon />} title={name} {...rowProps} />
     <Row id="" depth={1} icon={<ParametersIcon />} title="Parameters" expanded={open.has("parameters")} onToggle={toggle("parameters")} {...rowProps} />
     {open.has("parameters") ? <div role="group" aria-label="Parameters" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>
@@ -231,10 +235,16 @@ export default function EditTree({ edit, tree, onEditSketch = () => {} }) {
     </div> : null}
     {ORIGIN_PLANES.map(plane => <Row key={plane} id={`plane:${plane}`} depth={1} icon={<PlaneIcon />} title={`${plane} Plane`} {...rowProps} />)}
     <Row id="origin" depth={1} icon={<OriginIcon />} title="Origin" {...rowProps} />
+    {tree.assembly && onOpenPart && tree.components.some(component => component.step)
+      ? <p className="px-2 py-1 text-tiny leading-4 text-muted-foreground">Double-click a part to open it and model it.</p> : null}
     {tree.assembly
       ? tree.components.flatMap(component => [
+        // A part of the assembly opens on its own to be modeled, as SolidWorks' Open Part opens it.
         <Row key={component.id} id={component.id} depth={1} icon={<PartIcon />} title={component.title}
-          expanded={open.has(component.id)} onToggle={toggle(component.id)} {...rowProps} />,
+          expanded={open.has(component.id)} onToggle={toggle(component.id)}
+          onActivate={component.step && onOpenPart ? () => onOpenPart(component) : null}
+          menu={component.step && onOpenPart ? [{ id: "open-part", label: "Open Part", onSelect: () => onOpenPart(component) }] : null}
+          {...rowProps} />,
         ...(open.has(component.id) ? features(component.features, 2) : []),
       ])
       : partRows()}

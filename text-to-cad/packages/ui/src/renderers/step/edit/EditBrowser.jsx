@@ -1,8 +1,12 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import { cn } from "@text-to-cad/ui/utils";
+import { Button } from "@text-to-cad/ui/primitives/button";
 import { ScrollArea } from "@text-to-cad/ui/primitives/scroll-area";
 import {
+  FILE_SHEET_COMPACT_BUTTON_CLASSES,
   FILE_SHEET_STATUS_TEXT_CLASSES,
+  FileSheetButtonRow,
   FileSheetControlRow,
   FileSheetSettingsSection,
   FileSheetValueInput
@@ -35,11 +39,14 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, names: ReturnType<typeof import("./editMode.js").featureNames>,
  *   tree: ReturnType<typeof import("./editMode.js").featureTree>, references?: object[],
- *   onEditSketch?: (sketch: object) => void, onPlane?: (plane: string) => void }} props
- *   `references`: the faces and edges selected on the model; `onEditSketch`: a sketch's
+ *   onEditSketch?: (sketch: object) => void, onPlane?: (plane: string) => void, onOpenPart?: ((component: object) => void) | null }} props
+ *   `references`: the faces and edges selected on the model; `onOpenPart`: a part of an assembly
+ *   opened on its own, to be modeled (SolidWorks' Open Part), and `backTo` ({ title, open }) the
+ *   assembly a part was opened from; `onEditSketch`: a sketch's
  *   double-click in the tree; `onPlane`: an origin plane picked for a new sketch.
  */
-export default function EditBrowser({ edit, names, tree, references = [], onEditSketch = () => {}, onPlane = () => {} }) {
+export default function EditBrowser({ edit, names, tree, references = [], onEditSketch = () => {}, onPlane = () => {}, onOpenPart = null,
+  backTo = null }) {
   const [open, setOpen] = useState(true);
   const { state, status } = edit;
   const rows = state?.rows || [];
@@ -47,6 +54,9 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
   const selected = edit.selected || "";
   const sketchSelected = selected.startsWith("sketch:");
   const feature = treeFeatures(tree).find(each => each.id === (sketchSelected ? selected.slice("sketch:".length) : selected)) || null;
+  // A part of an assembly, selected in the tree: an assembly places its parts, so a part is
+  // modeled on its own, opened as SolidWorks' Open Part opens it.
+  const component = tree.assembly ? tree.components.find(each => each.id === selected) || null : null;
   const title = !feature ? "" : sketchSelected ? `${feature.sketch?.title || "Sketch"}${feature.sketch?.plane && feature.sketch.plane !== "Plane" ? `, ${feature.sketch.plane} Plane` : ""}`
     : feature.name ? `${feature.title}, ${feature.name}` : feature.title;
   // A feature's inputs, its sketch's dimensions among them (D1@Sketch2), each changed through the
@@ -68,7 +78,16 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
     {edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} />
       : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree} /> : null}
     <ScrollArea className="min-h-0 flex-1">
-      <EditTree edit={edit} tree={tree} onEditSketch={onEditSketch} />
+      <EditTree edit={edit} tree={tree} onEditSketch={onEditSketch} onOpenPart={onOpenPart} backTo={backTo} />
+      {component && !edit.command && !edit.sketch ? <FileSheetSettingsSection title={component.title} sectionId="edit-component">
+        <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
+          {component.step && onOpenPart ? "A part of this assembly. Open it to change its features, sketch on it and add new ones."
+            : "A part of this assembly. Ask the agent to change it."}</p>
+        {component.step && onOpenPart ? <div className="pb-2"><FileSheetButtonRow>
+          <Button type="button" variant="outline" size="sm" className={cn(FILE_SHEET_COMPACT_BUTTON_CLASSES, "justify-center")}
+            onClick={() => onOpenPart(component)}>Open Part</Button>
+        </FileSheetButtonRow></div> : null}
+      </FileSheetSettingsSection> : null}
       {feature && !edit.command && !edit.sketch ? <FileSheetSettingsSection title={title} sectionId="edit-feature" open={open} onOpenChange={setOpen}>
         {feature.kind === "Sketch" ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
           Double-click it to edit the sketch, or make a solid of it with an extrude or a revolve.</p>

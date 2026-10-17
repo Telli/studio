@@ -133,6 +133,7 @@ import EditDimensions from "./edit/EditDimensions.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
 import SketchOverlay from "./edit/SketchOverlay.jsx";
 import SketchesLayer from "./edit/SketchesLayer.jsx";
+import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
 import {
   ORIGIN_PLANES,
   editCommand,
@@ -144,6 +145,7 @@ import {
   rolledBack,
   selectionDimensions,
   selectionItems,
+  sizeName,
   sketchView,
   treeSketch
 } from "./edit/editMode.js";
@@ -3203,6 +3205,21 @@ function StepSurfaceBody({ view, data }) {
   const shownSketches = useMemo(() => (edit.sketch ? EMPTY_LIST : (edit.state?.sketches || EMPTY_LIST).filter(view => view.state
     && (view.consumed === null || (selectedTreeSketch && view.file === selectedTreeSketch.file && view.line === selectedTreeSketch.line)))),
   [edit.sketch, edit.state?.sketches, selectedTreeSketch]);
+  // Open Part, on a part of an assembly: its own model shown in this view, to be modeled there (an
+  // assembly places its parts; commands act on a part). A host that shows one file alone has none.
+  const openFile = host?.navigation?.openFile;
+  const editFile = selectedEntry?.file || "";
+  const assemblyTitle = sizeName(edit.state?.name || "");
+  const openPart = useMemo(() => (openFile ? component => {
+    if (!component?.step) return;
+    rememberOpenedFrom(component.step, { file: editFile, title: assemblyTitle || "the assembly" });
+    openFile(component.step);
+  } : null), [openFile, editFile, assemblyTitle]);
+  // A part opened from its assembly leads back to it.
+  const backTo = useMemo(() => {
+    const from = openFile ? openedFrom(editFile) : null;
+    return from ? { title: from.title, open: () => openFile(from.file) } : null;
+  }, [openFile, editFile]);
   // Edit Feature on a fillet, a chamfer, a shell or a hole rolls the part back to just before it:
   // Select is in hand, turned to what the feature picks, so others can be picked on that body.
   const repickKey = edit.editing?.rolled ? edit.editing.id : "";
@@ -3426,7 +3443,7 @@ function StepSurfaceBody({ view, data }) {
     ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
       sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} /> : null}
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
-      onEditSketch={openTreeSketch} onPlane={sketchOnPlane} /> : null}
+      onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} /> : null}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
       return <>

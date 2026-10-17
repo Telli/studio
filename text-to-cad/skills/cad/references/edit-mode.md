@@ -82,6 +82,10 @@ by hand" below.
   as it was at that line (`outer = fillet(outer.faces().sort_by(Axis.Z)[-1].edges(), radius=2)`).
   A value left as it was keeps how it was written (`radius=WALL` stays `radius=WALL`). A line
   written in the commands' form opens this way even when you wrote it.
+- **An assembly places its parts; a part is modeled on its own.** In an assembly the design tree
+  lists its parts (Daisy tray<1>), and Open Part (double-click, or the part's menu) opens the part's
+  own model in the view, where its features, sketches and commands are. The ribbon's modeling
+  commands are off in an assembly, as in SolidWorks.
 - **The rollback bar** under the features (dragged up, or a feature's Rollback) shows the part as
   it was above a feature, the features below it greyed. While it is up, commands act on the body
   there and write their line right above the feature below the bar (a new sketch goes there too),

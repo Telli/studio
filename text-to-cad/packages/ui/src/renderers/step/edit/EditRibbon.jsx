@@ -187,6 +187,11 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   const status = edit.saving ? (sketch ? "Solving" : "Rebuilding")
     : building || (edit.status === "reading" ? "Reading the part" : edit.status === "ready" ? "Saved" : "");
   const commandsIdle = edit.status !== "ready" || edit.saving;
+  // An assembly places its parts: a part is modeled on its own, opened from the design tree, as
+  // SolidWorks models a part in its own window.
+  const placing = Boolean(edit.state?.components?.length);
+  const modelingOff = commandsIdle || placing;
+  const placingWords = placing ? "An assembly places its parts. Right-click a part in the design tree and choose Open Part to model it." : undefined;
   const commandIcon = id => { const Icon = COMMAND_ICONS[id]; return <Icon aria-hidden="true" />; };
   const toolItem = tool => ({ id: tool.id, label: LABELS[tool.id] || tool.label, icon: tool.icon, active: tool.active === true,
     disabled: tool.disabled, description: tool.description, onClick: () => tool.onSelect() });
@@ -248,13 +253,13 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
 
   const commandItem = command => {
     const open = edit.command === command.id;
-    return { id: command.id, label: command.label, icon: commandIcon(command.id), active: open, disabled: commandsIdle,
-      onClick: () => (open ? edit.close() : onCommand(command.id)) };
+    return { id: command.id, label: command.label, icon: commandIcon(command.id), active: open, disabled: modelingOff,
+      description: placingWords, onClick: () => (open ? edit.close() : onCommand(command.id)) };
   };
   return ribbon("Design", [
     edits,
-    { title: "Sketch", items: [{ id: "sketch", label: sketchLabel, icon: <SketchToolIcon />, active: edit.picking, disabled: commandsIdle,
-      onClick: () => (edit.picking ? edit.stopPicking() : onSketch()) }] },
+    { title: "Sketch", items: [{ id: "sketch", label: sketchLabel, icon: <SketchToolIcon />, active: edit.picking, disabled: modelingOff,
+      description: placingWords, onClick: () => (edit.picking ? edit.stopPicking() : onSketch()) }] },
     ...["Create", "Modify"].map(title => ({ title, items: EDIT_COMMANDS.filter(command => command.group === title).map(commandItem) })),
     ...GROUPS.map(group => ({ title: group.title, items: group.tools.map(id => byId.get(id)).filter(Boolean).map(toolItem) })),
     { title: "Tools", items: others.map(toolItem) },
