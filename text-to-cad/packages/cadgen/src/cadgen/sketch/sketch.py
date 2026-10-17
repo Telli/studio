@@ -414,6 +414,65 @@ class Sketch:
         """The angle between two lines, in degrees (0 to 180)."""
         return self._relate("angle", (a, b), degrees)
 
+    # --- sketch tools ------------------------------------------------------------------------------
+
+    def fillet(self, a: Line, b: Line, radius) -> Relation:
+        """The corner where two lines meet rounded by an arc of ``radius`` tangent to both, as a
+        CAD tool's sketch fillet rounds it. The lines keep their ends at the corner (its virtual
+        sharp), so a dimension to the corner still measures to it, and the face is made with the
+        corner rounded. The radius is a dimension of the sketch (D1); the arc is named Fillet1."""
+        if not (isinstance(a, Line) and isinstance(b, Line)) or a is b:
+            raise SketchError("A sketch fillet rounds the corner where two lines meet.")
+        corner = _shared_end(a, b)
+        if corner is None:
+            raise SketchError(f"{a.name} and {b.name} do not meet at an end, so there is no corner to round.")
+        if a.construction != b.construction:
+            raise SketchError(f"{a.name} and {b.name} are not both construction geometry, or both not, so they are not rounded together.")
+        if _number(radius, "A fillet's radius") <= 0:
+            raise SketchError("A fillet's radius must be more than zero.")
+        if any(r.kind == "fillet" and r.data["corner"] is corner and {id(ref) for ref in r.refs} == {id(a), id(b)} for r in self.relations):
+            raise SketchError(f"The corner of {a.name} and {b.name} is rounded already.")
+        return self._relate("fillet", (a, b), radius, data={"corner": corner, "arc": self._named("Fillet")})
+
+    def offset_entities(self, made, source, distance) -> Relation:
+        """``made`` kept ``distance`` from ``source``, as a CAD tool's Offset Entities keeps an
+        offset: each line of ``made`` parallel to its own of ``source``, that far to the side it
+        is drawn on; each arc or circle around its own's center, that much bigger or smaller; and
+        an open chain's ends square across from the source's ends. ``made`` and ``source`` are a
+        curve each, or lists of them in step. One dimension holds them all."""
+        made = list(made) if isinstance(made, (list, tuple)) else [made]
+        source = list(source) if isinstance(source, (list, tuple)) else [source]
+        if not made or len(made) != len(source):
+            raise SketchError("Offset Entities takes the offset curves and the curves they are offset from, one for one.")
+        if _number(distance, "An offset") <= 0:
+            raise SketchError("An offset must be more than zero.")
+        sides = []
+        for m, s in zip(made, source):
+            if isinstance(s, Line) and isinstance(m, Line):
+                sides.append(_side(s, m.start))
+            elif isinstance(s, (Arc, Circle)) and type(m) is type(s):
+                sides.append(1.0 if _radius(m) >= _radius(s) else -1.0)
+            else:
+                raise SketchError(f"{m.name} cannot be an offset of {s.name}: a line's offset is a line, an arc's an arc, a circle's a circle.")
+        ends_of = lambda curve: (curve.start, curve.end) if isinstance(curve, (Line, Arc)) else ()  # noqa: E731
+        points = [point for curve in made for point in ends_of(curve)]
+        # An open chain's ends, each with the source end across from it.
+        ends = []
+        for index, (m, s) in enumerate(zip(made, source)):
+            for role, point in zip(("start", "end"), ends_of(m)):
+                if sum(other is point for other in points) == 1:
+                    across = min(("start", "end"), key=lambda each: math.hypot(getattr(s, each).x - point.x, getattr(s, each).y - point.y))
+                    ends.append((index, role, across))
+        return self._relate("offset", (*made, *source), distance, label="Offset",
+                            data={"count": len(made), "sides": sides, "ends": ends})
+
+    def fillet_arcs(self):
+        """The sketch's fillets as arcs where the solved sketch puts them (``fillets.py``)."""
+        from .fillets import fillet_arcs
+
+        self.solve()
+        return fillet_arcs(self)
+
     # --- results -----------------------------------------------------------------------------------
 
     def solve(self, prefer=()):
@@ -484,15 +543,29 @@ class Sketch:
         """The sketch for an editor to draw, as JSON: its entities where it solved them, each
         marked defined when nothing can move it (black in a CAD tool, blue while it can move),
         its relations and dimensions, how defined it is, and its plane's frame in the part."""
+        from .fillets import fillet_arcs
+
         solution = self.solve()
         moving = solution.movable
         where = lambda item: {"file": item.source[0], "line": item.source[1]} if item.source else {}  # noqa: E731
         defined = lambda point: point.name not in moving  # noqa: E731
+        errors = []
+        try:
+            rounded = fillet_arcs(self)
+        except SketchError as error:
+            rounded = []
+            errors.append(str(error))
+        # Where each line is drawn to: the fillet at an end, else the end itself.
+        trims = {(id(arc.a), arc.end_of(arc.a)): arc.start for arc in rounded}
+        trims.update({(id(arc.b), arc.end_of(arc.b)): arc.end for arc in rounded})
         curves = []
         for curve in self.curves:
             entry = {"id": curve.name, "kind": type(curve).__name__.lower(), "construction": curve.construction, **where(curve)}
             if isinstance(curve, Line):
                 entry.update(start=curve.start.name, end=curve.end.name, defined=defined(curve.start) and defined(curve.end))
+                if (id(curve), "start") in trims or (id(curve), "end") in trims:
+                    entry["shown"] = [list(trims.get((id(curve), "start"), (curve.start.x, curve.start.y))),
+                                      list(trims.get((id(curve), "end"), (curve.end.x, curve.end.y)))]
             elif isinstance(curve, Circle):
                 entry.update(center=curve.center.name, radius=curve.radius, literal=curve.literal,
                              defined=defined(curve.center) and curve.name not in moving)
@@ -501,6 +574,13 @@ class Sketch:
                              clockwise=curve.clockwise, literal=curve.literal,
                              defined=all(defined(p) for p in (curve.center, curve.start, curve.end)))
             curves.append(entry)
+        # Each fillet's arc, worked out from its lines (`derived`): drawn and picked as an arc, with
+        # its places rather than points of its own.
+        for arc in rounded:
+            curves.append({"id": arc.name, "kind": "arc", "derived": "fillet", "dimension": arc.relation.name,
+                           "construction": arc.a.construction, "c": list(arc.center), "s": list(arc.start), "e": list(arc.end),
+                           "radius": arc.radius, "clockwise": arc.clockwise,
+                           "defined": all(defined(p) for p in (arc.a.start, arc.a.end, arc.b.start, arc.b.end)), **where(arc.relation)})
         redundant = {relation.name for relation in solution.redundant}
         return {
             "name": self.name,
@@ -510,6 +590,7 @@ class Sketch:
             "status": solution.status,
             "dof": solution.dof,
             "redundant": sorted(redundant),
+            "errors": errors,
             "points": [{"id": p.name, "x": p.x, "y": p.y, "fixed": p.fixed, "construction": p.construction,
                         "defined": defined(p), "literals": list(p.literals), **where(p)}
                        for p in [self.origin, *self.points]],

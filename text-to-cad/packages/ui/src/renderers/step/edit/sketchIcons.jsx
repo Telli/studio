@@ -1,8 +1,9 @@
 /**
  * Sketch mode's icons, drawn as SolidWorks draws its Sketch tab's, so each reads before its name
  * does: a line with its end points, a rectangle by its corners or its center, a circle and an arc
- * with their centers, a slot, a centerline's dashes, Smart Dimension's arrows, and Exit Sketch's
- * check over a sketch.
+ * with their centers, a slot, a centerline's dashes, Smart Dimension's arrows, Exit Sketch's check
+ * over a sketch, and the tools that change what is drawn: a rounded corner and its sharp, a line
+ * cut back at a crossing, a chain and its offset, a shape and its mirror across a centerline.
  */
 function Glyph({ children, className }) {
   return <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round"
@@ -21,6 +22,10 @@ export const ArcIcon = ({ className }) => <Glyph className={className}><path d="
 export const SlotIcon = ({ className }) => <Glyph className={className}><path d="M5 5h6a3 3 0 0 1 0 6H5a3 3 0 0 1 0-6z" /><Dot x={5} y={8} /><Dot x={11} y={8} /></Glyph>;
 export const CenterlineIcon = ({ className }) => <Glyph className={className}><path d="m3 13 10-10" strokeDasharray="3 1.5 0.5 1.5" /></Glyph>;
 export const PointIcon = ({ className }) => <Glyph className={className}><path d="M8 4v8M4 8h8" strokeOpacity=".4" /><circle cx="8" cy="8" r="1.8" fill="currentColor" stroke="none" /></Glyph>;
+export const SketchFilletIcon = ({ className }) => <Glyph className={className}><path d="M3 13.5V9a6 6 0 0 1 6-6h4.5" /><path d="M3 5.5V3h2.5" strokeOpacity=".45" strokeDasharray="1 1.2" /></Glyph>;
+export const TrimIcon = ({ className }) => <Glyph className={className}><path d="M8.5 2.5v11" /><path d="M2 8h6.5" /><path d="M8.5 8H14" strokeOpacity=".35" strokeDasharray="1.4 1.3" /><Dot x={8.5} y={8} /></Glyph>;
+export const OffsetIcon = ({ className }) => <Glyph className={className}><path d="M2.5 13.5v-10h11" /><path d="M5.5 13.5v-7h8" strokeOpacity=".6" /></Glyph>;
+export const MirrorIcon = ({ className }) => <Glyph className={className}><path d="M8 1.5v13" strokeDasharray="2 1.4" /><path d="M6 4.5 2 11.5h4z" /><path d="m10 4.5 4 7h-4z" strokeOpacity=".55" /></Glyph>;
 export const AddRelationIcon = ({ className }) => <Glyph className={className}><path d="M2.5 11.5h7" /><path d="M6.5 4.5v7" /><rect x="10" y="2.5" width="4" height="4" rx=".6" strokeOpacity=".6" /><path d="M11.4 4.5h1.2" strokeOpacity=".6" /></Glyph>;
 export const ConstructionIcon = ({ className }) => <Glyph className={className}><path d="m3 13 10-10" strokeDasharray="2 1.6" /><Dot x={3} y={13} /><Dot x={13} y={3} /></Glyph>;
 export const NormalToIcon = ({ className }) => <Glyph className={className}><path d="M3 12.5 5 6.5h8l-2 6z" strokeOpacity=".55" /><path d="M8 9.5V2.5M6.3 4.2 8 2.5l1.7 1.7" /></Glyph>;
@@ -35,4 +40,5 @@ export const RevolvedCutIcon = ({ className }) => <Glyph className={className}><
 export const SKETCH_TOOL_ICONS = Object.freeze({
   line: LineIcon, rectangle: CornerRectangleIcon, center_rectangle: CenterRectangleIcon, circle: CircleIcon, arc: ArcIcon,
   slot: SlotIcon, centerline: CenterlineIcon, point: PointIcon, dimension: SmartDimensionIcon,
+  fillet: SketchFilletIcon, trim: TrimIcon, offset: OffsetIcon, mirror: MirrorIcon,
 });

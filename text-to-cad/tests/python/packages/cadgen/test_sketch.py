@@ -93,6 +93,38 @@ class Faces(unittest.TestCase):
         self.assertAlmostEqual(box.min.Z, 0, places=6)
         self.assertAlmostEqual(box.max.Z, 5, places=6)
 
+    def test_a_sketch_fillet_rounds_its_corner_in_the_face_and_its_dimensions_still_hold(self):
+        s, bottom, right, top, left, circle = plate()
+        s.fillet(bottom, right, 5)
+        self.assertEqual(s.status, "Fully defined")
+        self.assertAlmostEqual(right.end.x, 70.0, places=6)
+        cut = 5 * 5 - math.pi * 25 / 4
+        self.assertAlmostEqual(s.face().area, 70 * 25 - math.pi * 16 - cut, places=3)
+        s.fillet(top, left, 30)
+        with self.assertRaises(SketchError) as raised:
+            s.face()
+        self.assertIn("more than", str(raised.exception))
+
+    def test_offset_entities_follow_what_they_are_offset_from(self):
+        s, bottom, right, top, left, circle = plate()
+        ring = s.circle(circle.center, 6)
+        s.offset_entities(ring, circle, 2)
+        made = [s.line((-1, -1), (71, -1))]
+        made.append(s.line(made[0].end, (71, 26)))
+        made.append(s.line(made[1].end, (-1, 26)))
+        made.append(s.line(made[2].end, made[0].start))
+        s.offset_entities(made, [bottom, right, top, left], 1)
+        self.assertEqual((s.status, s.dof), ("Fully defined", 0))
+        self.assertAlmostEqual(ring.radius, 6.0, places=6)
+        bigger, *_ = plate(length=90.0)
+        offset = [bigger.line((-1, -1), (71, -1))]
+        offset.append(bigger.line(offset[0].end, (71, 26)))
+        offset.append(bigger.line(offset[1].end, (-1, 26)))
+        offset.append(bigger.line(offset[2].end, offset[0].start))
+        bigger.offset_entities(offset, bigger.curves[:4], 1)
+        bigger.solve()
+        self.assertAlmostEqual(offset[1].start.x, 91.0, places=6)
+
     def test_front_and_right_sketches_face_their_planes(self):
         for plane, normal in (("Front", (0, -1, 0)), ("Right", (1, 0, 0)), ("Top", (0, 0, 1))):
             s = Sketch(plane=plane)

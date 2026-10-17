@@ -90,6 +90,15 @@ by hand" below.
 - Deleting an entity takes out its line and the relations and dimensions on it; a curve drawn
   from one of its points keeps the point where it was. A corner rectangle's line is deleted on its
   own: the rectangle is written as its four lines first.
+- The sketch tools write lines too. Sketch Fillet writes `sketch2.fillet(line2, line3, 2)`.
+  Offset Entities draws the offset curves where they fall and holds them with
+  `sketch2.offset_entities([line9, ...], [line1, ...], 2)`. Mirror Entities draws the mirrored
+  curves, shares the points on the centerline, and holds the rest with `sketch2.symmetric(...)`
+  (and `sketch2.equal(...)` for an arc or circle). Trim Entities moves an end back to where
+  another curve crosses (`sketch2.coincident(line1.end, line2)` keeps it there), splits a line
+  or an arc in two (kept in line: `parallel` and `coincident`, or `equal` for an arc; a split
+  line's length becomes the distance between its far ends), or makes a circle an arc; a
+  rectangle is written as its four lines first. A curve nothing crosses is deleted.
 - Keep this shape when you change a sketch the engineer drew: its block of lines after the
   `Sketch(...)` line, entities assigned to names, so the engineer can open it again with Edit
   Sketch. Change sizes by their numbers or names, as in any sketch.

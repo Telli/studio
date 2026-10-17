@@ -6,12 +6,22 @@
  */
 import { arcSweep } from "./sketchMode.js";
 
+/**
+ * Whether a viewer's text color is light, so the viewer is dark. The theme writes it as oklch (its
+ * lightness first, 0 to 1 or a percentage); a browser may hand it back as rgb.
+ */
+export function lightText(text) {
+  const oklch = /^oklch\(\s*([\d.]+)(%?)/i.exec(text);
+  const [r, g, b] = (text.match(/[\d.]+/g) || ["20", "20", "20"]).map(Number);
+  const lightness = oklch ? Number(oklch[1]) / (oklch[2] ? 100 : 1) : (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lightness > 0.55;
+}
+
 /** The sketch's colors, as SolidWorks gives them: blue while it can move, black (the text color here) once defined. */
 export function colorsFor(host) {
   const style = getComputedStyle(host);
   const text = style.color || "rgb(20, 20, 20)";
-  const [r, g, b] = (text.match(/[\d.]+/g) || ["20", "20", "20"]).map(Number);
-  const dark = 0.299 * r + 0.587 * g + 0.114 * b > 140;
+  const dark = lightText(text);
   return {
     defined: text, under: dark ? "#60a5fa" : "#1d4ed8", over: "#ef4444", selected: "#06b6d4", hover: "#f97316",
     origin: "#dc2626", preview: dark ? "#93c5fd" : "#2563eb", label: dark ? "rgba(24, 24, 27, 0.9)" : "rgba(255, 255, 255, 0.92)",
@@ -69,7 +79,7 @@ export function circlePoints(c, r, from = 0, sweep = 2 * Math.PI) {
 
 /** A curve of `sketchGeometry` as points along it. */
 export function curvePoints(curve) {
-  if (curve.kind === "line") return [curve.a, curve.b];
+  if (curve.kind === "line") return curve.view || [curve.a, curve.b];
   if (curve.kind === "circle") return circlePoints(curve.c, curve.r);
   const { start, sweep } = arcSweep(curve);
   return circlePoints(curve.c, curve.r, start, sweep);

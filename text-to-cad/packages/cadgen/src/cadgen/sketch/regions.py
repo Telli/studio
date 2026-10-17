@@ -2,7 +2,7 @@
 
 The sketch's curves (construction geometry aside) are chained into closed loops: a circle is one
 alone, and lines and arcs join where their points meet (the same point, a coincident pair, or
-points solved to one place). A loop inside another is a hole in it, and a loop inside a hole is a
+points solved to one place). A sketch fillet's arc takes its corner (``fillets.py``). A loop inside another is a hole in it, and a loop inside a hole is a
 region of its own again, as a CAD tool reads a profile. Each region is a face whose normal is the
 sketch plane's, so an extrude of it goes the way the plane faces.
 """
@@ -12,7 +12,8 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 
-from .sketch import PLANE_NAMES, Arc, Circle, Point, SketchError
+from .fillets import fillet_arcs
+from .sketch import PLANE_NAMES, Arc, Circle, Line, Point, SketchError
 
 __all__ = ["faces", "loops", "plane_of"]
 
@@ -87,9 +88,31 @@ class _Loop:
         return inside and abs(other.area) < abs(self.area)
 
 
+def _rounded(curves, arcs):
+    """The curves with each fillet's corner taken off its two lines, and its arc between them."""
+    ends: dict[tuple[int, str], Point] = {}
+    made = []
+    for arc in arcs:
+        start, end = Point(f"{arc.name}.start", *arc.start), Point(f"{arc.name}.end", *arc.end)
+        ends[(id(arc.a), arc.end_of(arc.a))] = start
+        ends[(id(arc.b), arc.end_of(arc.b))] = end
+        made.append(Arc(arc.name, Point(f"{arc.name}.center", *arc.center), start, end, arc.clockwise))
+    out = []
+    for curve in curves:
+        if isinstance(curve, Line) and ((id(curve), "start") in ends or (id(curve), "end") in ends):
+            curve = Line(curve.name, ends.get((id(curve), "start"), curve.start), ends.get((id(curve), "end"), curve.end),
+                         curve.construction, curve.source)
+        out.append(curve)
+    return out + made
+
+
 def loops(sketch) -> list[_Loop]:
-    """The sketch's closed loops. Raises SketchError where a profile is open or branches."""
+    """The sketch's closed loops. Raises SketchError where a profile is open or branches, or a
+    fillet does not fit its corner."""
     curves = [curve for curve in sketch.curves if not curve.construction]
+    rounded = [arc for arc in fillet_arcs(sketch) if not arc.a.construction]
+    if rounded:
+        curves = _rounded(curves, rounded)
     scale = max([1.0, *(abs(c) for p in sketch.points for c in (p.x, p.y))])
     # Points that are one: the same point, a coincident pair, or solved to one place.
     parent: dict[int, Point] = {}

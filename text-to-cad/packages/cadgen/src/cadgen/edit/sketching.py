@@ -23,7 +23,10 @@ GEOMETRY = ("point", "line", "polyline", "circle", "arc", "three_point_arc", "re
 RELATIONS = ("fix", "coincident", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "midpoint",
              "symmetric", "concentric")
 DIMENSIONS = ("distance", "length", "horizontal_distance", "vertical_distance", "radius", "diameter", "angle")
-SKETCH_METHODS = frozenset(GEOMETRY + RELATIONS + DIMENSIONS)
+# The sketch tools' own lines (`sketch_tools.py`), each with a size as its last argument: a
+# fillet's radius, an offset's distance.
+TOOLS = ("fillet", "offset_entities")
+SKETCH_METHODS = frozenset(GEOMETRY + RELATIONS + DIMENSIONS + TOOLS)
 # How many curves a drawing statement returns, in the order it makes them: a rectangle's four
 # lines (a center rectangle's diagonal is not returned), a slot's arc, line, arc, line.
 RETURNED = {"rectangle": 4, "center_rectangle": 4, "slot": 4}
@@ -521,7 +524,7 @@ def set_value(text: str, line: int, state: dict, dimension: str, typed: str, pat
     names = Names(block, state)
     made = names.statement_of(dimension)
     call = _call_of(made.statement, block.var) if made is not None else None
-    if call is None or made.method not in DIMENSIONS or not call.args:
+    if call is None or made.method not in DIMENSIONS + TOOLS or not call.args:
         raise SketchEditError(f"{dimension} is not written on a line of its own, so edit mode cannot change it. Ask the agent.")
     edits = TextEdits(text)
     edits.replace_node(call.args[-1], _typed(typed))
@@ -623,6 +626,9 @@ def delete(text: str, line: int, state: dict, items: list[str], path: str = "<sk
         if name in made.relations and made.method in GEOMETRY:
             shape = made.method.replace("_", " ")
             raise SketchEditError(f"{name} comes with the {shape} it holds. Delete the {shape} instead.")
+        if name in made.relations and made.method == "fillet":
+            arc = next((curve for curve in made.curves if curve != name), "the fillet")
+            raise SketchEditError(f"{name} is {arc}'s radius. Change its value, or delete {arc} to take the fillet away.")
         removed.add(names.made_by[name])
     gone_codes: set[str] = set()
     for index in removed:

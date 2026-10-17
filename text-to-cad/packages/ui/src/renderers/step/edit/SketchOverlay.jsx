@@ -4,17 +4,21 @@ import { transitionCameraToViewPreset } from "../../kit/camera/runtimeCamera.js"
 import { requestSceneFrame } from "../../kit/viewport/sceneFrames.js";
 import { arrowHead, circlePoints, colorsFor, curvePoints, overlaps, planeMapping, strokePath } from "./sketchDrawing.js";
 import {
+  chainOf,
   dimensionFor,
   dimensionLayout,
   drawOp,
   formatValue,
   hitTest,
   inferLine,
+  MODIFY_TOOLS,
   placedSide,
   refAt,
   sketchGeometry,
   snap,
-  TOOL_CLICKS
+  TOOL_CLICKS,
+  toolSize,
+  trimPiece
 } from "./sketchMode.js";
 
 // How near, in pixels, a press must land to pick something, and to land on a point or a curve.
@@ -66,7 +70,9 @@ function ModifyBox({ box, onDone }) {
  * picks, then places, then the Modify box takes the value; with no tool it selects (Ctrl or Shift
  * adds) and drags what can move. A press on nothing, or with a modifier, still turns the view.
  * Escape steps back, Delete deletes what is selected, and a dimension's value is changed by a
- * double-click on it.
+ * double-click on it. Sketch Fillet, Trim, Offset and Mirror Entities take clicks on what is
+ * drawn: a corner or two lines to round, the piece of a curve to cut away (shown as the pointer
+ * passes over it), a chain to offset (shown too), the entities to mirror and then the centerline.
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
  *   edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, units: string }} props
@@ -79,7 +85,8 @@ export default function SketchOverlay({ viewport, edit, units }) {
   const placements = useRef(new Map());
   // What the layer's handlers read when they run: the latest of everything.
   const live = useRef(null);
-  live.current = { sketch, tool: edit.sketchTool, selection: edit.sketchSelection, construction: edit.construction, units, edit, box };
+  live.current = { sketch, tool: edit.sketchTool, selection: edit.sketchSelection, construction: edit.construction, units, edit, box,
+    settings: edit.sketchSettings };
   // Bumped whenever something not in the camera changed, so the next frame paints again.
   const version = useRef(0);
   version.current += 1;
@@ -149,7 +156,9 @@ export default function SketchOverlay({ viewport, edit, units }) {
     };
     // The panel's prompt follows the clicks a tool has had.
     const report = () => {
-      const count = live.current.tool === "dimension" ? (pending?.placing ? 2 : pending?.picks?.length || 0) : picks.length;
+      const tool = live.current.tool;
+      const count = tool === "dimension" ? (pending?.placing ? 2 : pending?.picks?.length || 0)
+        : tool === "mirror" ? (live.current.selection.length ? 1 : 0) : picks.length;
       if (count !== step) { step = count; live.current.edit.setSketchStep(count); }
     };
 
@@ -183,7 +192,11 @@ export default function SketchOverlay({ viewport, edit, units }) {
       const selection = new Set(current.selection);
       const redundant = new Set(state.redundant || []);
       const overDefined = new Set((state.relations || []).concat(state.dimensions || []).filter(item => redundant.has(item.id)).flatMap(item => item.refs));
-      const colorOf = (id, defined) => (selection.has(id) ? colors.selected : hover === id ? colors.hover
+      // What the tool in hand would take: Offset's chain, Sketch Fillet's first line.
+      const taking = new Set(current.tool === "offset" && hover && geometry.curves.some(curve => curve.id === hover)
+        ? (current.settings?.offsetChain === false ? [hover] : chainOf(shown, hover)) : current.tool === "fillet" ? picks.map(pick => pick.id) : []);
+      const lit = id => taking.has(id) || (hover === id && current.tool !== "trim");
+      const colorOf = (id, defined) => (selection.has(id) ? colors.selected : lit(id) ? colors.hover
         : overDefined.has(id) ? colors.over : defined ? colors.defined : colors.under);
 
       // The origin: its red axes, as SolidWorks draws a sketch's origin.
@@ -203,7 +216,7 @@ export default function SketchOverlay({ viewport, edit, units }) {
       // The curves, then their points: each end and center, and each point of its own.
       for (const curve of geometry.curves) {
         context.strokeStyle = colorOf(curve.id, curve.defined);
-        context.lineWidth = selection.has(curve.id) || hover === curve.id ? 2.6 : 1.6;
+        context.lineWidth = selection.has(curve.id) || lit(curve.id) ? 2.6 : 1.6;
         context.setLineDash(curve.construction ? [9, 4, 2, 4] : []);
         path(curvePoints(curve));
       }
@@ -270,9 +283,21 @@ export default function SketchOverlay({ viewport, edit, units }) {
         drawDimension(made, colors.hover, pending.value, pointer?.local ? placedSide(state, made, pointer.local) : 0);
       }
 
+      // Trim: the piece the pointer is over, as it would be cut away.
+      if (current.tool === "trim" && hover && pointer?.local) {
+        const piece = trimPiece(shown, hover, pointer.local);
+        if (piece) {
+          context.strokeStyle = colors.over;
+          context.lineWidth = 3;
+          context.setLineDash([6, 4]);
+          path(piece.points);
+          context.setLineDash([]);
+        }
+      }
+
       // The stroke under way, and where it lands.
       const tool = current.tool;
-      if (tool && tool !== "dimension" && pointer?.local) {
+      if (tool && tool !== "dimension" && !MODIFY_TOOLS.includes(tool) && pointer?.local) {
         const landing = landAt(pointer.local);
         context.strokeStyle = colors.preview;
         context.lineWidth = 1.5;
@@ -421,6 +446,48 @@ export default function SketchOverlay({ viewport, edit, units }) {
 
     const labelAt = screen => labels.find(rect => screen[0] >= rect.x && screen[0] <= rect.x + rect.w && screen[1] >= rect.y && screen[1] <= rect.y + rect.h);
 
+    // A click with a tool that changes what is drawn, on what it hit.
+    const useTool = async (tool, hit, place) => {
+      const current = live.current;
+      const state = current.sketch.state;
+      const { points, curves } = sketchGeometry(state);
+      const curve = curves.find(each => each.id === hit);
+      const units = current.units;
+      if (tool === "fillet") {
+        const radius = toolSize(current.settings?.filletRadius, units, "fillet");
+        if (hit && points.has(hit)) { picks = []; report(); await send({ kind: "fillet", corner: hit, radius }); return; }
+        if (curve?.kind !== "line" || curve.derived) return;
+        if (!picks.length) { picks = [{ id: hit }]; report(); return; }
+        const first = picks[0].id;
+        picks = [];
+        report();
+        if (first !== hit) await send({ kind: "fillet", lines: [first, hit], radius });
+        return;
+      }
+      if (tool === "trim") {
+        if (curve && !curve.derived) await send({ kind: "trim", curve: hit, at: rounded(place, units) });
+        return;
+      }
+      if (tool === "offset") {
+        if (!curve || curve.derived) return;
+        const items = current.settings?.offsetChain === false ? [hit] : chainOf(state, hit);
+        await send({ kind: "offset", items, distance: toolSize(current.settings?.offsetDistance, units, "offset"),
+          reverse: Boolean(current.settings?.offsetReverse) });
+        return;
+      }
+      if (tool === "mirror") {
+        const selection = current.selection.filter(id => id !== hit);
+        // A centerline, once something is picked, is what they are mirrored about.
+        if (curve?.kind === "line" && curve.construction && selection.length) {
+          const reply = await send({ kind: "mirror", items: selection, about: hit });
+          if (reply?.ok) current.edit.selectInSketch([]);
+          return;
+        }
+        if (!hit || curve?.derived) return;
+        current.edit.selectInSketch(current.selection.includes(hit) ? selection : [...current.selection, hit]);
+      }
+    };
+
     const handlePointerDown = event => {
       const current = live.current;
       if (!current.sketch?.state || current.box) return;
@@ -431,6 +498,16 @@ export default function SketchOverlay({ viewport, edit, units }) {
       pointer = { screen, local: place };
       const tool = current.tool;
       const extend = event.ctrlKey || event.metaKey || event.shiftKey;
+      if (tool && MODIFY_TOOLS.includes(tool)) {
+        if (extend) return; // a modifier keeps the press for the camera
+        event.preventDefault();
+        event.stopPropagation();
+        if (busy) return;
+        syncTool();
+        void useTool(tool, hitTest(current.sketch.state, place, HIT_PX / (mapping?.perUnit || 1)), place);
+        version.current += 1;
+        return;
+      }
       if (tool && tool !== "dimension") {
         if (extend) return; // a modifier keeps the press for the camera
         event.preventDefault();
@@ -506,10 +583,12 @@ export default function SketchOverlay({ viewport, edit, units }) {
         if (made) pending = { ...pending, ...made };
       }
       const label = labelAt(screen);
-      const over = !current.tool || current.tool === "dimension"
-        ? label?.id || (place && current.sketch?.state ? hitTest(current.sketch.state, place, HIT_PX / (mapping?.perUnit || 1)) : null) : null;
+      const picking = !current.tool || current.tool === "dimension" || MODIFY_TOOLS.includes(current.tool);
+      const over = picking
+        ? (MODIFY_TOOLS.includes(current.tool) ? null : label?.id) || (place && current.sketch?.state ? hitTest(current.sketch.state, place, HIT_PX / (mapping?.perUnit || 1)) : null) : null;
       if (over !== hover) hover = over;
-      host.style.cursor = current.tool && current.tool !== "dimension" ? "crosshair" : over ? "pointer" : "";
+      if (current.tool === "mirror") report();
+      host.style.cursor = current.tool && !picking ? "crosshair" : over ? "pointer" : "";
       version.current += 1;
     };
 

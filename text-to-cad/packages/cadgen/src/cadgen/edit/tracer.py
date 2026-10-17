@@ -1807,6 +1807,44 @@ def _hash(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
 
 
+def _evaluated(entry, typed):
+    """A size as typed (a number, or the part's sizes with plain arithmetic) worked out where the
+    sketch is made, for a tool to place what it draws."""
+    from cadgen.edit import sketching
+
+    try:
+        value = float(eval(compile(ast.parse(typed, mode="eval"), "<typed>", "eval"),  # noqa: S307 - `_typed` lets through only numbers, names and arithmetic
+                           entry["globals"], dict(entry["locals"] or {})))
+    except Exception:  # noqa: BLE001 - said to the engineer as a size the part does not have
+        raise sketching.SketchEditError(f"{typed} is not a size of the part. Type a number or a size's name.") from None
+    return value
+
+
+def _prune(request, path, old, text, line, block, sketch, entry):
+    """The relations a sketch tool wrote that the sketch does not need taken back, the last first,
+    until none of the tool's is redundant: a mirror's, an offset's or a trim's that the sketch's
+    other relations already hold, which would make it Over defined."""
+    from cadgen.edit import sketching
+
+    before = {ast.unparse(statement) for statement in sketching.find_block(old, line, str(path)).statements}
+    for _ in range(64):
+        ours = []
+        for relation in sketch.solve().redundant:
+            if not relation.source or Path(relation.source[0]).resolve() != Path(path).resolve():
+                continue
+            statement = next((each for each in block.statements if each.lineno <= relation.source[1] <= each.end_lineno), None)
+            if statement is not None and ast.unparse(statement) not in before:
+                ours.append(statement)
+        if not ours:
+            break
+        last = max(ours, key=lambda statement: statement.lineno)
+        edits = sketching.TextEdits(text)
+        edits.remove_lines(last.lineno, last.end_lineno)
+        text = edits.apply()
+        block, sketch, entry = _sketch_run(request, path, text, line)
+    return text, block, sketch, entry
+
+
 def _sketch_new(request, op):
     """A new sketch on a plane of the origin or a flat face of the body, written before the line
     that returns the part: ``sketch2 = Sketch("Sketch2", plane="Top")``."""
@@ -1951,8 +1989,9 @@ def _known(block, sketch, typed):
 def sketch_edit(request):
     """A sketch mode change (``request["sketch"]``: the sketch's ``file`` and ``line``, and the
     ``op``): a new sketch, a stroke, a relation, a dimension or its value, entities moved or
-    deleted or made construction geometry, or leaving the sketch (``exit``)."""
-    from cadgen.edit import commands, sketching
+    deleted or made construction geometry, a sketch tool (Sketch Fillet, Offset, Mirror or Trim
+    Entities), or leaving the sketch (``exit``)."""
+    from cadgen.edit import commands, sketch_tools, sketching
 
     global ROOT
     script = Path(request["script"]).resolve()
@@ -1984,6 +2023,7 @@ def sketch_edit(request):
     try:
         block, sketch, entry = _sketch_run(request, path, old, line)
         state = _sketch_view(sketch, path, line, entry["function"])["state"]
+        broken = set(state.get("errors") or [])
         text, prefer = old, []
         if kind == "move":
             edits = sketching.TextEdits(text)
@@ -2015,9 +2055,29 @@ def sketch_edit(request):
             if kind == "dimension":
                 _known(block, sketch, str(op.get("value") or ""))
             text = sketching.change(text, line, state, op, str(path))
+        elif kind in ("fillet", "offset", "mirror", "trim"):
+            if kind in ("fillet", "offset"):
+                typed = str(op.get("radius" if kind == "fillet" else "distance") or "").strip()
+                _known(block, sketch, typed)
+                if kind == "offset":
+                    op = {**op, "value": _evaluated(entry, typed)}
+            if kind == "trim" and sketching.explodes(text, line, state, [str(op.get("curve") or "")], str(path)):
+                # A rectangle's line is trimmed on its own: the rectangle is written as its lines first.
+                text = sketching.explode(text, line, state, [str(op.get("curve") or "")], str(path))
+                block, sketch, entry = _sketch_run(request, path, text, line)
+                state = _sketch_view(sketch, path, line, entry["function"])["state"]
+            text = getattr(sketch_tools, kind)(text, line, state, op, str(path))
         else:
             return {"ok": False, "error": f"Edit mode cannot make that sketch change ({kind or 'none'})."}
         block, sketch, entry = _sketch_run(request, path, text, line, prefer=prefer)
+        if kind in ("offset", "mirror", "trim"):
+            text, block, sketch, entry = _prune(request, path, old, text, line, block, sketch, entry)
+        try:
+            sketch.fillet_arcs()
+        except _sketch_api.SketchError as error:
+            # A change that leaves a fillet unable to fit its corner is not made.
+            if str(error) not in broken:
+                raise
         text = _settle(text, path, block, sketch)
     except (sketching.SketchEditError, _sketch_api.SketchError) as error:
         return {"ok": False, "error": str(error)}

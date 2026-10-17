@@ -17,7 +17,21 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "centerline", label: "Centerline", prompts: ["Click where the centerline starts.", "Click where it ends."] },
   { id: "point", label: "Point", prompts: ["Click to place a point."] },
   { id: "dimension", label: "Smart Dimension", prompts: ["Pick a line, a circle, or two items to dimension.", "Pick a second item, or click to place the dimension.", "Click to place the dimension."] },
+  { id: "fillet", label: "Sketch Fillet", prompts: ["Click a corner to round, or the first of two lines that meet.", "Click the second line."] },
+  { id: "trim", label: "Trim Entities", prompts: ["Click the part of a curve to cut away. It is cut back to the curves that cross it; a curve nothing crosses is deleted."] },
+  { id: "offset", label: "Offset Entities", prompts: ["Click a line, an arc or a circle to offset it, and the chain it is part of."] },
+  { id: "mirror", label: "Mirror Entities", prompts: ["Click the entities to mirror.", "Click more of them, or the centerline to mirror about."] },
 ]);
+
+/** The tools that change what is drawn rather than draw: each takes its own clicks (see `SketchOverlay.jsx`). */
+export const MODIFY_TOOLS = Object.freeze(["fillet", "trim", "offset", "mirror"]);
+
+/** The size a sketch tool uses until one is typed, in the part's units: a fillet's radius, an offset's distance. */
+export const toolSize = (typed, units, tool) => String(typed ?? "").trim()
+  || (units === "in" ? (tool === "fillet" ? "0.1" : "0.06") : (tool === "fillet" ? "2" : "1"));
+
+// How near, as a share of the sketch's size, two places are one.
+const nearness = state => 1e-6 * Math.max(1, ...(state?.points || []).flatMap(point => [Math.abs(point.x), Math.abs(point.y)]));
 
 export const sketchTool = id => SKETCH_TOOLS.find(tool => tool.id === id) || null;
 
@@ -45,7 +59,10 @@ export function sketchGeometry(state) {
   const points = new Map((state?.points || []).map(point => [point.id, point]));
   const curves = (state?.curves || []).map(curve => {
     const base = { id: curve.id, kind: curve.kind, construction: Boolean(curve.construction), defined: Boolean(curve.defined) };
-    if (curve.kind === "line") return { ...base, a: at(points.get(curve.start)), b: at(points.get(curve.end)), start: curve.start, end: curve.end };
+    // A fillet's arc, worked out from its lines: its places, no points of its own.
+    if (curve.derived) return { ...base, derived: curve.derived, c: curve.c, s: curve.s, e: curve.e, r: curve.radius, clockwise: Boolean(curve.clockwise), dimension: curve.dimension };
+    // A line drawn up to the fillet at an end (`view`), its ends still at the corner.
+    if (curve.kind === "line") return { ...base, a: at(points.get(curve.start)), b: at(points.get(curve.end)), start: curve.start, end: curve.end, view: curve.shown || null };
     if (curve.kind === "circle") return { ...base, c: at(points.get(curve.center)), r: curve.radius, center: curve.center };
     return { ...base, c: at(points.get(curve.center)), s: at(points.get(curve.start)), e: at(points.get(curve.end)), r: curve.radius,
       clockwise: Boolean(curve.clockwise), center: curve.center, start: curve.start, end: curve.end };
@@ -73,10 +90,11 @@ function onArc(curve, angle) {
 /** The point of a curve nearest a place, and how far it is. */
 export function nearestOnCurve(curve, place) {
   if (curve.kind === "line") {
-    const d = sub(curve.b, curve.a);
+    const [a, b] = curve.view || [curve.a, curve.b];
+    const d = sub(b, a);
     const length = dot(d, d);
-    const t = length ? Math.max(0, Math.min(1, dot(sub(place, curve.a), d) / length)) : 0;
-    const point = add(curve.a, scale(d, t));
+    const t = length ? Math.max(0, Math.min(1, dot(sub(place, a), d) / length)) : 0;
+    const point = add(a, scale(d, t));
     return { point, distance: hypot(point, place) };
   }
   const toward = sub(place, curve.c);
@@ -102,13 +120,14 @@ export function snap(state, place, tolerance, { exclude = [] } = {}) {
   }
   if (best) return best.ref;
   for (const curve of curves) {
-    if (curve.kind !== "line") continue;
+    if (curve.kind !== "line" || curve.view) continue;
     const middle = scale(add(curve.a, curve.b), 0.5);
     const distance = hypot(middle, place);
     if (distance <= tolerance && (!best || distance < best.distance)) best = { distance, ref: { at: middle, on: curve.id, midpoint: true } };
   }
   if (best) return best.ref;
   for (const curve of curves) {
+    if (curve.derived) continue;
     const { point, distance } = nearestOnCurve(curve, place);
     if (distance <= tolerance && (!best || distance < best.distance)) best = { distance, ref: { at: point, on: curve.id } };
   }
@@ -222,6 +241,7 @@ export function dimensionFor(state, picks, place = null) {
   const curve = id => curves.find(each => each.id === id);
   const kindOf = id => (points.has(id) ? "point" : curve(id)?.kind);
   const make = (dimension, refs) => ({ dimension, refs, value: measure(state, dimension, refs) });
+  if (picks.some(id => curve(id)?.derived)) return null;
   if (picks.length === 1) {
     const kind = kindOf(picks[0]);
     if (kind === "line") return make("length", picks);
@@ -263,6 +283,7 @@ export function dimensionFor(state, picks, place = null) {
  */
 export function relationsFor(state, selection) {
   const { points, curves } = sketchGeometry(state);
+  if (selection.some(id => curves.find(curve => curve.id === id)?.derived)) return [];
   const kinds = selection.map(id => (points.has(id) ? "point" : curves.find(curve => curve.id === id)?.kind)).filter(Boolean);
   if (kinds.length !== selection.length || !kinds.length) return [];
   const count = kind => kinds.filter(each => each === kind).length;
@@ -304,7 +325,7 @@ export function formatValue(value, units, dimension) {
   const places = units === "in" ? 3 : 2;
   const text = Number(value.toFixed(places)).toString();
   if (dimension === "diameter") return `Ø${text}`;
-  if (dimension === "radius") return `R${text}`;
+  if (dimension === "radius" || dimension === "fillet") return `R${text}`;
   return text;
 }
 
@@ -370,14 +391,30 @@ export function dimensionLayout(state, dimension, gap, { side = 0, level = 0 } =
       const q = place(b);
       return p && q ? aligned(p, q) : null;
     }
+    case "offset": {
+      // Across from the first offset curve to the one it is offset from.
+      const made = curve(dimension.refs[0]);
+      const source = curve(dimension.refs[dimension.data?.count || 1]);
+      if (!made || !source) return null;
+      if (made.kind === "line" && source.kind === "line") {
+        const from = scale(add(made.a, made.b), 0.5);
+        const foot = nearestOnInfinite(source, from);
+        return { lines: [], dimension: [foot, from], anchor: add(scale(add(from, foot), 0.5), scale(unit(sub(made.b, made.a)), gap * (0.6 + level * 1.15))) };
+      }
+      const toward = unit(made.kind === "arc" ? sub(scale(add(made.s, made.e), 0.5), made.c) : [Math.SQRT1_2, -Math.SQRT1_2]);
+      const near = add(source.c, scale(toward, source.r));
+      const far = add(made.c, scale(toward, made.r));
+      return { lines: [], dimension: [near, far], anchor: add(far, scale(toward, gap * (0.8 + level))) };
+    }
+    case "fillet":
     case "radius":
     case "diameter": {
-      const round = curve(a);
+      const round = dimension.kind === "fillet" ? curves.find(each => each.id === dimension.data?.arc) : curve(a);
       if (!round) return null;
       const toward = unit(round.kind === "arc" ? sub(scale(add(round.s, round.e), 0.5), round.c) : [Math.SQRT1_2, Math.SQRT1_2]);
       const rim = add(round.c, scale(toward, round.r));
       const far = dimension.kind === "diameter" ? add(round.c, scale(toward, -round.r)) : round.c;
-      return { lines: [], dimension: [far, rim], single: dimension.kind === "radius", anchor: add(rim, scale(toward, gap * (1 + level))) };
+      return { lines: [], dimension: [far, rim], single: dimension.kind !== "diameter", anchor: add(rim, scale(toward, gap * (1 + level))) };
     }
     case "angle": {
       const lineA = curve(a);
@@ -447,6 +484,148 @@ export function hitTest(state, place, tolerance) {
   return best?.id || null;
 }
 
+// ---- Trim Entities and Offset Entities: what a click takes --------------------------------------
+
+/** Where along a curve a place is: a line from 0 to 1, an arc or a circle in radians from its start, the way it turns. */
+function alongCurve(curve, place) {
+  if (curve.kind === "line") {
+    const d = sub(curve.b, curve.a);
+    return dot(sub(place, curve.a), d) / (dot(d, d) || 1);
+  }
+  const angle = Math.atan2(place[1] - curve.c[1], place[0] - curve.c[0]);
+  if (curve.kind === "circle") return ((angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const { start, sweep } = arcSweep(curve);
+  const turn = sweep < 0 ? -1 : 1;
+  return ((((angle - start) * turn) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+}
+
+// A curve as points along it, to draw it whole.
+function wholeCurve(curve) {
+  if (curve.kind === "line") return curve.view || [curve.a, curve.b];
+  const { start, sweep } = curve.kind === "circle" ? { start: 0, sweep: 2 * Math.PI } : arcSweep(curve);
+  const steps = Math.max(12, Math.ceil(Math.abs(sweep) * 24));
+  return Array.from({ length: steps + 1 }, (_, index) => {
+    const angle = start + (sweep * index) / steps;
+    return [curve.c[0] + curve.r * Math.cos(angle), curve.c[1] + curve.r * Math.sin(angle)];
+  });
+}
+
+function spanOf(curve) {
+  return curve.kind === "line" ? 1 : curve.kind === "circle" ? 2 * Math.PI : Math.abs(arcSweep(curve).sweep);
+}
+
+function lineCircle(p, q, c, r) {
+  const d = sub(q, p);
+  const f = sub(p, c);
+  const a = dot(d, d);
+  const b = 2 * dot(f, d);
+  const disc = b * b - 4 * a * (dot(f, f) - r * r);
+  if (a < 1e-24 || disc < 0) return [];
+  const root = Math.sqrt(disc);
+  return [(-b - root) / (2 * a), (-b + root) / (2 * a)].map(t => add(p, scale(d, t)));
+}
+
+function circleCircle(c1, r1, c2, r2) {
+  const d = hypot(c1, c2);
+  if (d < 1e-12 || d > r1 + r2 || d < Math.abs(r1 - r2)) return [];
+  const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, r1 * r1 - a * a));
+  const m = add(c1, scale(sub(c2, c1), a / d));
+  const n = [-(c2[1] - c1[1]) / d, (c2[0] - c1[0]) / d];
+  return [add(m, scale(n, h)), add(m, scale(n, -h))];
+}
+
+/** Where two curves meet, each as drawn (a line between its ends, an arc along its sweep). */
+function meetings(first, second, tolerance) {
+  const on = (curve, place) => {
+    const t = alongCurve(curve, place);
+    if (curve.kind === "line") return t >= -tolerance / (hypot(curve.a, curve.b) || 1) && t <= 1 + tolerance / (hypot(curve.a, curve.b) || 1);
+    if (curve.kind === "circle") return true;
+    return t <= spanOf(curve) + tolerance / (curve.r || 1) || t >= 2 * Math.PI - tolerance / (curve.r || 1);
+  };
+  let found;
+  if (first.kind === "line" && second.kind === "line") {
+    const d = sub(first.b, first.a);
+    const e = sub(second.b, second.a);
+    const across = cross(d, e);
+    found = Math.abs(across) < 1e-12 ? [] : [add(first.a, scale(d, cross(sub(second.a, first.a), e) / across))];
+  } else if (first.kind === "line" || second.kind === "line") {
+    const [line, round] = first.kind === "line" ? [first, second] : [second, first];
+    found = lineCircle(line.a, line.b, round.c, round.r);
+  } else {
+    found = circleCircle(first.c, first.r, second.c, second.r);
+  }
+  return found.filter(place => on(first, place) && on(second, place));
+}
+
+/**
+ * The piece of a curve Trim Entities cuts away when it is clicked at `place`, as points along it
+ * to draw: up to the nearest curves that cross it either side (or its ends); the whole curve
+ * when nothing crosses it (it is deleted). Null for what cannot be trimmed (a fillet's arc).
+ */
+export function trimPiece(state, id, place, tolerance = nearness(state) * 10) {
+  const { curves } = sketchGeometry(state);
+  const curve = curves.find(each => each.id === id);
+  if (!curve || curve.derived) return null;
+  const span = spanOf(curve);
+  const slack = curve.kind === "line" ? tolerance / (hypot(curve.a, curve.b) || 1) : tolerance / (curve.r || 1);
+  const cuts = [];
+  for (const other of curves) {
+    if (other.id === id || other.derived) continue;
+    for (const where of meetings(curve, other, tolerance)) {
+      let t = alongCurve(curve, where);
+      if (curve.kind === "arc" && t > 2 * Math.PI - slack) t -= 2 * Math.PI;
+      if (curve.kind !== "circle" && (t <= slack || t >= span - slack)) continue;
+      if (!cuts.some(each => Math.abs(each - t) <= slack)) cuts.push(t);
+    }
+  }
+  cuts.sort((p, q) => p - q);
+  const whole = { id, points: wholeCurve(curve), whole: true };
+  let clicked = Math.max(0, Math.min(span, alongCurve(curve, place)));
+  if (curve.kind === "arc" && alongCurve(curve, place) > span) clicked = alongCurve(curve, place) - span < 2 * Math.PI - alongCurve(curve, place) ? span : 0;
+  let low;
+  let high;
+  if (curve.kind === "circle") {
+    if (cuts.length < 2) return whole;
+    const k = cuts.findIndex((each, index) => index < cuts.length - 1 && each <= clicked && clicked < cuts[index + 1]);
+    [low, high] = k >= 0 ? [cuts[k], cuts[k + 1]] : [cuts[cuts.length - 1], cuts[0] + 2 * Math.PI];
+  } else {
+    if (!cuts.length) return whole;
+    low = Math.max(0, ...cuts.filter(each => each < clicked));
+    high = Math.min(span, ...cuts.filter(each => each > clicked));
+  }
+  if (curve.kind === "line") {
+    const d = sub(curve.b, curve.a);
+    return { id, points: [add(curve.a, scale(d, low)), add(curve.a, scale(d, high))], whole: false };
+  }
+  const start = curve.kind === "circle" ? 0 : arcSweep(curve).start;
+  const turn = curve.kind === "arc" && arcSweep(curve).sweep < 0 ? -1 : 1;
+  const from = start + turn * low;
+  const sweep = turn * (high - low);
+  const steps = Math.max(8, Math.ceil(Math.abs(sweep) * 24));
+  return { id, whole: false, points: Array.from({ length: steps + 1 }, (_, index) => {
+    const angle = from + (sweep * index) / steps;
+    return [curve.c[0] + curve.r * Math.cos(angle), curve.c[1] + curve.r * Math.sin(angle)];
+  }) };
+}
+
+/** The curves joined end to end with `id` (lines and arcs meeting at a point or one place), as Offset Entities' Select chain takes them. */
+export function chainOf(state, id, tolerance = nearness(state) * 10) {
+  const { curves } = sketchGeometry(state);
+  const start = curves.find(each => each.id === id);
+  if (!start || start.derived) return [];
+  if (start.kind === "circle") return [id];
+  const ends = curve => (curve.kind === "line" ? [curve.a, curve.b] : curve.kind === "arc" ? [curve.s, curve.e] : []);
+  const joined = (p, q) => curves.filter(each => !each.derived && each.kind !== "circle" && each.id !== p.id
+    && ends(each).some(end => ends(p).some(other => hypot(end, other) <= tolerance)) && q(each));
+  const chain = [id];
+  for (let index = 0; index < chain.length; index += 1) {
+    const curve = curves.find(each => each.id === chain[index]);
+    for (const next of joined(curve, each => !chain.includes(each.id))) chain.push(next.id);
+  }
+  return chain;
+}
+
 /** An entity as a CAD tool says it in a sentence: "a line", "Line3". */
 export const entityWord = (state, id) => {
   const curve = (state?.curves || []).find(each => each.id === id);
@@ -467,7 +646,7 @@ function listed(parts) {
  * What the agent is told when the engineer leaves a sketch they changed: the sketch, where it is
  * written, and what they did, counted ("drew 4 lines and a circle, added 3 dimensions").
  * `made` counts the session's changes by kind: lines, circles, arcs, points, dimensions,
- * relations, deleted, moved.
+ * relations, corners rounded, curves trimmed, chains offset, entities mirrored, deleted, moved.
  */
 export function sketchNote(session) {
   const made = session.made || {};
@@ -478,6 +657,10 @@ export function sketchNote(session) {
   if (drew.length) parts.push(`drew ${listed(drew)}`);
   if (added.length) parts.push(`added ${listed(added)}`);
   if (made.value) parts.push(`changed ${counted(made.value, "dimension")}`);
+  if (made.fillet) parts.push(`rounded ${counted(made.fillet, "corner")}`);
+  if (made.trimmed) parts.push(`trimmed ${counted(made.trimmed, "curve")}`);
+  if (made.offset) parts.push(`offset ${counted(made.offset, "chain")}`);
+  if (made.mirrored) parts.push(`mirrored ${counted(made.mirrored, "entity", "entities")}`);
   if (made.moved) parts.push(`moved ${counted(made.moved, "point")}`);
   if (made.deleted) parts.push(`deleted ${counted(made.deleted, "item")}`);
   const where = `(${session.file}, line ${session.line})`;
@@ -501,5 +684,9 @@ export function countChange(made, op) {
   else if (op.kind === "value") bump("value");
   else if (op.kind === "move") bump("moved", (op.points || []).length || 1);
   else if (op.kind === "delete") bump("deleted", (op.items || []).length || 1);
+  else if (op.kind === "fillet") bump("fillet");
+  else if (op.kind === "trim") bump("trimmed");
+  else if (op.kind === "offset") bump("offset");
+  else if (op.kind === "mirror") bump("mirrored", (op.items || []).length || 1);
   return next;
 }

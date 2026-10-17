@@ -18,7 +18,8 @@ on it, and the closed loops become a face to extrude, revolve or cut::
     plate = extrude(s.face(), amount=THICKNESS)
 
 See ``sketch.py`` for every entity, relation and dimension, ``solver.py`` for how a sketch is
-solved and how defined it is, and ``regions.py`` for how its loops become faces.
+solved and how defined it is, ``regions.py`` for how its loops become faces, and ``fillets.py``
+for where a sketch fillet's arc falls.
 """
 
 from .sketch import Arc, Circle, Line, Point, Relation, Sketch, SketchError

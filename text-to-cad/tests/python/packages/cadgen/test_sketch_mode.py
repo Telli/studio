@@ -161,6 +161,94 @@ class SketchMode(unittest.TestCase):
         self.assertNotIn("sketch1", self.source())
         self.assertNotIn("Sketch", [feature["kind"] for feature in reply["features"]])
 
+    def rectangle(self) -> None:
+        """A fully defined 30 x 10 rectangle on the origin."""
+        self.start()
+        self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [30, 10]}})
+        self.send({"kind": "dimension", "dimension": "length", "refs": ["Line1"], "value": "30"})
+        self.send({"kind": "dimension", "dimension": "length", "refs": ["Line4"], "value": "10"})
+
+    def extrudes(self, left: dict) -> dict:
+        extruded = self.service.change({"file": self.file, "files": left["files"], "command": {
+            "command": "extrude", "sketch": {"file": "plate.py", "line": self.sketch["line"], "name": "Sketch1"}, "inputs": {"depth": "3"}}})
+        self.assertTrue(extruded["ok"], extruded.get("error"))
+        self.files = {**self.files, **(extruded.get("files") or {})}
+        return extruded
+
+    def test_a_sketch_fillet_rounds_a_corner_and_keeps_its_virtual_sharp(self):
+        self.rectangle()
+        self.send({"kind": "fillet", "corner": "Point2", "radius": "2"})
+        self.assertIn("sketch1.fillet(line2, line3, 2)", self.source())
+        state = self.sketch["state"]
+        # The dimensions to the corner still hold it: the sketch is still fully defined.
+        self.assertEqual(state["status"], "Fully defined")
+        arc = next(curve for curve in state["curves"] if curve.get("derived") == "fillet")
+        self.assertEqual((arc["id"], arc["radius"], arc["c"]), ("Fillet1", 2.0, [28.0, 8.0]))
+        right = next(curve for curve in state["curves"] if curve["id"] == "Line2")
+        self.assertEqual(right["shown"][1], [30.0, 8.0])
+        fillet = next(item for item in state["dimensions"] if item["kind"] == "fillet")
+        self.send({"kind": "value", "dimension": fillet["id"], "text": "3"})
+        self.assertIn("sketch1.fillet(line2, line3, 3)", self.source())
+        refused = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "delete", "items": [fillet["id"]]}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("radius", refused["error"])
+        too_big = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "value", "dimension": fillet["id"], "text": "40"}}})
+        self.assertFalse(too_big["ok"])
+        self.assertIn("more than", too_big["error"])
+        self.extrudes(self.send({"kind": "exit", "changed": True}))
+        self.send({"kind": "delete", "items": ["Fillet1"]})
+        self.assertNotIn("fillet", self.source())
+
+    def test_an_offset_chain_is_held_at_one_distance(self):
+        self.rectangle()
+        self.send({"kind": "offset", "items": ["Line1", "Line2", "Line3", "Line4"], "distance": "2"})
+        text = self.source()
+        self.assertIn("line5 = sketch1.line((-2, -2), (32, -2))", text)
+        self.assertIn("sketch1.offset_entities([line5, line6, line7, line8], [line1, line2, line3, line4], 2)", text)
+        self.assertEqual(self.sketch["state"]["status"], "Fully defined")
+        offset = next(item for item in self.sketch["state"]["dimensions"] if item["kind"] == "offset")
+        self.send({"kind": "value", "dimension": offset["id"], "text": "WIDTH / 10"})
+        corner = next(point for point in self.sketch["state"]["points"] if point["id"] == self.sketch["state"]["curves"][4]["start"])
+        self.assertAlmostEqual(corner["x"], -4.0)
+        # Inward the other way, and a single line to its left.
+        self.send({"kind": "offset", "items": ["Line1"], "distance": "1", "reverse": True})
+        self.assertIn("line9 = sketch1.line((0, -1), (30, -1))", self.source())
+
+    def test_entities_mirrored_about_a_centerline_are_symmetric(self):
+        self.rectangle()
+        self.send({"kind": "draw", "entity": "centerline", "start": {"point": "Origin"}, "end": {"at": [0, 20]}, "relations": [{"kind": "vertical"}]})
+        self.send({"kind": "dimension", "dimension": "length", "refs": ["Line5"], "value": "20"})
+        self.send({"kind": "fillet", "corner": "Point1", "radius": "2"})
+        self.send({"kind": "mirror", "items": ["Line1", "Line2", "Line3", "Line4"], "about": "Line5"})
+        text = self.source()
+        # The edge along the centerline is its own mirror; the points on it are shared.
+        self.assertIn("line6 = sketch1.line(sketch1.origin, (-30, 0))", text)
+        self.assertIn("sketch1.symmetric(line1.end, line6.end, line5)", text)
+        self.assertNotIn("line9", text)
+        self.assertIn("sketch1.fillet(line6, line7, 2)", text)
+        self.assertEqual(self.sketch["state"]["status"], "Fully defined")
+
+    def test_trim_cuts_a_circle_to_an_arc_and_splits_a_line_into_one_profile(self):
+        self.rectangle()
+        self.send({"kind": "draw", "entity": "circle", "center": {"at": [15, 10]}, "radius": 4})
+        self.send({"kind": "dimension", "dimension": "diameter", "refs": ["Circle1"], "value": "8"})
+        self.send({"kind": "trim", "curve": "Circle1", "at": [15, 7]})
+        self.assertIn("arc1 = sketch1.arc((15, 10), (19, 10), (11, 10))", self.source())
+        self.assertIn("sketch1.diameter(arc1, 8)", self.source())
+        self.send({"kind": "trim", "curve": "Line3", "at": [15, 10]})
+        text = self.source()
+        self.assertIn("line3 = sketch1.line(line2.end, (19, 10))", text)
+        self.assertIn("line5 = sketch1.line(arc1.end, line4.start)", text)
+        self.assertEqual(self.sketch["state"]["redundant"], [])
+        # The rectangle with a bump on its top is one closed profile.
+        self.extrudes(self.send({"kind": "exit", "changed": True}))
+        lone = self.send({"kind": "draw", "entity": "line", "start": {"at": [50, 0]}, "end": {"at": [60, 0]}})
+        self.assertTrue(lone["ok"])
+        self.send({"kind": "trim", "curve": "Line6", "at": [55, 0]})
+        self.assertNotIn("line6", self.source())
+
     def test_a_finished_sketch_is_in_the_tree_and_extrudes_as_a_boss(self):
         self.start()
         self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [10, 6]}})

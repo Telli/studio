@@ -186,6 +186,35 @@ def _residual(relation, u: _Unknowns, scale: float):
         target = math.radians(value)
         return lambda x: [scale * (math.atan2(abs(_cross(direction(a, x), direction(b, x))),
                                               float(np.dot(direction(a, x), direction(b, x)))) - target)]
+    if kind == "fillet":
+        # Worked out from its lines once they are solved (`fillets.py`): nothing to solve.
+        return None
+    if kind == "offset":
+        count = data["count"]
+        made, source, sides = refs[:count], refs[count:], data["sides"]
+
+        def offset(x):
+            out = []
+            for m, s, side in zip(made, source, sides):
+                if isinstance(s, Line):
+                    # Parallel to its line, that far to its side.
+                    out += [scale * _cross(unit(m, x), unit(s, x)), side * signed_distance(s, m.start, x) - value]
+                    continue
+                if m.center is not s.center:
+                    out += list(u.center(m, x) - u.center(s, x))
+                out.append(u.radius(m, x) - u.radius(s, x) - side * value)
+            # An open chain's ends, square across from its source's.
+            for index, role, across in data.get("ends", ()):
+                m, s = made[index], source[index]
+                p, q = P(getattr(m, role), x), P(getattr(s, across), x)
+                if isinstance(s, Line):
+                    out.append(float(np.dot(p - q, unit(s, x))))
+                else:
+                    c = u.center(s, x)
+                    out.append(_cross(p - c, q - c) / (np.linalg.norm(q - c) or 1e-12))
+            return out
+
+        return offset
     raise SketchError(f"{relation.name}: no relation called {kind}.")
 
 

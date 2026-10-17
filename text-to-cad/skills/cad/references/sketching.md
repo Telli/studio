@@ -64,6 +64,18 @@ def plate():
   `angle(line1, line2, degrees)`.
 - Give dimensions the part's named sizes (`LENGTH`, `LENGTH / 2`), not bare numbers, so a change
   of a size moves the sketch, and so the engineer changes it by name in edit mode.
+
+## Sketch tools
+
+- `s.fillet(line1, line2, radius)` rounds the corner where two lines meet (Fillet1, its radius a
+  dimension). The lines keep their ends at the corner, its virtual sharp, so dimensions to the
+  corner still measure to it; the face is made with the corner rounded.
+- `s.offset_entities(made, source, distance)` holds offset curves (a curve, or lists in step)
+  that far from their source: each line parallel to its own, to the side it is drawn on, each arc
+  or circle around its own's center, an open chain's ends square across from the source's. One
+  dimension for the chain. Draw each offset curve where it falls, sharing its corners.
+- A mirror is plain relations: `s.symmetric(point, its_mirror, centerline)` for each new point,
+  and `s.equal(mirrored_arc, arc)` for an arc or circle.
 - Draw each point near where it ends up: the solver starts from the drawing and leaves what no
   dimension fixes where it was drawn.
 

@@ -35,8 +35,9 @@ const BUTTON_CLASS = "flex h-[3.25rem] min-w-11 flex-col items-center justify-st
 // A long name wraps to two lines under its icon, as SolidWorks' CommandManager sets them; without
 // names (`compact`) the buttons narrow to their icons.
 const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]";
-// Sketch mode's tools, as SolidWorks' Sketch tab groups them.
+// Sketch mode's tools, as SolidWorks' Sketch tab groups them: what draws, then what changes what is drawn.
 const SKETCH_ENTITIES = ["line", "rectangle", "center_rectangle", "circle", "arc", "slot", "centerline", "point"];
+const SKETCH_MODIFY = ["fillet", "trim", "offset", "mirror"];
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
 // The More button's box, before it is first laid out.
@@ -164,7 +165,8 @@ function RibbonGroups({ groups }) {
  * and the viewer's tools, which the strip over the model would otherwise hold, grouped as a CAD
  * tool groups them and named under their icons. While a sketch is edited it holds the sketch's
  * tools instead, as SolidWorks switches to its Sketch tab: Exit Sketch and Smart Dimension, the
- * entities to draw, Construction Geometry and Normal To, and the features to make of it. The
+ * entities to draw, Sketch Fillet and Trim, Offset and Mirror Entities, Construction Geometry
+ * and Normal To, and the features to make of it. The
  * part's units and where its build stands, or the sketch and how defined it is, sit at its right
  * end. A narrow view keeps the icons and drops the names, then folds the groups at the right into
  * a More menu.
@@ -203,7 +205,17 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     const sketchItem = each => {
       const Icon = SKETCH_TOOL_ICONS[each.id];
       const active = edit.sketchTool === each.id;
-      return { id: each.id, label: each.label, icon: <Icon />, active, disabled: !sketch.state, onClick: () => edit.setSketchTool(active ? null : each.id) };
+      const onClick = () => {
+        // Entities selected with the line to mirror them about last: mirrored at once, as SolidWorks does.
+        const picked = edit.sketchSelection;
+        const about = (sketch.state?.curves || []).find(curve => curve.id === picked.at(-1));
+        if (each.id === "mirror" && !active && picked.length > 1 && about?.kind === "line" && !about.derived) {
+          void edit.sketchOp({ kind: "mirror", items: picked.slice(0, -1), about: about.id }).then(reply => { if (reply?.ok) edit.selectInSketch([]); });
+          return;
+        }
+        edit.setSketchTool(active ? null : each.id);
+      };
+      return { id: each.id, label: each.label, icon: <Icon />, active, disabled: !sketch.state || edit.saving, onClick };
     };
     const curves = new Set((sketch.state?.curves || []).map(curve => curve.id));
     const chosen = edit.sketchSelection.filter(id => curves.has(id));
@@ -216,6 +228,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
         sketchItem(tool("dimension")),
       ] },
       { title: "Entities", items: SKETCH_ENTITIES.map(id => sketchItem(tool(id))) },
+      { title: "Modify", items: SKETCH_MODIFY.map(id => sketchItem(tool(id))) },
       { title: "Tools", items: [
         { id: "construction", label: "Construction Geometry", icon: <ConstructionIcon />, active: chosen.length ? allConstruction : edit.construction,
           disabled: !sketch.state || edit.saving,

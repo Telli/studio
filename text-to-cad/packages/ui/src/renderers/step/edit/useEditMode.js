@@ -72,6 +72,9 @@ export function useEditMode({ client, file, active }) {
   const [sketchStep, setSketchStep] = useState(0);
   // A press of Normal To: the view turns to look straight at the sketch again.
   const [normalTo, setNormalTo] = useState(0);
+  // The sketch tools' settings, kept for the session as their PropertyManager keeps them: Sketch
+  // Fillet's radius, Offset Entities' distance, Reverse direction and Select chain.
+  const [sketchSettings, setSketchSettings] = useState(() => ({ filletRadius: "", offsetDistance: "", offsetReverse: false, offsetChain: true }));
   const files = useRef(null);
   const probed = useRef("");
   const historyRef = useRef(history);
@@ -347,7 +350,10 @@ export function useEditMode({ client, file, active }) {
     dismissChoice: () => setChoice(null),
     dismissError: () => setError(""),
     sketch, sketchTool, sketchSelection, construction, picking, normalTo, sketchStep,
-    setSketchTool: tool => { setSketchTool(tool); setSketchSelection([]); setSketchStep(0); },
+    // Mirror Entities starts from what is selected; every other tool from nothing.
+    setSketchTool: tool => { setSketchTool(tool); if (tool !== "mirror") setSketchSelection([]); setSketchStep(0); },
+    sketchSettings,
+    setSketchSettings: patch => setSketchSettings(current => ({ ...current, ...patch })),
     setSketchStep,
     selectInSketch: setSketchSelection,
     setConstruction,

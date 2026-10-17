@@ -11,12 +11,21 @@ import {
 import { TOOL_PANEL_BUTTON_CLASS } from "../../kit/tools/ToolPanel.jsx";
 import { ORIGIN_PLANES } from "./editMode.js";
 import { SketchIcon } from "./featureIcons.jsx";
-import { formatValue, relationsFor, relationsOn, sketchTool } from "./sketchMode.js";
+import { formatValue, MODIFY_TOOLS, relationsFor, relationsOn, sketchTool, toolSize } from "./sketchMode.js";
 
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
 const FOOTER_BUTTON_CLASS = "flex h-7 flex-1 items-center justify-center text-tiny focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45 disabled:opacity-50";
 const CHIP_CLASS = "rounded-md border border-border px-2 py-0.5 text-tiny text-foreground hover:bg-accent/70 disabled:opacity-50";
+
+/** A sketch tool's size, typed over as SolidWorks' PropertyManager takes it: a number, or a size's name. */
+function SizeRow({ label, value, unit, disabled, onCommit }) {
+  return <FileSheetControlRow label={label} trailing={<span className="flex shrink-0 items-center gap-1">
+    <FileSheetValueInput value={value} ariaLabel={label} disabled={disabled}
+      onValueCommit={draft => { const text = String(draft).trim(); if (text) onCommit(text); }} />
+    <span className="w-6 text-micro text-muted-foreground">{unit}</span>
+  </span>} />;
+}
 
 function Header({ title, detail }) {
   return <div className="flex h-8 items-center gap-1.5 px-2">
@@ -47,7 +56,9 @@ function PlanePicker({ edit, onPlane }) {
  * shows one while a sketch is edited: the sketch and how defined it is; the tool in hand, what it
  * asks for next and whether it draws construction geometry; and for what is selected, the
  * relations it can take (Add Relations), the ones it has (Existing Relations, each deleted with its
- * X), a dimension's value, and For construction. Exit Sketch at its foot builds the part again.
+ * X), a dimension's value, and For construction. The sketch tools' own settings sit with them:
+ * Sketch Fillet's radius, Offset Entities' distance with Reverse direction and Select chain, and
+ * the entities Mirror Entities has. Exit Sketch at its foot builds the part again.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onPlane(plane: string): void }} props
  */
@@ -58,9 +69,13 @@ export default function SketchPanel({ edit, onPlane }) {
   const units = edit.state?.units || "";
   const disabled = edit.saving;
   const tool = sketchTool(edit.sketchTool);
+  const settings = edit.sketchSettings || {};
   const selection = edit.sketchSelection;
   const curves = new Map((state?.curves || []).map(curve => [curve.id, curve]));
-  const dimension = selection.length === 1 ? (state?.dimensions || []).find(each => each.id === selection[0]) : null;
+  // A dimension selected, or a fillet's arc, whose radius is its dimension.
+  const filletArc = selection.length === 1 ? curves.get(selection[0])?.dimension : null;
+  const dimension = selection.length === 1
+    ? (state?.dimensions || []).find(each => each.id === selection[0] || (filletArc && each.id === filletArc)) : null;
   const selectedCurves = selection.filter(id => curves.has(id));
   const allConstruction = selectedCurves.length > 0 && selectedCurves.every(id => curves.get(id).construction);
   const relations = state && selection.length ? relationsFor(state, selection) : [];
@@ -75,21 +90,35 @@ export default function SketchPanel({ edit, onPlane }) {
     {sketch.error && !state ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2 text-destructive`}>{sketch.error}</p> : null}
     {tool ? <FileSheetSettingsSection title={tool.label} sectionId="sketch-tool">
       <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">{tool.prompts[Math.min(edit.sketchStep, tool.prompts.length - 1)]}</p>
-      {tool.id !== "dimension" && tool.id !== "centerline" ? <FileSheetCheckboxRow label="For construction" checked={edit.construction}
+      {tool.id === "fillet" ? <SizeRow label="Fillet radius" value={toolSize(settings.filletRadius, units, "fillet")} unit={units}
+        disabled={disabled} onCommit={text => edit.setSketchSettings({ filletRadius: text })} /> : null}
+      {tool.id === "offset" ? <>
+        <SizeRow label="Offset distance" value={toolSize(settings.offsetDistance, units, "offset")} unit={units} disabled={disabled}
+          onCommit={text => edit.setSketchSettings({ offsetDistance: text })} />
+        <FileSheetCheckboxRow label="Reverse direction" checked={settings.offsetReverse} onCheckedChange={value => edit.setSketchSettings({ offsetReverse: Boolean(value) })} />
+        <FileSheetCheckboxRow label="Select chain" checked={settings.offsetChain} onCheckedChange={value => edit.setSketchSettings({ offsetChain: Boolean(value) })} />
+      </> : null}
+      {tool.id === "mirror" && selection.length ? <>
+        <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Entities to mirror</p>
+        <ul aria-label="Entities to mirror" className="mx-2 mb-1.5 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">
+          {selection.map(id => <li key={id} className="truncate">{id}</li>)}
+        </ul>
+      </> : null}
+      {tool.id !== "dimension" && tool.id !== "centerline" && !MODIFY_TOOLS.includes(tool.id) ? <FileSheetCheckboxRow label="For construction" checked={edit.construction}
         onCheckedChange={value => edit.setConstruction(Boolean(value))} /> : null}
     </FileSheetSettingsSection> : null}
     {!tool && !selection.length && state ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
       Pick a tool in the ribbon to draw, or select the sketch's lines and points to relate or dimension them. Drag what is blue to move it.
     </p> : null}
-    {dimension ? <FileSheetSettingsSection title={dimension.id} sectionId="sketch-dimension">
-      <FileSheetControlRow label={dimension.named ? dimension.formula : "Value"} trailing={<span className="flex shrink-0 items-center gap-1">
+    {dimension ? <FileSheetSettingsSection title={filletArc ? selection[0] : dimension.id} sectionId="sketch-dimension">
+      <FileSheetControlRow label={dimension.named ? dimension.formula : filletArc || dimension.kind === "fillet" ? "Radius" : "Value"} trailing={<span className="flex shrink-0 items-center gap-1">
         <FileSheetValueInput value={formatValue(dimension.value, units, "plain")} ariaLabel={`${dimension.id} value`} disabled={disabled}
           onValueCommit={draft => { const text = String(draft).trim(); if (text) void edit.sketchOp({ kind: "value", dimension: dimension.id, text }); }} />
         <span className="w-6 text-micro text-muted-foreground">{dimension.kind === "angle" ? "deg" : units}</span>
       </span>} />
       <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Type a number, or a size of the part by its name.</p>
     </FileSheetSettingsSection> : null}
-    {selection.length && !dimension ? <FileSheetSettingsSection title="Selected Entities" sectionId="sketch-selection">
+    {selection.length && !dimension && tool?.id !== "mirror" ? <FileSheetSettingsSection title="Selected Entities" sectionId="sketch-selection">
       <ul aria-label="Selected" className="mx-2 mb-1 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">
         {selection.map(id => <li key={id} className="truncate">{id}</li>)}
       </ul>

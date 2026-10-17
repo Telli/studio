@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { lightText } from "./sketchDrawing.js";
+
 import {
+  chainOf,
   countChange,
   dimensionFor,
   dimensionLayout,
@@ -11,8 +14,11 @@ import {
   inferLine,
   relationsFor,
   relationsOn,
+  sketchGeometry,
   sketchNote,
-  snap
+  snap,
+  toolSize,
+  trimPiece
 } from "./sketchMode.js";
 
 // A 40 by 20 rectangle from the origin, with a circle in it, as the server solves one.
@@ -116,4 +122,55 @@ test("leaving a sketch tells the agent what was drawn, counted", () => {
     "In edit mode I drew Sketch2 on the Top Plane (parts/plate.py, line 12): drew 4 lines and a circle, added 2 dimensions.");
   assert.equal(sketchNote({ name: "Sketch1", file: "plate.py", line: 9, made: countChange({}, { kind: "delete", items: ["Line2"] }) }),
     "In edit mode I changed Sketch1 (plate.py, line 9): deleted an item.");
+});
+
+test("Trim cuts away the piece between the curves that cross it, or the whole curve", () => {
+  // A line from (10, -5) to (10, 25) crosses the rectangle's bottom and top.
+  const crossed = { ...STATE, points: [...STATE.points, { id: "Point6", x: 10, y: -5 }, { id: "Point7", x: 10, y: 25 }],
+    curves: [...STATE.curves, { id: "Line5", kind: "line", start: "Point6", end: "Point7" }] };
+  const middle = trimPiece(crossed, "Line1", [5, 0]);
+  assert.deepEqual(middle.points.map(place => place.map(value => Math.round(value * 1000) / 1000)), [[0, 0], [10, 0]]);
+  assert.equal(middle.whole, false);
+  const between = trimPiece(crossed, "Line5", [10, 10]);
+  assert.deepEqual(between.points.map(place => place.map(value => Math.round(value))), [[10, 0], [10, 20]]);
+  // Nothing crosses the circle: it goes whole.
+  assert.equal(trimPiece(crossed, "Circle1", [34, 10]).whole, true);
+});
+
+test("Offset's Select chain takes the curves joined end to end, a circle on its own", () => {
+  assert.deepEqual(chainOf(STATE, "Line2"), ["Line2", "Line1", "Line3", "Line4"]);
+  assert.deepEqual(chainOf(STATE, "Circle1"), ["Circle1"]);
+});
+
+test("a fillet's arc is drawn from the places the server works out, its lines up to it", () => {
+  const filleted = { ...STATE, curves: [
+    { ...STATE.curves[0], shown: [[0, 0], [38, 0]] },
+    ...STATE.curves.slice(1),
+    { id: "Fillet1", kind: "arc", derived: "fillet", dimension: "D2", c: [38, 2], s: [38, 0], e: [40, 2], radius: 2, clockwise: false },
+  ], dimensions: [...STATE.dimensions, { id: "D2", kind: "fillet", refs: ["Line1", "Line2"], value: 2, data: { arc: "Fillet1", corner: "Point2" } }] };
+  const geometry = sketchGeometry(filleted);
+  assert.deepEqual(geometry.curves[0].view, [[0, 0], [38, 0]]);
+  assert.equal(geometry.curves.at(-1).derived, "fillet");
+  // Picked, it is no line to relate or dimension; its R dimension sits on it.
+  assert.deepEqual(relationsFor(filleted, ["Fillet1", "Line3"]), []);
+  assert.equal(dimensionFor(filleted, ["Fillet1"]), null);
+  assert.equal(formatValue(2, "mm", "fillet"), "R2");
+  assert.ok(dimensionLayout(filleted, filleted.dimensions[1], 2).single);
+  // The tools start from a size in the part's units until one is typed.
+  assert.equal(toolSize("", "in", "fillet"), "0.1");
+  assert.equal(toolSize("WALL", "in", "offset"), "WALL");
+});
+
+test("the note says what the sketch tools did", () => {
+  let made = {};
+  for (const op of [{ kind: "fillet" }, { kind: "fillet" }, { kind: "trim" }, { kind: "offset" }, { kind: "mirror", items: ["Line1", "Line2"] }]) made = countChange(made, op);
+  assert.equal(sketchNote({ name: "Sketch1", file: "plate.py", line: 9, made }),
+    "In edit mode I changed Sketch1 (plate.py, line 9): rounded 2 corners, trimmed a curve, offset a chain, mirrored 2 entities.");
+});
+
+test("a dark viewer is told by its light text, written as oklch or rgb", () => {
+  assert.equal(lightText("oklch(0.985 0 0)"), true);
+  assert.equal(lightText("oklch(14.5% 0 0)"), false);
+  assert.equal(lightText("rgb(250, 250, 250)"), true);
+  assert.equal(lightText("rgb(20, 20, 20)"), false);
 });
