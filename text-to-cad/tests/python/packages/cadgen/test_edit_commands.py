@@ -1,6 +1,7 @@
 """Edit mode's modeling commands (``cadgen.edit.commands``): Fillet, Chamfer, Hole, Shell, Mirror
 and Pattern, each written as one line of build123d after the statement that makes the part's
-body, read back by the tracer as a feature of the history, and put back by Undo.
+body, read back by the tracer as a feature of the history, and put back by Undo; and Delete on a
+feature of the history (``cadgen.edit.deleting``), its lines taken out.
 
 They drive the edit service end to end, as the viewer's server does, on small parts in fresh
 folders. A selection is what the viewer sends: each face's or edge's selector with the geometry
@@ -55,6 +56,29 @@ PLATE = {
             plate -= bd.Pos(.5*INCH, 0, 0) * bd.Cylinder(.1*INCH, THICKNESS*INCH)
             plate.label = "plate"
             return plate
+    """,
+}
+
+
+# A tray as an agent writes one: a base, filleted in place, a cavity cut from it into a new name,
+# pads joined in a loop, and a hole.
+TRAY = {
+    "tray.py": """
+        from build123d import Axis, Box, Cylinder, Pos, fillet
+        from cadgen import step
+
+
+        @step
+        def tray():
+            outer = Box(40, 20, 10)
+            outer = fillet(outer.edges().filter_by(Axis.Z), radius=2)
+            cavity = Pos(0, 0, 2) * Box(36, 16, 10)
+            tray = outer - cavity
+            for x in (-10, 10):
+                pad = Pos(x, 0, -6) * Box(6, 6, 2)
+                tray = tray + pad
+            tray -= Cylinder(1, 20)
+            return tray
     """,
 }
 
@@ -242,6 +266,52 @@ class PlateCommands(Commands):
         self.assertFalse(refused["ok"])
         self.assertIn("changed since", refused["error"])
         self.assertNotIn("mirror", script.read_text(encoding="utf-8"))
+
+
+class Deleting(Commands):
+    """Delete on a feature of the design tree (``cadgen.edit.deleting``)."""
+
+    def remove(self, file: str, state: dict, kind: str, title: str, nth: int = 0) -> dict:
+        key = [feature["key"] for feature in state["features"] if feature["kind"] == kind][nth]
+        return self.service.change({"file": file, "remove": {"feature": key, "title": title}, "files": state["files"]})
+
+    def test_a_feature_that_changes_the_body_in_place_is_taken_out_and_undo_puts_it_back(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        script = root / "tray.py"
+        before = script.read_bytes()
+        reply = self.remove(file, state, "Hole", "Hole1")
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertNotIn("Cylinder(1, 20)", script.read_text(encoding="utf-8"))
+        self.assertNotIn("Hole", [feature["kind"] for feature in reply["features"]])
+        self.assertEqual((reply["change"]["kind"], reply["change"]["line"]), ("delete", 14))
+        undone = self.service.change({"file": file, "splice": reply["change"]["undo"], "files": reply["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertEqual(script.read_bytes(), before)
+
+    def test_a_cut_that_starts_a_name_keeps_the_name_as_the_body_it_was_cut_from(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        reply = self.remove(file, state, "Cut-Extrude", "Cut-Extrude1")
+        self.assertTrue(reply["ok"], reply.get("error"))
+        text = (root / "tray.py").read_text(encoding="utf-8")
+        self.assertIn("    tray = outer\n", text)
+        self.assertNotIn("cavity", text)
+
+    def test_a_feature_made_in_a_loop_goes_with_its_loop(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        reply = self.remove(file, state, "Boss-Extrude", "Boss-Extrude2", nth=1)
+        self.assertTrue(reply["ok"], reply.get("error"))
+        text = (root / "tray.py").read_text(encoding="utf-8")
+        self.assertNotIn("for x in", text)
+        self.assertNotIn("pad", text)
+
+    def test_a_feature_whose_name_a_later_one_uses_is_refused_naming_where(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        before = (root / "tray.py").read_bytes()
+        refused = self.remove(file, state, "Boss-Extrude", "Boss-Extrude1")
+        self.assertFalse(refused["ok"])
+        self.assertIn("Boss-Extrude1 makes outer, which line 8 still uses", refused["error"])
+        self.assertEqual(refused["dependents"], {"name": "outer", "lines": [8], "file": "tray.py"})
+        self.assertEqual((root / "tray.py").read_bytes(), before)
 
 
 if __name__ == "__main__":

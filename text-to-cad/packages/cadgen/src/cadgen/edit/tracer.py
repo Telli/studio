@@ -1444,6 +1444,8 @@ def edit(request):
         return splice(request)
     if isinstance(request.get("sketch"), dict):
         return sketch_edit(request)
+    if isinstance(request.get("remove"), dict):
+        return remove(request)
     script = str(Path(request["script"]).resolve())
     if script not in STATE:
         traced = trace(request)
@@ -1586,6 +1588,72 @@ def command(request):
         # Undo puts the lines back as they were; Redo writes them again.
         "undo": {"file": plan.rel, "hunks": commands.hunks(plan.new, plan.old)},
         "redo": {"file": plan.rel, "hunks": commands.hunks(plan.old, plan.new)},
+    }
+    return after
+
+
+def remove(request):
+    """A feature of the design tree deleted, as SolidWorks' Delete takes one out (`deleting.py`):
+    its lines taken out of the script, the sketch it was made from kept, or a sketch of its own
+    taken out with its lines; then the part traced again, and put back if it no longer builds."""
+    from cadgen.edit import commands, deleting
+
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    spec = request["remove"]
+    key = str(spec.get("feature") or "")
+    title = str(spec.get("title") or "That feature")
+    features = traced["features"] or [feature for component in traced["components"] for feature in component["features"]]
+    feature = next((feature for feature in features if feature["key"] == key), None)
+    if feature is None:
+        return {"ok": False, "error": f"{title} is no longer in the design tree. Look again."}
+    rel = str(feature.get("file") or "")
+    path = (ROOT / rel).resolve()
+    try:
+        path.relative_to(ROOT)
+    except ValueError:
+        return {"ok": False, "error": f"{title} is not made in this project, so edit mode cannot delete it."}
+    old = _read(path)
+    try:
+        if feature["kind"] == "Sketch":
+            new, first = deleting.delete_sketch(old, int(feature["line"]), title, str(path))
+        else:
+            # The sketch it was made from stays, as SolidWorks keeps an absorbed sketch.
+            drawn = set((feature.get("sketch") or {}).get("rows") or [])
+            lines = []
+            for row in feature["rows"]:
+                if row in drawn:
+                    continue
+                row_file, _, row_line = row.rpartition(":")
+                if row_file != rel:
+                    raise deleting.DeleteError(f"{title} is made across files. Ask the agent to remove it.")
+                lines.append(int(row_line))
+            new, first = deleting.delete(old, lines, title, str(path))
+    except deleting.DeleteError as error:
+        refusal = {"ok": False, "error": str(error)}
+        if error.dependents:
+            refusal["dependents"] = {**error.dependents, "file": rel}
+        return refusal
+    except SyntaxError:
+        return {"ok": False, "error": f"{rel} does not parse, so edit mode cannot delete {title}."}
+    _write(path, new)
+    after = trace(request)
+    if not after.get("ok"):
+        _write(path, old)
+        trace(request)
+        return {"ok": False, "error": f"The part does not build without {title}, so nothing changed. Ask the agent to remove it."}
+    after["change"] = {
+        "kind": "delete",
+        "feature": key,
+        "title": title,
+        "file": rel,
+        "line": first,
+        "undo": {"file": rel, "hunks": commands.hunks(new, old)},
+        "redo": {"file": rel, "hunks": commands.hunks(old, new)},
     }
     return after
 

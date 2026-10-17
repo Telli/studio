@@ -67,6 +67,13 @@ by hand" below.
   angle.
 - Sizes are written in the project's units, as the file writes them (`.03*INCH` in an inch part).
 - A line that does not run, or does not make the feature on what was selected, is not written.
+- **Delete** (the key, or a feature's menu in the design tree) takes a feature's lines out of the
+  script; the sketch it was made from stays. A line that changes the body in place goes whole
+  (`part += ...`, `tray = bd.fillet(tray...)`); a boolean that starts a name keeps the name as the
+  body it was made from (`tray = outer - cavity` becomes `tray = outer`, and `cavity`'s line goes);
+  a loop goes whole when every line in it is the feature's. A feature whose name a later line
+  still uses is not deleted: the engineer is told which feature uses it. A sketch of its own goes
+  with its lines.
 
 ## Sketches drawn by hand
 
@@ -91,7 +98,8 @@ by hand" below.
 
 - A hand edit is an ordinary edit to the script. The engineer's next message carries a note of
   each one ("In edit mode I changed Length (LENGTH) from 2.80 to 3.00 (parts/sizes.py, line 8).",
-  "In edit mode I added Fillet2, radius 0.03 in, 1 edge (parts/housing_geometry.py, line 37).").
+  "In edit mode I added Fillet2, radius 0.03 in, 1 edge (parts/housing_geometry.py, line 37).",
+  "In edit mode I deleted Fillet1 (parts/housing_geometry.py, line 31).").
   A sketch is told once, when the engineer leaves it ("In edit mode I drew Sketch2 on the Top
   Plane (parts/plate.py, line 13): drew 4 lines and a circle, added 5 dimensions.").
 - A command's line is the engineer's: keep it, and keep its selector unless a change you make

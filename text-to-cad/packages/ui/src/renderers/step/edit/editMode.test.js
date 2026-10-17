@@ -11,9 +11,12 @@ import {
   commandRequest,
   commandUndoNote,
   defaultRow,
+  deleteNote,
+  deleteRefusal,
   emptyHistory,
   faceOffsetAxes,
   featureNames,
+  featureTree,
   formulaWords,
   recordChange,
   redoStep,
@@ -79,6 +82,21 @@ test("undo writes a change's number back, and redo writes it again", () => {
   assert.deepEqual(redo.request, { literal: "sizes.py:2:8", text: "25" });
   // A new change after an undo leaves nothing to redo.
   assert.equal(redoStep(recordChange(history, { literal: "x", from: "1", to: "2" })), null);
+});
+
+test("a delete the server refuses names the features that use what it makes", () => {
+  const tree = featureTree({ features: [
+    { key: "tray.py:7", kind: "Boss-Extrude", rows: ["tray.py:7"], file: "tray.py", line: 7, name: "outer" },
+    { key: "tray.py:8", kind: "Fillet", rows: ["tray.py:8"], file: "tray.py", line: 8, name: "outer" },
+    { key: "tray.py:9", kind: "Cut-Extrude", rows: ["tray.py:9", "tray.py:10"], file: "tray.py", line: 9, name: "cavity" },
+  ] });
+  const refused = { ok: false, error: "Boss-Extrude1 makes outer, which line 8 still uses.", dependents: { name: "outer", lines: [8, 10], file: "tray.py" } };
+  assert.equal(deleteRefusal(refused, tree, "Boss-Extrude1"), "Boss-Extrude1 is used by Fillet1 and Cut-Extrude1. Delete them first, or ask the agent.");
+  // Lines no feature holds: the server's own words.
+  assert.equal(deleteRefusal({ ...refused, dependents: { name: "outer", lines: [40], file: "tray.py" } }, tree, "Boss-Extrude1"), refused.error);
+  const change = { kind: "delete", title: "Fillet1", file: "tray.py", line: 8 };
+  assert.equal(deleteNote(change), "In edit mode I deleted Fillet1 (tray.py, line 8).");
+  assert.equal(deleteNote(change, { undo: true }), "In edit mode I put back Fillet1 (tray.py, line 8).");
 });
 
 test("a sketch session's changes are counted from the change before it, past the history's limit", () => {

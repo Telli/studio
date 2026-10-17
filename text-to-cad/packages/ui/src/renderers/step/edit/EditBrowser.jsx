@@ -49,7 +49,6 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
   const feature = treeFeatures(tree).find(each => each.id === (sketchSelected ? selected.slice("sketch:".length) : selected)) || null;
   const title = !feature ? "" : sketchSelected ? `${feature.sketch?.title || "Sketch"}${feature.sketch?.plane && feature.sketch.plane !== "Plane" ? `, ${feature.sketch.plane} Plane` : ""}`
     : feature.name ? `${feature.title}, ${feature.name}` : feature.title;
-  // A feature's inputs, from each line of the history it stands for; a sketch's dimensions.
   // A feature's inputs, its sketch's dimensions among them (D1@Sketch2), each changed through the
   // feature, so the part is built again with it.
   const featureInputs = feature => feature.rows.flatMap(key => (rows.find(row => row.key === key)?.inputs || []).map((input, index) => ({
@@ -72,7 +71,7 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
       <EditTree edit={edit} tree={tree} onEditSketch={onEditSketch} />
       {feature && !edit.command && !edit.sketch ? <FileSheetSettingsSection title={title} sectionId="edit-feature" open={open} onOpenChange={setOpen}>
         {feature.kind === "Sketch" ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
-          Double-click it to edit the sketch, or make a solid of it with Extruded Boss/Base or Extruded Cut.</p>
+          Double-click it to edit the sketch, or make a solid of it with an extrude or a revolve.</p>
           : inputs.length === 0 ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>Nothing to set here.</p>
           : inputs.map(input => <FileSheetControlRow key={input.key} label={input.label}
             trailing={<ValueField value={input.value} unit={input.unit} label={input.label} disabled={disabled}

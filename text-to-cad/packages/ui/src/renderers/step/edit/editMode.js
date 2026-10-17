@@ -347,6 +347,28 @@ export function commandUndoNote(change, title, redo) {
   return `In edit mode I ${redo ? "added" : "removed"} ${title || change.feature}${redo ? " again" : ""} (${change.file}, line ${change.line}).`;
 }
 
+// Names in a sentence: "Fillet1", "Fillet1 and Cut-Extrude1", "Fillet1, Hole1 and Shell1".
+const listWords = names => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] || "");
+
+/** What Delete of a feature tells the agent, and what its Undo and Redo do. */
+export function deleteNote(change, { undo = false, redo = false } = {}) {
+  const done = undo ? "put back" : redo ? "deleted again" : "deleted";
+  return `In edit mode I ${done} ${change.title} (${change.file}, line ${change.line}).`;
+}
+
+/**
+ * Why a feature was not deleted, said as the features of the tree that still use what it makes
+ * ("Boss-Extrude1 is used by Fillet1. Delete it first, or ask the agent."); the server's own words
+ * when it names none.
+ */
+export function deleteRefusal(reply, tree, title) {
+  const dependents = reply?.dependents;
+  const rows = new Set((dependents?.lines || []).map(line => `${dependents.file}:${line}`));
+  const users = treeFeatures(tree).filter(feature => feature.rows.some(row => rows.has(row))).map(feature => feature.title);
+  if (!users.length) return reply?.error || `${title} could not be deleted.`;
+  return `${title} is used by ${listWords(users)}. Delete ${users.length > 1 ? "them" : "it"} first, or ask the agent.`;
+}
+
 /** Where a build of the parts that use a change stands, in a line; empty when it is done. */
 export function buildingText(building) {
   if (!building || !building.scripts?.length) return "";

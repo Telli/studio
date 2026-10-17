@@ -6,6 +6,8 @@ import {
   changesSince,
   commandNote,
   commandUndoNote,
+  deleteNote,
+  deleteRefusal,
   emptyHistory,
   featureNames,
   featureTree,
@@ -206,11 +208,13 @@ export function useEditMode({ client, file, active }) {
     const move = next(historyRef.current);
     if (!move) return;
     const made = move.change.kind === "command";
+    const deleted = move.change.kind === "delete";
     const current = sketchRef.current;
     // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
     const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
     const reply = await send(request, { record: false,
-      note: made ? () => commandUndoNote(move.change, move.change.title, redo) : null });
+      note: made ? () => commandUndoNote(move.change, move.change.title, redo)
+        : deleted ? () => deleteNote(move.change, { undo: !redo, redo }) : null });
     if (!reply?.ok) return;
     setHistory(move.next);
     if (current) {
@@ -223,6 +227,26 @@ export function useEditMode({ client, file, active }) {
   }, [send]);
   const undo = useCallback(() => step(undoStep, false), [step]);
   const redo = useCallback(() => step(redoStep, true), [step]);
+
+  /**
+   * Delete on a row of the design tree, as SolidWorks' takes a feature out: its lines taken out of
+   * the script, the sketch it was made from kept; a sketch of its own goes with its lines. A sketch
+   * a feature was made from is deleted with that feature first.
+   */
+  const remove = useCallback(async (id, tree) => {
+    const features = treeFeatures(tree);
+    const owner = features.find(feature => feature.kind !== "Sketch" && feature.sketch?.id === id);
+    if (owner) {
+      setError(`${owner.sketch.title} is used by ${owner.title}. Delete ${owner.title} first, or ask the agent.`);
+      return null;
+    }
+    const feature = features.find(each => each.id === id);
+    if (!feature) return null;
+    const reply = await send({ remove: { feature: feature.id, title: feature.title } }, { note: answer => deleteNote(answer.change) });
+    if (reply?.ok) setSelected(null);
+    else if (reply?.dependents) setError(deleteRefusal(reply, tree, feature.title));
+    return reply;
+  }, [send]);
 
   // ---- sketch mode ---------------------------------------------------------------------------
 
@@ -313,7 +337,7 @@ export function useEditMode({ client, file, active }) {
     status, state, error, choice, saving, selected, hovered, command,
     select: setSelected,
     hover: setHovered,
-    change, undo, redo, run,
+    change, undo, redo, run, remove,
     open: id => { setError(""); setPicking(false); setCommand(id); },
     close: () => setCommand(null),
     // In sketch mode, Undo takes back the session's own changes only.

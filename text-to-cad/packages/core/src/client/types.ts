@@ -287,6 +287,8 @@ export interface CadEditChangeRequest {
   splice?: { file: string; hunks: unknown[] };
   /** A sketch mode change (`cadgen/edit/sketching.py`): the sketch's file and line, and what to do to it. */
   sketch?: { file?: string; line?: number; name?: string; op: Record<string, unknown> };
+  /** Delete on a feature of the design tree (`cadgen/edit/deleting.py`), by its key and its title. */
+  remove?: { feature: string; title?: string };
 }
 
 export interface CadClient extends CadWorkspaceService {

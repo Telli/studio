@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@text-to-cad/ui/primitives/context-menu";
 import { TREE_INDENT_PX, TreeRowChevron, TreeRowSurface } from "@text-to-cad/ui/primitives/tree-row";
 import { FileSheetValueInput } from "../../kit/inspector/FileSheet.js";
-import { ORIGIN_PLANES, sizeName } from "./editMode.js";
+import { ORIGIN_PLANES, sizeName, treeFeatures } from "./editMode.js";
 import { AssemblyIcon, FeatureIcon, OriginIcon, ParametersIcon, PartIcon, PlaneIcon, SketchIcon } from "./featureIcons.jsx";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
@@ -9,14 +10,16 @@ const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 const SKETCH_MARKS = Object.freeze({ "Under defined": "(-) ", "Over defined": "(+) " });
 
 /** One row of the tree: its place (depth), its disclosure when it has rows under it, its icon and
- * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch), else opens or closes it. */
-function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, onActivate = null, selected, onSelect, onHover, muted = false }) {
+ * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch), else opens or closes it;
+ * a right-click selects it and opens its menu (`menu`: Edit Sketch, Delete), as SolidWorks' does. */
+function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, onActivate = null, selected, onSelect, onHover, muted = false, menu = null }) {
   const active = Boolean(id) && selected === id;
-  return <TreeRowSurface as="div" dense active={active} role="treeitem" aria-selected={active}
+  const row = <TreeRowSurface as="div" dense active={active} role="treeitem" aria-selected={active}
     aria-expanded={expanded === null ? undefined : expanded} tabIndex={-1}
     className="cursor-default select-none" style={{ paddingLeft: 4 + depth * (TREE_INDENT_PX + 2) }}
     data-cad-edit-tree-row={id || title}
     onClick={() => { if (id) onSelect(id); else onToggle?.(); }}
+    onContextMenu={() => { if (id && menu?.length) onSelect(id); }}
     onDoubleClick={() => (onActivate ? onActivate() : onToggle?.())}
     onPointerEnter={() => onHover(id || null)} onPointerLeave={() => onHover(null)}>
     <span className="flex w-3 shrink-0 justify-center" onClick={event => { if (onToggle) { event.stopPropagation(); onToggle(); } }}>
@@ -26,6 +29,16 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
     <span className={muted ? "truncate text-muted-foreground" : "truncate"}>{title}</span>
     {detail ? <span className="ml-auto truncate pl-2 text-muted-foreground">{detail}</span> : null}
   </TreeRowSurface>;
+  if (!menu?.length) return row;
+  return <ContextMenu>
+    <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
+    <ContextMenuContent className="w-44">
+      {menu.map(item => [item.separatorBefore ? <ContextMenuSeparator key={`${item.id}:separator`} /> : null,
+        <ContextMenuItem key={item.id} disabled={item.disabled} variant={item.destructive ? "destructive" : "default"} onSelect={item.onSelect}>
+          {item.label}
+        </ContextMenuItem>])}
+    </ContextMenuContent>
+  </ContextMenu>;
 }
 
 /**
@@ -34,7 +47,8 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
  * Origin, then its features in the order the script makes them, each solid's sketch under it and a
  * sketch nothing uses yet on a row of its own. An assembly lists its parts as components, each
  * opening to its own features. Selecting a feature draws its dimensions on the model and shows its
- * inputs under the tree; selecting a plane draws it; double-clicking a sketch edits it.
+ * inputs under the tree; selecting a plane draws it; double-clicking a sketch edits it. Delete (the
+ * key, or the row's menu) takes the selected feature out of the script (`edit.remove`).
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
  *   tree: ReturnType<typeof import("./editMode.js").featureTree>, onEditSketch?: (sketch: object) => void }} props
@@ -61,21 +75,41 @@ export default function EditTree({ edit, tree, onEditSketch = () => {} }) {
   const disabled = edit.saving || edit.status !== "ready";
   const rowProps = { selected: edit.selected, onSelect: edit.select, onHover: edit.hover };
   const name = sizeName(edit.state?.name || "") || "Part";
-  const sketchRow = (sketch, depth) => <Row key={sketch.id} id={sketch.id} depth={depth} icon={<SketchIcon />}
-    title={`${SKETCH_MARKS[sketch.status] || ""}${sketch.title}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane` : ""}
-    onActivate={() => onEditSketch(sketch)} {...rowProps} />;
+  // A row's menu: Edit Sketch where it has a sketch to edit, and Delete on a feature or a sketch of
+  // its own (a feature's sketch goes with its feature).
+  const editItem = sketch => (sketch?.constrained ? [{ id: "edit-sketch", label: "Edit Sketch", disabled, onSelect: () => onEditSketch(sketch) }] : []);
+  const deleteItem = (id, separatorBefore) => ({ id: "delete", label: "Delete", destructive: true, disabled: disabled || Boolean(edit.sketch),
+    separatorBefore, onSelect: () => void edit.remove(id, tree) });
+  const sketchRow = (sketch, depth, own = false) => {
+    const edits = editItem(sketch);
+    return <Row key={sketch.id} id={sketch.id} depth={depth} icon={<SketchIcon />}
+      title={`${SKETCH_MARKS[sketch.status] || ""}${sketch.title}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane` : ""}
+      onActivate={() => onEditSketch(sketch)} menu={own ? [...edits, deleteItem(sketch.id, edits.length > 0)] : edits} {...rowProps} />;
+  };
   const features = (list, depth) => list.flatMap(feature => {
-    if (feature.kind === "Sketch") return [sketchRow(feature.sketch, depth)];
+    if (feature.kind === "Sketch") return [sketchRow(feature.sketch, depth, true)];
     const branch = Boolean(feature.sketch);
     const expanded = open.has(feature.id);
     const detail = `${feature.name}${feature.count > 1 ? ` ×${feature.count}` : ""}`;
+    const edits = editItem(feature.sketch);
     return [
       <Row key={feature.id} id={feature.id} depth={depth} icon={<FeatureIcon kind={feature.kind} />} title={feature.title} detail={detail}
-        expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null} {...rowProps} />,
+        expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null}
+        menu={[...edits, deleteItem(feature.id, edits.length > 0)]} {...rowProps} />,
       branch && expanded ? sketchRow(feature.sketch, depth + 1) : null,
     ];
   });
-  return <div role="tree" aria-label="Design tree" className="flex flex-col px-1 py-1" data-cad-edit-tree="">
+  // The Delete key on the selected feature, as SolidWorks takes it; in sketch mode the key is the
+  // sketch's (its entities).
+  const onKeyDown = event => {
+    if ((event.key !== "Delete" && event.key !== "Backspace") || disabled || edit.sketch || !edit.selected) return;
+    if (event.target instanceof Element && event.target.closest("input, textarea, [contenteditable]")) return;
+    const id = edit.selected;
+    if (!treeFeatures(tree).some(feature => feature.id === id || feature.sketch?.id === id)) return;
+    event.preventDefault();
+    void edit.remove(id, tree);
+  };
+  return <div role="tree" aria-label="Design tree" className="flex flex-col px-1 py-1" data-cad-edit-tree="" onKeyDown={onKeyDown}>
     <Row id="" depth={0} icon={tree.assembly ? <AssemblyIcon /> : <PartIcon />} title={name} {...rowProps} />
     <Row id="" depth={1} icon={<ParametersIcon />} title="Parameters" expanded={open.has("parameters")} onToggle={toggle("parameters")} {...rowProps} />
     {open.has("parameters") ? <div role="group" aria-label="Parameters" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>

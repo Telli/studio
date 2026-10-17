@@ -150,6 +150,17 @@ class SketchMode(unittest.TestCase):
         self.assertEqual(self.source(), original)
         self.assertNotIn("Sketch1", [sketch["name"] for sketch in undone.get("sketches") or []])
 
+    def test_a_sketch_of_its_own_is_deleted_with_its_lines(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "circle", "center": {"at": [5, 5]}, "radius": 2})
+        self.send({"kind": "exit", "changed": True})
+        state = self.service.state(self.file)
+        sketch = next(feature for feature in state["features"] if feature["kind"] == "Sketch")
+        reply = self.service.change({"file": self.file, "files": state["files"], "remove": {"feature": sketch["key"], "title": "Sketch1"}})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertNotIn("sketch1", self.source())
+        self.assertNotIn("Sketch", [feature["kind"] for feature in reply["features"]])
+
     def test_a_finished_sketch_is_in_the_tree_and_extrudes_as_a_boss(self):
         self.start()
         self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [10, 6]}})

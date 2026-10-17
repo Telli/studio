@@ -39,8 +39,9 @@ _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M
 # the value typed; `leaf` answers which size to change when several make the value. A `command`
 # writes a feature's line after the part's body (`commands.py`); a `splice` puts lines back or
 # writes them again (a command's Undo and Redo). A `sketch` change is sketch mode's
-# (`sketching.py`): its strokes are not built, as a CAD tool rebuilds when the sketch is left.
-_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice", "sketch")
+# (`sketching.py`): its strokes are not built, as a CAD tool rebuilds when the sketch is left. A
+# `remove` deletes a feature of the design tree (`deleting.py`).
+_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice", "sketch", "remove")
 
 
 def _no_window() -> dict:
