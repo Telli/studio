@@ -94,7 +94,9 @@ The first run downloads that installation; later runs reuse it.
   itself, marks nothing a shop can see, and drawn dashed it reads as a hidden
   edge that is not there (on a bore, as a line down the hole's own axis).
 - Dimensions measured from the geometry, with filled arrowheads and witness
-  lines, and true-size values at any drawing scale.
+  lines, and true-size values at any drawing scale, in millimetres or, on a
+  `Sheet(units="in")`, inches (`2.800`, `.060`): give a part designed in inches
+  an inch sheet.
 - A title block with title, part number, material, author, scale, units,
   projection, revision, `SHEET n OF m` and the drawing function's name;
   numbered notes above it (the general tolerance, when given, is note 1);

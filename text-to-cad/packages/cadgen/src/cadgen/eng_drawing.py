@@ -250,6 +250,37 @@ def _fmt(value: float) -> str:
     return text or "0"
 
 
+#: How many millimetres one of a sheet's units is. The part is always measured in millimetres
+#: (build123d's and STEP's unit); a sheet in inches prints what it measures in inches.
+UNITS = {"mm": 1.0, "in": 25.4}
+_UNIT_NAMES = {"mm": "mm", "millimeter": "mm", "millimeters": "mm", "millimetre": "mm", "millimetres": "mm",
+               "in": "in", "inch": "in", "inches": "in"}
+
+
+def _decimal(value: float, units: str, *, fine: bool = False) -> str:
+    """A value in the sheet's units as the sheet prints it: millimetres to two places, trailing
+    zeros dropped (``71.12``, ``6``); inches to three places, trailing zeros kept and the leading
+    zero dropped (``2.800``, ``.060``), as an inch drawing reads. ``fine``: a value the author
+    typed (a tolerance) keeps up to four places, so ``0.0005`` is not printed as nothing. A half
+    rounds away from zero, as CAD tools round by default: a 1/16 radius reads ``R.063``."""
+    from decimal import ROUND_HALF_UP, Decimal
+
+    places = 3 if units == "in" else 2
+    while fine and places < 4 and abs(round(value, places) - value) > 1e-9:
+        places += 1
+    # Nine places first, so a conversion's float noise (0.06249999999999999) is not what rounds.
+    exact = Decimal(f"{value:.9f}").quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP)
+    text = f"{exact:.{places}f}"
+    if units == "in":
+        return text.replace("0.", ".", 1) if text.startswith(("0.", "-0.")) else text
+    return text.rstrip("0").rstrip(".") or "0"
+
+
+def _length(mm: float, units: str) -> str:
+    """A length of the part (millimetres) as a sheet in ``units`` prints it."""
+    return _decimal(mm / UNITS[units], units)
+
+
 def _tol(value):
     """Normalise a tolerance argument to (plus, minus) or None."""
     if value is None:
@@ -327,32 +358,34 @@ def _pair(name: str, value) -> tuple[float, float] | None:
     return (_positive(f"{name}[0]", values[0]), _positive(f"{name}[1]", values[1]))
 
 
-def _tol_suffix(tol) -> str:
+def _tol_suffix(tol, units: str = "mm") -> str:
+    # The deviations are the author's, already in the sheet's units.
     if not tol:
         return ""
     plus, minus = tol
     if abs(plus - minus) < 1e-9:
-        return f" ±{_fmt(plus)}"
-    return f" +{_fmt(plus)}/-{_fmt(minus)}"
+        return f" ±{_decimal(plus, units, fine=True)}"
+    return f" +{_decimal(plus, units, fine=True)}/-{_decimal(minus, units, fine=True)}"
 
 
-def hole_callout_text(spec: dict, *, tol=None, fit: str | None = None) -> str:
-    """The text of a hole callout, in the ISO/ASME symbols a shop reads."""
+def hole_callout_text(spec: dict, *, tol=None, fit: str | None = None, units: str = "mm") -> str:
+    """The text of a hole callout, in the ISO/ASME symbols a shop reads. The hole's sizes are the
+    part's millimetres, printed in the sheet's ``units``."""
     parts = []
     lead = f"{spec['count']}× " if spec.get("count") else ""
-    size = spec["thread"] if spec.get("thread") else f"%%c{_fmt(spec['diameter'])}"
-    size += _tol_suffix(tol) + (f" {fit}" if fit else "")
+    size = spec["thread"] if spec.get("thread") else f"%%c{_length(spec['diameter'], units)}"
+    size += _tol_suffix(tol, units) + (f" {fit}" if fit else "")
     if spec.get("thru"):
         size += " THRU"
     elif spec.get("depth") is not None:
-        size += f" \u21a7{_fmt(spec['depth'])}"
+        size += f" \u21a7{_length(spec['depth'], units)}"
     parts.append(lead + size)
     if spec.get("cbore"):
         d, depth = spec["cbore"]
-        parts.append(f"\u2334 %%c{_fmt(d)} \u21a7{_fmt(depth)}")
+        parts.append(f"\u2334 %%c{_length(d, units)} \u21a7{_length(depth, units)}")
     if spec.get("csk"):
         d, ang = spec["csk"]
-        parts.append(f"\u2335 %%c{_fmt(d)} × {_fmt(ang)}°")
+        parts.append(f"\u2335 %%c{_length(d, units)} × {_fmt(ang)}°")
     if spec.get("label"):
         parts.append(str(spec["label"]))
     return "   ".join(parts)
@@ -406,6 +439,12 @@ class Sheet:
                 f"unknown projection {self.projection!r}; one of {sorted(PROJECTIONS)}. "
                 "The label and the view arrangement are the same decision."
             )
+        # The title block names the units and every printed value is in them: a label the values
+        # did not follow would read inches over millimetre numbers.
+        units = _UNIT_NAMES.get(str(self.units).strip().lower())
+        if units is None:
+            raise ValueError(f"unknown units {self.units!r}; \"mm\" or \"in\"")
+        self.units = units
         # A str is a Sequence[str] of its own characters, so notes="BREAK EDGES"
         # printed eleven numbered notes reading B, R, E, A, K... The one-note case
         # is the common one and the wrong spelling of it cannot be told apart from
@@ -688,7 +727,7 @@ def _centres(circles: Sequence[tuple[tuple[float, float], float]]) -> list[tuple
 
 # --- writing ------------------------------------------------------------------------
 
-def _dimstyle(doc, text_height: float):
+def _dimstyle(doc, text_height: float, units: str = "mm"):
     style = doc.dimstyles.get("Standard")
     style.dxf.dimtxt = text_height
     style.dxf.dimasz = text_height * 0.85
@@ -696,10 +735,13 @@ def _dimstyle(doc, text_height: float):
     style.dxf.dimexe = 2.0
     style.dxf.dimgap = 1.0
     style.dxf.dimtad = 1
-    style.dxf.dimdec = 2
-    style.dxf.dimzin = 8
+    # Millimetres to two places, trailing zeros dropped; inches to three, trailing zeros kept and
+    # the leading zero dropped (2.800, .060), as inch drawings are dimensioned.
+    style.dxf.dimdec = 3 if units == "in" else 2
+    style.dxf.dimzin = 4 if units == "in" else 8
     style.dxf.dimdsep = ord(".")
-    style.dxf.dimtdec = 2
+    style.dxf.dimtdec = 3 if units == "in" else 2
+    style.dxf.dimtzin = 4 if units == "in" else 0
     style.dxf.dimblk = "_CLOSEDFILLED"
     return "Standard"
 
@@ -989,7 +1031,7 @@ def _render_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings:
     for name, (color, linetype, weight) in _LAYERS.items():
         aci = 7 if sheet.ink == "mono" and name != "HIDDEN" else color
         doc.layers.add(name, color=aci, linetype=linetype, lineweight=int(round(weight * 100)))
-    dimstyle = _dimstyle(doc, sheet.text_height)
+    dimstyle = _dimstyle(doc, sheet.text_height, sheet.units)
     W, H = sheet.width, sheet.height
 
     def text(value, x, y, height, align, layer="TITLE", fit: float | None = None):
@@ -1245,16 +1287,25 @@ def _render_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings:
             else:
                 side = ("top" if offset >= 0 else "bottom") if horizontal else ("right" if offset >= 0 else "left")
                 rows[side] = max(rows[side], int(abs(offset) // _DIM_ROW))
-            label = (override or "<>") + (f" {fit}" if fit else "")
             # The value is measured in SHEET millimetres, which are the model's only
-            # at 1:1. dimlfac scales what the dimension prints back to true size, per
-            # view, so a view drawn at its own scale still reads the part.
-            style_override = {"dimlfac": 1.0 / sv}
+            # at 1:1. dimlfac scales the measurement back to true size, per view, so a
+            # view drawn at its own scale still reads the part, and into the sheet's
+            # units, so an inch sheet reads inches.
+            style_override = {"dimlfac": 1.0 / (sv * UNITS[sheet.units])}
+            # The number itself is written here rather than left to ezdxf's "<>": ezdxf
+            # rounds a half to even, on a float a hair either side of it, so 5/16 in read
+            # .312 and 11/16 read .687 beside radii reading R.313 and R.688. Every number
+            # on the sheet goes through the one rounding.
+            measured = abs(b[0] - a[0]) if horizontal else abs(b[1] - a[1])
+            label = (override or "<>").replace("<>", _length(measured / sv, sheet.units), 1)
+            label += f" {fit}" if fit else ""
             if tol:
-                # The deviations are the author's, in true size, and ezdxf prints them
-                # as given -- dimlfac scales the measurement, not the tolerance.
+                # The deviations are the author's, in true size and the sheet's units, and
+                # ezdxf prints them as given -- dimlfac scales the measurement, not the
+                # tolerance -- to as many places as the finest of them needs.
+                places = max(len(_decimal(t, sheet.units, fine=True).rpartition(".")[2]) for t in tol)
                 style_override |= {"dimtol": 1, "dimtp": tol[0], "dimtm": tol[1],
-                                   "dimtdec": 2, "dimtfac": 0.7}
+                                   "dimtdec": max(places, 3 if sheet.units == "in" else 2), "dimtfac": 0.7}
             if horizontal:
                 base = (a[0], (max(a[1], b[1]) if offset >= 0 else min(a[1], b[1])) + offset)
                 d = msp.add_linear_dim(base=base, p1=a, p2=b, angle=0, dimstyle=dimstyle, text=label,
@@ -1339,10 +1390,10 @@ def _render_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings:
                 check(dim.kind, index, centre)
                 r = dim.radius * sv
                 if dim.kind == "hole":
-                    value = hole_callout_text(dim.hole, tol=dim.tol, fit=dim.fit)
+                    value = hole_callout_text(dim.hole, tol=dim.tol, fit=dim.fit, units=sheet.units)
                 else:
                     prefix = "%%c" if dim.kind == "diameter" else "R"
-                    value = dim.text if dim.text else f"{prefix}{_fmt(2 * dim.radius if dim.kind == 'diameter' else dim.radius)}"
+                    value = dim.text if dim.text else f"{prefix}{_length(2 * dim.radius if dim.kind == 'diameter' else dim.radius, sheet.units)}"
                 text_w = 8.0 + len(value) * sheet.text_height * 0.7
                 # Exit on the hole's own side of the view (the short way out), unless the
                 # landing there would run into another view or off the frame; then the

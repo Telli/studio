@@ -307,6 +307,68 @@ class DrawingSheetTests(unittest.TestCase):
         self.assertEqual(len(circles), 1, "the hole seen from above is one CIRCLE")
         self.assertAlmostEqual(circles[0].dxf.radius, 3.0, places=3)
 
+    def test_an_inch_sheet_prints_inches(self) -> None:
+        """A part sized in inches, drawn on an inch sheet, reads its inches: 2.800, not 71.12.
+
+        The part is measured in millimetres (build123d's unit) and the sheet prints in
+        its own: the measured values, the hole callouts and the radii, three places, no
+        leading zero, as an inch drawing reads. The author's tolerances are inches as
+        written, to the places they need.
+        """
+        from build123d import Align, Box, Cylinder, Pos
+        from cadgen.eng_drawing import Sheet, _render_sheet
+
+        inch = 25.4
+        align = (Align.CENTER, Align.CENTER, Align.MIN)
+        part = Box(2.80 * inch, 1.05 * inch, 2.000 * inch, align=align) - Pos(0, 0, 0) * Cylinder(0.0625 * inch, 2 * inch, align=align)
+        sheet = Sheet("A3", title="TRAY", units="inches")
+        self.assertEqual(sheet.units, "in")
+        top, front, _right = sheet.three_views(part)
+        top.overall()
+        front.overall()
+        front.dim((-1.40 * inch, -0.525 * inch, 0), (1.40 * inch, -0.525 * inch, 0), offset=-14, tol=0.005)
+        top.hole((0, 0, 2.000 * inch), 0.125 * inch, depth=0.5 * inch, tol=0.0005)
+        top.radius((0, 0, 2.000 * inch), 0.0625 * inch)
+        doc = _render_sheet(sheet, index=1, count=1, label="inch")
+        texts = _dim_texts(doc)
+        for size in ("2.800", "1.050", "2.000"):
+            self.assertIn(size, texts)
+        self.assertFalse(any("71.12" in t for t in texts), texts)
+        self.assertTrue(any("2.800" in t and "±.005" in t for t in texts), texts)
+        msp = doc.modelspace()
+        callouts = [e.dxf.text for e in msp.query("TEXT[layer=='DIM']")]
+        self.assertIn("%%c.125 ±.0005 \u21a7.500", callouts)
+        self.assertIn("R.063", callouts)
+        title = " ".join(e.dxf.text for e in msp.query("TEXT[layer=='TITLE']"))
+        self.assertIn("   IN   ", title)
+
+    def test_a_half_rounds_the_same_way_on_every_dimension(self) -> None:
+        """5/16 in reads .313 as a length, as its radius does, and 11/16 reads .688.
+
+        ezdxf rounded a measured half to even, on a float a hair either side of it,
+        so 5/16 read .312 and 11/16 read .687 on the same sheet as R.313.
+        """
+        from build123d import Align, Box, Cylinder
+        from cadgen.eng_drawing import Sheet, _render_sheet
+
+        inch = 25.4
+        align = (Align.CENTER, Align.CENTER, Align.MIN)
+        part = Box(0.6875 * inch, 0.3125 * inch, 0.25 * inch, align=align) - Cylinder(0.0625 * inch, 0.25 * inch, align=align)
+        sheet = Sheet("A4", title="KEY", units="in")
+        top, _front, _right = sheet.three_views(part)
+        top.overall()
+        top.radius((0, 0, 0.25 * inch), 0.0625 * inch)
+        doc = _render_sheet(sheet, index=1, count=1, label="halves")
+        self.assertEqual(sorted(_dim_texts(doc)), [".313", ".688"])
+        self.assertIn("R.063", [e.dxf.text for e in doc.modelspace().query("TEXT[layer=='DIM']")])
+
+    def test_a_sheet_in_units_it_cannot_print_is_refused(self) -> None:
+        from cadgen.eng_drawing import Sheet
+
+        self.assertEqual(Sheet("A4", units="MM").units, "mm")
+        with self.assertRaisesRegex(ValueError, "unknown units"):
+            Sheet("A4", units="cm")
+
     def test_shop_annotations_are_written(self) -> None:
         from cadgen.eng_drawing import Sheet, _render_sheet, hole_callout_text
 

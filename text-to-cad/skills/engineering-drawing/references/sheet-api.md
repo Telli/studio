@@ -59,6 +59,12 @@ drawing takes geometry, not a file.
 ## `Sheet(size="A3", scale=1.0, title=..., part_number="", material="", revision="A", author="", units="mm", projection="THIRD ANGLE", notes=(), ink="mono", text_height=3.5, general_tolerance="", revisions=())`
 
 - `size`: `A4`, `A3`, `A2`, `A1`, `A0`, landscape. `width`/`height` in mm.
+- `units`: `"mm"` (default) or `"in"`, the units the sheet prints and its title block names.
+  The part is always measured in millimetres, and so are the points, hole sizes and radii you
+  pass. A sheet in inches prints what it measures in inches, to three places without a leading
+  zero (`2.800`, `.060`), so a part designed in inches reads its own sizes. Tolerances (`tol=`)
+  and typed values (`text=`) print as you write them, in the sheet's units: give an inch sheet
+  `tol=0.005`. Positions on the sheet (`at=`, `offset=`) stay sheet millimetres either way.
 - `scale`: drawing scale, 1 = 1:1, 0.5 = 1:2. Dimension values stay true size at
   any scale — each view divides its measurement by its own scale.
 - `projection`: `"THIRD ANGLE"` (default) or `"FIRST ANGLE"`. The label and the
