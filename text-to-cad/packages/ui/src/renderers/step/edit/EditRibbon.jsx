@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronsRight, Redo2, Undo2 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,25 +32,24 @@ const GROUPS = Object.freeze([
 ]);
 const LABELS = Object.freeze({ clip: "Section", references: "Select" });
 const BUTTON_CLASS = "flex h-[3.25rem] min-w-11 flex-col items-center justify-start gap-1 rounded-md px-1 pt-1.5 text-micro leading-none text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4 [&_svg]:shrink-0";
-// A long name wraps to two lines under its icon, as SolidWorks' CommandManager sets them; a
-// narrow ribbon keeps the icons (their names in tooltips). The sketch tab, with more tools, does
-// so sooner.
-const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1] @max-xl/cad-ribbon:hidden";
-const SKETCH_LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1] @max-7xl/cad-ribbon:hidden";
+// A long name wraps to two lines under its icon, as SolidWorks' CommandManager sets them; without
+// names (`compact`) the buttons narrow to their icons.
+const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]";
 // Sketch mode's tools, as SolidWorks' Sketch tab groups them.
 const SKETCH_ENTITIES = ["line", "rectangle", "center_rectangle", "circle", "arc", "slot", "centerline", "point"];
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
 // The More button's box, before it is first laid out.
-const MORE_WIDTH_PX = 54;
+const MORE_WIDTH_PX = 46;
+const ALL_NAMED = Object.freeze({ compact: false, count: Infinity });
 
-function RibbonButton({ label, icon, active = false, disabled = false, description, onClick, sketching = false }) {
+function RibbonButton({ label, icon, active = false, disabled = false, description, onClick, compact = false }) {
   return <TooltipHint content={label}>
     <button type="button" aria-label={label} aria-pressed={active} aria-description={description} disabled={disabled}
-      className={cn(BUTTON_CLASS, active && "bg-sidebar-accent text-sidebar-accent-foreground", sketching && "@max-7xl/cad-ribbon:justify-center @max-7xl/cad-ribbon:pt-0")}
+      className={cn(BUTTON_CLASS, active && "bg-sidebar-accent text-sidebar-accent-foreground", compact && "min-w-9 justify-center pt-0")}
       onClick={onClick}>
       {icon}
-      <span className={sketching ? SKETCH_LABEL_CLASS : LABEL_CLASS}>{label}</span>
+      {compact ? null : <span className={LABEL_CLASS}>{label}</span>}
     </button>
   </TooltipHint>;
 }
@@ -64,34 +63,47 @@ function RibbonGroup({ title, folded = false, children }) {
 }
 
 /**
- * How many of the ribbon's groups fit, the rest folded behind its More button as SolidWorks'
- * CommandManager folds its commands behind a chevron: whole groups, from the right. Measured as
- * laid out: a folded group keeps its place (unseen, past the edge), so each group's right edge
- * reads the same whichever are folded, and the count settles within a pass of the More button
- * appearing.
+ * How the ribbon's groups fit, giving way as SolidWorks' CommandManager does: first the names go
+ * (`compact`: the icons alone, each name in its tooltip), then whole groups fold from the right
+ * behind the More button (`count`: the groups shown; Infinity, all of them). Each layout is
+ * measured before it is painted. A folded group keeps its place, unseen past the edge, so each
+ * group's right edge reads the same whichever are folded; the width the groups took with their
+ * names is kept, to know when they fit again.
  */
 function useRibbonFit(rowRef, moreRef, key) {
-  const [fit, setFit] = useState(Infinity);
-  useLayoutEffect(() => {
+  const [fit, setFit] = useState(ALL_NAMED);
+  const named = useRef(0);
+  const measure = useCallback(() => {
     const row = rowRef.current;
-    if (!row) return undefined;
-    const measure = () => {
-      const groups = [...row.querySelectorAll(":scope > [data-cad-ribbon-group]")];
-      const more = moreRef.current?.offsetWidth || 0;
-      // The room the groups had with no More button beside them.
-      const room = row.clientWidth + more + 1;
-      const rights = groups.map(group => group.offsetLeft + group.offsetWidth);
-      const all = rights.length && rights.at(-1) <= room;
-      const next = all ? Infinity : rights.filter(right => right <= room - (more || MORE_WIDTH_PX)).length;
-      setFit(current => (current === next ? current : next));
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return undefined;
-    const observer = new ResizeObserver(measure);
+    const groups = row ? [...row.querySelectorAll(":scope > [data-cad-ribbon-group]")] : [];
+    if (!groups.length) return;
+    const more = moreRef.current?.offsetWidth || 0;
+    // The room the groups have with no More button beside them.
+    const room = row.clientWidth + more + 1;
+    const rights = groups.map(group => group.offsetLeft + group.offsetWidth);
+    let next;
+    if (row.dataset.compact !== "true") {
+      named.current = rights.at(-1);
+      next = named.current <= room ? ALL_NAMED : { compact: true, count: Infinity };
+    } else if (!named.current || named.current <= room) {
+      next = ALL_NAMED; // the names fit again, or their width is not known yet: shown to learn it
+    } else {
+      next = { compact: true, count: rights.at(-1) <= room ? Infinity : rights.filter(right => right <= room - (more || MORE_WIDTH_PX)).length };
+    }
+    setFit(current => (current.compact === next.compact && current.count === next.count ? current : next));
+  }, [rowRef, moreRef]);
+  // Other groups or names: their width with names is learnt again.
+  useLayoutEffect(() => { named.current = 0; }, [key]);
+  useLayoutEffect(measure, [measure, key, fit]);
+  // A change in the room is measured on the next frame.
+  useEffect(() => {
+    const row = rowRef.current;
+    if (!row || typeof ResizeObserver === "undefined") return undefined;
+    let frame = 0;
+    const observer = new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); });
     observer.observe(row);
-    for (const group of row.children) observer.observe(group);
-    return () => observer.disconnect();
-  }, [rowRef, moreRef, key]);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+  }, [rowRef, measure]);
   return fit;
 }
 
@@ -100,7 +112,7 @@ function MoreMenu({ groups }) {
   return <DropdownMenu modal={false}>
     <TooltipHint content="More commands">
       <DropdownMenuTrigger asChild>
-        <button type="button" aria-label="More commands" className={cn(BUTTON_CLASS, "justify-center pt-0 aria-expanded:bg-sidebar-accent")}>
+        <button type="button" aria-label="More commands" className={cn(BUTTON_CLASS, "min-w-9 justify-center pt-0 aria-expanded:bg-sidebar-accent")}>
           <ChevronsRight aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
@@ -125,16 +137,16 @@ function MoreMenu({ groups }) {
  * The ribbon's groups (`{ title, items }`, each item a button's `{ id, label, icon, active?,
  * disabled?, description?, onClick }`) in one row, and what does not fit in its More menu.
  */
-function RibbonGroups({ groups, sketching = false }) {
+function RibbonGroups({ groups }) {
   const rowRef = useRef(null);
   const moreRef = useRef(null);
-  const key = groups.map(group => `${group.title}:${group.items.length}`).join("|") + (sketching ? "|sketch" : "");
+  const key = groups.map(group => `${group.title}:${group.items.map(item => item.label).join(",")}`).join("|");
   const fit = useRibbonFit(rowRef, moreRef, key);
-  const folded = groups.slice(fit);
+  const folded = groups.slice(fit.count);
   return <>
-    <div ref={rowRef} className="relative flex min-w-0 flex-1 items-stretch overflow-hidden">
-      {groups.map((group, index) => <RibbonGroup key={group.title} title={group.title} folded={index >= fit}>
-        {group.items.map(({ id, ...item }) => <RibbonButton key={id} {...item} sketching={sketching} />)}
+    <div ref={rowRef} data-compact={fit.compact ? "true" : "false"} className="relative flex min-w-0 flex-1 items-stretch overflow-hidden">
+      {groups.map((group, index) => <RibbonGroup key={group.title} title={group.title} folded={index >= fit.count}>
+        {group.items.map(({ id, ...item }) => <RibbonButton key={id} {...item} compact={fit.compact} />)}
       </RibbonGroup>)}
     </div>
     {folded.length ? <div ref={moreRef} className="flex shrink-0 flex-col items-center border-x border-border px-1" data-cad-ribbon-more="">
@@ -181,8 +193,8 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     { id: "redo", label: "Redo", icon: <Redo2 aria-hidden="true" />, disabled: !edit.canRedo, onClick: () => void edit.redo() },
   ] };
   const ribbon = (label, groups, end, sketching = false) => <div data-cad-ribbon="" data-cad-sketch-ribbon={sketching ? "" : undefined}
-    className="@container/cad-ribbon flex min-h-0 shrink-0 items-stretch overflow-hidden border-b border-border bg-background" role="toolbar" aria-label={label}>
-    <RibbonGroups groups={groups} sketching={sketching} />
+    className="flex min-h-0 shrink-0 items-stretch overflow-hidden border-b border-border bg-background" role="toolbar" aria-label={label}>
+    <RibbonGroups key={label} groups={groups} />
     <div className="flex shrink-0 flex-col items-end justify-center gap-0.5 px-2 text-tiny leading-4" aria-live="polite">{end}</div>
   </div>;
 
