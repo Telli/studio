@@ -262,6 +262,31 @@ class SketchMode(unittest.TestCase):
         boss = [f for f in extruded["features"] if f["kind"] == "Boss-Extrude"]
         self.assertEqual([f["sketch"].get("name") for f in boss], [None, "Sketch1"])
         self.assertNotIn("Sketch", [f["kind"] for f in extruded["features"]])
+        # Edit Feature: the boss opens with its end condition, and its line is written again.
+        self.assertEqual(boss[1]["edit"], {"command": "extrude", "values": {"end": "blind", "reverse": False, "depth": "3"},
+                                           "keeps": "sketch1", "sketch": {"file": "plate.py", "line": self.sketch["line"], "name": "Sketch1"}})
+        edited = self.service.change({"file": self.file, "files": extruded["files"], "command": {
+            "command": "extrude", "sketch": boss[1]["edit"]["sketch"], "inputs": {"end": "mid", "depth": "8", "reverse": False},
+            "replace": {"row": boss[1]["key"]}}})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertIn("part += extrude(sketch1.face(), amount=4, both=True)\n    return part", self.source())
+        self.assertEqual(self.source().count("extrude("), 1)
+        again = [f for f in edited["features"] if f["kind"] == "Boss-Extrude"][1]
+        self.assertEqual(again["edit"]["values"], {"end": "mid", "reverse": False, "depth": "8"})
+        # Suppressed, the boss keeps its sketch under it: not a sketch of its own, nor drawn.
+        before = self.source()
+        suppressed = self.service.change({"file": self.file, "files": edited["files"], "suppress": {
+            "feature": again["key"], "title": "Boss-Extrude2", "on": True}})
+        self.assertTrue(suppressed["ok"], suppressed.get("error"))
+        self.assertIn("    # Suppressed (Boss-Extrude, 1 line):\n    # part += extrude(sketch1.face(), amount=4, both=True)\n", self.source())
+        held = next(f for f in suppressed["features"] if f.get("suppressed"))
+        self.assertEqual((held["kind"], held["sketch"]["name"]), ("Boss-Extrude", "Sketch1"))
+        self.assertNotIn("Sketch", [f["kind"] for f in suppressed["features"]])
+        self.assertEqual(next(view["consumed"] for view in suppressed["sketches"] if view["name"] == "Sketch1"), held["key"])
+        back = self.service.change({"file": self.file, "files": suppressed["files"], "suppress": {
+            "feature": held["key"], "title": "Boss-Extrude2", "on": False}})
+        self.assertTrue(back["ok"], back.get("error"))
+        self.assertEqual(self.source(), before)
 
     def test_a_cut_from_a_sketch_on_a_face_goes_into_the_part(self):
         state = self.service.state(self.file)
@@ -306,7 +331,15 @@ class SketchMode(unittest.TestCase):
             "inputs": {"angle": "360"}}})
         self.assertTrue(revolved["ok"], revolved.get("error"))
         self.assertIn("part += revolve(sketch1.face(), axis=sketch1.axis(line5), revolution_arc=360)", self.source())
-        self.assertIn("Boss-Revolve", [f["kind"] for f in revolved["features"]])
+        feature = next(f for f in revolved["features"] if f["kind"] == "Boss-Revolve")
+        self.assertEqual((feature["edit"]["values"], feature["edit"]["sketch"]["name"]),
+                         ({"angle": "360", "reverse": False, "axis": "Line5"}, "Sketch1"))
+        edited = self.service.change({"file": self.file, "files": revolved["files"], "command": {
+            "command": "revolve", "sketch": {**feature["edit"]["sketch"], "axis": "Line5"}, "inputs": {"angle": "90", "reverse": True},
+            "replace": {"row": feature["key"]}}})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertIn("part += revolve(sketch1.face(), axis=sketch1.axis(line5), revolution_arc=-90)\n", self.source())
+        self.assertEqual(self.source().count("revolve("), 1)
 
     def test_an_inch_part_sketches_in_inches(self):
         root = project("""

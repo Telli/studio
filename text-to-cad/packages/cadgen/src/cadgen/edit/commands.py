@@ -601,10 +601,17 @@ class Edits:
     def after(self, line: int, lines: list[str]):
         self._ops.append((line, math.inf, 1, lines, None))
 
+    def swap(self, first: int, last: int, lines: list[str]):
+        """Lines ``first`` to ``last`` put as ``lines``."""
+        self._ops.append((first, -1, 2, lines, last))
+
     def apply(self) -> str:
         lines = self.text.splitlines(keepends=True)
         newline = next((line[len(line.rstrip("\r\n")):] for line in lines if line.endswith(("\n", "\r"))), "\n")
         for line, col, kind, text, until in sorted(self._ops, key=lambda op: (op[0], op[1]), reverse=True):
+            if kind == 2:
+                lines[line - 1:until] = [each + newline for each in text]
+                continue
             if kind == 1:
                 if line and not lines[line - 1].endswith(("\n", "\r")):
                     lines[line - 1] += newline
@@ -743,10 +750,46 @@ def _tool(body: Body, var: str, feature: dict | None):
     return name, sign, edits
 
 
+def recorded_numbers(steps: list[dict]) -> dict:
+    """What a line's operations were given, by operation and argument (``("fillet", "radius")``):
+    sizes in millimetres, angles in degrees, counts, and how many faces or edges a list held."""
+    out: dict = {}
+    for step in steps:
+        for name, value in step["args"]:
+            key = (step["op"], name)
+            if key in out or isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)):
+                out[key] = float(value)
+            elif isinstance(value, (list, tuple)):
+                out[key] = float(len(value))
+    return out
+
+
+def _feature_line(body: Body, replacing: dict, command: str, units: str, steps: list[dict], level: int) -> tuple[ast.stmt, Feature]:
+    """The line Edit Feature writes again: the feature's own, read as the command it is."""
+    file, _, line = str(replacing.get("row") or "").rpartition(":")
+    if file != body.rel or not line.isdigit():
+        raise CommandError("That feature is not made where this part's body is. Ask the agent to change it.")
+    made = [step for step in steps if step.get("frames")
+            and (step["frames"][min(level, len(step["frames"]) - 1)]["file"], step["frames"][min(level, len(step["frames"]) - 1)]["line"])
+            == (file, int(line))]
+    statement = _top_statement(body.function, int(line))
+    feature = (read_feature(statement, body.text, recorded_numbers(made), units)
+               if statement is not None and statement.lineno == int(line) else None)
+    if feature is None:
+        raise CommandError("That feature is not written as one of edit mode's commands, so edit mode cannot open it. "
+                           "Change its sizes in the design tree, or ask the agent.")
+    if feature.command != command:
+        raise CommandError(f"That feature is a {FEATURE_WORDS[feature.command]}, not a {FEATURE_WORDS[command]}.")
+    return statement, feature
+
+
 def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, literals: dict, root: Path, parse) -> Plan:
     """A command (``spec``: its ``command``, the ``selection`` it acts on, its ``inputs`` as
     typed and the history ``feature`` it copies) made into the part's script. ``parse`` reads a
-    typed number (plain arithmetic allowed)."""
+    typed number (plain arithmetic allowed). With ``replace`` (a feature's history row) it is Edit
+    Feature: that feature's own line written again in its place, with what it acts on kept."""
     command = str(spec.get("command") or "")
     if command not in COMMANDS:
         raise CommandError(f"Edit mode has no command {command or 'by that name'}.")
@@ -756,7 +799,12 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     module, named_import = build123d_names(body.tree)
     names = Names(module if module is not None else "bd")
     edits = Edits(body.text)
-    if body.name is None:
+    replacing = spec.get("replace") if isinstance(spec.get("replace"), dict) else None
+    old = kept = None
+    if replacing:
+        old, kept = _feature_line(body, replacing, command, units, steps, level)
+        var, returned = kept.target, []
+    elif body.name is None:
         # `return <body>` becomes `part = <body>`, the command's line, and `return part`.
         var = fresh_name(body.tree, "part")
         value = body.statement.value
@@ -768,7 +816,21 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         var, returned = body.name, []
     writer = _Writer(body, units, literals, names)
     inputs = spec.get("inputs") or {}
+    # A new feature comes last in the tree, as a CAD tool adds it: past any suppressed right after the body's line.
+    from cadgen.edit.deleting import suppressed_span
+
     at = body.statement.end_lineno
+    while (span := suppressed_span(body.lines, at + 1)) is not None:
+        at = span["last"]
+
+    def same(role: str, value: float, fresh: str) -> str:
+        """``fresh``, unless Edit Feature left this value as it was: then the line's own code for it."""
+        if kept is not None and role in kept.codes:
+            written, was = kept.codes[role]
+            if math.isclose(float(value), was, rel_tol=1e-9, abs_tol=1e-9):
+                return written
+        return fresh
+
     selection = [item for item in spec.get("selection") or [] if isinstance(item, dict)]
     scale = shape.bounding_box().diagonal or 1.0
     selections = Selections(shape, var, names)
@@ -799,49 +861,53 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         return numbers, selections.write("edge", numbers)
 
     if command in ("fillet", "chamfer"):
-        numbers, edges = chosen_edges()
+        numbers, edges = ([], kept.parts["edges"]) if kept else chosen_edges()
         if command == "fillet":
             radius = _value(inputs, "radius", "Radius", parse)
-            code = f"{var} = {names('fillet')}({edges}, radius={writer.length(radius)})"
+            code = f"{var} = {names('fillet')}({edges}, radius={same('radius', radius, writer.length(radius))})"
             shown = [("Radius", radius, units_word)]
         else:
             distance = _value(inputs, "distance", "Distance", parse)
-            code = f"{var} = {names('chamfer')}({edges}, length={writer.length(distance)})"
+            code = f"{var} = {names('chamfer')}({edges}, length={same('distance', distance, writer.length(distance))})"
             shown = [("Distance", distance, units_word)]
-        selected = {"argument": "objects", "items": [selections.topology["edge"].describe(n) for n in numbers]}
-        what = counted(len(numbers), "edge")
+        selected = None if kept else {"argument": "objects", "items": [selections.topology["edge"].describe(n) for n in numbers]}
+        what = kept.keeps if kept else counted(len(numbers), "edge")
     elif command == "hole":
-        numbers, face = chosen("face", one=True)
-        if selections.topology["face"].describe(numbers[0])["type"] != "plane":
-            raise CommandError("A hole goes in a flat face. Select a flat one.")
+        if kept:
+            face = kept.parts["face"]
+        else:
+            numbers, face = chosen("face", one=True)
+            if selections.topology["face"].describe(numbers[0])["type"] != "plane":
+                raise CommandError("A hole goes in a flat face. Select a flat one.")
         diameter = _value(inputs, "diameter", "Diameter", parse)
         through = str(inputs.get("depth", "")).strip().lower() in ("", "through", "through all")
         depth = None if through else _value(inputs, "depth", "Depth", parse)
-        depth_code = f"{var}.bounding_box().diagonal" if through else writer.length(depth)
-        plane = B.Plane(selections.topology["face"].item(numbers[0]))
+        depth_code = f"{var}.bounding_box().diagonal" if through else same("depth", depth, writer.length(depth))
+        plane = None if kept else B.Plane(selections.topology["face"].item(numbers[0]))
         offsets = {axis: 0.0 for axis in AXES}
-        for axis in offset_axes(plane.z_dir):
+        for axis in (("X", "Y", "Z") if kept else offset_axes(plane.z_dir)):
             if str(inputs.get(axis.lower(), "")).strip():
                 offsets[axis] = _value(inputs, axis.lower(), axis, parse, positive=False)
-        center = plane.origin + B.Vector(*(offsets[axis] * (25.4 if units == "in" else 1.0) for axis in ("X", "Y", "Z")))
-        if selections.topology["face"].item(numbers[0]).distance_to(center) > 1e-4 + 1e-6 * scale:
-            raise CommandError("The hole's center is off that face. Set where it goes on the face, from the face's center.")
+        if not kept:
+            center = plane.origin + B.Vector(*(offsets[axis] * (25.4 if units == "in" else 1.0) for axis in ("X", "Y", "Z")))
+            if selections.topology["face"].item(numbers[0]).distance_to(center) > 1e-4 + 1e-6 * scale:
+                raise CommandError("The hole's center is off that face. Set where it goes on the face, from the face's center.")
         moved = ""
         if any(offsets.values()):
-            given = [writer.length(offsets[axis]) if offsets[axis] else "0" for axis in ("X", "Y", "Z")]
+            given = [same(axis.lower(), offsets[axis], writer.length(offsets[axis])) if offsets[axis] else "0" for axis in ("X", "Y", "Z")]
             moved = f"{names('Pos')}({', '.join(given[:2] if given[2] == '0' else given)}) * "
         align = names("Align")
-        code = (f"{var} -= {moved}{names('Plane')}({face}) * {names('Cylinder')}({writer.length(diameter, '/2')}, {depth_code}, "
+        code = (f"{var} -= {moved}{names('Plane')}({face}) * {names('Cylinder')}({same('diameter', diameter, writer.length(diameter, '/2'))}, {depth_code}, "
                 f"align=({align}.CENTER, {align}.CENTER, {align}.MAX))")
         shown = [("Diameter", diameter, units_word)] + ([("Depth", depth, units_word)] if depth is not None else [])
         what = "through all" if through else "a blind hole"
     elif command == "shell":
-        numbers, faces = chosen("face")
+        numbers, faces = ([], kept.parts["openings"]) if kept else chosen("face")
         thickness = _value(inputs, "thickness", "Thickness", parse)
-        code = f"{var} = {names('offset')}({var}, amount=-{writer.length(thickness)}, openings={faces})"
+        code = f"{var} = {names('offset')}({var}, amount=-{same('thickness', thickness, writer.length(thickness))}, openings={faces})"
         shown = [("Thickness", thickness, units_word)]
-        selected = {"argument": "openings", "items": [selections.topology["face"].describe(n) for n in numbers]}
-        what = f"{counted(len(numbers), 'face')} open"
+        selected = None if kept else {"argument": "openings", "items": [selections.topology["face"].describe(n) for n in numbers]}
+        what = kept.keeps if kept else f"{counted(len(numbers), 'face')} open"
     elif command == "mirror":
         faces = [item for item in selection if selector_ordinal(item.get("selector"))[0] == "face"]
         if faces:
@@ -851,10 +917,13 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             plane_code, plane_words = f"{names('Plane')}({face})", "a face"
         else:
             plane = str(inputs.get("plane") or "YZ").upper()
-            if plane not in PLANES:
+            if kept and plane == "FACE" and kept.parts.get("plane"):
+                plane_code, plane_words = kept.parts["plane"], "a face"
+            elif plane not in PLANES:
                 raise CommandError("Pick the plane to mirror about.")
-            plane_code, plane_words = f"{names('Plane')}.{plane}", f"the {plane} plane"
-        tool, sign, tool_edits = _tool(body, var, spec.get("feature"))
+            else:
+                plane_code, plane_words = f"{names('Plane')}.{plane}", f"the {plane} plane"
+        tool, sign, tool_edits = (kept.parts["tool"], kept.operator, []) if kept else _tool(body, var, spec.get("feature"))
         for line, col, text in tool_edits:
             edits.put(line, col, text)
         code = f"{var} {sign} {names('mirror')}({tool}, about={plane_code})"
@@ -883,9 +952,9 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             raise CommandError("An angle is at most 360 degrees.")
         if inputs.get("reverse") in (True, "true", "1", 1):
             angle = -angle
-        profile = f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
+        profile = kept.parts["profile"] if kept else f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
         sign = "+=" if command == "revolve" else "-="
-        code = f"{var} {sign} {names('revolve')}({profile}, axis={block.var}.axis({axis}), revolution_arc={writer.number(angle)})"
+        code = f"{var} {sign} {names('revolve')}({profile}, axis={block.var}.axis({axis}), revolution_arc={same('angle', angle, writer.number(angle))})"
         at = max(at, block.last_line)
         shown = [("Angle", abs(angle), "deg")]
         what = f"from {drawn.get('name') or 'the sketch'}, about {drawn.get('axis') or 'its centerline'}"
@@ -910,9 +979,12 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         # Mid Plane: half the depth each way (build123d's `both`), so Reverse does not apply.
         both = ", both=True" if end == "mid" else ""
         amount = f"{var}.bounding_box().diagonal" if through else writer.length(depth / 2 if both else depth)
-        if inputs.get("reverse") in (True, "true", "1", 1) and not both:
+        reverse = inputs.get("reverse") in (True, "true", "1", 1) and not both
+        if reverse:
             amount = f"-{amount}"
-        profile = f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
+        if not through:
+            amount = same("amount", (-1 if reverse else 1) * (depth / 2 if both else depth), amount)
+        profile = kept.parts["profile"] if kept else f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
         sign = "+=" if command == "extrude" else "-="
         code = f"{var} {sign} {names('extrude')}({profile}, amount={amount}{both})"
         at = max(at, block.last_line)
@@ -923,7 +995,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         count = _value(inputs, "count", "Instances", parse, integer=True, minimum=2)
         align = names("Align")
         if kind == "circular":
-            locations = f"{names('PolarLocations')}(0, {count})"
+            locations = f"{names('PolarLocations')}(0, {same('count', count, str(count))})"
             shown = [("Instances", count, "")]
             what = f"{count} around the Z axis"
         elif kind == "linear":
@@ -931,25 +1003,33 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             if spacing == 0:
                 raise CommandError("Spacing needs to be more or less than 0.")
             direction = str(inputs.get("direction") or "X").upper()
+            spaced, counted_code = same("spacing", spacing, writer.length(spacing)), same("count", count, str(count))
             if direction == "X":
-                locations = f"{names('GridLocations')}({writer.length(spacing)}, 0, {count}, 1, align=({align}.MIN, {align}.CENTER))"
+                locations = f"{names('GridLocations')}({spaced}, 0, {counted_code}, 1, align=({align}.MIN, {align}.CENTER))"
             elif direction == "Y":
-                locations = f"{names('GridLocations')}(0, {writer.length(spacing)}, 1, {count}, align=({align}.CENTER, {align}.MIN))"
+                locations = f"{names('GridLocations')}(0, {spaced}, 1, {counted_code}, align=({align}.CENTER, {align}.MIN))"
             else:
                 raise CommandError("A linear pattern runs along X or Y.")
             shown = [("Spacing", spacing, units_word), ("Instances", count, "")]
             what = f"{count} along {direction}"
         else:
             raise CommandError("A pattern is linear or circular.")
-        tool, sign, tool_edits = _tool(body, var, spec.get("feature"))
+        tool, sign, tool_edits = (kept.parts["tool"], kept.operator, []) if kept else _tool(body, var, spec.get("feature"))
         for line, col, text in tool_edits:
             edits.put(line, col, text)
         code = f"{var} {sign} [loc * {tool} for loc in {locations}.locations[1:]]"
 
-    edits.after(at, [f"{body.indent}{code}", *returned])
-    added_lines = _imports(edits, body, module, named_import, names)
-    new = edits.apply()
-    line = at + 1 + added_lines
+    if old is not None:
+        source = body.lines[old.lineno - 1]
+        edits.swap(old.lineno, old.end_lineno, [f"{source[:len(source) - len(source.lstrip())]}{code}"])
+        added_lines = _imports(edits, body, module, named_import, names)
+        new = edits.apply()
+        line = old.lineno + added_lines
+    else:
+        edits.after(at, [f"{body.indent}{code}", *returned])
+        added_lines = _imports(edits, body, module, named_import, names)
+        new = edits.apply()
+        line = at + 1 + added_lines
     return Plan(command=command, path=body.path, rel=body.rel, old=body.text, new=new, line=line, code=code,
                 records=RECORDS[command], selected=selected,
                 summary={"feature": FEATURE_WORDS[command], "what": what,
@@ -992,3 +1072,167 @@ def failure_words(command: str, error: str) -> str:
         size = {"fillet": "radius", "chamfer": "distance", "shell": "thickness"}[command]
         return f"The {feature} could not be made with that {size} on that selection. Try a smaller {size}."
     return f"The {feature} could not be made: {last or 'the script stopped'}"
+
+
+# ---------------------------------------------------------------------------------------------
+# Edit Feature: a command's line read back into its PropertyManager's values, and written again
+# in its place (``plan`` with ``replace``). What the line acts on stays as it is written: its
+# edges, faces, the feature it copies, its sketch.
+
+
+@dataclass
+class Feature:
+    """A command's line as Edit Feature reads it: the command, the values its panel opens with
+    (in the part's units, as the panel types them), what it keeps (said in words), the code of
+    what it keeps, and the name and operator it assigns with."""
+
+    command: str
+    values: dict
+    keeps: str
+    parts: dict
+    target: str
+    operator: str
+    # Each number of the line as it is written (a named size, a formula) with its value in the
+    # panel's units: a value the engineer leaves as it was is written as it was.
+    codes: dict = field(default_factory=dict)
+
+
+def _tight(node, text: str) -> str:
+    """A number's code to put a minus before: as written when it is one term, else in brackets."""
+    written = ast.get_source_segment(text, node) or ""
+    one_term = isinstance(node, (ast.Name, ast.Constant, ast.Attribute, ast.Call, ast.Subscript)) or (
+        isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Mult, ast.Div)))
+    return written if one_term else f"({written})"
+
+
+def _call_name(node) -> str | None:
+    """The name a call is made by: ``fillet`` for ``bd.fillet(...)`` and for ``fillet(...)``."""
+    if not isinstance(node, ast.Call):
+        return None
+    return node.func.attr if isinstance(node.func, ast.Attribute) else node.func.id if isinstance(node.func, ast.Name) else None
+
+
+def _keyword_value(call: ast.Call, name: str):
+    return next((each.value for each in call.keywords if each.arg == name), None)
+
+
+def _through_all(node) -> bool:
+    """Whether a depth is written as Through All: ``part.bounding_box().diagonal``, either way."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        node = node.operand
+    return isinstance(node, ast.Attribute) and node.attr == "diagonal" and _call_name(node.value) == "bounding_box"
+
+
+def _sketch_of(profile) -> str | None:
+    """The sketch a profile is taken from, by its name: ``sketch2`` of ``sketch2.face()``."""
+    if (isinstance(profile, ast.Call) and isinstance(profile.func, ast.Attribute) and profile.func.attr in ("face", "faces")
+            and isinstance(profile.func.value, ast.Name)):
+        return profile.func.value.id
+    return None
+
+
+def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> Feature | None:
+    """``statement`` read as the command that writes such a line, or None for a line no command
+    writes (the agent's own build123d). ``numbers`` are what the trace recorded for the line's
+    operations: ``(operation, argument)`` to a size in millimetres, an angle in degrees, or a count."""
+    if isinstance(statement, ast.AugAssign) and isinstance(statement.target, ast.Name) and isinstance(statement.op, (ast.Add, ast.Sub)):
+        target, operator, value = statement.target.id, "+=" if isinstance(statement.op, ast.Add) else "-=", statement.value
+    elif isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name):
+        target, operator, value = statement.targets[0].id, "=", statement.value
+    else:
+        return None
+    code = lambda node: ast.get_source_segment(text, node) or ""  # noqa: E731
+    typed = lambda mm: None if mm is None else (mm / 25.4) if units == "in" else mm  # noqa: E731
+    size = lambda mm: "" if mm is None else _number(typed(mm), False)  # noqa: E731
+    number = lambda key: numbers.get(key)  # noqa: E731
+    name = _call_name(value)
+    codes: dict = {}
+
+    def held(role, node, amount, written=None):
+        # ``amount`` in the panel's units (a size already converted, a count or an angle as is).
+        if node is not None and amount is not None:
+            codes[role] = (written if written is not None else code(node), float(amount))
+
+    def counted_items(key, kind):
+        count = number(key)
+        return counted(int(count), kind) if isinstance(count, (int, float)) else f"its {_KIND_WORDS[kind][1]}"
+
+    if operator == "=" and name == "fillet" and value.args:
+        held("radius", _keyword_value(value, "radius"), typed(number(("fillet", "radius"))))
+        return Feature("fillet", {"radius": size(number(("fillet", "radius")))}, counted_items(("fillet", "objects"), "edge"),
+                       {"edges": code(value.args[0])}, target, operator, codes)
+    if operator == "=" and name == "chamfer" and value.args:
+        held("distance", _keyword_value(value, "length"), typed(number(("chamfer", "length"))))
+        return Feature("chamfer", {"distance": size(number(("chamfer", "length")))}, counted_items(("chamfer", "objects"), "edge"),
+                       {"edges": code(value.args[0])}, target, operator, codes)
+    if operator == "=" and name == "offset" and _keyword_value(value, "openings") is not None:
+        amount = number(("offset", "amount"))
+        written = _keyword_value(value, "amount")
+        if isinstance(written, ast.UnaryOp) and isinstance(written.op, ast.USub) and amount is not None:
+            held("thickness", written.operand, typed(-amount), _tight(written.operand, text))
+        return Feature("shell", {"thickness": size(-amount if amount is not None else None)}, f"{counted_items(('offset', 'openings'), 'face')} open",
+                       {"openings": code(_keyword_value(value, "openings"))}, target, operator, codes)
+    if operator == "-=" and isinstance(value, ast.BinOp):
+        calls = [node for node in ast.walk(value) if isinstance(node, ast.Call)]
+        cylinder = next((node for node in calls if _call_name(node) == "Cylinder" and len(node.args) >= 2), None)
+        plane = next((node for node in calls if _call_name(node) == "Plane" and node.args), None)
+        if cylinder is not None and plane is not None:
+            through = _through_all(cylinder.args[1])
+            radius = number(("Cylinder", "radius"))
+            values = {"diameter": size(2 * radius if radius is not None else None), "through": through,
+                      "depth": size(number(("Cylinder", "height"))) if not through and number(("Cylinder", "height")) is not None else ""}
+            held("diameter", cylinder.args[0], typed(2 * radius) if radius is not None else None)
+            if not through:
+                held("depth", cylinder.args[1], typed(number(("Cylinder", "height"))))
+            moved = next((node for node in calls if _call_name(node) == "Pos"), None)
+            for index, axis in enumerate(("x", "y", "z")):
+                if moved is not None and number(("move", axis)) is not None and index < len(moved.args):
+                    values[axis] = size(number(("move", axis)))
+                    held(axis, moved.args[index], typed(number(("move", axis))))
+            return Feature("hole", values, "1 face", {"face": code(plane.args[0])}, target, operator, codes)
+    if operator in ("+=", "-=") and name == "mirror" and value.args:
+        about = _keyword_value(value, "about")
+        plane = about.attr if isinstance(about, ast.Attribute) and about.attr in PLANES else "face"
+        tool = code(value.args[0])
+        return Feature("mirror", {"plane": plane}, "Whole body" if tool == target else tool,
+                       {"tool": tool, "plane": code(about) if about is not None else ""}, target, operator)
+    if operator in ("+=", "-=") and isinstance(value, ast.ListComp) and isinstance(value.elt, ast.BinOp):
+        iterated = value.generators[0].iter if value.generators else None
+        made = iterated.value.value if isinstance(iterated, ast.Subscript) and isinstance(iterated.value, ast.Attribute) else None
+        tool = code(value.elt.right)
+        if _call_name(made) == "PolarLocations":
+            values = {"type": "circular", "count": str(int(number(("PolarLocations", "count")) or 0))}
+            held("count", made.args[1] if len(made.args) > 1 else None, number(("PolarLocations", "count")))
+        elif _call_name(made) == "GridLocations":
+            along_y = number(("GridLocations", "y_count")) not in (None, 1)
+            spacing = number(("GridLocations", "y_spacing" if along_y else "x_spacing")) or 0.0
+            values = {"type": "linear", "direction": "Y" if along_y else "X", "spacing": size(abs(spacing)), "reverse": spacing < 0,
+                      "count": str(int(number(("GridLocations", "y_count" if along_y else "x_count")) or 0))}
+            if len(made.args) >= 4:
+                held("spacing", made.args[1 if along_y else 0], typed(spacing))
+                held("count", made.args[3 if along_y else 2], number(("GridLocations", "y_count" if along_y else "x_count")))
+        else:
+            return None
+        return Feature("pattern", values, "Whole body" if tool == target else tool, {"tool": tool}, target, operator, codes)
+    if operator in ("+=", "-=") and name in ("extrude", "revolve") and value.args and _sketch_of(value.args[0]):
+        profile, sketch = value.args[0], _sketch_of(value.args[0])
+        if name == "extrude":
+            amount = number(("extrude", "amount")) or 0.0
+            both = isinstance(_keyword_value(value, "both"), ast.Constant) and _keyword_value(value, "both").value is True
+            through = _through_all(_keyword_value(value, "amount"))
+            written = _keyword_value(value, "amount")
+            reverse = (isinstance(written, ast.UnaryOp) and isinstance(written.op, ast.USub)) if through else amount < 0
+            values = {"end": "mid" if both else "through" if through else "blind", "reverse": bool(reverse) and not both,
+                      "depth": size(abs(amount) * (2 if both else 1)) if not through else ""}
+            if not through:
+                held("amount", written, typed(amount))
+            return Feature("extrude" if operator == "+=" else "cut", values, sketch, {"profile": code(profile), "sketch": sketch},
+                           target, operator, codes)
+        axis = _keyword_value(value, "axis")
+        line = code(axis.args[0]) if isinstance(axis, ast.Call) and _call_name(axis) == "axis" and axis.args else None
+        if name == "revolve" and line:
+            arc = number(("revolve", "revolution_arc")) or 0.0
+            held("angle", _keyword_value(value, "revolution_arc"), arc)
+            return Feature("revolve" if operator == "+=" else "revolve_cut", {"angle": _number(abs(arc), False), "reverse": arc < 0},
+                           sketch, {"profile": code(profile), "sketch": sketch, "axis": line}, target, operator, codes)
+    return None

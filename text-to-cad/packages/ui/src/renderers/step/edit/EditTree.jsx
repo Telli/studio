@@ -10,8 +10,9 @@ const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 const SKETCH_MARKS = Object.freeze({ "Under defined": "(-) ", "Over defined": "(+) " });
 
 /** One row of the tree: its place (depth), its disclosure when it has rows under it, its icon and
- * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch), else opens or closes it;
- * a right-click selects it and opens its menu (`menu`: Edit Sketch, Delete), as SolidWorks' does. */
+ * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch, Edit Feature on a feature),
+ * else opens or closes it; a right-click selects it and opens its menu (`menu`: Edit Feature, Edit
+ * Sketch, Suppress or Unsuppress, Delete), as SolidWorks' does. */
 function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, onActivate = null, selected, onSelect, onHover, muted = false, menu = null }) {
   const active = Boolean(id) && selected === id;
   const row = <TreeRowSurface as="div" dense active={active} role="treeitem" aria-selected={active}
@@ -47,8 +48,10 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
  * Origin, then its features in the order the script makes them, each solid's sketch under it and a
  * sketch nothing uses yet on a row of its own. An assembly lists its parts as components, each
  * opening to its own features. Selecting a feature draws its dimensions on the model and shows its
- * inputs under the tree; selecting a plane draws it; double-clicking a sketch edits it. Delete (the
- * key, or the row's menu) takes the selected feature out of the script (`edit.remove`).
+ * inputs under the tree; selecting a plane draws it; double-clicking a sketch edits it, and a
+ * feature a command made reopens that command's panel (`edit.editFeature`). Suppress sets a feature
+ * aside, greyed where it is (`edit.suppress`). Delete (the key, or the row's menu) takes the
+ * selected feature out of the script (`edit.remove`).
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
  *   tree: ReturnType<typeof import("./editMode.js").featureTree>, onEditSketch?: (sketch: object) => void }} props
@@ -75,14 +78,20 @@ export default function EditTree({ edit, tree, onEditSketch = () => {} }) {
   const disabled = edit.saving || edit.status !== "ready";
   const rowProps = { selected: edit.selected, onSelect: edit.select, onHover: edit.hover };
   const name = sizeName(edit.state?.name || "") || "Part";
-  // A row's menu: Edit Sketch where it has a sketch to edit, and Delete on a feature or a sketch of
-  // its own (a feature's sketch goes with its feature).
+  // A row's menu: Edit Feature on a feature a command made, Edit Sketch where it has a sketch to
+  // edit, and Delete on a feature or a sketch of its own (a feature's sketch goes with its feature).
+  const busy = disabled || Boolean(edit.sketch);
+  const featureItem = feature => (feature.edit ? [{ id: "edit-feature", label: "Edit Feature", disabled: busy, onSelect: () => edit.editFeature(feature) }] : []);
+  const suppressItem = (feature, separatorBefore) => ({ id: "suppress", label: feature.suppressed ? "Unsuppress" : "Suppress", disabled: busy,
+    separatorBefore, onSelect: () => void edit.suppress(feature.id, tree, !feature.suppressed) });
+  // A suppressed feature, and the sketch under it, greyed as SolidWorks greys them.
+  const greyed = icon => <span className="flex shrink-0 opacity-50">{icon}</span>;
   const editItem = sketch => (sketch?.constrained ? [{ id: "edit-sketch", label: "Edit Sketch", disabled, onSelect: () => onEditSketch(sketch) }] : []);
   const deleteItem = (id, separatorBefore) => ({ id: "delete", label: "Delete", destructive: true, disabled: disabled || Boolean(edit.sketch),
     separatorBefore, onSelect: () => void edit.remove(id, tree) });
-  const sketchRow = (sketch, depth, own = false) => {
+  const sketchRow = (sketch, depth, own = false, muted = false) => {
     const edits = editItem(sketch);
-    return <Row key={sketch.id} id={sketch.id} depth={depth} icon={<SketchIcon />}
+    return <Row key={sketch.id} id={sketch.id} depth={depth} icon={muted ? greyed(<SketchIcon />) : <SketchIcon />} muted={muted}
       title={`${SKETCH_MARKS[sketch.status] || ""}${sketch.title}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane` : ""}
       onActivate={() => onEditSketch(sketch)} menu={own ? [...edits, deleteItem(sketch.id, edits.length > 0)] : edits} {...rowProps} />;
   };
@@ -90,13 +99,15 @@ export default function EditTree({ edit, tree, onEditSketch = () => {} }) {
     if (feature.kind === "Sketch") return [sketchRow(feature.sketch, depth, true)];
     const branch = Boolean(feature.sketch);
     const expanded = open.has(feature.id);
-    const detail = `${feature.name}${feature.count > 1 ? ` ×${feature.count}` : ""}`;
-    const edits = editItem(feature.sketch);
+    const detail = feature.suppressed ? "Suppressed" : `${feature.name}${feature.count > 1 ? ` ×${feature.count}` : ""}`;
+    const edits = [...featureItem(feature), ...editItem(feature.sketch)];
     return [
-      <Row key={feature.id} id={feature.id} depth={depth} icon={<FeatureIcon kind={feature.kind} />} title={feature.title} detail={detail}
+      <Row key={feature.id} id={feature.id} depth={depth} title={feature.title} detail={detail} muted={feature.suppressed}
+        icon={feature.suppressed ? greyed(<FeatureIcon kind={feature.kind} />) : <FeatureIcon kind={feature.kind} />}
         expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null}
-        menu={[...edits, deleteItem(feature.id, edits.length > 0)]} {...rowProps} />,
-      branch && expanded ? sketchRow(feature.sketch, depth + 1) : null,
+        onActivate={feature.edit && !busy ? () => edit.editFeature(feature) : null}
+        menu={[...edits, suppressItem(feature, edits.length > 0), deleteItem(feature.id, true)]} {...rowProps} />,
+      branch && expanded ? sketchRow(feature.sketch, depth + 1, false, feature.suppressed) : null,
     ];
   });
   // The Delete key on the selected feature, as SolidWorks takes it; in sketch mode the key is the

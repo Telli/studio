@@ -289,6 +289,8 @@ export interface CadEditChangeRequest {
   sketch?: { file?: string; line?: number; name?: string; op: Record<string, unknown> };
   /** Delete on a feature of the design tree (`cadgen/edit/deleting.py`), by its key and its title. */
   remove?: { feature: string; title?: string };
+  /** Suppress (`on`) or Unsuppress on a feature of the design tree (`cadgen/edit/deleting.py`). */
+  suppress?: { feature: string; title?: string; on: boolean };
 }
 
 export interface CadClient extends CadWorkspaceService {

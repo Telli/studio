@@ -91,6 +91,10 @@ export function featureTree(state) {
         name: feature.name ? sizeName(feature.name) : "", count: feature.count || 1,
         rows: feature.rows || [feature.key], file: feature.file, line: feature.line,
         sketch: feature.sketch ? sketchOf(feature, `sketch:${feature.key}`) : null,
+        // What Edit Feature opens the feature's command with, when a command writes its line.
+        edit: feature.edit || null,
+        // Set aside by Suppress: its lines are comments in the script, shown greyed where they are.
+        suppressed: Boolean(feature.suppressed),
       };
     });
   };
@@ -278,14 +282,16 @@ export function faceOffsetAxes(normal) {
  * The request a command's OK sends (`cadgen/edit`): the command, its selection, its inputs as
  * typed and, for Mirror and Pattern, the history feature they copy (none copies the body).
  */
-export function commandRequest(id, values, items, feature, sketch = null) {
+export function commandRequest(id, values, items, feature, sketch = null, editing = null) {
+  // Edit Feature: the feature's own line written again, acting on what it acts on now.
+  const replace = editing ? { replace: { row: editing.id } } : {};
   if (id === "extrude" || id === "cut") {
     return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title } : null,
-      inputs: { end: values.end, ...(values.end === "through" ? {} : { depth: values.depth }), reverse: Boolean(values.reverse) } };
+      inputs: { end: values.end, ...(values.end === "through" ? {} : { depth: values.depth }), reverse: Boolean(values.reverse) }, ...replace };
   }
   if (id === "revolve" || id === "revolve_cut") {
     return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title, axis: values.axis } : null,
-      inputs: { angle: values.angle, reverse: Boolean(values.reverse) } };
+      inputs: { angle: values.angle, reverse: Boolean(values.reverse) }, ...replace };
   }
   const inputs = {};
   switch (id) {
@@ -306,13 +312,21 @@ export function commandRequest(id, values, items, feature, sketch = null) {
       break;
     default: break;
   }
+  if (editing) return { command: id, selection: [], inputs, ...replace };
   const picks = editCommand(id)?.picks;
   const selection = picks === "edges" ? items : picks === "faces" ? items.filter(item => /f\d+$/.test(item.selector)) : [];
   return { command: id, selection, inputs, ...(feature?.row && (id === "mirror" || id === "pattern") ? { feature } : {}) };
 }
 
-/** Why a command's OK cannot go yet, or "" when it can. */
-export function commandBlocked(id, items, sketch = null, values = {}) {
+/** A feature's panel as Edit Feature opens it: the command's inputs, set to the feature's values. */
+export const editingValues = (editing, units) => ({ ...commandDefaults(editing.command, units), ...editing.values });
+
+/** Whether a panel's values are still the ones it opened with, so its OK has nothing to write. */
+export const sameValues = (values, opened) => Object.keys({ ...values, ...opened })
+  .every(key => String(values[key] ?? "").trim() === String(opened[key] ?? "").trim());
+
+/** Why a command's OK cannot go yet, or "" when it can. Edit Feature keeps what the feature acts on, so it waits on nothing picked. */
+export function commandBlocked(id, items, sketch = null, values = {}, editing = null) {
   if (id === "extrude" || id === "cut" || id === "revolve" || id === "revolve_cut") {
     if (!sketch) return "Select a sketch in the design tree.";
     const making = id.startsWith("revolve") ? "revolve" : "extrude";
@@ -320,6 +334,7 @@ export function commandBlocked(id, items, sketch = null, values = {}) {
     if (making === "revolve" && !values.axis) return `Draw a centerline in ${sketch.title} to revolve about.`;
     return "";
   }
+  if (editing) return "";
   const faces = items.filter(item => /f\d+$/.test(item.selector));
   if (id === "fillet" || id === "chamfer") return items.length ? "" : "Select edges on the model.";
   if (id === "hole") return faces.length === 1 ? "" : faces.length ? "Select one face." : "Select a flat face on the model.";
@@ -335,16 +350,23 @@ export function revolveAxes(view) {
     .map(line => ({ value: line.id, label: line.construction ? `${line.id}, centerline` : line.id }));
 }
 
-/** What a command tells the agent: "In edit mode I added Fillet2, radius 0.02 in, 4 edges (parts/tray.py, line 37)." */
+/**
+ * What a command tells the agent: "In edit mode I added Fillet2, radius 0.02 in, 4 edges
+ * (parts/tray.py, line 37)."; Edit Feature's: "In edit mode I changed Fillet2 to radius 0.03 in, ...".
+ */
 export function commandNote(change, title) {
   const said = [...(change.inputs || []).map(input => `${input.label.toLowerCase()} ${withUnit(input.display, input.unit)}`),
     change.what].filter(Boolean);
-  return `In edit mode I added ${title || change.feature}${said.length ? `, ${said.join(", ")}` : ""} (${change.file}, line ${change.line}).`;
+  const name = title || change.feature;
+  if (change.edited) return `In edit mode I changed ${name}${said.length ? ` to ${said.join(", ")}` : ""} (${change.file}, line ${change.line}).`;
+  return `In edit mode I added ${name}${said.length ? `, ${said.join(", ")}` : ""} (${change.file}, line ${change.line}).`;
 }
 
 /** What Undo or Redo of a command tells the agent. */
 export function commandUndoNote(change, title, redo) {
-  return `In edit mode I ${redo ? "added" : "removed"} ${title || change.feature}${redo ? " again" : ""} (${change.file}, line ${change.line}).`;
+  const name = title || change.feature;
+  if (change.edited) return `In edit mode I ${redo ? `changed ${name} again` : `put ${name} back as it was`} (${change.file}, line ${change.line}).`;
+  return `In edit mode I ${redo ? "added" : "removed"} ${name}${redo ? " again" : ""} (${change.file}, line ${change.line}).`;
 }
 
 // Names in a sentence: "Fillet1", "Fillet1 and Cut-Extrude1", "Fillet1, Hole1 and Shell1".
@@ -357,16 +379,24 @@ export function deleteNote(change, { undo = false, redo = false } = {}) {
 }
 
 /**
- * Why a feature was not deleted, said as the features of the tree that still use what it makes
- * ("Boss-Extrude1 is used by Fillet1. Delete it first, or ask the agent."); the server's own words
- * when it names none.
+ * Why a feature was not deleted (or suppressed, `verb`), said as the features of the tree that
+ * still use what it makes ("Boss-Extrude1 is used by Fillet1. Delete it first, or ask the agent.");
+ * the server's own words when it names none.
  */
-export function deleteRefusal(reply, tree, title) {
+export function deleteRefusal(reply, tree, title, verb = "Delete") {
   const dependents = reply?.dependents;
   const rows = new Set((dependents?.lines || []).map(line => `${dependents.file}:${line}`));
   const users = treeFeatures(tree).filter(feature => feature.rows.some(row => rows.has(row))).map(feature => feature.title);
-  if (!users.length) return reply?.error || `${title} could not be deleted.`;
-  return `${title} is used by ${listWords(users)}. Delete ${users.length > 1 ? "them" : "it"} first, or ask the agent.`;
+  if (!users.length) return reply?.error || `${title} could not be ${verb === "Delete" ? "deleted" : "suppressed"}.`;
+  return `${title} is used by ${listWords(users)}. ${verb} ${users.length > 1 ? "them" : "it"} first, or ask the agent.`;
+}
+
+/** What Suppress or Unsuppress of a feature tells the agent, and what its Undo and Redo do. */
+export function suppressNote(change, { undo = false, redo = false } = {}) {
+  const on = undo ? !change.on : change.on;
+  const done = on ? `suppressed ${change.title}${redo ? " again" : ""}: its lines are comments now`
+    : `unsuppressed ${change.title}${redo ? " again" : ""}: its lines are back`;
+  return `In edit mode I ${done} (${change.file}, line ${change.line}).`;
 }
 
 /** Where a build of the parts that use a change stands, in a line; empty when it is done. */

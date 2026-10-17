@@ -66,12 +66,14 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
       <button type="button" aria-label="Dismiss" className={TOOL_PANEL_BUTTON_CLASS} onClick={edit.dismissError}><X className="size-3" aria-hidden="true" /></button>
     </div> : null}
     {edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} />
-      : edit.command ? <EditCommand key={edit.command} edit={edit} names={names} references={references} tree={tree} /> : null}
+      : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree} /> : null}
     <ScrollArea className="min-h-0 flex-1">
       <EditTree edit={edit} tree={tree} onEditSketch={onEditSketch} />
       {feature && !edit.command && !edit.sketch ? <FileSheetSettingsSection title={title} sectionId="edit-feature" open={open} onOpenChange={setOpen}>
         {feature.kind === "Sketch" ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
           Double-click it to edit the sketch, or make a solid of it with an extrude or a revolve.</p>
+          : feature.suppressed ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
+            Suppressed: its lines are comments in the script. Right-click it and choose Unsuppress to put it back.</p>
           : inputs.length === 0 ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>Nothing to set here.</p>
           : inputs.map(input => <FileSheetControlRow key={input.key} label={input.label}
             trailing={<ValueField value={input.value} unit={input.unit} label={input.label} disabled={disabled}

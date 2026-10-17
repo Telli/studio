@@ -74,6 +74,26 @@ by hand" below.
   a loop goes whole when every line in it is the feature's. A feature whose name a later line
   still uses is not deleted: the engineer is told which feature uses it. A sketch of its own goes
   with its lines.
+- **Edit Feature** (a feature's menu, or a double-click on it) reopens the command that wrote the
+  feature's line, with its values, and writes that same line again in its place. What the line
+  acts on stays as written (its edges, faces, the feature it copies, its sketch), and a value
+  left as it was keeps how it was written (`radius=WALL` stays `radius=WALL`). A line written in
+  the commands' form opens this way even when you wrote it.
+- **Suppress** takes a feature out of the part but keeps its lines, as comments under a line that
+  says what they are; Unsuppress puts them back exactly. A boolean that starts a name keeps the
+  name meanwhile, on a line of its own:
+
+  ```python
+      # Suppressed (Cut-Extrude, 2 lines):
+      # cavity = Pos(0, 0, 2) * Box(36, 16, 10)
+      # tray = outer - cavity
+      tray = outer  # Cut-Extrude suppressed
+  ```
+
+  The design tree shows the feature greyed where its lines are, with its sketch under it. Leave
+  such a block as it is. If you must change a suppressed line, keep it commented and keep the count
+  on the first line right, or Unsuppress cannot put it back. A feature a later line still uses is
+  not suppressed, as with Delete.
 
 ## Sketches drawn by hand
 
@@ -108,7 +128,9 @@ by hand" below.
 - A hand edit is an ordinary edit to the script. The engineer's next message carries a note of
   each one ("In edit mode I changed Length (LENGTH) from 2.80 to 3.00 (parts/sizes.py, line 8).",
   "In edit mode I added Fillet2, radius 0.03 in, 1 edge (parts/housing_geometry.py, line 37).",
-  "In edit mode I deleted Fillet1 (parts/housing_geometry.py, line 31).").
+  "In edit mode I deleted Fillet1 (parts/housing_geometry.py, line 31).", "In edit mode I changed
+  Fillet2 to radius 0.05 in, 1 edge (...)." for Edit Feature, "In edit mode I suppressed Fillet1:
+  its lines are comments now (...).").
   A sketch is told once, when the engineer leaves it ("In edit mode I drew Sketch2 on the Top
   Plane (parts/plate.py, line 13): drew 4 lines and a circle, added 5 dimensions.").
 - A command's line is the engineer's: keep it, and keep its selector unless a change you make

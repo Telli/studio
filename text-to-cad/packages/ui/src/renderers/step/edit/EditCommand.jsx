@@ -14,10 +14,13 @@ import {
   commandDefaults,
   commandRequest,
   editCommand,
+  editingValues,
   faceOffsetAxes,
   revolveAxes,
+  sameValues,
   selectionItems,
   selectionLabel,
+  sizeName,
   sketchView,
   treeSketch
 } from "./editMode.js";
@@ -36,6 +39,8 @@ const LISTED = 8;
 const PLANES = Object.freeze([{ value: "XY", label: "XY plane" }, { value: "XZ", label: "XZ plane" }, { value: "YZ", label: "YZ plane" }]);
 const PATTERNS = Object.freeze([{ value: "linear", label: "Linear" }, { value: "circular", label: "Circular" }]);
 const DIRECTIONS = Object.freeze([{ value: "X", label: "Along X" }, { value: "Y", label: "Along Y" }]);
+// A mirror Edit Feature reopens that was made about a face of the part: that face again.
+const SAME_FACE = Object.freeze({ value: "face", label: "Same face" });
 const FOOTER_BUTTON_CLASS = "flex h-7 flex-1 items-center justify-center text-tiny focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45 disabled:opacity-50";
 
 /** A number the command takes, typed over as the design tree's are, with its unit. */
@@ -56,12 +61,23 @@ function SelectionList({ items, prompt }) {
   </ul>;
 }
 
+/** What a reopened feature acts on, kept as it is: "4 edges", with how to pick others. */
+function KeptList({ text, hint }) {
+  return <>
+    <ul aria-label="Selected" className="mx-2 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">
+      <li className="truncate">{text}</li>
+    </ul>
+    <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>{hint}</p>
+  </>;
+}
+
 /**
  * A modeling command's panel, docked at the viewer's left as SolidWorks' PropertyManager: what it
  * acts on (the faces or edges selected on the model, or the history feature it copies), its
  * inputs in the part's units, and OK and Cancel at its foot. OK writes the command's line into
  * the part's script (`cadgen/edit`) and the new feature is selected in the history below; Cancel,
- * or Escape, leaves the script as it was.
+ * or Escape, leaves the script as it was. Reopened by Edit Feature (`edit.editing`), it opens with
+ * the feature's values and keeps what the feature acts on, and its OK writes the feature's line again.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
  *   names: ReturnType<typeof import("./editMode.js").featureNames>, references: object[] }} props
@@ -69,13 +85,15 @@ function SelectionList({ items, prompt }) {
 export default function EditCommand({ edit, names, references, tree = null }) {
   const command = editCommand(edit.command);
   const units = edit.state?.units || "mm";
-  const [values, setValues] = useState(() => commandDefaults(edit.command, units));
-  useEffect(() => { setValues(commandDefaults(edit.command, units)); }, [edit.command, units]);
-  // The sketch an extrude makes a solid of: the one selected in the design tree. One on a face
-  // of the part cuts into it, as SolidWorks' Extruded Cut does.
-  const sketch = command?.sketch ? treeSketch(tree, edit.selected) : null;
+  const editing = edit.editing?.command === edit.command ? edit.editing : null;
+  const opened = useMemo(() => (editing ? editingValues(editing, units) : commandDefaults(edit.command, units)), [editing, edit.command, units]);
+  const [values, setValues] = useState(opened);
+  useEffect(() => { setValues(opened); }, [opened]);
+  // The sketch an extrude makes a solid of: the one selected in the design tree, or the feature's
+  // own when it is reopened. One on a face of the part cuts into it, as SolidWorks' Extruded Cut does.
+  const sketch = command?.sketch ? (editing ? editing.sketch : treeSketch(tree, edit.selected)) : null;
   const onFace = sketch ? (sketchView(edit.state, sketch)?.plane || sketch.plane) === "Plane" : false;
-  useEffect(() => { if (edit.command === "cut") setValues(current => ({ ...current, reverse: onFace })); }, [edit.command, onFace]);
+  useEffect(() => { if (edit.command === "cut" && !editing) setValues(current => ({ ...current, reverse: onFace })); }, [edit.command, onFace, editing]);
   // A revolve turns about a line of its sketch: its centerline, as it opens, when it has one.
   const revolving = edit.command === "revolve" || edit.command === "revolve_cut";
   const axes = useMemo(() => (revolving && sketch ? revolveAxes(sketchView(edit.state, sketch)) : []), [revolving, sketch, edit.state]);
@@ -95,22 +113,31 @@ export default function EditCommand({ edit, names, references, tree = null }) {
   const disabled = edit.saving || edit.status !== "ready";
   const faces = items.filter(item => /f\d+$/.test(item.selector));
   const listed = command.picks === "edges" ? items : faces;
-  const blocked = commandBlocked(command.id, items, sketch, values);
-  const feature = !wholeBody && featureIndex > 0 ? { row: rows[featureIndex].key, name: names[featureIndex]?.title || "" } : null;
-  const ok = () => { if (!blocked && !disabled) void edit.run(commandRequest(command.id, values, items, feature, sketch)); };
+  const blocked = commandBlocked(command.id, items, sketch, values, editing);
+  const feature = !editing && !wholeBody && featureIndex > 0 ? { row: rows[featureIndex].key, name: names[featureIndex]?.title || "" } : null;
+  const ok = () => {
+    if (blocked || disabled) return;
+    // A reopened feature left as it was: nothing to write.
+    if (editing && sameValues(values, opened)) { edit.close(); return; }
+    void edit.run(commandRequest(command.id, values, items, feature, sketch, editing));
+  };
   const copies = command.id === "mirror" || command.id === "pattern";
-  const offsets = command.id === "hole"
-    ? faceOffsetAxes(references.find(reference => reference?.selectorType === "face")?.pickData?.normal) : [];
+  const offsets = command.id !== "hole" ? []
+    : editing ? editing.axes || [] : faceOffsetAxes(references.find(reference => reference?.selectorType === "face")?.pickData?.normal);
+  const title = editing ? editing.title : command.label;
+  // What a reopened feature acts on stays as it is: picking others is a new feature.
+  const keptHint = editing ? command.id === "hole" ? `To put it on another face, delete ${editing.title} and add it again.`
+    : `To pick other ${command.picks === "edges" ? "edges" : "faces"}, delete ${editing.title} and add it again.` : "";
 
-  return <div role="dialog" aria-label={command.label} data-cad-edit-command={command.id} className="flex shrink-0 flex-col border-b border-border"
+  return <div role="dialog" aria-label={title} data-cad-edit-command={command.id} className="flex shrink-0 flex-col border-b border-border"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.close(); } }}>
     <div className="flex h-8 items-center gap-1.5 px-2">
       <Icon className="size-3.5 shrink-0 text-muted-foreground" strokeWidth={TREE_GLYPH_STROKE} aria-hidden="true" />
-      <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">{command.label}</h2>
+      <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">{title}</h2>
     </div>
-    {command.picks ? <FileSheetSettingsSection title={command.picks === "edges" ? "Edges" : command.id === "mirror" ? "Mirror face" : "Faces"}
-      sectionId="edit-command-selection">
-      <SelectionList items={listed} prompt={command.prompt} />
+    {command.picks && !(editing && command.id === "mirror") ? <FileSheetSettingsSection
+      title={command.picks === "edges" ? "Edges" : command.id === "mirror" ? "Mirror face" : "Faces"} sectionId="edit-command-selection">
+      {editing ? <KeptList text={editing.keeps} hint={keptHint} /> : <SelectionList items={listed} prompt={command.prompt} />}
     </FileSheetSettingsSection> : null}
     {command.sketch ? <FileSheetSettingsSection title="Sketch" sectionId="edit-command-sketch">
       {sketch ? <ul aria-label="Sketch" className="mx-2 mb-1 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">
@@ -118,9 +145,11 @@ export default function EditCommand({ edit, names, references, tree = null }) {
       </ul> : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>{command.prompt}</p>}
     </FileSheetSettingsSection> : null}
     {copies ? <FileSheetSettingsSection title={command.id === "mirror" ? "Mirror" : "Copies"} sectionId="edit-command-copies">
-      <FileSheetSelectRow label="Of" value={feature ? "feature" : "body"} onValueChange={value => setWholeBody(value === "body")}
-        options={[...(featureIndex > 0 ? [{ value: "feature", label: names[featureIndex]?.title || "Feature" }] : []), { value: "body", label: "Whole body" }]} />
-      <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Pick a feature in the history to copy it.</p>
+      {editing ? <FileSheetControlRow label="Of" value={sizeName(editing.keeps)} /> : <>
+        <FileSheetSelectRow label="Of" value={feature ? "feature" : "body"} onValueChange={value => setWholeBody(value === "body")}
+          options={[...(featureIndex > 0 ? [{ value: "feature", label: names[featureIndex]?.title || "Feature" }] : []), { value: "body", label: "Whole body" }]} />
+        <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Pick a feature in the history to copy it.</p>
+      </>}
     </FileSheetSettingsSection> : null}
     {revolving ? <FileSheetSettingsSection title="Axis of Revolution" sectionId="edit-command-axis">
       {axes.length ? <FileSheetSelectRow label="About" value={values.axis} options={axes} onValueChange={set("axis")} />
@@ -145,8 +174,9 @@ export default function EditCommand({ edit, names, references, tree = null }) {
         {offsets.map(axis => <NumberRow key={axis} label={`${axis.toUpperCase()} from center`} value={values[axis]} unit={units}
           disabled={disabled} onChange={set(axis)} />)}
       </> : null}
-      {command.id === "mirror" ? faces.length ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>About the selected face.</p>
-        : <FileSheetSelectRow label="About" value={values.plane} options={PLANES} onValueChange={set("plane")} /> : null}
+      {command.id === "mirror" ? faces.length && !editing ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>About the selected face.</p>
+        : <FileSheetSelectRow label="About" value={values.plane} options={editing?.values?.plane === "face" ? [...PLANES, SAME_FACE] : PLANES}
+          onValueChange={set("plane")} /> : null}
       {command.id === "pattern" ? <>
         <FileSheetSelectRow label="Type" value={values.type} options={PATTERNS} onValueChange={set("type")} />
         {values.type === "linear" ? <>

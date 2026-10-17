@@ -13,6 +13,7 @@ import {
   defaultRow,
   deleteNote,
   deleteRefusal,
+  editingValues,
   emptyHistory,
   faceOffsetAxes,
   featureNames,
@@ -21,9 +22,11 @@ import {
   recordChange,
   redoStep,
   restates,
+  sameValues,
   selectionItems,
   selectionLabel,
   sizeName,
+  suppressNote,
   undoStep,
   withUnit
 } from "./editMode.js";
@@ -97,6 +100,45 @@ test("a delete the server refuses names the features that use what it makes", ()
   const change = { kind: "delete", title: "Fillet1", file: "tray.py", line: 8 };
   assert.equal(deleteNote(change), "In edit mode I deleted Fillet1 (tray.py, line 8).");
   assert.equal(deleteNote(change, { undo: true }), "In edit mode I put back Fillet1 (tray.py, line 8).");
+});
+
+test("a suppressed feature stays in the tree, and its note says its lines are comments", () => {
+  const tree = featureTree({ features: [
+    { key: "tray.py:7", kind: "Boss-Extrude", rows: ["tray.py:7"], file: "tray.py", line: 7, name: "outer" },
+    { key: "suppressed@tray.py:8", kind: "Fillet", rows: [], file: "tray.py", line: 8, name: "outer", suppressed: true },
+    { key: "tray.py:10", kind: "Fillet", rows: ["tray.py:10"], file: "tray.py", line: 10, name: "outer" },
+  ] });
+  // Numbered with the rest, so a feature keeps its title while it is suppressed.
+  assert.deepEqual(tree.features.map(f => [f.title, f.suppressed]), [["Boss-Extrude1", false], ["Fillet1", true], ["Fillet2", false]]);
+  const change = { kind: "suppress", on: true, title: "Fillet1", file: "tray.py", line: 8 };
+  assert.equal(suppressNote(change), "In edit mode I suppressed Fillet1: its lines are comments now (tray.py, line 8).");
+  assert.equal(suppressNote(change, { undo: true }), "In edit mode I unsuppressed Fillet1: its lines are back (tray.py, line 8).");
+  assert.equal(suppressNote({ ...change, on: false }, { redo: true }), "In edit mode I unsuppressed Fillet1 again: its lines are back (tray.py, line 8).");
+  const refused = { ok: false, error: "", dependents: { name: "outer", lines: [10], file: "tray.py" } };
+  assert.equal(deleteRefusal(refused, tree, "Boss-Extrude1", "Suppress"), "Boss-Extrude1 is used by Fillet2. Suppress it first, or ask the agent.");
+});
+
+test("Edit Feature opens a command with the feature's values and writes its line again", () => {
+  const editing = { id: "a.py:9", title: "Fillet1", command: "fillet", values: { radius: ".05" }, keeps: "4 edges" };
+  const opened = editingValues(editing, "in");
+  assert.deepEqual(opened, { radius: ".05" });
+  assert.ok(sameValues({ radius: " .05" }, opened));
+  assert.ok(!sameValues({ radius: ".06" }, opened));
+  // What the feature acts on stays as it is: no selection is sent, and none is waited for.
+  const items = selectionItems([EDGE]);
+  assert.deepEqual(commandRequest("fillet", { radius: ".06" }, items, null, null, editing),
+    { command: "fillet", selection: [], inputs: { radius: ".06" }, replace: { row: "a.py:9" } });
+  assert.equal(commandBlocked("fillet", [], null, {}, editing), "");
+  const sketch = { file: "a.py", line: 4, title: "Sketch1", constrained: true };
+  assert.deepEqual(commandRequest("extrude", { end: "mid", depth: "8", reverse: false }, [], null, sketch, { ...editing, command: "extrude" }), {
+    command: "extrude", sketch: { file: "a.py", line: 4, name: "Sketch1" }, inputs: { end: "mid", depth: "8", reverse: false },
+    replace: { row: "a.py:9" },
+  });
+  const change = { kind: "command", edited: true, feature: "Fillet", what: "4 edges", inputs: [{ label: "Radius", display: "0.06", unit: "in" }],
+    file: "a.py", line: 9 };
+  assert.equal(commandNote(change, "Fillet1"), "In edit mode I changed Fillet1 to radius 0.06 in, 4 edges (a.py, line 9).");
+  assert.equal(commandUndoNote(change, "Fillet1", false), "In edit mode I put Fillet1 back as it was (a.py, line 9).");
+  assert.equal(commandUndoNote(change, "Fillet1", true), "In edit mode I changed Fillet1 again (a.py, line 9).");
 });
 
 test("a sketch session's changes are counted from the change before it, past the history's limit", () => {

@@ -41,7 +41,7 @@ _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M
 # writes them again (a command's Undo and Redo). A `sketch` change is sketch mode's
 # (`sketching.py`): its strokes are not built, as a CAD tool rebuilds when the sketch is left. A
 # `remove` deletes a feature of the design tree (`deleting.py`).
-_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice", "sketch", "remove")
+_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice", "sketch", "remove", "suppress")
 
 
 def _no_window() -> dict:

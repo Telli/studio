@@ -31,6 +31,7 @@ import os
 import re
 import sys
 import tempfile
+import textwrap
 import traceback
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -1156,6 +1157,125 @@ def _with_sketches(features, sketches, component=None):
     return out
 
 
+def _suppressed_in(rel, functions, sketches):
+    """The features Suppress set aside in ``rel`` (`deleting.py`), inside the functions named: each
+    as the design tree lists it, where its lines are, with the sketch it was made from under it
+    (which is then not a sketch of its own, nor drawn on the model)."""
+    from cadgen.edit import deleting
+
+    try:
+        text = _read(ROOT / rel)
+        tree = ast.parse(text)
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return []
+    spans = [(node.lineno, node.end_lineno) for node in ast.walk(tree)
+             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in functions]
+    lines = text.splitlines(keepends=True)
+    found = []
+    for number, line in enumerate(lines, 1):
+        if "# Suppressed (" not in line or not any(first <= number <= last for first, last in spans):
+            continue
+        span = deleting.suppressed_span(lines, number)
+        if span is None:
+            continue
+        key = f"suppressed@{rel}:{number}"
+        try:
+            statements = ast.parse(textwrap.dedent("\n".join(span["code"]))).body
+        except SyntaxError:
+            statements = []
+        # Its name, as a feature the part makes shows it: what its last line assigns.
+        targets = [statement.targets[0] if isinstance(statement, ast.Assign) and len(statement.targets) == 1 else getattr(statement, "target", None)
+                   for statement in statements]
+        name = next((target.id for target in reversed(targets) if isinstance(target, ast.Name)), None)
+        drawn = [node.func.value.id for statement in statements for node in ast.walk(statement)
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in ("face", "faces")
+                 and isinstance(node.func.value, ast.Name)]
+        sketch = None
+        for var in drawn:
+            view = max((each for each in sketches if each["file"] == rel and 0 < each["line"] < number
+                        and lines[each["line"] - 1].strip().startswith(f"{var} = ")), key=lambda each: each["line"], default=None)
+            if view is not None and view["consumed"] is None:
+                view["consumed"] = key
+                sketch = {"op": "Sketch", "label": "Sketch", "name": view["name"], "file": view["file"], "line": view["line"],
+                          "plane": view["plane"], "status": view["state"]["status"] if view["state"] else "Not solved", "step": None}
+                break
+        found.append({"key": key, "rows": [], "name": name, "count": 1, "file": rel, "line": number, "kind": span["kind"],
+                      "sketch": sketch, "suppressed": True})
+    return found
+
+
+def _with_suppressed(features, suppressed):
+    """A part's features with the ones Suppress set aside among them, where their lines are."""
+    out = list(features)
+    for item in suppressed:
+        at = next((index for index, feature in enumerate(out)
+                   if feature.get("file") == item["file"] and (feature.get("line") or 0) > item["line"]), len(out))
+        out.insert(at, item)
+    return out
+
+
+def _editable(features, rows, steps, sketches, units):
+    """Each feature a ribbon command writes, with what Edit Feature opens it with (``edit``): the
+    command, its values in the part's units, what it keeps (its edges, faces, the feature it
+    copies) and, for one made from a sketch, the sketch and the line it revolves about."""
+    from cadgen.edit import commands, sketching
+
+    by_key = {row["key"]: row for row in rows}
+    files: dict = {}
+    for feature in features:
+        row = by_key.get(feature.get("key"))
+        if row is None or feature.get("kind") == "Sketch":
+            continue
+        rel = row["file"]
+        if rel not in files:
+            try:
+                text = _read(ROOT / rel)
+                files[rel] = (text, ast.parse(text))
+            except (OSError, SyntaxError, UnicodeDecodeError):
+                files[rel] = None
+        if files[rel] is None:
+            continue
+        text, tree = files[rel]
+        functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                     and node.lineno <= row["line"] <= node.end_lineno]
+        function = max(functions, key=lambda node: node.lineno, default=None)
+        statement = commands._top_statement(function, row["line"]) if function is not None else None
+        if statement is None or statement.lineno != row["line"]:
+            continue
+        read = commands.read_feature(statement, text, commands.recorded_numbers([steps[index] for index in row["steps"]]), units)
+        if read is None:
+            continue
+        edit = {"command": read.command, "values": read.values, "keeps": read.keeps}
+        if read.command == "hole":
+            # The axes a hole moves along on its face, as its panel offers them: the two square to
+            # the face's normal, which the placed tool's own axis is.
+            cut = next((steps[index] for index in row["steps"] if steps[index]["op"] == "cut"), None)
+            tool = dict(cut["args"]).get("other") if cut else None
+            axes = commands.offset_axes(B.Plane(tool.location).z_dir) if isinstance(tool, B.Shape) else ()
+            edit["axes"] = [axis.lower() for axis in axes]
+            edit["values"] = {**{axis: "0" for axis in edit["axes"]}, **read.values}
+        var = read.parts.get("sketch")
+        if var:
+            # The sketch is the last one made under that name before the feature's line.
+            lines = text.splitlines()
+            view = max((each for each in sketches if each["file"] == rel and 0 < each["line"] < statement.lineno
+                        and lines[each["line"] - 1].strip().startswith(f"{var} = ")), key=lambda each: each["line"], default=None)
+            if view is None or view.get("state") is None:
+                continue
+            edit["sketch"] = {"file": view["file"], "line": view["line"], "name": view["name"]}
+            if read.parts.get("axis"):
+                try:
+                    names = sketching.Names(sketching.find_block(text, view["line"], str(ROOT / rel)), view["state"])
+                except sketching.SketchEditError:
+                    continue
+                axis = next((curve for curve, code in names.curve_code.items() if code == read.parts["axis"]), None)
+                if axis is None:
+                    continue
+                edit["values"] = {**read.values, "axis": axis}
+        feature["edit"] = edit
+    return features
+
+
 def _is_flat(step):
     """A step that draws: a profile, or a profile placed, joined or cut (a sketch's own lines)."""
     if step["op"] in SKETCH_PROFILES:
@@ -1346,7 +1466,15 @@ def trace(request):
         rows = [_row_summary(row, units) for row in timeline]
     sketches = _sketches(steps, rows)
     for component in components:
-        component["features"] = _with_sketches(component["features"], sketches, component)
+        hidden = _suppressed_in(component["file"], {component["function"]}, sketches)
+        component["features"] = _editable(_with_suppressed(_with_sketches(component["features"], sketches, component), hidden),
+                                          rows, steps, sketches, units)
+    if not components:
+        scopes: dict = {}
+        for row in timeline:
+            scopes.setdefault(row["file"], set()).add(row["function"])
+        hidden = [item for rel, functions in scopes.items() for item in _suppressed_in(rel, functions, sketches)]
+        features = _editable(_with_suppressed(_with_sketches(_features(rows, timeline), sketches), hidden), rows, steps, sketches, units)
     dimensions = _dimensions(steps, units)
     row_of = {index: row["key"] for row in rows for index in row["steps"]}
     for dimension in dimensions:
@@ -1379,7 +1507,7 @@ def trace(request):
         "params": params,
         "rows": [{**row, "inputs": [_clean(item) for item in row["inputs"]]} for row in rows],
         # The same history as a CAD tree reads it, and the part's extent for the origin's planes.
-        "features": [] if components else _with_sketches(_features(rows, timeline), sketches),
+        "features": [] if components else features,
         "sketches": sketches,
         "components": [{"name": c["function"], "file": c["file"], "features": c["features"]} for c in components],
         "bounds": _bounds(shape) if isinstance(shape, B.Shape) else None,
@@ -1446,6 +1574,8 @@ def edit(request):
         return sketch_edit(request)
     if isinstance(request.get("remove"), dict):
         return remove(request)
+    if isinstance(request.get("suppress"), dict):
+        return suppress(request)
     script = str(Path(request["script"]).resolve())
     if script not in STATE:
         traced = trace(request)
@@ -1580,6 +1710,8 @@ def command(request):
     after["change"] = {
         "kind": "command",
         "command": plan.command,
+        # Edit Feature: the feature's own line written again, rather than a new one.
+        "edited": bool(spec.get("replace")),
         **plan.summary,
         "file": plan.rel,
         "line": plan.line,
@@ -1590,6 +1722,23 @@ def command(request):
         "redo": {"file": plan.rel, "hunks": commands.hunks(plan.old, plan.new)},
     }
     return after
+
+
+def _feature_lines(feature, rel, title, verb):
+    """The lines of the script that make a feature, the sketch it was made from left out: it stays,
+    as SolidWorks keeps an absorbed sketch."""
+    from cadgen.edit import deleting
+
+    drawn = set((feature.get("sketch") or {}).get("rows") or [])
+    lines = []
+    for row in feature["rows"]:
+        if row in drawn:
+            continue
+        row_file, _, row_line = row.rpartition(":")
+        if row_file != rel:
+            raise deleting.DeleteError(f"{title} is made across files. Ask the agent to {verb} it.")
+        lines.append(int(row_line))
+    return lines
 
 
 def remove(request):
@@ -1621,18 +1770,10 @@ def remove(request):
     try:
         if feature["kind"] == "Sketch":
             new, first = deleting.delete_sketch(old, int(feature["line"]), title, str(path))
+        elif feature.get("suppressed"):
+            new, first = deleting.delete_suppressed(old, int(feature["line"]), title)
         else:
-            # The sketch it was made from stays, as SolidWorks keeps an absorbed sketch.
-            drawn = set((feature.get("sketch") or {}).get("rows") or [])
-            lines = []
-            for row in feature["rows"]:
-                if row in drawn:
-                    continue
-                row_file, _, row_line = row.rpartition(":")
-                if row_file != rel:
-                    raise deleting.DeleteError(f"{title} is made across files. Ask the agent to remove it.")
-                lines.append(int(row_line))
-            new, first = deleting.delete(old, lines, title, str(path))
+            new, first = deleting.delete(old, _feature_lines(feature, rel, title, "remove"), title, str(path))
     except deleting.DeleteError as error:
         refusal = {"ok": False, "error": str(error)}
         if error.dependents:
@@ -1648,6 +1789,69 @@ def remove(request):
         return {"ok": False, "error": f"The part does not build without {title}, so nothing changed. Ask the agent to remove it."}
     after["change"] = {
         "kind": "delete",
+        "feature": key,
+        "title": title,
+        "file": rel,
+        "line": first,
+        "undo": {"file": rel, "hunks": commands.hunks(new, old)},
+        "redo": {"file": rel, "hunks": commands.hunks(old, new)},
+    }
+    return after
+
+
+def suppress(request):
+    """Suppress or Unsuppress on a feature of the design tree, as SolidWorks' sets one aside
+    (`deleting.py`): its lines kept in the script as comments, or put back as they were; then the
+    part traced again, and the script put back if it no longer builds."""
+    from cadgen.edit import commands, deleting
+
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    spec = request["suppress"]
+    key = str(spec.get("feature") or "")
+    title = str(spec.get("title") or "That feature")
+    on = spec.get("on", True) is not False
+    features = traced["features"] or [feature for component in traced["components"] for feature in component["features"]]
+    feature = next((feature for feature in features if feature["key"] == key), None)
+    if feature is None:
+        return {"ok": False, "error": f"{title} is no longer in the design tree. Look again."}
+    if feature["kind"] == "Sketch":
+        return {"ok": False, "error": f"A sketch is not suppressed on its own. Suppress the feature made from {title}, or delete it."}
+    if bool(feature.get("suppressed")) == on:
+        return {"ok": False, "error": f"{title} is already {'suppressed' if on else 'in the part'}. Look again."}
+    rel = str(feature.get("file") or "")
+    path = (ROOT / rel).resolve()
+    try:
+        path.relative_to(ROOT)
+    except ValueError:
+        return {"ok": False, "error": f"{title} is not made in this project, so edit mode cannot suppress it."}
+    old = _read(path)
+    try:
+        if on:
+            new, first = deleting.suppress(old, _feature_lines(feature, rel, title, "suppress"), title, feature["kind"], str(path))
+        else:
+            new, first = deleting.unsuppress(old, int(feature["line"]), title)
+    except deleting.DeleteError as error:
+        refusal = {"ok": False, "error": str(error)}
+        if error.dependents:
+            refusal["dependents"] = {**error.dependents, "file": rel}
+        return refusal
+    except SyntaxError:
+        return {"ok": False, "error": f"{rel} does not parse, so edit mode cannot suppress {title}."}
+    _write(path, new)
+    after = trace(request)
+    if not after.get("ok"):
+        _write(path, old)
+        trace(request)
+        return {"ok": False, "error": f"The part does not build without {title}, so nothing changed. Ask the agent to suppress it." if on
+                else f"The part does not build with {title} back, so nothing changed. Ask the agent to look at it."}
+    after["change"] = {
+        "kind": "suppress",
+        "on": on,
         "feature": key,
         "title": title,
         "file": rel,

@@ -268,6 +268,87 @@ class PlateCommands(Commands):
         self.assertNotIn("mirror", script.read_text(encoding="utf-8"))
 
 
+class EditingFeatures(Commands):
+    """Edit Feature: a command's feature opened with its values, its own line written again."""
+
+    def feature(self, state: dict, kind: str) -> dict:
+        return next(feature for feature in state["features"] if feature["kind"] == kind)
+
+    def edit(self, file: str, state: dict, feature: dict, inputs: dict) -> dict:
+        spec = {"command": feature["edit"]["command"], "inputs": inputs, "replace": {"row": feature["key"]}}
+        return self.service.change({"file": file, "command": spec, "files": state["files"]})
+
+    def test_a_fillet_opens_with_its_radius_and_is_written_again_in_its_place(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "fillet", BLOCK_TOP_EDGES, {"radius": "1"})
+        self.assertTrue(made["ok"], made.get("error"))
+        script = root / "block.py"
+        before = script.read_text(encoding="utf-8")
+        fillet = self.feature(made, "Fillet")
+        self.assertEqual(fillet["edit"], {"command": "fillet", "values": {"radius": "1"}, "keeps": "4 edges"})
+        edited = self.edit(file, made, fillet, {"radius": "0.5"})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertEqual(script.read_text(encoding="utf-8"), before.replace(", radius=1)", ", radius=0.5)"))
+        self.assertTrue(edited["change"]["edited"])
+        self.assertEqual([feature["kind"] for feature in edited["features"]].count("Fillet"), 1)
+        undone = self.service.change({"file": file, "splice": edited["change"]["undo"], "files": edited["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertEqual(script.read_text(encoding="utf-8"), before)
+
+    def test_a_value_left_as_it_was_keeps_its_named_size(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        script = root / "tray.py"
+        script.write_text(script.read_text(encoding="utf-8").replace("radius=2)", "radius=WALL)").replace(
+            "@step", "WALL = 2\n\n\n@step"), encoding="utf-8")
+        state = self.service.state(file)
+        self.assertTrue(state["ok"], state.get("error"))
+        fillet = self.feature(state, "Fillet")
+        self.assertEqual(fillet["edit"]["values"], {"radius": "2"})
+        self.assertEqual(fillet["edit"]["keeps"], "4 edges")
+        edited = self.edit(file, state, fillet, {"radius": "2"})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertIn("outer = fillet(outer.edges().filter_by(Axis.Z), radius=WALL)\n", script.read_text(encoding="utf-8"))
+        # A line no command writes opens nothing: the agent's own hole.
+        self.assertNotIn("edit", self.feature(state, "Hole"))
+
+    def test_a_hole_keeps_its_face_and_moves_on_it(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2", "depth": "3", "x": "5"})
+        self.assertTrue(made["ok"], made.get("error"))
+        hole = self.feature(made, "Hole")
+        self.assertEqual(hole["edit"]["values"], {"diameter": "2", "through": False, "depth": "3", "x": "5", "y": "0"})
+        edited = self.edit(file, made, hole, {"diameter": "3", "depth": "", "x": "5", "y": "-2"})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        text = (root / "block.py").read_text(encoding="utf-8")
+        self.assertIn("part -= Pos(5, -2) * Plane(part.faces().sort_by(Axis.Z)[-1]) * Cylinder(3/2, part.bounding_box().diagonal, "
+                      "align=(Align.CENTER, Align.CENTER, Align.MAX))\n", text)
+        self.assertEqual(text.count("Cylinder("), 1)
+
+    def test_a_pattern_turns_to_another_direction_and_keeps_what_it_repeats(self):
+        root, file, state = self.open(PLATE, "plate.step")
+        feature = {"row": next(row for row in state["rows"] if row["kind"] == "Hole")["key"], "name": "Hole1"}
+        made = self.command(file, state, "pattern", (), {"type": "linear", "direction": "X", "spacing": "-.4", "count": "3"}, feature)
+        self.assertTrue(made["ok"], made.get("error"))
+        pattern = self.feature(made, "Pattern")
+        self.assertEqual(pattern["edit"]["values"], {"type": "linear", "direction": "X", "spacing": "0.4", "reverse": True, "count": "3"})
+        self.assertEqual(pattern["edit"]["keeps"], "hole1")
+        edited = self.edit(file, made, pattern, {"type": "linear", "direction": "Y", "spacing": ".3", "count": "3"})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        text = (root / "plate.py").read_text(encoding="utf-8")
+        self.assertIn("plate -= [loc * hole1 for loc in bd.GridLocations(0, .3*INCH, 1, 3, "
+                      "align=(bd.Align.CENTER, bd.Align.MIN)).locations[1:]]\n", text)
+        self.assertEqual(text.count("hole1 :="), 1)
+
+    def test_a_feature_of_another_kind_is_refused(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "fillet", BLOCK_TOP_EDGES, {"radius": "1"})
+        fillet = self.feature(made, "Fillet")
+        refused = self.service.change({"file": file, "files": made["files"], "command": {
+            "command": "chamfer", "inputs": {"distance": "1"}, "replace": {"row": fillet["key"]}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("is a Fillet, not a Chamfer", refused["error"])
+
+
 class Deleting(Commands):
     """Delete on a feature of the design tree (``cadgen.edit.deleting``)."""
 
@@ -312,6 +393,85 @@ class Deleting(Commands):
         self.assertIn("Boss-Extrude1 makes outer, which line 8 still uses", refused["error"])
         self.assertEqual(refused["dependents"], {"name": "outer", "lines": [8], "file": "tray.py"})
         self.assertEqual((root / "tray.py").read_bytes(), before)
+
+
+
+class Suppressing(Commands):
+    """Suppress and Unsuppress on a feature of the design tree (``cadgen.edit.deleting``)."""
+
+    def suppress(self, file: str, state: dict, kind: str, title: str, on: bool = True, nth: int = 0) -> dict:
+        key = [feature["key"] for feature in state["features"] if feature["kind"] == kind][nth]
+        return self.service.change({"file": file, "suppress": {"feature": key, "title": title, "on": on}, "files": state["files"]})
+
+    def test_a_suppressed_feature_stays_in_the_tree_and_comes_back_exactly(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        script = root / "tray.py"
+        before = script.read_text(encoding="utf-8")
+        reply = self.suppress(file, state, "Fillet", "Fillet1")
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("    outer = Box(40, 20, 10)\n    # Suppressed (Fillet, 1 line):\n"
+                      "    # outer = fillet(outer.edges().filter_by(Axis.Z), radius=2)\n    cavity =", script.read_text(encoding="utf-8"))
+        self.assertEqual([(feature["kind"], bool(feature.get("suppressed"))) for feature in reply["features"]][:3],
+                         [("Boss-Extrude", False), ("Fillet", True), ("Cut-Extrude", False)])
+        self.assertEqual((reply["change"]["kind"], reply["change"]["on"], reply["change"]["line"]), ("suppress", True, 8))
+        back = self.suppress(file, reply, "Fillet", "Fillet1", on=False)
+        self.assertTrue(back["ok"], back.get("error"))
+        self.assertEqual(script.read_text(encoding="utf-8"), before)
+        self.assertFalse(any(feature.get("suppressed") for feature in back["features"]))
+
+    def test_a_cut_that_starts_a_name_keeps_the_name_while_suppressed(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        script = root / "tray.py"
+        before = script.read_text(encoding="utf-8")
+        reply = self.suppress(file, state, "Cut-Extrude", "Cut-Extrude1")
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("    # Suppressed (Cut-Extrude, 2 lines):\n    # cavity = Pos(0, 0, 2) * Box(36, 16, 10)\n"
+                      "    # tray = outer - cavity\n    tray = outer  # Cut-Extrude suppressed\n", script.read_text(encoding="utf-8"))
+        undone = self.service.change({"file": file, "splice": reply["change"]["undo"], "files": reply["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertEqual(script.read_text(encoding="utf-8"), before)
+        # Deleted while suppressed, it goes as Delete takes it out: the name kept as the body.
+        again = self.suppress(file, undone, "Cut-Extrude", "Cut-Extrude1")
+        deleted = self.service.change({"file": file, "files": again["files"], "remove": {
+            "feature": next(f["key"] for f in again["features"] if f.get("suppressed")), "title": "Cut-Extrude1"}})
+        self.assertTrue(deleted["ok"], deleted.get("error"))
+        text = script.read_text(encoding="utf-8")
+        self.assertIn("    tray = outer\n", text)
+        self.assertNotIn("cavity", text)
+        self.assertNotIn("Suppressed", text)
+
+    def test_a_comment_after_a_suppressed_feature_stays_the_engineers(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        script = root / "tray.py"
+        script.write_text(script.read_text(encoding="utf-8").replace("radius=2)\n", "radius=2)\n    # x = 1\n"), encoding="utf-8")
+        before = script.read_text(encoding="utf-8")
+        state = self.service.state(file)
+        reply = self.suppress(file, state, "Fillet", "Fillet1")
+        self.assertTrue(reply["ok"], reply.get("error"))
+        back = self.suppress(file, reply, "Fillet", "Fillet1", on=False)
+        self.assertTrue(back["ok"], back.get("error"))
+        self.assertEqual(script.read_text(encoding="utf-8"), before)
+
+    def test_a_feature_a_later_one_uses_is_not_suppressed(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        before = (root / "tray.py").read_bytes()
+        refused = self.suppress(file, state, "Boss-Extrude", "Boss-Extrude1")
+        self.assertFalse(refused["ok"])
+        self.assertIn("Boss-Extrude1 makes outer, which line 8 still uses. Suppress what uses it first", refused["error"])
+        self.assertEqual((root / "tray.py").read_bytes(), before)
+
+    def test_a_new_feature_goes_after_a_suppressed_one_at_the_end(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2", "depth": "3"})
+        self.assertTrue(made["ok"], made.get("error"))
+        suppressed = self.suppress(file, made, "Hole", "Hole1")
+        self.assertTrue(suppressed["ok"], suppressed.get("error"))
+        shelled = self.command(file, suppressed, "shell", BLOCK_TOP, {"thickness": "1"})
+        self.assertTrue(shelled["ok"], shelled.get("error"))
+        text = (root / "block.py").read_text(encoding="utf-8")
+        self.assertLess(text.index("# Suppressed (Hole"), text.index("offset(part"))
+        self.assertEqual([(f["kind"], bool(f.get("suppressed"))) for f in shelled["features"]],
+                         [("Boss-Extrude", False), ("Hole", True), ("Shell", False)])
 
 
 if __name__ == "__main__":

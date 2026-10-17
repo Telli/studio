@@ -13,6 +13,7 @@ import {
   featureTree,
   recordChange,
   redoStep,
+  suppressNote,
   treeFeatures,
   treeIds,
   undoStep
@@ -60,6 +61,9 @@ export function useEditMode({ client, file, active }) {
   const [hovered, setHovered] = useState(null);
   const [history, setHistory] = useState(emptyHistory);
   const [command, setCommand] = useState(null);
+  // Edit Feature: the feature whose command's panel is open, filled with its values (its id, title,
+  // command, values, what it keeps, and the sketch it is made from).
+  const [editing, setEditing] = useState(null);
   // Sketch mode: the sketch being edited, the tool in hand (none: select and drag), what is
   // selected in it, whether new strokes are construction geometry, and the Sketch command waiting
   // for a plane or a face to sketch on.
@@ -85,7 +89,7 @@ export function useEditMode({ client, file, active }) {
   // Another file is another part: everything starts again.
   useEffect(() => {
     files.current = null;
-    setState(null); setError(""); setChoice(null); setSelected(null); setHistory(emptyHistory()); setCommand(null);
+    setState(null); setError(""); setChoice(null); setSelected(null); setHistory(emptyHistory()); setCommand(null); setEditing(null);
     setSketch(null); setSketchTool(null); setSketchSelection([]); setPicking(false);
     probed.current = "";
     setStatus(supported && file ? "probing" : "none");
@@ -204,20 +208,35 @@ export function useEditMode({ client, file, active }) {
       setHistory(current => recordChange(current, { ...reply.change, title }));
       setSelected(reply.change.row);
       setCommand(null);
+      setEditing(null);
     }
     return reply;
   }, [send]);
+
+  /**
+   * Edit Feature, as SolidWorks' reopens a feature's PropertyManager: the command that made it,
+   * filled with its values. Its OK writes the feature's line again (`run`, with `replace`).
+   */
+  const editFeature = useCallback(feature => {
+    if (!feature?.edit) return;
+    setError(""); setPicking(false);
+    setSelected(feature.id);
+    setEditing({ ...feature.edit, id: feature.id, title: feature.title, sketch: feature.sketch });
+    setCommand(feature.edit.command);
+  }, []);
   const step = useCallback(async (next, redo) => {
     const move = next(historyRef.current);
     if (!move) return;
     const made = move.change.kind === "command";
     const deleted = move.change.kind === "delete";
+    const suppressed = move.change.kind === "suppress";
     const current = sketchRef.current;
     // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
     const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
     const reply = await send(request, { record: false,
       note: made ? () => commandUndoNote(move.change, move.change.title, redo)
-        : deleted ? () => deleteNote(move.change, { undo: !redo, redo }) : null });
+        : deleted ? () => deleteNote(move.change, { undo: !redo, redo })
+          : suppressed ? () => suppressNote(move.change, { undo: !redo, redo }) : null });
     if (!reply?.ok) return;
     setHistory(move.next);
     if (current) {
@@ -251,6 +270,20 @@ export function useEditMode({ client, file, active }) {
     return reply;
   }, [send]);
 
+  /**
+   * Suppress (`on`) or Unsuppress on a feature of the design tree, as SolidWorks' sets one aside:
+   * its lines kept in the script as comments, the feature greyed where it is; or put back as they
+   * were. The feature stays selected, by its title, which its place in the tree keeps.
+   */
+  const suppress = useCallback(async (id, tree, on = true) => {
+    const feature = treeFeatures(tree).find(each => each.id === id);
+    if (!feature || feature.kind === "Sketch") return null;
+    const reply = await send({ suppress: { feature: feature.id, title: feature.title, on } }, { note: answer => suppressNote(answer.change) });
+    if (reply?.ok) setSelected(treeFeatures(featureTree(reply)).find(each => each.title === feature.title)?.id ?? null);
+    else if (reply?.dependents) setError(deleteRefusal(reply, tree, feature.title, "Suppress"));
+    return reply;
+  }, [send]);
+
   // ---- sketch mode ---------------------------------------------------------------------------
 
   // `before`: the change made last before the session began, so Undo and Discard Changes reach
@@ -264,6 +297,7 @@ export function useEditMode({ client, file, active }) {
     setSketchStep(0);
     setPicking(false);
     setCommand(null);
+    setEditing(null);
     // As a CAD tool opens a sketch: the tree's selection (the plane it was started on) let go.
     setSelected(null);
     setNormalTo(tick => tick + 1);
@@ -337,12 +371,12 @@ export function useEditMode({ client, file, active }) {
   }, [send]);
 
   return {
-    status, state, error, choice, saving, selected, hovered, command,
+    status, state, error, choice, saving, selected, hovered, command, editing,
     select: setSelected,
     hover: setHovered,
-    change, undo, redo, run, remove,
-    open: id => { setError(""); setPicking(false); setCommand(id); },
-    close: () => setCommand(null),
+    change, undo, redo, run, remove, suppress, editFeature,
+    open: id => { setError(""); setPicking(false); setEditing(null); setCommand(id); },
+    close: () => { setCommand(null); setEditing(null); },
     // In sketch mode, Undo takes back the session's own changes only.
     canUndo: (sketch ? changesSince(history, sketch.before) : history.done.length) > 0 && !saving,
     canRedo: history.undone.length > 0 && !saving,
@@ -357,7 +391,7 @@ export function useEditMode({ client, file, active }) {
     setSketchStep,
     selectInSketch: setSketchSelection,
     setConstruction,
-    startPicking: () => { setError(""); setCommand(null); setPicking(true); },
+    startPicking: () => { setError(""); setCommand(null); setEditing(null); setPicking(true); },
     stopPicking: () => setPicking(false),
     lookNormalTo: () => setNormalTo(tick => tick + 1),
     startSketch, openSketch, sketchOp, exitSketch, cancelSketch,
