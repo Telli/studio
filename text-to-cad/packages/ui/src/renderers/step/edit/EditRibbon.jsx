@@ -12,16 +12,10 @@ import {
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { COMMAND_ICONS } from "./EditCommand.jsx";
+import { COMMAND_ICONS, ExitSketchIcon, SketchIcon } from "./cadIcons.jsx";
 import { EDIT_COMMANDS, buildingText, unitWord } from "./editMode.js";
 import { SKETCH_TOOLS } from "./sketchMode.js";
-import {
-  ConstructionIcon,
-  ExitSketchIcon,
-  NormalToIcon,
-  SKETCH_TOOL_ICONS,
-  SketchToolIcon
-} from "./sketchIcons.jsx";
+import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
 
 // The viewer's tools in the ribbon's groups, by id, in the words a CAD tool uses (Clip is Section).
 const GROUPS = Object.freeze([
@@ -31,7 +25,11 @@ const GROUPS = Object.freeze([
   { title: "Markup", tools: ["draw"] },
 ]);
 const LABELS = Object.freeze({ clip: "Section", references: "Select" });
-const BUTTON_CLASS = "flex h-[3.25rem] min-w-11 flex-col items-center justify-start gap-1 rounded-md px-1 pt-1.5 text-micro leading-none text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-4 [&_svg]:shrink-0";
+// Each command a picture large enough to tell apart, as SolidWorks' CommandManager draws its own:
+// the modeling commands in their colors (`cadIcons.jsx`), the sketch tools in sketch blue, and the
+// view's tools plain, as its view toolbar keeps them.
+const BUTTON_CLASS = "flex h-[3.875rem] min-w-12 flex-col items-center justify-start gap-1 rounded-md px-1 pt-1.5 text-tiny leading-none text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-6 [&_svg]:shrink-0";
+const SKETCH_TINT = "flex text-cad-sketch";
 // A long name wraps to two lines under its icon, as SolidWorks' CommandManager sets them; without
 // names (`compact`) the buttons narrow to their icons.
 const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]";
@@ -223,7 +221,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
         }
         edit.setSketchTool(active ? null : each.id);
       };
-      return { id: each.id, label: each.label, icon: <Icon />, active, disabled: !sketch.state || edit.saving, onClick };
+      return { id: each.id, label: each.label, icon: <span className={SKETCH_TINT}><Icon /></span>, active, disabled: !sketch.state || edit.saving, onClick };
     };
     const curves = new Set((sketch.state?.curves || []).map(curve => curve.id));
     const chosen = edit.sketchSelection.filter(id => curves.has(id));
@@ -238,12 +236,13 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
       { title: "Entities", items: SKETCH_ENTITIES.map(id => sketchItem(tool(id))) },
       { title: "Modify", items: SKETCH_MODIFY.map(id => sketchItem(tool(id))) },
       { title: "Tools", items: [
-        { id: "construction", label: "Construction Geometry", icon: <ConstructionIcon />, active: chosen.length ? allConstruction : edit.construction,
+        { id: "construction", label: "Construction Geometry", icon: <span className={SKETCH_TINT}><ConstructionIcon /></span>,
+          active: chosen.length ? allConstruction : edit.construction,
           disabled: !sketch.state || edit.saving,
           description: chosen.length ? "Makes the selected entities construction geometry, or no longer" : "Draws what comes next as construction geometry",
           onClick: () => (chosen.length ? void edit.sketchOp({ kind: "construction", items: chosen, on: !allConstruction })
             : edit.setConstruction(!edit.construction)) },
-        { id: "normal", label: "Normal To", icon: <NormalToIcon />, onClick: edit.lookNormalTo },
+        { id: "normal", label: "Normal To", icon: <span className={SKETCH_TINT}><NormalToIcon /></span>, onClick: edit.lookNormalTo },
       ] },
       { title: "Features", items: EDIT_COMMANDS.filter(command => command.sketch).map(command => ({
         id: command.id, label: command.label, icon: commandIcon(command.id), disabled: edit.saving || !sketch.state,
@@ -261,7 +260,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   };
   return ribbon("Design", [
     edits,
-    { title: "Sketch", items: [{ id: "sketch", label: sketchLabel, icon: <SketchToolIcon />, active: edit.picking, disabled: modelingOff,
+    { title: "Sketch", items: [{ id: "sketch", label: sketchLabel, icon: <SketchIcon />, active: edit.picking, disabled: modelingOff,
       description: placingWords, onClick: () => (edit.picking ? edit.stopPicking() : onSketch()) }] },
     ...["Create", "Modify"].map(title => ({ title, items: EDIT_COMMANDS.filter(command => command.group === title).map(commandItem) })),
     ...GROUPS.map(group => ({ title: group.title, items: group.tools.map(id => byId.get(id)).filter(Boolean).map(toolItem) })),

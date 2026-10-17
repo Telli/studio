@@ -15,6 +15,7 @@ import {
   REPICKS,
   recordChange,
   redoStep,
+  sketchTreeId,
   suppressNote,
   treeFeatures,
   treeIds,
@@ -45,11 +46,13 @@ const sketchTarget = sketch => ({ file: sketch.file, line: sketch.line, name: sk
  *
  * `status`: `probing` while the server says whether the file has a part script (the view stays as
  * it is), `reading` until the first answer, then `ready`, `none` (no part script beside this file,
- * or no edit mode on the server: nothing to edit, and the view stays as it was) or `error`.
+ * or no edit mode on the server: nothing to edit, and the view stays as it was) or `error`; `idle`
+ * when the part could be edited but is not read, the viewer laid out for the AI instead (`reading`
+ * false: the server is only asked whether it has a part script).
  *
- * @param {{ client: object | null, file: string, active: boolean }} options
+ * @param {{ client: object | null, file: string, active: boolean, reading?: boolean }} options
  */
-export function useEditMode({ client, file, active }) {
+export function useEditMode({ client, file, active, reading = true }) {
   const host = useViewerHost();
   const supported = typeof client?.editState === "function" && typeof client?.editChange === "function";
   // `probing` until the server says whether the file has a part script: the view stays as it is.
@@ -89,6 +92,9 @@ export function useEditMode({ client, file, active }) {
   // The sketch tools' settings, kept for the session as their PropertyManager keeps them: Sketch
   // Fillet's radius, Offset Entities' distance, Reverse direction and Select chain.
   const [sketchSettings, setSketchSettings] = useState(() => ({ filletRadius: "", offsetDistance: "", offsetReverse: false, offsetChain: true }));
+  // What the open command would make, for the view to preview before OK, as SolidWorks draws an
+  // extrude in yellow while its PropertyManager is open: set by the command's panel.
+  const [preview, setPreview] = useState(null);
   const files = useRef(null);
   const probed = useRef("");
   const historyRef = useRef(history);
@@ -100,6 +106,7 @@ export function useEditMode({ client, file, active }) {
   useEffect(() => {
     files.current = null;
     setState(null); setError(""); setChoice(null); setSelected(null); setHistory(emptyHistory()); setCommand(null); setEditing(null);
+    setPreview(null);
     setBar(null);
     setSketch(null); setSketchTool(null); setSketchSelection([]); setPicking(false);
     probed.current = "";
@@ -155,13 +162,15 @@ export function useEditMode({ client, file, active }) {
           if (stopped) return;
           probed.current = file;
           if (!reply?.editable) { setStatus("none"); return; }
-          setStatus(current => (current === "probing" ? "reading" : current));
+          setStatus(current => (current === "probing" ? (reading ? "reading" : "idle") : current));
         } catch {
           if (!stopped) setStatus("none");
           return;
         }
       }
-      if (stopped) return;
+      // Laid out for the AI, the part is not run: only whether it could be edited is known.
+      if (stopped || !reading) return;
+      setStatus(current => (current === "idle" ? "reading" : current));
       if (typeof document === "undefined" || !document.hidden) {
         // While the bar is up, the server says it again with the part, in case the file moved it.
         const bar = barRef.current ? [{ bar: { before: barRef.current.before } }] : [];
@@ -172,7 +181,7 @@ export function useEditMode({ client, file, active }) {
     };
     void ask();
     return () => { stopped = true; clearTimeout(timer); };
-  }, [client, file, active, supported, take]);
+  }, [client, file, active, reading, supported, take]);
 
   // The note the agent reads with the person's next message.
   const tell = useCallback(note => {
@@ -388,9 +397,9 @@ export function useEditMode({ client, file, active }) {
       { record: false, note: changed ? () => sketchNote(current) : null });
     if (reply?.ok) {
       setSketch(null); setSketchTool(null); setSketchSelection([]);
-      const tree = featureTree(reply);
-      const owner = treeFeatures(tree).find(feature => feature.sketch?.file === current.file && feature.sketch?.line === current.line);
-      if (owner) setSelected(owner.kind === "Sketch" ? owner.id : owner.sketch.id);
+      // The sketch made stays selected, as SolidWorks leaves it, for the feature to take it.
+      const id = sketchTreeId(featureTree(reply), current);
+      if (id) setSelected(id);
     }
     return reply;
   }, [send]);
@@ -421,8 +430,9 @@ export function useEditMode({ client, file, active }) {
     select: setSelected,
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
-    open: id => { setError(""); setPicking(false); endEditing(); setCommand(id); },
-    close: () => { setCommand(null); endEditing(); },
+    open: id => { setError(""); setPicking(false); endEditing(); setPreview(null); setCommand(id); },
+    close: () => { setCommand(null); endEditing(); setPreview(null); },
+    preview, setPreview,
     // In sketch mode, Undo takes back the session's own changes only.
     canUndo: (sketch ? changesSince(history, sketch.before) : history.done.length) > 0 && !saving,
     canRedo: history.undone.length > 0 && !saving,

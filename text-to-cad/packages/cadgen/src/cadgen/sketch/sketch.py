@@ -601,7 +601,19 @@ class Sketch:
                             "literal": _literal(r.raw), "redundant": r.name in redundant,
                             "data": {key: value.name if isinstance(value, Point) else value for key, value in r.data.items()}, **where(r)}
                            for r in self.relations if r.dimension],
+            "loops": self._loops(),
         }
+
+    def _loops(self) -> list:
+        """The sketch's closed loops as outlines in its own units, for an editor to shade the
+        profile a feature takes (a hole is a loop inside another, so an even-odd fill shows it).
+        None where the profile is open or branches: the sketch is still drawn, only not shaded."""
+        from .regions import loops
+
+        try:
+            return [[[round(x, 6), round(y, 6)] for x, y in loop.polygon] for loop in loops(self)]
+        except SketchError:
+            return []
 
     def __repr__(self) -> str:
         return f"Sketch({self.name!r}, {len(self.curves)} curves, {len(self.relations)} relations)"

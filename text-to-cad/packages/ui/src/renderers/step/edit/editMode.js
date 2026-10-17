@@ -117,6 +117,16 @@ export function treeSketch(tree, id) {
   return null;
 }
 
+/**
+ * The design tree's id for the sketch a view draws (`{ file, line }`): the sketch's own row, or the
+ * row under the feature that takes it. Null for a sketch the tree does not show.
+ */
+export function sketchTreeId(tree, view) {
+  const owner = treeFeatures(tree).find(feature => feature.sketch && feature.sketch.file === view?.file && feature.sketch.line === view?.line);
+  if (!owner) return null;
+  return owner.kind === "Sketch" ? owner.id : owner.sketch.id;
+}
+
 /** A constrained sketch as the part's last trace solved it, by where its script makes it. */
 export const sketchView = (state, sketch) => (state?.sketches || []).find(view => sketch && view.file === sketch.file && view.line === sketch.line) || null;
 

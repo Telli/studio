@@ -143,6 +143,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   selection to the part by its geometry and writes a command's line); the frame is
   `text-to-cad/packages/ui/src/renderers/step/edit/`. The CAD skill's `references/edit-mode.md`
   tells the agent how to write parts that edit well.
+- **Manual or AI.** A switch in the viewer's navbar lays a part out for modeling it by hand (edit
+  mode) or for the AI (text-to-cad's viewer as Jake built it, where a selection goes to the agent
+  through Quick Edit, which Manual leaves out). By hand, what a command uses is plain: a sketch is
+  picked on the model or in the design tree and shaded in the selection blue with its name, an
+  extrude is previewed in amber (a cut in red), and OK and Cancel are a green check and a red cross
+  at the top of the panel and again in the model view's corner. The ribbon draws each modeling
+  command as a picture of what it does to a block, in the CAD colors of `tokens.css`.
 - **SolidCraft, on request.** `STUDIO_SOLIDCRAFT=1`, with SolidCraft (a parametric CAD engine,
   Apache-2.0) in Applications, adds `studio-plugins/solidcraft`: its engine headless per thread
   behind an editor page of its own, for `.solidcraft` designs (the overview lists a design and its STEP as

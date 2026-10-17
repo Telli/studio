@@ -98,10 +98,13 @@ function NavbarControl({ label, disabled = false, onClick, children }) {
  *   viewport rather than over it, so a camera fit still centres in what is visible. The tool
  *   stack's panels stay over the model. Both are put away with the rest of the tools (loading,
  *   preview, a compact view), and the dock in a view too narrow for it and the model.
+ *   `navbarControls`: the renderer's own controls at the navbar's right end, before Display, put
+ *   away with the view's (edit mode's switch between modeling by hand and asking the AI).
  */
 export default function RendererShell({ shell, tools, playback = null, toolPanels = null, references = null, onClearReferences = null, copySelection = null, contextMenuItems = null,
   onContextMenuOpenChange = null, viewportOverlay = null,
-  alertBody = null, alertStartsDismissed = false, frameProvider = null, onCanvasPointerDown = null, ribbon = null, leftDock = null }) {
+  alertBody = null, alertStartsDismissed = false, frameProvider = null, onCanvasPointerDown = null, ribbon = null, leftDock = null,
+  navbarControls = null }) {
   const frame = shell.frame;
   const mobile = useViewerMobile();
   const { view, resolvedScene, viewerLoading, scene } = frame;
@@ -282,6 +285,7 @@ export default function RendererShell({ shell, tools, playback = null, toolPanel
                   loads or after it failed to, not in a host that shows the view small, and not in
                   Preview, which has the page to itself. */}
               {view.navbarSlot && shell.previewable && !toolsHidden && !previewing ? createPortal(<>
+                {navbarControls}
                 <DisplayPopover open={displayOpen} onOpenChange={setDisplayOpen} disabled={shell.idle} boundary={frame.hostElement}>{frame.display}</DisplayPopover>
                 <NavbarControl label="Preview" disabled={shell.idle} onClick={enterPreview}><Maximize2 className="size-3.5" aria-hidden="true" /></NavbarControl>
               </>, view.navbarSlot) : null}

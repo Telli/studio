@@ -154,6 +154,19 @@ class State(unittest.TestCase):
         self.assertTrue(all(d["file"].endswith("test_sketch.py") and d["line"] > 0 for d in state["dimensions"]))
         self.assertIn("Horizontal1", [r["id"] for r in state["relations"]])
 
+    def test_its_closed_loops_come_as_outlines_to_shade_the_profile_a_feature_takes(self):
+        s, *_ = plate()
+        loops = s.state()["loops"]
+        # The plate's outline and its hole: an even-odd fill shades the plate around the hole.
+        self.assertEqual(len(loops), 2)
+        corners = {tuple(point) for point in loops[1]}
+        self.assertEqual(corners, {(0.0, 0.0), (70.0, 0.0), (70.0, 25.0), (0.0, 25.0)})
+        for x, y in loops[0]:
+            self.assertAlmostEqual(math.hypot(x - 35, y - 12.5), 4.0, places=5)
+        open_sketch = Sketch("Open")
+        open_sketch.polyline((0, 0), (10, 0), (10, 5))
+        self.assertEqual(open_sketch.state()["loops"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

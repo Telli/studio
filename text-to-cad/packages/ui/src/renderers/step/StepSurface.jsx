@@ -130,9 +130,11 @@ import { referenceLabel, referencesFromCopyText, resolveSelectorSelection } from
 import { applySourceAppearanceToMeshData, sourceAppearanceGeometry } from "@text-to-cad/core/common/sourceSidecar.js";
 import EditBrowser from "./edit/EditBrowser.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
+import EditLayoutSwitch from "./edit/EditLayoutSwitch.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
 import SketchOverlay from "./edit/SketchOverlay.jsx";
 import SketchesLayer from "./edit/SketchesLayer.jsx";
+import { useEditLayout } from "./edit/editLayout.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
 import {
   ORIGIN_PLANES,
@@ -146,6 +148,7 @@ import {
   selectionDimensions,
   selectionItems,
   sizeName,
+  sketchTreeId,
   sketchView,
   treeSketch
 } from "./edit/editMode.js";
@@ -3137,9 +3140,17 @@ function StepSurfaceBody({ view, data }) {
   // sizes in a design tree at the viewer's left, the selected feature's dimensions on the model,
   // and the tools in a ribbon across the top. A model with none keeps the view as it is. While a
   // sketch is edited (`edit/SketchOverlay.jsx`) the model is not picked: presses are the sketch's.
-  const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading });
-  // Laid out for editing only once the server says the file has a part script.
-  const editing = edit.status !== "none" && edit.status !== "probing";
+  // How a part script's model is laid out (`edit/editLayout.js`, switched in the navbar): for
+  // modeling it by hand, or for asking the AI, which is the view as it is. Laid out for the AI, the
+  // part is not read.
+  const [editLayout, setEditLayout] = useEditLayout();
+  const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading, reading: editLayout === "manual" });
+  // Laid out for editing only once the server says the file has a part script, and only by hand.
+  const editable = edit.status !== "none" && edit.status !== "probing";
+  const editing = editable && editLayout === "manual";
+  // The model view's top-right corner, where an open command's or sketch's OK and Cancel are drawn
+  // again (`edit/ConfirmButtons.jsx`), as SolidWorks' confirmation corner.
+  const [confirmCorner, setConfirmCorner] = useState(null);
   useEditShortcuts(edit, editing);
   const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
   const editTree = useMemo(() => featureTree(edit.state), [edit.state]);
@@ -3378,6 +3389,18 @@ function StepSurfaceBody({ view, data }) {
   const selectionActionVisible = selectionToolActive && selectionCount > 0 && !stepUpdateInProgress && !referenceSelectionPending
     && !referenceSelectionUnavailable && !topologySelectionDeferred && !rollbackTree;
   const copySelection = selectionActionVisible ? copySelectedReferences : null;
+  // A sketch is picked on the model as in the design tree, with Select in hand and nothing else
+  // asking for a pick: the sketch an extrude takes (inside its outline too, while it waits for
+  // one), or one to work on next. The part's extent is how far Through All goes in a preview.
+  const sketchFeature = Boolean(edit.command && editCommand(edit.command)?.sketch);
+  const sketchesPickable = editing && selectionToolActive && !edit.sketch && !edit.picking && !edit.editing && (!edit.command || sketchFeature);
+  const selectEdit = edit.select;
+  const pickSketch = useCallback(view => {
+    const id = sketchTreeId(editTree, view);
+    if (id) selectEdit(id);
+  }, [editTree, selectEdit]);
+  const partBounds = edit.state?.bounds;
+  const partExtent = partBounds ? Math.hypot(...partBounds[1].map((value, axis) => value - partBounds[0][axis])) : 0;
   const selectionCopy = useMemo(() => copySelection ? { label: copyButtonLabel, shortcut: shell.frame.copyShortcut, onCopy: copySelection } : null,
     [copySelection, copyButtonLabel, shell.frame.copyShortcut]);
 
@@ -3436,14 +3459,17 @@ function StepSurfaceBody({ view, data }) {
   });
 
   return <RendererShell shell={shell} tools={tools} playback={viewportAnimation} toolPanels={<>{stepPanels}{modelEffects.panels}</>}
-    references={selectionActionVisible ? promptSelection : EMPTY_LIST} onClearReferences={clearAssemblySelection} copySelection={copySelection}
+    // Modeling by hand, nothing asks the AI: Quick Edit is the AI layout's.
+    references={selectionActionVisible && !editing ? promptSelection : EMPTY_LIST} onClearReferences={clearAssemblySelection} copySelection={copySelection}
+    navbarControls={editable ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
+      disabled={Boolean(edit.command || edit.sketch || edit.picking || edit.saving)} /> : null}
     contextMenuItems={selectionToolActive
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}
     onContextMenuOpenChange={handleViewportContextMenuOpenChange}
     ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
       sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)} /> : null}
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
-      onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} /> : null}
+      onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} corner={confirmCorner} /> : null}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
       return <>
@@ -3453,7 +3479,10 @@ function StepSurfaceBody({ view, data }) {
           choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
           onChoose={edit.choose} onDismissChoice={edit.dismissChoice} /> : null}
         {editing && edit.sketch ? <SketchOverlay viewport={viewport} edit={edit} units={edit.state?.units || ""} /> : null}
-        {editing && shownSketches.length ? <SketchesLayer viewport={viewport} sketches={shownSketches} selected={selectedTreeSketch} /> : null}
+        {editing && shownSketches.length ? <SketchesLayer viewport={viewport} sketches={shownSketches} selected={selectedTreeSketch}
+          onPick={sketchesPickable ? pickSketch : null} profiles={sketchFeature && !selectedTreeSketch} preview={edit.preview}
+          through={partExtent} /> : null}
+        {editing ? <div ref={setConfirmCorner} className="pointer-events-auto absolute right-2 top-2 z-30" data-cad-confirm-corner="" /> : null}
       </>;
     }} />;
 }

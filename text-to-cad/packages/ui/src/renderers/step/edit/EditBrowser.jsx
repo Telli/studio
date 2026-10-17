@@ -43,10 +43,11 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
  *   `references`: the faces and edges selected on the model; `onOpenPart`: a part of an assembly
  *   opened on its own, to be modeled (SolidWorks' Open Part), and `backTo` ({ title, open }) the
  *   assembly a part was opened from; `onEditSketch`: a sketch's
- *   double-click in the tree; `onPlane`: an origin plane picked for a new sketch.
+ *   double-click in the tree; `onPlane`: an origin plane picked for a new sketch; `corner`: the
+ *   model view's top-right corner, where the open panel draws its OK and Cancel again.
  */
 export default function EditBrowser({ edit, names, tree, references = [], onEditSketch = () => {}, onPlane = () => {}, onOpenPart = null,
-  backTo = null }) {
+  backTo = null, corner = null }) {
   const [open, setOpen] = useState(true);
   const { state, status } = edit;
   const rows = state?.rows || [];
@@ -75,8 +76,9 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
       <span className="min-w-0 flex-1">{edit.error}</span>
       <button type="button" aria-label="Dismiss" className={TOOL_PANEL_BUTTON_CLASS} onClick={edit.dismissError}><X className="size-3" aria-hidden="true" /></button>
     </div> : null}
-    {edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} />
-      : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree} /> : null}
+    {edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} corner={corner} />
+      : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree}
+        corner={corner} /> : null}
     <ScrollArea className="min-h-0 flex-1">
       <EditTree edit={edit} tree={tree} onEditSketch={onEditSketch} onOpenPart={onOpenPart} backTo={backTo} />
       {component && !edit.command && !edit.sketch ? <FileSheetSettingsSection title={component.title} sectionId="edit-component">

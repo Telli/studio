@@ -10,7 +10,8 @@ const NAMES = [{ key: 'block.py:6', kind: 'Box', title: 'Box1', name: '' }, { ke
 const EDGE = { selectorType: 'edge', displaySelector: 'e3', pickData: { curveType: 'line', center: [0, 5, 2], length: 20 } };
 
 function edit(command: string, selected = 'block.py:6') {
-  return { command, selected, status: 'ready', saving: false, state: { units: 'mm', rows: ROWS }, run: vi.fn(), close: vi.fn() };
+  return { command, selected, status: 'ready', saving: false, state: { units: 'mm', rows: ROWS }, run: vi.fn(), close: vi.fn(),
+    select: vi.fn(), setPreview: vi.fn() };
 }
 
 it('a fillet waits for edges, then OK writes it with the radius typed', async () => {

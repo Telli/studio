@@ -9,13 +9,13 @@ import {
   FileSheetValueInput
 } from "../../kit/inspector/FileSheet.js";
 import { TOOL_PANEL_BUTTON_CLASS } from "../../kit/tools/ToolPanel.jsx";
+import { SketchIcon } from "./cadIcons.jsx";
+import { ConfirmButtons, ConfirmCorner } from "./ConfirmButtons.jsx";
 import { ORIGIN_PLANES } from "./editMode.js";
-import { SketchIcon } from "./featureIcons.jsx";
 import { formatValue, MODIFY_TOOLS, relationsFor, relationsOn, sketchTool, toolSize } from "./sketchMode.js";
 
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
-const FOOTER_BUTTON_CLASS = "flex h-7 flex-1 items-center justify-center text-tiny focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45 disabled:opacity-50";
 const CHIP_CLASS = "rounded-md border border-border px-2 py-0.5 text-tiny text-foreground hover:bg-accent/70 disabled:opacity-50";
 
 /** A sketch tool's size, typed over as SolidWorks' PropertyManager takes it: a number, or a size's name. */
@@ -28,25 +28,24 @@ function SizeRow({ label, value, unit, disabled, onCommit }) {
 }
 
 function Header({ title, detail }) {
-  return <div className="flex h-8 items-center gap-1.5 px-2">
-    <span className="flex shrink-0 text-muted-foreground"><SketchIcon /></span>
+  return <div className="flex items-center gap-1.5 px-2 pb-1 pt-2">
+    <SketchIcon className="size-5 shrink-0" />
     <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">{title}</h2>
     {detail ? <span className="shrink-0 truncate text-tiny text-muted-foreground">{detail}</span> : null}
   </div>;
 }
 
 /** The Sketch command waiting for its plane, as SolidWorks asks for one: the origin's three, or a flat face. */
-function PlanePicker({ edit, onPlane }) {
+function PlanePicker({ edit, onPlane, corner }) {
   return <div role="dialog" aria-label="Sketch" className="flex shrink-0 flex-col border-b border-border" data-cad-sketch-picker=""
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopPicking(); } }}>
     <Header title="Sketch" />
+    <ConfirmButtons onCancel={edit.stopPicking} className="px-2 pb-2" />
+    <ConfirmCorner node={corner} onCancel={edit.stopPicking} />
     <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>Select a plane to sketch on: one of these, a plane in the design tree, or a flat face of the model.</p>
     <div className="flex flex-col gap-1 px-2 pb-2">
       {ORIGIN_PLANES.map(plane => <button key={plane} type="button" className={cn(CHIP_CLASS, "text-left")} disabled={edit.saving}
         onClick={() => onPlane(plane)}>{`${plane} Plane`}</button>)}
-    </div>
-    <div className="flex border-t border-border">
-      <button type="button" className={`${FOOTER_BUTTON_CLASS} text-muted-foreground hover:bg-accent/70 hover:text-foreground`} onClick={edit.stopPicking}>Cancel</button>
     </div>
   </div>;
 }
@@ -58,12 +57,15 @@ function PlanePicker({ edit, onPlane }) {
  * relations it can take (Add Relations), the ones it has (Existing Relations, each deleted with its
  * X), a dimension's value, and For construction. The sketch tools' own settings sit with them:
  * Sketch Fillet's radius, Offset Entities' distance with Reverse direction and Select chain, and
- * the entities Mirror Entities has. Exit Sketch at its foot builds the part again.
+ * the entities Mirror Entities has. At its top, and again in the model view's corner (`corner`),
+ * Exit Sketch (a green check) builds the part again and Discard Changes (a red cross) leaves it as
+ * it was.
  *
- * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onPlane(plane: string): void }} props
+ * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onPlane(plane: string): void,
+ *   corner?: Element | null }} props
  */
-export default function SketchPanel({ edit, onPlane }) {
-  if (!edit.sketch) return edit.picking ? <PlanePicker edit={edit} onPlane={onPlane} /> : null;
+export default function SketchPanel({ edit, onPlane, corner = null }) {
+  if (!edit.sketch) return edit.picking ? <PlanePicker edit={edit} onPlane={onPlane} corner={corner} /> : null;
   const { sketch } = edit;
   const state = sketch.state;
   const units = edit.state?.units || "";
@@ -83,10 +85,14 @@ export default function SketchPanel({ edit, onPlane }) {
   const status = state?.status || "";
   const statusText = !state ? "Not solved" : status === "Under defined"
     ? `Under defined, ${state.dof} ${state.dof === 1 ? "way" : "ways"} it can still move` : status;
+  const finish = { onOk: () => void edit.exitSketch(), onCancel: () => void edit.cancelSketch(), okLabel: "Exit Sketch",
+    cancelLabel: "Discard Changes", busy: disabled };
   return <div role="dialog" aria-label={sketch.name} className="flex shrink-0 flex-col border-b border-border" data-cad-sketch-panel=""
     onKeyDown={event => { if (event.key === "Escape" && edit.sketchTool) { event.stopPropagation(); edit.setSketchTool(null); } }}>
     <Header title={`Editing ${sketch.name}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane` : ""} />
-    <p className={cn(FILE_SHEET_STATUS_TEXT_CLASSES, "pb-1.5", STATUS_CLASSES[status])} aria-live="polite">{statusText}</p>
+    <ConfirmButtons {...finish} className="px-2 pb-1.5" />
+    <ConfirmCorner node={corner} {...finish} />
+    <p className={cn(FILE_SHEET_STATUS_TEXT_CLASSES, "pb-1.5", STATUS_CLASSES[status])} aria-live="polite">{edit.saving ? "Solving" : statusText}</p>
     {sketch.error && !state ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2 text-destructive`}>{sketch.error}</p> : null}
     {tool ? <FileSheetSettingsSection title={tool.label} sectionId="sketch-tool">
       <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">{tool.prompts[Math.min(edit.sketchStep, tool.prompts.length - 1)]}</p>
@@ -146,11 +152,5 @@ export default function SketchPanel({ edit, onPlane }) {
       {selectedCurves.length ? <FileSheetCheckboxRow label="For construction" checked={allConstruction} disabled={disabled}
         onCheckedChange={value => void edit.sketchOp({ kind: "construction", items: selectedCurves, on: Boolean(value) })} /> : null}
     </FileSheetSettingsSection> : null}
-    <div className="flex border-t border-border">
-      <button type="button" className={`${FOOTER_BUTTON_CLASS} text-muted-foreground hover:bg-accent/70 hover:text-foreground`} disabled={disabled}
-        onClick={() => void edit.cancelSketch()}>Discard Changes</button>
-      <button type="button" className={`${FOOTER_BUTTON_CLASS} border-l border-border text-foreground hover:bg-accent/70`} disabled={disabled}
-        onClick={() => void edit.exitSketch()}>{edit.saving ? "Solving" : "Exit Sketch"}</button>
-    </div>
   </div>;
 }
