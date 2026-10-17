@@ -147,6 +147,7 @@ import {
   treeSketch
 } from "./edit/editMode.js";
 import { useEditMode } from "./edit/useEditMode.js";
+import { useEditShortcuts } from "./edit/useEditShortcuts.js";
 // The selection filters that pick faces or edges, never the part.
 const TOPOLOGY_FILTERS = new Set(["faces", "edges"]);
 const EMPTY_MATERIAL_OVERRIDES = Object.freeze({});
@@ -3113,6 +3114,7 @@ function StepSurfaceBody({ view, data }) {
   const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading });
   // Laid out for editing only once the server says the file has a part script.
   const editing = edit.status !== "none" && edit.status !== "probing";
+  useEditShortcuts(edit, editing);
   const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
   const editTree = useMemo(() => featureTree(edit.state), [edit.state]);
   const editDimensions = useMemo(() => (edit.status === "ready" && !edit.sketch ? selectionDimensions(edit.state, editTree, edit.selected) : EMPTY_LIST),
