@@ -44,6 +44,12 @@ export interface CadViewerProps<Model extends LibraryModel = LibraryModel> {
    * no home, no explorer, and no link to another file.
    */
   library?: ModelLibrarySource<Model>;
+  /**
+   * Opens another file (absolute) in a view of the host's own, for a view with no library that
+   * shows its file alone but whose host can open others beside it (Studio's tabs): a renderer's
+   * link, a part opened from its assembly. Absent, such a view opens no other file.
+   */
+  openElsewhere?(file: string): void;
   /** Keep the library's picture of a model: the file on screen once it has settled, and on the home a card's. */
   onThumbnail?(png: Blob, file: string): Promise<unknown>;
   /** The host's controls in the Display panel (the web's appearance). */
@@ -85,7 +91,7 @@ const reportError = (error: Error) => console.error(error);
  * navigates: showing a file, or the home, is the host's `onShow`.
  */
 export function CadViewer<Model extends LibraryModel = LibraryModel>({ client, host, tabStore, live, file, onShow, onShown,
-  library, onThumbnail, displayActions, appSettings, features, notice, update, fullSize, history, onError = reportError }: CadViewerProps<Model>) {
+  library, openElsewhere, onThumbnail, displayActions, appSettings, features, notice, update, fullSize, history, onError = reportError }: CadViewerProps<Model>) {
   const preferences = tabStore.settings;
   // One viewer renderer per file family, sharing one client and the tab's preferences; each
   // lazy-loads only its own code.
@@ -136,7 +142,10 @@ export function CadViewer<Model extends LibraryModel = LibraryModel>({ client, h
   }, []);
   const homed = Boolean(library);
   const home = useCallback(() => latest.current.onShow(''), []);
-  const viewerHost = useMemo<ViewerHost>(() => ({ ...host, navigation: homed ? { openFile, home } : {} }), [host, openFile, home, homed]);
+  const viewerHost = useMemo<ViewerHost>(() => ({
+    ...host,
+    navigation: homed ? { openFile, home } : openElsewhere ? { openFile: (next: string) => { if (next) openElsewhere(normalizePath(next)); } } : {},
+  }), [host, openFile, home, homed, openElsewhere]);
 
   // The home's pictures for cards without a current one, drawn out of sight one at a time and kept as
   // the file on screen's are. A model whose display is not built yet is left to its placeholder: the

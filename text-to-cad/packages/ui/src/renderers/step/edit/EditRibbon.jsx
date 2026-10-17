@@ -177,7 +177,8 @@ function RibbonGroups({ groups }) {
  *   `onCommand` opens a command (the surface turns Select to what it picks); `onSketch` is the
  *   Sketch button (`sketchLabel`: "Edit Sketch" while a sketch is selected).
  */
-export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id), onSketch = () => edit.startPicking(), sketchLabel = "Sketch" }) {
+export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id), onSketch = () => edit.startPicking(), sketchLabel = "Sketch",
+  canOpenParts = false }) {
   const byId = new Map(tools.map(tool => [tool.id, tool]));
   const grouped = new Set(GROUPS.flatMap(group => group.tools));
   const others = tools.filter(tool => !grouped.has(tool.id));
@@ -191,7 +192,9 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   // SolidWorks models a part in its own window.
   const placing = Boolean(edit.state?.components?.length);
   const modelingOff = commandsIdle || placing;
-  const placingWords = placing ? "An assembly places its parts. Right-click a part in the design tree and choose Open Part to model it." : undefined;
+  const placingWords = !placing ? undefined : canOpenParts
+    ? "An assembly places its parts. Double-click a part in the design tree to open it and model it."
+    : "An assembly places its parts. Ask the agent to change a part.";
   const commandIcon = id => { const Icon = COMMAND_ICONS[id]; return <Icon aria-hidden="true" />; };
   const toolItem = tool => ({ id: tool.id, label: LABELS[tool.id] || tool.label, icon: tool.icon, active: tool.active === true,
     disabled: tool.disabled, description: tool.description, onClick: () => tool.onSelect() });

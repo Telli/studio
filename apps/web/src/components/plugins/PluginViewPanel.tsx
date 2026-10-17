@@ -1,8 +1,10 @@
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { PluginAppSurface } from "~/rightPanelStore";
 import { TitleBlock } from "../workbench/TitleBlock";
+import { useOpenInWorkbench } from "../workbench/useOpenInWorkbench";
 import { PluginViewFrame } from "./PluginViewFrame";
 
 const isAbsolute = (path: string) => path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path);
@@ -35,6 +37,12 @@ export default function PluginViewPanel(props: {
     if (opened?.id !== surface.id) setOpened({ id: surface.id, file: named });
   }, [opened?.id, surface.id, named]);
   const file = opened?.id === surface.id ? opened.file : named;
+  // A file the view asks for (a CAD view's Open Part) opens beside the thread in a tab of its own.
+  const threadRef = useMemo(
+    () => scopeThreadRef(props.environmentId, props.threadId),
+    [props.environmentId, props.threadId],
+  );
+  const openInWorkbench = useOpenInWorkbench(threadRef);
   return (
     <>
       <TitleBlock
@@ -57,6 +65,7 @@ export default function PluginViewPanel(props: {
         }}
         onSendMessage={props.onSendMessage}
         onAddContext={props.onAddContext}
+        onOpenFile={openInWorkbench}
       />
     </>
   );

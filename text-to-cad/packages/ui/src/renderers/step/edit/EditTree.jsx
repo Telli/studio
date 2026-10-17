@@ -134,7 +134,9 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   // A row's menu: Edit Feature on a feature a command made, Edit Sketch where it has a sketch to
   // edit, and Delete on a feature or a sketch of its own (a feature's sketch goes with its feature).
   const busy = disabled || Boolean(edit.sketch);
-  const featureItem = feature => (feature.edit ? [{ id: "edit-feature", label: "Edit Feature", disabled: busy, onSelect: () => edit.editFeature(feature) }] : []);
+  // Edit Feature works on a part's own body: in an assembly, a part is opened to edit its features.
+  const editable = feature => Boolean(feature.edit) && !tree.assembly;
+  const featureItem = feature => (editable(feature) ? [{ id: "edit-feature", label: "Edit Feature", disabled: busy, onSelect: () => edit.editFeature(feature) }] : []);
   const suppressItem = (feature, separatorBefore) => ({ id: "suppress", label: feature.suppressed ? "Unsuppress" : "Suppress", disabled: busy,
     separatorBefore, onSelect: () => void edit.suppress(feature.id, tree, !feature.suppressed) });
   // A suppressed feature, and the sketch under it, greyed as SolidWorks greys them; so are the
@@ -176,7 +178,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
       <Row key={feature.id} id={feature.id} depth={depth} title={feature.title} detail={detail} muted={grey}
         icon={grey ? greyed(<FeatureIcon kind={feature.kind} />) : <FeatureIcon kind={feature.kind} />}
         expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null} slot={slot < 0 ? null : slot}
-        onActivate={feature.edit && !busy ? () => edit.editFeature(feature) : null}
+        onActivate={editable(feature) && !busy ? () => edit.editFeature(feature) : null}
         menu={[...edits, ...rollItems(feature), suppressItem(feature, true), deleteItem(feature.id, true)]} {...rowProps} />,
       branch && expanded ? sketchRow(feature.sketch, depth + 1, null, grey) : null,
     ];

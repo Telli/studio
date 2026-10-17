@@ -91,6 +91,8 @@ export function PluginViewFrame(props: {
    * viewer's "Add to chat") into the composer; without it the view is told no.
    */
   readonly onAddContext?: ((content: ReadonlyArray<unknown>) => void) | undefined;
+  /** Opens a file beside the thread in a view of its own (a CAD view's Open Part); without it the view is told no. */
+  readonly onOpenFile?: ((path: string) => void) | undefined;
 }) {
   const { target } = props;
   const theme = useHtmlRenderTheme();
@@ -316,6 +318,16 @@ export function PluginViewFrame(props: {
         }, 0);
       },
       requestDisplayMode: async () => "inline",
+      ...(props.onOpenFile === undefined
+        ? {}
+        : {
+            openFile: async (path: string) => {
+              const open = latest.current.props.onOpenFile;
+              if (open === undefined)
+                throw new McpAppHostRefusal("Files open only beside a thread.");
+              open(path);
+            },
+          }),
       downloadFile: async (files) => {
         await ask(`Save ${files.map((file) => file.name).join(", ")} from ${target.title}?`);
         for (const file of files) {

@@ -378,6 +378,43 @@ describe("makeMcpAppHost", () => {
     expect(sent.find((m) => m.id === 4)?.error).toMatchObject({ code: -32602 });
   });
 
+  it("opens a file beside the thread only where the host can, and says so", async () => {
+    const opened: Array<string> = [];
+    const { host, sent } = setup({ openFile: async (path) => void opened.push(path) });
+    initialize(host);
+    const capabilities = (
+      sent[0]?.result as { hostCapabilities: Record<string, unknown> } | undefined
+    )?.hostCapabilities;
+    expect(capabilities?.openFiles).toEqual({});
+    host.receive({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "studio/open-file",
+      params: { path: "/project/parts/tray.step" },
+    });
+    host.receive({ jsonrpc: "2.0", id: 2, method: "studio/open-file", params: {} });
+    await flush();
+    expect(opened).toEqual(["/project/parts/tray.step"]);
+    expect(sent.find((m) => m.id === 1)?.result).toEqual({});
+    expect(sent.find((m) => m.id === 2)?.error).toMatchObject({ code: -32602 });
+
+    // A host that opens no files offers none, and refuses the method.
+    const plain = setup();
+    initialize(plain.host);
+    const plainCapabilities = (
+      plain.sent[0]?.result as { hostCapabilities: Record<string, unknown> } | undefined
+    )?.hostCapabilities;
+    expect(plainCapabilities?.openFiles).toBeUndefined();
+    plain.host.receive({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "studio/open-file",
+      params: { path: "/project/parts/tray.step" },
+    });
+    await flush();
+    expect(plain.sent.find((m) => m.id === 3)?.error).toMatchObject({ code: -32601 });
+  });
+
   it("tears down after the app answers, or after the timeout, and passes on its own request", async () => {
     vi.useFakeTimers();
     try {

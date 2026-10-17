@@ -116,6 +116,11 @@ export interface McpAppHostOptions {
    */
   readonly requestDisplayMode: (mode: McpAppDisplayMode) => Promise<McpAppDisplayMode>;
   readonly downloadFile: (files: ReadonlyArray<McpAppDownload>) => Promise<void>;
+  /**
+   * Opens a file, by its absolute path, in a view of its own beside the thread (Studio's
+   * `studio/open-file`, a CAD view's Open Part). Absent, the app is not offered it.
+   */
+  readonly openFile?: ((path: string) => Promise<void>) | undefined;
   /** The app asked to be closed (`ui/notifications/request-teardown`). */
   readonly onRequestTeardown: () => void;
   readonly onSizeChanged: (size: { readonly width?: number; readonly height?: number }) => void;
@@ -251,6 +256,7 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
             message: { text: {} },
             updateModelContext: { text: {}, structuredContent: {} },
             downloadFile: {},
+            ...(options.openFile === undefined ? {} : { openFiles: {} }),
             sandbox: {
               ...(options.app.csp === undefined ? {} : { csp: options.app.csp }),
               ...(options.app.permissions === undefined
@@ -377,6 +383,20 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
               error instanceof McpAppHostRefusal ? { isError: true } : Promise.reject(error),
           ),
         );
+        return;
+      }
+      case "studio/open-file": {
+        const path = params.path;
+        const open = options.openFile;
+        if (open === undefined) {
+          fail(id, -32601, `Method not found: ${method}`);
+          return;
+        }
+        if (typeof path !== "string" || path.trim() === "") {
+          fail(id, -32602, "studio/open-file needs a path.");
+          return;
+        }
+        answer(id, () => open(path).then(() => ({})));
         return;
       }
       default:

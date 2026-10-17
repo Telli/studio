@@ -128,8 +128,12 @@ export default function ModelView({ launch, sequence, alone = false, bridge, cli
     environment: { colorScheme, platform },
   }), [client, source, fileActions, promptContext, attachments, links, colorScheme, platform]);
 
+  // A file tab shows its file alone, but a host that opens files beside the thread (Studio) opens
+  // another in a tab of its own: a part opened from its assembly.
+  const openElsewhere = useMemo(() => (alone && bridge.hostCapabilities.openFiles
+    ? (path: string) => void bridge.request('studio/open-file', { path }).catch(() => {}) : undefined), [alone, bridge]);
   // The file on screen joins the library every CAD view shares, with its picture.
-  return <CadViewer client={client} host={host} tabStore={tabStore} live={live} file={file} onShow={navigate}
+  return <CadViewer client={client} host={host} tabStore={tabStore} live={live} file={file} onShow={navigate} openElsewhere={openElsewhere}
     onShown={path => { if (path) void client.changeRecents({ action: 'open', path }).catch(() => {}); }}
     library={library} appSettings={appSettings} features={features} update={update} fullSize={fullSize} history={viewerHistory}
     onThumbnail={(png, pictured) => client.keepThumbnail(png, pictured)} />;

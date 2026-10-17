@@ -3441,7 +3441,7 @@ function StepSurfaceBody({ view, data }) {
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}
     onContextMenuOpenChange={handleViewportContextMenuOpenChange}
     ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
-      sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} /> : null}
+      sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)} /> : null}
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} /> : null}
     viewportOverlay={viewport => {
