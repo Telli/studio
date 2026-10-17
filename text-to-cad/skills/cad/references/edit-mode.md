@@ -37,6 +37,9 @@ by hand" below.
 - **Profiles as `Rectangle`, `RectangleRounded`, `Box` or `Cylinder`, placed with `Pos(...)`**, get
   dimensions drawn on the model. Other shapes still show their sizes in the history.
 - A unit constant (`INCH = 25.4`) is fine: lengths show in the project's units.
+- **Keep a project's scripts inside its folder**: the folder of its git repository, or the one its
+  Studio project lists. Edit mode reads only those files, so an assembly placing parts from a
+  folder outside it shows nothing, and says so.
 
 ## What the commands write
 

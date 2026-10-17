@@ -7,11 +7,14 @@ would build is checked through ``dependents``.
 
 from __future__ import annotations
 
+import json
+import os
 import shutil
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from cadgen.edit import service as edit
 
@@ -40,15 +43,66 @@ PLATE = {
 }
 
 
-def project(files: dict[str, str], hidden: bool = False) -> Path:
+# An assembly in a folder of its own, placing parts it imports from beside it. Its module names are
+# the plate's: a part another trace left loaded must not stand in for a project's own.
+STACK = {
+    "parts/sizes.py": """
+        WIDTH = 20
+    """,
+    "parts/plate.py": """
+        from build123d import Box
+        from cadgen import step
+        from sizes import WIDTH
+
+        @step
+        def plate():
+            return Box(WIDTH, 10, 2)
+    """,
+    "parts/pin.py": """
+        from build123d import Cylinder, Pos
+        from cadgen import step
+
+        @step
+        def pin():
+            return Pos(0, 0, 4) * Cylinder(2, 6)
+    """,
+    "assemblies/stack.py": """
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "parts"))
+        from build123d import Compound
+        from cadgen import step
+        from pin import pin
+        from plate import plate
+
+        @step
+        def stack():
+            return Compound(children=[plate(), pin()], label="stack")
+    """,
+}
+
+
+def project(files: dict[str, str], hidden: bool = False, git: bool = True) -> Path:
     # Studio keeps its projects in a hidden state folder; edit mode must still read them.
     base = Path(tempfile.mkdtemp(prefix="cadgen-edit-"))
     root = base / ".studio" / "plate" if hidden else base
     root.mkdir(parents=True, exist_ok=True)
-    (root / ".git").mkdir()
+    if git:
+        (root / ".git").mkdir()
     for name, text in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).write_text(textwrap.dedent(text), encoding="utf-8")
     return root
+
+
+def studio_records(folder: Path, units: str) -> Path:
+    """Studio's records folder, with one project listing ``folder``."""
+    records = Path(tempfile.mkdtemp(prefix="cadgen-studio-"))
+    (records / "stack").mkdir()
+    record = {"studio": 1, "name": "Stack", "brief": {"units": units}, "folders": [{"path": str(folder)}]}
+    (records / "stack" / "project.json").write_text(json.dumps(record), encoding="utf-8")
+    return records
 
 
 class NumbersAsWritten(unittest.TestCase):
@@ -126,6 +180,31 @@ class EditService(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root.parent.parent, True)
         state = self.service.state(str(root / "plate.py"))
         self.assertEqual([p["name"] for p in state["params"]], ["WIDTH", "THICKNESS"])
+
+    def test_a_folder_a_studio_project_lists_is_where_the_project_starts(self):
+        # A copy, or a folder added from elsewhere, has no git repository of its own.
+        root = project(STACK, hidden=True, git=False)
+        self.addCleanup(shutil.rmtree, root.parent.parent, True)
+        records = studio_records(root, "in")
+        self.addCleanup(shutil.rmtree, records, True)
+        with mock.patch.dict(os.environ, {"STUDIO_PROJECTS_DIR": str(records)}):
+            state = self.service.state(str(root / "assemblies" / "stack.step"))
+        self.assertTrue(state["ok"], state.get("error"))
+        self.assertEqual(Path(state["root"]), root.resolve())
+        self.assertEqual([c["name"] for c in state["components"]], ["plate", "pin"])
+        self.assertIn("WIDTH", [p["name"] for p in state["params"]])
+        # The project's brief names its units; a part read on its own would guess millimetres.
+        self.assertEqual(state["units"], "in")
+
+    def test_a_model_built_outside_the_folder_read_says_why(self):
+        root = project(STACK, hidden=True, git=False)
+        self.addCleanup(shutil.rmtree, root.parent.parent, True)
+        with mock.patch.dict(os.environ, {"STUDIO_PROJECTS_DIR": str(root / "no-records")}):
+            state = self.service.state(str(root / "assemblies" / "stack.step"))
+        self.assertFalse(state["ok"])
+        self.assertEqual(state["reason"], "outside")
+        self.assertIn("read only the assemblies folder", state["error"])
+        self.assertIn("built in the parts folder", state["error"])
 
     def test_a_model_without_a_script_is_not_edited(self):
         self.assertEqual(self.service.state(str(self.root / "other.step"))["reason"], "no-script")

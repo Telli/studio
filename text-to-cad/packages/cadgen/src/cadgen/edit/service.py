@@ -71,13 +71,39 @@ def script_for(file_ref: str) -> Path | None:
     return path.resolve() if path.is_file() and is_part(path) else None
 
 
+def _studio_projects() -> list[tuple[Path, dict]]:
+    """Studio's projects: each folder a project lists, with the project's record. Studio keeps the
+    records apart from the folders, one ``<id>/project.json`` each under ``$STUDIO_PROJECTS_DIR``
+    (else ``~/studio-projects``), so a copy or a folder added from elsewhere is a project's folder
+    without a git repository of its own."""
+    records = Path((os.environ.get("STUDIO_PROJECTS_DIR") or "").strip() or "~/studio-projects").expanduser()
+    listed = []
+    for path in sorted(records.glob("*/project.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+            listed += [(Path(str(folder["path"])).expanduser().resolve(), record) for folder in record.get("folders") or ()]
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            continue
+    return listed
+
+
 def project_root(script: Path) -> Path:
     """The project a part belongs to: the nearest folder holding a git repository or Studio's
-    ``project.json``, else the script's own folder."""
+    ``project.json``, or that a Studio project lists, else the script's own folder."""
+    listed = {folder for folder, _record in _studio_projects()}
     for folder in [script.parent, *script.parent.parents]:
-        if (folder / ".git").exists() or (folder / "project.json").is_file():
+        if (folder / ".git").exists() or (folder / "project.json").is_file() or folder in listed:
             return folder
     return script.parent
+
+
+def _project_units(root: Path) -> dict:
+    """The units the brief of the Studio project listing ``root`` names, as a trace request's."""
+    for folder, record in _studio_projects():
+        brief = record.get("brief") if folder == root else None
+        if isinstance(brief, dict) and brief.get("units") in ("in", "mm"):
+            return {"units": brief["units"]}
+    return {}
 
 
 def _python_files(root: Path) -> list[Path]:
@@ -285,7 +311,8 @@ class EditService:
         root = project_root(script)
         if isinstance(files, dict) and files and all(_hash_inside(root, rel) == digest for rel, digest in files.items()):
             return {"ok": True, "unchanged": True, "building": self.building()}
-        reply = self._tracer.ask({"script": str(script), "root": str(root), "mesh": False, **({"bar": bar} if bar else {})})
+        reply = self._tracer.ask({"script": str(script), "root": str(root), "mesh": False, **_project_units(root),
+                                  **({"bar": bar} if bar else {})})
         return {**reply, "root": str(root), "building": self.building()}
 
     def change(self, payload: dict) -> dict:
@@ -296,7 +323,8 @@ class EditService:
             return {"ok": False, "error": "This model has no part script to change."}
         root = project_root(script)
         request = {key: payload[key] for key in _CHANGE_KEYS if key in payload}
-        reply = self._tracer.ask({**request, "script": str(script), "root": str(root), "op": "edit", "mesh": False})
+        reply = self._tracer.ask({**request, "script": str(script), "root": str(root), "op": "edit", "mesh": False,
+                                  **_project_units(root)})
         made = reply.get("change") if reply.get("ok") else None
         if isinstance(made, dict) and made.get("build", True) and self._builds is not None:
             self._builds.start(dependents(root, made["file"]))

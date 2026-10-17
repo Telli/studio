@@ -231,6 +231,38 @@ def _inside(path: str) -> bool:
     return not any(part.startswith(".") or part == "site-packages" for part in parts)
 
 
+# This Python's own folders: its standard library, and a virtual environment's packages.
+_PYTHON = tuple({Path(folder).resolve() for folder in (sys.prefix, sys.base_prefix, sys.exec_prefix)})
+OUTSIDE: set[str] = set()
+"""Files outside the project's folder whose code made build123d operations in a trace: the parts an
+assembly in a folder of its own imports, when where the project starts could not be told."""
+_BASELINE: set[str] = set()
+"""The modules loaded before the first trace: build123d, cadgen and the rest this process runs on."""
+
+
+@functools.lru_cache(maxsize=None)
+def _outside_design(path: str) -> bool:
+    """A script of a design that is not the project's: outside its folder, and not a library (this
+    Python's, an installed package's or cadgen's own)."""
+    if not path.endswith(".py"):
+        return False
+    resolved = Path(path).resolve()
+    if resolved == _RUNTIME or _RUNTIME in resolved.parents:
+        return False
+    if any(part in ("site-packages", "dist-packages") for part in resolved.parts):
+        return False
+    return not any(folder in resolved.parents for folder in _PYTHON)
+
+
+def _outside_note() -> str:
+    """Why a model built wholly in files outside the folder read as its project shows nothing."""
+    folders = sorted({os.path.relpath(Path(path).resolve().parent, ROOT.parent) for path in OUTSIDE})[:3]
+    named = folders[0] if len(folders) == 1 else f"{', '.join(folders[:-1])} and {folders[-1]}"
+    return (f"Edit mode can't tell where this project starts, so it read only the {ROOT.name} folder, and the "
+            f"model is built in the {named} folder{'s' if len(folders) > 1 else ''}. Make the project's top folder "
+            "a git repository, or add it to a Studio project, then open the model again.")
+
+
 class _ProjectLoader(importlib.abc.Loader):
     def __init__(self, path: str):
         self.path = path
@@ -332,7 +364,13 @@ def _called_from_project():
     # Skip the wrappers of this file.
     while frame is not None and frame.f_code.co_filename == __file__:
         frame = frame.f_back
-    return frame is not None and _inside(frame.f_code.co_filename)
+    if frame is None:
+        return False
+    if _inside(frame.f_code.co_filename):
+        return True
+    if _outside_design(frame.f_code.co_filename):
+        OUTSIDE.add(frame.f_code.co_filename)
+    return False
 
 
 def _parameters(fn, args, kwargs):
@@ -1424,12 +1462,17 @@ def trace(request):
     global RECORDING, ROOT
     script = Path(request["script"]).resolve()
     ROOT = Path(request.get("root") or script.parent).resolve()
-    # The project's modules are read afresh: this project's, and any an earlier trace loaded.
+    # The project's modules are read afresh: this project's, and any an earlier trace loaded. So are
+    # the design scripts a trace brought in from outside its project: left loaded, another project's
+    # part of the same name would be read as that one.
+    if not _BASELINE:
+        _BASELINE.update(sys.modules)
     stale = [
         name
         for name, module in sys.modules.items()
         if isinstance(getattr(module, "__loader__", None), _ProjectLoader)
         or (getattr(module, "__file__", None) and _inside(module.__file__))
+        or (name not in _BASELINE and getattr(module, "__file__", None) and _outside_design(module.__file__))
     ]
     for name in stale:
         del sys.modules[name]
@@ -1438,6 +1481,7 @@ def trace(request):
     STEPS.clear()
     PLACED.clear()
     SKETCHES.clear()
+    OUTSIDE.clear()
     sys.path[:0] = [str(script.parent)]
     try:
         spec = importlib.util.spec_from_file_location("__studio_part__", script, loader=_ProjectLoader(str(script)))
@@ -1478,6 +1522,9 @@ def trace(request):
     else:
         timeline, level = _rows(steps)
         rows = [_row_summary(row, units) for row in timeline]
+    if not rows and not components and OUTSIDE:
+        # Said, rather than an empty tree that reads as a part with no features.
+        return {"ok": False, "reason": "outside", "error": _outside_note()}
     sketches = _sketches(steps, rows)
     for component in components:
         hidden = _suppressed_in(component["file"], {component["function"]}, sketches)
