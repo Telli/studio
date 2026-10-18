@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cadgen._internal.fea.checks import quoted
-from cadgen._internal.step_open import open_scene, pick_occurrence
+from cadgen._internal.step_open import open_scene, pick_occurrence, resolve_one
 from cadgen.cli_logging import CliLogger
 from cadgen.results import FeaFace, FeaFacesResult, FeaPair, FeaPart, FeaPartsResult, FeaResult
 
@@ -27,7 +27,7 @@ def _resolve_faces(scene: "StepScene", refs: "tuple[str, ...]") -> tuple[dict[st
     resolved: dict[str, Selection] = {}
     owners: set[str] = set()
     for ref in refs:
-        selection = scene.resolve(ref)
+        selection = resolve_one(scene, ref)
         if selection.kind != "face":
             raise ValueError(f"{ref} is a {selection.kind} reference; fixtures, loads and checks take faces (#o1.f17)")
         resolved[ref] = selection
@@ -44,14 +44,14 @@ def _single_occurrence(scene: "StepScene", owners: set[str], chosen: str | None 
             "a study solves one part, so every face must be on the same occurrence"
         )
     if owners:
-        return scene.resolve(next(iter(owners)))  # type: ignore[return-value]
+        return resolve_one(scene, next(iter(owners)))  # type: ignore[return-value]
     if chosen is None:
         leaves = list(scene.leaves())
         if len(leaves) != 1:
             raise ValueError(f"the study names no face and the document has {len(leaves)} parts; "
                              "choose one with --occurrence")
         chosen = leaves[0].ref
-    return scene.resolve(chosen)  # type: ignore[return-value]
+    return resolve_one(scene, chosen)  # type: ignore[return-value]
 
 
 def _axis_word(normal: tuple[float, float, float]) -> str:
@@ -606,7 +606,7 @@ def _solve_study(document: Path, out: Path | None, study, occurrence: str | None
                     f"--occurrence {occurrence} solves that part alone: the study's "
                     f"{' and '.join(k for k, v in (('parts', parsed.parts), ('connections', parsed.connections)) if v)} are ignored"
                 )
-            chosen = scene.resolve(occurrence)
+            chosen = resolve_one(scene, occurrence)
             if chosen.kind != "occurrence" or chosen.ref not in {leaf.ref for leaf in scene.leaves()}:
                 raise ValueError(f"{occurrence} is not a part occurrence of {document.name}")
             if stray := sorted(owners - {chosen.ref}):

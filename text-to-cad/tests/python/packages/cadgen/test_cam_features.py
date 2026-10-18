@@ -79,12 +79,12 @@ class Plate(unittest.TestCase):
         scene, part = read_scene(self.step), open_part(self.step)
         self.assertEqual(len(part.faces), 19)
         for face in part.faces:
-            area, centre = _mass(scene.resolve(face.ref).shape())
+            area, centre = _mass(scene.resolve(face.ref)[0].shape())
             self.assertAlmostEqual(face.area, area, places=6, msg=face.ref)
             self.assertLess(math.dist(face.center, centre), 1e-6, face.ref)
         pocket = _of(self.top, "pocket")[0]
         self.assertEqual(len(pocket.refs), 9)  # the floor, four walls and four R3 corners
-        self.assertAlmostEqual(_mass(scene.resolve(pocket.ref).shape())[1][2], 5.0, places=6)
+        self.assertAlmostEqual(_mass(scene.resolve(pocket.ref)[0].shape())[1][2], 5.0, places=6)
 
     def test_without_a_direction_each_side_is_a_face_and_the_outline_is_round_the_thin_axis(self):
         faces = {f.reach for f in _of(self.everything, "face")}
@@ -168,7 +168,7 @@ class DrilledBlock(unittest.TestCase):
         point = 3.4 / math.tan(math.radians(DRILL_POINT_DEG / 2))
         self.assertEqual((hole.size["depth_mm"], hole.size["through"], hole.reach), (12.0, False, ("+Z",)))
         self.assertAlmostEqual(hole.size["point_mm"], point, places=3)
-        self.assertEqual([self.scene.resolve(ref).shape().geom_type.name for ref in hole.refs], ["CYLINDER", "CONE"])
+        self.assertEqual([self.scene.resolve(ref)[0].shape().geom_type.name for ref in hole.refs], ["CYLINDER", "CONE"])
 
     def test_a_hole_split_by_a_cross_hole_is_one_hole(self):
         crossed = sorted((f.size["axis"], f.size["depth_mm"], f.size["through"], len(f.refs))

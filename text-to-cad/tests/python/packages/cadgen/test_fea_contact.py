@@ -134,7 +134,7 @@ def _stack(directory: Path, *, cap: bool = False) -> tuple[Path, dict[str, str],
 def _face(scene, part_ref: str, axis: int, value: float) -> str:
     from cadgen._internal.fea.mesh import face_area_center
 
-    for selection in scene.resolve(part_ref).entities("face"):
+    for selection in scene.resolve(part_ref)[0].entities("face"):
         _, centre = face_area_center(selection.shape())
         if abs(centre[axis] - value) < 1e-6:
             return selection.ref

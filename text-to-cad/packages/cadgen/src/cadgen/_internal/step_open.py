@@ -22,11 +22,20 @@ def open_scene(target: Path) -> "StepScene":
     return read_scene(document_target(target, suffixes=STEP_SUFFIXES))
 
 
+def resolve_one(scene: "StepScene", ref: str) -> "Selection":
+    """The one selection ``ref`` names: ``scene.resolve`` answers one per ref on a line, and a study's face, a
+    fixture's or an ``--occurrence`` is one."""
+    selections = scene.resolve(ref)
+    if len(selections) != 1:
+        raise ValueError(f"{ref} names {len(selections)} references; give one")
+    return selections[0]
+
+
 def pick_occurrence(scene: "StepScene", occurrence: str | None) -> "Selection":
     """The occurrence ``--occurrence`` names, else the document's only part (an error naming the choices if it has
     several)."""
     if occurrence:
-        owner = scene.resolve(occurrence)
+        owner = resolve_one(scene, occurrence)
         if owner.kind != "occurrence":
             raise ValueError(f"{occurrence} is not an occurrence reference")
         return owner
