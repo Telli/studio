@@ -6,10 +6,10 @@ import type { FileViewerState } from '../file-viewer/types.js';
 import { createLiveRegistry, type LiveRegistry } from '../host/liveRegistry.js';
 import type { ViewerHost } from '../host/types.js';
 import { THUMBNAIL_SIZE } from '../library/thumbnails.js';
+import { createBoardRenderer } from '../renderers/board/index.js';
 import { createDxfRenderer } from '../renderers/dxf/index.js';
 import { createGlbRenderer } from '../renderers/glb/index.js';
 import { createMeshRenderer } from '../renderers/mesh/index.js';
-import { createPlotRenderer } from '../renderers/plot/index.js';
 import { createRobotRenderer } from '../renderers/robot/index.js';
 import { createStepRenderer } from '../renderers/step/index.js';
 import type { CadPreferenceSource } from '../renderers/workspace/index.js';
@@ -20,7 +20,7 @@ export function cadRenderers(client: CadWorkspaceService, preferences: CadPrefer
   return [
     createStepRenderer({ client, preferences, live }),
     createDxfRenderer({ client, preferences, live }),
-    createPlotRenderer({ client, preferences, live }),
+    createBoardRenderer({ client, preferences, live }),
     createGlbRenderer({ client, preferences, live }),
     createMeshRenderer({ client, preferences, live }),
     createRobotRenderer({ client, preferences, live }),

@@ -22,8 +22,8 @@ import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons
 const GROUPS = Object.freeze([
   { title: "Select", tools: ["references"] },
   { title: "Inspect", tools: ["measure", "clip"] },
-  { title: "Assemble", tools: ["exploded", "pose"] },
-  { title: "Markup", tools: ["draw"] },
+  { title: "Assemble", tools: ["exploded"] },
+  { title: "Markup", tools: ["annotate"] },
 ]);
 const LABELS = Object.freeze({ clip: "Section", references: "Select" });
 // Each command a picture large enough to tell apart, as SolidWorks' CommandManager draws its own:
@@ -135,7 +135,7 @@ function MoreMenu({ groups }) {
 
 /**
  * The ribbon's groups (`{ title, items }`, each item a button's `{ id, label, icon, active?,
- * disabled?, description?, onClick }`) in one row, and what does not fit in its More menu.
+ * disabled?, description?, menu?, onClick }`) in one row, and what does not fit in its More menu.
  */
 function RibbonGroups({ groups }) {
   const rowRef = useRef(null);
@@ -146,7 +146,8 @@ function RibbonGroups({ groups }) {
   return <>
     <div ref={rowRef} data-compact={fit.compact ? "true" : "false"} className="relative flex min-w-0 flex-1 items-stretch overflow-hidden">
       {groups.map((group, index) => <RibbonGroup key={group.title} title={group.title} folded={index >= fit.count}>
-        {group.items.map(({ id, ...item }) => <RibbonButton key={id} {...item} compact={fit.compact} />)}
+        {/* A tool's settings (Select's filter) are its chevron after its button, as on the strip. */}
+        {group.items.map(({ id, menu, ...item }) => <Fragment key={id}><RibbonButton {...item} compact={fit.compact} />{menu || null}</Fragment>)}
       </RibbonGroup>)}
     </div>
     {folded.length ? <div ref={moreRef} className="flex shrink-0 flex-col items-center border-x border-border px-1" data-cad-ribbon-more="">
@@ -197,7 +198,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     : "An assembly places its parts. Ask the agent to change a part.";
   const commandIcon = id => { const Icon = COMMAND_ICONS[id]; return <Icon aria-hidden="true" />; };
   const toolItem = tool => ({ id: tool.id, label: LABELS[tool.id] || tool.label, icon: tool.icon, active: tool.active === true,
-    disabled: tool.disabled, description: tool.description, onClick: () => tool.onSelect() });
+    disabled: tool.disabled, description: tool.description, menu: tool.menu, onClick: () => tool.onSelect() });
   const edits = { title: "Edit", items: [
     { id: "undo", label: "Undo", icon: <Undo2 aria-hidden="true" />, disabled: !edit.canUndo, onClick: () => void edit.undo() },
     { id: "redo", label: "Redo", icon: <Redo2 aria-hidden="true" />, disabled: !edit.canRedo, onClick: () => void edit.redo() },

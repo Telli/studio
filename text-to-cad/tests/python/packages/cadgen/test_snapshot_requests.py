@@ -9,11 +9,12 @@ point. The rules:
   before anything is built;
 * an option an input cannot honour is refused BY NAME, never ignored;
 * each setting has one name, and a retired name says which replaced it;
-* sizes, timeouts and section planes are closed and ranged here, not in the page.
+* sizes and timeouts are closed and ranged here, not in the page.
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import io
 import json
@@ -99,11 +100,13 @@ class RefusedRequestsLeaveOutUntouched(_Workspace):
         svg = self.root / "review.svg"
         cases = [
             (stl_door, [self.stl, self.out, "--display", "wireframe"], r"applies to STEP models only"),
-            (stl_door, [self.stl, self.out, "--display", '{"clip":{"axis":"x"}}'], r"display\.clip applies to STEP"),
-            (stl_door, [self.stl, self.out, "--display", '{"lighting":{"fill":9}}'], r"display\.lighting\.fill"),
+            (stl_door, [self.stl, self.out, "--display", '{"exploded":{"amount":0.5}}'], r"display\.exploded moves a model's parts apart"),
+            (stl_door, [self.stl, self.out, "--display", '{"modes":{"solid":{"flat":true}}}'], r"display has unknown key\(s\): modes"),
+            (stl_door, [self.stl, self.out, "--display", '{"grid":"on"}'], r"display\.grid"),
+            (stl_door, [self.stl, self.out, "--display", "shaded"], r"display\.mode 'shaded' applies to STEP models only"),
             (step_door, [self.stl, self.out], r"does not render \.stl inputs"),
             (step_door, [script, self.out], r"a model script is a program"),
-            (stl_door, [self.stl, self.out, "--mode", "section"], r"section mode requires STEP topology"),
+            (stl_door, [self.stl, self.out, "--mode", "section"], r"Unsupported render mode: section"),
             (stl_door, [self.stl, self.out, "--mode", "orbit"], r"Unsupported render mode: orbit"),
             (stl_door, ["--job", job], r"unknown render job key\(s\): framerate"),
             (stl_door, [self.stl, self.out, "--width", "0"], r"output width must be a positive whole number"),
@@ -112,7 +115,6 @@ class RefusedRequestsLeaveOutUntouched(_Workspace):
             (stl_door, [self.stl, self.out, "--camera", "30:20:5"], r"exactly\s+azimuth:elevation"),
             (any_door, [self.stl, self.out, "--joint-values", '{"elbow": 10}'], r"jointValues pose a robot description"),
             (any_door, [self.stl, self.out, "--kinematics", "open"], r"kinematics values require a STEP model"),
-            (any_door, [self.stl, self.out, "--section", "XZ:4"], r"section mode requires STEP topology"),
             (any_door, [srdf, self.out], r"no paired URDF"),
             (urdf_door, [urdf, self.out, "--joint-values", '{"elbow": 10}'], r"Unknown joint\(s\): elbow"),
         ]
@@ -158,12 +160,12 @@ class RefusedRequestsLeaveOutUntouched(_Workspace):
         with mock.patch.object(snapshot_cli, "document_snapshot", side_effect=AssertionError("compiled")), \
              mock.patch.object(snapshot_cli, "ensure_step_topology_artifact", side_effect=AssertionError("built")):
             single, prepared = snapshot_cli.prepare_render_job_packet(
-                {"input": str(step), "mode": "section", "section": {"plane": "YZ", "offset": 2},
-                 "selection": {"hide": ["#o1.2"]}, "outputs": [{"path": str(self.root / "cut.svg")}]},
+                {"input": str(step), "display": {"clip": {"enabled": True, "axis": "x", "at": 2}},
+                 "selection": {"hide": ["#o1.2"]}, "outputs": [{"path": str(self.root / "cut.png")}]},
                 cwd=self.root,
             )
         self.assertTrue(single)
-        self.assertEqual({"plane": "YZ", "offset": 2}, prepared[0].job["section"])
+        self.assertEqual({"enabled": True, "axis": "x", "at": 2}, prepared[0].job["display"]["clip"])
 
 
 class CrossKindOptionsAreRefusedByName(_Workspace):
@@ -198,61 +200,78 @@ class CrossKindOptionsAreRefusedByName(_Workspace):
                           "quality": {"tessellation": {"chordTolerance": 0.001}}})
 
     def test_a_mesh_doors_mode_error_offers_only_the_modes_it_accepts(self) -> None:
-        """S12: `--display Wireframe` on an STL used to list all five presets."""
+        """S12: `--display Wireframe` on an STL used to list every mode."""
         code, said = run_door(stl_door, [self.stl, self.out, "--display", "Wireframe"])
         self.assertEqual(1, code)
-        self.assertIn("Supported modes: grid, render, solid", said)
-        for step_only in ("xray", "hidden-line", "wireframe"):
+        self.assertIn("Supported modes: parts, solid", said)
+        for step_only in ("shaded", "xray", "hidden-line", "wireframe"):
             self.assertNotIn(step_only, said)
         with self.assertRaises(SnapshotError) as caught:
             self.resolve(self.stl_job(display={"mode": "Wireframe"}))
-        self.assertIn("display.mode must be one of: grid, render, solid;", str(caught.exception))
-        # A STEP door still offers every preset.
+        self.assertIn("display.mode must be one of: parts, solid;", str(caught.exception))
+        # A STEP door still offers every mode.
         step = self.write("part.step", "ISO-10303-21;\nEND-ISO-10303-21;\n")
         code, said = run_door(step_door, [step, self.out, "--display", "Wireframe"])
-        self.assertIn("grid, hidden-line, render, solid, wireframe, xray", said)
+        self.assertIn("hidden-line, parts, shaded, solid, wireframe, xray", said)
 
 
 class PlotRequestsAreRefusedByName(_Workspace):
-    """A KiCad board or schematic is a PLOT: drawn as KiCad plots it, flat.
+    """A KiCad board is a PLOT: drawn from its file, flat.
 
     Everything that describes a scene is refused BY NAME, in a plot's words,
-    and before KiCad is ever run — so none of this needs KiCad. Routing is the
-    other half: a plot resolves to a `plot` job whose payload the page fetches.
+    and before the board is ever read. Routing is the other half: a plot
+    resolves to a `plot` job whose payload the page fetches, and a file that is
+    no board is refused with the reader's own sentence.
     """
 
     def setUp(self) -> None:
         super().setUp()
-        self.write("blinky.kicad_pcb", "(kicad_pcb (version 20240108))\n")
-        self.write("blinky.kicad_sch", "(kicad_sch (version 20231120))\n")
+        self.write("blinky.kicad_pcb", "(kicad_pcb (version 20260901))\n")
 
     def job(self, name="blinky.kicad_pcb", **overrides) -> dict:
         return {"input": name, "outputs": [{"path": "review.png"}], **overrides}
 
     def refused(self, job, pattern, **kwargs) -> None:
-        # Resolving is where KiCad would run: a refusal must come first.
+        # Resolving is where the board would be read: a refusal must come first.
         with mock.patch.object(snapshot_cli, "plot_payload_file", side_effect=AssertionError("plotted")), \
                 self.assertRaisesRegex(SnapshotError, pattern):
             self.resolve(job, **kwargs)
 
     def test_a_scene_request_is_refused_in_a_plots_words(self) -> None:
         for job, pattern in (
-            (self.job(camera="top"), r"camera poses a model in space; a KiCad board is drawn as KiCad plots it"),
+            (self.job(camera="top"), r"camera poses a model in space; a KiCad board is drawn from its file"),
             (self.job(outputs=[{"path": "review.png", "camera": "iso"}]), r"camera poses a model in space"),
-            (self.job("blinky.kicad_sch", display={"mode": "render"}),
-             r"display\.mode describes a 3D scene.*a KiCad schematic is drawn as KiCad plots it, its sheets one under another"),
-            (self.job(display={"floor": {"enabled": True}}), r"--appearance light\|dark"),
-            (self.job(mode="list", outputs=[]), r"no parts to list and no solid to section, so view is the only mode blinky\.kicad_pcb"),
-            (self.job(section={"plane": "XY"}), r"no parts to list and no solid to section"),
+            (self.job(display={"mode": "render"}), r"display\.mode must be one of: assembly, board, copper, placement; got 'render'"),
+            (self.job(display={"grid": True}), r"display\.grid describes a 3D scene.*--appearance light\|dark"),
+            (self.job(display={"clip": {}, "exploded": {}}), r"display\.clip, display\.exploded describe a 3D scene"),
+            (self.job(display={"side": "left"}), r"display\.side must be one of: bottom, top"),
+            (self.job(display={"poured": "no"}), r"display\.poured must be a boolean"),
+            (self.job(display={"layers": "F.Cu"}), r"display\.layers must be a list of layer ids"),
+            (self.job(display={"layers": ["F.Cu", ""]}), r"display\.layers must be a list of layer ids"),
+            (self.job(display={"layers": ["F.Cu", "F.Cu"]}), r"display\.layers names F\.Cu more than once"),
+            (self.job(mode="list", outputs=[]), r"no parts to list, so view is the only mode blinky\.kicad_pcb"),
             (self.job(scale="urdf"), r"scale picks the units a 3D scene.*in millimetres, so blinky\.kicad_pcb has no scene to scale"),
             (self.job(outputs=[{"path": "review.png", "label": "TOP"}]), r"names the view burnt into the image"),
             (self.job(output={"padding": 0.1}), r"output\.padding has no meaning for a KiCad board"),
             (self.job(jointValues={"j1": 10}), r"KiCad boards have no joints"),
-            (self.job("blinky.kicad_sch", quality={"tessellation": {"chordTolerance": 0.01}}),
-             r"a KiCad schematic is the picture its own tool draws, not a tessellated surface"),
+            (self.job(quality={"tessellation": {"chordTolerance": 0.01}}),
+             r"a KiCad board is drawn from its file, not a tessellated surface"),
         ):
             with self.subTest(job=sorted(set(job) - {"input"})):
                 self.refused(job, pattern)
+
+    def test_a_plan_view_frames_a_board_and_ink_and_measurements_are_drawn_over_it(self) -> None:
+        # What a board's Quick Edit carries: its window, as a drawing's, and what was drawn on the sheet.
+        plan = {"position": [20, -15, 60], "target": [20, -15, 0], "up": [0, 1, 0], "orthographicHalfHeight": 16}
+        annotation = {"units": "mm", "parts": {}, "marks": [
+            {"id": "1", "kind": "stroke", "part": None, "points": [3, 3, 0, 11, 3, 0], "color": "#ff00ff", "width": 2}]}
+        mark = {"start": [5, 15, 0], "end": [35, 15, 0], "label": "30.00 mm", "color": "#00ff00"}
+        _, prepared = snapshot_cli.prepare_render_job_packet(self.job(camera=plan, annotation=annotation, measurements=[mark]), cwd=self.root)
+        self.assertEqual({"position": [20.0, -15.0, 60.0], "target": [20.0, -15.0, 0.0], "up": [0.0, 1.0, 0.0], "orthographicHalfHeight": 16.0},
+                         prepared[0].job["outputs"][0]["camera"])
+        self.assertEqual((annotation, [mark]), (prepared[0].job["annotation"], prepared[0].job["measurements"]))
+        tilted = {"position": [10, -10, 10], "target": [0, 0, 0], "up": [0, 0, 1], "orthographicHalfHeight": 5}
+        self.refused(self.job(camera=tilted), r"The one camera a job may give a KiCad board is its plan view")
 
     def test_appearance_and_the_flat_output_settings_survive(self) -> None:
         single, prepared = snapshot_cli.prepare_render_job_packet(
@@ -262,16 +281,67 @@ class PlotRequestsAreRefusedByName(_Workspace):
         self.assertEqual("dark", prepared[0].job["display"]["appearance"])
         self.assertEqual("kicad_pcb", prepared[0].kind)
 
+    def test_the_boards_display_is_the_viewers_and_reaches_the_page_as_given(self) -> None:
+        # The viewer's Display contract (`plot2d/boardDisplay.js`): mode, side, poured, layers.
+        display = {"mode": "copper", "side": "bottom", "poured": False, "layers": ["B.Cu", "Edge.Cuts", "vias"], "appearance": "dark"}
+        single, prepared = snapshot_cli.prepare_render_job_packet(self.job(display=display), cwd=self.root)
+        self.assertTrue(single)
+        self.assertEqual(display, dict(prepared[0].job["display"]))
+        # A mode name alone, the way `--display copper` arrives, is that preset; the appearance defaults to light.
+        _single, named = snapshot_cli.prepare_render_job_packet(self.job(display="placement"), cwd=self.root)
+        self.assertEqual({"mode": "placement", "appearance": "light"}, dict(named[0].job["display"]))
+
+    def test_the_pcb_door_takes_the_display_as_a_preset_json_or_file_and_joins_the_appearance(self) -> None:
+        # The flag path: `cadgen pcb snapshot TARGET OUT --display ... --appearance dark`.
+        self.write("layers.json", json.dumps({"layers": ["F.Cu"], "_why": "the top copper alone"}))
+        for raw, expected in (
+            ("copper", {"mode": "copper"}),
+            ('{"side": "bottom", "layers": ["B.Cu"]}', {"side": "bottom", "layers": ["B.Cu"]}),
+            ("layers.json", {"layers": ["F.Cu"]}),
+        ):
+            with self.subTest(display=raw):
+                options = SnapshotOptions(input="blinky.kicad_pcb", output="review.png", display=raw, display_specified=True)
+                job = snapshot_cli.load_job_from_options(options, cwd=self.root)
+                self.assertEqual(expected, dict(job["display"]))
+        # A preset word that is not a board's is told the board's modes, not a scene's.
+        for word, pattern in (
+            ("wireframe", r"display\.mode must be one of: assembly, board, copper, placement; got 'wireframe'"),
+            ("solder", r"Unsupported display mode: solder\. Supported modes: assembly, board, copper, placement"),
+        ):
+            options = SnapshotOptions(input="blinky.kicad_pcb", output="review.png", display=word, display_specified=True)
+            with self.subTest(display=word), self.assertRaisesRegex(SnapshotError, pattern):
+                snapshot_cli.load_job_from_options(options, cwd=self.root)
+        # The flag over a job file carries the board's vocabulary too.
+        packet = self.write("packet.json", json.dumps({"jobs": [self.job()]}))
+        options = SnapshotOptions(job=str(packet), display='{"poured": false}', display_specified=True)
+        loaded = snapshot_cli.load_job_from_options(options, cwd=self.root)
+        self.assertEqual({"poured": False}, dict(loaded["jobs"][0]["display"]))
+
+    def test_layers_the_board_lacks_are_refused_by_name_once_the_board_is_read(self) -> None:
+        payload = json.dumps({"schemaVersion": 3, "kind": "board", "unrouted": 0, "sheets": [{"layers": [
+            {"id": "B.Cu"}, {"id": "F.Cu"}, {"id": "Edge.Cuts"}, {"id": "vias"}, {"id": "drills"}]}]}).encode()
+        with mock.patch("cadgen.kicad.plot.plot_payload_bytes", return_value=payload):
+            with self.assertRaisesRegex(SnapshotError, r"display\.layers names layers blinky\.kicad_pcb does not have: In1\.Cu, F\.SilkS\. Its layers are B\.Cu, F\.Cu, Edge\.Cuts, vias, drills\."):
+                self.resolve(self.job(display={"layers": ["F.Cu", "In1.Cu", "F.SilkS"]}))
+            packet = self.resolve(self.job(display={"layers": ["F.Cu", "vias"], "side": "bottom"}))
+        # The page gets the board's default mode (Board, not a scene's Solid) and the light surround.
+        self.assertEqual({"mode": "board", "appearance": "light", "layers": ["F.Cu", "vias"], "side": "bottom"}, dict(packet["jobs"][0]["display"]))
+        self.assertEqual("plot", packet["jobs"][0]["resolved"]["kind"])
+
     def test_each_door_routes_a_plot_only_where_it_should(self) -> None:
-        pcb = snapshot_cli.enabled_kinds(("kicad_pcb", "kicad_sch"))
-        snapshot_cli.prepare_render_job_packet(self.job("blinky.kicad_sch"), cwd=self.root, kinds=pcb)
+        pcb = snapshot_cli.enabled_kinds(("kicad_pcb",))
+        snapshot_cli.prepare_render_job_packet(self.job(), cwd=self.root, kinds=pcb)
         self.refused(self.job(), r"does not render \.kicad_pcb inputs.*It accepts: \.step, \.stp",
                      kinds=snapshot_cli.enabled_kinds(("step", "stp")))
         self.write("panel.dxf", "0\nEOF\n")
-        self.refused(self.job("panel.dxf"), r"does not render \.dxf inputs.*It accepts: \.kicad_pcb, \.kicad_sch", kinds=pcb)
+        self.refused(self.job("panel.dxf"), r"does not render \.dxf inputs.*It accepts: \.kicad_pcb", kinds=pcb)
+        # The schematic beside a board is no input: `cadgen snapshot` says what is.
+        self.write("blinky.kicad_sch", "(kicad_sch (version 20231120))\n")
+        self.refused(self.job("blinky.kicad_sch"), r"does not render \.kicad_sch inputs.*\.kicad_pcb",
+                     kinds=snapshot_cli.enabled_kinds(snapshot_cli.KIND_RESOLVERS))
 
     def test_a_plot_resolves_to_a_plot_job_whose_payload_the_page_fetches(self) -> None:
-        payload = b'{"schemaVersion":1,"kind":"board","unrouted":0,"sheets":[]}'
+        payload = b'{"schemaVersion":3,"kind":"board","unrouted":0,"sheets":[]}'
         with mock.patch("cadgen.kicad.plot.plot_payload_bytes", return_value=payload) as plot:
             packet = self.resolve(self.job(debug=True))
         plot.assert_called_once_with(self.root / "blinky.kicad_pcb")
@@ -282,84 +352,12 @@ class PlotRequestsAreRefusedByName(_Workspace):
         self.assertEqual(payload, served.read_bytes())
         self.assertEqual(len(payload), resolved["debug"]["plotSource"]["payloadBytes"])
 
-    def test_a_machine_without_kicad_is_told_how_to_get_it(self) -> None:
-        from cadgen.kicad.install import KicadMissingError
-
-        missing = KicadMissingError("KiCad's command line, kicad-cli, was not found: install KiCad 10 from kicad.org")
-        with mock.patch("cadgen.kicad.plot.plot_payload_bytes", side_effect=missing), \
-                self.assertRaisesRegex(SnapshotError, r"kicad-cli, was not found: install KiCad 10"):
-            self.resolve(self.job())
-
-
-class HarnessRequestsAreRefusedByName(_Workspace):
-    """A wiring harness (`<name>.harness.yml`) is a plot too: WireViz's diagram, flat.
-
-    The same refusals a board gets, in a harness's words and before WireViz is
-    ever run; and a harness resolves to a `plot` job drawn from WireViz's payload,
-    never KiCad's. None of this needs WireViz.
-    """
-
-    def setUp(self) -> None:
-        super().setUp()
-        self.write("cable.harness.yml", "connectors: {}\n")
-
-    def job(self, name="cable.harness.yml", **overrides) -> dict:
-        return {"input": name, "outputs": [{"path": "review.png"}], **overrides}
-
-    def refused(self, job, pattern, **kwargs) -> None:
-        with mock.patch.object(snapshot_cli, "plot_payload_file", side_effect=AssertionError("plotted")), \
-                self.assertRaisesRegex(SnapshotError, pattern):
-            self.resolve(job, **kwargs)
-
-    def test_a_scene_request_is_refused_in_a_harness_words(self) -> None:
-        for job, pattern in (
-            (self.job(camera="top"), r"camera poses a model in space; a wiring harness is drawn as WireViz draws it"),
-            (self.job(display={"mode": "render"}), r"display\.mode describes a 3D scene.*a wiring harness is drawn as WireViz draws it"),
-            (self.job(mode="list", outputs=[]), r"so view is the only mode cable\.harness\.yml renders in"),
-            (self.job(output={"tightFrame": True}), r"output\.tightFrame has no meaning for a wiring harness"),
-            (self.job(jointValues={"j1": 10}), r"wiring harnesses have no joints"),
-        ):
-            with self.subTest(job=sorted(set(job) - {"input"})):
-                self.refused(job, pattern)
-
-    def test_each_door_routes_a_harness_only_where_it_should(self) -> None:
-        harness = snapshot_cli.enabled_kinds(("harness",))
-        _single, prepared = snapshot_cli.prepare_render_job_packet(self.job(), cwd=self.root, kinds=harness)
-        self.assertEqual("harness", prepared[0].kind)
-        self.refused(self.job(), r"does not render \.harness\.yml inputs.*It accepts: \.kicad_pcb, \.kicad_sch",
-                     kinds=snapshot_cli.enabled_kinds(("kicad_pcb", "kicad_sch")))
-        self.write("blinky.kicad_pcb", "(kicad_pcb (version 20240108))\n")
-        self.refused(self.job("blinky.kicad_pcb"), r"does not render \.kicad_pcb inputs.*It accepts: \.harness\.yml", kinds=harness)
-        # Only the pair is a harness: a plain YAML file is no input, and `cadgen snapshot` says what is.
-        self.write("config.yml", "a: 1\n")
-        self.refused(self.job("config.yml"), r"does not render \.yml inputs.*\.harness\.yml",
-                     kinds=snapshot_cli.enabled_kinds(snapshot_cli.KIND_RESOLVERS))
-
-    def test_a_harness_resolves_to_a_plot_job_drawn_from_wirevizs_payload(self) -> None:
-        payload = b'{"schemaVersion":1,"kind":"harness","unrouted":null,"sheets":[]}'
-        with mock.patch("cadgen.wireviz.plot.plot_payload_bytes", return_value=payload) as plot, \
-                mock.patch("cadgen.kicad.plot.plot_payload_bytes", side_effect=AssertionError("KiCad drew a harness")):
-            packet = self.resolve(self.job())
-        plot.assert_called_once_with(self.root / "cable.harness.yml")
-        resolved = packet["jobs"][0]["resolved"]
-        self.assertEqual(("plot", "harness"), (resolved["kind"], resolved["inputKind"]))
-        served = Path(resolved["rootPath"]) / resolved["plotUrl"].split("/__render_asset/", 1)[1].split("?", 1)[0]
-        self.assertEqual(payload, served.read_bytes())
-
-    def test_a_machine_without_wireviz_is_told_how_to_get_it_and_a_bad_document_why(self) -> None:
+    def test_a_file_that_is_no_board_is_refused_with_the_readers_sentence(self) -> None:
         from cadgen.plot import PlotError
-        from cadgen.wireviz.install import WirevizMissingError
 
-        for raised, pattern in (
-            (WirevizMissingError("WireViz's command line, wireviz, was not found: install Graphviz and WireViz"),
-             r"wireviz, was not found: install Graphviz and WireViz"),
-            (PlotError("WireViz could not draw cable.harness.yml: X2:9 not found"),
-             r"WireViz could not draw cable\.harness\.yml: X2:9 not found"),
-        ):
-            with self.subTest(raised=type(raised).__name__), \
-                    mock.patch("cadgen.wireviz.plot.plot_payload_bytes", side_effect=raised), \
-                    self.assertRaisesRegex(SnapshotError, pattern):
-                self.resolve(self.job())
+        with mock.patch("cadgen.kicad.plot.plot_payload_bytes", side_effect=PlotError("blinky.kicad_pcb is not a readable KiCad board (no expression)")), \
+                self.assertRaisesRegex(SnapshotError, r"blinky\.kicad_pcb is not a readable KiCad board"):
+            self.resolve(self.job())
 
 
 class SrdfPairingTests(_Workspace):
@@ -405,8 +403,8 @@ class SrdfPairingTests(_Workspace):
             self.resolve({**job, "jointValues": {"elbw": 10}})
 
 
-class SectionPlaneTests(_Workspace):
-    """S4: the plane is a validated job key and a STEP flag, and OUT's extension is the format."""
+class SnapshotModesAndOutputs(_Workspace):
+    """Removed modes, keys and flags fail before rendering or clearing OUT."""
 
     def setUp(self) -> None:
         super().setUp()
@@ -414,91 +412,35 @@ class SectionPlaneTests(_Workspace):
 
     def prepared(self, **job) -> dict:
         _single, prepared = snapshot_cli.prepare_render_job_packet(
-            {"input": "part.step", "outputs": [{"path": "cut.png"}], **job}, cwd=self.root
+            {"input": "part.step", "outputs": [{"path": "review.png"}], **job}, cwd=self.root
         )
         return prepared[0].job
 
-    def section_from_argv(self, *argv: str) -> dict:
-        captured = {}
-
-        def capture(options, **_kwargs):
-            captured["job"] = load_job_from_options(options, cwd=self.root)
-            return snapshot_core.snapshot_result({"ok": True, "outputs": []})
-
-        with mock.patch.object(snapshot_cli, "run_snapshot", capture):
-            code, said = run_door(step_door, [self.step, self.root / "cut.png", *argv])
-        self.assertEqual(0, code, said)
-        return captured["job"]
-
-    def test_the_flag_and_the_job_key_are_the_same_request(self) -> None:
-        self.assertEqual({"plane": "XZ", "offset": 12.5},
-                         self.section_from_argv("--mode", "section", "--section", "XZ:12.5")["section"])
-        self.assertEqual({"plane": "YZ", "offset": 0},
-                         self.section_from_argv("--mode", "section", "--section", "YZ")["section"])
-        self.assertEqual({"plane": "XZ", "offset": -3},
-                         self.prepared(mode="section", section={"plane": "XZ", "offset": -3})["section"])
-        # Section mode with no plane named is the XY cut at 0, stated on the job.
-        self.assertEqual({"plane": "XY", "offset": 0}, self.prepared(mode="section")["section"])
-
-    def test_the_python_verb_takes_the_same_two_spellings(self) -> None:
+    def test_removed_section_requests_are_unknown(self) -> None:
+        with self.assertRaisesRegex(SnapshotError, r"Unsupported render mode: section\. Modes: list, view"):
+            self.prepared(mode="section")
+        with self.assertRaisesRegex(SnapshotError, r"unknown render job key\(s\): section"):
+            self.prepared(section={"plane": "XZ", "offset": 2})
         from cadgen import step
 
-        seen = []
-        with mock.patch.object(snapshot_cli, "run_snapshot", lambda options, **_: seen.append(options) or "result"):
-            step.snapshot(self.step, self.out, mode="section", section="XZ:4")
-            step.snapshot(self.step, self.out, mode="section", section={"plane": "YZ", "offset": 1})
-        jobs = [load_job_from_options(options, cwd=self.root) for options in seen]
-        self.assertEqual([{"plane": "XZ", "offset": 4.0}, {"plane": "YZ", "offset": 1}],
-                         [job["section"] for job in jobs])
-
-    def test_the_plane_vocabulary_is_closed_and_ranged(self) -> None:
-        for section, pattern in (
-            ({"plane": "XW"}, r"section\.plane must be one of: XY, XZ, YZ; got 'XW'"),
-            ({"plane": "xy"}, r"section\.plane must be one of"),
-            ({"plane": "XY", "offset": "3"}, r"section\.offset must be a finite number"),
-            ({"plane": "XY", "offset": float("inf")}, r"section\.offset must be a finite number"),
-            ({"plane": "XY", "offset": True}, r"section\.offset must be a finite number"),
-            ({"normal": [0, 0, 1]}, r"section has unknown key\(s\): normal; supported keys: offset, plane"),
-            ({"plane": "XY", "format": "svg"}, r"section has unknown key\(s\): format"),
-            ("XZ", r"section must be a \{"),
-        ):
-            with self.subTest(section=section), self.assertRaisesRegex(SnapshotError, pattern):
-                self.prepared(mode="section", section=section)
-        for flag, pattern in (("XZ:deep", r"--section offset must be a number"), ("", r"--section requires PLANE")):
-            with self.subTest(flag=flag), self.assertRaisesRegex(SnapshotError, pattern):
-                snapshot_core.parse_section_option(flag)
-
-    def test_a_section_outside_section_mode_is_refused_not_ignored(self) -> None:
-        with self.assertRaisesRegex(SnapshotError, r"section positions the cut of section mode.*mode is view"):
-            self.prepared(section={"plane": "XZ"})
+        with self.assertRaisesRegex(TypeError, "unexpected keyword argument 'section'"):
+            step.snapshot(self.step, self.out, section="XZ:2")
+        self.out.write_bytes(YESTERDAY)
+        for door in (step_door, any_door):
+            with self.subTest(door=door.__name__):
+                code, said = run_door(door, [self.step, self.out, "--section", "XZ:2"])
+                self.assertEqual(2, code, said)
+                self.assertRegex(said, r"unrecognized arguments: --section")
+                self.assertEqual(YESTERDAY, self.out.read_bytes())
 
     def test_outs_extension_decides_the_format_and_a_wrong_one_is_refused(self) -> None:
-        def prepared_path(mode: str, path: str) -> str:
-            return self.prepared(mode=mode, outputs=[{"path": path}])["outputs"][0]["path"]
-
-        self.assertTrue(prepared_path("section", "cut.svg").endswith("cut.svg"))
-        self.assertTrue(prepared_path("section", "cut.PNG").endswith("cut.PNG"))
-        self.assertTrue(prepared_path("view", "iso.png").endswith("iso.png"))
-        for mode, path, pattern in (
-            ("view", "iso.svg", r"view mode writes \.png: render output 0 names 'iso\.svg'.*--mode section"),
-            ("view", "iso.jpg", r"view mode writes \.png"),
-            ("view", "iso", r"view mode writes \.png"),
-            ("section", "cut.pdf", r"section mode writes \.png or \.svg"),
-        ):
-            with self.subTest(mode=mode, path=path), self.assertRaisesRegex(SnapshotError, pattern):
-                prepared_path(mode, path)
-        # `format` was never reachable from Python and is not a key anywhere now.
+        for path in ("iso.png", "iso.PNG"):
+            self.assertTrue(self.prepared(outputs=[{"path": path}])["outputs"][0]["path"].endswith(path))
+        for path in ("iso.svg", "iso.jpg", "iso"):
+            with self.subTest(path=path), self.assertRaisesRegex(SnapshotError, r"view mode writes \.png"):
+                self.prepared(outputs=[{"path": path}])
         with self.assertRaisesRegex(SnapshotError, r"render output 0 has unknown key\(s\): format"):
-            self.prepared(mode="section", outputs=[{"path": "cut.png", "format": "svg"}])
-
-    def test_the_planes_match_the_page_that_cuts(self) -> None:
-        source = repo_path("packages/core/src/common/renderMeshScene.js").read_text(encoding="utf-8")
-        declared = re.search(r"export const SECTION_PLANES = Object\.freeze\(\[(.*?)\]\)", source)
-        self.assertIsNotNone(declared, "renderMeshScene.js no longer declares SECTION_PLANES")
-        self.assertEqual(tuple(re.findall(r'"(\w+)"', declared.group(1))), snapshot_core.SECTION_PLANES)
-        # The page reads exactly the keys Python validates: nothing else of `section`.
-        read = set(re.findall(r"\bsection\??\.(\w+)", source)) - {"segmentCount"}
-        self.assertEqual(set(snapshot_core.SECTION_KEYS), read)
+            self.prepared(outputs=[{"path": "iso.png", "format": "svg"}])
 
 
 class SizingTests(_Workspace):
@@ -615,7 +557,7 @@ class TimeoutAndModeTests(_Workspace):
             SnapshotOptions(job=str(packet), mode="LIST", mode_specified=True), cwd=self.root
         )
         self.assertEqual("list", overridden["mode"])
-        with self.assertRaisesRegex(SnapshotError, r"Unsupported render mode: orbit\. Modes: list, section, view"):
+        with self.assertRaisesRegex(SnapshotError, r"Unsupported render mode: orbit\. Modes: list, view"):
             load_job_from_options(SnapshotOptions(input="part.stl", output="o.png", mode="orbit"), cwd=self.root)
 
 
@@ -693,7 +635,7 @@ class DisplayIsValidatedOncePerJob(_Workspace):
         return validate.call_count
 
     def test_whichever_way_the_display_arrives(self) -> None:
-        display = {"mode": "render", "lighting": {"fill": 0.4}}
+        display = {"mode": "parts", "grid": True, "clip": {"axis": "z", "at": 0.4}}
         self.write("stage.json", json.dumps(display))
         packet = self.write("packet.json", json.dumps({"jobs": [self.stl_job(), self.stl_job(display="solid")]}))
         ways = {
@@ -709,7 +651,7 @@ class DisplayIsValidatedOncePerJob(_Workspace):
                 self.assertEqual(1, self.count(run))
         # An override lands on every job of a packet: one validation per job, not three.
         self.assertEqual(2, self.count(lambda: self.resolve(load_job_from_options(
-            SnapshotOptions(job=str(packet), display="render", display_specified=True), cwd=self.root))))
+            SnapshotOptions(job=str(packet), display="solid", display_specified=True), cwd=self.root))))
 
 
 class PythonVerbTests(_Workspace):
@@ -725,8 +667,8 @@ class PythonVerbTests(_Workspace):
 
     def test_an_explicit_none_is_an_omitted_option(self) -> None:
         options = self.options_for(display=None, camera=None, kinematics=None, animation=None,
-                                   video=None, section=None, time=None)
-        for name in ("display", "camera", "kinematics", "animation", "video", "section"):
+                                   video=None, time=None)
+        for name in ("display", "camera", "kinematics", "animation", "video"):
             self.assertFalse(getattr(options, f"{name}_specified"), name)
         self.write("part.step", "ISO-10303-21;\nEND-ISO-10303-21;\n")
         job = load_job_from_options(options, cwd=self.root)
@@ -771,6 +713,135 @@ class StepDebugReportsWhatWasResolved(unittest.TestCase):
         )
         self.assertEqual((resolved["documentHash"], resolved["tree"]), (entry["documentHash"], entry["tree"]))
         self.assertEqual((1, 1, False), (entry["componentCount"], entry["occurrenceCount"], entry["selectorIndex"]))
+
+
+ANNOTATION = {"units": "mm", "parts": {}, "marks": [
+    {"id": "1", "kind": "stroke", "part": None, "points": [0, 0, 0, 1, 1, 1], "color": "#ff2d55", "width": 2}]}
+
+
+class AnnotationAndTargetTests(_Workspace):
+    """A job's annotation is read from its file and handed to the page; TARGET re-aims a job file."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.annotation = self.write("ink.annotation.json", json.dumps(ANNOTATION))
+        self.jobs = self.write("views.job.json", json.dumps({"jobs": [
+            {"input": "part.stl", "camera": "iso", "outputs": [{"path": "a.png"}]},
+            {"input": "part.stl", "camera": "top", "outputs": [{"path": "b.png"}]},
+        ]}))
+
+    def from_options(self, **fields) -> dict:
+        options = SnapshotOptions(**fields)
+        return resolve_render_job_packet(load_job_from_options(options, cwd=self.root), cwd=self.root)
+
+    def test_packet_defaults_and_per_job_replacements_reach_the_renderer(self) -> None:
+        mark = {"start": [0, 0, 0], "end": [10, 0, 0], "label": "10 mm", "color": "#ff2d55"}
+        empty = {"units": "mm", "parts": {}, "marks": []}
+        other = self.write("other.stl", STL)
+        packet = {"input": "part.stl", "annotation": "ink.annotation.json", "measurements": [mark], "jobs": [
+            {"outputs": [{"path": "shared.png"}]},
+            {"input": str(other), "annotation": empty, "measurements": [], "outputs": [{"path": "empty.png"}]},
+            {"annotation": ANNOTATION, "measurements": [{**mark, "label": "local"}], "outputs": [{"path": "local.png"}]},
+        ]}
+        original = json.dumps(packet)
+        jobs = self.resolve(packet)["jobs"]
+        self.assertEqual([job["input"] for job in jobs], ["part.stl", str(other), "part.stl"])
+        self.assertEqual([job["annotation"] for job in jobs], [ANNOTATION, empty, ANNOTATION])
+        self.assertEqual([job.get("measurements", []) for job in jobs], [[mark], [], [{**mark, "label": "local"}]])
+        self.assertEqual(json.dumps(packet), original)
+        # CLI overrides still win over both the shared and the per-job values.
+        path = self.write("shared.snapshot.json", json.dumps(packet))
+        overridden = self.from_options(job=str(path), input=str(other),
+            annotation=ANNOTATION, annotation_specified=True,
+            measurements=[mark], measurements_specified=True)["jobs"]
+        self.assertEqual([job["input"] for job in overridden], [str(other)] * 3)
+        self.assertEqual([job["annotation"] for job in overridden], [ANNOTATION] * 3)
+        self.assertEqual([job["measurements"] for job in overridden], [[mark]] * 3)
+
+    def test_packet_defaults_are_validated_and_unknown_fields_are_refused(self) -> None:
+        for fields, error in (
+            ({"annotation": ["invalid"]}, "annotation is the path"),
+            ({"measurements": [{"start": []}]}, "measurements"),
+            ({"annotations": {}}, "unknown key.*annotations"),
+        ):
+            with self.subTest(fields=fields), self.assertRaisesRegex(SnapshotError, error):
+                self.resolve({"input": "part.stl", **fields, "jobs": [{"outputs": [{"path": "x.png"}]}]})
+
+    def test_an_annotation_file_or_object_reaches_the_page_as_the_object(self) -> None:
+        by_file = self.resolve(self.stl_job(annotation="ink.annotation.json"))["jobs"][0]
+        self.assertEqual((by_file["annotation"], by_file["resolved"]["annotationSource"]), (ANNOTATION, str(self.annotation)))
+        inline = self.resolve(self.stl_job(annotation=ANNOTATION))["jobs"][0]
+        self.assertEqual((inline["annotation"], "annotationSource" in inline["resolved"]), (ANNOTATION, False))
+
+    def test_the_flag_draws_over_every_job_and_a_target_replaces_every_jobs_input(self) -> None:
+        other = self.write("other.stl", STL)
+        jobs = self.from_options(job=str(self.jobs), input=str(other), output="ignored.png",
+                                 annotation="ink.annotation.json", annotation_specified=True)["jobs"]
+        self.assertEqual([job["input"] for job in jobs], [str(other)] * 2)
+        self.assertEqual([job["annotation"] for job in jobs], [ANNOTATION] * 2)
+        self.assertEqual([job["outputs"][0]["path"] for job in jobs], [str(self.root / "a.png"), str(self.root / "b.png")])
+        # And the flag is on every door that draws a scene, by that name.
+        for door in (step_door, stl_door, urdf_door, any_door):
+            with self.subTest(door=door.__name__), mock.patch.object(snapshot_cli, "run_snapshot") as run:
+                run.return_value = snapshot_core.snapshot_result({"ok": True, "mode": "view", "outputs": []})
+                code, _ = run_door(door, [self.stl, self.out, "--annotation", "ink.annotation.json"])
+                self.assertEqual(code, 0)
+                self.assertEqual((run.call_args.args[0].annotation, run.call_args.args[0].annotation_specified),
+                                 ("ink.annotation.json", True))
+        code, said = run_door(dxf_door, ["panel.dxf", self.out, "--annotation", "ink.annotation.json"])
+        self.assertEqual(code, 2)
+        self.assertIn("--annotation", said)
+
+    def test_annotation_has_no_legacy_flag_or_job_key(self) -> None:
+        with self.assertRaisesRegex(SnapshotError, r"unknown render job key\(s\): sketch"):
+            self.resolve(self.stl_job(sketch=ANNOTATION))
+        for door in (step_door, stl_door, urdf_door, any_door):
+            with self.subTest(door=door.__name__):
+                code, said = run_door(door, [self.stl, self.out, "--sketch", "ink.annotation.json"])
+                self.assertEqual(code, 2)
+                self.assertIn("--sketch", said)
+
+    def test_an_annotation_that_is_not_one_is_refused_and_a_list_takes_none(self) -> None:
+        self.write("list.json", "[]")
+        for job, said in (
+            (self.stl_job(annotation="missing.json"), "annotation file does not exist: missing.json"),
+            (self.stl_job(annotation="list.json"), "an annotation is a JSON object with units, parts and marks"),
+            (self.stl_job(annotation=["not", "one"]), "annotation is the path of an annotation JSON file"),
+            ({"input": "part.stl", "mode": "list", "outputs": [], "annotation": ANNOTATION}, "only view mode draws it"),
+        ):
+            with self.subTest(job=job), self.assertRaisesRegex(SnapshotError, re.escape(said)):
+                self.resolve(job)
+
+    def test_measurements_are_a_list_one_measurement_or_a_file_of_either_and_the_flag_draws_over_every_job(self) -> None:
+        mark = {"start": [0, 0, 0], "end": [10, 0, 0], "label": "10.00 mm", "color": "#d59090"}
+        self.write("marks.json", json.dumps([mark]))
+        for value in ([mark], mark, json.dumps(mark), "marks.json"):
+            with self.subTest(value=value):
+                self.assertEqual(self.resolve(self.stl_job(measurements=value))["jobs"][0]["measurements"], [mark])
+        jobs = self.from_options(job=str(self.jobs), measurements=json.dumps(mark), measurements_specified=True)["jobs"]
+        self.assertEqual([job["measurements"] for job in jobs], [[mark]] * 2)
+        for door in (step_door, stl_door, urdf_door, any_door):
+            with self.subTest(door=door.__name__), mock.patch.object(snapshot_cli, "run_snapshot") as run:
+                run.return_value = snapshot_core.snapshot_result({"ok": True, "mode": "view", "outputs": []})
+                code, _ = run_door(door, [self.stl, self.out, "--measurements", "marks.json"])
+                self.assertEqual((code, run.call_args.args[0].measurements), (0, "marks.json"))
+        for job, said in (
+            (self.stl_job(measurements=[{**mark, "color": "red"}]), "measurements[0].color is #rrggbb"),
+            (self.stl_job(measurements="gone.json"), "measurements file does not exist: gone.json"),
+            ({"input": "part.stl", "mode": "list", "outputs": [], "measurements": [mark]}, "only view mode draws them"),
+        ):
+            with self.subTest(job=job), self.assertRaisesRegex(SnapshotError, re.escape(said)):
+                self.resolve(job)
+
+    def test_the_pages_refusal_of_a_mark_names_the_annotation_file(self) -> None:
+        async def refused():
+            raise RuntimeError("Page.evaluate: Error: annotation: marks[0].color must be a #rrggbb colour\n    at nn (x.js:1)")
+
+        job = {"annotation": ANNOTATION, "resolved": {"annotationSource": "/p/ink.annotation.json"}}
+        with self.assertRaisesRegex(SnapshotError, r"^/p/ink\.annotation\.json: annotation: marks\[0\]\.color must be a #rrggbb colour$"):
+            asyncio.run(snapshot_core._refusing_annotation(job, refused()))
+        with self.assertRaisesRegex(RuntimeError, "Page.evaluate"):
+            asyncio.run(snapshot_core._refusing_annotation({}, refused()))
 
 
 if __name__ == "__main__":

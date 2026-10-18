@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+import contextlib
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from dataclasses import replace
 from pathlib import Path
@@ -20,6 +21,7 @@ from cadgen.catalog import normalize_cad_ref
 from cadgen.catalog import normalize_source_ref
 from cadgen.cli_logging import CliLogger
 from cadgen.cli_progress import cli_progress_line
+from cadgen.coordination import ProgressEvent
 from cadgen.metadata import GeneratorMetadata
 from cadgen.render import relative_to_cwd
 
@@ -35,10 +37,6 @@ class EntrySpec:
     script_path: Path | None = None
     generator_metadata: GeneratorMetadata | None = None
     dxf_path: Path | None = None
-    # A @pcb board's .kicad_pcb (its .kicad_sch and .kicad_pro sit beside it).
-    pcb_path: Path | None = None
-    # A @harness model's .harness.yml, its one document.
-    harness_path: Path | None = None
     # ``None`` means "the caller specified nothing" — the adaptive resolver
     # supplies the value. A number is the caller's explicit choice, and
     # ``is not None`` IS the explicitness test; there is no separate flag and
@@ -217,8 +215,6 @@ def _entry_spec_from_source(source: CadSource) -> EntrySpec:
         script_path=script_path,
         generator_metadata=generator_metadata,
         dxf_path=source.dxf_path,
-        pcb_path=source.pcb_path,
-        harness_path=source.harness_path,
         mesh_tolerance=source.mesh_tolerance,
         mesh_angular_tolerance=source.mesh_angular_tolerance,
         color=source.color,

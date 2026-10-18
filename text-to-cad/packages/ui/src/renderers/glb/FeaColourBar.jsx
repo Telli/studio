@@ -35,26 +35,22 @@ export function colourBarText(field, scale = 1, sigma = null) {
     note: `Colours stop at the ${percentile}th percentile; the peak is ${figure(field.capped.peak)}${units ? ` ${units}` : ""}` };
 }
 
-// A result that is also animated has a playbar on that line in preview: the bar steps up above it.
-const PLAYBAR_CLEARANCE = "3rem";
-
 /**
  * What the colours of a GLB with an FEA result mean, over the bottom of its viewport: the field in
  * plain words ("Stress", as Show names it: `fea/fields.js`), then its range and units along the ramp. It is only the
  * scale: what the numbers mean for the part is the verdict's, at the top of Study, and the field and
  * the deformation are chosen there. At `loadScale` times the solved load the range is that load's.
  *
- * Bottom-centre, on the line the playbar uses, or one playbar's height above it while the playbar
- * is there (`raised`: in preview, for a file with routines). The card takes no pointer events, so
+ * Bottom-centre, on the result's line (`VIEWPORT_BOTTOM_CENTER`). The card takes no pointer events, so
  * orbiting past it still works. `field` arrives resolved. The load shown scales the range only where
  * the analysis follows the load (`scalesWithLoad`); `sigma`, a random vibration's level, scales an
  * RMS field's.
  */
-export default function FeaColourBar({ result, field, loadScale = 1, sigma = null, raised = false }) {
+export default function FeaColourBar({ result, field, loadScale = 1, sigma = null }) {
   const scale = (feaAnalysis(result).scalesWithLoad ? loadScale : 1) * sigmaScale(field, sigma);
   const shown = colourBarText(field, scale, sigma);
   return (
-    <div className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-3" style={{ bottom: raised ? `calc(${VIEWPORT_BOTTOM_CENTER} + ${PLAYBAR_CLEARANCE})` : VIEWPORT_BOTTOM_CENTER }}>
+    <div className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-3" style={{ bottom: VIEWPORT_BOTTOM_CENTER }}>
       <div
         className={cn("flex w-80 max-w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-micro tabular-nums text-muted-foreground", FLOATING_CHROME_SURFACE_CLASS)}
         role="group"

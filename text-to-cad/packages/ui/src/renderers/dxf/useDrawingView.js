@@ -1,16 +1,23 @@
 /**
- * The canvas a drawing is painted on: the kit's flat-picture view (`kit/plane/usePlaneView.js`
- * — drag to pan, wheel or pinch to zoom about the pointer, double-click to fit), painting a
- * prepared drawing in the theme's pens on the theme's background.
+ * The canvas a drawing is painted on, and the three things a person does to it:
+ * drag to pan, wheel or pinch to zoom about the pointer, double-click to fit —
+ * and, for the tool in hand, a tap (a press that lets go without dragging) and
+ * the pointer resting over the drawing (`onTap`, `onHover`), in the pane's CSS
+ * pixels. Those are every flat view's (`kit/viewport/useFlatCanvasView.js`); this
+ * is the drawing painted under them.
  *
- * A drawing's default pen (ACI 7, `color: null`) is the theme's `--foreground` and its
- * background the theme's `--background`, both read at DRAW time off the pane: one payload
- * serves both themes, and a theme flip is a repaint.
+ * Painting is on demand: one `requestAnimationFrame` is scheduled when
+ * something changed, and an idle drawing draws nothing at all. A resize is the
+ * exception: resizing the canvas wipes it, so the pane's observer paints at once.
+ * What the tools draw over the drawing (a highlight, ink) is painted in the same
+ * frame, after it (`overlay`), so a capture of the canvas holds it too.
  */
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { clearSurface, drawDrawing, fitTransform } from "@text-to-cad/core/lib/drawing2d/index.js";
-import { usePlaneView } from "../kit/plane/usePlaneView.js";
-import { readThemeColors } from "../kit/plane/themeColors.js";
+import { useFlatCanvasView } from "../kit/viewport/useFlatCanvasView.js";
+import { readDrawingThemeColors } from "./themeColors.js";
+
+const NO_LAYERS = new Set();
 
 /**
  * @param {object} options
@@ -20,22 +27,36 @@ import { readThemeColors } from "../kit/plane/themeColors.js";
  * @param {"light"|"dark"} options.colorScheme
  * @param {(transform: object|null) => void} options.onViewMoved  Called after the person moves the
  *   view, with the transform to remember. Never called for a fit.
+ * @param {ReadonlySet<string>} [options.hiddenLayers]  Layers not drawn.
+ * @param {(ctx: CanvasRenderingContext2D, view: { transform: object, pixelRatio: number, width: number, height: number }) => void} [options.overlay]
+ *   Painted over the drawing in each frame.
+ * @param {(point: { x: number, y: number }, event: PointerEvent) => void} [options.onTap]
+ * @param {(point: { x: number, y: number } | null, event: PointerEvent | null) => void} [options.onHover]
+ *   A pointer resting over the canvas with nothing pressed (null: it left).
  */
-export function useDrawingView({ drawing, restored = null, colorScheme = "light", onViewMoved }) {
+export function useDrawingView({ drawing, restored = null, colorScheme = "light", onViewMoved, hiddenLayers = NO_LAYERS,
+  overlay = null, onTap = null, onHover = null }) {
   const drawingRef = useRef(drawing);
   drawingRef.current = drawing;
+  const hiddenRef = useRef(hiddenLayers);
+  hiddenRef.current = hiddenLayers;
+  const overlayRef = useRef(overlay);
+  overlayRef.current = overlay;
+
   const paint = useCallback((ctx, { width, height, pixelRatio, transform, element, colorScheme: scheme }) => {
-    const { background, foreground } = readThemeColors(element, scheme);
+    const { background, foreground } = readDrawingThemeColors(element, scheme);
     clearSurface(ctx, { width, height, pixelRatio, background });
     const drawable = drawingRef.current;
     if (drawable && transform) {
-      drawDrawing(ctx, drawable, { transform, foreground, pixelRatio });
+      drawDrawing(ctx, drawable, { transform, foreground, pixelRatio, hiddenLayers: hiddenRef.current });
+      overlayRef.current?.(ctx, { transform, pixelRatio, width, height });
     }
   }, []);
-  const view = usePlaneView({
-    content: drawing, bounds: drawing?.bounds ?? null, restored, colorScheme, onViewMoved, paint, noun: "drawing"
-  });
-  const { containerRef, schemeRef } = view;
+  const view = useFlatCanvasView({ content: drawing, bounds: drawing?.bounds ?? null, restored, colorScheme, onViewMoved, paint, onTap, onHover });
+  const { containerRef, schemeRef, requestPaint, encode } = view;
+
+  // A layer shown or hidden: the same view, without it.
+  useEffect(() => { requestPaint(); }, [hiddenLayers, requestPaint]);
 
   /**
    * The drawing on its own, for a library card: fitted whole to `width` × `height`, in the theme's
@@ -49,7 +70,7 @@ export function useDrawingView({ drawing, restored = null, colorScheme = "light"
     canvas.height = Math.max(1, Math.round(height));
     const context = canvas.getContext("2d");
     if (!context) { reject(new Error("The browser cannot draw the drawing's picture.")); return; }
-    const { background, foreground } = readThemeColors(containerRef.current, schemeRef.current);
+    const { background, foreground } = readDrawingThemeColors(containerRef.current, schemeRef.current);
     clearSurface(context, { width: canvas.width, height: canvas.height, background });
     drawDrawing(context, drawable, { transform: fitTransform(drawable.bounds, canvas.width, canvas.height), foreground });
     canvas.toBlob((blob) => {
@@ -58,8 +79,9 @@ export function useDrawingView({ drawing, restored = null, colorScheme = "light"
     }, "image/png");
   }), [containerRef, schemeRef]);
 
-  return {
-    containerRef, canvasRef: view.canvasRef, dragging: view.dragging, fit: view.fit,
-    capture: view.capture, thumbnail, transformRef: view.transformRef
-  };
+  /** The framed picture as a PNG, background included: it is painted into the canvas. */
+  const capture = useCallback(() => encode("drawing"), [encode]);
+
+  return { containerRef, canvasRef: view.canvasRef, dragging: view.dragging, fit: view.fit, zoomBy: view.zoomBy, capture, thumbnail,
+    transformRef: view.transformRef, sizeRef: view.sizeRef, requestPaint };
 }

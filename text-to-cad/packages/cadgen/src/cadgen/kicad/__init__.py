@@ -1,34 +1,21 @@
 """KiCad: the PCB kernel cadgen drives, as build123d drives OpenCascade.
 
-``@pcb`` models are written in Python (``cadgen.pcb``); this package turns
-them into KiCad documents and asks KiCad's own command line, ``kicad-cli``, for
-the operations cadgen must never reimplement: filling copper zones, the
-electrical and design rule checks, plots and fabrication exports. Nothing here
-talks to a running KiCad or imports KiCad's Python bindings; the documents
-are files, and ``kicad-cli`` is a program cadgen runs.
+A ``@pcb`` script (:mod:`cadgen.pcb`) fills a board through KiCad's own API
+client, kicad-python (vendored as :mod:`cadgen.kipy`), on a headless server the
+build starts and stops (``kicad-cli api-server``, KiCad 10.99 or newer). Every
+board file is KiCad's, written by KiCad; cadgen writes no KiCad document itself
+and reads the saved ones for the viewer.
 
 Modules, each importing nothing heavy at module scope:
 
-- ``sexpr``: read and write the S-expression syntax every KiCad file uses.
-- ``install``: find ``kicad-cli``, the symbol/footprint/3D libraries and
-  ngspice.
-- ``library``: load a symbol or footprint by its ``Library:Name``; search them.
-- ``design``: the authoring model (``Board``, parts, nets, copper, rules).
-- ``fabs``: each fab's limits for its standard service (``pcb.JLCPCB``, ``pcb.PCBWAY``...).
-- ``outline`` / ``ids``: a build123d outline as board edges; stable UUIDs.
-- ``board_writer`` / ``schematic_writer`` / ``project_writer`` / ``project``:
-  the documents.
-- ``cli``: run ``kicad-cli`` and read its JSON reports.
-- ``check``: a build's fill, ERC and DRC; ``cadgen pcb validate``'s checks.
-- ``plot`` / ``solid`` / ``fab``: the viewer's plots, the populated board in
-  3D, and the manufacturing files.
-- ``refs`` / ``board_index`` / ``schematic_index``: board references (``#U3.9``,
-  ``#net:VIN``...), the language a person points with in the viewer, and any
-  board or schematic read back as what they point at:
-  ``pcb.read_board(path).resolve(ref)``, ``pcb.read_schematic(path).resolve(ref)``.
-- ``spice`` / ``ngspice`` / ``sim``: simulation -- the netlist from KiCad's
-  ``Sim.*`` fields, the simulator KiCad ships, and the ``Testbench``.
-- ``specctra`` / ``route``: autorouting -- a board as Freerouting's Specctra
-  DSN and its routed session read back, and running Freerouting (a separate
-  program, GPL-3.0) for ``board.autoroute()``.
+- ``install``: find ``kicad-cli`` (``CADGEN_KICAD_CLI``, ``PATH``, the
+  installers' folders) and judge its version.
+- ``cli``: run ``kicad-cli pcb drc`` on a saved board and read its report, the
+  one check the API does not offer: every build's last step, and ``cadgen pcb drc``.
+- ``sexpr``: read the S-expression syntax every KiCad file uses.
+- ``geometry`` / ``naming``: the frames, shapes and names the readers share.
+- ``board_index`` / ``refs``: a saved board read back from its file as what a
+  person points at, and board references (``#U3.9``, ``#net:VIN``...)
+  answered.
+- ``plot``: the viewer's picture of a board, geometry per layer, from the file.
 """

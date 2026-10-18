@@ -5,11 +5,11 @@
  */
 import { useLayoutEffect } from "react";
 import { clamp } from "@text-to-cad/core/common/numbers.js";
-import { FEA_PARTS_PANEL_ID, FEA_STUDY_PANEL_ID } from "./FeaStudyPanel.jsx";
+import { FEA_STUDY_PANEL_ID } from "./FeaStudyPanel.jsx";
 import { framingInset } from "./feaChrome.js";
 import { ClipIcon } from "../kit/view-settings/ClipControls.jsx";
 
-export { default as FeaStudyPanel } from "./FeaStudyPanel.jsx";
+export { default as FeaStudyPanel, FeaReferencePanel } from "./FeaStudyPanel.jsx";
 export { default as FeaColourBar } from "./FeaColourBar.jsx";
 export { default as FeaLoadLabels } from "./FeaLoadLabels.jsx";
 export { default as FeaFallClock } from "./FeaFallClock.jsx";
@@ -42,10 +42,8 @@ export const MARKER_COLOURS = Object.freeze({
   dark: Object.freeze({ load: "#fafafa", fixture: "#a1a1aa", halo: "rgba(18, 19, 21, 0.9)" }),
 });
 export const CLIP_ICON = <ClipIcon className="size-3" strokeWidth={2} aria-hidden="true" />;
-// Select's own panels, which a person can close: Study, and above it an assembly's Parts. A result
-// opens with them up, except on a phone.
-export const STUDY_PANEL = Object.freeze({ id: FEA_STUDY_PANEL_ID, label: "Study", startsClosed: false });
-export const ASSEMBLY_PANELS = Object.freeze([Object.freeze({ id: FEA_PARTS_PANEL_ID, label: "Parts", startsClosed: false }), STUDY_PANEL]);
+// The file sidebar's section a result opens with, but on a phone: Study, its verdict first.
+export const OPEN_SECTION = FEA_STUDY_PANEL_ID;
 
 /** Study's row for a face, where it has one (a fixed face, a loaded face), so a pick of it marks that row. */
 export function faceRow(rows, ref) {

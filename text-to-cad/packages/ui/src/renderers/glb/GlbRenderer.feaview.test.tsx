@@ -84,15 +84,20 @@ function mount(extras: Record<string, unknown> | null = WARMUP) {
   return mesh;
 }
 
-it('Play in preview steps a heat-over-time result\'s colours through its frames, and leaves the unmoving model\'s positions alone', () => {
+// A result's routines play in the tools view, from the file sidebar's Animation section (a result has no Preview yet).
+const playRoutine = () => {
+  act(() => { fireEvent.click(document.querySelector('[data-file-sidebar-tool="animation"]')!); });
+  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Play animation' })); });
+};
+
+it('Play steps a heat-over-time result\'s colours through its frames, and leaves the unmoving model\'s positions alone', () => {
   const mesh = mount();
   // Vertex 2's colour: red at the hottest frame's 75 °C, which the result opens on; blue at the start's 25 °C.
   const vertex2 = () => Array.from(mesh.geometry.getAttribute('color').array as Uint8Array).slice(8, 11);
   const position = mesh.geometry.getAttribute('position');
   const hottest = vertex2();
   const placed = position.version;
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Preview' })); });
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Play animation' })); });
+  playRoutine();
   const seen = [vertex2()];
   for (const ms of [250, 750, 1500, 2250]) { frame(ms); seen.push(vertex2()); }
   // Play starts at 0 s, all 25 °C, and every tick of its clock shows a new blend of two frames.
@@ -129,20 +134,14 @@ it('Clip cuts a result open: on the strip after Select, a neutral panel that an 
   // The cut discards; it never recolours. The colour bar stays the reading it was.
   expect(Array.from(mesh.geometry.getAttribute('color').array as Uint8Array)).toEqual(colours);
   expect(document.querySelector('[aria-label="temperature colour bar"]')).toBeTruthy();
-  // Preview suspends the tool effects: the whole result, cut again on the way back.
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Preview' })); });
-  expect(drawnPlanes()).toHaveLength(0);
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Exit preview' })); });
-  expect(drawnPlanes()).toHaveLength(1);
-  // Study and the applied cut's panel are both up, Study first, with no trip through Select.
-  const stack = screen.getAllByRole('region').map(region => region.getAttribute('aria-label'));
-  expect(stack.indexOf('Study')).toBeGreaterThanOrEqual(0);
-  expect(stack.indexOf('Study')).toBeLessThan(stack.indexOf('Clip controls'));
-  // Flip keeps the other side of the same plane: just short of all the way, the sliver past it.
+  // Study (the sidebar's) and the applied cut's panel (the stack's) are both up, with no trip through Select.
+  const regions = screen.getAllByRole('region').map(region => region.getAttribute('aria-label'));
+  expect(regions).toEqual(expect.arrayContaining(['Study', 'Clip controls']));
+  // Flip cuts the other side, as much of it: just short of all the way, the sliver past it is what stays.
   act(() => { fireEvent.keyDown(screen.getByRole('slider', { name: 'Clip amount' }), { key: 'PageDown' }); });
   await waitFor(() => expect(drawnPlanes()[0]?.distanceToPoint(new Vector3(1, 0, 0))).toBeLessThan(0));
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Flip clip side' })); });
-  expect(screen.getByRole('button', { name: 'Flip clip side' }).getAttribute('aria-pressed')).toBe('true');
+  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Flip clip' })); });
+  expect(screen.getByRole('button', { name: 'Flip clip' }).getAttribute('aria-pressed')).toBe('true');
   await waitFor(() => expect(drawnPlanes()[0]?.distanceToPoint(new Vector3(1, 0, 0))).toBeGreaterThan(0));
   expect(drawnPlanes()[0].distanceToPoint(new Vector3(0, 0, 0))).toBeLessThan(0);
   // Its X removes the cut and the panel.
@@ -151,9 +150,10 @@ it('Clip cuts a result open: on the strip after Select, a neutral panel that an 
   await waitFor(() => expect(drawnPlanes()).toHaveLength(0));
 });
 
-it('a GLB that is not a result has no Clip', () => {
+it('a GLB that is not a result has the scene\'s own Clip, not a result\'s panel', () => {
   mount(null);
-  expect(screen.queryByRole('button', { name: 'Clip' })).toBeNull();
+  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Clip' })); });
+  expect(document.querySelector('[data-fea-clip-panel]')).toBeNull();
 });
 
 // A 1 m drop (estimate) as `cadgen fea solve` writes one with its fall: landing flat on its y = 0 edge (glTF), falling
@@ -166,7 +166,7 @@ const DROPPED = {
   study: { drop: { height_mm: 1000, onto: ['#o1.f1'], stop_mm: 2, direction: [0, 0, -1] }, material: { name: 'ABS', yield_MPa: 40 } },
 };
 
-it('a drop moves as kinematics does: a Time row and named states pose it in the tools view, and Preview plays the fall', () => {
+it('a drop moves as kinematics does: a Time row and named states pose it, and the Animation section plays the fall', () => {
   const mesh = mount(DROPPED);
   const height = () => { mesh.updateMatrixWorld(true); return new Vector3().setFromMatrixPosition(mesh.matrixWorld).y; };
   // It opens on the peak of the stop, on the floor, its Time row saying the real time from landing.
@@ -181,9 +181,8 @@ it('a drop moves as kinematics does: a Time row and named states pose it in the 
   act(() => { fireEvent.keyDown(time, { key: 'End' }); });
   expect(height()).toBeCloseTo(0, 6);
   expect(said()).toBe('At rest');
-  // Preview's playbar plays the same timeline as Drop: from its height, falling, the readout in plain words.
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Preview' })); });
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Play animation' })); });
+  // The Animation section plays the same timeline as Drop: from its height, falling, the readout in plain words.
+  playRoutine();
   frame(0);
   frame(100);
   expect(height()).toBeCloseTo(1, 6);
@@ -195,8 +194,8 @@ it('a drop moves as kinematics does: a Time row and named states pose it in the 
   expect(floor.visible).toBe(true);
   frame(1200);
   expect(document.querySelector('[data-fea-fall-scale]')!.textContent).toBe('slowed 2,000×');
-  // Leaving preview puts it back where the Time row has it, the readout gone.
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Exit preview' })); });
+  // Reset puts it back where the Time row has it, the readout gone.
+  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Reset animation' })); });
   expect(height()).toBeCloseTo(0, 6);
   expect((document.querySelector('[data-fea-fall-clock]') as HTMLElement).style.display).toBe('none');
 });

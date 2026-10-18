@@ -196,33 +196,12 @@ class MeshExportResult:
 
 
 @dataclass(frozen=True)
-class FabExportFile:
-    """One manufacturing file a board door wrote."""
-
-    path: Path
-    #: ``gerber``, ``bom`` or ``pos``.
-    fmt: str
-
-
-@dataclass(frozen=True)
-class FabExportResult:
-    """The outcome of one ``gerber``/``bom``/``pos`` door's ``build``."""
-
-    ok: bool
-    files: tuple[FabExportFile, ...] = ()
-
-    def human_lines(self) -> list[str]:
-        return [f"wrote {entry.fmt.upper()}: {_display(entry.path)}" for entry in self.files]
-
-
-@dataclass(frozen=True)
 class SnapshotFile:
     """One file a snapshot run wrote: a still, or a video of an animation clip."""
 
     path: Path
-    #: The encoding the render produced: ``png``, ``mp4``, ``gif``, or whatever
-    #: suffix a text output carried. It follows the RENDER, not the request — an
-    #: SVG served under a ``.png`` name still reports ``svg``.
+    #: The encoding the render produced: ``png``, ``mp4`` or ``gif``.
+    #: It follows the rendered MIME type, falling back to the output suffix.
     kind: str
     #: What this output framed: the camera preset, ``azimuth:elevation`` pair, or
     #: view label the output declared. Empty when the job named none.

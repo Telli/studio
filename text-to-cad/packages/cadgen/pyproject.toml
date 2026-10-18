@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cadgen"
-version = "0.7.21"
+version = "0.7.23"
 description = "STEP-first CAD artifact generation runtime: build123d STEP/GLB/topology generation, validation, and inspection for CAD agent skills."
 readme = "README.md"
 license = "MIT"
@@ -69,6 +69,15 @@ dependencies = [
   # (snapshot_core.install_browser), not by the install.
   "playwright==1.63.0",
   "shapely",
+  # kicad-python's runtime, for the vendored client (cadgen/kipy, see its VENDOR.json):
+  # protobuf is the API's wire format, pynng its transport, and zstandard what its
+  # embedded-files type imports at module scope. The bounds are upstream's own
+  # (kicad-python's pyproject.toml at the pinned commit); every one has wheels for
+  # Linux, macOS and Windows on every Python cadgen supports, and importing
+  # cadgen.kipy or cadgen.pcb touches no KiCad.
+  "protobuf>=5.29.6,<6",
+  "pynng>=0.9.0,<0.10.0",
+  "zstandard>=0.25.0,<0.26.0",
   # `cadgen fea parts` finds the parts that touch with numpy and scipy (a KD-tree of
   # sampled faces) and no solver, so it runs without the fea extra. build123d brings
   # both already; they are named here because cadgen imports them itself.
@@ -100,6 +109,14 @@ Issues = "https://github.com/earthtojake/text-to-cad/issues"
 [project.scripts]
 cadgen = "cadgen.cli:main"
 
+[tool.pyrefly]
+preset = "basic"
+project-includes = ["src"]
+search-path = ["src"]
+# A checkout under an ignored folder (a `.claude/worktrees/...` worktree) would
+# otherwise have src excluded by the ignore files above it and check nothing.
+use-ignore-files = false
+
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["cadgen*"]
@@ -115,6 +132,10 @@ cadgen = ["py.typed", "*.pyi", "_runtime/**/*"]
 # The viewer server's catalog ordering is ICU root collation, read from this table at
 # runtime; it ships beside the code that reads it.
 "cadgen.viewer" = ["collation.json"]
+# The vendored kicad-python: its licence and provenance record ship beside the code,
+# as do the generated protobuf stubs under its subpackages (py.typed is honoured only
+# with them). Verified by scripts/release/check-wheel-contents.sh.
+"cadgen.kipy" = ["py.typed", "LICENSE", "VENDOR.json", "**/*.pyi"]
 # The Node builder bridge (cadgen/_internal/node_runtime.py) spawns node with
 # `--import node_resolve_register.mjs`; both .mjs files must ship with the package.
 "cadgen._internal" = ["*.mjs"]

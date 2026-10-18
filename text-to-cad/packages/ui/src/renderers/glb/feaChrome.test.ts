@@ -37,22 +37,26 @@ describe('a load\'s label on screen', () => {
     expect(lifted.x).toBe(700);
   });
 
-  it('reads the strip and the shown panels from the page, in the view\'s own pixels; nothing while they are put away', () => {
+  it('reads the strip, the shown panels and the sidebar from the page, in the view\'s own pixels; nothing while they are put away', () => {
     document.body.innerHTML = `<div data-cad-scene-backdrop><div id="host"></div>
-      <div data-cad-tool-groups><div id="strip"></div><div data-cad-tool-stack><section id="study" data-tool-panel="tree"></section>
-      <section id="clip" data-tool-panel="fixed" hidden></section></div></div></div>`;
+      <div data-cad-tool-groups><div id="strip"></div><div data-cad-tool-stack><section id="reference" data-tool-panel="details"></section>
+      <section id="clip" data-tool-panel="fixed" hidden></section></div></div>
+      <div data-file-sidebar-room><div id="tiles" data-file-sidebar-tools></div><aside id="study" data-cad-file-sidebar data-open></aside></div></div>`;
     const box = (id: string, left: number, top: number, width: number, height: number) => {
       document.getElementById(id)!.getBoundingClientRect = () => ({ left, top, right: left + width, bottom: top + height, width, height, x: left, y: top, toJSON() {} });
     };
     box('host', 0, 36, 1440, 864);
-    box('strip', 8, 44, 60, 34);
-    box('study', 8, 86, 164, 700);
-    box('clip', 8, 790, 164, 60);
+    box('strip', 650, 44, 140, 34);
+    box('reference', 638, 86, 164, 144);
+    box('clip', 638, 238, 164, 60);
+    box('tiles', 8, 44, 34, 34);
+    box('study', 8, 86, 260, 700);
     const host = document.getElementById('host')!;
-    expect(chromeCover(host)).toEqual({ left: 8, top: 8, right: 172, bottom: 750 });
+    expect(chromeCover(host)).toEqual([{ left: 650, top: 8, right: 790, bottom: 42 }, { left: 638, top: 50, right: 802, bottom: 194 },
+      { left: 8, top: 8, right: 42, bottom: 42 }, { left: 8, top: 50, right: 268, bottom: 750 }]);
     // No colour bar: nothing at the foot.
     expect(colourBarCover(host)).toBeNull();
-    expect(framingInset(host)).toEqual({ left: 172, bottom: 0 });
+    expect(framingInset(host)).toEqual({ left: 268, bottom: 0 });
     const bar = document.createElement('div');
     bar.setAttribute('aria-label', 'Temperature colour bar');
     document.getElementById('host')!.append(bar);
@@ -60,12 +64,13 @@ describe('a load\'s label on screen', () => {
     bar.getBoundingClientRect = () => ({ left: 560, top: 846, right: 880, bottom: 876, width: 320, height: 30, x: 560, y: 846, toJSON() {} });
     expect(colourBarCover(host)).toEqual({ left: 560, top: 810, right: 880, bottom: 840 });
     // The camera frames above it, with a gap: 864 - 810 + 8.
-    expect(framingInset(host)).toEqual({ left: 172, bottom: 62 });
-    // The camera frames right of the panels: 172px of the view.
-    expect(panelInset(host)).toBe(172);
+    expect(framingInset(host)).toEqual({ left: 268, bottom: 62 });
+    // The camera frames right of the sidebar: 268px of the view. The stack at the top centre takes none of its width.
+    expect(panelInset(host)).toBe(268);
     document.querySelector('[data-cad-tool-stack]')!.setAttribute('hidden', '');
-    expect(chromeCover(host)).toEqual({ left: 8, top: 8, right: 68, bottom: 42 });
-    // The strip alone covers only its corner: the camera takes the whole width.
+    document.getElementById('study')!.removeAttribute('data-open');
+    expect(chromeCover(host)).toEqual([{ left: 650, top: 8, right: 790, bottom: 42 }, { left: 8, top: 8, right: 42, bottom: 42 }]);
+    // The sidebar closed, its tiles cover only their corner: the camera takes the whole width.
     expect(panelInset(host)).toBe(0);
     expect(chromeCover(document.createElement('div'))).toBeNull();
   });

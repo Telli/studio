@@ -5,14 +5,14 @@ import { createBoardIndex } from "./boardIndex.js";
 import { nearestOnSegment, pointInPolygon } from "./geometry.js";
 import { drawBoardOverlay } from "./boardOverlay.js";
 
-// A 40 x 30 mm sheet whose script origin sits at sheet (5, 25): script (10, 5) is sheet (15, 20).
+// A 40 x 30 mm sheet cut from a page whose origin sits at sheet (5, 25): KiCad's (10, -5) is sheet (15, 20).
 const rect = (cx, cy, w, h) => [[cx - w / 2, cy - h / 2], [cx + w / 2, cy - h / 2], [cx + w / 2, cy + h / 2], [cx - w / 2, cy + h / 2]];
 const BOARD = {
   origin: [5, 25],
   nets: [{ name: "VIN", class: "Power" }, { name: "GND", class: "Default" }, { name: "OUT", class: "Default" }],
   parts: [
     { ref: "R1", value: "10k", footprint: "Resistor_SMD:R_0603_1608Metric", side: "top", at: [15, 20], rotation: 0,
-      fields: { MPN: "RC0603" }, script: "board.py:12", outline: rect(15, 20, 3, 1.4) },
+      fields: { MPN: "RC0603" }, outline: rect(15, 20, 3, 1.4) },
     { ref: "U1", value: "AMP", footprint: "Test:SOT4", side: "bottom", at: [30, 10], rotation: 90, fields: {}, outline: rect(30, 10, 4, 3) },
   ],
   pads: [
@@ -29,10 +29,10 @@ const BOARD = {
   outline: [[[0, 0], [40, 0], [40, 30], [0, 30], [0, 0]]],
 };
 
-test("the script frame is y up from the board's origin, wherever the sheet is laid out", () => {
+test("a reference's point is KiCad's frame, y down from the page origin, wherever the sheet is laid out", () => {
   const index = createBoardIndex(BOARD, { x: 2, y: 3 });
-  assert.deepEqual(index.toScript([17, 23]), [10, 5]);
-  assert.deepEqual(index.toPage([10, 5]), [17, 23]);
+  assert.deepEqual(index.toScript([17, 23]), [10, -5]);
+  assert.deepEqual(index.toPage([10, -5]), [17, 23]);
 });
 
 test("a press picks the most specific thing under it, filtered by the Select mode", () => {
@@ -41,7 +41,7 @@ test("a press picks the most specific thing under it, filtered by the Select mod
   assert.equal(index.pick([14.175, 20], { mode: "parts" }).selector, "#R1");
   assert.equal(index.pick([15.825, 20], { mode: "nets" }).selector, "#net:GND");
   // A track is its net at the nearest point of its centreline, to the hundredth of a millimetre.
-  assert.equal(index.pick([14.3, 16]).selector, "#net:VIN@x9.18y9");
+  assert.equal(index.pick([14.3, 16]).selector, "#net:VIN@x9.18y-9");
   assert.equal(index.pick([20.1, 15]).selector.startsWith("#net:GND@"), true);
   // Bare board inside a pour is nothing under All, and the pour's net under Nets.
   assert.equal(index.pick([2, 28]), null);
@@ -68,22 +68,13 @@ test("a reference resolves to what it names, or to nothing on a board that lacks
   assert.equal(index.resolve("#U1.3").pad.net, "GND");
   assert.equal(index.resolve("U1").part.side, "bottom");
   assert.deepEqual(index.resolve("#net:GND").net.pads.map((pad) => `${pad.ref}.${pad.number}`), ["R1.2", "U1.3"]);
-  const copper = index.resolve("#net:VIN@x9.18y9");
+  const copper = index.resolve("#net:VIN@x9.18y-9");
   assert.equal(copper.item.kind, "track");
-  assert.deepEqual(index.resolve("#@x1y2").page, [6, 23]);
+  assert.deepEqual(index.resolve("#@x1y2").page, [6, 27]);
   assert.equal(index.resolve("#C99"), null);
   assert.equal(index.resolve("#net:NOPE"), null);
   assert.equal(index.resolve("o1.f2"), null);
   assert.deepEqual(index.extent(index.resolve("#R1.1")).map((v) => Math.round(v * 1000) / 1000), [13.775, 19.525, 14.575, 20.475]);
-});
-
-test("a measurement snaps to pad centres, vias, holes and the outline", () => {
-  const index = createBoardIndex(BOARD);
-  assert.equal(index.snap([14.2, 20.1], { tolerance: 0.5 }).label, "R1.1");
-  assert.equal(index.snap([14.2, 20.1], { tolerance: 0.5 }).selector, "#R1.1");
-  assert.equal(index.snap([3.1, 3], { tolerance: 0.5 }).kind, "hole");
-  assert.equal(index.snap([39.9, 29.9], { tolerance: 0.5, kinds: ["outline"] }).kind, "outline");
-  assert.equal(index.snap([10, 10], { tolerance: 0.5 }), null);
 });
 
 test("a point in a polygon", () => {
@@ -156,7 +147,6 @@ test("a net is highlighted whole, and what is off screen left out", () => {
   drawBoardOverlay(ctx, index, {
     transform: { scale: 10, offsetX: 0, offsetY: 0 }, width: 400, height: 300, dim: true,
     selection: [index.resolve("#net:GND")], hover: index.resolve("#U1.2"),
-    measure: { points: [[14.175, 20]], draft: [20, 15] },
   });
   assert.equal(marks[0].op, "fillRect", "the rest of the board steps back first");
   // R1.2 and both pads of U1.3, and the via: GND's copper.
@@ -169,7 +159,7 @@ test("a net is highlighted whole, and what is off screen left out", () => {
   assert.equal(zoomed.filled("rgba(141, 197, 255, 0.12)").length, 1, "the pour reaches the corner");
 });
 
-// What a pick and a snap must answer, worked out the slow way: every item tested, none skipped.
+// What a pick must answer, worked out the slow way: every item tested, none skipped.
 function scanPick(index, at, { mode, view, tolerance }) {
   const facing = (side) => {
     const front = side === "top" || side === "front"; const back = side === "bottom" || side === "back";
@@ -210,7 +200,7 @@ function scanPick(index, at, { mode, view, tolerance }) {
   return null;
 }
 
-test("a pick and a snap answer what a scan of the whole board would", () => {
+test("a pick answers what a scan of the whole board would", () => {
   // A seeded board of a few hundred pads and tracks, dense enough that most presses land on something.
   let state = 9;
   const random = () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 4294967296; };
@@ -236,10 +226,6 @@ test("a pick and a snap answer what a scan of the whole board would", () => {
         assert.equal(expected?.endsWith("@") ? picked?.replace(/@x.*$/, "@") : picked, expected, JSON.stringify({ at, mode, view, tolerance }));
       }
     }
-    const snapped = index.snap(at, { tolerance: 1.5 });
-    const targets = [...index.pads.values()].map((pad) => pad.at).concat(index.vias.map((via) => via.at), index.tracks.flatMap((track) => [track.points[0], track.points.at(-1)]));
-    const nearest = Math.min(...targets.map((target) => Math.hypot(at[0] - target[0], at[1] - target[1])));
-    assert.equal(snapped ? snapped.distance : null, nearest <= 1.5 ? nearest : null, JSON.stringify(at));
   }
 });
 
@@ -251,4 +237,23 @@ test("past copper on no net, a pick takes what lies under it", () => {
   assert.equal(index.pick([15, 20]).selector, "#R1");
   // Under Nets, a pad on no net inside the ground pour is the pour's net.
   assert.equal(index.pick([15, 21], { mode: "nets" }).selector, "#net:GND");
+});
+
+test("Measure's ends snap to pad, via and hole centres, track ends and outline corners, within its reach", () => {
+  const index = createBoardIndex(BOARD);
+  assert.deepEqual(index.snap([14.3, 20.1], { tolerance: 0.3 }), { point: [14.175, 20], kind: "center", what: "pad" });
+  assert.deepEqual(index.snap([20.1, 15.1], { tolerance: 0.3 }), { point: [20, 15], kind: "center", what: "via" });
+  assert.deepEqual(index.snap([3.2, 2.9], { tolerance: 0.3 }), { point: [3, 3], kind: "center", what: "hole" });
+  assert.deepEqual(index.snap([14.2, 12.1], { tolerance: 0.3 }), { point: [14.175, 12], kind: "vertex", what: "track" });
+  assert.deepEqual(index.snap([39.9, 29.9], { tolerance: 0.3 }), { point: [40, 30], kind: "vertex", what: "outline" });
+  // The nearest wins; nothing that near, nothing at all.
+  assert.equal(index.snap([14.5, 20], { tolerance: 1 }).point[0], 14.175);
+  assert.equal(index.snap([10, 25], { tolerance: 0.3 }), null);
+});
+
+test("a pick takes what its kinds tick: no pads takes the copper or the part under them", () => {
+  const index = createBoardIndex(BOARD);
+  assert.equal(index.pick([14.175, 20], { kinds: { pads: false, copper: true, parts: true } }).selector, "#net:VIN@x9.18y-5");
+  assert.equal(index.pick([15.825, 20], { kinds: { pads: false, copper: true, parts: true } }).selector, "#R1");
+  assert.equal(index.pick([15.825, 20], { kinds: { pads: false, copper: false, parts: false } }), null);
 });

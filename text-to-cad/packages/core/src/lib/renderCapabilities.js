@@ -19,6 +19,9 @@ import { RENDER_FORMAT, normalizeFormat } from "./fileFormats.js";
 // - Capabilities are DATA. No behaviour, no imports beyond the format enum.
 // - Format-specific *content* (STEP's tree, DXF's bends) stays format-specific — the
 //   flags below decide WHICH panels mount, not what is in them.
+// - What a 3D file's tools and view offer (Measure, Clip, Explode, the display modes) is
+//   not here: each renderer offers its tools, and `viewFeaturesForKind`
+//   (`common/viewSettings.js`) is the one rule of what a file's view offers.
 
 // How parameters reach the viewer. One consumer surface over the possible stores.
 export const PARAMETER_SOURCE = Object.freeze({
@@ -27,8 +30,7 @@ export const PARAMETER_SOURCE = Object.freeze({
 
 // WHICH ASSET the viewer loads for this format. A DXF loads a DRAWING: the server's
 // flattened 2D payload, not a mesh, so every "is it loaded yet?" check has to ask about the
-// drawing. A KiCad board or schematic, and a WireViz harness, load a PLOT: the SVG sheets their
-// own tool draws.
+// drawing. A KiCad board loads a PLOT: its layers drawn from its file.
 // Loader implementations stay per-format; this only names which one.
 export const ASSET_KIND = Object.freeze({
   MESH: "mesh",
@@ -43,8 +45,6 @@ export const ENTRY_ICON_KIND = Object.freeze({
   LOADING: "loading",
   DXF: "dxf",
   KICAD_PCB: "kicad-pcb",
-  KICAD_SCH: "kicad-sch",
-  HARNESS: "harness",
   ROBOT: "robot",
   STEP: "step",
   STL_MESH: "stl-mesh",
@@ -59,9 +59,9 @@ export const ENTRY_ICON_KIND = Object.freeze({
 // than reflowing as you move between files.
 //
 // This is the place a format DECLINES a tool, and the shell reads it through
-// `supportsTool`. The flat formats are the rows that decline: a DXF drawing and a plot (KiCad's,
-// WireViz's) are painted on a canvas with no toolbar over it at all, so they claim none of these
-// rather than advertising four buttons that exist nowhere.
+// `supportsTool`. The flat formats are the rows that decline: a DXF drawing and a KiCad board's
+// plot are painted on a canvas, not in a viewport, and their tools (Select, Annotate, Measure) are
+// their renderers' own, so they claim none of these.
 const VIEWPORT_TOOLS = Object.freeze({
   select: true,
   draw: true,
@@ -80,11 +80,6 @@ const MESH_CAPABILITIES = Object.freeze({
   iconKind: ENTRY_ICON_KIND.STL_MESH,
   parts: false,
   topology: false,
-  // Measure is a STEP tool: it snaps to B-rep topology. A mesh has only triangle corners.
-  measure: false,
-  exploded: false,
-  displayModes: false,
-  clip: false,
   params: null,
   animations: false,
   artifactManaged: false,
@@ -93,18 +88,9 @@ const MESH_CAPABILITIES = Object.freeze({
 const ROBOT_CAPABILITIES = Object.freeze({
   assetKind: ASSET_KIND.ROBOT,
   iconKind: ENTRY_ICON_KIND.ROBOT,
-  // No selection. A URDF is a link tree, so links CAN be made pickable — that was tried and
-  // removed: selecting one gives you nothing to do with it. There is no copyable reference
-  // for a link the way there is for a STEP face or occurrence, so the whole affordance was
-  // a selection highlight and no payload. On every non-STEP format the select TOOL stays
-  // visible and inert: it is the default mode, and in it the left button orbits and the
-  // right button pans, which is all a robot needs.
+  // Its links are picked by its own renderer, not through a STEP's part table.
   parts: false,
   topology: false,
-  measure: false,
-  exploded: false,
-  displayModes: false,
-  clip: false,
   params: null,
   animations: false,
   artifactManaged: false,
@@ -116,10 +102,6 @@ const DEFAULT_CAPABILITIES = Object.freeze({
   tools: VIEWPORT_TOOLS,
   parts: false,
   topology: false,
-  measure: false,
-  exploded: false,
-  displayModes: false,
-  clip: false,
   params: null,
   animations: false,
   // Formats whose VIEWPORT CONTENT comes from a generated package, so the viewer checks
@@ -137,10 +119,6 @@ export const RENDER_CAPABILITIES = Object.freeze({
     iconKind: ENTRY_ICON_KIND.STEP,
     parts: true,
     topology: true,
-    measure: true,
-    exploded: true,
-    displayModes: true,
-    clip: true,
     params: PARAMETER_SOURCE.SIDECAR,
     animations: true,
     artifactManaged: true,
@@ -168,26 +146,13 @@ export const RENDER_CAPABILITIES = Object.freeze({
     iconKind: ENTRY_ICON_KIND.DXF,
     tools: NO_VIEWPORT_TOOLS,
   }),
-  // A KiCad board or schematic is not on the 3D shell either (packages/ui/src/renderers/plot):
-  // its pane is a canvas painted from `GET /__cad/plot`, KiCad's own SVG plot of the file. Its
-  // 3D comes from the STEP or GLB a board model exports, which are files of their own.
+  // A KiCad board is not on the 3D shell either (packages/ui/src/renderers/board): its pane is
+  // a canvas painted from `GET /__cad/plot`, the board's layers drawn from its file. Its 3D
+  // comes from the STEP or GLB a board model exports, which are files of their own.
   [RENDER_FORMAT.KICAD_PCB]: Object.freeze({
     ...DEFAULT_CAPABILITIES,
     assetKind: ASSET_KIND.PLOT,
     iconKind: ENTRY_ICON_KIND.KICAD_PCB,
-    tools: NO_VIEWPORT_TOOLS,
-  }),
-  [RENDER_FORMAT.KICAD_SCH]: Object.freeze({
-    ...DEFAULT_CAPABILITIES,
-    assetKind: ASSET_KIND.PLOT,
-    iconKind: ENTRY_ICON_KIND.KICAD_SCH,
-    tools: NO_VIEWPORT_TOOLS,
-  }),
-  // A wiring harness (`.harness.yml`) is a plot too: WireViz's diagram of the document.
-  [RENDER_FORMAT.HARNESS]: Object.freeze({
-    ...DEFAULT_CAPABILITIES,
-    assetKind: ASSET_KIND.PLOT,
-    iconKind: ENTRY_ICON_KIND.HARNESS,
     tools: NO_VIEWPORT_TOOLS,
   }),
   [RENDER_FORMAT.URDF]: Object.freeze({ ...DEFAULT_CAPABILITIES, ...ROBOT_CAPABILITIES }),
@@ -206,7 +171,7 @@ const FORMAT_ALIASES = Object.freeze({
 //
 // Deliberately NOT normalizeRenderFormat(), which resolves anything unknown to STEP. That
 // is the right default when picking a loader, and exactly wrong here — it would hand an
-// unrecognised entry STEP's full capability set (parts, topology, clip, artifact-managed
+// unrecognised entry STEP's full capability set (parts, topology, artifact-managed
 // gating) and fail open on every one of them.
 export function renderCapabilities(renderFormat) {
   const normalized = normalizeFormat(renderFormat);

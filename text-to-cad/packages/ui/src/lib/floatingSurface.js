@@ -5,14 +5,26 @@
  * scene and a dark one alike.
  *
  * `FLOATING_SURFACE_CLASS`: the popovers and menus opened over the viewport (a mode menu, the
- * viewport's context menu, the app menu, the explorer, Display's settings, preview's Orbit and its playbar's menus) — read while
+ * viewport's context menu, the app menu, the explorer, Display's settings, the Animation section's Playback settings) — read while
  * they are up, and opaque enough that their text never competes with the model.
- * `FLOATING_CHROME_SURFACE_CLASS`: the tool strip and each panel of the tool stack, which stay up
- * beside the model for as long as a file is open: the background at 45.5%, light enough, and barely
- * blurred, that the model behind them is easy to make out, with the same border. A view whose
- * picture keeps its own colours against the theme (a KiCad schematic's light paper under the dark
- * theme, a board's dark one under the light) raises it with `--cad-chrome-alpha` on an ancestor,
- * or the panels would turn the picture's grey and their muted text would vanish into it.
+ * `FILE_SIDEBAR_SURFACE_CLASS`: the file sidebar, mostly text, up for as long as a file is open:
+ * between the two, the background at 55% and lightly blurred (4px).
+ * `FLOATING_CHROME_SURFACE_CLASS`: the tool strip, its sub-toolbars and each panel of the tool
+ * stack, which stay up beside the model for as long as a file is open: the background at 30% and
+ * barely blurred (1px), so the model behind them is easy to make out, with the same border.
+ *
+ * A view whose picture is dark whatever the theme — a board, on KiCad's own background — says so
+ * on its root (`DARK_PICTURE_ATTRIBUTE`). Inside it, in the light theme alone, each surface tones
+ * what it floats over toward its own background before laying itself on it: the backdrop's
+ * contrast halved, then its brightness raised by a third, which keeps white white and lifts black
+ * a third of the way, so the dark picture cannot take the chrome's text. Everywhere else, and in
+ * the dark theme, the surfaces are as above. (The tone is written whole, contrast then brightness:
+ * Tailwind's backdrop utilities compose in an order of their own.)
  */
-export const FLOATING_SURFACE_CLASS = "border border-border bg-background/75 text-foreground shadow-sm backdrop-blur-md";
-export const FLOATING_CHROME_SURFACE_CLASS = "border border-border bg-background/[var(--cad-chrome-alpha,45.5%)] text-foreground shadow-sm backdrop-blur-[2px]";
+export const DARK_PICTURE_ATTRIBUTE = "data-cad-dark-picture";
+export const FLOATING_SURFACE_CLASS = "border border-border bg-background/75 text-foreground shadow-sm backdrop-blur-md "
+  + "[[data-cad-dark-picture]_&:not(.dark_*)]:[backdrop-filter:blur(12px)_contrast(0.5)_brightness(1.333)]";
+export const FILE_SIDEBAR_SURFACE_CLASS = "border border-border bg-background/55 text-foreground shadow-sm backdrop-blur-[4px] "
+  + "[[data-cad-dark-picture]_&:not(.dark_*)]:[backdrop-filter:blur(4px)_contrast(0.5)_brightness(1.333)]";
+export const FLOATING_CHROME_SURFACE_CLASS = "border border-border bg-background/30 text-foreground shadow-sm backdrop-blur-[1px] "
+  + "[[data-cad-dark-picture]_&:not(.dark_*)]:[backdrop-filter:blur(1px)_contrast(0.5)_brightness(1.333)]";

@@ -13,10 +13,10 @@ import {
   supportsTool
 } from "./renderCapabilities.js";
 
-// Every format drawn in a 3D viewport. The flat formats are not: a DXF's pane and a plot's
-// (KiCad's, WireViz's) are 2D canvases with no scene and no toolbar, so the viewport rules
-// below do not reach them.
-const FLAT_FORMATS = [RENDER_FORMAT.DXF, RENDER_FORMAT.KICAD_PCB, RENDER_FORMAT.KICAD_SCH, RENDER_FORMAT.HARNESS];
+// Every format drawn in a 3D viewport. The flat formats are not: a DXF's pane and a KiCad
+// board's are 2D canvases with no scene and no toolbar, so the viewport rules below do not
+// reach them.
+const FLAT_FORMATS = [RENDER_FORMAT.DXF, RENDER_FORMAT.KICAD_PCB];
 const VIEWPORT_FORMATS = Object.values(RENDER_FORMAT).filter(
   (format) => !FLAT_FORMATS.includes(format)
 );
@@ -62,11 +62,8 @@ test("asset kinds are known", () => {
   assert.equal(assetKindForRenderFormat(RENDER_FORMAT.URDF), ASSET_KIND.ROBOT);
   // A drawing is not a mesh and never was one: a DXF loads the backend's 2D payload.
   assert.equal(assetKindForRenderFormat(RENDER_FORMAT.DXF), ASSET_KIND.DRAWING);
-  // Nor is a plot: a KiCad board or schematic loads the SVG sheets KiCad draws of it, and a
-  // harness the diagram WireViz draws of it.
+  // Nor is a plot: a KiCad board loads its layers, drawn from its file.
   assert.equal(assetKindForRenderFormat(RENDER_FORMAT.KICAD_PCB), ASSET_KIND.PLOT);
-  assert.equal(assetKindForRenderFormat(RENDER_FORMAT.KICAD_SCH), ASSET_KIND.PLOT);
-  assert.equal(assetKindForRenderFormat(RENDER_FORMAT.HARNESS), ASSET_KIND.PLOT);
 });
 
 test("orbit and screenshot are available to every format with a viewport", () => {
@@ -93,9 +90,6 @@ test("STEP keeps the full capability set", () => {
   const step = renderCapabilities(RENDER_FORMAT.STEP);
   assert.equal(step.parts, true);
   assert.equal(step.topology, true);
-  assert.equal(step.exploded, true);
-  assert.equal(step.displayModes, true);
-  assert.equal(step.clip, true);
   assert.equal(step.params, PARAMETER_SOURCE.SIDECAR);
   assert.equal(step.artifactManaged, true);
 });
@@ -105,21 +99,9 @@ test("a plain mesh is the minimal row", () => {
     const row = renderCapabilities(format);
     assert.equal(row.parts, false);
     assert.equal(row.topology, false);
-    assert.equal(row.measure, false);
     assert.equal(row.params, null);
     assert.equal(row.artifactManaged, false);
   }
-});
-
-test("Measure is a STEP tool", () => {
-  // It snaps to B-rep faces, edges and vertices. A mesh offers only triangle corners,
-  // which measured little anyone wanted, so no other format has the tool.
-  for (const format of Object.values(RENDER_FORMAT)) {
-    assert.equal(hasCapability(format, "measure"), format === RENDER_FORMAT.STEP, format);
-  }
-  assert.equal(hasCapability(RENDER_FORMAT.STEP, "measure"), true);
-  assert.equal(hasCapability(RENDER_FORMAT.URDF, "measure"), false);
-  assert.equal(hasCapability(RENDER_FORMAT.DXF, "measure"), false);
 });
 
 test("STEP is the only artifact-managed format", () => {

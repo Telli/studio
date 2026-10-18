@@ -3,16 +3,20 @@ import * as THREE from "three";
 import { MousePointer2 } from "lucide-react";
 import { clamp, finiteOr } from "@text-to-cad/core/common/numbers.js";
 import { buildCadRefToken } from "@text-to-cad/core/lib/cadRefs.js";
-import { EDGELESS_VIEW_FEATURES } from "@text-to-cad/core/common/viewSettings.js";
+import { EDGELESS_VIEW_FEATURES, scenePartCount, viewFeaturesForKind } from "@text-to-cad/core/common/viewSettings.js";
 import RendererShell from "../kit/shell/RendererShell.jsx";
 import { readFileView } from "../kit/shell/fileView.js";
-import { useRendererShell } from "../kit/shell/useRendererShell.js";
+import { usePreviewState, useRendererShell } from "../kit/shell/useRendererShell.js";
+import { usePreviewScene } from "../kit/shell/usePreviewScene.js";
 import ToolPanel from "../kit/tools/ToolPanel.jsx";
+import { useMotionExclusion } from "../kit/tools/model-effects/motionExclusion.js";
+import { useSceneToolState, useSceneTools } from "../kit/tools/sceneTools.jsx";
 import { useViewSettings } from "../kit/view-settings/useViewSettings.js";
 import { useDeclinedSelectReference, useWorkspaceDocument, workspaceLoadAlert } from "../workspace/useWorkspaceDocument.js";
 import { ViewerElementContext, useViewerHost } from "../../host/context.js";
 import { PointerPick } from "../kit/tools/select/usePointerPick.js";
-import { FileSheetStatusText } from "../kit/inspector/FileSheet.js";
+import { useSceneReferences } from "../kit/tools/select/sceneReferences.jsx";
+import { useSceneSelection } from "../kit/tools/select/useSceneSelection.js";
 import { DEFAULT_POSE_VALUE, NO_PRESET_VALUE, positionValuesAreDefault } from "../kit/inspector/kinematicsControls.jsx";
 import { GLB_DECLINED_LIVE_COMMANDS, GLB_TOOL, GLB_TOOL_MODES } from "./tools.js";
 import { useGlbAnimation } from "./useGlbAnimation.js";
@@ -35,7 +39,7 @@ const prefersReducedMotion = () => typeof window !== "undefined" && window.match
 const SELECT_ICON = <MousePointer2 className="size-3" strokeWidth={2} aria-hidden="true" />;
 // A result offers Clip besides what any GLB view does: a cut through it shows what is inside (a channel's
 // walls, a flow's surfaces past an opening) in the field's colours. It has no edges, so no X-ray.
-const FEA_VIEW_FEATURES = Object.freeze({ ...EDGELESS_VIEW_FEATURES, sections: Object.freeze([...EDGELESS_VIEW_FEATURES.sections, "clip"]) });
+const FEA_VIEW_FEATURES = Object.freeze({ modes: EDGELESS_VIEW_FEATURES.modes, settings: Object.freeze(["clip"]) });
 
 /** Whether a loaded scene carries an FEA result: a mesh `cadgen fea solve` wrote, with its fields (`feaResult.js` reads it). */
 function carriesFeaResult(root) {
@@ -245,7 +249,7 @@ function useCamJob({ cv, scene, view, reducedMotion, shellRef, requestRenderRef,
   // What the readout says at the Time row's moment; the playbar writes over it as it plays.
   const readout = useMemo(() => (cam ? cv.readoutWords(cam, shownTime, cv.operationAt(cam, shownTime)) : null), [cam, cv, shownTime]);
   const displaySections = cam ? CAM_GATES.map(({ key, title, text }) => ({
-    id: `cam-${key}`, title, enabled: gates[key], onEnabledChange: (on) => choose({ [key]: on }), content: <FileSheetStatusText>{text}</FileSheetStatusText>,
+    id: `cam-${key}`, title, description: text, enabled: gates[key], onEnabledChange: (on) => choose({ [key]: on }),
   })) : null;
   return {
     cam, rendererState, displaySections, ownClips, gates, hidden, isolated, time, readoutRef, stopInPlace, playing,
@@ -260,6 +264,9 @@ function useCamJob({ cv, scene, view, reducedMotion, shellRef, requestRenderRef,
     readout,
   };
 }
+const NO_REFERENCES = Object.freeze([]);
+const EXPLODE_OFF = Object.freeze({ exploded: { enabled: false, amount: 0 } });
+const CLIP_OFF = Object.freeze({ clip: { enabled: false, axis: "x", invert: false } });
 
 function GlbSurface({ view, data }) {
   const host = useViewerHost();
@@ -450,7 +457,59 @@ function GlbSurface({ view, data }) {
       },
     }];
   }, [fea, motion, reducedMotion]);
-  const animation = useGlbAnimation(scene?.document || null, () => requestRenderRef.current?.(), cam ? job.ownClips : ownClips);
+  // A routine let go puts a plain file's nodes back at rest, under Explode's: Explode puts them back out.
+  const sceneRef = useRef(scene);
+  sceneRef.current = scene;
+  const animation = useGlbAnimation(scene?.document || null, () => { sceneRef.current?.syncExplode?.(); requestRenderRef.current?.(); },
+    cam ? job.ownClips : ownClips);
+  // A result (an FEA study's, a CAM job's) is drawn by its own viewer, here; a plain GLB by the scene tools, below.
+  const result = Boolean(fea || cam);
+  const preview = usePreviewState();
+  const previewing = preview.previewing;
+  // A routine takes a plain file's nodes where they were authored: Explode lets go of them before
+  // it plays, so the routine starts from (and goes back to) rest, never from where Explode put them.
+  const explodeAppliedRef = useRef(false);
+  const routine = useMemo(() => {
+    if (!animation || result) return animation;
+    const settle = run => (...args) => {
+      if (explodeAppliedRef.current) {
+        sceneRef.current?.setExplode?.(0);
+        shellRef.current?.viewSettings.store.patch(EXPLODE_OFF);
+      }
+      return run(...args);
+    };
+    return { ...animation, onPlayToggle: settle(animation.onPlayToggle), onScrub: settle(animation.onScrub),
+      onClipSelect: settle(animation.onClipSelect), onRestart: settle(animation.onRestart) };
+  }, [animation, result]);
+
+  // ---- a plain GLB's tools: Select (its nodes), Annotate, Measure, Explode, Clip --------------
+  const sceneState = useSceneToolState({ toolModes: GLB_TOOL_MODES, previewing, fileKey: document.modelKey, revision: loaded.revision,
+    measurable: true, resource: document.resource });
+  const { measure } = sceneState;
+  const requestHighlightFrame = useCallback(() => shellRef.current?.requestFrame?.(), []);
+  const selection = useSceneSelection({ scene, requestRender: requestHighlightFrame });
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  // Parts where the file has several meshes to colour, Explode where it has several rigid nodes that draw (`glbScene.js`).
+  const plainFeatures = useMemo(() => viewFeaturesForKind("glb", { parts: scenePartCount(scene), explodeParts: scene?.explodeParts || 0 }), [scene]);
+  const plainLive = useMemo(() => ({
+    declined: GLB_DECLINED_LIVE_COMMANDS,
+    commands: { clearSelection: () => selectionRef.current.clear() },
+    state: () => ({ selectedNodes: [...selectionRef.current.selected] })
+  }), []);
+  const measureRef = useRef(measure);
+  measureRef.current = measure;
+  const plainEscape = useMemo(() => ({
+    active: selection.active || measure.drafting || measure.selected.length > 0,
+    // Escape cancels a measurement in progress, then lets go of what is picked.
+    handle: () => {
+      const now = measureRef.current;
+      if (now.drafting) { now.cancelDraft(); return true; }
+      if (now.selected.length) { now.select([]); return true; }
+      if (selectionRef.current.active) { selectionRef.current.clear(); return true; }
+      return false;
+    }
+  }), [selection.active, measure.drafting, measure.selected.length]);
   const choose = useCallback((patch) => {
     setEdited({ ...choiceRef.current, ...patch, signature });
     shellRef.current?.scheduleStateSave();
@@ -469,20 +528,52 @@ function GlbSurface({ view, data }) {
   const displaySettings = useViewSettings(view.appearance?.colorScheme === "dark" ? "dark" : "light");
   const shell = useRendererShell({
     view, services: document.services, resource: document.resource, modelKey: document.modelKey, revisionKey: loaded.revision,
-    features: fea ? FEA_VIEW_FEATURES : EDGELESS_VIEW_FEATURES, toolModes: GLB_TOOL_MODES, previewable: true, scene, viewSettings: displaySettings,
+    // A result has no Preview yet: its colours, markers and cut are drawn on the tools view's scene, which Preview's own is not.
+    features: cam ? EDGELESS_VIEW_FEATURES : fea ? FEA_VIEW_FEATURES : plainFeatures, toolModes: GLB_TOOL_MODES,
+    ...(result ? {} : { tool: sceneState.tool, measurements: sceneState.measurements, deleteSelection: measure.removeSelected }),
+    previewable: !result, view3d: true, preview, scene, viewSettings: displaySettings, sceneEffects: !result,
     load: { busy: (loaded.busy || pending) && !scene, updating: loaded.busy && Boolean(scene), progress: loaded.progress, alert: loadAlert },
-    animation, live: LIVE, rendererState: cam ? job.rendererState : rendererState, displaySections: cam ? job.displaySections : markerShow ? [{
+    animation: routine, live: result ? LIVE : plainLive, rendererState: cam ? job.rendererState : rendererState, displaySections: cam ? job.displaySections : markerShow ? [{
       id: "fea-markers", title: analysis.displayTitle, enabled: markersOn, onEnabledChange: (on) => choose({ markers: on }),
-      content: <FileSheetStatusText>{fv.markerGateText(markers?.kinds?.length ? markers.kinds : analysis.markers.filter((kind) => kind !== "body_load"))}</FileSheetStatusText>,
+      description: fv.markerGateText(markers?.kinds?.length ? markers.kinds : analysis.markers.filter((kind) => kind !== "body_load")),
     }] : null,
     // Escape lets go of what is chosen, which a result with no source to edit has no Quick Edit to clear; a job's
     // isolated operation and chosen finding the same way.
     escape: cam ? { active: camChosenSomething, handle: () => { if (!camChosenSomething) return false; clearCamChoice(); return true; } }
-      : { active: chosenSomething, handle: () => { if (!chosenSomething) return false; clearChoice(); return true; } }
+      : fea ? { active: chosenSomething, handle: () => { if (!chosenSomething) return false; clearChoice(); return true; } } : plainEscape
   });
   shellRef.current = shell;
   requestRenderRef.current = shell.requestRender;
   useDeclinedSelectReference(document);
+
+  // ---- one motion at a time: Explode, the routine and Clip, on a plain GLB -------------------
+  // A result's cut stays through its routine (a flow's tracers stream inside the part it opens).
+  const { view: viewNow, store: viewStore } = shell.viewSettings;
+  const explodeApplied = Boolean(viewNow.exploded?.enabled && viewNow.exploded.amount > 0);
+  explodeAppliedRef.current = explodeApplied;
+  useMotionExclusion(document.modelKey, {
+    explode: { applied: explodeApplied, reset: () => viewStore.patch(EXPLODE_OFF) },
+    clip: { applied: !result && Boolean(viewNow.clip?.enabled), reset: () => viewStore.patch(CLIP_OFF) },
+    animation: { applied: !result && Boolean(animation?.enabled), reset: () => animation?.onRelease() }
+  });
+
+  // ---- Preview, for a plain GLB: its own scene, the editor's sibling over its geometry, and its own routine
+  const previewScene = usePreviewScene(result ? null : scene, previewing);
+  const previewAnimation = useGlbAnimation(previewScene?.document || null, () => shell.frame.previewViewRef.current?.requestRender?.());
+  const previewView = useMemo(() => ({ scene: previewScene, animation: previewAnimation }), [previewScene, previewAnimation]);
+  const sceneTools = useSceneTools({ shell, scene, features: plainFeatures, state: sceneState, measurable: true, clearParts: selection.clear });
+  const plainSelectActive = !previewing && Boolean(scene) && shell.toolMode === GLB_TOOL.SELECT;
+  const { references: nodeReferences, chips } = useSceneReferences({ scene, selection, resource: shell.frame.resource });
+  const resourcePath = shell.frame.resource?.path;
+  const nameNode = useCallback(reference => {
+    const id = reference?.resource?.path === resourcePath && reference.target?.kind === "cad-selector" ? reference.target.selectors[0] : "";
+    const part = id ? sceneRef.current?.describePart?.(id) : null;
+    return part ? { name: part.name, kind: "solid" } : "";
+  }, [resourcePath]);
+  const handlePick = useCallback((hit, modifiers) => {
+    selection.pick(hit, modifiers);
+    if (hit && !modifiers?.multiSelect) measureRef.current.select([]);
+  }, [selection.pick]);
 
   // Clip: the view's cut through the result (`feaClip.js`), as the viewport has applied it; none in
   // preview, which suspends the tool effects. It cuts the box the result is drawn in over its series.
@@ -763,7 +854,7 @@ function GlbSurface({ view, data }) {
   // A job's Time row stops where it is when the tool or preview changes, as a motion's does.
   const stopCamInPlace = job.stopInPlace;
   useEffect(() => { stopCamInPlace(); }, [cam, shell.toolMode, shell.previewing]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tools = cam ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", icon: SELECT_ICON, panel: cv.JOB_PANEL })] : fea ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", icon: SELECT_ICON, panel: parts.length ? fv.ASSEMBLY_PANELS : fv.STUDY_PANEL }),
+  const tools = cam ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", icon: SELECT_ICON })] : fea ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", icon: SELECT_ICON }),
     // A press opens its panel neutral (an edit cuts); a press while it is up, as its X, removes the cut.
     shell.tools.own({ id: GLB_TOOL.CLIP, label: "Clip", icon: fv.CLIP_ICON, active: clipShown,
       onSelect: () => {
@@ -833,19 +924,22 @@ function GlbSurface({ view, data }) {
     },
     onReset: () => choose({ ...NO_VALUES, preset: null }),
   };
-  // A job's Select panel, Job: the summary, the findings card, its setups, tools and operations, and its Time row.
+  // A job's section of the file sidebar, Job: the summary, the findings card, its setups, tools and operations, and its Time row.
   const camPanel = useMemo(() => (cam ? { summary: cv.camSummary(cam), setups: cam.setups.map(cv.setupRow),
     tools: cam.tools.filter((tool) => tool.node).map(cv.toolRow), operations: cam.operations.map(cv.operationRow) } : null), [cam, cv]);
-  const toolPanels = cam ? <cv.CamJobPanel active={selectActive} summary={camPanel.summary} findings={cam.findings} setups={camPanel.setups} tools={camPanel.tools}
+  // A result's reading of the file is the sidebar's (Study, an assembly's Parts, a job's Job); the face picked
+  // and the cut float over the model as a tool's panels do.
+  const sidebar = cam ? <cv.CamJobPanel summary={camPanel.summary} findings={cam.findings} setups={camPanel.setups} tools={camPanel.tools}
     operations={camPanel.operations} hidden={job.hidden} isolated={job.isolated} onToggle={job.toggleOperation} onIsolate={job.isolateOperation}
-    onChooseFinding={chooseCamFinding} time={job.time} /> : fea ? <>
-    <fv.FeaStudyPanel active={selectActive} parts={parts} openPart={fv.weakestPartIndex(fea)} setup={sections.setup} details={sections.details}
-      sections={order} verdict={verdict} chosen={faces.id} onChoose={chooseFaces}
-      result={resultControls}
-      reference={single ? { title: fv.faceTitle(fea, single), ref: single, role: fv.faceRole(fea, single), part: fv.facePartDetail(fea, single, loadScale) } : null} onClearSelection={clearChoice}
+    onChooseFinding={chooseCamFinding} time={job.time} /> : fea ? <fv.FeaStudyPanel parts={parts} openPart={fv.weakestPartIndex(fea)}
+      setup={sections.setup} details={sections.details} sections={order} verdict={verdict} chosen={faces.id} onChoose={chooseFaces}
+      result={resultControls} /> : null;
+  const toolPanels = fea ? <>
+    <fv.FeaReferencePanel active={selectActive} reference={single ? { title: fv.faceTitle(fea, single), ref: single, role: fv.faceRole(fea, single),
+      part: fv.facePartDetail(fea, single, loadScale) } : null} onClearSelection={clearChoice}
       copy={single ? { label: "Copy", shortcut: shell.frame.copyShortcut, onCopy: copyFace } : null} />
     {clipShown ? <div className="contents" data-fea-clip-panel="" onPointerDownCapture={() => setClipHeld(true)}>
-      <ToolPanel id="clip" title="Clip" label="Clip controls" summary={fv.clipSummary(shownView)} fit="fixed" collapsible={false} onClose={removeClip}>
+      <ToolPanel id="clip" title="Clip" label="Clip controls" summary={fv.clipSummary(shownView, clipBounds)} fit="fixed" collapsible={false} onClose={removeClip}>
         <div className="space-y-1 pb-1"><fv.ClipControls viewSettings={shownView} onViewSettingsPatch={displaySettings.store.patch} bounds={clipBounds} /></div>
       </ToolPanel>
     </div> : null}
@@ -853,17 +947,29 @@ function GlbSurface({ view, data }) {
 
   const overlay = cam ? (viewport) => <>
     <cv.CamFraming runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} />
-    <cv.CamReadout readoutRef={job.readoutRef} words={job.readout} raised={Boolean(animation) && shell.previewing} />
+    <cv.CamReadout readoutRef={job.readoutRef} words={job.readout} />
   </> : fea ? (viewport) => <>
     <fv.FeaFraming runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} sync={viewport.syncSceneBounds} syncRef={syncBoundsRef} />
     {fall || motion?.poseAt || tracers ? <fv.FeaFallClock clockRef={clockRef} /> : null}
     <PointerPick viewport={viewport} scene={pickScene} enabled={selectActive} onPick={pick} />
-    <fv.FeaColourBar result={fea} field={activeField} loadScale={loadScale} sigma={sigma} raised={Boolean(animation) && shell.previewing} />
+    <fv.FeaColourBar result={fea} field={activeField} loadScale={loadScale} sigma={sigma} />
     {markers ? <fv.FeaLoadLabels runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} mesh={fea.mesh} labels={loadLabels}
       colours={{ ink: colours.load, halo: colours.halo }} /> : null}
   </> : null;
-  return <RendererShell shell={shell} tools={tools} toolPanels={toolPanels} viewportOverlay={overlay} references={cam ? camReferences : references}
-    onClearReferences={cam ? () => setCamFinding(null) : clearChoice} copySelection={copySelection} />;
+  if (result) {
+    return <RendererShell shell={shell} tools={tools} toolPanels={toolPanels} sidebar={sidebar} sidebarStartsOpen={cam ? cv.OPEN_SECTION : fv.OPEN_SECTION}
+      viewportOverlay={overlay} references={cam ? camReferences : references}
+      onClearReferences={cam ? () => setCamFinding(null) : clearChoice} copySelection={copySelection} />;
+  }
+  const strip = [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", icon: SELECT_ICON }), ...sceneTools.tools];
+  return <RendererShell shell={shell} tools={strip} subToolbar={sceneTools.subToolbar} previewView={previewView}
+    references={previewing ? NO_REFERENCES : nodeReferences} referenceChips={previewing ? NO_REFERENCES : chips} nameReference={nameNode}
+    onClearReferences={() => { selection.clear(); measure.select([]); }}
+    onSelectPress={sceneTools.onSelectPress} onSelectHover={sceneTools.onSelectHover}
+    viewportOverlay={viewport => <>
+      {sceneTools.overlay(viewport)}
+      <PointerPick viewport={viewport} scene={scene} enabled={plainSelectActive} onPick={handlePick} onHover={selection.hoverHit} />
+    </>} />;
 }
 
 export default function GlbRenderer(props) {

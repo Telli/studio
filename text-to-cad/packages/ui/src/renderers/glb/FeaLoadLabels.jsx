@@ -85,7 +85,7 @@ export default function FeaLoadLabels({ runtimeRef, hostRef, mesh, labels, colou
       };
       const now = window.performance.now();
       if (now - coverAt >= COVER_EVERY_MS) {
-        covers = [chromeCover(host), colourBarCover(host)];
+        covers = [...(chromeCover(host) || []), colourBarCover(host)];
         coverAt = now;
       }
       if (!measure) {

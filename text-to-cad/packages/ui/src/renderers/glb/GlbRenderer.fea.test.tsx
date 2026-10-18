@@ -17,7 +17,11 @@ vi.mock('../../../dist/renderers/glb/useGlbScene.js', () => ({
   useGlbScene: () => ({ scene: loaded.scene, revision: loaded.revision, busy: false, error: null, progress: null })
 }));
 // The renderer's own clips (its analysis's routine) are kept to be played by hand.
-vi.mock('../../../dist/renderers/glb/useGlbAnimation.js', () => ({ useGlbAnimation: (_document: any, _render: any, own: any) => { loaded.own = own; return loaded.animation; } }));
+vi.mock('../../../dist/renderers/glb/useGlbAnimation.js', () => ({ useGlbAnimation: (_document: any, _render: any, own: any) => {
+  // The tools view's routine carries the renderer's own clips; Preview's, made beside it, none.
+  if (own !== undefined) loaded.own = own;
+  return loaded.animation;
+} }));
 import GlbRenderer, { loadFeaView } from '../../../dist/renderers/glb/GlbRenderer.js';
 import FeaVerdict from '../../../dist/renderers/glb/FeaVerdict.js';
 import { routineScale } from '../../../dist/renderers/glb/feaResult.js';
@@ -92,7 +96,8 @@ function mount(extras: Record<string, unknown> | null, state?: unknown, { action
   const view = render(<ViewerHostContext.Provider value={host}><ViewerElement><GlbRenderer {...(props as any)} /></ViewerElement></ViewerHostContext.Provider>);
   return { ...view, ...built, save };
 }
-const openDisplay = () => act(() => { fireEvent.click(screen.getByRole('button', { name: 'Display' })); });
+// Display's tile names the mode on screen ("Display mode: Solid"); its menu opens on a key as on a press.
+const openDisplay = () => act(() => { fireEvent.keyDown(screen.getByRole('button', { name: /^Display mode:/ }), { key: 'Enter' }); });
 const studyPanel = () => screen.queryByRole('region', { name: 'Study' });
 const rowTexts = (panel: HTMLElement) => Array.from(panel.querySelectorAll('[data-study-row]')).map(row => row.textContent);
 
@@ -149,32 +154,20 @@ it('takes the stored choice back for the same result, and not for a re-solved on
   expect(resolved.container.querySelector('[role="group"][aria-label="von Mises stress colour bar"]')).toBeTruthy();
 });
 
-it('a GLB that is not a result has no colour bar, no Select tool, no Study and its colours untouched', () => {
+it('a GLB that is not a result has no colour bar, no Study and its colours untouched', () => {
   const { mesh, container } = mount(null);
   expect(container.querySelector('[aria-label$="colour bar"]')).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Select' })).toBeNull();
   expect(studyPanel()).toBeNull();
   openDisplay();
   expect(screen.queryByText('Analysis')).toBeNull();
   expect(colourBytes(mesh).every(byte => byte === 7)).toBe(true);
 });
 
-it('the colour bar steps up above the playbar while it is there, in preview, and a stored scale is held to the slider\'s range', () => {
-  const plain = mount(RESULT);
-  const low = (plain.container.querySelector('[aria-label$="colour bar"]')!.parentElement as HTMLElement).style.bottom;
-  expect(low).toBe('var(--cad-viewport-bottom-center, 1.75rem)');
-  cleanup();
-  loaded.animation = { clips: [{ id: 'a', label: 'Load ramp', duration: 2 }], activeClipId: 'a', clock: createAnimationClock(), speed: 1, loopEnabled: true,
-    onClipSelect() {}, onPlayToggle() {}, onScrub() {}, onSpeedChange() {}, onLoopToggle() {}, onRelease() {} };
+it('the colour bar sits on the bottom line, and a stored scale is held to the slider\'s range', () => {
   const stored = writeFileView({ renderer: { fea: { field: null, scale: 9999 } }, signatures: { fea: '_von_mises,_displacement:10' } });
   const animated = mount(RESULT, stored);
-  const bottom = () => (animated.container.querySelector('[aria-label$="colour bar"]')!.parentElement as HTMLElement).style.bottom;
-  // Out of preview there is no playbar under the model to clear.
-  expect(bottom()).toBe(low);
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Preview' })); });
-  const high = bottom();
-  expect(high).not.toBe(low);
-  expect(high).toContain('3rem');
+  const bottom = (animated.container.querySelector('[aria-label$="colour bar"]')!.parentElement as HTMLElement).style.bottom;
+  expect(bottom).toBe('var(--cad-viewport-bottom-center, 1.75rem)');
   // The slider tops out at four times the file's own 10x.
   expect(animated.mesh.geometry.getAttribute('position').getZ(2)).toBeCloseTo(0.06, 6);
 });
@@ -221,7 +214,9 @@ const STUDIED = { ...FOUND, study: STUDY, faces: ['#o1.f1', '#o1.f2'] };
 // Vertices 0-2 lie on face index 0 (#o1.f1), vertex 3 on face index 1 (#o1.f2).
 const FACES = [0, 0, 0, 1];
 async function copiedPrompt(copied: string[]) {
-  act(() => { fireEvent.change(screen.getByRole('textbox', { name: 'Describe your changes' }), { target: { value: 'move it' } }); });
+  // Quick Edit's note is an editable line, written as a person types it.
+  const note = screen.getByRole('textbox', { name: 'Describe your changes' });
+  act(() => { note.textContent = 'move it'; fireEvent.input(note); });
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copy Prompt' })); });
   return copied.at(-1);
 }
@@ -248,29 +243,11 @@ it('Study reads in plain words: where it is held, what pushes it and what it is 
   expect(screen.getByRole('button', { name: 'Expand Details' }).getAttribute('aria-expanded')).toBe('false');
   act(() => { fireEvent.click(screen.getByRole('button', { name: 'Expand Details' })); });
   expect(plain().slice(-2)).toEqual(['Details', 'Mesh1.9 mm elements']);
-  // What you see and Details sit at the panel's foot, which never scrolls: a short stack scrolls the verdict and
-  // the setup above them, and the controls stay in view.
+  // What you see and Details end the section, under a rule, after the setup: the file sidebar scrolls the whole section.
   const foot = study.querySelector('[data-study-foot]')!;
   expect(rowTexts(foot)[0]).toBe('What you see');
-  expect(foot.closest('[data-tool-panel-body]')).toBeNull();
   expect(foot.querySelector('[role="combobox"][aria-label="Result field"]')).toBeTruthy();
-  expect(rowTexts(study.querySelector('[data-tool-panel-body]') as HTMLElement)).toEqual(['Held at', 'Face 1', 'Pushed', '2500 N down', 'Face 2', 'Made of', '6061-T6']);
-  // While the body has more under its fold, its foot fades: a row the fold cuts never reads as the last.
-  const body = study.querySelector('[data-tool-panel-body]') as HTMLElement;
-  const scrolled = (top: number) => {
-    Object.defineProperties(body, { scrollHeight: { value: 500, configurable: true }, clientHeight: { value: 200, configurable: true },
-      scrollTop: { value: top, configurable: true } });
-    act(() => { fireEvent.scroll(body); });
-  };
-  scrolled(0);
-  expect(study.querySelector('[data-tool-panel-more]')).toBeTruthy();
-  scrolled(300);
-  expect(study.querySelector('[data-tool-panel-more]')).toBeNull();
-  // It opens at its content's height, so Result's slider is not under its foot; a person's own cap still holds.
-  expect(study.style.maxHeight).toBe('');
-  cleanup();
-  mount(STUDIED, undefined, { faces: FACES, settings: { toolStack: { panels: { tree: { height: 200 } }, collapsed: {} } } });
-  expect(studyPanel()!.style.maxHeight).toBe('200px');
+  expect(foot.previousElementSibling && rowTexts(foot.previousElementSibling as HTMLElement)).toEqual(['Held at', 'Face 1', 'Pushed', '2500 N down', 'Face 2', 'Made of', '6061-T6']);
 });
 
 it('a face both fixed and loaded is named for both, chosen from either row or picked', async () => {
@@ -399,16 +376,11 @@ it('an assembly has a Parts panel above Study, each part with its joints, the we
   expect(study.querySelector('[data-study-row^="part:"], [data-study-row^="joint:"], [data-study-row="parts"], [data-study-row="connections"]')).toBeNull();
 });
 
-it('Select carries the mark while Parts or Study is closed, and a press brings back the closed ones', () => {
+it('a result opens with Study, its verdict first, in the file sidebar; an assembly has a tile each for Parts and Study', () => {
   mountAssembly([]);
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Close parts' })); });
-  expect(partsPanel()).toBeNull();
-  expect(studyPanel()).toBeTruthy();
-  const select = screen.getByRole('button', { name: 'Select' });
-  expect(select.getAttribute('aria-description')).toBe('Parts closed');
-  act(() => { fireEvent.click(select); });
-  expect(partsPanel()).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Select' }).getAttribute('aria-description')).toBeNull();
+  const tiles = Array.from(document.querySelectorAll('[data-file-sidebar-tool]')).map(tile => [tile.getAttribute('data-file-sidebar-tool'), tile.getAttribute('aria-pressed')]);
+  expect(tiles).toEqual([['parts', 'false'], ['tree', 'true']]);
+  expect(document.querySelector('aside[data-cad-file-sidebar]')!.hasAttribute('data-open')).toBe(true);
 });
 
 it('an assembly shows Parts from six parts up, and its view can show or hide it either way', () => {
@@ -489,7 +461,7 @@ const VIEWED = {
     presets: [{ label: 'Landing (3×)', load_scale: 3 }],
   },
 };
-const resultRows = () => Array.from(studyPanel()!.querySelectorAll('[data-study-result] [data-position-control], [data-study-result] [role="combobox"]'));
+const resultRows = () => Array.from(studyPanel()!.querySelectorAll('[data-study-result] [data-pose-menu], [data-study-result] [data-position-control], [data-study-result] [role="combobox"]'));
 const setValue = (name: string, value: string) => act(() => {
   const box = screen.getByRole('textbox', { name });
   fireEvent.change(box, { target: { value } });
@@ -498,6 +470,11 @@ const setValue = (name: string, value: string) => act(() => {
 const choose = (combobox: string, option: string) => {
   act(() => { fireEvent.click(screen.getByRole('combobox', { name: combobox })); });
   act(() => { fireEvent.click(screen.getByRole('option', { name: option })); });
+};
+// The Preset row is a menu, as Position's Pose row is: its button names the preset shown ("Preset: Default").
+const choosePreset = (option: string) => {
+  act(() => { fireEvent.keyDown(screen.getByRole('button', { name: /^Preset:/ }), { key: 'Enter' }); });
+  act(() => { fireEvent.click(screen.getByRole('menuitemradio', { name: option })); });
 };
 
 it('Result shows the view\'s controls in its order, with its words and ranges, skipping what it does not know; no view shows today\'s two', () => {
@@ -518,7 +495,7 @@ it('Result shows the view\'s controls in its order, with its words and ranges, s
   expect(screen.getAllByRole('slider').map(slider => slider.getAttribute('aria-label'))).toEqual(['Deformation scale']);
   expect(screen.getByRole('slider', { name: 'Deformation scale' }).getAttribute('aria-valuemax')).toBe('40');
   expect(screen.getByRole('textbox', { name: 'Deformation scale value' }).getAttribute('value')).toBe('×10.0');
-  expect(screen.queryByRole('combobox', { name: 'Preset' })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Preset:/ })).toBeNull();
 });
 
 it('each slider\'s thumb stands at its control\'s value, and the slider takes the row\'s whole width under its label and value field', () => {
@@ -528,7 +505,7 @@ it('each slider\'s thumb stands at its control\'s value, and the slider takes th
   setValue('Exaggerate slider value', '24');
   setValue('Rider weight slider value', '2.5');
   expect(now()).toEqual(['2.5', '40', '24']);
-  choose('Preset', 'Landing (3×)');
+  choosePreset('Landing (3×)');
   expect(now()).toEqual(['3', '40', '12']);
   // The label and the value field share the first line; the slider is the second, both columns wide.
   const row = screen.getByRole('slider', { name: 'Exaggerate' }).closest('[data-slider-layout="wide"]')!;
@@ -569,15 +546,16 @@ it('a threshold greys every vertex whose value is under it, and the load moves w
 
 it('a preset sets the values it names, and moving any control is Custom', () => {
   const { container } = mount(VIEWED);
-  choose('Preset', 'Landing (3×)');
+  const shown = () => screen.getByRole('button', { name: /^Preset:/ }).textContent;
+  choosePreset('Landing (3×)');
   expect(screen.getByRole('textbox', { name: 'Rider weight slider value' }).getAttribute('value')).toBe('×3.00');
   expect(container.querySelector('[data-fea-max]')!.textContent).toBe('142 MPa');
-  expect(screen.getByRole('combobox', { name: 'Preset' }).textContent).toBe('Landing (3×)');
+  expect(shown()).toBe('Landing (3×)');
   setValue('Exaggerate slider value', '20');
-  expect(screen.getByRole('combobox', { name: 'Preset' }).textContent).toBe('Custom');
-  choose('Preset', 'Default');
+  expect(shown()).toBe('Custom');
+  choosePreset('Default');
   expect(screen.getByRole('textbox', { name: 'Rider weight slider value' }).getAttribute('value')).toBe('×1.00');
-  expect(screen.getByRole('combobox', { name: 'Preset' }).textContent).toBe('Default');
+  expect(shown()).toBe('Default');
 });
 
 it('draws the loads and fixtures on the model, the chosen load\'s arrows in the chosen colour, and Display\'s switch hides them', () => {
@@ -603,7 +581,7 @@ it('draws the loads and fixtures on the model, the chosen load\'s arrows in the 
   heads.getMatrixAt(0, after);
   expect(new THREE.Vector3().setFromMatrixPosition(after).z).toBeLessThan(new THREE.Vector3().setFromMatrixPosition(before).z);
   openDisplay();
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Disable Loads and fixtures' })); });
+  act(() => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Loads and fixtures', checked: true })); });
   expect(group.children.map(child => child.visible)).toEqual([false, false, false, false, false, false]);
   unmount();
   expect(group.parent).toBeNull();
@@ -642,7 +620,7 @@ it('a view that turns the markers off opens with the switch off', () => {
   const group = mesh.children.find(child => child.name === 'fea-markers')!;
   expect(group.children.map(child => child.visible)).toEqual([false, false, false, false, false, false]);
   openDisplay();
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Enable Loads and fixtures' })); });
+  act(() => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Loads and fixtures', checked: false })); });
   expect(group.children.map(child => child.visible)).toEqual([true, true, true, true, true, true]);
 });
 
@@ -721,8 +699,9 @@ it('a slider\'s thumb stands where its value is on its range, not at the left en
   setValue('Exaggerate slider value', '50');
   expect((thumb('Exaggerate').parentElement as HTMLElement).style.left).toMatch(/^calc\(100% /);
   // The track it runs along is drawn, unfilled past the thumb, so where the thumb stands reads.
-  const track = thumb('Exaggerate').closest('[data-slot="slider"]')!;
-  expect(track.className).toContain('[&_[data-slot=slider-track]]:bg-foreground/20');
+  const slider = thumb('Exaggerate').closest('[data-slot="slider"]')!;
+  expect(slider.querySelector('[data-slot="slider-track"]')!.className).toContain('bg-foreground/15');
+  expect(slider.className).toContain('[&_[data-slot=slider-range]]:hidden');
 });
 
 // The checks the study picked, as cadgen judged them: the stress check and a sag on the loaded face.
@@ -764,9 +743,9 @@ it('every part of Study is chattable: a check in the verdict, the material and t
 it('a result with no checks in the file has today\'s verdict: its one check, from the safety factor', () => {
   mount({ ...STUDIED, safety_factor: 1.5 }, undefined, { faces: FACES });
   expect(verdictOf()).toMatchObject({ status: 'close', title: 'Close to the limit', caption: 'OK up to 1.5× this load', rows: [['close', 'Strength', '47 MPa, limit 276 MPa']] });
-  // The verdict leads, then one list: the setup, What you see, Details.
+  // The verdict leads, then the setup's list, then What you see and Details under a rule.
   const body = verdictOf().section.parentElement!.parentElement!;
-  expect(body.querySelectorAll('ul[aria-label="Study"]')).toHaveLength(1);
+  expect(Array.from(body.querySelectorAll('ul[aria-label="Study"]')).map(list => Boolean(list.closest('[data-study-foot]')))).toEqual([false, true]);
   expect(rowTexts(studyPanel()!).map(text => text!.replace(/‑/g, '-'))).toEqual(['Held at', 'Face 1', 'Pushed', '2500 N down', 'Made of', '6061-T6', 'What you see', 'Details']);
 });
 
@@ -899,7 +878,7 @@ it('a thermal result reads its setup as Kept at, Heated and Cooled by air, shows
   // Display's gate is titled for heat and says what it draws.
   openDisplay();
   expect(screen.getByText('Dots where its temperature is fixed, wavy arrows where heat goes in, strokes where air cools it.')).toBeTruthy();
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Disable Heat inputs and temperatures' })); });
+  act(() => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Heat inputs and temperatures' })); });
   expect(group.children.every(child => !child.visible)).toBe(true);
 });
 

@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@text-to-cad/ui/utils";
 import { TREE_INDENT_PX, TreeRowChevron, TreeRowGuides, TreeRowLabel, TreeRowSurface } from "@text-to-cad/ui/primitives/tree-row";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { Button } from "@text-to-cad/ui/primitives/button";
-import { Pause, Play } from "lucide-react";
+import { Check, Pause, Play } from "lucide-react";
 import { InfoRow, MonoValue } from "../kit/inspector/referenceRows.jsx";
 import { KinematicsPoseRow } from "../kit/inspector/kinematicsControls.jsx";
 import { parameterRow } from "../kit/inspector/parameterRow.jsx";
-import ToolPanel, { ToolPanelClose, ToolPanelFooterButton } from "../kit/tools/ToolPanel.jsx";
+import ToolPanel from "../kit/tools/ToolPanel.jsx";
 import { formatValue } from "./feaResult.js";
 import { frameText } from "./fea/series.js";
 import FeaVerdict from "./FeaVerdict.jsx";
@@ -37,7 +37,7 @@ function FeaResultControls({ controls, values, presets, preset, onChange, onPres
   return (
     // A select gives way before its label in the narrow panel ("Displacement" would squeeze "Show" away).
     <div className="flex flex-col gap-1.5 [&_span:has(+span>[data-slot=select-trigger])]:shrink-0 [&_span:has(>[data-slot=select-trigger])]:min-w-0 [&_span:has(>[data-slot=select-trigger])]:shrink [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full">
-      {presets.length ? <KinematicsPoseRow label="Preset" poses={presets} activeValue={preset} onSelect={onPreset} onReset={onReset} /> : null}
+      {presets.length ? <KinematicsPoseRow label="Preset" resetLabel="Reset what you see" poses={presets} activeValue={preset} onSelect={onPreset} onReset={onReset} /> : null}
       {controls.map((control) => parameterRow({
         parameter: control, value: values[control.id], labelTitle: control.labelTitle, valueText: controlText, step: control.step, wideLabel: control.wideLabel === true,
         action: control.drives === "motion" ? playButton : null,
@@ -145,10 +145,29 @@ function StudyRow({ row, depth, chosen, collapsed, toggle, onChoose, contents })
 }
 
 /**
- * One closable panel of rows, headed by its title and its X: Parts or Study. `fit`: how it gives way
- * when the stack is short (`ToolPanel`). `startsCollapsed`: the
- * rows it opens with shut (every part but the weakest). Which rows are open is the panel's own, kept
- * while it is mounted (closed or not).
+ * A full-row action at a panel's foot, under everything it holds: Copy under the Reference. `shortcut`
+ * is the key that does the same from the viewer (⌘C). A press whose `onClick` answers true says
+ * "Copied", with a tick where the shortcut was, for a moment.
+ */
+function FooterButton({ label, shortcut = "", disabled = false, onClick }) {
+  const keys = shortcut ? shortcut.replace("⌘", "Meta+").replace("Ctrl+", "Control+") : undefined;
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (!done) return undefined;
+    const timer = setTimeout(() => setDone(false), 1200);
+    return () => clearTimeout(timer);
+  }, [done]);
+  return <button type="button" aria-label={label} aria-keyshortcuts={keys} disabled={disabled} data-study-footer-button=""
+    className="flex h-7 w-full shrink-0 items-center justify-center gap-2 rounded-b-md border-t border-border text-tiny text-foreground hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45 disabled:opacity-50"
+    onClick={async () => { if (await onClick()) setDone(true); }}>
+    <span>{done ? "Copied" : label}</span>
+    {done ? <Check className="size-3" aria-hidden="true" /> : shortcut ? <kbd aria-hidden="true" className="font-sans text-micro text-muted-foreground">{shortcut}</kbd> : null}
+  </button>;
+}
+
+/**
+ * One section of rows in the file sidebar: Parts or Study. `startsCollapsed`: the rows it opens with
+ * shut (every part but the weakest). Which rows are open is the section's own, kept while it is mounted.
  */
 function StudyTreePanel({ id, title, blocks, foot = NONE, startsCollapsed, fit, hidden, chosen, onChoose, contents }) {
   const [collapsed, setCollapsed] = useState(() => new Set(startsCollapsed));
@@ -162,12 +181,11 @@ function StudyTreePanel({ id, title, blocks, foot = NONE, startsCollapsed, fit, 
       {block.rows.map((row) => <StudyRow key={row.id} row={row} depth={0} {...{ chosen, collapsed, toggle, onChoose, contents }} />)}
     </ul>
     : <div key={index} className={index ? "pt-1" : undefined}>{block.element}</div>));
-  // What you see (and Details after it) at the panel's foot, which never scrolls: when the stack is short and the
-  // panel gives way, the verdict and the setup scroll above it and the controls stay in view.
+  // What you see (and Details after it) after the setup, under a rule.
   const footer = foot.length ? <div className="shrink-0 border-t border-foreground/10 pt-1" data-study-foot="">{draw(foot)}</div> : null;
-  return <ToolPanel id={id} title={title} label={title} actions={<ToolPanelClose />} fit={fit} resizable fitContent closable collapsible={false} hidden={hidden}
-    footer={footer}>
+  return <ToolPanel id={id} title={title} label={title} fit={fit} collapsible={false} hidden={hidden}>
     {draw(blocks)}
+    {footer}
   </ToolPanel>;
 }
 
@@ -217,8 +235,7 @@ export const FEA_PARTS_PANEL_ID = "parts";
 export const FEA_STUDY_PANEL_ID = "tree";
 
 /**
- * An FEA result's Select panels, each closable as the Features tree is, and the **Reference** for a
- * face picked on the result. They are composed from what the file holds: **Parts** only for an
+ * An FEA result's sections of the file sidebar, composed from what the file holds: **Parts** only for an
  * assembly whose panel shows (`parts`: `partRows`, each part with its joints under it, the weakest
  * part open; `feaShowsParts`, from six parts up unless the view says), then
  * **Study**, its sections in the view's order (`sections`, `feaSections`; by default all four): the
@@ -228,17 +245,14 @@ export const FEA_STUDY_PANEL_ID = "tree";
  * `FeaResultControls`' props, by default the field and deformation; none, none shown), and Details
  * (`details`), shut. A result written before its study was recorded has its verdict and What you see
  * alone. Choosing a row that stands for faces or parts is `onChoose(row)`; `chosen` is the row (or
- * picked face) chosen.
+ * picked face) chosen. The face picked is `FeaReferencePanel`'s, which floats over the model.
  *
- * @param {{ active: boolean, parts?: object[], openPart?: number, setup: object[], details: object[], sections?: string[],
+ * @param {{ parts?: object[], openPart?: number, setup: object[], details: object[], sections?: string[],
  *   verdict?: object | null, chosen: string, onChoose(row: object): void,
  *   result: { controls: object[], values: Record<string, unknown>, presets: object[], preset: string,
- *     onChange(id: string, value: unknown): void, onPreset(value: string): void, onReset(): void },
- *   reference: { title: string, ref: string, role: string, part?: string } | null, onClearSelection(): void,
- *   copy: { label: string, shortcut: string, onCopy(): unknown } | null }} props
+ *     onChange(id: string, value: unknown): void, onPreset(value: string): void, onReset(): void } }} props
  */
-export default function FeaStudyPanel({ active, parts = NONE, openPart = -1, setup, details, sections = DEFAULT_SECTIONS, verdict = null, chosen, onChoose, result,
-  reference, onClearSelection, copy }) {
+export default function FeaStudyPanel({ parts = NONE, openPart = -1, setup, details, sections = DEFAULT_SECTIONS, verdict = null, chosen, onChoose, result }) {
   const contents = {
     [RESULT_ROW.id]: <FeaResultControls {...result} />,
   };
@@ -253,17 +267,26 @@ export default function FeaStudyPanel({ active, parts = NONE, openPart = -1, set
       blocks: studyBlocks(split.body, studied), foot: controls.length ? studyBlocks(split.foot, studied) : NONE },
   ].filter(Boolean);
   return <>
-    {/* Each headed with its X; Select, pressed while it is the tool, opens the closed ones again. */}
-    {panels.map((panel) => <StudyTreePanel key={panel.id} {...panel} hidden={!active} chosen={chosen} onChoose={onChoose} contents={contents} />)}
-    {/* The face picked, sized on its own under Study: its ref, what the study does to it, and Copy. */}
-    {reference ? <ToolPanel id="reference" title={reference.title} label="Reference details" closeLabel="Clear selection" fit="details" resizable fitContent
-      collapsible={false} hidden={!active} onClose={onClearSelection}
-      footer={copy ? <ToolPanelFooterButton label={copy.label} shortcut={copy.shortcut} onClick={copy.onCopy} /> : null}>
-      <div className="px-2 pb-1.5">
-        <InfoRow label="Ref"><MonoValue>{reference.ref}</MonoValue></InfoRow>
-        <InfoRow label="Study">{reference.role}</InfoRow>
-        {reference.part ? <InfoRow label="Part">{unbroken(reference.part)}</InfoRow> : null}
-      </div>
-    </ToolPanel> : null}
+    {panels.map((panel) => <StudyTreePanel key={panel.id} {...panel} hidden={false} chosen={chosen} onChoose={onChoose} contents={contents} />)}
   </>;
+}
+
+/**
+ * The face picked on an FEA result, in a panel over the model while Select is in hand (`active`): its
+ * ref, what the study does to it, the part it is on, and Copy.
+ *
+ * @param {{ active: boolean, reference: { title: string, ref: string, role: string, part?: string } | null,
+ *   onClearSelection(): void, copy: { label: string, shortcut: string, onCopy(): unknown } | null }} props
+ */
+export function FeaReferencePanel({ active, reference, onClearSelection, copy }) {
+  if (!reference) return null;
+  return <ToolPanel id="reference" title={reference.title} label="Reference details" closeLabel="Clear selection" fit="details"
+    collapsible={false} hidden={!active} onClose={onClearSelection}>
+    <div className="px-2 pb-1.5">
+      <InfoRow label="Ref"><MonoValue>{reference.ref}</MonoValue></InfoRow>
+      <InfoRow label="Study">{reference.role}</InfoRow>
+      {reference.part ? <InfoRow label="Part">{unbroken(reference.part)}</InfoRow> : null}
+    </div>
+    {copy ? <FooterButton label={copy.label} shortcut={copy.shortcut} onClick={copy.onCopy} /> : null}
+  </ToolPanel>;
 }

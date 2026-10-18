@@ -24,7 +24,7 @@ function square() {
   return { mesh, root };
 }
 const BOUNDS = { min: [0, 0, 0], max: [1, 1, 0] };
-const half = (patch = {}) => ({ enabled: true, axis: 'x', offsets: { x: 0.5, y: 1, z: 1 }, invert: false, ...patch });
+const half = (patch = {}) => ({ enabled: true, axis: 'x', at: 0.5, invert: false, ...patch });
 const drawn = (mesh: THREE.Mesh, material = mesh.material as THREE.Material) => {
   mesh.onBeforeRender(null as any, null as any, null as any, mesh.geometry, material, null as any);
   return material.clippingPlanes || [];
@@ -40,7 +40,7 @@ it('cuts where the slider says, in the space the mesh is drawn in, on whatever m
   expect(plane.distanceToPoint(new THREE.Vector3(10.25, 0, 0))).toBeCloseTo(0.25, 9);
   expect(plane.distanceToPoint(new THREE.Vector3(10.75, 0, 0))).toBeCloseTo(-0.25, 9);
   // Inverted, the other half is kept.
-  clip.set(half({ invert: true, offsets: { x: 0.5, y: 0, z: 0 } }), BOUNDS);
+  clip.set(half({ invert: true }), BOUNDS);
   expect(drawn(mesh)[0].distanceToPoint(new THREE.Vector3(10.75, 0, 0))).toBeCloseTo(0.25, 9);
   // A material the surface look swaps in is cut too; letting go clears every one it touched.
   const standIn = new THREE.MeshPhysicalMaterial();
@@ -49,10 +49,10 @@ it('cuts where the slider says, in the space the mesh is drawn in, on whatever m
   expect([(mesh.material as THREE.Material).clippingPlanes, standIn.clippingPlanes]).toEqual([null, null]);
 });
 
-it('cuts nothing while Clip is off or at its neutral end', () => {
+it('cuts nothing while Clip is off or cuts nothing away', () => {
   const { mesh, root } = square();
   const clip = createFeaClip(THREE, mesh, root);
-  for (const settings of [null, half({ enabled: false }), half({ offsets: { x: 1, y: 1, z: 1 } })]) {
+  for (const settings of [null, half({ enabled: false }), half({ at: 1 })]) {
     clip.set(settings, BOUNDS);
     expect(drawn(mesh)).toHaveLength(0);
     expect(clip.plane()).toBeNull();

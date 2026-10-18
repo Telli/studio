@@ -16,7 +16,11 @@ vi.mock('../../../dist/renderers/glb/useGlbScene.js', () => ({
   useGlbScene: () => ({ scene: loaded.scene, revision: 'one', busy: false, error: null, progress: null })
 }));
 // The renderer's own clip (the job) is kept to be played by hand.
-vi.mock('../../../dist/renderers/glb/useGlbAnimation.js', () => ({ useGlbAnimation: (_document: any, _render: any, own: any) => { loaded.own = own; return loaded.animation; } }));
+vi.mock('../../../dist/renderers/glb/useGlbAnimation.js', () => ({ useGlbAnimation: (_document: any, _render: any, own: any) => {
+  // The tools view's routine carries the renderer's own clips; Preview's, made beside it, none.
+  if (own !== undefined) loaded.own = own;
+  return loaded.animation;
+} }));
 import GlbRenderer, { loadCamView } from '../../../dist/renderers/glb/GlbRenderer.js';
 import { ViewerHostContext } from '../../../dist/host/context.js';
 import { testHost } from '../../../dist/host/testing/host.js';
@@ -111,10 +115,10 @@ it('the Time row stands the tool on its path at that moment and cuts the path th
   expect(container.querySelector('[data-cam-readout-operation]')!.textContent).toBe('1 Face');
   expect(container.querySelector('[data-cam-readout-time]')!.textContent).toBe('2 s / 7 s');
   // A preset is an operation's start.
-  act(() => { fireEvent.click(screen.getByRole('combobox', { name: 'Preset' })); });
-  act(() => { fireEvent.click(screen.getByRole('option', { name: 'Start of 2 Drill' })); });
+  act(() => { fireEvent.keyDown(screen.getByRole('button', { name: /^Preset:/ }), { key: 'Enter' }); });
+  act(() => { fireEvent.click(screen.getByRole('menuitemradio', { name: 'Start of 2 Drill' })); });
   expect(near(t2.position.toArray())).toEqual(DRILL[0].from);
-  // The playbar's clip plays the job and lets go back at the Time row's moment.
+  // The Animation section's clip plays the job and lets go back at the Time row's moment.
   const [clip] = loaded.own;
   expect([clip.label, clip.duration]).toEqual(['Job', 7]);
   act(() => { clip.play.apply(3.5); });
@@ -128,7 +132,7 @@ it('the Time row stands the tool on its path at that moment and cuts the path th
   expect(t1.visible).toBe(true);
 });
 
-it('with reduced motion the playbar plays the job a whole operation a second, the tool never sweeping', async () => {
+it('with reduced motion the routine plays the job a whole operation a second, the tool never sweeping', async () => {
   const { root } = await mount({ host: testHost({ environment: { colorScheme: 'light', reducedMotion: true } as any }) });
   const [clip] = loaded.own;
   expect(clip.duration).toBe(2);
@@ -142,11 +146,13 @@ it('with reduced motion the playbar plays the job a whole operation a second, th
   expect(near(camNode(root, 'tool:T2').position.toArray())).toEqual(DRILL[2].to);
 });
 
-it('Display gates the rapids, the stock, the fixtures and the tool, after Surfaces', async () => {
+it('Display switches the rapids, the stock, the fixtures and the tool, after Grid', async () => {
   const { root } = await mount();
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Display' })); });
-  const titles = ['Rapids', 'Stock', 'Fixtures', 'Tool'];
-  for (const title of titles) expect(screen.getByText(title)).toBeTruthy();
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Disable Stock' })); });
+  act(() => { fireEvent.keyDown(screen.getByRole('button', { name: /^Display mode:/ }), { key: 'Enter' }); });
+  const switches = screen.getAllByRole('menuitemcheckbox');
+  expect(switches.map(item => item.getAttribute('aria-label') || item.textContent)).toEqual(['Grid', 'Rapids', 'Stock', 'Fixtures', 'Tool']);
+  // Each of the job's says what it draws, under its name.
+  expect(switches[2].getAttribute('aria-description')).toBe('The block the part is cut from, see-through.');
+  act(() => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Stock' })); });
   expect(camNode(root, 'stock').visible).toBe(false);
 });

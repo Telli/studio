@@ -1,4 +1,4 @@
-import { axisIndex, clipAxisPosition, normalizeStepClipSettings, pointVisibleByClipPlane } from "@text-to-cad/core/lib/viewer/clipPlane.js";
+import { axisIndex, clipAmount, clipAxisPosition, normalizeStepClipSettings, pointVisibleByClipPlane } from "@text-to-cad/core/lib/viewer/clipPlane.js";
 
 /**
  * An FEA result's section cut: the view's Clip (`clip` in its resolved Display settings) as one
@@ -49,12 +49,12 @@ export function createFeaClip(THREE, mesh, root) {
   };
   const point = new THREE.Vector3();
   return {
-    /** Cut as `clip` says (null, off or at its neutral end: no cut). True when that changed what is drawn. */
+    /** Cut as `clip` says (null, off, or cutting nothing of `bounds` away: no cut). True when that changed what is drawn. */
     set(clip, bounds) {
       const settings = clip ? normalizeStepClipSettings(clip) : null;
-      const neutral = settings?.invert ? 0 : 1;
-      const cuts = Boolean(settings?.enabled && bounds && Math.abs(settings.offset - neutral) > 1e-6);
-      const next = cuts ? JSON.stringify([settings.axis, settings.offset, settings.invert, bounds.min, bounds.max]) : "";
+      const cuts = Boolean(settings?.enabled && bounds && clipAmount(settings, bounds) > 1e-6);
+      const at = cuts ? clipAxisPosition(bounds, settings) : 0;
+      const next = cuts ? JSON.stringify([settings.axis, at, settings.invert, bounds.min, bounds.max]) : "";
       if (next === key) return false;
       key = next;
       active = cuts;
@@ -62,7 +62,7 @@ export function createFeaClip(THREE, mesh, root) {
         // The kept half is the lower coordinates, the cut facing the default camera; invert keeps the other.
         const index = axisIndex(settings.axis);
         const normal = new THREE.Vector3().setComponent(index, settings.invert ? 1 : -1);
-        const point = new THREE.Vector3().setComponent(index, clipAxisPosition(bounds, settings));
+        const point = new THREE.Vector3().setComponent(index, at);
         local.setFromNormalAndCoplanarPoint(normal, point);
         toWorld();
       }

@@ -1,34 +1,36 @@
 /**
- * Where an FEA result's view meets the chrome over it: the tool strip and Select's panels (Study, an
- * assembly's Parts, the Reference, Clip) at the viewport's left. The camera frames the model into the
- * width they leave and above the colour bar (`framingInset`, `runtime.framingInset`), and a load's label sits
+ * Where an FEA result's view meets the chrome over it: the file sidebar at the viewport's left (Study, an
+ * assembly's Parts), and the tool strip with the stack under it at the top centre (the Reference, Clip). The
+ * camera frames the model into the width the sidebar leaves and above the colour bar (`framingInset`, `runtime.framingInset`), and a load's label sits
  * at the outer end of its own arrows where that is in sight (`besideEnd`), never under that chrome, past the
  * view's edge nor on another label (`settleLabels`). Pure but for what reads the page (`chromeCover`,
  * `colourBarCover`, `panelInset`, `framingInset`).
  */
 
+// What a box the chrome draws covers, in the viewport host's own pixels; null for one not shown.
+function coverOf(element, base) {
+  if (!element || element.closest("[hidden]")) return null;
+  const box = element.getBoundingClientRect();
+  if (!(box.width > 0 && box.height > 0)) return null;
+  return { left: box.left - base.left, top: box.top - base.top, right: box.right - base.left, bottom: box.bottom - base.top };
+}
+
 /**
- * The box the tool strip and its open panels cover, in the viewport host's own pixels (`{ left, top,
- * right, bottom }`), from the page as it is laid out now: the union of the strip and every panel of the
- * stack that is shown (the panels alone with `strip: false`). null where nothing is shown (Preview puts
- * the tools away), or outside a viewer.
+ * The boxes the chrome over the view covers, in the viewport host's own pixels (`{ left, top, right, bottom }`
+ * each), from the page as it is laid out now: the tool strip at the top centre and every panel of the stack
+ * under it that is shown, then the file sidebar's tiles and its open section at the left. null where nothing
+ * is shown (Preview puts the tools away), or outside a viewer.
  * @param {HTMLElement | null | undefined} host
- * @param {{ strip?: boolean }} [options]
  */
-export function chromeCover(host, { strip = true } = {}) {
+export function chromeCover(host) {
   const viewer = host?.closest?.("[data-cad-scene-backdrop]");
-  const groups = viewer?.querySelector?.("[data-cad-tool-groups]");
-  if (!groups) return null;
+  if (!viewer) return null;
   const base = host.getBoundingClientRect();
-  const shown = [strip ? groups.firstElementChild : null, ...groups.querySelectorAll("[data-tool-panel]")]
-    .filter((element) => element && !element.closest("[hidden]"))
-    .map((element) => element.getBoundingClientRect())
-    .filter((box) => box.width > 0 && box.height > 0);
-  if (!shown.length) return null;
-  return {
-    left: Math.min(...shown.map((box) => box.left)) - base.left, top: Math.min(...shown.map((box) => box.top)) - base.top,
-    right: Math.max(...shown.map((box) => box.right)) - base.left, bottom: Math.max(...shown.map((box) => box.bottom)) - base.top,
-  };
+  const groups = viewer.querySelector("[data-cad-tool-groups]");
+  const boxes = [groups?.firstElementChild, ...(groups ? groups.querySelectorAll("[data-tool-panel]") : []),
+    viewer.querySelector("[data-file-sidebar-tools]"), viewer.querySelector("aside[data-cad-file-sidebar][data-open]")]
+    .map((element) => coverOf(element, base)).filter(Boolean);
+  return boxes.length ? boxes : null;
 }
 
 /**
@@ -49,13 +51,15 @@ export function colourBarCover(host) {
 const BAR_GAP_PX = 8;
 
 /**
- * How much of the view's width, from its left edge, the shown panels cover (Study, Parts, the Reference,
- * Clip): what a camera fit leaves out at the left (`runtime.framingInset`). 0 with none shown, the strip alone
- * covering only its corner.
+ * How much of the view's width, from its left edge, the file sidebar's open section covers (Study, Parts, a
+ * job's Job): what a camera fit leaves out at the left (`runtime.framingInset`). 0 with it closed: its tiles
+ * cover only their corner, and the strip and the stack sit at the top centre.
  * @param {HTMLElement | null | undefined} host
  */
 export function panelInset(host) {
-  return Math.max(chromeCover(host, { strip: false })?.right ?? 0, 0);
+  const viewer = host?.closest?.("[data-cad-scene-backdrop]");
+  if (!viewer) return 0;
+  return Math.max(coverOf(viewer.querySelector("aside[data-cad-file-sidebar][data-open]"), host.getBoundingClientRect())?.right ?? 0, 0);
 }
 
 /**
@@ -115,8 +119,8 @@ function clamped(label, height, bounds, margin) {
 /**
  * Labels placed on screen (`{ x, y, align, width }` each, in the host's pixels), moved where they must
  * be: inside the view (`bounds`, its `width` and `height`: a label past an edge is drawn whole, against it);
- * off the chrome over the view (`covers`, boxes in the host's pixels, one or a list: the panels at the left,
- * `chromeCover`, which a label under moves right of, reading on from there; the colour bar at the foot,
+ * off the chrome over the view (`covers`, boxes in the host's pixels, one or a list: the strip, the stack and
+ * the sidebar, `chromeCover`, which a label under moves right of, reading on from there; the colour bar at the foot,
  * `colourBarCover`, which a label over moves above); then off each other, each in turn nudged up or down, away
  * from the one it would cover, until it is clear. Returns new labels in the same order, each with `x`, `y` and `align`.
  * @param {{ x: number, y: number, align: string, width: number }[]} labels

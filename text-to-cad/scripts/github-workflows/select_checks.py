@@ -30,7 +30,6 @@ Outputs (GITHUB_OUTPUT), one flag per job and the test paths the narrowed jobs t
     docs
     packaging
     kicad                         KiCad boards
-    harness                       WireViz harnesses
     full
     record                        the artifact name recording what this run tests
 
@@ -107,6 +106,7 @@ NOTHING = select()
 HEAVY_POLICY = {
     "test_cache_root_sync.py",              # cadgen's cache paths against core's tessellation cache
     "test_cli_stream_contract.py",          # cadgen CLIs, run
+    "test_kipy_vendor.py",                  # the vendored kicad-python, imported (protobuf, pynng)
     "test_node_builder_bundles.py",         # the emitted Node builders (scripts/bundle)
     "test_sidecar_and_package_layering.py",  # cadgen's import layering, imported
     "test_snapshot_viewer_theme_parity.py",  # cadgen's snapshot against core's view settings
@@ -123,9 +123,9 @@ CADGEN_SKILL_SUITES = (f"{SKILL_SUITES}/cad", f"{SKILL_SUITES}/dxf")
 
 # Whatever runs cadgen: its suites on both platforms, the skill suites that drive it, the
 # policy tests that load it, the viewer gates that serve and build through it, the wheel, and
-# the boards and harnesses built end to end through KiCad and WireViz.
+# the boards built end to end through KiCad.
 CADGEN_CONSUMERS = select(
-    flags=["web_viewer", "packaging", "kicad", "harness"], cadgen=[CADGEN_SUITE], skills=CADGEN_SKILL_SUITES,
+    flags=["web_viewer", "packaging", "kicad"], cadgen=[CADGEN_SUITE], skills=CADGEN_SKILL_SUITES,
     policy=[f"{POLICY_SUITE}/{name}" for name in sorted(HEAVY_POLICY)],
 )
 
@@ -190,7 +190,7 @@ def _cadgen_tests_naming(names: str, directories: tuple[str, ...]) -> list[str]:
 
 
 def _tool_jobs_naming(names: str) -> list[str]:
-    """The KiCad and WireViz jobs a change to a leaf can reach: those with a test that names it, as
+    """The KiCad job a change to a leaf can reach: when a test of its suite names the leaf, as
     `_cadgen_tests_naming` finds the cadgen tests."""
     pattern = _naming(names)
     return [flag for flag, suite in TOOL_SUITES.items()
@@ -304,6 +304,8 @@ RULES: tuple[Rule, ...] = (
     # The DXF suite renders ui's DXF fixture, and holds every JS file in packages/ to having
     # no second layer-intent table; cadgen's suite globs packages/ for vendored node runtimes.
     Rule(("packages/ui/src/renderers/dxf/__fixtures__/**",), select(skills=[f"{SKILL_SUITES}/dxf/test_snapshot_render.py"])),
+    # cadgen's plot suite holds ui's board fixture to being the test board's payload.
+    Rule(("packages/ui/src/renderers/board/__fixtures__/**",), select(cadgen=[f"{CADGEN_SUITE}/test_pcb_plot.py"])),
     Rule(("packages/ui/**/*.js",), select(skills=[f"{SKILL_SUITES}/dxf/test_drawing_checks.py"])),
     Rule(("packages/ui/**/node_runtime.py",), select(cadgen=[f"{CADGEN_SUITE}/test_node_resolve_bootstrap.py"])),
     Rule(("tests/browser/**", "tests/fixtures/cad/**"), select(flags=["web_viewer"])),
@@ -334,9 +336,10 @@ RULES: tuple[Rule, ...] = (
     Rule(("scripts/test/test-docs.sh", "scripts/brand/**"), select(flags=["docs"])),
     Rule(("scripts/test/test-viewer-launch.sh", "scripts/test/test-viewer-browser.sh"), select(flags=["web_viewer"])),
     Rule(("scripts/test/test-installed.sh",), select(flags=["packaging"])),
-    # The suites that need KiCad or WireViz installed, and their runners: their own jobs.
+    # The vendoring script writes cadgen/kipy; what it can break is the tree's integrity test.
+    Rule(("scripts/vendor/**",), policy("test_kipy_vendor.py")),
+    # The suite that needs KiCad installed, and its runner: its own job.
     Rule((f"{TOOL_SUITES['kicad']}/**", "scripts/test/test-kicad.sh"), select(flags=["kicad"])),
-    Rule((f"{TOOL_SUITES['harness']}/**", "scripts/test/test-harness.sh"), select(flags=["harness"])),
     Rule(("scripts/test/test.sh",), NOTHING),  # chains the runners for a local run; CI calls them itself
     Rule(("scripts/bench/viewer-memory/**",), select(flags=["core_js"])),
 
@@ -357,7 +360,7 @@ RULES: tuple[Rule, ...] = (
         ".github/dependabot.yml", ".github/release.yml", ".githooks/**",
         ".claude-plugin/**", ".codex-plugin/**", ".cursor-plugin/**", "gemini-extension.json",
         "*.mcp.json", "plugin.json", "mcp.json", "skills.sh.json",
-        "README.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE", "docs/**",
+        "README.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md", "SPLIT_REPORT.md", "LICENSE", "docs/**",
         ".gitignore",
         "models/**",
     ), NOTHING),

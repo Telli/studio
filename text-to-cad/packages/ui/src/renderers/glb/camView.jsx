@@ -14,8 +14,8 @@ export { STEP_SECONDS, camMotion, camSummary, camTime, findingOperation, jobPlay
 export { createCamPaths, createCamTool, pathColours } from "./camPaths.js";
 export { motionControl, motionPresets } from "./fea/motion.js";
 
-// Select's own panel, which a person can close: Job. A result opens with it up, except on a phone.
-export const JOB_PANEL = Object.freeze({ id: CAM_JOB_PANEL_ID, label: "Job", startsClosed: false });
+// The file sidebar's section a job opens with, but on a phone: Job.
+export const OPEN_SECTION = CAM_JOB_PANEL_ID;
 
 /**
  * A CAM result as GlbRenderer holds it: `readCamResult`'s, or null for a scene that does not carry one.

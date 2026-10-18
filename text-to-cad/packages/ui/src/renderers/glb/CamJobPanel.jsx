@@ -7,7 +7,7 @@ import { ROW_NAME_UNDER_ACTIONS, TREE_INDENT_PX, TreeRowChevron, TreeRowLabel, T
 import { KinematicsPoseRow } from "../kit/inspector/kinematicsControls.jsx";
 import { parameterRow } from "../kit/inspector/parameterRow.jsx";
 import FindingsList, { findingsLabel } from "../kit/status/findings.jsx";
-import ToolPanel, { ToolPanelClose } from "../kit/tools/ToolPanel.jsx";
+import ToolPanel from "../kit/tools/ToolPanel.jsx";
 import { clockTime } from "./camResult.js";
 
 // The panel's id: the tree's, as FEA's Study keeps it, so the stack and the strip treat it as Select's tree.
@@ -117,24 +117,24 @@ function JobTime({ control, value, presets, preset, playing, onChange, onPreset,
   </TooltipHint>;
   return <div className="flex flex-col gap-1.5 px-1 pb-1 [&_span:has(>[data-slot=select-trigger])]:min-w-0 [&_span:has(>[data-slot=select-trigger])]:shrink [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full"
     data-cam-time="">
-    {presets.length ? <KinematicsPoseRow label="Preset" poses={presets} activeValue={preset} onSelect={onPreset} onReset={onReset} /> : null}
+    {presets.length ? <KinematicsPoseRow label="Preset" resetLabel="Reset the time" poses={presets} activeValue={preset} onSelect={onPreset} onReset={onReset} /> : null}
     {/* Its label and its value as a clock ("1:40") on one line, the slider the row's whole width under them. */}
     {parameterRow({ parameter: control, value, labelTitle: control.labelTitle, valueText: (at) => clockTime(at), action: playButton, wideLabel: true, onChange })}
   </div>;
 }
 
 /**
- * A CAM result's Select panel, **Job**, closable as the Features tree is (`panel: { id: "tree", label: "Job" }`): the
+ * A CAM result's section of the file sidebar, **Job**: the
  * summary (the cycle time, what it takes), the findings in the findings card the viewer lists a board's in
  * (`kit/status/findings.jsx`), then the job's **Setups**, its **Tools** (with the speed and feed cadgen computed) and
- * its **Operations** (each with its time, its eye and a press that isolates it), and at its foot the job's Time row.
+ * its **Operations** (each with its time, its eye and a press that isolates it), and after them the job's Time row.
  *
- * @param {{ active: boolean, summary: { title: string, caption: string, note: string }, findings: object[],
+ * @param {{ summary: { title: string, caption: string, note: string }, findings: object[],
  *   setups: object[], tools: object[], operations: object[], hidden: Set<number>, isolated: number | null,
  *   onToggle(index: number): void, onIsolate(index: number): void, onChooseFinding(finding: object): void,
  *   time: object }} props
  */
-export default function CamJobPanel({ active, summary, findings = NONE, setups, tools, operations, hidden, isolated, onToggle, onIsolate, onChooseFinding, time }) {
+export default function CamJobPanel({ summary, findings = NONE, setups, tools, operations, hidden, isolated, onToggle, onIsolate, onChooseFinding, time }) {
   // Findings with nothing to fix start shut (the summary and the operations come first); one to fix opens them.
   const [shut, setShut] = useState(() => new Set(findings.some((finding) => finding.severity === "error") ? NONE : ["findings"]));
   const toggle = (id) => setShut((current) => {
@@ -144,8 +144,7 @@ export default function CamJobPanel({ active, summary, findings = NONE, setups, 
   });
   const group = (id, label, rows, draw) => (rows.length ? <GroupRow key={id} id={id} label={label} open={!shut.has(id)} onToggle={() => toggle(id)}>{rows.map(draw)}</GroupRow> : null);
   const footer = time ? <div className="shrink-0 border-t border-foreground/10 pt-1.5" data-cam-foot=""><JobTime {...time} /></div> : null;
-  return <ToolPanel id={CAM_JOB_PANEL_ID} title="Job" label="Job" actions={<ToolPanelClose />} fit="tree" resizable fitContent closable collapsible={false} hidden={!active}
-    footer={footer}>
+  return <ToolPanel id={CAM_JOB_PANEL_ID} title="Job" label="Job" fit="tree" collapsible={false}>
     <JobSummary summary={summary} />
     <ul className="flex flex-col px-1 pb-1 text-tiny" aria-label="Job">
       {findings.length ? <GroupRow id="findings" label="Findings" detail={findingsLabel(findings)} open={!shut.has("findings")} onToggle={() => toggle("findings")}>
@@ -157,5 +156,6 @@ export default function CamJobPanel({ active, summary, findings = NONE, setups, 
       {group("operations", "Operations", operations, (row) => <OperationRow key={row.id} row={row} hidden={hidden.has(row.index)} isolated={isolated === row.index}
         onToggle={onToggle} onIsolate={onIsolate} />)}
     </ul>
+    {footer}
   </ToolPanel>;
 }
