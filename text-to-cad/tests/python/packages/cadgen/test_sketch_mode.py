@@ -288,6 +288,41 @@ class SketchMode(unittest.TestCase):
         self.assertTrue(back["ok"], back.get("error"))
         self.assertEqual(self.source(), before)
 
+    def test_a_boss_drafts_in_or_out_and_reads_back_its_draft(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [10, 6]}})
+        left = self.send({"kind": "exit", "changed": True})
+        sketch = {"file": "plate.py", "line": self.sketch["line"], "name": "Sketch1"}
+        drafted = self.service.change({"file": self.file, "files": left["files"], "command": {
+            "command": "extrude", "sketch": sketch, "inputs": {"depth": "3", "draft": True, "draft_angle": "5"}}})
+        self.assertTrue(drafted["ok"], drafted.get("error"))
+        self.assertIn("part += extrude(sketch1.face(), amount=3, taper=5)\n    return part", self.source())
+        boss = [f for f in drafted["features"] if f["kind"] == "Boss-Extrude"][1]
+        self.assertEqual(boss["edit"]["values"], {"end": "blind", "reverse": False, "depth": "3", "draft": True, "draft_angle": "5",
+                                                  "outward": False})
+        outward = self.service.change({"file": self.file, "files": drafted["files"], "command": {
+            "command": "extrude", "sketch": boss["edit"]["sketch"], "inputs": {"depth": "3", "draft": True, "draft_angle": "5", "outward": True},
+            "replace": {"row": boss["key"]}}})
+        self.assertTrue(outward["ok"], outward.get("error"))
+        self.assertIn("part += extrude(sketch1.face(), amount=3, taper=-5)\n    return part", self.source())
+
+    def test_up_to_next_grows_a_boss_to_the_next_face_of_the_body(self):
+        # A plate above the sketch's plane: a boss from the sketch grows up to the plate's underside.
+        self.root = project(PART.replace("Pos(0, 0, -5)", "Pos(0, 0, 10)"))
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.file = str(self.root / "plate.step")
+        self.files = self.service.state(self.file)["files"]
+        self.start()
+        self.send({"kind": "draw", "entity": "circle", "center": {"at": [0, 0]}, "radius": 3})
+        left = self.send({"kind": "exit", "changed": True})
+        grown = self.service.change({"file": self.file, "files": left["files"], "command": {
+            "command": "extrude", "sketch": {"file": "plate.py", "line": self.sketch["line"], "name": "Sketch1"}, "inputs": {"end": "next"}}})
+        self.assertTrue(grown["ok"], grown.get("error"))
+        self.assertIn("part += extrude(sketch1.face(), until=Until.NEXT, target=part)", self.source())
+        self.assertTrue(any(line.startswith("from build123d import") and "Until" in line for line in self.source().splitlines()))
+        boss = [f for f in grown["features"] if f["kind"] == "Boss-Extrude"][1]
+        self.assertEqual(boss["edit"]["values"], {"end": "next", "reverse": False, "depth": ""})
+
     def test_a_cut_from_a_sketch_on_a_face_goes_into_the_part(self):
         state = self.service.state(self.file)
         self.assertTrue(state["ok"], state.get("error"))

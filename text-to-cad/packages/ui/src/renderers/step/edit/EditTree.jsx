@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { LoaderCircle } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@text-to-cad/ui/primitives/context-menu";
 import { TREE_INDENT_PX, TreeRowChevron, TreeRowSurface } from "@text-to-cad/ui/primitives/tree-row";
 import { FileSheetValueInput } from "../../kit/inspector/FileSheet.js";
@@ -224,7 +225,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     <Row id="" depth={0} icon={tree.assembly ? <AssemblyIcon /> : <PartIcon />} title={name} {...rowProps} />
     <Row id="" depth={1} icon={<ParametersIcon />} title="Parameters" expanded={open.has("parameters")} onToggle={toggle("parameters")} {...rowProps} />
     {open.has("parameters") ? <div role="group" aria-label="Parameters" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>
-      {edit.status === "reading" ? <span className="py-1 text-tiny text-muted-foreground">Reading the part</span>
+      {edit.status === "reading" ? <span className="flex items-center gap-1 py-1 text-tiny text-foreground"><LoaderCircle className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />Reading the part</span>
         : params.length === 0 ? <span className="py-1 text-tiny text-muted-foreground">No named sizes yet.</span>
           : params.map(param => <div key={param.id} className="flex min-h-7 items-center justify-between gap-2 pr-1">
             <span className="truncate text-tiny text-foreground/80">{sizeName(param.name)}</span>

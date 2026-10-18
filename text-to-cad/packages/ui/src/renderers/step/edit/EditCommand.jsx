@@ -16,6 +16,7 @@ import {
   editingValues,
   faceOffsetAxes,
   REPICKS,
+  partSide,
   revolveAxes,
   sameValues,
   selectionItems,
@@ -25,10 +26,13 @@ import {
   treeSketch
 } from "./editMode.js";
 import { COMMAND_ICONS } from "./cadIcons.jsx";
-import { ConfirmButtons, ConfirmCorner } from "./ConfirmButtons.jsx";
+import { ConfirmButtons } from "./ConfirmButtons.jsx";
 // An extrude's end conditions, as SolidWorks' Direction 1 names them; a cut can go through all.
-const BOSS_ENDS = Object.freeze([{ value: "blind", label: "Blind" }, { value: "mid", label: "Mid Plane" }]);
+const BOSS_ENDS = Object.freeze([{ value: "blind", label: "Blind" }, { value: "next", label: "Up To Next" }, { value: "mid", label: "Mid Plane" }]);
 const CUT_ENDS = Object.freeze([...BOSS_ENDS, { value: "through", label: "Through All" }]);
+// Hole Wizard's types: a plain hole, or one with a counterbore or a countersink for a screw's head.
+const HOLE_TYPES = Object.freeze([{ value: "simple", label: "Hole" }, { value: "counterbore", label: "Counterbore" },
+  { value: "countersink", label: "Countersink" }]);
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 const LISTED = 8;
 const PLANES = Object.freeze([{ value: "XY", label: "XY plane" }, { value: "XZ", label: "XZ plane" }, { value: "YZ", label: "YZ plane" }]);
@@ -83,9 +87,9 @@ function KeptList({ text, hint }) {
 }
 
 /**
- * A modeling command's panel, docked at the viewer's left as SolidWorks' PropertyManager: OK and
- * Cancel at its top, a green check and a red cross, and again in the model view's corner
- * (`corner`); what it acts on in selection boxes (the faces or edges selected on the model, the
+ * A modeling command's panel, as SolidWorks' PropertyManager, in a card of its own over the model
+ * (`EditBrowser.jsx`): OK and Cancel in its title row, a green check and a red cross; what it acts
+ * on in selection boxes (the faces or edges selected on the model, the
  * sketch an extrude takes, picked on the model or in the design tree, or the history feature it
  * copies); and its inputs in the part's units. OK writes the command's line into the part's script
  * (`cadgen/edit`) and the new feature is selected in the history below; Cancel, or Escape, leaves
@@ -95,9 +99,9 @@ function KeptList({ text, hint }) {
  * before it, which the view shows while the panel is open; its OK writes the feature's line again.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
- *   names: ReturnType<typeof import("./editMode.js").featureNames>, references: object[], corner?: Element | null }} props
+ *   names: ReturnType<typeof import("./editMode.js").featureNames>, references: object[] }} props
  */
-export default function EditCommand({ edit, names, references, tree = null, corner = null }) {
+export default function EditCommand({ edit, names, references, tree = null }) {
   const command = editCommand(edit.command);
   const units = edit.state?.units || "mm";
   const editing = edit.editing?.command === edit.command ? edit.editing : null;
@@ -107,8 +111,12 @@ export default function EditCommand({ edit, names, references, tree = null, corn
   // The sketch an extrude makes a solid of: the one selected in the design tree, or the feature's
   // own when it is reopened. One on a face of the part cuts into it, as SolidWorks' Extruded Cut does.
   const sketch = command?.sketch ? (editing ? editing.sketch : treeSketch(tree, edit.selected)) : null;
+  // A cut goes into the part: reversed when the part lies behind the sketch's plane (a sketch on a
+  // face of it, or on a plane over it), as a cut from a face goes in.
+  const side = sketch ? partSide(sketchView(edit.state, sketch), edit.state?.bounds) : 0;
   const onFace = sketch ? (sketchView(edit.state, sketch)?.plane || sketch.plane) === "Plane" : false;
-  useEffect(() => { if (edit.command === "cut" && !editing) setValues(current => ({ ...current, reverse: onFace })); }, [edit.command, onFace, editing]);
+  const intoPart = side !== 0 ? side < 0 : onFace;
+  useEffect(() => { if (edit.command === "cut" && !editing) setValues(current => ({ ...current, reverse: intoPart })); }, [edit.command, intoPart, editing]);
   // A revolve turns about a line of its sketch: its centerline, as it opens, when it has one.
   const revolving = edit.command === "revolve" || edit.command === "revolve_cut";
   const axes = useMemo(() => (revolving && sketch ? revolveAxes(sketchView(edit.state, sketch)) : []), [revolving, sketch, edit.state]);
@@ -126,7 +134,8 @@ export default function EditCommand({ edit, names, references, tree = null, corn
   // its depth in the part's millimetres. A depth written as a size's name is not drawn.
   const { setPreview } = edit;
   const depth = Number.parseFloat(String(values.depth ?? ""));
-  const extruding = (edit.command === "extrude" || edit.command === "cut") && Boolean(sketch);
+  // Up To Next ends where the body says, so it has no depth to draw.
+  const extruding = (edit.command === "extrude" || edit.command === "cut") && Boolean(sketch) && values.end !== "next";
   const previewDepth = extruding && Number.isFinite(depth) ? depth * (MM_PER[units] || 1) : null;
   useEffect(() => {
     if (!extruding || (previewDepth === null && values.end !== "through")) { setPreview(null); return undefined; }
@@ -161,14 +170,13 @@ export default function EditCommand({ edit, names, references, tree = null, corn
   const confirm = { onOk: ok, onCancel: edit.close, okDisabled: Boolean(blocked) || disabled, okReason: blocked || "", busy: edit.saving };
   const sketchLabel = sketch ? (sketch.plane && sketch.plane !== "Plane" ? `${sketch.title}, ${sketch.plane} Plane` : sketch.title) : "";
 
-  return <div role="dialog" aria-label={title} data-cad-edit-command={command.id} className="flex shrink-0 flex-col border-b border-border"
+  return <div role="dialog" aria-label={title} data-cad-edit-command={command.id} className="flex shrink-0 flex-col"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.close(); } }}>
-    <div className="flex items-center gap-1.5 px-2 pb-1 pt-2">
+    <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <Icon className="size-5 shrink-0" aria-hidden="true" />
       <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">{title}</h2>
+      <ConfirmButtons {...confirm} />
     </div>
-    <ConfirmButtons {...confirm} className="px-2 pb-2" />
-    <ConfirmCorner node={corner} {...confirm} />
     {command.picks && !(editing && command.id === "mirror") ? <FileSheetSettingsSection
       title={command.picks === "edges" ? "Edges" : command.id === "mirror" ? "Mirror face" : "Faces"} sectionId="edit-command-selection">
       {editing && !repicked ? <KeptList text={editing.keeps} hint={keptHint} /> : <SelectionList items={listed} prompt={command.prompt} />}
@@ -197,16 +205,35 @@ export default function EditCommand({ edit, names, references, tree = null, corn
         <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />
       </> : command.sketch ? <>
         <FileSheetSelectRow label="End condition" value={values.end} options={command.id === "cut" ? CUT_ENDS : BOSS_ENDS} onValueChange={set("end")} />
-        {values.end === "through" ? null : <NumberRow label="Depth" value={values.depth} unit={units} disabled={disabled} onChange={set("depth")} />}
-        {values.end === "mid" ? null : <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />}
+        {values.end === "through" || values.end === "next" ? null
+          : <NumberRow label="Depth" value={values.depth} unit={units} disabled={disabled} onChange={set("depth")} />}
+        {values.end === "mid" || values.end === "next" ? null
+          : <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />}
+        {/* Draft, as SolidWorks' Draft On/Off: the sides lean in by the angle, or out. */}
+        {values.end === "next" ? null : <>
+          <FileSheetCheckboxRow label="Draft" checked={values.draft} disabled={disabled} onCheckedChange={set("draft")} />
+          {values.draft ? <>
+            <NumberRow label="Draft angle" value={values.draft_angle} unit="deg" disabled={disabled} onChange={set("draft_angle")} />
+            <FileSheetCheckboxRow label="Draft outward" checked={values.outward} disabled={disabled} onCheckedChange={set("outward")} />
+          </> : null}
+        </>}
       </> : null}
       {command.id === "fillet" ? <NumberRow label="Radius" value={values.radius} unit={units} disabled={disabled} onChange={set("radius")} /> : null}
       {command.id === "chamfer" ? <NumberRow label="Distance" value={values.distance} unit={units} disabled={disabled} onChange={set("distance")} /> : null}
       {command.id === "shell" ? <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} /> : null}
       {command.id === "hole" ? <>
+        <FileSheetSelectRow label="Hole type" value={values.type || "simple"} options={HOLE_TYPES} onValueChange={set("type")} />
         <NumberRow label="Diameter" value={values.diameter} unit={units} disabled={disabled} onChange={set("diameter")} />
         <FileSheetCheckboxRow label="Through all" checked={values.through} disabled={disabled} onCheckedChange={set("through")} />
         {values.through ? null : <NumberRow label="Depth" value={values.depth} unit={units} disabled={disabled} onChange={set("depth")} />}
+        {values.type === "counterbore" ? <>
+          <NumberRow label="Counterbore diameter" value={values.cbore_diameter} unit={units} disabled={disabled} onChange={set("cbore_diameter")} />
+          <NumberRow label="Counterbore depth" value={values.cbore_depth} unit={units} disabled={disabled} onChange={set("cbore_depth")} />
+        </> : null}
+        {values.type === "countersink" ? <>
+          <NumberRow label="Countersink diameter" value={values.csk_diameter} unit={units} disabled={disabled} onChange={set("csk_diameter")} />
+          <NumberRow label="Countersink angle" value={values.csk_angle} unit="deg" disabled={disabled} onChange={set("csk_angle")} />
+        </> : null}
         {offsets.map(axis => <NumberRow key={axis} label={`${axis.toUpperCase()} from center`} value={values[axis]} unit={units}
           disabled={disabled} onChange={set(axis)} />)}
       </> : null}

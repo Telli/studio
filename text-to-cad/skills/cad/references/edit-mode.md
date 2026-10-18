@@ -51,7 +51,10 @@ by hand" below.
 - **Hole**: a cylinder cut into the selected flat face, from its centre or moved along the two
   axes in its plane: `tray -= bd.Pos(1.37*INCH, 0) * bd.Plane(<face>) * bd.Cylinder(.03/2*INCH,
   .1*INCH, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MAX))`; through all, its depth is
-  `tray.bounding_box().diagonal`.
+  `tray.bounding_box().diagonal`. A counterbore or a countersink is added to the cylinder, both
+  from the face down: `(bd.Cylinder(d/2, depth, align=...) + bd.Cylinder(cbore/2, cbore_depth,
+  align=...))`, or `+ bd.Cone(d/2, csk/2, height, align=...)` with its height worked out from
+  the angle (`(csk - d)/2 / tan(angle/2)`).
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.
 - **Mirror and Pattern** copy the feature picked in the history, or the whole body. A feature's
   tool written inline is named where it is made, so the copy follows it:
@@ -59,11 +62,12 @@ by hand" below.
   `plate -= bd.mirror(hole1, about=bd.Plane.YZ)` or
   `plate -= [loc * hole1 for loc in bd.GridLocations(-.4*INCH, 0, 3, 1, align=(bd.Align.MIN, bd.Align.CENTER)).locations[1:]]`
   (a circular pattern uses `bd.PolarLocations(0, count)`, about the Z axis).
-- **Extruded Boss/Base and Extruded Cut** make a solid of the sketch selected in the design tree:
+- **Extruded Boss/Base and Extruded Cut** make a solid of the sketch picked on the model or in the design tree:
   `part += extrude(sketch2.face(), amount=5)`, or `part -= extrude(...)` for a cut (a negative
   amount goes the other way along the sketch's normal; Mid Plane is `both=True` with half the
-  depth; a cut Through All is `amount=-part.bounding_box().diagonal`). The line goes after the
-  sketch's own lines.
+  depth; a cut Through All is `amount=-part.bounding_box().diagonal`; Up To Next is
+  `until=Until.NEXT, target=part` with no amount; a draft is `taper=` in degrees, drawn in, or
+  out when negative). A cut starts toward the part. The line goes after the sketch's own lines.
 - **Revolved Boss/Base and Revolved Cut** turn the selected sketch about one of its lines (its
   centerline, usually): `part += revolve(sketch2.face(), axis=sketch2.axis(line1),
   revolution_arc=360)`, or `part -= revolve(...)` for a cut; Reverse direction is a negative

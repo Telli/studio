@@ -4,12 +4,14 @@ import test from "node:test";
 import {
   barIndex,
   buildingText,
+  busyState,
   changeNote,
   changesSince,
   commandBlocked,
   commandDefaults,
   commandNote,
   commandRequest,
+  partSide,
   commandUndoNote,
   defaultRow,
   deleteNote,
@@ -263,4 +265,39 @@ test("an assembly's tree lists its parts as components, each numbered on its own
   ] });
   assert.ok(tree.assembly);
   assert.deepEqual(tree.components.map(c => [c.title, c.features[0].title]), [["Daisy tray<1>", "Boss-Extrude1"], ["Daisy cover<1>", "Boss-Extrude1"]]);
+});
+
+test("what edit mode is busy with is said, with how far a rebuild has got", () => {
+  assert.deepEqual(busyState({ status: "reading" }), { text: "Reading the part", progress: null });
+  assert.deepEqual(busyState({ status: "ready", rolling: true }), { text: "Rolling back", progress: null });
+  assert.deepEqual(busyState({ status: "ready", saving: true, sketch: {} }), { text: "Solving", progress: null });
+  assert.deepEqual(busyState({ status: "ready", saving: true }), { text: "Rebuilding", progress: null });
+  const building = { scripts: ["a.py", "b.py", "c.py"], done: 1, error: null };
+  assert.deepEqual(busyState({ status: "ready", state: { building } }), { text: "Updating STEP files, 1 of 3", progress: 33 });
+  assert.equal(busyState({ status: "ready", state: { building: { ...building, done: 3 } } }), null);
+  assert.equal(busyState({ status: "ready", state: { building: { ...building, error: "failed" } } }), null);
+});
+
+test("a cut goes toward the part: which side of a sketch's plane the part lies on", () => {
+  const bounds = [[-10, -5, 0], [10, 5, 4]];
+  const on = (z, normal = 1) => ({ state: { frame: { origin: [0, 0, z], z: [0, 0, normal] } } });
+  assert.equal(partSide(on(4), bounds), -1, "a sketch on the top face: the part is behind it");
+  assert.equal(partSide(on(-3), bounds), 1, "a plane under the part: the part is in front");
+  assert.equal(partSide(on(2), bounds), 0, "a plane through the part");
+  assert.equal(partSide(on(0, -1), bounds), -1, "the bottom face, its normal out of the part");
+  assert.equal(partSide({ state: {} }, bounds), 0);
+});
+
+test("an extrude's draft and Up To Next, and a hole's counterbore or countersink, go to the command", () => {
+  const sketch = { file: "part.py", line: 9, title: "Sketch2" };
+  const drafted = commandRequest("extrude", { end: "blind", depth: "5", reverse: false, draft: true, draft_angle: "3", outward: true }, [], null, sketch);
+  assert.deepEqual(drafted.inputs, { end: "blind", depth: "5", reverse: false, draft: true, draft_angle: "3", outward: true });
+  const next = commandRequest("cut", { end: "next", depth: "5", reverse: true, draft: true, draft_angle: "3" }, [], null, sketch);
+  assert.deepEqual(next.inputs, { end: "next" });
+  const face = [{ selector: "f6", type: "plane" }];
+  const bored = commandRequest("hole", { type: "counterbore", diameter: "3", through: true, cbore_diameter: "6", cbore_depth: "3" }, face);
+  assert.deepEqual(bored.inputs, { diameter: "3", depth: "", type: "counterbore", cbore_diameter: "6", cbore_depth: "3" });
+  const sunk = commandRequest("hole", { type: "countersink", diameter: "3", through: false, depth: "8", csk_diameter: "6", csk_angle: "90" }, face);
+  assert.deepEqual(sunk.inputs, { diameter: "3", depth: "8", type: "countersink", csk_diameter: "6", csk_angle: "90" });
+  assert.deepEqual(commandRequest("hole", { type: "simple", diameter: "3", through: true }, face).inputs, { diameter: "3", depth: "" });
 });

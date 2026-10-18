@@ -147,9 +147,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   mode) or for the AI (text-to-cad's viewer as Jake built it, where a selection goes to the agent
   through Quick Edit, which Manual leaves out). By hand, what a command uses is plain: a sketch is
   picked on the model or in the design tree and shaded in the selection blue with its name, an
-  extrude is previewed in amber (a cut in red), and OK and Cancel are a green check and a red cross
-  at the top of the panel and again in the model view's corner. The ribbon draws each modeling
-  command as a picture of what it does to a block, in the CAD colors of `tokens.css`.
+  extrude is previewed in amber (a cut in red, starting into the part), and a command's panel
+  floats in a card of its own at the model view's top-right, apart from the design tree, its OK
+  and Cancel a green check and a red cross in its title row. The ribbon and the tree draw each
+  modeling command as a picture of what it does to a block, in the CAD colors of `tokens.css`, and
+  what edit mode is busy with (reading the part, rolling back, rebuilding) shows with a spinner and
+  a line along the ribbon's foot. A rollback step moves the bar at once and, the files unchanged,
+  does not run the part again.
 - **SolidCraft, on request.** `STUDIO_SOLIDCRAFT=1`, with SolidCraft (a parametric CAD engine,
   Apache-2.0) in Applications, adds `studio-plugins/solidcraft`: its engine headless per thread
   behind an editor page of its own, for `.solidcraft` designs (the overview lists a design and its STEP as

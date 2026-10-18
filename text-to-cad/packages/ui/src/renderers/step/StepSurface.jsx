@@ -3148,9 +3148,9 @@ function StepSurfaceBody({ view, data }) {
   // Laid out for editing only once the server says the file has a part script, and only by hand.
   const editable = edit.status !== "none" && edit.status !== "probing";
   const editing = editable && editLayout === "manual";
-  // The model view's top-right corner, where an open command's or sketch's OK and Cancel are drawn
-  // again (`edit/ConfirmButtons.jsx`), as SolidWorks' confirmation corner.
-  const [confirmCorner, setConfirmCorner] = useState(null);
+  // The place over the model's top-right corner where an open command's or sketch's panel floats,
+  // in a card of its own apart from the design tree (`edit/EditBrowser.jsx`).
+  const [commandCard, setCommandCard] = useState(null);
   useEditShortcuts(edit, editing);
   const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
   const editTree = useMemo(() => featureTree(edit.state), [edit.state]);
@@ -3469,7 +3469,7 @@ function StepSurfaceBody({ view, data }) {
     ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
       sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)} /> : null}
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
-      onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} corner={confirmCorner} /> : null}
+      onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard} /> : null}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
       return <>
@@ -3481,8 +3481,10 @@ function StepSurfaceBody({ view, data }) {
         {editing && edit.sketch ? <SketchOverlay viewport={viewport} edit={edit} units={edit.state?.units || ""} /> : null}
         {editing && shownSketches.length ? <SketchesLayer viewport={viewport} sketches={shownSketches} selected={selectedTreeSketch}
           onPick={sketchesPickable ? pickSketch : null} profiles={sketchFeature && !selectedTreeSketch} preview={edit.preview}
+          onEdit={sketchesPickable && !edit.command ? view => openTreeSketch({ file: view.file, line: view.line, title: view.name }) : null}
           through={partExtent} /> : null}
-        {editing ? <div ref={setConfirmCorner} className="pointer-events-auto absolute right-2 top-2 z-30" data-cad-confirm-corner="" /> : null}
+        {editing ? <div ref={setCommandCard} className="pointer-events-none absolute bottom-2 right-2 top-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col items-stretch"
+          data-cad-command-card-place="" /> : null}
       </>;
     }} />;
 }

@@ -99,19 +99,21 @@ function drawPreview(context, view, shape, through, cad, at) {
  * hover orange.
  *
  * With `onPick`, a click on a sketch's line picks it, and with `profiles` (a feature waiting for a
- * sketch) a click inside its outline too. Such a press is the sketch's, not the model's: claimed
+ * sketch) a click inside its outline too; with `onEdit`, a double-click on its line opens it. Such a press is the sketch's, not the model's: claimed
  * before the camera or the model's picking sees it, as the joint handles claim theirs. `preview`
  * draws what an extrude of the selected sketch would make (`{ kind, end, depth, reverse }`, its
  * depth and `through`, the part's extent, in millimetres).
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
  *   sketches: { file: string, line: number, name: string, state: object | null }[], selected?: { file: string, line: number } | null,
- *   onPick?: ((view: object) => void) | null, profiles?: boolean, preview?: object | null, through?: number }} props
+ *   onPick?: ((view: object) => void) | null, onEdit?: ((view: object) => void) | null, profiles?: boolean,
+ *   preview?: object | null, through?: number }} props
  */
-export default function SketchesLayer({ viewport, sketches, selected = null, onPick = null, profiles = false, preview = null, through = 0 }) {
+export default function SketchesLayer({ viewport, sketches, selected = null, onPick = null, onEdit = null, profiles = false, preview = null,
+  through = 0 }) {
   const canvasRef = useRef(null);
   const live = useRef(null);
-  live.current = { sketches, selected, onPick, profiles, preview, through };
+  live.current = { sketches, selected, onPick, onEdit, profiles, preview, through };
   const version = useRef(0);
   version.current += 1;
   // The sketch under the pointer, and the sketches as last painted, in the view's pixels.
@@ -212,6 +214,17 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       host.style.cursor = index >= 0 ? "pointer" : "";
     };
     const leave = () => { hover.current = -1; };
+    // A double-click on a sketch's line opens it to edit, as in the design tree.
+    const twice = event => {
+      if (!live.current.onEdit) return;
+      const index = sketchAt(drawnRef.current, at(event));
+      const view = index >= 0 ? live.current.sketches[index] : null;
+      if (!view) return;
+      event.stopPropagation();
+      event.preventDefault();
+      live.current.onEdit(view);
+    };
+    host.addEventListener("dblclick", twice, true);
     host.addEventListener("pointerdown", down, true);
     host.addEventListener("pointerup", up, true);
     host.addEventListener("pointermove", move, true);
@@ -221,6 +234,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       host.removeEventListener("pointerup", up, true);
       host.removeEventListener("pointermove", move, true);
       host.removeEventListener("pointerleave", leave);
+      host.removeEventListener("dblclick", twice, true);
       if (hover.current >= 0) host.style.cursor = "";
     };
   }, [viewport.hostRef, viewport.viewerReadyTick]);

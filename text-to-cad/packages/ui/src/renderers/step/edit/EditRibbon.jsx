@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronsRight, Redo2, Undo2 } from "lucide-react";
+import { ChevronsRight, LoaderCircle, Redo2, Undo2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -9,11 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@text-to-cad/ui/primitives/dropdown-menu";
+import { Progress } from "@text-to-cad/ui/primitives/progress";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { COMMAND_ICONS, ExitSketchIcon, SketchIcon } from "./cadIcons.jsx";
-import { EDIT_COMMANDS, buildingText, unitWord } from "./editMode.js";
+import { EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_TOOLS } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
 
@@ -182,10 +183,11 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   const others = tools.filter(tool => !grouped.has(tool.id));
   const state = edit.state;
   const sketch = edit.sketch;
-  const building = buildingText(state?.building);
-  const status = edit.saving ? (sketch ? "Solving" : "Rebuilding")
-    : building || (edit.status === "reading" ? "Reading the part" : edit.status === "ready" ? "Saved" : "");
-  const commandsIdle = edit.status !== "ready" || edit.saving;
+  // What it is busy with, said with a spinner and a line along the ribbon's foot, as a CAD tool's
+  // status bar shows a rebuild: never a word alone that could be a label.
+  const busy = busyState(edit);
+  const status = busy?.text || buildingText(state?.building) || (edit.status === "ready" ? "Saved" : "");
+  const commandsIdle = edit.status !== "ready" || edit.saving || edit.rolling;
   // An assembly places its parts: a part is modeled on its own, opened from the design tree, as
   // SolidWorks models a part in its own window.
   const placing = Boolean(edit.state?.components?.length);
@@ -201,10 +203,16 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     { id: "redo", label: "Redo", icon: <Redo2 aria-hidden="true" />, disabled: !edit.canRedo, onClick: () => void edit.redo() },
   ] };
   const ribbon = (label, groups, end, sketching = false) => <div data-cad-ribbon="" data-cad-sketch-ribbon={sketching ? "" : undefined}
-    className="flex min-h-0 shrink-0 items-stretch overflow-hidden border-b border-border bg-background" role="toolbar" aria-label={label}>
+    aria-busy={busy ? true : undefined}
+    className="relative flex min-h-0 shrink-0 items-stretch overflow-hidden border-b border-border bg-background" role="toolbar" aria-label={label}>
     <RibbonGroups key={label} groups={groups} />
     <div className="flex shrink-0 flex-col items-end justify-center gap-0.5 px-2 text-tiny leading-4" aria-live="polite">{end}</div>
+    {busy ? <Progress value={busy.progress} className="absolute inset-x-0 bottom-0" aria-label={busy.text} /> : null}
   </div>;
+  const statusLine = (text, failed = false) => <span className={cn("flex items-center gap-1",
+    busy ? "text-foreground" : failed ? "text-destructive" : "text-muted-foreground")}>
+    {busy ? <LoaderCircle className="size-3.5 shrink-0 animate-spin" aria-hidden="true" /> : null}{text}
+  </span>;
 
   if (sketch) {
     const tool = id => SKETCH_TOOLS.find(each => each.id === id);
@@ -248,7 +256,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
         id: command.id, label: command.label, icon: commandIcon(command.id), disabled: edit.saving || !sketch.state,
         onClick: async () => { const reply = await edit.exitSketch(); if (reply?.ok) onCommand(command.id); } })) },
     ], <>
-      <span className="text-muted-foreground">{edit.saving ? "Solving" : `Editing ${sketch.name}`}</span>
+      {statusLine(edit.saving ? "Solving" : `Editing ${sketch.name}`)}
       <span className={cn("text-micro", STATUS_CLASSES[sketchStatus] || "text-destructive")}>{sketchStatus}</span>
     </>, true);
   }
@@ -266,7 +274,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     ...GROUPS.map(group => ({ title: group.title, items: group.tools.map(id => byId.get(id)).filter(Boolean).map(toolItem) })),
     { title: "Tools", items: others.map(toolItem) },
   ].filter(group => group.items.length), <>
-    <span className={cn("text-muted-foreground", state?.building?.error && "text-destructive")}>{status}</span>
+    {statusLine(status, Boolean(state?.building?.error))}
     {state?.units ? <span className="text-micro text-muted-foreground/80">{unitWord(state.units)}</span> : null}
   </>);
 }

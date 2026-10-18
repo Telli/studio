@@ -116,6 +116,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   const take = useCallback(reply => {
     if (reply.unchanged) {
       setState(current => (current ? { ...current, building: reply.building } : current));
+      // The rollback bar moved alone: the part as it was read, and the bar where it went.
+      if ("bar" in reply) setBar(reply.bar);
       return;
     }
     if (!reply.ok) {
@@ -173,7 +175,9 @@ export function useEditMode({ client, file, active, reading = true }) {
       setStatus(current => (current === "idle" ? "reading" : current));
       if (typeof document === "undefined" || !document.hidden) {
         // While the bar is up, the server says it again with the part, in case the file moved it.
-        const bar = barRef.current ? [{ bar: { before: barRef.current.before } }] : [];
+        // A bar still on its way (`pending`) is where it was moved to, not where it was.
+        const current = barRef.current;
+        const bar = current ? [{ bar: current.pending ? { item: current.item } : { before: current.before } }] : [];
         try { take(await client.editState(file, files.current, ...bar)); }
         catch (failure) { if (!stopped) { setError(describe(failure)); setStatus(current => (current === "ready" ? current : "error")); } }
       }
@@ -267,7 +271,13 @@ export function useEditMode({ client, file, active, reading = true }) {
    */
   const rollTo = useCallback(async item => {
     if (!item) { setBar(null); return null; }
-    return send({ bar: { item } }, { record: false, note: null });
+    // The bar moves in the tree at once, as SolidWorks moves it; the body there follows, the one
+    // shown until then kept (`pending`). Refused, it goes back where it was.
+    const before = barRef.current;
+    setBar(current => ({ ...(current || {}), item, pending: true }));
+    const reply = await send({ bar: { item } }, { record: false, note: null });
+    if (!reply?.ok) setBar(before);
+    return reply;
   }, [send]);
 
   // Edit Feature's panel shut (Cancel, or another command opened): its own rollback ends, and the
@@ -427,6 +437,8 @@ export function useEditMode({ client, file, active, reading = true }) {
 
   return {
     status, state, error, choice, saving, selected, hovered, command, editing, bar,
+    // The bar moved in the tree, the body there still on its way.
+    rolling: Boolean(bar?.pending),
     select: setSelected,
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,

@@ -241,6 +241,39 @@ class BlockCommands(Commands):
         self.assertEqual(hole["kind"], "Hole")
         self.assertEqual([(each["label"], each["display"]) for each in hole["inputs"]], [("Diameter", "2"), ("Depth", "3"), ("X", "5")])
 
+    def test_a_counterbored_hole_is_its_hole_and_its_counterbore_in_one_line(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        narrow = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2", "depth": "3", "type": "counterbore",
+                                                              "cbore_diameter": "1.5", "cbore_depth": "1"})
+        self.assertFalse(narrow["ok"])
+        self.assertIn("wider than its hole", narrow["error"])
+        reply = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2", "depth": "3", "type": "counterbore",
+                                                             "cbore_diameter": "4", "cbore_depth": "1"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("part -= Plane(part.faces().sort_by(Axis.Z)[-1]) * (Cylinder(2/2, 3, align=(Align.CENTER, Align.CENTER, Align.MAX)) "
+                      "+ Cylinder(4/2, 1, align=(Align.CENTER, Align.CENTER, Align.MAX)))", (root / "block.py").read_text(encoding="utf-8"))
+        hole = reply["rows"][-1]
+        self.assertEqual(hole["kind"], "Hole")
+        self.assertEqual([(each["label"], each["display"]) for each in hole["inputs"]],
+                         [("Diameter", "2"), ("Depth", "3"), ("Counterbore Diameter", "4"), ("Counterbore Depth", "1")])
+        feature = next(feature for feature in reply["features"] if feature["kind"] == "Hole")
+        self.assertEqual({key: feature["edit"]["values"][key] for key in ("type", "cbore_diameter", "cbore_depth")},
+                         {"type": "counterbore", "cbore_diameter": "4", "cbore_depth": "1"})
+
+    def test_a_countersunk_hole_cones_down_to_the_hole_at_its_angle(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        reply = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2", "depth": "3", "type": "countersink",
+                                                             "csk_diameter": "4", "csk_angle": "90"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        # At 90 degrees the cone falls one unit for each unit it narrows.
+        self.assertIn("+ Cone(2/2, 4/2, 1, align=(Align.CENTER, Align.CENTER, Align.MAX)))", (root / "block.py").read_text(encoding="utf-8"))
+        hole = reply["rows"][-1]
+        self.assertEqual([(each["label"], each["display"]) for each in hole["inputs"]],
+                         [("Diameter", "2"), ("Depth", "3"), ("Countersink Diameter", "4")])
+        feature = next(feature for feature in reply["features"] if feature["kind"] == "Hole")
+        self.assertEqual({key: feature["edit"]["values"][key] for key in ("type", "csk_diameter", "csk_angle")},
+                         {"type": "countersink", "csk_diameter": "4", "csk_angle": "90"})
+
     def test_a_shell_opens_the_selected_face(self):
         root, file, state = self.open(BLOCK, "block.step")
         reply = self.command(file, state, "shell", BLOCK_TOP, {"thickness": "1"})
@@ -355,7 +388,7 @@ class EditingFeatures(Commands):
         made = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2", "depth": "3", "x": "5"})
         self.assertTrue(made["ok"], made.get("error"))
         hole = self.feature(made, "Hole")
-        self.assertEqual(hole["edit"]["values"], {"diameter": "2", "through": False, "depth": "3", "x": "5", "y": "0"})
+        self.assertEqual(hole["edit"]["values"], {"diameter": "2", "through": False, "depth": "3", "x": "5", "y": "0", "type": "simple"})
         edited = self.edit(file, made, hole, {"diameter": "3", "depth": "", "x": "5", "y": "-2"})
         self.assertTrue(edited["ok"], edited.get("error"))
         text = (root / "block.py").read_text(encoding="utf-8")
@@ -542,6 +575,23 @@ class RollingBack(Commands):
         self.assertEqual(filleted["bar"]["before"], f"block.py:{hole['line'] + 1}")
         forward = self.service.change({"file": file, "files": filleted["files"], "bar": None})
         self.assertIsNone(forward["bar"])
+
+    def test_moving_the_bar_alone_does_not_run_the_part_again(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        fillet = next(feature for feature in state["features"] if feature["kind"] == "Fillet")
+        moved = self.service.change({"file": file, "files": state["files"], "bar": {"item": fillet["key"]}})
+        self.assertTrue(moved["ok"], moved.get("error"))
+        # Answered from the last read of the part: the bar, and nothing else to draw again.
+        self.assertTrue(moved.get("unchanged"))
+        self.assertNotIn("features", moved)
+        self.assertEqual(moved["bar"]["item"], fillet["key"])
+        # A file changed since that read is read again before the bar is placed.
+        script = root / "tray.py"
+        script.write_text(script.read_text(encoding="utf-8") + "\n# changed by hand\n", encoding="utf-8")
+        again = self.service.change({"file": file, "files": state["files"], "bar": {"item": fillet["key"]}})
+        self.assertTrue(again["ok"], again.get("error"))
+        self.assertNotIn("unchanged", again)
+        self.assertEqual(again["bar"]["item"], fillet["key"])
 
     def test_edit_feature_picks_a_fillets_edges_again_on_the_body_before_it(self):
         root, file, state = self.open(TRAY, "tray.step")

@@ -1009,18 +1009,24 @@ def _row_kind(steps):
     return {"cut": "Cut", "join": "Join"}.get(kind, kind)
 
 
-def _feature_input(kind, step, name, value, units):
-    """A step's number as the feature's input reads it: a hole's radius as its diameter, a
-    shell's inward offset as its thickness, a pattern's unused direction left out."""
+def _feature_input(kind, step, name, value, units, nth=1):
+    """A step's number as the feature's input reads it: a hole's radius as its diameter (its
+    second cylinder's as the counterbore's, its cone's top as the countersink's), a shell's inward
+    offset as its thickness, a pattern's unused direction left out. ``nth``: which of the row's
+    steps of this operation the step is."""
+    if kind == "Hole" and step["op"] == "Cone" and name != "top_radius":
+        return None  # the cone's foot is the hole's, and its height is worked out from its angle
     item = _input(name, value, units, step["op"])
     if item is None:
         return None
-    if kind == "Hole" and step["op"] == "Cylinder" and name in ("radius", "height"):
+    if kind == "Hole" and (step["op"], name) in (("Cylinder", "radius"), ("Cylinder", "height"), ("Cone", "top_radius")):
+        words = ("Countersink Diameter", "") if step["op"] == "Cone" else ("Diameter", "Depth") if nth == 1 \
+            else ("Counterbore Diameter", "Counterbore Depth")
         if name == "height":
-            return {**item, "label": "Depth"}
+            return {**item, "label": words[1]}
         shown, _ = strip_unit(value._e)
         half = shown[0] == "/" and shown[2] == ("num", 2)
-        return {**item, "label": "Diameter", "value": float(value) * 2, "display": display(float(value) * 2, units),
+        return {**item, "label": words[0], "value": float(value) * 2, "display": display(float(value) * 2, units),
                 "formula": formula(shown[1]) if half else formula(("*", shown, ("num", 2))), "expr": ("*", value._e, ("num", 2))}
     if kind == "Shell" and step["op"] == "offset" and name == "amount":
         shown, _ = strip_unit(value._e)
@@ -1036,10 +1042,11 @@ def _row_summary(row, units):
     text = _source_line(row["file"], row["line"])
     target = re.match(r"^([A-Za-z_]\w*)\s*(?:[-+*]?=)", text)
     kind = _row_kind(row["steps"])
-    inputs, seen = [], set()
+    inputs, seen, made = [], set(), {}
     for step in row["steps"]:
+        nth = made[step["op"]] = made.get(step["op"], 0) + 1
         for name, value in step["args"]:
-            item = _feature_input(kind, step, name, value, units)
+            item = _feature_input(kind, step, name, value, units, nth)
             if item is None:
                 continue
             key = tuple(item["leaves"])
@@ -1559,6 +1566,10 @@ def trace(request):
     # The body and its making, for a command to act on (`commands.py`).
     STATE[str(script)] = {"dimensions": {d["id"]: d for d in dimensions}, "rows": rows, "units": units,
                           "shape": shape, "steps": steps, "level": level}
+    # What a move of the rollback bar alone needs of this trace, while its files read the same.
+    LAST.clear()
+    LAST.update(script=str(script), root=ROOT, files=dict(FILES), features=[] if components else features,
+                components=[{"file": c["file"]} for c in components])
     return {
         "ok": True,
         "script": str(script),
@@ -2474,8 +2485,35 @@ def _with_bar(request, reply):
     return reply
 
 
+LAST: dict = {}
+"""The last trace, for a bar moved alone: its script, project, files' hashes and tree items."""
+
+
+def _bar_only(request):
+    """A move of the rollback bar alone, the part's files as the last trace of it read them: the
+    bar placed from that trace, the part not run again, and only the bar answered (`unchanged`).
+    A step down the tree is the bar's, not the part's. None for anything else."""
+    global ROOT
+    if request.get("op") != "edit" or "bar" not in request or any(key in request for key in _CHANGES):
+        return None
+    script = Path(request["script"]).resolve()
+    if LAST.get("script") != str(script) or LAST.get("root") != Path(request.get("root") or script.parent).resolve():
+        return None
+    try:
+        if any(_hash(LAST["root"] / rel) != digest for rel, digest in LAST["files"].items()):
+            return None
+    except OSError:
+        return None
+    ROOT = LAST["root"]
+    placed = _with_bar(request, {"ok": True, "features": LAST["features"], "components": LAST["components"]})
+    return {"ok": True, "unchanged": True, "files": dict(LAST["files"]), "bar": placed.get("bar")}
+
+
 def handle(request):
     try:
+        quick = _bar_only(request)
+        if quick is not None:
+            return quick
         if request.get("op") == "edit":
             return _with_bar(request, edit(request))
         return _with_bar(request, trace(request))

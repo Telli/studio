@@ -10,9 +10,14 @@ const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in", cm: "cm", m: "m" });
 // The tracer's kinds, in the words a CAD tree uses for them.
 const KIND_NAMES = Object.freeze({ Join: "Combine", Move: "Move", Cut: "Cut", Intersect: "Intersect" });
 // A command's sizes, in the part's own units, as it opens: small next to a part a hand holds.
+// A counterbore and a countersink open twice the hole's diameter (a counterbore as deep as the hole
+// is wide), a countersink at 90 degrees in a metric part and 82 in an inch one, as flat-head screws
+// are made; a draft at 1 degree. Starting values, typed over.
 const DEFAULTS = Object.freeze({
-  mm: { radius: "1", distance: "1", diameter: "3", depth: "5", thickness: "1", spacing: "10" },
-  in: { radius: ".03", distance: ".03", diameter: ".125", depth: ".25", thickness: ".04", spacing: ".5" },
+  mm: { radius: "1", distance: "1", diameter: "3", depth: "5", thickness: "1", spacing: "10", cbore: "6", cboreDepth: "3", csk: "6",
+    cskAngle: "90", draft: "1" },
+  in: { radius: ".03", distance: ".03", diameter: ".125", depth: ".25", thickness: ".04", spacing: ".5", cbore: ".25", cboreDepth: ".125",
+    csk: ".25", cskAngle: "82", draft: "1" },
 });
 const HISTORY_LIMIT = 50;
 
@@ -127,6 +132,24 @@ export function sketchTreeId(tree, view) {
   return owner.kind === "Sketch" ? owner.id : owner.sketch.id;
 }
 
+/**
+ * Which side of a sketch's plane the part lies on, from the part's extent (`bounds`, millimetres):
+ * 1 where the plane's normal points, -1 behind it, 0 when the plane runs through the part or the
+ * sketch has no frame. A cut goes toward the part, as a cut from a face of it goes into it.
+ */
+export function partSide(view, bounds) {
+  const frame = view?.state?.frame;
+  if (!frame?.origin || !frame?.z || !bounds) return 0;
+  const [lo, hi] = bounds;
+  const reach = Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) || 1;
+  const sides = [lo[0], hi[0]].flatMap(x => [lo[1], hi[1]].flatMap(y => [lo[2], hi[2]].map(z =>
+    (x - frame.origin[0]) * frame.z[0] + (y - frame.origin[1]) * frame.z[1] + (z - frame.origin[2]) * frame.z[2])));
+  const slack = 1e-6 * reach;
+  if (sides.every(side => side >= -slack)) return 1;
+  if (sides.every(side => side <= slack)) return -1;
+  return 0;
+}
+
 /** A constrained sketch as the part's last trace solved it, by where its script makes it. */
 export const sketchView = (state, sketch) => (state?.sketches || []).find(view => sketch && view.file === sketch.file && view.line === sketch.line) || null;
 
@@ -237,10 +260,10 @@ export function changeNote(change) {
  * sketch selected in the design tree).
  */
 export const EDIT_COMMANDS = Object.freeze([
-  { id: "extrude", label: "Extruded Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
-  { id: "revolve", label: "Revolved Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
-  { id: "cut", label: "Extruded Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
-  { id: "revolve_cut", label: "Revolved Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch in the design tree." },
+  { id: "extrude", label: "Extruded Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
+  { id: "revolve", label: "Revolved Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
+  { id: "cut", label: "Extruded Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
+  { id: "revolve_cut", label: "Revolved Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
   { id: "hole", label: "Hole", group: "Create", picks: "faces", prompt: "Select a flat face for the hole." },
   { id: "pattern", label: "Pattern", group: "Create", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Create", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
@@ -257,12 +280,13 @@ export function commandDefaults(id, units) {
   switch (id) {
     case "fillet": return { radius: size.radius };
     case "chamfer": return { distance: size.distance };
-    case "hole": return { diameter: size.diameter, depth: size.depth, through: true, x: "0", y: "0", z: "0" };
+    case "hole": return { type: "simple", diameter: size.diameter, depth: size.depth, through: true, x: "0", y: "0", z: "0",
+      cbore_diameter: size.cbore, cbore_depth: size.cboreDepth, csk_diameter: size.csk, csk_angle: size.cskAngle };
     case "shell": return { thickness: size.thickness };
     case "mirror": return { plane: "YZ" };
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
-    case "extrude": return { end: "blind", depth: size.depth, reverse: false };
-    case "cut": return { end: "blind", depth: size.depth, reverse: false };
+    case "extrude":
+    case "cut": return { end: "blind", depth: size.depth, reverse: false, draft: false, draft_angle: size.draft, outward: false };
     case "revolve":
     case "revolve_cut": return { axis: "", angle: "360", reverse: false };
     default: return {};
@@ -314,8 +338,11 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
   // Edit Feature: the feature's own line written again, acting on what it acts on now.
   const replace = editing ? { replace: { row: editing.id } } : {};
   if (id === "extrude" || id === "cut") {
-    return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title } : null,
-      inputs: { end: values.end, ...(values.end === "through" ? {} : { depth: values.depth }), reverse: Boolean(values.reverse) }, ...replace };
+    // Up To Next has no depth or direction of its own, nor a draft; Through All no depth.
+    const next = values.end === "next";
+    const inputs = { end: values.end, ...(values.end === "through" || next ? {} : { depth: values.depth }), ...(next ? {} : { reverse: Boolean(values.reverse) }) };
+    if (values.draft && !next) Object.assign(inputs, { draft: true, draft_angle: values.draft_angle, outward: Boolean(values.outward) });
+    return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title } : null, inputs, ...replace };
   }
   if (id === "revolve" || id === "revolve_cut") {
     return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title, axis: values.axis } : null,
@@ -329,6 +356,8 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
     case "hole":
       Object.assign(inputs, { diameter: values.diameter, depth: values.through ? "" : values.depth });
       for (const axis of ["x", "y", "z"]) if (String(values[axis] ?? "").trim() && Number(values[axis]) !== 0) inputs[axis] = values[axis];
+      if (values.type === "counterbore") Object.assign(inputs, { type: "counterbore", cbore_diameter: values.cbore_diameter, cbore_depth: values.cbore_depth });
+      if (values.type === "countersink") Object.assign(inputs, { type: "countersink", csk_diameter: values.csk_diameter, csk_angle: values.csk_angle });
       break;
     case "mirror": inputs.plane = values.plane; break;
     case "pattern":
@@ -435,6 +464,22 @@ export function buildingText(building) {
   if (building.error) return "A STEP file did not rebuild";
   if (building.done < building.scripts.length) return `Updating STEP files, ${building.done} of ${building.scripts.length}`;
   return "";
+}
+
+/**
+ * What edit mode is busy with, as a CAD tool's status bar says it while it rebuilds: the part being
+ * read, the body at the rollback bar on its way, a change being made or a sketch solved, the STEP
+ * files being built again (`progress`, 0 to 100, how many are done). Null when it is idle.
+ */
+export function busyState(edit) {
+  if (edit.status === "reading") return { text: "Reading the part", progress: null };
+  if (edit.rolling) return { text: "Rolling back", progress: null };
+  if (edit.saving) return { text: edit.sketch ? "Solving" : "Rebuilding", progress: null };
+  const building = edit.state?.building;
+  if (building?.scripts?.length && !building.error && building.done < building.scripts.length) {
+    return { text: buildingText(building), progress: Math.round((100 * building.done) / building.scripts.length) };
+  }
+  return null;
 }
 
 /** The hand changes of this view, for Undo and Redo. */

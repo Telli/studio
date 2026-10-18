@@ -795,17 +795,24 @@ def _tool(body: Body, var: str, feature: dict | None, bar: int | None = None):
 
 def recorded_numbers(steps: list[dict]) -> dict:
     """What a line's operations were given, by operation and argument (``("fillet", "radius")``):
-    sizes in millimetres, angles in degrees, counts, and how many faces or edges a list held."""
+    sizes in millimetres, angles in degrees, counts, and how many faces or edges a list held. An
+    operation the line makes again is also keyed by which one it is (``("Cylinder", "radius", 2)``,
+    a counterbore's after its hole's), the first's numbers kept under the plain key."""
     out: dict = {}
+    made: dict = {}
     for step in steps:
+        nth = made[step["op"]] = made.get(step["op"], 0) + 1
         for name, value in step["args"]:
-            key = (step["op"], name)
-            if key in out or isinstance(value, bool):
+            if isinstance(value, bool):
                 continue
             if isinstance(value, (int, float)):
-                out[key] = float(value)
+                number = float(value)
             elif isinstance(value, (list, tuple)):
-                out[key] = float(len(value))
+                number = float(len(value))
+            else:
+                continue
+            out.setdefault((step["op"], name), number)
+            out.setdefault((step["op"], name, nth), number)
     return out
 
 
@@ -965,10 +972,38 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             given = [same(axis.lower(), offsets[axis], writer.length(offsets[axis])) if offsets[axis] else "0" for axis in ("X", "Y", "Z")]
             moved = f"{names('Pos')}({', '.join(given[:2] if given[2] == '0' else given)}) * "
         align = names("Align")
-        code = (f"{var} -= {moved}{names('Plane')}({face}) * {names('Cylinder')}({same('diameter', diameter, writer.length(diameter, '/2'))}, {depth_code}, "
-                f"align=({align}.CENTER, {align}.CENTER, {align}.MAX))")
+        under = f"align=({align}.CENTER, {align}.CENTER, {align}.MAX)"
+        tool = f"{names('Cylinder')}({same('diameter', diameter, writer.length(diameter, '/2'))}, {depth_code}, {under})"
         shown = [("Diameter", diameter, units_word)] + ([("Depth", depth, units_word)] if depth is not None else [])
+        # Hole Wizard's types: a counterbore or a countersink at the face for a screw's head,
+        # each a solid added to the hole's cylinder, both from the face down.
+        kind = str(inputs.get("type") or "simple").lower()
+        if kind == "counterbore":
+            bore = _value(inputs, "cbore_diameter", "Counterbore diameter", parse)
+            bore_depth = _value(inputs, "cbore_depth", "Counterbore depth", parse)
+            if bore <= diameter:
+                raise CommandError("A counterbore is wider than its hole. Make its diameter larger than the hole's.")
+            if depth is not None and bore_depth >= depth:
+                raise CommandError("A counterbore is shallower than its hole. Make its depth less than the hole's.")
+            tool = (f"({tool} + {names('Cylinder')}({same('cbore_diameter', bore, writer.length(bore, '/2'))}, "
+                    f"{same('cbore_depth', bore_depth, writer.length(bore_depth))}, {under}))")
+            shown += [("Counterbore diameter", bore, units_word), ("Counterbore depth", bore_depth, units_word)]
+        elif kind == "countersink":
+            sink = _value(inputs, "csk_diameter", "Countersink diameter", parse)
+            angle = _value(inputs, "csk_angle", "Countersink angle", parse)
+            if sink <= diameter:
+                raise CommandError("A countersink is wider than its hole. Make its diameter larger than the hole's.")
+            if not 0 < angle < 180:
+                raise CommandError("A countersink's angle is between 0 and 180 degrees.")
+            # The cone from the countersink's diameter at the face down to the hole's, at its angle.
+            height = (sink - diameter) / 2 / math.tan(math.radians(angle) / 2)
+            tool = (f"({tool} + {names('Cone')}({same('diameter', diameter, writer.length(diameter, '/2'))}, "
+                    f"{same('csk_diameter', sink, writer.length(sink, '/2'))}, {writer.length(height)}, {under}))")
+            shown += [("Countersink diameter", sink, units_word), ("Countersink angle", angle, "deg")]
+        code = f"{var} -= {moved}{names('Plane')}({face}) * {tool}"
         what = "through all" if through else "a blind hole"
+        if kind in ("counterbore", "countersink"):
+            what = f"{'counterbored' if kind == 'counterbore' else 'countersunk'}, {what}"
     elif command == "shell":
         numbers, faces = ([], fixed.parts["openings"]) if fixed else chosen("face")
         thickness = _value(inputs, "thickness", "Thickness", parse)
@@ -1047,21 +1082,42 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             raise CommandError(f"{drawn.get('name') or 'That sketch'} is below the rollback bar. Move the bar below it first.")
         end = str(inputs.get("end") or "blind").lower()
         through = command == "cut" and end == "through"
-        depth = None if through else _value(inputs, "depth", "Depth", parse)
+        # Up To Next: as far as the next face of the body along the sketch's normal (build123d's
+        # `until`), no depth of its own.
+        up_to_next = end == "next"
+        depth = None if through or up_to_next else _value(inputs, "depth", "Depth", parse)
         # Mid Plane: half the depth each way (build123d's `both`), so Reverse does not apply.
         both = ", both=True" if end == "mid" else ""
-        amount = f"{var}.bounding_box().diagonal" if through else writer.length(depth / 2 if both else depth)
-        reverse = inputs.get("reverse") in (True, "true", "1", 1) and not both
-        if reverse:
-            amount = f"-{amount}"
-        if not through:
-            amount = same("amount", (-1 if reverse else 1) * (depth / 2 if both else depth), amount)
         profile = kept.parts["profile"] if kept else f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
         sign = "+=" if command == "extrude" else "-="
-        code = f"{var} {sign} {names('extrude')}({profile}, amount={amount}{both})"
+        # Draft, as SolidWorks' Draft On/Off: the sides lean in by the angle (build123d's `taper`),
+        # out with Draft outward. Not with Up To Next, whose length is the body's to say.
+        drafted = inputs.get("draft") in (True, "true", "1", 1) and not up_to_next
+        taper = ""
+        if drafted:
+            angle = _value(inputs, "draft_angle", "Draft angle", parse)
+            if angle >= 90:
+                raise CommandError("A draft angle is less than 90 degrees.")
+            outward = inputs.get("outward") in (True, "true", "1", 1)
+            taper = f", taper={'-' if outward else ''}{same('taper', angle, writer.number(angle))}"
+        if up_to_next:
+            code = f"{var} {sign} {names('extrude')}({profile}, until={names('Until')}.NEXT, target={var})"
+        else:
+            amount = f"{var}.bounding_box().diagonal" if through else writer.length(depth / 2 if both else depth)
+            reverse = inputs.get("reverse") in (True, "true", "1", 1) and not both
+            if reverse:
+                amount = f"-{amount}"
+            if not through:
+                amount = same("amount", (-1 if reverse else 1) * (depth / 2 if both else depth), amount)
+            code = f"{var} {sign} {names('extrude')}({profile}, amount={amount}{both}{taper})"
         at = max(at, block.last_line)
-        shown = [] if through else [("Depth", depth, units_word)]
-        what = f"from {drawn.get('name') or 'the sketch'}" + (", through all" if through else ", mid plane" if end == "mid" else "")
+        shown = [] if through or up_to_next else [("Depth", depth, units_word)]
+        if drafted:
+            shown.append(("Draft", angle, "deg"))
+        what = f"from {drawn.get('name') or 'the sketch'}" + (", through all" if through else ", up to next" if up_to_next
+                                                              else ", mid plane" if end == "mid" else "")
+        if drafted:
+            what += f", drafted {'out' if outward else 'in'} {_number(angle, False)} degrees"
     else:  # pattern
         kind = str(inputs.get("type") or "linear").lower()
         count = _value(inputs, "count", "Instances", parse, integer=True, minimum=2)
@@ -1256,6 +1312,20 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
             held("diameter", cylinder.args[0], typed(2 * radius) if radius is not None else None)
             if not through:
                 held("depth", cylinder.args[1], typed(number(("Cylinder", "height"))))
+            # Hole Wizard's types: a second cylinder at the face is a counterbore, a cone a countersink.
+            cylinders = [node for node in calls if _call_name(node) == "Cylinder" and len(node.args) >= 2]
+            cone = next((node for node in calls if _call_name(node) == "Cone" and len(node.args) >= 3), None)
+            values["type"] = "simple"
+            if len(cylinders) >= 2 and number(("Cylinder", "radius", 2)) is not None:
+                bore, bore_depth = 2 * number(("Cylinder", "radius", 2)), number(("Cylinder", "height", 2))
+                values.update(type="counterbore", cbore_diameter=size(bore), cbore_depth=size(bore_depth))
+                held("cbore_diameter", cylinders[1].args[0], typed(bore))
+                held("cbore_depth", cylinders[1].args[1], typed(bore_depth))
+            elif cone is not None and None not in (number(("Cone", "top_radius")), number(("Cone", "bottom_radius")), number(("Cone", "height"))):
+                top, bottom, rise = number(("Cone", "top_radius")), number(("Cone", "bottom_radius")), number(("Cone", "height"))
+                angle = 2 * math.degrees(math.atan2(top - bottom, rise))
+                values.update(type="countersink", csk_diameter=size(2 * top), csk_angle=_number(round(angle, 2), False))
+                held("csk_diameter", cone.args[1], typed(2 * top))
             moved = next((node for node in calls if _call_name(node) == "Pos"), None)
             for index, axis in enumerate(("x", "y", "z")):
                 if moved is not None and number(("move", axis)) is not None and index < len(moved.args):
@@ -1292,12 +1362,23 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
             amount = number(("extrude", "amount")) or 0.0
             both = isinstance(_keyword_value(value, "both"), ast.Constant) and _keyword_value(value, "both").value is True
             through = _through_all(_keyword_value(value, "amount"))
+            until = _keyword_value(value, "until")
+            up_to_next = isinstance(until, ast.Attribute) and until.attr == "NEXT"
             written = _keyword_value(value, "amount")
             reverse = (isinstance(written, ast.UnaryOp) and isinstance(written.op, ast.USub)) if through else amount < 0
-            values = {"end": "mid" if both else "through" if through else "blind", "reverse": bool(reverse) and not both,
-                      "depth": size(abs(amount) * (2 if both else 1)) if not through else ""}
-            if not through:
+            values = {"end": "next" if up_to_next else "mid" if both else "through" if through else "blind",
+                      "reverse": bool(reverse) and not both and not up_to_next,
+                      "depth": size(abs(amount) * (2 if both else 1)) if not (through or up_to_next) else ""}
+            if not (through or up_to_next):
                 held("amount", written, typed(amount))
+            # Draft: build123d's `taper`, in degrees; drawn in, or out when negative.
+            taper = _keyword_value(value, "taper")
+            drafted = number(("extrude", "taper"))
+            if taper is not None and drafted:
+                outward = drafted < 0
+                values.update(draft=True, draft_angle=_number(abs(drafted), False), outward=outward)
+                shown = taper.operand if outward and isinstance(taper, ast.UnaryOp) and isinstance(taper.op, ast.USub) else taper
+                held("taper", shown, abs(drafted), _tight(shown, text))
             return Feature("extrude" if operator == "+=" else "cut", values, sketch, {"profile": code(profile), "sketch": sketch},
                            target, operator, codes)
         axis = _keyword_value(value, "axis")

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@text-to-cad/ui/utils";
 import { Button } from "@text-to-cad/ui/primitives/button";
@@ -11,6 +12,7 @@ import {
   FileSheetSettingsSection,
   FileSheetValueInput
 } from "../../kit/inspector/FileSheet.js";
+import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { TOOL_PANEL_BUTTON_CLASS } from "../../kit/tools/ToolPanel.jsx";
 import EditCommand from "./EditCommand.jsx";
 import EditTree from "./EditTree.jsx";
@@ -34,8 +36,9 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
  * sketches), and under it the selection's own values, as a PropertyManager shows them: a
  * feature's inputs, or a sketch's dimensions. Every value is typed over to change it; a change is
  * one number in the part's script (`cadgen/edit`). While a modeling command is open, its panel
- * sits above the tree, where a feature to copy is picked; while a sketch is edited, or the Sketch
- * command waits for its plane, the sketch's PropertyManager does (`SketchPanel.jsx`).
+ * floats in a card of its own over the model (`card`), apart from the tree, where a feature to copy
+ * is picked; while a sketch is edited, or the Sketch command waits for its plane, the sketch's
+ * PropertyManager does (`SketchPanel.jsx`).
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, names: ReturnType<typeof import("./editMode.js").featureNames>,
  *   tree: ReturnType<typeof import("./editMode.js").featureTree>, references?: object[],
@@ -43,11 +46,11 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
  *   `references`: the faces and edges selected on the model; `onOpenPart`: a part of an assembly
  *   opened on its own, to be modeled (SolidWorks' Open Part), and `backTo` ({ title, open }) the
  *   assembly a part was opened from; `onEditSketch`: a sketch's
- *   double-click in the tree; `onPlane`: an origin plane picked for a new sketch; `corner`: the
- *   model view's top-right corner, where the open panel draws its OK and Cancel again.
+ *   double-click in the tree; `onPlane`: an origin plane picked for a new sketch; `card`: the
+ *   place over the model's top-right corner where the open command's panel floats.
  */
 export default function EditBrowser({ edit, names, tree, references = [], onEditSketch = () => {}, onPlane = () => {}, onOpenPart = null,
-  backTo = null, corner = null }) {
+  backTo = null, card = null }) {
   const [open, setOpen] = useState(true);
   const { state, status } = edit;
   const rows = state?.rows || [];
@@ -71,14 +74,20 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
     ? selectionDimensions(state, tree, selected).map(dimension => ({ key: dimension.id, label: sizeName(dimension.name), value: dimension.display,
       unit: state?.units, formula: dimension.formula, request: text => ({ dimension: dimension.id, text }) }))
     : featureInputs(feature));
+  // The open command's or sketch's panel, in a card of its own over the model's top-right corner, as
+  // a CAD tool's command dialog floats apart from its tree; here, above the tree, where the view
+  // keeps no card for it.
+  const panel = edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} />
+    : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree} />
+      : null;
+  const floating = panel && card ? createPortal(<div data-cad-command-card="" className={cn(FLOATING_SURFACE_CLASS,
+    "pointer-events-auto flex max-h-full min-h-0 flex-col overflow-y-auto rounded-lg")}>{panel}</div>, card) : null;
   return <div className="flex h-full min-h-0 flex-col" data-cad-edit-browser="">
     {edit.error ? <div className="flex items-start gap-1 border-b border-border px-2 py-1.5 text-tiny text-destructive" role="alert">
       <span className="min-w-0 flex-1">{edit.error}</span>
       <button type="button" aria-label="Dismiss" className={TOOL_PANEL_BUTTON_CLASS} onClick={edit.dismissError}><X className="size-3" aria-hidden="true" /></button>
     </div> : null}
-    {edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} corner={corner} />
-      : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree}
-        corner={corner} /> : null}
+    {floating || panel}
     <ScrollArea className="min-h-0 flex-1">
       <EditTree edit={edit} tree={tree} onEditSketch={onEditSketch} onOpenPart={onOpenPart} backTo={backTo} />
       {component && !edit.command && !edit.sketch ? <FileSheetSettingsSection title={component.title} sectionId="edit-component">
