@@ -9,7 +9,9 @@ import {
   FileSheetValueInput
 } from "../../kit/inspector/FileSheet.js";
 import {
+  clickOffsets,
   commandBlocked,
+  edgeAxis,
   commandDefaults,
   commandRequest,
   editCommand,
@@ -27,6 +29,7 @@ import {
 } from "./editMode.js";
 import { COMMAND_ICONS } from "./cadIcons.jsx";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
+import { sketchGeometry } from "./sketchMode.js";
 // An extrude's end conditions, as SolidWorks' Direction 1 names them; a cut can go through all.
 const BOSS_ENDS = Object.freeze([{ value: "blind", label: "Blind" }, { value: "next", label: "Up To Next" }, { value: "mid", label: "Mid Plane" }]);
 const CUT_ENDS = Object.freeze([...BOSS_ENDS, { value: "through", label: "Through All" }]);
@@ -130,19 +133,38 @@ export default function EditCommand({ edit, names, references, tree = null }) {
   // A feature picked in the history is what Mirror and Pattern copy; the first one is the body.
   const [wholeBody, setWholeBody] = useState(featureIndex <= 0);
   useEffect(() => { setWholeBody(featureIndex <= 0); }, [featureIndex, edit.command]);
-  // What OK would make, drawn on the model while the panel is open: the extrude of its sketch,
-  // its depth in the part's millimetres. A depth written as a size's name is not drawn.
+  // A straight edge picked while Pattern is open sets its direction, as SolidWorks' Direction 1 takes an edge.
+  const pickedAxis = edit.command === "pattern" ? edgeAxis(references) : null;
+  useEffect(() => { if (pickedAxis) setValues(current => ({ ...current, type: "linear", direction: pickedAxis })); }, [pickedAxis]);
+  // A click on the hole's face puts the hole there: its distance from the face's center.
+  const { facePoint } = edit;
+  useEffect(() => {
+    if (edit.command !== "hole" || !facePoint) return;
+    const moved = clickOffsets(facePoint.point, facePoint.center, facePoint.normal, units);
+    if (moved) setValues(current => ({ ...current, ...moved }));
+  }, [facePoint, edit.command, units]);
+  // What OK would make, drawn on the model while the panel is open: the extrude of its sketch, its
+  // depth in the part's millimetres, or its revolve about the axis line by the angle. A depth or an
+  // angle written as a size's name is not drawn; Up To Next ends where the body says.
   const { setPreview } = edit;
   const depth = Number.parseFloat(String(values.depth ?? ""));
-  // Up To Next ends where the body says, so it has no depth to draw.
   const extruding = (edit.command === "extrude" || edit.command === "cut") && Boolean(sketch) && values.end !== "next";
   const previewDepth = extruding && Number.isFinite(depth) ? depth * (MM_PER[units] || 1) : null;
+  const angle = Number.parseFloat(String(values.angle ?? ""));
+  const axisLine = revolving && sketch
+    ? sketchGeometry(sketchView(edit.state, sketch)?.state).curves.find(curve => curve.id === values.axis && curve.kind === "line") : null;
+  const turn = axisLine && Number.isFinite(angle) && angle > 0 ? (values.reverse ? -angle : angle) : null;
+  const kind = edit.command === "cut" || edit.command === "revolve_cut" ? "cut" : "boss";
   useEffect(() => {
+    if (turn !== null) {
+      setPreview({ kind, revolve: { a: axisLine.a, b: axisLine.b, angle: turn }, file: sketch.file, line: sketch.line });
+      return () => setPreview(null);
+    }
     if (!extruding || (previewDepth === null && values.end !== "through")) { setPreview(null); return undefined; }
-    setPreview({ kind: edit.command === "cut" ? "cut" : "boss", end: values.end, depth: previewDepth || 0, reverse: Boolean(values.reverse),
-      file: sketch.file, line: sketch.line });
+    setPreview({ kind, end: values.end, depth: previewDepth || 0, reverse: Boolean(values.reverse), file: sketch.file, line: sketch.line });
     return () => setPreview(null);
-  }, [extruding, previewDepth, values.end, values.reverse, edit.command, sketch?.file, sketch?.line, setPreview]);
+  }, [extruding, previewDepth, values.end, values.reverse, kind, turn, axisLine?.a?.join(), axisLine?.b?.join(), sketch?.file, sketch?.line,
+    setPreview]);
   if (!command) return null;
   const Icon = COMMAND_ICONS[command.id];
   const set = key => value => setValues(current => ({ ...current, [key]: value }));
@@ -244,6 +266,7 @@ export default function EditCommand({ edit, names, references, tree = null }) {
         <FileSheetSelectRow label="Type" value={values.type} options={PATTERNS} onValueChange={set("type")} />
         {values.type === "linear" ? <>
           <FileSheetSelectRow label="Direction" value={values.direction} options={DIRECTIONS} onValueChange={set("direction")} />
+          <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Or pick a straight edge along X or Y on the model.</p>
           <NumberRow label="Spacing" value={values.spacing} unit={units} disabled={disabled} onChange={set("spacing")} />
           <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />
         </> : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Around the Z axis, spaced evenly.</p>}

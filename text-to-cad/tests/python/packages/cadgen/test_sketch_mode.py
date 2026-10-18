@@ -76,6 +76,19 @@ class SketchMode(unittest.TestCase):
         self.assertEqual(self.sketch["state"]["status"], "Fully defined")
         self.assertEqual(self.sketch["state"]["frame"]["z"], [0.0, 0.0, 1.0])
 
+    def test_a_sketch_on_an_offset_plane_is_written_with_its_offset(self):
+        refused = self.service.change({"file": self.file, "files": self.files, "sketch": {"op": {
+            "kind": "new", "plane": "Top", "name": "Sketch1", "offset": "a little"}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("Offset distance needs a number", refused["error"])
+        self.send({"kind": "new", "plane": "Top", "name": "Sketch1", "offset": "8"})
+        self.assertIn('    sketch1 = Sketch("Sketch1", plane="Top", offset=8)\n', self.source())
+        # The sketch's plane is the Top plane moved 8 up its normal.
+        self.assertEqual(self.sketch["state"]["frame"]["origin"], [0.0, 0.0, 8.0])
+        self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [10, 6]}})
+        left = self.send({"kind": "exit", "changed": True})
+        self.assertEqual([f["sketch"]["offset"] for f in left["features"] if f["kind"] == "Sketch"], [8.0])
+
     def test_strokes_and_dimensions_are_lines_of_the_script_and_solve_at_once(self):
         self.start()
         drawn = self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [30, 10]}})

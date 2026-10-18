@@ -161,7 +161,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const sketchRow = (sketch, depth, own = null, muted = false) => {
     const edits = editItem(sketch);
     return <Row key={sketch.id} id={sketch.id} depth={depth} icon={muted ? greyed(<SketchIcon />) : <SketchIcon />} muted={muted}
-      title={`${SKETCH_MARKS[sketch.status] || ""}${sketch.title}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane` : ""}
+      title={`${SKETCH_MARKS[sketch.status] || ""}${sketch.title}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane${sketch.offset ? `, ${sketch.offset} ${edit.state?.units || ""}`.trimEnd() : ""}` : ""}
       slot={own ? partItems.findIndex(each => each.id === own.id) : null}
       onActivate={() => onEditSketch(sketch)}
       menu={own ? [...edits, ...rollItems(own), deleteItem(sketch.id, true)] : edits} {...rowProps} />;

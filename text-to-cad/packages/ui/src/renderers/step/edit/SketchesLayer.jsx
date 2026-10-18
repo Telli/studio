@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { colorsFor, curvePoints, lightText, planeMapping, strokePath } from "./sketchDrawing.js";
 import { sketchGeometry } from "./sketchMode.js";
-import { CLICK_SLOP_PX, extrudeSpan, screenSketch, sideIndexes, sketchAt, tagPlace } from "./sketchPicking.js";
+import { CLICK_SLOP_PX, extrudeSpan, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace } from "./sketchPicking.js";
 
 const TAG_FONT_PX = 11;
 const TAG_HEIGHT_PX = 18;
@@ -91,6 +91,47 @@ function drawPreview(context, view, shape, through, cad, at) {
 }
 
 /**
+ * What a revolve of the sketch would make, drawn as SolidWorks previews one: the profile again at
+ * steps around its axis, and its corners' paths between them, in amber for material added and red
+ * for a cut. `at(degrees)` is the profile's plane mapping turned that far (`revolvedFrame`).
+ */
+function drawRevolvePreview(context, view, shape, cad, at) {
+  const loops = view.state?.loops || [];
+  const total = shape.revolve.angle;
+  if (!loops.length || !total) return;
+  const fine = Math.max(4, Math.ceil(Math.abs(total) / 10));
+  const mappings = Array.from({ length: fine + 1 }, (_, step) => at((total * step) / fine));
+  if (!mappings.every(Boolean)) return;
+  context.save();
+  context.strokeStyle = shape.kind === "cut" ? cad.cut : cad.solidEdge;
+  for (const loop of loops) {
+    // The profile every 30 degrees or so, and where the turn ends.
+    const every = Math.max(1, Math.round(fine / Math.max(1, Math.ceil(Math.abs(total) / 30))));
+    mappings.forEach((mapping, step) => {
+      if (step === 0 || (step % every !== 0 && step !== fine)) return;
+      const outline = loop.map(mapping.toScreen);
+      if (!outline.every(Boolean)) return;
+      context.lineWidth = step === fine ? 2 : 1;
+      context.beginPath();
+      outline.forEach(([x, y], index) => (index ? context.lineTo(x, y) : context.moveTo(x, y)));
+      context.closePath();
+      context.stroke();
+      if (step === fine && Math.abs(total) < 360) fillLoops(context, [outline], shape.kind === "cut" ? cad.cut : cad.solid, PREVIEW_FILL_ALPHA);
+    });
+    // Each corner's path around the axis.
+    context.lineWidth = 1.5;
+    for (const index of sideIndexes(loop)) {
+      const path = mappings.map(mapping => mapping.toScreen(loop[index]));
+      if (!path.every(Boolean)) continue;
+      context.beginPath();
+      path.forEach(([x, y], step) => (step ? context.lineTo(x, y) : context.moveTo(x, y)));
+      context.stroke();
+    }
+  }
+  context.restore();
+}
+
+/**
  * The part's sketches drawn on the model while none is being edited, as SolidWorks shows them: a
  * sketch nothing makes a solid of yet stays in view on its plane (blue where it can still move,
  * black where it is defined). The one selected (in the design tree, or picked here) is drawn as
@@ -160,9 +201,18 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
           fillLoops(context, drawn[index].loops, cad.picked, PICKED_FILL_ALPHA);
           if (shape && shape.file === view.file && shape.line === view.line) {
             const frame = view.state.frame;
-            const at = offset => planeMapping(runtime, width, height,
-              { ...frame, origin: frame.origin.map((value, axis) => value + frame.z[axis] * offset) }, view.state.unit || 1);
-            drawPreview(context, view, shape, extent, cad, at);
+            const unit = view.state.unit || 1;
+            if (shape.revolve) {
+              const { a, b } = shape.revolve;
+              drawRevolvePreview(context, view, shape, cad, degrees => {
+                const turned = revolvedFrame(frame, unit, a, b, degrees);
+                return turned ? planeMapping(runtime, width, height, turned, unit) : null;
+              });
+            } else {
+              const at = offset => planeMapping(runtime, width, height,
+                { ...frame, origin: frame.origin.map((value, axis) => value + frame.z[axis] * offset) }, unit);
+              drawPreview(context, view, shape, extent, cad, at);
+            }
           }
           tag = { drawn: drawn[index], name: view.name || "Sketch" };
         }

@@ -135,3 +135,28 @@ export function sideIndexes(loop) {
   if (corners.length || count < 4) return corners;
   return [0, 1, 2, 3].map(quarter => Math.floor((quarter * count) / 4));
 }
+
+/**
+ * A sketch's frame turned about one of its lines (from `a` to `b`, in the sketch's units) by
+ * `degrees`, as a revolve turns its profile: the frame of the profile there, in the part's
+ * millimetres, to draw it with `planeMapping`. Null for a line of no length.
+ */
+export function revolvedFrame(frame, unit, a, b, degrees) {
+  const at = ([u, v]) => [0, 1, 2].map(axis => frame.origin[axis] + (u * frame.x[axis] + v * frame.y[axis]) * unit);
+  const start = at(a);
+  const end = at(b);
+  const length = Math.hypot(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
+  if (!(length > 0)) return null;
+  const d = [0, 1, 2].map(axis => (end[axis] - start[axis]) / length);
+  const turn = degrees * Math.PI / 180;
+  const cos = Math.cos(turn);
+  const sin = Math.sin(turn);
+  // Rodrigues' rotation about the line's direction.
+  const turned = v => {
+    const along = d[0] * v[0] + d[1] * v[1] + d[2] * v[2];
+    const cross = [d[1] * v[2] - d[2] * v[1], d[2] * v[0] - d[0] * v[2], d[0] * v[1] - d[1] * v[0]];
+    return [0, 1, 2].map(axis => v[axis] * cos + cross[axis] * sin + d[axis] * along * (1 - cos));
+  };
+  const origin = turned([0, 1, 2].map(axis => frame.origin[axis] - start[axis])).map((value, axis) => value + start[axis]);
+  return { origin, x: turned(frame.x), y: turned(frame.y), z: turned(frame.z) };
+}

@@ -81,6 +81,7 @@ export function featureTree(state) {
       return `Sketch${sketches}`;
     };
     const sketchOf = (feature, id) => ({ id, title: feature.sketch.name || nextName(), plane: feature.sketch.plane || "",
+      offset: feature.sketch.offset || null,
       status: feature.sketch.status || "", file: feature.sketch.file || null, line: feature.sketch.line || null,
       constrained: Boolean(feature.sketch.name && feature.sketch.file) });
     return (features || []).map(feature => {
@@ -264,7 +265,7 @@ export const EDIT_COMMANDS = Object.freeze([
   { id: "revolve", label: "Revolved Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
   { id: "cut", label: "Extruded Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
   { id: "revolve_cut", label: "Revolved Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
-  { id: "hole", label: "Hole", group: "Create", picks: "faces", prompt: "Select a flat face for the hole." },
+  { id: "hole", label: "Hole", group: "Create", picks: "faces", prompt: "Click a flat face where the hole goes." },
   { id: "pattern", label: "Pattern", group: "Create", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Create", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
   { id: "fillet", label: "Fillet", group: "Modify", picks: "edges", prompt: "Select the edges to round." },
@@ -328,6 +329,40 @@ export function faceOffsetAxes(normal) {
   if (Math.abs(x - 1) < 1e-6) return ["y", "z"];
   if (Math.abs(y - 1) < 1e-6) return ["x", "z"];
   return [];
+}
+
+/**
+ * The axis a straight edge picked on the model runs along, as a linear pattern's Direction takes
+ * an edge: "X" or "Y" from the edge's extent (`pickData.bbox`), the last one picked counting.
+ * Null for an edge along another way, a curved one, or none.
+ */
+export function edgeAxis(references = []) {
+  const edge = [...references].reverse().find(reference => reference?.selectorType === "edge" && reference.pickData?.curveType === "line");
+  const { min, max } = edge?.pickData?.bbox || {};
+  if (!Array.isArray(min) || !Array.isArray(max)) return null;
+  const extent = [0, 1, 2].map(axis => Math.abs(Number(max[axis]) - Number(min[axis])));
+  const longest = Math.max(...extent);
+  const along = extent.indexOf(longest);
+  if (!(longest > 0) || along > 1 || extent.some((value, axis) => axis !== along && value > 1e-6 * longest)) return null;
+  return along === 0 ? "X" : "Y";
+}
+
+/**
+ * Where a click on a face puts a hole, as Hole Wizard's Positions place it where the face is
+ * clicked: the click's distance from the face's center (`pickData.center`, the point the hole's
+ * `Plane(face)` starts from) along each axis the panel moves it on, in the part's units and to
+ * the places the panel shows. Null without a click or a center.
+ */
+export function clickOffsets(point, center, normal, units) {
+  if (!point || !center) return null;
+  const scale = units === "in" ? 1 / 25.4 : 1;
+  const places = units === "in" ? 3 : 2;
+  const axes = faceOffsetAxes(normal);
+  if (!axes.length) return null;
+  return Object.fromEntries(axes.map(axis => {
+    const index = "xyz".indexOf(axis);
+    return [axis, String(Number(((point[index] - center[index]) * scale).toFixed(places)))];
+  }));
 }
 
 /**

@@ -1178,6 +1178,7 @@ def _sketches(steps, rows):
         view["consumed"] = consumed.get(id(entry["sketch"]))
         plane = entry["sketch"].plane
         view["plane"] = SKETCH_PLANES.get(_sketch_api.PLANE_NAMES.get(plane, plane), "Plane") if isinstance(plane, str) else "Plane"
+        view["offset"] = float(entry["sketch"].offset or 0) or None
         found.append(view)
     return found
 
@@ -1195,7 +1196,7 @@ def _with_sketches(features, sketches, component=None):
         item = {"key": f"sketch@{sketch['file']}:{sketch['line']}", "rows": [], "name": None, "count": 1,
                 "file": sketch["file"], "line": sketch["line"], "kind": "Sketch",
                 "sketch": {"op": "Sketch", "label": "Sketch", "name": sketch["name"], "file": sketch["file"], "line": sketch["line"],
-                           "plane": sketch["plane"], "status": status, "step": None}}
+                           "plane": sketch["plane"], "offset": sketch.get("offset"), "status": status, "step": None}}
         at = next((index for index, feature in enumerate(out)
                    if feature.get("file") == sketch["file"] and (feature.get("line") or 0) > sketch["line"]), len(out))
         out.insert(at, item)
@@ -2188,7 +2189,17 @@ def _sketch_new(request, op):
     unit_code = None
     if state["units"] == "in":
         unit_code = commands.unit_name(body.tree) or "25.4"
-    line_text = sketching.sketch_line(var, name, plane_code, unit_code)
+    # An offset plane, as SolidWorks' Plane at an Offset distance: the plane or face moved along
+    # its normal, in the sketch's (the part's) units.
+    offset_code = None
+    if str(op.get("offset") or "").strip():
+        try:
+            offset = float(parse_number(str(op["offset"])))
+        except Exception:  # noqa: BLE001 - said to the engineer: what the box takes
+            return {"ok": False, "error": "Offset distance needs a number."}
+        if offset:
+            offset_code = commands._number(offset, False)
+    line_text = sketching.sketch_line(var, name, plane_code, unit_code, offset_code)
     # Before the line that returns the part, or after the body's line when it is that line.
     function = body.function
     last = function.body[-1]

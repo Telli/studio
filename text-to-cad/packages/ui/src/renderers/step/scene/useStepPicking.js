@@ -238,6 +238,10 @@ export function useStepPicking({
   // What is under a point of the screen right now, for the viewport menu: set while the
   // listeners are bound, null otherwise. (clientX, clientY, pointerType) -> reference id or "".
   pickAtRef = null,
+  // Where on the model a point of the screen lands, in the model's own frame (the frame of a
+  // reference's `pickData.center`): for a hole placed where its face was clicked. Set while the
+  // listeners are bound, null otherwise. (clientX, clientY) -> [x, y, z] or null.
+  pointAtRef = null,
   onMeasurePick,
   onMeasureHoverPoint,
   viewerReadyTick,
@@ -1117,6 +1121,14 @@ export function useStepPicking({
     }
 
     if (pickAtRef) pickAtRef.current = (clientX, clientY, pointerType = "") => pickActivationReference(clientX, clientY, pointerType) || "";
+    if (pointAtRef) {
+      pointAtRef.current = (clientX, clientY) => {
+        setPointerFromPosition(clientX, clientY);
+        const hit = frontMostModelIntersections(intersectVisibleModelMeshes())
+          .find(intersection => measureHitPointFromWorldIntersection(intersection)) || null;
+        return measureWorldPointToModel(measureHitPointFromWorldIntersection(hit), measureModelOffsetFromRuntime(runtimeRef.current));
+      };
+    }
     container.addEventListener("pointerdown", handlePointerDownCapture, true);
     container.addEventListener("pointermove", handlePointerMoveCapture, true);
     container.addEventListener("pointerup", handlePointerUpCapture, true);
@@ -1135,6 +1147,7 @@ export function useStepPicking({
 
     return () => {
       if (pickAtRef) pickAtRef.current = null;
+      if (pointAtRef) pointAtRef.current = null;
       container.removeEventListener("pointerdown", handlePointerDownCapture, true);
       container.removeEventListener("pointermove", handlePointerMoveCapture, true);
       container.removeEventListener("pointerup", handlePointerUpCapture, true);

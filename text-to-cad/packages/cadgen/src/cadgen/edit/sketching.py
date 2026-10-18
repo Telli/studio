@@ -704,9 +704,10 @@ def sketch_import(tree: ast.Module) -> tuple[int, str] | None:
     return last, "from cadgen.sketch import Sketch"
 
 
-def sketch_line(var: str, name: str, plane_code: str, unit_code: str | None) -> str:
+def sketch_line(var: str, name: str, plane_code: str, unit_code: str | None, offset_code: str | None = None) -> str:
+    offset = f", offset={offset_code}" if offset_code else ""
     unit = f", unit={unit_code}" if unit_code else ""
-    return f'{var} = Sketch("{name}", plane={plane_code}{unit})'
+    return f'{var} = Sketch("{name}", plane={plane_code}{offset}{unit})'
 
 
 def sketch_names(tree: ast.Module, wanted: str) -> tuple[str, str]:

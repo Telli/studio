@@ -85,6 +85,9 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [sketchSelection, setSketchSelection] = useState([]);
   const [construction, setConstruction] = useState(false);
   const [picking, setPicking] = useState(false);
+  // The Sketch command's Offset distance: how far along its normal the plane picked is moved, as
+  // typed in the part's units ("" for none).
+  const [planeOffset, setPlaneOffset] = useState("");
   // How many clicks the tool in hand has had, for its prompt ("Click the opposite corner").
   const [sketchStep, setSketchStep] = useState(0);
   // A press of Normal To: the view turns to look straight at the sketch again.
@@ -95,6 +98,9 @@ export function useEditMode({ client, file, active, reading = true }) {
   // What the open command would make, for the view to preview before OK, as SolidWorks draws an
   // extrude in yellow while its PropertyManager is open: set by the command's panel.
   const [preview, setPreview] = useState(null);
+  // Where the face was clicked while Hole is open (`{ id, point, center, normal }`, the model's
+  // frame), for the hole to go there.
+  const [facePoint, setFacePoint] = useState(null);
   const files = useRef(null);
   const probed = useRef("");
   const historyRef = useRef(history);
@@ -369,9 +375,10 @@ export function useEditMode({ client, file, active, reading = true }) {
   }, []);
 
   /** A new sketch, on an origin plane (`"Top"`) or a flat face of the body (a selection item). */
-  const startSketch = useCallback(async (plane, name = "") => {
+  const startSketch = useCallback(async (plane, name = "", offset = "") => {
     const before = historyRef.current.done.at(-1) ?? null;
-    const reply = await send({ sketch: { op: { kind: "new", plane, name } } }, { note: null });
+    const moved = String(offset ?? "").trim();
+    const reply = await send({ sketch: { op: { kind: "new", plane, name, ...(moved ? { offset: moved } : {}) } } }, { note: null });
     if (reply?.ok && reply.sketch) begin(reply.sketch, true, before);
     return reply;
   }, [send, begin]);
@@ -442,9 +449,9 @@ export function useEditMode({ client, file, active, reading = true }) {
     select: setSelected,
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
-    open: id => { setError(""); setPicking(false); endEditing(); setPreview(null); setCommand(id); },
-    close: () => { setCommand(null); endEditing(); setPreview(null); },
-    preview, setPreview,
+    open: id => { setError(""); setPicking(false); endEditing(); setPreview(null); setFacePoint(null); setCommand(id); },
+    close: () => { setCommand(null); endEditing(); setPreview(null); setFacePoint(null); },
+    preview, setPreview, facePoint, setFacePoint,
     // In sketch mode, Undo takes back the session's own changes only.
     canUndo: (sketch ? changesSince(history, sketch.before) : history.done.length) > 0 && !saving,
     canRedo: history.undone.length > 0 && !saving,
@@ -459,7 +466,8 @@ export function useEditMode({ client, file, active, reading = true }) {
     setSketchStep,
     selectInSketch: setSketchSelection,
     setConstruction,
-    startPicking: () => { setError(""); setCommand(null); endEditing(); setPicking(true); },
+    startPicking: () => { setError(""); setCommand(null); endEditing(); setPlaneOffset(""); setPicking(true); },
+    planeOffset, setPlaneOffset,
     stopPicking: () => setPicking(false),
     lookNormalTo: () => setNormalTo(tick => tick + 1),
     startSketch, openSketch, sketchOp, exitSketch, cancelSketch,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PICK_PX, extrudeSpan, screenSketch, sideIndexes, sketchAt, tagPlace } from "./sketchPicking.js";
+import { PICK_PX, extrudeSpan, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace } from "./sketchPicking.js";
 
 const square = (x, y, size) => [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];
 // A sketch as the view draws it: its lines and its outlines, in pixels.
@@ -55,4 +55,19 @@ test("the sketch's name is tagged at its left, clear of a preview rising off it,
   assert.deepEqual(tagPlace(drawn([square(100, 40, 20)]), 50, 18), [42, 41]);
   assert.deepEqual(tagPlace(drawn([square(30, 40, 20)]), 50, 18), [30, 16]);
   assert.equal(tagPlace({ curves: [], loops: [] }, 50, 18), null);
+});
+
+test("a revolve's preview turns the sketch's frame about its axis line", () => {
+  const top = { origin: [0, 0, 0], x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+  const close = (got, want) => got.forEach((value, index) => assert.ok(Math.abs(value - want[index]) < 1e-9, `${got} vs ${want}`));
+  // About the sketch's own y axis: a quarter turn takes x to -z, as the right hand turns.
+  const quarter = revolvedFrame(top, 1, [0, 0], [0, 1], 90);
+  close(quarter.x, [0, 0, -1]);
+  close(quarter.y, [0, 1, 0]);
+  close(quarter.origin, [0, 0, 0]);
+  // About a line off the origin, in inches: the origin swings around it.
+  const half = revolvedFrame(top, 25.4, [1, 0], [1, 1], 180);
+  close(half.origin, [50.8, 0, 0]);
+  close(half.x, [-1, 0, 0]);
+  assert.equal(revolvedFrame(top, 1, [2, 2], [2, 2], 90), null);
 });

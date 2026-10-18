@@ -42,6 +42,9 @@ function PlanePicker({ edit, onPlane }) {
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopPicking(); } }}>
     <Header title="Sketch" actions={<ConfirmButtons onCancel={edit.stopPicking} />} />
     <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} py-2`}>Select a plane to sketch on: one of these, a plane in the design tree, or a flat face of the model.</p>
+    {/* An offset plane, as SolidWorks' Plane at an Offset distance: the one picked, moved along its normal. */}
+    <SizeRow label="Offset distance" value={edit.planeOffset || "0"} unit={edit.state?.units || ""} disabled={edit.saving}
+      onCommit={text => edit.setPlaneOffset(text === "0" ? "" : text)} />
     <div className="flex flex-col gap-1 px-2 pb-2">
       {ORIGIN_PLANES.map(plane => <button key={plane} type="button" className={cn(CHIP_CLASS, "text-left")} disabled={edit.saving}
         onClick={() => onPlane(plane)}>{`${plane} Plane`}</button>)}

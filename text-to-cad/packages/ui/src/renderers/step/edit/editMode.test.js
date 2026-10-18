@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   barIndex,
   buildingText,
+  clickOffsets,
   busyState,
   changeNote,
   changesSince,
@@ -11,6 +12,7 @@ import {
   commandDefaults,
   commandNote,
   commandRequest,
+  edgeAxis,
   partSide,
   commandUndoNote,
   defaultRow,
@@ -300,4 +302,23 @@ test("an extrude's draft and Up To Next, and a hole's counterbore or countersink
   const sunk = commandRequest("hole", { type: "countersink", diameter: "3", through: false, depth: "8", csk_diameter: "6", csk_angle: "90" }, face);
   assert.deepEqual(sunk.inputs, { diameter: "3", depth: "8", type: "countersink", csk_diameter: "6", csk_angle: "90" });
   assert.deepEqual(commandRequest("hole", { type: "simple", diameter: "3", through: true }, face).inputs, { diameter: "3", depth: "" });
+});
+
+test("a click on a face puts the hole there: its distance from the face's center, in the part's units", () => {
+  const center = [10, 5, 4];
+  assert.deepEqual(clickOffsets([22.5, 1.004, 4], center, [0, 0, 1], "mm"), { x: "12.5", y: "-4" });
+  assert.deepEqual(clickOffsets([10, 5, 4.0001], center, [0, 0, 1], "mm"), { x: "0", y: "0" });
+  assert.deepEqual(clickOffsets([10 + 25.4, 5, 4 - 12.7], center, [0, 1, 0], "in"), { x: "1", z: "-0.5" });
+  assert.equal(clickOffsets([1, 2, 3], center, [0.6, 0, 0.8], "mm"), null, "a slanted face moves no hole");
+  assert.equal(clickOffsets(null, center, [0, 0, 1], "mm"), null);
+});
+
+test("a straight edge picked for a pattern gives its direction, X or Y, the last one counting", () => {
+  const edge = (min, max, curveType = "line") => ({ selectorType: "edge", pickData: { curveType, bbox: { min, max } } });
+  assert.equal(edgeAxis([edge([0, 2, 4], [20, 2, 4])]), "X");
+  assert.equal(edgeAxis([edge([0, 2, 4], [20, 2, 4]), edge([5, -3, 0], [5, 7, 0])]), "Y");
+  assert.equal(edgeAxis([edge([0, 0, 0], [0, 0, 8])]), null, "an edge up Z");
+  assert.equal(edgeAxis([edge([0, 0, 0], [6, 8, 0])]), null, "a slanted edge");
+  assert.equal(edgeAxis([edge([0, 0, 0], [6, 6, 0], "circle")]), null, "a curved edge");
+  assert.equal(edgeAxis([{ selectorType: "face", pickData: {} }]), null);
 });

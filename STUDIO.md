@@ -153,7 +153,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   modeling command as a picture of what it does to a block, in the CAD colors of `tokens.css`, and
   what edit mode is busy with (reading the part, rolling back, rebuilding) shows with a spinner and
   a line along the ribbon's foot. A rollback step moves the bar at once and, the files unchanged,
-  does not run the part again.
+  does not run the part again. A hole goes where its face is clicked, a sketch can go on a plane
+  at an Offset distance, a linear pattern takes its direction from an edge picked on the model,
+  and a revolve is previewed around its axis.
 - **SolidCraft, on request.** `STUDIO_SOLIDCRAFT=1`, with SolidCraft (a parametric CAD engine,
   Apache-2.0) in Applications, adds `studio-plugins/solidcraft`: its engine headless per thread
   behind an editor page of its own, for `.solidcraft` designs (the overview lists a design and its STEP as

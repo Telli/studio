@@ -814,6 +814,10 @@ function StepSurfaceBody({ view, data }) {
   const runtimeRefRef = useRef(null);
   const layersApiRef = useRef(null);
   const pickAtRef = useRef(null);
+  // Where on the model a point of the screen lands (`scene/useStepPicking.js`), and edit mode's
+  // Hole, waiting to hear where its face was clicked (set once edit mode is read, below).
+  const pointAtRef = useRef(null);
+  const holePointRef = useRef(null);
   const lodSelectedPartIdsRef = useRef(EMPTY_LIST);
   // Declared here, above the LOD scheduler that is handed it: it reads only refs, so it is
   // safe this early, and a `const` read before its declaration is a TDZ crash, not undefined.
@@ -2529,6 +2533,12 @@ function StepSurfaceBody({ view, data }) {
       return;
     }
     const topologyReference = effectiveActiveReferenceMap.get(nextReferenceId) || null;
+    // A face clicked while Hole is open: where on it, for the hole to go there.
+    if (topologyReference?.selectorType === "face" && holePointRef.current && Number.isFinite(clientX)) {
+      const point = pointAtRef.current?.(clientX, clientY);
+      if (point) holePointRef.current({ id: topologyReference.id, point, center: topologyReference.pickData?.center || null,
+        normal: topologyReference.pickData?.normal || null });
+    }
     if (edgeChainActive && topologyReference?.selectorType === "edge") {
       selectReferenceGroup(connectedReferenceIds(edgeChains, topologyReference.id), { multiSelect });
       return;
@@ -3148,6 +3158,7 @@ function StepSurfaceBody({ view, data }) {
   // Laid out for editing only once the server says the file has a part script, and only by hand.
   const editable = edit.status !== "none" && edit.status !== "probing";
   const editing = editable && editLayout === "manual";
+  holePointRef.current = editing && edit.command === "hole" ? edit.setFacePoint : null;
   // The place over the model's top-right corner where an open command's or sketch's panel floats,
   // in a card of its own apart from the design tree (`edit/EditBrowser.jsx`).
   const [commandCard, setCommandCard] = useState(null);
@@ -3174,7 +3185,8 @@ function StepSurfaceBody({ view, data }) {
   // fillet's edges, a hole's face) and the part's faces and edges loaded to be picked, keeping
   // what is already selected: picked first, then Fillet.
   const startEditCommand = id => {
-    const picks = editCommand(id)?.picks;
+    // Pattern takes its direction from an edge, picked while it is open.
+    const picks = editCommand(id)?.picks || (id === "pattern" ? "edges" : null);
     if (picks) {
       changeSelectMode(picks);
       if (!isAssemblyView) loadInspectionTopology();
@@ -3191,7 +3203,7 @@ function StepSurfaceBody({ view, data }) {
     edit.openSketch(view || { error: `${sketch.title} is drawn with build123d's shapes, not as a sketch with relations, so it opens as `
       + "its sizes only. Change them in the panel, or ask the agent to redraw it as a sketch." });
   };
-  const sketchOnPlane = plane => void edit.startSketch(plane, nextSketchName(editTree));
+  const sketchOnPlane = plane => void edit.startSketch(plane, nextSketchName(editTree), edit.planeOffset);
   const startSketchCommand = () => {
     if (selectedTreeSketch) { openTreeSketch(selectedTreeSketch); return; }
     if (typeof edit.selected === "string" && edit.selected.startsWith("plane:")) { sketchOnPlane(edit.selected.slice("plane:".length)); return; }
@@ -3308,7 +3320,8 @@ function StepSurfaceBody({ view, data }) {
     deferActivation: !selectionToolActive,
     onMeasurePick: !previewing ? measure.onPick : null,
     onMeasureHoverPoint: !previewing ? measure.onHoverPoint : null,
-    pickAtRef
+    pickAtRef,
+    pointAtRef
   };
   const viewPolicyResolved = useStepViewPolicy({
     meshData: selectedDisplayMeshData, themeSettings: resolvedThemeSettings, displaySettings: resolvedScene.display,
