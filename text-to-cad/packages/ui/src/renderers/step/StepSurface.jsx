@@ -2533,8 +2533,10 @@ function StepSurfaceBody({ view, data }) {
       return;
     }
     const topologyReference = effectiveActiveReferenceMap.get(nextReferenceId) || null;
-    // A face clicked while Hole is open: where on it, for the hole to go there.
-    if (topologyReference?.selectorType === "face" && holePointRef.current && Number.isFinite(clientX)) {
+    // A face clicked while Hole is open: where on it, for the hole to go there; an edge clicked
+    // while an extrude is open: where along it, for Up To Vertex to take the end nearest.
+    if ((topologyReference?.selectorType === "face" || topologyReference?.selectorType === "edge") && holePointRef.current
+      && Number.isFinite(clientX)) {
       const point = pointAtRef.current?.(clientX, clientY);
       if (point) holePointRef.current({ id: topologyReference.id, point, center: topologyReference.pickData?.center || null,
         normal: topologyReference.pickData?.normal || null });
@@ -3149,7 +3151,8 @@ function StepSurfaceBody({ view, data }) {
   // A model with a part script beside it is edited here (`edit/`): the script's history and named
   // sizes in a design tree at the viewer's left, the selected feature's dimensions on the model,
   // and the tools in a ribbon across the top. A model with none keeps the view as it is. While a
-  // sketch is edited (`edit/SketchOverlay.jsx`) the model is not picked: presses are the sketch's.
+  // sketch is edited (`edit/SketchOverlay.jsx`) the model is not picked: presses are the sketch's,
+  // but for Convert Entities, which picks the model's edges.
   // How a part script's model is laid out (`edit/editLayout.js`, switched in the navbar): for
   // modeling it by hand, or for asking the AI, which is the view as it is. Laid out for the AI, the
   // part is not read.
@@ -3158,7 +3161,8 @@ function StepSurfaceBody({ view, data }) {
   // Laid out for editing only once the server says the file has a part script, and only by hand.
   const editable = edit.status !== "none" && edit.status !== "probing";
   const editing = editable && editLayout === "manual";
-  holePointRef.current = editing && edit.command === "hole" ? edit.setFacePoint : null;
+  // Where on the model a click lands, for a hole to go there or an extrude to end at an edge's end.
+  holePointRef.current = editing && ["hole", "extrude", "cut"].includes(edit.command) ? edit.setFacePoint : null;
   // The place over the model's top-right corner where an open command's or sketch's panel floats,
   // in a card of its own apart from the design tree (`edit/EditBrowser.jsx`).
   const [commandCard, setCommandCard] = useState(null);
@@ -3185,8 +3189,10 @@ function StepSurfaceBody({ view, data }) {
   // fillet's edges, a hole's face) and the part's faces and edges loaded to be picked, keeping
   // what is already selected: picked first, then Fillet.
   const startEditCommand = id => {
-    // Pattern takes its direction from an edge, picked while it is open.
-    const picks = editCommand(id)?.picks || (id === "pattern" ? "edges" : null);
+    // Pattern takes its direction from an edge picked while it is open, and a circular one its
+    // axis from an edge or a round face; an extrude ends on a face or an edge's vertex: both are
+    // pickable.
+    const picks = editCommand(id)?.picks || (id === "pattern" || editCommand(id)?.sketch ? "all" : null);
     if (picks) {
       changeSelectMode(picks);
       if (!isAssemblyView) loadInspectionTopology();
@@ -3258,13 +3264,25 @@ function StepSurfaceBody({ view, data }) {
   // A sketch opened: what was selected on the model is let go, as the sketch takes the presses.
   const sketchKey = edit.sketch ? `${edit.sketch.file}:${edit.sketch.line}` : "";
   useEffect(() => { if (sketchKey) clearAssemblySelection(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [sketchKey]);
+  // Convert Entities picks the model's edges and faces with the sketch open, as SolidWorks' does:
+  // the model takes the presses again, its faces and edges loaded to be picked; leaving the tool
+  // lets what was picked go.
+  const converting = Boolean(edit.sketch) && edit.sketchTool === "convert";
+  useEffect(() => {
+    if (!converting) return undefined;
+    changeSelectMode("all");
+    if (!isAssemblyView) loadInspectionTopology();
+    handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES);
+    return () => clearAssemblySelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [converting]);
 
   // ---- the viewport ---------------------------------------------------------------------------
   // What the viewport is ALLOWED to show and pick just now: nothing of the model under Pose
   // or in preview; no topology while a previous mesh is held over an update.
   const topologySelectionDeferred = Boolean(selectedTopologyDeferredByCost && selectedMeshData);
   // Preview is watching, and Pose offers its knobs alone.
-  const watching = previewing || Boolean(jointHandles) || Boolean(edit.sketch);
+  const watching = previewing || Boolean(jointHandles) || (Boolean(edit.sketch) && !converting);
   const pickMode = watching || retainingPreviousStepMesh ? VIEWER_PICK_MODE.NONE : viewerPickModeForRenderPane({
     selectionFilter,
     topologySelectionPending: referenceSelectionPending,

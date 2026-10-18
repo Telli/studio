@@ -166,6 +166,10 @@ test("the note says what the sketch tools did", () => {
   for (const op of [{ kind: "fillet" }, { kind: "fillet" }, { kind: "trim" }, { kind: "offset" }, { kind: "mirror", items: ["Line1", "Line2"] }]) made = countChange(made, op);
   assert.equal(sketchNote({ name: "Sketch1", file: "plate.py", line: 9, made }),
     "In edit mode I changed Sketch1 (plate.py, line 9): rounded 2 corners, trimmed a curve, offset a chain, mirrored 2 entities.");
+  // Convert Entities, counted by what was picked on the model: its edges, and its faces.
+  made = countChange({}, { kind: "convert", items: [{ selector: "e4" }, { selector: "e7" }, { selector: "f2" }] });
+  assert.equal(sketchNote({ name: "Sketch2", file: "plate.py", line: 12, made }),
+    "In edit mode I changed Sketch2 (plate.py, line 12): converted 2 edges and a face of the model.");
 });
 
 test("a dark viewer is told by its light text, written as oklch or rgb", () => {

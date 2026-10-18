@@ -49,7 +49,8 @@ by hand" below.
   `tray = bd.fillet(tray.faces().sort_by(bd.Axis.Z)[-1].outer_wire().edges(), radius=.03*INCH)`.
   A face selected for a fillet or a chamfer stands for its edges.
 - **Hole**: a cylinder cut into the selected flat face, from its centre or moved along the two
-  axes in its plane: `tray -= bd.Pos(1.37*INCH, 0) * bd.Plane(<face>) * bd.Cylinder(.03/2*INCH,
+  axes in its plane (all three on a slanted face, the place kept on its plane), where the face is
+  clicked: `tray -= bd.Pos(1.37*INCH, 0) * bd.Plane(<face>) * bd.Cylinder(.03/2*INCH,
   .1*INCH, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MAX))`; through all, its depth is
   `tray.bounding_box().diagonal`. A counterbore or a countersink is added to the cylinder, both
   from the face down: `(bd.Cylinder(d/2, depth, align=...) + bd.Cylinder(cbore/2, cbore_depth,
@@ -61,13 +62,19 @@ by hand" below.
   `plate -= (hole1 := bd.Pos(...) * bd.Cylinder(...))`, then
   `plate -= bd.mirror(hole1, about=bd.Plane.YZ)` or
   `plate -= [loc * hole1 for loc in bd.GridLocations(-.4*INCH, 0, 3, 1, align=(bd.Align.MIN, bd.Align.CENTER)).locations[1:]]`
-  (a circular pattern uses `bd.PolarLocations(0, count)`, about the Z axis).
+  (a circular pattern uses `bd.PolarLocations(0, count)`, about the Z axis). Up Z, each copy is
+  placed by its own `Pos`: `plate -= [bd.Pos(0, 0, .3*INCH * i) * hole1 for i in range(1, 3)]`.
+  About a round face's axis or a straight edge picked on the model:
+  `hub -= [hole1.rotate(<face>.axis_of_rotation, i * 360 / 6) for i in range(1, 6)]`
+  (`Axis(<edge>)` for an edge).
 - **Extruded Boss/Base and Extruded Cut** make a solid of the sketch picked on the model or in the design tree:
   `part += extrude(sketch2.face(), amount=5)`, or `part -= extrude(...)` for a cut (a negative
   amount goes the other way along the sketch's normal; Mid Plane is `both=True` with half the
   depth; a cut Through All is `amount=-part.bounding_box().diagonal`; Up To Next is
-  `until=Until.NEXT, target=part` with no amount; a draft is `taper=` in degrees, drawn in, or
-  out when negative). A cut starts toward the part. The line goes after the sketch's own lines.
+  `until=Until.NEXT, target=part` with no amount; Up To Surface and Up To Vertex are
+  `amount=sketch2.depth_to(<face>)`, or `depth_to(<edge>.start_point())` for the end of an edge,
+  so the extrude follows what it ends on; a draft is `taper=` in degrees, drawn in, or out when
+  negative). A cut starts toward the part. The line goes after the sketch's own lines.
 - **Revolved Boss/Base and Revolved Cut** turn the selected sketch about one of its lines (its
   centerline, usually): `part += revolve(sketch2.face(), axis=sketch2.axis(line1),
   revolution_arc=360)`, or `part -= revolve(...)` for a cut; Reverse direction is a negative
@@ -137,7 +144,10 @@ by hand" below.
   another curve crosses (`sketch2.coincident(line1.end, line2)` keeps it there), splits a line
   or an arc in two (kept in line: `parallel` and `coincident`, or `equal` for an arc; a split
   line's length becomes the distance between its far ends), or makes a circle an arc; a
-  rectangle is written as its four lines first. A curve nothing crosses is deleted.
+  rectangle is written as its four lines first. A curve nothing crosses is deleted. Convert
+  Entities writes `converted1 = sketch2.convert(<edges>)`, the edges picked on the model (a face
+  stands for its edges) by where they are on the body made before the sketch; deleting one of
+  them deletes that line, and they are not trimmed.
 - Keep this shape when you change a sketch the engineer drew: its block of lines after the
   `Sketch(...)` line, entities assigned to names, so the engineer can open it again with Edit
   Sketch. Change sizes by their numbers or names, as in any sketch.

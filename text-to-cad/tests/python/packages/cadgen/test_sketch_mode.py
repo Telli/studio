@@ -262,6 +262,61 @@ class SketchMode(unittest.TestCase):
         self.send({"kind": "trim", "curve": "Line6", "at": [55, 0]})
         self.assertNotIn("line6", self.source())
 
+    def test_converted_edges_stay_on_the_model_as_it_changes(self):
+        # The plate's top face, 40 by 20 at z = -2.5, as the viewer would read it.
+        top = {"selector": "f99", "type": "plane", "center": [0.0, 0.0, -2.5], "size": 800.0}
+        self.send({"kind": "new", "plane": top, "name": "Sketch1"})
+        self.send({"kind": "convert", "items": [top]})
+        text = self.source()
+        # The face's edges, said as build123d's selectors say where they are: the top ones.
+        self.assertIn("\n    converted1 = sketch1.convert(part.edges().group_by(Axis.Z)[-1])\n", text)
+        state = self.sketch["state"]
+        lines = [curve for curve in state["curves"] if curve["kind"] == "line"]
+        self.assertEqual(len(lines), 4)
+        self.assertTrue(all(curve.get("converted") and curve["defined"] for curve in lines))
+        self.assertEqual(state["status"], "Fully defined")
+        self.assertEqual(sorted(relation["kind"] for relation in state["relations"]), ["on_edge"] * 4)
+        corners = sorted((point["x"], point["y"]) for point in state["points"] if point["id"] != "Origin")
+        self.assertEqual(corners, [(-20.0, -10.0), (-20.0, 10.0), (20.0, -10.0), (20.0, 10.0)])
+        # What is converted is offset, and stays on its edge: not trimmed, its On Edge not taken off alone.
+        self.send({"kind": "offset", "items": [line["id"] for line in lines], "distance": "2", "reverse": True})
+        self.assertEqual(self.sketch["state"]["status"], "Fully defined")
+        for op, words in (({"kind": "trim", "curve": lines[0]["id"], "at": [0, -10]}, "stays on its edge"),
+                          ({"kind": "delete", "items": [state["relations"][0]["id"]]}, "on the model's edge")):
+            refused = self.service.change({"file": self.file, "files": self.files, "sketch": {
+                "file": self.sketch["file"], "line": self.sketch["line"], "op": op}})
+            self.assertFalse(refused["ok"])
+            self.assertIn(words, refused["error"])
+        self.send({"kind": "exit", "changed": True})
+        # The part made wider: the converted edges follow it, as On Edge holds them.
+        (self.root / "plate.py").write_text(self.source().replace("WIDTH = 40", "WIDTH = 50"), encoding="utf-8")
+        read = self.service.state(self.file)
+        self.assertTrue(read["ok"], read.get("error"))
+        view = next(view for view in read["sketches"] if view["name"] == "Sketch1")
+        self.assertEqual(max(point["x"] for point in view["state"]["points"]), 25.0)
+        self.assertEqual(view["state"]["status"], "Fully defined")
+
+    def test_convert_takes_edges_made_before_the_sketch_only(self):
+        self.start()
+        # The plate's front top edge, 40 long at y = -10, brought onto the Top plane above it.
+        edge = {"selector": "e99", "type": "line", "center": [0.0, -10.0, -2.5], "size": 40.0}
+        self.send({"kind": "convert", "items": [edge]})
+        line = next(curve for curve in self.sketch["state"]["curves"] if curve.get("converted"))
+        ends = {point["id"]: (point["x"], point["y"]) for point in self.sketch["state"]["points"]}
+        self.assertEqual(sorted([ends[line["start"]], ends[line["end"]]]), [(-20.0, -10.0), (20.0, -10.0)])
+        # Deleting what was converted takes its line out.
+        self.send({"kind": "delete", "items": [line["id"]]})
+        self.assertNotIn("convert(", self.source())
+        self.send({"kind": "draw", "entity": "circle", "center": {"at": [0, 0]}, "radius": 3})
+        left = self.send({"kind": "exit", "changed": True})
+        self.extrudes(left)
+        # The boss made from Sketch1 comes after it: its rim is not Sketch1's to convert.
+        rim = {"selector": "e99", "type": "circle", "center": [0.0, 0.0, 3.0], "size": 18.849556}
+        refused = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "convert", "items": [rim]}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("made after Sketch1", refused["error"])
+
     def test_a_finished_sketch_is_in_the_tree_and_extrudes_as_a_boss(self):
         self.start()
         self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [10, 6]}})
@@ -335,6 +390,42 @@ class SketchMode(unittest.TestCase):
         self.assertTrue(any(line.startswith("from build123d import") and "Until" in line for line in self.source().splitlines()))
         boss = [f for f in grown["features"] if f["kind"] == "Boss-Extrude"][1]
         self.assertEqual(boss["edit"]["values"], {"end": "next", "reverse": False, "depth": ""})
+
+    def test_up_to_surface_and_up_to_vertex_end_a_boss_on_what_is_picked(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "circle", "center": {"at": [0, 0]}, "radius": 3})
+        left = self.send({"kind": "exit", "changed": True})
+        sketch = {"file": "plate.py", "line": self.sketch["line"], "name": "Sketch1"}
+        # Down from the Top plane to the plate's top face, 2.5 below it.
+        top = {"selector": "f99", "type": "plane", "center": [0.0, 0.0, -2.5], "size": 800.0}
+        grown = self.service.change({"file": self.file, "files": left["files"], "command": {
+            "command": "extrude", "sketch": sketch, "selection": [top], "inputs": {"end": "surface"}}})
+        self.assertTrue(grown["ok"], grown.get("error"))
+        self.assertIn("part += extrude(sketch1.face(), amount=sketch1.depth_to(part.faces().sort_by(Axis.Z)[-1]))\n", self.source())
+        boss = [f for f in grown["features"] if f["kind"] == "Boss-Extrude"][1]
+        self.assertEqual(boss["edit"]["values"], {"end": "surface", "reverse": False, "depth": ""})
+        self.assertEqual(grown["change"]["what"], "from Sketch1, up to a face")
+        # Edit Feature to the plate's bottom front edge's left end: Up To Vertex, 7.5 below.
+        bottom = {"selector": "e99", "type": "line", "center": [0.0, -10.0, -7.5], "size": 40.0}
+        vertex = self.service.change({"file": self.file, "files": grown["files"], "command": {
+            "command": "extrude", "sketch": sketch, "selection": [bottom], "inputs": {"end": "vertex", "vertex_at": [-19, -10, -7.4]},
+            "replace": {"row": boss["key"]}}})
+        self.assertTrue(vertex["ok"], vertex.get("error"))
+        line = next(line.strip() for line in self.source().splitlines() if "depth_to(" in line)
+        self.assertRegex(line, r"^part \+= extrude\(sketch1\.face\(\), amount=sketch1\.depth_to\(part\.edges\(\)[^\n]*\.(start|end)_point\(\)\)\)$")
+        again = [f for f in vertex["features"] if f["kind"] == "Boss-Extrude"][1]
+        self.assertEqual(again["edit"]["values"], {"end": "vertex", "reverse": False, "depth": ""})
+        # Edit Feature that picks nothing keeps the vertex as written.
+        kept = self.service.change({"file": self.file, "files": vertex["files"], "command": {
+            "command": "extrude", "sketch": sketch, "inputs": {"end": "vertex", "draft": True, "draft_angle": "2"}, "replace": {"row": again["key"]}}})
+        self.assertTrue(kept["ok"], kept.get("error"))
+        self.assertIn(line.removesuffix(")") + ", taper=2)", self.source())
+        # A face square to the sketch has no one distance to end at.
+        side = {"selector": "f99", "type": "plane", "center": [20.0, 0.0, -5.0], "size": 100.0}
+        refused = self.service.change({"file": self.file, "files": kept["files"], "command": {
+            "command": "extrude", "sketch": sketch, "selection": [side], "inputs": {"end": "surface"}, "replace": {"row": again["key"]}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("parallel", refused["error"])
 
     def test_a_cut_from_a_sketch_on_a_face_goes_into_the_part(self):
         state = self.service.state(self.file)

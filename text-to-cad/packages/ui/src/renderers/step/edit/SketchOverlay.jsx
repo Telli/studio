@@ -11,6 +11,7 @@ import {
   formatValue,
   hitTest,
   inferLine,
+  MODEL_TOOLS,
   MODIFY_TOOLS,
   placedSide,
   refAt,
@@ -297,7 +298,7 @@ export default function SketchOverlay({ viewport, edit, units }) {
 
       // The stroke under way, and where it lands.
       const tool = current.tool;
-      if (tool && tool !== "dimension" && !MODIFY_TOOLS.includes(tool) && pointer?.local) {
+      if (tool && tool !== "dimension" && !MODIFY_TOOLS.includes(tool) && !MODEL_TOOLS.includes(tool) && pointer?.local) {
         const landing = landAt(pointer.local);
         context.strokeStyle = colors.preview;
         context.lineWidth = 1.5;
@@ -497,6 +498,8 @@ export default function SketchOverlay({ viewport, edit, units }) {
       if (!place) return;
       pointer = { screen, local: place };
       const tool = current.tool;
+      // Convert Entities picks on the model: the press is the model's, as the viewer picks there.
+      if (MODEL_TOOLS.includes(tool)) return;
       const extend = event.ctrlKey || event.metaKey || event.shiftKey;
       if (tool && MODIFY_TOOLS.includes(tool)) {
         if (extend) return; // a modifier keeps the press for the camera
@@ -567,6 +570,12 @@ export default function SketchOverlay({ viewport, edit, units }) {
         return;
       }
       if (event.buttons !== 0) return; // the camera turning
+      if (MODEL_TOOLS.includes(current.tool)) {
+        // The model's own hover shows what Convert Entities would take.
+        if (hover !== null) { hover = null; version.current += 1; }
+        host.style.cursor = "";
+        return;
+      }
       if (current.tool === "arc" && picks.length === 2 && place) {
         const center = refAt(current.sketch.state, picks[0]);
         const angle = Math.atan2(place[1] - center[1], place[0] - center[0]);

@@ -1,6 +1,6 @@
 """Sketch mode's tools that change what is drawn, as SolidWorks' Sketch tab names them: Sketch
-Fillet, Offset Entities, Mirror Entities and Trim Entities, each written as lines of the sketch's
-block (``sketching.py`` writes the strokes, relations and dimensions).
+Fillet, Offset Entities, Mirror Entities, Trim Entities and Convert Entities, each written as lines
+of the sketch's block (``sketching.py`` writes the strokes, relations and dimensions).
 
 - A fillet is one line, ``sketch1.fillet(line1, line2, 3)``: the corner keeps its virtual sharp.
 - An offset is the offset curves, drawn where the offset puts them, and the one relation that
@@ -10,6 +10,8 @@ block (``sketching.py`` writes the strokes, relations and dimensions).
   ``equal`` to its own.
 - A trim cuts a curve back to where other curves cross it: an end moved, a line or an arc split in
   two, or a circle made an arc, each new end kept on the curve it was cut at.
+- A convert is one line, ``converted1 = sketch1.convert(<edges>)``: the model's edges, by
+  build123d's selectors on the body, projected onto the sketch and held On Edge there.
 
 Everything is worked out from the sketch as it last solved (its state); the tracer runs the
 block again, and takes back any relation a tool wrote that the sketch did not need.
@@ -465,6 +467,24 @@ def mirror(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
 
 
 # ---------------------------------------------------------------------------------------------
+# Convert Entities.
+
+
+def convert(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") -> str:
+    """Edges of the model brought into the sketch, as Convert Entities brings them: ``edges`` is
+    their selector on the body where the sketch is made (the tracer writes it, on the part as its
+    script makes it there), written as one line, ``converted1 = sketch2.convert(<edges>)``, whose
+    curves stay on the model's edges as it changes."""
+    block = find_block(text, line, path)
+    edges = str(op.get("edges") or "").strip()
+    if not edges:
+        raise SketchEditError("Select edges or a face on the model to convert.")
+    var = _Vars(block, state).next("Converted")
+    built = ", construction=True" if op.get("construction") else ""
+    return _append(text, block, [f"{var} = {block.var}.convert({edges}{built})"])
+
+
+# ---------------------------------------------------------------------------------------------
 # Trim Entities.
 
 
@@ -706,6 +726,9 @@ def trim(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") ->
     except (KeyError, TypeError, ValueError, IndexError):
         raise SketchEditError("Click the part of a curve to trim.") from None
     made = names.statement_of(name)
+    if made is not None and made.method == "convert":
+        raise SketchEditError(f"{name} is converted from the model and stays on its edge, so it is not trimmed. "
+                              "Delete it, or draw the shape you want over it.")
     if made is None or made.method not in ("line", "arc", "circle") or not isinstance(made.statement, ast.Assign):
         method = (made.method or "shape").replace("_", " ") if made is not None else "shape"
         raise SketchEditError(f"{name} is part of a {method}, which edit mode trims only once it is written as its own lines. "

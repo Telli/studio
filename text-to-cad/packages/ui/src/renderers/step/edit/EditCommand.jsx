@@ -16,9 +16,11 @@ import {
   commandRequest,
   editCommand,
   editingValues,
+  extrudeEnd,
   faceOffsetAxes,
   REPICKS,
   partSide,
+  patternAxis,
   revolveAxes,
   sameValues,
   selectionItems,
@@ -30,9 +32,14 @@ import {
 import { COMMAND_ICONS } from "./cadIcons.jsx";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
 import { sketchGeometry } from "./sketchMode.js";
-// An extrude's end conditions, as SolidWorks' Direction 1 names them; a cut can go through all.
-const BOSS_ENDS = Object.freeze([{ value: "blind", label: "Blind" }, { value: "next", label: "Up To Next" }, { value: "mid", label: "Mid Plane" }]);
-const CUT_ENDS = Object.freeze([...BOSS_ENDS, { value: "through", label: "Through All" }]);
+// An extrude's end conditions, as SolidWorks' Direction 1 names them and in its order; a cut can go through all.
+const END = Object.freeze({ blind: "Blind", through: "Through All", next: "Up To Next", vertex: "Up To Vertex", surface: "Up To Surface",
+  mid: "Mid Plane" });
+const ends = values => Object.freeze(values.map(value => ({ value, label: END[value] })));
+const BOSS_ENDS = ends(["blind", "next", "vertex", "surface", "mid"]);
+const CUT_ENDS = ends(["blind", "through", "next", "vertex", "surface", "mid"]);
+// The end conditions with no depth of their own: the body or what is picked says how far.
+const NO_DEPTH = new Set(["through", "next", "vertex", "surface"]);
 // Hole Wizard's types: a plain hole, or one with a counterbore or a countersink for a screw's head.
 const HOLE_TYPES = Object.freeze([{ value: "simple", label: "Hole" }, { value: "counterbore", label: "Counterbore" },
   { value: "countersink", label: "Countersink" }]);
@@ -40,7 +47,7 @@ const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 const LISTED = 8;
 const PLANES = Object.freeze([{ value: "XY", label: "XY plane" }, { value: "XZ", label: "XZ plane" }, { value: "YZ", label: "YZ plane" }]);
 const PATTERNS = Object.freeze([{ value: "linear", label: "Linear" }, { value: "circular", label: "Circular" }]);
-const DIRECTIONS = Object.freeze([{ value: "X", label: "Along X" }, { value: "Y", label: "Along Y" }]);
+const DIRECTIONS = Object.freeze([{ value: "X", label: "Along X" }, { value: "Y", label: "Along Y" }, { value: "Z", label: "Along Z" }]);
 // A mirror Edit Feature reopens that was made about a face of the part: that face again.
 const SAME_FACE = Object.freeze({ value: "face", label: "Same face" });
 const MM_PER = Object.freeze({ mm: 1, in: 25.4 });
@@ -75,7 +82,7 @@ function SelectionBox({ items, prompt, more = 0, onClear = null, clearLabel = "C
 }
 
 /** What the command acts on: the faces and edges selected on the model, listed, or how to select them. */
-function SelectionList({ items, prompt }) {
+export function SelectionList({ items, prompt }) {
   const shown = items.slice(0, LISTED);
   return <SelectionBox items={shown.map(item => ({ key: item.selector, label: selectionLabel(item) }))} prompt={prompt}
     more={items.length - shown.length} />;
@@ -133,9 +140,10 @@ export default function EditCommand({ edit, names, references, tree = null }) {
   // A feature picked in the history is what Mirror and Pattern copy; the first one is the body.
   const [wholeBody, setWholeBody] = useState(featureIndex <= 0);
   useEffect(() => { setWholeBody(featureIndex <= 0); }, [featureIndex, edit.command]);
-  // A straight edge picked while Pattern is open sets its direction, as SolidWorks' Direction 1 takes an edge.
+  // A straight edge picked while Pattern is open sets a linear one's direction, as SolidWorks'
+  // Direction 1 takes an edge; a circular one turns about it, or about a round face's axis.
   const pickedAxis = edit.command === "pattern" ? edgeAxis(references) : null;
-  useEffect(() => { if (pickedAxis) setValues(current => ({ ...current, type: "linear", direction: pickedAxis })); }, [pickedAxis]);
+  useEffect(() => { if (pickedAxis) setValues(current => (current.type === "linear" ? { ...current, direction: pickedAxis } : current)); }, [pickedAxis]);
   // A click on the hole's face puts the hole there: its distance from the face's center.
   const { facePoint } = edit;
   useEffect(() => {
@@ -143,28 +151,35 @@ export default function EditCommand({ edit, names, references, tree = null }) {
     const moved = clickOffsets(facePoint.point, facePoint.center, facePoint.normal, units);
     if (moved) setValues(current => ({ ...current, ...moved }));
   }, [facePoint, edit.command, units]);
+  // Up To Vertex: the end of the edge nearest where it was clicked.
+  useEffect(() => {
+    if ((edit.command === "extrude" || edit.command === "cut") && facePoint?.point) setValues(current => ({ ...current, vertex_at: facePoint.point }));
+  }, [facePoint, edit.command]);
   // What OK would make, drawn on the model while the panel is open: the extrude of its sketch, its
   // depth in the part's millimetres, or its revolve about the axis line by the angle. A depth or an
   // angle written as a size's name is not drawn; Up To Next ends where the body says.
   const { setPreview } = edit;
   const depth = Number.parseFloat(String(values.depth ?? ""));
-  const extruding = (edit.command === "extrude" || edit.command === "cut") && Boolean(sketch) && values.end !== "next";
+  const extruding = (edit.command === "extrude" || edit.command === "cut") && Boolean(sketch) && !["next", "surface", "vertex"].includes(values.end);
   const previewDepth = extruding && Number.isFinite(depth) ? depth * (MM_PER[units] || 1) : null;
   const angle = Number.parseFloat(String(values.angle ?? ""));
   const axisLine = revolving && sketch
     ? sketchGeometry(sketchView(edit.state, sketch)?.state).curves.find(curve => curve.id === values.axis && curve.kind === "line") : null;
   const turn = axisLine && Number.isFinite(angle) && angle > 0 ? (values.reverse ? -angle : angle) : null;
   const kind = edit.command === "cut" || edit.command === "revolve_cut" ? "cut" : "boss";
+  // A draft leans the preview's sides in by its angle, out when Draft outward.
+  const draftAngle = Number.parseFloat(String(values.draft_angle ?? ""));
+  const taper = values.draft && Number.isFinite(draftAngle) && draftAngle > 0 && draftAngle < 90 ? (values.outward ? -draftAngle : draftAngle) : 0;
   useEffect(() => {
     if (turn !== null) {
       setPreview({ kind, revolve: { a: axisLine.a, b: axisLine.b, angle: turn }, file: sketch.file, line: sketch.line });
       return () => setPreview(null);
     }
     if (!extruding || (previewDepth === null && values.end !== "through")) { setPreview(null); return undefined; }
-    setPreview({ kind, end: values.end, depth: previewDepth || 0, reverse: Boolean(values.reverse), file: sketch.file, line: sketch.line });
+    setPreview({ kind, end: values.end, depth: previewDepth || 0, reverse: Boolean(values.reverse), taper, file: sketch.file, line: sketch.line });
     return () => setPreview(null);
-  }, [extruding, previewDepth, values.end, values.reverse, kind, turn, axisLine?.a?.join(), axisLine?.b?.join(), sketch?.file, sketch?.line,
-    setPreview]);
+  }, [extruding, previewDepth, values.end, values.reverse, taper, kind, turn, axisLine?.a?.join(), axisLine?.b?.join(), sketch?.file,
+    sketch?.line, setPreview]);
   if (!command) return null;
   const Icon = COMMAND_ICONS[command.id];
   const set = key => value => setValues(current => ({ ...current, [key]: value }));
@@ -173,8 +188,13 @@ export default function EditCommand({ edit, names, references, tree = null }) {
   const listed = command.picks === "edges" ? items : faces;
   const blocked = commandBlocked(command.id, items, sketch, values, editing);
   const feature = !editing && !wholeBody && featureIndex > 0 ? { row: rows[featureIndex].key, name: names[featureIndex]?.title || "" } : null;
-  // Edges or faces picked while a feature is reopened replace its own.
-  const repicked = Boolean(editing) && REPICKS.has(command.id) && listed.length > 0;
+  // A circular pattern's axis, picked on the model; what an extrude Up To Surface or Up To Vertex ends on.
+  const turnsAbout = command.id === "pattern" && values.type === "circular" ? patternAxis(items) : null;
+  const upTo = Boolean(command.sketch) && (values.end === "surface" || values.end === "vertex");
+  const ending = upTo ? extrudeEnd(values.end, items) : null;
+  // Edges or faces picked while a feature is reopened replace its own, as a new axis does a
+  // pattern's and a new face or vertex an extrude's end.
+  const repicked = Boolean(editing) && ((REPICKS.has(command.id) && listed.length > 0) || Boolean(turnsAbout) || Boolean(ending));
   const ok = () => {
     if (blocked || disabled) return;
     // A reopened feature left as it was: nothing to write.
@@ -227,9 +247,19 @@ export default function EditCommand({ edit, names, references, tree = null }) {
         <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />
       </> : command.sketch ? <>
         <FileSheetSelectRow label="End condition" value={values.end} options={command.id === "cut" ? CUT_ENDS : BOSS_ENDS} onValueChange={set("end")} />
-        {values.end === "through" || values.end === "next" ? null
+        {upTo ? <>
+          {/* What it ends on, picked on the model: a flat face, or an edge clicked near the vertex. */}
+          <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>{values.end === "surface" ? "Face" : "Vertex"}</p>
+          {ending ? <SelectionBox items={[{ key: ending.selector, label: values.end === "surface" ? selectionLabel(ending)
+            : `${selectionLabel(ending)}, the end nearest the click` }]} prompt="" />
+            : editing?.values?.end === values.end ? <KeptList text={values.end === "surface" ? "Its face, as written" : "Its vertex, as written"}
+              hint={values.end === "surface" ? "Select another flat face on the model to end there." : "Click near another edge's end to end there."} />
+              : <SelectionBox items={[]} prompt={values.end === "surface" ? "Select a flat face on the model to end on."
+                : "Click near the end of an edge on the model: that vertex ends it."} />}
+        </> : null}
+        {NO_DEPTH.has(values.end) ? null
           : <NumberRow label="Depth" value={values.depth} unit={units} disabled={disabled} onChange={set("depth")} />}
-        {values.end === "mid" || values.end === "next" ? null
+        {values.end === "mid" || values.end === "next" || upTo ? null
           : <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />}
         {/* Draft, as SolidWorks' Draft On/Off: the sides lean in by the angle, or out. */}
         {values.end === "next" ? null : <>
@@ -266,10 +296,18 @@ export default function EditCommand({ edit, names, references, tree = null }) {
         <FileSheetSelectRow label="Type" value={values.type} options={PATTERNS} onValueChange={set("type")} />
         {values.type === "linear" ? <>
           <FileSheetSelectRow label="Direction" value={values.direction} options={DIRECTIONS} onValueChange={set("direction")} />
-          <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Or pick a straight edge along X or Y on the model.</p>
+          <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Or pick a straight edge along X, Y or Z on the model.</p>
           <NumberRow label="Spacing" value={values.spacing} unit={units} disabled={disabled} onChange={set("spacing")} />
           <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />
-        </> : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Around the Z axis, spaced evenly.</p>}
+        </> : <>
+          {/* The axis it turns about, spaced evenly all the way round: a round face or a straight
+              edge picked on the model, else the Z axis through the origin. */}
+          <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Axis</p>
+          {turnsAbout ? <SelectionBox items={[{ key: turnsAbout.selector, label: `${selectionLabel(turnsAbout)}, ${turnsAbout.type === "line" ? "straight edge" : "round face"}` }]} prompt="" />
+            : editing?.values?.axis ? <KeptList text={`${editing.values.axis.charAt(0).toUpperCase()}${editing.values.axis.slice(1)}`}
+              hint="Pick a round face or a straight edge on the model to turn about it instead." />
+              : <SelectionBox items={[]} prompt="The Z axis through the origin. Pick a round face or a straight edge on the model to turn about it instead." />}
+        </>}
         <NumberRow label="Instances" value={values.count} disabled={disabled} onChange={set("count")} />
       </> : null}
     </FileSheetSettingsSection>

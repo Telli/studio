@@ -168,5 +168,41 @@ class State(unittest.TestCase):
         self.assertEqual(open_sketch.state()["loops"], [])
 
 
+class Converting(unittest.TestCase):
+    """Convert Entities and the depths an extrude ends at, from the model's own edges and faces."""
+
+    def setUp(self):
+        # A 30 x 20 x 4 plate, its corners rounded, a hole through it.
+        rounded = B.fillet(B.Box(30, 20, 4).edges().filter_by(B.Axis.Z), radius=3)
+        self.part = rounded - B.Pos(5, 0, 0) * B.Cylinder(2, 10)
+        self.top = self.part.faces().sort_by(B.Axis.Z)[-1]
+
+    def test_a_face_comes_in_whole_held_where_the_model_puts_it(self):
+        s = Sketch("Sketch1", plane="Top")
+        made = s.convert(self.top)
+        self.assertEqual(sorted(type(curve).__name__ for curve in made), ["Arc"] * 4 + ["Circle"] + ["Line"] * 4)
+        self.assertEqual(s.status, "Fully defined")
+        # Projected onto the Top plane, 2 below the face: the same profile, its hole and all.
+        self.assertAlmostEqual(s.face().area, self.top.area, places=6)
+        self.assertEqual({r.kind for r in s.relations}, {"on_edge"})
+        self.assertTrue(all(curve.get("converted") for curve in s.state()["curves"]))
+
+    def test_what_cannot_come_in_flat_is_refused_and_edges_square_to_it_are_left_out(self):
+        tilted = Sketch("Sketch1", plane="Front")
+        with self.assertRaisesRegex(SketchError, "ellipse"):
+            tilted.convert(self.top.edges().filter_by(B.GeomType.CIRCLE))
+        upright = self.part.edges().filter_by(B.Axis.Z)
+        with self.assertRaisesRegex(SketchError, "square to Sketch2"):
+            Sketch("Sketch2", plane="Top").convert(upright)
+
+    def test_an_extrude_ends_at_a_parallel_face_or_a_vertex_by_its_depth(self):
+        s = Sketch("Sketch1", plane="Top", offset=-1)
+        self.assertAlmostEqual(s.depth_to(self.top), 3.0)
+        self.assertAlmostEqual(s.depth_to(self.part.vertices().sort_by(B.Axis.Z)[0]), -1.0)
+        side = self.part.faces().filter_by(B.Plane.YZ)[0]
+        with self.assertRaisesRegex(SketchError, "parallel"):
+            s.depth_to(side)
+
+
 if __name__ == "__main__":
     unittest.main()

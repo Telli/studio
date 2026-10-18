@@ -77,11 +77,12 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
   // The open command's or sketch's panel, in a card of its own over the model's top-right corner, as
   // a CAD tool's command dialog floats apart from its tree; here, above the tree, where the view
   // keeps no card for it.
-  const panel = edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} />
+  const panel = edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} references={references} />
     : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree} />
       : null;
-  const floating = panel && card ? createPortal(<div data-cad-command-card="" className={cn(FLOATING_SURFACE_CLASS,
-    "pointer-events-auto flex max-h-full min-h-0 flex-col overflow-y-auto rounded-lg")}>{panel}</div>, card) : null;
+  // The card scrolls in the viewer's one ScrollArea once its panel is taller than the view.
+  const floating = panel && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(FLOATING_SURFACE_CLASS,
+    "pointer-events-auto max-h-full rounded-lg")}>{panel}</ScrollArea>, card) : null;
   return <div className="flex h-full min-h-0 flex-col" data-cad-edit-browser="">
     {edit.error ? <div className="flex items-start gap-1 border-b border-border px-2 py-1.5 text-tiny text-destructive" role="alert">
       <span className="min-w-0 flex-1">{edit.error}</span>

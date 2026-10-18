@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { colorsFor, curvePoints, lightText, planeMapping, strokePath } from "./sketchDrawing.js";
 import { sketchGeometry } from "./sketchMode.js";
-import { CLICK_SLOP_PX, extrudeSpan, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace } from "./sketchPicking.js";
+import { CLICK_SLOP_PX, extrudeSpan, holeLoops, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace, taperedLoop } from "./sketchPicking.js";
 
 const TAG_FONT_PX = 11;
 const TAG_HEIGHT_PX = 18;
@@ -70,9 +70,13 @@ function drawPreview(context, view, shape, through, cad, at) {
   context.save();
   context.strokeStyle = shape.kind === "cut" ? cad.cut : cad.solidEdge;
   context.lineWidth = 2;
-  for (const loop of loops) {
-    const [near, far] = ends.map(mapping => loop.map(mapping.toScreen));
-    if (!near.every(Boolean) || !far.every(Boolean)) continue;
+  // A draft leans the sides in (out, negative) by its angle: each end's outline is moved in by
+  // how far it is from the sketch's plane, in the sketch's own units.
+  const lean = Math.tan(((shape.taper || 0) * Math.PI) / 180) / (view.state?.unit || 1);
+  const holes = holeLoops(loops);
+  loops.forEach((loop, at) => {
+    const [near, far] = ends.map((mapping, end) => taperedLoop(loop, Math.abs(span[end]) * lean, holes[at]).map(mapping.toScreen));
+    if (!near.every(Boolean) || !far.every(Boolean)) return;
     for (const end of [near, far]) {
       fillLoops(context, [end], fill, PREVIEW_FILL_ALPHA);
       context.beginPath();
@@ -86,7 +90,7 @@ function drawPreview(context, view, shape, through, cad, at) {
       context.lineTo(far[index][0], far[index][1]);
     }
     context.stroke();
-  }
+  });
   context.restore();
 }
 

@@ -118,6 +118,39 @@ export function extrudeSpan({ end, depth, reverse }, through = 0) {
   return reverse ? [-length, 0] : [0, length];
 }
 
+/** Which of a sketch's outlines are holes: each inside an odd number of the others. */
+export function holeLoops(loops) {
+  return loops.map((loop, index) => loops.filter((other, at) => at !== index && loop.length && inside(loop[0], other)).length % 2 === 1);
+}
+
+/**
+ * An outline as a drafted extrude has it `shrink` along (in the sketch's units), as SolidWorks
+ * previews a draft: each side moved in by that much, square to itself, its corners where the moved
+ * sides meet; a hole's sides moved out, so the material between shrinks the same. A negative
+ * shrink grows it, as Draft outward does.
+ */
+export function taperedLoop(loop, shrink, hole = false) {
+  const count = loop.length;
+  if (count < 3 || !shrink) return loop;
+  const signed = loop.reduce((sum, [x0, y0], index) => {
+    const [x1, y1] = loop[(index + 1) % count];
+    return sum + x0 * y1 - x1 * y0;
+  }, 0);
+  // Inward is to the left of a counterclockwise run; a hole's material is outside it.
+  const toward = (signed > 0 ? 1 : -1) * (hole ? -1 : 1) * shrink;
+  const leftOf = (a, b) => {
+    const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [-(b[1] - a[1]) / length, (b[0] - a[0]) / length];
+  };
+  return loop.map((point, index) => {
+    const before = leftOf(loop[(index - 1 + count) % count], point);
+    const after = leftOf(point, loop[(index + 1) % count]);
+    const meet = 1 + before[0] * after[0] + before[1] * after[1];
+    if (meet < 1e-6) return point; // a side doubling back on itself: no corner to move
+    return [point[0] + (toward * (before[0] + after[0])) / meet, point[1] + (toward * (before[1] + after[1])) / meet];
+  });
+}
+
 /**
  * The points of an outline the preview joins to its copy, as a CAD tool draws a solid's side
  * edges: its corners, or four around one that turns smoothly all the way (a circle, a slot).

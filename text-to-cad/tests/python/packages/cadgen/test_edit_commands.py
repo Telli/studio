@@ -284,6 +284,41 @@ class BlockCommands(Commands):
         self.assertEqual((shell["kind"], [(each["label"], each["display"]) for each in shell["inputs"]]), ("Shell", [("Thickness", "1")]))
 
 
+# A block with its top back edge chamfered: a face slanted at 45 degrees, its normal along (0, 1, 1).
+WEDGE = {
+    "wedge.py": """
+        from build123d import Axis, Box, chamfer
+        from cadgen import step
+
+
+        @step
+        def wedge():
+            part = Box(20, 20, 10)
+            part = chamfer(part.edges().group_by(Axis.Z)[-1].sort_by(Axis.Y)[-1], length=6)
+            return part
+    """,
+}
+# The chamfer's face as the viewer reads it: from y = 4 at the top to y = 10 at z = -1.
+SLANTED = {"selector": "f99", "type": "plane", "center": [0.0, 7.0, 2.0], "size": 20 * 6 * 2 ** 0.5}
+
+
+class SlantedHoles(Commands):
+    def test_a_hole_on_a_slanted_face_goes_where_it_is_put_on_the_face(self):
+        root, file, state = self.open(WEDGE, "wedge.step")
+        # Along X and down the slope, as a click there gives them, to the places the panel shows.
+        reply = self.command(file, state, "hole", [SLANTED], {"diameter": "3", "x": "5", "y": "1.004", "z": "-1"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        text = (root / "wedge.py").read_text(encoding="utf-8")
+        # Put back on the face's plane: a hair off it would leave the hole off the face.
+        self.assertIn("part -= Pos(5, 1.002, -1.002) * Plane(part.faces()", text)
+        hole = next(feature for feature in reply["features"] if feature["kind"] == "Hole")
+        self.assertEqual(hole["edit"]["values"]["type"], "simple")
+        self.assertEqual({axis: hole["edit"]["values"][axis] for axis in "xyz"}, {"x": "5", "y": "1.002", "z": "-1.002"})
+        refused = self.command(file, reply, "hole", [SLANTED], {"diameter": "3", "z": "3"})
+        self.assertFalse(refused["ok"])
+        self.assertIn("2.12 mm off the face", refused["error"])
+
+
 class PlateCommands(Commands):
     def hole_row(self, state):
         return next(row for row in state["rows"] if row["kind"] == "Hole")
@@ -410,6 +445,63 @@ class EditingFeatures(Commands):
         self.assertIn("plate -= [loc * hole1 for loc in bd.GridLocations(0, .3*INCH, 1, 3, "
                       "align=(bd.Align.CENTER, bd.Align.MIN)).locations[1:]]\n", text)
         self.assertEqual(text.count("hole1 :="), 1)
+
+    def test_a_pattern_up_z_places_each_copy_and_reads_back(self):
+        root, file, state = self.open(PLATE, "plate.step")
+        feature = {"row": next(row for row in state["rows"] if row["kind"] == "Hole")["key"], "name": "Hole1"}
+        made = self.command(file, state, "pattern", (), {"type": "linear", "direction": "Z", "spacing": "-(.3)", "count": "3"}, feature)
+        self.assertTrue(made["ok"], made.get("error"))
+        text = (root / "plate.py").read_text(encoding="utf-8")
+        self.assertIn("plate -= [bd.Pos(0, 0, -.3*INCH * i) * hole1 for i in range(1, 3)]\n", text)
+        self.assertEqual([row["kind"] for row in made["rows"]], ["Box", "Hole", "Pattern"])
+        self.assertEqual([(each["label"], each["display"]) for each in made["rows"][-1]["inputs"]], [("Spacing", "-0.3")])
+        pattern = self.feature(made, "Pattern")
+        self.assertEqual(pattern["edit"]["values"], {"type": "linear", "direction": "Z", "spacing": "0.3", "reverse": True, "count": "3"})
+        edited = self.edit(file, made, pattern, {"type": "linear", "direction": "Z", "spacing": "-(.3)", "count": "5"})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertIn("plate -= [bd.Pos(0, 0, -.3*INCH * i) * hole1 for i in range(1, 5)]\n", (root / "plate.py").read_text(encoding="utf-8"))
+
+    def test_a_circular_pattern_turns_about_a_round_face_or_a_straight_edge(self):
+        hub = {"hub.py": """
+            from build123d import Box, Cylinder, Pos
+            from cadgen import step
+
+
+            @step
+            def hub():
+                hub = Box(40, 40, 4) + Pos(5, 5, 4) * Cylinder(4, 4)
+                hub -= Pos(15, 5, 0) * Cylinder(1, 10)
+                return hub
+        """}
+        root, file, state = self.open(hub, "hub.step")
+        feature = {"row": next(row for row in state["rows"] if row["kind"] == "Hole")["key"], "name": "Hole1"}
+        # The boss's side, as the viewer reads it: a bolt circle of the hole about the boss's axis.
+        boss = {"selector": "f99", "type": "cylinder", "center": [5.0, 5.0, 4.0], "size": 100.530965}
+        made = self.command(file, state, "pattern", [boss], {"type": "circular", "count": "6"}, feature)
+        self.assertTrue(made["ok"], made.get("error"))
+        text = (root / "hub.py").read_text(encoding="utf-8")
+        self.assertRegex(text, r"\n    hub -= \[hole1\.rotate\(hub\.faces\(\)[^\n]*\.axis_of_rotation, i \* 360 / 6\) for i in range\(1, 6\)\]\n")
+        self.assertEqual([row["kind"] for row in made["rows"]][-1], "Pattern")
+        pattern = self.feature(made, "Pattern")
+        self.assertEqual(pattern["edit"]["values"], {"type": "circular", "count": "6", "axis": "a round face's axis"})
+        self.assertEqual(made["change"]["what"], "6 around a round face's axis")
+        # Edit Feature keeps the axis as written, unless another is picked: a straight edge, the box's corner.
+        more = self.edit(file, made, pattern, {"type": "circular", "count": "8"})
+        self.assertTrue(more["ok"], more.get("error"))
+        self.assertIn(".axis_of_rotation, i * 360 / 8) for i in range(1, 8)]", (root / "hub.py").read_text(encoding="utf-8"))
+        corner = edge("e99", (20, 20, 0), 4)
+        spec = {"command": "pattern", "selection": [corner], "inputs": {"type": "circular", "count": "4"},
+                "replace": {"row": self.feature(more, "Pattern")["key"]}}
+        about = self.service.change({"file": file, "command": spec, "files": more["files"]})
+        self.assertTrue(about["ok"], about.get("error"))
+        text = (root / "hub.py").read_text(encoding="utf-8")
+        self.assertRegex(text, r"\n    hub -= \[hole1\.rotate\(Axis\(hub\.edges\(\)[^\n]*\), i \* 360 / 4\) for i in range\(1, 4\)\]\n")
+        self.assertTrue(any(line.startswith("from build123d import") and "Axis" in line for line in text.splitlines()))
+        # The boss's top: flat, so no axis to turn about.
+        flat = {"selector": "f99", "type": "plane", "center": [5.0, 5.0, 6.0], "size": 50.265482}
+        refused = self.command(file, about, "pattern", [flat], {"type": "circular", "count": "4"}, feature)
+        self.assertFalse(refused["ok"])
+        self.assertIn("round face's axis or a straight edge", refused["error"])
 
     def test_a_feature_of_another_kind_is_refused(self):
         root, file, state = self.open(BLOCK, "block.step")

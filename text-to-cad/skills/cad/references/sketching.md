@@ -76,6 +76,12 @@ def plate():
   dimension for the chain. Draw each offset curve where it falls, sharing its corners.
 - A mirror is plain relations: `s.symmetric(point, its_mirror, centerline)` for each new point,
   and `s.equal(mirrored_arc, arc)` for an arc or circle.
+- `s.convert(edges)` is Convert Entities: the model's edges (or the faces and wires they bound)
+  projected onto the sketch as lines, arcs and circles, each held On Edge where the model puts it
+  (a relation, `OnEdge1`), so they follow the part when its sizes change. Write it after the body
+  it takes them from: `outline = s.convert(part.faces().sort_by(Axis.Z)[-1])`. Its curves are
+  `outline[0]`, `outline[1]`, ...; offset them, fillet their corners or dimension to them. A
+  circle tilted to the sketch, or a spline, raises `SketchError`.
 - Draw each point near where it ends up: the solver starts from the drawing and leaves what no
   dimension fixes where it was drawn.
 
@@ -90,6 +96,9 @@ def plate():
 - `s.axis(line)` is one of the sketch's lines as a build123d `Axis` in the part, for a revolve:
   `revolve(s.face(), axis=s.axis(centerline), revolution_arc=360)`. Draw the axis as construction
   geometry (`construction=True`) so it is not part of the profile.
+- `s.depth_to(target)` is how far a flat face parallel to the sketch, or a vertex, is from the
+  sketch's plane along its normal (negative behind it): an extrude's depth Up To Surface or Up To
+  Vertex, `extrude(s.face(), amount=s.depth_to(part.faces().sort_by(Axis.Z)[-1]))`.
 
 ## Editing
 

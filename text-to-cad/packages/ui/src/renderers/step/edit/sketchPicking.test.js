@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PICK_PX, extrudeSpan, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace } from "./sketchPicking.js";
+import { PICK_PX, extrudeSpan, holeLoops, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace, taperedLoop } from "./sketchPicking.js";
 
 const square = (x, y, size) => [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];
 // A sketch as the view draws it: its lines and its outlines, in pixels.
@@ -70,4 +70,14 @@ test("a revolve's preview turns the sketch's frame about its axis line", () => {
   close(half.origin, [50.8, 0, 0]);
   close(half.x, [-1, 0, 0]);
   assert.equal(revolvedFrame(top, 1, [2, 2], [2, 2], 90), null);
+});
+
+test("a drafted extrude's preview leans in: each side moved in square to itself, a hole's out", () => {
+  const close = (got, want) => got.forEach((point, index) => point.forEach((value, axis) => assert.ok(Math.abs(value - want[index][axis]) < 1e-9, `${got} vs ${want}`)));
+  close(taperedLoop(square(0, 0, 10), 1), [[1, 1], [9, 1], [9, 9], [1, 9]]);
+  // Drawn the other way round, it still shrinks; outward, it grows; a hole grows as the material shrinks.
+  close(taperedLoop([...square(0, 0, 10)].reverse(), 1), [[1, 9], [9, 9], [9, 1], [1, 1]]);
+  close(taperedLoop(square(0, 0, 10), -1), [[-1, -1], [11, -1], [11, 11], [-1, 11]]);
+  close(taperedLoop(square(4, 4, 2), 1, true), [[3, 3], [7, 3], [7, 7], [3, 7]]);
+  assert.deepEqual(holeLoops([square(0, 0, 10), square(4, 4, 2), square(20, 0, 5)]), [false, true, false]);
 });

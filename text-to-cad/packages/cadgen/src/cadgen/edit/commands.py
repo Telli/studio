@@ -847,6 +847,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     command = str(spec.get("command") or "")
     if command not in COMMANDS:
         raise CommandError(f"Edit mode has no command {command or 'by that name'}.")
+    records = RECORDS[command]
     if not isinstance(shape, B.Shape):
         raise CommandError("This part's script makes no solid body to change.")
     body = find_body(steps, shape, level, root)
@@ -867,7 +868,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     if replacing:
         old, kept = _feature_line(body, replacing, command, units, steps, level)
         var, returned = kept.target, []
-        if selection and command in ("fillet", "chamfer", "hole", "shell"):
+        if selection and command in ("fillet", "chamfer", "hole", "shell", "extrude", "cut"):
             # Picked again, as a CAD tool rolls back to the feature: on the body as it was before it.
             picked_on, before = body_at(steps, shape, level, root, body.rel, old.lineno)
             picked_var = before.name
@@ -964,8 +965,18 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             if str(inputs.get(axis.lower(), "")).strip():
                 offsets[axis] = _value(inputs, axis.lower(), axis, parse, positive=False)
         if not fixed:
-            center = plane.origin + B.Vector(*(offsets[axis] * (25.4 if units == "in" else 1.0) for axis in ("X", "Y", "Z")))
-            if selections.topology["face"].item(numbers[0]).distance_to(center) > 1e-4 + 1e-6 * scale:
+            unit = 25.4 if units == "in" else 1.0
+            moved = B.Vector(*(offsets[axis] * unit for axis in ("X", "Y", "Z")))
+            # A slanted face moves its hole in X, Y and Z at once: the place clicked, to the places
+            # the panel shows, is put back on the face's plane; one typed well off it is refused.
+            off = moved.dot(plane.z_dir)
+            if len(offset_axes(plane.z_dir)) == 3 and abs(off) > 1e-9:
+                if abs(off) > 0.05:
+                    raise CommandError(f"Those X, Y and Z put the hole's center {abs(off) / unit:.3g} {units_word or 'mm'} off the face. "
+                                       "Click the face where the hole goes.")
+                moved -= plane.z_dir * off
+                offsets = {axis: round(getattr(moved, axis) / unit, 6) for axis in ("X", "Y", "Z")}
+            if selections.topology["face"].item(numbers[0]).distance_to(plane.origin + moved) > 1e-4 + 1e-6 * scale:
                 raise CommandError("The hole's center is off that face. Set where it goes on the face, from the face's center.")
         moved = ""
         if any(offsets.values()):
@@ -1083,9 +1094,12 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         end = str(inputs.get("end") or "blind").lower()
         through = command == "cut" and end == "through"
         # Up To Next: as far as the next face of the body along the sketch's normal (build123d's
-        # `until`), no depth of its own.
+        # `until`), no depth of its own. Up To Surface and Up To Vertex: as far as a face or a
+        # vertex picked on the model, its distance from the sketch's plane (`depth_to`), so the
+        # extrude follows it as the part changes.
         up_to_next = end == "next"
-        depth = None if through or up_to_next else _value(inputs, "depth", "Depth", parse)
+        up_to = end in ("surface", "vertex")
+        depth = None if through or up_to_next or up_to else _value(inputs, "depth", "Depth", parse)
         # Mid Plane: half the depth each way (build123d's `both`), so Reverse does not apply.
         both = ", both=True" if end == "mid" else ""
         profile = kept.parts["profile"] if kept else f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
@@ -1102,6 +1116,9 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             taper = f", taper={'-' if outward else ''}{same('taper', angle, writer.number(angle))}"
         if up_to_next:
             code = f"{var} {sign} {names('extrude')}({profile}, until={names('Until')}.NEXT, target={var})"
+        elif up_to:
+            ending = _extrude_target(end, selection, selections, scale, inputs, kept)
+            code = f"{var} {sign} {names('extrude')}({profile}, amount={block.var}.depth_to({ending}){taper})"
         else:
             amount = f"{var}.bounding_box().diagonal" if through else writer.length(depth / 2 if both else depth)
             reverse = inputs.get("reverse") in (True, "true", "1", 1) and not both
@@ -1111,41 +1128,58 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                 amount = same("amount", (-1 if reverse else 1) * (depth / 2 if both else depth), amount)
             code = f"{var} {sign} {names('extrude')}({profile}, amount={amount}{both}{taper})"
         at = max(at, block.last_line)
-        shown = [] if through or up_to_next else [("Depth", depth, units_word)]
+        shown = [] if through or up_to_next or up_to else [("Depth", depth, units_word)]
         if drafted:
             shown.append(("Draft", angle, "deg"))
         what = f"from {drawn.get('name') or 'the sketch'}" + (", through all" if through else ", up to next" if up_to_next
+                                                              else ", up to a vertex" if end == "vertex" else ", up to a face" if end == "surface"
                                                               else ", mid plane" if end == "mid" else "")
         if drafted:
             what += f", drafted {'out' if outward else 'in'} {_number(angle, False)} degrees"
     else:  # pattern
         kind = str(inputs.get("type") or "linear").lower()
         count = _value(inputs, "count", "Instances", parse, integer=True, minimum=2)
+        counted_code = same("count", count, str(count))
         align = names("Align")
+        tool, sign, tool_edits = (kept.parts["tool"], kept.operator, []) if kept else _tool(body, var, spec.get("feature"), bar)
+        for line, col, text in tool_edits:
+            edits.put(line, col, text)
         if kind == "circular":
-            locations = f"{names('PolarLocations')}(0, {same('count', count, str(count))})"
+            # About a round face's axis or a straight edge picked on the model, as SolidWorks'
+            # Circular Pattern takes its axis; else the Z axis through the origin.
+            axis = _pattern_axis(selection, selections, scale, names)
+            if axis is None and kept and kept.parts.get("axis"):
+                axis = (kept.parts["axis"], _axis_words(kept.parts["axis"]))
+            if axis is not None:
+                code = f"{var} {sign} [{tool}.rotate({axis[0]}, i * 360 / {counted_code}) for i in range(1, {counted_code})]"
+                records = ("join", "cut")
+                what = f"{count} around {axis[1]}"
+            else:
+                code = f"{var} {sign} [loc * {tool} for loc in {names('PolarLocations')}(0, {counted_code}).locations[1:]]"
+                what = f"{count} around the Z axis"
             shown = [("Instances", count, "")]
-            what = f"{count} around the Z axis"
         elif kind == "linear":
             spacing = _value(inputs, "spacing", "Spacing", parse, positive=False)
             if spacing == 0:
                 raise CommandError("Spacing needs to be more or less than 0.")
             direction = str(inputs.get("direction") or "X").upper()
-            spaced, counted_code = same("spacing", spacing, writer.length(spacing)), same("count", count, str(count))
+            spaced = same("spacing", spacing, writer.length(spacing))
             if direction == "X":
                 locations = f"{names('GridLocations')}({spaced}, 0, {counted_code}, 1, align=({align}.MIN, {align}.CENTER))"
             elif direction == "Y":
                 locations = f"{names('GridLocations')}(0, {spaced}, 1, {counted_code}, align=({align}.CENTER, {align}.MIN))"
+            elif direction != "Z":
+                raise CommandError("A linear pattern runs along X, Y or Z.")
+            if direction == "Z":
+                # GridLocations lays copies out on a plane; up Z each copy is placed by its own Pos.
+                code = f"{var} {sign} [{names('Pos')}(0, 0, {_term(spaced)} * i) * {tool} for i in range(1, {counted_code})]"
+                records = ("move",)
             else:
-                raise CommandError("A linear pattern runs along X or Y.")
+                code = f"{var} {sign} [loc * {tool} for loc in {locations}.locations[1:]]"
             shown = [("Spacing", spacing, units_word), ("Instances", count, "")]
             what = f"{count} along {direction}"
         else:
             raise CommandError("A pattern is linear or circular.")
-        tool, sign, tool_edits = (kept.parts["tool"], kept.operator, []) if kept else _tool(body, var, spec.get("feature"), bar)
-        for line, col, text in tool_edits:
-            edits.put(line, col, text)
-        code = f"{var} {sign} [loc * {tool} for loc in {locations}.locations[1:]]"
 
     if old is not None:
         source = body.lines[old.lineno - 1]
@@ -1159,10 +1193,72 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         new = edits.apply()
         line = at + 1 + added_lines
     return Plan(command=command, path=body.path, rel=body.rel, old=body.text, new=new, line=line, code=code,
-                records=RECORDS[command], selected=selected,
+                records=records, selected=selected,
                 summary={"feature": FEATURE_WORDS[command], "what": what,
                          "inputs": [{"label": label, "display": writer.number(value) if isinstance(value, float) else str(value),
                                      "unit": unit} for label, value, unit in shown]})
+
+
+def _extrude_target(end: str, selection: list[dict], selections: Selections, scale: float, inputs: dict, kept: Feature | None) -> str:
+    """What an extrude ends on, as SolidWorks' Up To Surface and Up To Vertex end one: a flat face
+    picked on the model, or the end of a picked edge nearest where it was clicked (``vertex_at``,
+    the click in the part's millimetres), as code on the body. Edit Feature keeps its own when none
+    is picked."""
+    kind = "face" if end == "surface" else "edge"
+    items = [item for item in selection if selector_ordinal(item.get("selector"))[0] == kind]
+    if not items:
+        if kept is not None and kept.parts.get("target") and kept.values.get("end") == end:
+            return kept.parts["target"]
+        raise CommandError("Select a flat face on the model for the extrude to end on." if end == "surface"
+                           else "Click near the end of an edge on the model: the vertex there ends the extrude.")
+    number = resolve(selections.topology[kind], items[-1:], scale)[0]
+    if end == "surface":
+        if selections.topology["face"].describe(number)["type"] != "plane":
+            raise CommandError("Up To Surface ends on a flat face. Select a flat one, or use Up To Next.")
+        return selections.write("face", [number], one=True)
+    try:
+        click = B.Vector(*(float(value) for value in inputs.get("vertex_at")))
+    except (TypeError, ValueError):
+        raise CommandError("Click near the end of an edge on the model: the vertex there ends the extrude.") from None
+    edge = selections.topology["edge"].item(number)
+    role = "start_point" if (edge.start_point() - click).length <= (edge.end_point() - click).length else "end_point"
+    return f"{selections.write('edge', [number], one=True)}.{role}()"
+
+
+def _pattern_axis(selection: list[dict], selections: Selections, scale: float, names: Names):
+    """The axis a circular pattern turns about, from what is picked on the model, as SolidWorks'
+    Circular Pattern takes one: a round face's (``.axis_of_rotation``) or a straight edge
+    (``Axis(edge)``), as code with its words; None with nothing picked."""
+    items = [item for item in selection if selector_ordinal(item.get("selector"))[0] in ("face", "edge")]
+    if not items:
+        return None
+    if len(items) > 1:
+        raise CommandError("Pick one round face or one straight edge for the axis.")
+    kind = selector_ordinal(items[0].get("selector"))[0]
+    number = resolve(selections.topology[kind], items, scale)[0]
+    shape_type = selections.topology[kind].describe(number)["type"]
+    if kind == "face" and shape_type in ("cylinder", "cone"):
+        code = f"{selections.write('face', [number], one=True)}.axis_of_rotation"
+    elif kind == "edge" and shape_type == "line":
+        code = f"{names('Axis')}({selections.write('edge', [number], one=True)})"
+    else:
+        raise CommandError("A circular pattern turns about a round face's axis or a straight edge. Pick one of those.")
+    return code, _axis_words(code)
+
+
+def _term(code: str) -> str:
+    """Code to multiply by, in brackets where its terms would split: a sum, a difference."""
+    try:
+        node = ast.parse(code, mode="eval").body
+    except SyntaxError:
+        return f"({code})"
+    split = (isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub))) or isinstance(node, (ast.IfExp, ast.BoolOp, ast.Compare))
+    return f"({code})" if split else code
+
+
+def _axis_words(code: str) -> str:
+    """A pattern's axis, as its line writes it, in words."""
+    return "a round face's axis" if code.endswith(".axis_of_rotation") else "a straight edge"
 
 
 def _imports(edits: Edits, body: Body, module: str | None, named_import: ast.ImportFrom | None, names: Names) -> int:
@@ -1184,18 +1280,23 @@ def _imports(edits: Edits, body: Body, module: str | None, named_import: ast.Imp
 
 
 def offset_axes(normal) -> tuple[str, ...]:
-    """The two axes that lie in a face's plane, when its normal is along the third: a hole on a
-    top face moves in X and Y. An oblique face has none, and its hole stays at its centre."""
+    """The axes a hole moves along on a face: the two that lie in its plane, when its normal is
+    along the third (a hole on a top face moves in X and Y); all three on a slanted face, whose
+    plane the hole's place is then kept on."""
     for axis, others in (("Z", ("X", "Y")), ("X", ("Y", "Z")), ("Y", ("X", "Z"))):
         if abs(abs(getattr(normal, axis)) - 1.0) < 1e-9:
             return others
-    return ()
+    return ("X", "Y", "Z")
 
 
 def failure_words(command: str, error: str) -> str:
     """Why a command's line did not run, in words."""
     feature = FEATURE_WORDS.get(command, "change").lower()
     last = error.strip().splitlines()[-1] if error.strip() else ""
+    # A sketch's own refusal is said in the engineer's words already (`depth_to`'s, a sketch's).
+    said = re.match(r"^(?:[\w.]+\.)?SketchError: (.+)$", last)
+    if said:
+        return said.group(1)
     if command in ("fillet", "chamfer", "shell") and re.search(r"StdFail|NotDone|BRep_API|failed|Fillet|Chamfer|offset", error, re.I):
         size = {"fillet": "radius", "chamfer": "distance", "shell": "thickness"}[command]
         return f"The {feature} could not be made with that {size} on that selection. Try a smaller {size}."
@@ -1338,6 +1439,28 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         tool = code(value.args[0])
         return Feature("mirror", {"plane": plane}, "Whole body" if tool == target else tool,
                        {"tool": tool, "plane": code(about) if about is not None else ""}, target, operator)
+    if operator in ("+=", "-=") and isinstance(value, ast.ListComp) and value.generators and _call_name(value.generators[0].iter) == "range":
+        # Copies made one by one (`for i in range(1, 6)`): up Z by a Pos each, or turned about an
+        # axis picked on the model. The copies are counted from what the body was given.
+        last = value.generators[0].iter.args[-1] if value.generators[0].iter.args else None
+        copies = number(("join" if operator == "+=" else "cut", "other"))
+        count = int(copies) + 1 if copies is not None else None
+        elt = value.elt
+        if isinstance(elt, ast.Call) and isinstance(elt.func, ast.Attribute) and elt.func.attr == "rotate" and len(elt.args) == 2:
+            tool, axis = code(elt.func.value), code(elt.args[0])
+            held("count", last, count)
+            return Feature("pattern", {"type": "circular", "count": str(count or 0), "axis": _axis_words(axis)},
+                           "Whole body" if tool == target else tool, {"tool": tool, "axis": axis}, target, operator, codes)
+        if isinstance(elt, ast.BinOp) and isinstance(elt.op, ast.Mult) and _call_name(elt.left) == "Pos" and len(elt.left.args) == 3:
+            spacing = number(("move", "z")) or 0.0
+            tool, step = code(elt.right), elt.left.args[2]
+            # `Pos(0, 0, <spacing> * i)`: the spacing, the first copy's place.
+            if isinstance(step, ast.BinOp) and isinstance(step.op, ast.Mult):
+                held("spacing", step.left, typed(spacing))
+            held("count", last, count)
+            return Feature("pattern", {"type": "linear", "direction": "Z", "spacing": size(abs(spacing)), "reverse": spacing < 0,
+                                       "count": str(count or 0)}, "Whole body" if tool == target else tool, {"tool": tool}, target, operator, codes)
+        return None
     if operator in ("+=", "-=") and isinstance(value, ast.ListComp) and isinstance(value.elt, ast.BinOp):
         iterated = value.generators[0].iter if value.generators else None
         made = iterated.value.value if isinstance(iterated, ast.Subscript) and isinstance(iterated.value, ast.Attribute) else None
@@ -1365,11 +1488,14 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
             until = _keyword_value(value, "until")
             up_to_next = isinstance(until, ast.Attribute) and until.attr == "NEXT"
             written = _keyword_value(value, "amount")
+            # Up To Surface or Up To Vertex: `sketch2.depth_to(<face>)`, or an edge's end.
+            ending = written.args[0] if _call_name(written) == "depth_to" and written.args else None
+            up_to = None if ending is None else "vertex" if _call_name(ending) in ("start_point", "end_point") else "surface"
             reverse = (isinstance(written, ast.UnaryOp) and isinstance(written.op, ast.USub)) if through else amount < 0
-            values = {"end": "next" if up_to_next else "mid" if both else "through" if through else "blind",
-                      "reverse": bool(reverse) and not both and not up_to_next,
-                      "depth": size(abs(amount) * (2 if both else 1)) if not (through or up_to_next) else ""}
-            if not (through or up_to_next):
+            values = {"end": "next" if up_to_next else up_to or ("mid" if both else "through" if through else "blind"),
+                      "reverse": bool(reverse) and not both and not up_to_next and not up_to,
+                      "depth": size(abs(amount) * (2 if both else 1)) if not (through or up_to_next or up_to) else ""}
+            if not (through or up_to_next or up_to):
                 held("amount", written, typed(amount))
             # Draft: build123d's `taper`, in degrees; drawn in, or out when negative.
             taper = _keyword_value(value, "taper")
@@ -1379,8 +1505,8 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                 values.update(draft=True, draft_angle=_number(abs(drafted), False), outward=outward)
                 shown = taper.operand if outward and isinstance(taper, ast.UnaryOp) and isinstance(taper.op, ast.USub) else taper
                 held("taper", shown, abs(drafted), _tight(shown, text))
-            return Feature("extrude" if operator == "+=" else "cut", values, sketch, {"profile": code(profile), "sketch": sketch},
-                           target, operator, codes)
+            parts = {"profile": code(profile), "sketch": sketch, **({"target": code(ending)} if up_to else {})}
+            return Feature("extrude" if operator == "+=" else "cut", values, sketch, parts, target, operator, codes)
         axis = _keyword_value(value, "axis")
         line = code(axis.args[0]) if isinstance(axis, ast.Call) and _call_name(axis) == "axis" and axis.args else None
         if name == "revolve" and line:

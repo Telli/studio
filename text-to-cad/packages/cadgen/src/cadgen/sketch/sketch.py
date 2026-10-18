@@ -466,6 +466,95 @@ class Sketch:
         return self._relate("offset", (*made, *source), distance, label="Offset",
                             data={"count": len(made), "sides": sides, "ends": ends})
 
+    def convert(self, edges, *, construction: bool = False) -> list:
+        """Model edges brought into the sketch, as a CAD tool's Convert Entities brings them: each
+        of ``edges`` (build123d Edges, or the Faces and Wires they bound) projected onto the
+        sketch's plane as a line, an arc or a circle, and held On Edge where the model puts it, so
+        it follows the model when the part changes. Edges that meet share their point; an edge
+        square to the sketch, which projects to a point, is left out. Returns the curves made, in
+        the order the edges come."""
+        import build123d as B
+
+        from .regions import plane_of
+
+        plane = plane_of(self)
+        found = list(_edges_of(edges))
+        if not found:
+            raise SketchError("Convert Entities needs edges, or a face, of the model.")
+        boxes = [edge.bounding_box() for edge in found]
+        scale = max([1.0, *(abs(c) for box in boxes for corner in (box.min, box.max) for c in tuple(corner))])
+        near = 1e-7 * scale
+        # A place of the model in the sketch's units: where it falls on the plane, and how far off it.
+        local = lambda vector: plane.to_local_coords(vector)  # noqa: E731
+        made_points: list[Point] = []
+
+        def point(vector) -> Point:
+            place = local(vector)
+            x, y = place.X / self.unit, place.Y / self.unit
+            for each in made_points:
+                if math.hypot(each.x - x, each.y - y) * self.unit <= near:
+                    return each
+            made = Point(self._named("Point"), x, y, fixed=True, construction=construction, source=_source())
+            self.points.append(made)
+            made_points.append(made)
+            return made
+
+        curves: list = []
+        for edge in found:
+            kind = edge.geom_type
+            if kind == B.GeomType.LINE:
+                start, end = edge.start_point(), edge.end_point()
+                a, b = local(start), local(end)
+                if math.hypot(a.X - b.X, a.Y - b.Y) <= near:
+                    continue
+                curve = Line(self._named("Line"), point(start), point(end), construction, _source())
+            elif kind == B.GeomType.CIRCLE:
+                if abs(abs(edge.normal().dot(plane.z_dir)) - 1) > 1e-6:
+                    raise SketchError(f"One of those edges is a circle tilted to {self.name}, which would come in as an ellipse. "
+                                      "Convert Entities brings in lines, arcs and circles that lie square to the sketch.")
+                radius = edge.radius / self.unit
+                if edge.is_closed:
+                    curve = Circle(self._named("Circle"), point(edge.arc_center), radius, construction, _source())
+                else:
+                    start, end, mid = (local(v) for v in (edge.start_point(), edge.end_point(), edge.position_at(0.5)))
+                    turning = (mid.X - start.X) * (end.Y - start.Y) - (mid.Y - start.Y) * (end.X - start.X) > 0
+                    curve = Arc(self._named("Arc"), point(edge.arc_center), point(edge.start_point()), point(edge.end_point()),
+                                not turning, construction, _source())
+            else:
+                word = str(kind.name).lower().replace("bspline", "spline").replace("bezier", "spline")
+                raise SketchError(f"One of those edges is a {word}. Convert Entities brings in lines, arcs and circles; "
+                                  "ask the agent to bring in that edge.")
+            self.curves.append(curve)
+            self._relate("on_edge", (curve,), label="OnEdge",
+                         data={"radius": curve.radius * 1.0} if isinstance(curve, Circle) else {})
+            curves.append(curve)
+        if not curves:
+            raise SketchError(f"Those edges are square to {self.name}, so they come in as points. Pick edges that lie along it.")
+        return curves
+
+    def depth_to(self, target) -> float:
+        """How far ``target`` is from the sketch's plane along its normal, in millimetres, negative
+        behind it: an extrude's depth Up To Surface (a flat face parallel to the sketch) or Up To
+        Vertex (a vertex, or a point), as a CAD tool ends an extrude on what is picked."""
+        import build123d as B
+
+        from .regions import plane_of
+
+        plane = plane_of(self)
+        if isinstance(target, B.Face):
+            if target.geom_type != B.GeomType.PLANE or abs(abs(target.normal_at().dot(plane.z_dir)) - 1) > 1e-6:
+                raise SketchError(f"Up To Surface ends {self.name}'s extrude on a flat face parallel to it. "
+                                  "That face is not, so pick another, or use Up To Next.")
+            place = target.center()
+        elif isinstance(target, B.Vertex):
+            place = B.Vector(target)
+        else:
+            try:
+                place = B.Vector(target)
+            except Exception:  # noqa: BLE001 - said to the engineer: what an extrude can end on
+                raise SketchError("An extrude ends on a flat face or a vertex of the model.") from None
+        return float(plane.to_local_coords(place).Z)
+
     def fillet_arcs(self):
         """The sketch's fillets as arcs where the solved sketch puts them (``fillets.py``)."""
         from .fillets import fillet_arcs
@@ -558,9 +647,13 @@ class Sketch:
         # Where each line is drawn to: the fillet at an end, else the end itself.
         trims = {(id(arc.a), arc.end_of(arc.a)): arc.start for arc in rounded}
         trims.update({(id(arc.b), arc.end_of(arc.b)): arc.end for arc in rounded})
+        # Brought in from the model by Convert Entities: held On Edge, not drawn.
+        converted = {id(relation.refs[0]) for relation in self.relations if relation.kind == "on_edge"}
         curves = []
         for curve in self.curves:
             entry = {"id": curve.name, "kind": type(curve).__name__.lower(), "construction": curve.construction, **where(curve)}
+            if id(curve) in converted:
+                entry["converted"] = True
             if isinstance(curve, Line):
                 entry.update(start=curve.start.name, end=curve.end.name, defined=defined(curve.start) and defined(curve.end))
                 if (id(curve), "start") in trims or (id(curve), "end") in trims:
@@ -621,6 +714,25 @@ class Sketch:
 
 def _radius(curve) -> float:
     return curve.radius
+
+
+def _edges_of(items):
+    """The edges of what Convert Entities is given: edges, the faces and wires they bound, or lists of them."""
+    import build123d as B
+
+    if isinstance(items, B.Edge):
+        yield items
+    elif isinstance(items, (B.Face, B.Wire)):
+        yield from items.edges()
+    elif isinstance(items, B.Shape):
+        yield from items.edges()
+    else:
+        try:
+            listed = list(items)
+        except TypeError:
+            raise SketchError("Convert Entities takes edges, or faces, of the model.") from None
+        for item in listed:
+            yield from _edges_of(item)
 
 
 def _shared_end(a, b) -> Point | None:

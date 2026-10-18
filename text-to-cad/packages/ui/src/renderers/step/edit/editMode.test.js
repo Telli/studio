@@ -13,7 +13,9 @@ import {
   commandNote,
   commandRequest,
   edgeAxis,
+  extrudeEnd,
   partSide,
+  patternAxis,
   commandUndoNote,
   defaultRow,
   deleteNote,
@@ -217,11 +219,11 @@ test("a command's OK waits for what it acts on", () => {
   assert.equal(commandBlocked("pattern", []), "");
 });
 
-test("a hole moves along the two axes that lie in its face", () => {
+test("a hole moves along the two axes that lie in its face, or all three on a slanted one", () => {
   assert.deepEqual(faceOffsetAxes([0, 0, 1]), ["x", "y"]);
   assert.deepEqual(faceOffsetAxes([-1, 0, 0]), ["y", "z"]);
   assert.deepEqual(faceOffsetAxes([0, -1, 0]), ["x", "z"]);
-  assert.deepEqual(faceOffsetAxes([0.6, 0.8, 0]), []);
+  assert.deepEqual(faceOffsetAxes([0.6, 0.8, 0]), ["x", "y", "z"], "a slanted face moves its hole in all three");
 });
 
 test("a command's note says what was added and where, and Undo takes its lines back", () => {
@@ -309,16 +311,53 @@ test("a click on a face puts the hole there: its distance from the face's center
   assert.deepEqual(clickOffsets([22.5, 1.004, 4], center, [0, 0, 1], "mm"), { x: "12.5", y: "-4" });
   assert.deepEqual(clickOffsets([10, 5, 4.0001], center, [0, 0, 1], "mm"), { x: "0", y: "0" });
   assert.deepEqual(clickOffsets([10 + 25.4, 5, 4 - 12.7], center, [0, 1, 0], "in"), { x: "1", z: "-0.5" });
-  assert.equal(clickOffsets([1, 2, 3], center, [0.6, 0, 0.8], "mm"), null, "a slanted face moves no hole");
+  assert.deepEqual(clickOffsets([14, 5, 1], center, [0.6, 0, 0.8], "mm"), { x: "4", y: "0", z: "-3" }, "a slanted face's, in all three");
   assert.equal(clickOffsets(null, center, [0, 0, 1], "mm"), null);
 });
 
-test("a straight edge picked for a pattern gives its direction, X or Y, the last one counting", () => {
+test("a straight edge picked for a pattern gives its direction, X, Y or Z, the last one counting", () => {
   const edge = (min, max, curveType = "line") => ({ selectorType: "edge", pickData: { curveType, bbox: { min, max } } });
   assert.equal(edgeAxis([edge([0, 2, 4], [20, 2, 4])]), "X");
   assert.equal(edgeAxis([edge([0, 2, 4], [20, 2, 4]), edge([5, -3, 0], [5, 7, 0])]), "Y");
-  assert.equal(edgeAxis([edge([0, 0, 0], [0, 0, 8])]), null, "an edge up Z");
+  assert.equal(edgeAxis([edge([0, 0, 0], [0, 0, 8])]), "Z");
   assert.equal(edgeAxis([edge([0, 0, 0], [6, 8, 0])]), null, "a slanted edge");
   assert.equal(edgeAxis([edge([0, 0, 0], [6, 6, 0], "circle")]), null, "a curved edge");
   assert.equal(edgeAxis([{ selectorType: "face", pickData: {} }]), null);
+});
+
+test("a circular pattern turns about the round face or straight edge picked last, and sends it", () => {
+  const round = { selector: "f7", type: "cylinder", center: [5, 5, 4], size: 100.5 };
+  const flat = { selector: "f2", type: "plane", center: [0, 0, 2], size: 1600 };
+  const straight = { selector: "e3", type: "line", center: [20, 20, 0], size: 4 };
+  assert.equal(patternAxis([flat]), null, "a flat face has no axis: Z through the origin");
+  assert.equal(patternAxis([round, flat]), round);
+  assert.equal(patternAxis([round, straight]), straight);
+  const feature = { row: "a.py:4", name: "Hole1" };
+  assert.deepEqual(commandRequest("pattern", { type: "circular", count: "6" }, [flat, round], feature),
+    { command: "pattern", selection: [round], inputs: { type: "circular", count: "6" }, feature });
+  assert.deepEqual(commandRequest("pattern", { type: "circular", count: "6" }, [], feature).selection, []);
+  // Edit Feature keeps its axis unless another is picked.
+  const editing = { id: "a.py:9", command: "pattern" };
+  assert.deepEqual(commandRequest("pattern", { type: "circular", count: "8" }, [], null, null, editing),
+    { command: "pattern", selection: [], inputs: { type: "circular", count: "8" }, replace: { row: "a.py:9" } });
+});
+
+test("an extrude Up To Surface ends on the flat face picked, Up To Vertex at the clicked edge's end", () => {
+  const flat = { selector: "f2", type: "plane", center: [0, 0, -2.5], size: 800 };
+  const round = { selector: "f7", type: "cylinder", center: [5, 5, 4], size: 100.5 };
+  const edge = { selector: "e3", type: "line", center: [0, -10, -7.5], size: 40 };
+  assert.equal(extrudeEnd("surface", [flat, round]), flat, "a round face is not one to end on");
+  assert.equal(extrudeEnd("vertex", [flat, edge]), edge);
+  assert.equal(extrudeEnd("blind", [flat]), null);
+  const sketch = { file: "plate.py", line: 9, title: "Sketch1", constrained: true };
+  const values = { ...commandDefaults("extrude", "mm"), end: "surface" };
+  assert.deepEqual(commandRequest("extrude", values, [flat], null, sketch),
+    { command: "extrude", sketch: { file: "plate.py", line: 9, name: "Sketch1" }, inputs: { end: "surface" }, selection: [flat] });
+  assert.equal(commandBlocked("extrude", [], sketch, values), "Select a flat face on the model to end on.");
+  const atVertex = { ...values, end: "vertex", vertex_at: [-19, -10, -7.4] };
+  assert.deepEqual(commandRequest("extrude", atVertex, [edge], null, sketch).inputs, { end: "vertex", vertex_at: [-19, -10, -7.4] });
+  assert.equal(commandBlocked("extrude", [edge], sketch, { ...atVertex, vertex_at: undefined }), "Click near the end of an edge on the model.");
+  assert.equal(commandBlocked("extrude", [edge], sketch, atVertex), "");
+  // Edit Feature keeps what it ends on, so it waits on no pick.
+  assert.equal(commandBlocked("extrude", [], sketch, values, { values: { end: "surface" } }), "");
 });

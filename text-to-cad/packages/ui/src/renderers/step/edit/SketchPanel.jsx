@@ -8,11 +8,13 @@ import {
   FileSheetSettingsSection,
   FileSheetValueInput
 } from "../../kit/inspector/FileSheet.js";
+import { Button } from "@text-to-cad/ui/primitives/button";
 import { TOOL_PANEL_BUTTON_CLASS } from "../../kit/tools/ToolPanel.jsx";
 import { SketchIcon } from "./cadIcons.jsx";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
-import { ORIGIN_PLANES } from "./editMode.js";
-import { formatValue, MODIFY_TOOLS, relationsFor, relationsOn, sketchTool, toolSize } from "./sketchMode.js";
+import { SelectionList } from "./EditCommand.jsx";
+import { ORIGIN_PLANES, selectionItems } from "./editMode.js";
+import { formatValue, MODEL_TOOLS, MODIFY_TOOLS, relationsFor, relationsOn, sketchTool, toolSize } from "./sketchMode.js";
 
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
@@ -53,18 +55,39 @@ function PlanePicker({ edit, onPlane }) {
 }
 
 /**
+ * Convert Entities' own settings, as SolidWorks' PropertyManager asks for them: the edges and faces
+ * selected on the model (Entities to Convert), and Convert, which brings them into the sketch.
+ */
+function ConvertEntities({ edit, references }) {
+  const items = selectionItems(references);
+  const convert = async () => {
+    const reply = await edit.sketchOp({ kind: "convert", items });
+    if (reply?.ok) edit.setSketchTool(null);
+  };
+  return <>
+    <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Entities to Convert</p>
+    <SelectionList items={items} prompt="Select edges or a face on the model." />
+    <div className="flex justify-end px-2 pb-2 pt-1">
+      <Button type="button" size="sm" disabled={!items.length || edit.saving} onClick={() => void convert()}>Convert</Button>
+    </div>
+  </>;
+}
+
+/**
  * Sketch mode's PropertyManager, docked at the viewer's left above the design tree, as SolidWorks
  * shows one while a sketch is edited: the sketch and how defined it is; the tool in hand, what it
  * asks for next and whether it draws construction geometry; and for what is selected, the
  * relations it can take (Add Relations), the ones it has (Existing Relations, each deleted with its
  * X), a dimension's value, and For construction. The sketch tools' own settings sit with them:
- * Sketch Fillet's radius, Offset Entities' distance with Reverse direction and Select chain, and
- * the entities Mirror Entities has. In its title row Exit Sketch (a green check) builds the part
- * again and Discard Changes (a red cross) leaves it as it was.
+ * Sketch Fillet's radius, Offset Entities' distance with Reverse direction and Select chain, the
+ * entities Mirror Entities has, and the model's edges and faces Convert Entities takes. In its
+ * title row Exit Sketch (a green check) builds the part again and Discard Changes (a red cross)
+ * leaves it as it was.
  *
- * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onPlane(plane: string): void }} props
+ * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onPlane(plane: string): void, references?: object[] }} props
+ *   `references`: the faces and edges selected on the model, for Convert Entities.
  */
-export default function SketchPanel({ edit, onPlane }) {
+export default function SketchPanel({ edit, onPlane, references = [] }) {
   if (!edit.sketch) return edit.picking ? <PlanePicker edit={edit} onPlane={onPlane} /> : null;
   const { sketch } = edit;
   const state = sketch.state;
@@ -103,13 +126,14 @@ export default function SketchPanel({ edit, onPlane }) {
         <FileSheetCheckboxRow label="Reverse direction" checked={settings.offsetReverse} onCheckedChange={value => edit.setSketchSettings({ offsetReverse: Boolean(value) })} />
         <FileSheetCheckboxRow label="Select chain" checked={settings.offsetChain} onCheckedChange={value => edit.setSketchSettings({ offsetChain: Boolean(value) })} />
       </> : null}
+      {tool.id === "convert" ? <ConvertEntities edit={edit} references={references} /> : null}
       {tool.id === "mirror" && selection.length ? <>
         <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Entities to mirror</p>
         <ul aria-label="Entities to mirror" className="mx-2 mb-1.5 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">
           {selection.map(id => <li key={id} className="truncate">{id}</li>)}
         </ul>
       </> : null}
-      {tool.id !== "dimension" && tool.id !== "centerline" && !MODIFY_TOOLS.includes(tool.id) ? <FileSheetCheckboxRow label="For construction" checked={edit.construction}
+      {tool.id !== "dimension" && tool.id !== "centerline" && !MODIFY_TOOLS.includes(tool.id) && !MODEL_TOOLS.includes(tool.id) ? <FileSheetCheckboxRow label="For construction" checked={edit.construction}
         onCheckedChange={value => edit.setConstruction(Boolean(value))} /> : null}
     </FileSheetSettingsSection> : null}
     {!tool && !selection.length && state ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>

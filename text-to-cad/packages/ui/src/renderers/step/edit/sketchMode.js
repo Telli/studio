@@ -21,10 +21,13 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "trim", label: "Trim Entities", prompts: ["Click the part of a curve to cut away. It is cut back to the curves that cross it; a curve nothing crosses is deleted."] },
   { id: "offset", label: "Offset Entities", prompts: ["Click a line, an arc or a circle to offset it, and the chain it is part of."] },
   { id: "mirror", label: "Mirror Entities", prompts: ["Click the entities to mirror.", "Click more of them, or the centerline to mirror about."] },
+  { id: "convert", label: "Convert Entities", prompts: ["Select edges or a face of the model, then Convert. They come into the sketch and stay on the model as it changes."] },
 ]);
 
 /** The tools that change what is drawn rather than draw: each takes its own clicks (see `SketchOverlay.jsx`). */
 export const MODIFY_TOOLS = Object.freeze(["fillet", "trim", "offset", "mirror"]);
+/** The tools that pick on the model rather than the sketch: Convert Entities takes its edges and faces, so the model has the presses. */
+export const MODEL_TOOLS = Object.freeze(["convert"]);
 
 /** The size a sketch tool uses until one is typed, in the part's units: a fillet's radius, an offset's distance. */
 export const toolSize = (typed, units, tool) => String(typed ?? "").trim()
@@ -646,7 +649,8 @@ function listed(parts) {
  * What the agent is told when the engineer leaves a sketch they changed: the sketch, where it is
  * written, and what they did, counted ("drew 4 lines and a circle, added 3 dimensions").
  * `made` counts the session's changes by kind: lines, circles, arcs, points, dimensions,
- * relations, corners rounded, curves trimmed, chains offset, entities mirrored, deleted, moved.
+ * relations, corners rounded, curves trimmed, chains offset, entities mirrored, the model's edges
+ * and faces converted, deleted, moved.
  */
 export function sketchNote(session) {
   const made = session.made || {};
@@ -661,6 +665,9 @@ export function sketchNote(session) {
   if (made.trimmed) parts.push(`trimmed ${counted(made.trimmed, "curve")}`);
   if (made.offset) parts.push(`offset ${counted(made.offset, "chain")}`);
   if (made.mirrored) parts.push(`mirrored ${counted(made.mirrored, "entity", "entities")}`);
+  const converted = [["convertedEdge", "edge", "edges"], ["convertedFace", "face", "faces"]].filter(([key]) => made[key])
+    .map(([key, one, many]) => counted(made[key], one, many));
+  if (converted.length) parts.push(`converted ${listed(converted)} of the model`);
   if (made.moved) parts.push(`moved ${counted(made.moved, "point")}`);
   if (made.deleted) parts.push(`deleted ${counted(made.deleted, "item")}`);
   const where = `(${session.file}, line ${session.line})`;
@@ -688,5 +695,10 @@ export function countChange(made, op) {
   else if (op.kind === "trim") bump("trimmed");
   else if (op.kind === "offset") bump("offset");
   else if (op.kind === "mirror") bump("mirrored", (op.items || []).length || 1);
+  else if (op.kind === "convert") {
+    const faces = (op.items || []).filter(item => /f\d+$/.test(String(item?.selector || ""))).length;
+    if (faces) bump("convertedFace", faces);
+    if ((op.items || []).length > faces) bump("convertedEdge", op.items.length - faces);
+  }
   return next;
 }

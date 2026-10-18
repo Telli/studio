@@ -106,6 +106,13 @@ def _residual(relation, u: _Unknowns, scale: float):
 
     if kind == "fixed":
         return None
+    if kind == "on_edge":
+        # A converted entity's points are fixed where the model puts them; a circle's radius is
+        # held too, as its edge's.
+        curve = refs[0]
+        if isinstance(curve, Circle):
+            return lambda x: [u.radius(curve, x) - data["radius"]]
+        return None
     if kind == "coincident":
         a, b = refs
         if isinstance(b, Point):

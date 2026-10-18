@@ -35,6 +35,7 @@ import textwrap
 import traceback
 from contextlib import redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
 
 # ---------------------------------------------------------------------------------------------
 # Numbers that remember where they came from.
@@ -990,10 +991,15 @@ def _source_line(rel, line):
         return ""
 
 
-def _row_kind(steps):
-    """What a row of the history is, as a CAD tree names it."""
+# Copies made one by one, as edit mode's Pattern writes them up Z or about a picked axis:
+# `[Pos(0, 0, i * 12) * boss for i in range(1, 4)]`, `[boss.rotate(axis, i * 360 / 6) for i in range(1, 6)]`.
+_COPIES = re.compile(r"\[\s*(?:\w+\.rotate\(|(?:\w+\.)?Pos\().*\bfor\s+\w+\s+in\s+range\(")
+
+
+def _row_kind(steps, code=""):
+    """What a row of the history is, as a CAD tree names it (``code``: its line, as written)."""
     ops = [step["op"] for step in steps]
-    if PATTERNS & set(ops):
+    if PATTERNS & set(ops) or _COPIES.search(code or ""):
         return "Pattern"
     if "mirror" in ops:
         return "Mirror"
@@ -1035,13 +1041,22 @@ def _feature_input(kind, step, name, value, units, nth=1):
                 "formula": LITERALS[shown[1]]["text"].lstrip("-") if plain else formula(("neg", shown)), "expr": ("neg", value._e)}
     if kind == "Pattern" and step["op"] in PATTERNS and float(value) in (0, 1) and name.endswith(("count", "spacing")):
         return None  # the direction a one-row pattern does not use
+    if kind == "Pattern" and step["op"] == "move":
+        # Copies placed up Z one by one: the first's place is the spacing (`12*1` reads `12`), read
+        # as a linear pattern's spacing is.
+        if name != "z" or nth != 1:
+            return None
+        expr = value._e
+        if expr[0] == "*" and ("num", 1) in (expr[1], expr[2]):
+            expr = expr[1] if expr[2] == ("num", 1) else expr[2]
+        return _input("x_spacing", TFloat(float(value), expr), units, "GridLocations")
     return item
 
 
 def _row_summary(row, units):
     text = _source_line(row["file"], row["line"])
     target = re.match(r"^([A-Za-z_]\w*)\s*(?:[-+*]?=)", text)
-    kind = _row_kind(row["steps"])
+    kind = _row_kind(row["steps"], text)
     inputs, seen, made = [], set(), {}
     for step in row["steps"]:
         nth = made[step["op"]] = made.get(step["op"], 0) + 1
@@ -2288,11 +2303,80 @@ def _known(block, sketch, typed):
         raise sketching.SketchEditError(f"This part has no size called {missing[0]}.")
 
 
+def _convert_edges(request, path, block, sketch, entry, op):
+    """What Convert Entities brings into a sketch, as build123d's selectors on the body where the
+    sketch is made: the edges picked (``op["items"]``, as the viewer read them), and every edge of a
+    face picked. Returns the selector's code and the names it needs (``commands.Names``), which the
+    sketch's lines can use at once. An edge the part makes only after the sketch is refused, as a
+    CAD tool converts only what comes before the sketch in its tree."""
+    from cadgen.edit import commands, sketching
+
+    state = STATE.get(str(Path(request["script"]).resolve()))
+    if state is None or not isinstance(state.get("shape"), B.Shape):
+        raise sketching.SketchEditError("This part makes no body yet, so there are no edges to convert.")
+    rel = _relative(str(path))
+    try:
+        shape, before = commands.body_at(state["steps"], state["shape"], state["level"], ROOT, rel, block.first_line)
+    except commands.CommandError:
+        raise sketching.SketchEditError(f"{sketch.name} comes before the part's first feature, so there are no edges to convert yet. "
+                                        "Make the sketch after the feature whose edges it takes.") from None
+    if before.name is None:
+        raise sketching.SketchEditError("Edit mode cannot tell which name holds the body there. Ask the agent to convert the edges.")
+    module, _ = commands.build123d_names(before.tree)
+    if module is None:
+        raise sketching.SketchEditError("This part's file does not import build123d, so edit mode cannot write its edges. Ask the agent.")
+    names = commands.Names(module)
+    selections = commands.Selections(shape, before.name, names)
+    items = [item for item in op.get("items") or [] if isinstance(item, dict)]
+    edge_items = [item for item in items if commands.selector_ordinal(item.get("selector"))[0] == "edge"]
+    face_items = [item for item in items if commands.selector_ordinal(item.get("selector"))[0] == "face"]
+    if not edge_items and not face_items:
+        raise sketching.SketchEditError("Select edges or a face on the model to convert.")
+    scale = shape.bounding_box().diagonal or 1.0
+    try:
+        numbers = commands.resolve(selections.topology["edge"], edge_items, scale) if edge_items else []
+        edges = selections.topology["edge"]
+        for face in commands.resolve(selections.topology["face"], face_items, scale) if face_items else []:
+            for each in selections.topology["face"].item(face).edges():
+                if (number := edges.number(each)) and number not in numbers:
+                    numbers.append(number)
+        code = selections.write("edge", numbers)
+    except commands.CommandError as error:
+        # Picked on the part as it is now: an edge a later feature makes is not on the body there.
+        later = state["shape"]
+        try:
+            for kind, picked in (("edge", edge_items), ("face", face_items)):
+                if picked:
+                    commands.resolve(commands.Topology(later, kind), picked, later.bounding_box().diagonal or 1.0)
+        except commands.CommandError:
+            raise sketching.SketchEditError(str(error)) from None
+        raise sketching.SketchEditError(f"That is made after {sketch.name} in the design tree, so {sketch.name} cannot use it. "
+                                        f"Pick edges of a feature above {sketch.name}.") from None
+    # A file that names build123d's classes bare gets the ones the selector uses in its import, and
+    # the sketch's lines, run on their own until the part runs again, have them now.
+    for name in names.needed:
+        entry["globals"].setdefault(name, getattr(B, name))
+    return code, names
+
+
+def _imported(text, names):
+    """``text`` with the bare build123d names a written line uses added to the file's import."""
+    from cadgen.edit import commands
+
+    if not names.needed:
+        return text
+    tree = ast.parse(text)
+    module, named_import = commands.build123d_names(tree)
+    edits = commands.Edits(text)
+    commands._imports(edits, SimpleNamespace(tree=tree), module, named_import, names)
+    return edits.apply()
+
+
 def sketch_edit(request):
     """A sketch mode change (``request["sketch"]``: the sketch's ``file`` and ``line``, and the
     ``op``): a new sketch, a stroke, a relation, a dimension or its value, entities moved or
-    deleted or made construction geometry, a sketch tool (Sketch Fillet, Offset, Mirror or Trim
-    Entities), or leaving the sketch (``exit``)."""
+    deleted or made construction geometry, a sketch tool (Sketch Fillet, Offset, Mirror, Trim or
+    Convert Entities), or leaving the sketch (``exit``)."""
     from cadgen.edit import commands, sketch_tools, sketching
 
     global ROOT
@@ -2357,6 +2441,9 @@ def sketch_edit(request):
             if kind == "dimension":
                 _known(block, sketch, str(op.get("value") or ""))
             text = sketching.change(text, line, state, op, str(path))
+        elif kind == "convert":
+            edges = _convert_edges(request, path, block, sketch, entry, op)
+            text = _imported(sketch_tools.convert(text, line, state, {**op, "edges": edges[0]}, str(path)), edges[1])
         elif kind in ("fillet", "offset", "mirror", "trim"):
             if kind in ("fillet", "offset"):
                 typed = str(op.get("radius" if kind == "fillet" else "distance") or "").strip()

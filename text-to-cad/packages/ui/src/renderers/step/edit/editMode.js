@@ -321,19 +321,22 @@ export function selectionLabel(item) {
   return `${match[1] === "f" ? "Face" : "Edge"} ${match[2]}`;
 }
 
-/** The axes a hole moves along on a flat face: the two that lie in it, when its normal runs along the third. */
+/**
+ * The axes a hole moves along on a flat face: the two that lie in it, when its normal runs along
+ * the third; all three on a slanted face (the server keeps the place on the face's plane).
+ */
 export function faceOffsetAxes(normal) {
   if (!normal || normal.length !== 3) return [];
   const [x, y, z] = Array.from(normal, value => Math.abs(Number(value)));
   if (Math.abs(z - 1) < 1e-6) return ["x", "y"];
   if (Math.abs(x - 1) < 1e-6) return ["y", "z"];
   if (Math.abs(y - 1) < 1e-6) return ["x", "z"];
-  return [];
+  return ["x", "y", "z"];
 }
 
 /**
  * The axis a straight edge picked on the model runs along, as a linear pattern's Direction takes
- * an edge: "X" or "Y" from the edge's extent (`pickData.bbox`), the last one picked counting.
+ * an edge: "X", "Y" or "Z" from the edge's extent (`pickData.bbox`), the last one picked counting.
  * Null for an edge along another way, a curved one, or none.
  */
 export function edgeAxis(references = []) {
@@ -343,8 +346,28 @@ export function edgeAxis(references = []) {
   const extent = [0, 1, 2].map(axis => Math.abs(Number(max[axis]) - Number(min[axis])));
   const longest = Math.max(...extent);
   const along = extent.indexOf(longest);
-  if (!(longest > 0) || along > 1 || extent.some((value, axis) => axis !== along && value > 1e-6 * longest)) return null;
-  return along === 0 ? "X" : "Y";
+  if (!(longest > 0) || extent.some((value, axis) => axis !== along && value > 1e-6 * longest)) return null;
+  return "XYZ"[along];
+}
+
+/**
+ * What an extrude Up To Surface or Up To Vertex ends on, of the selection's items: the last flat
+ * face picked, or the last edge (whose end nearest the click is the vertex). Null for none.
+ */
+export function extrudeEnd(end, items = []) {
+  const wanted = end === "surface" ? item => /f\d+$/.test(item.selector) && item.type === "plane"
+    : end === "vertex" ? item => /e\d+$/.test(item.selector) : null;
+  return wanted ? [...items].reverse().find(wanted) || null : null;
+}
+
+/**
+ * What a circular pattern turns about, picked on the model as SolidWorks' Circular Pattern takes
+ * its axis: of the selection's items (`selectionItems`), the last round face (its axis) or
+ * straight edge picked. Null for none, when it turns about the Z axis through the origin.
+ */
+export function patternAxis(items = []) {
+  return [...items].reverse().find(item => (/f\d+$/.test(item.selector) && (item.type === "cylinder" || item.type === "cone"))
+    || (/e\d+$/.test(item.selector) && item.type === "line")) || null;
 }
 
 /**
@@ -373,11 +396,17 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
   // Edit Feature: the feature's own line written again, acting on what it acts on now.
   const replace = editing ? { replace: { row: editing.id } } : {};
   if (id === "extrude" || id === "cut") {
-    // Up To Next has no depth or direction of its own, nor a draft; Through All no depth.
+    // Up To Next has no depth or direction of its own, nor a draft; Through All no depth; Up To
+    // Surface and Up To Vertex end on what is picked, a vertex by where its edge was clicked.
     const next = values.end === "next";
-    const inputs = { end: values.end, ...(values.end === "through" || next ? {} : { depth: values.depth }), ...(next ? {} : { reverse: Boolean(values.reverse) }) };
+    const upTo = values.end === "surface" || values.end === "vertex";
+    const inputs = { end: values.end, ...(values.end === "through" || next || upTo ? {} : { depth: values.depth }),
+      ...(next || upTo ? {} : { reverse: Boolean(values.reverse) }) };
     if (values.draft && !next) Object.assign(inputs, { draft: true, draft_angle: values.draft_angle, outward: Boolean(values.outward) });
-    return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title } : null, inputs, ...replace };
+    const ending = upTo ? extrudeEnd(values.end, items) : null;
+    if (ending && values.end === "vertex" && values.vertex_at) inputs.vertex_at = values.vertex_at;
+    return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title } : null, inputs,
+      ...(ending ? { selection: [ending] } : {}), ...replace };
   }
   if (id === "revolve" || id === "revolve_cut") {
     return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title, axis: values.axis } : null,
@@ -395,13 +424,17 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       if (values.type === "countersink") Object.assign(inputs, { type: "countersink", csk_diameter: values.csk_diameter, csk_angle: values.csk_angle });
       break;
     case "mirror": inputs.plane = values.plane; break;
-    case "pattern":
+    case "pattern": {
       Object.assign(inputs, { type: values.type, count: values.count });
       if (values.type === "linear") {
         const spacing = String(values.spacing ?? "").trim();
         Object.assign(inputs, { direction: values.direction, spacing: values.reverse ? `-(${spacing})` : spacing });
       }
-      break;
+      // A circular pattern's axis, picked on the model; Edit Feature keeps its own unless one is.
+      const axis = values.type === "circular" ? patternAxis(items) : null;
+      if (editing) return { command: id, selection: axis ? [axis] : [], inputs, ...replace };
+      return { command: id, selection: axis ? [axis] : [], inputs, ...(feature?.row ? { feature } : {}) };
+    }
     default: break;
   }
   const picks = editCommand(id)?.picks;
@@ -425,6 +458,10 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
     const making = id.startsWith("revolve") ? "revolve" : "extrude";
     if (!sketch.constrained) return `${sketch.title} is drawn with build123d's shapes, not as a sketch. Ask the agent to ${making} it.`;
     if (making === "revolve" && !values.axis) return `Draw a centerline in ${sketch.title} to revolve about.`;
+    // Up To Surface and Up To Vertex wait for what they end on; Edit Feature keeps its own.
+    const keeps = editing && editing.values?.end === values.end;
+    if (values.end === "surface" && !keeps && !extrudeEnd("surface", items)) return "Select a flat face on the model to end on.";
+    if (values.end === "vertex" && !keeps && !(extrudeEnd("vertex", items) && values.vertex_at)) return "Click near the end of an edge on the model.";
     return "";
   }
   const faces = items.filter(item => /f\d+$/.test(item.selector));
