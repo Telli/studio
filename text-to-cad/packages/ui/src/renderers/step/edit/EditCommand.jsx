@@ -18,6 +18,7 @@ import {
   commandRequest,
   draftPreview,
   draftReversed,
+  planePreview,
   editCommand,
   editingValues,
   extrudeEnd,
@@ -250,9 +251,13 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     setNeutralFace({ item, pick: last.pickData || null });
     setValues(current => ({ ...current, neutral: "face", reverse: true }));
   }, [drafting, facesKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const treePlane = drafting && typeof edit.selected === "string" && edit.selected.startsWith("plane:") ? edit.selected.slice("plane:".length) : "";
+  const planing = edit.command === "plane";
+  const treePlane = (drafting || planing) && typeof edit.selected === "string" && edit.selected.startsWith("plane:")
+    ? edit.selected.slice("plane:".length) : "";
   useEffect(() => {
     if (!ORIGIN_PLANE_NAMES.has(treePlane)) return;
+    // A Plane's first reference; a draft's neutral plane.
+    if (planing) { setValues(current => ({ ...current, reference: treePlane })); return; }
     setNeutralFace(null);
     setNeutralNote("");
     setValues(current => ({ ...current, neutral: treePlane, reverse: draftReversed(treePlane, edit.state?.bounds) }));
@@ -307,6 +312,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
             : edit.command === "mirror" ? mirrorPreview(values, editing || !faces.length ? null : facePick)
               // A draft's neutral plane, and its direction of pull.
               : drafting ? draftPreview(values, neutralFace?.pick || null, edit.state?.bounds)
+                // A reference plane where it would be, and the way it is offset.
+                : planing ? planePreview(values, editing && !repicked ? null : facePick, edit.state?.bounds, units)
               // A sweep's or a loft's sketches, shaded as picked while the server previews what they make.
               : takes && picked.some(Boolean) ? { mark: "picked", sketches: picked.filter(Boolean).map(each => ({ file: each.file, line: each.line })) }
                 : null;
@@ -401,7 +408,17 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
       <FileSheetCheckboxRow label="Reverse direction" checked={Boolean(values.reverse)} disabled={disabled || !values.neutral}
         onCheckedChange={set("reverse")} />
     </FileSheetSettingsSection> : null}
-    {command.picks && !(editing && command.id === "mirror") ? <FileSheetSettingsSection
+    {/* Plane's First Reference, as SolidWorks' Plane asks for it: a flat face picked on the model, or
+        an origin plane picked in the design tree; then how far it is offset, and which way. */}
+    {planing ? <FileSheetSettingsSection title="First Reference" sectionId="edit-command-reference">
+      {faces.length ? <SelectionList items={faces} prompt="" onRemove={removePick} />
+        : <SelectionBox items={values.reference ? [{ key: "reference", label: `${values.reference} Plane` }]
+          : editing && editing.values?.reference === "face" ? [{ key: "reference", label: "Its face, as written" }] : []}
+          prompt={command.prompt} />}
+      <NumberRow label="Offset distance" value={values.distance} unit={units} disabled={disabled} onChange={set("distance")} />
+      <FileSheetCheckboxRow label="Flip offset" checked={Boolean(values.flip)} disabled={disabled} onCheckedChange={set("flip")} />
+    </FileSheetSettingsSection> : null}
+    {command.picks && !(editing && command.id === "mirror") && !planing ? <FileSheetSettingsSection
       title={command.picks === "edges" ? "Edges" : command.id === "mirror" ? "Mirror face" : drafting ? "Faces to Draft" : "Faces"}
       sectionId="edit-command-selection">
       {editing && !repicked ? <KeptList text={editing.keeps} hint={keptHint} />
@@ -440,7 +457,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
               onClear={unpick} clearLabel="Remove" />
           </>}
     </FileSheetSettingsSection> : null}
-    {takes ? null : <FileSheetSettingsSection title={revolving || extruding ? "Direction 1" : "Parameters"} sectionId="edit-command-parameters">
+    {takes || planing ? null : <FileSheetSettingsSection title={revolving || extruding ? "Direction 1" : "Parameters"} sectionId="edit-command-parameters">
       {revolving ? <>
         <NumberRow label="Angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} />
         <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />

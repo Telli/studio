@@ -64,6 +64,12 @@ by hand" below.
   `tray -= ... * bd.Cylinder(2.5/2, ...)  # M3x0.5 tapped hole`. A Straight Tap is drilled at its
   tap drill; its thread is the callout's.
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.
+- **Plane** (Reference Geometry) is a line of its own, offset from an origin plane or a flat face
+  of the body: `plane1 = bd.Plane.XY.offset(10)`, `plane2 = bd.Plane(<face>).offset(-.25*INCH)`
+  (a face's plane faces out of the part; a minus flips it). The tree lists it as Plane1, and a
+  sketch goes on it by its name: `sketch4 = Sketch("Sketch4", plane=plane1)`. A line that only
+  offsets a plane reads as a Plane; one that offsets a plane to place something reads as what it
+  places.
 - **Draft** tilts the faces picked by an angle about where they meet the neutral plane, a flat
   face of the part or an origin plane, so the part narrows along the plane's normal, its direction
   of pull: `tray = bd.draft(<faces>, -bd.Plane(<face>), 1)` (a face's own normal points out of the

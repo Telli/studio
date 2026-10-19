@@ -145,6 +145,7 @@ import {
   editCommand,
   featureNames,
   featureTree,
+  treeFeatures,
   mirrorOutline,
   nextSketchName,
   originAxis,
@@ -3279,17 +3280,21 @@ function StepSurfaceBody({ view, data }) {
   // A plane or the origin the design tree selects, or has under its pointer, drawn on the model;
   // all three while the Sketch command waits for one.
   const editPlanes = useMemo(() => {
+    // A reference Plane of the tree, drawn where it is as the origin's planes are.
+    const referencePlane = id => treeFeatures(editTree).find(feature => feature.id === id && feature.kind === "Plane" && feature.plane)?.plane;
     const planes = (edit.sketch ? [] : [...(edit.picking ? ORIGIN_PLANES.map(plane => [`plane:${plane}`, false]) : []),
       [edit.selected, true], [edit.hovered, false]]).flatMap(([id, strong]) => {
-      const points = typeof id === "string" && id.startsWith("plane:") ? planeOutline(id.slice("plane:".length), edit.state?.bounds) : null;
+      const reference = typeof id === "string" && !id.startsWith("plane:") ? referencePlane(id) : null;
+      const points = typeof id === "string" && id.startsWith("plane:") ? planeOutline(id.slice("plane:".length), edit.state?.bounds)
+        : reference ? mirrorOutline({ center: reference.origin, normal: reference.z }, edit.state?.bounds) : null;
       return points ? [{ points, strong }] : [];
     });
-    // Mirror's plane, while its panel is open: the one it mirrors about; a draft's neutral plane.
+    // Mirror's plane, while its panel is open: the one it mirrors about; a draft's neutral plane; a new reference plane.
     const mark = edit.preview?.mark;
     const mirrored = (edit.command === "mirror" && mark === "mirror") || (edit.command === "draft" && mark === "draft")
-      ? mirrorOutline(edit.preview, edit.state?.bounds) : null;
+      || (edit.command === "plane" && mark === "plane") ? mirrorOutline(edit.preview, edit.state?.bounds) : null;
     return mirrored ? [...planes, { points: mirrored, strong: true }] : planes;
-  }, [edit.selected, edit.hovered, edit.picking, edit.sketch, edit.state?.bounds, edit.command, edit.preview]);
+  }, [edit.selected, edit.hovered, edit.picking, edit.sketch, edit.state?.bounds, edit.command, edit.preview, editTree]);
   const editOrigin = !edit.sketch && (edit.selected === "origin" || edit.hovered === "origin") ? originAxis(edit.state?.bounds) : null;
   // Mass Properties' center of mass, marked on the model while its card is open.
   const massCenter = edit.mass?.center;
@@ -3319,9 +3324,12 @@ function StepSurfaceBody({ view, data }) {
       + "its sizes only. Change them in the panel, or ask the agent to redraw it as a sketch." });
   };
   const sketchOnPlane = plane => void edit.startSketch(plane, nextSketchName(editTree), edit.planeOffset);
+  // A reference Plane of the tree, selected: a sketch goes on it by its line.
+  const selectedReferencePlane = treeFeatures(editTree).find(feature => feature.id === edit.selected && feature.kind === "Plane") || null;
   const startSketchCommand = () => {
     if (selectedTreeSketch) { openTreeSketch(selectedTreeSketch); return; }
     if (typeof edit.selected === "string" && edit.selected.startsWith("plane:")) { sketchOnPlane(edit.selected.slice("plane:".length)); return; }
+    if (selectedReferencePlane) { sketchOnPlane({ feature: selectedReferencePlane.id }); return; }
     const faces = selectionItems(selectedReferences).filter(item => /f\d+$/.test(item.selector));
     if (faces.length === 1 && faces[0].type === "plane") { sketchOnPlane(faces[0]); return; }
     changeSelectMode("faces");
@@ -3335,6 +3343,7 @@ function StepSurfaceBody({ view, data }) {
   useEffect(() => {
     if (!edit.picking || edit.saving) return;
     if (typeof edit.selected === "string" && edit.selected.startsWith("plane:")) sketchOnPlane(edit.selected.slice("plane:".length));
+    else if (selectedReferencePlane) sketchOnPlane({ feature: selectedReferencePlane.id });
     else if (pickedFace) sketchOnPlane(pickedFace);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit.picking, edit.selected, pickedFace?.selector]);
@@ -3666,7 +3675,7 @@ function StepSurfaceBody({ view, data }) {
           onEdit={sketchesPickable && !edit.command ? view => openTreeSketch({ file: view.file, line: view.line, title: view.name }) : null}
           through={partExtent} /> : null}
         {editing && edit.inspecting === "mass" && massMark ? <PreviewLayer viewport={viewport} preview={null} mark={massMark} extent={partExtent} /> : null}
-        {editing && edit.command && (edit.featurePreview || ["pattern", "hole", "draft"].includes(edit.preview?.mark))
+        {editing && edit.command && (edit.featurePreview || ["pattern", "hole", "draft", "plane"].includes(edit.preview?.mark))
           ? <PreviewLayer viewport={viewport} preview={edit.featurePreview} mark={edit.preview?.mark ? edit.preview : null} extent={partExtent} />
           : null}
         {editing ? <div ref={setCommandCard} className="pointer-events-none absolute bottom-2 right-2 top-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col items-stretch"

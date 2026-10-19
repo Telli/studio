@@ -1080,6 +1080,42 @@ class Appearances(Commands):
                       (root / "block.py").read_text(encoding="utf-8"))
 
 
+class Planes(Commands):
+    """Plane, as SolidWorks' Reference Geometry offsets one: a line of its own, Plane1 in the tree,
+    that a sketch goes on."""
+
+    def test_a_plane_offset_from_the_top_plane_reopens_flipped_and_a_sketch_goes_on_it(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "plane", (), {"reference": "Top", "distance": "10"})
+        self.assertTrue(made["ok"], made.get("error"))
+        script = root / "block.py"
+        self.assertIn("    plane1 = Plane.XY.offset(10)\n", script.read_text(encoding="utf-8"))
+        plane = next(feature for feature in made["features"] if feature["kind"] == "Plane")
+        self.assertEqual(plane["plane"], {"origin": [0, 0, 10], "x": [1, 0, 0], "z": [0, 0, 1]})
+        self.assertEqual(plane["edit"], {"command": "plane", "values": {"reference": "Top", "distance": "10", "flip": False},
+                                         "keeps": "the Top Plane"})
+        spec = {"command": "plane", "inputs": {"reference": "Top", "distance": "4", "flip": True}, "replace": {"row": plane["key"]}}
+        edited = self.service.change({"file": file, "command": spec, "files": made["files"]})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertIn("    plane1 = Plane.XY.offset(-4)\n", script.read_text(encoding="utf-8"))
+        sketched = self.service.change({"file": file, "files": edited["files"], "sketch": {"op": {
+            "kind": "new", "plane": {"feature": plane["key"]}, "name": "Sketch1"}}})
+        self.assertTrue(sketched["ok"], sketched.get("error"))
+        self.assertIn('    sketch1 = Sketch("Sketch1", plane=plane1)\n', script.read_text(encoding="utf-8"))
+        self.assertEqual(sketched["sketch"]["state"]["frame"]["origin"], [0, 0, -4])
+
+    def test_a_plane_off_a_face_stands_out_of_the_part(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "plane", BLOCK_TOP, {"distance": "3"})
+        self.assertTrue(made["ok"], made.get("error"))
+        self.assertIn("    plane1 = Plane(part.faces().sort_by(Axis.Z)[-1]).offset(3)\n", (root / "block.py").read_text(encoding="utf-8"))
+        plane = next(feature for feature in made["features"] if feature["kind"] == "Plane")
+        self.assertEqual((plane["plane"]["origin"], plane["edit"]["values"]["reference"]), ([0, 0, 5], "face"))
+        refused = self.command(file, made, "plane", (), {"distance": "3"})
+        self.assertFalse(refused["ok"])
+        self.assertIn("to offset from", refused["error"])
+
+
 class Assemblies(Commands):
     """An assembly places its parts: each is modeled on its own, opened from the design tree."""
 

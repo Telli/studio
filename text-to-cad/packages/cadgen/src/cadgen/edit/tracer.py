@@ -472,6 +472,24 @@ for _name, _label in CLASSES.items():
         _wrap_class(_name, _label)
 
 
+def _wrap_plane_offset():
+    """A plane offset in the project's own code (``plane1 = Plane.XY.offset(10)``) is recorded: a
+    line that makes one alone is a reference Plane of the history, as SolidWorks lists Plane1."""
+    original = B.Plane.offset
+
+    @functools.wraps(original)
+    def offset(self, amount):
+        result = original(self, amount)
+        if RECORDING and _called_from_project():
+            _record("plane", "Plane", original, (self, amount), {}, result)
+        return result
+
+    B.Plane.offset = offset
+
+
+_wrap_plane_offset()
+
+
 def _wrap_boolean(cls, method, op, label):
     original = cls.__dict__.get(method)
     if original is None:
@@ -808,6 +826,7 @@ LABELS = {
     ("PolarLocations", "count"): "Instances",
     ("revolve", "revolution_arc"): "Angle",
     ("draft", "angle"): "Draft Angle",
+    ("plane", "amount"): "Offset Distance",
 }
 # The sizes that are angles, shown in degrees.
 ANGLES = {("revolve", "revolution_arc"), ("draft", "angle")}
@@ -1030,6 +1049,11 @@ _COPIES = re.compile(r"\[\s*(?:\w+\.rotate\(|(?:\w+\.)?Pos\().*\bfor\s+\w+\s+in\
 def _row_kind(steps, code=""):
     """What a row of the history is, as a CAD tree names it (``code``: its line, as written)."""
     ops = [step["op"] for step in steps]
+    # A line that only offsets a plane is a reference Plane; one that offsets a plane to place
+    # something is what it places.
+    if ops and all(op == "plane" for op in ops):
+        return "Plane"
+    ops = [op for op in ops if op != "plane"] or ops
     if PATTERNS & set(ops) or _COPIES.search(code or ""):
         return "Pattern"
     if "mirror" in ops:
@@ -1477,6 +1501,11 @@ def _features(summaries, timeline):
         }
         if sketch and sketch.get("rows"):
             feature["rows"] = sketch["rows"] + feature["rows"]
+        # A reference plane: where it is, for the view to draw it and a sketch to go on it.
+        made_plane = next((step["result"] for step in row["steps"] if step["op"] == "plane"), None) if kind == "Plane" else None
+        if isinstance(made_plane, B.Plane):
+            feature["plane"] = {key: [float(vector.X), float(vector.Y), float(vector.Z)]
+                                for key, vector in (("origin", made_plane.origin), ("x", made_plane.x_dir), ("z", made_plane.z_dir))}
         feature_of_row[summary["key"]] = feature
         features.append(feature)
     return [{key: value for key, value in feature.items() if key not in ("base", "solid", "folded", "flat")} for feature in features]
@@ -2665,6 +2694,15 @@ def _sketch_new(request, op):
     body_var, returned = (at_bar.name if bar is not None else body.name), []
     if plane in ("Top", "Front", "Right"):
         plane_code = f'"{plane}"'
+    elif isinstance(plane, dict) and plane.get("feature"):
+        # A reference Plane of the part (`plane1 = Plane.XY.offset(10)`): the sketch is on it, by its name.
+        rel, _, line = str(plane["feature"]).rpartition(":")
+        statement = commands._top_statement(body.function, int(line)) if rel == body.rel and line.isdigit() else None
+        plane_code = commands._assigned(statement) if statement is not None else None
+        if plane_code is None:
+            return {"ok": False, "error": "Pick a plane of this part to sketch on."}
+        if bar is not None and statement.end_lineno >= bar:
+            return {"ok": False, "error": "That plane is below the rollback bar. Move the bar below it first."}
     elif isinstance(plane, dict) and plane.get("selector"):
         # A flat face of the body, said as build123d's selectors say where it is; a body returned
         # outright is named first (`part = ...`, then `return part`) so the face can be.

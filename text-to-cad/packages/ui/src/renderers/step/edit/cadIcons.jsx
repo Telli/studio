@@ -169,6 +169,14 @@ export const DraftIcon = ({ className }) => <Icon className={className}>
   <path d="M19 17V8.5" style={{ ...ACCENT, strokeWidth: 1.1 }} strokeDasharray="1.6 1.3" />
 </Icon>;
 
+/** A plane in teal over the plane it is offset from, dashed, and the way it is offset. */
+export const ReferencePlaneIcon = ({ className }) => <Icon className={className}>
+  <path d="M2.5 19 7 14h14.5L17 19z" style={{ fill: "none", stroke: "var(--cad-solid-edge)", strokeWidth: 1.1 }} strokeDasharray="2 1.5" />
+  <path d="M2.5 9.5 7 4.5h14.5L17 9.5z" style={{ fill: "var(--cad-accent)", stroke: "var(--cad-solid-edge)", strokeWidth: 1, strokeLinejoin: "round" }}
+    opacity={0.85} />
+  <Arrow d="M12 16.5V10" head="M10 12 12 10l2 2" />
+</Icon>;
+
 /** A ball in the part's color, lit from above, as SolidWorks draws Edit Appearance. */
 export const AppearanceIcon = ({ className }) => <Icon className={className}>
   <defs>
@@ -208,4 +216,5 @@ export const COMMAND_ICONS = Object.freeze({
   extrude: ExtrudedBossIcon, cut: ExtrudedCutIcon, revolve: RevolvedBossIcon, revolve_cut: RevolvedCutIcon,
   sweep: SweptBossIcon, sweep_cut: SweptCutIcon, loft: LoftedBossIcon, loft_cut: LoftedCutIcon, rib: RibIcon,
   hole: HoleIcon, pattern: PatternIcon, mirror: MirrorIcon, fillet: FilletIcon, chamfer: ChamferIcon, shell: ShellIcon, draft: DraftIcon,
+  plane: ReferencePlaneIcon,
 });

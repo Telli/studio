@@ -103,6 +103,8 @@ export function featureTree(state) {
         sketch: feature.sketch ? sketchOf(feature, `sketch:${feature.key}`) : null,
         // What Edit Feature opens the feature's command with, when a command writes its line.
         edit: feature.edit || null,
+        // A reference Plane's place (its origin and axes), for the view to draw it.
+        plane: feature.plane || null,
         // Set aside by Suppress: its lines are comments in the script, shown greyed where they are.
         suppressed: Boolean(feature.suppressed),
       };
@@ -409,6 +411,33 @@ export function draftPreview(values, face = null, bounds = null) {
 }
 
 /**
+ * A reference plane as it would be made, for the view to draw while Plane is open: the plane at its
+ * offset (`center`, `normal`), drawn as Mirror's is, and an arrow from what it is offset from
+ * (`at`) the way it goes (`along`), tagged with the distance. `face` is a face picked (its `center`
+ * and outward `normal`); else the origin plane `values.reference` names, the arrow from the part's
+ * middle put on it. Null for none, or a distance written as a size's name.
+ */
+export function planePreview(values, face = null, bounds = null, units = "mm") {
+  const distance = plainNumber(values.distance);
+  if (distance === null) return null;
+  let at;
+  let normal;
+  if (face?.center && face?.normal) {
+    at = Array.from(face.center, Number);
+    normal = Array.from(face.normal, Number);
+  } else if (PLANE_NORMALS[values.reference]) {
+    normal = PLANE_NORMALS[values.reference];
+    const [min, max] = bounds || [[0, 0, 0], [0, 0, 0]];
+    at = [0, 1, 2].map(axis => (normal[axis] ? 0 : (min[axis] + max[axis]) / 2));
+  } else return null;
+  const length = Math.hypot(...normal) || 1;
+  const along = normal.map(value => ((values.flip ? -1 : 1) * value) / length || 0);
+  const moved = distance * (MM_PER_UNIT[units] || 1);
+  return { mark: "plane", center: at.map((value, axis) => value + along[axis] * moved), normal: normal.map(value => value / length),
+    at, along, label: sizeTag(values.distance, units) };
+}
+
+/**
  * The plane a mirror goes about, for the view to draw while Mirror is open: a face picked (its
  * `center` and `normal`), or one of the origin's planes by the axes it holds ("YZ"). Null for the
  * face a reopened mirror keeps, which the panel has no place for.
@@ -498,7 +527,8 @@ const LOFT_PROMPT = "Select the profile sketches on the model or in the design t
 /**
  * The ribbon's modeling commands, as SolidWorks' Features tab sets them out: the bosses a sketch
  * makes (Extruded, Revolved, Swept and Lofted Boss/Base), the cuts (the same four, and Hole), and
- * what changes the body (Fillet, Chamfer, Rib, Draft, Shell, Pattern, Mirror). `picks` is what the
+ * what changes the body (Fillet, Chamfer, Rib, Draft, Shell, Pattern, Mirror), and the reference
+ * geometry a sketch goes on (Plane). `picks` is what the
  * command acts on, which the Select tool's mode turns to when it opens: edges, faces, or none
  * (Pattern copies a history feature). `sketch`: it takes one sketch, selected in the design tree
  * or on the model; `sketches`: it takes several, a sweep its profile then its path, a loft its
@@ -522,10 +552,11 @@ export const EDIT_COMMANDS = Object.freeze([
   { id: "shell", label: "Shell", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
   { id: "pattern", label: "Pattern", group: "Modify", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Modify", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
+  { id: "plane", label: "Plane", group: "Reference", picks: "faces", prompt: "Select a flat face on the model, or a plane in the design tree, to offset from." },
 ]);
 
 /** The ribbon's groups of modeling commands, in its order. */
-export const COMMAND_GROUPS = Object.freeze(["Boss/Base", "Cut", "Modify"]);
+export const COMMAND_GROUPS = Object.freeze(["Boss/Base", "Cut", "Modify", "Reference"]);
 
 export const editCommand = id => EDIT_COMMANDS.find(command => command.id === id) || null;
 
@@ -545,6 +576,8 @@ export function commandDefaults(id, units) {
     case "shell": return { thickness: size.thickness };
     // A draft's neutral plane is picked: an origin plane's name, or "face" for a face of the part.
     case "draft": return { angle: size.draft, neutral: "", reverse: false };
+    // A plane's first reference is picked: an origin plane's name, or a face of the part.
+    case "plane": return { reference: "", distance: size.depth, flip: false };
     case "mirror": return { plane: "YZ" };
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
     case "extrude":
@@ -686,6 +719,12 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
     return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title, axis: values.axis } : null,
       inputs: { angle: values.angle, reverse: Boolean(values.reverse) }, ...replace };
   }
+  if (id === "plane") {
+    // Offset from a face picked on the model, else from the origin plane picked in the tree.
+    const face = items.find(item => /f\d+$/.test(item.selector)) || null;
+    return { command: id, selection: face ? [face] : [], inputs: { reference: face ? "face" : values.reference || "", distance: values.distance,
+      flip: Boolean(values.flip) }, ...replace };
+  }
   if (id === "draft") {
     // The neutral plane: an origin plane by its name, or a face picked on the model (marked `neutral` among the items).
     const neutral = items.find(item => item.neutral) || null;
@@ -766,6 +805,11 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
     if (values.end === "vertex" && !keeps && !(extrudeEnd("vertex", items) && values.vertex_at)) return "Click near the end of an edge on the model.";
     return "";
   }
+  if (id === "plane") {
+    const faces = items.filter(item => /f\d+$/.test(item.selector));
+    if (faces.length > 1) return "Select one face.";
+    return editing || faces.length || values.reference ? "" : "Select a plane in the design tree, or a flat face on the model.";
+  }
   if (id === "draft") {
     if (!editing && !items.some(item => !item.neutral && /f\d+$/.test(item.selector))) return "Select the faces to draft.";
     return values.neutral || items.some(item => item.neutral) ? "" : "Select the neutral plane: a flat face on the model, or a plane in the design tree.";
@@ -807,6 +851,7 @@ export function chooseSteps(id, { listed = [], sketch = null, values = {}, endin
     case "shell": return [{ input: "faces to open", done: listed.length > 0 || kept }];
     // As SolidWorks' Draft walks through its boxes: the neutral plane, then the faces it tilts.
     case "draft": return [{ input: "the neutral plane", done: Boolean(values.neutral) }, { input: "faces to draft", done: listed.length > 0 || kept }];
+    case "plane": return [{ input: "a plane or a flat face to offset from", done: Boolean(values.reference) || listed.length > 0 || kept }];
     case "hole": return [{ input: "a flat face for the hole", done: listed.length === 1 || (kept && !listed.length) }];
     default: return [];
   }
@@ -867,6 +912,14 @@ export function deleteRefusal(reply, tree, title, verb = "Delete") {
 }
 
 /** What Suppress or Unsuppress of a feature tells the agent, and what its Undo and Redo do. */
+/** A reference plane's offset, as the design tree says it beside its name: "Top Plane, 10 mm", "Face, -4 mm". */
+export function planeDetail(feature, units) {
+  const values = feature?.edit?.values;
+  if (!values?.reference) return "";
+  const from = values.reference === "face" ? "Face" : `${values.reference} Plane`;
+  return `${from}, ${values.flip ? "-" : ""}${withUnit(values.distance, units)}`;
+}
+
 /** What the agent is told of an Appearance: the part's new color, and where it is written. */
 export function appearanceNote(change, { undo = false, redo = false } = {}) {
   const where = `(${change.file}, line ${change.line})`;

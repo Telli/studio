@@ -696,15 +696,15 @@ def splice(text: str, changes: list[dict]) -> str:
 # The commands.
 
 COMMANDS = ("fillet", "chamfer", "hole", "shell", "draft", "mirror", "pattern", "extrude", "cut", "revolve", "revolve_cut", "sweep",
-            "sweep_cut", "loft", "loft_cut", "rib")
+            "sweep_cut", "loft", "loft_cut", "rib", "plane")
 FEATURE_WORDS = {"fillet": "Fillet", "chamfer": "Chamfer", "hole": "Hole", "shell": "Shell", "draft": "Draft", "mirror": "Mirror",
                  "pattern": "Pattern", "extrude": "Boss-Extrude", "cut": "Cut-Extrude", "revolve": "Boss-Revolve", "revolve_cut": "Cut-Revolve",
-                 "sweep": "Boss-Sweep", "sweep_cut": "Cut-Sweep", "loft": "Boss-Loft", "loft_cut": "Cut-Loft", "rib": "Rib"}
+                 "sweep": "Boss-Sweep", "sweep_cut": "Cut-Sweep", "loft": "Boss-Loft", "loft_cut": "Cut-Loft", "rib": "Rib", "plane": "Plane"}
 # The operation each command's line records in the tracer.
 RECORDS = {"fillet": ("fillet",), "chamfer": ("chamfer",), "hole": ("cut",), "shell": ("offset",), "draft": ("draft",),
            "mirror": ("mirror",), "pattern": ("GridLocations", "PolarLocations"), "extrude": ("extrude",), "cut": ("extrude",),
            "revolve": ("revolve",), "revolve_cut": ("revolve",), "sweep": ("sweep",), "sweep_cut": ("sweep",), "loft": ("loft",),
-           "loft_cut": ("loft",), "rib": ("rib",)}
+           "loft_cut": ("loft",), "rib": ("rib",), "plane": ("plane",)}
 # The origin's planes as the design tree names them, and as build123d does.
 ORIGIN_PLANES = {"Top": "XY", "Front": "XZ", "Right": "YZ"}
 # The faces a draft tilts, as OCCT's draft takes them.
@@ -1095,6 +1095,29 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         shown = [("Thickness", thickness, units_word)]
         selected = None if fixed else {"argument": "openings", "items": [selections.topology["face"].describe(n) for n in numbers]}
         what = fixed.keeps if fixed else f"{counted(len(numbers), 'face')} open"
+    elif command == "plane":
+        # Plane, as SolidWorks' Reference Geometry offsets one: from an origin plane, or a flat face
+        # of the body (out of the part as it is turned, into it flipped), named Plane1 in the tree.
+        which = str(inputs.get("reference") or "").strip()
+        if any(selector_ordinal(item.get("selector"))[0] == "face" for item in selection):
+            numbers, face = chosen("face", one=True)
+            if selections.topology["face"].describe(numbers[0])["type"] != "plane":
+                raise CommandError("A plane is offset from a flat face. Select a flat one, or a plane in the design tree.")
+            base, words = f"{names('Plane')}({face})", "a face"
+        elif which in ORIGIN_PLANES:
+            base, words = f"{names('Plane')}.{ORIGIN_PLANES[which]}", f"the {which} Plane"
+        elif kept is not None and kept.parts.get("base"):
+            base, words = kept.parts["base"], kept.keeps
+        else:
+            raise CommandError("Select a plane in the design tree, or a flat face on the model, to offset from.")
+        distance = _value(inputs, "distance", "Offset distance", parse, positive=False, minimum=0)
+        written = same("distance", distance, writer.length(distance))
+        flip = inputs.get("flip") in (True, "true", "1", 1)
+        taken = _names_in(body.tree)
+        target = kept.target if kept is not None else next(f"plane{n}" for n in itertools.count(1) if f"plane{n}" not in taken)
+        code = f"{target} = {base}.offset({'-' + _term(written) if flip and distance else written})"
+        shown = [("Offset distance", distance, units_word)]
+        what = f"{writer.number(distance)} {units_word} {'below' if flip else 'from'} {words}".replace("  ", " ")
     elif command == "draft":
         # Draft, as SolidWorks' Neutral Plane draft: the faces tilt by the angle about where they
         # meet the neutral plane, so the part narrows the way the plane faces, its direction of pull.
@@ -1607,6 +1630,20 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         held("angle", written, angle)
         return Feature("draft", {"angle": _number(angle, False) if angle is not None else "", "neutral": neutral, "reverse": reverse},
                        counted_items(("draft", "faces"), "face"), {"faces": code(drafted), "neutral": code(inner)}, target, operator, codes)
+    if (operator == "=" and name == "offset" and isinstance(value.func, ast.Attribute) and len(value.args) == 1 and not value.keywords):
+        # A reference plane, `plane1 = Plane.XY.offset(10)`: from an origin plane, or a face's.
+        base = value.func.value
+        origin = {axes: plane for plane, axes in ORIGIN_PLANES.items()}
+        reference = origin.get(base.attr) if isinstance(base, ast.Attribute) else "face" if _call_name(base) == "Plane" and base.args else None
+        if reference is None:
+            return None
+        amount = number(("plane", "amount"))
+        written = value.args[0]
+        flip = isinstance(written, ast.UnaryOp) and isinstance(written.op, ast.USub)
+        held("distance", written.operand if flip else written, typed(abs(amount)) if amount is not None else None,
+             _tight(written.operand, text) if flip else None)
+        return Feature("plane", {"reference": reference, "distance": size(abs(amount)) if amount is not None else "", "flip": flip},
+                       "a face" if reference == "face" else f"the {reference} Plane", {"base": code(base)}, target, operator, codes)
     if operator in ("+=", "-=") and name == "mirror" and value.args:
         about = _keyword_value(value, "about")
         plane = about.attr if isinstance(about, ast.Attribute) and about.attr in PLANES else "face"

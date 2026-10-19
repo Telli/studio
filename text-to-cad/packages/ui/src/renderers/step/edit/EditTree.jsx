@@ -3,7 +3,7 @@ import { LoaderCircle } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@text-to-cad/ui/primitives/context-menu";
 import { TREE_INDENT_PX, TreeRowChevron, TreeRowSurface } from "@text-to-cad/ui/primitives/tree-row";
 import { FileSheetValueInput } from "../../kit/inspector/FileSheet.js";
-import { ORIGIN_PLANES, barIndex, rolledBack, sizeName, treeFeatures } from "./editMode.js";
+import { ORIGIN_PLANES, barIndex, planeDetail, rolledBack, sizeName, treeFeatures } from "./editMode.js";
 import { AssemblyIcon, FeatureIcon, OriginIcon, ParametersIcon, PartIcon, PlaneIcon, SketchIcon } from "./featureIcons.jsx";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
@@ -197,7 +197,8 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     if (feature.kind === "Sketch") return [sketchRow(feature.sketch, depth, feature, out)];
     const branch = Boolean(feature.sketch);
     const expanded = open.has(feature.id);
-    const detail = feature.suppressed ? "Suppressed" : `${feature.name}${feature.count > 1 ? ` ×${feature.count}` : ""}`;
+    const detail = feature.suppressed ? "Suppressed" : feature.kind === "Plane" ? planeDetail(feature, edit.state?.units || "")
+      : `${feature.name}${feature.count > 1 ? ` ×${feature.count}` : ""}`;
     const edits = [...featureItem(feature), ...editItem(feature.sketch)];
     const grey = feature.suppressed || out;
     const slot = partItems.findIndex(each => each.id === feature.id);

@@ -220,3 +220,16 @@ it("Appearance opens on the part's color, and OK writes the swatch or the hex pi
   await user.click(screen.getByRole('button', { name: 'OK' }));
   expect(painting.paint).toHaveBeenLastCalledWith('#2E3742');
 });
+
+it("a plane is offset from the origin plane clicked in the design tree, drawn where it would be", async () => {
+  const user = userEvent.setup();
+  const plane = { ...edit('plane', 'plane:Front'), state: { units: 'mm', rows: ROWS, bounds: [[-10, -5, 0], [10, 5, 4]] } };
+  render(<EditCommand edit={plane as never} names={NAMES} references={[]} />);
+  expect(screen.getByText('Front Plane')).toBeTruthy();
+  expect(screen.getByText('Review the preview, then press OK.')).toBeTruthy();
+  expect(plane.setPreview).toHaveBeenLastCalledWith({ mark: 'plane', center: [0, -5, 2], normal: [0, -1, 0], at: [0, 0, 2], along: [0, -1, 0],
+    label: '5 mm' });
+  await user.click(screen.getByRole('checkbox', { name: 'Flip offset' }));
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(plane.run).toHaveBeenCalledWith({ command: 'plane', selection: [], inputs: { reference: 'Front', distance: '5', flip: true } });
+});

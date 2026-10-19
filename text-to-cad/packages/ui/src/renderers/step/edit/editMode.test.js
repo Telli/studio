@@ -25,6 +25,8 @@ import {
   deleteNote,
   deleteRefusal,
   editingValues,
+  planeDetail,
+  planePreview,
   appearanceNote,
   renameNote,
   draggedDepth,
@@ -519,7 +521,8 @@ test("a sweep takes its profile then its path, a loft its profiles in order, a r
   assert.equal(commandBlocked("rib", [], null, commandDefaults("rib", "mm")), "Select a sketch of the rib's line.");
   // The ribbon's groups, as SolidWorks' Features tab sets them out.
   assert.deepEqual(COMMAND_GROUPS.map(group => EDIT_COMMANDS.filter(command => command.group === group).map(command => command.id)),
-    [["extrude", "revolve", "sweep", "loft"], ["cut", "revolve_cut", "sweep_cut", "loft_cut", "hole"], ["fillet", "chamfer", "rib", "draft", "shell", "pattern", "mirror"]]);
+    [["extrude", "revolve", "sweep", "loft"], ["cut", "revolve_cut", "sweep_cut", "loft_cut", "hole"], ["fillet", "chamfer", "rib", "draft", "shell", "pattern", "mirror"],
+      ["plane"]]);
 });
 
 test("an extrude's Thin Feature sends its wall, inside the outline unless said otherwise, and is the server's to preview", () => {
@@ -557,4 +560,26 @@ test("a color picked tells the agent the hex and where it is written", () => {
   const change = { kind: "appearance", color: "#B7A1D7", file: "parts/tray.py", line: 38 };
   assert.equal(appearanceNote(change), "In edit mode I colored the part #B7A1D7 (parts/tray.py, line 38).");
   assert.equal(appearanceNote(change, { undo: true }), "In edit mode I took back coloring the part #B7A1D7 (parts/tray.py, line 38).");
+});
+
+test("a reference plane is offset from an origin plane picked in the tree, or from a face, and says so in the tree", () => {
+  const top = { selector: "f1", type: "plane", center: [0, 0, 2], size: 200 };
+  const opened = commandDefaults("plane", "mm");
+  assert.deepEqual(opened, { reference: "", distance: "5", flip: false });
+  assert.equal(chooseLine(chooseSteps("plane", { values: opened })), "1 of 1: Select a plane or a flat face to offset from");
+  assert.equal(commandBlocked("plane", [], null, opened), "Select a plane in the design tree, or a flat face on the model.");
+  assert.deepEqual(commandRequest("plane", { ...opened, reference: "Front" }, [], null),
+    { command: "plane", selection: [], inputs: { reference: "Front", distance: "5", flip: false } });
+  // A face picked is what it is offset from.
+  assert.deepEqual(commandRequest("plane", { ...opened, reference: "Front", flip: true }, [top], null),
+    { command: "plane", selection: [top], inputs: { reference: "face", distance: "5", flip: true } });
+  // Drawn 10 above the Top Plane over the part's middle, its arrow up; flipped, down.
+  const bounds = [[-10, -5, 0], [10, 5, 4]];
+  assert.deepEqual(planePreview({ reference: "Top", distance: "10" }, null, bounds),
+    { mark: "plane", center: [0, 0, 10], normal: [0, 0, 1], at: [0, 0, 0], along: [0, 0, 1], label: "10 mm" });
+  assert.deepEqual(planePreview({ reference: "Top", distance: "1", flip: true }, { center: [0, 0, 2], normal: [0, 0, 1] }, bounds, "in").center,
+    [0, 0, 2 - 25.4]);
+  assert.equal(planePreview({ reference: "Top", distance: "OFFSET" }, null, bounds), null);
+  assert.equal(planeDetail({ edit: { values: { reference: "Top", distance: "10", flip: true } } }, "mm"), "Top Plane, -10 mm");
+  assert.equal(planeDetail({ edit: { values: { reference: "face", distance: ".5", flip: false } } }, "in"), "Face, .5 in");
 });
