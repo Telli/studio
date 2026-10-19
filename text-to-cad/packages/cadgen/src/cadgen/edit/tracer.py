@@ -486,6 +486,22 @@ def _wrap_plane_offset():
 
     B.Plane.offset = offset
 
+    # Turned At angle (``Plane.XY.offset(10).rotated((30, 0, 0))``): recorded as how far about each
+    # of its own axes, so the angle is the plane's to show and change.
+    turned = B.Plane.rotated
+
+    def angles(self, x_angle=0, y_angle=0, z_angle=0):
+        """A plane's turn about its own x, y and z axes, in degrees, as the trace names them."""
+
+    @functools.wraps(turned)
+    def rotated(self, rotation=(0, 0, 0), *args, **kwargs):
+        result = turned(self, rotation, *args, **kwargs)
+        if RECORDING and _called_from_project() and isinstance(rotation, (tuple, list)) and len(rotation) == 3:
+            _record("plane", "Plane", angles, (self, *rotation), {}, result)
+        return result
+
+    B.Plane.rotated = rotated
+
 
 _wrap_plane_offset()
 
@@ -829,9 +845,11 @@ LABELS = {
     ("revolve", "revolution_arc"): "Angle",
     ("draft", "angle"): "Draft Angle",
     ("plane", "amount"): "Offset Distance",
+    ("plane", "x_angle"): "Angle",
+    ("plane", "y_angle"): "Angle",
 }
 # The sizes that are angles, shown in degrees.
-ANGLES = {("revolve", "revolution_arc"), ("draft", "angle"), ("chamfer", "angle")}
+ANGLES = {("revolve", "revolution_arc"), ("draft", "angle"), ("chamfer", "angle"), ("plane", "x_angle"), ("plane", "y_angle")}
 
 
 def _input(name, value, units, op=None):
@@ -1516,7 +1534,7 @@ def _features(summaries, timeline):
         if sketch and sketch.get("rows"):
             feature["rows"] = sketch["rows"] + feature["rows"]
         # A reference plane: where it is, for the view to draw it and a sketch to go on it.
-        made_plane = next((step["result"] for step in row["steps"] if step["op"] == "plane"), None) if kind == "Plane" else None
+        made_plane = ([step["result"] for step in row["steps"] if step["op"] == "plane"] or [None])[-1] if kind == "Plane" else None
         if isinstance(made_plane, B.Plane):
             feature["plane"] = {key: [float(vector.X), float(vector.Y), float(vector.Z)]
                                 for key, vector in (("origin", made_plane.origin), ("x", made_plane.x_dir), ("z", made_plane.z_dir))}

@@ -422,7 +422,7 @@ export const referencePlanes = tree => treeFeatures(tree).filter(feature => feat
   .map(feature => ({ id: feature.id, value: `named:${feature.variable}`, label: feature.title, plane: feature.plane }));
 
 /** A reference plane's place as a face's is given to a preview: its `center` and `normal`. */
-export const planeAt = named => (named?.plane ? { center: named.plane.origin, normal: named.plane.z } : null);
+export const planeAt = named => (named?.plane ? { center: named.plane.origin, normal: named.plane.z, x: named.plane.x } : null);
 
 /**
  * A draft's neutral plane and its direction of pull, for the view to draw while Draft is open: the
@@ -458,19 +458,41 @@ export function planePreview(values, face = null, bounds = null, units = "mm") {
   if (distance === null) return null;
   let at;
   let normal;
+  let x = face?.x ? Array.from(face.x, Number) : null;
   if (face?.center && face?.normal) {
     at = Array.from(face.center, Number);
     normal = Array.from(face.normal, Number);
   } else if (PLANE_NORMALS[values.reference]) {
     normal = PLANE_NORMALS[values.reference];
+    x = PLANE_X[values.reference];
     const [min, max] = bounds || [[0, 0, 0], [0, 0, 0]];
     at = [0, 1, 2].map(axis => (normal[axis] ? 0 : (min[axis] + max[axis]) / 2));
   } else return null;
   const length = Math.hypot(...normal) || 1;
   const along = normal.map(value => ((values.flip ? -1 : 1) * value) / length || 0);
   const moved = distance * (MM_PER_UNIT[units] || 1);
-  return { mark: "plane", center: at.map((value, axis) => value + along[axis] * moved), normal: normal.map(value => value / length),
-    at, along, label: sizeTag(values.distance, units) };
+  const unitNormal = normal.map(value => value / length);
+  // At angle: the normal turned about the plane's own X or Y axis (Y = Z x X), by the right hand.
+  const degrees = turnedAngle(values.angle);
+  const axis = degrees && x ? (values.about === "y" ? crossOf(unitNormal, x) : x) : null;
+  return { mark: "plane", center: at.map((value, index) => value + along[index] * moved),
+    normal: axis ? turnedAbout(unitNormal, axis, degrees) : unitNormal, at, along,
+    label: degrees ? `${sizeTag(values.distance, units)}, ${degrees}°` : sizeTag(values.distance, units) };
+}
+
+// The origin planes' X axes, as build123d's Plane.XY, Plane.XZ and Plane.YZ have them.
+const PLANE_X = Object.freeze({ Top: [1, 0, 0], Front: [1, 0, 0], Right: [0, 1, 0] });
+// A plane's angle as typed, in degrees, or 0 for none (or one that is not a plain number).
+const turnedAngle = typed => plainNumber(typed) || 0;
+const crossOf = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+/** `v` turned about the unit `axis` by `degrees`, by the right hand (Rodrigues). */
+function turnedAbout(v, axis, degrees) {
+  const angle = (degrees * Math.PI) / 180;
+  const length = Math.hypot(...axis) || 1;
+  const k = axis.map(value => value / length);
+  const across = crossOf(k, v);
+  const along = k[0] * v[0] + k[1] * v[1] + k[2] * v[2];
+  return [0, 1, 2].map(index => v[index] * Math.cos(angle) + across[index] * Math.sin(angle) + k[index] * along * (1 - Math.cos(angle)));
 }
 
 /**
@@ -614,7 +636,7 @@ export function commandDefaults(id, units) {
     // A draft's neutral plane is picked: an origin plane's name, or "face" for a face of the part.
     case "draft": return { angle: size.draft, neutral: "", reverse: false };
     // A plane's first reference is picked: an origin plane's name, or a face of the part.
-    case "plane": return { reference: "", distance: size.depth, flip: false };
+    case "plane": return { reference: "", distance: size.depth, flip: false, angle: "0", about: "x" };
     case "mirror": return { plane: "YZ" };
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
     case "extrude":
@@ -766,8 +788,10 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
   if (id === "plane") {
     // Offset from a face picked on the model, else from the origin plane picked in the tree.
     const face = items.find(item => /f\d+$/.test(item.selector)) || null;
+    // At angle: turned about its own X or Y axis.
+    const turned = turnedAngle(values.angle) ? { angle: String(values.angle).trim(), about: values.about === "y" ? "y" : "x" } : {};
     return { command: id, selection: face ? [face] : [], inputs: { reference: face ? "face" : values.reference || "", distance: values.distance,
-      flip: Boolean(values.flip) }, ...replace };
+      flip: Boolean(values.flip), ...turned }, ...replace };
   }
   if (id === "draft") {
     // The neutral plane: an origin plane by its name, or a face picked on the model (marked `neutral` among the items).
@@ -972,7 +996,8 @@ export function planeDetail(feature, units) {
   const values = feature?.edit?.values;
   if (!values?.reference) return "";
   const from = values.reference === "face" ? "Face" : `${values.reference} Plane`;
-  return `${from}, ${values.flip ? "-" : ""}${withUnit(values.distance, units)}`;
+  const turned = turnedAngle(values.angle) ? `, ${values.angle}° about ${values.about === "y" ? "Y" : "X"}` : "";
+  return `${from}, ${values.flip ? "-" : ""}${withUnit(values.distance, units)}${turned}`;
 }
 
 /** What the agent is told of an Appearance: the part's new color, and where it is written. */

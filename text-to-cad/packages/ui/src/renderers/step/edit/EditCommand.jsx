@@ -72,6 +72,8 @@ const LISTED = 8;
 // The origin's planes Mirror goes about, by their axes, named as the design tree names them.
 const PLANES = Object.freeze([{ value: "XZ", label: "Front Plane" }, { value: "XY", label: "Top Plane" }, { value: "YZ", label: "Right Plane" }]);
 const PATTERNS = Object.freeze([{ value: "linear", label: "Linear" }, { value: "circular", label: "Circular" }]);
+// The axes a plane At angle turns about: its own.
+const TURN_AXES = Object.freeze([{ value: "x", label: "Its X axis" }, { value: "y", label: "Its Y axis" }]);
 const DIRECTIONS = Object.freeze([{ value: "X", label: "Along X" }, { value: "Y", label: "Along Y" }, { value: "Z", label: "Along Z" }]);
 // A mirror Edit Feature reopens that was made about a face of the part: that face again.
 const SAME_FACE = Object.freeze({ value: "face", label: "Same face" });
@@ -465,6 +467,10 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
           prompt={command.prompt} />}
       <NumberRow label="Offset distance" value={values.distance} unit={units} disabled={disabled} onChange={set("distance")} />
       <FileSheetCheckboxRow label="Flip offset" checked={Boolean(values.flip)} disabled={disabled} onCheckedChange={set("flip")} />
+      {/* At angle, as SolidWorks' Plane turns one: about its own X or Y axis, through its origin. */}
+      <NumberRow label="Angle" value={values.angle ?? "0"} unit="deg" disabled={disabled} onChange={set("angle")} />
+      {Number(values.angle) ? <FileSheetSelectRow label="About" value={values.about === "y" ? "y" : "x"} options={TURN_AXES}
+        onValueChange={set("about")} /> : null}
     </FileSheetSettingsSection> : null}
     {command.picks && !(editing && command.id === "mirror") && !planing ? <FileSheetSettingsSection
       title={command.picks === "edges" ? "Edges" : command.id === "mirror" ? "Mirror face" : drafting ? "Faces to Draft" : "Faces"}

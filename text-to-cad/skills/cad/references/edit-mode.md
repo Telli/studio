@@ -77,7 +77,8 @@ by hand" below.
   (`about=plane1`), a draft's neutral plane (`draft(<faces>, plane1, 2)`) and another plane
   (`plane2 = plane1.offset(5)`), each written after the plane's own line. A line that only
   offsets a plane reads as a Plane; one that offsets a plane to place something reads as what it
-  places.
+  places. At angle turns it about its own X or Y axis through its origin, by the right hand:
+  `plane3 = bd.Plane.XZ.offset(0).rotated((30, 0, 0))`, `.rotated((0, 30, 0))` about its Y.
 - **Draft** tilts the faces picked by an angle about where they meet the neutral plane, a flat
   face of the part or an origin plane, so the part narrows along the plane's normal, its direction
   of pull: `tray = bd.draft(<faces>, -bd.Plane(<face>), 1)` (a face's own normal points out of the

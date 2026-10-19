@@ -1171,6 +1171,16 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         code = f"{target} = {base}.offset({'-' + _term(written) if flip and distance else written})"
         shown = [("Offset distance", distance, units_word)]
         what = f"{writer.number(distance)} {units_word} from {words}{', flipped' if flip else ''}".replace("  ", " ")
+        # At angle, as SolidWorks' second reference turns a plane: about its own X or Y axis, through its origin.
+        angle = _value(inputs, "angle", "Angle", parse, positive=False) if str(inputs.get("angle", "")).strip() else 0.0
+        if not -180 < angle < 180:
+            raise CommandError("A plane turns less than 180 degrees either way.")
+        if angle:
+            about = "y" if str(inputs.get("about") or "x").lower() == "y" else "x"
+            turned = same("angle", angle, writer.number(angle))
+            code += f".rotated(({turned}, 0, 0))" if about == "x" else f".rotated((0, {turned}, 0))"
+            shown.append(("Angle", angle, "deg"))
+            what += f", turned {writer.number(angle)} degrees about its {about.upper()} axis"
     elif command == "draft":
         # Draft, as SolidWorks' Neutral Plane draft: the faces tilt by the angle about where they
         # meet the neutral plane, so the part narrows the way the plane faces, its direction of pull.
@@ -1739,6 +1749,11 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         held("angle", written, angle)
         return Feature("draft", {"angle": _number(angle, False) if angle is not None else "", "neutral": neutral, "reverse": reverse},
                        counted_items(("draft", "faces"), "face"), {"faces": code(drafted), "neutral": code(inner)}, target, operator, codes)
+    # At angle: the offset plane turned about its own X or Y axis, `.rotated((30, 0, 0))`.
+    turn = None
+    if (operator == "=" and name == "rotated" and isinstance(value.func, ast.Attribute) and len(value.args) == 1
+            and isinstance(value.args[0], ast.Tuple) and len(value.args[0].elts) == 3 and _call_name(value.func.value) == "offset"):
+        turn, value, name = value.args[0], value.func.value, "offset"
     if (operator == "=" and name == "offset" and isinstance(value.func, ast.Attribute) and len(value.args) == 1 and not value.keywords):
         # A reference plane, `plane1 = Plane.XY.offset(10)`: from an origin plane, or a face's.
         base = value.func.value
@@ -1752,7 +1767,14 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         flip = isinstance(written, ast.UnaryOp) and isinstance(written.op, ast.USub)
         held("distance", written.operand if flip else written, typed(abs(amount)) if amount is not None else None,
              _tight(written.operand, text) if flip else None)
-        return Feature("plane", {"reference": reference, "distance": size(abs(amount)) if amount is not None else "", "flip": flip},
+        values = {"reference": reference, "distance": size(abs(amount)) if amount is not None else "", "flip": flip}
+        if turn is not None:
+            about = "y" if number(("plane", "y_angle")) else "x"
+            angle = number(("plane", f"{about}_angle"))
+            if angle is not None:
+                values.update(angle=_number(angle, False), about=about)
+                held("angle", turn.elts[0 if about == "x" else 1], angle)
+        return Feature("plane", values,
                        "a face" if reference == "face" else reference.partition(":")[2] if reference.startswith("named:") else f"the {reference} Plane",
                        {"base": code(base)}, target, operator, codes)
     if operator in ("+=", "-=") and name == "mirror" and value.args:

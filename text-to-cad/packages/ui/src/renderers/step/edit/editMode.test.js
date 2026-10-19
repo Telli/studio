@@ -588,7 +588,7 @@ test("a color picked tells the agent the hex and where it is written", () => {
 test("a reference plane is offset from an origin plane picked in the tree, or from a face, and says so in the tree", () => {
   const top = { selector: "f1", type: "plane", center: [0, 0, 2], size: 200 };
   const opened = commandDefaults("plane", "mm");
-  assert.deepEqual(opened, { reference: "", distance: "5", flip: false });
+  assert.deepEqual(opened, { reference: "", distance: "5", flip: false, angle: "0", about: "x" });
   assert.equal(chooseLine(chooseSteps("plane", { values: opened })), "1 of 1: Select a plane or a flat face to offset from");
   assert.equal(commandBlocked("plane", [], null, opened), "Select a plane in the design tree, or a flat face on the model.");
   assert.deepEqual(commandRequest("plane", { ...opened, reference: "Front" }, [], null),
@@ -605,6 +605,14 @@ test("a reference plane is offset from an origin plane picked in the tree, or fr
   assert.equal(planePreview({ reference: "Top", distance: "OFFSET" }, null, bounds), null);
   assert.equal(planeDetail({ edit: { values: { reference: "Top", distance: "10", flip: true } } }, "mm"), "Top Plane, -10 mm");
   assert.equal(planeDetail({ edit: { values: { reference: "face", distance: ".5", flip: false } } }, "in"), "Face, .5 in");
+  // At angle: the Front Plane's normal, -Y, turned 30 degrees about its X axis by the right hand; sent with the axis.
+  const turned = planePreview({ reference: "Front", distance: "0", angle: "30", about: "x" }, null, bounds);
+  assert.deepEqual(turned.normal.map(value => Math.round(value * 1e6) / 1e6 + 0), [0, -0.866025, -0.5]);
+  assert.equal(turned.label, "0 mm, 30°");
+  assert.deepEqual(commandRequest("plane", { ...opened, reference: "Front", angle: "30", about: "y" }, [], null).inputs,
+    { reference: "Front", distance: "5", flip: false, angle: "30", about: "y" });
+  assert.equal(planeDetail({ edit: { values: { reference: "Top", distance: "10", flip: false, angle: "15", about: "y" } } }, "mm"),
+    "Top Plane, 10 mm, 15° about Y");
 });
 
 test("the part's reference planes are what a mirror, a draft or a plane can go from, by the names the script holds them in", () => {

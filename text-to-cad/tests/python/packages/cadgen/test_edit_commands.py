@@ -1208,6 +1208,28 @@ class Planes(Commands):
         self.assertIn('    sketch1 = Sketch("Sketch1", plane=plane1)\n', script.read_text(encoding="utf-8"))
         self.assertEqual(sketched["sketch"]["state"]["frame"]["origin"], [0, 0, -4])
 
+    def test_a_plane_at_an_angle_turns_about_its_own_axis_and_reopens_with_it(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "plane", (), {"reference": "Front", "distance": "0", "angle": "30", "about": "x"})
+        self.assertTrue(made["ok"], made.get("error"))
+        script = root / "block.py"
+        self.assertIn("    plane1 = Plane.XZ.offset(0).rotated((30, 0, 0))\n", script.read_text(encoding="utf-8"))
+        plane = next(feature for feature in made["features"] if feature["kind"] == "Plane")
+        # The Front Plane's normal, -Y, turned 30 degrees about its X axis by the right hand.
+        self.assertEqual([round(value, 6) + 0 for value in plane["plane"]["z"]], [0, -0.866025, -0.5])
+        self.assertEqual({key: plane["edit"]["values"].get(key) for key in ("angle", "about")}, {"angle": "30", "about": "x"})
+        row = next(row for row in made["rows"] if row["key"] == plane["key"])
+        self.assertIn(("Angle", 30.0, "deg"), [(item["label"], item["value"], item["unit"]) for item in row["inputs"]])
+        # About its Y axis instead, then back to square: the turn goes.
+        spec = {"command": "plane", "inputs": {"reference": "Front", "distance": "0", "angle": "15", "about": "y"}, "replace": {"row": plane["key"]}}
+        turned = self.service.change({"file": file, "command": spec, "files": made["files"]})
+        self.assertTrue(turned["ok"], turned.get("error"))
+        self.assertIn("plane1 = Plane.XZ.offset(0).rotated((0, 15, 0))\n", script.read_text(encoding="utf-8"))
+        spec["inputs"]["angle"] = "0"
+        squared = self.service.change({"file": file, "command": spec, "files": turned["files"]})
+        self.assertTrue(squared["ok"], squared.get("error"))
+        self.assertIn("    plane1 = Plane.XZ.offset(0)\n", script.read_text(encoding="utf-8"))
+
     def test_a_reference_plane_is_what_another_plane_and_a_mirror_go_from(self):
         root, file, state = self.open(BLOCK, "block.step")
         made = self.command(file, state, "plane", (), {"reference": "Right", "distance": "15"})
