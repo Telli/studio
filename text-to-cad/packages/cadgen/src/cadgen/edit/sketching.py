@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 
 # What draws: the entities, and Convert Entities' edges of the model (`convert`, held On Edge).
 GEOMETRY = ("point", "line", "polyline", "circle", "arc", "three_point_arc", "rectangle", "center_rectangle", "slot", "polygon", "convert",
-            "linear_pattern", "circular_pattern")
+            "linear_pattern", "circular_pattern", "spline")
 # The statements that copy what is drawn: a pattern's copies and its dimension go together.
 PATTERNS = ("linear_pattern", "circular_pattern")
 RELATIONS = ("fix", "coincident", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "midpoint",
@@ -35,7 +35,7 @@ SKETCH_METHODS = frozenset(GEOMETRY + RELATIONS + DIMENSIONS + TOOLS)
 # lines (a center rectangle's diagonal is not returned), a slot's arc, line, arc, line.
 RETURNED = {"rectangle": 4, "center_rectangle": 4, "slot": 4}
 # The words a CAD tool uses for each kind of entity, for messages.
-KIND_WORDS = {"line": "line", "circle": "circle", "arc": "arc", "point": "point"}
+KIND_WORDS = {"line": "line", "circle": "circle", "arc": "arc", "point": "point", "spline": "spline"}
 # What a typed size may be: numbers, names and plain arithmetic.
 _TYPED = re.compile(r"^[\w\s.+\-*/()]+$")
 
@@ -239,6 +239,9 @@ class Names:
             for role in ("start", "end", "center"):
                 if curve.get(role):
                     self.point_code.setdefault(curve[role], []).append((index, f"{code}.{role}"))
+            # A spline's points, each by its place in the spline (`spline1.points[2]`).
+            for position, point in enumerate(curve.get("points") or []):
+                self.point_code.setdefault(point, []).append((index, f"{code}.points[{position}]"))
 
     def statement_of(self, name: str) -> Made | None:
         index = self.made_by.get(name)
@@ -424,6 +427,18 @@ def _draw(block: Block, names: Names, state: dict, op: dict) -> list[str]:
                      f"{_point_argument(names, op.get('center2'))}, {number(radius)}{built})")
         roles = {"center1": f"{arc1}.center", "center2": f"{arc2}.center"}
         made = [arc1, line1, arc2, line2]
+    elif entity == "spline":
+        # Spline, as SolidWorks' passes through each point clicked; clicking its first point again closes it.
+        places = [place for place in op.get("points") or [] if isinstance(place, dict)]
+        closed = bool(op.get("closed"))
+        if len(places) < (3 if closed else 2):
+            raise SketchEditError("A spline passes through two points at least, three when it is closed.")
+        var = vars_.next("Spline")
+        written = ", ".join(_point_argument(names, place) for place in places)
+        lines.append(f"{var} = {s}.spline({written}{', closed=True' if closed else ''}{built})")
+        roles = {f"points.{index}": f"{var}.points[{index}]" for index in range(len(places))}
+        op = {**op, **{f"points.{index}": place for index, place in enumerate(places)}}
+        made = [var]
     elif entity == "point":
         var = vars_.next("Point")
         ref = op.get("at") or {}

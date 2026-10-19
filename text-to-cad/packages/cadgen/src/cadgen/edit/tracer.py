@@ -3076,6 +3076,13 @@ def sketch_edit(request):
                 text = sketching.explode(text, line, state, [str(op.get("curve") or "")], str(path))
                 block, sketch, entry = _sketch_run(request, path, text, line)
                 state = _sketch_view(sketch, path, line, entry["function"])["state"]
+            # A spline is shaped by its points: the tools that cut, run on or copy curves take lines, arcs and circles.
+            kinds = {curve["id"]: curve["kind"] for curve in state.get("curves", [])}
+            picked = [*(op.get("items") or []), *(op.get("lines") or []), op.get("curve"), op.get("about")]
+            if any(kinds.get(str(each)) == "spline" for each in picked if each):
+                words = {"offset": "Offset Entities", "mirror": "Mirror Entities", "trim": "Trim Entities", "extend": "Extend Entities",
+                         "pattern": "A sketch pattern", "fillet": "Sketch Fillet", "chamfer": "Sketch Chamfer"}[kind]
+                return {"ok": False, "error": f"{words} works on lines, arcs and circles. A spline is shaped by its points: drag them, or dimension them."}
             text = getattr(sketch_tools, kind)(text, line, state, op, str(path))
         else:
             return {"ok": False, "error": f"Edit mode cannot make that sketch change ({kind or 'none'})."}

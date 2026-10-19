@@ -13,7 +13,7 @@ import math
 from collections import defaultdict
 
 from .fillets import fillet_arcs
-from .sketch import PLANE_NAMES, Arc, Circle, Line, Point, SketchError
+from .sketch import PLANE_NAMES, Arc, Circle, Line, Point, SketchError, Spline
 
 __all__ = ["faces", "loops", "path", "plane_of"]
 
@@ -56,12 +56,21 @@ def _arc_angles(arc):
     return a0, (sweep - 2 * math.pi if arc.clockwise else sweep)
 
 
+def _round(curve) -> bool:
+    """Whether a curve is a loop on its own, with no ends: a circle, or a closed spline."""
+    return isinstance(curve, Circle) or (isinstance(curve, Spline) and curve.closed)
+
+
 def _samples(curve, forward: bool) -> list[tuple[float, float]]:
     """Points along a curve, start to end (end to start when not ``forward``), its end left off."""
-    if isinstance(curve, Circle):
+    if isinstance(curve, Spline):
+        points = curve.samples()
+        if curve.closed:
+            return points[:-1]
+    elif isinstance(curve, Circle):
         return [(curve.center.x + curve.radius * math.cos(2 * math.pi * i / CIRCLE_SAMPLES),
                  curve.center.y + curve.radius * math.sin(2 * math.pi * i / CIRCLE_SAMPLES)) for i in range(CIRCLE_SAMPLES)]
-    if isinstance(curve, Arc):
+    elif isinstance(curve, Arc):
         a0, sweep = _arc_angles(curve)
         r = curve.radius
         points = [(curve.center.x + r * math.cos(a0 + sweep * i / ARC_SAMPLES), curve.center.y + r * math.sin(a0 + sweep * i / ARC_SAMPLES))
@@ -133,7 +142,7 @@ def _joints(sketch, curves):
         if ra is not rb:
             parent[id(rb)] = ra
 
-    ends = [point for curve in curves if not isinstance(curve, Circle) for point in (curve.start, curve.end)]
+    ends = [point for curve in curves if not _round(curve) for point in (curve.start, curve.end)]
     for relation in sketch.relations:
         if relation.kind == "coincident" and all(isinstance(ref, Point) for ref in relation.refs):
             join(*relation.refs)
@@ -143,7 +152,7 @@ def _joints(sketch, curves):
                 join(a, b)
     meeting: dict[int, list] = defaultdict(list)
     for curve in curves:
-        if not isinstance(curve, Circle):
+        if not _round(curve):
             meeting[id(root(curve.start))].append(curve)
             meeting[id(root(curve.end))].append(curve)
     return root, meeting, ends
@@ -154,14 +163,14 @@ def loops(sketch) -> list[_Loop]:
     fillet does not fit its corner."""
     curves = _drawn(sketch)
     root, meeting, ends = _joints(sketch, curves)
-    found = [_Loop([(curve, True)]) for curve in curves if isinstance(curve, Circle)]
+    found = [_Loop([(curve, True)]) for curve in curves if _round(curve)]
     for key, joined in meeting.items():
         if len(joined) != 2:
             where = next(p for p in ends if id(root(p)) == key)
             if len(joined) == 1:
                 raise SketchError(f"{sketch.name} is open at {where.name}: a closed profile joins two curves at every point.")
             raise SketchError(f"{sketch.name}: {len(joined)} curves meet at {where.name}; a profile joins two at every point.")
-    unused = [curve for curve in curves if not isinstance(curve, Circle)]
+    unused = [curve for curve in curves if not _round(curve)]
     while unused:
         first = unused.pop(0)
         parts = [(first, True)]
@@ -192,6 +201,9 @@ def _edges(loop: _Loop, plane, clockwise: bool, unit: float = 1.0):
             edges.append(B.Edge.make_circle(curve.radius * unit, B.Plane(origin=at(curve.center.x, curve.center.y), x_dir=plane.x_dir,
                                                                          z_dir=plane.z_dir if not clockwise else -plane.z_dir)))
             continue
+        if isinstance(curve, Spline):
+            edges.append(_spline_edge(curve, forward, at))
+            continue
         a, b = (curve.start, curve.end) if forward else (curve.end, curve.start)
         if isinstance(curve, Arc):
             a0, sweep = _arc_angles(curve)
@@ -201,6 +213,12 @@ def _edges(loop: _Loop, plane, clockwise: bool, unit: float = 1.0):
         else:
             edges.append(B.Edge.make_line(at(a.x, a.y), at(b.x, b.y)))
     return edges
+
+
+def _spline_edge(curve, forward: bool, at):
+    """A spline's edge on the plane, through its points the way the chain runs."""
+    edge = curve.edge(at)
+    return edge if forward else edge.reversed()
 
 
 def path(sketch):
@@ -216,10 +234,12 @@ def path(sketch):
     plane = plane_of(sketch)
     unit = sketch.unit
     at = lambda x, y: plane.from_local_coords((x * unit, y * unit))  # noqa: E731
-    circles = [curve for curve in curves if isinstance(curve, Circle)]
+    circles = [curve for curve in curves if _round(curve)]
     if circles:
         if len(curves) > 1:
             raise SketchError(f"{sketch.name}: a path is one chain of curves, and a circle is a chain of its own.")
+        if isinstance(circles[0], Spline):
+            return B.Wire([circles[0].edge(at)])
         circle = circles[0]
         return B.Wire([B.Edge.make_circle(circle.radius * unit, B.Plane(origin=at(circle.center.x, circle.center.y), x_dir=plane.x_dir,
                                                                        z_dir=plane.z_dir))])
@@ -250,7 +270,9 @@ def path(sketch):
     edges = []
     for curve, forward in parts:
         a, b = (curve.start, curve.end) if forward else (curve.end, curve.start)
-        if isinstance(curve, Arc):
+        if isinstance(curve, Spline):
+            edges.append(_spline_edge(curve, forward, at))
+        elif isinstance(curve, Arc):
             a0, sweep = _arc_angles(curve)
             middle = a0 + sweep / 2
             mid = (curve.center.x + curve.radius * math.cos(middle), curve.center.y + curve.radius * math.sin(middle))

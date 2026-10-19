@@ -393,6 +393,7 @@ export function circlePoints(c, r, from = 0, sweep = 2 * Math.PI) {
 
 /** A curve of `sketchGeometry` as points along it. */
 export function curvePoints(curve) {
+  if (curve.kind === "spline") return curve.samples;
   if (curve.kind === "line") return curve.view || [curve.a, curve.b];
   if (curve.kind === "circle") return circlePoints(curve.c, curve.r);
   const { start, sweep } = arcSweep(curve);

@@ -1,6 +1,6 @@
 """Constrained 2D sketches, written in a part's script and solved when it runs.
 
-A sketch is drawn on a plane (Top, Front, Right, or a face's) as points, lines, arcs and circles,
+A sketch is drawn on a plane (Top, Front, Right, or a face's) as points, lines, arcs, circles and splines,
 held by relations (horizontal, coincident, tangent) and dimensions (a distance, a radius, an
 angle) the way a CAD tool's sketcher holds them, with the dimensions taking the part's named
 sizes. Running the script solves the sketch, so a changed size moves the geometry that depends
@@ -22,6 +22,6 @@ solved and how defined it is, ``regions.py`` for how its loops become faces, and
 for where a sketch fillet's arc falls.
 """
 
-from .sketch import Arc, Circle, Line, Point, Relation, Sketch, SketchError
+from .sketch import Arc, Circle, Line, Point, Relation, Sketch, SketchError, Spline
 
-__all__ = ["Arc", "Circle", "Line", "Point", "Relation", "Sketch", "SketchError"]
+__all__ = ["Arc", "Circle", "Line", "Point", "Relation", "Sketch", "SketchError", "Spline"]

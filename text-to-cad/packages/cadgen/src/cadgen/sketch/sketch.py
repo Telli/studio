@@ -16,7 +16,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 
-__all__ = ["Arc", "Circle", "Line", "Point", "Relation", "Sketch", "SketchError"]
+__all__ = ["Arc", "Circle", "Line", "Point", "Relation", "Sketch", "SketchError", "Spline"]
 
 
 class SketchError(ValueError):
@@ -121,6 +121,46 @@ class Arc:
 
     def __repr__(self) -> str:
         return f"{self.name}(center {self.center!r}, {self.start!r} to {self.end!r})"
+
+
+@dataclass(eq=False)
+class Spline:
+    """A spline through its points in order, as SolidWorks' Spline passes through each point
+    clicked: moved and dimensioned by its points. ``closed`` runs on from the last point round to
+    the first, a loop of its own."""
+
+    name: str
+    points: list
+    closed: bool = False
+    construction: bool = False
+    source: tuple | None = None
+
+    @property
+    def start(self) -> Point:
+        return self.points[0]
+
+    @property
+    def end(self) -> Point:
+        return self.points[-1]
+
+    def edge(self, at=None):
+        """The spline as a build123d Edge through its points, each placed by ``at`` (a sketch
+        (x, y) to the part), at (x, y, 0) without."""
+        import build123d as B
+
+        place = at or (lambda x, y: B.Vector(x, y, 0))
+        try:
+            return B.Edge.make_spline([place(point.x, point.y) for point in self.points], periodic=self.closed)
+        except Exception as error:  # noqa: BLE001
+            raise SketchError(f"{self.name} cannot pass through its points as they are ({error}).") from None
+
+    def samples(self, count: int = 48) -> list[tuple[float, float]]:
+        """Places along it, start to end, in the sketch's units: what an editor draws and picks."""
+        edge = self.edge()
+        return [(float(place.X), float(place.Y)) for place in (edge.position_at(i / count) for i in range(count + 1))]
+
+    def __repr__(self) -> str:
+        return f"{self.name}(through {', '.join(repr(point) for point in self.points)})"
 
 
 @dataclass(eq=False)
@@ -286,6 +326,20 @@ class Sketch:
         # Start, through, end turning counterclockwise is a counterclockwise arc.
         counterclockwise = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax) > 0
         return self.arc((ux, uy), start, end, clockwise=not counterclockwise, construction=construction)
+
+    def spline(self, *points, closed: bool = False, construction: bool = False) -> Spline:
+        """A spline through the points in order (sketch Points, or (x, y) pairs made into points),
+        as SolidWorks' Spline passes through each point clicked; ``closed`` runs on round from the
+        last back to the first."""
+        made = [self._point(point) for point in points]
+        if len(made) < (3 if closed else 2):
+            raise SketchError("A spline passes through two points at least, three when it is closed.")
+        if len({id(point) for point in made}) < len(made):
+            raise SketchError("A spline passes through each of its points once.")
+        spline = Spline(self._named("Spline"), made, bool(closed), construction, _source())
+        self.curves.append(spline)
+        self._changed()
+        return spline
 
     def rectangle(self, corner, opposite, *, construction: bool = False) -> tuple[Line, Line, Line, Line]:
         """A rectangle from one corner to the opposite one, as a CAD tool's corner rectangle draws
@@ -926,6 +980,16 @@ class Sketch:
             elif isinstance(curve, Circle):
                 entry.update(center=curve.center.name, radius=curve.radius, literal=curve.literal,
                              defined=defined(curve.center) and curve.name not in moving)
+            elif isinstance(curve, Spline):
+                # Its points, and places along it for an editor to draw and pick it by; a closed one has no ends.
+                try:
+                    shown = [[round(x, 6), round(y, 6)] for x, y in curve.samples()]
+                except SketchError as error:
+                    shown = [[point.x, point.y] for point in curve.points]
+                    errors.append(str(error))
+                entry.update(points=[point.name for point in curve.points], closed=curve.closed, samples=shown,
+                             defined=all(defined(point) for point in curve.points),
+                             **({} if curve.closed else {"start": curve.start.name, "end": curve.end.name}))
             else:
                 entry.update(center=curve.center.name, start=curve.start.name, end=curve.end.name, radius=curve.radius,
                              clockwise=curve.clockwise, literal=curve.literal,

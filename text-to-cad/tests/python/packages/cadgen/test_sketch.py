@@ -203,6 +203,33 @@ class Faces(unittest.TestCase):
         self.assertAlmostEqual(s.face().area, 200, places=6)
 
 
+class Splines(unittest.TestCase):
+    """A spline passes through its points: a side of a profile, a loop of its own closed, or a path."""
+
+    def test_a_spline_is_a_side_of_a_profile_or_closed_a_loop_of_its_own(self):
+        s = Sketch("Sketch1", plane="Top")
+        bottom = s.line((0, 0), (20, 0))
+        side = s.spline(bottom.end, (25, 8), (10, 15), (0, 10))
+        s.line(side.end, bottom.start)
+        # Its points move it: four of them free, and the line's start.
+        self.assertEqual((s.status, s.dof), ("Under defined", 10))
+        # The spline bulges past its chord from (20, 0) to (0, 10): more than the triangle under it.
+        self.assertGreater(s.face().area, 20 * 10 / 2 + 100)
+        blob = Sketch("Sketch2", plane="Front")
+        blob.spline((0, 0), (10, 5), (0, 10), (-10, 5), closed=True)
+        self.assertAlmostEqual(blob.face().area, 160, delta=1)
+        self.assertNotIn("start", blob.state()["curves"][0])
+        with self.assertRaises(SketchError):
+            blob.spline((0, 0), (1, 1), closed=True)
+
+    def test_a_path_runs_along_a_spline(self):
+        s = Sketch("Path", plane="Front")
+        s.spline((0, 0), (10, 5), (20, 0))
+        path = s.path()
+        self.assertGreater(path.length, 20)
+        self.assertAlmostEqual(path.position_at(1).X, 20, places=6)
+
+
 class Paths(unittest.TestCase):
     """A sketch as what a sweep runs along, a thin feature's wall and a rib."""
 

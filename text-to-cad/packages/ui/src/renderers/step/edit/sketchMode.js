@@ -17,6 +17,8 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "tangent_arc", label: "Tangent Arc", prompts: ["Click the end of a line or an arc to go on from.", "Click where the arc ends."] },
   { id: "slot", label: "Straight Slot", prompts: ["Click the center of one end.", "Click the center of the other end.", "Click to set its width."] },
   { id: "polygon", label: "Polygon", prompts: ["Click the center of the polygon.", "Click a corner."] },
+  { id: "spline", label: "Spline", prompts: ["Click where the spline starts.",
+    "Click each point it passes through. Double-click or press Enter to end it; click its first point to close it."] },
   { id: "centerline", label: "Centerline", prompts: ["Click where the centerline starts.", "Click where it ends."] },
   { id: "point", label: "Point", prompts: ["Click to place a point."] },
   { id: "dimension", label: "Smart Dimension", prompts: ["Pick a line, a circle, or two items to dimension. An edge of the model comes in dashed to dimension to.", "Pick a second item or a model edge, or click to place the dimension.", "Click to place the dimension."] },
@@ -58,7 +60,30 @@ export const sketchTool = id => SKETCH_TOOLS.find(tool => tool.id === id) || nul
 
 /** How many clicks a drawing tool takes; a line chains, so its count restarts from its end. */
 export const TOOL_CLICKS = Object.freeze({ line: 2, centerline: 2, rectangle: 2, center_rectangle: 2, circle: 2, arc: 3, three_point_arc: 3,
-  tangent_arc: 2, slot: 3, polygon: 2, point: 1 });
+  tangent_arc: 2, slot: 3, polygon: 2, point: 1, spline: Infinity });
+
+/**
+ * Places along a smooth curve through `places` in order (a Catmull-Rom curve), `closed` round from
+ * the last back to the first: a spline as it is drawn before the sketch solves it (being drawn,
+ * or its points dragged). The solved one passes through the same points.
+ */
+export function splineThrough(places, closed = false, steps = 16) {
+  const count = places.length;
+  if (count < 2) return places.map(place => [...place]);
+  const end = index => (index < 0 ? sub(scale(places[0], 2), places[1]) : sub(scale(places[count - 1], 2), places[count - 2]));
+  const get = index => (closed ? places[((index % count) + count) % count] : index < 0 || index >= count ? end(index) : places[index]);
+  const out = [];
+  for (let i = 0; i < (closed ? count : count - 1); i += 1) {
+    const [p0, p1, p2, p3] = [get(i - 1), get(i), get(i + 1), get(i + 2)];
+    for (let k = 0; k < steps; k += 1) {
+      const t = k / steps;
+      out.push([0, 1].map(axis => 0.5 * (2 * p1[axis] + (p2[axis] - p0[axis]) * t + (2 * p0[axis] - 5 * p1[axis] + 4 * p2[axis] - p3[axis]) * t * t
+        + (3 * p1[axis] - p0[axis] - 3 * p2[axis] + p3[axis]) * t * t * t)));
+    }
+  }
+  out.push([...places[closed ? 0 : count - 1]]);
+  return out;
+}
 
 /** How many sides Polygon draws, as typed in its panel: a whole number from 3 to 64, else 6. */
 export function polygonSides(typed) {
@@ -93,6 +118,9 @@ export function sketchGeometry(state) {
     // A line drawn up to the fillet at an end (`view`), its ends still at the corner.
     if (curve.kind === "line") return { ...base, a: at(points.get(curve.start)), b: at(points.get(curve.end)), start: curve.start, end: curve.end, view: curve.shown || null };
     if (curve.kind === "circle") return { ...base, c: at(points.get(curve.center)), r: curve.radius, center: curve.center };
+    // A spline: its points, and the places along it the sketch solved it through.
+    if (curve.kind === "spline") return { ...base, samples: curve.samples || [], points: curve.points || [], closed: Boolean(curve.closed),
+      start: curve.start, end: curve.end };
     return { ...base, c: at(points.get(curve.center)), s: at(points.get(curve.start)), e: at(points.get(curve.end)), r: curve.radius,
       clockwise: Boolean(curve.clockwise), center: curve.center, start: curve.start, end: curve.end };
   });
@@ -118,6 +146,20 @@ function onArc(curve, angle) {
 
 /** The point of a curve nearest a place, and how far it is. */
 export function nearestOnCurve(curve, place) {
+  if (curve.kind === "spline") {
+    // The nearest place on its drawn run of places.
+    let best = { point: curve.samples[0] || place, distance: Infinity };
+    curve.samples.forEach((a, index) => {
+      const b = curve.samples[index + 1];
+      if (!b) return;
+      const d = sub(b, a);
+      const length = dot(d, d);
+      const point = add(a, scale(d, length ? Math.max(0, Math.min(1, dot(sub(place, a), d) / length)) : 0));
+      const distance = hypot(point, place);
+      if (distance < best.distance) best = { point, distance };
+    });
+    return best;
+  }
   if (curve.kind === "line") {
     const [a, b] = curve.view || [curve.a, curve.b];
     const d = sub(b, a);
@@ -156,7 +198,8 @@ export function snap(state, place, tolerance, { exclude = [] } = {}) {
   }
   if (best) return best.ref;
   for (const curve of curves) {
-    if (curve.derived) continue;
+    // A spline is landed on at its points only: a point kept on one is not a relation the sketch has.
+    if (curve.derived || curve.kind === "spline") continue;
     const { point, distance } = nearestOnCurve(curve, place);
     if (distance <= tolerance && (!best || distance < best.distance)) best = { distance, ref: { at: point, on: curve.id } };
   }
@@ -259,7 +302,7 @@ export function polygonCorners(center, vertex, sides) {
  * drawn (`cadgen/edit`'s `draw`), with what it infers. `options.construction` draws it for
  * construction; `options.clockwise` says which way an arc was swept; `options.sides`, a polygon's.
  */
-export function drawOp(tool, picks, state, { construction = false, clockwise = false, sides = 6 } = {}) {
+export function drawOp(tool, picks, state, { construction = false, clockwise = false, sides = 6, closed = false } = {}) {
   const built = construction ? { construction: true } : {};
   const [first, second, third] = picks;
   switch (tool) {
@@ -295,6 +338,10 @@ export function drawOp(tool, picks, state, { construction = false, clockwise = f
     }
     case "polygon":
       return { kind: "draw", entity: "polygon", center: plain(first), vertex: plain(second), sides: polygonSides(sides), ...built };
+    case "spline":
+      // Through each point clicked; closed when its first point was clicked again.
+      if (picks.length < (closed ? 3 : 2)) return null;
+      return { kind: "draw", entity: "spline", points: picks.map(plain), ...(closed ? { closed: true } : {}), ...built };
     case "slot": {
       const a = refAt(state, first);
       const b = refAt(state, second);
@@ -448,7 +495,7 @@ export function formatValue(value, units, dimension) {
 /** The middle of a sketch's drawn curves, to place a dimension away from the shape. */
 export function sketchCenter(state) {
   const { curves } = sketchGeometry(state);
-  const places = curves.flatMap(curve => (curve.kind === "line" ? [curve.a, curve.b] : [curve.c]));
+  const places = curves.flatMap(curve => (curve.kind === "line" ? [curve.a, curve.b] : curve.kind === "spline" ? curve.samples : [curve.c]));
   if (!places.length) return [0, 0];
   return scale(places.reduce(add, [0, 0]), 1 / places.length);
 }
@@ -701,7 +748,7 @@ function meetings(first, second, tolerance) {
 export function trimPiece(state, id, place, tolerance = nearness(state) * 10) {
   const { curves } = sketchGeometry(state);
   const curve = curves.find(each => each.id === id);
-  if (!curve || curve.derived) return null;
+  if (!curve || curve.derived || curve.kind === "spline") return null;
   const span = spanOf(curve);
   const slack = curve.kind === "line" ? tolerance / (hypot(curve.a, curve.b) || 1) : tolerance / (curve.r || 1);
   const cuts = [];
@@ -824,7 +871,7 @@ export function patternCopies(state, pattern) {
     for (const id of pattern.items) {
       if (points.has(id)) { out.push({ kind: "point", at: moved(k, at(points.get(id))) }); continue; }
       const curve = curves.find(each => each.id === id);
-      if (!curve || curve.derived) continue;
+      if (!curve || curve.derived || curve.kind === "spline") continue;
       if (curve.kind === "line") out.push({ kind: "line", a: moved(k, curve.a), b: moved(k, curve.b) });
       else if (curve.kind === "circle") out.push({ kind: "circle", c: moved(k, curve.c), r: curve.r });
       else out.push({ kind: "arc", c: moved(k, curve.c), s: moved(k, curve.s), e: moved(k, curve.e), r: curve.r, clockwise: curve.clockwise });
@@ -838,7 +885,7 @@ export function chainOf(state, id, tolerance = nearness(state) * 10) {
   const { curves } = sketchGeometry(state);
   const start = curves.find(each => each.id === id);
   if (!start || start.derived) return [];
-  if (start.kind === "circle") return [id];
+  if (start.kind === "circle" || start.kind === "spline") return [id];
   const ends = curve => (curve.kind === "line" ? [curve.a, curve.b] : curve.kind === "arc" ? [curve.s, curve.e] : []);
   const joined = (p, q) => curves.filter(each => !each.derived && each.kind !== "circle" && each.id !== p.id
     && ends(each).some(end => ends(p).some(other => hypot(end, other) <= tolerance)) && q(each));
@@ -875,7 +922,7 @@ function listed(parts) {
  */
 export function sketchNote(session) {
   const made = session.made || {};
-  const drew = [["line", "lines"], ["circle", "circles"], ["arc", "arcs"], ["point", "points"]]
+  const drew = [["line", "lines"], ["circle", "circles"], ["arc", "arcs"], ["spline", "splines"], ["point", "points"]]
     .filter(([one]) => made[one]).map(([one, many]) => counted(made[one], one, many));
   const added = [["dimension", "dimensions"], ["relation", "relations"]].filter(([one]) => made[one]).map(([one, many]) => counted(made[one], one, many));
   const parts = [];

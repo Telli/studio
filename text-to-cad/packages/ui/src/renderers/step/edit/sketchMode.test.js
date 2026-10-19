@@ -24,6 +24,7 @@ import {
   sketchGeometry,
   sketchNote,
   snap,
+  splineThrough,
   tangentArc,
   tangentStart,
   threePointArc,
@@ -169,6 +170,25 @@ test("a fillet's arc is drawn from the places the server works out, its lines up
   // The tools start from a size in the part's units until one is typed.
   assert.equal(toolSize("", "in", "fillet"), "0.1");
   assert.equal(toolSize("WALL", "in", "offset"), "WALL");
+});
+
+test("a spline passes through each point clicked, closes on its first, and is picked by where it runs", () => {
+  const picks = [{ point: "Point2", at: [20, 0] }, { at: [25, 8] }, { at: [10, 15] }];
+  assert.deepEqual(drawOp("spline", picks, null), { kind: "draw", entity: "spline", points: [{ point: "Point2" }, { at: [25, 8] }, { at: [10, 15] }] });
+  assert.deepEqual(drawOp("spline", picks, null, { closed: true, construction: true }).closed, true);
+  assert.equal(drawOp("spline", picks.slice(0, 1), null), null);
+  assert.equal(drawOp("spline", picks.slice(0, 2), null, { closed: true }), null);
+  // Drawn before it solves, it runs through each of its points.
+  const run = splineThrough([[0, 0], [10, 5], [20, 0]], false, 8);
+  assert.deepEqual([run[0], run[8], run[16]], [[0, 0], [10, 5], [20, 0]]);
+  assert.deepEqual(splineThrough([[0, 0], [10, 0], [5, 8]], true, 4).at(-1), [0, 0]);
+  // Solved, it is picked by the places it runs through; a point is landed on its points, never on its run.
+  const state = { points: [{ id: "Origin", x: 0, y: 0 }, { id: "Point1", x: 0, y: 0 }, { id: "Point2", x: 20, y: 0 }],
+    curves: [{ id: "Spline1", kind: "spline", points: ["Point1", "Point2"], start: "Point1", end: "Point2", samples: [[0, 0], [10, 6], [20, 0]] }] };
+  assert.equal(hitTest(state, [10, 5.8], 0.5), "Spline1");
+  assert.equal(snap(state, [10, 5.8], 0.5).on, undefined);
+  assert.equal(sketchNote({ name: "Sketch1", file: "a.py", line: 3, made: countChange({}, { kind: "draw", entity: "spline" }) }),
+    "In edit mode I changed Sketch1 (a.py, line 3): drew a spline.");
 });
 
 test("the curves a change made are the ones the sketch did not have, as they were made", () => {

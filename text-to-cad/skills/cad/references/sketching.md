@@ -48,6 +48,11 @@ def plate():
 
 - `s.point(x, y)`, `s.line(a, b)`, `s.polyline(*points, closed=True)`, `s.circle(center, r)`,
   `s.arc(center, start, end, clockwise=False)`, `s.three_point_arc(start, through, end)`.
+- `s.spline(*points, closed=False)` passes through its points in order (two at least, three
+  closed); `closed=True` runs on round to the first, a loop of its own. Its points
+  (`spline1.points[1]`, `spline1.start`, `spline1.end`) move it and take dimensions; the tools
+  that cut, run on or copy curves (trim, extend, offset, mirror, patterns, sketch fillets) take
+  lines, arcs and circles.
 - Helpers that add their own relations, as the sketcher's tools do: `s.rectangle(corner,
   opposite)` (bottom and top horizontal, sides vertical; returns bottom, right, top, left),
   `s.center_rectangle(center, corner)`, `s.slot(center1, center2, radius)`, `s.polygon(center,

@@ -372,6 +372,37 @@ class SketchMode(unittest.TestCase):
         self.assertEqual(max(point["x"] for point in view["state"]["points"]), 25.0)
         self.assertEqual(view["state"]["status"], "Fully defined")
 
+    def test_a_spline_passes_through_its_points_and_closes_a_profile_with_lines(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "line", "start": {"point": "Origin"}, "end": {"at": [20, 0]}})
+        corner = next(curve for curve in self.sketch["state"]["curves"] if curve["id"] == "Line1")["end"]
+        self.send({"kind": "draw", "entity": "spline", "points": [{"point": corner}, {"at": [25, 8]}, {"at": [10, 15]}, {"at": [0, 10]}]})
+        self.assertIn("\n    spline1 = sketch1.spline(line1.end, (25, 8), (10, 15), (0, 10))\n", self.source())
+        spline = next(curve for curve in self.sketch["state"]["curves"] if curve["kind"] == "spline")
+        self.assertEqual((len(spline["points"]), spline["start"], spline["closed"]), (4, corner, False))
+        # Drawn by places along it, through each of its points.
+        self.assertEqual(spline["samples"][0], [20, 0])
+        self.assertEqual(spline["samples"][-1], [0, 10])
+        # One of its points dragged: written where it was left, the spline through it there.
+        self.send({"kind": "move", "points": [{"point": spline["points"][1], "to": [26, 9]}]})
+        self.assertIn("sketch1.spline(line1.end, (26, 9), (10, 15), (0, 10))", self.source())
+        self.send({"kind": "draw", "entity": "line", "start": {"point": spline["end"]}, "end": {"point": "Origin"}})
+        self.assertIn("sketch1.line(spline1.end, sketch1.origin)", self.source())
+        self.assertEqual(len(self.sketch["state"]["loops"]), 1)
+        # The tools that cut or copy curves take lines, arcs and circles; a spline is shaped by its points.
+        refused = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "trim", "curve": "Spline1", "at": [25, 8]}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("works on lines, arcs and circles", refused["error"])
+        # A closed one is a loop of its own; deleting it takes its line out.
+        self.send({"kind": "draw", "entity": "spline", "closed": True, "points": [{"at": [40, 0]}, {"at": [50, 5]}, {"at": [40, 10]}]})
+        self.assertIn("spline2 = sketch1.spline((40, 0), (50, 5), (40, 10), closed=True)", self.source())
+        self.assertEqual(len(self.sketch["state"]["loops"]), 2)
+        self.send({"kind": "delete", "items": ["Spline2"]})
+        self.assertNotIn("spline2", self.source())
+        # The profile with its spline side is made a solid of.
+        self.extrudes(self.send({"kind": "exit", "changed": True}))
+
     def test_model_edges_offset_into_the_sketch_hold_the_offset_on_construction(self):
         top = {"selector": "f99", "type": "plane", "center": [0.0, 0.0, -2.5], "size": 800.0}
         self.send({"kind": "new", "plane": top, "name": "Sketch1"})

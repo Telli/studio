@@ -24,6 +24,7 @@ import {
   refAt,
   sketchGeometry,
   snap,
+  splineThrough,
   tangentArc,
   tangentStart,
   threePointArc,
@@ -371,6 +372,10 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       const fmt = value => formatValue(value, live.current.units, "length");
       if (!placed.length) return null;
       const [first, second] = placed;
+      if (tool === "spline") {
+        path(splineThrough([...placed, cursor]));
+        return null;
+      }
       if (tool === "line" || tool === "centerline") {
         const inferred = landing.point || landing.on ? { end: cursor, relation: null } : inferLine(first, cursor);
         path([first, inferred.end]);
@@ -442,10 +447,28 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       }
     };
 
+    // A spline drawn through the points clicked, ended by a double-click or Enter, or closed.
+    const finishSpline = async (closed = false) => {
+      const op = drawOp("spline", picks, live.current.sketch.state, { construction: live.current.construction, closed });
+      picks = [];
+      report();
+      if (op) await send(op);
+    };
+
     const finishStroke = async (tool, ref) => {
       const state = live.current.sketch.state;
       // A Tangent Arc starts at the end of a line or an arc, or nowhere.
       if (tool === "tangent_arc" && !picks.length && !tangentStart(state, ref)) return;
+      // A spline takes each point clicked; its first clicked again closes it, as SolidWorks' does.
+      if (tool === "spline") {
+        const first = picks[0] ? refAt(state, picks[0]) : null;
+        const here = refAt(state, ref);
+        const near = first && Math.hypot(here[0] - first[0], here[1] - first[1]) <= SNAP_PX / (mapping?.perUnit || 1);
+        if (picks.length >= 3 && near) return finishSpline(true);
+        picks = [...picks, ref];
+        report();
+        return;
+      }
       picks = [...picks, ref];
       report();
       if (picks.length < TOOL_CLICKS[tool]) return;
@@ -696,6 +719,16 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
 
     const handleDoubleClick = event => {
       const current = live.current;
+      // A double-click ends a spline at its place: its second press placed it twice, so once is taken off.
+      if (current.tool === "spline" && picks.length >= 2) {
+        event.preventDefault();
+        event.stopPropagation();
+        const state = current.sketch?.state;
+        const [a, b] = picks.slice(-2).map(ref => refAt(state, ref));
+        if (Math.hypot(a[0] - b[0], a[1] - b[1]) <= SNAP_PX / (mapping?.perUnit || 1)) picks = picks.slice(0, -1);
+        void finishSpline();
+        return;
+      }
       if (!current.sketch?.state || current.tool) return;
       const screen = localPoint(event);
       const label = labelAt(screen);
@@ -721,6 +754,9 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         else return;
         event.preventDefault();
         version.current += 1;
+      } else if (event.key === "Enter" && current.tool === "spline" && picks.length >= 2 && !busy) {
+        event.preventDefault();
+        void finishSpline();
       } else if ((event.key === "Delete" || event.key === "Backspace") && current.selection.length && !busy) {
         event.preventDefault();
         void send({ kind: "delete", items: current.selection });
@@ -756,11 +792,12 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
   </>;
 }
 
-// The points a drag moves: a point itself; a line's two ends together; a circle's or an arc's center.
+// The points a drag moves: a point itself; a line's two ends together; a spline's points; a circle's or an arc's center.
 function dragPoints(state, id) {
   const curve = (state.curves || []).find(each => each.id === id);
   if (!curve) return [id];
   if (curve.kind === "line") return [curve.start, curve.end];
+  if (curve.kind === "spline") return curve.points || [];
   return [curve.center];
 }
 
@@ -771,7 +808,12 @@ function draggedState(state, drag) {
     const point = state.points.find(each => each.id === id);
     return point && !point.defined;
   }));
-  return { ...state, points: state.points.map(point => (moving.has(point.id) ? { ...point, x: point.x + delta[0], y: point.y + delta[1] } : point)) };
+  const points = state.points.map(point => (moving.has(point.id) ? { ...point, x: point.x + delta[0], y: point.y + delta[1] } : point));
+  // A spline whose points move is drawn through them where they are, until the sketch solves it.
+  const place = new Map(points.map(point => [point.id, [point.x, point.y]]));
+  const curves = (state.curves || []).map(curve => (curve.kind === "spline" && (curve.points || []).some(id => moving.has(id))
+    ? { ...curve, samples: splineThrough(curve.points.map(id => place.get(id)).filter(Boolean), Boolean(curve.closed)) } : curve));
+  return { ...state, points, curves };
 }
 
 /** What a drag sends: the points it moved, to where the pointer left them, to the part's precision. */
