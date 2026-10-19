@@ -807,7 +807,7 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
     case "chamfer":
       inputs.distance = values.distance;
       if (values.type === "distances") Object.assign(inputs, { type: "distances", distance2: values.distance2, flip: Boolean(values.flip) });
-      if (values.type === "angle") Object.assign(inputs, { type: "angle", angle: values.angle });
+      if (values.type === "angle") Object.assign(inputs, { type: "angle", angle: values.angle, ...(values.flip ? { flip: true } : {}) });
       break;
     case "shell": inputs.thickness = values.thickness; break;
     case "hole":

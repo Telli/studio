@@ -555,7 +555,11 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
           <NumberRow label="Distance 2" value={values.distance2} unit={units} disabled={disabled} onChange={set("distance2")} />
           <FileSheetCheckboxRow label="Flip direction" checked={Boolean(values.flip)} disabled={disabled} onCheckedChange={set("flip")} />
         </> : null}
-        {values.type === "angle" ? <NumberRow label="Angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} /> : null}
+        {values.type === "angle" ? <>
+          <NumberRow label="Angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} />
+          {/* Which face the distance runs along, as SolidWorks' Angle distance flips it. */}
+          <FileSheetCheckboxRow label="Flip direction" checked={Boolean(values.flip)} disabled={disabled} onCheckedChange={set("flip")} />
+        </> : null}
       </> : null}
       {command.id === "shell" ? <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} /> : null}
       {drafting ? <NumberRow label="Draft angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} /> : null}

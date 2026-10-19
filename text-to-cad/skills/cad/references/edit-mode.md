@@ -68,7 +68,9 @@ by hand" below.
   bd.Cylinder(...) for at in ((5, 0), (-5, 0), (0, 2.5))]`, each `at` its offsets from the
   face's centre.
 - **Chamfer**: `bd.chamfer(<edges>, length=1)`; Distance distance writes `length=1, length2=.5`
-  (Flip direction swaps them), Angle distance `length=1, angle=30`.
+  (Flip direction swaps them), Angle distance `length=1, angle=30`. build123d measures an angle
+  chamfer's length along each edge's first face; flipped, the distance runs along the other, written
+  `length=1 * bd.tan(bd.radians(30)), length2=1`, which reopens as Angle distance, flipped.
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.
 - **Plane** (Reference Geometry) is a line of its own, offset from an origin plane or a flat face
   of the body: `plane1 = bd.Plane.XY.offset(10)`, `plane2 = bd.Plane(<face>).offset(-.25*INCH)`

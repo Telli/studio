@@ -1040,7 +1040,15 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                 angle = _value(inputs, "angle", "Angle", parse)
                 if angle >= 90:
                     raise CommandError("A chamfer's angle is less than 90 degrees.")
-                code = f"{var} = {names('chamfer')}({edges}, length={length}, angle={same('angle', angle, writer.number(angle))})"
+                turned = same("angle", angle, writer.number(angle))
+                if inputs.get("flip") in (True, "true", "1", 1):
+                    # Flip direction: the distance along each edge's other face. build123d measures an
+                    # angle chamfer's length along the edge's first face, so there the length is the
+                    # distance times the angle's tangent, and the distance goes the other way.
+                    code = (f"{var} = {names('chamfer')}({edges}, length={_term(length)} * {names('tan')}({names('radians')}({turned})), "
+                            f"length2={length})")
+                else:
+                    code = f"{var} = {names('chamfer')}({edges}, length={length}, angle={turned})"
                 shown = [("Distance", distance, units_word), ("Angle", angle, "deg")]
             else:
                 code = f"{var} = {names('chamfer')}({edges}, length={length})"
@@ -1664,6 +1672,17 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         return Feature("fillet", {"radius": size(number(("fillet", "radius")))}, counted_items(("fillet", "objects"), "edge"),
                        {"edges": code(value.args[0])}, target, operator, codes)
     if operator == "=" and name == "chamfer" and value.args:
+        # Angle distance, flipped: `length=<distance> * tan(radians(<angle>)), length2=<distance>`.
+        written, other = _keyword_value(value, "length"), _keyword_value(value, "length2")
+        if (other is not None and isinstance(written, ast.BinOp) and isinstance(written.op, ast.Mult) and _call_name(written.right) == "tan"
+                and written.right.args and _call_name(written.right.args[0]) == "radians" and written.right.args[0].args
+                and code(written.left) == code(other) and None not in (number(("chamfer", "length")), number(("chamfer", "length2")))):
+            along = number(("chamfer", "length2"))
+            angle = round(math.degrees(math.atan2(number(("chamfer", "length")), along)), 6)
+            held("distance", other, typed(along))
+            held("angle", written.right.args[0].args[0], angle)
+            return Feature("chamfer", {"distance": size(along), "type": "angle", "angle": _number(angle, False), "flip": True},
+                           counted_items(("chamfer", "objects"), "edge"), {"edges": code(value.args[0])}, target, operator, codes)
         held("distance", _keyword_value(value, "length"), typed(number(("chamfer", "length"))))
         values = {"distance": size(number(("chamfer", "length")))}
         # A distance each way, or a distance and an angle: Chamfer's other types.

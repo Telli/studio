@@ -661,6 +661,9 @@ test("a chamfer goes as its type says: one distance, a distance each way (flippe
     { distance: "1", type: "distances", distance2: "2", flip: true });
   assert.deepEqual(commandRequest("chamfer", { ...opened, type: "angle", angle: "30" }, edges, null).inputs,
     { distance: "1", type: "angle", angle: "30" });
+  // Flipped, the distance runs along each edge's other face.
+  assert.deepEqual(commandRequest("chamfer", { ...opened, type: "angle", angle: "30", flip: true }, edges, null).inputs,
+    { distance: "1", type: "angle", angle: "30", flip: true });
   // A reopened chamfer of two distances opens as one.
   const editing = { id: "a.py:7", command: "chamfer", values: { distance: "0.5", type: "distances", distance2: "1" } };
   assert.deepEqual(editingValues(editing, "mm"), { type: "distances", distance: "0.5", distance2: "1", angle: "45", flip: false });

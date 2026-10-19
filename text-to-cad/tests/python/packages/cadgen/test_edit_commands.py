@@ -454,6 +454,12 @@ class EditingFeatures(Commands):
         self.assertEqual(self.feature(angled, "Chamfer")["edit"]["values"], {"distance": "1", "type": "angle", "angle": "30"})
         steep = self.edit(file, angled, self.feature(angled, "Chamfer"), {"type": "angle", "distance": "1", "angle": "90"})
         self.assertFalse(steep["ok"])
+        # Flipped, the distance runs along each edge's other face: build123d's length is then the
+        # distance times the angle's tangent, written so, and it reopens flipped.
+        flipped = self.edit(file, angled, self.feature(angled, "Chamfer"), {"type": "angle", "distance": "1", "angle": "30", "flip": True})
+        self.assertTrue(flipped["ok"], flipped.get("error"))
+        self.assertIn(", length=1 * tan(radians(30)), length2=1)\n", script.read_text(encoding="utf-8"))
+        self.assertEqual(self.feature(flipped, "Chamfer")["edit"]["values"], {"distance": "1", "type": "angle", "angle": "30", "flip": True})
 
     def test_a_value_left_as_it_was_keeps_its_named_size(self):
         root, file, state = self.open(TRAY, "tray.step")
