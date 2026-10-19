@@ -14,9 +14,14 @@ import {
   MODEL_TOOLS,
   MODIFY_TOOLS,
   placedSide,
+  polygonCorners,
+  polygonSides,
   refAt,
   sketchGeometry,
   snap,
+  tangentArc,
+  tangentStart,
+  threePointArc,
   TOOL_CLICKS,
   toolSize,
   trimPiece
@@ -370,6 +375,27 @@ export default function SketchOverlay({ viewport, edit, units }) {
         path(circlePoints(first, radius, from, sweep));
         return { text: `R${fmt(radius)}` };
       }
+      if (tool === "three_point_arc") {
+        if (!second) { path([first, cursor]); return { text: fmt(Math.hypot(cursor[0] - first[0], cursor[1] - first[1])) }; }
+        const arc = threePointArc(first, cursor, second);
+        if (!arc) { path([first, second]); return null; }
+        path(circlePoints(arc.center, arc.radius, arc.from, arc.sweep));
+        return { text: `R${fmt(arc.radius)}` };
+      }
+      if (tool === "tangent_arc") {
+        // From the curve's end, leaving the way the curve was going.
+        const arc = tangentArc(live.current.sketch?.state, picks[0], cursor);
+        if (!arc) { path([first, cursor]); return null; }
+        const angle = place => Math.atan2(place[1] - arc.center[1], place[0] - arc.center[0]);
+        const turn = ((angle(cursor) - angle(first)) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+        path(circlePoints(arc.center, arc.radius, angle(first), arc.clockwise ? turn - 2 * Math.PI : turn));
+        return { text: `R${fmt(arc.radius)}` };
+      }
+      if (tool === "polygon") {
+        const sides = polygonSides(live.current.settings?.polygonSides);
+        path(polygonCorners(first, cursor, sides), true);
+        return { text: `${sides} sides, R${fmt(Math.hypot(cursor[0] - first[0], cursor[1] - first[1]))}` };
+      }
       if (tool === "slot") {
         if (!second) { path([first, cursor]); return { text: fmt(Math.hypot(cursor[0] - first[0], cursor[1] - first[1])) }; }
         const along = [second[0] - first[0], second[1] - first[1]];
@@ -396,10 +422,13 @@ export default function SketchOverlay({ viewport, edit, units }) {
 
     const finishStroke = async (tool, ref) => {
       const state = live.current.sketch.state;
+      // A Tangent Arc starts at the end of a line or an arc, or nowhere.
+      if (tool === "tangent_arc" && !picks.length && !tangentStart(state, ref)) return;
       picks = [...picks, ref];
       report();
       if (picks.length < TOOL_CLICKS[tool]) return;
-      const op = drawOp(tool, picks, state, { construction: live.current.construction, clockwise: turning < 0 });
+      const op = drawOp(tool, picks, state, { construction: live.current.construction, clockwise: turning < 0,
+        sides: live.current.settings?.polygonSides });
       const chain = tool === "line" || tool === "centerline";
       picks = [];
       turning = 0;

@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass, field
 
 # What draws: the entities, and Convert Entities' edges of the model (`convert`, held On Edge).
-GEOMETRY = ("point", "line", "polyline", "circle", "arc", "three_point_arc", "rectangle", "center_rectangle", "slot", "convert")
+GEOMETRY = ("point", "line", "polyline", "circle", "arc", "three_point_arc", "rectangle", "center_rectangle", "slot", "polygon", "convert")
 RELATIONS = ("fix", "coincident", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "midpoint",
              "symmetric", "concentric")
 DIMENSIONS = ("distance", "length", "horizontal_distance", "vertical_distance", "radius", "diameter", "angle")
@@ -389,8 +389,29 @@ def _draw(block: Block, names: Names, state: dict, op: dict) -> list[str]:
         turn = ", clockwise=True" if op.get("clockwise") else ""
         lines.append(f"{var} = {s}.arc({_point_argument(names, op.get('center'))}, {_point_argument(names, op.get('start'))}, "
                      f"{_point_argument(names, op.get('end'))}{turn}{built})")
+        # A Tangent Arc: drawn on from a line's or an arc's end, and kept tangent to it there.
+        if op.get("tangent"):
+            lines.append(f"{s}.tangent({names.curve(str(op['tangent']))}, {var})")
         roles = {"center": f"{var}.center", "start": f"{var}.start", "end": f"{var}.end"}
         made = [var]
+    elif entity == "three_point_arc":
+        var = vars_.next("Arc")
+        lines.append(f"{var} = {s}.three_point_arc({_point_argument(names, op.get('start'))}, {_point_argument(names, op.get('through'))}, "
+                     f"{_point_argument(names, op.get('end'))}{built})")
+        roles = {"start": f"{var}.start", "end": f"{var}.end"}
+        made = [var]
+    elif entity == "polygon":
+        try:
+            sides = int(op.get("sides"))
+        except (TypeError, ValueError):
+            sides = 0
+        if not 3 <= sides <= 64:
+            raise SketchEditError("A polygon has 3 to 64 sides.")
+        targets = [vars_.next("Line") for _ in range(sides)] + [vars_.next("Circle")]
+        lines.append(f"{', '.join(targets)} = {s}.polygon({_point_argument(names, op.get('center'))}, "
+                     f"{_point_argument(names, op.get('vertex'))}, {sides}{built})")
+        roles = {"center": f"{targets[-1]}.center", "vertex": f"{targets[0]}.start"}
+        made = targets
     elif entity == "slot":
         arc1, line1, arc2, line2 = vars_.next("Arc"), vars_.next("Line"), vars_.next("Arc"), vars_.next("Line")
         radius = float(op.get("radius") or 0)

@@ -300,6 +300,31 @@ class Sketch:
         self.midpoint(self._point(center), diagonal)
         return bottom, right, top, left
 
+    def polygon(self, center, vertex, sides: int = 6, *, construction: bool = False) -> tuple:
+        """A regular polygon, as a CAD tool's Polygon draws one: ``sides`` lines of one length, its
+        corners on a construction circle around ``center`` through ``vertex``. Returns its lines in
+        order round it, from ``vertex``, then the circle."""
+        count = _number(sides, "A polygon's sides")
+        if count < 3 or not float(count).is_integer():
+            raise SketchError("A polygon has a whole number of sides, at least 3.")
+        count = int(count)
+        c = self._point(center)
+        x, y = tuple(vertex)
+        radius = math.hypot(x - c.x, y - c.y)
+        if radius <= 0:
+            raise SketchError("A polygon's corner must be away from its center.")
+        start = math.atan2(y - c.y, x - c.x)
+        corners = [self._point(vertex, construction=construction)] + [
+            self.point(c.x + radius * math.cos(start + 2 * math.pi * k / count), c.y + radius * math.sin(start + 2 * math.pi * k / count),
+                       construction=construction) for k in range(1, count)]
+        lines = [self.line(corners[k], corners[(k + 1) % count], construction=construction) for k in range(count)]
+        circle = self.circle(c, radius, construction=True)
+        for corner in corners:
+            self.coincident(corner, circle)
+        for line in lines[1:]:
+            self.equal(lines[0], line)
+        return (*lines, circle)
+
     def slot(self, center1, center2, radius, *, construction: bool = False) -> tuple[Arc, Line, Arc, Line]:
         """A straight slot between two arc centers, as a CAD tool's slot draws it: two arcs of one
         radius joined by two lines tangent to both. Returns (arc1, line1, arc2, line2)."""

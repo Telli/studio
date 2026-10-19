@@ -15,7 +15,8 @@ the script, after the statement that makes the part's body, which then reads bac
 of the history.
 
 The engineer also sketches there, as in SolidWorks: Sketch on a plane or a flat face, draw lines,
-rectangles, circles, arcs, slots and points, add relations and Smart Dimensions, Exit Sketch, then
+rectangles, circles, arcs (Centerpoint, 3 Point, and Tangent Arc, written as a centerpoint arc and
+`s.tangent(<curve>, arc)`), slots, polygons and points, add relations and Smart Dimensions, Exit Sketch, then
 extrude or revolve it, as a boss or a cut. Each stroke is a line of `cadgen.sketch` code
 ([sketching.md](sketching.md)) in the part's script, written as it is drawn; see "Sketches drawn
 by hand" below.

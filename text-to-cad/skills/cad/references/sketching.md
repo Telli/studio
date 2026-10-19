@@ -50,7 +50,9 @@ def plate():
   `s.arc(center, start, end, clockwise=False)`, `s.three_point_arc(start, through, end)`.
 - Helpers that add their own relations, as the sketcher's tools do: `s.rectangle(corner,
   opposite)` (bottom and top horizontal, sides vertical; returns bottom, right, top, left),
-  `s.center_rectangle(center, corner)`, `s.slot(center1, center2, radius)`.
+  `s.center_rectangle(center, corner)`, `s.slot(center1, center2, radius)`, `s.polygon(center,
+  vertex, sides=6)` (its lines of one length, corners on a construction circle; returns the lines
+  round it from `vertex`, then the circle).
 - Points are shared: a line from a rectangle's corner is joined to it. An (x, y) pair makes a
   new point. `s.origin` is the sketch's fixed origin to dimension from.
 - `construction=True` keeps a line out of the profile (a centerline, a diagonal).

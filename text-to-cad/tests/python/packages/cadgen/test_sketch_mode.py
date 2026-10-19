@@ -107,6 +107,28 @@ class SketchMode(unittest.TestCase):
         self.assertAlmostEqual(right["y"], 10.0)
         self.assertTrue(all(curve["defined"] for curve in self.sketch["state"]["curves"]))
 
+    def test_a_polygon_a_tangent_arc_and_a_three_point_arc_are_lines_of_the_script(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "polygon", "center": {"point": "Origin"}, "vertex": {"at": [10, 0]}, "sides": 6})
+        self.assertIn("line1, line2, line3, line4, line5, line6, circle1 = sketch1.polygon(sketch1.origin, (10, 0), 6)\n", self.source())
+        self.send({"kind": "draw", "entity": "line", "start": {"at": [20, 0]}, "end": {"at": [30, 0]}})
+        line = next(curve for curve in self.sketch["state"]["curves"] if curve["id"] == "Line7")
+        # On from the line's end, kept tangent to it; then by three points back to where the line starts.
+        self.send({"kind": "draw", "entity": "arc", "center": {"at": [30, 5]}, "start": {"point": line["end"]}, "end": {"at": [30, 10]},
+                   "tangent": "Line7"})
+        self.assertIn("arc1 = sketch1.arc((30, 5), line7.end, (30, 10))\n    sketch1.tangent(line7, arc1)\n", self.source())
+        arc = next(curve for curve in self.sketch["state"]["curves"] if curve["id"] == "Arc1")
+        self.send({"kind": "draw", "entity": "three_point_arc", "start": {"point": arc["end"]}, "through": {"at": [25, 12]},
+                   "end": {"point": line["start"]}})
+        self.assertIn("arc2 = sketch1.three_point_arc(arc1.end, (25, 12), line7.start)\n", self.source())
+        # Two closed outlines: the hexagon, and the line and its arcs.
+        self.assertEqual(len(self.sketch["state"]["loops"]), 2)
+        refused = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "name": self.sketch["name"],
+            "op": {"kind": "draw", "entity": "polygon", "center": {"at": [0, 0]}, "vertex": {"at": [1, 0]}, "sides": 2}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("3 to 64 sides", refused["error"])
+
     def test_a_dimension_typed_over_changes_its_number(self):
         self.start()
         self.send({"kind": "draw", "entity": "circle", "center": {"at": [10, 4]}, "radius": 2})

@@ -12,11 +12,16 @@ import {
   formatValue,
   hitTest,
   inferLine,
+  polygonCorners,
+  polygonSides,
   relationsFor,
   relationsOn,
   sketchGeometry,
   sketchNote,
   snap,
+  tangentArc,
+  tangentStart,
+  threePointArc,
   toolSize,
   trimPiece
 } from "./sketchMode.js";
@@ -177,4 +182,26 @@ test("a dark viewer is told by its light text, written as oklch or rgb", () => {
   assert.equal(lightText("oklch(14.5% 0 0)"), false);
   assert.equal(lightText("rgb(250, 250, 250)"), true);
   assert.equal(lightText("rgb(20, 20, 20)"), false);
+});
+
+test("a 3 Point Arc bows through its middle click, a Tangent Arc leaves a line's end along it, and a Polygon goes round its center", () => {
+  const round = values => values.map(value => Math.round(value * 1e6) / 1e6 || 0);
+  // Over a chord from (20, 0) to the origin through (10, 10): half a circle, counterclockwise; under it, the other way round.
+  const over = threePointArc([20, 0], [10, 10], [0, 0]);
+  assert.deepEqual([round(over.center), Math.round(over.radius * 1e6) / 1e6, Math.round(over.sweep * 1e6) / 1e6], [[10, 0], 10, 3.141593]);
+  assert.ok(threePointArc([20, 0], [10, -10], [0, 0]).sweep < 0);
+  assert.equal(threePointArc([0, 0], [1, 0], [2, 0]), null);
+  // On from Line1's end at (40, 0) up to (40, 10): a half circle to the left, counterclockwise; back from its start, clockwise.
+  const on = tangentArc(STATE, { point: "Point2" }, [40, 10]);
+  assert.deepEqual([on.from, round(on.center), on.clockwise, on.radius], ["Line1", [40, 5], false, 5]);
+  assert.deepEqual(tangentStart(STATE, { point: "Point2" }), { from: "Line1", start: [40, 0], way: [1, 0] });
+  assert.equal(tangentStart(STATE, { at: [3, 3] }), null);
+  assert.deepEqual(drawOp("tangent_arc", [{ point: "Point2", at: [40, 0] }, { at: [40, 10] }], STATE),
+    { kind: "draw", entity: "arc", center: { at: [40, 5] }, start: { point: "Point2" }, end: { at: [40, 10] }, clockwise: false, tangent: "Line1" });
+  assert.deepEqual(drawOp("three_point_arc", [{ at: [0, 0] }, { at: [20, 0] }, { at: [10, 10] }], STATE),
+    { kind: "draw", entity: "three_point_arc", start: { at: [0, 0] }, end: { at: [20, 0] }, through: { at: [10, 10] } });
+  assert.deepEqual(polygonCorners([0, 0], [10, 0], 4).map(round), [[10, 0], [0, 10], [-10, 0], [0, -10]]);
+  assert.equal(drawOp("polygon", [{ point: "Origin" }, { at: [10, 0] }], STATE, { sides: "8" }).sides, 8);
+  assert.deepEqual(["", "2", "12", "6.5"].map(polygonSides), [6, 6, 12, 6]);
+  assert.deepEqual(countChange({}, { kind: "draw", entity: "polygon", sides: 8 }), { line: 8 });
 });

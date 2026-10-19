@@ -83,6 +83,21 @@ class Solving(unittest.TestCase):
         # Half a circle of radius 10 above the line.
         self.assertAlmostEqual(s.face().area, math.pi * 100 / 2, places=4)
 
+    def test_a_polygon_is_its_lines_of_one_length_round_a_construction_circle(self):
+        s = Sketch("Hex")
+        *sides, circle = s.polygon((0, 0), (5, 0), 6)
+        self.assertEqual((len(sides), circle.construction), (6, True))
+        # Free to move, to grow and to turn: four ways.
+        self.assertEqual((s.status, s.dof), ("Under defined", 4))
+        s.coincident(circle.center, s.origin)
+        s.diameter(circle, 20)
+        s.horizontal(sides[1])
+        self.assertEqual((s.status, s.dof), ("Fully defined", 0))
+        # A regular hexagon 20 across its corners.
+        self.assertAlmostEqual(s.face().area, 3 * math.sqrt(3) / 2 * 100, places=4)
+        with self.assertRaises(SketchError):
+            s.polygon((0, 0), (5, 0), 2)
+
 
 class Faces(unittest.TestCase):
     def test_a_profile_with_a_hole_extrudes_along_its_plane(self):

@@ -14,7 +14,7 @@ import { SketchIcon } from "./cadIcons.jsx";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
 import { SelectionList } from "./EditCommand.jsx";
 import { ORIGIN_PLANES, selectionItems } from "./editMode.js";
-import { formatValue, MODEL_TOOLS, MODIFY_TOOLS, relationsFor, relationsOn, sketchTool, toolSize } from "./sketchMode.js";
+import { formatValue, MODEL_TOOLS, MODIFY_TOOLS, polygonSides, relationsFor, relationsOn, sketchTool, toolSize } from "./sketchMode.js";
 
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
@@ -126,6 +126,9 @@ export default function SketchPanel({ edit, onPlane, references = [] }) {
         <FileSheetCheckboxRow label="Reverse direction" checked={settings.offsetReverse} onCheckedChange={value => edit.setSketchSettings({ offsetReverse: Boolean(value) })} />
         <FileSheetCheckboxRow label="Select chain" checked={settings.offsetChain} onCheckedChange={value => edit.setSketchSettings({ offsetChain: Boolean(value) })} />
       </> : null}
+      {/* Polygon's Parameters: how many sides it is drawn with. */}
+      {tool.id === "polygon" ? <SizeRow label="Sides" value={String(polygonSides(settings.polygonSides))} unit="" disabled={disabled}
+        onCommit={text => edit.setSketchSettings({ polygonSides: text })} /> : null}
       {tool.id === "convert" ? <ConvertEntities edit={edit} references={references} /> : null}
       {tool.id === "mirror" && selection.length ? <>
         <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Entities to mirror</p>

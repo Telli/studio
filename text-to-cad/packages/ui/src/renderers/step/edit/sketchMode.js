@@ -13,7 +13,10 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "center_rectangle", label: "Center Rectangle", prompts: ["Click the center of the rectangle.", "Click a corner."] },
   { id: "circle", label: "Circle", prompts: ["Click the center of the circle.", "Click to set its radius."] },
   { id: "arc", label: "Centerpoint Arc", prompts: ["Click the center of the arc.", "Click where the arc starts.", "Click where it ends."] },
+  { id: "three_point_arc", label: "3 Point Arc", prompts: ["Click where the arc starts.", "Click where it ends.", "Click to set how far it bows."] },
+  { id: "tangent_arc", label: "Tangent Arc", prompts: ["Click the end of a line or an arc to go on from.", "Click where the arc ends."] },
   { id: "slot", label: "Straight Slot", prompts: ["Click the center of one end.", "Click the center of the other end.", "Click to set its width."] },
+  { id: "polygon", label: "Polygon", prompts: ["Click the center of the polygon.", "Click a corner."] },
   { id: "centerline", label: "Centerline", prompts: ["Click where the centerline starts.", "Click where it ends."] },
   { id: "point", label: "Point", prompts: ["Click to place a point."] },
   { id: "dimension", label: "Smart Dimension", prompts: ["Pick a line, a circle, or two items to dimension.", "Pick a second item, or click to place the dimension.", "Click to place the dimension."] },
@@ -39,7 +42,14 @@ const nearness = state => 1e-6 * Math.max(1, ...(state?.points || []).flatMap(po
 export const sketchTool = id => SKETCH_TOOLS.find(tool => tool.id === id) || null;
 
 /** How many clicks a drawing tool takes; a line chains, so its count restarts from its end. */
-export const TOOL_CLICKS = Object.freeze({ line: 2, centerline: 2, rectangle: 2, center_rectangle: 2, circle: 2, arc: 3, slot: 3, point: 1 });
+export const TOOL_CLICKS = Object.freeze({ line: 2, centerline: 2, rectangle: 2, center_rectangle: 2, circle: 2, arc: 3, three_point_arc: 3,
+  tangent_arc: 2, slot: 3, polygon: 2, point: 1 });
+
+/** How many sides Polygon draws, as typed in its panel: a whole number from 3 to 64, else 6. */
+export function polygonSides(typed) {
+  const sides = Number(String(typed ?? "").trim());
+  return Number.isInteger(sides) && sides >= 3 && sides <= 64 ? sides : 6;
+}
 
 const KIND_NAMES = Object.freeze({ line: "line", circle: "circle", arc: "arc" });
 // A line drawn within this many degrees of level, or of plumb, is drawn so (and kept so).
@@ -154,11 +164,86 @@ export const refAt = (state, ref) => (ref?.point ? at(sketchGeometry(state).poin
 const plain = ref => (ref.point ? { point: ref.point } : { at: [...ref.at], ...(ref.on ? { on: ref.on } : {}), ...(ref.midpoint ? { midpoint: true } : {}) });
 
 /**
+ * A 3 Point Arc as it would be drawn: the circle through its start, the place it passes and its
+ * end, and its sweep from the start to the end the way that passes through the middle place, in
+ * radians (negative clockwise). Null for three places in a line.
+ */
+export function threePointArc(start, through, end) {
+  const [ax, ay] = start;
+  const [bx, by] = through;
+  const [cx, cy] = end;
+  const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+  const size = Math.max(1, Math.hypot(cx - ax, cy - ay)) ** 2;
+  if (Math.abs(d) < 1e-9 * size) return null;
+  const center = [((ax ** 2 + ay ** 2) * (by - cy) + (bx ** 2 + by ** 2) * (cy - ay) + (cx ** 2 + cy ** 2) * (ay - by)) / d,
+    ((ax ** 2 + ay ** 2) * (cx - bx) + (bx ** 2 + by ** 2) * (ax - cx) + (cx ** 2 + cy ** 2) * (bx - ax)) / d];
+  const angle = place => Math.atan2(place[1] - center[1], place[0] - center[0]);
+  const turn = value => ((value % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+  const from = angle(start);
+  const round = turn(angle(end) - from);
+  // Counterclockwise when the middle place comes before the end that way round.
+  const sweep = turn(angle(through) - from) < round ? round : round - 2 * Math.PI;
+  return { center, radius: Math.hypot(ax - center[0], ay - center[1]), from, sweep };
+}
+
+/**
+ * Where a Tangent Arc starts, from a point of the sketch (`ref`): the line or arc it goes on from
+ * (`from`: the last drawn that ends there, as a chain goes on from its last line, else the last
+ * that starts there), the point's place, and the way the curve was going there (`way`, a unit
+ * vector on past its end). Null for a place, or a point no line or arc ends at.
+ */
+export function tangentStart(state, ref) {
+  if (!ref?.point) return null;
+  const { points, curves } = sketchGeometry(state);
+  const point = points.get(ref.point);
+  const touching = [...curves].reverse().filter(each => !each.derived && (each.kind === "line" || each.kind === "arc")
+    && (each.start === ref.point || each.end === ref.point));
+  const curve = touching.find(each => each.end === ref.point) || touching[0];
+  if (!point || !curve) return null;
+  const start = at(point);
+  let way;
+  if (curve.kind === "line") way = curve.end === ref.point ? sub(curve.b, curve.a) : sub(curve.a, curve.b);
+  else {
+    // An arc runs counterclockwise from its start unless it is clockwise: on from its end, back from its start.
+    const radial = sub(start, curve.c);
+    const along = curve.clockwise ? [radial[1], -radial[0]] : [-radial[1], radial[0]];
+    way = curve.end === ref.point ? along : scale(along, -1);
+  }
+  return { from: curve.id, start, way: unit(way) };
+}
+
+/**
+ * A Tangent Arc from the end of a line or an arc (`startRef`, a point of the sketch) to `end`: the
+ * curve it goes on from (`from`), and its center and turn, so it leaves that end the way the curve
+ * was going there (`tangentStart`). Null where it has no such start, or where `end` lies straight
+ * on along it.
+ */
+export function tangentArc(state, startRef, end) {
+  const begun = tangentStart(state, startRef);
+  if (!begun) return null;
+  const { from, start, way: t } = begun;
+  const n = [-t[1], t[0]];
+  const d = sub(end, start);
+  const k = dot(n, d);
+  if (Math.abs(k) < 1e-9 * Math.max(1, Math.hypot(d[0], d[1]))) return null;
+  const r = dot(d, d) / (2 * k);
+  return { from, center: add(start, scale(n, r)), clockwise: r < 0, radius: Math.abs(r) };
+}
+
+/** A Polygon's corners as it would be drawn: `sides` of them round `center`, the first at `vertex`. */
+export function polygonCorners(center, vertex, sides) {
+  const radius = hypot(center, vertex);
+  const start = Math.atan2(vertex[1] - center[1], vertex[0] - center[0]);
+  return Array.from({ length: sides }, (_, k) => [center[0] + radius * Math.cos(start + (2 * Math.PI * k) / sides),
+    center[1] + radius * Math.sin(start + (2 * Math.PI * k) / sides)]);
+}
+
+/**
  * The change a drawing tool sends once it has its clicks (`picks`, refs from `snap`): an entity
  * drawn (`cadgen/edit`'s `draw`), with what it infers. `options.construction` draws it for
- * construction; `options.clockwise` says which way an arc was swept.
+ * construction; `options.clockwise` says which way an arc was swept; `options.sides`, a polygon's.
  */
-export function drawOp(tool, picks, state, { construction = false, clockwise = false } = {}) {
+export function drawOp(tool, picks, state, { construction = false, clockwise = false, sides = 6 } = {}) {
   const built = construction ? { construction: true } : {};
   const [first, second, third] = picks;
   switch (tool) {
@@ -183,6 +268,17 @@ export function drawOp(tool, picks, state, { construction = false, clockwise = f
       const end = third.point ? plain(third) : { at: add(center, scale(unit(sub(refAt(state, third), center)), radius)) };
       return { kind: "draw", entity: "arc", center: plain(first), start: plain(second), end, clockwise: Boolean(clockwise), ...built };
     }
+    case "three_point_arc":
+      return { kind: "draw", entity: "three_point_arc", start: plain(first), end: plain(second), through: { at: [...refAt(state, third)] }, ...built };
+    case "tangent_arc": {
+      // A centerpoint arc from the curve's end, kept tangent to it.
+      const arc = tangentArc(state, first, refAt(state, second));
+      if (!arc) return null;
+      return { kind: "draw", entity: "arc", center: { at: arc.center }, start: plain(first), end: plain(second), clockwise: arc.clockwise,
+        tangent: arc.from, ...built };
+    }
+    case "polygon":
+      return { kind: "draw", entity: "polygon", center: plain(first), vertex: plain(second), sides: polygonSides(sides), ...built };
     case "slot": {
       const a = refAt(state, first);
       const b = refAt(state, second);
@@ -684,6 +780,8 @@ export function countChange(made, op) {
   if (op.kind === "draw") {
     if (op.entity === "rectangle" || op.entity === "center_rectangle") bump("line", 4);
     else if (op.entity === "slot") { bump("arc", 2); bump("line", 2); }
+    else if (op.entity === "polygon") bump("line", op.sides || 6);
+    else if (op.entity === "three_point_arc") bump("arc");
     else if (op.entity === "centerline") bump("line");
     else bump(op.entity);
   } else if (op.kind === "dimension") bump("dimension");
