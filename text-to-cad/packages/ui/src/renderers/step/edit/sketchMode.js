@@ -29,10 +29,11 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "linear_pattern", label: "Linear Sketch Pattern", prompts: ["Click the entities to copy in a row, set the spacing and instances, then make the pattern."] },
   { id: "circular_pattern", label: "Circular Sketch Pattern", prompts: ["Click the entities to copy round, and a point to turn them about (else the origin), then make the pattern."] },
   { id: "convert", label: "Convert Entities", prompts: ["Select edges or a face of the model, then Convert. They come into the sketch and stay on the model as it changes."] },
+  { id: "intersection", label: "Intersection Curve", prompts: ["Brings in where the part crosses this sketch's plane, and keeps it there as the part changes."] },
 ]);
 
 /** The tools that change what is drawn rather than draw: each takes its own clicks (see `SketchOverlay.jsx`). */
-export const MODIFY_TOOLS = Object.freeze(["fillet", "chamfer", "trim", "extend", "offset", "mirror", "linear_pattern", "circular_pattern"]);
+export const MODIFY_TOOLS = Object.freeze(["fillet", "chamfer", "trim", "extend", "offset", "mirror", "linear_pattern", "circular_pattern", "intersection"]);
 /** The sketch patterns: each takes what is selected, and its panel's settings, and is made by its OK. */
 export const PATTERN_TOOLS = Object.freeze(["linear_pattern", "circular_pattern"]);
 /** The tools that take a corner: a point where two lines meet, or the two lines. */
@@ -885,6 +886,7 @@ export function sketchNote(session) {
   const converted = [["convertedEdge", "edge", "edges"], ["convertedFace", "face", "faces"]].filter(([key]) => made[key])
     .map(([key, one, many]) => counted(made[key], one, many));
   if (converted.length) parts.push(`converted ${listed(converted)} of the model`);
+  if (made.intersection) parts.push("brought in where the part crosses its plane");
   if (made.moved) parts.push(`moved ${counted(made.moved, "point")}`);
   if (made.deleted) parts.push(`deleted ${counted(made.deleted, "item")}`);
   const where = `(${session.file}, line ${session.line})`;
@@ -917,6 +919,7 @@ export function countChange(made, op) {
   else if (op.kind === "pattern") bump("pattern");
   else if (op.kind === "offset") bump("offset");
   else if (op.kind === "mirror") bump("mirrored", (op.items || []).length || 1);
+  else if (op.kind === "intersection") bump("intersection");
   else if (op.kind === "convert") {
     const faces = (op.items || []).filter(item => /f\d+$/.test(String(item?.selector || ""))).length;
     if (faces) bump("convertedFace", faces);

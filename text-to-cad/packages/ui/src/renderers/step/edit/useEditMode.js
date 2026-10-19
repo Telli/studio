@@ -98,7 +98,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   // The sketch tools' settings, kept for the session as their PropertyManager keeps them: Sketch
   // Fillet's radius, Offset Entities' distance, Reverse direction and Select chain.
   const [sketchSettings, setSketchSettings] = useState(() => ({ filletRadius: "", chamferDistance: "", offsetDistance: "", offsetReverse: false,
-    offsetChain: true, polygonSides: "", linearSpacing: "", linearCount: "", linearAngle: "", circularCount: "", circularAngle: "" }));
+    offsetChain: true, polygonSides: "", linearSpacing: "", linearCount: "", linearAngle: "", circularCount: "", circularAngle: "",
+    convertConstruction: false, convertOffset: "", convertReverse: false, offsetBase: false, offsetConstruction: false }));
   // What the open command would make, for the view to preview before OK, as SolidWorks draws an
   // extrude in yellow while its PropertyManager is open: set by the command's panel.
   const [preview, setPreview] = useState(null);

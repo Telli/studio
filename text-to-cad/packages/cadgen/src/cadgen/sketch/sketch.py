@@ -676,6 +676,21 @@ class Sketch:
             raise SketchError(f"Those edges are square to {self.name}, so they come in as points. Pick edges that lie along it.")
         return curves
 
+    def intersection(self, body) -> list:
+        """Where ``body`` (the model's solid) crosses the sketch's plane, as a CAD tool's
+        Intersection Curve finds it: the edges of its section there, for ``convert`` to bring in
+        and hold where the model puts them: ``sketch2.convert(sketch2.intersection(part))``."""
+        from .regions import plane_of
+
+        try:
+            found = body.intersect(plane_of(self))
+        except Exception as error:  # noqa: BLE001 - said to the engineer: what it takes
+            raise SketchError(f"{self.name}'s plane could not be cut through that body ({error}).") from None
+        edges = [edge for item in (found or []) for edge in item.edges()]
+        if not edges:
+            raise SketchError(f"The part does not cross {self.name}'s plane, so there is nothing to bring in.")
+        return edges
+
     def converted_edges(self, edges) -> list:
         """The model's edges ``convert`` brings in from ``edges``, in the order it makes their
         curves: each edge, and the edges of each face and wire, less a line square to the sketch

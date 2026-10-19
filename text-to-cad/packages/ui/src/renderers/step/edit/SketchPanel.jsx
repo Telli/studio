@@ -95,15 +95,49 @@ function PlanePicker({ edit, onPlane }) {
  */
 function ConvertEntities({ edit, references }) {
   const items = selectionItems(references);
+  const settings = edit.sketchSettings || {};
+  const units = edit.state?.units || "";
+  // Offset from the model, as SolidWorks' Offset Entities takes a model's edges: they come in as
+  // construction geometry to hold the offset curves at the distance.
+  const offset = String(settings.convertOffset ?? "").trim();
+  const construction = Boolean(settings.convertConstruction) || Boolean(offset);
   const convert = async () => {
-    const reply = await edit.sketchOp({ kind: "convert", items });
-    if (reply?.ok) edit.setSketchTool(null);
+    const before = new Set((edit.sketch?.state?.curves || []).map(curve => curve.id));
+    const reply = await edit.sketchOp({ kind: "convert", items, ...(construction ? { construction: true } : {}) });
+    if (!reply?.ok) return;
+    if (offset) {
+      const made = (reply.sketch?.state?.curves || []).filter(curve => !before.has(curve.id)).map(curve => curve.id);
+      if (made.length) await edit.sketchOp({ kind: "offset", items: made, distance: offset, reverse: Boolean(settings.convertReverse), construction: false });
+    }
+    edit.setSketchTool(null);
   };
   return <>
     <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Entities to Convert</p>
     <SelectionList items={items} prompt="Select edges or a face on the model." />
+    <FileSheetCheckboxRow label="For construction" checked={construction} disabled={Boolean(offset)}
+      onCheckedChange={value => edit.setSketchSettings({ convertConstruction: Boolean(value) })} />
+    <SizeRow label="Offset" value={offset || "0"} unit={units} disabled={edit.saving}
+      onCommit={text => edit.setSketchSettings({ convertOffset: text === "0" ? "" : text })} />
+    {offset ? <FileSheetCheckboxRow label="Reverse direction" checked={Boolean(settings.convertReverse)}
+      onCheckedChange={value => edit.setSketchSettings({ convertReverse: Boolean(value) })} /> : null}
     <div className="flex justify-end px-2 pb-2 pt-1">
       <Button type="button" size="sm" disabled={!items.length || edit.saving} onClick={() => void convert()}>Convert</Button>
+    </div>
+  </>;
+}
+
+/** Intersection Curve, as SolidWorks' brings in where the part crosses the sketch's plane, held there as the part changes. */
+function IntersectionCurve({ edit }) {
+  const settings = edit.sketchSettings || {};
+  const bring = async () => {
+    const reply = await edit.sketchOp({ kind: "intersection", ...(settings.convertConstruction ? { construction: true } : {}) });
+    if (reply?.ok) edit.setSketchTool(null);
+  };
+  return <>
+    <FileSheetCheckboxRow label="For construction" checked={Boolean(settings.convertConstruction)}
+      onCheckedChange={value => edit.setSketchSettings({ convertConstruction: Boolean(value) })} />
+    <div className="flex justify-end px-2 pb-2 pt-1">
+      <Button type="button" size="sm" disabled={edit.saving} onClick={() => void bring()}>Bring it in</Button>
     </div>
   </>;
 }
@@ -162,12 +196,17 @@ export default function SketchPanel({ edit, onPlane, references = [] }) {
           onCommit={text => edit.setSketchSettings({ offsetDistance: text })} />
         <FileSheetCheckboxRow label="Reverse direction" checked={settings.offsetReverse} onCheckedChange={value => edit.setSketchSettings({ offsetReverse: Boolean(value) })} />
         <FileSheetCheckboxRow label="Select chain" checked={settings.offsetChain} onCheckedChange={value => edit.setSketchSettings({ offsetChain: Boolean(value) })} />
+        {/* Construction geometry, as SolidWorks' Offset Entities sets it: the picked base dashed, or the offset. */}
+        <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pt-1`}>Construction geometry</p>
+        <FileSheetCheckboxRow label="Base geometry" checked={Boolean(settings.offsetBase)} onCheckedChange={value => edit.setSketchSettings({ offsetBase: Boolean(value) })} />
+        <FileSheetCheckboxRow label="Offset geometry" checked={Boolean(settings.offsetConstruction)} onCheckedChange={value => edit.setSketchSettings({ offsetConstruction: Boolean(value) })} />
       </> : null}
       {/* Polygon's Parameters: how many sides it is drawn with. */}
       {tool.id === "polygon" ? <SizeRow label="Sides" value={String(polygonSides(settings.polygonSides))} unit="" disabled={disabled}
         onCommit={text => edit.setSketchSettings({ polygonSides: text })} /> : null}
       {PATTERN_TOOLS.includes(tool.id) ? <PatternSettings edit={edit} tool={tool.id} units={units} disabled={disabled} /> : null}
       {tool.id === "convert" ? <ConvertEntities edit={edit} references={references} /> : null}
+      {tool.id === "intersection" ? <IntersectionCurve edit={edit} /> : null}
       {tool.id === "mirror" && selection.length ? <>
         <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Entities to mirror</p>
         <ul aria-label="Entities to mirror" className="mx-2 mb-1.5 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">

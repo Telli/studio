@@ -90,7 +90,11 @@ def plate():
   (a relation, `OnEdge1`), so they follow the part when its sizes change. Write it after the body
   it takes them from: `outline = s.convert(part.faces().sort_by(Axis.Z)[-1])`. Its curves are
   `outline[0]`, `outline[1]`, ...; offset them, fillet their corners or dimension to them. A
-  circle tilted to the sketch, or a spline, raises `SketchError`.
+  circle tilted to the sketch, or a spline, raises `SketchError`. `construction=True` brings them
+  in dashed, to hold an offset or a dimension without being part of the profile.
+- `s.intersection(body)` is Intersection Curve: the edges where the body crosses the sketch's
+  plane, for `s.convert` to bring in and hold there as the body changes:
+  `section = s.convert(s.intersection(part), construction=True)`.
 - Draw each point near where it ends up: the solver starts from the drawing and leaves what no
   dimension fixes where it was drawn.
 

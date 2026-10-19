@@ -33,6 +33,7 @@ export const TrimIcon = ({ className }) => <Glyph className={className}><path d=
 export const ExtendIcon = ({ className }) => <Glyph className={className}><path d="M12.5 2.5v11" /><path d="M2 8h5" /><path d="M7 8h5.5" strokeOpacity=".6" strokeDasharray="1.4 1.3" /><Dot x={12.5} y={8} /></Glyph>;
 export const LinearSketchPatternIcon = ({ className }) => <Glyph className={className}><circle cx="3.5" cy="10.5" r="2" /><circle cx="8.5" cy="10.5" r="2" strokeOpacity=".55" strokeDasharray="1.4 1.1" /><circle cx="13.5" cy="10.5" r="2" strokeOpacity=".55" strokeDasharray="1.4 1.1" /><path d="M3.5 5h9M10.5 3l2 2-2 2" /></Glyph>;
 export const CircularSketchPatternIcon = ({ className }) => <Glyph className={className}><circle cx="8" cy="3.2" r="1.7" /><circle cx="12.6" cy="10.4" r="1.7" strokeOpacity=".55" strokeDasharray="1.4 1.1" /><circle cx="3.4" cy="10.4" r="1.7" strokeOpacity=".55" strokeDasharray="1.4 1.1" /><Dot x={8} y={8.2} /><path d="M8 8.2V5" strokeOpacity=".4" /></Glyph>;
+export const IntersectionCurveIcon = ({ className }) => <Glyph className={className}><path d="M3 5.5h7v7H3z" strokeOpacity=".4" /><path d="M10 5.5l3-3M10 12.5l3-3M3 5.5l3-3h7v7" strokeOpacity=".4" /><path d="M1.5 9h13" strokeDasharray="2 1.4" /><path d="M3 9h7l3-3" strokeWidth={1.6} /></Glyph>;
 export const OffsetIcon = ({ className }) => <Glyph className={className}><path d="M2.5 13.5v-10h11" /><path d="M5.5 13.5v-7h8" strokeOpacity=".6" /></Glyph>;
 export const ConvertEntitiesIcon = ({ className }) => <Glyph className={className}><path d="M3 7v4.5L8 14l5-2.5V7M8 9.5V14" strokeOpacity=".45" /><path d="M3 7 8 4.5 13 7 8 9.5z" /><path d="M8 1v2.4M6.6 2.2 8 3.4l1.4-1.2" strokeOpacity=".7" /></Glyph>;
 export const MirrorIcon = ({ className }) => <Glyph className={className}><path d="M8 1.5v13" strokeDasharray="2 1.4" /><path d="M6 4.5 2 11.5h4z" /><path d="m10 4.5 4 7h-4z" strokeOpacity=".55" /></Glyph>;
@@ -52,5 +53,5 @@ export const SKETCH_TOOL_ICONS = Object.freeze({
   three_point_arc: ThreePointArcIcon, tangent_arc: TangentArcIcon, slot: SlotIcon, polygon: PolygonIcon, centerline: CenterlineIcon,
   point: PointIcon, dimension: SmartDimensionIcon,
   fillet: SketchFilletIcon, chamfer: SketchChamferIcon, trim: TrimIcon, extend: ExtendIcon,
-  linear_pattern: LinearSketchPatternIcon, circular_pattern: CircularSketchPatternIcon, offset: OffsetIcon, mirror: MirrorIcon, convert: ConvertEntitiesIcon,
+  linear_pattern: LinearSketchPatternIcon, circular_pattern: CircularSketchPatternIcon, intersection: IntersectionCurveIcon, offset: OffsetIcon, mirror: MirrorIcon, convert: ConvertEntitiesIcon,
 });

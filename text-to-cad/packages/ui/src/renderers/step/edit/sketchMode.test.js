@@ -179,6 +179,9 @@ test("the note says what the sketch tools did", () => {
   made = countChange({}, { kind: "convert", items: [{ selector: "e4" }, { selector: "e7" }, { selector: "f2" }] });
   assert.equal(sketchNote({ name: "Sketch2", file: "plate.py", line: 12, made }),
     "In edit mode I changed Sketch2 (plate.py, line 12): converted 2 edges and a face of the model.");
+  // Intersection Curve: the part's section on the sketch's plane.
+  assert.equal(sketchNote({ name: "Sketch3", file: "plate.py", line: 15, made: countChange({}, { kind: "intersection" }) }),
+    "In edit mode I changed Sketch3 (plate.py, line 15): brought in where the part crosses its plane.");
 });
 
 test("a dark viewer is told by its light text, written as oklch or rgb", () => {

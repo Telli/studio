@@ -28,6 +28,7 @@ from cadgen.edit.sketching import (
     SketchEditError,
     TextEdits,
     _call_of,
+    _construction_edits,
     _keyword,
     _segment,
     _typed,
@@ -269,6 +270,11 @@ def offset(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
     flip = -1.0 if op.get("reverse") else 1.0
     s = block.var
     vars_ = _Vars(block, state)
+    own = op.get("construction")
+
+    def built(curve: dict) -> str:
+        # Offset geometry made construction or not when asked, else as its base is.
+        return _built(curve) if own is None else (", construction=True" if own else "")
     circles = [name for name in items if shape.curves[name]["kind"] == "circle"]
     if circles:
         if len(items) != 1:
@@ -278,7 +284,7 @@ def offset(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
         if radius <= shape.tolerance:
             raise SketchEditError(f"An offset of {number(distance)} is more than {curve['id']}'s radius.")
         var = vars_.next("Circle")
-        return _append(text, block, [f"{var} = {s}.circle({names.point(curve['center'])}, {number(radius)}{_built(curve)})",
+        return _offset_written(text, block, names, items, op, [f"{var} = {s}.circle({names.point(curve['center'])}, {number(radius)}{built(curve)})",
                                      f"{s}.offset_entities({var}, {names.curve(curve['id'])}, {typed})"])
     order, closed = _chain(shape, state, items)
 
@@ -357,19 +363,29 @@ def offset(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
         start, end = (piece["p"], piece["q"]) if piece["forward"] else (piece["q"], piece["p"])
         if curve["kind"] == "line":
             var = vars_.next("Line")
-            written.append(f"{var} = {s}.line({point_code(start, var, 'start')}, {point_code(end, var, 'end')}{_built(curve)})")
+            written.append(f"{var} = {s}.line({point_code(start, var, 'start')}, {point_code(end, var, 'end')}{built(curve)})")
         else:
             var = vars_.next("Arc")
             turn = ", clockwise=True" if curve.get("clockwise") else ""
             written.append(f"{var} = {s}.arc({names.point(curve['center'])}, {point_code(start, var, 'start')}, "
-                           f"{point_code(end, var, 'end')}{turn}{_built(curve)})")
+                           f"{point_code(end, var, 'end')}{turn}{built(curve)})")
         made.append(var)
     sources = [names.curve(piece["name"]) for piece in pieces]
     if len(made) == 1:
         written.append(f"{s}.offset_entities({made[0]}, {sources[0]}, {typed})")
     else:
         written.append(f"{s}.offset_entities([{', '.join(made)}], [{', '.join(sources)}], {typed})")
-    return _append(text, block, written)
+    return _offset_written(text, block, names, items, op, written)
+
+
+def _offset_written(text: str, block, names, items: list[str], op: dict, written: list[str]) -> str:
+    """The offset written after the sketch's last line, its base geometry made construction first when
+    ``base`` asks, as Offset Entities' Construction geometry options make it."""
+    edits = TextEdits(text)
+    if op.get("base"):
+        _construction_edits(block, names, edits, items, True)
+    edits.insert_after(block.last_line, [f"{block.indent}{each}" for each in written])
+    return edits.apply()
 
 
 # ---------------------------------------------------------------------------------------------

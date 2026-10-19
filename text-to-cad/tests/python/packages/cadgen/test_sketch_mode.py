@@ -372,6 +372,44 @@ class SketchMode(unittest.TestCase):
         self.assertEqual(max(point["x"] for point in view["state"]["points"]), 25.0)
         self.assertEqual(view["state"]["status"], "Fully defined")
 
+    def test_model_edges_offset_into_the_sketch_hold_the_offset_on_construction(self):
+        top = {"selector": "f99", "type": "plane", "center": [0.0, 0.0, -2.5], "size": 800.0}
+        self.send({"kind": "new", "plane": top, "name": "Sketch1"})
+        self.send({"kind": "convert", "items": [top], "construction": True})
+        self.assertIn("\n    converted1 = sketch1.convert(part.edges().group_by(Axis.Z)[-1], construction=True)\n", self.source())
+        made = [curve["id"] for curve in self.sketch["state"]["curves"] if curve.get("converted")]
+        self.send({"kind": "offset", "items": made, "distance": "2", "reverse": True, "construction": False})
+        lines = [curve for curve in self.sketch["state"]["curves"] if curve["kind"] == "line"]
+        # The face's edges stay dashed to hold the offset; the offset is the profile a feature takes.
+        self.assertEqual(sorted(curve["construction"] for curve in lines), [False] * 4 + [True] * 4)
+        self.assertEqual(self.sketch["state"]["status"], "Fully defined")
+        self.assertEqual(sorted({abs(round(point["x"], 6)) for point in self.sketch["state"]["points"] if point["id"] != "Origin"}), [18, 20])
+        self.extrudes(self.send({"kind": "exit", "changed": True}))
+
+    def test_offset_makes_its_base_or_its_offset_construction_when_asked(self):
+        self.rectangle()
+        lines = [curve["id"] for curve in self.sketch["state"]["curves"] if curve["kind"] == "line"]
+        self.send({"kind": "offset", "items": lines, "distance": "2", "base": True})
+        curves = self.sketch["state"]["curves"]
+        # The rectangle dashed, its offset solid: what a feature takes is the offset.
+        self.assertEqual({curve["id"]: curve["construction"] for curve in curves if curve["id"] in lines}, dict.fromkeys(lines, True))
+        self.assertEqual(sorted(curve["construction"] for curve in curves if curve["kind"] == "line"), [False] * 4 + [True] * 4)
+        self.send({"kind": "offset", "items": [lines[0]], "distance": "1", "construction": True})
+        self.assertTrue(self.sketch["state"]["curves"][-1]["construction"])
+
+    def test_an_intersection_curve_is_where_the_part_crosses_the_sketch_and_follows_it(self):
+        self.start("Front")
+        self.send({"kind": "intersection", "construction": True})
+        self.assertIn("\n    converted1 = sketch1.convert(sketch1.intersection(part), construction=True)\n", self.source())
+        state = self.sketch["state"]
+        lines = [curve for curve in state["curves"] if curve["kind"] == "line"]
+        # The plate's section on the Front Plane: 40 wide and 5 deep, dashed for reference.
+        self.assertEqual((len(lines), all(curve["construction"] and curve.get("converted") for curve in lines)), (4, True))
+        self.assertEqual(sorted({round(point["x"], 6) for point in state["points"] if point["id"] != "Origin"}), [-20, 20])
+        # One of its curves deleted takes the whole section.
+        self.send({"kind": "delete", "items": [lines[0]["id"]]})
+        self.assertNotIn("intersection", self.source())
+
     def test_one_converted_curve_deleted_alone_keeps_the_rest_on_their_edges(self):
         top = {"selector": "f99", "type": "plane", "center": [0.0, 0.0, -2.5], "size": 800.0}
         self.send({"kind": "new", "plane": top, "name": "Sketch1"})

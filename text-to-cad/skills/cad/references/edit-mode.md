@@ -184,7 +184,9 @@ by hand" below.
 - The sketch tools write lines too. Sketch Fillet writes `sketch2.fillet(line2, line3, 2)`, Sketch
   Chamfer `sketch2.chamfer(line2, line3, 2)`.
   Offset Entities draws the offset curves where they fall and holds them with
-  `sketch2.offset_entities([line9, ...], [line1, ...], 2)`. Mirror Entities draws the mirrored
+  `sketch2.offset_entities([line9, ...], [line1, ...], 2)`; its Construction geometry boxes write
+  `construction=True` on the picked curves (Base geometry) or on the offset (Offset geometry).
+  Mirror Entities draws the mirrored
   curves, shares the points on the centerline, and holds the rest with `sketch2.symmetric(...)`
   (and `sketch2.equal(...)` for an arc or circle). Trim Entities moves an end back to where
   another curve crosses (`sketch2.coincident(line1.end, line2)` keeps it there), splits a line
@@ -198,7 +200,11 @@ by hand" below.
   dimension deletes the pattern. Convert
   Entities writes `converted1 = sketch2.convert(<edges>)`, the edges picked on the model (a face
   stands for its edges) by where they are on the body made before the sketch; deleting one of
-  them deletes that line, and they are not trimmed.
+  them takes that edge out of the line, and they are not trimmed. For construction adds
+  `construction=True`; an Offset typed in Convert brings the edges in that way and offsets the
+  curves they made at once, as Offset Entities does from model edges. Intersection Curve writes
+  `converted2 = sketch2.convert(sketch2.intersection(part))`, where the body made before the
+  sketch crosses its plane; deleting one of its curves deletes the line.
 - Keep this shape when you change a sketch the engineer drew: its block of lines after the
   `Sketch(...)` line, entities assigned to names, so the engineer can open it again with Edit
   Sketch. Change sizes by their numbers or names, as in any sketch.

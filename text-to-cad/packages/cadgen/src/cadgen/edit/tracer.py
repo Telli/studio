@@ -2829,6 +2829,22 @@ def _known(block, sketch, typed):
         raise sketching.SketchEditError(f"This part has no size called {missing[0]}.")
 
 
+def _body_before(request, path, block, sketch):
+    """The name that holds the part's body where a sketch is made, for a line of the sketch to use it."""
+    from cadgen.edit import commands, sketching
+
+    state = STATE.get(str(Path(request["script"]).resolve()))
+    if state is None or not isinstance(state.get("shape"), B.Shape):
+        raise sketching.SketchEditError("This part makes no body yet, so there is nothing for the sketch to cross.")
+    try:
+        _, before = commands.body_at(state["steps"], state["shape"], state["level"], ROOT, _relative(str(path)), block.first_line)
+    except commands.CommandError:
+        raise sketching.SketchEditError(f"{sketch.name} comes before the part's first feature, so it crosses nothing yet.") from None
+    if before.name is None:
+        raise sketching.SketchEditError("Edit mode cannot tell which name holds the body there. Ask the agent to bring the curves in.")
+    return before.name
+
+
 def _convert_edges(request, path, block, sketch, entry, op):
     """What Convert Entities brings into a sketch, as build123d's selectors on the body where the
     sketch is made: the edges picked (``op["items"]``, as the viewer read them), and every edge of a
@@ -2896,6 +2912,10 @@ def _converts_kept(request, path, block, sketch, entry, state, items):
     going: dict[int, tuple] = {}
     for item in items:
         made = names.statement_of(item)
+        # An Intersection Curve goes whole: its curves are the section's, not edges of the body.
+        call = sketching._call_of(made.statement, block.var) if made is not None and made.method == "convert" else None
+        if call is not None and call.args and getattr(getattr(call.args[0], "func", None), "attr", None) == "intersection":
+            continue
         if made is not None and made.method == "convert" and item in made.curves:
             going.setdefault(made.statement.lineno, (made, set()))[1].add(made.curves.index(item))
     partial = {lineno: each for lineno, each in going.items() if len(each[1]) < len(each[0].curves)}
@@ -3029,6 +3049,10 @@ def sketch_edit(request):
         elif kind == "convert":
             edges = _convert_edges(request, path, block, sketch, entry, op)
             text = _imported(sketch_tools.convert(text, line, state, {**op, "edges": edges[0]}, str(path)), edges[1])
+        elif kind == "intersection":
+            # Intersection Curve: where the body made before the sketch crosses its plane, held there.
+            text = sketch_tools.convert(text, line, state, {**op, "edges": f"{block.var}.intersection({_body_before(request, path, block, sketch)})"},
+                                        str(path))
         elif kind in ("fillet", "chamfer", "offset", "mirror", "trim", "extend", "pattern"):
             if kind in ("fillet", "chamfer", "offset", "pattern"):
                 typed = str(op.get("radius" if kind == "fillet" else "spacing" if kind == "pattern" and op.get("type") != "circular"

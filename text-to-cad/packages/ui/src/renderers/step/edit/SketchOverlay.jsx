@@ -530,7 +530,8 @@ export default function SketchOverlay({ viewport, edit, units }) {
         if (!curve || curve.derived) return;
         const items = current.settings?.offsetChain === false ? [hit] : chainOf(state, hit);
         await send({ kind: "offset", items, distance: toolSize(current.settings?.offsetDistance, units, "offset"),
-          reverse: Boolean(current.settings?.offsetReverse) });
+          reverse: Boolean(current.settings?.offsetReverse), construction: Boolean(current.settings?.offsetConstruction),
+          ...(current.settings?.offsetBase ? { base: true } : {}) });
         return;
       }
       if (PATTERN_TOOLS.includes(tool)) {
