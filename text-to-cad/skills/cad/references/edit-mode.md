@@ -158,18 +158,18 @@ by hand" below.
   and draws the PDF again. Dimensions beyond the overall sizes, notes and custom view layouts are
   the agent's, in the same script.
 - **Mate** (the ribbon's Assemble group) places an assembly's part by a face or an edge picked on
-  the part that stays and one on the part that moves to it. It writes a pair of build123d rigid
-  joints in the assembly, on what was picked (found again by selector each run), so the mate holds
-  as the parts change: `RigidJoint("coincident1", base_part, Location(Plane(<face>)) * Pos(3, 1))`,
-  `RigidJoint("coincident1", pin_part, Location(-Plane(<face>)))`,
-  `base_part.joints["coincident1"].connect_to(pin_part.joints["coincident1"])`, the parts named
-  before the `return Compound(children=[...])` that lists them. Coincident puts two flat faces
-  face to face, Distance a gap apart (`* Pos(x, y, gap)`); Concentric puts two round faces on one
-  axis (`<face>.axis_of_rotation.location`), and two circular edges centre on centre as a pin
-  seats in a hole (`Axis(<edge>.arc_center, <edge>.normal()).location`). What a mate leaves free
-  stays where the part was (`* Pos(...) * Rot(0, 0, angle)` on the first joint); Flip alignment
-  turns the moved part over (`-Plane(...)`, `* Rot(180, 0, 0)`). The design tree lists them under
-  Mates (Coincident1 (base, pin)), and a mate's Delete takes its three lines out.
+  the part that stays and one on the part that moves to it, as SolidWorks' Standard Mates do. It
+  adds a constraint from `cadgen.mates` to the moved part's `mate` call, on what was picked (found
+  again by selector each run): `mate(pin_part, Coincident(<pin face>, <base face>),
+  Concentric(<pin face>, <base hole>))`, the parts named before the `return Compound(children=[...])`
+  that lists them. `mate` solves a part's mates together each run and moves it the least it can, so
+  what they leave free stays where the part was and it follows the parts it is mated to; a part's
+  call comes after the calls of the parts it is mated to. Coincident puts two flat faces face to
+  face (`flip=True` the same way), Distance a gap apart (`Distance(a, b, 5)`), Concentric two round
+  faces on one axis and two circular edges centre on centre, as a pin seats in a hole; Parallel,
+  Perpendicular and Angle (`Angle(a, b, 30)`) line faces or edges up. Mates that cannot all hold
+  are refused, naming them. The design tree lists them under Mates (Coincident1 (base, pin)), and a
+  mate's Delete takes it out of its call.
 - **Rename** (a row's menu, or F2) names a feature as the engineer calls it: the name is the
   comment at the end of the feature's line (`part -= ...  # Cable notch`), which the design tree
   shows in place of Cut-Extrude2 and Edit Feature keeps; a sketch's is its own

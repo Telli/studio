@@ -1332,7 +1332,7 @@ CIRCLE = 2 * math.pi * 1.5
 
 
 class Mates(Commands):
-    """Mate, as SolidWorks' places an assembly's parts: joints written in the assembly, its second part moved to its first."""
+    """Mate, as SolidWorks' places an assembly's parts: each in its part's `mate` call, solved together each run."""
 
     def mated(self, file: str, files: dict, mate: dict) -> dict:
         reply = self.service.change({"file": file, "files": files, "mate": mate})
@@ -1342,32 +1342,40 @@ class Mates(Commands):
     def box(self, file: str, files: dict) -> list:
         return [[round(value, 6) + 0 for value in corner] for corner in self.service.change({"file": file, "mass": {}, "files": files})["mass"]["box"]]
 
-    def test_coincident_puts_the_pin_on_the_base_where_it_was_over_it_and_a_mate_comes_out(self):
+    def test_coincident_then_concentric_seat_the_pin_over_the_hole_and_each_comes_out_on_its_own(self):
         root, file, state = self.open(MATING, "assemblies/stack.step")
         top = {"selector": "o1.1.f6", "type": "plane", "center": [-0.183218, 0, 2], "size": 200 - math.pi * 2.25}
         bottom = {"selector": "o1.2.f3", "type": "plane", "center": [-3, 2, 7], "size": math.pi * 2.25}
         reply = self.mated(file, state["files"], {"type": "coincident", "selection": [top, bottom]})
-        text = (root / "assemblies" / "stack.py").read_text(encoding="utf-8")
-        self.assertIn("    base_part = base()\n    pin_part = pin()\n", text)
-        self.assertIn('    RigidJoint("coincident1", base_part, Location(Plane(base_part.faces()', text)
-        self.assertIn('    base_part.joints["coincident1"].connect_to(pin_part.joints["coincident1"])\n'
-                      '    return Compound(children=[base_part, pin_part], label="stack")\n', text)
-        # Its bottom on the base's top, as far over it as it was: from z = 2 up to 8.
-        self.assertEqual(self.box(file, reply["files"])[1][2], 8)
-        self.assertEqual([(mate["name"], mate["type"], mate["parts"]) for mate in reply["mates"]], [("Coincident1", "coincident", ["base", "pin"])])
-        # Taken out, the pin floats where it was again.
-        gone = self.mated(file, reply["files"], {"delete": "coincident1"})
-        self.assertNotIn("coincident1", (root / "assemblies" / "stack.py").read_text(encoding="utf-8"))
-        self.assertEqual(gone["mates"], [])
-        self.assertEqual(self.box(file, gone["files"])[1][2], 13)
+        script = root / "assemblies" / "stack.py"
+        text = script.read_text(encoding="utf-8")
+        self.assertIn("from cadgen.mates import Coincident, mate\n", text)
+        self.assertIn("    base_part = base()\n    pin_part = pin()\n    mate(pin_part, Coincident(pin_part.faces()", text)
+        self.assertIn('base_part.faces().sort_by(Axis.Z)[-1]))\n    return Compound(children=[base_part, pin_part], label="stack")\n', text)
+        # Its bottom on the base's top, as far over it as it was: from z = 2 up to 8, x -4.5 to -1.5.
+        self.assertEqual(self.box(file, reply["files"]), [[-10, -5, -2], [10, 5, 8]])
+        self.assertEqual([(mate["name"], mate["parts"]) for mate in reply["mates"]], [("Coincident1", ["base", "pin"])])
+        # Concentric with the hole as well: the two solved together stand the pin on the hole.
+        side = {"selector": "o1.2.f1", "type": "cylinder", "center": [-3, 2, 5], "size": 2 * math.pi * 1.5 * 6}
+        hole = {"selector": "o1.1.f7", "type": "cylinder", "center": [5, 0, 0], "size": 2 * math.pi * 1.5 * 4}
+        both = self.mated(file, reply["files"], {"type": "concentric", "selection": [hole, side]})
+        text = script.read_text(encoding="utf-8")
+        self.assertIn("from cadgen.mates import Coincident, Concentric, mate\n", text)
+        self.assertIn("    mate(pin_part,\n         Coincident(", text)
+        self.assertIn("\n         Concentric(pin_part.faces()", text)
+        self.assertEqual([mate["name"] for mate in both["mates"]], ["Coincident1", "Concentric1"])
+        self.assertEqual(self.box(file, both["files"]), [[-10, -5, -2], [10, 5, 8]])
+        # Taken out, Coincident leaves Concentric: the pin keeps to the hole's axis where it was along it.
+        gone = self.mated(file, both["files"], {"delete": "Coincident1"})
+        self.assertEqual([mate["name"] for mate in gone["mates"]], ["Concentric1"])
+        self.assertNotIn("Coincident(", script.read_text(encoding="utf-8").split("import", 3)[-1].split("def stack", 1)[-1])
 
     def test_concentric_circular_edges_seat_the_pin_in_the_hole_and_flat_picks_are_refused(self):
         root, file, state = self.open(MATING, "assemblies/stack.step")
         hole = {"selector": "o1.1.e13", "type": "circle", "center": [5, 0, -2], "size": CIRCLE}
         foot = {"selector": "o1.2.e3", "type": "circle", "center": [-3, 2, 7], "size": CIRCLE}
         reply = self.mated(file, state["files"], {"type": "concentric", "selection": [hole, foot]})
-        text = (root / "assemblies" / "stack.py").read_text(encoding="utf-8")
-        self.assertIn('RigidJoint("concentric1", base_part, Axis(', text)
+        self.assertIn("mate(pin_part, Concentric(pin_part.edges()", (root / "assemblies" / "stack.py").read_text(encoding="utf-8"))
         # Its foot on the hole's bottom edge, standing up through it: x 3.5 to 6.5, z -2 to 4.
         self.assertEqual(self.box(file, reply["files"]), [[-10, -5, -2], [10, 5, 4]])
         flat = {"selector": "o1.1.f6", "type": "plane", "center": [-0.183218, 0, 2], "size": 200 - math.pi * 2.25}
@@ -1375,6 +1383,30 @@ class Mates(Commands):
         refused = self.service.change({"file": file, "files": reply["files"], "mate": {"type": "concentric", "selection": [flat, seated]}})
         self.assertFalse(refused["ok"])
         self.assertIn("round faces or circular edges", refused["error"])
+
+    def test_mates_that_cannot_all_hold_are_refused_and_the_parallel_angle_and_distance_mates_solve(self):
+        import build123d as B
+
+        from cadgen.mates import Angle, Coincident, Distance, MateError, Parallel, Perpendicular, mate
+
+        base = B.Box(20, 10, 4)
+        top = base.faces().sort_by(B.Axis.Z)[-1]
+        # A block turned 20 degrees made Parallel side to side turns square, where it is.
+        block = B.Pos(0, 0, 10) * B.Rot(0, 0, 20) * B.Box(4, 2, 2)
+        sides = lambda part: part.faces().filter_by(lambda face: abs(B.Plane(face).z_dir.Z) < 1e-6).sort_by(B.Axis.X)  # noqa: E731
+        mate(block, Parallel(sides(block)[-1], base.faces().sort_by(B.Axis.X)[-1]))
+        self.assertAlmostEqual(B.Plane(sides(block)[-1]).z_dir.X, 1, places=6)
+        self.assertAlmostEqual(block.bounding_box().center().Z, 10, places=6)
+        # Its bottom 3 above the base's top, then at 30 degrees to it.
+        mate(block, Distance(block.faces().sort_by(B.Axis.Z)[0], top, 3))
+        self.assertAlmostEqual(block.bounding_box().min.Z, 5, places=6)
+        mate(block, Angle(block.faces().sort_by(B.Axis.Z)[0], top, 150))
+        self.assertAlmostEqual(abs(B.Plane(block.faces().sort_by(B.Axis.Z)[0]).z_dir.Z), math.cos(math.radians(30)), places=6)
+        # Coincident and Perpendicular between the same two faces cannot both hold.
+        pin = B.Pos(0, 0, 10) * B.Cylinder(1, 4)
+        foot = pin.faces().sort_by(B.Axis.Z)[0]
+        with self.assertRaises(MateError):
+            mate(pin, Coincident(foot, top), Perpendicular(foot, top))
 
 
 class Comparing(Commands):

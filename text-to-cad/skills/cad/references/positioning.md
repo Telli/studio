@@ -71,6 +71,14 @@ if __name__ == "__main__":
     enclosure()
 ```
 
+Studio's Mate writes `cadgen.mates` constraints, which suit a part placed against faces and edges
+of others: `mate(part, Coincident(a, b), Concentric(c, d), ...)` takes each mate's first item on the
+part that moves and its second on the part it is mated to, solves them together each run and moves
+the part the least it can, so what they leave free stays put (`Distance(a, b, gap)`,
+`Parallel(a, b)`, `Perpendicular(a, b)`, `Angle(a, b, degrees)`, `flip=True` to face the same way).
+Mates that cannot all hold raise `MateError`. Keep a part's `mate` call after those of the parts it
+is mated to.
+
 Native joint options include `RigidJoint` for fixed placement, `RevoluteJoint`
 for rotation, `LinearJoint` for translation, `CylindricalJoint` for combined
 rotation/translation and `BallJoint` for spherical orientation. Use `Location`

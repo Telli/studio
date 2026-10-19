@@ -1,31 +1,31 @@
-"""Mates, as SolidWorks' Mate places the parts of an assembly.
+"""Mates, as SolidWorks' Mate places the parts of an assembly (`cadgen.mates`).
 
-Two faces or edges are picked on two parts: the first part stays, the second is moved to it by a
-pair of build123d rigid joints written in the assembly's script, each on the face or edge picked
-(found again by selector each run), so the mate holds as the parts change::
+Two faces, edges or vertices are picked on two parts: the first part stays, the second moves to
+it. The mate is written in the assembly's script into the moved part's ``mate`` call, on what was
+picked (found again by selector each run), so it holds as the parts change and a part's mates are
+solved together::
 
-    RigidJoint("coincident1", base_part, Location(Plane(base_part.faces().sort_by(Axis.Z)[-1])))
-    RigidJoint("coincident1", pin_part, Location(-Plane(pin_part.faces().sort_by(Axis.Z)[0])))
-    base_part.joints["coincident1"].connect_to(pin_part.joints["coincident1"])
+    mate(pin_part,
+         Coincident(pin_part.faces().sort_by(Axis.Z)[0], base_part.faces().sort_by(Axis.Z)[-1]),
+         Concentric(pin_part.faces().filter_by(GeomType.CYLINDER)[0], base_part.faces().filter_by(GeomType.CYLINDER)[0]))
 
-Coincident puts two flat faces face to face, Distance a gap apart; Concentric puts two round faces
-(or circular edges) on one axis, and two circular edges centre on centre, as a pin seats in a
-hole. What a mate leaves free stays as the part was: where it is along the face or the axis, and
-how it is turned about it (``* Pos(...) * Rot(...)`` on the first part's joint). The joints are
-labelled with the mate's name (Coincident1), which the design tree lists under Mates.
+A part's ``mate`` call comes after the calls of the parts it is mated to, so it follows them. The
+design tree lists the mates under Mates by type and count (Coincident1, Concentric1), and a mate's
+Delete takes it out of its call. Mates written as build123d joint pairs (``RigidJoint("coincident1",
+...)`` and ``connect_to``) are listed and taken out too.
 """
 
 from __future__ import annotations
 
 import ast
-import math
 import re
-
-import build123d as B
 
 from cadgen.edit import commands
 
-MATES = {"coincident": "Coincident", "concentric": "Concentric", "distance": "Distance"}
+TYPES = {"coincident": "Coincident", "concentric": "Concentric", "distance": "Distance", "parallel": "Parallel",
+         "perpendicular": "Perpendicular", "angle": "Angle"}
+_NAMES = set(TYPES.values())
+# The labels of mates written as joint pairs.
 _LABEL = re.compile(r"^(coincident|concentric|distance)(\d+)$")
 
 
@@ -73,48 +73,36 @@ def _picked(children: list, item: dict, scale: float) -> tuple[int, str, int]:
     return index, kind, number
 
 
-def _place(item, kind: str) -> tuple[str, B.Location]:
-    """What a pick stands for to a mate, and where: a flat face's plane, a round face's axis, a
-    circular edge's centre and axis."""
-    if kind == "face":
-        if item.geom_type == B.GeomType.PLANE:
-            return "plane", B.Location(B.Plane(item))
-        if item.geom_type in (B.GeomType.CYLINDER, B.GeomType.CONE):
-            return "axis", item.axis_of_rotation.location
-    elif item.geom_type == B.GeomType.CIRCLE:
-        return "circle", B.Axis(item.arc_center, item.normal()).location
-    raise MateError("A mate takes flat faces, round faces and circular edges.")
+def _mate_calls(function) -> list[tuple[ast.stmt, ast.Call, str]]:
+    """The function's ``mate(<part>, ...)`` statements, in order, with the part each places."""
+    found = []
+    for statement in function.body:
+        call = statement.value if isinstance(statement, ast.Expr) else None
+        if commands._call_name(call) == "mate" and isinstance(call.func, ast.Name) and call.args and isinstance(call.args[0], ast.Name):
+            found.append((statement, call, call.args[0].id))
+    return found
 
 
-def _code(what: str, picked: str, flipped: bool, names) -> str:
-    """A pick's place as the joint is written: a face's plane (turned over with a minus), a round
-    face's axis, a circular edge's centre and axis (turned over by ``* Rot(180, 0, 0)``)."""
-    if what == "plane":
-        return f"{names('Location')}({'-' if flipped else ''}{names('Plane')}({picked}))"
-    placed = f"{picked}.axis_of_rotation.location" if what == "axis" else f"{names('Axis')}({picked}.arc_center, {picked}.normal()).location"
-    return f"{placed} * {names('Rot')}(180, 0, 0)" if flipped else placed
+def _mated_to(constraint: ast.Call) -> str | None:
+    """The part a mate holds its part against: the name its second item's selector starts from
+    (``base_part`` of ``base_part.faces().sort_by(Axis.Z)[-1]``)."""
+    if len(constraint.args) < 2:
+        return None
+    node = constraint.args[1]
+    while not isinstance(node, ast.Name):
+        if isinstance(node, ast.Subscript):
+            node = node.value
+        elif isinstance(node, ast.Call):
+            node = node.func
+        elif isinstance(node, ast.Attribute):
+            node = node.value
+        else:
+            return None
+    return node.id
 
 
-def _turned(place: B.Location, what: str, flipped: bool) -> B.Location:
-    if what == "plane":
-        return B.Location(-B.Plane(place)) if flipped else place
-    return place * B.Rot(180, 0, 0) if flipped else place
-
-
-def labels(text: str) -> list[str]:
-    """The mates' names the script holds, as its joints are labelled (``coincident1``)."""
-    return sorted({node.value for node in ast.walk(ast.parse(text)) if isinstance(node, ast.Constant) and isinstance(node.value, str)
-                   and _LABEL.match(node.value)})
-
-
-def read(text: str, components=()) -> list[dict]:
-    """The mates in an assembly's script, in order: each joint pair's connection, by its label, and
-    the parts it places by the part functions (``components``) their names were made by."""
-    try:
-        tree = ast.parse(text)
-        function, _returned, _children = assembly_of(tree)
-    except (SyntaxError, MateError):
-        return []
+def _made_by(function, components) -> dict:
+    """Each name the assembly gives a part, to the part function that made it."""
     made_by = {}
     for statement in function.body:
         if isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name):
@@ -122,19 +110,56 @@ def read(text: str, components=()) -> list[dict]:
             part = next((name for name in called if name in components), None)
             if part:
                 made_by[statement.targets[0].id] = part
+        elif isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Tuple) \
+                and isinstance(statement.value, ast.Tuple):
+            for target, value in zip(statement.targets[0].elts, statement.value.elts):
+                called = [commands._call_name(node) for node in ast.walk(value) if isinstance(node, ast.Call)]
+                part = next((name for name in called if name in components), None)
+                if part and isinstance(target, ast.Name):
+                    made_by[target.id] = part
+    return made_by
+
+
+def _listed(function, components=()) -> list[dict]:
+    """Every mate in the assembly, in order: a ``mate`` call's each, by its type and count, and a
+    joint pair's, by its label; with where it is written."""
+    made_by = _made_by(function, components)
+    counts: dict[str, int] = {}
     found = []
     for statement in function.body:
         call = statement.value if isinstance(statement, ast.Expr) else None
+        if commands._call_name(call) == "mate" and isinstance(call.func, ast.Name) and call.args and isinstance(call.args[0], ast.Name):
+            moving = call.args[0].id
+            for index, constraint in enumerate(call.args[1:], 1):
+                kind = commands._call_name(constraint)
+                if kind not in _NAMES:
+                    continue
+                counts[kind] = counts.get(kind, 0) + 1
+                name = f"{kind}{counts[kind]}"
+                fixed = _mated_to(constraint)
+                found.append({"name": name, "label": name, "type": kind.lower(), "parts": [made_by.get(fixed, fixed), made_by.get(moving, moving)],
+                              "line": statement.lineno, "statement": statement, "call": call, "index": index})
+            continue
+        # A joint pair's connection: `base_part.joints["coincident1"].connect_to(pin_part.joints["coincident1"])`.
         if commands._call_name(call) != "connect_to" or not isinstance(call.func, ast.Attribute):
             continue
-        fixed = _joint_of(call.func.value)
-        moving = _joint_of(call.args[0]) if call.args else None
+        fixed, moving = _joint_of(call.func.value), (_joint_of(call.args[0]) if call.args else None)
         if fixed is None or moving is None or fixed[1] != moving[1] or not _LABEL.match(fixed[1]):
             continue
         kind, number = _LABEL.match(fixed[1]).groups()
-        found.append({"name": f"{MATES[kind]}{number}", "label": fixed[1], "type": kind,
-                      "parts": [made_by.get(fixed[0], fixed[0]), made_by.get(moving[0], moving[0])], "line": statement.lineno})
+        found.append({"name": f"{TYPES[kind]}{number}", "label": fixed[1], "type": kind, "parts": [made_by.get(fixed[0], fixed[0]),
+                      made_by.get(moving[0], moving[0])], "line": statement.lineno})
     return found
+
+
+def read(text: str, components=()) -> list[dict]:
+    """The mates in an assembly's script, for the design tree: name, label (what Delete takes), type,
+    the parts (the one it holds against, then the one it moves) and line."""
+    try:
+        function, _returned, _children = assembly_of(ast.parse(text))
+    except (SyntaxError, MateError):
+        return []
+    return [{key: value for key, value in each.items() if key not in ("statement", "call", "index")} for each in _listed(function, components)]
 
 
 def _joint_of(node) -> tuple[str, str] | None:
@@ -146,33 +171,52 @@ def _joint_of(node) -> tuple[str, str] | None:
 
 
 def delete(text: str, label: str) -> str:
-    """The script with a mate's joints and its connection taken out: its part goes back where it was."""
+    """The script with a mate taken out: out of its part's ``mate`` call (the call with it when it
+    was the last), or a joint pair's two joints and connection. Its part keeps its other mates."""
     tree = ast.parse(text)
     function, _returned, _children = assembly_of(tree)
-    gone = []
-    for statement in function.body:
-        mentioned = {node.value for node in ast.walk(statement) if isinstance(node, ast.Constant) and isinstance(node.value, str)}
-        if label in mentioned and isinstance(statement, ast.Expr):
-            gone.append(statement)
-    if not gone:
+    listed = next((each for each in _listed(function) if each["label"] == label), None)
+    if listed is None:
         raise MateError(f"{label} is no longer in the assembly. Look again.")
     lines = text.splitlines(keepends=True)
+    if "call" in listed:
+        call, statement = listed["call"], listed["statement"]
+        kept = [ast.get_source_segment(text, each) for each in call.args[1:] if each is not call.args[listed["index"]]]
+        if not kept:
+            del lines[statement.lineno - 1:statement.end_lineno]
+            return "".join(lines)
+        indent = " " * statement.col_offset
+        lines[statement.lineno - 1:statement.end_lineno] = [_written(indent, call.args[0].id, kept)]
+        return "".join(lines)
+    gone = [statement for statement in function.body if isinstance(statement, ast.Expr)
+            and label in {node.value for node in ast.walk(statement) if isinstance(node, ast.Constant) and isinstance(node.value, str)}]
     for statement in sorted(gone, key=lambda each: each.lineno, reverse=True):
         del lines[statement.lineno - 1:statement.end_lineno]
     return "".join(lines)
 
 
+def _written(indent: str, part: str, constraints: list[str]) -> str:
+    """A part's ``mate`` call as the script writes it: its mates one to a line under it when there are several."""
+    if len(constraints) == 1:
+        return f"{indent}mate({part}, {constraints[0]})\n"
+    under = indent + " " * len("mate(")
+    return f"{indent}mate({part},\n" + ",\n".join(f"{under}{each}" for each in constraints) + ")\n"
+
+
 def change(text: str, assembly, spec: dict, units: str, components: list[str]) -> tuple[str, int, str]:
-    """The script with a mate added: ``spec`` has its ``type``, the two picks (``selection``, the
-    second's part moved to the first's), a Distance's ``distance`` in the part's units and ``flip``
-    to turn the moved part the other way. ``components`` are the part functions the assembly
-    calls, in order. Returns the text, the line of its connection and what it did, in words."""
+    """The script with a mate added to the moved part's ``mate`` call (a new call when it has none):
+    ``spec`` has its ``type``, the two picks (``selection``, the second's part moved to the
+    first's), a Distance's ``distance`` in the part's units, an Angle's ``angle`` in degrees, and
+    ``flip``. ``components`` are the part functions the assembly calls, in order. Returns the text,
+    the line of the part's ``mate`` call, and what it did, in words."""
+    from cadgen import mates as engine
+
     kind = str(spec.get("type") or "").lower()
-    if kind not in MATES:
-        raise MateError("A mate is Coincident, Concentric or Distance.")
+    if kind not in TYPES:
+        raise MateError(f"A mate is {', '.join(TYPES.values())}.")
     picks = [item for item in spec.get("selection") or [] if isinstance(item, dict)]
     if len(picks) != 2:
-        raise MateError("Pick a face or an edge on each of two parts.")
+        raise MateError("Pick a face, an edge or a vertex on each of two parts.")
     tree = ast.parse(text)
     function, returned, listed = assembly_of(tree)
     children = list(getattr(assembly, "children", []) or [])
@@ -184,41 +228,23 @@ def change(text: str, assembly, spec: dict, units: str, components: list[str]) -
         raise MateError("Pick the faces or edges on two different parts.")
     fixed_item = commands.Topology(children[first], first_kind).item(first_number)
     moving_item = commands.Topology(children[second], second_kind).item(second_number)
-    fixed_what, fixed_place = _place(fixed_item, first_kind)
-    moving_what, moving_place = _place(moving_item, second_kind)
-    planes = fixed_what == moving_what == "plane"
-    if kind in ("coincident", "distance") and not planes:
-        raise MateError(f"{MATES[kind]} puts two flat faces together. Pick a flat face on each part.")
-    if kind == "concentric" and (fixed_what == "plane" or moving_what == "plane"):
-        raise MateError("Concentric puts two round faces or circular edges on one axis. Pick one on each part.")
-    # The moved part's place turned over or not: face to face for flat faces, and for an axis the
-    # way it points now, unless Flip asks for the other.
-    if planes:
-        flipped = True
-    else:
-        unturned = B.Plane(fixed_place.inverse() * moving_place)
-        flipped = unturned.z_dir.Z < 0
-    if spec.get("flip") in (True, "true", "1", 1):
-        flipped = not flipped
-    # Where the moved part's place is now, seen from the first part's: what the mate leaves free stays.
-    seen = B.Plane(fixed_place.inverse() * _turned(moving_place, moving_what, flipped))
+    flip = spec.get("flip") in (True, "true", "1", 1)
+    values: list[float] = []
+    try:
+        if kind == "distance":
+            values = [float(str(spec.get("distance") or "").strip())]
+        elif kind == "angle":
+            values = [float(str(spec.get("angle") or "").strip())]
+    except ValueError:
+        raise MateError(f"Type the {'distance' if kind == 'distance' else 'angle'} as a number.") from None
     unit = 25.4 if units == "in" else 1.0
-    along = [seen.origin.X / unit, seen.origin.Y / unit, seen.origin.Z / unit]
-    turn = math.degrees(math.atan2(seen.x_dir.Y, seen.x_dir.X))
-    if kind == "coincident":
-        along[2] = 0.0
-    elif kind == "distance":
-        try:
-            gap = float(str(spec.get("distance") or "").strip())
-        except ValueError:
-            raise MateError("Type the distance as a number.") from None
-        if gap < 0:
-            raise MateError("A distance is 0 or more; Flip turns the part the other way.")
-        along[2] = gap
-    elif fixed_what == "circle" and moving_what == "circle":
-        along = [0.0, 0.0, 0.0]  # centre on centre, as a pin seats in a hole
-    else:
-        along[0] = along[1] = 0.0
+    try:
+        # The mate made of what was picked, as the script will make it: it says what it cannot take.
+        made = getattr(engine, TYPES[kind])(moving_item, fixed_item, *[values[0] * unit] if kind == "distance" else values,
+                                            **({"flip": True} if flip and kind not in ("perpendicular", "angle") else {}))
+    except engine.MateError as error:
+        raise MateError(str(error)) from None
+    del made
     # The parts named in the script: each in the Compound as a name, or given one before the return.
     module, named_import = commands.build123d_names(tree)
     names = commands.Names(module or "")
@@ -239,31 +265,72 @@ def change(text: str, assembly, spec: dict, units: str, components: list[str]) -
         edits.put(element.lineno, element.col_offset, var, until=element.end_col_offset)
         variables.append(var)
     fixed_var, moving_var = variables
-    taken = labels(text)
-    label = next(f"{kind}{n}" for n in range(1, 1000) if f"{kind}{n}" not in taken)
     fixed_code = commands.Selections(children[first], fixed_var, names).write(first_kind, [first_number], one=True)
     moving_code = commands.Selections(children[second], moving_var, names).write(second_kind, [second_number], one=True)
-    writer = _Lengths(tree, units)
-    shift = ""
-    if any(abs(value) > 1e-9 for value in along):
-        given = [writer.length(value) for value in along]
-        shift = f" * {names('Pos')}({', '.join(given if abs(along[2]) > 1e-9 else given[:2])})"
-    if abs(turn) > 1e-6:
-        shift += f" * {names('Rot')}(0, 0, {commands._number(round(turn, 6), False)})"
-    lines += [
-        f'{indent}{names("RigidJoint")}("{label}", {fixed_var}, {_code(fixed_what, fixed_code, False, names)}{shift})',
-        f'{indent}{names("RigidJoint")}("{label}", {moving_var}, {_code(moving_what, moving_code, flipped, names)})',
-        f'{indent}{fixed_var}.joints["{label}"].connect_to({moving_var}.joints["{label}"])',
-    ]
-    edits.after(returned.lineno - 1, lines)
-    body = _Tree(tree)
-    added = commands._imports(edits, body, module, named_import, names)
-    made = edits.apply()
-    line = returned.lineno - 1 + len(lines) + added
-    name = f"{MATES[kind]}{label[len(kind):]}"
-    words = {"coincident": "face to face", "distance": f"{commands._number(along[2], False)} {units or 'mm'} apart",
-             "concentric": "centre on centre" if fixed_what == moving_what == "circle" else "on one axis"}[kind]
-    return made, line, f"{name}: {components[second] if second < len(components) else 'a part'} {words} with {components[first] if first < len(components) else 'a part'}"
+    written = [moving_code, fixed_code]
+    if kind == "distance":
+        written.append(_Lengths(tree, units).length(values[0]))
+    elif kind == "angle":
+        written.append(commands._number(values[0], False))
+    if flip and kind not in ("perpendicular", "angle"):
+        written.append("flip=True")
+    constraint = f"{TYPES[kind]}({', '.join(written)})"
+    calls = _mate_calls(function)
+    own = next(((statement, call) for statement, call, part in calls if part == moving_var), None)
+    holds = next(((statement, call) for statement, call, part in calls if part == fixed_var), None)
+    if holds is not None and any(_mated_to(each) == moving_var for each in holds[1].args[1:]):
+        raise MateError(f"{components[first] if first < len(components) else 'That part'} is mated to "
+                        f"{components[second] if second < len(components) else 'this one'} already: mates hold one part against another, "
+                        "one way. Pick the faces the other way round.")
+    if own is not None:
+        statement, call = own
+        kept = [ast.get_source_segment(text, each) for each in call.args[1:]] + [constraint]
+        new_call = _written(" " * statement.col_offset, moving_var, kept).rstrip("\n").split("\n")
+        if holds is not None and holds[0].lineno > statement.lineno:
+            # Its mates now hold it against a part placed after it: its call goes after that part's.
+            edits.swap(statement.lineno, statement.end_lineno, [])
+            edits.after(holds[0].end_lineno, new_call)
+        else:
+            edits.swap(statement.lineno, statement.end_lineno, new_call)
+    else:
+        # A new call: after the call of the part it is held against, and before the calls of the parts held against it.
+        later = [statement for statement, call, part in calls if any(_mated_to(each) == moving_var for each in call.args[1:])]
+        where = (later[0].lineno - 1) if later else returned.lineno - 1
+        if holds is not None and later and holds[0].lineno > later[0].lineno:
+            raise MateError("Those parts are mated in a ring. Take a mate out first.")
+        edits.after(where, lines + [f"{indent}mate({moving_var}, {constraint})"])
+    commands._imports(edits, _Tree(tree), module, named_import, names)
+    made_text = _imported(edits.apply(), [TYPES[kind], "mate"])
+    # The new mate is its part's call's last: its name as the tree counts it, and the call's line.
+    function = assembly_of(ast.parse(made_text))[0]
+    statement, call, _part = next(each for each in _mate_calls(function) if each[2] == moving_var)
+    at = statement.lineno
+    name = next(each["name"] for each in _listed(function) if each.get("call") is not None and each["statement"].lineno == at
+                and each["index"] == len(call.args) - 1)
+    mover = components[second] if second < len(components) else "a part"
+    holder = components[first] if first < len(components) else "a part"
+    words = {"coincident": "on", "concentric": "on one axis with", "distance": f"{commands._number(values[0], False) if values else ''} "
+             f"{units or 'mm'} from", "parallel": "parallel to", "perpendicular": "square to",
+             "angle": f"at {commands._number(values[0], False) if values else ''} degrees to"}[kind]
+    return made_text, at, f"{name}: {mover} {words} {holder}"
+
+
+def _imported(text: str, wanted: list[str]) -> str:
+    """The script with ``from cadgen.mates import ...`` naming each of ``wanted``."""
+    tree = ast.parse(text)
+    have = next((node for node in tree.body if isinstance(node, ast.ImportFrom) and node.module == "cadgen.mates"), None)
+    lines = text.splitlines(keepends=True)
+    if have is not None:
+        present = {alias.asname or alias.name for alias in have.names}
+        missing = [name for name in wanted if name not in present]
+        if not missing:
+            return text
+        names = sorted({alias.name for alias in have.names} | set(missing))
+        lines[have.lineno - 1:have.end_lineno] = [f"from cadgen.mates import {', '.join(names)}\n"]
+        return "".join(lines)
+    last = max((node.end_lineno for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))), default=0)
+    lines.insert(last, f"from cadgen.mates import {', '.join(sorted(set(wanted)))}\n")
+    return "".join(lines)
 
 
 class _Tree:

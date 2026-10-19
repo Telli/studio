@@ -45,3 +45,18 @@ it("a mate waits for a pick on each part, says which moves, and OK sends the two
   ] });
   expect(mating.stopInspecting).toHaveBeenCalled();
 });
+
+it("an Angle mate takes its angle and has no alignment to flip", async () => {
+  const user = userEvent.setup();
+  const mating = edit();
+  render(<MatePanel edit={mating as never} references={[TOP, FOOT]} components={COMPONENTS} />);
+  await user.click(screen.getByRole('combobox', { name: 'Mate' }));
+  await user.click(screen.getByRole('option', { name: 'Angle' }));
+  expect(screen.queryByRole('checkbox', { name: 'Flip alignment' })).toBeNull();
+  const angle = screen.getByRole('textbox', { name: 'Angle' });
+  await user.clear(angle);
+  await user.type(angle, '30{Enter}');
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(mating.mate).toHaveBeenCalledWith(expect.objectContaining({ type: 'angle', angle: '30' }));
+  expect(mating.mate.mock.calls[0][0]).not.toHaveProperty('flip');
+});

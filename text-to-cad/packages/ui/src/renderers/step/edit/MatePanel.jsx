@@ -14,7 +14,10 @@ import { selectionItems, selectionLabel } from "./editMode.js";
 
 // SolidWorks' Standard Mates this places a part by.
 const MATE_TYPES = Object.freeze([{ value: "coincident", label: "Coincident" }, { value: "concentric", label: "Concentric" },
-  { value: "distance", label: "Distance" }]);
+  { value: "distance", label: "Distance" }, { value: "parallel", label: "Parallel" }, { value: "perpendicular", label: "Perpendicular" },
+  { value: "angle", label: "Angle" }]);
+// The mates that line their picks up one way or the other, which Flip alignment turns.
+const FLIPS = new Set(["coincident", "concentric", "distance", "parallel"]);
 
 /** Which of the assembly's parts a pick is on, by its occurrence (`o1.2.f3`: the second part). */
 const partOf = (item, components) => {
@@ -23,11 +26,12 @@ const partOf = (item, components) => {
 };
 
 /**
- * Mate, as SolidWorks' Mate places an assembly's parts: a face or an edge picked on the part that
- * stays, then one on the part that moves to it; Coincident puts two flat faces face to face,
- * Distance a gap apart, Concentric two round faces or circular edges on one axis (two circular
- * edges centre on centre). OK writes it into the assembly as joints (`edit.mate`), and the part
- * keeps what the mate leaves free where it was.
+ * Mate, as SolidWorks' Mate places an assembly's parts: a face, an edge or a vertex picked on the
+ * part that stays, then one on the part that moves to it; Coincident puts two flat faces face to
+ * face, Distance a gap apart, Concentric two round faces or circular edges on one axis (two circular
+ * edges centre on centre), Parallel, Perpendicular and Angle line them up. OK adds it to the moved
+ * part's mates in the assembly (`edit.mate`), solved together with its others; what they leave free
+ * stays where the part was.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, references: any[], components: any[],
  *   onDeselect?: (id: string) => void }} props
@@ -35,6 +39,7 @@ const partOf = (item, components) => {
 export default function MatePanel({ edit, references, components = [], onDeselect }) {
   const [type, setType] = useState("coincident");
   const [distance, setDistance] = useState("10");
+  const [angle, setAngle] = useState("90");
   const [flip, setFlip] = useState(false);
   const picked = references.filter(reference => reference?.selectorType === "face" || reference?.selectorType === "edge");
   const items = selectionItems(picked);
@@ -46,7 +51,8 @@ export default function MatePanel({ edit, references, components = [], onDeselec
     return { key: picked[index]?.id || item.selector, label: `${selectionLabel(item)}${part ? ` of ${part}` : ""}${index === 1 ? ", moves" : ""}` };
   });
   const ok = async () => {
-    const reply = await edit.mate({ type, selection: items, ...(type === "distance" ? { distance } : {}), ...(flip ? { flip: true } : {}) });
+    const reply = await edit.mate({ type, selection: items, ...(type === "distance" ? { distance } : {}), ...(type === "angle" ? { angle } : {}),
+      ...(flip && FLIPS.has(type) ? { flip: true } : {}) });
     if (reply?.ok) edit.stopInspecting();
   };
   return <div role="dialog" aria-label="Mate" data-cad-mate="" className="flex shrink-0 flex-col"
@@ -67,7 +73,11 @@ export default function MatePanel({ edit, references, components = [], onDeselec
         <FileSheetValueInput value={distance} ariaLabel="Distance" onValueCommit={draft => setDistance(String(draft).trim())} />
         <span className="w-6 text-micro text-muted-foreground">{edit.state?.units || ""}</span>
       </span>} /> : null}
-      <FileSheetCheckboxRow label="Flip alignment" checked={flip} onCheckedChange={value => setFlip(Boolean(value))} />
+      {type === "angle" ? <FileSheetControlRow label="Angle" trailing={<span className="flex shrink-0 items-center gap-1">
+        <FileSheetValueInput value={angle} ariaLabel="Angle" onValueCommit={draft => setAngle(String(draft).trim())} />
+        <span className="w-6 text-micro text-muted-foreground">deg</span>
+      </span>} /> : null}
+      {FLIPS.has(type) ? <FileSheetCheckboxRow label="Flip alignment" checked={flip} onCheckedChange={value => setFlip(Boolean(value))} /> : null}
     </FileSheetSettingsSection>
   </div>;
 }
