@@ -47,10 +47,11 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
  *   opened on its own, to be modeled (SolidWorks' Open Part), and `backTo` ({ title, open }) the
  *   assembly a part was opened from; `onEditSketch`: a sketch's
  *   double-click in the tree; `onPlane`: an origin plane picked for a new sketch; `card`: the
- *   place over the model's top-right corner where the open command's panel floats.
+ *   place over the model's top-right corner where the open command's panel floats;
+ *   `onDeselect`: a face or edge the command's panel lists taken out of the selection (its id).
  */
 export default function EditBrowser({ edit, names, tree, references = [], onEditSketch = () => {}, onPlane = () => {}, onOpenPart = null,
-  backTo = null, card = null }) {
+  backTo = null, card = null, onDeselect = null }) {
   const [open, setOpen] = useState(true);
   const { state, status } = edit;
   const rows = state?.rows || [];
@@ -78,7 +79,8 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
   // a CAD tool's command dialog floats apart from its tree; here, above the tree, where the view
   // keeps no card for it.
   const panel = edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} references={references} />
-    : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree} />
+    : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree}
+      onDeselect={onDeselect} />
       : null;
   // The card scrolls in the viewer's one ScrollArea once its panel is taller than the view.
   const floating = panel && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(FLOATING_SURFACE_CLASS,

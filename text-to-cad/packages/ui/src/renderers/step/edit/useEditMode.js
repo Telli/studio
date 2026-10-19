@@ -38,7 +38,8 @@ const sketchTarget = sketch => ({ file: sketch.file, line: sketch.line, name: sk
 /**
  * Edit mode for the file on screen (`cadgen/edit`, through the CAD client): the part's script read
  * as a design, kept current while the view is up, one number of it changed by hand, the ribbon's
- * modeling commands (`command`, the one whose panel is open; `run` writes its line), and sketch
+ * modeling commands (`command`, the one whose panel is open; `previewFeature` shows what its OK
+ * would make, without writing it; `run` writes its line), and sketch
  * mode (`sketch`: the sketch being edited, solved again with each stroke, relation and
  * dimension). A change applies at once; the agent hears of it with the person's next message (a
  * note queued in the chat, never a message of its own), so it never starts work because of one.
@@ -98,6 +99,16 @@ export function useEditMode({ client, file, active, reading = true }) {
   // What the open command would make, for the view to preview before OK, as SolidWorks draws an
   // extrude in yellow while its PropertyManager is open: set by the command's panel.
   const [preview, setPreview] = useState(null);
+  // Preview, for the commands the view cannot sweep itself: what OK would make, made by the server
+  // without writing it (`cadgen/edit`), the material it adds and the material it takes away
+  // (`{ key, status, added, removed, error }`). While a new one is made (`updating`) the last one
+  // stays drawn; one that failed (`failed`) draws nothing and says why. `previewOn` is the panels'
+  // Preview switch, kept for the session.
+  const [featurePreview, setFeaturePreview] = useState(null);
+  const [previewOn, setPreviewOn] = useState(true);
+  const previewWanted = useRef(null);
+  const previewAsked = useRef("");
+  const previewAsking = useRef(false);
   // Where the face was clicked while Hole is open (`{ id, point, center, normal }`, the model's
   // frame), for the hole to go there.
   const [facePoint, setFacePoint] = useState(null);
@@ -113,6 +124,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     files.current = null;
     setState(null); setError(""); setChoice(null); setSelected(null); setHistory(emptyHistory()); setCommand(null); setEditing(null);
     setPreview(null);
+    previewWanted.current = null; previewAsked.current = ""; setFeaturePreview(null);
     setBar(null);
     setSketch(null); setSketchTool(null); setSketchSelection([]); setPicking(false);
     probed.current = "";
@@ -236,6 +248,57 @@ export function useEditMode({ client, file, active, reading = true }) {
   }, [client, file, supported, take, tell]);
 
   const change = useCallback(request => send(request), [send]);
+
+  // No preview wanted, or drawn: the panel shut, or what it shows no longer the panel's.
+  const dropPreview = useCallback(() => {
+    previewWanted.current = null;
+    previewAsked.current = "";
+    setFeaturePreview(null);
+  }, []);
+  // One preview is made at a time: the newest wanted waits for it, and any asked between is dropped.
+  // Each carries what it is asked with (its file, the part's files and the rollback bar as it was
+  // asked), so one wanted for another file is never sent for this one's.
+  const askPreview = useCallback(async () => {
+    if (previewAsking.current) return;
+    previewAsking.current = true;
+    try {
+      while (previewWanted.current) {
+        const wanted = previewWanted.current;
+        let shown;
+        try {
+          const reply = await wanted.client.editChange({ preview: wanted.request, ...wanted.bar, file: wanted.file, files: wanted.files });
+          const made = reply?.ok ? reply.preview || {} : { error: reply?.error || "The preview could not be made." };
+          shown = made.error ? { status: "failed", added: null, removed: null, error: made.error }
+            : { status: "ready", added: made.added || null, removed: made.removed || null, error: "" };
+        } catch (failure) {
+          shown = { status: "failed", added: null, removed: null, error: describe(failure) };
+        }
+        // Shown only while it is still the one wanted.
+        if (previewWanted.current === wanted) {
+          previewWanted.current = null;
+          setFeaturePreview({ key: wanted.key, ...shown });
+        }
+      }
+    } finally {
+      previewAsking.current = false;
+    }
+  }, []);
+  /**
+   * Preview: what the open panel's OK would send (`request`), made by the server without writing
+   * it, as a CAD tool previews a feature before OK; null for none. Asked again only when the
+   * request, the part's files (the agent's edit) or the rollback bar changed.
+   */
+  const previewFeature = useCallback(request => {
+    if (!request || !supported || !file) { dropPreview(); return; }
+    const bar = barRef.current ? { bar: { before: barRef.current.before } } : {};
+    const key = JSON.stringify([request, files.current, bar]);
+    if (key === previewAsked.current) return;
+    previewAsked.current = key;
+    previewWanted.current = { key, request, client, file, files: files.current || undefined, bar };
+    setFeaturePreview(current => ({ key, status: "updating", added: current?.added ?? null, removed: current?.removed ?? null, error: "" }));
+    void askPreview();
+  }, [supported, client, file, dropPreview, askPreview]);
+
   // A command's OK: its line written after the body, the new feature selected and its panel shut.
   const run = useCallback(async request => {
     // Edit Feature rolled back to the feature: its line written there, then the bar put back.
@@ -249,9 +312,10 @@ export function useEditMode({ client, file, active, reading = true }) {
       setSelected(reply.change.row);
       setCommand(null);
       setEditing(null);
+      dropPreview();
     }
     return reply;
-  }, [send]);
+  }, [send, dropPreview]);
 
   /**
    * Edit Feature, as SolidWorks' reopens a feature's PropertyManager: the command that made it,
@@ -265,10 +329,11 @@ export function useEditMode({ client, file, active, reading = true }) {
     // feature, as SolidWorks rolls back to a feature it edits.
     const rolled = REPICKS.has(feature.edit.command) && Boolean(editCommand(feature.edit.command)?.picks);
     const previousBar = barRef.current ? { before: barRef.current.before } : null;
+    dropPreview();
     setEditing({ ...feature.edit, id: feature.id, title: feature.title, sketch: feature.sketch, rolled, previousBar });
     setCommand(feature.edit.command);
     if (rolled) void send({ bar: { item: feature.id } }, { record: false, note: null });
-  }, [send]);
+  }, [send, dropPreview]);
 
   /**
    * Rollback, as SolidWorks' rollback bar: the part shown as it was above a tree item (`item`, its
@@ -369,10 +434,11 @@ export function useEditMode({ client, file, active, reading = true }) {
     setPicking(false);
     setCommand(null);
     setEditing(null);
+    dropPreview();
     // As a CAD tool opens a sketch: the tree's selection (the plane it was started on) let go.
     setSelected(null);
     setNormalTo(tick => tick + 1);
-  }, []);
+  }, [dropPreview]);
 
   /** A new sketch, on an origin plane (`"Top"`) or a flat face of the body (a selection item). */
   const startSketch = useCallback(async (plane, name = "", offset = "") => {
@@ -449,9 +515,10 @@ export function useEditMode({ client, file, active, reading = true }) {
     select: setSelected,
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
-    open: id => { setError(""); setPicking(false); endEditing(); setPreview(null); setFacePoint(null); setCommand(id); },
-    close: () => { setCommand(null); endEditing(); setPreview(null); setFacePoint(null); },
+    open: id => { setError(""); setPicking(false); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
+    close: () => { setCommand(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); },
     preview, setPreview, facePoint, setFacePoint,
+    featurePreview, previewFeature, previewOn, setPreviewOn,
     // In sketch mode, Undo takes back the session's own changes only.
     canUndo: (sketch ? changesSince(history, sketch.before) : history.done.length) > 0 && !saving,
     canRedo: history.undone.length > 0 && !saving,
@@ -466,7 +533,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     setSketchStep,
     selectInSketch: setSketchSelection,
     setConstruction,
-    startPicking: () => { setError(""); setCommand(null); endEditing(); setPlaneOffset(""); setPicking(true); },
+    startPicking: () => { setError(""); setCommand(null); endEditing(); dropPreview(); setPlaneOffset(""); setPicking(true); },
     planeOffset, setPlaneOffset,
     stopPicking: () => setPicking(false),
     lookNormalTo: () => setNormalTo(tick => tick + 1),

@@ -205,6 +205,13 @@ class _Numbers(ast.NodeTransformer):
 ROOT: Path = Path.cwd()
 FILES: dict[str, str] = {}
 """The traced files' hashes by path relative to the project, to refuse an edit to a changed file."""
+UNSAVED: dict[str, str] = {}
+"""Text a preview runs and reads in place of a file's own, by the file's resolved path: the
+command's line, never written (`preview`)."""
+
+
+def _unsaved(path) -> str | None:
+    return UNSAVED.get(str(Path(path).resolve())) if UNSAVED else None
 
 
 def _relative(path: str) -> str:
@@ -272,7 +279,8 @@ class _ProjectLoader(importlib.abc.Loader):
         return None
 
     def exec_module(self, module):
-        raw = Path(self.path).read_bytes()
+        unsaved = _unsaved(self.path)
+        raw = unsaved.encode("utf-8") if unsaved is not None else Path(self.path).read_bytes()
         source = raw.decode("utf-8")
         rel = _relative(self.path)
         FILES[rel] = hashlib.sha256(raw).hexdigest()[:16]
@@ -976,8 +984,10 @@ def _rows(steps):
 
 
 def _read(path):
-    """A project file's text exactly as written: UTF-8, its line endings kept."""
-    return Path(path).read_bytes().decode("utf-8")
+    """A project file's text exactly as written: UTF-8, its line endings kept (as a preview runs it,
+    while one does)."""
+    unsaved = _unsaved(path)
+    return unsaved if unsaved is not None else Path(path).read_bytes().decode("utf-8")
 
 
 def _write(path, text):
@@ -1653,13 +1663,16 @@ def _solve(expr, leaf, target):
     raise RuntimeError("That value cannot be reached by changing this number.")
 
 
-# What a change request may change; one with none of them only moves the rollback bar.
-_CHANGES = ("command", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
+# What a change request may change; one with none of them only moves the rollback bar. A preview
+# changes nothing, but is not a move of the bar either.
+_CHANGES = ("command", "preview", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
 
 
 def edit(request):
     if not any(key in request for key in _CHANGES):
         return trace(request)
+    if isinstance(request.get("preview"), dict):
+        return preview(request)
     if isinstance(request.get("command"), dict):
         return command(request)
     if isinstance(request.get("splice"), dict):
@@ -1757,6 +1770,40 @@ def _check(script, traced, plan, scale):
     return None
 
 
+def _planned(request, spec):
+    """A command (``spec``) made into the part's script as the last trace read it (`commands.plan`),
+    at the rollback bar unless it writes a feature again; or the words of why it cannot be."""
+    from cadgen.edit import commands
+
+    state = STATE[str(Path(request["script"]).resolve())]
+    drawn = spec.get("sketch") if spec.get("command") in ("extrude", "cut", "revolve", "revolve_cut") else None
+    if isinstance(drawn, dict):
+        # How many regions the sketch makes: one is extruded as its face, more as its faces; and a
+        # revolve's axis, a line of the sketch, as the script names it (`line5`).
+        from cadgen.edit import sketching
+
+        path = (ROOT / str(drawn.get("file") or "")).resolve()
+        entry = SKETCHES.get((str(path), int(drawn.get("line") or 0)))
+        if entry is None:
+            return None, "That sketch is not made when the part runs. Pick it again in the design tree."
+        try:
+            spec = {**spec, "sketch": {**drawn, "name": entry["sketch"].name, "regions": len(entry["sketch"].faces())}}
+            if spec["command"] in ("revolve", "revolve_cut") and drawn.get("axis"):
+                text = _read(path)
+                block = sketching.find_block(text, int(drawn["line"]), str(path))
+                names = sketching.Names(block, _sketch_view(entry["sketch"], path, int(drawn["line"]), entry["function"])["state"])
+                spec["sketch"]["axis_code"] = names.curve(str(drawn["axis"]))
+        except (_sketch_api.SketchError, sketching.SketchEditError) as error:
+            return None, str(error)
+    bar = _bar_place(request.get("bar"))
+    try:
+        return commands.plan(spec, steps=state["steps"], shape=state["shape"], level=state["level"],
+                             units=state["units"], literals=LITERALS, root=ROOT, parse=parse_number,
+                             bar=bar[1] if bar and not spec.get("replace") else None), None
+    except commands.CommandError as error:
+        return None, str(error)
+
+
 def command(request):
     from cadgen.edit import commands
 
@@ -1769,32 +1816,9 @@ def command(request):
         return refused
     state = STATE[script]
     spec = request["command"]
-    drawn = spec.get("sketch") if spec.get("command") in ("extrude", "cut", "revolve", "revolve_cut") else None
-    if isinstance(drawn, dict):
-        # How many regions the sketch makes: one is extruded as its face, more as its faces; and a
-        # revolve's axis, a line of the sketch, as the script names it (`line5`).
-        from cadgen.edit import sketching
-
-        path = (ROOT / str(drawn.get("file") or "")).resolve()
-        entry = SKETCHES.get((str(path), int(drawn.get("line") or 0)))
-        if entry is None:
-            return {"ok": False, "error": "That sketch is not made when the part runs. Pick it again in the design tree."}
-        try:
-            spec = {**spec, "sketch": {**drawn, "name": entry["sketch"].name, "regions": len(entry["sketch"].faces())}}
-            if spec["command"] in ("revolve", "revolve_cut") and drawn.get("axis"):
-                text = _read(path)
-                block = sketching.find_block(text, int(drawn["line"]), str(path))
-                names = sketching.Names(block, _sketch_view(entry["sketch"], path, int(drawn["line"]), entry["function"])["state"])
-                spec["sketch"]["axis_code"] = names.curve(str(drawn["axis"]))
-        except (_sketch_api.SketchError, sketching.SketchEditError) as error:
-            return {"ok": False, "error": str(error)}
-    bar = _bar_place(request.get("bar"))
-    try:
-        plan = commands.plan(spec, steps=state["steps"], shape=state["shape"], level=state["level"],
-                             units=state["units"], literals=LITERALS, root=ROOT, parse=parse_number,
-                             bar=bar[1] if bar and not spec.get("replace") else None)
-    except commands.CommandError as error:
-        return {"ok": False, "error": str(error)}
+    plan, why = _planned(request, spec)
+    if plan is None:
+        return {"ok": False, "error": why}
     scale = state["shape"].bounding_box().diagonal or 1.0
     _write(plan.path, plan.new)
     after = trace(request)
@@ -1818,6 +1842,141 @@ def command(request):
         "redo": {"file": plan.rel, "hunks": commands.hunks(plan.old, plan.new)},
     }
     return after
+
+
+# ---------------------------------------------------------------------------------------------
+# Preview, as a CAD tool previews a feature while its PropertyManager is open: what a command's OK
+# would make, made without writing it. The command's line is planned as OK plans it, the part is
+# traced with that text in place of the file's own (`UNSAVED`) and checked as OK checks it, and
+# the feature's change to the body is answered as the view draws it over the model: the material
+# it adds and the material it takes away. The last trace is put back after, so every request that
+# follows reads the part as it is.
+
+
+def _as_last_traced(script, root):
+    """Whether the last trace is of ``script`` in ``root`` and its files still read as it read them."""
+    if LAST.get("script") != str(script) or LAST.get("root") != root:
+        return False
+    try:
+        return all(_hash(root / rel) == digest for rel, digest in LAST["files"].items())
+    except OSError:
+        return False
+
+
+def _kept_trace():
+    """What the last trace left, for a preview to put back once it has traced the part its way."""
+    return {"literals": dict(LITERALS), "files": dict(FILES), "steps": list(STEPS), "placed": dict(PLACED),
+            "sketches": dict(SKETCHES), "outside": set(OUTSIDE), "state": dict(STATE), "last": dict(LAST), "root": ROOT}
+
+
+def _put_back(kept):
+    global ROOT
+    for held, value in ((LITERALS, kept["literals"]), (FILES, kept["files"]), (PLACED, kept["placed"]),
+                        (SKETCHES, kept["sketches"]), (STATE, kept["state"]), (LAST, kept["last"])):
+        held.clear()
+        held.update(value)
+    STEPS[:] = kept["steps"]
+    OUTSIDE.clear()
+    OUTSIDE.update(kept["outside"])
+    ROOT = kept["root"]
+
+
+def _seams(shape):
+    """The edges a closed face meets itself along (a cylinder's seam): where it is cut to be
+    parametrized, not an edge of the part, so the view does not draw them."""
+    from OCP.BRep import BRep_Tool
+    from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE
+    from OCP.TopExp import TopExp
+    from OCP.TopoDS import TopoDS
+    from OCP.TopTools import TopTools_IndexedDataMapOfShapeListOfShape
+
+    faces = TopTools_IndexedDataMapOfShapeListOfShape()
+    TopExp.MapShapesAndAncestors_s(shape.wrapped, TopAbs_EDGE, TopAbs_FACE, faces)
+    found = []
+    for index in range(1, faces.Extent() + 1):
+        edge = TopoDS.Edge_s(faces.FindKey(index))
+        if any(BRep_Tool.IsClosed_s(edge, TopoDS.Face_s(face)) for face in faces.FindFromIndex(index)):
+            found.append(edge)
+    return found
+
+
+def _is_seam(edge, seams):
+    # OCP compares shapes as Python objects: the same edge, found twice, is the same by `IsSame`.
+    return any(seam.IsSame(edge.wrapped) for seam in seams)
+
+
+# More than this many triangles a preview draws as its edges alone.
+PREVIEW_TRIANGLES = 30_000
+
+
+def _drawn(shape, tolerance):
+    """A solid as the view draws a preview of it over the model: its triangles (``positions``, three
+    numbers a corner, and ``triangles``, three corners each) and its edges (each the points along
+    it), in the part's millimetres. None for no solid."""
+    if shape is None or not shape.solids():
+        return None
+    vertices, triangles = shape.tessellate(tolerance, 0.25)
+    if len(triangles) > PREVIEW_TRIANGLES:
+        vertices, triangles = [], []
+    seams = _seams(shape)
+    edges = []
+    for edge in shape.edges():
+        if _is_seam(edge, seams):
+            continue
+        steps = 1 if edge.geom_type == B.GeomType.LINE else max(8, min(64, round(edge.length / (tolerance * 8))))
+        points = edge.positions([index / steps for index in range(steps + 1)])
+        edges.append([round(value, 4) for point in points for value in (point.X, point.Y, point.Z)])
+    return {"positions": [round(value, 4) for vertex in vertices for value in (vertex.X, vertex.Y, vertex.Z)],
+            "triangles": [corner for triangle in triangles for corner in triangle], "edges": edges}
+
+
+def _change_drawn(before, made, scale):
+    """What a feature does to the body, as its preview draws it: the material it adds (``added``,
+    amber) and the material it takes away (``removed``, red), each a solid (`_drawn`) or None."""
+    tolerance = max(0.005, scale * 0.001)
+    try:
+        removed, added = before - made, made - before
+        return {"removed": _drawn(removed, tolerance), "added": _drawn(added, tolerance), "error": None}
+    except Exception:  # noqa: BLE001 - a boolean the kernel cannot settle leaves only the preview undrawn
+        return {"removed": None, "added": None, "error": "The feature can be made, but its preview cannot be drawn."}
+
+
+def preview(request):
+    from cadgen.edit import commands
+
+    script = Path(request["script"]).resolve()
+    root = Path(request.get("root") or script.parent).resolve()
+    # The part as it is: the last trace of it, while its files read the same; else read again.
+    if not _as_last_traced(script, root) or str(script) not in STATE:
+        traced = trace(request)
+        if not traced["ok"]:
+            return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    state = STATE[str(script)]
+    plan, why = _planned(request, request["preview"])
+    if plan is None:
+        return {"ok": True, "preview": {"error": why}}
+    scale = state["shape"].bounding_box().diagonal or 1.0
+    kept = _kept_trace()
+    UNSAVED[str(plan.path.resolve())] = plan.new
+    try:
+        after = trace({**request, "mesh": False})
+        failure = _check(str(script), after, plan, scale)
+        if failure:
+            return {"ok": True, "preview": {"error": failure}}
+        made = STATE[str(script)]
+        # The body the new line works on, and the body it makes: the body just before its line
+        # and just after it.
+        before = commands.shape_at(made["steps"], made["shape"], made["level"], plan.rel, plan.line)
+        result = commands.shape_at(made["steps"], made["shape"], made["level"], plan.rel, plan.line + 1)
+        if before is None or result is None:
+            return {"ok": True, "preview": {"error": "The feature can be made, but its preview cannot be drawn."}}
+        return {"ok": True, "preview": _change_drawn(before, result, scale)}
+    finally:
+        UNSAVED.clear()
+        _put_back(kept)
 
 
 def _feature_lines(feature, rel, title, verb):
@@ -2595,12 +2754,7 @@ def _bar_only(request):
     if request.get("op") != "edit" or "bar" not in request or any(key in request for key in _CHANGES):
         return None
     script = Path(request["script"]).resolve()
-    if LAST.get("script") != str(script) or LAST.get("root") != Path(request.get("root") or script.parent).resolve():
-        return None
-    try:
-        if any(_hash(LAST["root"] / rel) != digest for rel, digest in LAST["files"].items()):
-            return None
-    except OSError:
+    if not _as_last_traced(script, Path(request.get("root") or script.parent).resolve()):
         return None
     ROOT = LAST["root"]
     placed = _with_bar(request, {"ok": True, "features": LAST["features"], "components": LAST["components"]})
@@ -2613,7 +2767,9 @@ def handle(request):
         if quick is not None:
             return quick
         if request.get("op") == "edit":
-            return _with_bar(request, edit(request))
+            reply = edit(request)
+            # A preview leaves the part, and so the rollback bar, as they were.
+            return reply if isinstance(request.get("preview"), dict) else _with_bar(request, reply)
         return _with_bar(request, trace(request))
     except Exception as error:
         return {"ok": False, "error": str(error), "detail": traceback.format_exc(limit=4)}

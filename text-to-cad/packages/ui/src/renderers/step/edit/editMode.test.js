@@ -8,6 +8,8 @@ import {
   busyState,
   changeNote,
   changesSince,
+  chooseLine,
+  chooseSteps,
   commandBlocked,
   commandDefaults,
   commandNote,
@@ -217,6 +219,26 @@ test("a command's OK waits for what it acts on", () => {
   assert.equal(commandBlocked("shell", [face]), "");
   assert.equal(commandBlocked("mirror", []), "");
   assert.equal(commandBlocked("pattern", []), "");
+});
+
+test("Choose names the pick still wanted, in order, and none once each is made", () => {
+  const [edge, face] = selectionItems([EDGE, FACE]);
+  const line = (id, picks = {}) => chooseLine(chooseSteps(id, picks));
+  assert.equal(line("fillet"), "1 of 1: Select edges to round");
+  assert.equal(line("fillet", { listed: [edge] }), null);
+  // A reopened feature keeps what it acts on until others are picked.
+  assert.equal(line("chamfer", { kept: true }), null);
+  assert.equal(line("hole", { listed: [face, { ...face, selector: "f2" }] }), "1 of 1: Select a flat face for the hole");
+  // An extrude takes its sketch first, then what an Up To Surface ends on.
+  const sketch = { title: "Sketch1" };
+  assert.equal(line("extrude", { values: { end: "surface" } }), "1 of 2: Select a sketch");
+  assert.equal(line("extrude", { sketch, values: { end: "surface" } }), "2 of 2: Select a flat face to end on");
+  assert.equal(line("extrude", { sketch, values: { end: "surface" }, ending: face }), null);
+  assert.equal(line("extrude", { sketch, values: { end: "blind" } }), null);
+  assert.equal(line("revolve", { sketch, values: { axis: "" } }), "2 of 2: Select a centerline to revolve about");
+  // Mirror and Pattern have what they need as they open.
+  assert.equal(line("mirror"), null);
+  assert.equal(line("pattern"), null);
 });
 
 test("a hole moves along the two axes that lie in its face, or all three on a slanted one", () => {

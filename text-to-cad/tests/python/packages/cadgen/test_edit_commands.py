@@ -701,6 +701,63 @@ class RollingBack(Commands):
 
 
 
+class Previews(Commands):
+    """Preview: what a command's OK would make, made without writing it, for its panel to draw over
+    the model as the material the feature takes away and the material it adds."""
+
+    def preview(self, file: str, state: dict, command: str, selection=(), inputs=None, **request):
+        spec = {"command": command, "selection": list(selection), "inputs": inputs or {}}
+        return self.service.change({"file": file, "preview": spec, "files": state["files"], **request})
+
+    def test_a_fillets_preview_is_what_it_rounds_off_and_the_file_is_left_as_it_was(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        before = (root / "block.py").read_bytes()
+        reply = self.preview(file, state, "fillet", BLOCK_TOP_EDGES, {"radius": "1"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        shown = reply["preview"]
+        self.assertEqual((shown["error"], shown["added"]), (None, None))
+        removed = shown["removed"]
+        # Triangles over what comes off, and its edges, each the points along it: all of it along
+        # the block's top, within the radius.
+        corners = len(removed["positions"]) // 3
+        self.assertTrue(removed["triangles"] and max(removed["triangles"]) < corners)
+        self.assertGreaterEqual(min(removed["positions"][2::3]), 1 - 1e-6)
+        self.assertTrue(removed["edges"] and all(len(points) % 3 == 0 and len(points) >= 6 for points in removed["edges"]))
+        self.assertEqual((root / "block.py").read_bytes(), before)
+        self.assertNotIn("change", reply)
+        # OK then writes the fillet, the part read as it is.
+        made = self.command(file, state, "fillet", BLOCK_TOP_EDGES, {"radius": "1"})
+        self.assertTrue(made["ok"], made.get("error"))
+        self.assertIn("    part = fillet(part.edges().group_by(Axis.Z)[-1], radius=1)\n", (root / "block.py").read_text(encoding="utf-8"))
+
+    def test_a_preview_that_cannot_be_made_says_why(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        reply = self.preview(file, state, "fillet", BLOCK_TOP_EDGES, {"radius": "6"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("smaller radius", reply["preview"]["error"])
+        self.assertNotIn("fillet", (root / "block.py").read_text(encoding="utf-8"))
+
+    def test_a_patterns_preview_is_the_copies_it_adds(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        reply = self.preview(file, state, "pattern", (), {"type": "linear", "direction": "X", "spacing": "30", "count": "2"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIsNone(reply["preview"]["removed"])
+        xs = reply["preview"]["added"]["positions"][0::3]
+        self.assertEqual((min(xs), max(xs)), (20, 40))
+
+    def test_a_preview_at_the_bar_leaves_the_part_read_as_it_is(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        # Above the cavity, the preview's line moves the cavity a line down in the text it runs.
+        reply = self.preview(file, state, "chamfer", [edge("e1", (0, -10, 5), 36)], {"distance": "0.5"}, bar={"before": "tray.py:9"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIsNotNone(reply["preview"]["removed"])
+        self.assertNotIn("bar", reply)
+        # The cavity's length is still where the file has it.
+        resized = self.service.change({"file": file, "files": state["files"], "dimension": "2:x", "text": "30"})
+        self.assertTrue(resized["ok"], resized.get("error"))
+        self.assertEqual((root / "tray.py").read_text(encoding="utf-8").splitlines()[8], "    cavity = Pos(0, 0, 2) * Box(30, 16, 10)")
+
+
 class Assemblies(Commands):
     """An assembly places its parts: each is modeled on its own, opened from the design tree."""
 

@@ -1,4 +1,4 @@
-import { act, cleanup, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ViewerHostContext } from '../../../host/context.js';
@@ -122,4 +122,37 @@ it('a command writes its line, the new feature is selected and its panel shut, t
   expect(client.editChange).toHaveBeenLastCalledWith({ splice: undo, file: FILE, files: { 'block.py': 'h2' } });
   expect(JSON.stringify(notes)).toContain('In edit mode I removed Fillet1 (block.py, line 7).');
   expect(result.current.canRedo).toBe(true);
+});
+
+it('a preview is made without writing anything, one at a time, the newest asked the one shown, and none once the panel shuts', async () => {
+  const viewer = server();
+  const asked: Array<{ preview?: object }> = [];
+  const answers: Array<(reply: object) => void> = [];
+  viewer.client.editChange.mockImplementation((change: { preview?: object }) => {
+    asked.push(change);
+    return new Promise(resolve => answers.push(resolve));
+  });
+  const { result } = renderHook(() => useEditMode({ client: viewer.client, file: FILE, resource: RESOURCE, active: true }),
+    { wrapper: hostWith(() => Promise.resolve({ status: 'added', partIds: [] })) });
+  await act(async () => {});
+  act(() => result.current.open('fillet'));
+  const first = { command: 'fillet', selection: [{ selector: 'e1' }], inputs: { radius: '1' } };
+  const second = { ...first, inputs: { radius: '2' } };
+  act(() => result.current.previewFeature(first));
+  expect(result.current.featurePreview).toMatchObject({ status: 'updating' });
+  // Asked again while the first is made: the second waits for it, and the first's answer is not shown.
+  act(() => result.current.previewFeature(second));
+  expect(asked).toEqual([{ preview: first, file: FILE, files: { 'sizes.py': '20' } }]);
+  await act(async () => { answers[0]({ ok: true, preview: { removed: { positions: [], triangles: [], edges: [] }, added: null, error: null } }); });
+  await waitFor(() => expect(asked).toHaveLength(2));
+  expect(asked[1]).toEqual({ preview: second, file: FILE, files: { 'sizes.py': '20' } });
+  expect(result.current.featurePreview).toMatchObject({ status: 'updating' });
+  await act(async () => { answers[1]({ ok: true, preview: { error: 'Try a smaller radius.' } }); });
+  await waitFor(() => expect(result.current.featurePreview).toMatchObject({ status: 'failed', error: 'Try a smaller radius.', removed: null }));
+  // The same again is not asked again; the panel shut, none is shown. Nothing was written.
+  act(() => result.current.previewFeature(second));
+  expect(asked).toHaveLength(2);
+  act(() => result.current.close());
+  expect(result.current.featurePreview).toBe(null);
+  expect(viewer.width()).toBe('20');
 });

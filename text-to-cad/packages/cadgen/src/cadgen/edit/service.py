@@ -42,9 +42,11 @@ _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M
 # (`sketching.py`): its strokes are not built, as a CAD tool rebuilds when the sketch is left. A
 # `remove` deletes a feature of the design tree (`deleting.py`), and `suppress` sets one aside. `bar`
 # is where the rollback bar is (the part shown as it was above a feature; a change with nothing else
-# only moves it), and `bar_after` where it goes once the change is made.
-_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "splice", "sketch", "remove", "suppress",
-                "bar", "bar_after")
+# only moves it), and `bar_after` where it goes once the change is made. A `preview` is a command
+# made without writing it, for its panel to draw what OK would make; it changes nothing, so nothing
+# is built.
+_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "preview", "splice", "sketch", "remove",
+                "suppress", "bar", "bar_after")
 
 
 def _no_window() -> dict:

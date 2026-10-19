@@ -544,9 +544,18 @@ def _solid(shape) -> bool:
 
 def body_at(steps: list[dict], shape, level: int, root: Path, rel: str, line: int):
     """The part's body as it is just before the top-level statement at ``line`` of ``rel`` runs, as
-    a rollback bar there shows it: the shape the last operation on the body above that line made,
-    and where it is made (``Body``). The body is the final shape's lineage: the operations whose
-    result carries its origin, or the origin of a body it was made from (a shell's, a mirror's)."""
+    a rollback bar there shows it (``shape_at``), and where it is made (``Body``)."""
+    found = shape_at(steps, shape, level, rel, line)
+    if found is None:
+        raise CommandError("There is no body above that point yet. Move the rollback bar below the first feature.")
+    return found, find_body(steps, found, level, root)
+
+
+def shape_at(steps: list[dict], shape, level: int, rel: str, line: int):
+    """The part's body as it is just before the top-level statement at ``line`` of ``rel`` runs:
+    the shape the last operation on the body above that line made, or None when there is none. The
+    body is the final shape's lineage: the operations whose result carries its origin, or the
+    origin of a body it was made from (a shell's, a mirror's). Nothing is read from the files."""
     origins: set[int] = set()
     origin = getattr(shape, "_studio_origin", None)
     while isinstance(origin, int) and origin not in origins and 0 <= origin < len(steps):
@@ -561,9 +570,7 @@ def body_at(steps: list[dict], shape, level: int, root: Path, rel: str, line: in
         if frame["file"] == rel and frame["line"] < line and getattr(step.get("result"), "_studio_origin", None) in origins \
                 and _solid(step["result"]):
             found = step
-    if found is None:
-        raise CommandError("There is no body above that point yet. Move the rollback bar below the first feature.")
-    return found["result"], find_body(steps, found["result"], level, root)
+    return None if found is None else found["result"]
 
 
 def shifted(line: int, changes: list[dict]) -> int:

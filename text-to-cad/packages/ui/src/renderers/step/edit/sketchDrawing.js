@@ -30,6 +30,71 @@ export function colorsFor(host) {
 }
 
 /**
+ * The CAD colors drawn over the model, from the viewer's tokens, with stand-ins for a host without
+ * them: the selection's blue, a preview's amber (its edge darker) for material added and red for a
+ * cut, and a tag's text over the blue.
+ */
+export function cadColors(host) {
+  const style = getComputedStyle(host);
+  const read = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
+  return {
+    picked: read("--cad-picked", "#4f9dff"), solid: read("--cad-solid", "#f2b33d"), solidEdge: read("--cad-solid-edge", "#8a5a12"),
+    cut: read("--cad-cut", "#e5484d"),
+    tagText: lightText(style.color || "") ? "#0b1220" : "#ffffff",
+  };
+}
+
+/** How strongly a preview's faces are shaded over the model: a sketch's sweep, a feature's change. */
+export const PREVIEW_FILL_ALPHA = 0.3;
+
+// What a layout over the model depends on: the view's size, the camera and the model's own transform.
+const viewKey = (width, height, camera, modelGroup) => [width, height, camera.matrixWorld.elements.join(),
+  camera.projectionMatrix.elements.join(), modelGroup.matrixWorld.elements.join()].join("|");
+
+/**
+ * The part in the view: `toScreen(x, y, z)` a place in the part's own millimetres to the
+ * viewport's pixels, or null behind the camera; `key` what that depends on, to paint again only
+ * when it changed. Null before the viewer is up.
+ */
+export function modelMapping(runtime, width, height) {
+  if (!runtime?.camera || !runtime.modelGroup || !runtime.THREE) return null;
+  const { THREE, camera, modelGroup } = runtime;
+  camera.updateMatrixWorld();
+  modelGroup.updateMatrixWorld();
+  const scratch = new THREE.Vector3();
+  const seen = new THREE.Vector3();
+  const toScreen = (x, y, z) => {
+    scratch.set(x, y, z).applyMatrix4(modelGroup.matrixWorld);
+    if (seen.copy(scratch).applyMatrix4(camera.matrixWorldInverse).z >= 0) return null;
+    scratch.project(camera);
+    return [((scratch.x + 1) * width) / 2, ((1 - scratch.y) * height) / 2];
+  };
+  return { toScreen, key: viewKey(width, height, camera, modelGroup) };
+}
+
+/**
+ * A solid's triangles in the view's pixels (`positions`, three numbers a corner in the part's
+ * millimetres, and `triangles`, three corners each), each turned the same way round on the screen,
+ * so one path filled over them shades all they cover once: a closed solid's far side turns the
+ * other way, and would cancel its near side out where they overlap. A triangle with a corner
+ * behind the camera is left out. Six numbers a triangle.
+ */
+export function screenTriangles(positions, triangles, toScreen) {
+  const corners = Array.from({ length: Math.floor(positions.length / 3) },
+    (_, at) => toScreen(positions[3 * at], positions[3 * at + 1], positions[3 * at + 2]));
+  const out = [];
+  for (let at = 0; at + 2 < triangles.length; at += 3) {
+    const a = corners[triangles[at]];
+    let b = corners[triangles[at + 1]];
+    let c = corners[triangles[at + 2]];
+    if (!a || !b || !c) continue;
+    if ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) < 0) [b, c] = [c, b];
+    out.push(a[0], a[1], b[0], b[1], c[0], c[1]);
+  }
+  return out;
+}
+
+/**
  * A sketch's plane in the view: `toScreen` a place on it (in its units) to the viewport's pixels,
  * or null behind the camera; `toLocal` a pixel to the place on the plane under it; `perUnit` the
  * pixels one unit spans; `key` what the layout depends on, to paint again only when it changed.
@@ -64,8 +129,7 @@ export function planeMapping(runtime, width, height, frame, unit = 1) {
   const a = toScreen([0, 0]);
   const b = toScreen([1, 0]);
   const perUnit = a && b ? Math.hypot(b[0] - a[0], b[1] - a[1]) || 1 : 1;
-  return { toScreen, toLocal, perUnit, key: [width, height, camera.matrixWorld.elements.join(), camera.projectionMatrix.elements.join(),
-    modelGroup.matrixWorld.elements.join()].join("|") };
+  return { toScreen, toLocal, perUnit, key: viewKey(width, height, camera, modelGroup) };
 }
 
 /** Points around a circle, or along an arc of it from `from` sweeping `sweep` radians. */

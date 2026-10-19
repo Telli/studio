@@ -258,7 +258,8 @@ export function changeNote(change) {
  * Boss/Base and Cut a sketch makes, `sketch`; Hole, Pattern, Mirror) and Modify (Fillet, Chamfer,
  * Shell). `picks` is what the command acts on, which the Select tool's mode turns to when it
  * opens: edges, faces, or none (Pattern copies a history feature; the sketch features take the
- * sketch selected in the design tree).
+ * sketch selected in the design tree). `many`: its box takes as many as are clicked, each click on
+ * the model adding one or taking a picked one out, as a PropertyManager's selection box does.
  */
 export const EDIT_COMMANDS = Object.freeze([
   { id: "extrude", label: "Extruded Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
@@ -268,9 +269,9 @@ export const EDIT_COMMANDS = Object.freeze([
   { id: "hole", label: "Hole", group: "Create", picks: "faces", prompt: "Click a flat face where the hole goes." },
   { id: "pattern", label: "Pattern", group: "Create", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Create", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
-  { id: "fillet", label: "Fillet", group: "Modify", picks: "edges", prompt: "Select the edges to round." },
-  { id: "chamfer", label: "Chamfer", group: "Modify", picks: "edges", prompt: "Select the edges to bevel." },
-  { id: "shell", label: "Shell", group: "Modify", picks: "faces", prompt: "Select the faces to open." },
+  { id: "fillet", label: "Fillet", group: "Modify", picks: "edges", many: true, prompt: "Click edges on the model to add them. Click one again to take it out." },
+  { id: "chamfer", label: "Chamfer", group: "Modify", picks: "edges", many: true, prompt: "Click edges on the model to add them. Click one again to take it out." },
+  { id: "shell", label: "Shell", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
 ]);
 
 export const editCommand = id => EDIT_COMMANDS.find(command => command.id === id) || null;
@@ -472,6 +473,36 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
   if (id === "shell") return faces.length ? "" : "Select the faces to open.";
   if (id === "mirror") return faces.length > 1 ? "Select one face, or none to pick a plane." : "";
   return "";
+}
+
+/**
+ * Choose: what a command's panel asks to be picked, in order, as a CAD tool's selection boxes walk
+ * through them, each named as its step reads ("1 of 2: Select a sketch") and whether it has what it
+ * needs. `listed` is the faces or edges the panel lists for it, `ending` what an extrude Up To
+ * Surface or Up To Vertex ends on, and `kept` whether a reopened feature keeps what it acts on.
+ * Mirror and Pattern have what they need as they open (a plane, a direction, the whole body).
+ */
+export function chooseSteps(id, { listed = [], sketch = null, values = {}, ending = null, kept = false } = {}) {
+  if (editCommand(id)?.sketch) {
+    const steps = [{ input: "a sketch", done: Boolean(sketch) }];
+    if (id === "revolve" || id === "revolve_cut") steps.push({ input: "a centerline to revolve about", done: Boolean(values.axis) });
+    else if (values.end === "surface") steps.push({ input: "a flat face to end on", done: Boolean(ending) || kept });
+    else if (values.end === "vertex") steps.push({ input: "a vertex to end at", done: Boolean(ending && values.vertex_at) || kept });
+    return steps;
+  }
+  switch (id) {
+    case "fillet": return [{ input: "edges to round", done: listed.length > 0 || kept }];
+    case "chamfer": return [{ input: "edges to bevel", done: listed.length > 0 || kept }];
+    case "shell": return [{ input: "faces to open", done: listed.length > 0 || kept }];
+    case "hole": return [{ input: "a flat face for the hole", done: listed.length === 1 || (kept && !listed.length) }];
+    default: return [];
+  }
+}
+
+/** The step a panel's line names: the first still waiting for its pick, "2 of 2: Select a flat face to end on"; null once each has it. */
+export function chooseLine(steps) {
+  const at = steps.findIndex(step => !step.done);
+  return at < 0 ? null : `${at + 1} of ${steps.length}: Select ${steps[at].input}`;
 }
 
 /** The lines of a sketch a revolve can turn about, its centerlines first, as the panel lists them. */

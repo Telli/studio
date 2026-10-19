@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
   FILE_SHEET_STATUS_TEXT_CLASSES,
@@ -9,6 +9,8 @@ import {
   FileSheetValueInput
 } from "../../kit/inspector/FileSheet.js";
 import {
+  chooseLine,
+  chooseSteps,
   clickOffsets,
   commandBlocked,
   edgeAxis,
@@ -51,6 +53,9 @@ const DIRECTIONS = Object.freeze([{ value: "X", label: "Along X" }, { value: "Y"
 // A mirror Edit Feature reopens that was made about a face of the part: that face again.
 const SAME_FACE = Object.freeze({ value: "face", label: "Same face" });
 const MM_PER = Object.freeze({ mm: 1, in: 25.4 });
+// How long the panel waits after a change before asking for its preview: picks and values that
+// come together are asked for once.
+const PREVIEW_WAIT_MS = 250;
 
 /** A number the command takes, typed over as the design tree's are, with its unit. */
 function NumberRow({ label, value, unit = "", disabled, onChange }) {
@@ -62,8 +67,8 @@ function NumberRow({ label, value, unit = "", disabled, onChange }) {
 
 /**
  * A selection box as SolidWorks' PropertyManager draws one: what the command acts on, each marked
- * in the blue the model shows it picked in, with an X to let it go (`onClear`); empty, it waits in
- * that blue for a pick and says what to pick.
+ * in the blue the model shows it picked in, with an X to let it go (`onClear`, given the item);
+ * empty, it waits in that blue for a pick and says how to pick.
  */
 function SelectionBox({ items, prompt, more = 0, onClear = null, clearLabel = "Clear" }) {
   if (!items.length) {
@@ -75,17 +80,30 @@ function SelectionBox({ items, prompt, more = 0, onClear = null, clearLabel = "C
       <span className="size-2 shrink-0 rounded-full bg-cad-picked" aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
       {onClear ? <button type="button" aria-label={`${clearLabel} ${item.label}`} className="flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent/70 hover:text-foreground"
-        onClick={onClear}><X className="size-3" aria-hidden="true" /></button> : null}
+        onClick={() => onClear(item)}><X className="size-3" aria-hidden="true" /></button> : null}
     </li>)}
     {more > 0 ? <li className="pl-3.5 text-muted-foreground">{`and ${more} more`}</li> : null}
   </ul>;
 }
 
-/** What the command acts on: the faces and edges selected on the model, listed, or how to select them. */
-export function SelectionList({ items, prompt }) {
+/**
+ * What the command acts on: the faces and edges selected on the model, listed, or how to select
+ * them; with `onRemove`, each taken out by its X (given its selector), as a click on it does.
+ */
+export function SelectionList({ items, prompt, onRemove = null }) {
   const shown = items.slice(0, LISTED);
   return <SelectionBox items={shown.map(item => ({ key: item.selector, label: selectionLabel(item) }))} prompt={prompt}
-    more={items.length - shown.length} />;
+    more={items.length - shown.length} onClear={onRemove ? item => onRemove(item.key) : null} clearLabel="Remove" />;
+}
+
+/** What a preview draws, by its colour: amber for material added, red for material taken away. */
+function PreviewKey({ added, removed }) {
+  const swatch = (tone, text) => <span className="flex items-center gap-1.5">
+    <span className={`size-2 shrink-0 rounded-sm ${tone}`} aria-hidden="true" />{text}</span>;
+  return <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} flex flex-col gap-0.5 pb-1`}>
+    {added ? swatch("bg-cad-solid", "Material it adds") : null}
+    {removed ? swatch("bg-cad-cut", "Material it takes away") : null}
+  </p>;
 }
 
 /** What a reopened feature acts on, kept as it is: "4 edges", with how to pick others. */
@@ -103,15 +121,26 @@ function KeptList({ text, hint }) {
  * sketch an extrude takes, picked on the model or in the design tree, or the history feature it
  * copies); and its inputs in the part's units. OK writes the command's line into the part's script
  * (`cadgen/edit`) and the new feature is selected in the history below; Cancel, or Escape, leaves
- * the script as it was. While it is open an extrude is previewed on the model (`edit.preview`).
+ * the script as it was.
+ *
+ * Choose, as SolidCraft's feature dialogs walk through their inputs: a line under the title names
+ * the pick still wanted ("1 of 2: Select a sketch"), then says to review the preview and press OK. A
+ * box that takes many (a fillet's edges) takes each click on the model as one more, or one fewer,
+ * and each pick listed has an X (`onDeselect`, given the reference's id).
+ *
+ * Preview, while its switch is on: an extrude or a revolve is swept on the model at once
+ * (`edit.preview`); any other command, once it has what it needs, is made by the server without
+ * being written and drawn over the model (`edit.previewFeature`), its key and its state below.
+ *
  * Reopened by Edit Feature (`edit.editing`), it opens with the feature's values and keeps what the
  * feature acts on (a fillet's edges, a hole's face), unless others are picked on the body as it was
  * before it, which the view shows while the panel is open; its OK writes the feature's line again.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
- *   names: ReturnType<typeof import("./editMode.js").featureNames>, references: object[] }} props
+ *   names: ReturnType<typeof import("./editMode.js").featureNames>, references: object[],
+ *   onDeselect?: ((referenceId: string) => void) | null }} props
  */
-export default function EditCommand({ edit, names, references, tree = null }) {
+export default function EditCommand({ edit, names, references, tree = null, onDeselect = null }) {
   const command = editCommand(edit.command);
   const units = edit.state?.units || "mm";
   const editing = edit.editing?.command === edit.command ? edit.editing : null;
@@ -157,8 +186,9 @@ export default function EditCommand({ edit, names, references, tree = null }) {
   }, [facePoint, edit.command]);
   // What OK would make, drawn on the model while the panel is open: the extrude of its sketch, its
   // depth in the part's millimetres, or its revolve about the axis line by the angle. A depth or an
-  // angle written as a size's name is not drawn; Up To Next ends where the body says.
-  const { setPreview } = edit;
+  // angle written as a size's name is not swept here; nor is an end the body or a pick says.
+  const { setPreview, previewFeature } = edit;
+  const previewOn = edit.previewOn !== false;
   const depth = Number.parseFloat(String(values.depth ?? ""));
   const extruding = (edit.command === "extrude" || edit.command === "cut") && Boolean(sketch) && !["next", "surface", "vertex"].includes(values.end);
   const previewDepth = extruding && Number.isFinite(depth) ? depth * (MM_PER[units] || 1) : null;
@@ -170,7 +200,9 @@ export default function EditCommand({ edit, names, references, tree = null }) {
   // A draft leans the preview's sides in by its angle, out when Draft outward.
   const draftAngle = Number.parseFloat(String(values.draft_angle ?? ""));
   const taper = values.draft && Number.isFinite(draftAngle) && draftAngle > 0 && draftAngle < 90 ? (values.outward ? -draftAngle : draftAngle) : 0;
+  const sweeps = turn !== null || (extruding && (previewDepth !== null || values.end === "through"));
   useEffect(() => {
+    if (!previewOn) { setPreview(null); return undefined; }
     if (turn !== null) {
       setPreview({ kind, revolve: { a: axisLine.a, b: axisLine.b, angle: turn }, file: sketch.file, line: sketch.line });
       return () => setPreview(null);
@@ -178,23 +210,34 @@ export default function EditCommand({ edit, names, references, tree = null }) {
     if (!extruding || (previewDepth === null && values.end !== "through")) { setPreview(null); return undefined; }
     setPreview({ kind, end: values.end, depth: previewDepth || 0, reverse: Boolean(values.reverse), taper, file: sketch.file, line: sketch.line });
     return () => setPreview(null);
-  }, [extruding, previewDepth, values.end, values.reverse, taper, kind, turn, axisLine?.a?.join(), axisLine?.b?.join(), sketch?.file,
+  }, [previewOn, extruding, previewDepth, values.end, values.reverse, taper, kind, turn, axisLine?.a?.join(), axisLine?.b?.join(), sketch?.file,
     sketch?.line, setPreview]);
-  if (!command) return null;
-  const Icon = COMMAND_ICONS[command.id];
-  const set = key => value => setValues(current => ({ ...current, [key]: value }));
   const disabled = edit.saving || edit.status !== "ready";
   const faces = items.filter(item => /f\d+$/.test(item.selector));
-  const listed = command.picks === "edges" ? items : faces;
-  const blocked = commandBlocked(command.id, items, sketch, values, editing);
+  const listed = command?.picks === "edges" ? items : faces;
+  const blocked = command ? commandBlocked(command.id, items, sketch, values, editing) : "";
   const feature = !editing && !wholeBody && featureIndex > 0 ? { row: rows[featureIndex].key, name: names[featureIndex]?.title || "" } : null;
   // A circular pattern's axis, picked on the model; what an extrude Up To Surface or Up To Vertex ends on.
-  const turnsAbout = command.id === "pattern" && values.type === "circular" ? patternAxis(items) : null;
-  const upTo = Boolean(command.sketch) && (values.end === "surface" || values.end === "vertex");
+  const turnsAbout = edit.command === "pattern" && values.type === "circular" ? patternAxis(items) : null;
+  const upTo = Boolean(command?.sketch) && (values.end === "surface" || values.end === "vertex");
   const ending = upTo ? extrudeEnd(values.end, items) : null;
   // Edges or faces picked while a feature is reopened replace its own, as a new axis does a
   // pattern's and a new face or vertex an extrude's end.
-  const repicked = Boolean(editing) && ((REPICKS.has(command.id) && listed.length > 0) || Boolean(turnsAbout) || Boolean(ending));
+  const repicked = Boolean(editing) && ((REPICKS.has(edit.command) && listed.length > 0) || Boolean(turnsAbout) || Boolean(ending));
+  // Any other preview is the server's: what OK would send, made without writing it once the panel
+  // has what it needs, and made again as the part changes under it or the rollback bar moves.
+  const wanted = command && previewOn && !disabled && !blocked && !sweeps ? commandRequest(command.id, values, items, feature, sketch, editing) : null;
+  const wantedRef = useRef(wanted);
+  wantedRef.current = wanted;
+  const wantedKey = wanted ? JSON.stringify(wanted) : "";
+  useEffect(() => {
+    if (typeof previewFeature !== "function") return undefined;
+    const timer = setTimeout(() => previewFeature(wantedRef.current), wantedKey ? PREVIEW_WAIT_MS : 0);
+    return () => clearTimeout(timer);
+  }, [wantedKey, edit.state, edit.bar, previewFeature]);
+  if (!command) return null;
+  const Icon = COMMAND_ICONS[command.id];
+  const set = key => value => setValues(current => ({ ...current, [key]: value }));
   const ok = () => {
     if (blocked || disabled) return;
     // A reopened feature left as it was: nothing to write.
@@ -211,6 +254,17 @@ export default function EditCommand({ edit, names, references, tree = null }) {
 
   const confirm = { onOk: ok, onCancel: edit.close, okDisabled: Boolean(blocked) || disabled, okReason: blocked || "", busy: edit.saving };
   const sketchLabel = sketch ? (sketch.plane && sketch.plane !== "Plane" ? `${sketch.title}, ${sketch.plane} Plane` : sketch.title) : "";
+  // Choose: the pick still wanted, or, with each made, the preview to look at before OK. A reopened
+  // feature keeps what it acts on, and an extrude its end while the end condition is its own.
+  const kept = Boolean(editing) && (command.sketch ? editing.values?.end === values.end : !repicked);
+  const step = chooseLine(chooseSteps(command.id, { listed, sketch, values, ending, kept }));
+  const next = step || (blocked ? "" : previewOn ? "Review the preview, then press OK." : "Press OK to make it.");
+  // A pick listed, taken out by its X as a click on it on the model takes it out.
+  const removePick = onDeselect ? selector => {
+    const reference = references.find(each => String(each?.displaySelector || each?.normalizedSelector || "") === selector);
+    if (reference?.id) onDeselect(reference.id);
+  } : null;
+  const shown = edit.featurePreview || null;
 
   return <div role="dialog" aria-label={title} data-cad-edit-command={command.id} className="flex shrink-0 flex-col"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.close(); } }}>
@@ -219,9 +273,14 @@ export default function EditCommand({ edit, names, references, tree = null }) {
       <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">{title}</h2>
       <ConfirmButtons {...confirm} />
     </div>
+    {next ? <p role="status" data-cad-choose-step="" className="flex items-center gap-1.5 border-b border-border px-2 py-1.5 text-tiny leading-4 text-foreground">
+      <span className={`size-2 shrink-0 rounded-full ${step ? "bg-cad-picked" : "bg-muted-foreground/50"}`} aria-hidden="true" />
+      <span className="min-w-0 flex-1">{next}</span>
+    </p> : null}
     {command.picks && !(editing && command.id === "mirror") ? <FileSheetSettingsSection
       title={command.picks === "edges" ? "Edges" : command.id === "mirror" ? "Mirror face" : "Faces"} sectionId="edit-command-selection">
-      {editing && !repicked ? <KeptList text={editing.keeps} hint={keptHint} /> : <SelectionList items={listed} prompt={command.prompt} />}
+      {editing && !repicked ? <KeptList text={editing.keeps} hint={keptHint} />
+        : <SelectionList items={listed} prompt={command.prompt} onRemove={removePick} />}
     </FileSheetSettingsSection> : null}
     {command.sketch ? <FileSheetSettingsSection title="Sketch" sectionId="edit-command-sketch">
       {/* The sketch it takes, picked on the model or in the design tree and shaded there; a
@@ -310,6 +369,18 @@ export default function EditCommand({ edit, names, references, tree = null }) {
         </>}
         <NumberRow label="Instances" value={values.count} disabled={disabled} onChange={set("count")} />
       </> : null}
+    </FileSheetSettingsSection>
+    {/* Preview, switched as Fusion's dialogs switch it: what OK would make, drawn on the model, and
+        what its colours are; while a new one is made the last stays drawn. One that failed draws
+        nothing, and says why. */}
+    <FileSheetSettingsSection title="Preview" sectionId="edit-command-preview" enabled={previewOn}
+      onEnabledChange={on => edit.setPreviewOn?.(on)}>
+      {sweeps ? <PreviewKey added={kind === "boss"} removed={kind === "cut"} />
+        : shown?.status === "updating" ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">Updating the preview</p>
+          : shown?.status === "failed" ? <p className="px-2 pb-1 text-tiny leading-4 text-destructive" aria-live="polite">{shown.error}</p>
+            : shown?.status === "ready" ? (shown.added || shown.removed ? <PreviewKey added={Boolean(shown.added)} removed={Boolean(shown.removed)} />
+              : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>It changes nothing on the body.</p>)
+              : null}
     </FileSheetSettingsSection>
     {/* Why OK waits, where the list does not already say: two faces for one hole. */}
     {blocked && (listed.length || !command.picks) && !(command.sketch && !sketch) ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>{blocked}</p> : null}

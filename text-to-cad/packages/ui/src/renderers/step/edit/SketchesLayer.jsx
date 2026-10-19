@@ -1,24 +1,12 @@
 import { useEffect, useRef } from "react";
-import { colorsFor, curvePoints, lightText, planeMapping, strokePath } from "./sketchDrawing.js";
+import { cadColors, colorsFor, curvePoints, planeMapping, PREVIEW_FILL_ALPHA, strokePath } from "./sketchDrawing.js";
 import { sketchGeometry } from "./sketchMode.js";
 import { CLICK_SLOP_PX, extrudeSpan, holeLoops, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace, taperedLoop } from "./sketchPicking.js";
 
 const TAG_FONT_PX = 11;
 const TAG_HEIGHT_PX = 18;
-// How strongly the picked profile and a preview's faces are shaded over the model.
+// How strongly the picked profile is shaded over the model.
 const PICKED_FILL_ALPHA = 0.22;
-const PREVIEW_FILL_ALPHA = 0.3;
-
-/** The CAD colors the layer draws in, from the viewer's tokens, with stand-ins for a host without them. */
-function cadColors(host) {
-  const style = getComputedStyle(host);
-  const read = (name, fallback) => style.getPropertyValue(name).trim() || fallback;
-  return {
-    picked: read("--cad-picked", "#4f9dff"), solid: read("--cad-solid", "#f2b33d"), solidEdge: read("--cad-solid-edge", "#8a5a12"),
-    cut: read("--cad-cut", "#e5484d"),
-    tagText: lightText(style.color || "") ? "#0b1220" : "#ffffff",
-  };
-}
 
 function fillLoops(context, loops, color, alpha) {
   if (!loops.length) return;

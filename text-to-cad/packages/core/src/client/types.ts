@@ -278,6 +278,18 @@ export interface CadEditState {
   choose?: { id: string; name: string; file: string; line: number }[];
   change?: { literal: string; name: string; file: string; line: number; from: string; to: string };
   building?: { scripts: string[]; done: number; error: string | null };
+  /** A preview's answer: what the command would add and take away, or why it cannot be made. */
+  preview?: { added?: CadEditPreviewSolid | null; removed?: CadEditPreviewSolid | null; error?: string | null };
+}
+
+/**
+ * A solid a preview draws over the model, in the part's millimetres: three numbers a corner
+ * (`positions`), three corners a triangle (`triangles`), and each edge as the points along it.
+ */
+export interface CadEditPreviewSolid {
+  positions: number[];
+  triangles: number[];
+  edges: number[][];
 }
 
 export interface CadEditChangeRequest {
@@ -290,6 +302,8 @@ export interface CadEditChangeRequest {
   leaf?: string;
   /** A modeling command's line (`cadgen/edit/commands.py`), or lines put back by Undo and Redo. */
   command?: Record<string, unknown>;
+  /** A modeling command made without writing it, for its panel to draw what OK would make. */
+  preview?: Record<string, unknown>;
   splice?: { file: string; hunks: unknown[] };
   /** A sketch mode change (`cadgen/edit/sketching.py`): the sketch's file and line, and what to do to it. */
   sketch?: { file?: string; line?: number; name?: string; op: Record<string, unknown> };

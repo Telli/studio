@@ -132,6 +132,7 @@ import { nodeCopyText, selectionCopyPayload } from "./file-view/stepCopy.js";
 import { referenceLabel, referencesFromCopyText, resolveSelectorSelection } from "./file-view/hostReference.js";
 import { applySourceAppearanceToMeshData, sourceAppearanceGeometry } from "@text-to-cad/core/common/sourceSidecar.js";
 import EditBrowser from "./edit/EditBrowser.jsx";
+import PreviewLayer from "./edit/PreviewLayer.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
 import EditLayoutSwitch from "./edit/EditLayoutSwitch.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
@@ -859,6 +860,8 @@ function StepSurfaceBody({ view, data }) {
   // Hole, waiting to hear where its face was clicked (set once edit mode is read, below).
   const pointAtRef = useRef(null);
   const holePointRef = useRef(null);
+  // Edit mode's command whose box takes many (Fillet's edges, Shell's faces), set once it is read.
+  const choosingManyRef = useRef(false);
   const lodSelectedPartIdsRef = useRef(EMPTY_LIST);
   // Declared here, above the LOD scheduler that is handed it: it reads only refs, so it is
   // safe this early, and a `const` read before its declaration is a TDZ crash, not undefined.
@@ -2577,10 +2580,13 @@ function StepSurfaceBody({ view, data }) {
     setSelectedReferenceIds(before.referenceIds);
   }, []);
 
-  const handleModelReferenceActivate = useCallback((referenceId, { multiSelect = false, clientX, clientY, pointerType = "" } = {}) => {
+  const handleModelReferenceActivate = useCallback((referenceId, { multiSelect: pressedMulti = false, clientX, clientY, pointerType = "" } = {}) => {
     if (stepInteractionBlocked) {
       return;
     }
+    // While edit mode's command takes many, each click adds a face or edge or takes a picked one
+    // out, as a PropertyManager's selection box does, and a click off the model keeps them.
+    const multiSelect = pressedMulti || choosingManyRef.current;
     selectionBeforeActivationRef.current = {
       partIds: selectedPartIdsRef.current,
       renderPartIdByAssemblyPartId: selectedRenderPartIdByAssemblyPartIdRef.current,
@@ -3252,6 +3258,9 @@ function StepSurfaceBody({ view, data }) {
   const editing = editable && editLayout === "manual";
   // Where on the model a click lands, for a hole to go there or an extrude to end at an edge's end.
   holePointRef.current = editing && ["hole", "extrude", "cut"].includes(edit.command) ? edit.setFacePoint : null;
+  choosingManyRef.current = editing && !edit.sketch && Boolean(editCommand(edit.command)?.many);
+  // A pick the open command's panel lists, taken out by its X.
+  const deselectReference = useCallback(id => setSelectedReferenceIds(current => current.filter(each => each !== id)), [setSelectedReferenceIds]);
   // The place over the model's top-right corner where an open command's or sketch's panel floats,
   // in a card of its own apart from the design tree (`edit/EditBrowser.jsx`).
   const [commandCard, setCommandCard] = useState(null);
@@ -3623,7 +3632,8 @@ function StepSurfaceBody({ view, data }) {
     ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
       sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)} /> : null}
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
-      onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard} /> : null}
+      onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
+      onDeselect={deselectReference} /> : null}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
       return <>
@@ -3637,6 +3647,7 @@ function StepSurfaceBody({ view, data }) {
           onPick={sketchesPickable ? pickSketch : null} profiles={sketchFeature && !selectedTreeSketch} preview={edit.preview}
           onEdit={sketchesPickable && !edit.command ? view => openTreeSketch({ file: view.file, line: view.line, title: view.name }) : null}
           through={partExtent} /> : null}
+        {editing && edit.command && edit.featurePreview ? <PreviewLayer viewport={viewport} preview={edit.featurePreview} /> : null}
         {editing ? <div ref={setCommandCard} className="pointer-events-none absolute bottom-2 right-2 top-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col items-stretch"
           data-cad-command-card-place="" /> : null}
       </>;

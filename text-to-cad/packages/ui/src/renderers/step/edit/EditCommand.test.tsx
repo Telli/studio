@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import EditCommand from '../../../../dist/renderers/step/edit/EditCommand.js';
@@ -7,7 +7,7 @@ afterEach(cleanup);
 
 const ROWS = [{ key: 'block.py:6', kind: 'Box', inputs: [] }, { key: 'block.py:7', kind: 'Hole', inputs: [] }];
 const NAMES = [{ key: 'block.py:6', kind: 'Box', title: 'Box1', name: '' }, { key: 'block.py:7', kind: 'Hole', title: 'Hole1', name: '' }];
-const EDGE = { selectorType: 'edge', displaySelector: 'e3', pickData: { curveType: 'line', center: [0, 5, 2], length: 20 } };
+const EDGE = { id: 'ref-e3', selectorType: 'edge', displaySelector: 'e3', pickData: { curveType: 'line', center: [0, 5, 2], length: 20 } };
 
 function edit(command: string, selected = 'block.py:6') {
   return { command, selected, status: 'ready', saving: false, state: { units: 'mm', rows: ROWS }, run: vi.fn(), close: vi.fn(),
@@ -18,7 +18,9 @@ it('a fillet waits for edges, then OK writes it with the radius typed', async ()
   const user = userEvent.setup();
   const fillet = edit('fillet');
   const { rerender } = render(<EditCommand edit={fillet as never} names={NAMES} references={[]} />);
-  expect(screen.getByText('Select the edges to round.')).toBeTruthy();
+  // Choose names the pick wanted, and the empty box says how to pick.
+  expect(screen.getByText('1 of 1: Select edges to round')).toBeTruthy();
+  expect(screen.getByText('Click edges on the model to add them. Click one again to take it out.')).toBeTruthy();
   expect((screen.getByRole('button', { name: 'OK' }) as HTMLButtonElement).disabled).toBe(true);
 
   // An edge picked on the model while the panel is open is listed, and OK can go.
@@ -45,4 +47,34 @@ it('a pattern copies the feature picked in the history, and Cancel leaves the sc
   });
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(pattern.close).toHaveBeenCalled();
+});
+
+it('Choose lists each pick with an X to take it out, and Preview asks for what OK would make and says what it drew', async () => {
+  const user = userEvent.setup();
+  const fillet = { ...edit('fillet'), previewOn: true, featurePreview: null, previewFeature: vi.fn(), setPreviewOn: vi.fn() };
+  const onDeselect = vi.fn();
+  const { rerender } = render(<EditCommand edit={fillet as never} names={NAMES} references={[EDGE]} onDeselect={onDeselect} />);
+  expect(screen.getByText('Review the preview, then press OK.')).toBeTruthy();
+  const request = { command: 'fillet', inputs: { radius: '1' }, selection: [{ selector: 'e3', type: 'line', center: [0, 5, 2], size: 20 }] };
+  await waitFor(() => expect(fillet.previewFeature).toHaveBeenLastCalledWith(request));
+  await user.click(screen.getByRole('button', { name: 'Remove Edge 3' }));
+  expect(onDeselect).toHaveBeenCalledWith('ref-e3');
+
+  // While it is made, then what it takes away, then why it could not be made.
+  rerender(<EditCommand edit={{ ...fillet, featurePreview: { status: 'updating' } } as never} names={NAMES} references={[EDGE]} onDeselect={onDeselect} />);
+  expect(screen.getByText('Updating the preview')).toBeTruthy();
+  rerender(<EditCommand edit={{ ...fillet, featurePreview: { status: 'ready', removed: { positions: [], triangles: [], edges: [] }, added: null } } as never}
+    names={NAMES} references={[EDGE]} onDeselect={onDeselect} />);
+  expect(screen.getByText('Material it takes away')).toBeTruthy();
+  expect(screen.queryByText('Material it adds')).toBeNull();
+  rerender(<EditCommand edit={{ ...fillet, featurePreview: { status: 'failed', error: 'Try a smaller radius.' } } as never} names={NAMES} references={[EDGE]}
+    onDeselect={onDeselect} />);
+  expect(screen.getByText('Try a smaller radius.')).toBeTruthy();
+
+  // Preview switched off: none asked, and the line asks only for OK.
+  await user.click(screen.getByRole('checkbox', { name: 'Preview' }));
+  expect(fillet.setPreviewOn).toHaveBeenCalledWith(false);
+  rerender(<EditCommand edit={{ ...fillet, previewOn: false } as never} names={NAMES} references={[EDGE]} onDeselect={onDeselect} />);
+  expect(screen.getByText('Press OK to make it.')).toBeTruthy();
+  await waitFor(() => expect(fillet.previewFeature).toHaveBeenLastCalledWith(null));
 });
