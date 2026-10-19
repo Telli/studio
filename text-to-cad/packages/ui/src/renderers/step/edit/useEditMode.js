@@ -16,6 +16,7 @@ import {
   recordChange,
   redoStep,
   sketchTreeId,
+  appearanceNote,
   renameNote,
   suppressNote,
   treeFeatures,
@@ -392,6 +393,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     const deleted = move.change.kind === "delete";
     const suppressed = move.change.kind === "suppress";
     const renamed = move.change.kind === "rename";
+    const painted = move.change.kind === "appearance";
     const current = sketchRef.current;
     // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
     const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
@@ -399,7 +401,8 @@ export function useEditMode({ client, file, active, reading = true }) {
       note: made ? () => commandUndoNote(move.change, move.change.title, redo)
         : deleted ? () => deleteNote(move.change, { undo: !redo, redo })
           : suppressed ? () => suppressNote(move.change, { undo: !redo, redo })
-            : renamed ? () => renameNote(move.change, { undo: !redo, redo }) : null });
+            : renamed ? () => renameNote(move.change, { undo: !redo, redo })
+              : painted ? () => appearanceNote(move.change, { undo: !redo, redo }) : null });
     if (!reply?.ok) return;
     setHistory(move.next);
     if (current) {
@@ -449,6 +452,9 @@ export function useEditMode({ client, file, active, reading = true }) {
     if (String(name ?? "").trim() === target.title) return null;
     return send({ rename: { ...target, name } }, { note: answer => renameNote(answer.change) });
   }, [send]);
+
+  /** Appearance's OK: the part colored `color` (#RRGGBB) in its script, then built again with it. */
+  const paint = useCallback(color => send({ appearance: { color } }, { note: answer => appearanceNote(answer.change) }), [send]);
 
   const suppress = useCallback(async (id, tree, on = true) => {
     const feature = treeFeatures(tree).find(each => each.id === id);
@@ -555,7 +561,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
-    inspecting, mass, renaming, rename,
+    inspecting, mass, renaming, rename, paint,
     startRename: id => { if (id) setRenaming(id); },
     stopRename: () => setRenaming(null),
     inspect: what => { setCommand(null); endEditing(); setPicking(false); setPreview(null); dropPreview(); setInspecting(what); },

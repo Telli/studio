@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import EditCommand from '../../../../dist/renderers/step/edit/EditCommand.js';
 import MassProperties from '../../../../dist/renderers/step/edit/MassProperties.js';
+import Appearance from '../../../../dist/renderers/step/edit/Appearance.js';
 
 afterEach(cleanup);
 
@@ -200,4 +201,22 @@ it("Mass Properties weigh the part in the project's material, or one picked, and
   render(<MassProperties edit={{ ...inspected, mass: { ...inspected.mass, material: null } } as never} />);
   expect(screen.getByText('Pick a material to weigh the part.')).toBeTruthy();
   expect(screen.queryByText('1.02 g')).toBeNull();
+});
+
+it("Appearance opens on the part's color, and OK writes the swatch or the hex picked", async () => {
+  const user = userEvent.setup();
+  const painting = { ...edit(''), state: { units: 'mm', rows: ROWS, color: '#B7A1D7' }, stopInspecting: vi.fn(), paint: vi.fn(async () => ({ ok: true })) };
+  render(<Appearance edit={painting as never} />);
+  expect((screen.getByRole('textbox', { name: 'Hex' }) as HTMLInputElement).value).toBe('#B7A1D7');
+  // Its own color again is nothing to write.
+  expect((screen.getByRole('button', { name: 'OK' }) as HTMLButtonElement).disabled).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Teal' }));
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(painting.paint).toHaveBeenLastCalledWith('#2E9C95');
+  await waitFor(() => expect(painting.stopInspecting).toHaveBeenCalled());
+  const hex = screen.getByRole('textbox', { name: 'Hex' });
+  await user.clear(hex);
+  await user.type(hex, '2e3742{Enter}');
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(painting.paint).toHaveBeenLastCalledWith('#2E3742');
 });

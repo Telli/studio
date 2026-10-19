@@ -1049,6 +1049,37 @@ class Renaming(Commands):
         self.assertIn("A sketch needs a name", unnamed["error"])
 
 
+class Appearances(Commands):
+    """Appearance, as SolidWorks' Edit Appearance colors a part: the hex picked written where the
+    part's body takes its color, and read back as the color it shows."""
+
+    def paint(self, file: str, state: dict, color: str) -> dict:
+        return self.service.change({"file": file, "files": state["files"], "appearance": {"color": color}})
+
+    def test_a_part_is_colored_before_it_is_returned_then_its_color_changed_in_place(self):
+        root, file, state = self.open(PLATE, "plate.step")
+        self.assertIsNone(state["color"])
+        painted = self.paint(file, state, "#b7a1d7")
+        self.assertTrue(painted["ok"], painted.get("error"))
+        script = root / "plate.py"
+        self.assertIn('    plate.label = "plate"\n    plate.color = srgb("#B7A1D7")\n    return plate\n', script.read_text(encoding="utf-8"))
+        self.assertIn("from cadgen.color import srgb\n", script.read_text(encoding="utf-8"))
+        self.assertEqual(painted["color"], "#B7A1D7")
+        again = self.paint(file, painted, "#C8B4E5")
+        self.assertTrue(again["ok"], again.get("error"))
+        text = script.read_text(encoding="utf-8")
+        self.assertEqual((text.count(".color = "), text.count("import srgb")), (1, 1))
+        self.assertIn('plate.color = srgb("#C8B4E5")', text)
+        self.assertFalse(self.paint(file, again, "lilac")["ok"])
+
+    def test_a_part_returned_outright_is_named_to_be_colored(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        painted = self.paint(file, state, "#2E3742")
+        self.assertTrue(painted["ok"], painted.get("error"))
+        self.assertIn('    part = Box(WIDTH, DEPTH, HEIGHT)\n    part.color = srgb("#2E3742")\n    return part\n',
+                      (root / "block.py").read_text(encoding="utf-8"))
+
+
 class Assemblies(Commands):
     """An assembly places its parts: each is modeled on its own, opened from the design tree."""
 

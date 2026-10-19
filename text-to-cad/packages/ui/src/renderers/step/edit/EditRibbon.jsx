@@ -13,7 +13,7 @@ import { Progress } from "@text-to-cad/ui/primitives/progress";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { COMMAND_ICONS, ExitSketchIcon, MassPropertiesIcon, SketchIcon } from "./cadIcons.jsx";
+import { AppearanceIcon, COMMAND_ICONS, ExitSketchIcon, MassPropertiesIcon, SketchIcon } from "./cadIcons.jsx";
 import { COMMAND_GROUPS, EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_TOOLS } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
@@ -278,6 +278,10 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
       ...(group.title === "Inspect" ? [{ id: "mass", label: "Mass Properties", icon: <MassPropertiesIcon aria-hidden="true" />,
         active: edit.inspecting === "mass", disabled: edit.status !== "ready",
         onClick: () => (edit.inspecting === "mass" ? edit.stopInspecting() : edit.inspect("mass")) }] : [])] })),
+    // Display, as SolidWorks' Edit Appearance: the part's color. An assembly's parts are colored in their own.
+    { title: "Display", items: placing ? [] : [{ id: "appearance", label: "Appearance", icon: <AppearanceIcon />,
+      active: edit.inspecting === "appearance", disabled: edit.status !== "ready",
+      onClick: () => (edit.inspecting === "appearance" ? edit.stopInspecting() : edit.inspect("appearance")) }] },
     { title: "Tools", items: others.map(toolItem) },
   ].filter(group => group.items.length), <>
     {statusLine(status, Boolean(state?.building?.error))}

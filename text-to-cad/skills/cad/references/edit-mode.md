@@ -127,6 +127,10 @@ by hand" below.
   shows in place of Cut-Extrude2 and Edit Feature keeps; a sketch's is its own
   (`Sketch("Cable notch", ...)`). A hole of a standard size is named by its callout until renamed.
   No two features share a name, and nothing is built.
+- **Appearance** (the ribbon's Display group, or the part's menu in the tree) colors the part with
+  the hex picked: written where its body takes its color, `tray.color = srgb("#B7A1D7")` (an alpha
+  kept), or just before it is returned, with `from cadgen.color import srgb`; the part is built
+  again, as its STEP carries the color.
 - **Mass Properties** (the ribbon's Inspect group, beside Measure and Section) weighs the part as
   it is, at the rollback bar when it is up: its volume, surface area, center of mass (marked on
   the model) and overall size, worked out from its solids, and its mass in a material of cadgen's

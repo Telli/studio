@@ -867,6 +867,13 @@ export function deleteRefusal(reply, tree, title, verb = "Delete") {
 }
 
 /** What Suppress or Unsuppress of a feature tells the agent, and what its Undo and Redo do. */
+/** What the agent is told of an Appearance: the part's new color, and where it is written. */
+export function appearanceNote(change, { undo = false, redo = false } = {}) {
+  const where = `(${change.file}, line ${change.line})`;
+  if (undo) return `In edit mode I took back coloring the part ${change.color} ${where}.`;
+  return `In edit mode I colored the part ${change.color}${redo ? " again" : ""} ${where}.`;
+}
+
 /** What the agent is told of a Rename: the feature or sketch, its name before and after, and where. */
 export function renameNote(change, { undo = false, redo = false } = {}) {
   const where = `(${change.file}, line ${change.line})`;

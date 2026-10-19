@@ -169,6 +169,18 @@ export const DraftIcon = ({ className }) => <Icon className={className}>
   <path d="M19 17V8.5" style={{ ...ACCENT, strokeWidth: 1.1 }} strokeDasharray="1.6 1.3" />
 </Icon>;
 
+/** A ball in the part's color, lit from above, as SolidWorks draws Edit Appearance. */
+export const AppearanceIcon = ({ className }) => <Icon className={className}>
+  <defs>
+    <radialGradient id="cad-appearance-ball" cx="0.38" cy="0.32" r="0.75">
+      <stop offset="0" stopColor="#fff" stopOpacity="0.9" />
+      <stop offset="0.35" stopColor="var(--cad-accent)" />
+      <stop offset="1" stopColor="var(--cad-solid-edge)" />
+    </radialGradient>
+  </defs>
+  <circle cx="12" cy="12" r="8.5" style={{ fill: "url(#cad-appearance-ball)", stroke: "var(--cad-solid-edge)", strokeWidth: 1 }} />
+</Icon>;
+
 /** A weight on a scale's pan, as Mass Properties is drawn: what the part weighs. */
 export const MassPropertiesIcon = ({ className }) => <Icon className={className}>
   <path d="M3 20h18" style={{ ...ACCENT, stroke: "var(--cad-solid-edge)", strokeWidth: 1.5 }} />

@@ -25,6 +25,7 @@ import {
   deleteNote,
   deleteRefusal,
   editingValues,
+  appearanceNote,
   renameNote,
   draggedDepth,
   emptyHistory,
@@ -550,4 +551,10 @@ test("a rename tells the agent the names before and after, and a name taken off 
   assert.equal(renameNote(change), "In edit mode I renamed Fillet1 to Top edge round (block.py, line 7).");
   assert.equal(renameNote({ ...change, name: "" }), "In edit mode I gave Fillet1 back the design tree's own name (block.py, line 7).");
   assert.equal(renameNote(change, { undo: true }), "In edit mode I took back renaming Fillet1 (block.py, line 7).");
+});
+
+test("a color picked tells the agent the hex and where it is written", () => {
+  const change = { kind: "appearance", color: "#B7A1D7", file: "parts/tray.py", line: 38 };
+  assert.equal(appearanceNote(change), "In edit mode I colored the part #B7A1D7 (parts/tray.py, line 38).");
+  assert.equal(appearanceNote(change, { undo: true }), "In edit mode I took back coloring the part #B7A1D7 (parts/tray.py, line 38).");
 });

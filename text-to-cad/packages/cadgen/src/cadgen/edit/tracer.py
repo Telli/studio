@@ -1677,11 +1677,27 @@ def trace(request):
         "sketches": sketches,
         "components": [{"name": c["function"], "file": c["file"], "features": c["features"], "step": _component_step(c)} for c in components],
         "bounds": _bounds(shape) if isinstance(shape, B.Shape) else None,
+        # The part's color as it shows, for Appearance to open on.
+        "color": None if components else _shown_color(shape),
         "dimensions": [_clean(d) for d in dimensions],
         # The viewer draws the model from its STEP; a page of its own asks for the mesh.
         "mesh": _export_mesh(shape) if request.get("mesh", True) and isinstance(shape, B.Shape) else None,
         "printed": printed.getvalue()[-2000:],
     }
+
+
+def _shown_color(shape):
+    """A shape's color as the hex it shows on screen (its channels are linear), or None."""
+    from cadgen.color import linear_to_srgb
+
+    color = getattr(shape, "color", None) if isinstance(shape, B.Shape) else None
+    if color is None:
+        return None
+    try:
+        red, green, blue, *_ = tuple(color)
+    except Exception:  # noqa: BLE001 - a color it cannot read shows none
+        return None
+    return "#" + "".join(f"{round(max(0.0, min(1.0, linear_to_srgb(channel))) * 255):02X}" for channel in (red, green, blue))
 
 
 def _scale_of_leaf(literal_id, step):
@@ -1733,7 +1749,7 @@ def _solve(expr, leaf, target):
 
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
-_CHANGES = ("command", "preview", "mass", "rename", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
+_CHANGES = ("command", "preview", "mass", "rename", "appearance", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
 
 
 def edit(request):
@@ -1755,6 +1771,8 @@ def edit(request):
         return suppress(request)
     if isinstance(request.get("rename"), dict):
         return rename(request)
+    if isinstance(request.get("appearance"), dict):
+        return appearance(request)
     script = str(Path(request["script"]).resolve())
     if script not in STATE:
         traced = trace(request)
@@ -2338,6 +2356,89 @@ def rename(request):
         "build": False,
         "undo": {"file": rel, "hunks": commands.hunks(new, old)},
         "redo": {"file": rel, "hunks": commands.hunks(old, new)},
+    }
+    return after
+
+
+def _call_name(node):
+    """The name a call is made by: ``srgb`` for ``srgb(...)`` and for ``cadgen.srgb(...)``."""
+    return getattr(node.func, "attr", None) or getattr(node.func, "id", None)
+
+
+def appearance(request):
+    """Appearance, as SolidWorks' Edit Appearance colors a part: ``color``, the hex the engineer
+    picked, written where the part's body takes its color (``tray.color = srgb("#B7A1D7")``, its
+    alpha kept), or put in just before the part is returned; then the part is built again, as its
+    STEP carries the color."""
+    from cadgen.edit import commands, sketching
+
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    color = str(request["appearance"].get("color") or "").strip().upper()
+    if not re.fullmatch(r"#[0-9A-F]{6}", color):
+        return {"ok": False, "error": "A color is a hex code, like #B7A1D7."}
+    if traced.get("components"):
+        return {"ok": False, "error": "An assembly's parts are colored in their own files. Open a part to color it."}
+    state = STATE[str(Path(request["script"]).resolve())]
+    try:
+        body = commands.find_body(state["steps"], state["shape"], state["level"], ROOT)
+    except commands.CommandError as error:
+        return {"ok": False, "error": str(error)}
+    edits = commands.Edits(body.text)
+    painted = f"srgb({json.dumps(color)})"
+    var = body.name
+    held = next((statement for statement in body.function.body if isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                 and isinstance(statement.targets[0], ast.Attribute) and statement.targets[0].attr == "color"
+                 and isinstance(statement.targets[0].value, ast.Name) and statement.targets[0].value.id == var), None) if var else None
+    if held is not None:
+        value = held.value
+        if isinstance(value, ast.Call) and _call_name(value) == "srgb" and value.args and isinstance(value.args[0], ast.Constant):
+            # Its hex alone: an alpha after it stays.
+            first = value.args[0]
+            edits.put(first.lineno, first.col_offset, json.dumps(color), until=first.end_col_offset)
+        elif value.lineno == value.end_lineno:
+            edits.put(value.lineno, value.col_offset, painted, until=value.end_col_offset)
+        else:
+            return {"ok": False, "error": "The part's color is written over several lines. Ask the agent to change it."}
+        line = held.lineno
+    else:
+        if var is None:
+            # `return <body>` becomes `part = <body>`, its color, and `return part`.
+            var = commands.fresh_name(body.tree, "part")
+            value = body.statement.value
+            edits.put(body.statement.lineno, body.statement.col_offset, f"{var} = ", until=value.col_offset)
+            edits.after(body.statement.end_lineno, [f"{body.indent}{var}.color = {painted}", f"{body.indent}return {var}"])
+            line = body.statement.end_lineno + 1
+        else:
+            returned = next((statement for statement in reversed(body.function.body) if isinstance(statement, ast.Return)), None)
+            at = returned.lineno - 1 if returned is not None else body.function.end_lineno
+            edits.after(at, [f"{body.indent}{var}.color = {painted}"])
+            line = at + 1
+    text = edits.apply()
+    if not sketching.has_name(body.tree, "srgb"):
+        last = max((node.end_lineno for node in body.tree.body if isinstance(node, (ast.Import, ast.ImportFrom))), default=0)
+        lines = text.splitlines(keepends=True)
+        lines.insert(last, "from cadgen.color import srgb\n")
+        text = "".join(lines)
+        line += 1
+    old = body.text
+    _write(body.path, text)
+    after = trace(request)
+    if not after.get("ok"):
+        _write(body.path, old)
+        trace(request)
+        return {"ok": False, "error": "The part does not build with that color, so nothing changed."}
+    after["change"] = {
+        "kind": "appearance",
+        "color": color,
+        "file": body.rel,
+        "line": line,
+        "undo": {"file": body.rel, "hunks": commands.hunks(text, old)},
+        "redo": {"file": body.rel, "hunks": commands.hunks(old, text)},
     }
     return after
 
