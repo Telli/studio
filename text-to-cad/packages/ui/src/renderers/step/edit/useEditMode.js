@@ -115,6 +115,13 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [inspecting, setInspecting] = useState(null);
   // Compare's versions of the part, and what the one picked shows (`shown`, as a preview draws it).
   const [comparison, setComparison] = useState(null);
+  // The part's drawing worked on its sheet, as a SolidWorks drawing is (`SheetEditor.jsx`): the
+  // sheet as drawn (`payload`: `cadgen.eng_drawing.sheet_payload`'s, with the script's `hash` it
+  // was drawn from), which sheet, whether it is being drawn again (`busy`), what went wrong, and its
+  // own Undo and Redo (`undo`, `redo`: each change's hunks, `cadgen/edit/drawings.py`).
+  const [sheetView, setSheetView] = useState(null);
+  const sheetRef = useRef(sheetView);
+  sheetRef.current = sheetView;
   // The design tree's row being renamed in place (its id), as F2 or its menu's Rename opens one.
   const [renaming, setRenaming] = useState(null);
   const [mass, setMass] = useState(null);
@@ -140,6 +147,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     previewWanted.current = null; previewAsked.current = ""; setFeaturePreview(null);
     setBar(null);
     setSketch(null); setSketchTool(null); setSketchSelection([]); setPicking(false);
+    setSheetView(null);
     probed.current = "";
     setStatus(supported && file ? "probing" : "none");
   }, [file, supported]);
@@ -485,8 +493,82 @@ export function useEditMode({ client, file, active, reading = true }) {
     }
   }, [client, file, supported]);
   useEffect(() => { if (inspecting !== "compare") setComparison(null); }, [inspecting]);
-  // Make Drawing, and the Drawing panel's sheet: the part's drawing script written and drawn to its PDF.
-  const drawing = useCallback(spec => send({ drawing: spec }, { record: false, note: answer => drawingNote(answer.change) }), [send]);
+  // ---- the drawing's sheet ---------------------------------------------------------------------
+  // One request about the sheet: the sheet drawn, or a change made on it and the sheet drawn again.
+  // Its failures are the sheet's to say, not the part's.
+  const askSheet = useCallback(async spec => {
+    if (!supported || !file) return null;
+    setSheetView(current => ({ undo: [], redo: [], payload: null, index: spec.index || 1, ...(current || {}), busy: true, error: "" }));
+    try {
+      const reply = await client.editChange({ sheet: spec, file });
+      if (!reply.ok) {
+        setSheetView(current => (current ? { ...current, busy: false, error: reply.error || "The sheet could not be drawn." } : current));
+        return reply;
+      }
+      take(reply);
+      if (reply.change) tell(drawingNote(reply.change));
+      setSheetView(current => (current ? { ...current, index: spec.index || 1, payload: reply.sheet, busy: false, error: "" } : current));
+      return reply;
+    } catch (failure) {
+      setSheetView(current => (current ? { ...current, busy: false, error: describe(failure) } : current));
+      return null;
+    }
+  }, [client, file, supported, take, tell]);
+  /** Edit Sheet: the drawing's sheet `index` drawn in the view, to be worked on there. */
+  const openSheet = useCallback((index = 1) => askSheet({ index }), [askSheet]);
+  const closeSheet = useCallback(() => setSheetView(null), []);
+  /**
+   * One change made on the sheet (`cadgen/edit/drawings.py`'s `edit`: a view moved, a dimension
+   * deleted or added), the drawing then drawn again. Made on a sheet drawn from an older script (the
+   * agent changed it since), it is refused and the sheet is drawn again as it is.
+   */
+  // `step`: an Undo or a Redo of the sheet's (`{ kind, entry }`), which walks its history instead of adding to it.
+  const sheetChange = useCallback(async (change, step = null) => {
+    const current = sheetRef.current;
+    if (!current?.payload || current.busy) return null;
+    const reply = await askSheet({ index: current.index, hash: current.payload.hash, edit: change });
+    if (reply?.ok) {
+      setSheetView(view => {
+        if (!view) return view;
+        if (step?.kind === "undo") return { ...view, undo: view.undo.slice(0, -1), redo: [...view.redo, step.entry] };
+        if (step?.kind === "redo") return { ...view, undo: [...view.undo, step.entry], redo: view.redo.slice(0, -1) };
+        return { ...view, undo: [...view.undo, reply.sheetEdit], redo: [] };
+      });
+    } else if (reply?.stale) {
+      // Its history was of the script as it was: it starts again with the sheet as it is.
+      const again = await askSheet({ index: current.index });
+      if (again?.ok) setSheetView(view => (view ? { ...view, undo: [], redo: [], error: reply.error } : view));
+    }
+    return reply;
+  }, [askSheet]);
+  const sheetEdit = useCallback(change => sheetChange(change), [sheetChange]);
+  const undoSheet = useCallback(() => {
+    const entry = sheetRef.current?.undo?.at(-1);
+    return entry ? sheetChange({ kind: "splice", hunks: entry.undo, undo: true }, { kind: "undo", entry }) : null;
+  }, [sheetChange]);
+  const redoSheet = useCallback(() => {
+    const entry = sheetRef.current?.redo?.at(-1);
+    return entry ? sheetChange({ kind: "splice", hunks: entry.redo }, { kind: "redo", entry }) : null;
+  }, [sheetChange]);
+  // A command or a sketch opened puts the sheet away, as the part is what they work on.
+  useEffect(() => { if (command || sketch || picking) setSheetView(null); }, [command, sketch, picking]);
+  // The part read again (the agent changed it, or a change here): its drawing follows it.
+  const askSheetRef = useRef(askSheet);
+  askSheetRef.current = askSheet;
+  const partFiles = state?.files;
+  useEffect(() => {
+    const current = sheetRef.current;
+    if (current?.payload && !current.busy) void askSheetRef.current({ index: current.index });
+  }, [partFiles]);
+
+  // Make Drawing, and the Drawing panel's sheet: the part's drawing script written and drawn to its PDF;
+  // the sheet, when it is open, drawn again with it.
+  const drawing = useCallback(async spec => {
+    const reply = await send({ drawing: spec }, { record: false, note: answer => drawingNote(answer.change) });
+    const open = sheetRef.current;
+    if (reply?.ok && open && !spec.make) void askSheet({ index: open.index });
+    return reply;
+  }, [send, askSheet]);
 
   const suppress = useCallback(async (id, tree, on = true) => {
     const feature = treeFeatures(tree).find(each => each.id === id);
@@ -594,6 +676,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
     inspecting, mass, renaming, rename, paint, mate, drawing, comparison, compare,
+    sheetView, openSheet, closeSheet, sheetEdit, undoSheet, redoSheet,
     startRename: id => { if (id) setRenaming(id); },
     stopRename: () => setRenaming(null),
     inspect: what => { setCommand(null); endEditing(); setPicking(false); setPreview(null); dropPreview(); setInspecting(what); },

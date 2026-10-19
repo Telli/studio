@@ -11,12 +11,20 @@ change runs the script, which writes the drawing's PDF.
 from __future__ import annotations
 
 import ast
+import difflib
+import hashlib
+import json
+import math
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
+# The line a drawn sheet comes back on: `cadgen.eng_drawing.SHEET_MARK`, which this process cannot import.
+SHEET_MARK = "cadgen-sheet "
+# The calls that put a dimension or an annotation on a view: what a pick on the sheet takes off.
+DIMENSION_CALLS = ("dim", "hole", "diameter", "radius", "angle", "note", "overall")
 # The title block's fields the panel edits, in the order a Sheet is written with them.
 FIELDS = ("title", "part_number", "material", "revision", "author")
 SIZES = ("A4", "A3", "A2", "A1", "A0")
@@ -211,3 +219,299 @@ def build(script: Path, timeout: float = 240.0) -> Path:
         last = (ran.stderr or ran.stdout).strip().splitlines()
         raise DrawingError(f"The drawing did not draw: {last[-1] if last else 'it wrote no PDF'}")
     return Path(wrote[-1])
+
+
+# ---------------------------------------------------------------------------------------------
+# The sheet, edited on it, as a SolidWorks drawing is: a view dragged where it goes, a dimension
+# picked and deleted, Smart Dimension between two points of a view or on a circle. Each is a change
+# to the drawing's script, which is then drawn again.
+
+def _environment() -> dict:
+    return {**os.environ, "MPLCONFIGDIR": os.environ.get("MPLCONFIGDIR") or str(Path(os.environ.get("TMPDIR", "/tmp")) / "cadgen-mpl")}
+
+
+def sheet(script: Path, index: int = 1, *, pdf: bool = False, timeout: float = 240.0) -> dict:
+    """The drawing's sheet ``index`` as its editor draws it (``cadgen.eng_drawing.sheet_payload``),
+    from a process of its own, as the kernel never loads here; with ``pdf``, its PDF drawn too."""
+    command = [sys.executable, "-c", "from cadgen.eng_drawing import _sheet_main; _sheet_main()", str(script), str(int(index)),
+               *(["pdf"] if pdf else [])]
+    try:
+        ran = subprocess.run(command, cwd=str(Path(script).parent), capture_output=True, text=True, timeout=timeout,
+                             env=_environment(), check=False)
+    except subprocess.TimeoutExpired:
+        raise DrawingError("The drawing took too long to draw. Ask the agent to look at it.") from None
+    marked = [line for line in ran.stdout.splitlines() if line.startswith(SHEET_MARK)]
+    if ran.returncode != 0 or not marked:
+        last = (ran.stderr or ran.stdout).strip().splitlines()
+        raise DrawingError(f"The drawing did not draw: {last[-1] if last else 'it drew no sheet'}")
+    return json.loads(marked[-1][len(SHEET_MARK):])
+
+
+def digest(text: str) -> str:
+    """The drawing script's text as the sheet was drawn from it: an edit made on an older one is refused."""
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def hunks(old: str, new: str) -> list[dict]:
+    """The lines that differ between two texts (``cadgen.edit.commands.hunks``, which this process
+    cannot import): each run at ``start`` (from 1) that reads ``old`` and becomes ``new``."""
+    a, b = old.splitlines(keepends=True), new.splitlines(keepends=True)
+    return [{"start": i1 + 1, "old": a[i1:i2], "new": b[j1:j2]}
+            for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=a, b=b, autojunk=False).get_opcodes() if tag != "equal"]
+
+
+def _splice(text: str, changes: list) -> str:
+    lines = text.splitlines(keepends=True)
+    for change in sorted(changes, key=lambda change: int(change["start"]), reverse=True):
+        start, old = int(change["start"]) - 1, list(change["old"])
+        if start < 0 or lines[start:start + len(old)] != old:
+            raise DrawingError(f"Line {start + 1} of the drawing's script no longer reads as the change left it. Look again.")
+        lines[start:start + len(old)] = list(change["new"])
+    return "".join(lines)
+
+
+_CHANGED = "The drawing's script changed since the sheet was drawn. Look again."
+
+
+def _call_ending(tree: ast.Module, end) -> ast.Call:
+    """The call whose closing parenthesis is at ``end`` (line, column): the one the sheet says
+    placed a view or a dimension, which picks it out of a chain of them."""
+    try:
+        line, column = int(end[0]), int(end[1])
+    except (TypeError, ValueError, IndexError):
+        raise DrawingError("The drawing's script does not say where that is. Ask the agent to change it.") from None
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and node.end_lineno == line and node.end_col_offset == column:
+            return node
+    raise DrawingError(_CHANGED)
+
+
+def _span(text: str, node) -> tuple[int, int]:
+    """A node's start and end as offsets into ``text`` (the tree's columns are UTF-8 bytes)."""
+    lines = text.splitlines(keepends=True)
+    at = lambda line, column: sum(len(each) for each in lines[:line - 1]) + len(lines[line - 1].encode("utf-8")[:column].decode("utf-8"))
+    return at(node.lineno, node.col_offset), at(node.end_lineno, node.end_col_offset)
+
+
+def _put(text: str, start: int, end: int, new: str) -> str:
+    return text[:start] + new + text[end:]
+
+
+def _statement(tree: ast.Module, node) -> tuple[list, int]:
+    """The statement holding ``node``: the body it is in, and where."""
+    found = None
+    for parent in ast.walk(tree):
+        for field in ("body", "orelse", "finalbody"):
+            body = getattr(parent, field, None)
+            if not isinstance(body, list):
+                continue
+            for position, statement in enumerate(body):
+                if isinstance(statement, ast.stmt) and (statement.lineno, statement.col_offset) <= (node.lineno, node.col_offset) \
+                        and (statement.end_lineno, statement.end_col_offset) >= (node.end_lineno, node.end_col_offset):
+                    found = (body, position)  # the innermost wins: ast.walk reaches it later
+    if found is None:
+        raise DrawingError(_CHANGED)
+    return found
+
+
+def _point(value) -> tuple[float, float, float]:
+    try:
+        point = tuple(float(each) for each in value)
+    except (TypeError, ValueError):
+        point = ()
+    if len(point) != 3 or not all(math.isfinite(each) for each in point):
+        raise DrawingError("A point on the part is three numbers.")
+    return point
+
+
+def _tuple(point) -> str:
+    return f"({', '.join(_number(each) for each in point)})"
+
+
+def _shift(by) -> tuple[float, float]:
+    try:
+        dx, dy = float(by[0]), float(by[1])
+    except (TypeError, ValueError, IndexError):
+        raise DrawingError("A view moves by two numbers, across and up.") from None
+    if not (math.isfinite(dx) and math.isfinite(dy)):
+        raise DrawingError("A view moves by two numbers, across and up.")
+    return dx, dy
+
+
+def _how_far(dx: float, dy: float) -> str:
+    said = [f"{_number(abs(round(dx, 1)))} mm {'right' if dx > 0 else 'left'}" if abs(dx) >= 0.05 else "",
+            f"{_number(abs(round(dy, 1)))} mm {'up' if dy > 0 else 'down'}" if abs(dy) >= 0.05 else ""]
+    return " and ".join(each for each in said if each) or "nowhere"
+
+
+def _keyword(text: str, call: ast.Call, name: str, value: str | None) -> str:
+    """``call`` with its keyword ``name`` set to ``value`` (source text), or taken out (None)."""
+    found = next((keyword for keyword in call.keywords if keyword.arg == name), None)
+    if found is not None:
+        if value is not None:
+            start, end = _span(text, found.value)
+            return _put(text, start, end, value)
+        items = sorted([*call.args, *call.keywords], key=lambda node: (node.lineno, node.col_offset))
+        before = items[items.index(found) - 1] if items.index(found) > 0 else None
+        if before is None:
+            raise DrawingError(f"The drawing's script gives {name} first. Ask the agent to change it.")
+        return _put(text, _span(text, before)[1], _span(text, found)[1], "")
+    if value is None:
+        return text
+    items = [*call.args, *call.keywords]
+    if not items:
+        close = _span(text, call)[1] - 1  # the call's closing parenthesis
+        return _put(text, close, close, f"{name}={value}")
+    # After the last argument, so a call written one argument a line keeps its shape.
+    after = max(_span(text, item)[1] for item in items)
+    return _put(text, after, after, f", {name}={value}")
+
+
+def _moved(text: str, tree: ast.Module, edit: dict) -> tuple[str, str]:
+    view = edit.get("view") or {}
+    dx, dy = _shift(edit.get("by"))
+    call = _call_ending(tree, view.get("end"))
+    if view.get("arranged"):
+        # three_views moves its top, front and right views together, and its isometric on its own.
+        if _call_name(call) != "three_views":
+            raise DrawingError(_CHANGED)
+        iso = view.get("name") == "iso"
+        was = _shift(view.get("offset") or (0.0, 0.0))
+        now = (round(was[0] + dx, 1), round(was[1] + dy, 1))
+        made = _keyword(text, call, "iso_offset" if iso else "offset", None if now == (0.0, 0.0) else _tuple(now))
+        return made, f"moved its {'isometric view' if iso else 'top, front and right views'} {_how_far(dx, dy)}"
+    if _call_name(call) != "view":
+        raise DrawingError(_CHANGED)
+    was = _shift(view.get("at"))
+    now = (round(was[0] + dx, 1), round(was[1] + dy, 1))
+    return _keyword(text, call, "at", _tuple(now)), f"moved its {view.get('name') or ''} view {_how_far(dx, dy)}".replace("its  view", "a view")
+
+
+def _deleted(text: str, tree: ast.Module, edit: dict) -> tuple[str, str]:
+    call = _call_ending(tree, edit.get("end"))
+    if not isinstance(call.func, ast.Attribute) or call.func.attr not in DIMENSION_CALLS:
+        raise DrawingError(_CHANGED)
+    receiver = call.func.value
+    body, position = _statement(tree, call)
+    statement = body[position]
+    start, end = _span(text, statement)
+    line_start = text.rfind("\n", 0, start) + 1
+    line_end = text.find("\n", end)
+    line_end = len(text) if line_end == -1 else line_end + 1
+    alone = not text[line_start:start].strip() and (not text[end:line_end].strip() or text[end:line_end].strip().startswith("#"))
+    if (isinstance(statement, ast.Expr) and statement.value is call and not isinstance(receiver, ast.Call)
+            and len(body) > 1 and alone):
+        made = _put(text, line_start, line_end, "")
+    else:
+        # In a chain, or its view used for more: the call taken out, what it was called on left.
+        call_start, call_end = _span(text, call)
+        made = _put(text, call_start, call_end, ast.get_source_segment(text, receiver))
+    name = edit.get("name") or ""
+    where = f"its {name} view" if name else "a view"
+    words = f"took the overall size off {where}" if call.func.attr == "overall" else f"took a dimension off {where}"
+    return made, words
+
+
+def _view_name(text: str, tree: ast.Module, view: dict) -> tuple[str, ast.stmt, list, int]:
+    """What the drawing's script calls a view, by the call that placed it: ``front`` of
+    ``top, front, right = sheet.three_views(part)``, ``views[1]`` of ``views = ...``."""
+    call = _call_ending(tree, view.get("end"))
+    if _call_name(call) not in ("three_views", "view"):
+        raise DrawingError(_CHANGED)
+    body, position = _statement(tree, call)
+    statement = body[position]
+    nth = int(view.get("nth") or 0)
+    named = None
+    if isinstance(statement, ast.Assign) and statement.value is call and len(statement.targets) == 1:
+        target = statement.targets[0]
+        if isinstance(target, ast.Name):
+            named = f"{target.id}[{nth}]" if _call_name(call) == "three_views" else target.id
+        elif isinstance(target, (ast.Tuple, ast.List)) and nth < len(target.elts) and isinstance(target.elts[nth], ast.Name):
+            named = target.elts[nth].id
+    if named is None:
+        raise DrawingError(f"The {view.get('name') or ''} view has no name in the drawing's script to dimension it by. "
+                           "Ask the agent to name it.".replace("The  view", "That view"))
+    return named, statement, body, position
+
+
+def _added(text: str, tree: ast.Module, view: dict, line: str) -> str:
+    """``line`` written with the view's other dimensions: after the last statement that uses the
+    view, before the sheet is returned."""
+    named, statement, body, position = _view_name(text, tree, view)
+    root = re.match(r"[A-Za-z_]\w*", named).group(0)
+    last = statement
+    for later in body[position + 1:]:
+        if isinstance(later, ast.Return):
+            break
+        if any(isinstance(node, ast.Name) and node.id == root for node in ast.walk(later)):
+            last = later
+    end = _span(text, last)[1]
+    line_end = text.find("\n", end)
+    line_end = len(text) if line_end == -1 else line_end + 1
+    first = text[text.rfind("\n", 0, _span(text, statement)[0]) + 1:]
+    indent = first[:len(first) - len(first.lstrip())]
+    return text[:line_end] + f"{indent}{named}.{line}\n" + text[line_end:]
+
+
+def _dimensioned(text: str, tree: ast.Module, edit: dict) -> tuple[str, str]:
+    view = edit.get("view") or {}
+    first, second = _point(edit.get("from")), _point(edit.get("to"))
+    if first == second:
+        raise DrawingError("A dimension is between two different points.")
+    written = [_tuple(first), _tuple(second)]
+    if edit.get("orientation") in ("h", "v"):
+        written.append(f'orientation="{edit["orientation"]}"')
+    if edit.get("offset") is not None:
+        offset = float(edit["offset"])
+        if not math.isfinite(offset):
+            raise DrawingError("A dimension's place is a number.")
+        written.append(f"offset={_number(round(offset, 1))}")
+    name = view.get("name") or ""
+    return _added(text, tree, view, f"dim({', '.join(written)})"), f"dimensioned its {name} view".replace("its  view", "a view")
+
+
+def _round_one(text: str, tree: ast.Module, edit: dict) -> tuple[str, str]:
+    view = edit.get("view") or {}
+    centre = _point(edit.get("center"))
+    try:
+        radius, angle = float(edit.get("radius")), float(edit.get("angle", 45.0))
+    except (TypeError, ValueError):
+        raise DrawingError("A circle's size is a number.") from None
+    if not (radius > 0 and math.isfinite(radius) and math.isfinite(angle)):
+        raise DrawingError("A circle's size is more than zero.")
+    verb = "radius" if edit.get("kind") == "radius" else "diameter"
+    written = [_tuple(centre), _number(radius)]
+    if abs(angle - 45.0) > 0.5:
+        written.append(f"angle={_number(round(angle))}")
+    name = view.get("name") or ""
+    words = f"gave the {verb} of a {'hole' if verb == 'diameter' else 'round'} on its {name} view"
+    return _added(text, tree, view, f"{verb}({', '.join(written)})"), words.replace("its  view", "a view")
+
+
+def edit(text: str, change: dict) -> tuple[str, str]:
+    """The drawing's script with one change made on its sheet, and what it did, in words:
+    ``move`` a view (or the views ``three_views`` placed together) ``by`` sheet millimetres;
+    ``delete`` the dimension whose call ends at ``end``; ``dim`` between two model points of a view,
+    ``orientation`` and ``offset`` where it was placed; ``diameter`` or ``radius`` of a circle seen
+    round; ``splice`` hunks back (Undo) or again (Redo)."""
+    kind = change.get("kind")
+    if kind == "splice":
+        made = _splice(text, change.get("hunks") or [])
+        words = "took back a change to its sheet" if change.get("undo") else "made a change to its sheet again"
+    else:
+        tree = ast.parse(text)
+        if kind == "move":
+            made, words = _moved(text, tree, change)
+        elif kind == "delete":
+            made, words = _deleted(text, tree, change)
+        elif kind == "dim":
+            made, words = _dimensioned(text, tree, change)
+        elif kind in ("diameter", "radius"):
+            made, words = _round_one(text, tree, change)
+        else:
+            raise DrawingError("The sheet does not make that change.")
+    try:
+        ast.parse(made)
+    except SyntaxError:
+        raise DrawingError("That change would break the drawing's script. Ask the agent to make it.") from None
+    return made, words

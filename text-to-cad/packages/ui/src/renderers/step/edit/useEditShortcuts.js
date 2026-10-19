@@ -22,6 +22,8 @@ export function useEditShortcuts(edit, active) {
     const onKeyDown = event => {
       const element = viewerElement?.current;
       if (!element || event.defaultPrevented || event.altKey) return;
+      // The drawing's sheet, up in the view, takes its own keys (`SheetEditor.jsx`).
+      if (latest.current.sheetView) return;
       // F2 renames what is selected in the design tree, as in SolidWorks.
       if (event.key === "F2" && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
         const target = event.target;

@@ -156,3 +156,59 @@ it('a preview is made without writing anything, one at a time, the newest asked 
   expect(result.current.featurePreview).toBe(null);
   expect(viewer.width()).toBe('20');
 });
+
+it("the drawing's sheet opens in the view, a change made on it is drawn again and told, Undo and Redo walk its own history, and a stale sheet is drawn again", async () => {
+  const viewer = server();
+  const sheetAsks: { sheet: { index: number; hash?: string; edit?: { kind: string; hunks?: unknown[]; undo?: boolean } } }[] = [];
+  let script = 1;
+  let stale = false;
+  const drawn = () => ({ schemaVersion: 3, primitives: [], entities: [], fonts: [], bounds: [0, 0, 420, 297], hash: `h${script}`,
+    file: 'plate_drawing.py', sheet: { index: 1, count: 1, size: 'A3', views: [], sources: {}, frame: [10, 410, 10, 287], units: 'mm' } });
+  const editChange = viewer.client.editChange;
+  viewer.client.editChange = vi.fn(async (change: never) => {
+    const asked = change as { sheet?: (typeof sheetAsks)[number]['sheet'] };
+    if (!asked.sheet) return editChange(change);
+    sheetAsks.push({ sheet: asked.sheet });
+    if (asked.sheet.edit && stale) { stale = false; script += 1; return { ok: false, stale: true, error: 'The drawing\'s script changed since the sheet was drawn. Here it is as it is now.' }; }
+    if (!asked.sheet.edit) return { ok: true, drawingOnly: true, drawing: { script: 'plate_drawing.py' }, sheet: drawn() };
+    script += 1;
+    return { ok: true, drawingOnly: true, drawing: { script: 'plate_drawing.py' }, sheet: drawn(),
+      sheetEdit: { undo: [{ start: 9, old: [`b${script}`], new: [`a${script}`] }], redo: [{ start: 9, old: [`a${script}`], new: [`b${script}`] }] },
+      change: { kind: 'drawing', file: 'plate_drawing.py', line: 9, words: asked.sheet.edit.kind === 'splice' ? 'took back a change to its sheet' : 'moved its top, front and right views 10 mm right', pdf: 'plate_drawing.pdf', build: false } };
+  }) as never;
+  const notes: unknown[] = [];
+  const { result } = renderHook(() => useEditMode({ client: viewer.client, file: FILE, resource: RESOURCE, active: true }),
+    { wrapper: hostWith(context => { notes.push(context); return Promise.resolve({ status: 'added', partIds: [] }); }) });
+  await act(async () => {});
+  await act(async () => { await result.current.openSheet(1); });
+  expect(sheetAsks.at(-1)).toEqual({ sheet: { index: 1 } });
+  expect(result.current.sheetView).toMatchObject({ index: 1, busy: false, error: '', undo: [], redo: [] });
+  expect(result.current.sheetView?.payload.hash).toBe('h1');
+
+  // A view dragged: asked on the sheet as it was drawn, then drawn again, and the agent told.
+  await act(async () => { await result.current.sheetEdit({ kind: 'move', view: { end: [11, 62] }, by: [10, 0] }); });
+  expect(sheetAsks.at(-1)).toEqual({ sheet: { index: 1, hash: 'h1', edit: { kind: 'move', view: { end: [11, 62] }, by: [10, 0] } } });
+  expect(result.current.sheetView?.payload.hash).toBe('h2');
+  expect(result.current.sheetView?.undo).toHaveLength(1);
+  expect(JSON.stringify(notes)).toContain('In edit mode I moved its top, front and right views 10 mm right (plate_drawing.py); it wrote plate_drawing.pdf.');
+  // The part's own history is not the sheet's.
+  expect(result.current.canUndo).toBe(false);
+
+  // Undo sends the change's hunks back; Redo sends them again.
+  await act(async () => { await result.current.undoSheet(); });
+  expect(sheetAsks.at(-1)?.sheet.edit).toEqual({ kind: 'splice', hunks: [{ start: 9, old: ['b2'], new: ['a2'] }], undo: true });
+  expect([result.current.sheetView?.undo.length, result.current.sheetView?.redo.length]).toEqual([0, 1]);
+  await act(async () => { await result.current.redoSheet(); });
+  expect(sheetAsks.at(-1)?.sheet.edit).toEqual({ kind: 'splice', hunks: [{ start: 9, old: ['a2'], new: ['b2'] }] });
+  expect([result.current.sheetView?.undo.length, result.current.sheetView?.redo.length]).toEqual([1, 0]);
+
+  // The agent changed the drawing's script since: the change is refused, and the sheet drawn as it is.
+  stale = true;
+  await act(async () => { await result.current.sheetEdit({ kind: 'delete', end: [12, 17] }); });
+  expect(sheetAsks.at(-1)).toEqual({ sheet: { index: 1 } });
+  expect(result.current.sheetView).toMatchObject({ undo: [], redo: [], error: "The drawing's script changed since the sheet was drawn. Here it is as it is now." });
+
+  // A command opened puts the sheet away.
+  act(() => { result.current.open('fillet'); });
+  expect(result.current.sheetView).toBe(null);
+});

@@ -324,6 +324,8 @@ class EditService:
         self.python = python or sys.executable
         self._tracer = _Tracer(self.python)
         self._builds = _Builds(self.python) if build else None
+        # One change to a drawing's sheet at a time: each reads the script the last one wrote.
+        self._sheet_lock = threading.Lock()
 
     def building(self) -> dict:
         return self._builds.snapshot() if self._builds else {"scripts": [], "done": 0, "error": None}
@@ -357,6 +359,8 @@ class EditService:
         root = project_root(script)
         if isinstance(payload.get("drawing"), dict):
             return {**self.drawing(root, script, Path(payload["file"]), payload["drawing"]), "root": str(root), "building": self.building()}
+        if isinstance(payload.get("sheet"), dict):
+            return {**self.sheet(root, Path(payload["file"]), payload["sheet"]), "root": str(root), "building": self.building()}
         request = {key: payload[key] for key in _CHANGE_KEYS if key in payload}
         reply = self._tracer.ask({**request, "script": str(script), "root": str(root), "op": "edit", "mesh": False,
                                   **_project_units(root)})
@@ -395,6 +399,51 @@ class EditService:
             return {"ok": False, "error": str(error), **({"drawing": _drawing_of(root, step)} if found else {})}
         return {"ok": True, "drawingOnly": True, "drawing": _drawing_of(root, step),
                 "change": {"kind": "drawing", "file": _relative(root, found), "line": 1, "words": words, "pdf": _relative(root, pdf), "build": False}}
+
+    def sheet(self, root: Path, step: Path, spec: dict) -> dict:
+        """The part's drawing as its sheet is edited, as a SolidWorks drawing is: sheet ``index``
+        drawn, and with ``edit``, one change made on it first (`drawings.edit`), the drawing's
+        script then drawn again, its PDF too. ``hash`` is the script the sheet was drawn from: a
+        change made on an older one is refused (``stale``). The part is not run."""
+        from cadgen.edit import drawings
+
+        found = drawings.find(root, step)
+        if found is None:
+            return {"ok": False, "error": f"{step.stem} has no drawing yet. Make one first."}
+        try:
+            index = max(1, int(spec.get("index") or 1))
+        except (TypeError, ValueError):
+            index = 1
+        change = spec.get("edit")
+        rel = _relative(root, found)
+        with self._sheet_lock:
+            old = found.read_text(encoding="utf-8")
+            if not isinstance(change, dict):
+                try:
+                    drawn = drawings.sheet(found, index)
+                except drawings.DrawingError as error:
+                    return {"ok": False, "error": str(error)}
+                return {"ok": True, "drawingOnly": True, "drawing": _drawing_of(root, step),
+                        "sheet": {**drawn, "hash": drawings.digest(old), "file": rel}}
+            if spec.get("hash") != drawings.digest(old):
+                return {"ok": False, "stale": True, "error": "The drawing's script changed since the sheet was drawn. Here it is as it is now."}
+            written = False
+            try:
+                made, words = drawings.edit(old, change)
+                found.write_text(made, encoding="utf-8")
+                written = True
+                drawn = drawings.sheet(found, index, pdf=True)
+            except drawings.DrawingError as error:
+                if written:
+                    found.write_text(old, encoding="utf-8")
+                return {"ok": False, "error": str(error)}
+        undo, redo = drawings.hunks(made, old), drawings.hunks(old, made)
+        pdf = drawn.get("sheet", {}).get("pdf")
+        return {"ok": True, "drawingOnly": True, "drawing": _drawing_of(root, step),
+                "sheet": {**drawn, "hash": drawings.digest(made), "file": rel},
+                "sheetEdit": {"undo": undo, "redo": redo},
+                "change": {"kind": "drawing", "file": rel, "line": min((each["start"] for each in redo), default=1), "words": words,
+                           "pdf": _relative(root, Path(pdf)) if pdf else "", "build": False}}
 
     def close(self) -> None:
         self._tracer.stop()

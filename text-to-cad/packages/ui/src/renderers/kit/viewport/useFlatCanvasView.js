@@ -64,9 +64,13 @@ function wheelZoomFactor(event) {
  * @param {(point: { x: number, y: number }, event: PointerEvent) => void} [options.onTap]
  * @param {(point: { x: number, y: number } | null, event: PointerEvent | null) => void} [options.onHover]
  *   A pointer resting over the canvas with nothing pressed (null: it left).
+ * @param {(point: { x: number, y: number }, event: PointerEvent) => ({ move(point: { x: number, y: number }): void,
+ *   end(point: { x: number, y: number }): void, cancel?(): void } | null)} [options.onGrab]
+ *   A press on something the tool in hand drags (a drawing's view, say): what it returns follows
+ *   the drag in place of a pan, and is let go with it; a press that never travels is a tap still.
  */
 export function useFlatCanvasView({ content, bounds, restored = null, colorScheme = "light", onViewMoved, paint: paintFrame,
-  onTap = null, onHover = null }) {
+  onTap = null, onHover = null, onGrab = null }) {
   const containerRef = useRef(null);
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
@@ -89,6 +93,8 @@ export function useFlatCanvasView({ content, bounds, restored = null, colorSchem
   tapRef.current = onTap;
   const hoverRef = useRef(onHover);
   hoverRef.current = onHover;
+  const grabRef = useRef(onGrab);
+  grabRef.current = onGrab;
   const [dragging, setDragging] = useState(false);
   const frameRef = useRef(0);
 
@@ -261,7 +267,8 @@ export function useFlatCanvasView({ content, bounds, restored = null, colorSchem
       capturePointer(canvas, event.pointerId);
       const point = local(event);
       pointers.set(event.pointerId, point);
-      press = pointers.size === 1 ? { id: event.pointerId, start: point, moved: false } : null;
+      press?.grab?.cancel?.();
+      press = pointers.size === 1 ? { id: event.pointerId, start: point, moved: false, grab: grabRef.current?.(point, event) || null } : null;
       if (pointers.size === 2) measurePinch();
       if (pointers.size === 1) setDragging(true);
       hoverRef.current?.(null, null);
@@ -282,9 +289,11 @@ export function useFlatCanvasView({ content, bounds, restored = null, colorSchem
         if (press && !press.moved) {
           if (Math.hypot(point.x - press.start.x, point.y - press.start.y) <= TAP_SLOP_PX) return;
           press.moved = true;
+          if (press.grab) { press.grab.move(point); return; }
           moveTo(panTransform(transform, point.x - press.start.x, point.y - press.start.y));
           return;
         }
+        if (press?.grab) { press.grab.move(point); return; }
         moveTo(panTransform(transform, point.x - previous.x, point.y - previous.y));
       } else if (pointers.size === 2 && fitScaleRef.current) {
         const before = { ...pinchState };
@@ -303,7 +312,12 @@ export function useFlatCanvasView({ content, bounds, restored = null, colorSchem
       if (pointers.size === 2) measurePinch();
       if (pointers.size === 0) setDragging(false);
       const tapped = press && press.id === event.pointerId && !press.moved && event.type === "pointerup";
+      const grab = press?.id === event.pointerId ? press.grab : null;
       press = null;
+      if (grab) {
+        if (!tapped && event.type === "pointerup" && at) grab.end(at);
+        else grab.cancel?.();
+      }
       if (tapped && at) tapRef.current?.(at, event);
     };
     const onPointerLeave = () => { if (!pointers.size) hoverRef.current?.(null, null); };

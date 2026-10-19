@@ -33,9 +33,10 @@ const NO_LAYERS = new Set();
  * @param {(point: { x: number, y: number }, event: PointerEvent) => void} [options.onTap]
  * @param {(point: { x: number, y: number } | null, event: PointerEvent | null) => void} [options.onHover]
  *   A pointer resting over the canvas with nothing pressed (null: it left).
+ * @param {Parameters<typeof useFlatCanvasView>[0]["onGrab"]} [options.onGrab]  A press the tool in hand drags.
  */
 export function useDrawingView({ drawing, restored = null, colorScheme = "light", onViewMoved, hiddenLayers = NO_LAYERS,
-  overlay = null, onTap = null, onHover = null }) {
+  overlay = null, onTap = null, onHover = null, onGrab = null }) {
   const drawingRef = useRef(drawing);
   drawingRef.current = drawing;
   const hiddenRef = useRef(hiddenLayers);
@@ -52,7 +53,7 @@ export function useDrawingView({ drawing, restored = null, colorScheme = "light"
       overlayRef.current?.(ctx, { transform, pixelRatio, width, height });
     }
   }, []);
-  const view = useFlatCanvasView({ content: drawing, bounds: drawing?.bounds ?? null, restored, colorScheme, onViewMoved, paint, onTap, onHover });
+  const view = useFlatCanvasView({ content: drawing, bounds: drawing?.bounds ?? null, restored, colorScheme, onViewMoved, paint, onTap, onHover, onGrab });
   const { containerRef, schemeRef, requestPaint, encode } = view;
 
   // A layer shown or hidden: the same view, without it.

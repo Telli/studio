@@ -1461,6 +1461,133 @@ class Drawings(Commands):
         self.assertFalse(again["ok"])
         self.assertIn("has a drawing already", again["error"])
 
+    def test_the_sheet_is_edited_on_it_views_moved_dimensions_taken_off_and_added_and_undone(self):
+        import build123d as B
+
+        root, file, state = self.open(BLOCK, "block.step")
+        B.export_step(B.Box(20, 10, 4) - B.Cylinder(2, 4), str(root / "block.step"))
+        self.assertTrue(self.service.change({"file": file, "files": state["files"], "drawing": {"make": True}})["ok"])
+        script = root / "block_drawing.py"
+        made = script.read_text(encoding="utf-8")
+        opened = self.service.change({"file": file, "sheet": {"index": 1}})
+        self.assertTrue(opened["ok"], opened.get("error"))
+        sheet = opened["sheet"]["sheet"]
+        self.assertEqual(([view["name"] for view in sheet["views"]], sheet["size"], sheet["count"]), (["top", "front", "right", "iso"], "A3", 1))
+        top, front = sheet["views"][0], sheet["views"][1]
+        # The hole is seen round from above: its rim at the top face, 2 across its radius, its centre a snap.
+        self.assertEqual([(circle["model"], circle["size"], circle["full"]) for circle in top["circles"]], [([0, 0, 2], 2, True)])
+        self.assertIn({"at": top["circles"][0]["at"], "model": [0, 0, 2], "kind": "centre"}, top["snaps"])
+        # Each entity says what drew it: the top and front views' overall sizes, each its own call.
+        overall = sorted({(info["view"], tuple(info["end"])) for info in sheet["sources"].values() if info["kind"] == "overall"})
+        self.assertEqual([view for view, _ in overall], [0, 1])
+        ref = lambda view, nth: {key: view[key] for key in ("end", "arranged", "offset", "at", "name")} | {"nth": nth}
+
+        # A view dragged: the views three_views placed move together, by its offset.
+        moved = self.service.change({"file": file, "sheet": {"index": 1, "hash": opened["sheet"]["hash"],
+                                                              "edit": {"kind": "move", "view": ref(front, 1), "by": [10, 0]}}})
+        self.assertTrue(moved["ok"], moved.get("error"))
+        self.assertIn("    top, front, right, iso = sheet.three_views(part, iso=True, offset=(10, 0))\n", script.read_text(encoding="utf-8"))
+        self.assertAlmostEqual(moved["sheet"]["sheet"]["views"][1]["at"][0], front["at"][0] + 10)
+        self.assertEqual((moved["change"]["words"], moved["change"]["pdf"]), ("moved its top, front and right views 10 mm right", "block_drawing.pdf"))
+        # The isometric is a view of its own: it stays, and moves by its own offset.
+        iso = moved["sheet"]["sheet"]["views"][3]
+        self.assertEqual((iso["at"], iso["offset"]), (sheet["views"][3]["at"], [0.0, 0.0]))
+        self.assertEqual(moved["sheet"]["sheet"]["frame"], [10.0, 410.0, 10.0, 287.0])
+        # A change made on the sheet as it was drawn before is refused, and drawn again.
+        stale = self.service.change({"file": file, "sheet": {"index": 1, "hash": opened["sheet"]["hash"],
+                                                              "edit": {"kind": "move", "view": ref(front, 1), "by": [10, 0]}}})
+        self.assertTrue(stale["stale"])
+
+        # The top view's overall size picked on the sheet and deleted.
+        sheet = moved["sheet"]["sheet"]
+        end = next(info["end"] for info in sheet["sources"].values() if info["kind"] == "overall" and info["view"] == 0)
+        deleted = self.service.change({"file": file, "sheet": {"index": 1, "hash": moved["sheet"]["hash"],
+                                                                "edit": {"kind": "delete", "end": end, "name": "top"}}})
+        self.assertTrue(deleted["ok"], deleted.get("error"))
+        self.assertNotIn("top.overall()", script.read_text(encoding="utf-8"))
+        self.assertEqual(deleted["change"]["words"], "took the overall size off its top view")
+        self.assertFalse([info for info in deleted["sheet"]["sheet"]["sources"].values() if info["kind"] == "overall" and info["view"] == 0])
+
+        # Smart Dimension: two corners of the top view, placed above it; then the hole's diameter.
+        sheet = deleted["sheet"]["sheet"]
+        top = sheet["views"][0]
+        corners = sorted((snap for snap in top["snaps"] if snap["kind"] == "vertex"), key=lambda snap: (snap["at"][1], snap["at"][0]))
+        left, right = corners[-2], corners[-1]
+        dimensioned = self.service.change({"file": file, "sheet": {"index": 1, "hash": deleted["sheet"]["hash"], "edit": {
+            "kind": "dim", "view": ref(top, 0), "from": left["model"], "to": right["model"], "orientation": "h", "offset": 12}}})
+        self.assertTrue(dimensioned["ok"], dimensioned.get("error"))
+        text = script.read_text(encoding="utf-8")
+        self.assertIn(f"    top.dim({_tuple(left['model'])}, {_tuple(right['model'])}, orientation=\"h\", offset=12)\n", text)
+        added = [info for info in dimensioned["sheet"]["sheet"]["sources"].values() if info["kind"] == "dim" and info["view"] == 0]
+        self.assertEqual(len({tuple(info["end"]) for info in added}), 1)
+        circle = top["circles"][0]
+        holed = self.service.change({"file": file, "sheet": {"index": 1, "hash": dimensioned["sheet"]["hash"], "edit": {
+            "kind": "diameter", "view": ref(top, 0), "center": circle["model"], "radius": circle["size"], "angle": 30}}})
+        self.assertTrue(holed["ok"], holed.get("error"))
+        self.assertIn("    top.diameter((0, 0, 2), 2, angle=30)\n", script.read_text(encoding="utf-8"))
+
+        # Undo, as many times as changes were made, puts the script back as Make Drawing wrote it.
+        replies = [moved, deleted, dimensioned, holed]
+        latest = holed["sheet"]["hash"]
+        for reply in reversed(replies):
+            undone = self.service.change({"file": file, "sheet": {"index": 1, "hash": latest,
+                                                                   "edit": {"kind": "splice", "hunks": reply["sheetEdit"]["undo"], "undo": True}}})
+            self.assertTrue(undone["ok"], undone.get("error"))
+            latest = undone["sheet"]["hash"]
+        self.assertEqual(script.read_text(encoding="utf-8"), made)
+
+    def test_a_sheet_change_that_cannot_be_written_says_so_and_changes_nothing(self):
+        from cadgen.edit import drawings
+
+        text = textwrap.dedent("""\
+            from cadgen.eng_drawing import Sheet, eng_drawing
+
+
+            @eng_drawing(out="plate.pdf")
+            def plate():
+                sheet = Sheet("A3")
+                sheet.view(part, "front", at=(100, 120)).overall()
+                side = sheet.view(
+                    part,
+                    "right",
+                    at=(220, 120),
+                )
+                if True:
+                    side.dim((0, 0, 0), (1, 0, 0))
+                return sheet
+            """)
+        tree = drawings.ast.parse(text)
+        calls = {drawings._call_name(node): node for node in drawings.ast.walk(tree) if isinstance(node, drawings.ast.Call)}
+        front = next(node for node in drawings.ast.walk(tree) if isinstance(node, drawings.ast.Call) and drawings._call_name(node) == "view"
+                     and node.args[1].value == "front")
+        right = next(node for node in drawings.ast.walk(tree) if isinstance(node, drawings.ast.Call) and drawings._call_name(node) == "view"
+                     and node.args[1].value == "right")
+        end = lambda node: [node.end_lineno, node.end_col_offset]
+        # A view named nowhere cannot be dimensioned by name.
+        with self.assertRaisesRegex(drawings.DrawingError, "The front view has no name"):
+            drawings.edit(text, {"kind": "dim", "view": {"end": end(front), "name": "front"}, "from": [0, 0, 0], "to": [1, 0, 0]})
+        # A hand-placed view moves by its at=, a call written one argument a line keeps its shape.
+        moved, words = drawings.edit(text, {"kind": "move", "view": {"end": end(right), "at": [220, 120], "name": "right"}, "by": [-20, 5.5]})
+        self.assertIn('        at=(200, 125.5),\n', moved)
+        self.assertEqual(words, "moved its right view 20 mm left and 5.5 mm up")
+        # The only line of a block taken off leaves what it was called on, so the block still reads.
+        deleted, _ = drawings.edit(text, {"kind": "delete", "end": end(calls["dim"]), "name": "right"})
+        self.assertIn("    if True:\n        side\n", deleted)
+        # The overall size taken off a chain leaves the view placed.
+        deleted, _ = drawings.edit(text, {"kind": "delete", "end": end(calls["overall"]), "name": "front"})
+        self.assertIn('    sheet.view(part, "front", at=(100, 120))\n', deleted)
+        # A call no longer where the sheet said is refused.
+        with self.assertRaisesRegex(drawings.DrawingError, "changed since the sheet was drawn"):
+            drawings.edit(text, {"kind": "delete", "end": [3, 1], "name": "front"})
+        self.assertEqual(drawings.SHEET_MARK, __import__("cadgen.eng_drawing", fromlist=["SHEET_MARK"]).SHEET_MARK)
+
+
+def _tuple(point) -> str:
+    """A model point as the drawing's script writes one."""
+    from cadgen.edit.drawings import _tuple as written
+
+    return written(point)
+
 
 if __name__ == "__main__":
     unittest.main()

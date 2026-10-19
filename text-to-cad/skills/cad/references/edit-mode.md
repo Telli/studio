@@ -155,8 +155,16 @@ by hand" below.
   at once to write `<name>_drawing.pdf` beside it. Its **Drawing** panel then sets the sheet as
   `Sheet(...)` takes it (size, `scale=0.5` for 1:2, the title block's `title`, `part_number`,
   `material`, `revision`, `author`) and whether `three_views(part, iso=True)` draws the isometric,
-  and draws the PDF again. Dimensions beyond the overall sizes, notes and custom view layouts are
-  the agent's, in the same script.
+  and draws the PDF again. **Edit Sheet** opens the sheet itself in the view, as a SolidWorks
+  drawing is worked on: dragging a view writes `three_views(..., offset=(x, y))` (the top, front
+  and right views move together, the isometric by its own `iso_offset=`) or a hand-placed view's
+  `at=`, kept inside the sheet's frame, a hand-placed view lining up with the others' centres; a
+  dimension picked and deleted takes its call off (`top.overall()`, or one call of a chain); Smart
+  Dimension picks two points of a view (corners and circles' centres, or a straight edge's two
+  ends) and a third pick places it, written `view.dim(p1, p2, offset=...)` in model coordinates, and
+  a circle seen round gives `view.diameter(...)` (an arc `view.radius(...)`). Each change draws the
+  PDF again, and the sheet has its own Undo and Redo. Notes, hole callouts and other views are the
+  agent's, in the same script.
 - **Mate** (the ribbon's Assemble group) places an assembly's part by a face or an edge picked on
   the part that stays and one on the part that moves to it, as SolidWorks' Standard Mates do. It
   adds a constraint from `cadgen.mates` to the moved part's `mate` call, on what was picked (found

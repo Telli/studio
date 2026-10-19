@@ -138,6 +138,32 @@ class _Dim:
     tol: Any = None
     fit: str | None = None
     hole: dict | None = None
+    #: Where the drawing's script asked for it (:func:`_caller`): what an editor edits.
+    source: tuple | None = None
+
+
+def _caller() -> tuple | None:
+    """Where the drawing's script called in: the first frame outside this module, as (file, line,
+    end line, end column): the call's closing parenthesis, which picks one call out of a chain."""
+    import sys
+
+    frame = sys._getframe(1)
+    while frame is not None and frame.f_code.co_filename == __file__:
+        frame = frame.f_back
+    if frame is None:
+        return None
+    try:
+        _, end_line, _, end_col = list(frame.f_code.co_positions())[frame.f_lasti // 2]
+    except (AttributeError, IndexError, ValueError):
+        end_line = end_col = None
+    return (frame.f_code.co_filename, frame.f_lineno, end_line, end_col)
+
+
+def _where(source) -> dict:
+    """A source as an editor of the sheet reads it: its line, and where its call ends."""
+    if not source:
+        return {"line": None, "end": None}
+    return {"line": source[1], "end": [source[2], source[3]] if len(source) > 3 and source[2] is not None else None}
 
 
 @dataclass
@@ -161,10 +187,17 @@ class View:
     scale: float | None = None
     _dims: list[_Dim] = field(default_factory=list)
     _overall: bool = False
-    #: ``(bounding-box size, gap, iso)`` when :meth:`Sheet.three_views` placed this
-    #: view, so the off-frame guard can lay the same arrangement out again at a
+    #: ``(bounding-box size, gap, iso, shifts)`` when :meth:`Sheet.three_views` placed
+    #: this view, so the off-frame guard can lay the same arrangement out again at a
     #: candidate scale. None for a hand-placed ``at=``, which does not move.
     _arranged: tuple | None = None
+    #: Where the script placed it and asked for its overall size (:func:`_caller`).
+    _source: tuple | None = None
+    _overall_source: tuple | None = None
+
+    def _add(self, dim: _Dim) -> None:
+        dim.source = _caller()
+        self._dims.append(dim)
 
     def dim(self, p1, p2, *, offset: float | None = None, text: str | None = None, orientation: str | None = None,
             tol: float | tuple[float, float] | None = None, fit: str | None = None) -> "View":
@@ -177,7 +210,7 @@ class View:
         deviations; ``fit="H7"`` appends an ISO fit class."""
         if orientation not in (None, "h", "v"):
             raise ValueError(f"orientation must be 'h', 'v' or None, got {orientation!r}")
-        self._dims.append(_Dim("linear", _p3(p1), _p3(p2), _offset(offset), text, orientation,
+        self._add(_Dim("linear", _p3(p1), _p3(p2), _offset(offset), text, orientation,
                                tol=_tol(tol), fit=fit))
         return self
 
@@ -198,18 +231,18 @@ class View:
                 "label": None if label is None else str(label)}
         if thru and depth is not None:
             raise ValueError("a hole is either THRU or has a depth, not both")
-        self._dims.append(_Dim("hole", _p3(center), None, 0.0, None, None, radius=spec["diameter"] / 2,
+        self._add(_Dim("hole", _p3(center), None, 0.0, None, None, radius=spec["diameter"] / 2,
                                angle=float(angle), tol=_tol(tol), fit=fit, hole=spec))
         return self
 
     def diameter(self, center, radius: float, *, angle: float = 45.0, text: str | None = None) -> "View":
         """A diameter dimension on a circular feature at a model centre point."""
-        self._dims.append(_Dim("diameter", _p3(center), None, 0.0, text, None,
+        self._add(_Dim("diameter", _p3(center), None, 0.0, text, None,
                                radius=_positive("radius", radius), angle=float(angle)))
         return self
 
     def radius(self, center, radius: float, *, angle: float = 45.0, text: str | None = None) -> "View":
-        self._dims.append(_Dim("radius", _p3(center), None, 0.0, text, None,
+        self._add(_Dim("radius", _p3(center), None, 0.0, text, None,
                                radius=_positive("radius", radius), angle=float(angle)))
         return self
 
@@ -224,7 +257,7 @@ class View:
         if distance is None or distance == 0.0:
             raise ValueError(f"angle offset must be a non-zero number of sheet millimetres, got {offset!r}")
         _assert_legs_measure_an_angle(vertex, a, b)
-        self._dims.append(_Dim("angle", vertex, a, distance, None, None, radius=0.0, angle=0.0, hole={"p2": b}))
+        self._add(_Dim("angle", vertex, a, distance, None, None, radius=0.0, angle=0.0, hole={"p2": b}))
         return self
 
     def note(self, text: str, at, *, offset: tuple[float, float] = (10.0, 10.0)) -> "View":
@@ -236,12 +269,13 @@ class View:
             raise TypeError(f"note offset must be an (x, y) pair of sheet millimetres, got {offset!r}") from exc
         if not (math.isfinite(dx) and math.isfinite(dy)):
             raise ValueError(f"note offset must be finite, got {offset!r}")
-        self._dims.append(_Dim("note", _p3(at), None, 0.0, str(text), None, radius=dx, angle=dy))
+        self._add(_Dim("note", _p3(at), None, 0.0, str(text), None, radius=dx, angle=dy))
         return self
 
     def overall(self) -> "View":
         """Overall width (above) and height (left) of the view's projected extent."""
         self._overall = True
+        self._overall_source = _caller()
         return self
 
 
@@ -496,27 +530,31 @@ class Sheet:
         return SHEET_SIZES[self.size][1]
 
     def three_views(self, shape, *, gap: float | None = None, hidden: bool = True, centre_marks: bool = True,
-                    iso: bool = False) -> tuple[View, View, View] | tuple[View, View, View, View]:
+                    iso: bool = False, offset: tuple[float, float] = (0.0, 0.0),
+                    iso_offset: tuple[float, float] = (0.0, 0.0)) -> tuple[View, View, View] | tuple[View, View, View, View]:
         """Top, front and right views in third-angle arrangement, placed from the
         part's own extents: front centred low on the sheet, top above it, right
         beside it. ``gap`` is the clear space between views; by default it is
         sized for two rows of dimensions (offsets 12 and 24 plus their text) so
         annotation never runs into the neighbouring view. ``iso=True`` adds an
-        isometric view in the free top-right slot and returns it fourth."""
+        isometric view in the free top-right slot and returns it fourth.
+        ``offset`` moves the top, front and right views together, in sheet
+        millimetres, and ``iso_offset`` the isometric, which is a view of its own."""
         size = shape.bounding_box().size
         if gap is None:
             gap = 24.0 + 2 * self.text_height + 16.0  # second dimension row + its text + air
         slots = _arrange_three_views(self, shape, size, gap, self.scale, iso)
+        shifts = {"views": (float(offset[0]), float(offset[1])), "iso": (float(iso_offset[0]), float(iso_offset[1]))}
         views = tuple(
-            self.view(shape, name, at=at, hidden=hidden if name != "iso" else False,
-                      centre_marks=centre_marks if name != "iso" else False,
+            self.view(shape, name, at=(at[0] + shifts[_moves(name)][0], at[1] + shifts[_moves(name)][1]),
+                      hidden=hidden if name != "iso" else False, centre_marks=centre_marks if name != "iso" else False,
                       label=label, scale=view_scale)
             for name, at, view_scale, label in slots
         )
         # What the arrangement was, so the off-frame guard can lay it out again at a
         # candidate scale instead of guessing how much a smaller one would buy.
         for view in views:
-            view._arranged = (size, gap, iso)
+            view._arranged = (size, gap, iso, shifts)
         return views
 
     def view(self, shape, name: str, *, at, label: str | None = None, hidden: bool = True, centre_marks: bool = True,
@@ -535,6 +573,7 @@ class Sheet:
         if not (math.isfinite(at[0]) and math.isfinite(at[1])):
             raise ValueError(f"view at= must be finite sheet millimetres, got {at!r}")
         view = View(self, shape, name, at, label, hidden, centre_marks, scale)
+        view._source = _caller()
         self.views.append(view)
         return view
 
@@ -816,6 +855,11 @@ def _arrange_three_views(sheet: "Sheet", shape, size, gap: float, s: float,
     return slots
 
 
+def _moves(name: str) -> str:
+    """Which of three_views' shifts moves a view it placed: the isometric's own, or the others'."""
+    return "iso" if name == "iso" else "views"
+
+
 def _assert_views_fit(sheet: Sheet, placed: Sequence[tuple], *, index: int) -> None:
     """Refuse a sheet whose views run off the frame, naming the scale that fits.
 
@@ -864,8 +908,8 @@ def _fits_at(sheet: Sheet, placed: Sequence[tuple], candidate: float, frame) -> 
         arranged = getattr(view, "_arranged", None)
         if arranged is None:
             continue
-        size, gap, iso = arranged
-        moved = {name: at for name, at, _s, _l in
+        size, gap, iso, shifts = arranged
+        moved = {name: (at[0] + shifts[_moves(name)][0], at[1] + shifts[_moves(name)][1]) for name, at, _s, _l in
                  _arrange_three_views(sheet, view.shape, size, gap, candidate, iso)}
         break
     for view, _proj, bounds, _cx, _cy, box in placed:
@@ -1161,8 +1205,19 @@ def _render_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings:
                 return True
         return False
 
+    # Which view or dimension drew each entity (by its handle), and each view's place, corners and
+    # their model points on the sheet: what an editor of the sheet picks.
+    sources: dict[str, dict] = {}
+    views_drawn: list[dict] = []
+
+    def since(count: int, info: dict) -> None:
+        for entity in list(msp)[count:]:
+            sources[str(entity.dxf.handle)] = info
+
     for view, proj, bounds, cx, cy, own_box in placed:
         sv = view.scale or s
+        number = sheet.views.index(view)
+        drawn_from = len(msp)
         # Centre the projected geometry on `at`.
 
         def to_sheet(p2):
@@ -1248,6 +1303,14 @@ def _render_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings:
                 arm = radius * sv + 2.0
                 msp.add_line((c[0] - arm, c[1]), (c[0] + arm, c[1]), dxfattribs={"layer": "CENTER"})
                 msp.add_line((c[0], c[1] - arm), (c[0], c[1] + arm), dxfattribs={"layer": "CENTER"})
+        since(drawn_from, {"kind": "view", "view": number})
+        snaps, circles = _snaps(view, model_to_sheet, sv)
+        views_drawn.append({"view": number, "name": view.name, "label": (view.label or view.name).upper(),
+                            "at": [float(view.at[0]), float(view.at[1])], "scale": sv,
+                            "box": [float(c) for c in own_box], **_where(view._source),
+                            "arranged": view._arranged is not None,
+                            "offset": [float(c) for c in view._arranged[3][_moves(view.name)]] if view._arranged is not None else None,
+                            "snaps": snaps, "circles": circles})
         vx0, vx1, vy0, vy1 = own_box
 
         # How far annotation already reaches past each side of the view, so a later
@@ -1377,6 +1440,7 @@ def _render_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings:
                 )
 
         for index, dim in enumerate(view._dims):
+            drawn_from = len(msp)
             if dim.kind == "linear":
                 a, b = model_to_sheet(dim.p1), model_to_sheet(dim.p2)
                 check("dim", index, a, b)
@@ -1442,16 +1506,145 @@ def _render_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings:
                 msp.add_leader([p, q, (q[0] + (3 if dim.radius >= 0 else -3), q[1])], dxfattribs={"layer": "NOTES"})
                 align = TextEntityAlignment.BOTTOM_LEFT if dim.radius >= 0 else TextEntityAlignment.BOTTOM_RIGHT
                 text(dim.text, q[0] + (4 if dim.radius >= 0 else -4), q[1] + 1, sheet.text_height, align, "NOTES")
+            since(drawn_from, {"kind": "dim", "view": number, "dim": index, "type": dim.kind, **_where(dim.source)})
 
         if view._overall:
+            drawn_from = len(msp)
             linear((vx0, vy1), (vx1, vy1), overall_top, None, "h")
             linear((vx0, vy0), (vx0, vy1), -overall_left, None, "v")
+            since(drawn_from, {"kind": "overall", "view": number, **_where(view._overall_source)})
 
         # The view label goes under everything that hangs below the view, so a
         # dimension on the bottom side never sits on it.
+        drawn_from = len(msp)
         text((view.label or view.name).upper(), view.at[0], vy0 - reach["bottom"] - 6, 3.5,
              TextEntityAlignment.TOP_CENTER, "NOTES")
+        since(drawn_from, {"kind": "view", "view": number})
+    doc.cadgen_sources = sources
+    doc.cadgen_views = views_drawn
     return doc
+
+
+def _snaps(view: View, model_to_sheet, scale: float) -> tuple[list[dict], list[dict]]:
+    """What Smart Dimension picks in a view, each with the model point it is: the shape's
+    vertices and the centres of its circles seen round in this view (``snaps``), and those
+    circles (``circles``: a full circle is dimensioned by its diameter, an arc by its radius). A
+    pictorial view picks nothing: its lengths are foreshortened."""
+    if view.name == "iso":
+        return [], []
+    from build123d import GeomType
+
+    toward = VIEW_DIRECTIONS[view.name][0]
+    snaps: list[dict] = []
+    circles: list[dict] = []
+    taken: set = set()
+
+    def snap(model, kind: str) -> None:
+        place = model_to_sheet(model)
+        key = (round(place[0], 3), round(place[1], 3))
+        if key not in taken:
+            taken.add(key)
+            snaps.append({"at": [round(place[0], 4), round(place[1], 4)], "model": [round(c, 6) for c in model], "kind": kind})
+
+    vertices = [(float(vertex.X), float(vertex.Y), float(vertex.Z)) for vertex in view.shape.vertices()]
+    seen: set = set()
+    for edge in view.shape.edges():
+        if edge.geom_type != GeomType.CIRCLE:
+            continue
+        try:
+            normal = edge.normal()
+        except Exception:  # noqa: BLE001 - an edge with no plane of its own is not seen round
+            continue
+        if abs(abs(normal.X * toward[0] + normal.Y * toward[1] + normal.Z * toward[2]) - 1.0) > 1e-6:
+            continue
+        centre = edge.arc_center
+        model = (float(centre.X), float(centre.Y), float(centre.Z))
+        radius = float(edge.radius)
+        place = model_to_sheet(model)
+        key = (round(place[0], 3), round(place[1], 3), round(radius, 6))
+        if key in seen:
+            continue  # a hole's two rims, one circle in the view
+        seen.add(key)
+        snap(model, "centre")
+        circles.append({"at": [round(place[0], 4), round(place[1], 4)], "radius": round(radius * scale, 4), "model": [round(c, 6) for c in model],
+                        "size": round(radius, 6), "full": math.isclose(float(edge.length), 2 * math.pi * radius, rel_tol=1e-6)})
+    # A full circle's one vertex is where the kernel closed it, not a corner anyone dimensions to.
+    rims = [(circle["at"], circle["radius"]) for circle in circles if circle["full"]]
+    for model in vertices:
+        place = model_to_sheet(model)
+        if not any(abs(math.hypot(place[0] - at[0], place[1] - at[1]) - radius) < 1e-6 for at, radius in rims):
+            snap(model, "vertex")
+    return snaps, circles
+
+
+def sheet_payload(script, index: int = 1, *, pdf: bool = False) -> dict:
+    """One sheet of the drawing a script declares, as the 2D render payload a viewer draws
+    (``cadgen.drawing_payload``), with what an editor of it needs (``sheet``): each view's place,
+    box, scale, where the script placed it, and what Smart Dimension snaps to in it with the model
+    points they are; and which view or dimension drew each entity, by its handle, with where the
+    script asked for it (``sources``). ``pdf``: the drawing's PDF written as its own run writes
+    it, from the same render. Nothing else is written."""
+    import importlib.util
+    import inspect
+    import sys
+
+    from cadgen.drawing_checks import raise_on_error_findings, validate_drawing_document
+    from cadgen.drawing_payload import build_document_payload
+
+    script = Path(script).resolve()
+    spec = importlib.util.spec_from_file_location(f"_cadgen_sheet_{script.stem}", script)
+    module = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(script.parent))
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.remove(str(script.parent))
+    declared = next((value for value in vars(module).values() if getattr(value, "__cadgen_eng_drawing__", False)), None)
+    if declared is None:
+        raise ValueError(f"{script.name} declares no @eng_drawing.")
+    result = inspect.unwrap(declared)()
+    sheets = list(result) if isinstance(result, (list, tuple)) else [result]
+    if not sheets or not all(isinstance(sheet, Sheet) for sheet in sheets):
+        raise TypeError(f"@eng_drawing {declared.__name__} must return a Sheet or a list of Sheets")
+    if not 1 <= index <= len(sheets):
+        raise ValueError(f"{script.name} draws {len(sheets)} sheet{'s' if len(sheets) != 1 else ''}.")
+    warnings: list[str] = []
+    docs = []
+    for number, sheet in enumerate(sheets, start=1):
+        doc = _render_sheet(sheet, index=number, count=len(sheets), label=declared.__name__, warnings=warnings)
+        if pdf:
+            findings = validate_drawing_document(doc, drawing=True)
+            raise_on_error_findings(findings, label=f"{declared.__name__} sheet {number}")
+            warnings += [finding.render() for finding in findings if finding.severity == "warning"]
+        docs.append(doc)
+    written = None
+    if pdf:
+        written = declared.__cadgen_eng_drawing_out__
+        _write_pdf(docs, sheets, written)
+    sheet, doc = sheets[index - 1], docs[index - 1]
+    payload = build_document_payload(doc)
+    payload["sheet"] = {"index": index, "count": len(sheets), "size": sheet.size, "width": sheet.width, "height": sheet.height,
+                        "frame": [_MARGIN, sheet.width - _MARGIN, _MARGIN, sheet.height - _MARGIN],
+                        "units": sheet.units, "views": doc.cadgen_views, "sources": doc.cadgen_sources, "warnings": warnings,
+                        **({"pdf": str(written)} if written else {})}
+    return payload
+
+
+#: The line the sheet's payload comes back on, from :func:`_sheet_main`.
+SHEET_MARK = "cadgen-sheet "
+
+
+def _sheet_main(argv: Sequence[str] | None = None) -> None:
+    """``python -c 'from cadgen.eng_drawing import _sheet_main; _sheet_main()' <script> <index> [pdf]``:
+    :func:`sheet_payload` for an editor's process, which never loads the CAD kernel itself. The
+    payload is the last line out, after ``SHEET_MARK``; what the drawing's script prints comes before it."""
+    import json
+    import sys
+
+    args = list(sys.argv[1:] if argv is None else argv)
+    payload = sheet_payload(args[0], int(args[1]) if len(args) > 1 else 1, pdf=len(args) > 2 and args[2] == "pdf")
+    sys.stdout.write("\n" + SHEET_MARK + json.dumps(payload, separators=(",", ":")) + "\n")
+    sys.stdout.flush()
 
 
 def _write_pdf(docs, sheets: Sequence[Sheet], path: Path) -> None:
@@ -1597,6 +1790,8 @@ def eng_drawing(func: Callable[..., Any] | None = None, *, out: str | Path | Non
             return [target]
 
         run.__cadgen_eng_drawing__ = True  # type: ignore[attr-defined]
+        # Where it writes, for an editor that draws it again (`sheet_payload`).
+        run.__cadgen_eng_drawing_out__ = target_spec if target_spec.is_absolute() else (script.parent / target_spec).resolve()  # type: ignore[attr-defined]
         return _counted(run)
 
     return apply(func) if func is not None else apply

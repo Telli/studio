@@ -619,7 +619,12 @@ def build_drawing_payload(path) -> dict:
     see the module docstring for the coordinate, colour, text and entity
     contracts.
     """
-    document = read_drawing_document(path)
+    return build_document_payload(read_drawing_document(path))
+
+
+def build_document_payload(document) -> dict:
+    """The flat 2D render payload for an ezdxf document in memory, as for a ``.dxf`` file:
+    an engineering drawing's sheet, drawn for an editor without writing a DXF."""
     context, emitted = _render(document)
 
     extent = _Extent()

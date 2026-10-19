@@ -212,6 +212,13 @@ export const DrawingIcon = ({ className }) => <Icon className={className}>
   <path d="M6 15.5h5" style={ACCENT} />
 </Icon>;
 
+/** Edit Sheet: the drawing's sheet, a view on it, and a dimension being put on it. */
+export const EditSheetIcon = ({ className }) => <Icon className={className}>
+  <path d="M3 4h18v16H3z" style={{ fill: "var(--background)", stroke: "var(--cad-solid-edge)", strokeWidth: 1.25 }} />
+  <path d="M7 11h8v6H7z" style={SOLID} />
+  <path d="M7 6.5v2.5M15 6.5v2.5M7 7.75h8" style={ACCENT} />
+</Icon>;
+
 /** Mate: two parts brought together, the link between them. */
 export const MateIcon = ({ className }) => <Icon className={className}>
   <path d="M3 13h8v7H3z" style={SOLID} />

@@ -76,11 +76,14 @@ drawing takes geometry, not a file.
   UNLESS OTHERWISE SPECIFIED." Give one on any drawing a shop will quote from.
 - `revisions=[("A", "2026-09-01", "INITIAL RELEASE"), ...]`: a revision table
   (REV, DATE, DESCRIPTION) top-right inside the frame.
-- `sheet.three_views(shape, gap=None, iso=False)` → `(top, front, right)` placed
-  from the part's extents in the arrangement `projection` names, with the gap
-  sized for two rows of dimensions unless you pass one. `iso=True` adds an
-  isometric view in the free corner and returns it FOURTH — unpack four names.
-  Use `view()` with `at=` only for a custom layout.
+- `sheet.three_views(shape, gap=None, iso=False, offset=(0, 0), iso_offset=(0, 0))`
+  → `(top, front, right)` placed from the part's extents in the arrangement
+  `projection` names, with the gap sized for two rows of dimensions unless you
+  pass one. `iso=True` adds an isometric view in the free corner and returns it
+  FOURTH — unpack four names. `offset` moves the top, front and right views
+  together, `iso_offset` the isometric, in sheet millimetres (what dragging them
+  on the sheet in edit mode writes). Use `view()` with `at=` only for a custom
+  layout.
 - `sheet.view(shape, name, at=(x, y), label=None, hidden=True, centre_marks=True, scale=None)`
   → `View`. `scale` overrides the sheet's for this view (a pictorial drawn
   smaller); say so in its label. `name` is one of `top`, `bottom`, `front`,
