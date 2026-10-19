@@ -296,6 +296,40 @@ class SketchMode(unittest.TestCase):
         self.assertEqual(max(point["x"] for point in view["state"]["points"]), 25.0)
         self.assertEqual(view["state"]["status"], "Fully defined")
 
+    def test_one_converted_curve_deleted_alone_keeps_the_rest_on_their_edges(self):
+        top = {"selector": "f99", "type": "plane", "center": [0.0, 0.0, -2.5], "size": 800.0}
+        self.send({"kind": "new", "plane": top, "name": "Sketch1"})
+        self.send({"kind": "convert", "items": [top]})
+        lines = [curve for curve in self.sketch["state"]["curves"] if curve.get("converted")]
+        # A line drawn from the corner the second and third converted curves share, converted1[1].end.
+        self.send({"kind": "draw", "entity": "line", "start": {"point": lines[1]["end"]}, "end": {"at": [0, 0]}})
+        self.assertIn("sketch1.line(converted1[1].end, ", self.source())
+        corner = next(point for point in self.sketch["state"]["points"] if point["id"] == lines[1]["end"])
+
+        def drawn_start():
+            drawn = next(curve for curve in self.sketch["state"]["curves"] if not curve.get("converted"))
+            start = next(point for point in self.sketch["state"]["points"] if point["id"] == drawn["start"])
+            return start["x"], start["y"]
+
+        self.send({"kind": "delete", "items": [lines[0]["id"]]})
+        text = self.source()
+        # The convert's line stays, its edges three of the face's four, and what came after the
+        # deleted curve is counted down.
+        self.assertIn("converted1 = sketch1.convert(", text)
+        self.assertRegex(text, r"sketch1\.line\(converted1\[[0-2]\]\.(start|end), ")
+        self.assertNotIn("converted1[3]", text)
+        kept = [curve for curve in self.sketch["state"]["curves"] if curve.get("converted")]
+        self.assertEqual(len(kept), 3)
+        self.assertEqual(sorted(relation["kind"] for relation in self.sketch["state"]["relations"]), ["on_edge"] * 3)
+        self.assertEqual(drawn_start(), (corner["x"], corner["y"]))
+        # The curve the line was drawn from deleted too: the line stays on the corner, held by the
+        # converted curve that still has it, named as it is counted now.
+        self.send({"kind": "delete", "items": [kept[0]["id"]]})
+        text = self.source()
+        self.assertRegex(text, r"sketch1\.line\(converted1\[[01]\]\.(start|end), ")
+        self.assertEqual(len([curve for curve in self.sketch["state"]["curves"] if curve.get("converted")]), 2)
+        self.assertEqual(drawn_start(), (corner["x"], corner["y"]))
+
     def test_convert_takes_edges_made_before_the_sketch_only(self):
         self.start()
         # The plate's front top edge, 40 long at y = -10, brought onto the Top plane above it.

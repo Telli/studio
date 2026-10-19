@@ -478,12 +478,7 @@ class Sketch:
         from .regions import plane_of
 
         plane = plane_of(self)
-        found = list(_edges_of(edges))
-        if not found:
-            raise SketchError("Convert Entities needs edges, or a face, of the model.")
-        boxes = [edge.bounding_box() for edge in found]
-        scale = max([1.0, *(abs(c) for box in boxes for corner in (box.min, box.max) for c in tuple(corner))])
-        near = 1e-7 * scale
+        found, near = self._converted(edges)
         # A place of the model in the sketch's units: where it falls on the plane, and how far off it.
         local = lambda vector: plane.to_local_coords(vector)  # noqa: E731
         made_points: list[Point] = []
@@ -504,9 +499,6 @@ class Sketch:
             kind = edge.geom_type
             if kind == B.GeomType.LINE:
                 start, end = edge.start_point(), edge.end_point()
-                a, b = local(start), local(end)
-                if math.hypot(a.X - b.X, a.Y - b.Y) <= near:
-                    continue
                 curve = Line(self._named("Line"), point(start), point(end), construction, _source())
             elif kind == B.GeomType.CIRCLE:
                 if abs(abs(edge.normal().dot(plane.z_dir)) - 1) > 1e-6:
@@ -531,6 +523,33 @@ class Sketch:
         if not curves:
             raise SketchError(f"Those edges are square to {self.name}, so they come in as points. Pick edges that lie along it.")
         return curves
+
+    def converted_edges(self, edges) -> list:
+        """The model's edges ``convert`` brings in from ``edges``, in the order it makes their
+        curves: each edge, and the edges of each face and wire, less a line square to the sketch
+        (which would come in as a point)."""
+        return self._converted(edges)[0]
+
+    def _converted(self, edges):
+        import build123d as B
+
+        from .regions import plane_of
+
+        plane = plane_of(self)
+        found = list(_edges_of(edges))
+        if not found:
+            raise SketchError("Convert Entities needs edges, or a face, of the model.")
+        boxes = [edge.bounding_box() for edge in found]
+        scale = max([1.0, *(abs(c) for box in boxes for corner in (box.min, box.max) for c in tuple(corner))])
+        near = 1e-7 * scale
+
+        def flat(edge) -> bool:
+            if edge.geom_type != B.GeomType.LINE:
+                return False
+            a, b = plane.to_local_coords(edge.start_point()), plane.to_local_coords(edge.end_point())
+            return math.hypot(a.X - b.X, a.Y - b.Y) <= near
+
+        return [edge for edge in found if not flat(edge)], near
 
     def depth_to(self, target) -> float:
         """How far ``target`` is from the sketch's plane along its normal, in millimetres, negative

@@ -2590,6 +2590,61 @@ def _convert_edges(request, path, block, sketch, entry, op):
     return code, names
 
 
+def _converts_kept(request, path, block, sketch, entry, state, items):
+    """Convert Entities' lines some of whose curves are deleted, not all: by each line, the
+    selector of the edges whose curves stay (``edges``), written on the body where the sketch is
+    made as `_convert_edges` writes one, and where each curve that stays comes in it now
+    (``moved``: its place before, to its place after), with the names it needs (``commands.Names``)."""
+    from cadgen.edit import commands, sketching
+
+    names = sketching.Names(block, state)
+    going: dict[int, tuple] = {}
+    for item in items:
+        made = names.statement_of(item)
+        if made is not None and made.method == "convert" and item in made.curves:
+            going.setdefault(made.statement.lineno, (made, set()))[1].add(made.curves.index(item))
+    partial = {lineno: each for lineno, each in going.items() if len(each[1]) < len(each[0].curves)}
+    if not partial:
+        return {}, None
+    cad = STATE.get(str(Path(request["script"]).resolve()))
+    try:
+        shape, before = commands.body_at(cad["steps"], cad["shape"], cad["level"], ROOT, _relative(str(path)), block.first_line)
+    except (TypeError, commands.CommandError):
+        raise sketching.SketchEditError("Edit mode cannot find the body those curves are converted from. Ask the agent to change them.") from None
+    module, _ = commands.build123d_names(before.tree)
+    if module is None or before.name is None:
+        raise sketching.SketchEditError("Edit mode cannot write which edges stay. Ask the agent to change the converted curves.")
+    written = commands.Names(module)
+    selections = commands.Selections(shape, before.name, written)
+    scope = {**entry["globals"], **(entry.get("locals") or {})}
+    found = {}
+    for lineno, (made, places) in partial.items():
+        # The edges as the line names them, run where the sketch is made: each curve's own, in order.
+        expression = ast.Expression(sketching._call_of(made.statement, block.var).args[0])
+        try:
+            edges = sketch.converted_edges(eval(compile(expression, str(path), "eval"), scope))  # noqa: S307 - the part's own code
+        except Exception:  # noqa: BLE001 - said to the engineer: the line cannot be rewritten
+            raise sketching.SketchEditError("Edit mode cannot tell which edges those curves come from. Ask the agent to change them.") from None
+        numbers = [selections.topology["edge"].number(edge) for place, edge in enumerate(edges) if place not in places]
+        if not all(numbers):
+            raise sketching.SketchEditError("Those curves are converted from edges of another body. Ask the agent to change them.")
+        code = selections.write("edge", numbers)
+        # The selector picks the edges that stay, in its own order: each curve's place in it.
+        for name in written.needed:
+            scope.setdefault(name, getattr(B, name))
+        now = sketch.converted_edges(eval(compile(code, str(path), "eval"), scope))  # noqa: S307 - code edit mode wrote
+        moved = {}
+        for place, edge in enumerate(edges):
+            if place not in places:
+                moved[place] = next((at for at, each in enumerate(now) if each.wrapped.IsSame(edge.wrapped)), None)
+        if None in moved.values() or len(now) != len(moved):
+            raise sketching.SketchEditError("Edit mode cannot write which edges stay. Ask the agent to change the converted curves.")
+        found[lineno] = {"edges": code, "moved": moved}
+    for name in written.needed:
+        entry["globals"].setdefault(name, getattr(B, name))
+    return found, written
+
+
 def _imported(text, names):
     """``text`` with the bare build123d names a written line uses added to the file's import."""
     from cadgen.edit import commands
@@ -2667,7 +2722,11 @@ def sketch_edit(request):
                 text = sketching.explode(text, line, state, items, str(path))
                 block, sketch, entry = _sketch_run(request, path, text, line)
                 state = _sketch_view(sketch, path, line, entry["function"])["state"]
-            text = sketching.delete(text, line, state, items, str(path))
+            # Convert Entities' curves deleted alone keep their line, its edges written again.
+            converts, written = _converts_kept(request, path, block, sketch, entry, state, items)
+            text = sketching.delete(text, line, state, items, str(path), converts=converts)
+            if written is not None:
+                text = _imported(text, written)
         elif kind in ("draw", "relate", "dimension", "construction"):
             if kind == "dimension":
                 _known(block, sketch, str(op.get("value") or ""))

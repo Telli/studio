@@ -600,11 +600,18 @@ def explode(text: str, line: int, state: dict, items: list[str], path: str = "<s
     return edits.apply()
 
 
-def delete(text: str, line: int, state: dict, items: list[str], path: str = "<sketch>") -> str:
+def delete(text: str, line: int, state: dict, items: list[str], path: str = "<sketch>", converts: dict | None = None) -> str:
     """``text`` with ``items`` deleted from the sketch at ``line``: each entity's statement taken
     out with the relations and dimensions on it; a curve drawn from a point of one deleted keeps
     the point where it is. A statement that makes several entities (a slot) goes whole. A
-    rectangle's line is written out first (``explode``)."""
+    rectangle's line is written out first (``explode``).
+
+    Convert Entities' curves deleted alone (some of a ``converted1 = sketch1.convert(...)`` line's,
+    not all) keep the line, its edges written again as ``converts`` says (by the line: ``edges``,
+    the selector of the edges that stay, which the tracer writes on the body there, and ``moved``,
+    where each curve that stays comes in it), and what refers to them follows them
+    (``converted1[3]`` becomes ``converted1[2]``); a relation on a curve that goes goes with it,
+    and a curve drawn from its point keeps the point."""
     block = find_block(text, line, path)
     names = Names(block, state)
     edits = TextEdits(text)
@@ -612,6 +619,7 @@ def delete(text: str, line: int, state: dict, items: list[str], path: str = "<sk
     if "Origin" in wanted:
         raise SketchEditError("The sketch's origin cannot be deleted.")
     removed: set[int] = set()  # indexes of block.body
+    partial: dict[int, set[int]] = {}  # a convert's statement, to the places of its curves that go
 
     def bound(index: int) -> set[str]:
         statement = block.body[index]
@@ -633,7 +641,15 @@ def delete(text: str, line: int, state: dict, items: list[str], path: str = "<sk
         if name in made.relations and made.method == "fillet":
             arc = next((curve for curve in made.curves if curve != name), "the fillet")
             raise SketchEditError(f"{name} is {arc}'s radius. Change its value, or delete {arc} to take the fillet away.")
+        if made.method == "convert" and name in made.curves and made.statement.lineno in (converts or {}):
+            partial.setdefault(names.made_by[name], set()).add(made.curves.index(name))
+            continue
         removed.add(names.made_by[name])
+    # A convert whose every curve goes goes whole.
+    for index, places in list(partial.items()):
+        if len(places) >= len(names.made[index - block.start - 1].curves):
+            removed.add(index)
+            del partial[index]
     gone_codes: set[str] = set()
     for index in removed:
         gone_codes |= bound(index)
@@ -663,7 +679,57 @@ def delete(text: str, line: int, state: dict, items: list[str], path: str = "<sk
                 changed = True
                 continue
             replaced[index] = attributes
+    # The converted curves that go alone: their line keeps the edges that stay, a relation on one
+    # that goes goes with it, a curve drawn from its point keeps the point, and the curves after
+    # them are counted down. Written only where the statement stays.
+    later_edits: list = []
+    for index, places in partial.items():
+        made = names.made[index - block.start - 1]
+        var = made.statement.targets[0].id
+        kept_line = converts[made.statement.lineno]
+        later_edits.append((index, _call_of(made.statement, block.var).args[0], kept_line["edges"]))
+        moved = {int(old): int(new) for old, new in kept_line["moved"].items()}
+        for at in range(index + 1, block.end + 1):
+            if at in removed:
+                continue
+            other = names.made[at - block.start - 1]
+            refs = [node for node in ast.walk(other.statement) if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name)
+                    and node.value.id == var and isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, int)]
+            gone = [node for node in refs if node.slice.value in places]
+            ends = [node for node in ast.walk(other.statement) if isinstance(node, ast.Attribute) and node.value in gone
+                    and node.attr in ("start", "end", "center")]
+            if gone and (other.method not in GEOMETRY or len(ends) < len(gone)):
+                removed.add(at)
+                continue
+            for node in ends:
+                point = names.curves[made.curves[node.value.slice.value]].get(node.attr)
+                # The same place as a curve that stays (counted down, if one of this convert's), or
+                # else written where it is.
+                kept = None
+                for code_at, code in names.point_code.get(point, []):
+                    head, _, role = code.partition(".")
+                    place = head[len(var) + 1:-1] if head.startswith(f"{var}[") and head.endswith("]") else None
+                    if code_at >= at or code_at in removed:
+                        continue
+                    if place is not None and place.isdigit():
+                        if int(place) not in places:
+                            kept = f"{var}[{moved[int(place)]}].{role}"
+                            break
+                    elif head.split("[")[0] not in gone_codes:
+                        kept = code
+                        break
+                where = names.points.get(point)
+                if kept is None and where is None:
+                    raise SketchEditError(f"Line {other.statement.lineno} uses what is deleted in a way edit mode cannot change. Ask the agent.")
+                later_edits.append((at, node, kept or f"({number(where['x'])}, {number(where['y'])})"))
+            later_edits += [(at, node, f"{var}[{moved[node.slice.value]}]") for node in refs
+                            if node.slice.value in moved and moved[node.slice.value] != node.slice.value]
+    for at, node, code in later_edits:
+        if at not in removed:
+            edits.replace_node(node, code)
     for index, attributes in replaced.items():
+        if index in removed:
+            continue
         for node in attributes:
             point = _point_named(names, f"{node.value.id}.{node.attr}")
             other = next((code for at, code in names.point_code.get(point, [])
