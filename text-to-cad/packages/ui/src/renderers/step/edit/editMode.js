@@ -4,6 +4,8 @@
  * what each sends, what the note of a hand change says, and the undo history of hand changes.
  */
 
+import { calloutValues, defaultSize, defaultStandard, holeCallout, holeFill } from "./holeSizes.js";
+
 const ACRONYMS = new Set(["id", "od", "pcb", "usb", "led", "cnc", "fdm", "sla"]);
 const UNIT_WORDS = Object.freeze({ mm: "Millimeters", in: "Inches", cm: "Centimeters", m: "Meters" });
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in", cm: "cm", m: "m" });
@@ -486,8 +488,13 @@ export function commandDefaults(id, units) {
   switch (id) {
     case "fillet": return { radius: size.radius };
     case "chamfer": return { distance: size.distance };
-    case "hole": return { type: "simple", diameter: size.diameter, depth: size.depth, through: true, x: "0", y: "0", z: "0",
-      cbore_diameter: size.cbore, cbore_depth: size.cboreDepth, csk_diameter: size.csk, csk_angle: size.cskAngle };
+    case "hole": {
+      // Hole Wizard's: a screw of the part's standard, its size and fit filling the sizes, which stay the engineer's to type over.
+      const standard = defaultStandard(units);
+      const sized = { type: "simple", standard, size: defaultSize(standard), fit: "normal" };
+      return { ...sized, diameter: size.diameter, depth: size.depth, through: true, x: "0", y: "0", z: "0",
+        cbore_diameter: size.cbore, cbore_depth: size.cboreDepth, csk_diameter: size.csk, csk_angle: size.cskAngle, ...holeFill(sized, units) };
+    }
     case "shell": return { thickness: size.thickness };
     // A draft's neutral plane is picked: an origin plane's name, or "face" for a face of the part.
     case "draft": return { angle: size.draft, neutral: "", reverse: false };
@@ -650,6 +657,9 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       for (const axis of ["x", "y", "z"]) if (String(values[axis] ?? "").trim() && Number(values[axis]) !== 0) inputs[axis] = values[axis];
       if (values.type === "counterbore") Object.assign(inputs, { type: "counterbore", cbore_diameter: values.cbore_diameter, cbore_depth: values.cbore_depth });
       if (values.type === "countersink") Object.assign(inputs, { type: "countersink", csk_diameter: values.csk_diameter, csk_angle: values.csk_angle });
+      if (values.type === "tapped") inputs.type = "tapped";
+      // A hole of a standard's size says so beside its line: "M3 clearance hole, normal fit".
+      if (holeCallout(values)) inputs.callout = holeCallout(values);
       break;
     case "mirror": inputs.plane = values.plane; break;
     case "pattern": {
@@ -673,7 +683,11 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
 }
 
 /** A feature's panel as Edit Feature opens it: the command's inputs, set to the feature's values. */
-export const editingValues = (editing, units) => ({ ...commandDefaults(editing.command, units), ...editing.values });
+export function editingValues(editing, units) {
+  const opened = { ...commandDefaults(editing.command, units), ...editing.values };
+  // A hole reopens as the size its callout names, else Custom: its own sizes, as written.
+  return editing.command === "hole" ? { ...opened, size: "", ...calloutValues(editing.values?.callout) } : opened;
+}
 
 /** Whether a panel's values are still the ones it opened with, so its OK has nothing to write. */
 export const sameValues = (values, opened) => Object.keys({ ...values, ...opened })

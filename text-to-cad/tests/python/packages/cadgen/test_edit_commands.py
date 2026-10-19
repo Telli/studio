@@ -241,6 +241,23 @@ class BlockCommands(Commands):
         self.assertEqual(hole["kind"], "Hole")
         self.assertEqual([(each["label"], each["display"]) for each in hole["inputs"]], [("Diameter", "2"), ("Depth", "3"), ("X", "5")])
 
+    def test_a_tapped_hole_of_a_standard_size_keeps_its_callout_beside_its_line_and_reopens_as_tapped(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        reply = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2.5", "depth": "3", "type": "tapped", "callout": "M3x0.5 tapped hole"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("part -= Plane(part.faces().sort_by(Axis.Z)[-1]) * Cylinder(2.5/2, 3, align=(Align.CENTER, Align.CENTER, Align.MAX))"
+                      "  # M3x0.5 tapped hole\n", (root / "block.py").read_text(encoding="utf-8"))
+        feature = next(feature for feature in reply["features"] if feature["kind"] == "Hole")
+        self.assertEqual({key: feature["edit"]["values"][key] for key in ("type", "diameter", "callout")},
+                         {"type": "tapped", "diameter": "2.5", "callout": "M3x0.5 tapped hole"})
+        # Opened again and made a plain hole of its own size, its callout goes.
+        spec = {"command": "hole", "inputs": {"diameter": "2", "depth": "3"}, "replace": {"row": feature["key"]}}
+        edited = self.service.change({"file": file, "command": spec, "files": reply["files"]})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertNotIn("#", (root / "block.py").read_text(encoding="utf-8"))
+        odd = self.command(file, edited, "hole", BLOCK_TOP, {"diameter": "2", "callout": "M3\nimport os"})
+        self.assertFalse(odd["ok"])
+
     def test_a_counterbored_hole_is_its_hole_and_its_counterbore_in_one_line(self):
         root, file, state = self.open(BLOCK, "block.step")
         narrow = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2", "depth": "3", "type": "counterbore",

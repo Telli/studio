@@ -211,9 +211,11 @@ test("a command sends what it acts on, its inputs as typed, and the feature it c
   const items = selectionItems([EDGE, FACE]);
   assert.deepEqual(commandRequest("fillet", { radius: ".03" }, items, { row: "a.py:4" }),
     { command: "fillet", selection: items, inputs: { radius: ".03" } });
-  // A hole takes the face alone, through all unless a depth is set, moved only where it is told.
+  // A hole takes the face alone, through all unless a depth is set, moved only where it is told; an
+  // inch part's opens as a #4-40 screw's clearance hole, and says so.
   const hole = commandRequest("hole", { ...commandDefaults("hole", "in"), y: ".2" }, items);
-  assert.deepEqual([hole.selection, hole.inputs], [[items[1]], { diameter: ".125", depth: "", y: ".2" }]);
+  assert.deepEqual([hole.selection, hole.inputs],
+    [[items[1]], { diameter: ".1285", depth: "", y: ".2", callout: "#4-40 clearance hole, normal fit" }]);
   assert.equal(commandRequest("hole", { ...commandDefaults("hole", "mm"), through: false }, items).inputs.depth, "5");
   assert.deepEqual(commandRequest("pattern", { type: "linear", direction: "Y", spacing: "10", count: "3", reverse: true }, items,
     { row: "a.py:4", name: "Hole1" }), {

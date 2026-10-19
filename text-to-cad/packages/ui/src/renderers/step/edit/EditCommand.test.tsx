@@ -164,3 +164,21 @@ it("a plane clicked in the design tree is a draft's neutral plane, and Clear let
   expect(draft.select).toHaveBeenCalledWith(null);
   expect(screen.getByText('1 of 2: Select the neutral plane')).toBeTruthy();
 });
+
+it("a hole opens as Hole Wizard's M3 clearance hole, and a size typed over is the engineer's own", async () => {
+  const user = userEvent.setup();
+  const hole = edit('hole');
+  const FACE = { id: 'ref-f1', selectorType: 'face', displaySelector: 'f1', pickData: { surfaceType: 'plane', center: [0, 0, 2], normal: [0, 0, 1], area: 200 } };
+  const selection = [{ selector: 'f1', type: 'plane', center: [0, 0, 2], size: 200 }];
+  render(<EditCommand edit={hole as never} names={NAMES} references={[FACE]} />);
+  expect(screen.getByRole('combobox', { name: 'Size' }).textContent).toBe('M3');
+  expect((screen.getByRole('textbox', { name: 'Diameter' }) as HTMLInputElement).value).toBe('3.4');
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(hole.run).toHaveBeenLastCalledWith({ command: 'hole', selection, inputs: { diameter: '3.4', depth: '', callout: 'M3 clearance hole, normal fit' } });
+  const diameter = screen.getByRole('textbox', { name: 'Diameter' });
+  await user.clear(diameter);
+  await user.type(diameter, '3.3{Enter}');
+  expect(screen.getByRole('combobox', { name: 'Size' }).textContent).toBe('Custom');
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(hole.run).toHaveBeenLastCalledWith({ command: 'hole', selection, inputs: { diameter: '3.3', depth: '' } });
+});

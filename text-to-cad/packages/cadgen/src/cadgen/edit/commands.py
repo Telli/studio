@@ -709,6 +709,8 @@ RECORDS = {"fillet": ("fillet",), "chamfer": ("chamfer",), "hole": ("cut",), "sh
 ORIGIN_PLANES = {"Top": "XY", "Front": "XZ", "Right": "YZ"}
 # The faces a draft tilts, as OCCT's draft takes them.
 DRAFTED = ("plane", "cylinder", "cone")
+# A hole's callout, as Hole Wizard's sizes word one: a screw's size, what the hole is for, its fit.
+_CALLOUT = re.compile(r"^[A-Za-z0-9#./ ,-]{1,60}$")
 
 
 @dataclass
@@ -1055,8 +1057,15 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             shown += [("Countersink diameter", sink, units_word), ("Countersink angle", angle, "deg")]
         code = f"{var} -= {moved}{names('Plane')}({face}) * {tool}"
         what = "through all" if through else "a blind hole"
-        if kind in ("counterbore", "countersink"):
-            what = f"{'counterbored' if kind == 'counterbore' else 'countersunk'}, {what}"
+        if kind in ("counterbore", "countersink", "tapped"):
+            what = f"{ {'counterbore': 'counterbored', 'countersink': 'countersunk'}.get(kind, kind)}, {what}"
+        # Hole Wizard's callout for a hole of a standard's size, kept beside its line as a drawing
+        # labels the hole: "M3 clearance hole, normal fit", "M3x0.5 tapped hole".
+        callout = str(inputs.get("callout") or "").strip()
+        if callout:
+            if not _CALLOUT.match(callout):
+                raise CommandError("That hole's size could not be written beside it. Pick its size again.")
+            code = f"{code}  # {callout}"
     elif command == "shell":
         numbers, faces = ([], fixed.parts["openings"]) if fixed else chosen("face")
         thickness = _value(inputs, "thickness", "Thickness", parse)
@@ -1547,6 +1556,12 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                 if moved is not None and number(("move", axis)) is not None and index < len(moved.args):
                     values[axis] = size(number(("move", axis)))
                     held(axis, moved.args[index], typed(number(("move", axis))))
+            # A sized hole's callout, kept in a comment beside its line; a tapped hole is drilled as a plain one.
+            comment = text.splitlines()[statement.end_lineno - 1][statement.end_col_offset:].strip()
+            if comment.startswith("#") and _CALLOUT.match(comment[1:].strip()):
+                values["callout"] = comment[1:].strip()
+                if values["callout"].endswith("tapped hole") and values["type"] == "simple":
+                    values["type"] = "tapped"
             return Feature("hole", values, "1 face", {"face": code(plane.args[0])}, target, operator, codes)
     if operator == "=" and name == "draft" and len(value.args) + len(value.keywords) >= 3:
         drafted = value.args[0] if value.args else _keyword_value(value, "faces")

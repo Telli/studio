@@ -56,7 +56,12 @@ by hand" below.
   `tray.bounding_box().diagonal`. A counterbore or a countersink is added to the cylinder, both
   from the face down: `(bd.Cylinder(d/2, depth, align=...) + bd.Cylinder(cbore/2, cbore_depth,
   align=...))`, or `+ bd.Cone(d/2, csk/2, height, align=...)` with its height worked out from
-  the angle (`(csk - d)/2 / tan(angle/2)`).
+  the angle (`(csk - d)/2 / tan(angle/2)`). Its panel is Hole Wizard's: a standard (ISO, ANSI
+  Inch), a screw size and a fit fill the sizes (ISO 273 clearances; inch close and free fits; tap
+  drills; a socket head's counterbore, a flat head's countersink), and a hole of a standard size
+  keeps its callout in a comment on its line, as a drawing labels it:
+  `tray -= ... * bd.Cylinder(2.5/2, ...)  # M3x0.5 tapped hole`. A Straight Tap is drilled at its
+  tap drill; its thread is the callout's.
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.
 - **Draft** tilts the faces picked by an angle about where they meet the neutral plane, a flat
   face of the part or an origin plane, so the part narrows along the plane's normal, its direction

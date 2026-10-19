@@ -39,6 +39,7 @@ import {
   treeSketch
 } from "./editMode.js";
 import { COMMAND_ICONS } from "./cadIcons.jsx";
+import { HOLE_STANDARDS, defaultSize, holeFill, holeFits, holeSizeOptions } from "./holeSizes.js";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
 import { sketchGeometry } from "./sketchMode.js";
 // An extrude's end conditions, as SolidWorks' Direction 1 names them and in its order; a cut can go through all.
@@ -49,9 +50,12 @@ const BOSS_ENDS = ends(["blind", "next", "vertex", "surface", "mid"]);
 const CUT_ENDS = ends(["blind", "through", "next", "vertex", "surface", "mid"]);
 // The end conditions with no depth of their own: the body or what is picked says how far.
 const NO_DEPTH = new Set(["through", "next", "vertex", "surface"]);
-// Hole Wizard's types: a plain hole, or one with a counterbore or a countersink for a screw's head.
+// Hole Wizard's types: a plain hole, one with a counterbore or a countersink for a screw's head, or
+// one drilled for a tap.
 const HOLE_TYPES = Object.freeze([{ value: "simple", label: "Hole" }, { value: "counterbore", label: "Counterbore" },
-  { value: "countersink", label: "Countersink" }]);
+  { value: "countersink", label: "Countersink" }, { value: "tapped", label: "Straight Tap" }]);
+// A hole whose sizes are the engineer's own, typed rather than a standard screw's.
+const CUSTOM = "custom";
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 // The origin's planes a draft's neutral plane can be, as the design tree names them.
 const ORIGIN_PLANE_NAMES = new Set(["Top", "Front", "Right"]);
@@ -327,6 +331,16 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   if (!command) return null;
   const Icon = COMMAND_ICONS[command.id];
   const set = key => value => setValues(current => ({ ...current, [key]: value }));
+  // Hole Wizard: a type, standard, size or fit picked fills the hole's sizes from the screw's; a size
+  // the standard or the type has not becomes the standard's own. One of its sizes typed over is Custom.
+  const sized = key => value => setValues(current => {
+    const next = { ...current, [key]: value === CUSTOM ? "" : value };
+    if (key !== "size" && next.size && !holeSizeOptions(next.standard, next.type).some(each => each.value === next.size)) {
+      next.size = defaultSize(next.standard);
+    }
+    return { ...next, ...holeFill(next, units) };
+  });
+  const typedOver = key => value => setValues(current => ({ ...current, [key]: value, ...(value !== current[key] ? { size: "" } : {}) }));
   const ok = () => {
     if (blocked || disabled) return;
     // A reopened feature left as it was: nothing to write.
@@ -463,17 +477,24 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
       {command.id === "shell" ? <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} /> : null}
       {drafting ? <NumberRow label="Draft angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} /> : null}
       {command.id === "hole" ? <>
-        <FileSheetSelectRow label="Hole type" value={values.type || "simple"} options={HOLE_TYPES} onValueChange={set("type")} />
-        <NumberRow label="Diameter" value={values.diameter} unit={units} disabled={disabled} onChange={set("diameter")} />
+        <FileSheetSelectRow label="Hole type" value={values.type || "simple"} options={HOLE_TYPES} onValueChange={sized("type")} />
+        {/* Hole Wizard's Hole Specifications: a standard's screw, and its fit, fill the sizes below. */}
+        <FileSheetSelectRow label="Standard" value={values.standard || "iso"} options={HOLE_STANDARDS} onValueChange={sized("standard")} />
+        <FileSheetSelectRow label="Size" value={values.size || CUSTOM} onValueChange={sized("size")}
+          options={[...holeSizeOptions(values.standard, values.type), { value: CUSTOM, label: "Custom" }]} />
+        {values.type === "tapped" ? null
+          : <FileSheetSelectRow label="Fit" value={values.fit || "normal"} options={holeFits(values.standard)} onValueChange={sized("fit")} />}
+        <NumberRow label={values.type === "tapped" ? "Tap drill diameter" : "Diameter"} value={values.diameter} unit={units} disabled={disabled}
+          onChange={typedOver("diameter")} />
         <FileSheetCheckboxRow label="Through all" checked={values.through} disabled={disabled} onCheckedChange={set("through")} />
         {values.through ? null : <NumberRow label="Depth" value={values.depth} unit={units} disabled={disabled} onChange={set("depth")} />}
         {values.type === "counterbore" ? <>
-          <NumberRow label="Counterbore diameter" value={values.cbore_diameter} unit={units} disabled={disabled} onChange={set("cbore_diameter")} />
-          <NumberRow label="Counterbore depth" value={values.cbore_depth} unit={units} disabled={disabled} onChange={set("cbore_depth")} />
+          <NumberRow label="Counterbore diameter" value={values.cbore_diameter} unit={units} disabled={disabled} onChange={typedOver("cbore_diameter")} />
+          <NumberRow label="Counterbore depth" value={values.cbore_depth} unit={units} disabled={disabled} onChange={typedOver("cbore_depth")} />
         </> : null}
         {values.type === "countersink" ? <>
-          <NumberRow label="Countersink diameter" value={values.csk_diameter} unit={units} disabled={disabled} onChange={set("csk_diameter")} />
-          <NumberRow label="Countersink angle" value={values.csk_angle} unit="deg" disabled={disabled} onChange={set("csk_angle")} />
+          <NumberRow label="Countersink diameter" value={values.csk_diameter} unit={units} disabled={disabled} onChange={typedOver("csk_diameter")} />
+          <NumberRow label="Countersink angle" value={values.csk_angle} unit="deg" disabled={disabled} onChange={typedOver("csk_angle")} />
         </> : null}
         {offsets.map(axis => <NumberRow key={axis} label={`${axis.toUpperCase()} from center`} value={values[axis]} unit={units}
           disabled={disabled} onChange={set(axis)} />)}
