@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { fillShapes, loopsCentroid, screenDirection, screenTriangles } from "./sketchDrawing.js";
+import { fillShapes, lineNearestRay, loopsCentroid, screenDirection, screenTriangles } from "./sketchDrawing.js";
 
 // A view that looks down Z: a place's x and y are its pixels, and a place above the camera is behind it.
 const looking = (x, y, z) => (z > 10 ? null : [x, y]);
@@ -48,4 +48,11 @@ test("a swept solid's faces are filled as one, turned one way round, a hole the 
   const outline = [[0, 0], [10, 0], [10, 10], [0, 10]];
   fillShapes(context, [{ points: outline }, { points: [...outline].reverse() }, { points: outline, hole: true }], "#000", 0.3);
   assert.deepEqual(turns, [1, 1, -1]);
+});
+
+test("a drag along a handle's line reads the place on it nearest the pointer's ray", () => {
+  // The line up Z through the origin; a ray across it, 5 up.
+  assert.equal(lineNearestRay([0, 0, 0], [0, 0, 1], [10, 3, 5], [-1, 0, 0]), 5);
+  // A ray down the line itself has no one nearest place.
+  assert.equal(lineNearestRay([0, 0, 0], [0, 0, 1], [0, 0, 50], [0, 0, -1]), null);
 });

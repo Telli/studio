@@ -74,6 +74,39 @@ export function modelMapping(runtime, width, height) {
   return { toScreen, toView, key: viewKey(width, height, camera, modelGroup) };
 }
 
+/**
+ * The pointer's ray in the part, from the view's pixel (`x`, `y`): where it starts and the way it
+ * goes, in the part's millimetres. Null before the viewer is up.
+ */
+export function modelRay(runtime, width, height, x, y) {
+  if (!runtime?.camera || !runtime.modelGroup || !runtime.THREE) return null;
+  const { THREE, camera, modelGroup } = runtime;
+  camera.updateMatrixWorld();
+  modelGroup.updateMatrixWorld();
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera(new THREE.Vector2((x / width) * 2 - 1, 1 - (y / height) * 2), camera);
+  const ray = raycaster.ray.clone().applyMatrix4(modelGroup.matrixWorld.clone().invert());
+  return { origin: ray.origin.toArray(), direction: ray.direction.toArray() };
+}
+
+/**
+ * How far along a line in the part (`point` plus `along` times it) the place nearest a ray lies,
+ * as a drag along a handle's line reads the pointer. Null when the ray runs along the line, so no
+ * one place is nearest.
+ */
+export function lineNearestRay(point, along, origin, direction) {
+  const dot = (p, q) => p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+  const toLine = point.map((value, axis) => value - origin[axis]);
+  const a = dot(along, along);
+  const b = dot(along, direction);
+  const c = dot(direction, direction);
+  const d = dot(along, toLine);
+  const e = dot(direction, toLine);
+  const denominator = a * c - b * b;
+  if (!(Math.abs(denominator) > 1e-9 * a * c)) return null;
+  return (b * e - c * d) / denominator;
+}
+
 /** A place on a sketch (in its units), `offset` millimetres off its plane along its normal: the place in the part's millimetres. */
 export function framePoint(frame, unit, [u, v], offset = 0) {
   return [0, 1, 2].map(axis => frame.origin[axis] + (u * frame.x[axis] + v * frame.y[axis]) * unit + frame.z[axis] * offset);
@@ -141,7 +174,8 @@ export function screenDirection(mapping, at, along, reach = 1) {
  * A direction arrow over the model, as a CAD tool draws one on what it previews: from its place
  * along its way on the screen (`screenDirection`), its head filled. One pointing straight at the
  * viewer is drawn as an engineer marks it, a dot in a ring; one pointing away, a cross in a ring.
- * Returns where its label goes (`drawLabel`): past its tip, or beside the ring.
+ * Returns where its label goes (`drawLabel`): past its tip, or beside the ring; and where it was
+ * drawn (`from`, `tip`, `facing`), for a press on it to take it as a handle (`handleAt`).
  */
 export function drawArrow(context, direction, color, length = ARROW_PX) {
   const { from, toward, facing } = direction;
@@ -168,7 +202,7 @@ export function drawArrow(context, direction, color, length = ARROW_PX) {
       context.stroke();
     }
     context.restore();
-    return { x: from[0] + radius + 6, y: from[1], leftward: false };
+    return { x: from[0] + radius + 6, y: from[1], leftward: false, from, tip: from, facing };
   }
   const span = Math.hypot(toward[0], toward[1]) || 1;
   const [dx, dy] = [toward[0] / span, toward[1] / span];
@@ -178,7 +212,7 @@ export function drawArrow(context, direction, color, length = ARROW_PX) {
   context.lineTo(tip[0] - dx * ARROW_HEAD_PX, tip[1] - dy * ARROW_HEAD_PX);
   context.stroke();
   context.restore();
-  return drawArrowHead(context, tip, [dx, dy], color);
+  return { ...drawArrowHead(context, tip, [dx, dy], color), from, tip, facing: 0 };
 }
 
 /**

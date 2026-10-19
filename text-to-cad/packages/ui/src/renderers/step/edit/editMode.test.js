@@ -23,6 +23,7 @@ import {
   deleteNote,
   deleteRefusal,
   editingValues,
+  draggedDepth,
   emptyHistory,
   extrudePreview,
   holePreview,
@@ -400,7 +401,7 @@ test("an extrude's preview sweeps its depth in millimetres with an arrow the way
   const top = { origin: [0, 0, 10], x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
   const opened = commandDefaults("extrude", "in");
   assert.deepEqual(extrudePreview("extrude", { ...opened, depth: ".25" }, { units: "in", sketch }),
-    { kind: "boss", end: "blind", file: "a.py", line: 4, taper: 0, depth: 6.35, reverse: false, label: ".25 in" });
+    { kind: "boss", end: "blind", file: "a.py", line: 4, taper: 0, depth: 6.35, reverse: false, units: "in", label: ".25 in" });
   // Mid Plane goes both ways, so Reverse does not apply; Through All is tagged by its name.
   assert.equal(extrudePreview("cut", { ...opened, end: "mid", reverse: true }, { units: "in", sketch }).reverse, false);
   assert.equal(extrudePreview("cut", { ...opened, end: "through" }, { units: "in", sketch }).label, "Through All");
@@ -440,4 +441,13 @@ test("a hole's arrow goes into its face where it goes in, and a mirror's plane i
   assert.equal(side.length, 4);
   assert.ok(side.every(([x]) => Math.abs(x - 10) < 1e-9));
   assert.equal(mirrorPreview({ plane: "face" }), null);
+});
+
+test("an extrude's arrow dragged sets the depth it reaches, in the part's units to the places the panel shows", () => {
+  assert.deepEqual(draggedDepth(12.3456, "blind", "mm"), { text: "12.35", mm: 12.35 });
+  // Mid Plane's arrows sit at half the depth; an inch part shows three places.
+  assert.equal(draggedDepth(6, "mid", "mm").text, "12");
+  assert.equal(draggedDepth(25.4, "blind", "in").text, "1");
+  // Dragged back past the sketch: the smallest depth the panel shows.
+  assert.equal(draggedDepth(-4, "blind", "mm").text, "0.01");
 });

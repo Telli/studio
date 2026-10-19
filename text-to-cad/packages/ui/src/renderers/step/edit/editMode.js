@@ -261,7 +261,7 @@ export function extrudePreview(id, values, { units = "mm", sketch = null, frame 
   const end = values.end || "blind";
   const angle = plainNumber(values.draft_angle);
   const taper = values.draft && end !== "next" && angle !== null && angle > 0 && angle < 90 ? (values.outward ? -angle : angle) : 0;
-  const base = { kind: id === "cut" ? "cut" : "boss", end, file: sketch.file, line: sketch.line, taper, depth: 0, reverse: false };
+  const base = { kind: id === "cut" ? "cut" : "boss", end, file: sketch.file, line: sketch.line, taper, depth: 0, reverse: false, units };
   if (end === "through") return { ...base, reverse: Boolean(values.reverse), label: END_WORDS.through };
   if (end === "surface" || end === "vertex") {
     const target = end === "surface" ? ending?.center : values.vertex_at;
@@ -274,6 +274,21 @@ export function extrudePreview(id, values, { units = "mm", sketch = null, frame 
   const reverse = end !== "mid" && Boolean(values.reverse);
   if (depth === null || !(depth > 0)) return { ...base, reverse, arrowOnly: true, label };
   return { ...base, depth: depth * (MM_PER_UNIT[units] || 1), reverse, label };
+}
+
+/**
+ * The Depth an extrude's arrow sets where it is dragged, as SolidWorks' extrude handle sets it:
+ * `reached` is how far from the sketch's plane the arrow's end is, the way it points, in the part's
+ * millimetres; the depth is that (twice it at Mid Plane, whose arrows sit at half), in the part's
+ * units to the places the panel shows (`text`) and back in millimetres for the preview (`mm`).
+ * Never less than the smallest the panel shows.
+ */
+export function draggedDepth(reached, end, units = "mm") {
+  const places = units === "in" ? 3 : 2;
+  const perUnit = MM_PER_UNIT[units] || 1;
+  const depth = Math.max(10 ** -places, ((end === "mid" ? 2 : 1) * reached) / perUnit);
+  const text = String(Number(depth.toFixed(places)));
+  return { text, mm: Number(text) * perUnit };
 }
 
 /**

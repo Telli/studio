@@ -71,3 +71,36 @@ it("a linear pattern's arrow runs along its copies and a hole's goes into its fa
   rerender(<PreviewLayer viewport={view} preview={null} mark={{ mark: 'hole', at: [0, 0, 2], into: [0, 0, -1], label: 'Through All' }} extent={40} />);
   await waitFor(() => expect(texts).toContain('Through All'));
 });
+
+it("an extrude's arrow dragged along its line sets the depth it reaches, and clicked turns the extrude the other way", async () => {
+  const view = viewport();
+  const { camera } = view.runtimeRef.current;
+  const host = view.hostRef.current;
+  const pixel = (z: number) => {
+    const point = new THREE.Vector3(0, 0, z).project(camera);
+    return { clientX: ((point.x + 1) * 800) / 2, clientY: ((1 - point.y) * 600) / 2 };
+  };
+  const sketch = { file: 'a.py', line: 4, name: 'Sketch1', state: { frame: { origin: [0, 0, 0], x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }, unit: 1,
+    loops: [[[-5, -5], [5, -5], [5, 5], [-5, 5]]], curves: [] } };
+  const onDepth = vi.fn();
+  const onReverse = vi.fn();
+  const extrude = { kind: 'boss', end: 'blind', file: 'a.py', line: 4, taper: 0, depth: 10, reverse: false, units: 'mm', label: '10 mm', onDepth, onReverse };
+  render(<SketchesLayer viewport={view} sketches={[sketch]} selected={sketch} preview={extrude} through={50} />);
+  await waitFor(() => expect(texts).toContain('10 mm'));
+  // Taken where its arrow starts, at the extrude's end 10 up, and dragged to 20 up.
+  host.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, ...pixel(10) }));
+  window.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, ...pixel(20) }));
+  // While dragged, the extrude is drawn at the depth reached, its tag with it.
+  await waitFor(() => expect(texts.some(text => /^(19\.\d+|20(\.\d+)?) mm$/.test(text))).toBe(true));
+  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, ...pixel(20) }));
+  expect(onDepth).toHaveBeenCalledTimes(1);
+  expect(Math.abs(Number(onDepth.mock.calls[0][0]) - 20)).toBeLessThan(0.5);
+  expect(onReverse).not.toHaveBeenCalled();
+  // Drawn at its panel's depth again once let go (this panel kept it); then pressed and let go
+  // where it is: a click, which reverses it.
+  const released = texts.length;
+  await waitFor(() => expect(texts.slice(released)).toContain('10 mm'));
+  host.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, ...pixel(10) }));
+  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, ...pixel(10) }));
+  expect(onReverse).toHaveBeenCalledTimes(1);
+});

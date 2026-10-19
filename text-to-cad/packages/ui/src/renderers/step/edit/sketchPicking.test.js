@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PICK_PX, extrudeSpan, holeLoops, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace, taperedLoop, turnArrowStart } from "./sketchPicking.js";
+import { PICK_PX, extrudeSpan, handleAt, holeLoops, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace, taperedLoop, turnArrowStart } from "./sketchPicking.js";
 
 const square = (x, y, size) => [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];
 // A sketch as the view draws it: its lines and its outlines, in pixels.
@@ -91,4 +91,13 @@ test("a revolve's arrow turns just outside its profile, on the side of the axis 
   // On the axis's other side, the other way out; none for an axis of no length.
   assert.ok(turnArrowStart([profile.map(([u, v]) => [-u, v])], [0, 0], [0, 1])[0] < -15);
   assert.equal(turnArrowStart([profile], [0, 0], [0, 0]), null);
+});
+
+test("a press on an arrow's shaft or head takes it as a handle, and one end on by its ring", () => {
+  const across = { from: [100, 100], tip: [134, 100], facing: 0 };
+  const endOn = { from: [300, 300], tip: [300, 300], facing: 1 };
+  assert.equal(handleAt([across, endOn], [120, 105]), across);
+  assert.equal(handleAt([across, endOn], [120, 112]), null);
+  assert.equal(handleAt([across, endOn], [306, 306]), endOn);
+  assert.equal(handleAt([], [0, 0]), null);
 });

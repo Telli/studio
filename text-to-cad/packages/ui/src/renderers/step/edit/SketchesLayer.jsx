@@ -8,17 +8,21 @@ import {
   drawLabel,
   fillShapes,
   framePoint,
+  lineNearestRay,
   loopsCentroid,
   modelMapping,
+  modelRay,
   planeMapping,
   PREVIEW_FILL_ALPHA,
   screenDirection,
   strokePath
 } from "./sketchDrawing.js";
+import { draggedDepth, withUnit } from "./editMode.js";
 import { sketchGeometry } from "./sketchMode.js";
 import {
   CLICK_SLOP_PX,
   extrudeSpan,
+  handleAt,
   holeLoops,
   revolvedFrame,
   screenSketch,
@@ -89,16 +93,16 @@ function drawPreview(context, view, shape, through, cad, at, model, font) {
   const loops = view.state?.loops || [];
   const frame = view.state?.frame;
   const unit = view.state?.unit || 1;
-  if (!loops.length || !frame) return;
+  if (!loops.length || !frame) return [];
   const holes = holeLoops(loops);
   // Material added in amber with the darker edge the icons draw it with; a cut in red.
   const fill = shape.kind === "cut" ? cad.cut : cad.solid;
   const stroke = shape.kind === "cut" ? cad.cut : cad.solidEdge;
   const span = shape.arrowOnly ? [0, 0] : extrudeSpan(shape, through);
-  if (!span) return;
+  if (!span) return [];
   if (!shape.arrowOnly) {
     const ends = span.map(at);
-    if (!ends.every(Boolean)) return;
+    if (!ends.every(Boolean)) return [];
     // A draft leans the sides in (out, negative) by its angle: each end's outline is moved in by
     // how far it is from the sketch's plane, in the sketch's own units.
     const lean = Math.tan(((shape.taper || 0) * Math.PI) / 180) / unit;
@@ -128,17 +132,22 @@ function drawPreview(context, view, shape, through, cad, at, model, font) {
     context.restore();
   }
   // The arrow at the end it reaches, or at each end of a Mid Plane; from the sketch for one the
-  // body or a pick ends.
+  // body or a pick ends. Each is a handle (`handleAt`): where it starts, on the line it moves along.
   const middle = loopsCentroid(loops, holes);
-  if (!middle || !model) return;
+  if (!middle || !model) return [];
   const reach = Math.max(0.5, Math.abs(span[1] - span[0]) / 4, (through || 0) / 50);
   const arrows = shape.end === "mid" ? [[span[1], 1], [span[0], -1]] : [[shape.reverse ? span[0] : span[1], shape.reverse ? -1 : 1]];
+  const handles = [];
   arrows.forEach(([offset, sign], index) => {
-    const way = screenDirection(model, framePoint(frame, unit, middle, offset), frame.z.map(value => value * sign), reach);
+    const along = frame.z.map(value => value * sign);
+    const way = screenDirection(model, framePoint(frame, unit, middle, offset), along, reach);
     if (!way) return;
     const place = drawArrow(context, way, stroke);
     if (index === 0) drawLabel(context, shape.label, place, stroke, font);
+    handles.push({ from: place.from, tip: place.tip, facing: place.facing, anchor: framePoint(frame, unit, middle, 0), along,
+      reached: offset * sign });
   });
+  return handles;
 }
 
 // How far round a full turn's arrow runs, short of closing on itself so its head reads.
@@ -232,8 +241,11 @@ function drawRevolvePreview(context, view, shape, cad, at, font) {
  * sketch) a click inside its outline too; with `onEdit`, a double-click on its line opens it. Such a press is the sketch's, not the model's: claimed
  * before the camera or the model's picking sees it, as the joint handles claim theirs. `preview`
  * draws what an extrude or a revolve of the selected sketch would make, with the way it goes
- * (`{ kind, end, depth, reverse, taper, label, arrowOnly }` or `{ kind, revolve, label }`, its
- * depth and `through`, the part's extent, in millimetres).
+ * (`{ kind, end, depth, reverse, taper, label, units, arrowOnly }` or `{ kind, revolve, label }`,
+ * its depth and `through`, the part's extent, in millimetres). An extrude's arrow is a handle, as
+ * SolidWorks' is: dragged along its line it sets the depth (`preview.onDepth`, given it as the
+ * panel takes it), the extrude drawn at the depth reached until the press ends; clicked, it turns
+ * the extrude the other way (`preview.onReverse`).
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
  *   sketches: { file: string, line: number, name: string, state: object | null }[], selected?: { file: string, line: number } | null,
@@ -250,6 +262,9 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
   // The sketch under the pointer, and the sketches as last painted, in the view's pixels.
   const hover = useRef(-1);
   const drawnRef = useRef([]);
+  // The extrude's arrows as last painted, taken as handles; and the depth one is dragged to.
+  const handlesRef = useRef([]);
+  const draggedRef = useRef(null);
 
   useEffect(() => {
     const host = viewport.hostRef?.current;
@@ -265,9 +280,12 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       const width = host.clientWidth || 1;
       const height = host.clientHeight || 1;
       const dpr = window.devicePixelRatio || 1;
-      const { sketches: shown, selected: chosen, preview: shape, through: extent } = live.current;
+      const { sketches: shown, selected: chosen, preview: given, through: extent } = live.current;
+      // A handle being dragged: the extrude drawn at the depth it has reached, tagged with it.
+      const dragged = draggedRef.current;
+      const shape = dragged && given && !given.revolve ? { ...given, depth: dragged.mm, label: withUnit(dragged.text, given.units) } : given;
       const mappings = shown.map(view => (view.state ? planeMapping(runtime, width, height, view.state.frame, view.state.unit || 1) : null));
-      const key = `${mappings.map(mapping => mapping?.key || "").join("/")}|${version.current}|${dpr}|${hover.current}`;
+      const key = `${mappings.map(mapping => mapping?.key || "").join("/")}|${version.current}|${dpr}|${hover.current}|${dragged?.text || ""}`;
       if (key === painted) return;
       painted = key;
       if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
@@ -281,6 +299,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       context.clearRect(0, 0, width, height);
       const drawn = shown.map((view, index) => (mappings[index] ? screenSketch(view.state, mappings[index].toScreen) : null));
       drawnRef.current = drawn;
+      handlesRef.current = [];
       let tag = null;
       shown.forEach((view, index) => {
         const mapping = mappings[index];
@@ -302,7 +321,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
           } else {
             const at = offset => planeMapping(runtime, width, height,
               { ...frame, origin: frame.origin.map((value, axis) => value + frame.z[axis] * offset) }, unit);
-            drawPreview(context, view, shape, extent, cad, at, modelMapping(runtime, width, height), colors.font);
+            handlesRef.current = drawPreview(context, view, shape, extent, cad, at, modelMapping(runtime, width, height), colors.font);
           }
         }
         if (picked) tag = { drawn: drawn[index], name: view.name || "Sketch" };
@@ -329,8 +348,77 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       return [event.clientX - rect.left, event.clientY - rect.top];
     };
     const under = event => (live.current.onPick ? sketchAt(drawnRef.current, at(event), { profiles: live.current.profiles }) : -1);
+    // The extrude's arrow under the pointer, when the panel takes what it does.
+    const handleUnder = event => {
+      const shape = live.current.preview;
+      return shape?.onDepth || shape?.onReverse ? handleAt(handlesRef.current, at(event)) : null;
+    };
+    // How far from the sketch's plane, along a handle's line, the pointer is: in the part's millimetres.
+    const reachAt = (event, handle) => {
+      const [x, y] = at(event);
+      const ray = modelRay(viewport.runtimeRef?.current, host.clientWidth || 1, host.clientHeight || 1, x, y);
+      return ray ? lineNearestRay(handle.anchor, handle.along, ray.origin, ray.direction) : null;
+    };
+    let drag = null;
+    let overHandle = false;
+    // The pointer off the arrow (or a drag of it over): the cursor and the hint it gave let go.
+    const leaveHandle = (always = false) => {
+      if (!overHandle && !always) return;
+      overHandle = false;
+      host.style.cursor = "";
+      host.removeAttribute("title");
+      hover.current = -2; // the sketch under the pointer, if any, is found again
+    };
+    const dragMove = event => {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      event.stopPropagation();
+      if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) <= CLICK_SLOP_PX) return;
+      drag.moved = true;
+      const shape = live.current.preview;
+      if (!shape?.onDepth || drag.grab === null) return;
+      const reached = reachAt(event, drag.handle);
+      if (reached === null) return;
+      draggedRef.current = draggedDepth(reached - drag.grab, shape.end, shape.units);
+      version.current += 1;
+    };
+    const stopDrag = () => {
+      drag = null;
+      window.removeEventListener("pointermove", dragMove, true);
+      window.removeEventListener("pointerup", dragEnd, true);
+      window.removeEventListener("pointercancel", dragEnd, true);
+    };
+    function dragEnd(event) {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      event.stopPropagation();
+      const { moved } = drag;
+      stopDrag();
+      leaveHandle(true);
+      const shape = live.current.preview;
+      const reached = draggedRef.current;
+      draggedRef.current = null;
+      version.current += 1;
+      if (event.type === "pointercancel") return;
+      if (moved) {
+        if (reached) shape?.onDepth?.(reached.text);
+      } else shape?.onReverse?.();
+    }
     const down = event => {
       if (event.button !== 0 || event.pointerType === "touch") return;
+      const handle = handleUnder(event);
+      if (handle) {
+        // The arrow's press: not the camera's, nor the model's to pick under it.
+        event.stopPropagation();
+        event.preventDefault();
+        const start = handle.facing ? null : reachAt(event, handle);
+        // Where on the arrow it was taken, so its end moves with the pointer rather than jumping to it.
+        drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, handle, moved: false,
+          grab: start === null ? null : start - handle.reached };
+        window.addEventListener("pointermove", dragMove, true);
+        window.addEventListener("pointerup", dragEnd, true);
+        window.addEventListener("pointercancel", dragEnd, true);
+        host.style.cursor = "grabbing";
+        return;
+      }
       const index = under(event);
       if (index < 0) return;
       event.stopPropagation();
@@ -345,7 +433,22 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       if (view) live.current.onPick?.(view);
     };
     const move = event => {
-      if (event.buttons !== 0 || event.pointerType === "touch") return;
+      if (event.buttons !== 0 || event.pointerType === "touch" || drag) return;
+      const handle = handleUnder(event);
+      if (handle) {
+        // Over the arrow the pointer is the arrow's, and says what it does.
+        event.stopPropagation();
+        if (!overHandle) {
+          overHandle = true;
+          const shape = live.current.preview;
+          const drags = Boolean(shape?.onDepth) && !handle.facing;
+          host.style.cursor = drags ? "grab" : "pointer";
+          host.title = drags ? (shape.onReverse ? "Drag to change the depth. Click to reverse it." : "Drag to change the depth.")
+            : "Click to reverse it.";
+        }
+        return;
+      }
+      leaveHandle();
       const index = under(event);
       // Over a sketch the pointer is the sketch's: the model under it is not hovered.
       if (index >= 0) event.stopPropagation();
@@ -353,7 +456,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       hover.current = index;
       host.style.cursor = index >= 0 ? "pointer" : "";
     };
-    const leave = () => { hover.current = -1; };
+    const leave = () => { leaveHandle(); hover.current = -1; };
     // A double-click on a sketch's line opens it to edit, as in the design tree.
     const twice = event => {
       if (!live.current.onEdit) return;
@@ -375,6 +478,10 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       host.removeEventListener("pointermove", move, true);
       host.removeEventListener("pointerleave", leave);
       host.removeEventListener("dblclick", twice, true);
+      // A drag the layer goes with ends unsaid; the extrude stays at its panel's depth.
+      if (drag) stopDrag();
+      draggedRef.current = null;
+      leaveHandle();
       if (hover.current >= 0) host.style.cursor = "";
     };
   }, [viewport.hostRef, viewport.viewerReadyTick]);

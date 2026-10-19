@@ -169,6 +169,28 @@ export function sideIndexes(loop) {
   return [0, 1, 2, 3].map(quarter => Math.floor((quarter * count) / 4));
 }
 
+// How near an arrow a press takes it, in pixels: its shaft and head, or the ring of one seen end on.
+const HANDLE_PX = 8;
+const RING_PX = 11;
+
+/**
+ * The arrow handle under a pixel, of those the view drew (`{ from, tip, facing }`, as `drawArrow`
+ * left them), as a CAD tool's drag handles are taken: within a few pixels of its shaft or head, or
+ * inside the ring of one seen end on. The nearest, or null.
+ */
+export function handleAt(handles, point) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const handle of handles || []) {
+    const distance = handle.facing ? Math.hypot(point[0] - handle.from[0], point[1] - handle.from[1]) : segmentDistance(point, handle.from, handle.tip);
+    if (distance <= (handle.facing ? RING_PX : HANDLE_PX) && distance < bestDistance) {
+      best = handle;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
 /**
  * Where a revolve's arrow runs about its axis (from `a` to `b`, in the sketch's units): out from
  * the axis toward the middle of the profile, a little past the profile's farthest point, so the

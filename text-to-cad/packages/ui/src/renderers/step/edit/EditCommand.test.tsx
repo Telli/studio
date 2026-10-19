@@ -86,7 +86,7 @@ it('each command that goes somewhere previews the way it goes: an extrude its de
   const extrude = edit('extrude', 'block.py:9');
   render(<EditCommand edit={extrude as never} names={NAMES} references={[]} tree={tree} />);
   expect(extrude.setPreview).toHaveBeenLastCalledWith({ kind: 'boss', end: 'blind', file: 'block.py', line: 9, taper: 0, depth: 5, reverse: false,
-    label: '5 mm' });
+    units: 'mm', label: '5 mm', onDepth: expect.any(Function), onReverse: expect.any(Function) });
   cleanup();
   // A hole goes into the face picked, through all as it opens.
   const hole = edit('hole');

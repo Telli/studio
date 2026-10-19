@@ -214,8 +214,19 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const angle = plainNumber(values.angle);
   const axisLine = revolving && sketch ? sketchGeometry(sketchState).curves.find(curve => curve.id === values.axis && curve.kind === "line") : null;
   const facePick = references.find(reference => reference?.selectorType === "face")?.pickData || null;
+  // An extrude's arrow is a handle, as SolidWorks' is: dragged, it sets the Depth (one typed as a
+  // number, at Blind and Mid Plane); clicked, it turns the extrude the other way (not at Mid Plane,
+  // nor where the body or a pick ends it).
+  const extruded = edit.command === "extrude" || edit.command === "cut"
+    ? extrudePreview(edit.command, values, { units, sketch, frame: sketchState?.frame || null, ending }) : null;
+  const handled = extruded ? {
+    ...extruded,
+    ...((extruded.end === "blind" || extruded.end === "mid") && !extruded.arrowOnly
+      ? { onDepth: text => setValues(current => ({ ...current, depth: text })) } : {}),
+    ...(extruded.end === "blind" || extruded.end === "through" ? { onReverse: () => setValues(current => ({ ...current, reverse: !current.reverse })) } : {}),
+  } : null;
   const local = !previewOn ? null
-    : edit.command === "extrude" || edit.command === "cut" ? extrudePreview(edit.command, values, { units, sketch, frame: sketchState?.frame || null, ending })
+    : edit.command === "extrude" || edit.command === "cut" ? handled
       : revolving ? (axisLine && angle !== null && angle > 0 ? { kind, revolve: { a: axisLine.a, b: axisLine.b, angle: values.reverse ? -angle : angle },
         file: sketch.file, line: sketch.line, label: `${String(values.angle).trim()}°` } : null)
         : edit.command === "pattern" ? patternPreview(values, units)
