@@ -580,7 +580,8 @@ export function commandDefaults(id, units) {
   const size = DEFAULTS[units] || DEFAULTS.mm;
   switch (id) {
     case "fillet": return { radius: size.radius };
-    case "chamfer": return { distance: size.distance };
+    // Chamfer's types: one distance both ways, a distance each way, or a distance and an angle.
+    case "chamfer": return { type: "equal", distance: size.distance, distance2: size.distance, angle: "45", flip: false };
     case "hole": {
       // Hole Wizard's: a screw of the part's standard, its size and fit filling the sizes, which stay the engineer's to type over.
       const standard = defaultStandard(units);
@@ -751,7 +752,11 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
   const inputs = {};
   switch (id) {
     case "fillet": inputs.radius = values.radius; break;
-    case "chamfer": inputs.distance = values.distance; break;
+    case "chamfer":
+      inputs.distance = values.distance;
+      if (values.type === "distances") Object.assign(inputs, { type: "distances", distance2: values.distance2, flip: Boolean(values.flip) });
+      if (values.type === "angle") Object.assign(inputs, { type: "angle", angle: values.angle });
+      break;
     case "shell": inputs.thickness = values.thickness; break;
     case "hole":
       Object.assign(inputs, { diameter: values.diameter, depth: values.through ? "" : values.depth });

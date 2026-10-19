@@ -60,6 +60,9 @@ const HOLE_TYPES = Object.freeze([{ value: "simple", label: "Hole" }, { value: "
 // A hole whose sizes are the engineer's own, typed rather than a standard screw's.
 const CUSTOM = "custom";
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
+// Chamfer's types, as SolidWorks' Chamfer names them.
+const CHAMFER_TYPES = Object.freeze([{ value: "equal", label: "Equal distance" }, { value: "distances", label: "Distance distance" },
+  { value: "angle", label: "Angle distance" }]);
 // The origin's planes a draft's neutral plane can be, as the design tree names them.
 const ORIGIN_PLANE_NAMES = new Set(["Top", "Front", "Right"]);
 const LISTED = 8;
@@ -508,7 +511,16 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} />
         <FileSheetCheckboxRow label="Flip material side" checked={Boolean(values.flip)} disabled={disabled} onCheckedChange={set("flip")} />
       </> : null}
-      {command.id === "chamfer" ? <NumberRow label="Distance" value={values.distance} unit={units} disabled={disabled} onChange={set("distance")} /> : null}
+      {command.id === "chamfer" ? <>
+        <FileSheetSelectRow label="Chamfer type" value={values.type || "equal"} options={CHAMFER_TYPES} onValueChange={set("type")} />
+        <NumberRow label={values.type === "distances" ? "Distance 1" : "Distance"} value={values.distance} unit={units} disabled={disabled}
+          onChange={set("distance")} />
+        {values.type === "distances" ? <>
+          <NumberRow label="Distance 2" value={values.distance2} unit={units} disabled={disabled} onChange={set("distance2")} />
+          <FileSheetCheckboxRow label="Flip direction" checked={Boolean(values.flip)} disabled={disabled} onCheckedChange={set("flip")} />
+        </> : null}
+        {values.type === "angle" ? <NumberRow label="Angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} /> : null}
+      </> : null}
       {command.id === "shell" ? <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} /> : null}
       {drafting ? <NumberRow label="Draft angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} /> : null}
       {command.id === "hole" ? <>

@@ -419,6 +419,22 @@ class EditingFeatures(Commands):
         self.assertTrue(undone["ok"], undone.get("error"))
         self.assertEqual(script.read_text(encoding="utf-8"), before)
 
+    def test_a_chamfer_of_two_distances_or_a_distance_and_an_angle_reopens_as_it_was_made(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "chamfer", BLOCK_TOP_EDGES, {"type": "distances", "distance": "1", "distance2": "0.5", "flip": True})
+        self.assertTrue(made["ok"], made.get("error"))
+        script = root / "block.py"
+        self.assertIn(", length=0.5, length2=1)\n", script.read_text(encoding="utf-8"))
+        chamfer = self.feature(made, "Chamfer")
+        self.assertEqual(chamfer["edit"]["values"], {"distance": "0.5", "type": "distances", "distance2": "1"})
+        self.assertEqual([(each["label"], each["display"]) for each in made["rows"][-1]["inputs"]], [("Distance", "0.5"), ("Distance 2", "1")])
+        angled = self.edit(file, made, chamfer, {"type": "angle", "distance": "1", "angle": "30"})
+        self.assertTrue(angled["ok"], angled.get("error"))
+        self.assertIn(", length=1, angle=30)\n", script.read_text(encoding="utf-8"))
+        self.assertEqual(self.feature(angled, "Chamfer")["edit"]["values"], {"distance": "1", "type": "angle", "angle": "30"})
+        steep = self.edit(file, angled, self.feature(angled, "Chamfer"), {"type": "angle", "distance": "1", "angle": "90"})
+        self.assertFalse(steep["ok"])
+
     def test_a_value_left_as_it_was_keeps_its_named_size(self):
         root, file, state = self.open(TRAY, "tray.step")
         script = root / "tray.py"

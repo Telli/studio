@@ -818,6 +818,8 @@ LABELS = {
     ("move", "y"): "Y",
     ("move", "z"): "Z",
     ("chamfer", "length"): "Distance",
+    ("chamfer", "length2"): "Distance 2",
+    ("chamfer", "angle"): "Angle",
     ("offset", "amount"): "Offset",
     ("GridLocations", "x_spacing"): "Spacing",
     ("GridLocations", "y_spacing"): "Spacing",
@@ -829,7 +831,7 @@ LABELS = {
     ("plane", "amount"): "Offset Distance",
 }
 # The sizes that are angles, shown in degrees.
-ANGLES = {("revolve", "revolution_arc"), ("draft", "angle")}
+ANGLES = {("revolve", "revolution_arc"), ("draft", "angle"), ("chamfer", "angle")}
 
 
 def _input(name, value, units, op=None):
@@ -853,6 +855,7 @@ LENGTH_ARGUMENTS = {
     "width",
     "height",
     "length",
+    "length2",
     "radius",
     "amount",
     "depth",

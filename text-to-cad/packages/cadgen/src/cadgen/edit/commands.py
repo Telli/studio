@@ -1024,9 +1024,27 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             code = f"{var} = {names('fillet')}({edges}, radius={same('radius', radius, writer.length(radius))})"
             shown = [("Radius", radius, units_word)]
         else:
+            # Chamfer's types, as SolidWorks' Chamfer sets them: one distance both ways, a distance
+            # each way (flipped, swapped), or a distance and the angle from it.
+            kind = str(inputs.get("type") or "equal").lower()
             distance = _value(inputs, "distance", "Distance", parse)
-            code = f"{var} = {names('chamfer')}({edges}, length={same('distance', distance, writer.length(distance))})"
-            shown = [("Distance", distance, units_word)]
+            length = same("distance", distance, writer.length(distance))
+            if kind == "distances":
+                second = _value(inputs, "distance2", "Distance 2", parse)
+                other = same("distance2", second, writer.length(second))
+                if inputs.get("flip") in (True, "true", "1", 1):
+                    length, other = other, length
+                code = f"{var} = {names('chamfer')}({edges}, length={length}, length2={other})"
+                shown = [("Distance", distance, units_word), ("Distance 2", second, units_word)]
+            elif kind == "angle":
+                angle = _value(inputs, "angle", "Angle", parse)
+                if angle >= 90:
+                    raise CommandError("A chamfer's angle is less than 90 degrees.")
+                code = f"{var} = {names('chamfer')}({edges}, length={length}, angle={same('angle', angle, writer.number(angle))})"
+                shown = [("Distance", distance, units_word), ("Angle", angle, "deg")]
+            else:
+                code = f"{var} = {names('chamfer')}({edges}, length={length})"
+                shown = [("Distance", distance, units_word)]
         selected = None if fixed else {"argument": "objects", "items": [selections.topology["edge"].describe(n) for n in numbers]}
         what = fixed.keeps if fixed else counted(len(numbers), "edge")
     elif command == "hole":
@@ -1588,7 +1606,15 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                        {"edges": code(value.args[0])}, target, operator, codes)
     if operator == "=" and name == "chamfer" and value.args:
         held("distance", _keyword_value(value, "length"), typed(number(("chamfer", "length"))))
-        return Feature("chamfer", {"distance": size(number(("chamfer", "length")))}, counted_items(("chamfer", "objects"), "edge"),
+        values = {"distance": size(number(("chamfer", "length")))}
+        # A distance each way, or a distance and an angle: Chamfer's other types.
+        if _keyword_value(value, "length2") is not None and number(("chamfer", "length2")) is not None:
+            held("distance2", _keyword_value(value, "length2"), typed(number(("chamfer", "length2"))))
+            values.update(type="distances", distance2=size(number(("chamfer", "length2"))))
+        elif _keyword_value(value, "angle") is not None and number(("chamfer", "angle")) is not None:
+            held("angle", _keyword_value(value, "angle"), number(("chamfer", "angle")))
+            values.update(type="angle", angle=_number(number(("chamfer", "angle")), False))
+        return Feature("chamfer", values, counted_items(("chamfer", "objects"), "edge"),
                        {"edges": code(value.args[0])}, target, operator, codes)
     if operator == "=" and name == "offset" and _keyword_value(value, "openings") is not None:
         amount = number(("offset", "amount"))

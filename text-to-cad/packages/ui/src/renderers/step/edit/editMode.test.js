@@ -597,3 +597,16 @@ test("the part's reference planes are what a mirror, a draft or a plane can go f
   assert.equal(draftReversed(null, [[-10, -5, 0], [10, 5, 4]], lid.plane), true);
   assert.equal(draftReversed(null, [[-10, -5, 12], [10, 5, 20]], lid.plane), false);
 });
+
+test("a chamfer goes as its type says: one distance, a distance each way (flipped), or a distance and an angle", () => {
+  const edges = [{ selector: "e1", type: "line", center: [0, -5, 2], size: 20 }];
+  const opened = commandDefaults("chamfer", "mm");
+  assert.deepEqual(commandRequest("chamfer", opened, edges, null).inputs, { distance: "1" });
+  assert.deepEqual(commandRequest("chamfer", { ...opened, type: "distances", distance2: "2", flip: true }, edges, null).inputs,
+    { distance: "1", type: "distances", distance2: "2", flip: true });
+  assert.deepEqual(commandRequest("chamfer", { ...opened, type: "angle", angle: "30" }, edges, null).inputs,
+    { distance: "1", type: "angle", angle: "30" });
+  // A reopened chamfer of two distances opens as one.
+  const editing = { id: "a.py:7", command: "chamfer", values: { distance: "0.5", type: "distances", distance2: "1" } };
+  assert.deepEqual(editingValues(editing, "mm"), { type: "distances", distance: "0.5", distance2: "1", angle: "45", flip: false });
+});

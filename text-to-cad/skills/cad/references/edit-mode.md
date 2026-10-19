@@ -63,6 +63,8 @@ by hand" below.
   keeps its callout in a comment on its line, as a drawing labels it:
   `tray -= ... * bd.Cylinder(2.5/2, ...)  # M3x0.5 tapped hole`. A Straight Tap is drilled at its
   tap drill; its thread is the callout's.
+- **Chamfer**: `bd.chamfer(<edges>, length=1)`; Distance distance writes `length=1, length2=.5`
+  (Flip direction swaps them), Angle distance `length=1, angle=30`.
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.
 - **Plane** (Reference Geometry) is a line of its own, offset from an origin plane or a flat face
   of the body: `plane1 = bd.Plane.XY.offset(10)`, `plane2 = bd.Plane(<face>).offset(-.25*INCH)`
