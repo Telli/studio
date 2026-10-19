@@ -18,7 +18,9 @@ import {
   commandRequest,
   draftPreview,
   draftReversed,
+  planeAt,
   planePreview,
+  referencePlanes,
   editCommand,
   editingValues,
   extrudeEnd,
@@ -254,6 +256,18 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const planing = edit.command === "plane";
   const treePlane = (drafting || planing) && typeof edit.selected === "string" && edit.selected.startsWith("plane:")
     ? edit.selected.slice("plane:".length) : "";
+  // The part's reference planes (Plane1): one clicked in the tree is a draft's neutral plane or
+  // another plane's reference, as an origin plane is; Mirror lists them to mirror about.
+  const planes = useMemo(() => referencePlanes(tree), [tree]);
+  const namedPlane = value => planes.find(each => each.value === value) || null;
+  const pickedPlane = drafting || planing ? planes.find(each => each.id === edit.selected) || null : null;
+  useEffect(() => {
+    if (!pickedPlane) return;
+    if (planing) { setValues(current => ({ ...current, reference: pickedPlane.value })); return; }
+    setNeutralFace(null);
+    setNeutralNote("");
+    setValues(current => ({ ...current, neutral: pickedPlane.value, reverse: draftReversed(null, edit.state?.bounds, pickedPlane.plane) }));
+  }, [pickedPlane?.value]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!ORIGIN_PLANE_NAMES.has(treePlane)) return;
     // A Plane's first reference; a draft's neutral plane.
@@ -309,11 +323,12 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         onReverse: () => setValues(current => ({ ...current, reverse: !current.reverse })) } : null)
         : edit.command === "pattern" ? patternPreview(values, units)
           : edit.command === "hole" ? holePreview(values, units, editing && !repicked ? null : facePick)
-            : edit.command === "mirror" ? mirrorPreview(values, editing || !faces.length ? null : facePick)
+            : edit.command === "mirror" ? mirrorPreview(values, editing || !faces.length ? planeAt(namedPlane(values.plane)) : facePick)
               // A draft's neutral plane, and its direction of pull.
-              : drafting ? draftPreview(values, neutralFace?.pick || null, edit.state?.bounds)
+              : drafting ? draftPreview(values, neutralFace?.pick || planeAt(namedPlane(values.neutral)), edit.state?.bounds)
                 // A reference plane where it would be, and the way it is offset.
-                : planing ? planePreview(values, editing && !repicked ? null : facePick, edit.state?.bounds, units)
+                : planing ? planePreview(values, (editing && !repicked ? null : facePick) || planeAt(namedPlane(values.reference)),
+                  edit.state?.bounds, units)
               // A sweep's or a loft's sketches, shaded as picked while the server previews what they make.
               : takes && picked.some(Boolean) ? { mark: "picked", sketches: picked.filter(Boolean).map(each => ({ file: each.file, line: each.line })) }
                 : null;
@@ -402,7 +417,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         beside it: the plane the faces keep their size at, and the way the part narrows from it. */}
     {drafting ? <FileSheetSettingsSection title="Neutral Plane" sectionId="edit-command-neutral">
       <SelectionBox items={values.neutral ? [{ key: "neutral", label: ORIGIN_PLANE_NAMES.has(values.neutral) ? `${values.neutral} Plane`
-        : neutralFace ? selectionLabel(neutralFace.item) : "Its face, as written" }] : []}
+        : namedPlane(values.neutral)?.label || (neutralFace ? selectionLabel(neutralFace.item) : "Its face, as written") }] : []}
         prompt="Select a flat face on the model, or a plane in the design tree." onClear={clearNeutral} clearLabel="Clear" />
       {neutralNote ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">{neutralNote}</p> : null}
       <FileSheetCheckboxRow label="Reverse direction" checked={Boolean(values.reverse)} disabled={disabled || !values.neutral}
@@ -412,7 +427,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         an origin plane picked in the design tree; then how far it is offset, and which way. */}
     {planing ? <FileSheetSettingsSection title="First Reference" sectionId="edit-command-reference">
       {faces.length ? <SelectionList items={faces} prompt="" onRemove={removePick} />
-        : <SelectionBox items={values.reference ? [{ key: "reference", label: `${values.reference} Plane` }]
+        : <SelectionBox items={values.reference ? [{ key: "reference", label: namedPlane(values.reference)?.label || `${values.reference} Plane` }]
           : editing && editing.values?.reference === "face" ? [{ key: "reference", label: "Its face, as written" }] : []}
           prompt={command.prompt} />}
       <NumberRow label="Offset distance" value={values.distance} unit={units} disabled={disabled} onChange={set("distance")} />
@@ -520,8 +535,9 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
           disabled={disabled} onChange={set(axis)} />)}
       </> : null}
       {command.id === "mirror" ? faces.length && !editing ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>About the selected face.</p>
-        : <FileSheetSelectRow label="About" value={values.plane} options={editing?.values?.plane === "face" ? [...PLANES, SAME_FACE] : PLANES}
-          onValueChange={set("plane")} /> : null}
+        : <FileSheetSelectRow label="About" value={values.plane} onValueChange={set("plane")}
+          options={[...PLANES, ...planes.map(each => ({ value: each.value, label: each.label })), ...(editing?.values?.plane === "face" ? [SAME_FACE] : [])]} />
+        : null}
       {command.id === "pattern" ? <>
         <FileSheetSelectRow label="Type" value={values.type} options={PATTERNS} onValueChange={set("type")} />
         {values.type === "linear" ? <>

@@ -979,6 +979,21 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     selected = None
     units_word = units if units in ("mm", "in") else ""
 
+    def reference_plane(named: str) -> str:
+        """A reference plane of the part a command names (``named:plane1``), by its name: a new
+        line goes after the plane's own; a feature written again, or one at the rollback bar,
+        needs the plane made above it."""
+        nonlocal at
+        name = named.partition(":")[2]
+        made = next((statement for statement in body.function.body if _assigned(statement) == name), None)
+        if made is None:
+            raise CommandError(f"{name} is not a plane of this part. Pick another.")
+        if (old is not None and made.end_lineno >= old.lineno) or (old is None and bar is not None and made.end_lineno > at):
+            raise CommandError(f"{name} is made below where this goes. Pick another, or move the rollback bar.")
+        if old is None and bar is None:
+            at = max(at, made.end_lineno)
+        return name
+
     def chosen(kind: str, *, one: bool = False, least: int = 1):
         items = [item for item in selection if selector_ordinal(item.get("selector"))[0] == kind]
         if len(items) < least:
@@ -1106,6 +1121,8 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             base, words = f"{names('Plane')}({face})", "a face"
         elif which in ORIGIN_PLANES:
             base, words = f"{names('Plane')}.{ORIGIN_PLANES[which]}", f"the {which} Plane"
+        elif which.startswith("named:"):
+            base = words = reference_plane(which)
         elif kept is not None and kept.parts.get("base"):
             base, words = kept.parts["base"], kept.keeps
         else:
@@ -1137,6 +1154,8 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             plane = f"{names('Plane')}({selections.write('face', plane_numbers, one=True)})"
         elif which in ORIGIN_PLANES:
             plane = f"{names('Plane')}.{ORIGIN_PLANES[which]}"
+        elif which.startswith("named:"):
+            plane = reference_plane(which)
         elif kept is not None and kept.parts.get("neutral"):
             plane = kept.parts["neutral"]
         else:
@@ -1154,6 +1173,9 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             if selections.topology["face"].describe(numbers[0])["type"] != "plane":
                 raise CommandError("A mirror plane is a flat face. Select a flat one, or pick a plane.")
             plane_code, plane_words = f"{names('Plane')}({face})", "a face"
+        elif str(inputs.get("plane") or "").startswith("named:"):
+            # About a reference plane of the part, by its name.
+            plane_code = plane_words = reference_plane(str(inputs["plane"]))
         else:
             plane = str(inputs.get("plane") or "YZ").upper()
             if kept and plane == "FACE" and kept.parts.get("plane"):
@@ -1623,7 +1645,8 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         reverse = isinstance(plane, ast.UnaryOp) and isinstance(plane.op, ast.USub)
         inner = plane.operand if reverse else plane
         origin = {value: key for key, value in ORIGIN_PLANES.items()}
-        neutral = origin.get(inner.attr) if isinstance(inner, ast.Attribute) else "face" if _call_name(inner) == "Plane" else None
+        neutral = (origin.get(inner.attr) if isinstance(inner, ast.Attribute) else "face" if _call_name(inner) == "Plane"
+                   else f"named:{inner.id}" if isinstance(inner, ast.Name) else None)
         if neutral is None:
             return None
         angle = number(("draft", "angle"))
@@ -1634,7 +1657,8 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         # A reference plane, `plane1 = Plane.XY.offset(10)`: from an origin plane, or a face's.
         base = value.func.value
         origin = {axes: plane for plane, axes in ORIGIN_PLANES.items()}
-        reference = origin.get(base.attr) if isinstance(base, ast.Attribute) else "face" if _call_name(base) == "Plane" and base.args else None
+        reference = (origin.get(base.attr) if isinstance(base, ast.Attribute) else "face" if _call_name(base) == "Plane" and base.args
+                     else f"named:{base.id}" if isinstance(base, ast.Name) else None)
         if reference is None:
             return None
         amount = number(("plane", "amount"))
@@ -1643,10 +1667,12 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         held("distance", written.operand if flip else written, typed(abs(amount)) if amount is not None else None,
              _tight(written.operand, text) if flip else None)
         return Feature("plane", {"reference": reference, "distance": size(abs(amount)) if amount is not None else "", "flip": flip},
-                       "a face" if reference == "face" else f"the {reference} Plane", {"base": code(base)}, target, operator, codes)
+                       "a face" if reference == "face" else reference.partition(":")[2] if reference.startswith("named:") else f"the {reference} Plane",
+                       {"base": code(base)}, target, operator, codes)
     if operator in ("+=", "-=") and name == "mirror" and value.args:
         about = _keyword_value(value, "about")
-        plane = about.attr if isinstance(about, ast.Attribute) and about.attr in PLANES else "face"
+        plane = (about.attr if isinstance(about, ast.Attribute) and about.attr in PLANES
+                 else f"named:{about.id}" if isinstance(about, ast.Name) else "face")
         tool = code(value.args[0])
         return Feature("mirror", {"plane": plane}, "Whole body" if tool == target else tool,
                        {"tool": tool, "plane": code(about) if about is not None else ""}, target, operator)

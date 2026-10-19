@@ -233,3 +233,17 @@ it("a plane is offset from the origin plane clicked in the design tree, drawn wh
   await user.click(screen.getByRole('button', { name: 'OK' }));
   expect(plane.run).toHaveBeenCalledWith({ command: 'plane', selection: [], inputs: { reference: 'Front', distance: '5', flip: true } });
 });
+
+it("a reference plane clicked in the design tree is a draft's neutral plane, by the name the script holds it in", async () => {
+  const user = userEvent.setup();
+  const tree = { assembly: false, features: [{ id: 'block.py:7', kind: 'Plane', title: 'Plane1', variable: 'plane1', rows: [],
+    plane: { origin: [0, 0, 2], x: [1, 0, 0], z: [0, 0, 1] } }] };
+  const draft = { ...edit('draft', 'block.py:7'), state: { units: 'mm', rows: ROWS, bounds: [[-10, -5, -2], [10, 5, 2]] } };
+  render(<EditCommand edit={draft as never} names={NAMES} references={[SIDE]} tree={tree} />);
+  expect(screen.getByText('Plane1')).toBeTruthy();
+  // The block lies under the plane: the pull goes down into it.
+  await waitFor(() => expect(draft.setPreview).toHaveBeenLastCalledWith({ mark: 'draft', center: [0, 0, 2], normal: [0, 0, 1], at: [0, 0, 2],
+    pull: [0, 0, -1] }));
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(draft.run).toHaveBeenCalledWith({ command: 'draft', selection: [SIDE_ITEM], inputs: { angle: '1', neutral: 'named:plane1', reverse: true } });
+});

@@ -1104,6 +1104,35 @@ class Planes(Commands):
         self.assertIn('    sketch1 = Sketch("Sketch1", plane=plane1)\n', script.read_text(encoding="utf-8"))
         self.assertEqual(sketched["sketch"]["state"]["frame"]["origin"], [0, 0, -4])
 
+    def test_a_reference_plane_is_what_another_plane_and_a_mirror_go_from(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "plane", (), {"reference": "Right", "distance": "15"})
+        self.assertTrue(made["ok"], made.get("error"))
+        more = self.command(file, made, "plane", (), {"reference": "named:plane1", "distance": "5"})
+        self.assertTrue(more["ok"], more.get("error"))
+        mirrored = self.command(file, more, "mirror", (), {"plane": "named:plane1"})
+        self.assertTrue(mirrored["ok"], mirrored.get("error"))
+        text = (root / "block.py").read_text(encoding="utf-8")
+        self.assertIn("    plane2 = plane1.offset(5)\n", text)
+        self.assertIn("    part += mirror(part, about=plane1)\n", text)
+        edits = {feature["kind"]: feature["edit"]["values"] for feature in mirrored["features"] if feature.get("edit")}
+        self.assertEqual(edits["Mirror"], {"plane": "named:plane1"})
+        self.assertEqual(next(feature["edit"]["values"]["reference"] for feature in mirrored["features"]
+                              if feature["kind"] == "Plane" and feature["name"] == "plane2"), "named:plane1")
+        missing = self.command(file, mirrored, "mirror", (), {"plane": "named:plane9"})
+        self.assertFalse(missing["ok"])
+        self.assertIn("plane9 is not a plane of this part", missing["error"])
+
+    def test_a_draft_keeps_its_size_at_a_reference_plane(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "plane", (), {"reference": "Top", "distance": "2"})
+        drafted = self.service.change({"file": file, "files": made["files"], "command": {
+            "command": "draft", "selection": BLOCK_SIDES, "inputs": {"angle": "3", "neutral": "named:plane1", "reverse": True}}})
+        self.assertTrue(drafted["ok"], drafted.get("error"))
+        self.assertRegex((root / "block.py").read_text(encoding="utf-8"), r"part = draft\(part\.faces\(\)[^\n]+, -plane1, 3\)\n")
+        draft = next(feature for feature in drafted["features"] if feature["kind"] == "Draft")
+        self.assertEqual(draft["edit"]["values"]["neutral"], "named:plane1")
+
     def test_a_plane_off_a_face_stands_out_of_the_part(self):
         root, file, state = self.open(BLOCK, "block.step")
         made = self.command(file, state, "plane", BLOCK_TOP, {"distance": "3"})

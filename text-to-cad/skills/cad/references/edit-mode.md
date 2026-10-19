@@ -67,7 +67,9 @@ by hand" below.
 - **Plane** (Reference Geometry) is a line of its own, offset from an origin plane or a flat face
   of the body: `plane1 = bd.Plane.XY.offset(10)`, `plane2 = bd.Plane(<face>).offset(-.25*INCH)`
   (a face's plane faces out of the part; a minus flips it). The tree lists it as Plane1, and a
-  sketch goes on it by its name: `sketch4 = Sketch("Sketch4", plane=plane1)`. A line that only
+  sketch goes on it by its name: `sketch4 = Sketch("Sketch4", plane=plane1)`, as do a mirror
+  (`about=plane1`), a draft's neutral plane (`draft(<faces>, plane1, 2)`) and another plane
+  (`plane2 = plane1.offset(5)`), each written after the plane's own line. A line that only
   offsets a plane reads as a Plane; one that offsets a plane to place something reads as what it
   places.
 - **Draft** tilts the faces picked by an angle about where they meet the neutral plane, a flat

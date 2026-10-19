@@ -27,6 +27,7 @@ import {
   editingValues,
   planeDetail,
   planePreview,
+  referencePlanes,
   appearanceNote,
   renameNote,
   draggedDepth,
@@ -582,4 +583,17 @@ test("a reference plane is offset from an origin plane picked in the tree, or fr
   assert.equal(planePreview({ reference: "Top", distance: "OFFSET" }, null, bounds), null);
   assert.equal(planeDetail({ edit: { values: { reference: "Top", distance: "10", flip: true } } }, "mm"), "Top Plane, -10 mm");
   assert.equal(planeDetail({ edit: { values: { reference: "face", distance: ".5", flip: false } } }, "in"), "Face, .5 in");
+});
+
+test("the part's reference planes are what a mirror, a draft or a plane can go from, by the names the script holds them in", () => {
+  const state = { features: [
+    { key: "a.py:6", kind: "Boss-Extrude", name: "part", file: "a.py", line: 6 },
+    { key: "a.py:7", kind: "Plane", name: "plane1", file: "a.py", line: 7, named: "Lid line",
+      plane: { origin: [0, 0, 10], x: [1, 0, 0], z: [0, 0, 1] } },
+  ] };
+  const [lid] = referencePlanes(featureTree(state));
+  assert.deepEqual(lid, { id: "a.py:7", value: "named:plane1", label: "Lid line", plane: { origin: [0, 0, 10], x: [1, 0, 0], z: [0, 0, 1] } });
+  // A part under the plane pulls down from it.
+  assert.equal(draftReversed(null, [[-10, -5, 0], [10, 5, 4]], lid.plane), true);
+  assert.equal(draftReversed(null, [[-10, -5, 12], [10, 5, 20]], lid.plane), false);
 });

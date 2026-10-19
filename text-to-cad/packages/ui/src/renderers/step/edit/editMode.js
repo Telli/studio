@@ -103,8 +103,10 @@ export function featureTree(state) {
         sketch: feature.sketch ? sketchOf(feature, `sketch:${feature.key}`) : null,
         // What Edit Feature opens the feature's command with, when a command writes its line.
         edit: feature.edit || null,
-        // A reference Plane's place (its origin and axes), for the view to draw it.
+        // A reference Plane's place (its origin and axes), for the view to draw it, and the name
+        // the script holds it in, which a command going from it writes.
         plane: feature.plane || null,
+        variable: feature.name || null,
         // Set aside by Suppress: its lines are comments in the script, shown greyed where they are.
         suppressed: Boolean(feature.suppressed),
       };
@@ -381,12 +383,25 @@ const PLANE_AXES = Object.freeze({ Top: "XY", Front: "XZ", Right: "YZ" });
  * Whether a draft about an origin plane starts reversed: its direction of pull is the plane's
  * normal turned toward the part, so the part keeps its size at the plane and narrows away from it.
  */
-export function draftReversed(plane, bounds) {
-  const normal = PLANE_NORMALS[plane];
+export function draftReversed(plane, bounds, placed = null) {
+  // An origin plane by its name, or a reference plane by where it is (`placed`: its origin and z).
+  const normal = placed?.z || PLANE_NORMALS[plane];
   if (!normal || !bounds) return false;
-  const middle = [0, 1, 2].map(axis => (bounds[0][axis] + bounds[1][axis]) / 2);
+  const origin = placed?.origin || [0, 0, 0];
+  const middle = [0, 1, 2].map(axis => (bounds[0][axis] + bounds[1][axis]) / 2 - origin[axis]);
   return normal[0] * middle[0] + normal[1] * middle[1] + normal[2] * middle[2] < -1e-9;
 }
+
+/**
+ * The part's reference planes (Plane1), as a command that goes from a plane lists them: a mirror's,
+ * a draft's neutral plane, another plane's reference. Each is `named:plane1` by the name the
+ * script holds it in, with its title in the tree, its id there, and where it is.
+ */
+export const referencePlanes = tree => treeFeatures(tree).filter(feature => feature.kind === "Plane" && feature.variable && feature.plane)
+  .map(feature => ({ id: feature.id, value: `named:${feature.variable}`, label: feature.title, plane: feature.plane }));
+
+/** A reference plane's place as a face's is given to a preview: its `center` and `normal`. */
+export const planeAt = named => (named?.plane ? { center: named.plane.origin, normal: named.plane.z } : null);
 
 /**
  * A draft's neutral plane and its direction of pull, for the view to draw while Draft is open: the
