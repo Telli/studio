@@ -141,6 +141,11 @@ by hand" below.
   lists its parts (Daisy tray<1>), and Open Part (double-click, or the part's menu) opens the part's
   own model in the view, where its features, sketches and commands are. The ribbon's modeling
   commands are off in an assembly, as in SolidWorks.
+- **Compare** (the ribbon's Inspect group, as SolidWorks' Compare Geometry) lists the versions of
+  the part edit mode read this session, newest first (each a change the agent or a hand edit made,
+  named by the files that changed after it); one picked draws the material the part has gained
+  since it in amber and what it has lost in red, with their volumes. It writes nothing; edit mode
+  keeps the last 12 versions while the viewer runs.
 - **Make Drawing** (the ribbon's Drawing group, in a part) writes `<name>_drawing.py` beside the
   part from the engineering drawing skill's template: it reads the part's STEP, puts top, front and
   right views in third angle and an isometric on an A3 sheet, each with its overall size, and is run

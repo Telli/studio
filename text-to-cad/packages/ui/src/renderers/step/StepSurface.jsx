@@ -3724,6 +3724,9 @@ function StepSurfaceBody({ view, data }) {
           onEdit={sketchesPickable && !edit.command ? view => openTreeSketch({ file: view.file, line: view.line, title: view.name }) : null}
           through={partExtent} /> : null}
         {editing && edit.inspecting === "mass" && massMark ? <PreviewLayer viewport={viewport} preview={null} mark={massMark} extent={partExtent} /> : null}
+        {/* Compare: what the part gained since the version picked, amber, and what it lost, red. */}
+        {editing && edit.inspecting === "compare" && edit.comparison?.shown
+          ? <PreviewLayer viewport={viewport} preview={edit.comparison.shown} mark={null} extent={partExtent} /> : null}
         {editing && edit.command && (edit.featurePreview || ["pattern", "hole", "draft", "plane"].includes(edit.preview?.mark))
           ? <PreviewLayer viewport={viewport} preview={edit.featurePreview} mark={edit.preview?.mark ? edit.preview : null} extent={partExtent} />
           : null}

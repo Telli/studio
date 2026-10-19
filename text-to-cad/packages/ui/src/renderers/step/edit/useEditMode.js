@@ -113,6 +113,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [featurePreview, setFeaturePreview] = useState(null);
   // What the Inspect group has open beside the commands: Mass Properties ("mass"), and its numbers.
   const [inspecting, setInspecting] = useState(null);
+  // Compare's versions of the part, and what the one picked shows (`shown`, as a preview draws it).
+  const [comparison, setComparison] = useState(null);
   // The design tree's row being renamed in place (its id), as F2 or its menu's Rename opens one.
   const [renaming, setRenaming] = useState(null);
   const [mass, setMass] = useState(null);
@@ -467,6 +469,22 @@ export function useEditMode({ client, file, active, reading = true }) {
   const paint = useCallback(color => send({ appearance: { color } }, { note: answer => appearanceNote(answer.change) }), [send]);
   // Mate, as SolidWorks' places an assembly's parts: a mate made from two picks, or taken out by its label.
   const mate = useCallback(spec => send({ mate: spec }, { note: answer => mateNote(answer.change) }), [send]);
+  // Compare, as SolidWorks' Compare Geometry: the versions of the part read this session, and with one
+  // picked, the material the part has gained (amber) and lost (red) since it. Nothing is written.
+  const compare = useCallback(async (version = null) => {
+    if (!supported || !file) return null;
+    try {
+      const reply = await client.editChange({ compare: version === null ? {} : { version }, file, files: files.current || undefined });
+      if (!reply.ok) { setError(reply.error || "The part could not be compared."); return reply; }
+      const made = reply.compare;
+      setComparison({ ...made, shown: made.version ? { status: "ready", added: made.added || null, removed: made.removed || null } : null });
+      return reply;
+    } catch (failure) {
+      setError(describe(failure));
+      return null;
+    }
+  }, [client, file, supported]);
+  useEffect(() => { if (inspecting !== "compare") setComparison(null); }, [inspecting]);
   // Make Drawing, and the Drawing panel's sheet: the part's drawing script written and drawn to its PDF.
   const drawing = useCallback(spec => send({ drawing: spec }, { record: false, note: answer => drawingNote(answer.change) }), [send]);
 
@@ -575,7 +593,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
-    inspecting, mass, renaming, rename, paint, mate, drawing,
+    inspecting, mass, renaming, rename, paint, mate, drawing, comparison, compare,
     startRename: id => { if (id) setRenaming(id); },
     stopRename: () => setRenaming(null),
     inspect: what => { setCommand(null); endEditing(); setPicking(false); setPreview(null); dropPreview(); setInspecting(what); },

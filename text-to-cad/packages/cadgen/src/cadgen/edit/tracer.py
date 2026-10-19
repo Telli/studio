@@ -32,6 +32,7 @@ import re
 import sys
 import tempfile
 import textwrap
+import time
 import traceback
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -812,6 +813,9 @@ def display(value_mm, units):
 # A trace: the timeline, the sizes and the dimensions of one part.
 
 STATE: dict[str, dict] = {}
+# The part as each trace read it, by script, newest last: what Compare goes back to (`compare`).
+VERSIONS: dict[str, list[dict]] = {}
+_VERSION_COUNT = 12
 """The last trace of each script, kept so an edit can solve against it."""
 
 
@@ -1719,6 +1723,7 @@ def trace(request):
     ]
     params.sort(key=lambda p: (p["file"], p["line"]))
     # The body and its making, for a command to act on (`commands.py`).
+    _keep_version(str(script), shape, components)
     STATE[str(script)] = {"dimensions": {d["id"]: d for d in dimensions}, "rows": rows, "units": units,
                           "shape": shape, "steps": steps, "level": level}
     # What a move of the rollback bar alone needs of this trace, while its files read the same.
@@ -1812,7 +1817,8 @@ def _solve(expr, leaf, target):
 
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
-_CHANGES = ("command", "preview", "mass", "rename", "appearance", "mate", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
+_CHANGES = ("command", "preview", "mass", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
+            "input")
 
 
 def edit(request):
@@ -1838,6 +1844,8 @@ def edit(request):
         return appearance(request)
     if isinstance(request.get("mate"), dict):
         return mate(request)
+    if isinstance(request.get("compare"), dict):
+        return compare(request)
     script = str(Path(request["script"]).resolve())
     if script not in STATE:
         traced = trace(request)
@@ -2506,6 +2514,59 @@ def appearance(request):
         "redo": {"file": body.rel, "hunks": commands.hunks(old, text)},
     }
     return after
+
+
+def _keep_version(script: str, shape, components) -> None:
+    """The part as this trace read it, kept for Compare when its files read differently from the
+    last one kept: each agent's change, and each hand edit, is one."""
+    if components or not isinstance(shape, B.Shape):
+        return
+    kept = VERSIONS.setdefault(script, [])
+    if kept and kept[-1]["files"] == FILES:
+        return
+    number = kept[-1]["id"] + 1 if kept else 1
+    kept.append({"id": number, "time": time.time(), "files": dict(FILES), "shape": shape})
+    del kept[:-_VERSION_COUNT]
+
+
+def compare(request):
+    """Compare, as SolidWorks' Compare Geometry shows what changed: the versions of the part this
+    session read (each agent's change, each hand edit), newest first, and with ``version`` the
+    material the part has gained since it (``added``, amber) and lost (``removed``, red), with their
+    volumes."""
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    if traced.get("components"):
+        return {"ok": False, "error": "Compare shows a part's changes. Open a part to compare it."}
+    script = str(Path(request["script"]).resolve())
+    kept = VERSIONS.get(script) or []
+    if not kept:
+        return {"ok": False, "error": "This part makes no body to compare yet."}
+    now = kept[-1]
+
+    def changed(older, newer):
+        return sorted(rel for rel in {*older["files"], *newer["files"]} if older["files"].get(rel) != newer["files"].get(rel))
+
+    listed = [{"id": each["id"], "time": each["time"], "changed": changed(each, kept[index + 1])}
+              for index, each in enumerate(kept[:-1])][::-1]
+    reply = {"ok": True, "compareOnly": True, "compare": {"versions": listed, "now": now["id"]}}
+    wanted = (request["compare"] or {}).get("version")
+    if wanted is None:
+        return reply
+    then = next((each for each in kept if each["id"] == wanted), None)
+    if then is None:
+        return {"ok": False, "error": "That version is no longer kept. Pick another."}
+    scale = max(now["shape"].bounding_box().diagonal, then["shape"].bounding_box().diagonal) or 1.0
+    shown = _change_drawn(then["shape"], now["shape"], scale)
+    try:
+        added = sum(solid.volume for solid in (now["shape"] - then["shape"]).solids())
+        removed = sum(solid.volume for solid in (then["shape"] - now["shape"]).solids())
+    except Exception:  # noqa: BLE001 - a boolean the kernel cannot settle leaves the volumes unsaid
+        added = removed = None
+    reply["compare"].update(version=wanted, added=shown["added"], removed=shown["removed"], error=shown["error"],
+                            addedVolume=added, removedVolume=removed)
+    return reply
 
 
 def _mates_of(script, components) -> list:

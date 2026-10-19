@@ -53,6 +53,8 @@ import {
   restates,
   rolledBack,
   mateNote,
+  timeAgo,
+  compareVolume,
   drawingNote,
   sameValues,
   selectionItems,
@@ -615,6 +617,15 @@ test("a reference plane is offset from an origin plane picked in the tree, or fr
     { reference: "Front", distance: "5", flip: false, angle: "30", about: "y" });
   assert.equal(planeDetail({ edit: { values: { reference: "Top", distance: "10", flip: false, angle: "15", about: "y" } } }, "mm"),
     "Top Plane, 10 mm, 15° about Y");
+});
+
+test("compare says when a version was read and how much material changed, in the part's units", () => {
+  assert.equal(timeAgo(1000, 1030), "just now");
+  assert.equal(timeAgo(1000, 1000 + 240), "4 min ago");
+  assert.equal(timeAgo(1000, 1000 + 7200), "2 h ago");
+  assert.equal(compareVolume(4.2920367), "4.29 mm³");
+  assert.equal(compareVolume(16387.064, "in"), "1 in³");
+  assert.equal(compareVolume(null), "-");
 });
 
 test("the agent is told of a drawing made or its sheet changed, and the PDF it wrote", () => {

@@ -1353,6 +1353,24 @@ class Mates(Commands):
         self.assertIn("round faces or circular edges", refused["error"])
 
 
+class Comparing(Commands):
+    """Compare, as SolidWorks' Compare Geometry: what the part gained and lost since a version edit mode read."""
+
+    def test_compare_lists_the_versions_read_and_shows_what_the_part_lost_since_one(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "fillet", BLOCK_TOP_EDGES[:1], {"radius": "1"})
+        self.assertTrue(made["ok"], made.get("error"))
+        listed = self.service.change({"file": file, "files": made["files"], "compare": {}})
+        self.assertTrue(listed["ok"], listed.get("error"))
+        versions = listed["compare"]["versions"]
+        self.assertEqual([version["changed"] for version in versions], [["block.py"]])
+        shown = self.service.change({"file": file, "files": made["files"], "compare": {"version": versions[0]["id"]}})["compare"]
+        # A 1 mm round along a 20 mm edge takes away (1 - pi/4) square mm all along it, and adds nothing.
+        self.assertAlmostEqual(shown["removedVolume"], 20 * (1 - math.pi / 4), places=3)
+        self.assertEqual((shown["addedVolume"], shown["added"]), (0, None))
+        self.assertTrue(shown["removed"]["triangles"])
+
+
 class Drawings(Commands):
     """Make Drawing, as SolidWorks' Make Drawing from Part, and the Drawing panel's sheet: a drawing
     script beside the part, run to its PDF."""

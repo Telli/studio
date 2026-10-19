@@ -197,6 +197,13 @@ export const MassPropertiesIcon = ({ className }) => <Icon className={className}
   <circle cx="12" cy="6" r="2.4" style={{ fill: "none", stroke: "var(--cad-solid-edge)", strokeWidth: 1.4 }} />
 </Icon>;
 
+/** Compare: a part as it was, outlined, and as it is now beside it, what it gained shaded. */
+export const CompareIcon = ({ className }) => <Icon className={className}>
+  <path d="M3 9h10v10H3z" style={{ fill: "none", stroke: "var(--cad-solid-edge)", strokeWidth: 1.25, strokeDasharray: "2 1.6" }} />
+  <path d="M9 5h11v11H9z" style={SOLID} />
+  <path d="M9 9h4v7H9z" style={CUT} opacity={0.75} />
+</Icon>;
+
 /** A drawing: a sheet with a view on it and its title block. */
 export const DrawingIcon = ({ className }) => <Icon className={className}>
   <path d="M3 4h18v16H3z" style={{ fill: "var(--background)", stroke: "var(--cad-solid-edge)", strokeWidth: 1.25 }} />

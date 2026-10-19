@@ -13,7 +13,7 @@ import { Progress } from "@text-to-cad/ui/primitives/progress";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { AppearanceIcon, COMMAND_ICONS, DrawingIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
+import { AppearanceIcon, COMMAND_ICONS, CompareIcon, DrawingIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
 import { COMMAND_GROUPS, EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_TOOLS } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
@@ -281,7 +281,11 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
       // Inspect, as SolidWorks' Evaluate tab: Measure, Section, and Mass Properties.
       ...(group.title === "Inspect" ? [{ id: "mass", label: "Mass Properties", icon: <MassPropertiesIcon aria-hidden="true" />,
         active: edit.inspecting === "mass", disabled: edit.status !== "ready",
-        onClick: () => (edit.inspecting === "mass" ? edit.stopInspecting() : edit.inspect("mass")) }] : [])] })),
+        onClick: () => (edit.inspecting === "mass" ? edit.stopInspecting() : edit.inspect("mass")) },
+      // Compare, as SolidWorks' Compare Geometry: what the part gained and lost since a version of it.
+      ...(placing ? [] : [{ id: "compare", label: "Compare", icon: <CompareIcon aria-hidden="true" />,
+        active: edit.inspecting === "compare", disabled: edit.status !== "ready",
+        onClick: () => (edit.inspecting === "compare" ? edit.stopInspecting() : edit.inspect("compare")) }])] : [])] })),
     // Display, as SolidWorks' Edit Appearance colors the part (an assembly's parts are colored in
     // their own) and Normal To turns the view to a face or a plane selected.
     { title: "Display", items: [

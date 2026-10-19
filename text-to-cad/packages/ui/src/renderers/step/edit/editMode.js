@@ -1007,6 +1007,22 @@ export function appearanceNote(change, { undo = false, redo = false } = {}) {
   return `In edit mode I colored the part ${change.color}${redo ? " again" : ""} ${where}.`;
 }
 
+/** How long ago a time was (seconds since the epoch), as a version list says it: "just now", "4 min ago", "2 h ago". */
+export function timeAgo(time, now = Date.now() / 1000) {
+  const seconds = Math.max(0, now - time);
+  if (seconds < 45) return "just now";
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;
+  return `${Math.round(seconds / 3600)} h ago`;
+}
+
+/** A volume a comparison found, in the part's units cubed: "4.29 mm³", "0.26 in³"; a dash when it could not be worked out. */
+export function compareVolume(volume, units = "mm") {
+  if (typeof volume !== "number" || !Number.isFinite(volume)) return "-";
+  const inches = units === "in";
+  const value = inches ? volume / 25.4 ** 3 : volume;
+  return `${Number(value.toFixed(inches ? 4 : 2))} ${inches ? "in" : "mm"}³`;
+}
+
 /** What the agent is told of Make Drawing or a change to the drawing's sheet: what was done, and the PDF it wrote. */
 export function drawingNote(change) {
   return `In edit mode I ${change.words} (${change.file}); it wrote ${change.pdf}.`;
