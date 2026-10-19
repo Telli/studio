@@ -1006,6 +1006,49 @@ class Drafts(Commands):
         self.assertIn("less than 90 degrees", steep["error"])
 
 
+class Renaming(Commands):
+    """Rename, as SolidWorks' design tree renames a feature: the name kept as the comment at the end
+    of the feature's line, a sketch's as its Sketch's own; nothing built, and Undo puts it back."""
+
+    def rename(self, file: str, state: dict, **spec) -> dict:
+        return self.service.change({"file": file, "files": state["files"], "rename": spec})
+
+    def test_a_feature_is_named_at_the_end_of_its_line_and_keeps_its_name_through_edit_feature(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.command(file, state, "fillet", BLOCK_TOP_EDGES, {"radius": "1"})
+        fillet = next(feature for feature in made["features"] if feature["kind"] == "Fillet")
+        renamed = self.rename(file, made, feature=fillet["key"], name="  Top  edge round ", title="Fillet1")
+        self.assertTrue(renamed["ok"], renamed.get("error"))
+        script = root / "block.py"
+        self.assertIn(", radius=1)  # Top edge round\n", script.read_text(encoding="utf-8"))
+        self.assertEqual(next(feature for feature in renamed["features"] if feature["kind"] == "Fillet")["named"], "Top edge round")
+        self.assertEqual((renamed["change"]["kind"], renamed["change"]["build"]), ("rename", False))
+        # Edit Feature writes its line again, its name with it.
+        spec = {"command": "fillet", "inputs": {"radius": "0.5"}, "replace": {"row": fillet["key"]}}
+        edited = self.service.change({"file": file, "command": spec, "files": renamed["files"]})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertIn(", radius=0.5)  # Top edge round\n", script.read_text(encoding="utf-8"))
+        # No name gives it back the tree's own; Undo puts the name back.
+        cleared = self.rename(file, edited, feature=fillet["key"], name="", title="Top edge round")
+        self.assertTrue(cleared["ok"], cleared.get("error"))
+        self.assertNotIn("#", script.read_text(encoding="utf-8"))
+        undone = self.service.change({"file": file, "splice": cleared["change"]["undo"], "files": cleared["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertIn("  # Top edge round\n", script.read_text(encoding="utf-8"))
+
+    def test_a_sketch_is_renamed_on_its_own_line_and_no_two_share_a_name(self):
+        root, file, state = self.open(SKETCHED, "bracket.step")
+        renamed = self.rename(file, state, sketch=sketch("Sketch2", 11), name="Handle path", title="Sketch2")
+        self.assertTrue(renamed["ok"], renamed.get("error"))
+        self.assertIn('    sketch2 = Sketch("Handle path", plane="Front")\n', (root / "bracket.py").read_text(encoding="utf-8"))
+        taken = self.rename(file, renamed, sketch=sketch("Sketch3", 15), name="handle path", title="Sketch3")
+        self.assertFalse(taken["ok"])
+        self.assertIn("Another feature is named handle path", taken["error"])
+        unnamed = self.rename(file, renamed, sketch=sketch("Sketch3", 15), name=" ", title="Sketch3")
+        self.assertFalse(unnamed["ok"])
+        self.assertIn("A sketch needs a name", unnamed["error"])
+
+
 class Assemblies(Commands):
     """An assembly places its parts: each is modeled on its own, opened from the design tree."""
 

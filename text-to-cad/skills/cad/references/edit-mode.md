@@ -122,6 +122,11 @@ by hand" below.
   lists its parts (Daisy tray<1>), and Open Part (double-click, or the part's menu) opens the part's
   own model in the view, where its features, sketches and commands are. The ribbon's modeling
   commands are off in an assembly, as in SolidWorks.
+- **Rename** (a row's menu, or F2) names a feature as the engineer calls it: the name is the
+  comment at the end of the feature's line (`part -= ...  # Cable notch`), which the design tree
+  shows in place of Cut-Extrude2 and Edit Feature keeps; a sketch's is its own
+  (`Sketch("Cable notch", ...)`). A hole of a standard size is named by its callout until renamed.
+  No two features share a name, and nothing is built.
 - **Mass Properties** (the ribbon's Inspect group, beside Measure and Section) weighs the part as
   it is, at the rollback bar when it is up: its volume, surface area, center of mass (marked on
   the model) and overall size, worked out from its solids, and its mass in a material of cadgen's

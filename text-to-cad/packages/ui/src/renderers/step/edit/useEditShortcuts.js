@@ -4,7 +4,7 @@ import { isEditableTarget } from "../../kit/viewport/dom.js";
 
 /**
  * Undo and Redo from the keyboard while edit mode is up, as a CAD tool takes them: Cmd+Z (Ctrl+Z),
- * and Shift+Cmd+Z or Ctrl+Y. Only the viewer that owns the key acts on it, as the viewer's own
+ * and Shift+Cmd+Z or Ctrl+Y; and F2, Rename on what the design tree has selected. Only the viewer that owns the key acts on it, as the viewer's own
  * shortcuts decide (`kit/shell/useViewerShortcuts.js`): focus inside it, or the page background
  * after the last press was inside it. A text field keeps its own Undo.
  *
@@ -21,7 +21,18 @@ export function useEditShortcuts(edit, active) {
     const onPointerDown = event => { pointerInside = Boolean(viewerElement?.current?.contains(event.target)); };
     const onKeyDown = event => {
       const element = viewerElement?.current;
-      if (!element || event.defaultPrevented || event.altKey || !(event.metaKey || event.ctrlKey)) return;
+      if (!element || event.defaultPrevented || event.altKey) return;
+      // F2 renames what is selected in the design tree, as in SolidWorks.
+      if (event.key === "F2" && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+        const target = event.target;
+        const inViewer = target instanceof Node && element.contains(target);
+        const background = target === document.body || target === document.documentElement || target === document;
+        if ((!inViewer && !(background && pointerInside)) || isEditableTarget(target) || !latest.current.selected) return;
+        event.preventDefault();
+        latest.current.startRename?.(latest.current.selected);
+        return;
+      }
+      if (!(event.metaKey || event.ctrlKey)) return;
       const key = event.key.toLowerCase();
       const redo = (key === "z" && event.shiftKey) || (key === "y" && event.ctrlKey && !event.metaKey && !event.shiftKey);
       if (key !== "z" && !redo) return;

@@ -25,6 +25,7 @@ import {
   deleteNote,
   deleteRefusal,
   editingValues,
+  renameNote,
   draggedDepth,
   emptyHistory,
   extrudePreview,
@@ -542,4 +543,11 @@ test("Mass Properties read in the part's units, its mass in the material picked"
   assert.deepEqual([inch[0].value, inch[1].value, inch[3].value, inch[6].value],
     ["3.121 oz (88.49 g)", "2 in³", "1 in", "2 x 1 x 1 in"]);
   assert.equal(massRows({ ...block, volume: 1e6 }, "mm", 7.85)[0].value, "7.85 kg");
+});
+
+test("a rename tells the agent the names before and after, and a name taken off says so", () => {
+  const change = { kind: "rename", title: "Fillet1", name: "Top edge round", file: "block.py", line: 7 };
+  assert.equal(renameNote(change), "In edit mode I renamed Fillet1 to Top edge round (block.py, line 7).");
+  assert.equal(renameNote({ ...change, name: "" }), "In edit mode I gave Fillet1 back the design tree's own name (block.py, line 7).");
+  assert.equal(renameNote(change, { undo: true }), "In edit mode I took back renaming Fillet1 (block.py, line 7).");
 });

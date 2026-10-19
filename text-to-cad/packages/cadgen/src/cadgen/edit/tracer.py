@@ -1362,6 +1362,11 @@ def _editable(features, rows, steps, sketches, units):
         statement = commands._top_statement(function, row["line"]) if function is not None else None
         if statement is None or statement.lineno != row["line"]:
             continue
+        # A name given in the design tree: the comment at the end of the feature's line (a hole's
+        # Hole Wizard callout reads as one too, as SolidWorks names a hole by its size).
+        named = commands.trailing_comment(text, statement)
+        if named:
+            feature["named"] = named
         read = commands.read_feature(statement, text, commands.recorded_numbers([steps[index] for index in row["steps"]]), units)
         if read is None:
             continue
@@ -1728,7 +1733,7 @@ def _solve(expr, leaf, target):
 
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
-_CHANGES = ("command", "preview", "mass", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
+_CHANGES = ("command", "preview", "mass", "rename", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
 
 
 def edit(request):
@@ -1748,6 +1753,8 @@ def edit(request):
         return remove(request)
     if isinstance(request.get("suppress"), dict):
         return suppress(request)
+    if isinstance(request.get("rename"), dict):
+        return rename(request)
     script = str(Path(request["script"]).resolve())
     if script not in STATE:
         traced = trace(request)
@@ -2250,6 +2257,85 @@ def suppress(request):
         "title": title,
         "file": rel,
         "line": first,
+        "undo": {"file": rel, "hunks": commands.hunks(new, old)},
+        "redo": {"file": rel, "hunks": commands.hunks(old, new)},
+    }
+    return after
+
+
+def rename(request):
+    """Rename, on a feature or a sketch of the design tree, as SolidWorks' tree renames one: a
+    feature's name is the comment at the end of its line (``part -= ...  # Cable notch``), and an
+    empty name gives it back the tree's own (Cut-Extrude2); a sketch's is its Sketch's own name
+    (``Sketch("Cable notch", ...)``). No two share a name. Nothing is built: the part is the same."""
+    from cadgen.edit import commands, sketching
+
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    spec = request["rename"]
+    title = str(spec.get("title") or "That feature")
+    name = " ".join(str(spec.get("name") or "").split())
+    if len(name) > 60:
+        return {"ok": False, "error": "A name is 60 characters at most."}
+    features = traced["features"] or [feature for component in traced["components"] for feature in component["features"]]
+    taken = {str(feature.get("named") or "").lower() for feature in features}
+    taken |= {str((feature.get("sketch") or {}).get("name") or "").lower() for feature in features}
+    if name and name.lower() in taken - {title.lower()}:
+        return {"ok": False, "error": f"Another feature is named {name}. Pick another name."}
+    drawn = spec.get("sketch") if isinstance(spec.get("sketch"), dict) else None
+    if drawn:
+        rel, line = str(drawn.get("file") or ""), int(drawn.get("line") or 0)
+    else:
+        feature = next((each for each in features if each["key"] == str(spec.get("feature") or "")), None)
+        if feature is None:
+            return {"ok": False, "error": f"{title} is no longer in the design tree. Look again."}
+        rel, line = str(feature.get("file") or ""), int(feature.get("line") or 0)
+    path = (ROOT / rel).resolve()
+    try:
+        path.relative_to(ROOT)
+    except ValueError:
+        return {"ok": False, "error": f"{title} is not made in this project, so edit mode cannot rename it."}
+    old = _read(path)
+    try:
+        tree = ast.parse(old)
+        if drawn:
+            if not name:
+                return {"ok": False, "error": "A sketch needs a name."}
+            block = sketching.find_block(old, line, str(path))
+            call = next((node for node in ast.walk(block.body[block.start]) if isinstance(node, ast.Call)
+                         and getattr(node.func, "id", getattr(node.func, "attr", None)) == "Sketch"), None)
+            if call is None or not call.args or not isinstance(call.args[0], ast.Constant):
+                return {"ok": False, "error": f"{title} is named in a way edit mode cannot change. Ask the agent to rename it."}
+            new = commands.Edits(old)
+            new.put(call.args[0].lineno, call.args[0].col_offset, json.dumps(name), until=call.args[0].end_col_offset)
+            new = new.apply()
+        else:
+            functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                         and node.lineno <= line <= node.end_lineno]
+            function = max(functions, key=lambda node: node.lineno, default=None)
+            statement = commands._top_statement(function, line) if function is not None else None
+            if statement is None:
+                return {"ok": False, "error": f"{title} is made in a way edit mode cannot rename. Ask the agent to rename it."}
+            new = commands.with_comment(old, statement, name)
+    except (SyntaxError, sketching.SketchEditError) as error:
+        return {"ok": False, "error": f"{rel} could not be read to rename {title} ({error})."}
+    _write(path, new)
+    after = trace(request)
+    if not after.get("ok"):
+        _write(path, old)
+        trace(request)
+        return {"ok": False, "error": f"The part does not read with {title} renamed, so nothing changed."}
+    after["change"] = {
+        "kind": "rename",
+        "title": title,
+        "name": name,
+        "file": rel,
+        "line": line,
+        "build": False,
         "undo": {"file": rel, "hunks": commands.hunks(new, old)},
         "redo": {"file": rel, "hunks": commands.hunks(old, new)},
     }

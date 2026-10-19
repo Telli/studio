@@ -711,6 +711,28 @@ ORIGIN_PLANES = {"Top": "XY", "Front": "XZ", "Right": "YZ"}
 DRAFTED = ("plane", "cylinder", "cone")
 # A hole's callout, as Hole Wizard's sizes word one: a screw's size, what the hole is for, its fit.
 _CALLOUT = re.compile(r"^[A-Za-z0-9#./ ,-]{1,60}$")
+# A callout Hole Wizard wrote, rather than a name the engineer gave the hole.
+_SIZED = re.compile(r"^(M[\d.]+|#\d+-\d+|\d+/\d+-\d+)(?:x[\d.]+)? (clearance hole|socket head counterbore|flat head countersink|tapped hole)"
+                    r"(?:, (close|normal|loose) fit)?$")
+
+
+def trailing_comment(text: str, statement: ast.stmt) -> str:
+    """The comment at the end of a statement's last line, without its mark (``Cable notch`` of
+    ``part -= ...  # Cable notch``): a feature's name, or a hole's callout. Empty for none."""
+    line = text.splitlines()[statement.end_lineno - 1].encode("utf-8")
+    rest = line[statement.end_col_offset:].decode("utf-8", "replace").strip()
+    return rest[1:].strip() if rest.startswith("#") else ""
+
+
+def with_comment(text: str, statement: ast.stmt, comment: str) -> str:
+    """``text`` with the comment at the end of ``statement``'s last line made ``comment``, or taken off for ""."""
+    lines = text.splitlines(keepends=True)
+    index = statement.end_lineno - 1
+    raw = lines[index]
+    newline = raw[len(raw.rstrip("\r\n")):]
+    code = raw.encode("utf-8")[:statement.end_col_offset].decode("utf-8").rstrip()
+    lines[index] = f"{code}{f'  # {comment}' if comment else ''}{newline}"
+    return "".join(lines)
 
 
 @dataclass
@@ -1306,6 +1328,11 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
 
     if old is not None:
         source = body.lines[old.lineno - 1]
+        # A name the feature was given in the design tree stays with its line; a hole's callout is
+        # written afresh, or goes with its size.
+        named = trailing_comment(body.text, old)
+        if named and "  # " not in code and not _SIZED.match(named):
+            code = f"{code}  # {named}"
         edits.swap(old.lineno, old.end_lineno, [f"{source[:len(source) - len(source.lstrip())]}{code}"])
         added_lines = _imports(edits, body, module, named_import, names)
         new = edits.apply()
@@ -1557,9 +1584,9 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                     values[axis] = size(number(("move", axis)))
                     held(axis, moved.args[index], typed(number(("move", axis))))
             # A sized hole's callout, kept in a comment beside its line; a tapped hole is drilled as a plain one.
-            comment = text.splitlines()[statement.end_lineno - 1][statement.end_col_offset:].strip()
-            if comment.startswith("#") and _CALLOUT.match(comment[1:].strip()):
-                values["callout"] = comment[1:].strip()
+            comment = trailing_comment(text, statement)
+            if _SIZED.match(comment):
+                values["callout"] = comment
                 if values["callout"].endswith("tapped hole") and values["type"] == "simple":
                     values["type"] = "tapped"
             return Feature("hole", values, "1 face", {"face": code(plane.args[0])}, target, operator, codes)

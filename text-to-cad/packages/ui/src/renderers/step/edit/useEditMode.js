@@ -16,6 +16,7 @@ import {
   recordChange,
   redoStep,
   sketchTreeId,
+  renameNote,
   suppressNote,
   treeFeatures,
   treeIds,
@@ -108,6 +109,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [featurePreview, setFeaturePreview] = useState(null);
   // What the Inspect group has open beside the commands: Mass Properties ("mass"), and its numbers.
   const [inspecting, setInspecting] = useState(null);
+  // The design tree's row being renamed in place (its id), as F2 or its menu's Rename opens one.
+  const [renaming, setRenaming] = useState(null);
   const [mass, setMass] = useState(null);
   const [previewOn, setPreviewOn] = useState(true);
   const previewWanted = useRef(null);
@@ -388,13 +391,15 @@ export function useEditMode({ client, file, active, reading = true }) {
     const made = move.change.kind === "command";
     const deleted = move.change.kind === "delete";
     const suppressed = move.change.kind === "suppress";
+    const renamed = move.change.kind === "rename";
     const current = sketchRef.current;
     // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
     const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
     const reply = await send(request, { record: false,
       note: made ? () => commandUndoNote(move.change, move.change.title, redo)
         : deleted ? () => deleteNote(move.change, { undo: !redo, redo })
-          : suppressed ? () => suppressNote(move.change, { undo: !redo, redo }) : null });
+          : suppressed ? () => suppressNote(move.change, { undo: !redo, redo })
+            : renamed ? () => renameNote(move.change, { undo: !redo, redo }) : null });
     if (!reply?.ok) return;
     setHistory(move.next);
     if (current) {
@@ -433,6 +438,18 @@ export function useEditMode({ client, file, active, reading = true }) {
    * its lines kept in the script as comments, the feature greyed where it is; or put back as they
    * were. The feature stays selected, by its title, which its place in the tree keeps.
    */
+  /**
+   * Rename, as SolidWorks' tree renames a feature or a sketch: `target` is the feature (`{ feature,
+   * title }`) or the sketch (`{ sketch: { file, line }, title }`); the name is written into the
+   * script, the comment at the end of the feature's line or the sketch's own, and nothing is built.
+   * An empty name gives a feature back the tree's own. The row stays selected.
+   */
+  const rename = useCallback(async (target, name) => {
+    setRenaming(null);
+    if (String(name ?? "").trim() === target.title) return null;
+    return send({ rename: { ...target, name } }, { note: answer => renameNote(answer.change) });
+  }, [send]);
+
   const suppress = useCallback(async (id, tree, on = true) => {
     const feature = treeFeatures(tree).find(each => each.id === id);
     if (!feature || feature.kind === "Sketch") return null;
@@ -538,7 +555,9 @@ export function useEditMode({ client, file, active, reading = true }) {
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
-    inspecting, mass,
+    inspecting, mass, renaming, rename,
+    startRename: id => { if (id) setRenaming(id); },
+    stopRename: () => setRenaming(null),
     inspect: what => { setCommand(null); endEditing(); setPicking(false); setPreview(null); dropPreview(); setInspecting(what); },
     stopInspecting: () => setInspecting(null),
     close: () => { setCommand(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); },

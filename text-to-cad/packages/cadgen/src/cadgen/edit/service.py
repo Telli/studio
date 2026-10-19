@@ -45,7 +45,7 @@ _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M
 # only moves it), and `bar_after` where it goes once the change is made. A `preview` is a command
 # made without writing it, for its panel to draw what OK would make; it changes nothing, so nothing
 # is built.
-_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "preview", "mass", "splice", "sketch", "remove",
+_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "preview", "mass", "rename", "splice", "sketch", "remove",
                 "suppress", "bar", "bar_after")
 
 

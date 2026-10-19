@@ -95,7 +95,9 @@ export function featureTree(state) {
       const count = (counts.get(feature.kind) || 0) + 1;
       counts.set(feature.kind, count);
       return {
-        id: feature.key, kind: feature.kind, title: `${feature.kind}${count}`,
+        // A name given in the tree (the comment at the end of its line) over the tree's own, which
+        // still counts it, as SolidWorks numbers the next fillet Fillet2 after Fillet1 is renamed.
+        id: feature.key, kind: feature.kind, title: feature.named || `${feature.kind}${count}`,
         name: feature.name ? sizeName(feature.name) : "", count: feature.count || 1,
         rows: feature.rows || [feature.key], file: feature.file, line: feature.line,
         sketch: feature.sketch ? sketchOf(feature, `sketch:${feature.key}`) : null,
@@ -865,6 +867,14 @@ export function deleteRefusal(reply, tree, title, verb = "Delete") {
 }
 
 /** What Suppress or Unsuppress of a feature tells the agent, and what its Undo and Redo do. */
+/** What the agent is told of a Rename: the feature or sketch, its name before and after, and where. */
+export function renameNote(change, { undo = false, redo = false } = {}) {
+  const where = `(${change.file}, line ${change.line})`;
+  if (undo) return `In edit mode I took back renaming ${change.title} ${where}.`;
+  const done = change.name ? `renamed ${change.title} to ${change.name}` : `gave ${change.title} back the design tree's own name`;
+  return `In edit mode I ${done}${redo ? " again" : ""} ${where}.`;
+}
+
 export function suppressNote(change, { undo = false, redo = false } = {}) {
   const on = undo ? !change.on : change.on;
   const done = on ? `suppressed ${change.title}${redo ? " again" : ""}: its lines are comments now`

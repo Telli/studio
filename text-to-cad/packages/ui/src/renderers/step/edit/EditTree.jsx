@@ -10,12 +10,31 @@ const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 // How defined a sketch is, marked before its name as SolidWorks marks it: (-) under, (+) over.
 const SKETCH_MARKS = Object.freeze({ "Under defined": "(-) ", "Over defined": "(+) " });
 
+/** A row's name typed over in place, as SolidWorks' tree renames one: Enter or a click away keeps
+ * it, Escape leaves it as it was (`onDone` given the name, or null). */
+function RenameInput({ value, onDone }) {
+  const [draft, setDraft] = useState(value);
+  const done = useRef(false);
+  const finish = text => { if (done.current) return; done.current = true; onDone(text); };
+  return <input value={draft} aria-label="Name" autoFocus spellCheck={false} maxLength={60}
+    className="min-w-0 flex-1 rounded-sm border border-ring bg-background px-1 text-foreground outline-none"
+    onFocus={event => event.currentTarget.select()} onChange={event => setDraft(event.currentTarget.value)}
+    onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}
+    onKeyDown={event => {
+      event.stopPropagation();
+      if (event.key === "Enter") finish(draft);
+      if (event.key === "Escape") finish(null);
+    }}
+    onBlur={() => finish(draft)} />;
+}
+
 /** One row of the tree: its place (depth), its disclosure when it has rows under it, its icon and
  * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch, Edit Feature on a feature),
  * else opens or closes it; a right-click selects it and opens its menu (`menu`: Edit Feature, Edit
- * Sketch, Suppress or Unsuppress, Delete), as SolidWorks' does. */
+ * Sketch, Rename, Suppress or Unsuppress, Delete), as SolidWorks' does. While `renaming`, its name
+ * is typed over (`onRename`, given the name or null). */
 function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, onActivate = null, selected, onSelect, onHover, muted = false, menu = null,
-  slot = null }) {
+  slot = null, renaming = null, onRename = null }) {
   const active = Boolean(id) && selected === id;
   const row = <TreeRowSurface as="div" dense active={active} role="treeitem" aria-selected={active}
     aria-expanded={expanded === null ? undefined : expanded} tabIndex={-1}
@@ -29,8 +48,9 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
       <TreeRowChevron expanded={Boolean(expanded)} branch={expanded !== null} />
     </span>
     {icon}
-    <span className={muted ? "truncate text-muted-foreground" : "truncate"}>{title}</span>
-    {detail ? <span className="ml-auto truncate pl-2 text-muted-foreground">{detail}</span> : null}
+    {renaming !== null && onRename ? <RenameInput value={renaming} onDone={onRename} />
+      : <span className={muted ? "truncate text-muted-foreground" : "truncate"}>{title}</span>}
+    {detail && renaming === null ? <span className="ml-auto truncate pl-2 text-muted-foreground">{detail}</span> : null}
   </TreeRowSurface>;
   if (!menu?.length) return row;
   return <ContextMenu>
@@ -158,13 +178,19 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const editItem = sketch => (sketch?.constrained ? [{ id: "edit-sketch", label: "Edit Sketch", disabled, onSelect: () => onEditSketch(sketch) }] : []);
   const deleteItem = (id, separatorBefore) => ({ id: "delete", label: "Delete", destructive: true, disabled: disabled || Boolean(edit.sketch),
     separatorBefore, onSelect: () => void edit.remove(id, tree) });
+  // Rename, from the menu or F2: the row's name typed over in place, written into the script.
+  const renameItem = id => ({ id: "rename", label: "Rename", disabled: busy || tree.assembly, onSelect: () => edit.startRename(id) });
+  const renamingOf = (id, title, target) => (edit.renaming === id && !busy && !tree.assembly
+    ? { renaming: title, onRename: name => (name === null ? edit.stopRename() : void edit.rename(target, name)) } : {});
   const sketchRow = (sketch, depth, own = null, muted = false) => {
     const edits = editItem(sketch);
     return <Row key={sketch.id} id={sketch.id} depth={depth} icon={muted ? greyed(<SketchIcon />) : <SketchIcon />} muted={muted}
       title={`${SKETCH_MARKS[sketch.status] || ""}${sketch.title}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane${sketch.offset ? `, ${sketch.offset} ${edit.state?.units || ""}`.trimEnd() : ""}` : ""}
       slot={own ? partItems.findIndex(each => each.id === own.id) : null}
       onActivate={() => onEditSketch(sketch)}
-      menu={own ? [...edits, ...rollItems(own), deleteItem(sketch.id, true)] : edits} {...rowProps} />;
+      {...(sketch.constrained ? renamingOf(sketch.id, sketch.title, { sketch: { file: sketch.file, line: sketch.line }, title: sketch.title }) : {})}
+      menu={[...edits, ...(sketch.constrained ? [renameItem(sketch.id)] : []), ...(own ? [...rollItems(own), deleteItem(sketch.id, true)] : [])]}
+      {...rowProps} />;
   };
   const featureRows = (feature, depth) => {
     const out = rolled.has(feature.id);
@@ -180,7 +206,8 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
         icon={grey ? greyed(<FeatureIcon kind={feature.kind} />) : <FeatureIcon kind={feature.kind} />}
         expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null} slot={slot < 0 ? null : slot}
         onActivate={editable(feature) && !busy ? () => edit.editFeature(feature) : null}
-        menu={[...edits, ...rollItems(feature), suppressItem(feature, true), deleteItem(feature.id, true)]} {...rowProps} />,
+        {...renamingOf(feature.id, feature.title, { feature: feature.id, title: feature.title })}
+        menu={[...edits, renameItem(feature.id), ...rollItems(feature), suppressItem(feature, true), deleteItem(feature.id, true)]} {...rowProps} />,
       branch && expanded ? sketchRow(feature.sketch, depth + 1, null, grey) : null,
     ];
   };
