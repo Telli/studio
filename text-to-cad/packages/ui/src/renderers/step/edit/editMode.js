@@ -1007,6 +1007,11 @@ export function appearanceNote(change, { undo = false, redo = false } = {}) {
   return `In edit mode I colored the part ${change.color}${redo ? " again" : ""} ${where}.`;
 }
 
+/** What the agent is told of Make Drawing or a change to the drawing's sheet: what was done, and the PDF it wrote. */
+export function drawingNote(change) {
+  return `In edit mode I ${change.words} (${change.file}); it wrote ${change.pdf}.`;
+}
+
 /** What the agent is told of a Mate: what it did, or the mate taken out, and where (`cadgen/edit/mates.py`). */
 export function mateNote(change, { undo = false, redo = false } = {}) {
   const where = `(${change.file}, line ${change.line})`;

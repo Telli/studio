@@ -197,6 +197,14 @@ export const MassPropertiesIcon = ({ className }) => <Icon className={className}
   <circle cx="12" cy="6" r="2.4" style={{ fill: "none", stroke: "var(--cad-solid-edge)", strokeWidth: 1.4 }} />
 </Icon>;
 
+/** A drawing: a sheet with a view on it and its title block. */
+export const DrawingIcon = ({ className }) => <Icon className={className}>
+  <path d="M3 4h18v16H3z" style={{ fill: "var(--background)", stroke: "var(--cad-solid-edge)", strokeWidth: 1.25 }} />
+  <path d="M6 7h6v6H6z" style={SOLID} />
+  <path d="M14 15h7v5h-7z" style={{ fill: "none", stroke: "var(--cad-solid-edge)", strokeWidth: 1 }} />
+  <path d="M6 15.5h5" style={ACCENT} />
+</Icon>;
+
 /** Mate: two parts brought together, the link between them. */
 export const MateIcon = ({ className }) => <Icon className={className}>
   <path d="M3 13h8v7H3z" style={SOLID} />

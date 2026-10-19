@@ -18,6 +18,7 @@ import {
   sketchTreeId,
   appearanceNote,
   mateNote,
+  drawingNote,
   renameNote,
   suppressNote,
   treeFeatures,
@@ -152,6 +153,11 @@ export function useEditMode({ client, file, active, reading = true }) {
       if (reply.reason === "no-script") { setStatus("none"); return; }
       setStatus(current => (current === "ready" ? current : "error"));
       setError(reply.error || "The part could not be read.");
+      return;
+    }
+    if (reply.drawingOnly) {
+      // The part's drawing made or its sheet changed: the part is as it was.
+      setState(current => (current ? { ...current, drawing: reply.drawing, building: reply.building } : current));
       return;
     }
     if (reply.sketchOnly) {
@@ -461,6 +467,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   const paint = useCallback(color => send({ appearance: { color } }, { note: answer => appearanceNote(answer.change) }), [send]);
   // Mate, as SolidWorks' places an assembly's parts: a mate made from two picks, or taken out by its label.
   const mate = useCallback(spec => send({ mate: spec }, { note: answer => mateNote(answer.change) }), [send]);
+  // Make Drawing, and the Drawing panel's sheet: the part's drawing script written and drawn to its PDF.
+  const drawing = useCallback(spec => send({ drawing: spec }, { record: false, note: answer => drawingNote(answer.change) }), [send]);
 
   const suppress = useCallback(async (id, tree, on = true) => {
     const feature = treeFeatures(tree).find(each => each.id === id);
@@ -567,7 +575,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
-    inspecting, mass, renaming, rename, paint, mate,
+    inspecting, mass, renaming, rename, paint, mate, drawing,
     startRename: id => { if (id) setRenaming(id); },
     stopRename: () => setRenaming(null),
     inspect: what => { setCommand(null); endEditing(); setPicking(false); setPreview(null); dropPreview(); setInspecting(what); },

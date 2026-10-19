@@ -113,6 +113,30 @@ def _project_units(root: Path) -> dict:
     return {}
 
 
+def _relative(root: Path, path: Path) -> str:
+    try:
+        return Path(path).resolve().relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def _drawing_of(root: Path, step: Path) -> dict | None:
+    """A part's drawing, for the Drawing panel: its script, the PDF it writes (and whether that is
+    there), and its sheet as the panel opens on it."""
+    from cadgen.edit import drawings
+
+    try:
+        found = drawings.find(root, step)
+        if found is None:
+            return None
+        sheet = drawings.read(found.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, drawings.DrawingError):
+        return None
+    out = sheet.pop("out", None)
+    pdf = (found.parent / out).resolve() if out else None
+    return {"script": _relative(root, found), "pdf": _relative(root, pdf) if pdf else "", "drawn": bool(pdf and pdf.exists()), **sheet}
+
+
 def _python_files(root: Path) -> list[Path]:
     found: list[Path] = []
     folders = [root]
@@ -320,7 +344,8 @@ class EditService:
             return {"ok": True, "unchanged": True, "building": self.building()}
         reply = self._tracer.ask({"script": str(script), "root": str(root), "mesh": False, **_project_units(root),
                                   **({"bar": bar} if bar else {})})
-        return {**reply, "root": str(root), "building": self.building()}
+        drawing = _drawing_of(root, Path(file_ref)) if reply.get("ok") else None
+        return {**reply, "root": str(root), "building": self.building(), **({"drawing": drawing} if drawing else {})}
 
     def change(self, payload: dict) -> dict:
         """One number changed in the part's source, or a command's line written, then the parts
@@ -329,6 +354,8 @@ class EditService:
         if script is None:
             return {"ok": False, "error": "This model has no part script to change."}
         root = project_root(script)
+        if isinstance(payload.get("drawing"), dict):
+            return {**self.drawing(root, script, Path(payload["file"]), payload["drawing"]), "root": str(root), "building": self.building()}
         request = {key: payload[key] for key in _CHANGE_KEYS if key in payload}
         reply = self._tracer.ask({**request, "script": str(script), "root": str(root), "op": "edit", "mesh": False,
                                   **_project_units(root)})
@@ -336,6 +363,37 @@ class EditService:
         if isinstance(made, dict) and made.get("build", True) and self._builds is not None:
             self._builds.start(dependents(root, made["file"]))
         return {**reply, "root": str(root), "building": self.building()}
+
+    def drawing(self, root: Path, script: Path, step: Path, spec: dict) -> dict:
+        """Make Drawing, and the Drawing panel's changes to its sheet (`drawings.py`): the drawing's
+        script written beside the part, then run, which writes its PDF. The part is not run."""
+        from cadgen.edit import drawings
+
+        found = drawings.find(root, step)
+        old = None
+        try:
+            if spec.get("make"):
+                if found is not None:
+                    return {"ok": False, "error": f"{step.stem} has a drawing already ({_relative(root, found)}). Change its sheet in the Drawing panel."}
+                found = script.parent / f"{step.stem}_drawing.py"
+                named = _project_units(root)
+                found.write_text(drawings.template(step.stem, step, found, material=named.get("material", ""), units=named.get("units", "mm")),
+                                 encoding="utf-8")
+                words = "made a drawing of it: top, front, right and isometric views, each with its overall size, on an A3 sheet"
+            else:
+                if found is None:
+                    return {"ok": False, "error": f"{step.stem} has no drawing yet. Make one first."}
+                old = found.read_text(encoding="utf-8")
+                made, said = drawings.change(old, spec.get("sheet") or {})
+                found.write_text(made, encoding="utf-8")
+                words = f"changed its drawing's sheet: {said}"
+            pdf = drawings.build(found)
+        except drawings.DrawingError as error:
+            if old is not None:
+                found.write_text(old, encoding="utf-8")
+            return {"ok": False, "error": str(error), **({"drawing": _drawing_of(root, step)} if found else {})}
+        return {"ok": True, "drawingOnly": True, "drawing": _drawing_of(root, step),
+                "change": {"kind": "drawing", "file": _relative(root, found), "line": 1, "words": words, "pdf": _relative(root, pdf), "build": False}}
 
     def close(self) -> None:
         self._tracer.stop()

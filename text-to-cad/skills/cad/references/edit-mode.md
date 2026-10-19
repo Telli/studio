@@ -141,6 +141,14 @@ by hand" below.
   lists its parts (Daisy tray<1>), and Open Part (double-click, or the part's menu) opens the part's
   own model in the view, where its features, sketches and commands are. The ribbon's modeling
   commands are off in an assembly, as in SolidWorks.
+- **Make Drawing** (the ribbon's Drawing group, in a part) writes `<name>_drawing.py` beside the
+  part from the engineering drawing skill's template: it reads the part's STEP, puts top, front and
+  right views in third angle and an isometric on an A3 sheet, each with its overall size, and is run
+  at once to write `<name>_drawing.pdf` beside it. Its **Drawing** panel then sets the sheet as
+  `Sheet(...)` takes it (size, `scale=0.5` for 1:2, the title block's `title`, `part_number`,
+  `material`, `revision`, `author`) and whether `three_views(part, iso=True)` draws the isometric,
+  and draws the PDF again. Dimensions beyond the overall sizes, notes and custom view layouts are
+  the agent's, in the same script.
 - **Mate** (the ribbon's Assemble group) places an assembly's part by a face or an edge picked on
   the part that stays and one on the part that moves to it. It writes a pair of build123d rigid
   joints in the assembly, on what was picked (found again by selector each run), so the mate holds

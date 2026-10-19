@@ -13,7 +13,7 @@ import { Progress } from "@text-to-cad/ui/primitives/progress";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { AppearanceIcon, COMMAND_ICONS, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
+import { AppearanceIcon, COMMAND_ICONS, DrawingIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
 import { COMMAND_GROUPS, EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_TOOLS } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
@@ -292,6 +292,12 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
         description: onNormalTo ? undefined : "Select a flat face, or a plane in the design tree, to look straight at it.",
         onClick: () => onNormalTo?.() },
     ] },
+    // Drawing, as SolidWorks' Make Drawing from Part: the part's drawing made, then its sheet changed in its panel.
+    ...(placing ? [] : [{ title: "Drawing", items: [state?.drawing
+      ? { id: "drawing", label: "Drawing", icon: <DrawingIcon />, active: edit.inspecting === "drawing", disabled: edit.status !== "ready",
+        onClick: () => (edit.inspecting === "drawing" ? edit.stopInspecting() : edit.inspect("drawing")) }
+      : { id: "make-drawing", label: "Make Drawing", icon: <DrawingIcon />, disabled: edit.status !== "ready" || edit.saving,
+        onClick: async () => { const reply = await edit.drawing({ make: true }); if (reply?.ok) edit.inspect("drawing"); } }] }]),
     { title: "Tools", items: others.map(toolItem) },
   ].filter(group => group.items.length), <>
     {statusLine(status, Boolean(state?.building?.error))}

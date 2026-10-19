@@ -19,6 +19,7 @@ import EditTree from "./EditTree.jsx";
 import SketchPanel from "./SketchPanel.jsx";
 import MassProperties from "./MassProperties.jsx";
 import MatePanel from "./MatePanel.jsx";
+import DrawingPanel from "./DrawingPanel.jsx";
 import Appearance from "./Appearance.jsx";
 import { formulaWords, restates, selectionDimensions, sizeName, treeFeatures } from "./editMode.js";
 
@@ -89,7 +90,9 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
         : edit.inspecting === "appearance" ? <Appearance edit={edit} />
           // Mate, from the ribbon's Assemble group: an assembly's part placed by two picks.
           : edit.inspecting === "mate" ? <MatePanel edit={edit} references={references} components={tree?.components || []} onDeselect={onDeselect} />
-            : null;
+            // The part's drawing, from the ribbon's Drawing group.
+            : edit.inspecting === "drawing" && edit.state?.drawing ? <DrawingPanel edit={edit} />
+              : null;
   // The card scrolls in the viewer's one ScrollArea once its panel is taller than the view.
   const floating = panel && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(FLOATING_SURFACE_CLASS,
     "pointer-events-auto max-h-full rounded-lg")}>{panel}</ScrollArea>, card) : null;

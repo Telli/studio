@@ -1353,5 +1353,40 @@ class Mates(Commands):
         self.assertIn("round faces or circular edges", refused["error"])
 
 
+class Drawings(Commands):
+    """Make Drawing, as SolidWorks' Make Drawing from Part, and the Drawing panel's sheet: a drawing
+    script beside the part, run to its PDF."""
+
+    def test_make_drawing_writes_a_script_beside_the_part_that_draws_it_and_its_sheet_changes(self):
+        import build123d as B
+
+        root, file, state = self.open(BLOCK, "block.step")
+        B.export_step(B.Box(20, 10, 4), str(root / "block.step"))
+        made = self.service.change({"file": file, "files": state["files"], "drawing": {"make": True}})
+        self.assertTrue(made["ok"], made.get("error"))
+        script = root / "block_drawing.py"
+        text = script.read_text(encoding="utf-8")
+        self.assertIn('    part = cadgen.read_step(Path(__file__).parent / "block.step")\n', text)
+        self.assertIn('    sheet = Sheet("A3", title="BLOCK", part_number="BLOCK", revision="A")\n', text)
+        self.assertIn("    top, front, right, iso = sheet.three_views(part, iso=True)\n", text)
+        self.assertTrue((root / "block_drawing.pdf").exists())
+        self.assertEqual({key: made["drawing"][key] for key in ("script", "pdf", "drawn", "size", "scale", "iso", "revision")},
+                         {"script": "block_drawing.py", "pdf": "block_drawing.pdf", "drawn": True, "size": "A3", "scale": "1:1", "iso": True,
+                          "revision": "A"})
+        # Its sheet: A4 at 1:2, revision B, without the isometric.
+        changed = self.service.change({"file": file, "files": state["files"], "drawing": {"sheet": {"size": "A4", "scale": "1:2", "revision": "B",
+                                                                                                   "iso": False}}})
+        self.assertTrue(changed["ok"], changed.get("error"))
+        text = script.read_text(encoding="utf-8")
+        self.assertIn('    sheet = Sheet("A4", title="BLOCK", part_number="BLOCK", revision="B", scale=0.5)\n', text)
+        self.assertIn("    top, front, right = sheet.three_views(part)\n", text)
+        self.assertIn("size A4, scale 1:2, revision B, the isometric taken off", changed["change"]["words"])
+        # The part's state names its drawing; a second one is refused.
+        self.assertEqual(self.service.state(file)["drawing"]["revision"], "B")
+        again = self.service.change({"file": file, "files": state["files"], "drawing": {"make": True}})
+        self.assertFalse(again["ok"])
+        self.assertIn("has a drawing already", again["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -53,6 +53,7 @@ import {
   restates,
   rolledBack,
   mateNote,
+  drawingNote,
   sameValues,
   selectionItems,
   selectionLabel,
@@ -614,6 +615,11 @@ test("a reference plane is offset from an origin plane picked in the tree, or fr
     { reference: "Front", distance: "5", flip: false, angle: "30", about: "y" });
   assert.equal(planeDetail({ edit: { values: { reference: "Top", distance: "10", flip: false, angle: "15", about: "y" } } }, "mm"),
     "Top Plane, 10 mm, 15° about Y");
+});
+
+test("the agent is told of a drawing made or its sheet changed, and the PDF it wrote", () => {
+  assert.equal(drawingNote({ words: "changed its drawing's sheet: revision B", file: "parts/block_drawing.py", pdf: "parts/block_drawing.pdf" }),
+    "In edit mode I changed its drawing's sheet: revision B (parts/block_drawing.py); it wrote parts/block_drawing.pdf.");
 });
 
 test("the agent is told of a mate made, made again, or taken back, and where", () => {
