@@ -130,6 +130,8 @@ def _residual(relation, u: _Unknowns, scale: float):
     if kind == "perpendicular":
         a, b = refs
         return lambda x: [scale * float(np.dot(unit(a, x), unit(b, x)))]
+    if kind == "tangent" and data.get("spline"):
+        return None  # a spline's end tangent is the spline's to draw, not a place to solve
     if kind == "tangent":
         a, b = refs
         at = data.get("at")

@@ -464,6 +464,12 @@ export function relationsFor(state, selection) {
     if (count("line") === 2) { add_("parallel"); add_("perpendicular"); add_("equal"); }
     if (count("line") === 1 && round === 1) add_("tangent");
     if (round === 2) { add_("tangent"); add_("concentric"); add_("equal"); }
+    // A spline's end tangent to the line or arc that meets it there.
+    if (count("spline") === 1 && (count("line") === 1 || count("arc") === 1)) {
+      const spline = curves.find(curve => selection.includes(curve.id) && curve.kind === "spline");
+      const other = curves.find(curve => selection.includes(curve.id) && curve.kind !== "spline");
+      if ([spline.start, spline.end].some(id => id && (id === other.start || id === other.end))) add_("tangent");
+    }
     return offer;
   }
   if (kinds.length === 3 && count("point") === 2 && count("line") === 1) add_("symmetric");

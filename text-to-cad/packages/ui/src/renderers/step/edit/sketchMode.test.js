@@ -186,6 +186,12 @@ test("a spline passes through each point clicked, closes on its first, and is pi
   const state = { points: [{ id: "Origin", x: 0, y: 0 }, { id: "Point1", x: 0, y: 0 }, { id: "Point2", x: 20, y: 0 }],
     curves: [{ id: "Spline1", kind: "spline", points: ["Point1", "Point2"], start: "Point1", end: "Point2", samples: [[0, 0], [10, 6], [20, 0]] }] };
   assert.equal(hitTest(state, [10, 5.8], 0.5), "Spline1");
+  // Tangent is offered for a spline and a line that meets one of its ends, and for nothing else.
+  const joined = { ...state, points: [...state.points, { id: "Point3", x: -10, y: 0 }],
+    curves: [...state.curves, { id: "Line1", kind: "line", start: "Point3", end: "Point1" }] };
+  assert.deepEqual(relationsFor(joined, ["Line1", "Spline1"]).map(each => each.relation), ["tangent"]);
+  const apart = { ...joined, curves: [...state.curves, { id: "Line1", kind: "line", start: "Point3", end: "Origin" }] };
+  assert.deepEqual(relationsFor(apart, ["Line1", "Spline1"]), []);
   assert.equal(snap(state, [10, 5.8], 0.5).on, undefined);
   assert.equal(sketchNote({ name: "Sketch1", file: "a.py", line: 3, made: countChange({}, { kind: "draw", entity: "spline" }) }),
     "In edit mode I changed Sketch1 (a.py, line 3): drew a spline.");

@@ -134,6 +134,8 @@ class Spline:
     closed: bool = False
     construction: bool = False
     source: tuple | None = None
+    # The line or arc each end is tangent to (``start``, ``end``), as ``Sketch.tangent`` sets it.
+    tangents: dict = field(default_factory=dict)
 
     @property
     def start(self) -> Point:
@@ -149,8 +151,25 @@ class Spline:
         import build123d as B
 
         place = at or (lambda x, y: B.Vector(x, y, 0))
+        placed = [place(point.x, point.y) for point in self.points]
         try:
-            return B.Edge.make_spline([place(point.x, point.y) for point in self.points], periodic=self.closed)
+            if not self.tangents or self.closed:
+                return B.Edge.make_spline(placed, periodic=self.closed)
+            # An end tangent to a line or an arc runs on the way that curve runs there; a free end
+            # takes the way it would have without.
+            free = B.Edge.make_spline(placed)
+            ways = []
+            for role, at_end in (("start", 0.0), ("end", 1.0)):
+                curve = self.tangents.get(role)
+                if curve is None:
+                    ways.append(free.tangent_at(at_end))
+                    continue
+                point = self.start if role == "start" else self.end
+                dx, dy = _arriving(curve, point)
+                if role == "end":
+                    dx, dy = -dx, -dy
+                ways.append((place(point.x + dx, point.y + dy) - place(point.x, point.y)).normalized())
+            return B.Edge.make_spline(placed, tangents=ways)
         except Exception as error:  # noqa: BLE001
             raise SketchError(f"{self.name} cannot pass through its points as they are ({error}).") from None
 
@@ -449,6 +468,17 @@ class Sketch:
     def tangent(self, a, b) -> Relation:
         """A line tangent to an arc or circle, or two arcs or circles tangent to each other (inside
         or outside, as they are drawn)."""
+        spline, other = (a, b) if isinstance(a, Spline) else (b, a) if isinstance(b, Spline) else (None, None)
+        if spline is not None:
+            # A spline's end runs on the way the line or arc that meets it there runs, as SolidWorks
+            # makes a spline tangent at its end.
+            at = _shared_end(spline, other) if isinstance(other, (Line, Arc)) and not spline.closed else None
+            if at is None:
+                raise SketchError(f"Tangent makes a spline's end run on from the line or arc that meets it there. "
+                                  f"{spline.name} and {other.name} share no end.")
+            role = "start" if at is spline.start else "end"
+            spline.tangents[role] = other
+            return self._relate("tangent", (other, spline), data={"spline": role, "at": at})
         if isinstance(a, Line) and isinstance(b, Line):
             raise SketchError("Tangent takes a line and an arc or circle, or two arcs or circles.")
         line, curve = (a, b) if isinstance(a, Line) else (b, a) if isinstance(b, Line) else (None, None)
@@ -1047,6 +1077,22 @@ class Sketch:
 
 def _radius(curve) -> float:
     return curve.radius
+
+
+def _arriving(curve, point: Point) -> tuple[float, float]:
+    """The way a line or an arc runs as it comes to ``point``, one of its ends, as a unit vector:
+    a line from its other end, an arc round the way it turns (back round from its start)."""
+    if isinstance(curve, Line):
+        other = curve.start if point is curve.end else curve.end
+        dx, dy = point.x - other.x, point.y - other.y
+    else:
+        rx, ry = point.x - curve.center.x, point.y - curve.center.y
+        turn = -1.0 if curve.clockwise else 1.0
+        dx, dy = -ry * turn, rx * turn  # the way it turns there
+        if point is curve.start:
+            dx, dy = -dx, -dy  # come to its start, it runs back round
+    length = math.hypot(dx, dy) or 1.0
+    return dx / length, dy / length
 
 
 def _edges_of(items):

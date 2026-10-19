@@ -405,6 +405,17 @@ class SketchMode(unittest.TestCase):
         self.send({"kind": "draw", "entity": "line", "start": {"point": spline["end"]}, "end": {"point": "Origin"}})
         self.assertIn("sketch1.line(spline1.end, sketch1.origin)", self.source())
         self.assertEqual(len(self.sketch["state"]["loops"]), 1)
+        # Tangent at its start, as the line it runs on from: it leaves (20, 0) heading along +X, where
+        # before it climbed away steeply.
+        def leaving():
+            run = next(curve for curve in self.sketch["state"]["curves"] if curve["kind"] == "spline")["samples"]
+            return (run[1][1] - run[0][1]) / (run[1][0] - run[0][0])
+
+        steep = leaving()
+        self.send({"kind": "relate", "relation": "tangent", "refs": ["Line1", "Spline1"]})
+        self.assertIn("sketch1.tangent(line1, spline1)", self.source())
+        self.assertLess(abs(leaving()), 0.05)
+        self.assertGreater(abs(steep), 0.5)
         # The tools that cut or copy curves take lines, arcs and circles; a spline is shaped by its points.
         refused = self.service.change({"file": self.file, "files": self.files, "sketch": {
             "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "trim", "curve": "Spline1", "at": [25, 8]}}})
