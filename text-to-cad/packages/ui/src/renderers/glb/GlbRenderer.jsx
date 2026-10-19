@@ -18,12 +18,11 @@ import { PointerPick } from "../kit/tools/select/usePointerPick.js";
 import { useSceneReferences } from "../kit/tools/select/sceneReferences.jsx";
 import { useSceneSelection } from "../kit/tools/select/useSceneSelection.js";
 import { DEFAULT_POSE_VALUE, NO_PRESET_VALUE, positionValuesAreDefault } from "../kit/inspector/kinematicsControls.jsx";
-import { GLB_DECLINED_LIVE_COMMANDS, GLB_TOOL, GLB_TOOL_MODES } from "./tools.js";
+import { GLB_DECLINED_LIVE_COMMANDS, GLB_RESULT_LIVE, GLB_TOOL, GLB_TOOL_MODES } from "./tools.js";
 import { useGlbAnimation } from "./useGlbAnimation.js";
 import { useGlbScene } from "./useGlbScene.js";
 import { createResultPreview, markResultView } from "./resultPreview.js";
 
-const LIVE = Object.freeze({ declined: GLB_DECLINED_LIVE_COMMANDS });
 const NO_CHOICE = Object.freeze({ field: null, scale: null, loadScale: null, threshold: null, preset: null, markers: null, mode: null, frame: null, sigma: null,
   motion: null });
 // What a series or a motion adds to the file's view, written only once chosen, so a result with none keeps the slice it always had.
@@ -562,7 +561,7 @@ function GlbSurface({ view, data }) {
     ...(result ? {} : { tool: sceneState.tool, measurements: sceneState.measurements, deleteSelection: measure.removeSelected }),
     previewable: true, preview, scene, viewSettings: displaySettings, sceneEffects: !result,
     load: { busy: (loaded.busy || pending) && !scene, updating: loaded.busy && Boolean(scene), progress: loaded.progress, alert: loadAlert },
-    animation: routine, live: result ? LIVE : plainLive, rendererState: cam ? job.rendererState : rendererState, displaySections: cam ? job.displaySections : markerShow ? [{
+    animation: routine, live: result ? GLB_RESULT_LIVE : plainLive, rendererState: cam ? job.rendererState : rendererState, displaySections: cam ? job.displaySections : markerShow ? [{
       id: "fea-markers", title: analysis.displayTitle, enabled: markersOn, onEnabledChange: (on) => choose({ markers: on }),
       description: fv.markerGateText(markers?.kinds?.length ? markers.kinds : analysis.markers.filter((kind) => kind !== "body_load")),
     }] : null,
