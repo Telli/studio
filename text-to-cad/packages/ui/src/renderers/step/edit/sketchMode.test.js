@@ -274,6 +274,14 @@ test("Extend runs a free line's end on to the first curve ahead, and leaves a jo
   // The rectangle's own lines share their corners.
   assert.equal(extendPiece(state, "Line1", [39, 0]), null);
   assert.match(sketchNote({ name: "Sketch1", file: "a.py", line: 3, made: countChange({}, { kind: "extend", curve: "Line5" }) }), /extended a line/);
+  // An arc runs on round its circle: from its end the way it turns, to the top side; back from its
+  // start, to the first curve it meets, the circle inside the rectangle.
+  const arcs = { ...STATE, points: [...STATE.points, { id: "Point8", x: 20, y: 10 }, { id: "Point9", x: 32, y: 10 },
+    { id: "Point10", x: 20 + 12 * Math.cos(Math.PI / 6), y: 16 }],
+  curves: [...STATE.curves, { id: "Arc1", kind: "arc", center: "Point8", start: "Point9", end: "Point10", radius: 12 }] };
+  const ended = point => point.map(value => Math.round(value * 1000) / 1000);
+  assert.deepEqual(ended(extendPiece(arcs, "Arc1", [30, 16]).points.at(-1)), [26.633, 20]);
+  assert.deepEqual(ended(extendPiece(arcs, "Arc1", [32, 9]).points.at(-1)), [31.4, 6.253]);
 });
 
 test("a sketch pattern takes what is selected, draws its copies where they go, and sends its settings", () => {

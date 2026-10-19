@@ -204,8 +204,8 @@ by hand" below.
   or an arc in two (kept in line: `parallel` and `coincident`, or `equal` for an arc; a split
   line's length becomes the distance between its far ends), or makes a circle an arc; a
   rectangle is written as its four lines first. A curve nothing crosses is deleted. Extend
-  Entities runs a line's free end on to the first curve ahead and keeps it there with the same
-  `coincident`; a joined end is left alone. Linear and Circular Sketch Pattern write one line
+  Entities runs a line's free end on to the first curve ahead, or an arc's round its circle the way
+  it turns, and keeps it there with the same `coincident`; a joined end is left alone. Linear and Circular Sketch Pattern write one line
   for all their copies, `pattern1 = sketch2.linear_pattern([circle1], 0, 10, 4)` or
   `sketch2.circular_pattern([circle1], sketch2.origin, 6, 360)`; deleting a copy or the pattern's
   dimension deletes the pattern. Convert

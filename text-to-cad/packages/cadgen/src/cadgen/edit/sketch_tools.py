@@ -890,8 +890,10 @@ def extend(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
     except (KeyError, TypeError, ValueError, IndexError):
         raise SketchEditError("Click a line near the end to extend.") from None
     made = names.statement_of(name)
+    if curve["kind"] == "arc" and made is not None and made.method == "arc" and isinstance(made.statement, ast.Assign):
+        return _extend_arc(text, block, names, shape, state, name, curve, click)
     if curve["kind"] != "line" or made is None or made.method != "line" or not isinstance(made.statement, ast.Assign):
-        raise SketchEditError(f"Extend Entities runs a line on. {name} is not a line drawn on its own, so it is not extended.")
+        raise SketchEditError(f"Extend Entities runs a line or an arc on. {name} is not one drawn on its own, so it is not extended.")
     a, b = shape.at(curve["start"]), shape.at(curve["end"])
     role, (end, start) = ("end", (b, a)) if math.dist(click, b) <= math.dist(click, a) else ("start", (a, b))
     point = curve[role]
@@ -916,6 +918,48 @@ def extend(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
     for at, _item in _invalidated(trim_, ("length", "midpoint", "equal")):
         trim_.drop(at)
     argument = _argument(trim_.call, "line", role)
+    shared = None if isinstance(argument, ast.Tuple) else _segment(text, argument)
+    trim_.rehome(role, point, None, shared)
+    ends = [each for each in (shape.curves[target].get("start"), shape.curves[target].get("end")) if each and shape.near(shape.at(each), place)]
+    trim_.edits.replace_node(argument, trim_.end_at(role, {"place": place, "curves": [target], "point": ends[0] if ends else None}, own=True))
+    return trim_.apply()
+
+
+def _extend_arc(text: str, block, names: Names, shape: _Shape, state: dict, name: str, curve: dict, click) -> str:
+    """An arc's end, the one nearer the click, run on round its circle the way it turns to the first
+    curve it meets, as Extend Entities extends an arc, and kept on that curve."""
+    round_ = _Round(shape, curve)
+    a, b = shape.at(curve["start"]), shape.at(curve["end"])
+    role = "end" if math.dist(click, b) <= math.dist(click, a) else "start"
+    point = curve[role]
+    joined = [other for other, item in shape.curves.items() if other != name and point in (item.get("start"), item.get("end"), item.get("center"))]
+    if joined:
+        raise SketchEditError(f"{name}'s {role} is joined to {joined[0]}, so it is not extended. Trim or move it instead.")
+    # Round from the end the way the arc turns, or back from its start; never as far as the arc itself.
+    gap = 2 * math.pi - round_.sweep
+    nearest = None
+    for other, item in shape.curves.items():
+        if other == name or item["kind"] not in ("line", "arc", "circle"):
+            continue
+        if item["kind"] == "line":
+            found = _line_circle(shape.at(item["start"]), shape.at(item["end"]), round_.c, round_.r)
+        else:
+            other_round = _Round(shape, item)
+            found = _circle_circle(round_.c, round_.r, other_round.c, other_round.r)
+        for place in found:
+            if _on(shape, item, place) is None:
+                continue
+            along = round_.along(place)
+            run = along - round_.sweep if role == "end" else (2 * math.pi - along) % (2 * math.pi)
+            if shape.tolerance / round_.r < run < gap - shape.tolerance / round_.r and (nearest is None or run < nearest[0]):
+                nearest = (run, place, other)
+    if nearest is None:
+        raise SketchEditError(f"Nothing lies round {name}'s circle past its {role} to extend it to.")
+    _, place, target = nearest
+    trim_ = _Trim(text, block, names, shape, state, name)
+    for at, _item in _invalidated(trim_, ("midpoint", "angle")):
+        trim_.drop(at)
+    argument = _argument(trim_.call, "arc", role)
     shared = None if isinstance(argument, ast.Tuple) else _segment(text, argument)
     trim_.rehome(role, point, None, shared)
     ends = [each for each in (shape.curves[target].get("start"), shape.curves[target].get("end")) if each and shape.near(shape.at(each), place)]

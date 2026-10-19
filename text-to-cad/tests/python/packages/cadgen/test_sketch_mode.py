@@ -267,6 +267,22 @@ class SketchMode(unittest.TestCase):
         self.assertFalse(nothing["ok"])
         self.assertIn("Nothing lies ahead of Line1's start", nothing["error"])
 
+    def test_extend_runs_an_arc_on_round_its_circle_to_the_curve_it_meets(self):
+        self.start()
+        # A quarter arc about (0, 0), radius 10, from (10, 0) round to (0, 10); a line up at x = -6.
+        self.send({"kind": "draw", "entity": "arc", "center": {"at": [0, 0]}, "start": {"at": [10, 0]}, "end": {"at": [0, 10]}})
+        self.send({"kind": "draw", "entity": "line", "start": {"at": [-6, 0]}, "end": {"at": [-6, 12]}})
+        self.send({"kind": "extend", "curve": "Arc1", "at": [0.5, 9.9]})
+        text = self.source()
+        # Round on the way it turns to where the circle crosses x = -6: (-6, 8).
+        self.assertIn("arc1 = sketch1.arc((0, 0), (10, 0), (-6, 8))", text)
+        self.assertIn("sketch1.coincident(arc1.end, line1)", text)
+        # Back from its start nothing is met before the arc itself.
+        nothing = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "extend", "curve": "Arc1", "at": [9.9, 0.2]}}})
+        self.assertFalse(nothing["ok"])
+        self.assertIn("Nothing lies round Arc1's circle past its start", nothing["error"])
+
     def test_a_pattern_is_one_line_its_spacing_a_dimension_and_its_copies_go_with_it(self):
         self.start()
         self.send({"kind": "draw", "entity": "circle", "center": {"at": [5, 0]}, "radius": 1})

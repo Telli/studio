@@ -25,7 +25,7 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "fillet", label: "Sketch Fillet", prompts: ["Click a corner to round, or the first of two lines that meet.", "Click the second line."] },
   { id: "chamfer", label: "Sketch Chamfer", prompts: ["Click a corner to cut, or the first of two lines that meet.", "Click the second line."] },
   { id: "trim", label: "Trim Entities", prompts: ["Click the part of a curve to cut away. It is cut back to the curves that cross it; a curve nothing crosses is deleted."] },
-  { id: "extend", label: "Extend Entities", prompts: ["Click a line near the end to run on. It goes on to the first curve it meets."] },
+  { id: "extend", label: "Extend Entities", prompts: ["Click a line or an arc near the end to run on. It goes on to the first curve it meets."] },
   { id: "offset", label: "Offset Entities", prompts: ["Click a line, an arc or a circle to offset it, and the chain it is part of."] },
   { id: "mirror", label: "Mirror Entities", prompts: ["Click the entities to mirror.", "Click more of them, or the centerline to mirror about."] },
   { id: "linear_pattern", label: "Linear Sketch Pattern", prompts: ["Click the entities to copy in a row, set the spacing and instances, then make the pattern."] },
@@ -799,6 +799,7 @@ export function trimPiece(state, id, place, tolerance = nearness(state) * 10) {
 export function extendPiece(state, id, place, tolerance = nearness(state) * 10) {
   const { curves } = sketchGeometry(state);
   const line = curves.find(each => each.id === id);
+  if (line?.kind === "arc" && !line.derived) return arcRunOn(curves, line, place, tolerance);
   if (!line || line.kind !== "line" || line.derived) return null;
   const [from, end, role] = hypot(place, line.b) <= hypot(place, line.a) ? [line.a, line.b, "end"] : [line.b, line.a, "start"];
   if (curves.some(each => each.id !== id && [each.start, each.end, each.center].includes(line[role]))) return null;
@@ -815,6 +816,35 @@ export function extendPiece(state, id, place, tolerance = nearness(state) * 10) 
     }
   }
   return nearest ? { id, points: [end, nearest.hit] } : null;
+}
+
+/**
+ * An arc's end nearer `place` run on round its circle the way it turns (back from its start) to the
+ * first curve it meets, never as far as the arc itself: the piece it adds, as places along it.
+ */
+function arcRunOn(curves, arc, place, tolerance) {
+  const role = hypot(place, arc.e) <= hypot(place, arc.s) ? "end" : "start";
+  if (curves.some(each => each.id !== arc.id && [each.start, each.end, each.center].includes(arc[role]))) return null;
+  const { start, sweep } = arcSweep(arc);
+  const way = (sweep >= 0 ? 1 : -1) * (role === "end" ? 1 : -1);
+  const from = role === "end" ? start + sweep : start;
+  const gap = 2 * Math.PI - Math.abs(sweep);
+  const circle = { kind: "circle", c: arc.c, r: arc.r };
+  let nearest = null;
+  for (const other of curves) {
+    if (other.id === arc.id || other.derived || other.kind === "spline") continue;
+    for (const hit of meetings(circle, other, tolerance)) {
+      let run = ((Math.atan2(hit[1] - arc.c[1], hit[0] - arc.c[0]) - from) * way) % (2 * Math.PI);
+      if (run < 0) run += 2 * Math.PI;
+      if (run > 1e-9 && run < gap - 1e-9 && (nearest === null || run < nearest)) nearest = run;
+    }
+  }
+  if (nearest === null) return null;
+  const steps = Math.max(2, Math.ceil(nearest / (Math.PI / 32)));
+  return { id: arc.id, points: Array.from({ length: steps + 1 }, (_, k) => {
+    const angle = from + (way * nearest * k) / steps;
+    return [arc.c[0] + arc.r * Math.cos(angle), arc.c[1] + arc.r * Math.sin(angle)];
+  }) };
 }
 
 // A count typed in a panel: a whole number from 2 to 100, else the tool's own.

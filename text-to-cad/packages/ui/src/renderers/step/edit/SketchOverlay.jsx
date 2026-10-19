@@ -555,7 +555,7 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         return;
       }
       if (tool === "extend") {
-        if (curve?.kind === "line" && !curve.derived) await send({ kind: "extend", curve: hit, at: rounded(place, units) });
+        if ((curve?.kind === "line" || curve?.kind === "arc") && !curve.derived) await send({ kind: "extend", curve: hit, at: rounded(place, units) });
         return;
       }
       if (tool === "offset") {
