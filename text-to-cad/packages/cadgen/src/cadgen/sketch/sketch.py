@@ -144,6 +144,18 @@ class Relation:
         return f"{self.name}({', '.join(ref.name for ref in self.refs)}){sized}"
 
 
+def _named(value):
+    """A relation's data as an editor reads it: each point or curve by its name, all the way down
+    (a pattern's pairs of points, its center, the line it runs along)."""
+    if isinstance(value, (Point, Line, Arc, Circle)):
+        return value.name
+    if isinstance(value, (list, tuple)):
+        return [_named(each) for each in value]
+    if isinstance(value, dict):
+        return {key: _named(each) for key, each in value.items()}
+    return value
+
+
 def _number(value, what: str) -> float:
     try:
         number = float(value)
@@ -480,6 +492,99 @@ class Sketch:
         for relation in self.relations:
             if relation.kind in ("fillet", "chamfer") and relation.data["corner"] is corner and {id(ref) for ref in relation.refs} == {id(a), id(b)}:
                 raise SketchError(f"The corner of {a.name} and {b.name} is {'rounded' if relation.kind == 'fillet' else 'cut'} already.")
+
+    def linear_pattern(self, entities, along=0, spacing=10, count=2) -> list:
+        """Copies of ``entities`` (curves or points of the sketch; a curve's points come with it)
+        in a row, as a CAD tool's Linear Sketch Pattern makes them: ``count`` in all, the
+        originals the first, ``spacing`` apart along ``along`` (a line of the sketch, whose way
+        they follow as it moves, or an angle in degrees from the sketch's x axis). Each copy is
+        held to its original moved down the row; the spacing is a dimension (D1). Returns the
+        copies, instance by instance, each in the order of ``entities``."""
+        items, count = self._pattern_items(entities), self._pattern_count(count)
+        space = _number(spacing, "A pattern's spacing")
+        if space == 0:
+            raise SketchError("A pattern's spacing must be more or less than zero.")
+        if isinstance(along, Line):
+            dx, dy = along.end.x - along.start.x, along.end.y - along.start.y
+            length = math.hypot(dx, dy)
+            if length <= 0:
+                raise SketchError(f"{along.name} has no length to set a pattern's way.")
+            way, data = (dx / length, dy / length), {"line": along}
+        else:
+            turn = math.radians(_number(along, "A pattern's angle"))
+            way, data = (math.cos(turn), math.sin(turn)), {"angle": math.degrees(turn)}
+        made, pairs, radii = self._copies(items, count, lambda k, x, y: (x + k * space * way[0], y + k * space * way[1]))
+        self._relate("linear_pattern", (*items, *([along] if isinstance(along, Line) else [])), spacing, label="Pattern",
+                     data={**data, "pairs": pairs, "radii": radii, "count": count})
+        return made
+
+    def circular_pattern(self, entities, center, count=6, angle=360) -> list:
+        """Copies of ``entities`` turned about ``center`` (a point of the sketch, or an (x, y)
+        pair), as a CAD tool's Circular Sketch Pattern makes them: ``count`` in all, the originals
+        the first, spread evenly over ``angle`` degrees (all the way round at 360, else from the
+        first to the last). Each copy is held to its original turned about the center; the angle
+        is a dimension (D1). Returns the copies, instance by instance, each in the order of
+        ``entities``."""
+        items, count = self._pattern_items(entities), self._pattern_count(count)
+        total = _number(angle, "A pattern's angle")
+        if not 0 < abs(total) <= 360:
+            raise SketchError("A circular pattern's angle is more than 0 and at most 360 degrees.")
+        pivot = self._point(center)
+        full = math.isclose(abs(total), 360.0)
+        step = math.radians(total) / (count if full else count - 1)
+
+        def turned(k, x, y):
+            c, s = math.cos(k * step), math.sin(k * step)
+            rx, ry = x - pivot.x, y - pivot.y
+            return pivot.x + c * rx - s * ry, pivot.y + s * rx + c * ry
+
+        made, pairs, radii = self._copies(items, count, turned)
+        self._relate("circular_pattern", (pivot, *items), angle, label="Pattern",
+                     data={"center": pivot, "pairs": pairs, "radii": radii, "count": count, "full": full})
+        return made
+
+    def _pattern_items(self, entities) -> list:
+        items = list(entities) if isinstance(entities, (list, tuple)) else [entities]
+        if not items or not all(isinstance(item, (Line, Arc, Circle, Point)) for item in items):
+            raise SketchError("A sketch pattern copies curves and points of the sketch.")
+        return items
+
+    @staticmethod
+    def _pattern_count(count) -> int:
+        number = _number(count, "A pattern's instances")
+        if not float(number).is_integer() or not 2 <= number <= 100:
+            raise SketchError("A pattern has a whole number of instances, 2 to 100.")
+        return int(number)
+
+    def _copies(self, items, count, move):
+        """Each instance of a pattern past the first: ``items`` copied, each point moved as
+        ``move(k, x, y)`` says, shared where the originals share one. Returns the copies, each
+        copied point with its original and instance (``pairs``), and each copied circle with its
+        own (``radii``)."""
+        made, pairs, radii = [], [], []
+        for k in range(1, count):
+            twin: dict[int, Point] = {}
+
+            def copied(point: Point) -> Point:
+                if id(point) not in twin:
+                    x, y = move(k, point.x, point.y)
+                    twin[id(point)] = self.point(x, y, construction=point.construction)
+                    pairs.append((point, twin[id(point)], k))
+                return twin[id(point)]
+
+            for item in items:
+                if isinstance(item, Point):
+                    made.append(copied(item))
+                elif isinstance(item, Line):
+                    made.append(self.line(copied(item.start), copied(item.end), construction=item.construction))
+                elif isinstance(item, Circle):
+                    copy = self.circle(copied(item.center), item.radius, construction=item.construction)
+                    radii.append((item, copy))
+                    made.append(copy)
+                else:
+                    made.append(self.arc(copied(item.center), copied(item.start), copied(item.end), clockwise=item.clockwise,
+                                         construction=item.construction))
+        return made, pairs, radii
 
     def offset_entities(self, made, source, distance) -> Relation:
         """``made`` kept ``distance`` from ``source``, as a CAD tool's Offset Entities keeps an
@@ -841,7 +946,7 @@ class Sketch:
                           for r in self.relations if not r.dimension],
             "dimensions": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs], "value": r.value,
                             "literal": _literal(r.raw), "redundant": r.name in redundant,
-                            "data": {key: value.name if isinstance(value, Point) else value for key, value in r.data.items()}, **where(r)}
+                            "data": {key: _named(value) for key, value in r.data.items()}, **where(r)}
                            for r in self.relations if r.dimension],
             "loops": self._loops(),
         }

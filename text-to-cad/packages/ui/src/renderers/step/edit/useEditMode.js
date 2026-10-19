@@ -98,7 +98,7 @@ export function useEditMode({ client, file, active, reading = true }) {
   // The sketch tools' settings, kept for the session as their PropertyManager keeps them: Sketch
   // Fillet's radius, Offset Entities' distance, Reverse direction and Select chain.
   const [sketchSettings, setSketchSettings] = useState(() => ({ filletRadius: "", chamferDistance: "", offsetDistance: "", offsetReverse: false,
-    offsetChain: true, polygonSides: "" }));
+    offsetChain: true, polygonSides: "", linearSpacing: "", linearCount: "", linearAngle: "", circularCount: "", circularAngle: "" }));
   // What the open command would make, for the view to preview before OK, as SolidWorks draws an
   // extrude in yellow while its PropertyManager is open: set by the command's panel.
   const [preview, setPreview] = useState(null);
@@ -576,8 +576,8 @@ export function useEditMode({ client, file, active, reading = true }) {
     dismissChoice: () => setChoice(null),
     dismissError: () => setError(""),
     sketch, sketchTool, sketchSelection, construction, picking, normalTo, sketchStep,
-    // Mirror Entities starts from what is selected; every other tool from nothing.
-    setSketchTool: tool => { setSketchTool(tool); if (tool !== "mirror") setSketchSelection([]); setSketchStep(0); },
+    // Mirror Entities and the sketch patterns start from what is selected; every other tool from nothing.
+    setSketchTool: tool => { setSketchTool(tool); if (!["mirror", "linear_pattern", "circular_pattern"].includes(tool)) setSketchSelection([]); setSketchStep(0); },
     sketchSettings,
     setSketchSettings: patch => setSketchSettings(current => ({ ...current, ...patch })),
     setSketchStep,

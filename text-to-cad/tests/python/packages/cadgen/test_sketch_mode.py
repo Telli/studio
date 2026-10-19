@@ -267,6 +267,29 @@ class SketchMode(unittest.TestCase):
         self.assertFalse(nothing["ok"])
         self.assertIn("Nothing lies ahead of Line1's start", nothing["error"])
 
+    def test_a_pattern_is_one_line_its_spacing_a_dimension_and_its_copies_go_with_it(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "circle", "center": {"at": [5, 0]}, "radius": 1})
+        self.send({"kind": "pattern", "type": "linear", "items": ["Circle1"], "spacing": "4", "count": "3", "angle": "0"})
+        self.assertIn("    pattern1 = sketch1.linear_pattern([circle1], 0, 4, 3)\n", self.source())
+        circles = [curve for curve in self.sketch["state"]["curves"] if curve["kind"] == "circle"]
+        self.assertEqual(len(circles), 3)
+        spacing = next(item for item in self.sketch["state"]["dimensions"] if item["kind"] == "linear_pattern")
+        self.assertEqual(spacing["data"]["pairs"][0][2], 1)
+        self.send({"kind": "value", "dimension": spacing["id"], "text": "6"})
+        self.assertIn("linear_pattern([circle1], 0, 6, 3)", self.source())
+        # A bolt circle about the origin, of the same hole.
+        self.send({"kind": "pattern", "type": "circular", "items": ["Circle1"], "count": "4", "angle": "360"})
+        self.assertIn("    pattern2 = sketch1.circular_pattern([circle1], sketch1.origin, 4, 360)\n", self.source())
+        # A copy deleted takes its pattern with it; the other pattern, of the hole itself, stays.
+        self.send({"kind": "delete", "items": [circles[1]["id"]]})
+        self.assertNotIn("linear_pattern", self.source())
+        self.assertIn("circular_pattern", self.source())
+        few = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "pattern", "items": ["Circle1"], "count": "1", "spacing": "2"}}})
+        self.assertFalse(few["ok"])
+        self.assertIn("2 to 100 instances", few["error"])
+
     def test_an_offset_chain_is_held_at_one_distance(self):
         self.rectangle()
         self.send({"kind": "offset", "items": ["Line1", "Line2", "Line3", "Line4"], "distance": "2"})

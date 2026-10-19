@@ -26,11 +26,15 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "extend", label: "Extend Entities", prompts: ["Click a line near the end to run on. It goes on to the first curve it meets."] },
   { id: "offset", label: "Offset Entities", prompts: ["Click a line, an arc or a circle to offset it, and the chain it is part of."] },
   { id: "mirror", label: "Mirror Entities", prompts: ["Click the entities to mirror.", "Click more of them, or the centerline to mirror about."] },
+  { id: "linear_pattern", label: "Linear Sketch Pattern", prompts: ["Click the entities to copy in a row, set the spacing and instances, then make the pattern."] },
+  { id: "circular_pattern", label: "Circular Sketch Pattern", prompts: ["Click the entities to copy round, and a point to turn them about (else the origin), then make the pattern."] },
   { id: "convert", label: "Convert Entities", prompts: ["Select edges or a face of the model, then Convert. They come into the sketch and stay on the model as it changes."] },
 ]);
 
 /** The tools that change what is drawn rather than draw: each takes its own clicks (see `SketchOverlay.jsx`). */
-export const MODIFY_TOOLS = Object.freeze(["fillet", "chamfer", "trim", "extend", "offset", "mirror"]);
+export const MODIFY_TOOLS = Object.freeze(["fillet", "chamfer", "trim", "extend", "offset", "mirror", "linear_pattern", "circular_pattern"]);
+/** The sketch patterns: each takes what is selected, and its panel's settings, and is made by its OK. */
+export const PATTERN_TOOLS = Object.freeze(["linear_pattern", "circular_pattern"]);
 /** The tools that take a corner: a point where two lines meet, or the two lines. */
 export const CORNER_TOOLS = Object.freeze(["fillet", "chamfer"]);
 /** The tools that pick on the model rather than the sketch: Convert Entities takes its edges and faces, so the model has the presses. */
@@ -38,7 +42,7 @@ export const MODEL_TOOLS = Object.freeze(["convert"]);
 
 /** The size a sketch tool uses until one is typed, in the part's units: a fillet's radius, a chamfer's or an offset's distance. */
 export const toolSize = (typed, units, tool) => String(typed ?? "").trim()
-  || (units === "in" ? (tool === "fillet" ? "0.1" : "0.06") : (tool === "fillet" ? "2" : "1"));
+  || (tool === "pattern" ? (units === "in" ? ".5" : "10") : units === "in" ? (tool === "fillet" ? "0.1" : "0.06") : (tool === "fillet" ? "2" : "1"));
 
 // How near, as a share of the sketch's size, two places are one.
 const nearness = state => 1e-6 * Math.max(1, ...(state?.points || []).flatMap(point => [Math.abs(point.x), Math.abs(point.y)]));
@@ -430,6 +434,7 @@ export function formatValue(value, units, dimension) {
   const text = Number(value.toFixed(places)).toString();
   if (dimension === "diameter") return `Ø${text}`;
   if (dimension === "radius" || dimension === "fillet") return `R${text}`;
+  if (dimension === "circular_pattern") return `${Number(value.toFixed(1))}°`;
   return text;
 }
 
@@ -467,6 +472,19 @@ export function dimensionLayout(state, dimension, gap, { side = 0, level = 0 } =
   const [a, b] = dimension.refs;
   switch (dimension.kind) {
     case "length": { const line = curve(a); return line ? aligned(line.a, line.b) : null; }
+    // A linear pattern's spacing, from an entity's point to the same point of the first copy; a
+    // circular pattern's angle, from the center out to the first copy.
+    case "linear_pattern":
+    case "circular_pattern": {
+      const first = (dimension.data?.pairs || []).find(pair => pair[2] === 1);
+      const from = first && points.has(first[0]) ? at(points.get(first[0])) : null;
+      const to = first && points.has(first[1]) ? at(points.get(first[1])) : null;
+      if (!from || !to) return null;
+      if (dimension.kind === "linear_pattern") return aligned(from, to);
+      const pivot = points.has(dimension.data?.center) ? at(points.get(dimension.data.center)) : [0, 0];
+      const toward = unit(sub(to, pivot));
+      return { lines: [], dimension: [pivot, to], single: true, anchor: add(to, scale(toward, gap * (1 + level))) };
+    }
     // A chamfer's distance, as SolidWorks shows it: along its first line, from the corner it cuts to where it meets it.
     case "chamfer": {
       const cut = curves.find(each => each.id === dimension.data?.line);
@@ -745,6 +763,69 @@ export function extendPiece(state, id, place, tolerance = nearness(state) * 10) 
   return nearest ? { id, points: [end, nearest.hit] } : null;
 }
 
+// A count typed in a panel: a whole number from 2 to 100, else the tool's own.
+const instances = (typed, fallback) => {
+  const count = Number(String(typed ?? "").trim());
+  return Number.isInteger(count) && count >= 2 && count <= 100 ? count : fallback;
+};
+
+/**
+ * What a sketch pattern takes and makes, as its panel sets it out: the entities selected (a
+ * circular one's center the point selected last, else the sketch's origin), how many instances,
+ * and a linear one's spacing and angle, a circular one's total angle, as typed.
+ */
+export function patternSettings(tool, settings = {}, selection = [], state = null, units = "mm") {
+  const circular = tool === "circular_pattern";
+  const { points } = sketchGeometry(state);
+  const center = circular ? [...selection].reverse().find(id => points.has(id) && id !== "Origin") || null : null;
+  const items = selection.filter(id => id !== center);
+  if (circular) {
+    return { type: "circular", items, count: instances(settings.circularCount, 6), angle: String(settings.circularAngle ?? "").trim() || "360", center };
+  }
+  return { type: "linear", items, count: instances(settings.linearCount, 3), spacing: toolSize(settings.linearSpacing, units, "pattern"),
+    angle: String(settings.linearAngle ?? "").trim() || "0" };
+}
+
+/** A sketch pattern's change (`patternSettings`), as `cadgen/edit` takes it. */
+export function patternOp(pattern) {
+  const { center, ...rest } = pattern;
+  return { kind: "pattern", ...rest, count: String(pattern.count), ...(center ? { center } : {}) };
+}
+
+/**
+ * Where a sketch pattern's copies would go, drawn before it is made: each instance past the first,
+ * each entity moved down the row (or turned about the center) as the pattern would place it. Empty
+ * while a size is written as a name the view cannot work out.
+ */
+export function patternCopies(state, pattern) {
+  const { points, curves } = sketchGeometry(state);
+  const angle = Number(pattern.angle);
+  const spacing = Number(pattern.spacing);
+  if (!Number.isFinite(angle) || (pattern.type === "linear" && !Number.isFinite(spacing))) return [];
+  const pivot = pattern.center && points.has(pattern.center) ? at(points.get(pattern.center)) : [0, 0];
+  const full = Math.abs(Math.abs(angle) - 360) < 1e-9;
+  const step = (angle * Math.PI) / 180 / (full ? pattern.count : pattern.count - 1);
+  const way = [Math.cos((angle * Math.PI) / 180), Math.sin((angle * Math.PI) / 180)];
+  const moved = (k, p) => {
+    if (pattern.type === "linear") return add(p, scale(way, k * spacing));
+    const [c, s] = [Math.cos(k * step), Math.sin(k * step)];
+    const r = sub(p, pivot);
+    return add(pivot, [c * r[0] - s * r[1], s * r[0] + c * r[1]]);
+  };
+  const out = [];
+  for (let k = 1; k < pattern.count; k += 1) {
+    for (const id of pattern.items) {
+      if (points.has(id)) { out.push({ kind: "point", at: moved(k, at(points.get(id))) }); continue; }
+      const curve = curves.find(each => each.id === id);
+      if (!curve || curve.derived) continue;
+      if (curve.kind === "line") out.push({ kind: "line", a: moved(k, curve.a), b: moved(k, curve.b) });
+      else if (curve.kind === "circle") out.push({ kind: "circle", c: moved(k, curve.c), r: curve.r });
+      else out.push({ kind: "arc", c: moved(k, curve.c), s: moved(k, curve.s), e: moved(k, curve.e), r: curve.r, clockwise: curve.clockwise });
+    }
+  }
+  return out;
+}
+
 /** The curves joined end to end with `id` (lines and arcs meeting at a point or one place), as Offset Entities' Select chain takes them. */
 export function chainOf(state, id, tolerance = nearness(state) * 10) {
   const { curves } = sketchGeometry(state);
@@ -798,6 +879,7 @@ export function sketchNote(session) {
   if (made.chamfer) parts.push(`cut ${counted(made.chamfer, "corner")}`);
   if (made.trimmed) parts.push(`trimmed ${counted(made.trimmed, "curve")}`);
   if (made.extended) parts.push(`extended ${counted(made.extended, "line")}`);
+  if (made.pattern) parts.push(`made ${counted(made.pattern, "sketch pattern")}`);
   if (made.offset) parts.push(`offset ${counted(made.offset, "chain")}`);
   if (made.mirrored) parts.push(`mirrored ${counted(made.mirrored, "entity", "entities")}`);
   const converted = [["convertedEdge", "edge", "edges"], ["convertedFace", "face", "faces"]].filter(([key]) => made[key])
@@ -832,6 +914,7 @@ export function countChange(made, op) {
   else if (op.kind === "chamfer") bump("chamfer");
   else if (op.kind === "trim") bump("trimmed");
   else if (op.kind === "extend") bump("extended");
+  else if (op.kind === "pattern") bump("pattern");
   else if (op.kind === "offset") bump("offset");
   else if (op.kind === "mirror") bump("mirrored", (op.items || []).length || 1);
   else if (op.kind === "convert") {

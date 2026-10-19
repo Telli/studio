@@ -11,6 +11,9 @@ import {
   drawOp,
   extendPiece,
   formatValue,
+  patternCopies,
+  patternOp,
+  patternSettings,
   hitTest,
   inferLine,
   polygonCorners,
@@ -240,4 +243,26 @@ test("Extend runs a free line's end on to the first curve ahead, and leaves a jo
   // The rectangle's own lines share their corners.
   assert.equal(extendPiece(state, "Line1", [39, 0]), null);
   assert.match(sketchNote({ name: "Sketch1", file: "a.py", line: 3, made: countChange({}, { kind: "extend", curve: "Line5" }) }), /extended a line/);
+});
+
+test("a sketch pattern takes what is selected, draws its copies where they go, and sends its settings", () => {
+  // The circle in the rectangle, three in a row 10 apart along X; then six round the point picked last.
+  const linear = patternSettings("linear_pattern", { linearSpacing: "10" }, ["Circle1"], STATE, "mm");
+  assert.deepEqual(linear, { type: "linear", items: ["Circle1"], count: 3, spacing: "10", angle: "0" });
+  assert.deepEqual(patternCopies(STATE, linear).map(copy => copy.c.map(Math.round)), [[40, 10], [50, 10]]);
+  assert.deepEqual(patternOp(linear), { kind: "pattern", type: "linear", items: ["Circle1"], count: "3", spacing: "10", angle: "0" });
+  const circular = patternSettings("circular_pattern", { circularCount: "4" }, ["Circle1", "Point1"], STATE, "mm");
+  assert.deepEqual(circular, { type: "circular", items: ["Circle1"], count: 4, angle: "360", center: "Point1" });
+  // A quarter turn about the rectangle's corner at the origin: (30, 10) to (-10, 30).
+  assert.deepEqual(patternCopies(STATE, circular)[0].c.map(value => Math.round(value)), [-10, 30]);
+  assert.deepEqual(patternOp(circular), { kind: "pattern", type: "circular", items: ["Circle1"], count: "4", angle: "360", center: "Point1" });
+  // A spacing written as a size's name is not drawn ahead.
+  assert.deepEqual(patternCopies(STATE, { ...linear, spacing: "PITCH" }), []);
+  assert.deepEqual(countChange({}, { kind: "pattern" }), { pattern: 1 });
+  // Its spacing drawn from the circle's center to its first copy's.
+  const state = { ...STATE, points: [...STATE.points, { id: "Point6", x: 40, y: 10 }],
+    dimensions: [{ id: "D1", kind: "linear_pattern", refs: ["Circle1"], value: 10, data: { pairs: [["Point5", "Point6", 1]], angle: 0 } }] };
+  const placed = dimensionLayout(state, state.dimensions[0], 5);
+  assert.ok(placed.dimension.every(([, y]) => y !== 10));
+  assert.equal(formatValue(360, "mm", "circular_pattern"), "360°");
 });

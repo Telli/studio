@@ -196,6 +196,35 @@ def _residual(relation, u: _Unknowns, scale: float):
     if kind in ("fillet", "chamfer"):
         # Worked out from its lines once they are solved (`fillets.py`): nothing to solve.
         return None
+    if kind in ("linear_pattern", "circular_pattern"):
+        # Each copy is its original moved down the row, or turned about the center: by its
+        # instance's place, the spacing (or the angle) the pattern's dimension.
+        pairs, radii = data["pairs"], data["radii"]
+        if kind == "linear_pattern":
+            line = data.get("line")
+            fixed = None if line is not None else np.array([math.cos(math.radians(data["angle"])), math.sin(math.radians(data["angle"]))])
+
+            def linear(x):
+                way = unit(line, x) if line is not None else fixed
+                out = []
+                for original, copy, k in pairs:
+                    out += list(P(copy, x) - P(original, x) - k * value * way)
+                return out + [u.radius(copy, x) - u.radius(original, x) for original, copy in radii]
+
+            return linear
+        center, count, full = data["center"], data["count"], data["full"]
+
+        def circular(x):
+            pivot = P(center, x)
+            step = math.radians(value) / (count if full else count - 1)
+            out = []
+            for original, copy, k in pairs:
+                c, s = math.cos(k * step), math.sin(k * step)
+                r = P(original, x) - pivot
+                out += list(P(copy, x) - pivot - np.array([c * r[0] - s * r[1], s * r[0] + c * r[1]]))
+            return out + [u.radius(copy, x) - u.radius(original, x) for original, copy in radii]
+
+        return circular
     if kind == "offset":
         count = data["count"]
         made, source, sides = refs[:count], refs[count:], data["sides"]

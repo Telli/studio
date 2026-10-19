@@ -15,6 +15,9 @@ import {
   inferLine,
   MODEL_TOOLS,
   MODIFY_TOOLS,
+  PATTERN_TOOLS,
+  patternCopies,
+  patternSettings,
   placedSide,
   polygonCorners,
   polygonSides,
@@ -303,6 +306,23 @@ export default function SketchOverlay({ viewport, edit, units }) {
         }
       }
 
+      // A sketch pattern's copies, dashed where they would go, before it is made.
+      if (PATTERN_TOOLS.includes(current.tool) && current.selection.length) {
+        const pattern = patternSettings(current.tool, current.settings || {}, current.selection, shown, current.units);
+        context.strokeStyle = colors.preview;
+        context.lineWidth = 1.5;
+        context.setLineDash([6, 4]);
+        for (const copy of patternCopies(shown, pattern)) {
+          if (copy.kind !== "point") { path(curvePoints(copy)); continue; }
+          const screen = toScreen(copy.at);
+          if (!screen) continue;
+          context.beginPath();
+          context.arc(screen[0], screen[1], 3, 0, 2 * Math.PI);
+          context.stroke();
+        }
+        context.setLineDash([]);
+      }
+
       // The stroke under way, and where it lands.
       const tool = current.tool;
       if (tool && tool !== "dimension" && !MODIFY_TOOLS.includes(tool) && !MODEL_TOOLS.includes(tool) && pointer?.local) {
@@ -511,6 +531,12 @@ export default function SketchOverlay({ viewport, edit, units }) {
         const items = current.settings?.offsetChain === false ? [hit] : chainOf(state, hit);
         await send({ kind: "offset", items, distance: toolSize(current.settings?.offsetDistance, units, "offset"),
           reverse: Boolean(current.settings?.offsetReverse) });
+        return;
+      }
+      if (PATTERN_TOOLS.includes(tool)) {
+        // What the pattern copies, clicked in and out; a circular one's center, a point clicked last.
+        if (!hit || curve?.derived) return;
+        current.edit.selectInSketch(current.selection.includes(hit) ? current.selection.filter(id => id !== hit) : [...current.selection, hit]);
         return;
       }
       if (tool === "mirror") {

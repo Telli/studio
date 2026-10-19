@@ -905,3 +905,36 @@ def extend(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
     ends = [each for each in (shape.curves[target].get("start"), shape.curves[target].get("end")) if each and shape.near(shape.at(each), place)]
     trim_.edits.replace_node(argument, trim_.end_at(role, {"place": place, "curves": [target], "point": ends[0] if ends else None}, own=True))
     return trim_.apply()
+
+
+# ---------------------------------------------------------------------------------------------
+# Linear and Circular Sketch Pattern.
+
+
+def pattern(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") -> str:
+    """Entities copied as a CAD tool's sketch patterns copy them, one line for all the copies:
+    ``items`` (curves and points of the sketch), ``count`` instances in all; ``type`` linear (each
+    ``spacing`` on along ``angle`` degrees, or along the line ``along``) or circular (turned about
+    the point ``center``, the sketch's origin when none, over ``angle`` degrees):
+    ``pattern1 = sketch1.linear_pattern([circle1], 0, 10, 4)``."""
+    block = find_block(text, line, path)
+    names = Names(block, state)
+    s = block.var
+    items = [str(item) for item in op.get("items") or []]
+    if not items:
+        raise SketchEditError("Select the entities to pattern.")
+    codes = [names.item(item) for item in items]
+    try:
+        count = int(str(op.get("count") or "").strip())
+    except ValueError:
+        count = 0
+    if not 2 <= count <= 100:
+        raise SketchEditError("A pattern has 2 to 100 instances.")
+    var = _Vars(block, state).next("Pattern")
+    listed = f"[{', '.join(codes)}]"
+    if str(op.get("type") or "linear") == "circular":
+        center = names.item(str(op["center"])) if op.get("center") else f"{s}.origin"
+        angle = _typed(op.get("angle") or "360")
+        return _append(text, block, [f"{var} = {s}.circular_pattern({listed}, {center}, {count}, {angle})"])
+    along = names.curve(str(op["along"])) if op.get("along") else _typed(op.get("angle") or "0")
+    return _append(text, block, [f"{var} = {s}.linear_pattern({listed}, {along}, {_typed(op.get('spacing'))}, {count})"])

@@ -72,6 +72,11 @@ def plate():
 - `s.fillet(line1, line2, radius)` rounds the corner where two lines meet (Fillet1, its radius a
   dimension). The lines keep their ends at the corner, its virtual sharp, so dimensions to the
   corner still measure to it; the face is made with the corner rounded.
+- `s.linear_pattern([circle1, ...], along, spacing, count)` copies curves and points in a row,
+  `along` an angle in degrees from the sketch's x axis or a line of the sketch whose way they
+  follow; `s.circular_pattern([...], center, count, angle=360)` turns copies about a point, spread
+  over the angle. Each copy is held to its original moved (or turned) by its place; the spacing or
+  the angle is a dimension. Both return the copies, instance by instance.
 - `s.chamfer(line1, line2, distance)` cuts that corner with a line `distance` back along each
   (Chamfer1, its distance a dimension), the corner kept as a fillet keeps it.
 - `s.offset_entities(made, source, distance)` holds offset curves (a curve, or lists in step)

@@ -20,7 +20,10 @@ import re
 from dataclasses import dataclass, field
 
 # What draws: the entities, and Convert Entities' edges of the model (`convert`, held On Edge).
-GEOMETRY = ("point", "line", "polyline", "circle", "arc", "three_point_arc", "rectangle", "center_rectangle", "slot", "polygon", "convert")
+GEOMETRY = ("point", "line", "polyline", "circle", "arc", "three_point_arc", "rectangle", "center_rectangle", "slot", "polygon", "convert",
+            "linear_pattern", "circular_pattern")
+# The statements that copy what is drawn: a pattern's copies and its dimension go together.
+PATTERNS = ("linear_pattern", "circular_pattern")
 RELATIONS = ("fix", "coincident", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "midpoint",
              "symmetric", "concentric")
 DIMENSIONS = ("distance", "length", "horizontal_distance", "vertical_distance", "radius", "diameter", "angle")
@@ -656,7 +659,7 @@ def delete(text: str, line: int, state: dict, items: list[str], path: str = "<sk
         if name in made.relations and made.method == "convert":
             held = (names.relations.get(name) or {}).get("refs") or ["the converted entity"]
             raise SketchEditError(f"{name} holds {held[0]} on the model's edge. Delete {held[0]} to take it away.")
-        if name in made.relations and made.method in GEOMETRY:
+        if name in made.relations and made.method in GEOMETRY and made.method not in PATTERNS:
             shape = made.method.replace("_", " ")
             raise SketchEditError(f"{name} comes with the {shape} it holds. Delete the {shape} instead.")
         if name in made.relations and made.method in ("fillet", "chamfer"):

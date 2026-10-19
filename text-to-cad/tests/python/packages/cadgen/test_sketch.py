@@ -98,6 +98,36 @@ class Solving(unittest.TestCase):
         with self.assertRaises(SketchError):
             s.polygon((0, 0), (5, 0), 2)
 
+    def test_a_linear_pattern_follows_its_spacing_and_a_circular_one_goes_round_its_center(self):
+        s = Sketch("Holes")
+        hole = s.circle((10, 0), 2)
+        s.fix(hole.center)
+        s.radius(hole, 2)
+        row = s.linear_pattern([hole], 0, 8, 4)
+        self.assertEqual((len(row), s.status), (3, "Fully defined"))
+        self.assertEqual([round(copy.center.x, 6) for copy in row], [18, 26, 34])
+        # Its spacing is a dimension: changed, the copies follow, each the hole's size.
+        spacing = next(relation for relation in s.relations if relation.kind == "linear_pattern")
+        spacing.value = 5
+        s._changed()
+        self.assertEqual(s.status, "Fully defined")
+        self.assertEqual([(round(copy.center.x, 6), round(copy.radius, 6)) for copy in row], [(15, 2), (20, 2), (25, 2)])
+        t = Sketch("Bolt circle")
+        bolt = t.circle((20, 0), 3)
+        t.radius(bolt, 3)
+        t.horizontal_distance(t.origin, bolt.center, 20)
+        t.vertical_distance(t.origin, bolt.center, 0)
+        ring = t.circular_pattern([bolt], t.origin, 6)
+        self.assertEqual((t.status, t.dof), ("Fully defined", 0))
+        self.assertEqual([(round(copy.center.x, 6), round(copy.center.y, 6)) for copy in ring[:2]], [(10, round(20 * math.sin(math.pi / 3), 6)),
+                                                                                                    (-10, round(20 * math.sin(math.pi / 3), 6))])
+        with self.assertRaises(SketchError):
+            t.circular_pattern([bolt], t.origin, 1)
+        # A rectangle in a column: each copy a closed outline of its own.
+        r = Sketch("Slots")
+        column = r.linear_pattern(list(r.rectangle((0, 0), (4, 2))), 90, 5, 3)
+        self.assertEqual((len(column), len(r.faces())), (8, 3))
+
 
 class Faces(unittest.TestCase):
     def test_a_profile_with_a_hole_extrudes_along_its_plane(self):

@@ -192,7 +192,10 @@ by hand" below.
   line's length becomes the distance between its far ends), or makes a circle an arc; a
   rectangle is written as its four lines first. A curve nothing crosses is deleted. Extend
   Entities runs a line's free end on to the first curve ahead and keeps it there with the same
-  `coincident`; a joined end is left alone. Convert
+  `coincident`; a joined end is left alone. Linear and Circular Sketch Pattern write one line
+  for all their copies, `pattern1 = sketch2.linear_pattern([circle1], 0, 10, 4)` or
+  `sketch2.circular_pattern([circle1], sketch2.origin, 6, 360)`; deleting a copy or the pattern's
+  dimension deletes the pattern. Convert
   Entities writes `converted1 = sketch2.convert(<edges>)`, the edges picked on the model (a face
   stands for its edges) by where they are on the body made before the sketch; deleting one of
   them deletes that line, and they are not trimmed.

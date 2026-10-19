@@ -14,7 +14,8 @@ import { SketchIcon } from "./cadIcons.jsx";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
 import { SelectionList } from "./EditCommand.jsx";
 import { ORIGIN_PLANES, selectionItems } from "./editMode.js";
-import { formatValue, MODEL_TOOLS, MODIFY_TOOLS, polygonSides, relationsFor, relationsOn, sketchTool, toolSize } from "./sketchMode.js";
+import { formatValue, MODEL_TOOLS, MODIFY_TOOLS, PATTERN_TOOLS, patternOp, patternSettings, polygonSides, relationsFor, relationsOn, sketchTool,
+  toolSize } from "./sketchMode.js";
 
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
@@ -36,6 +37,40 @@ function Header({ title, detail, actions = null }) {
     {detail ? <span className="shrink-0 truncate text-tiny text-muted-foreground">{detail}</span> : null}
     {actions}
   </div>;
+}
+
+/**
+ * A sketch pattern's PropertyManager, as SolidWorks' Linear and Circular Sketch Pattern set theirs
+ * out: the entities selected to copy, a linear pattern's spacing, instances and angle, a circular
+ * one's instances, total angle and the point it turns about; the copies are drawn dashed on the
+ * sketch until the pattern is made.
+ */
+function PatternSettings({ edit, tool, units, disabled }) {
+  const settings = edit.sketchSettings || {};
+  const pattern = patternSettings(tool, settings, edit.sketchSelection, edit.sketch?.state, units);
+  const set = key => text => edit.setSketchSettings({ [key]: text });
+  const make = async () => {
+    const reply = await edit.sketchOp(patternOp(pattern));
+    if (reply?.ok) edit.selectInSketch([]);
+  };
+  return <>
+    <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Entities to pattern</p>
+    {pattern.items.length ? <ul aria-label="Entities to pattern" className="mx-2 mb-1.5 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">
+      {pattern.items.map(id => <li key={id} className="truncate">{id}</li>)}
+    </ul> : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1.5`}>None selected yet.</p>}
+    {pattern.type === "linear" ? <>
+      <SizeRow label="Spacing" value={pattern.spacing} unit={units} disabled={disabled} onCommit={set("linearSpacing")} />
+      <SizeRow label="Instances" value={String(pattern.count)} unit="" disabled={disabled} onCommit={set("linearCount")} />
+      <SizeRow label="Angle" value={pattern.angle} unit="deg" disabled={disabled} onCommit={set("linearAngle")} />
+    </> : <>
+      <SizeRow label="Instances" value={String(pattern.count)} unit="" disabled={disabled} onCommit={set("circularCount")} />
+      <SizeRow label="Total angle" value={pattern.angle} unit="deg" disabled={disabled} onCommit={set("circularAngle")} />
+      <FileSheetControlRow label="About" value={pattern.center || "Origin"} />
+    </>}
+    <div className="flex px-2 pb-2 pt-1">
+      <Button size="sm" disabled={disabled || !pattern.items.length} onClick={() => void make()}>Make the pattern</Button>
+    </div>
+  </>;
 }
 
 /** The Sketch command waiting for its plane, as SolidWorks asks for one: the origin's three, or a flat face. */
@@ -131,6 +166,7 @@ export default function SketchPanel({ edit, onPlane, references = [] }) {
       {/* Polygon's Parameters: how many sides it is drawn with. */}
       {tool.id === "polygon" ? <SizeRow label="Sides" value={String(polygonSides(settings.polygonSides))} unit="" disabled={disabled}
         onCommit={text => edit.setSketchSettings({ polygonSides: text })} /> : null}
+      {PATTERN_TOOLS.includes(tool.id) ? <PatternSettings edit={edit} tool={tool.id} units={units} disabled={disabled} /> : null}
       {tool.id === "convert" ? <ConvertEntities edit={edit} references={references} /> : null}
       {tool.id === "mirror" && selection.length ? <>
         <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Entities to mirror</p>
