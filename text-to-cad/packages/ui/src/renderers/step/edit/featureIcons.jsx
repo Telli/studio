@@ -24,8 +24,10 @@ const colored = Icon => () => <Icon className={COLORED_CLASS} />;
 const KIND_ICONS = Object.freeze({
   "Boss-Extrude": colored(cad.ExtrudedBossIcon), "Cut-Extrude": colored(cad.ExtrudedCutIcon), "Intersect-Extrude": colored(cad.ExtrudedCutIcon),
   "Boss-Revolve": colored(cad.RevolvedBossIcon), "Cut-Revolve": colored(cad.RevolvedCutIcon),
+  "Boss-Sweep": colored(cad.SweptBossIcon), "Cut-Sweep": colored(cad.SweptCutIcon), "Boss-Loft": colored(cad.LoftedBossIcon),
+  "Cut-Loft": colored(cad.LoftedCutIcon), Rib: colored(cad.RibIcon),
   Fillet: colored(cad.FilletIcon), Chamfer: colored(cad.ChamferIcon), Hole: colored(cad.HoleIcon), Shell: colored(cad.ShellIcon),
-  Pattern: colored(cad.PatternIcon), Mirror: colored(cad.MirrorIcon),
+  Draft: colored(cad.DraftIcon), Pattern: colored(cad.PatternIcon), Mirror: colored(cad.MirrorIcon),
   "Move/Copy": () => <Move3d className={TREE_GLYPH_CLASS} strokeWidth={TREE_GLYPH_STROKE} aria-hidden="true" />,
 });
 

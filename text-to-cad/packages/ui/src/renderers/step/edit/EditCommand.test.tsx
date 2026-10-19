@@ -123,3 +123,44 @@ it('a sweep takes the sketch selected as its profile, then the next as its path,
   await user.click(screen.getByRole('button', { name: 'OK' }));
   expect(rib.run).toHaveBeenCalledWith({ command: 'rib', sketch: { file: 'block.py', line: 9, name: 'Sketch1' }, inputs: { thickness: '1', flip: true } });
 });
+
+const SIDE = { id: 'ref-f2', selectorType: 'face', displaySelector: 'f2', pickData: { surfaceType: 'plane', center: [10, 0, 0], area: 40, normal: [1, 0, 0] } };
+const BOTTOM = { id: 'ref-f6', selectorType: 'face', displaySelector: 'f6', pickData: { surfaceType: 'plane', center: [0, 0, -2], area: 200, normal: [0, 0, -1] } };
+const SIDE_ITEM = { selector: 'f2', type: 'plane', center: [10, 0, 0], size: 40 };
+
+it('a draft takes the first face clicked as its neutral plane, apart from the faces it drafts, and pulls into the part', async () => {
+  const user = userEvent.setup();
+  const draft = edit('draft', '');
+  const onDeselect = vi.fn();
+  const { rerender } = render(<EditCommand edit={draft as never} names={NAMES} references={[]} onDeselect={onDeselect} />);
+  expect(screen.getByText('1 of 2: Select the neutral plane')).toBeTruthy();
+  // Clicked on the model, the face goes to the Neutral Plane box and is let go there.
+  rerender(<EditCommand edit={draft as never} names={NAMES} references={[BOTTOM]} onDeselect={onDeselect} />);
+  expect(onDeselect).toHaveBeenCalledWith('ref-f6');
+  rerender(<EditCommand edit={draft as never} names={NAMES} references={[]} onDeselect={onDeselect} />);
+  expect(screen.getByText('Face 6')).toBeTruthy();
+  expect(screen.getByText('2 of 2: Select faces to draft')).toBeTruthy();
+  // The next face is one it drafts.
+  rerender(<EditCommand edit={draft as never} names={NAMES} references={[SIDE]} onDeselect={onDeselect} />);
+  expect(onDeselect).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('Face 2')).toBeTruthy();
+  await waitFor(() => expect(draft.setPreview).toHaveBeenLastCalledWith(
+    { mark: 'draft', center: [0, 0, -2], normal: [0, 0, -1], at: [0, 0, -2], pull: [0, 0, 1] }));
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(draft.run).toHaveBeenCalledWith({
+    command: 'draft', selection: [SIDE_ITEM], inputs: { angle: '1', neutral: 'face', reverse: true },
+    neutral: { selector: 'f6', type: 'plane', center: [0, 0, -2], size: 200 },
+  });
+});
+
+it("a plane clicked in the design tree is a draft's neutral plane, and Clear lets it go for another", async () => {
+  const user = userEvent.setup();
+  const draft = { ...edit('draft', 'plane:Top'), state: { units: 'mm', rows: ROWS, bounds: [[-10, -5, 0], [10, 5, 4]] } };
+  render(<EditCommand edit={draft as never} names={NAMES} references={[SIDE]} />);
+  expect(screen.getByText('Top Plane')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(draft.run).toHaveBeenCalledWith({ command: 'draft', selection: [SIDE_ITEM], inputs: { angle: '1', neutral: 'Top', reverse: false } });
+  await user.click(screen.getByRole('button', { name: 'Clear Top Plane' }));
+  expect(draft.select).toHaveBeenCalledWith(null);
+  expect(screen.getByText('1 of 2: Select the neutral plane')).toBeTruthy();
+});

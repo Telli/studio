@@ -174,7 +174,7 @@ export function barIndex(tree, bar) {
 export const rolledBack = (tree, bar) => new Set((tree?.assembly ? [] : tree?.features || []).slice(barIndex(tree, bar)).map(feature => feature.id));
 
 /** The commands Edit Feature rolls back for, so their edges or faces are picked again on the body before them. */
-export const REPICKS = Object.freeze(new Set(["fillet", "chamfer", "shell", "hole"]));
+export const REPICKS = Object.freeze(new Set(["fillet", "chamfer", "shell", "draft", "hole"]));
 
 /** Every feature of a tree, an assembly's parts' too, in order. */
 export const treeFeatures = tree => (tree?.assembly ? tree.components.flatMap(component => component.features) : tree?.features || []);
@@ -348,6 +348,43 @@ export function holePreview(values, units = "mm", face = null) {
     into: unit.map(value => -value || 0), label: values.through ? END_WORDS.through : sizeTag(values.depth, units) };
 }
 
+// The origin's planes' normals, the way build123d's Plane.XY, Plane.XZ and Plane.YZ face, and those names.
+const PLANE_NORMALS = Object.freeze({ Top: [0, 0, 1], Front: [0, -1, 0], Right: [1, 0, 0] });
+const PLANE_AXES = Object.freeze({ Top: "XY", Front: "XZ", Right: "YZ" });
+
+/**
+ * Whether a draft about an origin plane starts reversed: its direction of pull is the plane's
+ * normal turned toward the part, so the part keeps its size at the plane and narrows away from it.
+ */
+export function draftReversed(plane, bounds) {
+  const normal = PLANE_NORMALS[plane];
+  if (!normal || !bounds) return false;
+  const middle = [0, 1, 2].map(axis => (bounds[0][axis] + bounds[1][axis]) / 2);
+  return normal[0] * middle[0] + normal[1] * middle[1] + normal[2] * middle[2] < -1e-9;
+}
+
+/**
+ * A draft's neutral plane and its direction of pull, for the view to draw while Draft is open: the
+ * plane drawn as Mirror's is (an origin plane by its axes, or a square on a face's plane), and an
+ * arrow from it the way the part narrows (`pull`, from `at`). `face` is a neutral face picked (its
+ * `center` and outward `normal`): its plane pulls out of the part, reversed into it. Null for the
+ * face a reopened draft keeps, which the panel has no place for.
+ */
+export function draftPreview(values, face = null, bounds = null) {
+  const sign = values.reverse ? -1 : 1;
+  if (face?.center && face?.normal) {
+    const center = Array.from(face.center, Number);
+    const normal = Array.from(face.normal, Number);
+    return { mark: "draft", center, normal, at: center, pull: normal.map(value => value * sign || 0) };
+  }
+  const normal = PLANE_NORMALS[values.neutral];
+  if (!normal) return null;
+  const [min, max] = bounds || [[0, 0, 0], [0, 0, 0]];
+  // From the part's middle, put on the plane.
+  const at = [0, 1, 2].map(axis => (normal[axis] ? 0 : (min[axis] + max[axis]) / 2));
+  return { mark: "draft", plane: PLANE_AXES[values.neutral], at, pull: normal.map(value => value * sign || 0) };
+}
+
 /**
  * The plane a mirror goes about, for the view to draw while Mirror is open: a face picked (its
  * `center` and `normal`), or one of the origin's planes by the axes it holds ("YZ"). Null for the
@@ -412,7 +449,7 @@ const LOFT_PROMPT = "Select the profile sketches on the model or in the design t
 /**
  * The ribbon's modeling commands, as SolidWorks' Features tab sets them out: the bosses a sketch
  * makes (Extruded, Revolved, Swept and Lofted Boss/Base), the cuts (the same four, and Hole), and
- * what changes the body (Fillet, Chamfer, Rib, Shell, Pattern, Mirror). `picks` is what the
+ * what changes the body (Fillet, Chamfer, Rib, Draft, Shell, Pattern, Mirror). `picks` is what the
  * command acts on, which the Select tool's mode turns to when it opens: edges, faces, or none
  * (Pattern copies a history feature). `sketch`: it takes one sketch, selected in the design tree
  * or on the model; `sketches`: it takes several, a sweep its profile then its path, a loft its
@@ -432,6 +469,7 @@ export const EDIT_COMMANDS = Object.freeze([
   { id: "fillet", label: "Fillet", group: "Modify", picks: "edges", many: true, prompt: "Click edges on the model to add them. Click one again to take it out." },
   { id: "chamfer", label: "Chamfer", group: "Modify", picks: "edges", many: true, prompt: "Click edges on the model to add them. Click one again to take it out." },
   { id: "rib", label: "Rib", group: "Modify", picks: null, sketch: true, prompt: "Select a sketch of the rib's line on the model or in the design tree." },
+  { id: "draft", label: "Draft", group: "Modify", picks: "faces", many: true, prompt: "Click the faces to draft. Click one again to take it out." },
   { id: "shell", label: "Shell", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
   { id: "pattern", label: "Pattern", group: "Modify", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Modify", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
@@ -451,6 +489,8 @@ export function commandDefaults(id, units) {
     case "hole": return { type: "simple", diameter: size.diameter, depth: size.depth, through: true, x: "0", y: "0", z: "0",
       cbore_diameter: size.cbore, cbore_depth: size.cboreDepth, csk_diameter: size.csk, csk_angle: size.cskAngle };
     case "shell": return { thickness: size.thickness };
+    // A draft's neutral plane is picked: an origin plane's name, or "face" for a face of the part.
+    case "draft": return { angle: size.draft, neutral: "", reverse: false };
     case "mirror": return { plane: "YZ" };
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
     case "extrude":
@@ -592,6 +632,14 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
     return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title, axis: values.axis } : null,
       inputs: { angle: values.angle, reverse: Boolean(values.reverse) }, ...replace };
   }
+  if (id === "draft") {
+    // The neutral plane: an origin plane by its name, or a face picked on the model (marked `neutral` among the items).
+    const neutral = items.find(item => item.neutral) || null;
+    const faces = items.filter(item => !item.neutral && /f\d+$/.test(item.selector));
+    const { neutral: _marked, ...face } = neutral || {};
+    return { command: id, selection: faces, inputs: { angle: values.angle, neutral: neutral ? "face" : values.neutral || "", reverse: Boolean(values.reverse) },
+      ...(neutral ? { neutral: face } : {}), ...replace };
+  }
   const inputs = {};
   switch (id) {
     case "fillet": inputs.radius = values.radius; break;
@@ -657,6 +705,10 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
     if (values.end === "vertex" && !keeps && !(extrudeEnd("vertex", items) && values.vertex_at)) return "Click near the end of an edge on the model.";
     return "";
   }
+  if (id === "draft") {
+    if (!editing && !items.some(item => !item.neutral && /f\d+$/.test(item.selector))) return "Select the faces to draft.";
+    return values.neutral || items.some(item => item.neutral) ? "" : "Select the neutral plane: a flat face on the model, or a plane in the design tree.";
+  }
   const faces = items.filter(item => /f\d+$/.test(item.selector));
   // Edit Feature keeps what the feature acts on: it waits only on a hole picked onto two faces.
   if (editing) return id === "hole" && faces.length > 1 ? "Select one face." : "";
@@ -692,6 +744,8 @@ export function chooseSteps(id, { listed = [], sketch = null, values = {}, endin
     case "fillet": return [{ input: "edges to round", done: listed.length > 0 || kept }];
     case "chamfer": return [{ input: "edges to bevel", done: listed.length > 0 || kept }];
     case "shell": return [{ input: "faces to open", done: listed.length > 0 || kept }];
+    // As SolidWorks' Draft walks through its boxes: the neutral plane, then the faces it tilts.
+    case "draft": return [{ input: "the neutral plane", done: Boolean(values.neutral) }, { input: "faces to draft", done: listed.length > 0 || kept }];
     case "hole": return [{ input: "a flat face for the hole", done: listed.length === 1 || (kept && !listed.length) }];
     default: return [];
   }

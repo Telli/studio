@@ -695,16 +695,20 @@ def splice(text: str, changes: list[dict]) -> str:
 # ---------------------------------------------------------------------------------------------
 # The commands.
 
-COMMANDS = ("fillet", "chamfer", "hole", "shell", "mirror", "pattern", "extrude", "cut", "revolve", "revolve_cut", "sweep", "sweep_cut",
-            "loft", "loft_cut", "rib")
-FEATURE_WORDS = {"fillet": "Fillet", "chamfer": "Chamfer", "hole": "Hole", "shell": "Shell", "mirror": "Mirror", "pattern": "Pattern",
-                 "extrude": "Boss-Extrude", "cut": "Cut-Extrude", "revolve": "Boss-Revolve", "revolve_cut": "Cut-Revolve",
+COMMANDS = ("fillet", "chamfer", "hole", "shell", "draft", "mirror", "pattern", "extrude", "cut", "revolve", "revolve_cut", "sweep",
+            "sweep_cut", "loft", "loft_cut", "rib")
+FEATURE_WORDS = {"fillet": "Fillet", "chamfer": "Chamfer", "hole": "Hole", "shell": "Shell", "draft": "Draft", "mirror": "Mirror",
+                 "pattern": "Pattern", "extrude": "Boss-Extrude", "cut": "Cut-Extrude", "revolve": "Boss-Revolve", "revolve_cut": "Cut-Revolve",
                  "sweep": "Boss-Sweep", "sweep_cut": "Cut-Sweep", "loft": "Boss-Loft", "loft_cut": "Cut-Loft", "rib": "Rib"}
 # The operation each command's line records in the tracer.
-RECORDS = {"fillet": ("fillet",), "chamfer": ("chamfer",), "hole": ("cut",), "shell": ("offset",),
+RECORDS = {"fillet": ("fillet",), "chamfer": ("chamfer",), "hole": ("cut",), "shell": ("offset",), "draft": ("draft",),
            "mirror": ("mirror",), "pattern": ("GridLocations", "PolarLocations"), "extrude": ("extrude",), "cut": ("extrude",),
            "revolve": ("revolve",), "revolve_cut": ("revolve",), "sweep": ("sweep",), "sweep_cut": ("sweep",), "loft": ("loft",),
            "loft_cut": ("loft",), "rib": ("rib",)}
+# The origin's planes as the design tree names them, and as build123d does.
+ORIGIN_PLANES = {"Top": "XY", "Front": "XZ", "Right": "YZ"}
+# The faces a draft tilts, as OCCT's draft takes them.
+DRAFTED = ("plane", "cylinder", "cone")
 
 
 @dataclass
@@ -891,6 +895,8 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     names = Names(module if module is not None else "bd")
     edits = Edits(body.text)
     selection = [item for item in spec.get("selection") or [] if isinstance(item, dict)]
+    # A draft's neutral plane, when it is a face picked on the model.
+    neutral = spec.get("neutral") if command == "draft" and isinstance(spec.get("neutral"), dict) else None
     replacing = spec.get("replace") if isinstance(spec.get("replace"), dict) else None
     old = kept = None
     # The body the selection is on, and the name that holds it there: the part's, unless rolled back.
@@ -904,7 +910,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     if replacing:
         old, kept = _feature_line(body, replacing, command, units, steps, level)
         var, returned = kept.target, []
-        if selection and command in ("fillet", "chamfer", "hole", "shell", "extrude", "cut"):
+        if (selection or neutral) and command in ("fillet", "chamfer", "hole", "shell", "draft", "extrude", "cut"):
             # Picked again, as a CAD tool rolls back to the feature: on the body as it was before it.
             picked_on, before = body_at(steps, shape, level, root, body.rel, old.lineno)
             picked_var = before.name
@@ -1058,6 +1064,35 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         shown = [("Thickness", thickness, units_word)]
         selected = None if fixed else {"argument": "openings", "items": [selections.topology["face"].describe(n) for n in numbers]}
         what = fixed.keeps if fixed else f"{counted(len(numbers), 'face')} open"
+    elif command == "draft":
+        # Draft, as SolidWorks' Neutral Plane draft: the faces tilt by the angle about where they
+        # meet the neutral plane, so the part narrows the way the plane faces, its direction of pull.
+        numbers, faces = ([], fixed.parts["faces"]) if fixed else chosen("face")
+        if not fixed and any(selections.topology["face"].describe(n)["type"] not in DRAFTED for n in numbers):
+            raise CommandError("Draft tilts flat, round and conical faces. Take the others out.")
+        angle = _value(inputs, "angle", "Draft angle", parse)
+        if angle >= 90:
+            raise CommandError("A draft angle is less than 90 degrees.")
+        which = str(inputs.get("neutral") or "").strip()
+        if neutral is not None:
+            plane_numbers = resolve(selections.topology["face"], [neutral], scale)
+            if selections.topology["face"].describe(plane_numbers[0])["type"] != "plane":
+                raise CommandError("The neutral plane is a flat face. Select a flat one, or a plane in the design tree.")
+            if plane_numbers[0] in numbers:
+                raise CommandError("The neutral plane cannot be a face it drafts. Select another.")
+            plane = f"{names('Plane')}({selections.write('face', plane_numbers, one=True)})"
+        elif which in ORIGIN_PLANES:
+            plane = f"{names('Plane')}.{ORIGIN_PLANES[which]}"
+        elif kept is not None and kept.parts.get("neutral"):
+            plane = kept.parts["neutral"]
+        else:
+            raise CommandError("Select the neutral plane: a flat face on the model, or a plane in the design tree.")
+        if inputs.get("reverse") in (True, "true", "1", 1):
+            plane = f"-{plane}"
+        code = f"{var} = {names('draft')}({faces}, {plane}, {same('angle', angle, writer.number(angle))})"
+        shown = [("Draft angle", angle, "deg")]
+        selected = None if fixed else {"argument": "faces", "items": [selections.topology["face"].describe(n) for n in numbers]}
+        what = fixed.keeps if fixed else counted(len(numbers), "face")
     elif command == "mirror":
         faces = [item for item in selection if selector_ordinal(item.get("selector"))[0] == "face"]
         if faces:
@@ -1513,6 +1548,23 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                     values[axis] = size(number(("move", axis)))
                     held(axis, moved.args[index], typed(number(("move", axis))))
             return Feature("hole", values, "1 face", {"face": code(plane.args[0])}, target, operator, codes)
+    if operator == "=" and name == "draft" and len(value.args) + len(value.keywords) >= 3:
+        drafted = value.args[0] if value.args else _keyword_value(value, "faces")
+        plane = value.args[1] if len(value.args) > 1 else _keyword_value(value, "neutral_plane")
+        written = value.args[2] if len(value.args) > 2 else _keyword_value(value, "angle")
+        if drafted is None or plane is None or written is None:
+            return None
+        # The neutral plane: an origin plane (`Plane.XY`), or a face's (`Plane(<face>)`); a minus before it turns the pull.
+        reverse = isinstance(plane, ast.UnaryOp) and isinstance(plane.op, ast.USub)
+        inner = plane.operand if reverse else plane
+        origin = {value: key for key, value in ORIGIN_PLANES.items()}
+        neutral = origin.get(inner.attr) if isinstance(inner, ast.Attribute) else "face" if _call_name(inner) == "Plane" else None
+        if neutral is None:
+            return None
+        angle = number(("draft", "angle"))
+        held("angle", written, angle)
+        return Feature("draft", {"angle": _number(angle, False) if angle is not None else "", "neutral": neutral, "reverse": reverse},
+                       counted_items(("draft", "faces"), "face"), {"faces": code(drafted), "neutral": code(inner)}, target, operator, codes)
     if operator in ("+=", "-=") and name == "mirror" and value.args:
         about = _keyword_value(value, "about")
         plane = about.attr if isinstance(about, ast.Attribute) and about.attr in PLANES else "face"

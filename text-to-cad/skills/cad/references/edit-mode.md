@@ -9,7 +9,7 @@ that uses the changed file.
 
 Its ribbon also has modeling commands, as SolidWorks' Features tab sets them out: Extruded, Revolved,
 Swept and Lofted Boss/Base; Extruded, Revolved, Swept and Lofted Cut, and Hole; Fillet, Chamfer, Rib,
-Shell, Pattern and Mirror. Each acts on what the engineer selects (edges or
+Draft, Shell, Pattern and Mirror. Each acts on what the engineer selects (edges or
 faces on the model, a sketch or a feature in the history) and writes one line of build123d into
 the script, after the statement that makes the part's body, which then reads back as a new feature
 of the history.
@@ -58,6 +58,11 @@ by hand" below.
   align=...))`, or `+ bd.Cone(d/2, csk/2, height, align=...)` with its height worked out from
   the angle (`(csk - d)/2 / tan(angle/2)`).
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.
+- **Draft** tilts the faces picked by an angle about where they meet the neutral plane, a flat
+  face of the part or an origin plane, so the part narrows along the plane's normal, its direction
+  of pull: `tray = bd.draft(<faces>, -bd.Plane(<face>), 1)` (a face's own normal points out of the
+  part, so its plane is turned to pull into it), or `bd.Plane.XY` for the Top Plane (`XZ` Front,
+  `YZ` Right). A minus before the plane turns the pull. It takes flat, round and conical faces.
 - **Mirror and Pattern** copy the feature picked in the history, or the whole body. A feature's
   tool written inline is named where it is made, so the copy follows it:
   `plate -= (hole1 := bd.Pos(...) * bd.Cylinder(...))`, then
@@ -102,7 +107,7 @@ by hand" below.
 - **Edit Feature** (a feature's menu, or a double-click on it) reopens the command that wrote the
   feature's line, with its values, and writes that same line again in its place. What the line
   acts on stays as written (its edges, faces, the feature it copies, its sketch) unless the
-  engineer picks others: a fillet's, chamfer's, shell's or hole's panel rolls the part back to
+  engineer picks others: a fillet's, chamfer's, shell's, draft's or hole's panel rolls the part back to
   just before the feature, and edges or faces picked there are written as selectors on the body
   as it was at that line (`outer = fillet(outer.faces().sort_by(Axis.Z)[-1].edges(), radius=2)`).
   A value left as it was keeps how it was written (`radius=WALL` stays `radius=WALL`). A line

@@ -892,6 +892,74 @@ class SketchedFeatures(Commands):
         self.assertIn('    part += extrude(sketch1.thin(1, side="mid"), amount=6)\n', (root / "box.py").read_text(encoding="utf-8"))
 
 
+# The block's four sides and its bottom face, as the viewer reads them.
+BLOCK_SIDES = [face("f2", (10, 0, 0), 40), face("f3", (-10, 0, 0), 40), face("f4", (0, 5, 0), 80), face("f5", (0, -5, 0), 80)]
+BLOCK_BOTTOM = face("f6", (0, 0, -2), 200)
+
+
+class Drafts(Commands):
+    """Draft, as SolidWorks' Neutral Plane draft: the faces picked tilt by the angle about where they
+    meet the neutral plane (a flat face of the part, or an origin plane), the part narrowing the way
+    its direction of pull goes."""
+
+    def draft(self, file: str, state: dict, inputs: dict, neutral=None, preview=False) -> dict:
+        spec = {"command": "draft", "selection": BLOCK_SIDES, "inputs": inputs, **({"neutral": neutral} if neutral else {})}
+        return self.service.change({"file": file, "preview" if preview else "command": spec, "files": state["files"]})
+
+    def test_sides_drafted_from_the_bottom_face_reopen_as_a_draft_of_four_faces(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.draft(file, state, {"angle": "3", "reverse": True}, neutral=BLOCK_BOTTOM)
+        self.assertTrue(made["ok"], made.get("error"))
+        line = next(each.strip() for each in (root / "block.py").read_text(encoding="utf-8").splitlines() if "draft(" in each)
+        self.assertRegex(line, r"^part = draft\(part\.faces\(\).+, -Plane\(part\.faces\(\).+\), 3\)$")
+        draft = next(feature for feature in made["features"] if feature["kind"] == "Draft")
+        self.assertEqual(draft["edit"], {"command": "draft", "values": {"angle": "3", "neutral": "face", "reverse": True}, "keeps": "4 faces"})
+        self.assertEqual([(each["label"], each["display"], each["unit"]) for each in made["rows"][-1]["inputs"]], [("Draft Angle", "3", "deg")])
+
+    def test_the_direction_of_pull_is_the_way_the_part_narrows(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        before = (root / "block.py").read_bytes()
+        # Pulled up from its bottom face, the block keeps its foot and comes in at the top...
+        up = self.draft(file, state, {"angle": "3", "reverse": True}, neutral=BLOCK_BOTTOM, preview=True)["preview"]
+        self.assertEqual((up["error"], up["added"]), (None, None))
+        self.assertGreater(max(up["removed"]["positions"][2::3]), 1.9)
+        # ...pulled down, its top grows out.
+        down = self.draft(file, state, {"angle": "3"}, neutral=BLOCK_BOTTOM, preview=True)["preview"]
+        self.assertEqual((down["error"], down["removed"]), (None, None))
+        self.assertIsNotNone(down["added"])
+        # The Top Plane through its middle: it comes in above and grows below.
+        middle = self.draft(file, state, {"angle": "3", "neutral": "Top"}, preview=True)["preview"]
+        self.assertGreaterEqual(min(middle["removed"]["positions"][2::3]), -1e-6)
+        self.assertLessEqual(max(middle["added"]["positions"][2::3]), 1e-6)
+        self.assertEqual((root / "block.py").read_bytes(), before)
+
+    def test_an_origin_plane_is_written_by_its_axes_and_edit_feature_writes_the_draft_again(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        made = self.draft(file, state, {"angle": "2", "neutral": "Top"})
+        self.assertTrue(made["ok"], made.get("error"))
+        script = root / "block.py"
+        before = script.read_text(encoding="utf-8")
+        self.assertRegex(before, r"\n    part = draft\(part\.faces\(\)[^\n]+, Plane\.XY, 2\)\n")
+        draft = next(feature for feature in made["features"] if feature["kind"] == "Draft")
+        self.assertEqual(draft["edit"]["values"], {"angle": "2", "neutral": "Top", "reverse": False})
+        spec = {"command": "draft", "inputs": {"angle": "4", "neutral": "Top", "reverse": True}, "replace": {"row": draft["key"]}}
+        edited = self.service.change({"file": file, "command": spec, "files": made["files"]})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertEqual(script.read_text(encoding="utf-8"), before.replace(", Plane.XY, 2)", ", -Plane.XY, 4)"))
+
+    def test_a_neutral_plane_that_is_not_flat_or_is_drafted_itself_is_refused(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        drafted = self.draft(file, state, {"angle": "2"}, neutral=BLOCK_SIDES[0])
+        self.assertFalse(drafted["ok"])
+        self.assertIn("cannot be a face it drafts", drafted["error"])
+        missing = self.draft(file, state, {"angle": "2"})
+        self.assertFalse(missing["ok"])
+        self.assertIn("Select the neutral plane", missing["error"])
+        steep = self.draft(file, state, {"angle": "90", "neutral": "Top"})
+        self.assertFalse(steep["ok"])
+        self.assertIn("less than 90 degrees", steep["error"])
+
+
 class Assemblies(Commands):
     """An assembly places its parts: each is modeled on its own, opened from the design tree."""
 

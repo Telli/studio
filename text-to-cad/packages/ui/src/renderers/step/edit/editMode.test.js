@@ -28,6 +28,8 @@ import {
   draggedDepth,
   emptyHistory,
   extrudePreview,
+  draftPreview,
+  draftReversed,
   holePreview,
   mirrorOutline,
   mirrorPreview,
@@ -445,6 +447,37 @@ test("a hole's arrow goes into its face where it goes in, and a mirror's plane i
   assert.equal(mirrorPreview({ plane: "face" }), null);
 });
 
+test("a draft asks for its neutral plane, then its faces, and pulls the way the part narrows", () => {
+  const side = { selector: "f2", type: "plane", center: [10, 0, 0], size: 40 };
+  const bottom = { selector: "f6", type: "plane", center: [0, 0, -2], size: 200 };
+  const opened = commandDefaults("draft", "mm");
+  assert.deepEqual(opened, { angle: "1", neutral: "", reverse: false });
+  assert.equal(chooseLine(chooseSteps("draft", { values: opened })), "1 of 2: Select the neutral plane");
+  assert.equal(chooseLine(chooseSteps("draft", { values: { ...opened, neutral: "Top" } })), "2 of 2: Select faces to draft");
+  assert.equal(commandBlocked("draft", [side], null, opened), "Select the neutral plane: a flat face on the model, or a plane in the design tree.");
+  assert.equal(commandBlocked("draft", [{ ...bottom, neutral: true }], null, { ...opened, neutral: "face" }), "Select the faces to draft.");
+  // A neutral face goes apart from the faces it drafts; an origin plane by its name.
+  assert.deepEqual(commandRequest("draft", { ...opened, neutral: "face", reverse: true }, [side, { ...bottom, neutral: true }], null),
+    { command: "draft", selection: [side], inputs: { angle: "1", neutral: "face", reverse: true }, neutral: bottom });
+  assert.deepEqual(commandRequest("draft", { ...opened, neutral: "Front" }, [side], null),
+    { command: "draft", selection: [side], inputs: { angle: "1", neutral: "Front", reverse: false } });
+  // A reopened draft keeps its faces and its neutral plane as written.
+  const editing = { id: "block.py:8", command: "draft", values: { angle: "2", neutral: "face", reverse: true } };
+  assert.equal(commandBlocked("draft", [], null, editingValues(editing, "mm"), editing), "");
+  assert.deepEqual(commandRequest("draft", editingValues(editing, "mm"), [], null, null, editing),
+    { command: "draft", selection: [], inputs: { angle: "2", neutral: "face", reverse: true }, replace: { row: "block.py:8" } });
+  // The pull: out of a face as picked, into the part reversed; an origin plane's normal, toward the part.
+  assert.deepEqual(draftPreview({ reverse: true }, { center: [0, 0, -2], normal: [0, 0, -1] }).pull, [0, 0, 1]);
+  const bounds = [[-10, -5, 0], [10, 5, 4]];
+  assert.deepEqual(draftPreview({ neutral: "Top" }, null, bounds), { mark: "draft", plane: "XY", at: [0, 0, 0], pull: [0, 0, 1] });
+  assert.deepEqual(mirrorOutline(draftPreview({ neutral: "Right" }, null, bounds), bounds), planeOutline("Right", bounds));
+  assert.equal(draftReversed("Top", bounds), false);
+  assert.equal(draftReversed("Top", [[-10, -5, -4], [10, 5, 0]]), true);
+  // Front Plane faces -Y: a part in front of it, at -Y, is pulled that way as it is.
+  assert.equal(draftReversed("Front", [[-10, -8, 0], [10, -2, 4]]), false);
+  assert.equal(draftPreview({ neutral: "face" }), null);
+});
+
 test("an extrude's arrow dragged sets the depth it reaches, in the part's units to the places the panel shows", () => {
   assert.deepEqual(draggedDepth(12.3456, "blind", "mm"), { text: "12.35", mm: 12.35 });
   // Mid Plane's arrows sit at half the depth; an inch part shows three places.
@@ -470,7 +503,7 @@ test("a sweep takes its profile then its path, a loft its profiles in order, a r
   assert.equal(commandBlocked("rib", [], null, commandDefaults("rib", "mm")), "Select a sketch of the rib's line.");
   // The ribbon's groups, as SolidWorks' Features tab sets them out.
   assert.deepEqual(COMMAND_GROUPS.map(group => EDIT_COMMANDS.filter(command => command.group === group).map(command => command.id)),
-    [["extrude", "revolve", "sweep", "loft"], ["cut", "revolve_cut", "sweep_cut", "loft_cut", "hole"], ["fillet", "chamfer", "rib", "shell", "pattern", "mirror"]]);
+    [["extrude", "revolve", "sweep", "loft"], ["cut", "revolve_cut", "sweep_cut", "loft_cut", "hole"], ["fillet", "chamfer", "rib", "draft", "shell", "pattern", "mirror"]]);
 });
 
 test("an extrude's Thin Feature sends its wall, inside the outline unless said otherwise, and is the server's to preview", () => {

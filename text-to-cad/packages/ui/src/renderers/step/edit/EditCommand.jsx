@@ -16,6 +16,8 @@ import {
   edgeAxis,
   commandDefaults,
   commandRequest,
+  draftPreview,
+  draftReversed,
   editCommand,
   editingValues,
   extrudeEnd,
@@ -51,8 +53,11 @@ const NO_DEPTH = new Set(["through", "next", "vertex", "surface"]);
 const HOLE_TYPES = Object.freeze([{ value: "simple", label: "Hole" }, { value: "counterbore", label: "Counterbore" },
   { value: "countersink", label: "Countersink" }]);
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
+// The origin's planes a draft's neutral plane can be, as the design tree names them.
+const ORIGIN_PLANE_NAMES = new Set(["Top", "Front", "Right"]);
 const LISTED = 8;
-const PLANES = Object.freeze([{ value: "XY", label: "XY plane" }, { value: "XZ", label: "XZ plane" }, { value: "YZ", label: "YZ plane" }]);
+// The origin's planes Mirror goes about, by their axes, named as the design tree names them.
+const PLANES = Object.freeze([{ value: "XZ", label: "Front Plane" }, { value: "XY", label: "Top Plane" }, { value: "YZ", label: "Right Plane" }]);
 const PATTERNS = Object.freeze([{ value: "linear", label: "Linear" }, { value: "circular", label: "Circular" }]);
 const DIRECTIONS = Object.freeze([{ value: "X", label: "Along X" }, { value: "Y", label: "Along Y" }, { value: "Z", label: "Along Z" }]);
 // A mirror Edit Feature reopens that was made about a face of the part: that face again.
@@ -215,7 +220,47 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const disabled = edit.saving || edit.status !== "ready";
   const faces = items.filter(item => /f\d+$/.test(item.selector));
   const listed = command?.picks === "edges" ? items : faces;
-  const blocked = command ? commandBlocked(command.id, items, sketch, values, editing, picked) : "";
+  // A draft's neutral plane, as SolidWorks' Draft takes it: while its box is empty, the next face
+  // clicked on the model goes there (a flat one), held apart from the faces it drafts; a plane
+  // clicked in the design tree goes there at any time. It starts with the part narrowing away
+  // from it, the direction of pull into the part, which Reverse direction turns.
+  const drafting = edit.command === "draft";
+  const [neutralFace, setNeutralFace] = useState(null);
+  const [neutralNote, setNeutralNote] = useState("");
+  const waitingNeutral = drafting && !values.neutral;
+  const seenFaces = useRef(null);
+  const facesKey = faces.map(item => item.selector).join(",");
+  useEffect(() => {
+    if (!drafting) { seenFaces.current = null; return; }
+    const before = seenFaces.current;
+    seenFaces.current = new Set(faces.map(item => item.selector));
+    if (!before || !waitingNeutral) return;
+    const added = references.filter(reference => reference?.selectorType === "face"
+      && !before.has(String(reference.displaySelector || reference.normalizedSelector || "")));
+    const last = added.at(-1);
+    if (!last) return;
+    onDeselect?.(last.id);
+    const [item] = selectionItems([last]);
+    if (item.type !== "plane") { setNeutralNote("The neutral plane is a flat face. Select a flat one."); return; }
+    setNeutralNote("");
+    setNeutralFace({ item, pick: last.pickData || null });
+    setValues(current => ({ ...current, neutral: "face", reverse: true }));
+  }, [drafting, facesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const treePlane = drafting && typeof edit.selected === "string" && edit.selected.startsWith("plane:") ? edit.selected.slice("plane:".length) : "";
+  useEffect(() => {
+    if (!ORIGIN_PLANE_NAMES.has(treePlane)) return;
+    setNeutralFace(null);
+    setNeutralNote("");
+    setValues(current => ({ ...current, neutral: treePlane, reverse: draftReversed(treePlane, edit.state?.bounds) }));
+  }, [treePlane]); // eslint-disable-line react-hooks/exhaustive-deps
+  const clearNeutral = () => {
+    setNeutralFace(null);
+    setValues(current => ({ ...current, neutral: "" }));
+    if (treePlane) edit.select(null);
+  };
+  // What the command acts on: the faces and edges picked, and a draft's neutral face beside them.
+  const acted = drafting && neutralFace ? [...items, { ...neutralFace.item, neutral: true }] : items;
+  const blocked = command ? commandBlocked(command.id, acted, sketch, values, editing, picked) : "";
   const feature = !editing && !wholeBody && featureIndex > 0 ? { row: rows[featureIndex].key, name: names[featureIndex]?.title || "" } : null;
   // A circular pattern's axis, picked on the model; what an extrude Up To Surface or Up To Vertex ends on.
   const turnsAbout = edit.command === "pattern" && values.type === "circular" ? patternAxis(items) : null;
@@ -223,7 +268,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const ending = upTo ? extrudeEnd(values.end, items) : null;
   // Edges or faces picked while a feature is reopened replace its own, as a new axis does a
   // pattern's and a new face or vertex an extrude's end.
-  const repicked = Boolean(editing) && ((REPICKS.has(edit.command) && listed.length > 0) || Boolean(turnsAbout) || Boolean(ending));
+  const repicked = Boolean(editing) && ((REPICKS.has(edit.command) && listed.length > 0) || Boolean(turnsAbout) || Boolean(ending)
+    || (drafting && Boolean(neutralFace)));
   // What the view draws itself while the panel is open, with the way the command goes, as
   // SolidWorks previews it: an extrude swept along its sketch's normal, its arrow and its depth
   // (its arrow alone where the body or a pick ends it, the server's preview drawn apart); a revolve
@@ -252,6 +298,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         : edit.command === "pattern" ? patternPreview(values, units)
           : edit.command === "hole" ? holePreview(values, units, editing && !repicked ? null : facePick)
             : edit.command === "mirror" ? mirrorPreview(values, editing || !faces.length ? null : facePick)
+              // A draft's neutral plane, and its direction of pull.
+              : drafting ? draftPreview(values, neutralFace?.pick || null, edit.state?.bounds)
               // A sweep's or a loft's sketches, shaded as picked while the server previews what they make.
               : takes && picked.some(Boolean) ? { mark: "picked", sketches: picked.filter(Boolean).map(each => ({ file: each.file, line: each.line })) }
                 : null;
@@ -267,7 +315,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   // Any other preview is the server's: what OK would send, made without writing it once the panel
   // has what it needs, and made again as the part changes under it or the rollback bar moves.
   const wanted = command && previewOn && !disabled && !blocked && !sweeps
-    ? commandRequest(command.id, values, items, feature, sketch, editing, picked) : null;
+    ? commandRequest(command.id, values, acted, feature, sketch, editing, picked) : null;
   const wantedRef = useRef(wanted);
   wantedRef.current = wanted;
   const wantedKey = wanted ? JSON.stringify(wanted) : "";
@@ -283,7 +331,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     if (blocked || disabled) return;
     // A reopened feature left as it was: nothing to write.
     if (editing && !repicked && sameValues(values, opened)) { edit.close(); return; }
-    void edit.run(commandRequest(command.id, values, items, feature, sketch, editing, picked));
+    void edit.run(commandRequest(command.id, values, acted, feature, sketch, editing, picked));
   };
   const copies = command.id === "mirror" || command.id === "pattern";
   const pickedFace = references.find(reference => reference?.selectorType === "face")?.pickData?.normal;
@@ -297,7 +345,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const sketchLabel = sketch ? (sketch.plane && sketch.plane !== "Plane" ? `${sketch.title}, ${sketch.plane} Plane` : sketch.title) : "";
   // Choose: the pick still wanted, or, with each made, the preview to look at before OK. A reopened
   // feature keeps what it acts on, and an extrude its end while the end condition is its own.
-  const kept = Boolean(editing) && (command.sketch || takes ? editing.values?.end === values.end : !repicked);
+  // A reopened draft keeps its faces until others are picked, whatever becomes of its neutral plane.
+  const kept = Boolean(editing) && (command.sketch || takes ? editing.values?.end === values.end : drafting || !repicked);
   const step = chooseLine(chooseSteps(command.id, { listed, sketch, values, ending, kept, sketches: picked }));
   const next = step || (blocked ? "" : previewOn ? "Review the preview, then press OK." : "Press OK to make it.");
   // A pick listed, taken out by its X as a click on it on the model takes it out.
@@ -325,8 +374,19 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
       <span className={`size-2 shrink-0 rounded-full ${step ? "bg-cad-picked" : "bg-muted-foreground/50"}`} aria-hidden="true" />
       <span className="min-w-0 flex-1">{next}</span>
     </p> : null}
+    {/* A draft's neutral plane first, as SolidWorks' Draft asks for it, with Reverse direction
+        beside it: the plane the faces keep their size at, and the way the part narrows from it. */}
+    {drafting ? <FileSheetSettingsSection title="Neutral Plane" sectionId="edit-command-neutral">
+      <SelectionBox items={values.neutral ? [{ key: "neutral", label: ORIGIN_PLANE_NAMES.has(values.neutral) ? `${values.neutral} Plane`
+        : neutralFace ? selectionLabel(neutralFace.item) : "Its face, as written" }] : []}
+        prompt="Select a flat face on the model, or a plane in the design tree." onClear={clearNeutral} clearLabel="Clear" />
+      {neutralNote ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">{neutralNote}</p> : null}
+      <FileSheetCheckboxRow label="Reverse direction" checked={Boolean(values.reverse)} disabled={disabled || !values.neutral}
+        onCheckedChange={set("reverse")} />
+    </FileSheetSettingsSection> : null}
     {command.picks && !(editing && command.id === "mirror") ? <FileSheetSettingsSection
-      title={command.picks === "edges" ? "Edges" : command.id === "mirror" ? "Mirror face" : "Faces"} sectionId="edit-command-selection">
+      title={command.picks === "edges" ? "Edges" : command.id === "mirror" ? "Mirror face" : drafting ? "Faces to Draft" : "Faces"}
+      sectionId="edit-command-selection">
       {editing && !repicked ? <KeptList text={editing.keeps} hint={keptHint} />
         : <SelectionList items={listed} prompt={command.prompt} onRemove={removePick} />}
     </FileSheetSettingsSection> : null}
@@ -401,6 +461,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
       </> : null}
       {command.id === "chamfer" ? <NumberRow label="Distance" value={values.distance} unit={units} disabled={disabled} onChange={set("distance")} /> : null}
       {command.id === "shell" ? <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} /> : null}
+      {drafting ? <NumberRow label="Draft angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} /> : null}
       {command.id === "hole" ? <>
         <FileSheetSelectRow label="Hole type" value={values.type || "simple"} options={HOLE_TYPES} onValueChange={set("type")} />
         <NumberRow label="Diameter" value={values.diameter} unit={units} disabled={disabled} onChange={set("diameter")} />

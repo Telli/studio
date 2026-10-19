@@ -160,6 +160,15 @@ export const RibIcon = ({ className }) => <Icon className={className}>
   <path d="m9.4 14.6 4-2v-6l-4 2z" style={{ fill: "var(--cad-accent)", stroke: "var(--cad-solid-edge)", strokeWidth: 0.8, strokeLinejoin: "round" }} />
 </Icon>;
 
+/** A block whose sides lean in toward its top, a drafted side in teal beside the upright it leans from. */
+export const DraftIcon = ({ className }) => <Icon className={className}>
+  <path d="M5 10 11 13v8l-8-4z" style={SOLID} />
+  <path d="M5 10 11 13v8l-8-4z" style={SHADE} opacity={0.12} />
+  <path d="M11 13 17 10l2 7-8 4z" style={{ fill: "var(--cad-accent)", stroke: "var(--cad-solid-edge)", strokeWidth: 0.8, strokeLinejoin: "round" }} />
+  <path d="M5 10 11 7l6 3-6 3z" style={SOLID} />
+  <path d="M19 17V8.5" style={{ ...ACCENT, strokeWidth: 1.1 }} strokeDasharray="1.6 1.3" />
+</Icon>;
+
 /** A sketch on its plane, and the pencil drawing it. */
 export const SketchIcon = ({ className }) => <Icon className={className}>
   <path d="M2 19 6 9h15l-4 10z" style={{ fill: "var(--cad-sketch)", stroke: "none" }} opacity={0.12} />
@@ -178,5 +187,5 @@ export const ExitSketchIcon = ({ className }) => <Icon className={className}>
 export const COMMAND_ICONS = Object.freeze({
   extrude: ExtrudedBossIcon, cut: ExtrudedCutIcon, revolve: RevolvedBossIcon, revolve_cut: RevolvedCutIcon,
   sweep: SweptBossIcon, sweep_cut: SweptCutIcon, loft: LoftedBossIcon, loft_cut: LoftedCutIcon, rib: RibIcon,
-  hole: HoleIcon, pattern: PatternIcon, mirror: MirrorIcon, fillet: FilletIcon, chamfer: ChamferIcon, shell: ShellIcon,
+  hole: HoleIcon, pattern: PatternIcon, mirror: MirrorIcon, fillet: FilletIcon, chamfer: ChamferIcon, shell: ShellIcon, draft: DraftIcon,
 });

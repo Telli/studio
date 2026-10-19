@@ -325,6 +325,7 @@ FUNCTIONS = {
     "split": "Split",
     "make_face": "Face",
     "thicken": "Thicken",
+    "draft": "Draft",
 }
 CLASSES = {
     "Box": "Box",
@@ -430,8 +431,8 @@ def _wrap_function(name, label):
         if RECORDING and _called_from_project():
             base = _origin(args[0]) if args else None
             step = _record(name, label, original, args, kwargs, result, {"from": base})
-            # A fillet or chamfer changes the body it works on: its result is that body, changed.
-            if name in ("fillet", "chamfer") and args:
+            # A fillet, a chamfer or a draft changes the body it works on: its result is that body, changed.
+            if name in ("fillet", "chamfer", "draft") and args:
                 body = _body_of(args[0])
                 if body is not None:
                     result._studio_origin = body
@@ -806,9 +807,10 @@ LABELS = {
     ("GridLocations", "y_count"): "Instances",
     ("PolarLocations", "count"): "Instances",
     ("revolve", "revolution_arc"): "Angle",
+    ("draft", "angle"): "Draft Angle",
 }
 # The sizes that are angles, shown in degrees.
-ANGLES = {("revolve", "revolution_arc")}
+ANGLES = {("revolve", "revolution_arc"), ("draft", "angle")}
 
 
 def _input(name, value, units, op=None):
@@ -1036,6 +1038,8 @@ def _row_kind(steps, code=""):
         return "Shell"
     if "rib" in ops:
         return "Rib"
+    if "draft" in ops:
+        return "Draft"
     # A cut by a cylinder alone is a hole.
     if "cut" in ops and "Cylinder" in ops and not {"extrude", "revolve", "Box", "sweep", "loft"} & set(ops):
         return "Hole"

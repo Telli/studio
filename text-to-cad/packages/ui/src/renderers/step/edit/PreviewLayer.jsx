@@ -3,6 +3,7 @@ import { patternArrow } from "./editMode.js";
 import {
   cadColors,
   colorsFor,
+  drawArrow,
   drawArrowBetween,
   drawArrowInto,
   drawLabel,
@@ -56,8 +57,8 @@ function drawSolid(context, solid, mapping, fill, stroke) {
  *
  * With `mark` (`edit.preview`, the panel's own), the way the command goes is drawn too: a linear
  * pattern's arrow from the feature it copies to its first copy, tagged with its spacing; a hole's
- * arrow into its face where it goes in, tagged with its depth. `extent` is the part's size, in
- * millimetres.
+ * arrow into its face where it goes in, tagged with its depth; a draft's direction of pull from its
+ * neutral plane. `extent` is the part's size, in millimetres.
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
  *   preview: { removed?: object | null, added?: object | null } | null, mark?: object | null, extent?: number }} props
@@ -115,6 +116,11 @@ export default function PreviewLayer({ viewport, preview, mark = null, extent = 
       if (marked?.mark === "hole") {
         const way = screenDirection(mapping, marked.at, marked.into, Math.max(0.5, (now.extent || 0) / 50));
         if (way) drawLabel(context, marked.label, drawArrowInto(context, way, cad.cut), cad.cut, font);
+      }
+      // A draft's direction of pull, from its neutral plane, the way the part narrows.
+      if (marked?.mark === "draft" && marked.at && marked.pull) {
+        const way = screenDirection(mapping, marked.at, marked.pull, Math.max(0.5, (now.extent || 0) / 50));
+        if (way) drawLabel(context, "Direction of pull", drawArrow(context, way, cad.picked), cad.picked, font);
       }
     };
     frameId = requestAnimationFrame(paint);
