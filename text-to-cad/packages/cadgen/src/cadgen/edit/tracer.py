@@ -2738,8 +2738,8 @@ def sketch_edit(request):
         elif kind == "convert":
             edges = _convert_edges(request, path, block, sketch, entry, op)
             text = _imported(sketch_tools.convert(text, line, state, {**op, "edges": edges[0]}, str(path)), edges[1])
-        elif kind in ("fillet", "offset", "mirror", "trim"):
-            if kind in ("fillet", "offset"):
+        elif kind in ("fillet", "chamfer", "offset", "mirror", "trim"):
+            if kind in ("fillet", "chamfer", "offset"):
                 typed = str(op.get("radius" if kind == "fillet" else "distance") or "").strip()
                 _known(block, sketch, typed)
                 if kind == "offset":

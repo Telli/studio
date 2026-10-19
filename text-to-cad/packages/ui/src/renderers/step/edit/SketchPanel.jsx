@@ -120,6 +120,8 @@ export default function SketchPanel({ edit, onPlane, references = [] }) {
       <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">{tool.prompts[Math.min(edit.sketchStep, tool.prompts.length - 1)]}</p>
       {tool.id === "fillet" ? <SizeRow label="Fillet radius" value={toolSize(settings.filletRadius, units, "fillet")} unit={units}
         disabled={disabled} onCommit={text => edit.setSketchSettings({ filletRadius: text })} /> : null}
+      {tool.id === "chamfer" ? <SizeRow label="Distance" value={toolSize(settings.chamferDistance, units, "chamfer")} unit={units}
+        disabled={disabled} onCommit={text => edit.setSketchSettings({ chamferDistance: text })} /> : null}
       {tool.id === "offset" ? <>
         <SizeRow label="Offset distance" value={toolSize(settings.offsetDistance, units, "offset")} unit={units} disabled={disabled}
           onCommit={text => edit.setSketchSettings({ offsetDistance: text })} />

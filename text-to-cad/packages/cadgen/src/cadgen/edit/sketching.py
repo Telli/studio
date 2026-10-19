@@ -26,7 +26,7 @@ RELATIONS = ("fix", "coincident", "horizontal", "vertical", "parallel", "perpend
 DIMENSIONS = ("distance", "length", "horizontal_distance", "vertical_distance", "radius", "diameter", "angle")
 # The sketch tools' own lines (`sketch_tools.py`), each with a size as its last argument: a
 # fillet's radius, an offset's distance.
-TOOLS = ("fillet", "offset_entities")
+TOOLS = ("fillet", "chamfer", "offset_entities")
 SKETCH_METHODS = frozenset(GEOMETRY + RELATIONS + DIMENSIONS + TOOLS)
 # How many curves a drawing statement returns, in the order it makes them: a rectangle's four
 # lines (a center rectangle's diagonal is not returned), a slot's arc, line, arc, line.
@@ -659,9 +659,10 @@ def delete(text: str, line: int, state: dict, items: list[str], path: str = "<sk
         if name in made.relations and made.method in GEOMETRY:
             shape = made.method.replace("_", " ")
             raise SketchEditError(f"{name} comes with the {shape} it holds. Delete the {shape} instead.")
-        if name in made.relations and made.method == "fillet":
-            arc = next((curve for curve in made.curves if curve != name), "the fillet")
-            raise SketchEditError(f"{name} is {arc}'s radius. Change its value, or delete {arc} to take the fillet away.")
+        if name in made.relations and made.method in ("fillet", "chamfer"):
+            made_as = next((curve for curve in made.curves if curve != name), f"the {made.method}")
+            size = "radius" if made.method == "fillet" else "distance"
+            raise SketchEditError(f"{name} is {made_as}'s {size}. Change its value, or delete {made_as} to take the {made.method} away.")
         if made.method == "convert" and name in made.curves and made.statement.lineno in (converts or {}):
             partial.setdefault(names.made_by[name], set()).add(made.curves.index(name))
             continue

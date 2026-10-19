@@ -5,6 +5,7 @@ import { requestSceneFrame } from "../../kit/viewport/sceneFrames.js";
 import { arrowHead, circlePoints, colorsFor, curvePoints, overlaps, planeMapping, strokePath } from "./sketchDrawing.js";
 import {
   chainOf,
+  CORNER_TOOLS,
   dimensionFor,
   dimensionLayout,
   drawOp,
@@ -198,9 +199,9 @@ export default function SketchOverlay({ viewport, edit, units }) {
       const selection = new Set(current.selection);
       const redundant = new Set(state.redundant || []);
       const overDefined = new Set((state.relations || []).concat(state.dimensions || []).filter(item => redundant.has(item.id)).flatMap(item => item.refs));
-      // What the tool in hand would take: Offset's chain, Sketch Fillet's first line.
+      // What the tool in hand would take: Offset's chain, Sketch Fillet's or Sketch Chamfer's first line.
       const taking = new Set(current.tool === "offset" && hover && geometry.curves.some(curve => curve.id === hover)
-        ? (current.settings?.offsetChain === false ? [hover] : chainOf(shown, hover)) : current.tool === "fillet" ? picks.map(pick => pick.id) : []);
+        ? (current.settings?.offsetChain === false ? [hover] : chainOf(shown, hover)) : CORNER_TOOLS.includes(current.tool) ? picks.map(pick => pick.id) : []);
       const lit = id => taking.has(id) || (hover === id && current.tool !== "trim");
       const colorOf = (id, defined) => (selection.has(id) ? colors.selected : lit(id) ? colors.hover
         : overDefined.has(id) ? colors.over : defined ? colors.defined : colors.under);
@@ -483,15 +484,17 @@ export default function SketchOverlay({ viewport, edit, units }) {
       const { points, curves } = sketchGeometry(state);
       const curve = curves.find(each => each.id === hit);
       const units = current.units;
-      if (tool === "fillet") {
-        const radius = toolSize(current.settings?.filletRadius, units, "fillet");
-        if (hit && points.has(hit)) { picks = []; report(); await send({ kind: "fillet", corner: hit, radius }); return; }
+      if (CORNER_TOOLS.includes(tool)) {
+        // Sketch Fillet's radius, or Sketch Chamfer's distance, on a corner or two lines that meet.
+        const size = tool === "fillet" ? { radius: toolSize(current.settings?.filletRadius, units, "fillet") }
+          : { distance: toolSize(current.settings?.chamferDistance, units, "chamfer") };
+        if (hit && points.has(hit)) { picks = []; report(); await send({ kind: tool, corner: hit, ...size }); return; }
         if (curve?.kind !== "line" || curve.derived) return;
         if (!picks.length) { picks = [{ id: hit }]; report(); return; }
         const first = picks[0].id;
         picks = [];
         report();
-        if (first !== hit) await send({ kind: "fillet", lines: [first, hit], radius });
+        if (first !== hit) await send({ kind: tool, lines: [first, hit], ...size });
         return;
       }
       if (tool === "trim") {

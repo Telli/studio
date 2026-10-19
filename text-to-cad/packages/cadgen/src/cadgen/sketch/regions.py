@@ -89,13 +89,16 @@ class _Loop:
 
 
 def _rounded(curves, arcs):
-    """The curves with each fillet's corner taken off its two lines, and its arc between them."""
+    """The curves with each fillet's or chamfer's corner taken off its two lines, and its arc or line between them."""
     ends: dict[tuple[int, str], Point] = {}
     made = []
     for arc in arcs:
         start, end = Point(f"{arc.name}.start", *arc.start), Point(f"{arc.name}.end", *arc.end)
         ends[(id(arc.a), arc.end_of(arc.a))] = start
         ends[(id(arc.b), arc.end_of(arc.b))] = end
+        if arc.kind == "chamfer":
+            made.append(Line(arc.name, start, end, False, None))
+            continue
         made.append(Arc(arc.name, Point(f"{arc.name}.center", *arc.center), start, end, arc.clockwise))
     out = []
     for curve in curves:

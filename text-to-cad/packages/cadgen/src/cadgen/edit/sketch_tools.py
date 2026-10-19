@@ -110,23 +110,38 @@ def fillet(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
     (``lines``), with a ``radius`` as typed (a number, or a size's name)."""
     block = find_block(text, line, path)
     names = Names(block, state)
+    a, b = _corner_lines(state, op, "round")
+    return _append(text, block, [f"{block.var}.fillet({names.curve(a)}, {names.curve(b)}, {_typed(op.get('radius'))})"])
+
+
+def chamfer(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") -> str:
+    """A corner cut at equal distances: picked as a corner or as two lines, as a fillet is, with a
+    ``distance`` as typed."""
+    block = find_block(text, line, path)
+    names = Names(block, state)
+    a, b = _corner_lines(state, op, "cut")
+    return _append(text, block, [f"{block.var}.chamfer({names.curve(a)}, {names.curve(b)}, {_typed(op.get('distance'))})"])
+
+
+def _corner_lines(state: dict, op: dict, verb: str) -> tuple[str, str]:
+    """The two lines a corner tool takes: those meeting at the point picked (``corner``), or the
+    two lines picked (``lines``), which must meet at an end."""
     shape = _Shape(state)
     lines = [name for name, curve in shape.curves.items() if curve["kind"] == "line"]
+    tool = "fillet rounds" if verb == "round" else "chamfer cuts"
     if op.get("corner"):
         corner = str(op["corner"])
         meeting = [name for name in lines if corner in (shape.curves[name]["start"], shape.curves[name]["end"])]
         if len(meeting) != 2:
             raise SketchEditError(f"{corner} is not a corner where two lines meet. Click a corner, or two lines that meet.")
-        a, b = meeting
-    else:
-        picked = [str(name) for name in op.get("lines") or []]
-        if len(picked) != 2 or not all(name in lines for name in picked):
-            raise SketchEditError("A sketch fillet rounds the corner of two lines. Click a corner, or two lines that meet.")
-        a, b = picked
-        ends_a = {shape.curves[a]["start"], shape.curves[a]["end"]}
-        if not ends_a & {shape.curves[b]["start"], shape.curves[b]["end"]}:
-            raise SketchEditError(f"{a} and {b} do not meet at an end, so there is no corner to round.")
-    return _append(text, block, [f"{block.var}.fillet({names.curve(a)}, {names.curve(b)}, {_typed(op.get('radius'))})"])
+        return meeting[0], meeting[1]
+    picked = [str(name) for name in op.get("lines") or []]
+    if len(picked) != 2 or not all(name in lines for name in picked):
+        raise SketchEditError(f"A sketch {tool} the corner of two lines. Click a corner, or two lines that meet.")
+    a, b = picked
+    if not {shape.curves[a]["start"], shape.curves[a]["end"]} & {shape.curves[b]["start"], shape.curves[b]["end"]}:
+        raise SketchEditError(f"{a} and {b} do not meet at an end, so there is no corner to {verb}.")
+    return a, b
 
 
 # ---------------------------------------------------------------------------------------------
@@ -455,14 +470,14 @@ def mirror(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
         raise SketchEditError(f"What is selected lies on {about}, so it is its own mirror.")
     for point in symmetric:
         relations.append(f"{s}.symmetric({names.point(point)}, {mirrored[point]}, {axis_code})")
-    # A fillet between two mirrored lines, mirrored with the same radius.
+    # A fillet or a chamfer between two mirrored lines, mirrored with the same size.
     for dimension in state.get("dimensions", []):
         refs = dimension.get("refs") or []
-        if dimension.get("kind") == "fillet" and len(refs) == 2 and all(ref in made for ref in refs):
+        if dimension.get("kind") in ("fillet", "chamfer") and len(refs) == 2 and all(ref in made for ref in refs):
             statement = names.statement_of(dimension["id"])
             call = _call_of(statement.statement, s) if statement is not None else None
             if call is not None and len(call.args) == 3:
-                relations.append(f"{s}.fillet({made[refs[0]]}, {made[refs[1]]}, {_segment(text, call.args[2])})")
+                relations.append(f"{s}.{dimension['kind']}({made[refs[0]]}, {made[refs[1]]}, {_segment(text, call.args[2])})")
     return _append(text, block, written + relations)
 
 

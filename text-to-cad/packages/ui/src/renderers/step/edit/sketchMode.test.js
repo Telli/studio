@@ -205,3 +205,23 @@ test("a 3 Point Arc bows through its middle click, a Tangent Arc leaves a line's
   assert.deepEqual(["", "2", "12", "6.5"].map(polygonSides), [6, 6, 12, 6]);
   assert.deepEqual(countChange({}, { kind: "draw", entity: "polygon", sides: 8 }), { line: 8 });
 });
+
+test("a sketch chamfer's line is read as a line from its places, its distance drawn along the line it cuts", () => {
+  // The rectangle's corner at (40, 20) cut 2 back along each line, as the server solves it.
+  const state = {
+    ...STATE,
+    curves: [...STATE.curves, { id: "Chamfer1", kind: "line", derived: "chamfer", dimension: "D1", s: [40, 18], e: [38, 20] }],
+    dimensions: [{ id: "D1", kind: "chamfer", refs: ["Line2", "Line3"], value: 2, data: { corner: "Point3", line: "Chamfer1" } }],
+  };
+  const cut = sketchGeometry(state).curves.find(curve => curve.id === "Chamfer1");
+  assert.deepEqual([cut.kind, cut.a, cut.b, cut.derived], ["line", [40, 18], [38, 20], "chamfer"]);
+  // Along Line2, from the corner down to where the chamfer meets it, off to the right of the shape.
+  const placed = dimensionLayout(state, state.dimensions[0], 5);
+  assert.ok(placed.dimension.every(([x]) => x > 40));
+  assert.equal(formatValue(2, "mm", "chamfer"), "2");
+  // Its line is nothing to land on: a click on its middle lands on the line beside it.
+  const landed = snap(state, [39, 19], 1.2);
+  assert.deepEqual([landed.on, landed.midpoint], ["Line2", undefined]);
+  assert.match(sketchNote({ name: "Sketch1", file: "a.py", line: 3, made: countChange({}, { kind: "chamfer", corner: "Point3", distance: "2" }) }),
+    /cut a corner/);
+});

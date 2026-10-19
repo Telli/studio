@@ -193,7 +193,7 @@ def _residual(relation, u: _Unknowns, scale: float):
         target = math.radians(value)
         return lambda x: [scale * (math.atan2(abs(_cross(direction(a, x), direction(b, x))),
                                               float(np.dot(direction(a, x), direction(b, x)))) - target)]
-    if kind == "fillet":
+    if kind in ("fillet", "chamfer"):
         # Worked out from its lines once they are solved (`fillets.py`): nothing to solve.
         return None
     if kind == "offset":

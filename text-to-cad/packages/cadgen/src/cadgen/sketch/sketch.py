@@ -455,9 +455,31 @@ class Sketch:
             raise SketchError(f"{a.name} and {b.name} are not both construction geometry, or both not, so they are not rounded together.")
         if _number(radius, "A fillet's radius") <= 0:
             raise SketchError("A fillet's radius must be more than zero.")
-        if any(r.kind == "fillet" and r.data["corner"] is corner and {id(ref) for ref in r.refs} == {id(a), id(b)} for r in self.relations):
-            raise SketchError(f"The corner of {a.name} and {b.name} is rounded already.")
+        self._corner_free(a, b, corner)
         return self._relate("fillet", (a, b), radius, data={"corner": corner, "arc": self._named("Fillet")})
+
+    def chamfer(self, a: Line, b: Line, distance) -> Relation:
+        """The corner where two lines meet cut off by a line ``distance`` back along each, as a CAD
+        tool's sketch chamfer cuts it at equal distances. The lines keep their ends at the corner (its
+        virtual sharp), so a dimension to the corner still measures to it, and the face is made with
+        the corner cut. The distance is a dimension of the sketch (D1); the line is named Chamfer1."""
+        if not (isinstance(a, Line) and isinstance(b, Line)) or a is b:
+            raise SketchError("A sketch chamfer cuts the corner where two lines meet.")
+        corner = _shared_end(a, b)
+        if corner is None:
+            raise SketchError(f"{a.name} and {b.name} do not meet at an end, so there is no corner to cut.")
+        if a.construction != b.construction:
+            raise SketchError(f"{a.name} and {b.name} are not both construction geometry, or both not, so they are not cut together.")
+        if _number(distance, "A chamfer's distance") <= 0:
+            raise SketchError("A chamfer's distance must be more than zero.")
+        self._corner_free(a, b, corner)
+        return self._relate("chamfer", (a, b), distance, data={"corner": corner, "line": self._named("Chamfer")})
+
+    def _corner_free(self, a: Line, b: Line, corner: Point) -> None:
+        """Refuses a corner already rounded or cut."""
+        for relation in self.relations:
+            if relation.kind in ("fillet", "chamfer") and relation.data["corner"] is corner and {id(ref) for ref in relation.refs} == {id(a), id(b)}:
+                raise SketchError(f"The corner of {a.name} and {b.name} is {'rounded' if relation.kind == 'fillet' else 'cut'} already.")
 
     def offset_entities(self, made, source, distance) -> Relation:
         """``made`` kept ``distance`` from ``source``, as a CAD tool's Offset Entities keeps an
@@ -600,7 +622,7 @@ class Sketch:
         return float(plane.to_local_coords(place).Z)
 
     def fillet_arcs(self):
-        """The sketch's fillets as arcs where the solved sketch puts them (``fillets.py``)."""
+        """The sketch's fillets as arcs, and its chamfers as lines, where the solved sketch puts them (``fillets.py``)."""
         from .fillets import fillet_arcs
 
         self.solve()
@@ -790,8 +812,13 @@ class Sketch:
                              defined=all(defined(p) for p in (curve.center, curve.start, curve.end)))
             curves.append(entry)
         # Each fillet's arc, worked out from its lines (`derived`): drawn and picked as an arc, with
-        # its places rather than points of its own.
+        # its places rather than points of its own; each chamfer's line, from where it meets one line to the other.
         for arc in rounded:
+            if arc.kind == "chamfer":
+                curves.append({"id": arc.name, "kind": "line", "derived": "chamfer", "dimension": arc.relation.name,
+                               "construction": arc.a.construction, "s": list(arc.start), "e": list(arc.end),
+                               "defined": all(defined(p) for p in (arc.a.start, arc.a.end, arc.b.start, arc.b.end)), **where(arc.relation)})
+                continue
             curves.append({"id": arc.name, "kind": "arc", "derived": "fillet", "dimension": arc.relation.name,
                            "construction": arc.a.construction, "c": list(arc.center), "s": list(arc.start), "e": list(arc.end),
                            "radius": arc.radius, "clockwise": arc.clockwise,

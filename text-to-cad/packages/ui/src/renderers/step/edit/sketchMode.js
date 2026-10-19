@@ -21,6 +21,7 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "point", label: "Point", prompts: ["Click to place a point."] },
   { id: "dimension", label: "Smart Dimension", prompts: ["Pick a line, a circle, or two items to dimension.", "Pick a second item, or click to place the dimension.", "Click to place the dimension."] },
   { id: "fillet", label: "Sketch Fillet", prompts: ["Click a corner to round, or the first of two lines that meet.", "Click the second line."] },
+  { id: "chamfer", label: "Sketch Chamfer", prompts: ["Click a corner to cut, or the first of two lines that meet.", "Click the second line."] },
   { id: "trim", label: "Trim Entities", prompts: ["Click the part of a curve to cut away. It is cut back to the curves that cross it; a curve nothing crosses is deleted."] },
   { id: "offset", label: "Offset Entities", prompts: ["Click a line, an arc or a circle to offset it, and the chain it is part of."] },
   { id: "mirror", label: "Mirror Entities", prompts: ["Click the entities to mirror.", "Click more of them, or the centerline to mirror about."] },
@@ -28,11 +29,13 @@ export const SKETCH_TOOLS = Object.freeze([
 ]);
 
 /** The tools that change what is drawn rather than draw: each takes its own clicks (see `SketchOverlay.jsx`). */
-export const MODIFY_TOOLS = Object.freeze(["fillet", "trim", "offset", "mirror"]);
+export const MODIFY_TOOLS = Object.freeze(["fillet", "chamfer", "trim", "offset", "mirror"]);
+/** The tools that take a corner: a point where two lines meet, or the two lines. */
+export const CORNER_TOOLS = Object.freeze(["fillet", "chamfer"]);
 /** The tools that pick on the model rather than the sketch: Convert Entities takes its edges and faces, so the model has the presses. */
 export const MODEL_TOOLS = Object.freeze(["convert"]);
 
-/** The size a sketch tool uses until one is typed, in the part's units: a fillet's radius, an offset's distance. */
+/** The size a sketch tool uses until one is typed, in the part's units: a fillet's radius, a chamfer's or an offset's distance. */
 export const toolSize = (typed, units, tool) => String(typed ?? "").trim()
   || (units === "in" ? (tool === "fillet" ? "0.1" : "0.06") : (tool === "fillet" ? "2" : "1"));
 
@@ -72,7 +75,8 @@ export function sketchGeometry(state) {
   const points = new Map((state?.points || []).map(point => [point.id, point]));
   const curves = (state?.curves || []).map(curve => {
     const base = { id: curve.id, kind: curve.kind, construction: Boolean(curve.construction), defined: Boolean(curve.defined) };
-    // A fillet's arc, worked out from its lines: its places, no points of its own.
+    // A chamfer's line, and a fillet's arc, worked out from its lines: its places, no points of its own.
+    if (curve.derived === "chamfer") return { ...base, derived: curve.derived, a: curve.s, b: curve.e, dimension: curve.dimension };
     if (curve.derived) return { ...base, derived: curve.derived, c: curve.c, s: curve.s, e: curve.e, r: curve.radius, clockwise: Boolean(curve.clockwise), dimension: curve.dimension };
     // A line drawn up to the fillet at an end (`view`), its ends still at the corner.
     if (curve.kind === "line") return { ...base, a: at(points.get(curve.start)), b: at(points.get(curve.end)), start: curve.start, end: curve.end, view: curve.shown || null };
@@ -133,7 +137,7 @@ export function snap(state, place, tolerance, { exclude = [] } = {}) {
   }
   if (best) return best.ref;
   for (const curve of curves) {
-    if (curve.kind !== "line" || curve.view) continue;
+    if (curve.kind !== "line" || curve.view || curve.derived) continue;
     const middle = scale(add(curve.a, curve.b), 0.5);
     const distance = hypot(middle, place);
     if (distance <= tolerance && (!best || distance < best.distance)) best = { distance, ref: { at: middle, on: curve.id, midpoint: true } };
@@ -462,6 +466,12 @@ export function dimensionLayout(state, dimension, gap, { side = 0, level = 0 } =
   const [a, b] = dimension.refs;
   switch (dimension.kind) {
     case "length": { const line = curve(a); return line ? aligned(line.a, line.b) : null; }
+    // A chamfer's distance, as SolidWorks shows it: along its first line, from the corner it cuts to where it meets it.
+    case "chamfer": {
+      const cut = curves.find(each => each.id === dimension.data?.line);
+      const corner = dimension.data?.corner && points.has(dimension.data.corner) ? at(points.get(dimension.data.corner)) : null;
+      return cut && corner ? aligned(corner, cut.a) : null;
+    }
     case "horizontal_distance":
     case "vertical_distance": {
       const p = place(a);
@@ -758,6 +768,7 @@ export function sketchNote(session) {
   if (added.length) parts.push(`added ${listed(added)}`);
   if (made.value) parts.push(`changed ${counted(made.value, "dimension")}`);
   if (made.fillet) parts.push(`rounded ${counted(made.fillet, "corner")}`);
+  if (made.chamfer) parts.push(`cut ${counted(made.chamfer, "corner")}`);
   if (made.trimmed) parts.push(`trimmed ${counted(made.trimmed, "curve")}`);
   if (made.offset) parts.push(`offset ${counted(made.offset, "chain")}`);
   if (made.mirrored) parts.push(`mirrored ${counted(made.mirrored, "entity", "entities")}`);
@@ -790,6 +801,7 @@ export function countChange(made, op) {
   else if (op.kind === "move") bump("moved", (op.points || []).length || 1);
   else if (op.kind === "delete") bump("deleted", (op.items || []).length || 1);
   else if (op.kind === "fillet") bump("fillet");
+  else if (op.kind === "chamfer") bump("chamfer");
   else if (op.kind === "trim") bump("trimmed");
   else if (op.kind === "offset") bump("offset");
   else if (op.kind === "mirror") bump("mirrored", (op.items || []).length || 1);

@@ -37,7 +37,7 @@ const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]
 // Sketch mode's tools, as SolidWorks' Sketch tab groups them: what draws, then what changes what is drawn.
 const SKETCH_ENTITIES = ["line", "rectangle", "center_rectangle", "circle", "arc", "three_point_arc", "tangent_arc", "slot", "polygon",
   "centerline", "point"];
-const SKETCH_MODIFY = ["fillet", "trim", "convert", "offset", "mirror"];
+const SKETCH_MODIFY = ["fillet", "chamfer", "trim", "convert", "offset", "mirror"];
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
 // The More button's box, before it is first laid out.
@@ -166,7 +166,7 @@ function RibbonGroups({ groups }) {
  * and the viewer's tools, which the strip over the model would otherwise hold, grouped as a CAD
  * tool groups them and named under their icons. While a sketch is edited it holds the sketch's
  * tools instead, as SolidWorks switches to its Sketch tab: Exit Sketch and Smart Dimension, the
- * entities to draw, Sketch Fillet and Trim, Offset and Mirror Entities, Construction Geometry
+ * entities to draw, Sketch Fillet, Sketch Chamfer and Trim, Offset and Mirror Entities, Construction Geometry
  * and Normal To, and the features to make of it. The
  * part's units and where its build stands, or the sketch and how defined it is, sit at its right
  * end. A narrow view keeps the icons and drops the names, then folds the groups at the right into

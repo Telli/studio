@@ -236,6 +236,22 @@ class SketchMode(unittest.TestCase):
         self.send({"kind": "delete", "items": ["Fillet1"]})
         self.assertNotIn("fillet", self.source())
 
+    def test_a_sketch_chamfer_cuts_a_corner_and_goes_with_its_line(self):
+        self.rectangle()
+        self.send({"kind": "chamfer", "lines": ["Line2", "Line3"], "distance": "2"})
+        self.assertIn("sketch1.chamfer(line2, line3, 2)", self.source())
+        state = self.sketch["state"]
+        self.assertEqual(state["status"], "Fully defined")
+        cut = next(curve for curve in state["curves"] if curve.get("derived") == "chamfer")
+        self.assertEqual((cut["id"], cut["kind"], cut["s"], cut["e"]), ("Chamfer1", "line", [30.0, 8.0], [28.0, 10.0]))
+        chamfer = next(item for item in state["dimensions"] if item["kind"] == "chamfer")
+        refused = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "delete", "items": [chamfer["id"]]}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("Chamfer1's distance", refused["error"])
+        self.send({"kind": "delete", "items": ["Chamfer1"]})
+        self.assertNotIn("chamfer", self.source())
+
     def test_an_offset_chain_is_held_at_one_distance(self):
         self.rectangle()
         self.send({"kind": "offset", "items": ["Line1", "Line2", "Line3", "Line4"], "distance": "2"})

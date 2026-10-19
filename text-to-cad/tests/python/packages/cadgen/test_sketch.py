@@ -120,6 +120,20 @@ class Faces(unittest.TestCase):
             s.face()
         self.assertIn("more than", str(raised.exception))
 
+    def test_a_sketch_chamfer_cuts_its_corner_in_the_face_and_its_dimensions_still_hold(self):
+        s, bottom, right, top, left, circle = plate()
+        s.chamfer(bottom, right, 4)
+        self.assertEqual(s.status, "Fully defined")
+        self.assertAlmostEqual(right.end.x, 70.0, places=6)
+        self.assertAlmostEqual(s.face().area, 70 * 25 - math.pi * 16 - 4 * 4 / 2, places=3)
+        with self.assertRaises(SketchError) as cut:
+            s.fillet(bottom, right, 2)
+        self.assertIn("cut already", str(cut.exception))
+        s.chamfer(top, left, 30)
+        with self.assertRaises(SketchError) as raised:
+            s.face()
+        self.assertIn("distance of 30 is more than", str(raised.exception))
+
     def test_offset_entities_follow_what_they_are_offset_from(self):
         s, bottom, right, top, left, circle = plate()
         ring = s.circle(circle.center, 6)

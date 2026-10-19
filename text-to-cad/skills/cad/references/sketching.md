@@ -72,6 +72,8 @@ def plate():
 - `s.fillet(line1, line2, radius)` rounds the corner where two lines meet (Fillet1, its radius a
   dimension). The lines keep their ends at the corner, its virtual sharp, so dimensions to the
   corner still measure to it; the face is made with the corner rounded.
+- `s.chamfer(line1, line2, distance)` cuts that corner with a line `distance` back along each
+  (Chamfer1, its distance a dimension), the corner kept as a fillet keeps it.
 - `s.offset_entities(made, source, distance)` holds offset curves (a curve, or lists in step)
   that far from their source: each line parallel to its own, to the side it is drawn on, each arc
   or circle around its own's center, an open chain's ends square across from the source's. One
