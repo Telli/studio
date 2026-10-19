@@ -34,6 +34,15 @@ export function useEditShortcuts(edit, active) {
       }
       if (!(event.metaKey || event.ctrlKey)) return;
       const key = event.key.toLowerCase();
+      // Cmd+8 (Ctrl+8), Normal To, as SolidWorks takes it: the sketch's plane, or the face or plane selected.
+      if (key === "8" && !event.shiftKey) {
+        const target = event.target;
+        if (!(target instanceof Node && element.contains(target)) && !(pointerInside && (target === document.body || target === document.documentElement))) return;
+        if (isEditableTarget(target)) return;
+        event.preventDefault();
+        latest.current.lookNormalTo?.();
+        return;
+      }
       const redo = (key === "z" && event.shiftKey) || (key === "y" && event.ctrlKey && !event.metaKey && !event.shiftKey);
       if (key !== "z" && !redo) return;
       const target = event.target;

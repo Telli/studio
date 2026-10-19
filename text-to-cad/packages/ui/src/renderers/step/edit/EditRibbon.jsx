@@ -174,12 +174,12 @@ function RibbonGroups({ groups }) {
  *
  * @param {{ tools: import("../../kit/tools/FloatingToolBar.js").ViewportTool[],
  *   edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onCommand?: (id: string) => void,
- *   onSketch?: () => void, sketchLabel?: string }} props
+ *   onSketch?: () => void, sketchLabel?: string, onNormalTo?: (() => void) | null }} props
  *   `onCommand` opens a command (the surface turns Select to what it picks); `onSketch` is the
  *   Sketch button (`sketchLabel`: "Edit Sketch" while a sketch is selected).
  */
 export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id), onSketch = () => edit.startPicking(), sketchLabel = "Sketch",
-  canOpenParts = false }) {
+  canOpenParts = false, onNormalTo = null }) {
   const byId = new Map(tools.map(tool => [tool.id, tool]));
   const grouped = new Set(GROUPS.flatMap(group => group.tools));
   const others = tools.filter(tool => !grouped.has(tool.id));
@@ -278,10 +278,16 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
       ...(group.title === "Inspect" ? [{ id: "mass", label: "Mass Properties", icon: <MassPropertiesIcon aria-hidden="true" />,
         active: edit.inspecting === "mass", disabled: edit.status !== "ready",
         onClick: () => (edit.inspecting === "mass" ? edit.stopInspecting() : edit.inspect("mass")) }] : [])] })),
-    // Display, as SolidWorks' Edit Appearance: the part's color. An assembly's parts are colored in their own.
-    { title: "Display", items: placing ? [] : [{ id: "appearance", label: "Appearance", icon: <AppearanceIcon />,
-      active: edit.inspecting === "appearance", disabled: edit.status !== "ready",
-      onClick: () => (edit.inspecting === "appearance" ? edit.stopInspecting() : edit.inspect("appearance")) }] },
+    // Display, as SolidWorks' Edit Appearance colors the part (an assembly's parts are colored in
+    // their own) and Normal To turns the view to a face or a plane selected.
+    { title: "Display", items: [
+      ...(placing ? [] : [{ id: "appearance", label: "Appearance", icon: <AppearanceIcon />,
+        active: edit.inspecting === "appearance", disabled: edit.status !== "ready",
+        onClick: () => (edit.inspecting === "appearance" ? edit.stopInspecting() : edit.inspect("appearance")) }]),
+      { id: "normal-to", label: "Normal To", icon: <span className={SKETCH_TINT}><NormalToIcon /></span>, disabled: !onNormalTo,
+        description: onNormalTo ? undefined : "Select a flat face, or a plane in the design tree, to look straight at it.",
+        onClick: () => onNormalTo?.() },
+    ] },
     { title: "Tools", items: others.map(toolItem) },
   ].filter(group => group.items.length), <>
     {statusLine(status, Boolean(state?.building?.error))}

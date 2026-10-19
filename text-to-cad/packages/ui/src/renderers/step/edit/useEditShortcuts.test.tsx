@@ -45,3 +45,24 @@ it('a key outside the viewer, or with nothing to redo, is left alone', () => {
   press(element.querySelector('button')!, { key: 'z', metaKey: true, shiftKey: true });
   expect(redo).not.toHaveBeenCalled();
 });
+
+it('F2 renames what the tree has selected, and Cmd+8 turns the view Normal To, from inside the viewer', () => {
+  const element = document.createElement('div');
+  element.innerHTML = '<button type="button">Fillet</button><input aria-label="Width value" />';
+  document.body.append(element);
+  const startRename = vi.fn();
+  const lookNormalTo = vi.fn();
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    <ViewerElementContext.Provider value={{ current: element }}>{children}</ViewerElementContext.Provider>;
+  renderHook(() => useEditShortcuts({ canUndo: false, canRedo: false, selected: 'block.py:7', startRename, lookNormalTo } as never, true), { wrapper });
+  const button = element.querySelector('button')!;
+  press(button, { key: 'F2' });
+  expect(startRename).toHaveBeenCalledWith('block.py:7');
+  press(button, { key: '8', metaKey: true });
+  expect(lookNormalTo).toHaveBeenCalledTimes(1);
+  // A text field keeps its keys.
+  press(element.querySelector('input')!, { key: 'F2' });
+  press(element.querySelector('input')!, { key: '8', ctrlKey: true });
+  expect(startRename).toHaveBeenCalledTimes(1);
+  expect(lookNormalTo).toHaveBeenCalledTimes(1);
+});

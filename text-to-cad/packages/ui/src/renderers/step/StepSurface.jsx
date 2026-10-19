@@ -1,3 +1,5 @@
+import { transitionCameraToViewPreset } from "../kit/camera/runtimeCamera.js";
+import { requestSceneFrame } from "../kit/viewport/sceneFrames.js";
 import { buildEdgeChainGraph } from "./workbench/edgeChainSelection.js";
 "use client";
 
@@ -3296,6 +3298,34 @@ function StepSurfaceBody({ view, data }) {
     return mirrored ? [...planes, { points: mirrored, strong: true }] : planes;
   }, [edit.selected, edit.hovered, edit.picking, edit.sketch, edit.state?.bounds, edit.command, edit.preview, editTree]);
   const editOrigin = !edit.sketch && (edit.selected === "origin" || edit.hovered === "origin") ? originAxis(edit.state?.bounds) : null;
+  // Normal To outside a sketch, as SolidWorks' Ctrl+8 turns the view: to look straight at the one
+  // flat face selected on the model, or the plane selected in the design tree.
+  const normalTarget = useMemo(() => {
+    if (!editing || edit.sketch) return null;
+    const faces = selectedReferences.filter(reference => reference?.selectorType === "face");
+    const face = faces.length === 1 && faces[0].pickData?.surfaceType === "plane" && faces[0].pickData?.normal?.length === 3 ? faces[0].pickData : null;
+    if (face) return Array.from(face.normal, Number);
+    const origin = typeof edit.selected === "string" && edit.selected.startsWith("plane:")
+      ? { Top: [0, 0, 1], Front: [0, -1, 0], Right: [1, 0, 0] }[edit.selected.slice("plane:".length)] : null;
+    return origin || treeFeatures(editTree).find(feature => feature.id === edit.selected && feature.kind === "Plane")?.plane?.z || null;
+  }, [editing, edit.sketch, selectedReferences, edit.selected, editTree]);
+  const normalTargetRef = useRef(normalTarget);
+  normalTargetRef.current = normalTarget;
+  useEffect(() => {
+    const normal = normalTargetRef.current;
+    const runtime = runtimeRefRef.current?.current;
+    if (!edit.normalTo || edit.sketch || !normal || !runtime?.THREE || !runtime.modelGroup) return;
+    const { THREE, modelGroup } = runtime;
+    modelGroup.updateMatrixWorld();
+    const origin = new THREE.Vector3(0, 0, 0).applyMatrix4(modelGroup.matrixWorld);
+    const toward = axis => new THREE.Vector3(...axis).applyMatrix4(modelGroup.matrixWorld).sub(origin).normalize().toArray();
+    if (transitionCameraToViewPreset(runtime, { direction: toward(normal), up: toward(Math.abs(normal[2]) < 0.9 ? [0, 0, 1] : [0, 1, 0]) })) {
+      runtime.userMovedCamera = true;
+      requestSceneFrame(runtime, false);
+    }
+    // Once per Normal To asked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edit.normalTo]);
   // Mass Properties' center of mass, marked on the model while its card is open.
   const massCenter = edit.mass?.center;
   const massMark = useMemo(() => (massCenter ? { mark: "center", at: massCenter } : null), [massCenter]);
@@ -3657,7 +3687,8 @@ function StepSurfaceBody({ view, data }) {
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}
     onContextMenuOpenChange={handleViewportContextMenuOpenChange}
     ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
-      sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)} /> : null}
+      sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)}
+      onNormalTo={normalTarget ? edit.lookNormalTo : null} /> : null}
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
       onDeselect={deselectReference} /> : null}
