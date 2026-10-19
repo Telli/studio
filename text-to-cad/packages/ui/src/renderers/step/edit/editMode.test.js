@@ -52,6 +52,7 @@ import {
   redoStep,
   restates,
   rolledBack,
+  mateNote,
   sameValues,
   selectionItems,
   selectionLabel,
@@ -613,6 +614,13 @@ test("a reference plane is offset from an origin plane picked in the tree, or fr
     { reference: "Front", distance: "5", flip: false, angle: "30", about: "y" });
   assert.equal(planeDetail({ edit: { values: { reference: "Top", distance: "10", flip: false, angle: "15", about: "y" } } }, "mm"),
     "Top Plane, 10 mm, 15° about Y");
+});
+
+test("the agent is told of a mate made, made again, or taken back, and where", () => {
+  const change = { file: "assemblies/stack.py", line: 14, words: "Coincident1: pin face to face with base" };
+  assert.equal(mateNote(change), "In edit mode I made a mate of the assembly (assemblies/stack.py, line 14): Coincident1: pin face to face with base.");
+  assert.match(mateNote(change, { undo: true }), /^In edit mode I took back a mate/);
+  assert.match(mateNote(change, { redo: true }), /made again/);
 });
 
 test("the part's reference planes are what a mirror, a draft or a plane can go from, by the names the script holds them in", () => {

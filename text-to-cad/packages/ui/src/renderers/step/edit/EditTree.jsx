@@ -4,7 +4,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { TREE_INDENT_PX, TreeRowChevron, TreeRowSurface } from "@text-to-cad/ui/primitives/tree-row";
 import { FileSheetValueInput } from "../../kit/inspector/FileSheet.js";
 import { ORIGIN_PLANES, barIndex, planeDetail, rolledBack, sizeName, treeFeatures } from "./editMode.js";
-import { AssemblyIcon, FeatureIcon, OriginIcon, ParametersIcon, PartIcon, PlaneIcon, SketchIcon } from "./featureIcons.jsx";
+import { AssemblyIcon, FeatureIcon, MateTreeIcon, OriginIcon, ParametersIcon, PartIcon, PlaneIcon, SketchIcon } from "./featureIcons.jsx";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 // How defined a sketch is, marked before its name as SolidWorks marks it: (-) under, (+) over.
@@ -128,7 +128,7 @@ function RollbackBar({ index, count, label, disabled, slotAt, onPreview, onMove 
  *   tree: ReturnType<typeof import("./editMode.js").featureTree>, onEditSketch?: (sketch: object) => void }} props
  */
 export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPart = null, backTo = null }) {
-  const [open, setOpen] = useState(() => new Set(["parameters"]));
+  const [open, setOpen] = useState(() => new Set(["parameters", "mates"]));
   // A selection inside a closed part, or a sketch under a closed feature, opens them to it.
   useEffect(() => {
     const selected = edit.selected || "";
@@ -245,6 +245,15 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     event.preventDefault();
     void edit.remove(id, tree);
   };
+  // An assembly's Mates, as SolidWorks lists them under its parts: each by its name and the parts it
+  // places, deleted from its menu (its part goes back where it was).
+  const mates = tree.assembly ? edit.state?.mates || [] : [];
+  const mateRows = () => (mates.length ? [
+    <Row key="mates" id="mates" depth={1} icon={<MateTreeIcon />} title="Mates" expanded={open.has("mates")} onToggle={toggle("mates")} {...rowProps} />,
+    ...(open.has("mates") ? mates.map(mate => <Row key={mate.label} id={`mate:${mate.label}`} depth={2} icon={<MateTreeIcon />}
+      title={`${mate.name} (${mate.parts.join(", ")})`} {...rowProps}
+      menu={[{ id: "delete", label: "Delete", disabled: busy, onSelect: () => void edit.mate({ delete: mate.label }) }]} />) : []),
+  ] : []);
   return <div ref={treeRef} role="tree" aria-label="Design tree" className="flex flex-col px-1 py-1" data-cad-edit-tree="" onKeyDown={onKeyDown}>
     {backTo ? <button type="button" className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1 text-left text-tiny text-muted-foreground hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
       onClick={backTo.open} data-cad-edit-back="">
@@ -280,7 +289,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
           menu={component.step && onOpenPart ? [{ id: "open-part", label: "Open Part", onSelect: () => onOpenPart(component) }] : null}
           {...rowProps} />,
         ...(open.has(component.id) ? features(component.features, 2) : []),
-      ])
+      ]).concat(mateRows())
       : partRows()}
   </div>;
 }

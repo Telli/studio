@@ -3267,7 +3267,8 @@ function StepSurfaceBody({ view, data }) {
   // Where on the model a click lands, for a hole to go there or an extrude to end at an edge's end.
   holePointRef.current = editing && ["hole", "extrude", "cut"].includes(edit.command) ? edit.setFacePoint : null;
   keepFaceRef.current = editing && edit.command === "hole";
-  choosingManyRef.current = editing && !edit.sketch && Boolean(editCommand(edit.command)?.many);
+  // Picks add up for a command that takes many, and for Mate's two.
+  choosingManyRef.current = editing && !edit.sketch && (Boolean(editCommand(edit.command)?.many) || edit.inspecting === "mate");
   // A pick the open command's panel lists, taken out by its X.
   const deselectReference = useCallback(id => setSelectedReferenceIds(current => current.filter(each => each !== id)), [setSelectedReferenceIds]);
   // The place over the model's top-right corner where an open command's or sketch's panel floats,
@@ -3428,14 +3429,17 @@ function StepSurfaceBody({ view, data }) {
   // Smart Dimension takes the model's edges too, as SolidWorks dimensions to them: they light as the
   // pointer passes, and a press on one is still the sketch's, which asks what edge is under it.
   const dimensioning = Boolean(edit.sketch) && edit.sketchTool === "dimension";
+  // Mate picks the parts' faces and edges, as SolidWorks' Mate Selections take them: an
+  // assembly's part has its faces loaded when it is pressed.
+  const mating = editing && edit.inspecting === "mate";
   useEffect(() => {
-    if (!converting && !dimensioning) return undefined;
-    changeSelectMode(converting ? "all" : "edges");
+    if (!converting && !dimensioning && !mating) return undefined;
+    changeSelectMode(converting ? "all" : mating ? "topology" : "edges");
     if (!isAssemblyView) loadInspectionTopology();
     handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES);
     return () => clearAssemblySelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [converting, dimensioning]);
+  }, [converting, dimensioning, mating]);
   // The model's edge under a point of the screen, as an edit item (`selectionItems`), or null.
   const modelEdgeAt = useCallback((clientX, clientY) => {
     const reference = effectiveActiveReferenceMap.get(pickAtRef.current?.(clientX, clientY) || "");

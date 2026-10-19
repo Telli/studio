@@ -114,7 +114,7 @@ function NumberRow({ label, value, unit = "", disabled, onChange }) {
  * in the blue the model shows it picked in, with an X to let it go (`onClear`, given the item);
  * empty, it waits in that blue for a pick and says how to pick.
  */
-function SelectionBox({ items, prompt, more = 0, onClear = null, clearLabel = "Clear" }) {
+export function SelectionBox({ items, prompt, more = 0, onClear = null, clearLabel = "Clear" }) {
   if (!items.length) {
     return <p role="status" className="mx-2 mb-1 rounded-md border border-dashed border-cad-picked/70 bg-cad-picked/5 px-2 py-1.5 text-tiny leading-4 text-foreground">
       {prompt}</p>;

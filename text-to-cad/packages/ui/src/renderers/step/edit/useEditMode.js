@@ -17,6 +17,7 @@ import {
   redoStep,
   sketchTreeId,
   appearanceNote,
+  mateNote,
   renameNote,
   suppressNote,
   treeFeatures,
@@ -395,6 +396,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     const suppressed = move.change.kind === "suppress";
     const renamed = move.change.kind === "rename";
     const painted = move.change.kind === "appearance";
+    const mated = move.change.kind === "mate";
     const current = sketchRef.current;
     // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
     const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
@@ -403,7 +405,8 @@ export function useEditMode({ client, file, active, reading = true }) {
         : deleted ? () => deleteNote(move.change, { undo: !redo, redo })
           : suppressed ? () => suppressNote(move.change, { undo: !redo, redo })
             : renamed ? () => renameNote(move.change, { undo: !redo, redo })
-              : painted ? () => appearanceNote(move.change, { undo: !redo, redo }) : null });
+              : painted ? () => appearanceNote(move.change, { undo: !redo, redo })
+                : mated ? () => mateNote(move.change, { undo: !redo, redo }) : null });
     if (!reply?.ok) return;
     setHistory(move.next);
     if (current) {
@@ -456,6 +459,8 @@ export function useEditMode({ client, file, active, reading = true }) {
 
   /** Appearance's OK: the part colored `color` (#RRGGBB) in its script, then built again with it. */
   const paint = useCallback(color => send({ appearance: { color } }, { note: answer => appearanceNote(answer.change) }), [send]);
+  // Mate, as SolidWorks' places an assembly's parts: a mate made from two picks, or taken out by its label.
+  const mate = useCallback(spec => send({ mate: spec }, { note: answer => mateNote(answer.change) }), [send]);
 
   const suppress = useCallback(async (id, tree, on = true) => {
     const feature = treeFeatures(tree).find(each => each.id === id);
@@ -562,7 +567,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
-    inspecting, mass, renaming, rename, paint,
+    inspecting, mass, renaming, rename, paint, mate,
     startRename: id => { if (id) setRenaming(id); },
     stopRename: () => setRenaming(null),
     inspect: what => { setCommand(null); endEditing(); setPicking(false); setPreview(null); dropPreview(); setInspecting(what); },

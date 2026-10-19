@@ -1282,5 +1282,76 @@ class Assemblies(Commands):
         self.assertFalse(refused["ok"])
 
 
+# A base with a hole at x = 5, and a pin floating above it, to be mated.
+MATING = {
+    "parts/base.py": """
+        from build123d import Box, Cylinder, Pos
+        from cadgen import step
+
+
+        @step
+        def base():
+            return Box(20, 10, 4) - Pos(5, 0, 0) * Cylinder(1.5, 4)
+    """,
+    "parts/pin.py": """
+        from build123d import Cylinder, Pos
+        from cadgen import step
+
+
+        @step
+        def pin():
+            return Pos(-3, 2, 10) * Cylinder(1.5, 6)
+    """,
+    "assemblies/stack.py": ASSEMBLY["assemblies/stack.py"],
+}
+CIRCLE = 2 * math.pi * 1.5
+
+
+class Mates(Commands):
+    """Mate, as SolidWorks' places an assembly's parts: joints written in the assembly, its second part moved to its first."""
+
+    def mated(self, file: str, files: dict, mate: dict) -> dict:
+        reply = self.service.change({"file": file, "files": files, "mate": mate})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        return reply
+
+    def box(self, file: str, files: dict) -> list:
+        return [[round(value, 6) + 0 for value in corner] for corner in self.service.change({"file": file, "mass": {}, "files": files})["mass"]["box"]]
+
+    def test_coincident_puts_the_pin_on_the_base_where_it_was_over_it_and_a_mate_comes_out(self):
+        root, file, state = self.open(MATING, "assemblies/stack.step")
+        top = {"selector": "o1.1.f6", "type": "plane", "center": [-0.183218, 0, 2], "size": 200 - math.pi * 2.25}
+        bottom = {"selector": "o1.2.f3", "type": "plane", "center": [-3, 2, 7], "size": math.pi * 2.25}
+        reply = self.mated(file, state["files"], {"type": "coincident", "selection": [top, bottom]})
+        text = (root / "assemblies" / "stack.py").read_text(encoding="utf-8")
+        self.assertIn("    base_part = base()\n    pin_part = pin()\n", text)
+        self.assertIn('    RigidJoint("coincident1", base_part, Location(Plane(base_part.faces()', text)
+        self.assertIn('    base_part.joints["coincident1"].connect_to(pin_part.joints["coincident1"])\n'
+                      '    return Compound(children=[base_part, pin_part], label="stack")\n', text)
+        # Its bottom on the base's top, as far over it as it was: from z = 2 up to 8.
+        self.assertEqual(self.box(file, reply["files"])[1][2], 8)
+        self.assertEqual([(mate["name"], mate["type"], mate["parts"]) for mate in reply["mates"]], [("Coincident1", "coincident", ["base", "pin"])])
+        # Taken out, the pin floats where it was again.
+        gone = self.mated(file, reply["files"], {"delete": "coincident1"})
+        self.assertNotIn("coincident1", (root / "assemblies" / "stack.py").read_text(encoding="utf-8"))
+        self.assertEqual(gone["mates"], [])
+        self.assertEqual(self.box(file, gone["files"])[1][2], 13)
+
+    def test_concentric_circular_edges_seat_the_pin_in_the_hole_and_flat_picks_are_refused(self):
+        root, file, state = self.open(MATING, "assemblies/stack.step")
+        hole = {"selector": "o1.1.e13", "type": "circle", "center": [5, 0, -2], "size": CIRCLE}
+        foot = {"selector": "o1.2.e3", "type": "circle", "center": [-3, 2, 7], "size": CIRCLE}
+        reply = self.mated(file, state["files"], {"type": "concentric", "selection": [hole, foot]})
+        text = (root / "assemblies" / "stack.py").read_text(encoding="utf-8")
+        self.assertIn('RigidJoint("concentric1", base_part, Axis(', text)
+        # Its foot on the hole's bottom edge, standing up through it: x 3.5 to 6.5, z -2 to 4.
+        self.assertEqual(self.box(file, reply["files"]), [[-10, -5, -2], [10, 5, 4]])
+        flat = {"selector": "o1.1.f6", "type": "plane", "center": [-0.183218, 0, 2], "size": 200 - math.pi * 2.25}
+        seated = {**foot, "center": [5, 0, -2]}
+        refused = self.service.change({"file": file, "files": reply["files"], "mate": {"type": "concentric", "selection": [flat, seated]}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("round faces or circular edges", refused["error"])
+
+
 if __name__ == "__main__":
     unittest.main()

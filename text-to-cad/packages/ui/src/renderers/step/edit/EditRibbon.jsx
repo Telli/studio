@@ -13,7 +13,7 @@ import { Progress } from "@text-to-cad/ui/primitives/progress";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { AppearanceIcon, COMMAND_ICONS, ExitSketchIcon, MassPropertiesIcon, SketchIcon } from "./cadIcons.jsx";
+import { AppearanceIcon, COMMAND_ICONS, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
 import { COMMAND_GROUPS, EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_TOOLS } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
@@ -270,6 +270,10 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   };
   return ribbon("Design", [
     edits,
+    // Assemble, as SolidWorks' Assembly tab: Mate places a part by two picks.
+    ...(placing ? [{ title: "Assemble", items: [{ id: "mate", label: "Mate", icon: <MateIcon aria-hidden="true" />,
+      active: edit.inspecting === "mate", disabled: edit.status !== "ready" || edit.saving,
+      onClick: () => (edit.inspecting === "mate" ? edit.stopInspecting() : edit.inspect("mate")) }] }] : []),
     { title: "Sketch", items: [{ id: "sketch", label: sketchLabel, icon: <SketchIcon />, active: edit.picking, disabled: modelingOff,
       description: placingWords, onClick: () => (edit.picking ? edit.stopPicking() : onSketch()) }] },
     ...COMMAND_GROUPS.map(title => ({ title, items: EDIT_COMMANDS.filter(command => command.group === title).map(commandItem) })),

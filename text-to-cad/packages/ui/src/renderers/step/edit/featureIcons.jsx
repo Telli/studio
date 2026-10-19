@@ -1,4 +1,4 @@
-import { Boxes, Move3d, Sigma } from "lucide-react";
+import { Boxes, Move3d, Paperclip, Sigma } from "lucide-react";
 import { TREE_GLYPH_CLASS, TREE_GLYPH_STROKE } from "@text-to-cad/ui/primitives/tree-row";
 import * as cad from "./cadIcons.jsx";
 
@@ -38,4 +38,5 @@ export function FeatureIcon({ kind }) {
 }
 
 export const AssemblyIcon = () => <Boxes className={TREE_GLYPH_CLASS} strokeWidth={TREE_GLYPH_STROKE} aria-hidden="true" />;
+export const MateTreeIcon = () => <Paperclip className={TREE_GLYPH_CLASS} strokeWidth={TREE_GLYPH_STROKE} aria-hidden="true" />;
 export const ParametersIcon = () => <Sigma className={TREE_GLYPH_CLASS} strokeWidth={TREE_GLYPH_STROKE} aria-hidden="true" />;

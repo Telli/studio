@@ -1737,6 +1737,8 @@ def trace(request):
         "features": [] if components else features,
         "sketches": sketches,
         "components": [{"name": c["function"], "file": c["file"], "features": c["features"], "step": _component_step(c)} for c in components],
+        # An assembly's mates, as its joints are labelled (`mates.py`), for the design tree's Mates.
+        "mates": _mates_of(script, [c["function"] for c in components]) if components else [],
         "bounds": _bounds(shape) if isinstance(shape, B.Shape) else None,
         # The part's color as it shows, for Appearance to open on.
         "color": None if components else _shown_color(shape),
@@ -1810,7 +1812,7 @@ def _solve(expr, leaf, target):
 
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
-_CHANGES = ("command", "preview", "mass", "rename", "appearance", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
+_CHANGES = ("command", "preview", "mass", "rename", "appearance", "mate", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
 
 
 def edit(request):
@@ -1834,6 +1836,8 @@ def edit(request):
         return rename(request)
     if isinstance(request.get("appearance"), dict):
         return appearance(request)
+    if isinstance(request.get("mate"), dict):
+        return mate(request)
     script = str(Path(request["script"]).resolve())
     if script not in STATE:
         traced = trace(request)
@@ -2501,6 +2505,51 @@ def appearance(request):
         "undo": {"file": body.rel, "hunks": commands.hunks(text, old)},
         "redo": {"file": body.rel, "hunks": commands.hunks(old, text)},
     }
+    return after
+
+
+def _mates_of(script, components) -> list:
+    from cadgen.edit import mates
+
+    try:
+        return mates.read(_read(script), components)
+    except Exception:  # noqa: BLE001 - a script mates cannot read lists none
+        return []
+
+
+def mate(request):
+    """Mate, as SolidWorks' Mate places the parts of an assembly (`mates.py`): a mate added from
+    two picks, or one taken out (``delete``, its label), and the assembly built again."""
+    from cadgen.edit import commands, mates
+
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    if not traced.get("components"):
+        return {"ok": False, "error": "Mates place the parts of an assembly. Open an assembly to mate its parts."}
+    script = Path(request["script"]).resolve()
+    state = STATE[str(script)]
+    old = _read(script)
+    spec = request["mate"]
+    try:
+        if spec.get("delete"):
+            text, line, words = mates.delete(old, str(spec["delete"])), 1, f"took out {spec['delete']}"
+        else:
+            text, line, words = mates.change(old, state["shape"], spec, state["units"], [c["name"] for c in traced["components"]])
+    except (mates.MateError, commands.CommandError) as error:
+        return {"ok": False, "error": str(error)}
+    _write(script, text)
+    after = trace(request)
+    if not after.get("ok"):
+        _write(script, old)
+        trace(request)
+        return {"ok": False, "error": f"The assembly does not build with that mate, so nothing changed. {after.get('error') or ''}".strip()}
+    rel = script.relative_to(ROOT).as_posix()
+    after["change"] = {"kind": "mate", "words": words, "file": rel, "line": line,
+                       "undo": {"file": rel, "hunks": commands.hunks(text, old)}, "redo": {"file": rel, "hunks": commands.hunks(old, text)}}
     return after
 
 

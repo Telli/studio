@@ -1007,6 +1007,13 @@ export function appearanceNote(change, { undo = false, redo = false } = {}) {
   return `In edit mode I colored the part ${change.color}${redo ? " again" : ""} ${where}.`;
 }
 
+/** What the agent is told of a Mate: what it did, or the mate taken out, and where (`cadgen/edit/mates.py`). */
+export function mateNote(change, { undo = false, redo = false } = {}) {
+  const where = `(${change.file}, line ${change.line})`;
+  if (undo) return `In edit mode I took back a mate of the assembly ${where}: ${change.words}.`;
+  return `In edit mode I ${redo ? "made again" : "made"} a mate of the assembly ${where}: ${change.words}.`;
+}
+
 /** What the agent is told of a Rename: the feature or sketch, its name before and after, and where. */
 export function renameNote(change, { undo = false, redo = false } = {}) {
   const where = `(${change.file}, line ${change.line})`;
