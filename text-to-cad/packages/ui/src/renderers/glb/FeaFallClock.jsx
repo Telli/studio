@@ -1,18 +1,19 @@
 import { useLayoutEffect, useRef } from "react";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_CHROME_SURFACE_CLASS } from "../../lib/floatingSurface.js";
-import { VIEWPORT_BOTTOM_CENTER } from "../kit/shell/viewportLayout.js";
+import { PREVIEW_PLAYBAR_CLEARANCE, VIEWPORT_BOTTOM_CENTER } from "../kit/shell/viewportLayout.js";
 
 // Above the colour bar, which sits on the line itself.
 const ABOVE_COLOUR_BAR = "2.5rem";
 
 /**
  * The Drop routine's readout, while it plays: the real time ("0.32 s", "0.21 ms after landing", "At rest") and, while it
- * is slowed, by how much ("slowed 2,000×"), small and plain above the colour bar. The routine writes it every frame
+ * is slowed, by how much ("slowed 2,000×"), small and plain above the colour bar (in Preview over its playbar,
+ * `raised`, as the bar is). The routine writes it every frame
  * through `clockRef.current(words)` (`fea/fall.js`'s `fallWords`), never through React; `null` puts it away. It takes no
  * pointer, and is not read out as it changes (a screen reader has the Animation section's time).
  */
-export default function FeaFallClock({ clockRef }) {
+export default function FeaFallClock({ clockRef, raised = false }) {
   const boxRef = useRef(null);
   const timeRef = useRef(null);
   const scaleRef = useRef(null);
@@ -30,7 +31,7 @@ export default function FeaFallClock({ clockRef }) {
   }, [clockRef]);
   return (
     <div ref={boxRef} className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-3" aria-hidden="true" data-fea-fall-clock=""
-      style={{ display: "none", bottom: `calc(${VIEWPORT_BOTTOM_CENTER} + ${ABOVE_COLOUR_BAR})` }}>
+      style={{ display: "none", bottom: `calc(${VIEWPORT_BOTTOM_CENTER} + ${raised ? `${PREVIEW_PLAYBAR_CLEARANCE} + ` : ""}${ABOVE_COLOUR_BAR})` }}>
       <div className={cn("flex items-center gap-2 rounded-md px-2.5 py-1 text-micro tabular-nums text-muted-foreground", FLOATING_CHROME_SURFACE_CLASS)}>
         <span ref={timeRef} className="text-foreground" data-fea-fall-time="" />
         <span ref={scaleRef} data-fea-fall-scale="" />

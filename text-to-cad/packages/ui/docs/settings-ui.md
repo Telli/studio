@@ -172,8 +172,8 @@ none.
 | STEP | Select, Annotate, Measure, Explode (two or more parts), Clip; then Display and Preview |
 | URDF / SRDF / SDF | Select, Annotate, Measure, Clip; then Display and Preview |
 | GLB | Select, Annotate, Measure, Explode (several rigid nodes that draw), Clip; then Display and Preview |
-| An FEA result (a GLB `cadgen fea solve` wrote) | Select, Clip; then Display |
-| A CAM result (a GLB `cadgen cam plan` wrote) | Select; then Display |
+| An FEA result (a GLB `cadgen fea solve` wrote) | Select, Clip; then Display and Preview |
+| A CAM result (a GLB `cadgen cam plan` wrote) | Select; then Display and Preview |
 | 3MF | Select, Annotate, Measure, Clip; then Display and Preview |
 | STL | Select (in hand, the view's navigation: an STL picks nothing), Annotate, Clip; then Display and Preview |
 | DXF | Select (in hand, and the view's hand: a drag pans, a tap picks an entity), Annotate, Measure; no view controls: a drawing is 2D |
@@ -645,9 +645,12 @@ every triangle (`glb/feaResult.js`). The study is read once there (`result.study
 analysis shares, and what one alone echoes, an electromagnetic study's voltages, currents, coils and
 AC source, a composite's layup and ply materials), and every analysis reads it from there, never the
 file's raw echo. Its choices are Study's, and what the colours mean is on
-the view; Display is the view's alone, as a STEP's is. It has no mode of its own, and no Preview
-for now: its colours, markers and cut are drawn on the tools view's scene, which Preview's own is
-not, so its routines play in the tools view, from the file sidebar's **Animation** section.
+the view; Display is the view's alone, as a STEP's is. It has no mode of its own. Preview draws it
+as the tools view does (`glb/resultPreview.js`): its colours and the deformation drawn are written
+into the geometry both views share, and its markers, tracers and a drop's floor are mirrored onto
+Preview's own copy of the part, over the same buffers. Preview draws it whole: Clip is the tools
+view's. Its routines play from the file sidebar's **Animation** section, and in Preview from its
+playbar; Preview opens with the tools view's routine put down, at rest.
 
 The FEA viewer is a chunk of its own (`glb/feaView.jsx`: Study, the colour bar, the markers,
 `feaResult.js` and `fea/`), which `GlbRenderer` loads with one `import()` only once the loaded
@@ -936,7 +939,8 @@ exactly as it always was.
   both parts' refs ("'post' and 'lid' aren't connected"). A part or a joint has no Reference panel, and
   in an assembly a picked face's Reference is headed with its part ("post · face 1").
 - **A colour bar** floats at bottom-centre (`VIEWPORT_BOTTOM_CENTER`; `FLOATING_CHROME_SURFACE_CLASS`,
-  no pointer events). It is only the scale, on one row 20rem wide (less on a
+  no pointer events), in Preview stepped up over its playbar while the result has a routine (`raised`). It
+  is only the scale, on one row 20rem wide (less on a
   narrow viewport): the field in Show's words ("Stress", "Displacement"; a field the file names for
   the view by that name, "Mode shape"; a sound's level, drawn on the surface, "Sound level at the surface",
   so it is not read as the level at a check's microphone), then its range and units
@@ -970,7 +974,7 @@ exactly as it always was.
     and 0 stays 0. The static family's Load ramp is drawn as it always was, and Play's frames as the
     scrubber shows them.
   - **Load ramp** (the static family, a drop from before cadgen wrote its fall, a static piezo result's voltage going on; buckling's is called **Buckle**): the Animation section
-    plays the load going on, from none to the load chosen, over two seconds, the colours climbing
+    (in Preview, its playbar) plays the load going on, from none to the load chosen, over two seconds, the colours climbing
     under the bar of that load and the deformation and markers following.
   - **Vibrate** (modal, harmonic, piezo's modes and sweep): one swing a second, the shape shown drawn × sin 2πt, out one way
     and back the other through rest; a harmonic frame turns through its phase, re·cos − im·sin, by
@@ -1006,7 +1010,7 @@ exactly as it always was.
   stops at evenly spaced moments, the states and each solved frame, its value field the real time
   there), its states join the **Preset** row after the view's own presets (each a full state, the
   Time row at its moment), a chosen check jumps the Time row to its frame's moment, and its routine
-  (`kind: "motion"`) plays the same timeline from the Animation section, from the Time row's moment
+  (`kind: "motion"`) plays the same timeline from the Animation section (in Preview, its playbar), from the Time row's moment
   back to it when let go. The Time row has a **play** button beside its value field (`FeaStudyPanel.jsx`, through
   `parameterRow`'s `action`: a ghost icon button the joint value boxes' size, a play triangle hinted
   "Play the motion", a pause hinted "Pause" while it plays), so a person sees the motion plays without
@@ -1161,8 +1165,9 @@ A GLB that `cadgen cam plan` wrote is a job: the part, the stock, each setup's f
 that cuts and each operation's toolpath, in the part's frame, with the job on the part mesh's extras
 (the contract is cadgen's, `_internal/cam/outputs.py`; `glb/camResult.js` reads it). It follows the
 FEA result's pattern throughout: what is chosen is Job's, where the job is is on the view, and Display
-is the view's alone. It has no mode of its own, and, as an FEA result, no Preview for now: its routine
-plays in the tools view, from the file sidebar's **Animation** section.
+is the view's alone. It has no mode of its own. Preview draws the job as an FEA result's view is drawn
+there (`glb/resultPreview.js`): the paths mirrored onto its own copy over the same buffers, the tool, the
+stock and the fixtures shown and placed as the tools view has them.
 
 The CAM viewer is a chunk of its own (`glb/camView.jsx`: Job, the readout, `camResult.js` and
 `camPaths.js`), which `GlbRenderer` loads with one `import()` only once the loaded scene carries a
@@ -1215,7 +1220,7 @@ plain GLB and an FEA result never fetch it; a job waits as the file loading unti
   segment's time; at a dwell or a tool change where the last one ended), turned as its setup holds
   it (`extras.setups[i].quaternion`; the tool's mesh is in its own frame, tip at the origin, axis
   along +Y). Every other tool is put away. Leaving the file puts each node back as the file placed it.
-- **The Animation section** plays the job as the routine "Job" (`useGlbAnimation`'s own clip):
+- **The Animation section** (in Preview, its playbar) plays the job as the routine "Job" (`useGlbAnimation`'s own clip):
   at a round pace faster than real time (1, 2 or 5 × 10ⁿ, about twenty seconds for the whole job,
   `playbackPace`), the tool moving along the path and the path drawn up to it. Letting go puts it back
   at the Time row's moment. With reduced motion (the host's `reducedMotion` or the system's) nothing
@@ -1224,8 +1229,9 @@ plain GLB and an FEA result never fetch it; a job waits as the file loading unti
 - **The readout** floats at bottom-centre (`glb/CamReadout.jsx`, `VIEWPORT_BOTTOM_CENTER`,
   `FLOATING_CHROME_SURFACE_CLASS`, no pointer events): the operation under way ("3 Profile") and the
   job's time over its whole ("1 min 40 s / 3 min 38 s"), and while the routine plays it faster than
-  real time, by how much ("10× speed"). The camera frames the model right of Job and above the
-  readout, as an FEA result's frames it right of Study and above its colour bar.
+  real time, by how much ("10× speed"). In Preview it steps up over the playbar, as the FEA colour bar does.
+  The camera frames the model right of Job and above the readout, as an FEA result's frames it right of
+  Study and above its colour bar.
 - **Display** has four switches of the job's own, after Grid (`displaySections`), each with a line
   saying what it draws: **Rapids**, **Stock** (the see-through block it is cut from), **Fixtures** and
   **Tool**, each on unless the job's `view.show` turns it off.

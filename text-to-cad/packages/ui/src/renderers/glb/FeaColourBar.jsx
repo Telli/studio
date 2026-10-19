@@ -1,6 +1,6 @@
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_CHROME_SURFACE_CLASS } from "../../lib/floatingSurface.js";
-import { VIEWPORT_BOTTOM_CENTER } from "../kit/shell/viewportLayout.js";
+import { PREVIEW_PLAYBAR_CLEARANCE, VIEWPORT_BOTTOM_CENTER } from "../kit/shell/viewportLayout.js";
 import { feaAnalysis } from "./fea/analyses/index.js";
 import { fieldInfo, fieldWord } from "./fea/fields.js";
 import { isRms, sigmaScale } from "./fea/series.js";
@@ -41,16 +41,17 @@ export function colourBarText(field, scale = 1, sigma = null) {
  * scale: what the numbers mean for the part is the verdict's, at the top of Study, and the field and
  * the deformation are chosen there. At `loadScale` times the solved load the range is that load's.
  *
- * Bottom-centre, on the result's line (`VIEWPORT_BOTTOM_CENTER`). The card takes no pointer events, so
+ * Bottom-centre, on the result's line (`VIEWPORT_BOTTOM_CENTER`), or above Preview's playbar while it is there
+ * (`raised`). The card takes no pointer events, so
  * orbiting past it still works. `field` arrives resolved. The load shown scales the range only where
  * the analysis follows the load (`scalesWithLoad`); `sigma`, a random vibration's level, scales an
  * RMS field's.
  */
-export default function FeaColourBar({ result, field, loadScale = 1, sigma = null }) {
+export default function FeaColourBar({ result, field, loadScale = 1, sigma = null, raised = false }) {
   const scale = (feaAnalysis(result).scalesWithLoad ? loadScale : 1) * sigmaScale(field, sigma);
   const shown = colourBarText(field, scale, sigma);
   return (
-    <div className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-3" style={{ bottom: VIEWPORT_BOTTOM_CENTER }}>
+    <div className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-3" style={{ bottom: raised ? `calc(${VIEWPORT_BOTTOM_CENTER} + ${PREVIEW_PLAYBAR_CLEARANCE})` : VIEWPORT_BOTTOM_CENTER }}>
       <div
         className={cn("flex w-80 max-w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-micro tabular-nums text-muted-foreground", FLOATING_CHROME_SURFACE_CLASS)}
         role="group"

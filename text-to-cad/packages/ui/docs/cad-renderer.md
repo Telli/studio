@@ -539,8 +539,13 @@ STEP renderer does not match `.glb`.
   its **Study** as the file sidebar's section (under an assembly's **Parts**), the Reference for a
   face picked on it in the tool stack, and its colour bar at the bottom centre; a CAM result has
   Select, its **Job** as the sidebar's section and its readout at the bottom centre (see
-  `settings-ui.md`, An FEA result and A CAM result). Neither has Annotate, Measure, Explode or
-  Preview: their colours, markers and cut are drawn on the tools view's scene, which Preview's is not.
+  `settings-ui.md`, An FEA result and A CAM result). Neither has Annotate, Measure or Explode.
+  Preview draws either on the editor's sibling (`glb/resultPreview.js`, `createResultPreview`): the
+  colours and deformation are the geometry both scenes share; the file's nodes are shown and placed
+  as the tools view has them, and the objects the result's view hangs on them (`markResultView`: the
+  markers, tracers, a drop's floor, a job's paths) are mirrored over the same geometry, materials and
+  instance buffers, after every change it draws (`sync()`). Preview's routine plays the result's own
+  clips.
 - **State**: the shell record under `[path, "glb"]`. Records written under
   `[path, "cad"]` are not migrated.
 

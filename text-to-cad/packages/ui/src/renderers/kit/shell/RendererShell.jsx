@@ -581,10 +581,10 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
               {/* The file explorer floats over the top-left corner, above the sidebar, which stays drawn under it. */}
               {toolsHidden ? null : <div className="group/tool-stack pointer-events-none absolute z-20 flex flex-col items-center gap-2" style={besideSidebarTile ? TOOLBAR_POSITION_PHONE_SIDEBAR : TOOLBAR_POSITION}
                 data-mobile={mobile ? "" : undefined} data-cad-tool-groups=""><StripTouchProvider value={mobile}>
-                {/* The view's controls end the strip, after a rule: Projection, Display, then Preview where the
-                    view offers it (on a phone, always in its More menu). */}
+                {/* The view's controls end the strip, after a rule: Projection, Display, then Preview (on a
+                    phone, always in its More menu). */}
                 <div ref={topControls} className="relative flex max-w-full shrink-0 flex-col items-center gap-2" data-cad-top-controls="">
-                  <FloatingToolBar tools={ribbon ? [] : stripTools} touch={mobile} views={shell.view3d && !previewing ? [
+                  <FloatingToolBar tools={ribbon ? [] : stripTools} touch={mobile} views={shell.previewable && !previewing ? [
                     { id: "projection", label: "Projection", icon: <ProjectionIcon value={frame.projection.value} />, disabled: shell.idle,
                       tile: <ProjectionPopover disabled={shell.idle} boundary={frame.hostElement} projection={frame.projection} />,
                       // In a phone's More, a standard nested submenu of the two choices.
@@ -596,8 +596,8 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
                       tile: <DisplayPopover disabled={shell.idle} boundary={frame.hostElement} mode={frame.displayMode} grid={frame.grid} gates={frame.displayGates} />,
                       // In a phone's More, a standard nested submenu of the same list: the modes, then Grid.
                       submenu: () => <DisplayMenuItems mode={frame.displayMode} grid={frame.grid} gates={frame.displayGates} /> },
-                    ...(shell.previewable ? [{ id: "preview", label: "Preview", icon: <Play aria-hidden="true" />, disabled: shell.idle, onSelect: enterPreview,
-                      tile: <ViewControl label="Preview" disabled={shell.idle} onClick={enterPreview}><Play aria-hidden="true" /></ViewControl> }] : [])
+                    { id: "preview", label: "Preview", icon: <Play aria-hidden="true" />, disabled: shell.idle, onSelect: enterPreview,
+                      tile: <ViewControl label="Preview" disabled={shell.idle} onClick={enterPreview}><Play aria-hidden="true" /></ViewControl> }
                   ] : []} />
                   {/* The tool in hand's own row, then the view catching up, under the strip. */}
                   {previewing ? null : toolRow}

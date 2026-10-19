@@ -4,6 +4,9 @@ import { CHROME_INSET_PX } from "../../../lib/chromeInset.js";
 // result's readout). A host whose own control floats over the view's bottom edge (a chat's composer)
 // lines them up with it by setting `--cad-viewport-bottom-center`.
 export const VIEWPORT_BOTTOM_CENTER = "var(--cad-viewport-bottom-center, 1.75rem)";
+// How far those readouts step up in Preview while its playbar is under the model (`PreviewPlaybar.jsx`: 1rem
+// off the bottom, about 2rem tall).
+export const PREVIEW_PLAYBAR_CLEARANCE = "1.75rem";
 
 // The chrome's inset from the viewer's edges: the gap between the tool strip and the stack under
 // it, so the strip sits as far from the corner as the panels sit from the strip.

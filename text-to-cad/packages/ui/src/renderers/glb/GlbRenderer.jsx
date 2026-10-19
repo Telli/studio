@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { MousePointer2 } from "lucide-react";
 import { clamp, finiteOr } from "@text-to-cad/core/common/numbers.js";
@@ -21,6 +21,7 @@ import { DEFAULT_POSE_VALUE, NO_PRESET_VALUE, positionValuesAreDefault } from ".
 import { GLB_DECLINED_LIVE_COMMANDS, GLB_TOOL, GLB_TOOL_MODES } from "./tools.js";
 import { useGlbAnimation } from "./useGlbAnimation.js";
 import { useGlbScene } from "./useGlbScene.js";
+import { createResultPreview, markResultView } from "./resultPreview.js";
 
 const LIVE = Object.freeze({ declined: GLB_DECLINED_LIVE_COMMANDS });
 const NO_CHOICE = Object.freeze({ field: null, scale: null, loadScale: null, threshold: null, preset: null, markers: null, mode: null, frame: null, sigma: null,
@@ -157,6 +158,8 @@ function useCamJob({ cv, scene, view, reducedMotion, shellRef, requestRenderRef,
   const pathsRef = useRef(null);
   const toolRef = useRef(null);
   const readoutRef = useRef(null);
+  // Preview's readout beside the tools view's: each is written as the job is drawn.
+  const previewReadoutRef = useRef(null);
   const routineRef = useRef(null);
   const paintRef = useRef(null);
   paintRef.current = () => {
@@ -167,7 +170,9 @@ function useCamJob({ cv, scene, view, reducedMotion, shellRef, requestRenderRef,
     toolRef.current.place(at, gates);
     const placed = toolRef.current.placed;
     const pace = routineRef.current !== null && playback?.pace > 1 ? `${playback.pace.toLocaleString("en-US")}× speed` : "";
-    readoutRef.current?.({ ...cv.readoutWords(cam, at, placed?.operation || null), pace });
+    const words = { ...cv.readoutWords(cam, at, placed?.operation || null), pace };
+    readoutRef.current?.(words);
+    previewReadoutRef.current?.(words);
     requestRenderRef.current?.();
   };
   useEffect(() => {
@@ -252,7 +257,7 @@ function useCamJob({ cv, scene, view, reducedMotion, shellRef, requestRenderRef,
     id: `cam-${key}`, title, description: text, enabled: gates[key], onEnabledChange: (on) => choose({ [key]: on }),
   })) : null;
   return {
-    cam, rendererState, displaySections, ownClips, gates, hidden, isolated, time, readoutRef, stopInPlace, playing,
+    cam, rendererState, displaySections, ownClips, gates, hidden, isolated, time, readoutRef, previewReadoutRef, stopInPlace, playing,
     toggleOperation: (index) => {
       const next = new Set(hidden);
       if (!next.delete(index)) next.add(index);
@@ -431,6 +436,9 @@ function GlbSurface({ view, data }) {
   const tracers = useMemo(() => (fea && fv.feaAnalysis(fea).routine(fea)?.kind === "tracers" ? fv.readTracers(fea) : null), [fea]);
   const tracersShownRef = useRef(null);
   const clockRef = useRef(null);
+  const previewClockRef = useRef(null);
+  // The fall clock's words, said on the tools view's readout and on Preview's.
+  const sayClock = (words) => { clockRef.current?.(words); previewClockRef.current?.(words); };
   // The routine playing, `{ kind, value }`, or null while none plays: a Load ramp's share of the load
   // put on (0 to 1), Vibrate's phase (radians), Play's share of the way through the frames (0 to 1);
   // and the one pass that draws the colours, the deformation and the markers for what is shown.
@@ -466,6 +474,28 @@ function GlbSurface({ view, data }) {
   const result = Boolean(fea || cam);
   const preview = usePreviewState();
   const previewing = preview.previewing;
+  // Preview's scene for a result: the editor's sibling, the result's own objects mirrored on it (`resultPreview.js`),
+  // made as Preview opens and let go as it closes. The result's view draws the editor's scene; each change it makes
+  // while Preview is up is carried over (`requestPreviewFrame`).
+  const [resultPreview, setResultPreview] = useState(null);
+  useLayoutEffect(() => {
+    if (!previewing || !result || !scene) { setResultPreview(null); return undefined; }
+    const next = createResultPreview(THREE, scene);
+    next?.sync();
+    setResultPreview(next);
+    return () => next?.dispose();
+  }, [previewing, result, scene]);
+  const resultPreviewRef = useRef(null);
+  resultPreviewRef.current = resultPreview;
+  const requestPreviewFrame = useCallback(() => {
+    resultPreviewRef.current?.sync();
+    shellRef.current?.frame.previewViewRef.current?.requestRender?.();
+  }, []);
+  // A result's two routines, the tools view's and Preview's, draw the one geometry both scenes share: Preview opens
+  // with the tools view's put down, at rest.
+  const animationRef = useRef(animation);
+  animationRef.current = animation;
+  useEffect(() => { if (previewing && result) animationRef.current?.onRelease?.(); }, [previewing, result]);
   // A routine takes a plain file's nodes where they were authored: Explode lets go of them before
   // it plays, so the routine starts from (and goes back to) rest, never from where Explode put them.
   const explodeAppliedRef = useRef(false);
@@ -528,10 +558,9 @@ function GlbSurface({ view, data }) {
   const displaySettings = useViewSettings(view.appearance?.colorScheme === "dark" ? "dark" : "light");
   const shell = useRendererShell({
     view, services: document.services, resource: document.resource, modelKey: document.modelKey, revisionKey: loaded.revision,
-    // A result has no Preview yet: its colours, markers and cut are drawn on the tools view's scene, which Preview's own is not.
     features: cam ? EDGELESS_VIEW_FEATURES : fea ? FEA_VIEW_FEATURES : plainFeatures, toolModes: GLB_TOOL_MODES,
     ...(result ? {} : { tool: sceneState.tool, measurements: sceneState.measurements, deleteSelection: measure.removeSelected }),
-    previewable: !result, view3d: true, preview, scene, viewSettings: displaySettings, sceneEffects: !result,
+    previewable: true, preview, scene, viewSettings: displaySettings, sceneEffects: !result,
     load: { busy: (loaded.busy || pending) && !scene, updating: loaded.busy && Boolean(scene), progress: loaded.progress, alert: loadAlert },
     animation: routine, live: result ? LIVE : plainLive, rendererState: cam ? job.rendererState : rendererState, displaySections: cam ? job.displaySections : markerShow ? [{
       id: "fea-markers", title: analysis.displayTitle, enabled: markersOn, onEnabledChange: (on) => choose({ markers: on }),
@@ -543,7 +572,7 @@ function GlbSurface({ view, data }) {
       : fea ? { active: chosenSomething, handle: () => { if (!chosenSomething) return false; clearChoice(); return true; } } : plainEscape
   });
   shellRef.current = shell;
-  requestRenderRef.current = shell.requestRender;
+  requestRenderRef.current = resultPreview ? () => { shell.requestRender(); requestPreviewFrame(); } : shell.requestRender;
   useDeclinedSelectReference(document);
 
   // ---- one motion at a time: Explode, the routine and Clip, on a plain GLB -------------------
@@ -557,9 +586,11 @@ function GlbSurface({ view, data }) {
     animation: { applied: !result && Boolean(animation?.enabled), reset: () => animation?.onRelease() }
   });
 
-  // ---- Preview, for a plain GLB: its own scene, the editor's sibling over its geometry, and its own routine
-  const previewScene = usePreviewScene(result ? null : scene, previewing);
-  const previewAnimation = useGlbAnimation(previewScene?.document || null, () => shell.frame.previewViewRef.current?.requestRender?.());
+  // ---- Preview: its own scene, the editor's sibling over its geometry, and its own routine; a result's (a study's,
+  // a job's) with the result drawn on it and its own clips to play
+  const previewScene = usePreviewScene(result ? null : scene, previewing) || resultPreview?.scene || null;
+  const previewAnimation = useGlbAnimation(previewScene?.document || null,
+    result ? requestPreviewFrame : () => shell.frame.previewViewRef.current?.requestRender?.(), result ? (cam ? job.ownClips : ownClips) : undefined);
   const previewView = useMemo(() => ({ scene: previewScene, animation: previewAnimation }), [previewScene, previewAnimation]);
   const sceneTools = useSceneTools({ shell, scene, features: plainFeatures, state: sceneState, measurable: true, clearParts: selection.clear });
   const plainSelectActive = !previewing && Boolean(scene) && shell.toolMode === GLB_TOOL.SELECT;
@@ -583,8 +614,9 @@ function GlbSurface({ view, data }) {
     clipRef.current = clip;
     return () => { clipRef.current = null; clip.dispose(); requestRenderRef.current?.(); };
   }, [fea, scene, requestRenderRef]);
-  // A flow keeps its cut in preview, so the tracers stream inside the part it opens.
-  const cut = shell.previewing && !tracers ? null : shell.frame.resolvedScene?.view?.clip || null;
+  // None while Preview is up, which draws the result whole: its mirrored markers and tracers share the tools view's
+  // materials, and so would its cut.
+  const cut = shell.previewing ? null : shell.frame.resolvedScene?.view?.clip || null;
   const clipBounds = scene?.restBounds || scene?.bounds || null;
   useEffect(() => { if (clipRef.current?.set(cut, clipBounds)) requestRenderRef.current?.(); }, [fea, cut, clipBounds, requestRenderRef]);
   // Its panel is a kept effect's, as a STEP's is: up from a press on Clip until its X, while the view cuts,
@@ -633,7 +665,7 @@ function GlbSurface({ view, data }) {
       floor.renderOrder = 9;
       floor.raycast = () => {};
       floor.matrixAutoUpdate = false;
-      mesh.parent?.add(floor);
+      mesh.parent?.add(markResultView(floor));
       shown = { mesh, rest: mesh.matrix.clone(), floor, local: new THREE.Matrix4(), placed: false, off: false };
       fallShownRef.current = shown;
     }
@@ -702,7 +734,7 @@ function GlbSurface({ view, data }) {
     // An impact's markers draw its rigid floor already, on the floor while it is.
     shown.floor.visible = shown.off || !(markers && markersOn && markerShow?.fixtures && markers.kinds.includes("rigid_plane"));
     shown.floor.material.color.set(colours.fixture);
-    clockRef.current?.(playing ? fv.fallWords(state, frame.fall) : null);
+    sayClock(playing ? fv.fallWords(state, frame.fall) : null);
     requestRenderRef.current?.();
   };
   // Puts back what the motion changed (a result whose Time row is gone): the mesh where it was, the floor gone, the markers, the readout.
@@ -719,7 +751,7 @@ function GlbSurface({ view, data }) {
     shown.floor.material.dispose();
     if (markersRef.current) markersRef.current.object3D.visible = true;
     if (shown.scene && shown.scene.bounds !== shown.landed) { shown.scene.bounds = shown.landed; syncBoundsRef.current?.(); }
-    clockRef.current?.(null);
+    sayClock(null);
     requestRenderRef.current?.();
   };
   const endFallRef = useRef(endFall);
@@ -752,24 +784,25 @@ function GlbSurface({ view, data }) {
       changed = true;
     }
     const larger = raised ? `drawn ${Math.round(raised * fieldLoad).toLocaleString("en-US")}× larger` : "";
-    clockRef.current?.(playing && pose.words ? { time: pose.words.time, scale: [pose.words.scale, larger].filter(Boolean).join(" · ") } : null);
+    sayClock(playing && pose.words ? { time: pose.words.time, scale: [pose.words.scale, larger].filter(Boolean).join(" · ") } : null);
     if (changed) requestRenderRef.current?.();
   };
   // A flow's tracers while its routine plays: built on the first moment, moved every frame, put away when it stops.
   const paintTracers = (routine) => {
     let shown = tracersShownRef.current;
     if (routine?.kind !== "tracers" || !tracers) {
-      if (shown) { tracersShownRef.current = null; shown.dispose(); clockRef.current?.(null); requestRenderRef.current?.(); }
+      if (shown) { tracersShownRef.current = null; shown.dispose(); sayClock(null); requestRenderRef.current?.(); }
       return;
     }
     if (!shown) {
       shown = fv.createFeaTracers(THREE, tracers, fea.mesh);
+      markResultView(shown.object3D);
       tracersShownRef.current = shown;
     }
     shown.style({ colour: colours.load });
     shown.update(routine.value);
     const seconds = routine.value / tracers.slow;
-    clockRef.current?.({ time: `${fv.shortTime(seconds)} of flow`, scale: fv.paceWords(tracers.slow) });
+    sayClock({ time: `${fv.shortTime(seconds)} of flow`, scale: fv.paceWords(tracers.slow) });
     requestRenderRef.current?.();
   };
   const paintTracersRef = useRef(paintTracers);
@@ -826,7 +859,7 @@ function GlbSurface({ view, data }) {
     if (!fea?.study) return undefined;
     const built = fv.createFeaMarkers(THREE, fea);
     if (!built.sites.length && !built.walls) { built.dispose(); return undefined; }
-    fea.mesh.add(built.object3D);
+    fea.mesh.add(markResultView(built.object3D));
     built.update(fea.mesh.geometry.getAttribute("position").array);
     markersRef.current = built;
     setMarkers(built);
@@ -956,9 +989,23 @@ function GlbSurface({ view, data }) {
     {markers ? <fv.FeaLoadLabels runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} mesh={fea.mesh} labels={loadLabels}
       colours={{ ink: colours.load, halo: colours.halo }} /> : null}
   </> : null;
+  // Preview's: the same readings over its own viewport, stepped up over its playbar while the result has a routine; a
+  // label projected through Preview's copy of the result mesh. Nothing in it picks.
+  const previewMesh = fea && resultPreview ? resultPreview.copyOf(fea.mesh) : null;
+  const previewOverlay = cam ? (viewport) => <>
+    <cv.CamFraming runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} />
+    <cv.CamReadout readoutRef={job.previewReadoutRef} words={job.readout} raised={job.ownClips.length > 0} />
+  </> : fea ? (viewport) => <>
+    <fv.FeaFraming runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} />
+    {fall || motion?.poseAt || tracers ? <fv.FeaFallClock clockRef={previewClockRef} raised={ownClips.length > 0} /> : null}
+    <fv.FeaColourBar result={fea} field={activeField} loadScale={loadScale} sigma={sigma} raised={ownClips.length > 0} />
+    {markers && previewMesh ? <fv.FeaLoadLabels runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} mesh={previewMesh} labels={loadLabels}
+      colours={{ ink: colours.load, halo: colours.halo }} /> : null}
+  </> : null;
+  const resultPreviewView = { scene: previewScene, animation: previewAnimation, overlay: previewOverlay };
   if (result) {
     return <RendererShell shell={shell} tools={tools} toolPanels={toolPanels} sidebar={sidebar} sidebarStartsOpen={cam ? cv.OPEN_SECTION : fv.OPEN_SECTION}
-      viewportOverlay={overlay} references={cam ? camReferences : references}
+      previewView={resultPreviewView} viewportOverlay={overlay} references={cam ? camReferences : references}
       onClearReferences={cam ? () => setCamFinding(null) : clearChoice} copySelection={copySelection} />;
   }
   const strip = [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", icon: SELECT_ICON }), ...sceneTools.tools];

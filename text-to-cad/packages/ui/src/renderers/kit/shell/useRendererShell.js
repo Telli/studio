@@ -114,9 +114,6 @@ const EMPTY = Object.freeze({});
  *   in Render, its tools put away. Each renderer of a 3D view declares it; without it (a 2D view)
  *   there is no Preview at all — no button on the strip, not a disabled one — and anything that asks for it
  *   leaves the normal view on screen (`previewing` stays false, `setPreviewing` does nothing).
- * @param {boolean} [options.view3d]  The view is 3D, so Projection and Display end the strip: every
- *   `previewable` view, and one that offers no Preview yet (an FEA or CAM result, whose colours are
- *   drawn on the tools view's scene, which Preview's own is not).
  * @param {{ previewing: boolean, set: (previewing: boolean) => void }} [options.preview]  Preview mode
  *   (`usePreviewState`), when the renderer holds that state itself: a renderer whose own gates
  *   (picking, tool effects) and whose scene's inputs run before this hook cannot wait for it.
@@ -190,7 +187,7 @@ const EMPTY = Object.freeze({});
  *   Its state is the renderer's slice of the file's view, not a view setting.
  */
 export function useRendererShell({
-  view, services, resource, modelKey, revisionKey = "", features, toolModes = null, tool = null, previewable = false, view3d = previewable, preview = null, scene, load,
+  view, services, resource, modelKey, revisionKey = "", features, toolModes = null, tool = null, previewable = false, preview = null, scene, load,
   viewSettings = null, viewerRef: providedViewerRef = null,
   animation = null, live = EMPTY, promptReferences = null, promptContext = createViewPromptContext,
   escape = EMPTY, rendererState = null, viewState = null, annotationUnits = "mm", deleteSelection = null,
@@ -673,7 +670,7 @@ export function useRendererShell({
 
   return {
     // Renderer-facing.
-    toolMode, selectTool, selectDefaultTool, tools, idle, previewable, view3d, previewing, setPreviewing,
+    toolMode, selectTool, selectDefaultTool, tools, idle, previewable, previewing, setPreviewing,
     // The file's playback settings: Orbit's speed, Autoplay, and the routine's chosen Speed and Loop.
     autoplay, setAutoplay, playback, setPlayback,
     // Preview's Orbit, on or off: off each time preview opens.

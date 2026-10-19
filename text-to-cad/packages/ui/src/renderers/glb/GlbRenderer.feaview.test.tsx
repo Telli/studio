@@ -1,11 +1,11 @@
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { BufferAttribute, BufferGeometry, Group, Mesh, Vector3 } from 'three';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 
 // An FEA result's view under the real shell and the real playbar runtime (`useGlbAnimation`, not
-// stood in): Play in preview steps a series' colours through its frames as the playbar's clock runs,
-// and Clip cuts the result open. Only what loads the file and the WebGL viewport are replaced.
+// stood in): Play steps a series' colours through its frames as the clock runs, in the tools view and
+// in Preview, and Clip cuts the result open. Only what loads the file and the WebGL viewport are replaced.
 const loaded = vi.hoisted(() => ({ scene: null as any }));
 vi.mock('../../../dist/renderers/kit/shell/ShellViewport.js', () => ({
   default: forwardRef(function StandInViewport(props: any, ref) {
@@ -65,7 +65,9 @@ function mount(extras: Record<string, unknown> | null = WARMUP) {
   const root = new Group();
   root.add(mesh);
   const bounds = { min: [0, 0, 0], max: [1, 1, 0] };
-  loaded.scene = { document: { scene: root }, object3D: root, bounds, restBounds: bounds, revision: 'one' };
+  loaded.scene = { document: { scene: root }, object3D: root, bounds, restBounds: bounds, revision: 'one',
+    // Preview's own scene, as core's builder makes one: a copy of the file's hierarchy over the same geometry.
+    createSibling() { const copy = root.clone(); return { document: { scene: copy }, object3D: copy, bounds, restBounds: bounds, dispose() {} }; } };
   const slot = document.createElement('div');
   slot.setAttribute('data-test-navbar', '');
   document.body.append(slot);
@@ -107,6 +109,30 @@ it('Play steps a heat-over-time result\'s colours through its frames, and leaves
   // A temperature moves nothing: its frames share the file's displacement, so no tick rewrites the
   // positions (and their normals and markers).
   expect(position.version).toBe(placed);
+});
+
+it('Preview draws the result: the colours both views share, the colour bar over its playbar, its own routine playing there', async () => {
+  const mesh = mount();
+  const vertex2 = () => Array.from(mesh.geometry.getAttribute('color').array as Uint8Array).slice(8, 11);
+  const hottest = vertex2();
+  // Preview opens once its cover is up (a frame, or a moment).
+  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Preview' })); });
+  await waitFor(() => expect(document.querySelector('[data-preview-view]')).toBeTruthy());
+  // Preview's own view, its copy of the result drawn from the same geometry, the colour bar stepped up over its playbar.
+  const view = document.querySelector('[data-preview-view]')!;
+  const bar = view.querySelector('[aria-label="temperature colour bar"]')!;
+  expect((bar.parentElement as HTMLElement).style.bottom).toContain('+ 1.75rem');
+  const playbar = screen.getByRole('toolbar', { name: 'Animation playback' });
+  // Its routine plays there: from the start, all 25 °C, a new blend of two frames on every tick.
+  act(() => { fireEvent.click(within(playbar).getByRole('button', { name: 'Play animation' })); });
+  const seen = [vertex2()];
+  for (const ms of [250, 750, 1500]) { frame(ms); seen.push(vertex2()); }
+  expect(seen[0]).toEqual([13, 26, 230]);
+  expect(new Set(seen.map(String)).size).toBe(seen.length);
+  // Leaving Preview gives the tools view back as it was: the hottest frame, no routine playing.
+  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Exit preview' })); });
+  await waitFor(() => expect(document.querySelector('[data-preview-view]')).toBeNull());
+  expect(vertex2()).toEqual(hottest);
 });
 
 it('Clip cuts a result open: on the strip after Select, a neutral panel that an edit makes a cut on the mesh, its colours and colour bar untouched', async () => {

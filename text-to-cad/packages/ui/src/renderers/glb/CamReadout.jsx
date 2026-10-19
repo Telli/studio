@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_CHROME_SURFACE_CLASS } from "../../lib/floatingSurface.js";
-import { VIEWPORT_BOTTOM_CENTER } from "../kit/shell/viewportLayout.js";
+import { PREVIEW_PLAYBAR_CLEARANCE, VIEWPORT_BOTTOM_CENTER } from "../kit/shell/viewportLayout.js";
 import { camTime } from "./camResult.js";
 
 /** What the readout says at a moment: the operation under way ("2 Pocket"), and the job's time there over its whole ("1 min 32 s / 3 min 38 s"). */
@@ -13,11 +13,12 @@ export function readoutWords(cam, at, operation) {
 /**
  * Where a CAM result's job is, over the bottom of its viewport: the operation under way and the job's time over its
  * whole, then, while the routine plays it faster than real time, by how much ("10× speed"). Bottom-centre, on the
- * result's line (`VIEWPORT_BOTTOM_CENTER`). The routine writes it every frame through `readoutRef.current(words)`,
+ * result's line (`VIEWPORT_BOTTOM_CENTER`), or above Preview's playbar while it is there (`raised`). The routine
+ * writes it every frame through `readoutRef.current(words)`,
  * never through React; it takes no pointer, and is not read out as it changes (a screen reader has the Animation
  * section's time and the Time row's value).
  */
-export default function CamReadout({ readoutRef, words }) {
+export default function CamReadout({ readoutRef, words, raised = false }) {
   const operationRef = useRef(null);
   const timeRef = useRef(null);
   const paceRef = useRef(null);
@@ -36,7 +37,7 @@ export default function CamReadout({ readoutRef, words }) {
   }, [readoutRef, words]);
   return (
     <div className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-3" aria-hidden="true" data-cam-readout=""
-      style={{ bottom: VIEWPORT_BOTTOM_CENTER }}>
+      style={{ bottom: raised ? `calc(${VIEWPORT_BOTTOM_CENTER} + ${PREVIEW_PLAYBAR_CLEARANCE})` : VIEWPORT_BOTTOM_CENTER }}>
       <div className={cn("flex max-w-full items-center gap-2 rounded-md px-2.5 py-1 text-micro tabular-nums text-muted-foreground", FLOATING_CHROME_SURFACE_CLASS)}>
         <span ref={operationRef} className="min-w-0 truncate text-tiny text-foreground" data-cam-readout-operation="" />
         <span ref={timeRef} className="shrink-0" data-cam-readout-time="" />

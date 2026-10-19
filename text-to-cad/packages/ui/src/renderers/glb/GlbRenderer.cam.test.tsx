@@ -1,14 +1,16 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 
 // The GLB renderer's CAM surfaces under the real shell, with only what loads the file and the WebGL viewport
 // replaced: a job's Select panel is Job (its summary, findings, setups, tools and operations, and its Time row), its
 // toolpaths are drawn again as fat lines that follow the time shown, and the tool stands on them there.
-const loaded = vi.hoisted(() => ({ scene: null as any, own: null as any, animation: null as any }));
+const loaded = vi.hoisted(() => ({ scene: null as any, own: null as any, animation: null as any, previewScene: null as any }));
 vi.mock('../../../dist/renderers/kit/shell/ShellViewport.js', () => ({
   default: forwardRef(function StandInViewport(props: any, ref) {
     useImperativeHandle(ref, () => ({ requestRender() {} }));
+    // Preview's viewport is handed Preview's own scene.
+    if (props.preview) loaded.previewScene = props.scene;
     return <div data-stand-in-viewport="">{typeof props.children === 'function' ? props.children({ hostRef: { current: null }, runtimeRef: { current: null }, mountRef: { current: null }, viewerReadyTick: 1, commitScene: () => true }) : props.children}</div>;
   })
 }));
@@ -31,11 +33,14 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
 });
-afterEach(() => { loaded.own = null; loaded.animation = null; cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { loaded.own = null; loaded.animation = null; loaded.previewScene = null; cleanup(); vi.unstubAllGlobals(); });
 
 async function mount({ host = testHost() } = {}) {
   const root = await camScene();
-  loaded.scene = { document: { scene: root }, object3D: root, bounds: { min: [0, 0, 0], max: [1, 1, 1] }, restBounds: { min: [0, 0, 0], max: [1, 1, 1] }, revision: 'one' };
+  const bounds = { min: [0, 0, 0], max: [1, 1, 1] };
+  loaded.scene = { document: { scene: root }, object3D: root, bounds, restBounds: bounds, revision: 'one',
+    // Preview's own scene, as core's builder makes one: a copy of the file's hierarchy over the same geometry.
+    createSibling() { const copy = root.clone(); return { document: { scene: copy }, object3D: copy, bounds, restBounds: bounds, dispose() {} }; } };
   const settings = { toolStack: { panels: {}, collapsed: {} } };
   const catalog = { entries: [], error: null };
   const preferences = { getSnapshot: () => settings, subscribe: () => () => {}, update() {} };
@@ -144,6 +149,28 @@ it('with reduced motion the routine plays the job a whole operation a second, th
   expect(drawn(root, 1).some((line) => line.visible)).toBe(false);
   act(() => { clip.play.apply(1.2); });
   expect(near(camNode(root, 'tool:T2').position.toArray())).toEqual(DRILL[2].to);
+});
+
+it('Preview draws the job on its own copy: the paths over the same buffers, the tool where the Time row has it, and the readout', async () => {
+  const { root } = await mount();
+  const value = screen.getByRole('textbox', { name: 'Job time value' });
+  act(() => { fireEvent.change(value, { target: { value: '2' } }); fireEvent.blur(value); });
+  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Preview' })); });
+  await waitFor(() => expect(loaded.previewScene).not.toBeNull());
+  const copy = loaded.previewScene.document.scene;
+  expect(copy).not.toBe(root);
+  // The tool stands where the tools view has it, two seconds in; the paths are the tools view's own lines, mirrored.
+  expect(near(camNode(copy, 'tool:T1').position.toArray())).toEqual(near(camNode(root, 'tool:T1').position.toArray()));
+  const [feed] = drawn(root, 0).filter((line) => line.name.endsWith(':feed'));
+  const mirrored = drawn(copy, 0).find((line) => line.name === feed.name);
+  expect(mirrored).not.toBe(feed);
+  expect(mirrored.geometry).toBe(feed.geometry);
+  // The readout over Preview's view says the same moment, stepped up over its playbar.
+  const readout = document.querySelector('[data-preview-view] [data-cam-readout]') as HTMLElement;
+  expect(readout.querySelector('[data-cam-readout-time]')!.textContent).toBe('2 s / 7 s');
+  expect(readout.style.bottom).toContain('+ 1.75rem');
+  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Exit preview' })); });
+  await waitFor(() => expect(document.querySelector('[data-preview-view]')).toBeNull());
 });
 
 it('Display switches the rapids, the stock, the fixtures and the tool, after Grid', async () => {

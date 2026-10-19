@@ -34,12 +34,13 @@ export function chromeCover(host) {
 }
 
 /**
- * The box the colour bar covers at the view's foot, in the viewport host's own pixels; null with none shown.
+ * The box the colour bar covers at the view's foot, in the viewport host's own pixels; null with none shown. The
+ * viewport's own bar first (Preview's, over its playbar), else the view's.
  * @param {HTMLElement | null | undefined} host
  */
 export function colourBarCover(host) {
   const viewer = host?.closest?.("[data-cad-scene-backdrop]");
-  const bar = viewer?.querySelector?.('[aria-label$="colour bar"]');
+  const bar = host?.querySelector?.('[aria-label$="colour bar"]') || viewer?.querySelector?.('[aria-label$="colour bar"]');
   if (!bar || bar.closest("[hidden]")) return null;
   const box = bar.getBoundingClientRect();
   if (!(box.width > 0 && box.height > 0)) return null;

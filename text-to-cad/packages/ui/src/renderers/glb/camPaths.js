@@ -13,6 +13,7 @@ import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { cssColorToHex } from "../kit/look/chromeBackdrop.js";
 import { KIND_STYLE, segmentsBegun, toolPlacementAt } from "./camResult.js";
+import { markResultView } from "./resultPreview.js";
 
 const LINES = Object.freeze({ LineSegments2, LineSegmentsGeometry, LineMaterial });
 
@@ -94,7 +95,8 @@ export function createCamPaths(cam) {
       line.position.copy(object.position);
       line.quaternion.copy(object.quaternion);
       line.scale.copy(object.scale);
-      object.parent?.add(line);
+      // The job's view's own object, which Preview mirrors (`resultPreview.js`).
+      object.parent?.add(markResultView(line));
       const buffer = line.geometry.attributes.instanceEnd.data;
       drawn.push({ index, style: group.style, line, starts: group.starts, ends: group.ends, source: group.positions, buffer, cut: -1, wanted: true });
     }

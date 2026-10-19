@@ -50,7 +50,8 @@ const READOUT_GAP_PX = 8;
  */
 export function camFramingInset(host) {
   const viewer = host?.closest?.("[data-cad-scene-backdrop]");
-  const readout = viewer?.querySelector?.("[data-cam-readout] > div");
+  // The viewport's own readout first (Preview's, over its playbar), else the view's.
+  const readout = host?.querySelector?.("[data-cam-readout] > div") || viewer?.querySelector?.("[data-cam-readout] > div");
   const box = readout && !readout.closest("[hidden]") ? readout.getBoundingClientRect() : null;
   const base = host?.getBoundingClientRect?.();
   const bottom = box && base && box.height > 0 && base.height > 0 ? Math.max(base.bottom - box.top + READOUT_GAP_PX, 0) : 0;
