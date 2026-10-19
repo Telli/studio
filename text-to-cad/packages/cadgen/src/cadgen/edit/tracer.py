@@ -1953,7 +1953,8 @@ def _planned(request, spec):
             regions = len(entry["sketch"].faces())
         except _sketch_api.SketchError:
             regions = 0
-        return path, entry, {**drawn, "name": entry["sketch"].name, "regions": regions}
+        # Its plane, for a command to tell which side of it what it ends on lies (Direction 2 the other way).
+        return path, entry, {**drawn, "name": entry["sketch"].name, "regions": regions, "frame": entry["sketch"].frame()}
 
     command = spec.get("command")
     try:

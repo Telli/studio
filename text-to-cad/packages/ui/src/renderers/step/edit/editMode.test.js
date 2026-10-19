@@ -355,6 +355,11 @@ test("an extrude's draft and Up To Next, and a hole's counterbore or countersink
     { end: "blind", depth: "2", reverse: false, direction2: true, end2: "through" });
   assert.deepEqual(commandRequest("extrude", { end: "mid", depth: "6", direction2: true, depth2: "4" }, [], null, sketch).inputs,
     { end: "mid", depth: "6", reverse: false });
+  // Up To a face, Direction 2 goes the other side of the plane from it, which the server works out.
+  const flat = { selector: "f1", type: "plane", center: [0, 0, -14], size: 800 };
+  assert.deepEqual(commandRequest("extrude", { end: "surface", direction2: true, end2: "blind", depth2: "5" }, [flat], null, sketch),
+    { command: "extrude", sketch: { file: "part.py", line: 9, name: "Sketch2" }, selection: [flat],
+      inputs: { end: "surface", direction2: true, end2: "blind", depth2: "5" } });
   const face = [{ selector: "f6", type: "plane" }];
   const bored = commandRequest("hole", { type: "counterbore", diameter: "3", through: true, cbore_diameter: "6", cbore_depth: "3" }, face);
   assert.deepEqual(bored.inputs, { diameter: "3", depth: "", type: "counterbore", cbore_diameter: "6", cbore_depth: "3" });

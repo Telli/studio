@@ -106,8 +106,9 @@ by hand" below.
   negative). A cut starts toward the part. The line goes after the sketch's own lines.
   Direction 2 goes the other way too, as a second extrude of the same profile added to the
   first: `part += extrude(sketch2.face(), amount=6) + extrude(sketch2.face(), amount=-4)`, Blind
-  or (for a cut) Through All, with its own `taper=`; not with Mid Plane, Up To Surface or Up To
-  Vertex. It reads back as one feature with Direction 2 on.
+  or (for a cut) Through All, with its own `taper=`; not with Mid Plane. With Up To Surface or Up To
+  Vertex it goes the other side of the sketch's plane from what Direction 1 ends on. It reads back
+  as one feature with Direction 2 on.
 - **Revolved Boss/Base and Revolved Cut** turn the selected sketch about one of its lines (its
   centerline, usually): `part += revolve(sketch2.face(), axis=sketch2.axis(line1),
   revolution_arc=360)`, or `part -= revolve(...)` for a cut; Reverse direction is a negative

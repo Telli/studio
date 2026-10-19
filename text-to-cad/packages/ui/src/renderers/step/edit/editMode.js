@@ -289,11 +289,10 @@ export function extrudePreview(id, values, { units = "mm", sketch = null, frame 
 /**
  * Direction 2 of an extrude's preview, the other way from its sketch: Through All (`through2`) or
  * its depth in the part's millimetres (`depth2`), its own draft (`taper2`) and tag (`label2`). A
- * depth written as a size's name is the server's to preview (`arrowOnly`). Nothing at Mid Plane,
- * nor where a pick ends Direction 1.
+ * depth written as a size's name is the server's to preview (`arrowOnly`). Nothing at Mid Plane.
  */
 function secondDirection(values, end, units) {
-  if (!values.direction2 || end === "mid" || end === "surface" || end === "vertex") return {};
+  if (!values.direction2 || end === "mid") return {};
   const angle = plainNumber(values.draft_angle2);
   const taper2 = values.draft2 && angle !== null && angle > 0 && angle < 90 ? (values.outward2 ? -angle : angle) : 0;
   if (values.end2 === "through") return { through2: true, taper2, label2: END_WORDS.through };
@@ -770,8 +769,8 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       Object.assign(inputs, { thin: true, thin_thickness: values.thin_thickness, ...(values.thin_side && values.thin_side !== "inside"
         ? { thin_side: values.thin_side } : {}) });
     }
-    // Direction 2, the other way: Blind or Through All, its own draft; not at Mid Plane, nor Up To a pick.
-    if (values.direction2 && values.end !== "mid" && !upTo) {
+    // Direction 2, the other way: Blind or Through All, its own draft; not at Mid Plane.
+    if (values.direction2 && values.end !== "mid") {
       const through2 = id === "cut" && values.end2 === "through";
       Object.assign(inputs, { direction2: true, end2: through2 ? "through" : "blind", ...(through2 ? {} : { depth2: values.depth2 }) });
       if (values.draft2) Object.assign(inputs, { draft2: true, draft_angle2: values.draft_angle2, outward2: Boolean(values.outward2) });

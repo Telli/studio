@@ -1323,14 +1323,23 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         # the same profile the other way, added to the first, Blind (or Through All for a cut), its
         # own draft. Not at Mid Plane, nor where a pick ends Direction 1, whose way the pick says.
         second = inputs.get("direction2") in (True, "true", "1", 1)
-        if second and (end == "mid" or up_to):
-            raise CommandError("Direction 2 goes with Blind, Through All or Up To Next in Direction 1.")
+        if second and end == "mid":
+            raise CommandError("Direction 2 goes with every end but Mid Plane, which goes both ways already.")
         if second:
             end2 = str(inputs.get("end2") or "blind").lower()
             if end2 not in ("blind", "through") or (end2 == "through" and command != "cut"):
                 raise CommandError("Direction 2 goes Blind, or Through All for a cut.")
-            # The other way from Direction 1: down the normal, up it when Direction 1 is reversed.
-            back = "" if inputs.get("reverse") in (True, "true", "1", 1) and not up_to_next else "-"
+            # The other way from Direction 1: down the normal, up it when Direction 1 is reversed, or,
+            # Up To a face or a vertex, the side of the plane it does not end on.
+            if up_to:
+                side = _target_side(end, selection, selections, scale, inputs, drawn.get("frame"))
+                if side is None and kept is not None:
+                    side = -1.0 if kept.parts.get("toward") == "-" else 1.0
+                if side is None:
+                    raise CommandError("Pick what Direction 1 ends on, so Direction 2 can go the other way.")
+                back = "" if side < 0 else "-"
+            else:
+                back = "" if inputs.get("reverse") in (True, "true", "1", 1) and not up_to_next else "-"
             if end2 == "through":
                 amount2 = f"{back}{var}.bounding_box().diagonal"
             else:
@@ -1477,6 +1486,27 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                 summary={"feature": FEATURE_WORDS[command], "what": what,
                          "inputs": [{"label": label, "display": writer.number(value) if isinstance(value, float) else str(value),
                                      "unit": unit} for label, value, unit in shown]})
+
+
+def _target_side(end: str, selection: list[dict], selections: Selections, scale: float, inputs: dict, frame: dict | None) -> float | None:
+    """Which side of the sketch's plane (``frame``) what an extrude Up To ends on lies: its distance
+    along the plane's normal, negative behind it; None where it cannot be told (nothing picked)."""
+    kind = "face" if end == "surface" else "edge"
+    items = [item for item in selection if selector_ordinal(item.get("selector"))[0] == kind]
+    if not items or not frame:
+        return None
+    number = resolve(selections.topology[kind], items[-1:], scale)[0]
+    if end == "surface":
+        place = selections.topology["face"].item(number).center()
+    else:
+        try:
+            click = B.Vector(*(float(value) for value in inputs.get("vertex_at")))
+        except (TypeError, ValueError):
+            return None
+        edge = selections.topology["edge"].item(number)
+        place = edge.start_point() if (edge.start_point() - click).length <= (edge.end_point() - click).length else edge.end_point()
+    origin, normal = B.Vector(*frame["origin"]), B.Vector(*frame["z"])
+    return float((place - origin).dot(normal))
 
 
 def _extrude_target(end: str, selection: list[dict], selections: Selections, scale: float, inputs: dict, kept: Feature | None) -> str:
@@ -1914,7 +1944,7 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                     values.update(draft2=True, draft_angle2=_number(abs(drafted2), False), outward2=outward2)
                     shown2 = taper2.operand if outward2 and isinstance(taper2, ast.UnaryOp) and isinstance(taper2.op, ast.USub) else taper2
                     held("taper2", shown2, abs(drafted2), _tight(shown2, text))
-            parts = {"profile": code(profile), "sketch": sketch, **({"target": code(ending)} if up_to else {})}
+            parts = {"profile": code(profile), "sketch": sketch, **({"target": code(ending), "toward": "-" if amount < 0 else ""} if up_to else {})}
             return Feature("extrude" if operator == "+=" else "cut", values, sketch, parts, target, operator, codes)
         axis = _keyword_value(value, "axis")
         line = code(axis.args[0]) if isinstance(axis, ast.Call) and _call_name(axis) == "axis" and axis.args else None

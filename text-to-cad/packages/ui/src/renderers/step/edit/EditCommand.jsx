@@ -616,8 +616,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     </FileSheetSettingsSection>}
     {/* Direction 2, as SolidWorks' extrude goes both ways from its sketch: switched on, the other way
         Blind (or Through All for a cut), with its own draft. Not at Mid Plane, which goes both ways
-        already, nor where a pick ends Direction 1. */}
-    {extruding && values.end !== "mid" && !upTo ? <FileSheetSettingsSection title="Direction 2" sectionId="edit-command-direction2"
+        already. */}
+    {extruding && values.end !== "mid" ? <FileSheetSettingsSection title="Direction 2" sectionId="edit-command-direction2"
       enabled={Boolean(values.direction2)} onEnabledChange={set("direction2")}>
       <FileSheetSelectRow label="End condition" value={values.end2 || "blind"} options={command.id === "cut" ? CUT_ENDS2 : BOSS_ENDS2}
         onValueChange={set("end2")} />
