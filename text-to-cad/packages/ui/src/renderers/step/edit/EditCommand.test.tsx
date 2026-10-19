@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import EditCommand from '../../../../dist/renderers/step/edit/EditCommand.js';
+import MassProperties from '../../../../dist/renderers/step/edit/MassProperties.js';
 
 afterEach(cleanup);
 
@@ -181,4 +182,22 @@ it("a hole opens as Hole Wizard's M3 clearance hole, and a size typed over is th
   expect(screen.getByRole('combobox', { name: 'Size' }).textContent).toBe('Custom');
   await user.click(screen.getByRole('button', { name: 'OK' }));
   expect(hole.run).toHaveBeenLastCalledWith({ command: 'hole', selection, inputs: { diameter: '3.3', depth: '' } });
+});
+
+it("Mass Properties weigh the part in the project's material, or one picked, and close", async () => {
+  const user = userEvent.setup();
+  const materials = [{ key: 'aluminum-6061-t6', name: 'Aluminum 6061-T6', density: 2.7 }, { key: 'petg', name: 'PETG', density: 1.27 }];
+  const inspected = { ...edit(''), stopInspecting: vi.fn(),
+    mass: { status: 'ready', volume: 800, area: 640, center: [0, 0, 0], box: [[-10, -5, -2], [10, 5, 2]], material: 'petg', materials } };
+  render(<MassProperties edit={inspected as never} />);
+  expect(screen.getByText('1.27 g/cm³')).toBeTruthy();
+  expect(screen.getByText('1.02 g')).toBeTruthy();
+  expect(screen.getByText('20 x 10 x 4 mm')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'Close' }));
+  expect(inspected.stopInspecting).toHaveBeenCalled();
+  cleanup();
+  // No material named: no mass until one is picked.
+  render(<MassProperties edit={{ ...inspected, mass: { ...inspected.mass, material: null } } as never} />);
+  expect(screen.getByText('Pick a material to weigh the part.')).toBeTruthy();
+  expect(screen.queryByText('1.02 g')).toBeNull();
 });

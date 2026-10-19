@@ -1728,7 +1728,7 @@ def _solve(expr, leaf, target):
 
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
-_CHANGES = ("command", "preview", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
+_CHANGES = ("command", "preview", "mass", "splice", "sketch", "remove", "suppress", "literal", "dimension", "input")
 
 
 def edit(request):
@@ -1736,6 +1736,8 @@ def edit(request):
         return trace(request)
     if isinstance(request.get("preview"), dict):
         return preview(request)
+    if isinstance(request.get("mass"), dict):
+        return mass_properties(request)
     if isinstance(request.get("command"), dict):
         return command(request)
     if isinstance(request.get("splice"), dict):
@@ -2053,6 +2055,67 @@ def preview(request):
     finally:
         UNSAVED.clear()
         _put_back(kept)
+
+
+def _material(request):
+    """The material the project's brief names: as Studio's record says it (``material``), else in a
+    ``project.json`` of the project's own folders."""
+    named = str(request.get("material") or "").strip()
+    if named:
+        return named
+    for candidate in [ROOT / "project.json", *[folder / "project.json" for folder in ROOT.parents]]:
+        try:
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        brief = data.get("brief") if isinstance(data, dict) else None
+        if isinstance(brief, dict) and isinstance(brief.get("material"), str) and brief["material"].strip():
+            return brief["material"].strip()
+    return ""
+
+
+def mass_properties(request):
+    """Mass Properties, as SolidWorks' Evaluate tab works them out: the part's volume, its surface
+    area, its center of mass and its overall size, in its millimetres, from its solids as the last
+    trace made them (at the rollback bar, the part as it is there); and the materials it could be
+    made of, each with its density in g/cm^3, the project's own (as its brief names it) said when
+    the table has it. Its mass is its volume times the density of the material picked."""
+    from cadgen._internal.fea.materials import MATERIALS, lookup_material
+    from cadgen.edit import commands
+
+    script = Path(request["script"]).resolve()
+    root = Path(request.get("root") or script.parent).resolve()
+    if not _as_last_traced(script, root) or str(script) not in STATE:
+        traced = trace(request)
+        if not traced["ok"]:
+            return traced
+    made = STATE[str(script)]
+    shape = made["shape"]
+    rel, _, line = str((request.get("bar") or {}).get("before") or "").rpartition(":") if isinstance(request.get("bar"), dict) else ("", "", "")
+    if rel and line.isdigit():
+        shape = commands.shape_at(made["steps"], made["shape"], made["level"], rel, int(line)) or shape
+    solids = list(shape.solids()) if isinstance(shape, B.Shape) else []
+    volume = sum(solid.volume for solid in solids)
+    if not solids or volume <= 0:
+        return {"ok": True, "mass": {"error": "This part has no solid to weigh."}}
+    # The center of mass of them all: each solid's, by how much of the volume it holds.
+    centers = [(solid.center(B.CenterOf.MASS), solid.volume) for solid in solids]
+    center = [sum(getattr(point, axis) * share for point, share in centers) / volume for axis in ("X", "Y", "Z")]
+    box = shape.bounding_box()
+    try:
+        own = lookup_material(_material(request)) if _material(request) else None
+    except ValueError:
+        own = None
+    return {"ok": True, "mass": {
+        "volume": volume,
+        "area": sum(face.area for face in shape.faces()),
+        "center": center,
+        "box": [[box.min.X, box.min.Y, box.min.Z], [box.max.X, box.max.Y, box.max.Z]],
+        "solids": len(solids),
+        "material": next((key for key, value in MATERIALS.items() if value is own), None),
+        "materials": [{"key": key, "name": value.name, "density": round(value.density * 1e9, 6)}
+                      for key, value in sorted(MATERIALS.items(), key=lambda item: item[1].name)],
+    }}
 
 
 def _feature_lines(feature, rel, title, verb):
@@ -2903,8 +2966,8 @@ def handle(request):
             return quick
         if request.get("op") == "edit":
             reply = edit(request)
-            # A preview leaves the part, and so the rollback bar, as they were.
-            return reply if isinstance(request.get("preview"), dict) else _with_bar(request, reply)
+            # A preview, or Mass Properties, leaves the part, and so the rollback bar, as they were.
+            return reply if isinstance(request.get("preview"), dict) or isinstance(request.get("mass"), dict) else _with_bar(request, reply)
         return _with_bar(request, trace(request))
     except Exception as error:
         return {"ok": False, "error": str(error), "detail": traceback.format_exc(limit=4)}

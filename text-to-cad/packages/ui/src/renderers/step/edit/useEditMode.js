@@ -106,6 +106,9 @@ export function useEditMode({ client, file, active, reading = true }) {
   // stays drawn; one that failed (`failed`) draws nothing and says why. `previewOn` is the panels'
   // Preview switch, kept for the session.
   const [featurePreview, setFeaturePreview] = useState(null);
+  // What the Inspect group has open beside the commands: Mass Properties ("mass"), and its numbers.
+  const [inspecting, setInspecting] = useState(null);
+  const [mass, setMass] = useState(null);
   const [previewOn, setPreviewOn] = useState(true);
   const previewWanted = useRef(null);
   const previewAsked = useRef("");
@@ -299,6 +302,24 @@ export function useEditMode({ client, file, active, reading = true }) {
     setFeaturePreview(current => ({ key, status: "updating", added: current?.added ?? null, removed: current?.removed ?? null, error: "" }));
     void askPreview();
   }, [supported, client, file, dropPreview, askPreview]);
+
+  /**
+   * Mass Properties, as SolidWorks' Evaluate tab opens them: the part's volume, surface area, center
+   * of mass and size as the server works them out, at the rollback bar where it is up, asked again
+   * whenever the part is read again; the last kept while the next is made.
+   */
+  useEffect(() => {
+    if (inspecting !== "mass" || !supported || !file) { setMass(null); return undefined; }
+    let gone = false;
+    setMass(current => ({ ...(current || {}), status: "updating" }));
+    const placed = barRef.current ? { bar: { before: barRef.current.before } } : {};
+    client.editChange({ mass: {}, ...placed, file, files: files.current || undefined }).then(reply => {
+      if (gone) return;
+      const made = reply?.ok ? reply.mass || {} : { error: reply?.error || "The mass properties could not be worked out." };
+      setMass(made.error ? { status: "failed", error: made.error } : { status: "ready", ...made });
+    }, failure => { if (!gone) setMass({ status: "failed", error: describe(failure) }); });
+    return () => { gone = true; };
+  }, [inspecting, supported, file, client, state, bar?.before]);
 
   // A command's OK: its line written after the body, the new feature selected and its panel shut.
   const run = useCallback(async request => {
@@ -516,7 +537,10 @@ export function useEditMode({ client, file, active, reading = true }) {
     select: setSelected,
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
-    open: id => { setError(""); setPicking(false); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
+    open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
+    inspecting, mass,
+    inspect: what => { setCommand(null); endEditing(); setPicking(false); setPreview(null); dropPreview(); setInspecting(what); },
+    stopInspecting: () => setInspecting(null),
     close: () => { setCommand(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); },
     preview, setPreview, facePoint, setFacePoint,
     featurePreview, previewFeature, previewOn, setPreviewOn,
@@ -534,7 +558,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     setSketchStep,
     selectInSketch: setSketchSelection,
     setConstruction,
-    startPicking: () => { setError(""); setCommand(null); endEditing(); dropPreview(); setPlaneOffset(""); setPicking(true); },
+    startPicking: () => { setError(""); setCommand(null); setInspecting(null); endEditing(); dropPreview(); setPlaneOffset(""); setPicking(true); },
     planeOffset, setPlaneOffset,
     stopPicking: () => setPicking(false),
     lookNormalTo: () => setNormalTo(tick => tick + 1),

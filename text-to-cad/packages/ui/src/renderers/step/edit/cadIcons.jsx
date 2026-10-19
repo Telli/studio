@@ -169,6 +169,14 @@ export const DraftIcon = ({ className }) => <Icon className={className}>
   <path d="M19 17V8.5" style={{ ...ACCENT, strokeWidth: 1.1 }} strokeDasharray="1.6 1.3" />
 </Icon>;
 
+/** A weight on a scale's pan, as Mass Properties is drawn: what the part weighs. */
+export const MassPropertiesIcon = ({ className }) => <Icon className={className}>
+  <path d="M3 20h18" style={{ ...ACCENT, stroke: "var(--cad-solid-edge)", strokeWidth: 1.5 }} />
+  <path d="M7.5 9h9l2.5 10H5z" style={SOLID} />
+  <path d="M12 9v10h7z" style={SHADE} opacity={0.18} />
+  <circle cx="12" cy="6" r="2.4" style={{ fill: "none", stroke: "var(--cad-solid-edge)", strokeWidth: 1.4 }} />
+</Icon>;
+
 /** A sketch on its plane, and the pencil drawing it. */
 export const SketchIcon = ({ className }) => <Icon className={className}>
   <path d="M2 19 6 9h15l-4 10z" style={{ fill: "var(--cad-sketch)", stroke: "none" }} opacity={0.12} />

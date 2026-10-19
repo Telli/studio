@@ -775,6 +775,35 @@ class Previews(Commands):
         self.assertEqual((root / "tray.py").read_text(encoding="utf-8").splitlines()[8], "    cavity = Pos(0, 0, 2) * Box(30, 16, 10)")
 
 
+class MassProperties(Commands):
+    """Mass Properties, as SolidWorks' Evaluate tab works them out: volume, area, center of mass and
+    size from the part's solids, and the materials it could be made of, the project's own named."""
+
+    def mass(self, file: str, state: dict, **request) -> dict:
+        reply = self.service.change({"file": file, "mass": {}, "files": state["files"], **request})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        return reply["mass"]
+
+    def test_a_block_has_its_volume_and_area_and_balances_at_its_middle(self):
+        root, file, state = self.open({**BLOCK, "project.json": '{"brief": {"material": "PETG"}}'}, "block.step")
+        mass = self.mass(file, state)
+        self.assertAlmostEqual(mass["volume"], 20 * 10 * 4, places=6)
+        self.assertAlmostEqual(mass["area"], 2 * (200 + 80 + 40), places=6)
+        self.assertEqual([round(value, 6) + 0 for value in mass["center"]], [0, 0, 0])
+        self.assertEqual(mass["box"], [[-10, -5, -2], [10, 5, 2]])
+        # The project's material, and each the table has with its density in g/cm^3.
+        self.assertEqual(mass["material"], "petg")
+        self.assertIn({"key": "aluminum-6061-t6", "name": "Aluminum 6061-T6", "density": 2.7}, mass["materials"])
+
+    def test_at_the_rollback_bar_it_is_the_part_as_it_is_there(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        whole = self.mass(file, state)
+        # Above the cavity, the tray is still its solid block.
+        above = self.mass(file, state, bar={"before": "tray.py:9"})
+        self.assertGreater(above["volume"], whole["volume"])
+        self.assertIsNone(above["material"])
+
+
 # A block with three sketches above it: a circle, a path up and across, and a larger circle 12 up.
 SKETCHED = {
     "bracket.py": """

@@ -3291,6 +3291,9 @@ function StepSurfaceBody({ view, data }) {
     return mirrored ? [...planes, { points: mirrored, strong: true }] : planes;
   }, [edit.selected, edit.hovered, edit.picking, edit.sketch, edit.state?.bounds, edit.command, edit.preview]);
   const editOrigin = !edit.sketch && (edit.selected === "origin" || edit.hovered === "origin") ? originAxis(edit.state?.bounds) : null;
+  // Mass Properties' center of mass, marked on the model while its card is open.
+  const massCenter = edit.mass?.center;
+  const massMark = useMemo(() => (massCenter ? { mark: "center", at: massCenter } : null), [massCenter]);
   // A modeling command opens with Select in hand, its mode turned to what the command picks (a
   // fillet's edges, a hole's face) and the part's faces and edges loaded to be picked, keeping
   // what is already selected: picked first, then Fillet.
@@ -3662,6 +3665,7 @@ function StepSurfaceBody({ view, data }) {
           onPick={sketchesPickable ? pickSketch : null} profiles={sketchFeature && (!selectedTreeSketch || takesSketches)} preview={edit.preview}
           onEdit={sketchesPickable && !edit.command ? view => openTreeSketch({ file: view.file, line: view.line, title: view.name }) : null}
           through={partExtent} /> : null}
+        {editing && edit.inspecting === "mass" && massMark ? <PreviewLayer viewport={viewport} preview={null} mark={massMark} extent={partExtent} /> : null}
         {editing && edit.command && (edit.featurePreview || ["pattern", "hole", "draft"].includes(edit.preview?.mark))
           ? <PreviewLayer viewport={viewport} preview={edit.featurePreview} mark={edit.preview?.mark ? edit.preview : null} extent={partExtent} />
           : null}

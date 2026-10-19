@@ -437,6 +437,32 @@ export function mirrorOutline(mark, bounds) {
   return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => mark.center.map((value, axis) => value + (a * u[axis] + b * v[axis]) * reach));
 }
 
+const GRAMS_PER_OUNCE = 28.349523125;
+
+/**
+ * Mass Properties as SolidWorks lists them, in the part's units (`mass`, as `cadgen/edit` works
+ * them out in millimetres): its mass in a material of `density` g/cm^3 (grams, or ounces with the
+ * grams beside them in an inch part; none without a material), its volume, surface area, center of
+ * mass and overall size.
+ */
+export function massRows(mass, units, density = null) {
+  const inch = units === "in";
+  const unitWord = inch ? "in" : "mm";
+  const said = (value, places) => Number(value.toFixed(places)).toLocaleString("en-US", { maximumFractionDigits: places });
+  const length = value => said(inch ? value / 25.4 : value, inch ? 3 : 2);
+  const rows = [];
+  if (density) {
+    const grams = (mass.volume * density) / 1000;
+    rows.push({ label: "Mass", value: inch ? `${said(grams / GRAMS_PER_OUNCE, 3)} oz (${said(grams, 2)} g)`
+      : grams >= 1000 ? `${said(grams / 1000, 3)} kg` : `${said(grams, 2)} g` });
+  }
+  rows.push({ label: "Volume", value: `${said(inch ? mass.volume / 25.4 ** 3 : mass.volume, inch ? 4 : 2)} ${unitWord}³` });
+  rows.push({ label: "Surface area", value: `${said(inch ? mass.area / 25.4 ** 2 : mass.area, inch ? 4 : 2)} ${unitWord}²` });
+  ["X", "Y", "Z"].forEach((axis, index) => rows.push({ label: `Center of mass ${axis}`, value: `${length(mass.center[index])} ${unitWord}` }));
+  rows.push({ label: "Overall size", value: `${[0, 1, 2].map(axis => length(mass.box[1][axis] - mass.box[0][axis])).join(" x ")} ${unitWord}` });
+  return rows;
+}
+
 /** The feature edit mode opens on: the first that draws dimensions (the part's base), else the first. */
 export function defaultRow(state) {
   const drawn = new Set((state?.dimensions || []).map(dimension => dimension.row));

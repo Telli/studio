@@ -17,6 +17,7 @@ import { TOOL_PANEL_BUTTON_CLASS } from "../../kit/tools/ToolPanel.jsx";
 import EditCommand from "./EditCommand.jsx";
 import EditTree from "./EditTree.jsx";
 import SketchPanel from "./SketchPanel.jsx";
+import MassProperties from "./MassProperties.jsx";
 import { formulaWords, restates, selectionDimensions, sizeName, treeFeatures } from "./editMode.js";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
@@ -81,7 +82,8 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
   const panel = edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} references={references} />
     : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree}
       onDeselect={onDeselect} />
-      : null;
+      // Mass Properties, from the ribbon's Inspect group, in the same card.
+      : edit.inspecting === "mass" ? <MassProperties edit={edit} /> : null;
   // The card scrolls in the viewer's one ScrollArea once its panel is taller than the view.
   const floating = panel && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(FLOATING_SURFACE_CLASS,
     "pointer-events-auto max-h-full rounded-lg")}>{panel}</ScrollArea>, card) : null;

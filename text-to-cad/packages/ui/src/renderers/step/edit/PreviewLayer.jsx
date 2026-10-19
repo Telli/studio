@@ -48,6 +48,33 @@ function drawSolid(context, solid, mapping, fill, stroke) {
   context.restore();
 }
 
+// The center of mass as a CAD tool marks it: a ring with two opposite quarters filled, crossed, and named.
+function drawCenterOfMass(context, [x, y], color, font) {
+  const r = 7;
+  context.save();
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  context.lineWidth = 1.5;
+  context.beginPath();
+  context.arc(x, y, r, 0, 2 * Math.PI);
+  context.stroke();
+  for (const start of [0, Math.PI]) {
+    context.beginPath();
+    context.moveTo(x, y);
+    context.arc(x, y, r, start, start + Math.PI / 2);
+    context.closePath();
+    context.fill();
+  }
+  context.beginPath();
+  context.moveTo(x - r - 4, y);
+  context.lineTo(x + r + 4, y);
+  context.moveTo(x, y - r - 4);
+  context.lineTo(x, y + r + 4);
+  context.stroke();
+  context.restore();
+  drawLabel(context, "Center of mass", { x: x + r + 6, y: y - r - 2, leftward: false }, color, font);
+}
+
 /**
  * A feature's preview over the model, as SolidWorks previews a feature while its PropertyManager is
  * open: the material OK would take away shaded red and the material it would add amber, each with
@@ -58,7 +85,7 @@ function drawSolid(context, solid, mapping, fill, stroke) {
  * With `mark` (`edit.preview`, the panel's own), the way the command goes is drawn too: a linear
  * pattern's arrow from the feature it copies to its first copy, tagged with its spacing; a hole's
  * arrow into its face where it goes in, tagged with its depth; a draft's direction of pull from its
- * neutral plane. `extent` is the part's size, in millimetres.
+ * neutral plane; Mass Properties' center of mass. `extent` is the part's size, in millimetres.
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
  *   preview: { removed?: object | null, added?: object | null } | null, mark?: object | null, extent?: number }} props
@@ -116,6 +143,11 @@ export default function PreviewLayer({ viewport, preview, mark = null, extent = 
       if (marked?.mark === "hole") {
         const way = screenDirection(mapping, marked.at, marked.into, Math.max(0.5, (now.extent || 0) / 50));
         if (way) drawLabel(context, marked.label, drawArrowInto(context, way, cad.cut), cad.cut, font);
+      }
+      // Mass Properties' center of mass.
+      if (marked?.mark === "center" && marked.at) {
+        const place = mapping.toScreen(...marked.at);
+        if (place) drawCenterOfMass(context, place, cad.solidEdge, font);
       }
       // A draft's direction of pull, from its neutral plane, the way the part narrows.
       if (marked?.mark === "draft" && marked.at && marked.pull) {

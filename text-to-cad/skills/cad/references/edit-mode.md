@@ -122,6 +122,10 @@ by hand" below.
   lists its parts (Daisy tray<1>), and Open Part (double-click, or the part's menu) opens the part's
   own model in the view, where its features, sketches and commands are. The ribbon's modeling
   commands are off in an assembly, as in SolidWorks.
+- **Mass Properties** (the ribbon's Inspect group, beside Measure and Section) weighs the part as
+  it is, at the rollback bar when it is up: its volume, surface area, center of mass (marked on
+  the model) and overall size, worked out from its solids, and its mass in a material of cadgen's
+  table, the project brief's own as it opens. It writes nothing.
 - **The rollback bar** under the features (dragged up, or a feature's Rollback) shows the part as
   it was above a feature, the features below it greyed. While it is up, commands act on the body
   there and write their line right above the feature below the bar (a new sketch goes there too),

@@ -45,7 +45,7 @@ _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M
 # only moves it), and `bar_after` where it goes once the change is made. A `preview` is a command
 # made without writing it, for its panel to draw what OK would make; it changes nothing, so nothing
 # is built.
-_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "preview", "splice", "sketch", "remove",
+_CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "preview", "mass", "splice", "sketch", "remove",
                 "suppress", "bar", "bar_after")
 
 
@@ -100,11 +100,16 @@ def project_root(script: Path) -> Path:
 
 
 def _project_units(root: Path) -> dict:
-    """The units the brief of the Studio project listing ``root`` names, as a trace request's."""
+    """The units and the material the brief of the Studio project listing ``root`` names, as a
+    trace request's."""
     for folder, record in _studio_projects():
         brief = record.get("brief") if folder == root else None
-        if isinstance(brief, dict) and brief.get("units") in ("in", "mm"):
-            return {"units": brief["units"]}
+        if not isinstance(brief, dict):
+            continue
+        named = {**({"units": brief["units"]} if brief.get("units") in ("in", "mm") else {}),
+                 **({"material": brief["material"].strip()} if isinstance(brief.get("material"), str) and brief["material"].strip() else {})}
+        if named:
+            return named
     return {}
 
 

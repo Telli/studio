@@ -28,6 +28,7 @@ import {
   draggedDepth,
   emptyHistory,
   extrudePreview,
+  massRows,
   draggedAngle,
   draftPreview,
   draftReversed,
@@ -525,4 +526,20 @@ test("an extrude's Thin Feature sends its wall, inside the outline unless said o
   assert.deepEqual(commandRequest("extrude", values, [], null, sketch).inputs, { end: "blind", depth: "5", reverse: false, thin: true, thin_thickness: "1.5" });
   assert.equal(commandRequest("extrude", { ...values, thin_side: "mid" }, [], null, sketch).inputs.thin_side, "mid");
   assert.equal(extrudePreview("extrude", values, { sketch }).arrowOnly, true);
+});
+
+test("Mass Properties read in the part's units, its mass in the material picked", () => {
+  // A 20 x 10 x 4 mm block of PETG, balanced at its middle.
+  const block = { volume: 800, area: 640, center: [0, 0, 0], box: [[-10, -5, -2], [10, 5, 2]] };
+  assert.deepEqual(massRows(block, "mm", 1.27).map(row => `${row.label}: ${row.value}`), [
+    "Mass: 1.02 g", "Volume: 800 mm³", "Surface area: 640 mm²", "Center of mass X: 0 mm", "Center of mass Y: 0 mm",
+    "Center of mass Z: 0 mm", "Overall size: 20 x 10 x 4 mm",
+  ]);
+  // Without a material, no mass; an inch part in ounces, its grams beside them, and in inches.
+  assert.equal(massRows(block, "mm")[0].label, "Volume");
+  const plate = { volume: 25.4 ** 3 * 2, area: 25.4 ** 2 * 10, center: [25.4, 0, 12.7], box: [[0, 0, 0], [50.8, 25.4, 25.4]] };
+  const inch = massRows(plate, "in", 2.7);
+  assert.deepEqual([inch[0].value, inch[1].value, inch[3].value, inch[6].value],
+    ["3.121 oz (88.49 g)", "2 in³", "1 in", "2 x 1 x 1 in"]);
+  assert.equal(massRows({ ...block, volume: 1e6 }, "mm", 7.85)[0].value, "7.85 kg");
 });

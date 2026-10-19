@@ -13,7 +13,7 @@ import { Progress } from "@text-to-cad/ui/primitives/progress";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { COMMAND_ICONS, ExitSketchIcon, SketchIcon } from "./cadIcons.jsx";
+import { COMMAND_ICONS, ExitSketchIcon, MassPropertiesIcon, SketchIcon } from "./cadIcons.jsx";
 import { COMMAND_GROUPS, EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_TOOLS } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
@@ -273,7 +273,11 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     { title: "Sketch", items: [{ id: "sketch", label: sketchLabel, icon: <SketchIcon />, active: edit.picking, disabled: modelingOff,
       description: placingWords, onClick: () => (edit.picking ? edit.stopPicking() : onSketch()) }] },
     ...COMMAND_GROUPS.map(title => ({ title, items: EDIT_COMMANDS.filter(command => command.group === title).map(commandItem) })),
-    ...GROUPS.map(group => ({ title: group.title, items: group.tools.map(id => byId.get(id)).filter(Boolean).map(toolItem) })),
+    ...GROUPS.map(group => ({ title: group.title, items: [...group.tools.map(id => byId.get(id)).filter(Boolean).map(toolItem),
+      // Inspect, as SolidWorks' Evaluate tab: Measure, Section, and Mass Properties.
+      ...(group.title === "Inspect" ? [{ id: "mass", label: "Mass Properties", icon: <MassPropertiesIcon aria-hidden="true" />,
+        active: edit.inspecting === "mass", disabled: edit.status !== "ready",
+        onClick: () => (edit.inspecting === "mass" ? edit.stopInspecting() : edit.inspect("mass")) }] : [])] })),
     { title: "Tools", items: others.map(toolItem) },
   ].filter(group => group.items.length), <>
     {statusLine(status, Boolean(state?.building?.error))}
