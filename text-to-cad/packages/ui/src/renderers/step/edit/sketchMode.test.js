@@ -11,6 +11,7 @@ import {
   drawOp,
   extendPiece,
   formatValue,
+  newCurves,
   patternCopies,
   patternOp,
   patternSettings,
@@ -168,6 +169,13 @@ test("a fillet's arc is drawn from the places the server works out, its lines up
   // The tools start from a size in the part's units until one is typed.
   assert.equal(toolSize("", "in", "fillet"), "0.1");
   assert.equal(toolSize("WALL", "in", "offset"), "WALL");
+});
+
+test("the curves a change made are the ones the sketch did not have, as they were made", () => {
+  const before = { curves: [{ id: "Line1" }, { id: "Line2" }] };
+  assert.deepEqual(newCurves(before, { curves: [{ id: "Line1" }, { id: "Line2" }, { id: "Line3" }, { id: "Arc1" }] }), ["Line3", "Arc1"]);
+  // A change refused has no sketch: nothing was made.
+  assert.deepEqual(newCurves(before, null), []);
 });
 
 test("the note says what the sketch tools did", () => {

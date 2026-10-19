@@ -3251,7 +3251,7 @@ function StepSurfaceBody({ view, data }) {
   // sizes in a design tree at the viewer's left, the selected feature's dimensions on the model,
   // and the tools in a ribbon across the top. A model with none keeps the view as it is. While a
   // sketch is edited (`edit/SketchOverlay.jsx`) the model is not picked: presses are the sketch's,
-  // but for Convert Entities, which picks the model's edges.
+  // but for Convert Entities, which picks the model's edges (Smart Dimension asks after them).
   // How a part script's model is laid out (`edit/editLayout.js`, one of the tab's settings, switched
   // in the navbar): for modeling it by hand, or for asking the AI, which is the view as it is. Laid
   // out for the AI, the part is not read.
@@ -3420,14 +3420,22 @@ function StepSurfaceBody({ view, data }) {
   // the model takes the presses again, its faces and edges loaded to be picked; leaving the tool
   // lets what was picked go.
   const converting = Boolean(edit.sketch) && edit.sketchTool === "convert";
+  // Smart Dimension takes the model's edges too, as SolidWorks dimensions to them: they light as the
+  // pointer passes, and a press on one is still the sketch's, which asks what edge is under it.
+  const dimensioning = Boolean(edit.sketch) && edit.sketchTool === "dimension";
   useEffect(() => {
-    if (!converting) return undefined;
-    changeSelectMode("all");
+    if (!converting && !dimensioning) return undefined;
+    changeSelectMode(converting ? "all" : "edges");
     if (!isAssemblyView) loadInspectionTopology();
     handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES);
     return () => clearAssemblySelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [converting]);
+  }, [converting, dimensioning]);
+  // The model's edge under a point of the screen, as an edit item (`selectionItems`), or null.
+  const modelEdgeAt = useCallback((clientX, clientY) => {
+    const reference = effectiveActiveReferenceMap.get(pickAtRef.current?.(clientX, clientY) || "");
+    return reference?.selectorType === "edge" ? selectionItems([reference])[0] || null : null;
+  }, [effectiveActiveReferenceMap]);
 
   // ---- the viewport ---------------------------------------------------------------------------
   // What the viewport is ALLOWED to show and pick just now: nothing of the model under Pose
@@ -3435,8 +3443,9 @@ function StepSurfaceBody({ view, data }) {
   const topologySelectionDeferred = Boolean(selectedTopologyDeferredByCost && selectedMeshData);
   // A routine playing is watching. Position's knobs share Select with its picks: a press on a knob is
   // the knob's (`useJointHandles`), anywhere else a pick. While a sketch is edited the presses are the
-  // sketch's (`edit/SketchOverlay.jsx`), but for Convert Entities, which picks the model's edges.
-  const watching = viewportAnimation?.playing === true || (Boolean(edit.sketch) && !converting);
+  // sketch's (`edit/SketchOverlay.jsx`), but for Convert Entities, which picks the model's edges; Smart
+  // Dimension lights them for the sketch to ask after.
+  const watching = viewportAnimation?.playing === true || (Boolean(edit.sketch) && !converting && !dimensioning);
   const pickMode = watching || retainingPreviousStepMesh ? VIEWER_PICK_MODE.NONE : viewerPickModeForRenderPane({
     selectionFilter,
     topologySelectionPending: referenceSelectionPending,
@@ -3700,7 +3709,7 @@ function StepSurfaceBody({ view, data }) {
           planes={editPlanes} origin={editOrigin}
           choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
           onChoose={edit.choose} onDismissChoice={edit.dismissChoice} /> : null}
-        {editing && edit.sketch ? <SketchOverlay viewport={viewport} edit={edit} units={edit.state?.units || ""} /> : null}
+        {editing && edit.sketch ? <SketchOverlay viewport={viewport} edit={edit} units={edit.state?.units || ""} modelEdgeAt={modelEdgeAt} /> : null}
         {editing && shownSketches.length ? <SketchesLayer viewport={viewport} sketches={shownSketches} selected={previewedSketches || selectedTreeSketch}
           onPick={sketchesPickable ? pickSketch : null} profiles={sketchFeature && (!selectedTreeSketch || takesSketches)} preview={edit.preview}
           onEdit={sketchesPickable && !edit.command ? view => openTreeSketch({ file: view.file, line: view.line, title: view.name }) : null}

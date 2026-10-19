@@ -204,7 +204,9 @@ by hand" below.
   `construction=True`; an Offset typed in Convert brings the edges in that way and offsets the
   curves they made at once, as Offset Entities does from model edges. Intersection Curve writes
   `converted2 = sketch2.convert(sketch2.intersection(part))`, where the body made before the
-  sketch crosses its plane; deleting one of its curves deletes the line.
+  sketch crosses its plane; deleting one of its curves deletes the line. Smart Dimension takes a
+  model edge the same way: the edge comes in as `convertedN = sketch2.convert(<edge>,
+  construction=True)` and the dimension is to `convertedN[0]`.
 - Keep this shape when you change a sketch the engineer drew: its block of lines after the
   `Sketch(...)` line, entities assigned to names, so the engineer can open it again with Edit
   Sketch. Change sizes by their numbers or names, as in any sketch.

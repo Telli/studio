@@ -19,7 +19,7 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "polygon", label: "Polygon", prompts: ["Click the center of the polygon.", "Click a corner."] },
   { id: "centerline", label: "Centerline", prompts: ["Click where the centerline starts.", "Click where it ends."] },
   { id: "point", label: "Point", prompts: ["Click to place a point."] },
-  { id: "dimension", label: "Smart Dimension", prompts: ["Pick a line, a circle, or two items to dimension.", "Pick a second item, or click to place the dimension.", "Click to place the dimension."] },
+  { id: "dimension", label: "Smart Dimension", prompts: ["Pick a line, a circle, or two items to dimension. An edge of the model comes in dashed to dimension to.", "Pick a second item or a model edge, or click to place the dimension.", "Click to place the dimension."] },
   { id: "fillet", label: "Sketch Fillet", prompts: ["Click a corner to round, or the first of two lines that meet.", "Click the second line."] },
   { id: "chamfer", label: "Sketch Chamfer", prompts: ["Click a corner to cut, or the first of two lines that meet.", "Click the second line."] },
   { id: "trim", label: "Trim Entities", prompts: ["Click the part of a curve to cut away. It is cut back to the curves that cross it; a curve nothing crosses is deleted."] },
@@ -40,6 +40,12 @@ export const PATTERN_TOOLS = Object.freeze(["linear_pattern", "circular_pattern"
 export const CORNER_TOOLS = Object.freeze(["fillet", "chamfer"]);
 /** The tools that pick on the model rather than the sketch: Convert Entities takes its edges and faces, so the model has the presses. */
 export const MODEL_TOOLS = Object.freeze(["convert"]);
+
+/** The ids of the curves `after` has that `before` did not, in the order they were made. */
+export const newCurves = (before, after) => {
+  const had = new Set((before?.curves || []).map(curve => curve.id));
+  return (after?.curves || []).filter(curve => !had.has(curve.id)).map(curve => curve.id);
+};
 
 /** The size a sketch tool uses until one is typed, in the part's units: a fillet's radius, a chamfer's or an offset's distance. */
 export const toolSize = (typed, units, tool) => String(typed ?? "").trim()

@@ -14,7 +14,7 @@ import { SketchIcon } from "./cadIcons.jsx";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
 import { SelectionList } from "./EditCommand.jsx";
 import { ORIGIN_PLANES, selectionItems } from "./editMode.js";
-import { formatValue, MODEL_TOOLS, MODIFY_TOOLS, PATTERN_TOOLS, patternOp, patternSettings, polygonSides, relationsFor, relationsOn, sketchTool,
+import { formatValue, MODEL_TOOLS, MODIFY_TOOLS, newCurves, PATTERN_TOOLS, patternOp, patternSettings, polygonSides, relationsFor, relationsOn, sketchTool,
   toolSize } from "./sketchMode.js";
 
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
@@ -102,11 +102,11 @@ function ConvertEntities({ edit, references }) {
   const offset = String(settings.convertOffset ?? "").trim();
   const construction = Boolean(settings.convertConstruction) || Boolean(offset);
   const convert = async () => {
-    const before = new Set((edit.sketch?.state?.curves || []).map(curve => curve.id));
+    const before = edit.sketch?.state;
     const reply = await edit.sketchOp({ kind: "convert", items, ...(construction ? { construction: true } : {}) });
     if (!reply?.ok) return;
     if (offset) {
-      const made = (reply.sketch?.state?.curves || []).filter(curve => !before.has(curve.id)).map(curve => curve.id);
+      const made = newCurves(before, reply.sketch?.state);
       if (made.length) await edit.sketchOp({ kind: "offset", items: made, distance: offset, reverse: Boolean(settings.convertReverse), construction: false });
     }
     edit.setSketchTool(null);

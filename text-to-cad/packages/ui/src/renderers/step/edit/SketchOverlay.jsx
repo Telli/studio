@@ -88,7 +88,7 @@ function ModifyBox({ box, onDone }) {
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
  *   edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, units: string }} props
  */
-export default function SketchOverlay({ viewport, edit, units }) {
+export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = null }) {
   const canvasRef = useRef(null);
   const [box, setBox] = useState(null);
   const sketch = edit.sketch;
@@ -97,7 +97,7 @@ export default function SketchOverlay({ viewport, edit, units }) {
   // What the layer's handlers read when they run: the latest of everything.
   const live = useRef(null);
   live.current = { sketch, tool: edit.sketchTool, selection: edit.sketchSelection, construction: edit.construction, units, edit, box,
-    settings: edit.sketchSettings };
+    settings: edit.sketchSettings, modelEdgeAt };
   // Bumped whenever something not in the camera changed, so the next frame paints again.
   const version = useRef(0);
   version.current += 1;
@@ -468,14 +468,23 @@ export default function SketchOverlay({ viewport, edit, units }) {
       }
     };
 
-    const pickForDimension = (id, place) => {
-      const state = live.current.sketch.state;
+    const pickForDimension = (id, place, state = live.current.sketch.state) => {
       if (!pending) pending = { picks: [] };
       if (id && !pending.picks.includes(id) && pending.picks.length < 2) pending.picks = [...pending.picks, id];
       const made = dimensionFor(state, pending.picks, place);
       const placeable = made && (pending.picks.length === 2 || !geometry?.points.has(pending.picks[0]));
       pending = placeable ? { ...pending, ...made, placing: true } : { picks: pending.picks };
       report();
+    };
+
+    // A model edge pressed with Smart Dimension: brought in dashed, as Convert Entities' For construction
+    // brings it, and dimensioned to through the curve it made, as SolidWorks dimensions to model edges.
+    const referenceEdge = async (edge, place) => {
+      const before = live.current.sketch?.state;
+      const reply = await send({ kind: "convert", items: [edge], construction: true });
+      const state = reply?.ok ? reply.sketch?.state : null;
+      const [made] = newCurves(before, state);
+      if (made && live.current.tool === "dimension") pickForDimension(made, place, state);
     };
 
     // The Modify box, at a place on screen, its value set; `onCommit` gets what was typed.
@@ -589,6 +598,13 @@ export default function SketchOverlay({ viewport, edit, units }) {
       if (tool === "dimension") {
         event.preventDefault();
         event.stopPropagation();
+        // Nothing of the sketch here: an edge of the model, if one is, to dimension to.
+        const edge = !hit && !label && (pending?.picks?.length || 0) < 2 ? current.modelEdgeAt?.(event.clientX, event.clientY) : null;
+        if (edge) {
+          if (!busy) void referenceEdge(edge, place);
+          version.current += 1;
+          return;
+        }
         if (pending?.placing && (!hit || pending.picks.length === 2 || label)) {
           const made = pending;
           pending = null;
