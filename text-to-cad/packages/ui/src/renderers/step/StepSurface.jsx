@@ -3242,10 +3242,10 @@ function StepSurfaceBody({ view, data }) {
   // and the tools in a ribbon across the top. A model with none keeps the view as it is. While a
   // sketch is edited (`edit/SketchOverlay.jsx`) the model is not picked: presses are the sketch's,
   // but for Convert Entities, which picks the model's edges.
-  // How a part script's model is laid out (`edit/editLayout.js`, switched in the navbar): for
-  // modeling it by hand, or for asking the AI, which is the view as it is. Laid out for the AI, the
-  // part is not read.
-  const [editLayout, setEditLayout] = useEditLayout();
+  // How a part script's model is laid out (`edit/editLayout.js`, one of the tab's settings, switched
+  // in the navbar): for modeling it by hand, or for asking the AI, which is the view as it is. Laid
+  // out for the AI, the part is not read.
+  const [editLayout, setEditLayout] = useEditLayout(services);
   const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading, reading: editLayout === "manual" });
   // Laid out for editing only once the server says the file has a part script, and only by hand.
   const editable = edit.status !== "none" && edit.status !== "probing";
@@ -3330,14 +3330,14 @@ function StepSurfaceBody({ view, data }) {
   const assemblyTitle = sizeName(edit.state?.name || "");
   const openPart = useMemo(() => (openFile ? component => {
     if (!component?.step) return;
-    rememberOpenedFrom(component.step, { file: editFile, title: assemblyTitle || "the assembly" });
+    rememberOpenedFrom(services, component.step, { file: editFile, title: assemblyTitle || "the assembly" });
     openFile(component.step);
-  } : null), [openFile, editFile, assemblyTitle]);
-  // A part opened from its assembly leads back to it.
+  } : null), [openFile, editFile, assemblyTitle, services]);
+  // A part opened from its assembly leads back to it (the tab's settings keep where it came from).
   const backTo = useMemo(() => {
-    const from = openFile ? openedFrom(editFile) : null;
+    const from = openFile ? openedFrom(services.preferences, editFile) : null;
     return from ? { title: from.title, open: () => openFile(from.file) } : null;
-  }, [openFile, editFile]);
+  }, [openFile, editFile, services.preferences]);
   // Edit Feature on a fillet, a chamfer, a shell or a hole rolls the part back to just before it:
   // Select is in hand, turned to what the feature picks, so others can be picked on that body.
   const repickKey = edit.editing?.rolled ? edit.editing.id : "";

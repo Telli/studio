@@ -6,8 +6,9 @@ import { normalizeToolStack } from '../renderers/kit/tools/toolStackLayout.js';
  *
  *   { version, settings, files }
  *
- * `settings` is tab-wide — the tool stack's layout, the appearance and how the home lays out its
- * library — and replaces every global preference.
+ * `settings` is tab-wide — the tool stack's layout, the appearance, how the home lays out its
+ * library, and edit mode's layout and where each part it opened came from — and replaces every
+ * global preference.
  * `files` is the view of the file on screen (`kit/shell/fileView.js`: its camera, its Display
  * settings, its playback, its renderer's own slices) under `[absolute file path, renderer id]`,
  * and nothing else: a write puts a file last and drops any other (`TAB_FILE_LIMIT`), and a host
@@ -27,6 +28,12 @@ export const TAB_FILE_LIMIT = 1;
 export type Appearance = 'system' | 'light' | 'dark';
 /** How the home lays out its models: a grid of cards, or a list of rows. */
 export type LibraryLayout = 'grid' | 'list';
+/** How a part script's model opens: laid out for modeling it by hand (edit mode), or for asking the AI. */
+export type EditLayout = 'manual' | 'ai';
+/** The assembly a part was opened from (Open Part), so the part's design tree leads back to it. */
+export interface OpenedFrom { file: string; title: string }
+/** How many parts' way back the tab keeps: the latest opened. */
+export const OPENED_FROM_LIMIT = 20;
 export interface ToolStackLayout { panels: Record<string, { width?: number; height?: number }>; collapsed: Record<string, boolean> }
 export interface TabSettings {
   /** The tool stack's layout (`kit/tools/toolStackLayout.js`): the resizable panels' sizes and the folded panels. */
@@ -35,6 +42,10 @@ export interface TabSettings {
   appearance: Appearance;
   /** The home's library: its models as a grid of cards (the default) or a list. */
   library: { layout: LibraryLayout };
+  /** Edit mode's layout for a part script (`step/edit/editLayout.js`): Manual (the default) or AI. */
+  editLayout: EditLayout;
+  /** Where Open Part came from (`step/edit/openedFrom.js`), by the part's absolute path, oldest first. */
+  openedFrom: Record<string, OpenedFrom>;
 }
 export interface TabRecord {
   version: typeof TAB_RECORD_VERSION;
@@ -46,6 +57,7 @@ export interface TabRecord {
 const plainObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const APPEARANCES: readonly Appearance[] = ['system', 'light', 'dark'];
 const LIBRARY_LAYOUTS: readonly LibraryLayout[] = ['grid', 'list'];
+const EDIT_LAYOUTS: readonly EditLayout[] = ['manual', 'ai'];
 export function normalizeAppearance(value: unknown): Appearance {
   return APPEARANCES.includes(value as Appearance) ? (value as Appearance) : 'system';
 }
@@ -55,6 +67,18 @@ function normalizeLibrary(value: unknown): TabSettings['library'] {
   return { layout: LIBRARY_LAYOUTS.includes(layout as LibraryLayout) ? (layout as LibraryLayout) : 'grid' };
 }
 
+// Each part's way back: an assembly's file (not the part's own) and its title; the latest `OPENED_FROM_LIMIT`.
+function normalizeOpenedFrom(value: unknown): TabSettings['openedFrom'] {
+  const kept: TabSettings['openedFrom'] = {};
+  const entries = Object.entries(plainObject(value) ? value : {}).filter(([part, from]) => part !== '' && plainObject(from)
+    && typeof from.file === 'string' && from.file !== '' && from.file !== part && typeof from.title === 'string');
+  for (const [part, from] of entries.slice(-OPENED_FROM_LIMIT)) {
+    const { file, title } = from as OpenedFrom;
+    kept[part] = { file, title };
+  }
+  return kept;
+}
+
 /** The settings as the tab keeps them, from anything a store handed back. */
 export function normalizeTabSettings(value: unknown): TabSettings {
   const record = plainObject(value) ? value : {};
@@ -62,6 +86,8 @@ export function normalizeTabSettings(value: unknown): TabSettings {
     toolStack: normalizeToolStack(record.toolStack) as ToolStackLayout,
     appearance: normalizeAppearance(record.appearance),
     library: normalizeLibrary(record.library),
+    editLayout: EDIT_LAYOUTS.includes(record.editLayout as EditLayout) ? (record.editLayout as EditLayout) : 'manual',
+    openedFrom: normalizeOpenedFrom(record.openedFrom),
   };
 }
 
