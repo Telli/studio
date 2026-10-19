@@ -15,6 +15,7 @@ import {
   inferLine,
   MODEL_TOOLS,
   MODIFY_TOOLS,
+  newCurves,
   PATTERN_TOOLS,
   patternCopies,
   patternSettings,
