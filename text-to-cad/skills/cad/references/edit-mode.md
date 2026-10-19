@@ -7,8 +7,9 @@ the selected feature's dimensions on the model. When the engineer changes a valu
 rewrites that one number in the script, keeping how it was written, and builds again every part
 that uses the changed file.
 
-Its ribbon also has modeling commands: Extruded and Revolved Boss/Base, Extruded and Revolved
-Cut, Hole, Pattern and Mirror (Create), Fillet, Chamfer and Shell (Modify). Each acts on what the engineer selects (edges or
+Its ribbon also has modeling commands, as SolidWorks' Features tab sets them out: Extruded, Revolved,
+Swept and Lofted Boss/Base; Extruded, Revolved, Swept and Lofted Cut, and Hole; Fillet, Chamfer, Rib,
+Shell, Pattern and Mirror. Each acts on what the engineer selects (edges or
 faces on the model, a sketch or a feature in the history) and writes one line of build123d into
 the script, after the statement that makes the part's body, which then reads back as a new feature
 of the history.
@@ -79,6 +80,16 @@ by hand" below.
   centerline, usually): `part += revolve(sketch2.face(), axis=sketch2.axis(line1),
   revolution_arc=360)`, or `part -= revolve(...)` for a cut; Reverse direction is a negative
   angle.
+- **Thin Feature** (an extrude's option) makes the outline a wall rather than filling it:
+  `part += extrude(sketch2.thin(1.5), amount=20)`, `side="outside"` or `side="mid"` for the wall
+  outside the outline or astride it.
+- **Swept Boss/Base and Swept Cut** run a profile sketch along a path sketch:
+  `part += sweep(sketch1.face(), path=sketch2.path(), transition=Transition.RIGHT)`, or `-=` for a
+  cut. Its line goes after the later of the two sketches.
+- **Lofted Boss/Base and Lofted Cut** join profile sketches, usually on offset planes, in order:
+  `part += loft([sketch1.face(), sketch3.face()])`.
+- **Rib** grows a sketch's straight lines to the body, parallel to the sketch:
+  `part += sketch4.rib(2, part)`, `flip=True` for the other side of the line.
 - Sizes are written in the project's units, as the file writes them (`.03*INCH` in an inch part).
 - A line that does not run, or does not make the feature on what was selected, is not written.
 - **Delete** (the key, or a feature's menu in the design tree) takes a feature's lines out of the

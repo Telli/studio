@@ -758,6 +758,140 @@ class Previews(Commands):
         self.assertEqual((root / "tray.py").read_text(encoding="utf-8").splitlines()[8], "    cavity = Pos(0, 0, 2) * Box(30, 16, 10)")
 
 
+# A block with three sketches above it: a circle, a path up and across, and a larger circle 12 up.
+SKETCHED = {
+    "bracket.py": """
+        from build123d import Box, Pos
+        from cadgen import step
+        from cadgen.sketch import Sketch
+
+
+        @step
+        def bracket():
+            part = Pos(0, 0, -5) * Box(40, 20, 10)
+            sketch1 = Sketch("Sketch1", plane="Top")
+            sketch1.circle((0, 0), 2)
+            sketch2 = Sketch("Sketch2", plane="Front")
+            up = sketch2.line((0, 0), (0, 20))
+            over = sketch2.line((0, 20), (15, 20))
+            sketch2.coincident(up.end, over.start)
+            sketch3 = Sketch("Sketch3", plane="Top", offset=12)
+            sketch3.circle((0, 0), 4)
+            return part
+    """,
+}
+
+# A channel: a floor 5 thick between two walls, and a rib's line across its top, 8 up.
+CHANNEL = {
+    "channel.py": """
+        from build123d import Box, Pos
+        from cadgen import step
+        from cadgen.sketch import Sketch
+
+
+        @step
+        def channel():
+            part = Box(40, 20, 20) - Pos(0, 0, 5) * Box(30, 30, 20)
+            sketch1 = Sketch("Sketch1", plane="Front")
+            sketch1.line((-15, 8), (15, 8))
+            return part
+    """,
+}
+
+# A block with a rectangle sketched on its top.
+WALLED = {
+    "box.py": """
+        from build123d import Box, Pos
+        from cadgen import step
+        from cadgen.sketch import Sketch
+
+
+        @step
+        def box():
+            part = Pos(0, 0, -5) * Box(40, 20, 10)
+            sketch1 = Sketch("Sketch1", plane="Top")
+            sketch1.rectangle((-10, -5), (10, 5))
+            return part
+    """,
+}
+
+
+def sketch(name: str, line: int, file: str = "bracket.py") -> dict:
+    return {"file": file, "line": line, "name": name}
+
+
+class SketchedFeatures(Commands):
+    """Sweep, Loft, Rib and Thin Feature, each made from sketches drawn in the part's script."""
+
+    def made(self, root: Path, file: str, state: dict, spec: dict) -> dict:
+        reply = self.service.change({"file": file, "command": spec, "files": state["files"]})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        return reply
+
+    def test_a_sweep_runs_its_profile_along_its_path_and_is_named_with_its_profile_under_it(self):
+        root, file, state = self.open(SKETCHED, "bracket.step")
+        reply = self.made(root, file, state, {"command": "sweep", "sketches": [sketch("Sketch1", 9), sketch("Sketch2", 11)], "inputs": {}})
+        text = (root / "bracket.py").read_text(encoding="utf-8")
+        # Its line goes right after the last sketch it is made from.
+        self.assertIn("    sketch2.coincident(up.end, over.start)\n    part += sweep(sketch1.face(), path=sketch2.path(), transition=Transition.RIGHT)\n",
+                      text)
+        sweep = next(feature for feature in reply["features"] if feature["kind"] == "Boss-Sweep")
+        self.assertEqual(sweep["sketch"]["name"], "Sketch1")
+        self.assertEqual((sweep["edit"]["command"], sweep["edit"]["keeps"]), ("sweep", "Sketch1 along Sketch2"))
+        # The path stays a sketch of its own in the tree; the profile is the sweep's.
+        self.assertEqual([item["sketch"]["name"] for item in reply["features"] if item["kind"] == "Sketch"], ["Sketch2", "Sketch3"])
+        # A sweep takes a profile and a path, both.
+        refused = self.service.change({"file": file, "files": reply["files"], "command": {"command": "sweep", "sketches": [sketch("Sketch1", 9)]}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("profile sketch, then the path sketch", refused["error"])
+
+    def test_a_loft_joins_its_profiles_in_the_order_they_were_picked(self):
+        root, file, state = self.open(SKETCHED, "bracket.step")
+        reply = self.made(root, file, state, {"command": "loft", "sketches": [sketch("Sketch1", 9), sketch("Sketch3", 15)], "inputs": {}})
+        self.assertIn("    part += loft([sketch1.face(), sketch3.face()])\n", (root / "bracket.py").read_text(encoding="utf-8"))
+        loft = next(feature for feature in reply["features"] if feature["kind"] == "Boss-Loft")
+        self.assertEqual((loft["sketch"]["name"], loft["edit"]["keeps"]), ("Sketch1", "through Sketch1, Sketch3"))
+        # A loft's preview is the frustum it adds: 12 tall, from radius 2 to 4.
+        before = self.service.change({"file": file, "files": reply["files"], "splice": reply["change"]["undo"]})
+        self.assertTrue(before["ok"], before.get("error"))
+        shown = self.service.change({"file": file, "files": before["files"], "preview": {"command": "loft",
+                                                                                        "sketches": [sketch("Sketch1", 9), sketch("Sketch3", 15)], "inputs": {}}})
+        zs = shown["preview"]["added"]["positions"][2::3]
+        self.assertEqual((round(min(zs), 3), round(max(zs), 3)), (0, 12))
+
+    def test_a_rib_grows_from_its_line_to_the_body_and_reopens_with_its_thickness(self):
+        root, file, state = self.open(CHANNEL, "channel.step")
+        # Grown up from its line, it meets nothing: the preview says to flip it.
+        shown = self.service.change({"file": file, "files": state["files"], "preview": {"command": "rib", "sketch": sketch("Sketch1", 9, "channel.py"),
+                                                                                       "inputs": {"thickness": "2"}}})
+        self.assertIn("Flip it", shown["preview"]["error"])
+        reply = self.made(root, file, state, {"command": "rib", "sketch": sketch("Sketch1", 9, "channel.py"), "inputs": {"thickness": "2", "flip": True}})
+        self.assertIn("    part += sketch1.rib(2, part, flip=True)\n", (root / "channel.py").read_text(encoding="utf-8"))
+        rib = next(feature for feature in reply["features"] if feature["kind"] == "Rib")
+        self.assertEqual(rib["sketch"]["name"], "Sketch1")
+        self.assertEqual(rib["edit"]["values"], {"thickness": "2", "flip": True})
+        # Edit Feature writes it again in its place, thicker.
+        again = self.service.change({"file": file, "files": reply["files"], "command": {"command": "rib", "sketch": sketch("Sketch1", 9, "channel.py"),
+                                                                                       "inputs": {"thickness": "3", "flip": True}, "replace": {"row": rib["key"]}}})
+        self.assertTrue(again["ok"], again.get("error"))
+        self.assertIn("    part += sketch1.rib(3, part, flip=True)\n", (root / "channel.py").read_text(encoding="utf-8"))
+
+    def test_a_thin_feature_extrudes_the_outline_as_a_wall_and_reopens_as_one(self):
+        root, file, state = self.open(WALLED, "box.step")
+        reply = self.made(root, file, state, {"command": "extrude", "sketch": sketch("Sketch1", 9, "box.py"),
+                                              "inputs": {"end": "blind", "depth": "6", "thin": True, "thin_thickness": "1"}})
+        self.assertIn("    part += extrude(sketch1.thin(1), amount=6)\n", (root / "box.py").read_text(encoding="utf-8"))
+        boss = next(feature for feature in reply["features"] if feature["kind"] == "Boss-Extrude" and feature["sketch"].get("name") == "Sketch1")
+        self.assertEqual({key: boss["edit"]["values"].get(key) for key in ("thin", "thin_thickness", "thin_side", "depth")},
+                         {"thin": True, "thin_thickness": "1", "thin_side": "inside", "depth": "6"})
+        # Astride the outline, written with its side.
+        again = self.service.change({"file": file, "files": reply["files"], "command": {
+            "command": "extrude", "sketch": sketch("Sketch1", 9, "box.py"), "replace": {"row": boss["key"]},
+            "inputs": {"end": "blind", "depth": "6", "thin": True, "thin_thickness": "1", "thin_side": "mid"}}})
+        self.assertTrue(again["ok"], again.get("error"))
+        self.assertIn('    part += extrude(sketch1.thin(1, side="mid"), amount=6)\n', (root / "box.py").read_text(encoding="utf-8"))
+
+
 class Assemblies(Commands):
     """An assembly places its parts: each is modeled on its own, opened from the design tree."""
 

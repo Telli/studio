@@ -98,3 +98,28 @@ it('each command that goes somewhere previews the way it goes: an extrude its de
   render(<EditCommand edit={mirror as never} names={NAMES} references={[]} />);
   expect(mirror.setPreview).toHaveBeenLastCalledWith({ mark: 'mirror', plane: 'YZ' });
 });
+
+it('a sweep takes the sketch selected as its profile, then the next as its path, and a rib grows the side it is turned', async () => {
+  const user = userEvent.setup();
+  const sketch = (id: string, title: string, line: number) => ({ id, kind: 'Sketch', title, rows: [],
+    sketch: { id, title, plane: 'Top', file: 'block.py', line, constrained: true } });
+  const tree = { assembly: false, features: [sketch('block.py:9', 'Sketch1', 9), sketch('block.py:12', 'Sketch2', 12)] };
+  const sweep = edit('sweep', 'block.py:9');
+  const { rerender } = render(<EditCommand edit={sweep as never} names={NAMES} references={[]} tree={tree} />);
+  expect(screen.getByText('2 of 2: Select the path sketch')).toBeTruthy();
+  // The path picked in the design tree: both boxes full, and OK sends them in order.
+  rerender(<EditCommand edit={{ ...sweep, selected: 'block.py:12' } as never} names={NAMES} references={[]} tree={tree} />);
+  expect(screen.getByText('Review the preview, then press OK.')).toBeTruthy();
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(sweep.run).toHaveBeenCalledWith({ command: 'sweep', inputs: {},
+    sketches: [{ file: 'block.py', line: 9, name: 'Sketch1' }, { file: 'block.py', line: 12, name: 'Sketch2' }] });
+  // Its profile let go by its X: the first box waits again.
+  await user.click(screen.getByRole('button', { name: 'Remove Sketch1' }));
+  expect(screen.getByText('1 of 2: Select the profile sketch')).toBeTruthy();
+  cleanup();
+  const rib = edit('rib', 'block.py:9');
+  render(<EditCommand edit={rib as never} names={NAMES} references={[]} tree={tree} />);
+  await user.click(screen.getByRole('checkbox', { name: 'Flip material side' }));
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(rib.run).toHaveBeenCalledWith({ command: 'rib', sketch: { file: 'block.py', line: 9, name: 'Sketch1' }, inputs: { thickness: '1', flip: true } });
+});

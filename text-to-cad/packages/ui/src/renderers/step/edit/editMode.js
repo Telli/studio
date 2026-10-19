@@ -262,7 +262,7 @@ export function extrudePreview(id, values, { units = "mm", sketch = null, frame 
   const angle = plainNumber(values.draft_angle);
   const taper = values.draft && end !== "next" && angle !== null && angle > 0 && angle < 90 ? (values.outward ? -angle : angle) : 0;
   const base = { kind: id === "cut" ? "cut" : "boss", end, file: sketch.file, line: sketch.line, taper, depth: 0, reverse: false, units };
-  if (end === "through") return { ...base, reverse: Boolean(values.reverse), label: END_WORDS.through };
+  if (end === "through") return { ...base, reverse: Boolean(values.reverse), label: END_WORDS.through, ...(values.thin ? { arrowOnly: true } : {}) };
   if (end === "surface" || end === "vertex") {
     const target = end === "surface" ? ending?.center : values.vertex_at;
     const behind = target && frame ? [0, 1, 2].reduce((sum, axis) => sum + (Number(target[axis]) - frame.origin[axis]) * frame.z[axis], 0) < 0 : false;
@@ -272,7 +272,8 @@ export function extrudePreview(id, values, { units = "mm", sketch = null, frame 
   const depth = plainNumber(values.depth);
   const label = sizeTag(values.depth, units);
   const reverse = end !== "mid" && Boolean(values.reverse);
-  if (depth === null || !(depth > 0)) return { ...base, reverse, arrowOnly: true, label };
+  // A thin feature's wall, like a depth written as a size's name, is the server's to preview.
+  if (depth === null || !(depth > 0) || values.thin) return { ...base, reverse, arrowOnly: true, label };
   return { ...base, depth: depth * (MM_PER_UNIT[units] || 1), reverse, label };
 }
 
@@ -404,26 +405,40 @@ export function changeNote(change) {
   return `In edit mode I changed ${said} from ${change.from} to ${change.to} (${change.file}, line ${change.line}).`;
 }
 
+const SKETCH_PROMPT = "Select a sketch on the model or in the design tree.";
+const SWEEP_PROMPT = "Select the profile sketch, then the path sketch, on the model or in the design tree.";
+const LOFT_PROMPT = "Select the profile sketches on the model or in the design tree, in the order the loft goes through them.";
+
 /**
- * The ribbon's modeling commands, as a CAD tool groups them: Create (the Extruded and Revolved
- * Boss/Base and Cut a sketch makes, `sketch`; Hole, Pattern, Mirror) and Modify (Fillet, Chamfer,
- * Shell). `picks` is what the command acts on, which the Select tool's mode turns to when it
- * opens: edges, faces, or none (Pattern copies a history feature; the sketch features take the
- * sketch selected in the design tree). `many`: its box takes as many as are clicked, each click on
- * the model adding one or taking a picked one out, as a PropertyManager's selection box does.
+ * The ribbon's modeling commands, as SolidWorks' Features tab sets them out: the bosses a sketch
+ * makes (Extruded, Revolved, Swept and Lofted Boss/Base), the cuts (the same four, and Hole), and
+ * what changes the body (Fillet, Chamfer, Rib, Shell, Pattern, Mirror). `picks` is what the
+ * command acts on, which the Select tool's mode turns to when it opens: edges, faces, or none
+ * (Pattern copies a history feature). `sketch`: it takes one sketch, selected in the design tree
+ * or on the model; `sketches`: it takes several, a sweep its profile then its path, a loft its
+ * profiles in order (`"many"`). `many`: its box takes as many faces or edges as are clicked, each
+ * click on the model adding one or taking a picked one out, as a PropertyManager's selection box does.
  */
 export const EDIT_COMMANDS = Object.freeze([
-  { id: "extrude", label: "Extruded Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
-  { id: "revolve", label: "Revolved Boss/Base", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
-  { id: "cut", label: "Extruded Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
-  { id: "revolve_cut", label: "Revolved Cut", group: "Create", picks: null, sketch: true, prompt: "Select a sketch on the model or in the design tree." },
-  { id: "hole", label: "Hole", group: "Create", picks: "faces", prompt: "Click a flat face where the hole goes." },
-  { id: "pattern", label: "Pattern", group: "Create", picks: null, prompt: "" },
-  { id: "mirror", label: "Mirror", group: "Create", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
+  { id: "extrude", label: "Extruded Boss/Base", group: "Boss/Base", picks: null, sketch: true, prompt: SKETCH_PROMPT },
+  { id: "revolve", label: "Revolved Boss/Base", group: "Boss/Base", picks: null, sketch: true, prompt: SKETCH_PROMPT },
+  { id: "sweep", label: "Swept Boss/Base", group: "Boss/Base", picks: null, sketches: ["profile", "path"], prompt: SWEEP_PROMPT },
+  { id: "loft", label: "Lofted Boss/Base", group: "Boss/Base", picks: null, sketches: "many", prompt: LOFT_PROMPT },
+  { id: "cut", label: "Extruded Cut", group: "Cut", picks: null, sketch: true, prompt: SKETCH_PROMPT },
+  { id: "revolve_cut", label: "Revolved Cut", group: "Cut", picks: null, sketch: true, prompt: SKETCH_PROMPT },
+  { id: "sweep_cut", label: "Swept Cut", group: "Cut", picks: null, sketches: ["profile", "path"], prompt: SWEEP_PROMPT },
+  { id: "loft_cut", label: "Lofted Cut", group: "Cut", picks: null, sketches: "many", prompt: LOFT_PROMPT },
+  { id: "hole", label: "Hole", group: "Cut", picks: "faces", prompt: "Click a flat face where the hole goes." },
   { id: "fillet", label: "Fillet", group: "Modify", picks: "edges", many: true, prompt: "Click edges on the model to add them. Click one again to take it out." },
   { id: "chamfer", label: "Chamfer", group: "Modify", picks: "edges", many: true, prompt: "Click edges on the model to add them. Click one again to take it out." },
+  { id: "rib", label: "Rib", group: "Modify", picks: null, sketch: true, prompt: "Select a sketch of the rib's line on the model or in the design tree." },
   { id: "shell", label: "Shell", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
+  { id: "pattern", label: "Pattern", group: "Modify", picks: null, prompt: "" },
+  { id: "mirror", label: "Mirror", group: "Modify", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
 ]);
+
+/** The ribbon's groups of modeling commands, in its order. */
+export const COMMAND_GROUPS = Object.freeze(["Boss/Base", "Cut", "Modify"]);
 
 export const editCommand = id => EDIT_COMMANDS.find(command => command.id === id) || null;
 
@@ -439,7 +454,9 @@ export function commandDefaults(id, units) {
     case "mirror": return { plane: "YZ" };
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
     case "extrude":
-    case "cut": return { end: "blind", depth: size.depth, reverse: false, draft: false, draft_angle: size.draft, outward: false };
+    case "cut": return { end: "blind", depth: size.depth, reverse: false, draft: false, draft_angle: size.draft, outward: false,
+      thin: false, thin_thickness: size.thickness, thin_side: "inside" };
+    case "rib": return { thickness: size.thickness, flip: false };
     case "revolve":
     case "revolve_cut": return { axis: "", angle: "360", reverse: false };
     default: return {};
@@ -544,9 +561,15 @@ export function clickOffsets(point, center, normal, units) {
  * The request a command's OK sends (`cadgen/edit`): the command, its selection, its inputs as
  * typed and, for Mirror and Pattern, the history feature they copy (none copies the body).
  */
-export function commandRequest(id, values, items, feature, sketch = null, editing = null) {
+export function commandRequest(id, values, items, feature, sketch = null, editing = null, sketches = []) {
   // Edit Feature: the feature's own line written again, acting on what it acts on now.
   const replace = editing ? { replace: { row: editing.id } } : {};
+  const named = each => ({ file: each.file, line: each.line, name: each.title || each.name });
+  // A sweep's profile and path, a loft's profiles, in the order they were picked.
+  if (editCommand(id)?.sketches) return { command: id, sketches: sketches.filter(Boolean).map(named), inputs: {}, ...replace };
+  if (id === "rib") {
+    return { command: id, sketch: sketch ? named(sketch) : null, inputs: { thickness: values.thickness, flip: Boolean(values.flip) }, ...replace };
+  }
   if (id === "extrude" || id === "cut") {
     // Up To Next has no depth or direction of its own, nor a draft; Through All no depth; Up To
     // Surface and Up To Vertex end on what is picked, a vertex by where its edge was clicked.
@@ -555,6 +578,11 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
     const inputs = { end: values.end, ...(values.end === "through" || next || upTo ? {} : { depth: values.depth }),
       ...(next || upTo ? {} : { reverse: Boolean(values.reverse) }) };
     if (values.draft && !next) Object.assign(inputs, { draft: true, draft_angle: values.draft_angle, outward: Boolean(values.outward) });
+    // Thin Feature: the outline as a wall, inside it unless said otherwise.
+    if (values.thin) {
+      Object.assign(inputs, { thin: true, thin_thickness: values.thin_thickness, ...(values.thin_side && values.thin_side !== "inside"
+        ? { thin_side: values.thin_side } : {}) });
+    }
     const ending = upTo ? extrudeEnd(values.end, items) : null;
     if (ending && values.end === "vertex" && values.vertex_at) inputs.vertex_at = values.vertex_at;
     return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title } : null, inputs,
@@ -604,7 +632,20 @@ export const sameValues = (values, opened) => Object.keys({ ...values, ...opened
   .every(key => String(values[key] ?? "").trim() === String(opened[key] ?? "").trim());
 
 /** Why a command's OK cannot go yet, or "" when it can. Edit Feature keeps what the feature acts on, so it waits on nothing picked. */
-export function commandBlocked(id, items, sketch = null, values = {}, editing = null) {
+export function commandBlocked(id, items, sketch = null, values = {}, editing = null, sketches = []) {
+  const takes = editCommand(id)?.sketches;
+  if (takes) {
+    if (editing) return "";
+    const drawn = sketches.find(each => each && !each.constrained);
+    if (drawn) return `${drawn.title} is drawn with build123d's shapes, not as a sketch. Ask the agent to ${id.startsWith("loft") ? "loft" : "sweep"} it.`;
+    if (takes === "many") return sketches.length >= 2 ? "" : sketches.length ? "Select the next profile sketch." : "Select the first profile sketch.";
+    // A sweep's two boxes, each its own: the profile, then the path.
+    return !sketches[0] ? "Select the profile sketch." : !sketches[1] ? "Select the path sketch." : "";
+  }
+  if (id === "rib") {
+    if (!sketch) return "Select a sketch of the rib's line.";
+    return sketch.constrained ? "" : `${sketch.title} is drawn with build123d's shapes, not as a sketch. Ask the agent to make the rib.`;
+  }
   if (id === "extrude" || id === "cut" || id === "revolve" || id === "revolve_cut") {
     if (!sketch) return "Select a sketch in the design tree.";
     const making = id.startsWith("revolve") ? "revolve" : "extrude";
@@ -633,7 +674,13 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
  * Surface or Up To Vertex ends on, and `kept` whether a reopened feature keeps what it acts on.
  * Mirror and Pattern have what they need as they open (a plane, a direction, the whole body).
  */
-export function chooseSteps(id, { listed = [], sketch = null, values = {}, ending = null, kept = false } = {}) {
+export function chooseSteps(id, { listed = [], sketch = null, values = {}, ending = null, kept = false, sketches = [] } = {}) {
+  const takes = editCommand(id)?.sketches;
+  if (takes === "many") {
+    return [{ input: "the first profile sketch", done: sketches.length >= 1 || kept }, { input: "the next profile sketch", done: sketches.length >= 2 || kept }];
+  }
+  if (takes) return [{ input: "the profile sketch", done: Boolean(sketches[0]) || kept }, { input: "the path sketch", done: Boolean(sketches[1]) || kept }];
+  if (id === "rib") return [{ input: "a sketch of the rib's line", done: Boolean(sketch) }];
   if (editCommand(id)?.sketch) {
     const steps = [{ input: "a sketch", done: Boolean(sketch) }];
     if (id === "revolve" || id === "revolve_cut") steps.push({ input: "a centerline to revolve about", done: Boolean(values.axis) });

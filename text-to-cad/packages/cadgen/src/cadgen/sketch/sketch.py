@@ -598,6 +598,84 @@ class Sketch:
             raise SketchError(f"{self.name} has {len(made)} separate regions; use faces() and pick one.")
         return made[0]
 
+    def path(self):
+        """The sketch's curves, construction aside, joined end to end into one chain as a
+        build123d Wire in the part: what a sweep runs its profile along, as SolidWorks' Sweep takes
+        a path sketch. Open from one end to the other, or closed."""
+        from .regions import path
+
+        self.solve()
+        return path(self)
+
+    def thin(self, thickness, *, side: str = "inside"):
+        """The sketch's outline as a wall ``thickness`` thick, as a CAD tool's Thin Feature makes
+        one, as build123d Faces on its plane to extrude: a closed profile's wall ``"inside"`` its
+        outline, ``"outside"`` it, or ``"mid"`` astride it (a hole's wall too); an open sketch's
+        strip astride its curves, or to one side of the way they run (``"inside"`` the left)."""
+        import build123d as B
+
+        from .regions import faces, path
+
+        self.solve()
+        wall = float(thickness) * self.unit
+        if not wall > 0:
+            raise SketchError(f"{self.name}: a thin feature's wall needs a thickness.")
+        if side not in ("inside", "outside", "mid"):
+            raise SketchError(f"{self.name}: a thin feature's wall is inside, outside or mid.")
+        try:
+            regions = faces(self)
+        except SketchError:
+            regions = None
+        made = []
+        if regions is not None:
+            reach = {"inside": (0.0, -wall), "outside": (wall, 0.0), "mid": (wall / 2, -wall / 2)}[side]
+            for face in regions:
+                outer, inner = (B.offset(face, amount=amount, kind=B.Kind.INTERSECTION) if amount else face for amount in reach)
+                made += outer.cut(inner).faces()
+        else:
+            line = path(self)
+            if line.is_closed:
+                raise SketchError(f"{self.name}: a closed outline is walled as a profile; this one does not close a region.")
+            # Square at its ends, as a CAD tool's thin wall is: astride is half to each side.
+            sides = {"inside": [(B.Side.LEFT, wall)], "outside": [(B.Side.RIGHT, wall)],
+                     "mid": [(B.Side.LEFT, wall / 2), (B.Side.RIGHT, wall / 2)]}[side]
+            strips = [B.Face(line.offset_2d(amount, kind=B.Kind.INTERSECTION, side=way)) for way, amount in sides]
+            made = strips if len(strips) == 1 else strips[0].fuse(strips[1]).clean().faces()
+        found = B.ShapeList(made)
+        for face in found:
+            face._cadgen_sketch = self
+        found._cadgen_sketch = self
+        return found
+
+    def rib(self, thickness, body, *, flip: bool = False):
+        """A rib, as SolidWorks' Rib grows one parallel to its sketch: the sketch's straight lines
+        thickened across its plane by ``thickness`` (half each side), each grown in the plane,
+        square to itself, until it meets ``body``; ``flip`` grows them the other way. A build123d
+        solid to join to the body."""
+        import build123d as B
+
+        from .regions import path, plane_of
+
+        self.solve()
+        wall = float(thickness) * self.unit
+        if not wall > 0:
+            raise SketchError(f"{self.name}: a rib needs a thickness.")
+        plane = plane_of(self)
+        made = None
+        for edge in path(self).edges():
+            if edge.geom_type != B.GeomType.LINE:
+                raise SketchError(f"{self.name}: a rib is drawn with straight lines.")
+            along = (edge.end_point() - edge.start_point()).normalized()
+            out = plane.z_dir.cross(along) * (-1 if flip else 1)
+            strip = B.Face.extrude(edge, plane.z_dir * wall).moved(B.Location(plane.z_dir * (-wall / 2)))
+            try:
+                grown = B.Solid.extrude_until(strip, body, out, B.Until.NEXT)
+            except Exception as error:  # noqa: BLE001 - said to the engineer: which way it grows
+                raise SketchError(f"{self.name}: the rib meets nothing of the body that way. Flip it to grow the other way.") from error
+            made = grown if made is None else made.fuse(grown)
+        made._cadgen_sketch = self
+        return made
+
     def axis(self, line: Line):
         """A line of the sketch as a build123d Axis in the part, through its start and along it:
         what a revolve turns the sketch about (a centerline, usually)."""

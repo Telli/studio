@@ -3296,7 +3296,7 @@ function StepSurfaceBody({ view, data }) {
     // Pattern takes its direction from an edge picked while it is open, and a circular one its
     // axis from an edge or a round face; an extrude ends on a face or an edge's vertex: both are
     // pickable.
-    const picks = editCommand(id)?.picks || (id === "pattern" || editCommand(id)?.sketch ? "all" : null);
+    const picks = editCommand(id)?.picks || (id === "pattern" || editCommand(id)?.sketch || editCommand(id)?.sketches ? "all" : null);
     if (picks) {
       changeSelectMode(picks);
       if (!isAssemblyView) loadInspectionTopology();
@@ -3336,10 +3336,12 @@ function StepSurfaceBody({ view, data }) {
   // The sketches drawn on the model while none is edited: those nothing uses yet, the one selected
   // in the tree, and the one an extrude or a revolve previews (a reopened feature's own).
   const previewedSketch = edit.preview?.file ? edit.preview : null;
+  const previewedSketches = edit.preview?.mark === "picked" ? edit.preview.sketches : null;
   const shownSketches = useMemo(() => (edit.sketch ? EMPTY_LIST : (edit.state?.sketches || EMPTY_LIST).filter(view => view.state
     && (view.consumed === null || (selectedTreeSketch && view.file === selectedTreeSketch.file && view.line === selectedTreeSketch.line)
-      || (previewedSketch && view.file === previewedSketch.file && view.line === previewedSketch.line)))),
-  [edit.sketch, edit.state?.sketches, selectedTreeSketch, previewedSketch]);
+      || (previewedSketch && view.file === previewedSketch.file && view.line === previewedSketch.line)
+      || (previewedSketches || []).some(each => view.file === each.file && view.line === each.line)))),
+  [edit.sketch, edit.state?.sketches, selectedTreeSketch, previewedSketch, previewedSketches]);
   // Open Part, on a part of an assembly: its own model shown in this view, to be modeled there (an
   // assembly places its parts; commands act on a part). A host that shows one file alone has none.
   const openFile = host?.navigation?.openFile;
@@ -3534,7 +3536,10 @@ function StepSurfaceBody({ view, data }) {
   // A sketch is picked on the model as in the design tree, with Select in hand and nothing else
   // asking for a pick: the sketch an extrude takes (inside its outline too, while it waits for
   // one), or one to work on next. The part's extent is how far Through All goes in a preview.
-  const sketchFeature = Boolean(edit.command && editCommand(edit.command)?.sketch);
+  const sketchFeature = Boolean(edit.command && (editCommand(edit.command)?.sketch || editCommand(edit.command)?.sketches));
+  // A sweep's or a loft's sketches, picked one after another: each shaded as picked, and a closed
+  // one picked by a click inside it as the first one is.
+  const takesSketches = Boolean(edit.command && editCommand(edit.command)?.sketches);
   const sketchesPickable = editing && selectionToolActive && !edit.sketch && !edit.picking && !edit.editing && (!edit.command || sketchFeature);
   const selectEdit = edit.select;
   const pickSketch = useCallback(view => {
@@ -3651,8 +3656,8 @@ function StepSurfaceBody({ view, data }) {
           choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
           onChoose={edit.choose} onDismissChoice={edit.dismissChoice} /> : null}
         {editing && edit.sketch ? <SketchOverlay viewport={viewport} edit={edit} units={edit.state?.units || ""} /> : null}
-        {editing && shownSketches.length ? <SketchesLayer viewport={viewport} sketches={shownSketches} selected={selectedTreeSketch}
-          onPick={sketchesPickable ? pickSketch : null} profiles={sketchFeature && !selectedTreeSketch} preview={edit.preview}
+        {editing && shownSketches.length ? <SketchesLayer viewport={viewport} sketches={shownSketches} selected={previewedSketches || selectedTreeSketch}
+          onPick={sketchesPickable ? pickSketch : null} profiles={sketchFeature && (!selectedTreeSketch || takesSketches)} preview={edit.preview}
           onEdit={sketchesPickable && !edit.command ? view => openTreeSketch({ file: view.file, line: view.line, title: view.name }) : null}
           through={partExtent} /> : null}
         {editing && edit.command && (edit.featurePreview || edit.preview?.mark === "pattern" || edit.preview?.mark === "hole")

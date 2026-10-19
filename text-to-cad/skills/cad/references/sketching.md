@@ -99,6 +99,17 @@ def plate():
 - `s.depth_to(target)` is how far a flat face parallel to the sketch, or a vertex, is from the
   sketch's plane along its normal (negative behind it): an extrude's depth Up To Surface or Up To
   Vertex, `extrude(s.face(), amount=s.depth_to(part.faces().sort_by(Axis.Z)[-1]))`.
+- `s.path()` is the sketch's curves joined end to end into one build123d `Wire`, open or closed:
+  what a sweep runs its profile along, `sweep(profile.face(), path=s.path(),
+  transition=Transition.RIGHT)` (mitred at a sharp corner). Curves that branch, or make more than
+  one chain, raise `SketchError`.
+- `s.thin(thickness, side="inside")` is the outline as a wall, as a Thin Feature makes one: faces to
+  extrude, inside a closed outline, `"outside"` it, or `"mid"` astride it; beside an open one's
+  curves, square at their ends. `extrude(s.thin(1.5), amount=20)`.
+- `s.rib(thickness, body, flip=False)` is a rib grown parallel to the sketch: its straight lines
+  thickened across its plane (half each side) and grown in the plane, square to each line, until
+  they meet `body`. `part += s.rib(2, part)`; `flip=True` grows it the other way, and a rib that
+  meets nothing raises `SketchError` saying to flip it.
 
 ## Editing
 

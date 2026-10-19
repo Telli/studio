@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  COMMAND_GROUPS,
+  EDIT_COMMANDS,
   barIndex,
   buildingText,
   clickOffsets,
@@ -450,4 +452,31 @@ test("an extrude's arrow dragged sets the depth it reaches, in the part's units 
   assert.equal(draggedDepth(25.4, "blind", "in").text, "1");
   // Dragged back past the sketch: the smallest depth the panel shows.
   assert.equal(draggedDepth(-4, "blind", "mm").text, "0.01");
+});
+
+test("a sweep takes its profile then its path, a loft its profiles in order, a rib one sketch and its thickness", () => {
+  const sketch = (title, line) => ({ title, file: "a.py", line, constrained: true });
+  const [one, two, three] = [sketch("Sketch1", 4), sketch("Sketch2", 7), sketch("Sketch3", 9)];
+  assert.deepEqual(commandRequest("sweep", {}, [], null, null, null, [one, two]), { command: "sweep", inputs: {},
+    sketches: [{ file: "a.py", line: 4, name: "Sketch1" }, { file: "a.py", line: 7, name: "Sketch2" }] });
+  assert.equal(commandBlocked("sweep", [], null, {}, null, [one]), "Select the path sketch.");
+  assert.equal(commandBlocked("loft_cut", [], null, {}, null, [one, two, three]), "");
+  assert.equal(commandBlocked("loft", [], null, {}, null, [{ ...one, constrained: false }, two]),
+    "Sketch1 is drawn with build123d's shapes, not as a sketch. Ask the agent to loft it.");
+  assert.equal(chooseLine(chooseSteps("sweep", { sketches: [one] })), "2 of 2: Select the path sketch");
+  assert.equal(chooseLine(chooseSteps("loft", {})), "1 of 2: Select the first profile sketch");
+  assert.deepEqual(commandRequest("rib", { thickness: "2", flip: true }, [], null, one), { command: "rib",
+    sketch: { file: "a.py", line: 4, name: "Sketch1" }, inputs: { thickness: "2", flip: true } });
+  assert.equal(commandBlocked("rib", [], null, commandDefaults("rib", "mm")), "Select a sketch of the rib's line.");
+  // The ribbon's groups, as SolidWorks' Features tab sets them out.
+  assert.deepEqual(COMMAND_GROUPS.map(group => EDIT_COMMANDS.filter(command => command.group === group).map(command => command.id)),
+    [["extrude", "revolve", "sweep", "loft"], ["cut", "revolve_cut", "sweep_cut", "loft_cut", "hole"], ["fillet", "chamfer", "rib", "shell", "pattern", "mirror"]]);
+});
+
+test("an extrude's Thin Feature sends its wall, inside the outline unless said otherwise, and is the server's to preview", () => {
+  const sketch = { title: "Sketch1", file: "a.py", line: 4, constrained: true };
+  const values = { ...commandDefaults("extrude", "mm"), thin: true, thin_thickness: "1.5" };
+  assert.deepEqual(commandRequest("extrude", values, [], null, sketch).inputs, { end: "blind", depth: "5", reverse: false, thin: true, thin_thickness: "1.5" });
+  assert.equal(commandRequest("extrude", { ...values, thin_side: "mid" }, [], null, sketch).inputs.thin_side, "mid");
+  assert.equal(extrudePreview("extrude", values, { sketch }).arrowOnly, true);
 });

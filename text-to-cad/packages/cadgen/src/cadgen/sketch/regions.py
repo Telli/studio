@@ -15,7 +15,7 @@ from collections import defaultdict
 from .fillets import fillet_arcs
 from .sketch import PLANE_NAMES, Arc, Circle, Line, Point, SketchError
 
-__all__ = ["faces", "loops", "plane_of"]
+__all__ = ["faces", "loops", "path", "plane_of"]
 
 ARC_SAMPLES = 24
 CIRCLE_SAMPLES = 64
@@ -106,15 +106,18 @@ def _rounded(curves, arcs):
     return out + made
 
 
-def loops(sketch) -> list[_Loop]:
-    """The sketch's closed loops. Raises SketchError where a profile is open or branches, or a
-    fillet does not fit its corner."""
+def _drawn(sketch) -> list:
+    """The sketch's curves a solid is made from: construction aside, each fillet's arc in its corner."""
     curves = [curve for curve in sketch.curves if not curve.construction]
     rounded = [arc for arc in fillet_arcs(sketch) if not arc.a.construction]
-    if rounded:
-        curves = _rounded(curves, rounded)
+    return _rounded(curves, rounded) if rounded else curves
+
+
+def _joints(sketch, curves):
+    """Which ends of the curves are one place (the same point, a coincident pair, or points
+    solved to one place): `root` gives each end the one point standing for its place, and
+    `meeting` the curves at each place, by that point's id. Circles have no ends."""
     scale = max([1.0, *(abs(c) for p in sketch.points for c in (p.x, p.y))])
-    # Points that are one: the same point, a coincident pair, or solved to one place.
     parent: dict[int, Point] = {}
 
     def root(point: Point) -> Point:
@@ -135,13 +138,20 @@ def loops(sketch) -> list[_Loop]:
         for b in ends[i + 1:]:
             if math.hypot(a.x - b.x, a.y - b.y) <= 1e-6 * scale:
                 join(a, b)
-
-    found = [_Loop([(curve, True)]) for curve in curves if isinstance(curve, Circle)]
     meeting: dict[int, list] = defaultdict(list)
     for curve in curves:
         if not isinstance(curve, Circle):
             meeting[id(root(curve.start))].append(curve)
             meeting[id(root(curve.end))].append(curve)
+    return root, meeting, ends
+
+
+def loops(sketch) -> list[_Loop]:
+    """The sketch's closed loops. Raises SketchError where a profile is open or branches, or a
+    fillet does not fit its corner."""
+    curves = _drawn(sketch)
+    root, meeting, ends = _joints(sketch, curves)
+    found = [_Loop([(curve, True)]) for curve in curves if isinstance(curve, Circle)]
     for key, joined in meeting.items():
         if len(joined) != 2:
             where = next(p for p in ends if id(root(p)) == key)
@@ -188,6 +198,65 @@ def _edges(loop: _Loop, plane, clockwise: bool, unit: float = 1.0):
         else:
             edges.append(B.Edge.make_line(at(a.x, a.y), at(b.x, b.y)))
     return edges
+
+
+def path(sketch):
+    """The sketch's curves, construction aside, joined end to end into one chain on its plane, as
+    a build123d Wire in millimetres: open, from one end to the other, or closed. What a sweep runs
+    its profile along, or a rib thickens. Raises SketchError where they branch, or make more than
+    one chain."""
+    import build123d as B
+
+    curves = _drawn(sketch)
+    if not curves:
+        raise SketchError(f"{sketch.name} has no curves to run along.")
+    plane = plane_of(sketch)
+    unit = sketch.unit
+    at = lambda x, y: plane.from_local_coords((x * unit, y * unit))  # noqa: E731
+    circles = [curve for curve in curves if isinstance(curve, Circle)]
+    if circles:
+        if len(curves) > 1:
+            raise SketchError(f"{sketch.name}: a path is one chain of curves, and a circle is a chain of its own.")
+        circle = circles[0]
+        return B.Wire([B.Edge.make_circle(circle.radius * unit, B.Plane(origin=at(circle.center.x, circle.center.y), x_dir=plane.x_dir,
+                                                                       z_dir=plane.z_dir))])
+    root, meeting, ends = _joints(sketch, curves)
+    for key, joined in meeting.items():
+        if len(joined) > 2:
+            where = next(p for p in ends if id(root(p)) == key)
+            raise SketchError(f"{sketch.name}: {len(joined)} curves meet at {where.name}; a path joins two at every point.")
+    open_ends = [key for key, joined in meeting.items() if len(joined) == 1]
+    if len(open_ends) not in (0, 2):
+        raise SketchError(f"{sketch.name} is more than one chain of curves: a path is one, end to end.")
+    # From one end (or anywhere round a closed one), each curve the way the chain runs.
+    first = next(curve for curve in curves if not open_ends or open_ends[0] in (id(root(curve.start)), id(root(curve.end))))
+    forward = not open_ends or id(root(first.start)) == open_ends[0]
+    parts, used = [(first, forward)], {id(first)}
+    place = root(first.end) if forward else root(first.start)
+    while True:
+        following = [curve for curve in meeting[id(place)] if id(curve) not in used]
+        if not following:
+            break
+        curve = following[0]
+        used.add(id(curve))
+        forward = root(curve.start) is place
+        parts.append((curve, forward))
+        place = root(curve.end) if forward else root(curve.start)
+    if len(used) != len(curves):
+        raise SketchError(f"{sketch.name} is more than one chain of curves: a path is one, end to end.")
+    edges = []
+    for curve, forward in parts:
+        a, b = (curve.start, curve.end) if forward else (curve.end, curve.start)
+        if isinstance(curve, Arc):
+            a0, sweep = _arc_angles(curve)
+            middle = a0 + sweep / 2
+            mid = (curve.center.x + curve.radius * math.cos(middle), curve.center.y + curve.radius * math.sin(middle))
+            edges.append(B.Edge.make_three_point_arc(at(a.x, a.y), at(*mid), at(b.x, b.y)))
+        else:
+            edges.append(B.Edge.make_line(at(a.x, a.y), at(b.x, b.y)))
+    made = B.Wire(edges)
+    made._cadgen_sketch = sketch
+    return made
 
 
 def faces(sketch) -> list:

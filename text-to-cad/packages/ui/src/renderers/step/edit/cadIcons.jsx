@@ -114,6 +114,52 @@ export const ShellIcon = ({ className }) => <Icon className={className}>
   <path d="M6 10 11 12.5 16 10" style={{ ...ACCENT, strokeWidth: 1.2 }} />
 </Icon>;
 
+// A tube's body along a path: its edge, then its fill, as thick strokes.
+const TUBE_EDGE = Object.freeze({ fill: "none", stroke: "var(--cad-solid-edge)", strokeWidth: 6.6 });
+const TUBE = Object.freeze({ fill: "none", stroke: "var(--cad-solid)", strokeWidth: 5 });
+const SWEEP_PATH = "M5 21.5C5 12 9 7 19.5 7";
+
+/** A round profile run along a curved path, the path dashed down its middle. */
+export const SweptBossIcon = ({ className }) => <Icon className={className}>
+  <path d={SWEEP_PATH} style={TUBE_EDGE} />
+  <path d={SWEEP_PATH} style={TUBE} />
+  <ellipse cx="19.5" cy="7" rx="1.3" ry="2.5" style={SOLID} />
+  <path d={SWEEP_PATH} style={{ ...SKETCH, strokeWidth: 1 }} strokeDasharray="1.6 1.4" />
+</Icon>;
+
+/** A block with a curved groove run along its top, the groove in red. */
+export const SweptCutIcon = ({ className }) => <Icon className={className}>
+  <Block />
+  <path d="M5.6 10.6C8 9.2 11 8 16 8.6" style={{ fill: "none", stroke: "var(--cad-cut)", strokeWidth: 2.4, strokeLinecap: "round" }} />
+  <path d="M5.6 10.6C8 9.2 11 8 16 8.6" style={{ ...SKETCH, strokeWidth: 0.9 }} strokeDasharray="1.4 1.2" />
+</Icon>;
+
+/** A small profile below a large one, joined into one solid. */
+export const LoftedBossIcon = ({ className }) => <Icon className={className}>
+  <path d="M8.4 19.2 4 7h16l-4.4 12.2z" style={SOLID} />
+  <path d="M12 19.2V7h8l-4.4 12.2z" style={SHADE} opacity={0.22} />
+  <ellipse cx="12" cy="7" rx="8" ry="2.6" style={SOLID} />
+  <ellipse cx="12" cy="19.2" rx="3.6" ry="1.2" style={{ ...SKETCH, strokeWidth: 1.1 }} />
+</Icon>;
+
+/** A block with a tapered pocket lofted down into it, the pocket in red. */
+export const LoftedCutIcon = ({ className }) => <Icon className={className}>
+  <Block />
+  <path d="M6.6 10 11 7.8l4.4 2.2L11 12.2z" style={CUT} />
+  <path d="M6.6 10 11 12.2l-.6 3.6-2.4-1.2z" style={CUT} opacity={0.65} />
+</Icon>;
+
+/** A channel with a thin rib standing across it, the rib in teal. */
+export const RibIcon = ({ className }) => <Icon className={className}>
+  <path d="M2 14 12 9l10 5-10 5z" style={SOLID} />
+  <path d="M2 14v2.4l10 5V19z" style={SOLID} />
+  <path d="M2 14v2.4l10 5V19z" style={SHADE} opacity={0.16} />
+  <path d="M12 19v2.4l10-5V14z" style={SOLID} />
+  <path d="M12 19v2.4l10-5V14z" style={SHADE} opacity={0.3} />
+  <path d="M5 12.5V6.5l4-2v6M15 7.5v6l4-2v-6" style={{ ...SOLID, fill: "none" }} />
+  <path d="m9.4 14.6 4-2v-6l-4 2z" style={{ fill: "var(--cad-accent)", stroke: "var(--cad-solid-edge)", strokeWidth: 0.8, strokeLinejoin: "round" }} />
+</Icon>;
+
 /** A sketch on its plane, and the pencil drawing it. */
 export const SketchIcon = ({ className }) => <Icon className={className}>
   <path d="M2 19 6 9h15l-4 10z" style={{ fill: "var(--cad-sketch)", stroke: "none" }} opacity={0.12} />
@@ -131,5 +177,6 @@ export const ExitSketchIcon = ({ className }) => <Icon className={className}>
 /** Each command's mark, in the ribbon and on its panel. */
 export const COMMAND_ICONS = Object.freeze({
   extrude: ExtrudedBossIcon, cut: ExtrudedCutIcon, revolve: RevolvedBossIcon, revolve_cut: RevolvedCutIcon,
+  sweep: SweptBossIcon, sweep_cut: SweptCutIcon, loft: LoftedBossIcon, loft_cut: LoftedCutIcon, rib: RibIcon,
   hole: HoleIcon, pattern: PatternIcon, mirror: MirrorIcon, fillet: FilletIcon, chamfer: ChamferIcon, shell: ShellIcon,
 });

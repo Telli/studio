@@ -14,7 +14,7 @@ import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { COMMAND_ICONS, ExitSketchIcon, SketchIcon } from "./cadIcons.jsx";
-import { EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
+import { COMMAND_GROUPS, EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_TOOLS } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
 
@@ -160,8 +160,8 @@ function RibbonGroups({ groups }) {
 /**
  * Edit mode's ribbon, across the top of the viewer as a CAD tool's command bar: the edit's own
  * commands (Undo and Redo of the hand changes), Sketch (a new sketch, or Edit Sketch on the one
- * selected), the modeling commands (Create: Extruded and Revolved Boss/Base and Cut, Hole,
- * Pattern, Mirror; Modify: Fillet, Chamfer, Shell), each opening its panel at the viewer's left,
+ * selected), the modeling commands (Boss/Base: Extruded, Revolved, Swept and Lofted; Cut: the same
+ * four and Hole; Modify: Fillet, Chamfer, Rib, Shell, Pattern, Mirror), each opening its panel,
  * and the viewer's tools, which the strip over the model would otherwise hold, grouped as a CAD
  * tool groups them and named under their icons. While a sketch is edited it holds the sketch's
  * tools instead, as SolidWorks switches to its Sketch tab: Exit Sketch and Smart Dimension, the
@@ -253,7 +253,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
             : edit.setConstruction(!edit.construction)) },
         { id: "normal", label: "Normal To", icon: <span className={SKETCH_TINT}><NormalToIcon /></span>, onClick: edit.lookNormalTo },
       ] },
-      { title: "Features", items: EDIT_COMMANDS.filter(command => command.sketch).map(command => ({
+      { title: "Features", items: EDIT_COMMANDS.filter(command => command.sketch || command.sketches).map(command => ({
         id: command.id, label: command.label, icon: commandIcon(command.id), disabled: edit.saving || !sketch.state,
         onClick: async () => { const reply = await edit.exitSketch(); if (reply?.ok) onCommand(command.id); } })) },
     ], <>
@@ -271,7 +271,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     edits,
     { title: "Sketch", items: [{ id: "sketch", label: sketchLabel, icon: <SketchIcon />, active: edit.picking, disabled: modelingOff,
       description: placingWords, onClick: () => (edit.picking ? edit.stopPicking() : onSketch()) }] },
-    ...["Create", "Modify"].map(title => ({ title, items: EDIT_COMMANDS.filter(command => command.group === title).map(commandItem) })),
+    ...COMMAND_GROUPS.map(title => ({ title, items: EDIT_COMMANDS.filter(command => command.group === title).map(commandItem) })),
     ...GROUPS.map(group => ({ title: group.title, items: group.tools.map(id => byId.get(id)).filter(Boolean).map(toolItem) })),
     { title: "Tools", items: others.map(toolItem) },
   ].filter(group => group.items.length), <>

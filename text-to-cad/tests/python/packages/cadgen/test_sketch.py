@@ -144,6 +144,52 @@ class Faces(unittest.TestCase):
         self.assertAlmostEqual(s.face().area, 200, places=6)
 
 
+class Paths(unittest.TestCase):
+    """A sketch as what a sweep runs along, a thin feature's wall and a rib."""
+
+    def test_a_path_joins_its_curves_end_to_end_and_a_sweep_runs_a_profile_along_it(self):
+        path = Sketch("Path1", plane="Front")
+        up = path.line((0, 0), (0, 20))
+        across = path.line((0, 20), (15, 20))
+        path.coincident(up.end, across.start)
+        wire = path.path()
+        self.assertEqual((len(wire.edges()), wire.is_closed), (2, False))
+        self.assertAlmostEqual(wire.length, 35.0, places=6)
+        profile = Sketch("Profile1", plane="Top")
+        profile.circle((0, 0), 2)
+        # Mitred at its corner, as a CAD tool sweeps round one.
+        self.assertAlmostEqual(B.sweep(profile.face(), path=wire, transition=B.Transition.RIGHT).volume, math.pi * 4 * 35, delta=1e-3)
+        # Three curves at one point is not one chain.
+        path.line((0, 20), (-10, 20))
+        with self.assertRaisesRegex(SketchError, "meet at"):
+            path.path()
+
+    def test_a_thin_wall_goes_inside_outside_or_astride_an_outline_and_beside_an_open_line(self):
+        box = Sketch("Box", plane="Top")
+        box.rectangle((0, 0), (20, 10))
+        areas = {side: sum(face.area for face in box.thin(1, side=side)) for side in ("inside", "outside", "mid")}
+        self.assertAlmostEqual(areas["inside"], 20 * 10 - 18 * 8, places=6)
+        self.assertAlmostEqual(areas["outside"], 22 * 12 - 20 * 10, places=6)
+        self.assertAlmostEqual(areas["mid"], 21 * 11 - 19 * 9, places=6)
+        line = Sketch("Wall", plane="Top")
+        line.line((0, 0), (10, 0))
+        # Astride an open line, square at its ends.
+        self.assertAlmostEqual(sum(face.area for face in line.thin(2, side="mid")), 20.0, places=6)
+        with self.assertRaisesRegex(SketchError, "thickness"):
+            box.thin(0)
+
+    def test_a_rib_grows_from_its_line_until_it_meets_the_body_the_way_it_is_turned(self):
+        # A channel: a floor 5 thick between two walls; a rib's line across its top, 8 up.
+        channel = B.Box(40, 20, 20) - B.Pos(0, 0, 5) * B.Box(30, 30, 20)
+        rib = Sketch("Rib1", plane="Front")
+        rib.line((-15, 8), (15, 8))
+        grown = rib.rib(2, channel, flip=True)
+        self.assertAlmostEqual(grown.volume, 30 * 2 * 13, places=3)
+        self.assertAlmostEqual(grown.bounding_box().min.Z, -5, places=6)
+        with self.assertRaisesRegex(SketchError, "Flip it"):
+            rib.rib(2, channel)
+
+
 class State(unittest.TestCase):
     def test_an_editor_reads_the_sketch_as_solved_with_where_each_line_of_it_is(self):
         s, *_ = plate()

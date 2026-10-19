@@ -248,7 +248,8 @@ function drawRevolvePreview(context, view, shape, cad, at, font) {
  * the extrude the other way (`preview.onReverse`).
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
- *   sketches: { file: string, line: number, name: string, state: object | null }[], selected?: { file: string, line: number } | null,
+ *   sketches: { file: string, line: number, name: string, state: object | null }[],
+ *   selected?: { file: string, line: number } | { file: string, line: number }[] | null,
  *   onPick?: ((view: object) => void) | null, onEdit?: ((view: object) => void) | null, profiles?: boolean,
  *   preview?: object | null, through?: number }} props
  */
@@ -304,7 +305,8 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       shown.forEach((view, index) => {
         const mapping = mappings[index];
         if (!mapping) return;
-        const picked = Boolean(chosen && chosen.file === view.file && chosen.line === view.line);
+        // The sketch selected, or each a sweep or a loft has picked.
+        const picked = (Array.isArray(chosen) ? chosen : chosen ? [chosen] : []).some(each => each.file === view.file && each.line === view.line);
         const hovered = !picked && hover.current === index;
         if (picked) fillLoops(context, drawn[index].loops, cad.picked, PICKED_FILL_ALPHA);
         // What an extrude or a revolve of it would make: the sketch picked for a new one, or a

@@ -695,13 +695,16 @@ def splice(text: str, changes: list[dict]) -> str:
 # ---------------------------------------------------------------------------------------------
 # The commands.
 
-COMMANDS = ("fillet", "chamfer", "hole", "shell", "mirror", "pattern", "extrude", "cut", "revolve", "revolve_cut")
+COMMANDS = ("fillet", "chamfer", "hole", "shell", "mirror", "pattern", "extrude", "cut", "revolve", "revolve_cut", "sweep", "sweep_cut",
+            "loft", "loft_cut", "rib")
 FEATURE_WORDS = {"fillet": "Fillet", "chamfer": "Chamfer", "hole": "Hole", "shell": "Shell", "mirror": "Mirror", "pattern": "Pattern",
-                 "extrude": "Boss-Extrude", "cut": "Cut-Extrude", "revolve": "Boss-Revolve", "revolve_cut": "Cut-Revolve"}
+                 "extrude": "Boss-Extrude", "cut": "Cut-Extrude", "revolve": "Boss-Revolve", "revolve_cut": "Cut-Revolve",
+                 "sweep": "Boss-Sweep", "sweep_cut": "Cut-Sweep", "loft": "Boss-Loft", "loft_cut": "Cut-Loft", "rib": "Rib"}
 # The operation each command's line records in the tracer.
 RECORDS = {"fillet": ("fillet",), "chamfer": ("chamfer",), "hole": ("cut",), "shell": ("offset",),
            "mirror": ("mirror",), "pattern": ("GridLocations", "PolarLocations"), "extrude": ("extrude",), "cut": ("extrude",),
-           "revolve": ("revolve",), "revolve_cut": ("revolve",)}
+           "revolve": ("revolve",), "revolve_cut": ("revolve",), "sweep": ("sweep",), "sweep_cut": ("sweep",), "loft": ("loft",),
+           "loft_cut": ("loft",), "rib": ("rib",)}
 
 
 @dataclass
@@ -840,6 +843,32 @@ def _feature_line(body: Body, replacing: dict, command: str, units: str, steps: 
     if feature.command != command:
         raise CommandError(f"That feature is a {FEATURE_WORDS[feature.command]}, not a {FEATURE_WORDS[command]}.")
     return statement, feature
+
+
+def _sketch_block(drawn: dict, body: Body, bar: int | None, replacing, verb: str):
+    """Where the script makes a sketch a command is made from (``drawn``: its file, line and
+    name): in the function that makes the part's body, and above the rollback bar."""
+    from cadgen.edit import sketching
+
+    if str(drawn.get("file") or "") != body.rel:
+        raise CommandError("Pick a sketch of this part's body in the design tree.")
+    try:
+        block = sketching.find_block(body.text, int(drawn.get("line") or 0), str(body.path))
+    except (sketching.SketchEditError, ValueError) as error:
+        raise CommandError(str(error)) from None
+    if block.function is None or block.function.lineno != body.function.lineno:
+        raise CommandError(f"That sketch is made outside the function that makes this part's body. Ask the agent to {verb} it.")
+    if bar is not None and not replacing and block.last_line >= bar:
+        raise CommandError(f"{drawn.get('name') or 'That sketch'} is below the rollback bar. Move the bar below it first.")
+    return block
+
+
+def _one_region(drawn: dict, block, what: str) -> str:
+    """A sketch's one closed region as code (``sketch3.face()``), for a profile that is one."""
+    regions = int(drawn.get("regions") or 1)
+    if regions != 1:
+        raise CommandError(f"{drawn.get('name') or 'That sketch'} has {regions} separate regions; {what} takes one.")
+    return f"{block.var}.face()"
 
 
 def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, literals: dict, root: Path, parse,
@@ -1054,19 +1083,8 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         # A sketch turned about one of its lines, as Revolved Boss/Base and Revolved Cut turn one:
         # `sketch.axis(line)` is that line in the part; the angle runs from the sketch, the other
         # way when reversed. Its line goes after the sketch's lines and the body's.
-        from cadgen.edit import sketching
-
         drawn = spec.get("sketch") or {}
-        if str(drawn.get("file") or "") != body.rel:
-            raise CommandError("Pick a sketch of this part's body in the design tree.")
-        try:
-            block = sketching.find_block(body.text, int(drawn.get("line") or 0), str(body.path))
-        except (sketching.SketchEditError, ValueError) as error:
-            raise CommandError(str(error)) from None
-        if block.function is None or block.function.lineno != body.function.lineno:
-            raise CommandError("That sketch is made outside the function that makes this part's body. Ask the agent to revolve it.")
-        if bar is not None and not replacing and block.last_line >= bar:
-            raise CommandError(f"{drawn.get('name') or 'That sketch'} is below the rollback bar. Move the bar below it first.")
+        block = _sketch_block(drawn, body, bar, replacing, "revolve")
         axis = str(drawn.get("axis_code") or "")
         if not axis:
             raise CommandError("Pick the line to revolve about: a centerline of the sketch.")
@@ -1085,19 +1103,8 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         # A sketch made a solid of, as Extruded Boss/Base and Extruded Cut make one: from its
         # face, along its plane's normal (Reverse direction the other way), joined to the body or
         # cut from it. Its line goes after the sketch's lines and the body's.
-        from cadgen.edit import sketching
-
         drawn = spec.get("sketch") or {}
-        if str(drawn.get("file") or "") != body.rel:
-            raise CommandError("Pick a sketch of this part's body in the design tree.")
-        try:
-            block = sketching.find_block(body.text, int(drawn.get("line") or 0), str(body.path))
-        except (sketching.SketchEditError, ValueError) as error:
-            raise CommandError(str(error)) from None
-        if block.function is None or block.function.lineno != body.function.lineno:
-            raise CommandError("That sketch is made outside the function that makes this part's body. Ask the agent to extrude it.")
-        if bar is not None and not replacing and block.last_line >= bar:
-            raise CommandError(f"{drawn.get('name') or 'That sketch'} is below the rollback bar. Move the bar below it first.")
+        block = _sketch_block(drawn, body, bar, replacing, "extrude")
         end = str(inputs.get("end") or "blind").lower()
         through = command == "cut" and end == "through"
         # Up To Next: as far as the next face of the body along the sketch's normal (build123d's
@@ -1109,7 +1116,20 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         depth = None if through or up_to_next or up_to else _value(inputs, "depth", "Depth", parse)
         # Mid Plane: half the depth each way (build123d's `both`), so Reverse does not apply.
         both = ", both=True" if end == "mid" else ""
-        profile = kept.parts["profile"] if kept else f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
+        # Thin Feature, as SolidWorks' is: the outline as a wall of a thickness (inside it, outside
+        # it, or astride it), made a solid of as the face would be.
+        thin = inputs.get("thin") in (True, "true", "1", 1)
+        if thin:
+            wall = _value(inputs, "thin_thickness", "Thickness", parse)
+            side = str(inputs.get("thin_side") or "inside").lower()
+            if side not in ("inside", "outside", "mid"):
+                raise CommandError("A thin feature's wall is inside, outside or astride the outline.")
+            placed = "" if side == "inside" else f', side="{side}"'
+            profile = f"{block.var}.thin({same('thin_thickness', wall, writer.length(wall))}{placed})"
+        elif kept and not kept.values.get("thin"):
+            profile = kept.parts["profile"]
+        else:
+            profile = f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
         sign = "+=" if command == "extrude" else "-="
         # Draft, as SolidWorks' Draft On/Off: the sides lean in by the angle (build123d's `taper`),
         # out with Draft outward. Not with Up To Next, whose length is the body's to say.
@@ -1143,6 +1163,58 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                                                               else ", mid plane" if end == "mid" else "")
         if drafted:
             what += f", drafted {'out' if outward else 'in'} {_number(angle, False)} degrees"
+        if thin:
+            shown.append(("Thickness", wall, units_word))
+            what += {"inside": ", a wall inside it", "outside": ", a wall outside it", "mid": ", a wall astride it"}[side]
+    elif command in ("sweep", "sweep_cut"):
+        # A profile run along a path, as Swept Boss/Base and Swept Cut run one: the profile
+        # sketch's region along the path sketch's curves, mitred at a corner (build123d's
+        # `transition`), joined to the body or cut from it.
+        drawn = [each for each in spec.get("sketches") or [] if isinstance(each, dict)]
+        if kept:
+            profile, along, words = kept.parts["profile"], kept.parts["path"], kept.keeps
+            blocks = []
+        else:
+            if len(drawn) != 2:
+                raise CommandError("Pick the profile sketch, then the path sketch.")
+            blocks = [_sketch_block(each, body, bar, replacing, "sweep") for each in drawn]
+            profile = _one_region(drawn[0], blocks[0], "a sweep's profile")
+            along = f"{blocks[1].var}.path()"
+            words = f"{drawn[0].get('name') or 'the profile'} along {drawn[1].get('name') or 'the path'}"
+        sign = "+=" if command == "sweep" else "-="
+        code = f"{var} {sign} {names('sweep')}({profile}, path={along}, transition={names('Transition')}.RIGHT)"
+        at = max([at, *(block.last_line for block in blocks)])
+        shown = []
+        what = words
+    elif command in ("loft", "loft_cut"):
+        # Profiles joined into a solid, as Lofted Boss/Base and Lofted Cut join them: each
+        # sketch's region in the order picked.
+        drawn = [each for each in spec.get("sketches") or [] if isinstance(each, dict)]
+        if kept:
+            sections, words, blocks = kept.parts["sections"], kept.keeps, []
+        else:
+            if len(drawn) < 2:
+                raise CommandError("Pick two or more profile sketches, in the order the loft goes through them.")
+            blocks = [_sketch_block(each, body, bar, replacing, "loft") for each in drawn]
+            sections = "[" + ", ".join(_one_region(each, block, "each of a loft's profiles") for each, block in zip(drawn, blocks)) + "]"
+            words = "through " + ", ".join(each.get("name") or "a sketch" for each in drawn)
+        sign = "+=" if command == "loft" else "-="
+        code = f"{var} {sign} {names('loft')}({sections})"
+        at = max([at, *(block.last_line for block in blocks)])
+        shown = []
+        what = words
+    elif command == "rib":
+        # A rib, as SolidWorks' Rib makes one parallel to its sketch: the sketch's lines
+        # thickened across its plane and grown in it until they meet the body (`sketch.rib`),
+        # the other way with Flip material side.
+        drawn = spec.get("sketch") or {}
+        block = _sketch_block(drawn, body, bar, replacing, "rib")
+        wall = _value(inputs, "thickness", "Thickness", parse)
+        flip = ", flip=True" if inputs.get("flip") in (True, "true", "1", 1) else ""
+        code = f"{var} += {block.var}.rib({same('thickness', wall, writer.length(wall))}, {var}{flip})"
+        at = max(at, block.last_line)
+        shown = [("Thickness", wall, units_word)]
+        what = f"from {drawn.get('name') or 'the sketch'}"
     else:  # pattern
         kind = str(inputs.get("type") or "linear").lower()
         count = _value(inputs, "count", "Instances", parse, integer=True, minimum=2)
@@ -1359,9 +1431,10 @@ def _through_all(node) -> bool:
     return isinstance(node, ast.Attribute) and node.attr == "diagonal" and _call_name(node.value) == "bounding_box"
 
 
-def _sketch_of(profile) -> str | None:
-    """The sketch a profile is taken from, by its name: ``sketch2`` of ``sketch2.face()``."""
-    if (isinstance(profile, ast.Call) and isinstance(profile.func, ast.Attribute) and profile.func.attr in ("face", "faces")
+def _sketch_of(profile, made=("face", "faces", "thin")) -> str | None:
+    """The sketch a profile is taken from, by its name: ``sketch2`` of ``sketch2.face()`` (or of
+    its thin wall, ``sketch2.thin(...)``; of its path, ``sketch2.path()``, with ``made``)."""
+    if (isinstance(profile, ast.Call) and isinstance(profile.func, ast.Attribute) and profile.func.attr in made
             and isinstance(profile.func.value, ast.Name)):
         return profile.func.value.id
     return None
@@ -1486,6 +1559,24 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         else:
             return None
         return Feature("pattern", values, "Whole body" if tool == target else tool, {"tool": tool}, target, operator, codes)
+    if operator in ("+=", "-=") and name == "sweep" and value.args:
+        along = _keyword_value(value, "path")
+        sketch, path = _sketch_of(value.args[0], ("face",)), _sketch_of(along, ("path",))
+        if sketch and path:
+            return Feature("sweep" if operator == "+=" else "sweep_cut", {}, f"{sketch} along {path}",
+                           {"profile": code(value.args[0]), "path": code(along), "sketch": sketch, "sketches": [sketch, path]},
+                           target, operator, codes)
+    if operator in ("+=", "-=") and name == "loft" and value.args and isinstance(value.args[0], ast.List):
+        named = [_sketch_of(each, ("face",)) for each in value.args[0].elts]
+        if len(named) >= 2 and all(named):
+            return Feature("loft" if operator == "+=" else "loft_cut", {}, "through " + ", ".join(named),
+                           {"sections": code(value.args[0]), "sketch": named[0], "sketches": named}, target, operator, codes)
+    if operator == "+=" and name == "rib" and value.args and isinstance(value.func, ast.Attribute) and isinstance(value.func.value, ast.Name):
+        wall = number(("rib", "thickness"))
+        held("thickness", value.args[0], typed(wall))
+        flip = _keyword_value(value, "flip")
+        return Feature("rib", {"thickness": size(wall), "flip": isinstance(flip, ast.Constant) and flip.value is True},
+                       value.func.value.id, {"sketch": value.func.value.id}, target, operator, codes)
     if operator in ("+=", "-=") and name in ("extrude", "revolve") and value.args and _sketch_of(value.args[0]):
         profile, sketch = value.args[0], _sketch_of(value.args[0])
         if name == "extrude":
@@ -1512,6 +1603,13 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                 values.update(draft=True, draft_angle=_number(abs(drafted), False), outward=outward)
                 shown = taper.operand if outward and isinstance(taper, ast.UnaryOp) and isinstance(taper.op, ast.USub) else taper
                 held("taper", shown, abs(drafted), _tight(shown, text))
+            # Thin Feature: the profile is the sketch's wall, `sketch2.thin(<thickness>, side=...)`.
+            if _call_name(profile) == "thin" and profile.args:
+                wall = number(("thin", "thickness"))
+                side = _keyword_value(profile, "side")
+                values.update(thin=True, thin_thickness=size(wall),
+                              thin_side=side.value if isinstance(side, ast.Constant) and side.value in ("outside", "mid") else "inside")
+                held("thin_thickness", profile.args[0], typed(wall))
             parts = {"profile": code(profile), "sketch": sketch, **({"target": code(ending)} if up_to else {})}
             return Feature("extrude" if operator == "+=" else "cut", values, sketch, parts, target, operator, codes)
         axis = _keyword_value(value, "axis")

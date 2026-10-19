@@ -639,6 +639,25 @@ def _watch_sketch(sketch, frame):
 
 _sketch_api.WATCHERS.append(_watch_sketch)
 
+
+def _wrap_sketch(name, label):
+    """A sketch's own operation that makes geometry of it (a rib, a thin feature's wall),
+    recorded as build123d's are when the project's code calls it."""
+    original = getattr(_sketch_api.Sketch, name)
+
+    @functools.wraps(original)
+    def wrapper(self, *args, **kwargs):
+        result = original(self, *args, **kwargs)
+        if RECORDING and _called_from_project():
+            _record(name, label, original, (self, *args), kwargs, result)
+        return result
+
+    setattr(_sketch_api.Sketch, name, wrapper)
+
+
+for _name, _label in (("rib", "Rib"), ("thin", "Thin")):
+    _wrap_sketch(_name, _label)
+
 # ---------------------------------------------------------------------------------------------
 # Formulas, units and numbers as an engineer writes them.
 
@@ -1015,6 +1034,8 @@ def _row_kind(steps, code=""):
         return "Mirror"
     if any(step["op"] == "offset" and dict(step["args"]).get("openings") is not None for step in steps):
         return "Shell"
+    if "rib" in ops:
+        return "Rib"
     # A cut by a cylinder alone is a hole.
     if "cut" in ops and "Cylinder" in ops and not {"extrude", "revolve", "Box", "sweep", "loft"} & set(ops):
         return "Hole"
@@ -1084,7 +1105,7 @@ def _row_summary(row, units):
     # A constrained sketch's dimensions are the feature's inputs too, named as a CAD tool names
     # them (D1@Sketch1), so the sizes that drive the sketch are changed where the feature is.
     for step in row["steps"]:
-        drawn = getattr(step["args"][0][1], "_cadgen_sketch", None) if step["op"] in ("extrude", "revolve") and step["args"] else None
+        drawn = _profile_sketch(step)
         for relation in getattr(drawn, "relations", []):
             if not relation.dimension or not isinstance(relation.raw, (TFloat, TInt)):
                 continue
@@ -1118,7 +1139,7 @@ SKETCH_DIMENSION_INPUTS = {"length": "length", "distance": "length", "horizontal
                            "vertical_distance": "length", "radius": "radius", "diameter": "diameter", "angle": "angle"}
 # A primitive solid reads as an extrude of the sketch it implies.
 PRIMITIVE_SKETCHES = {"Box": ("Rectangle", "Rectangle"), "Cylinder": ("Circle", "Circle")}
-MAKES_SOLID = {"Extrude", "Revolve", "Box", "Cylinder"}
+MAKES_SOLID = {"Extrude", "Revolve", "Sweep", "Loft", "Box", "Cylinder"}
 
 
 def _plane_of(shape):
@@ -1132,18 +1153,43 @@ def _plane_of(shape):
     return name if weight > 0.999 else "Plane"
 
 
+# The operations a solid is made from a sketch by.
+SKETCH_MADE = ("extrude", "revolve", "sweep", "loft")
+
+
+def _profile_of(step):
+    """What a step makes its solid from: an extrude's, revolve's or sweep's profile, a loft's
+    first; None for any other step."""
+    if step["op"] not in SKETCH_MADE or not step["args"]:
+        return None
+    first = step["args"][0][1]
+    if isinstance(first, (list, tuple)):
+        first = first[0] if first else None
+    return first
+
+
+def _profile_sketch(step):
+    """The constrained sketch (`cadgen.sketch`) a step makes its solid from: its profile's, or a
+    rib's own. None for one made from no such sketch."""
+    if step["op"] == "rib":
+        return getattr(step.get("result"), "_cadgen_sketch", None)
+    return getattr(_profile_of(step), "_cadgen_sketch", None)
+
+
 def _sketch_of(steps):
-    """The sketch a row makes its solid from: the profile its extrude or revolve takes, or the
-    rectangle or circle a box or cylinder implies, with the plane it lies on."""
+    """The sketch a row makes its solid from: the profile its extrude, revolve, sweep or loft
+    takes, a rib's sketch, or the rectangle or circle a box or cylinder implies, with the plane
+    it lies on."""
     for step in steps:
-        if step["op"] in ("extrude", "revolve") and step["args"]:
+        drawn = _profile_sketch(step)
+        if drawn is not None:
             # A face made from a constrained sketch (`cadgen.sketch`): that sketch, by its name.
-            drawn = getattr(step["args"][0][1], "_cadgen_sketch", None)
-            if drawn is not None:
-                plane = drawn.plane if isinstance(drawn.plane, str) else _plane_of(step["args"][0][1])
-                where = {"file": _relative(drawn.source[0]), "line": drawn.source[1]} if drawn.source else {}
-                return {"op": "Sketch", "label": "Sketch", "name": drawn.name, "step": None,
-                        "plane": SKETCH_PLANES.get(plane, plane), "status": _status_of(drawn), **where}
+            profile = _profile_of(step)
+            plane = drawn.plane if isinstance(drawn.plane, str) else _plane_of(profile) if profile is not None else "Plane"
+            where = {"file": _relative(drawn.source[0]), "line": drawn.source[1]} if drawn.source else {}
+            return {"op": "Sketch", "label": "Sketch", "name": drawn.name, "step": None,
+                    "plane": SKETCH_PLANES.get(plane, plane), "status": _status_of(drawn), **where}
+        if step["op"] in ("extrude", "revolve") and step["args"]:
             index = getattr(step["args"][0][1], "_studio_step", None)
             if index is not None and STEPS[index]["op"] in SKETCH_PROFILES:
                 profile = STEPS[index]
@@ -1193,10 +1239,9 @@ def _sketches(steps, rows):
     row_of = {index: row["key"] for row in rows for index in row["steps"]}
     consumed = {}
     for step in steps:
-        if step["op"] in ("extrude", "revolve") and step["args"]:
-            drawn = getattr(step["args"][0][1], "_cadgen_sketch", None)
-            if drawn is not None:
-                consumed.setdefault(id(drawn), row_of.get(step["index"]))
+        drawn = _profile_sketch(step)
+        if drawn is not None:
+            consumed.setdefault(id(drawn), row_of.get(step["index"]))
     found = []
     for (path, line), entry in SKETCHES.items():
         view = _sketch_view(entry["sketch"], path, line, entry["function"])
@@ -1329,11 +1374,23 @@ def _editable(features, rows, steps, sketches, units):
         if var:
             # The sketch is the last one made under that name before the feature's line.
             lines = text.splitlines()
-            view = max((each for each in sketches if each["file"] == rel and 0 < each["line"] < statement.lineno
-                        and lines[each["line"] - 1].strip().startswith(f"{var} = ")), key=lambda each: each["line"], default=None)
+
+            def named(name):
+                return max((each for each in sketches if each["file"] == rel and 0 < each["line"] < statement.lineno
+                            and lines[each["line"] - 1].strip().startswith(f"{name} = ")), key=lambda each: each["line"], default=None)
+
+            view = named(var)
             if view is None or view.get("state") is None:
                 continue
             edit["sketch"] = {"file": view["file"], "line": view["line"], "name": view["name"]}
+            # A sweep's profile and path, a loft's profiles: each, in order.
+            if read.parts.get("sketches"):
+                views = [named(each) for each in read.parts["sketches"]]
+                if any(each is None for each in views):
+                    continue
+                edit["sketches"] = [{"file": each["file"], "line": each["line"], "name": each["name"]} for each in views]
+                edit["keeps"] = (f"{views[0]['name']} along {views[1]['name']}" if read.command.startswith("sweep")
+                                 else "through " + ", ".join(each["name"] for each in views))
             if read.parts.get("axis"):
                 try:
                     names = sketching.Names(sketching.find_block(text, view["line"], str(ROOT / rel)), view["state"])
@@ -1378,12 +1435,14 @@ def _features(summaries, timeline):
                     target["folded"] = True
                 feature_of_row[summary["key"]] = targets[0]
                 continue
-        makes = {step["op"] for step in row["steps"]} & {"extrude", "revolve", "Box", "Cylinder"}
+        makes = {step["op"] for step in row["steps"]} & {"extrude", "revolve", "sweep", "loft", "Box", "Cylinder"}
         # A cut or join whose tool is made on the same line is that tool's feature: a Cut-Extrude.
         inline = kind in ("Cut", "Join", "Intersect") and booleans and makes and not flat
         solid = kind in MAKES_SOLID or bool(inline)
-        base = "Revolve" if kind == "Revolve" or "revolve" in makes else "Extrude"
-        sketch = _sketch_of(row["steps"]) if solid else None
+        base = next((name for op, name in (("revolve", "Revolve"), ("sweep", "Sweep"), ("loft", "Loft")) if kind == name or op in makes),
+                    "Extrude")
+        # A rib keeps its sketch under it, as a CAD tree shows one.
+        sketch = _sketch_of(row["steps"]) if solid or kind == "Rib" else None
         if solid and sketch is None:
             # A profile drawn over earlier lines (`bloom = Circle(...)`, `bloom += ...`): those
             # lines are this feature's sketch. They are the drawing lines just before it that
@@ -1775,26 +1834,39 @@ def _planned(request, spec):
     at the rollback bar unless it writes a feature again; or the words of why it cannot be."""
     from cadgen.edit import commands
 
-    state = STATE[str(Path(request["script"]).resolve())]
-    drawn = spec.get("sketch") if spec.get("command") in ("extrude", "cut", "revolve", "revolve_cut") else None
-    if isinstance(drawn, dict):
-        # How many regions the sketch makes: one is extruded as its face, more as its faces; and a
-        # revolve's axis, a line of the sketch, as the script names it (`line5`).
-        from cadgen.edit import sketching
+    from cadgen.edit import sketching
 
+    state = STATE[str(Path(request["script"]).resolve())]
+
+    def resolved(drawn):
+        # A sketch as the part makes it now, with how many regions it makes: one is made a solid
+        # of as its face, more as its faces, none (an open sketch) is a path, a rib's lines or a wall.
         path = (ROOT / str(drawn.get("file") or "")).resolve()
         entry = SKETCHES.get((str(path), int(drawn.get("line") or 0)))
         if entry is None:
-            return None, "That sketch is not made when the part runs. Pick it again in the design tree."
+            raise LookupError(drawn)
         try:
-            spec = {**spec, "sketch": {**drawn, "name": entry["sketch"].name, "regions": len(entry["sketch"].faces())}}
-            if spec["command"] in ("revolve", "revolve_cut") and drawn.get("axis"):
-                text = _read(path)
-                block = sketching.find_block(text, int(drawn["line"]), str(path))
+            regions = len(entry["sketch"].faces())
+        except _sketch_api.SketchError:
+            regions = 0
+        return path, entry, {**drawn, "name": entry["sketch"].name, "regions": regions}
+
+    command = spec.get("command")
+    try:
+        if command in ("extrude", "cut", "revolve", "revolve_cut", "rib") and isinstance(spec.get("sketch"), dict):
+            path, entry, drawn = resolved(spec["sketch"])
+            spec = {**spec, "sketch": drawn}
+            # A revolve's axis, a line of the sketch, as the script names it (`line5`).
+            if command in ("revolve", "revolve_cut") and drawn.get("axis"):
+                block = sketching.find_block(_read(path), int(drawn["line"]), str(path))
                 names = sketching.Names(block, _sketch_view(entry["sketch"], path, int(drawn["line"]), entry["function"])["state"])
                 spec["sketch"]["axis_code"] = names.curve(str(drawn["axis"]))
-        except (_sketch_api.SketchError, sketching.SketchEditError) as error:
-            return None, str(error)
+        if command in ("sweep", "sweep_cut", "loft", "loft_cut"):
+            spec = {**spec, "sketches": [resolved(each)[2] for each in spec.get("sketches") or [] if isinstance(each, dict)]}
+    except LookupError:
+        return None, "That sketch is not made when the part runs. Pick it again in the design tree."
+    except (_sketch_api.SketchError, sketching.SketchEditError) as error:
+        return None, str(error)
     bar = _bar_place(request.get("bar"))
     try:
         return commands.plan(spec, steps=state["steps"], shape=state["shape"], level=state["level"],
