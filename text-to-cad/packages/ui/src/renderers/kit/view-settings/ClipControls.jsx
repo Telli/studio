@@ -1,12 +1,13 @@
 import { normalizeStepClipSettings } from "@text-to-cad/core/lib/viewer/clipPlane.js";
-import { ClipFlipButton, CrossSectionControls } from "../tools/model-effects/ModelViewControls.js";
+import { CrossSectionControls } from "../tools/model-effects/ModelViewControls.js";
 
 export { clipSummary } from "../tools/model-effects/ModelViewControls.js";
 
 // The Clip panel's body, for a view whose Clip is a panel of the stack rather than a sub-toolbar
-// row (an FEA result's): the axis, the slider and Flip, each the sub-toolbar's own
-// (`tools/model-effects/ModelViewControls.js`). The view settings own the effect; what a cut does
-// to a scene is its renderer's.
+// row (an FEA result's): the axis, whose dropdown holds Reverse, then the slider, each the
+// sub-toolbar's own (`tools/model-effects/ModelViewControls.js`). A result's cut draws no caps, so
+// it offers no Part colors. The view settings own the effect; what a cut does to a scene is its
+// renderer's.
 
 /** The settings that leave no cut: what a fresh panel starts at and what its X puts back. */
 export const NEUTRAL_CLIP = Object.freeze({ enabled: false, axis: "x", invert: false });
@@ -17,15 +18,11 @@ export function clipApplied(viewSettings) {
 }
 
 /**
- * The Clip panel's body: its axis, then one slider, then Flip. `bounds` is the box it cuts through,
- * which the slider's share is measured on (disabled while it has no extent).
+ * The Clip panel's body: its axis (Reverse in its dropdown), then one slider. `bounds` is the box it
+ * cuts through, which the slider's share is measured on (disabled while it has no extent).
  */
 export function ClipControls({ viewSettings, onViewSettingsPatch, bounds }) {
-  return <div className="flex min-w-0 items-center gap-2 px-2 py-1">
-    <CrossSectionControls viewSettings={viewSettings} onViewSettingsPatch={onViewSettingsPatch} bounds={bounds}
-      className="flex min-w-0 flex-1 items-center gap-2" />
-    <ClipFlipButton viewSettings={viewSettings} onViewSettingsPatch={onViewSettingsPatch} bounds={bounds} />
-  </div>;
+  return <CrossSectionControls viewSettings={viewSettings} onViewSettingsPatch={onViewSettingsPatch} bounds={bounds} caps={false} />;
 }
 
 /** Clip's strip icon: a cut sphere. */

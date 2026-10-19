@@ -163,11 +163,14 @@ it('Clip cuts a result open: on the strip after Select, a neutral panel that an 
   // Study (the sidebar's) and the applied cut's panel (the stack's) are both up, with no trip through Select.
   const regions = screen.getAllByRole('region').map(region => region.getAttribute('aria-label'));
   expect(regions).toEqual(expect.arrayContaining(['Study', 'Clip controls']));
-  // Flip cuts the other side, as much of it: just short of all the way, the sliver past it is what stays.
+  // Reverse, in the axis's dropdown, cuts the other side, as much of it: just short of all the way, the sliver past it is
+  // what stays. A result's cut draws no caps, so the dropdown has no Part colors.
   act(() => { fireEvent.keyDown(screen.getByRole('slider', { name: 'Clip amount' }), { key: 'PageDown' }); });
   await waitFor(() => expect(drawnPlanes()[0]?.distanceToPoint(new Vector3(1, 0, 0))).toBeLessThan(0));
-  act(() => { fireEvent.click(screen.getByRole('button', { name: 'Flip clip' })); });
-  expect(screen.getByRole('button', { name: 'Flip clip' }).getAttribute('aria-pressed')).toBe('true');
+  act(() => { fireEvent.keyDown(screen.getByRole('button', { name: /^Clip axis:/ }), { key: 'Enter' }); });
+  expect(screen.queryByRole('menuitemcheckbox', { name: 'Part colors' })).toBeNull();
+  act(() => { fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'Reverse' })); });
+  expect(screen.getByRole('menuitemcheckbox', { name: 'Reverse' }).getAttribute('aria-checked')).toBe('true');
   await waitFor(() => expect(drawnPlanes()[0]?.distanceToPoint(new Vector3(1, 0, 0))).toBeGreaterThan(0));
   expect(drawnPlanes()[0].distanceToPoint(new Vector3(0, 0, 0))).toBeLessThan(0);
   // Its X removes the cut and the panel.

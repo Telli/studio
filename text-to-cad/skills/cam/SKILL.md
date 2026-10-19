@@ -104,8 +104,8 @@ user sees the toolpaths on the part.
 Run cadgen through [uv](https://docs.astral.sh/uv/). CAM needs no extra: every command below runs on
 a plain cadgen, sharing one installation with the `$cad` skill and the CAD app's server.
 
-- `cadgen` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.23 cadgen`
-- `python` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.23 python`
+- `cadgen` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.24 cadgen`
+- `python` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.24 python`
 
 Units are fixed: mm for every length, mm/min for feeds, m/min for surface speed, rpm, seconds and
 degrees. Restate the user's numbers in those units before you write them down. A machine set to
