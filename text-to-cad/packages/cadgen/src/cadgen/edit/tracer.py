@@ -3026,7 +3026,7 @@ def sketch_edit(request):
         elif kind == "convert":
             edges = _convert_edges(request, path, block, sketch, entry, op)
             text = _imported(sketch_tools.convert(text, line, state, {**op, "edges": edges[0]}, str(path)), edges[1])
-        elif kind in ("fillet", "chamfer", "offset", "mirror", "trim"):
+        elif kind in ("fillet", "chamfer", "offset", "mirror", "trim", "extend"):
             if kind in ("fillet", "chamfer", "offset"):
                 typed = str(op.get("radius" if kind == "fillet" else "distance") or "").strip()
                 _known(block, sketch, typed)
@@ -3041,7 +3041,7 @@ def sketch_edit(request):
         else:
             return {"ok": False, "error": f"Edit mode cannot make that sketch change ({kind or 'none'})."}
         block, sketch, entry = _sketch_run(request, path, text, line, prefer=prefer)
-        if kind in ("offset", "mirror", "trim"):
+        if kind in ("offset", "mirror", "trim", "extend"):
             text, block, sketch, entry = _prune(request, path, old, text, line, block, sketch, entry)
         try:
             sketch.fillet_arcs()

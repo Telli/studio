@@ -843,3 +843,65 @@ def trim(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") ->
         trim_.written.append(f"{var} = {s}.arc({trim_.code}.center, {start}, {end_code}{turn}{built})")
         trim_.later.append(f"{s}.equal({var}, {trim_.code})")
     return trim_.apply()
+
+
+# ---------------------------------------------------------------------------------------------
+# Extend Entities.
+
+
+def _ahead(shape: _Shape, start, end, item: dict) -> list:
+    """Where the line from ``start`` through ``end``, run on as far as it goes, meets a curve as it is drawn."""
+    if item["kind"] == "line":
+        met = _meet({"kind": "line", "p": start, "q": end}, {"kind": "line", "p": shape.at(item["start"]), "q": shape.at(item["end"])}, end)
+        found = [met] if met is not None else []
+    else:
+        round_ = _Round(shape, item)
+        found = _line_circle(start, end, round_.c, round_.r)
+    return [place for place in found if _on(shape, item, place) is not None]
+
+
+def extend(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") -> str:
+    """A line's end, the one nearer the click (``at``), run on to the first curve it meets past it,
+    as Extend Entities extends one, and kept on that curve. An end another curve shares stays: it
+    would pull that curve with it."""
+    block = find_block(text, line, path)
+    names = Names(block, state)
+    shape = _Shape(state)
+    name = str(op.get("curve") or "")
+    curve = shape.curve(name)
+    try:
+        click = (float(op["at"][0]), float(op["at"][1]))
+    except (KeyError, TypeError, ValueError, IndexError):
+        raise SketchEditError("Click a line near the end to extend.") from None
+    made = names.statement_of(name)
+    if curve["kind"] != "line" or made is None or made.method != "line" or not isinstance(made.statement, ast.Assign):
+        raise SketchEditError(f"Extend Entities runs a line on. {name} is not a line drawn on its own, so it is not extended.")
+    a, b = shape.at(curve["start"]), shape.at(curve["end"])
+    role, (end, start) = ("end", (b, a)) if math.dist(click, b) <= math.dist(click, a) else ("start", (a, b))
+    point = curve[role]
+    joined = [other for other, item in shape.curves.items() if other != name and point in (item.get("start"), item.get("end"), item.get("center"))]
+    if joined:
+        raise SketchEditError(f"{name}'s {role} is joined to {joined[0]}, so it is not extended. Trim or move it instead.")
+    way = _sub(end, start)
+    reach = _dot(way, way) or 1.0
+    nearest = None
+    for other, item in shape.curves.items():
+        if other == name:
+            continue
+        for place in _ahead(shape, start, end, item):
+            t = _dot(_sub(place, start), way) / reach
+            if t > 1 + shape.tolerance / math.sqrt(reach) and (nearest is None or t < nearest[0]):
+                nearest = (t, place, other)
+    if nearest is None:
+        raise SketchEditError(f"Nothing lies ahead of {name}'s {role} to extend it to.")
+    _, place, target = nearest
+    trim_ = _Trim(text, block, names, shape, state, name)
+    # What a longer line makes wrong: its length, a midpoint on it, a length equal to another's.
+    for at, _item in _invalidated(trim_, ("length", "midpoint", "equal")):
+        trim_.drop(at)
+    argument = _argument(trim_.call, "line", role)
+    shared = None if isinstance(argument, ast.Tuple) else _segment(text, argument)
+    trim_.rehome(role, point, None, shared)
+    ends = [each for each in (shape.curves[target].get("start"), shape.curves[target].get("end")) if each and shape.near(shape.at(each), place)]
+    trim_.edits.replace_node(argument, trim_.end_at(role, {"place": place, "curves": [target], "point": ends[0] if ends else None}, own=True))
+    return trim_.apply()

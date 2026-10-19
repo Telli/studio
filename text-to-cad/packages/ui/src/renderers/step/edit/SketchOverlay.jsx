@@ -9,6 +9,7 @@ import {
   dimensionFor,
   dimensionLayout,
   drawOp,
+  extendPiece,
   formatValue,
   hitTest,
   inferLine,
@@ -290,9 +291,9 @@ export default function SketchOverlay({ viewport, edit, units }) {
         drawDimension(made, colors.hover, pending.value, pointer?.local ? placedSide(state, made, pointer.local) : 0);
       }
 
-      // Trim: the piece the pointer is over, as it would be cut away.
-      if (current.tool === "trim" && hover && pointer?.local) {
-        const piece = trimPiece(shown, hover, pointer.local);
+      // Trim: the piece the pointer is over, as it would be cut away; Extend: the line's run on.
+      if ((current.tool === "trim" || current.tool === "extend") && hover && pointer?.local) {
+        const piece = current.tool === "trim" ? trimPiece(shown, hover, pointer.local) : extendPiece(shown, hover, pointer.local);
         if (piece) {
           context.strokeStyle = colors.over;
           context.lineWidth = 3;
@@ -499,6 +500,10 @@ export default function SketchOverlay({ viewport, edit, units }) {
       }
       if (tool === "trim") {
         if (curve && !curve.derived) await send({ kind: "trim", curve: hit, at: rounded(place, units) });
+        return;
+      }
+      if (tool === "extend") {
+        if (curve?.kind === "line" && !curve.derived) await send({ kind: "extend", curve: hit, at: rounded(place, units) });
         return;
       }
       if (tool === "offset") {

@@ -23,13 +23,14 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "fillet", label: "Sketch Fillet", prompts: ["Click a corner to round, or the first of two lines that meet.", "Click the second line."] },
   { id: "chamfer", label: "Sketch Chamfer", prompts: ["Click a corner to cut, or the first of two lines that meet.", "Click the second line."] },
   { id: "trim", label: "Trim Entities", prompts: ["Click the part of a curve to cut away. It is cut back to the curves that cross it; a curve nothing crosses is deleted."] },
+  { id: "extend", label: "Extend Entities", prompts: ["Click a line near the end to run on. It goes on to the first curve it meets."] },
   { id: "offset", label: "Offset Entities", prompts: ["Click a line, an arc or a circle to offset it, and the chain it is part of."] },
   { id: "mirror", label: "Mirror Entities", prompts: ["Click the entities to mirror.", "Click more of them, or the centerline to mirror about."] },
   { id: "convert", label: "Convert Entities", prompts: ["Select edges or a face of the model, then Convert. They come into the sketch and stay on the model as it changes."] },
 ]);
 
 /** The tools that change what is drawn rather than draw: each takes its own clicks (see `SketchOverlay.jsx`). */
-export const MODIFY_TOOLS = Object.freeze(["fillet", "chamfer", "trim", "offset", "mirror"]);
+export const MODIFY_TOOLS = Object.freeze(["fillet", "chamfer", "trim", "extend", "offset", "mirror"]);
 /** The tools that take a corner: a point where two lines meet, or the two lines. */
 export const CORNER_TOOLS = Object.freeze(["fillet", "chamfer"]);
 /** The tools that pick on the model rather than the sketch: Convert Entities takes its edges and faces, so the model has the presses. */
@@ -718,6 +719,32 @@ export function trimPiece(state, id, place, tolerance = nearness(state) * 10) {
   }) };
 }
 
+/**
+ * What Extend Entities would add to the line `id` clicked at `place`: from its end nearer the click
+ * on to the first curve it meets past it (`points`, to draw). Null where nothing lies ahead, where
+ * another curve shares that end, or for what is not a line.
+ */
+export function extendPiece(state, id, place, tolerance = nearness(state) * 10) {
+  const { curves } = sketchGeometry(state);
+  const line = curves.find(each => each.id === id);
+  if (!line || line.kind !== "line" || line.derived) return null;
+  const [from, end, role] = hypot(place, line.b) <= hypot(place, line.a) ? [line.a, line.b, "end"] : [line.b, line.a, "start"];
+  if (curves.some(each => each.id !== id && [each.start, each.end, each.center].includes(line[role]))) return null;
+  const way = sub(end, from);
+  const reach = dot(way, way) || 1;
+  // The line run on a long way, to find what it meets ahead.
+  const ray = { kind: "line", a: from, b: add(from, scale(way, 1e4)) };
+  let nearest = null;
+  for (const other of curves) {
+    if (other.id === id || other.derived) continue;
+    for (const hit of meetings(ray, other, tolerance)) {
+      const t = dot(sub(hit, from), way) / reach;
+      if (t > 1 + 1e-9 && (nearest === null || t < nearest.t)) nearest = { t, hit };
+    }
+  }
+  return nearest ? { id, points: [end, nearest.hit] } : null;
+}
+
 /** The curves joined end to end with `id` (lines and arcs meeting at a point or one place), as Offset Entities' Select chain takes them. */
 export function chainOf(state, id, tolerance = nearness(state) * 10) {
   const { curves } = sketchGeometry(state);
@@ -770,6 +797,7 @@ export function sketchNote(session) {
   if (made.fillet) parts.push(`rounded ${counted(made.fillet, "corner")}`);
   if (made.chamfer) parts.push(`cut ${counted(made.chamfer, "corner")}`);
   if (made.trimmed) parts.push(`trimmed ${counted(made.trimmed, "curve")}`);
+  if (made.extended) parts.push(`extended ${counted(made.extended, "line")}`);
   if (made.offset) parts.push(`offset ${counted(made.offset, "chain")}`);
   if (made.mirrored) parts.push(`mirrored ${counted(made.mirrored, "entity", "entities")}`);
   const converted = [["convertedEdge", "edge", "edges"], ["convertedFace", "face", "faces"]].filter(([key]) => made[key])
@@ -803,6 +831,7 @@ export function countChange(made, op) {
   else if (op.kind === "fillet") bump("fillet");
   else if (op.kind === "chamfer") bump("chamfer");
   else if (op.kind === "trim") bump("trimmed");
+  else if (op.kind === "extend") bump("extended");
   else if (op.kind === "offset") bump("offset");
   else if (op.kind === "mirror") bump("mirrored", (op.items || []).length || 1);
   else if (op.kind === "convert") {

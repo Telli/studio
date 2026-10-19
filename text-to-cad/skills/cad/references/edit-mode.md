@@ -177,7 +177,8 @@ by hand" below.
 - Deleting an entity takes out its line and the relations and dimensions on it; a curve drawn
   from one of its points keeps the point where it was. A corner rectangle's line is deleted on its
   own: the rectangle is written as its four lines first.
-- The sketch tools write lines too. Sketch Fillet writes `sketch2.fillet(line2, line3, 2)`.
+- The sketch tools write lines too. Sketch Fillet writes `sketch2.fillet(line2, line3, 2)`, Sketch
+  Chamfer `sketch2.chamfer(line2, line3, 2)`.
   Offset Entities draws the offset curves where they fall and holds them with
   `sketch2.offset_entities([line9, ...], [line1, ...], 2)`. Mirror Entities draws the mirrored
   curves, shares the points on the centerline, and holds the rest with `sketch2.symmetric(...)`
@@ -185,7 +186,9 @@ by hand" below.
   another curve crosses (`sketch2.coincident(line1.end, line2)` keeps it there), splits a line
   or an arc in two (kept in line: `parallel` and `coincident`, or `equal` for an arc; a split
   line's length becomes the distance between its far ends), or makes a circle an arc; a
-  rectangle is written as its four lines first. A curve nothing crosses is deleted. Convert
+  rectangle is written as its four lines first. A curve nothing crosses is deleted. Extend
+  Entities runs a line's free end on to the first curve ahead and keeps it there with the same
+  `coincident`; a joined end is left alone. Convert
   Entities writes `converted1 = sketch2.convert(<edges>)`, the edges picked on the model (a face
   stands for its edges) by where they are on the body made before the sketch; deleting one of
   them deletes that line, and they are not trimmed.

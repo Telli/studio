@@ -9,6 +9,7 @@ import {
   dimensionFor,
   dimensionLayout,
   drawOp,
+  extendPiece,
   formatValue,
   hitTest,
   inferLine,
@@ -224,4 +225,19 @@ test("a sketch chamfer's line is read as a line from its places, its distance dr
   assert.deepEqual([landed.on, landed.midpoint], ["Line2", undefined]);
   assert.match(sketchNote({ name: "Sketch1", file: "a.py", line: 3, made: countChange({}, { kind: "chamfer", corner: "Point3", distance: "2" }) }),
     /cut a corner/);
+});
+
+test("Extend runs a free line's end on to the first curve ahead, and leaves a joined end alone", () => {
+  // A free line inside the rectangle, from (5, 5) to (10, 5): run on, it meets the right side at (40, 5).
+  const state = {
+    ...STATE,
+    points: [...STATE.points, { id: "Point6", x: 5, y: 5 }, { id: "Point7", x: 10, y: 5 }],
+    curves: [...STATE.curves, { id: "Line5", kind: "line", start: "Point6", end: "Point7" }],
+  };
+  assert.deepEqual(extendPiece(state, "Line5", [9, 5]), { id: "Line5", points: [[10, 5], [40, 5]] });
+  // From its start, back to the left side.
+  assert.deepEqual(extendPiece(state, "Line5", [6, 5]).points, [[5, 5], [0, 5]]);
+  // The rectangle's own lines share their corners.
+  assert.equal(extendPiece(state, "Line1", [39, 0]), null);
+  assert.match(sketchNote({ name: "Sketch1", file: "a.py", line: 3, made: countChange({}, { kind: "extend", curve: "Line5" }) }), /extended a line/);
 });

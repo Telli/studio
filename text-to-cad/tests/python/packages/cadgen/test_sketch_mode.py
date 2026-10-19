@@ -252,6 +252,21 @@ class SketchMode(unittest.TestCase):
         self.send({"kind": "delete", "items": ["Chamfer1"]})
         self.assertNotIn("chamfer", self.source())
 
+    def test_extend_runs_a_line_on_to_the_first_curve_ahead_and_keeps_it_there(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "line", "start": {"at": [0, 0]}, "end": {"at": [5, 0]}})
+        self.send({"kind": "draw", "entity": "line", "start": {"at": [10, -5]}, "end": {"at": [10, 5]}})
+        self.send({"kind": "draw", "entity": "line", "start": {"at": [20, -5]}, "end": {"at": [20, 5]}})
+        self.send({"kind": "extend", "curve": "Line1", "at": [4.8, 0.1]})
+        text = self.source()
+        self.assertIn("line1 = sketch1.line((0, 0), (10, 0))", text)
+        self.assertIn("sketch1.coincident(line1.end, line2)", text)
+        # Its far end: nothing lies ahead of it; Line2's ends: nothing either side.
+        nothing = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "extend", "curve": "Line1", "at": [0.1, 0]}}})
+        self.assertFalse(nothing["ok"])
+        self.assertIn("Nothing lies ahead of Line1's start", nothing["error"])
+
     def test_an_offset_chain_is_held_at_one_distance(self):
         self.rectangle()
         self.send({"kind": "offset", "items": ["Line1", "Line2", "Line3", "Line4"], "distance": "2"})
