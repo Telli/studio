@@ -336,9 +336,11 @@ class Converting(unittest.TestCase):
         self.assertTrue(all(curve.get("converted") for curve in s.state()["curves"]))
 
     def test_what_cannot_come_in_flat_is_refused_and_edges_square_to_it_are_left_out(self):
-        tilted = Sketch("Sketch1", plane="Front")
-        with self.assertRaisesRegex(SketchError, "ellipse"):
-            tilted.convert(self.top.edges().filter_by(B.GeomType.CIRCLE))
+        # The hole's rim seen edge on from the front falls as a line over itself (a circle tilted
+        # less comes in as a spline, `Splines`).
+        edge_on = Sketch("Sketch1", plane="Front")
+        with self.assertRaisesRegex(SketchError, "folds onto itself on Sketch1"):
+            edge_on.convert(self.top.edges().filter_by(B.GeomType.CIRCLE))
         upright = self.part.edges().filter_by(B.Axis.Z)
         with self.assertRaisesRegex(SketchError, "square to Sketch2"):
             Sketch("Sketch2", plane="Top").convert(upright)

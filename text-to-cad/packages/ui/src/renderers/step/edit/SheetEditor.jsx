@@ -7,6 +7,7 @@ import { drawEntityHighlights, entityAt } from "@text-to-cad/core/lib/drawing2d/
 import { REFERENCE_HOVER_COLOR, REFERENCE_SELECTED_COLOR } from "@text-to-cad/core/lib/viewer/referenceGeometry.js";
 import { ViewerElementContext } from "../../../host/context.js";
 import { FLOATING_CHROME_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
+import { hasOpenPopup } from "../../../lib/popups.js";
 import { readDrawingThemeColors } from "../../dxf/themeColors.js";
 import { useDrawingView } from "../../dxf/useDrawingView.js";
 import { TOUCH_HIT_PX, isEditableTarget } from "../../kit/viewport/dom.js";
@@ -325,6 +326,8 @@ export default function SheetEditor({ edit, colorScheme = "light" }) {
       const key = event.key.toLowerCase();
       let done = false;
       if (event.key === "Escape") {
+        // A menu or a list open over the view takes its own Escape first.
+        if (hasOpenPopup(element || null)) return;
         if (current.picks.length) setPicks([]);
         else if (current.tool !== "select") setTool("select");
         else if (current.selected) setSelected(null);
