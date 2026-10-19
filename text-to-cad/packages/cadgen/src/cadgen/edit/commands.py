@@ -1152,7 +1152,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         target = kept.target if kept is not None else next(f"plane{n}" for n in itertools.count(1) if f"plane{n}" not in taken)
         code = f"{target} = {base}.offset({'-' + _term(written) if flip and distance else written})"
         shown = [("Offset distance", distance, units_word)]
-        what = f"{writer.number(distance)} {units_word} {'below' if flip else 'from'} {words}".replace("  ", " ")
+        what = f"{writer.number(distance)} {units_word} from {words}{', flipped' if flip else ''}".replace("  ", " ")
     elif command == "draft":
         # Draft, as SolidWorks' Neutral Plane draft: the faces tilt by the angle about where they
         # meet the neutral plane, so the part narrows the way the plane faces, its direction of pull.
