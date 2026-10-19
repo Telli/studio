@@ -1,4 +1,4 @@
-import { curvePoints } from "./sketchDrawing.js";
+import { curvePoints, loopsCentroid } from "./sketchDrawing.js";
 import { sketchGeometry } from "./sketchMode.js";
 
 /**
@@ -167,6 +167,31 @@ export function sideIndexes(loop) {
   }
   if (corners.length || count < 4) return corners;
   return [0, 1, 2, 3].map(quarter => Math.floor((quarter * count) / 4));
+}
+
+/**
+ * Where a revolve's arrow runs about its axis (from `a` to `b`, in the sketch's units): out from
+ * the axis toward the middle of the profile, a little past the profile's farthest point, so the
+ * arrow turns just outside what the revolve sweeps. Null for no profile or an axis of no length.
+ */
+export function turnArrowStart(loops, a, b) {
+  const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const middle = loopsCentroid(loops, holeLoops(loops));
+  if (!(length > 0) || !middle) return null;
+  const along = [(b[0] - a[0]) / length, (b[1] - a[1]) / length];
+  // A point's way out from the axis, square to it, and how far.
+  const out = ([x, y]) => {
+    const t = (x - a[0]) * along[0] + (y - a[1]) * along[1];
+    const off = [x - a[0] - along[0] * t, y - a[1] - along[1] * t];
+    return { foot: [a[0] + along[0] * t, a[1] + along[1] * t], off, reach: Math.hypot(off[0], off[1]) };
+  };
+  const farthest = Math.max(...loops.flat().map(point => out(point).reach));
+  const centre = out(middle);
+  // A profile centred on the axis turns its farthest point's way.
+  const way = centre.reach > 1e-9 ? centre : out(loops.flat().reduce((best, point) => (out(point).reach > out(best).reach ? point : best)));
+  if (!(way.reach > 1e-9)) return null;
+  const scale = (farthest * 1.15) / way.reach;
+  return [centre.foot[0] + way.off[0] * scale, centre.foot[1] + way.off[1] * scale];
 }
 
 /**

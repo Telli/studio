@@ -78,3 +78,23 @@ it('Choose lists each pick with an X to take it out, and Preview asks for what O
   expect(screen.getByText('Press OK to make it.')).toBeTruthy();
   await waitFor(() => expect(fillet.previewFeature).toHaveBeenLastCalledWith(null));
 });
+
+it('each command that goes somewhere previews the way it goes: an extrude its depth, a hole into its face, a mirror its plane', () => {
+  // A sketch selected in the design tree, made a solid of by Extruded Boss/Base.
+  const sketch = { id: 'block.py:9', title: 'Sketch1', plane: 'Top', file: 'block.py', line: 9, constrained: true };
+  const tree = { assembly: false, features: [{ id: 'block.py:9', kind: 'Sketch', title: 'Sketch1', rows: [], sketch }] };
+  const extrude = edit('extrude', 'block.py:9');
+  render(<EditCommand edit={extrude as never} names={NAMES} references={[]} tree={tree} />);
+  expect(extrude.setPreview).toHaveBeenLastCalledWith({ kind: 'boss', end: 'blind', file: 'block.py', line: 9, taper: 0, depth: 5, reverse: false,
+    label: '5 mm' });
+  cleanup();
+  // A hole goes into the face picked, through all as it opens.
+  const hole = edit('hole');
+  const FACE = { id: 'ref-f1', selectorType: 'face', displaySelector: 'f1', pickData: { surfaceType: 'plane', center: [0, 0, 2], normal: [0, 0, 1], area: 200 } };
+  render(<EditCommand edit={hole as never} names={NAMES} references={[FACE]} />);
+  expect(hole.setPreview).toHaveBeenLastCalledWith({ mark: 'hole', at: [0, 0, 2], into: [0, 0, -1], label: 'Through All' });
+  cleanup();
+  const mirror = edit('mirror');
+  render(<EditCommand edit={mirror as never} names={NAMES} references={[]} />);
+  expect(mirror.setPreview).toHaveBeenLastCalledWith({ mark: 'mirror', plane: 'YZ' });
+});

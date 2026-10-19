@@ -53,8 +53,9 @@ const viewKey = (width, height, camera, modelGroup) => [width, height, camera.ma
 
 /**
  * The part in the view: `toScreen(x, y, z)` a place in the part's own millimetres to the
- * viewport's pixels, or null behind the camera; `key` what that depends on, to paint again only
- * when it changed. Null before the viewer is up.
+ * viewport's pixels, or null behind the camera; `toView(x, y, z)` the place as the camera sees it
+ * (it looks down its -z); `key` what that depends on, to paint again only when it changed. Null
+ * before the viewer is up.
  */
 export function modelMapping(runtime, width, height) {
   if (!runtime?.camera || !runtime.modelGroup || !runtime.THREE) return null;
@@ -69,7 +70,222 @@ export function modelMapping(runtime, width, height) {
     scratch.project(camera);
     return [((scratch.x + 1) * width) / 2, ((1 - scratch.y) * height) / 2];
   };
-  return { toScreen, key: viewKey(width, height, camera, modelGroup) };
+  const toView = (x, y, z) => seen.set(x, y, z).applyMatrix4(modelGroup.matrixWorld).applyMatrix4(camera.matrixWorldInverse).toArray();
+  return { toScreen, toView, key: viewKey(width, height, camera, modelGroup) };
+}
+
+/** A place on a sketch (in its units), `offset` millimetres off its plane along its normal: the place in the part's millimetres. */
+export function framePoint(frame, unit, [u, v], offset = 0) {
+  return [0, 1, 2].map(axis => frame.origin[axis] + (u * frame.x[axis] + v * frame.y[axis]) * unit + frame.z[axis] * offset);
+}
+
+/**
+ * The middle of what a sketch's outlines bound, for an arrow to start from: their areas' centre, a
+ * hole's (`holes`, by outline) taken away; the middle of their points when they bound no area.
+ * In the sketch's units; null for no outline.
+ */
+export function loopsCentroid(loops, holes = []) {
+  let area = 0;
+  let x = 0;
+  let y = 0;
+  loops.forEach((loop, index) => {
+    let twice = 0;
+    let sx = 0;
+    let sy = 0;
+    loop.forEach(([x0, y0], at) => {
+      const [x1, y1] = loop[(at + 1) % loop.length];
+      const cross = x0 * y1 - x1 * y0;
+      twice += cross;
+      sx += (x0 + x1) * cross;
+      sy += (y0 + y1) * cross;
+    });
+    if (Math.abs(twice) < 1e-12) return;
+    const weight = (Math.abs(twice) / 2) * (holes[index] ? -1 : 1);
+    x += (sx / (3 * twice)) * weight;
+    y += (sy / (3 * twice)) * weight;
+    area += weight;
+  });
+  if (Math.abs(area) > 1e-12) return [x / area, y / area];
+  const points = loops.flat();
+  if (!points.length) return null;
+  return [points.reduce((sum, point) => sum + point[0], 0) / points.length, points.reduce((sum, point) => sum + point[1], 0) / points.length];
+}
+
+// An arrow's length and its head's, in the view's pixels: the same at any zoom, as a CAD tool's handles are.
+const ARROW_PX = 34;
+const ARROW_HEAD_PX = 9;
+// Nearer the line of sight than this (its sine), a direction is drawn as pointing at the viewer or away.
+const END_ON = 0.26;
+
+/**
+ * A direction in the part (`along`, a unit vector) at a place of it (`at`, millimetres) as the view
+ * draws its arrow: the place's pixel (`from`), the way the arrow goes on the screen (`toward`), and
+ * `facing` 1 or -1 when it points so nearly at the viewer or away that it has no way on the screen.
+ * `reach` is how far along it to look, in millimetres. Null with the place behind the camera.
+ */
+export function screenDirection(mapping, at, along, reach = 1) {
+  const from = mapping.toScreen(...at);
+  if (!from) return null;
+  const end = at.map((value, axis) => value + along[axis] * reach);
+  const near = mapping.toView(...at);
+  const far = mapping.toView(...end);
+  const seen = [far[0] - near[0], far[1] - near[1], far[2] - near[2]];
+  const length = Math.hypot(...seen) || 1;
+  // The camera looks down its -z: a direction with +z comes at the viewer.
+  if (Math.hypot(seen[0], seen[1]) / length < END_ON) return { from, toward: [0, 0], facing: seen[2] > 0 ? 1 : -1 };
+  const to = mapping.toScreen(...end);
+  return { from, toward: to ? [to[0] - from[0], to[1] - from[1]] : [seen[0], -seen[1]], facing: 0 };
+}
+
+/**
+ * A direction arrow over the model, as a CAD tool draws one on what it previews: from its place
+ * along its way on the screen (`screenDirection`), its head filled. One pointing straight at the
+ * viewer is drawn as an engineer marks it, a dot in a ring; one pointing away, a cross in a ring.
+ * Returns where its label goes (`drawLabel`): past its tip, or beside the ring.
+ */
+export function drawArrow(context, direction, color, length = ARROW_PX) {
+  const { from, toward, facing } = direction;
+  context.save();
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  context.lineWidth = 2;
+  context.lineCap = "round";
+  if (facing) {
+    const radius = 7;
+    context.beginPath();
+    context.arc(from[0], from[1], radius, 0, Math.PI * 2);
+    context.stroke();
+    context.beginPath();
+    if (facing > 0) {
+      context.arc(from[0], from[1], 2.5, 0, Math.PI * 2);
+      context.fill();
+    } else {
+      const arm = radius * 0.6;
+      context.moveTo(from[0] - arm, from[1] - arm);
+      context.lineTo(from[0] + arm, from[1] + arm);
+      context.moveTo(from[0] + arm, from[1] - arm);
+      context.lineTo(from[0] - arm, from[1] + arm);
+      context.stroke();
+    }
+    context.restore();
+    return { x: from[0] + radius + 6, y: from[1], leftward: false };
+  }
+  const span = Math.hypot(toward[0], toward[1]) || 1;
+  const [dx, dy] = [toward[0] / span, toward[1] / span];
+  const tip = [from[0] + dx * length, from[1] + dy * length];
+  context.beginPath();
+  context.moveTo(from[0], from[1]);
+  context.lineTo(tip[0] - dx * ARROW_HEAD_PX, tip[1] - dy * ARROW_HEAD_PX);
+  context.stroke();
+  context.restore();
+  return drawArrowHead(context, tip, [dx, dy], color);
+}
+
+/**
+ * A direction arrow ending at its place, as one into a face is drawn (a hole's): it comes from
+ * `length` pixels back along its way, its head on the place. Returns where its label goes
+ * (`drawLabel`): before its tail, or beside the ring of one end on.
+ */
+export function drawArrowInto(context, direction, color, length = ARROW_PX) {
+  const { from, toward, facing } = direction;
+  if (facing) return drawArrow(context, direction, color, length);
+  const span = Math.hypot(toward[0], toward[1]) || 1;
+  const [dx, dy] = [toward[0] / span, toward[1] / span];
+  const tail = [from[0] - dx * length, from[1] - dy * length];
+  drawArrow(context, { from: tail, toward, facing: 0 }, color, length);
+  return { x: tail[0] - dx * 6, y: tail[1] - dy * 6, leftward: dx > 0 };
+}
+
+/**
+ * An arrow drawn its true length in the part, from `from` to `to` (millimetres), as a pattern's
+ * spacing is: its head at `to`. Too short on the screen to read (looking along it), it is drawn end
+ * on at `from`. Returns where its label goes (`drawLabel`), or null with an end behind the camera.
+ */
+export function drawArrowBetween(context, mapping, from, to, color) {
+  const start = mapping.toScreen(...from);
+  const end = mapping.toScreen(...to);
+  if (!start || !end) return null;
+  const way = [end[0] - start[0], end[1] - start[1]];
+  const length = Math.hypot(way[0], way[1]);
+  if (length < 2 * ARROW_HEAD_PX) {
+    const along = to.map((value, axis) => value - from[axis]);
+    const reach = Math.hypot(...along) || 1;
+    const direction = screenDirection(mapping, from, along.map(value => value / reach), reach);
+    return direction ? drawArrow(context, direction.facing ? direction : { ...direction, toward: way }, color) : null;
+  }
+  return drawArrow(context, { from: start, toward: way, facing: 0 }, color, length);
+}
+
+/**
+ * An arrow's head at `tip`, pointing along `way` on the screen (a curved arrow's, at the end of its
+ * path), filled. Returns where its label goes (`drawLabel`), just past it.
+ */
+export function drawArrowHead(context, tip, way, color) {
+  const span = Math.hypot(way[0], way[1]) || 1;
+  const [dx, dy] = [way[0] / span, way[1] / span];
+  const base = [tip[0] - dx * ARROW_HEAD_PX, tip[1] - dy * ARROW_HEAD_PX];
+  context.save();
+  context.fillStyle = color;
+  context.beginPath();
+  context.moveTo(tip[0], tip[1]);
+  context.lineTo(base[0] - dy * ARROW_HEAD_PX * 0.5, base[1] + dx * ARROW_HEAD_PX * 0.5);
+  context.lineTo(base[0] + dy * ARROW_HEAD_PX * 0.5, base[1] - dx * ARROW_HEAD_PX * 0.5);
+  context.closePath();
+  context.fill();
+  context.restore();
+  return { x: tip[0] + dx * 6, y: tip[1] + dy * 6, leftward: dx < 0 };
+}
+
+const LABEL_FONT_PX = 11;
+const LABEL_HEIGHT_PX = 18;
+
+/**
+ * A value a preview goes by ("5 mm", "90°"), in a tag of the preview's own color beside its arrow:
+ * `place` is where the arrow said it goes (`drawArrow`), the tag on the side the arrow points.
+ */
+export function drawLabel(context, text, place, fill, font) {
+  if (!text || !place) return;
+  context.save();
+  context.font = `${LABEL_FONT_PX}px ${font}`;
+  const width = context.measureText(text).width + 10;
+  const left = place.leftward ? place.x - width : place.x;
+  const top = place.y - LABEL_HEIGHT_PX / 2;
+  context.fillStyle = fill;
+  context.beginPath();
+  if (typeof context.roundRect === "function") context.roundRect(left, top, width, LABEL_HEIGHT_PX, 4);
+  else context.rect(left, top, width, LABEL_HEIGHT_PX);
+  context.fill();
+  context.fillStyle = lightText(fill) ? "#0b1220" : "#ffffff";
+  context.textBaseline = "middle";
+  context.fillText(text, left + 5, top + LABEL_HEIGHT_PX / 2 + 0.5);
+  context.restore();
+}
+
+/**
+ * A solid shaded over the model once, as a CAD tool shades what it previews: its outlines and
+ * faces on the screen (`shapes`, each the pixels around it, a hole of an outline marked `hole`),
+ * filled as one, so where they overlap is shaded no darker and a hole lets the model show through
+ * where nothing else covers it.
+ */
+export function fillShapes(context, shapes, color, alpha) {
+  context.save();
+  context.globalAlpha = alpha;
+  context.fillStyle = color;
+  context.beginPath();
+  for (const { points, hole } of shapes) {
+    if (points.length < 3 || points.some(point => !point)) continue;
+    let twice = 0;
+    points.forEach(([x0, y0], at) => {
+      const [x1, y1] = points[(at + 1) % points.length];
+      twice += x0 * y1 - x1 * y0;
+    });
+    // Every outline and face turned one way round, a hole the other, for one nonzero fill.
+    const ordered = (twice < 0) !== Boolean(hole) ? [...points].reverse() : points;
+    ordered.forEach(([x, y], at) => (at ? context.lineTo(x, y) : context.moveTo(x, y)));
+    context.closePath();
+  }
+  context.fill("nonzero");
+  context.restore();
 }
 
 /**

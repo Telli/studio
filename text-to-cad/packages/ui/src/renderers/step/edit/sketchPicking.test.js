@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PICK_PX, extrudeSpan, holeLoops, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace, taperedLoop } from "./sketchPicking.js";
+import { PICK_PX, extrudeSpan, holeLoops, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace, taperedLoop, turnArrowStart } from "./sketchPicking.js";
 
 const square = (x, y, size) => [[x, y], [x + size, y], [x + size, y + size], [x, y + size]];
 // A sketch as the view draws it: its lines and its outlines, in pixels.
@@ -80,4 +80,15 @@ test("a drafted extrude's preview leans in: each side moved in square to itself,
   close(taperedLoop(square(0, 0, 10), -1), [[-1, -1], [11, -1], [11, 11], [-1, 11]]);
   close(taperedLoop(square(4, 4, 2), 1, true), [[3, 3], [7, 3], [7, 7], [3, 7]]);
   assert.deepEqual(holeLoops([square(0, 0, 10), square(4, 4, 2), square(20, 0, 5)]), [false, true, false]);
+});
+
+test("a revolve's arrow turns just outside its profile, on the side of the axis the profile is", () => {
+  // A 10 x 20 profile beside the axis up Y at x = 0: the arrow runs past its outer side.
+  const profile = [[5, 0], [15, 0], [15, 20], [5, 20]];
+  const [x, y] = turnArrowStart([profile], [0, 0], [0, 1]);
+  assert.ok(Math.abs(x - 15 * 1.15) < 1e-9);
+  assert.ok(Math.abs(y - 10) < 1e-9);
+  // On the axis's other side, the other way out; none for an axis of no length.
+  assert.ok(turnArrowStart([profile.map(([u, v]) => [-u, v])], [0, 0], [0, 1])[0] < -15);
+  assert.equal(turnArrowStart([profile], [0, 0], [0, 0]), null);
 });

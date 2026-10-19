@@ -227,6 +227,142 @@ export function planeOutline(name, bounds) {
   return name === "Top" ? square(0, 1) : name === "Front" ? square(0, 2) : square(1, 2);
 }
 
+// ---- what the view previews of a command, and the way it goes --------------------------------
+
+const MM_PER_UNIT = Object.freeze({ mm: 1, in: 25.4, cm: 10, m: 1000 });
+const END_WORDS = Object.freeze({ through: "Through All", next: "Up To Next", surface: "Up To Surface", vertex: "Up To Vertex" });
+const AXES = Object.freeze({ X: [1, 0, 0], Y: [0, 1, 0], Z: [0, 0, 1] });
+// The origin's planes by the axes they hold, as Mirror names them.
+const MIRROR_PLANES = Object.freeze({ XY: "Top", XZ: "Front", YZ: "Right" });
+
+/** A value typed as a plain number ("5", ".25"), or null for anything else: a size's name, a formula. */
+export function plainNumber(text) {
+  const written = String(text ?? "").trim();
+  return /^[+-]?(\d+\.?\d*|\.\d+)$/.test(written) ? Number(written) : null;
+}
+
+// A size as its tag reads: a number with its unit ("5 mm"), a size's name in words ("Wall"), a formula as written.
+const sizeTag = (text, units) => {
+  const written = String(text ?? "").trim();
+  return plainNumber(written) !== null ? withUnit(written, units) : sizeName(written);
+};
+
+/**
+ * What the view draws of an extrude while its panel is open, as SolidWorks previews one: its sweep
+ * along the sketch's normal (`depth` in the part's millimetres, `taper` its draft), the way it goes
+ * (`reverse`; both ways at Mid Plane) and its depth as a tag ("5 mm", "Through All"). Where the body
+ * or a pick ends it, or its depth is written as a size's name, it draws its arrow alone
+ * (`arrowOnly`), from the sketch the way it goes: Up To Surface and Up To Vertex go to the side of
+ * the sketch's plane what they end on is (`ending`'s centre, `vertex_at`; `frame`, the sketch's).
+ * Null without a sketch.
+ */
+export function extrudePreview(id, values, { units = "mm", sketch = null, frame = null, ending = null } = {}) {
+  if (!sketch) return null;
+  const end = values.end || "blind";
+  const angle = plainNumber(values.draft_angle);
+  const taper = values.draft && end !== "next" && angle !== null && angle > 0 && angle < 90 ? (values.outward ? -angle : angle) : 0;
+  const base = { kind: id === "cut" ? "cut" : "boss", end, file: sketch.file, line: sketch.line, taper, depth: 0, reverse: false };
+  if (end === "through") return { ...base, reverse: Boolean(values.reverse), label: END_WORDS.through };
+  if (end === "surface" || end === "vertex") {
+    const target = end === "surface" ? ending?.center : values.vertex_at;
+    const behind = target && frame ? [0, 1, 2].reduce((sum, axis) => sum + (Number(target[axis]) - frame.origin[axis]) * frame.z[axis], 0) < 0 : false;
+    return { ...base, reverse: behind, arrowOnly: true, label: END_WORDS[end] };
+  }
+  if (end === "next") return { ...base, arrowOnly: true, label: END_WORDS.next };
+  const depth = plainNumber(values.depth);
+  const label = sizeTag(values.depth, units);
+  const reverse = end !== "mid" && Boolean(values.reverse);
+  if (depth === null || !(depth > 0)) return { ...base, reverse, arrowOnly: true, label };
+  return { ...base, depth: depth * (MM_PER_UNIT[units] || 1), reverse, label };
+}
+
+/**
+ * A linear pattern's way, for the view to draw over the copies the server previews: the axis it
+ * runs along (`along`, the other way when reversed), its spacing in the part's millimetres, how
+ * many, and the spacing as a tag. Null for a circular one (it goes all the way round), or a
+ * spacing or count written as a size's name.
+ */
+export function patternPreview(values, units = "mm") {
+  if (values.type !== "linear") return null;
+  const spacing = plainNumber(values.spacing);
+  const count = plainNumber(values.count);
+  const axis = AXES[String(values.direction || "X").toUpperCase()];
+  if (!axis || spacing === null || !(spacing > 0) || count === null || !(count >= 2)) return null;
+  return { mark: "pattern", along: axis.map(value => (values.reverse ? -value || 0 : value)), spacing: spacing * (MM_PER_UNIT[units] || 1),
+    count: Math.round(count), label: sizeTag(values.spacing, units) };
+}
+
+/**
+ * Where a linear pattern's arrow runs (`patternPreview`), from what the server previews of its
+ * copies (`positions`, three numbers a corner, in the part's millimetres): from the feature it
+ * copies to its first copy. Its copies run from one spacing out to the last, so the middle of
+ * what they cover is half the count of spacings out. Null for no copies drawn.
+ */
+export function patternArrow(mark, positions = []) {
+  if (!mark || positions.length < 3) return null;
+  const low = [Infinity, Infinity, Infinity];
+  const high = [-Infinity, -Infinity, -Infinity];
+  for (let at = 0; at + 2 < positions.length; at += 3) {
+    for (let axis = 0; axis < 3; axis += 1) {
+      low[axis] = Math.min(low[axis], positions[at + axis]);
+      high[axis] = Math.max(high[axis], positions[at + axis]);
+    }
+  }
+  const middle = low.map((value, axis) => (value + high[axis]) / 2);
+  const from = middle.map((value, axis) => value - mark.along[axis] * mark.spacing * (mark.count / 2));
+  return { from, to: from.map((value, axis) => value + mark.along[axis] * mark.spacing) };
+}
+
+/**
+ * A hole's way into its face, for the view to draw while Hole is open: where it goes in (`at`, the
+ * face's centre moved by the panel's distances, kept on the face's plane, in the part's
+ * millimetres), the way in (`into`, against the face's normal) and its depth as a tag. `face` is
+ * the face picked (its `center` and `normal`); null without one.
+ */
+export function holePreview(values, units = "mm", face = null) {
+  const center = face?.center;
+  const normal = face?.normal;
+  const length = normal ? Math.hypot(Number(normal[0]), Number(normal[1]), Number(normal[2])) : 0;
+  if (!center || !(length > 0)) return null;
+  const unit = Array.from(normal, value => Number(value) / length);
+  const mm = MM_PER_UNIT[units] || 1;
+  const moved = ["x", "y", "z"].map(axis => (plainNumber(values[axis]) ?? 0) * mm);
+  const off = moved[0] * unit[0] + moved[1] * unit[1] + moved[2] * unit[2];
+  return { mark: "hole", at: [0, 1, 2].map(axis => Number(center[axis]) + moved[axis] - unit[axis] * off),
+    into: unit.map(value => -value || 0), label: values.through ? END_WORDS.through : sizeTag(values.depth, units) };
+}
+
+/**
+ * The plane a mirror goes about, for the view to draw while Mirror is open: a face picked (its
+ * `center` and `normal`), or one of the origin's planes by the axes it holds ("YZ"). Null for the
+ * face a reopened mirror keeps, which the panel has no place for.
+ */
+export function mirrorPreview(values, face = null) {
+  if (face?.center && face?.normal) return { mark: "mirror", center: Array.from(face.center, Number), normal: Array.from(face.normal, Number) };
+  return MIRROR_PLANES[values.plane] ? { mark: "mirror", plane: values.plane } : null;
+}
+
+/**
+ * A mirror's plane drawn on the model as the origin's planes are (`planeOutline`): an origin plane
+ * by its axes, or a square on the face's plane around its centre, a little larger than the part.
+ */
+export function mirrorOutline(mark, bounds) {
+  if (!mark) return null;
+  if (mark.plane) return planeOutline(MIRROR_PLANES[mark.plane], bounds);
+  const length = Math.hypot(...mark.normal);
+  if (!(length > 0)) return null;
+  const n = mark.normal.map(value => value / length);
+  // Two ways in the plane, square to each other: across an axis the normal is not along.
+  const helper = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  const cross = (p, q) => [p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]];
+  const u0 = cross(n, helper);
+  const u = u0.map(value => value / Math.hypot(...u0));
+  const v = cross(n, u);
+  const [min, max] = bounds || [[-50, -50, -50], [50, 50, 50]];
+  const reach = (Math.max(...[0, 1, 2].map(axis => max[axis] - min[axis])) / 2) * 1.15 || 50;
+  return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => mark.center.map((value, axis) => value + (a * u[axis] + b * v[axis]) * reach));
+}
+
 /** The feature edit mode opens on: the first that draws dimensions (the part's base), else the first. */
 export function defaultRow(state) {
   const drawn = new Set((state?.dimensions || []).map(dimension => dimension.row));

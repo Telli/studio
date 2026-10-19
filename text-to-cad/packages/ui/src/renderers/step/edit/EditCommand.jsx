@@ -19,10 +19,15 @@ import {
   editCommand,
   editingValues,
   extrudeEnd,
+  extrudePreview,
   faceOffsetAxes,
+  holePreview,
+  mirrorPreview,
   REPICKS,
   partSide,
   patternAxis,
+  patternPreview,
+  plainNumber,
   revolveAxes,
   sameValues,
   selectionItems,
@@ -52,7 +57,6 @@ const PATTERNS = Object.freeze([{ value: "linear", label: "Linear" }, { value: "
 const DIRECTIONS = Object.freeze([{ value: "X", label: "Along X" }, { value: "Y", label: "Along Y" }, { value: "Z", label: "Along Z" }]);
 // A mirror Edit Feature reopens that was made about a face of the part: that face again.
 const SAME_FACE = Object.freeze({ value: "face", label: "Same face" });
-const MM_PER = Object.freeze({ mm: 1, in: 25.4 });
 // How long the panel waits after a change before asking for its preview: picks and values that
 // come together are asked for once.
 const PREVIEW_WAIT_MS = 250;
@@ -128,9 +132,11 @@ function KeptList({ text, hint }) {
  * box that takes many (a fillet's edges) takes each click on the model as one more, or one fewer,
  * and each pick listed has an X (`onDeselect`, given the reference's id).
  *
- * Preview, while its switch is on: an extrude or a revolve is swept on the model at once
- * (`edit.preview`); any other command, once it has what it needs, is made by the server without
- * being written and drawn over the model (`edit.previewFeature`), its key and its state below.
+ * Preview, while its switch is on: an extrude or a revolve is swept on the model at once, with an
+ * arrow the way it goes and its depth or angle (`edit.preview`); any other command, once it has
+ * what it needs, is made by the server without being written and drawn over the model
+ * (`edit.previewFeature`), its key and its state below, with the way it goes drawn too where it
+ * has one (a linear pattern's, a hole's into its face, a mirror's plane).
  *
  * Reopened by Edit Feature (`edit.editing`), it opens with the feature's values and keeps what the
  * feature acts on (a fillet's edges, a hole's face), unless others are picked on the body as it was
@@ -184,34 +190,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   useEffect(() => {
     if ((edit.command === "extrude" || edit.command === "cut") && facePoint?.point) setValues(current => ({ ...current, vertex_at: facePoint.point }));
   }, [facePoint, edit.command]);
-  // What OK would make, drawn on the model while the panel is open: the extrude of its sketch, its
-  // depth in the part's millimetres, or its revolve about the axis line by the angle. A depth or an
-  // angle written as a size's name is not swept here; nor is an end the body or a pick says.
   const { setPreview, previewFeature } = edit;
   const previewOn = edit.previewOn !== false;
-  const depth = Number.parseFloat(String(values.depth ?? ""));
-  const extruding = (edit.command === "extrude" || edit.command === "cut") && Boolean(sketch) && !["next", "surface", "vertex"].includes(values.end);
-  const previewDepth = extruding && Number.isFinite(depth) ? depth * (MM_PER[units] || 1) : null;
-  const angle = Number.parseFloat(String(values.angle ?? ""));
-  const axisLine = revolving && sketch
-    ? sketchGeometry(sketchView(edit.state, sketch)?.state).curves.find(curve => curve.id === values.axis && curve.kind === "line") : null;
-  const turn = axisLine && Number.isFinite(angle) && angle > 0 ? (values.reverse ? -angle : angle) : null;
-  const kind = edit.command === "cut" || edit.command === "revolve_cut" ? "cut" : "boss";
-  // A draft leans the preview's sides in by its angle, out when Draft outward.
-  const draftAngle = Number.parseFloat(String(values.draft_angle ?? ""));
-  const taper = values.draft && Number.isFinite(draftAngle) && draftAngle > 0 && draftAngle < 90 ? (values.outward ? -draftAngle : draftAngle) : 0;
-  const sweeps = turn !== null || (extruding && (previewDepth !== null || values.end === "through"));
-  useEffect(() => {
-    if (!previewOn) { setPreview(null); return undefined; }
-    if (turn !== null) {
-      setPreview({ kind, revolve: { a: axisLine.a, b: axisLine.b, angle: turn }, file: sketch.file, line: sketch.line });
-      return () => setPreview(null);
-    }
-    if (!extruding || (previewDepth === null && values.end !== "through")) { setPreview(null); return undefined; }
-    setPreview({ kind, end: values.end, depth: previewDepth || 0, reverse: Boolean(values.reverse), taper, file: sketch.file, line: sketch.line });
-    return () => setPreview(null);
-  }, [previewOn, extruding, previewDepth, values.end, values.reverse, taper, kind, turn, axisLine?.a?.join(), axisLine?.b?.join(), sketch?.file,
-    sketch?.line, setPreview]);
   const disabled = edit.saving || edit.status !== "ready";
   const faces = items.filter(item => /f\d+$/.test(item.selector));
   const listed = command?.picks === "edges" ? items : faces;
@@ -224,6 +204,33 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   // Edges or faces picked while a feature is reopened replace its own, as a new axis does a
   // pattern's and a new face or vertex an extrude's end.
   const repicked = Boolean(editing) && ((REPICKS.has(edit.command) && listed.length > 0) || Boolean(turnsAbout) || Boolean(ending));
+  // What the view draws itself while the panel is open, with the way the command goes, as
+  // SolidWorks previews it: an extrude swept along its sketch's normal, its arrow and its depth
+  // (its arrow alone where the body or a pick ends it, the server's preview drawn apart); a revolve
+  // turned about its axis line, its arrow and its angle; a linear pattern's way; a hole's way into
+  // its face; a mirror's plane. A size written as a name is not swept here.
+  const kind = edit.command === "cut" || edit.command === "revolve_cut" ? "cut" : "boss";
+  const sketchState = sketch ? sketchView(edit.state, sketch)?.state || null : null;
+  const angle = plainNumber(values.angle);
+  const axisLine = revolving && sketch ? sketchGeometry(sketchState).curves.find(curve => curve.id === values.axis && curve.kind === "line") : null;
+  const facePick = references.find(reference => reference?.selectorType === "face")?.pickData || null;
+  const local = !previewOn ? null
+    : edit.command === "extrude" || edit.command === "cut" ? extrudePreview(edit.command, values, { units, sketch, frame: sketchState?.frame || null, ending })
+      : revolving ? (axisLine && angle !== null && angle > 0 ? { kind, revolve: { a: axisLine.a, b: axisLine.b, angle: values.reverse ? -angle : angle },
+        file: sketch.file, line: sketch.line, label: `${String(values.angle).trim()}°` } : null)
+        : edit.command === "pattern" ? patternPreview(values, units)
+          : edit.command === "hole" ? holePreview(values, units, editing && !repicked ? null : facePick)
+            : edit.command === "mirror" ? mirrorPreview(values, editing || !faces.length ? null : facePick)
+              : null;
+  // An extrude's or a revolve's solid swept here is not asked of the server.
+  const sweeps = Boolean(local && !local.arrowOnly && !local.mark);
+  const localKey = local ? JSON.stringify(local) : "";
+  const localRef = useRef(local);
+  localRef.current = local;
+  useEffect(() => {
+    setPreview(localRef.current);
+    return () => setPreview(null);
+  }, [localKey, setPreview]);
   // Any other preview is the server's: what OK would send, made without writing it once the panel
   // has what it needs, and made again as the part changes under it or the rollback bar moves.
   const wanted = command && previewOn && !disabled && !blocked && !sweeps ? commandRequest(command.id, values, items, feature, sketch, editing) : null;

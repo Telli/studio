@@ -24,6 +24,14 @@ import {
   deleteRefusal,
   editingValues,
   emptyHistory,
+  extrudePreview,
+  holePreview,
+  mirrorOutline,
+  mirrorPreview,
+  patternArrow,
+  patternPreview,
+  plainNumber,
+  planeOutline,
   faceOffsetAxes,
   featureNames,
   featureTree,
@@ -382,4 +390,54 @@ test("an extrude Up To Surface ends on the flat face picked, Up To Vertex at the
   assert.equal(commandBlocked("extrude", [edge], sketch, atVertex), "");
   // Edit Feature keeps what it ends on, so it waits on no pick.
   assert.equal(commandBlocked("extrude", [], sketch, values, { values: { end: "surface" } }), "");
+});
+
+// The fields of an answer a test reads.
+const pick = (object, keys) => Object.fromEntries(keys.map(key => [key, object?.[key]]));
+
+test("an extrude's preview sweeps its depth in millimetres with an arrow the way it goes, or draws the arrow alone", () => {
+  const sketch = { file: "a.py", line: 4 };
+  const top = { origin: [0, 0, 10], x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+  const opened = commandDefaults("extrude", "in");
+  assert.deepEqual(extrudePreview("extrude", { ...opened, depth: ".25" }, { units: "in", sketch }),
+    { kind: "boss", end: "blind", file: "a.py", line: 4, taper: 0, depth: 6.35, reverse: false, label: ".25 in" });
+  // Mid Plane goes both ways, so Reverse does not apply; Through All is tagged by its name.
+  assert.equal(extrudePreview("cut", { ...opened, end: "mid", reverse: true }, { units: "in", sketch }).reverse, false);
+  assert.equal(extrudePreview("cut", { ...opened, end: "through" }, { units: "in", sketch }).label, "Through All");
+  // A depth written as a size's name, Up To Next, Up To Surface: the arrow alone, from the sketch.
+  assert.deepEqual(pick(extrudePreview("extrude", { ...opened, depth: "WALL" }, { sketch }), ["arrowOnly", "label"]), { arrowOnly: true, label: "Wall" });
+  assert.deepEqual(pick(extrudePreview("extrude", { ...opened, end: "next" }, { sketch }), ["arrowOnly", "reverse", "label"]),
+    { arrowOnly: true, reverse: false, label: "Up To Next" });
+  // Up To Surface goes the side of the sketch's plane its face is: below it here.
+  const below = { selector: "f2", type: "plane", center: [0, 0, 2] };
+  assert.equal(extrudePreview("extrude", { ...opened, end: "surface" }, { sketch, frame: top, ending: below }).reverse, true);
+  assert.equal(extrudePreview("extrude", opened, {}), null);
+  assert.equal(plainNumber("2*WALL"), null);
+});
+
+test("a linear pattern's arrow runs from the feature it copies to its first copy, from where the copies are", () => {
+  const mark = patternPreview({ type: "linear", direction: "Y", spacing: "10", count: "3", reverse: true }, "mm");
+  assert.deepEqual(mark, { mark: "pattern", along: [0, -1, 0], spacing: 10, count: 3, label: "10 mm" });
+  // Two copies, 10 and 20 below a feature at the origin, each 2 across.
+  const copies = [-1, -11, 0, 1, -9, 1, -1, -21, 0, 1, -19, 1];
+  const { from, to } = patternArrow(mark, copies);
+  assert.deepEqual([from.map(Math.round), to.map(Math.round)], [[0, 0, 1], [0, -10, 1]].map(point => point.map(Math.round)));
+  assert.equal(patternPreview({ type: "circular", count: "6" }), null);
+  assert.equal(patternPreview({ type: "linear", direction: "X", spacing: "PITCH", count: "3" }), null);
+});
+
+test("a hole's arrow goes into its face where it goes in, and a mirror's plane is drawn about what it mirrors", () => {
+  const top = { center: [0, 0, 2], normal: [0, 0, 1] };
+  // A distance up the face's normal stays on the face.
+  assert.deepEqual(holePreview({ x: "3", y: "-1", z: "5", through: false, depth: "4" }, "mm", top),
+    { mark: "hole", at: [3, -1, 2], into: [0, 0, -1], label: "4 mm" });
+  assert.equal(holePreview({ through: true }, "mm", top).label, "Through All");
+  assert.equal(holePreview({}, "mm", null), null);
+  const bounds = [[-10, -5, -2], [10, 5, 2]];
+  // About an origin plane, as the design tree draws it; about a face, a square on its plane.
+  assert.deepEqual(mirrorOutline(mirrorPreview({ plane: "YZ" }), bounds), planeOutline("Right", bounds));
+  const side = mirrorOutline(mirrorPreview({ plane: "YZ" }, { center: [10, 0, 0], normal: [1, 0, 0] }), bounds);
+  assert.equal(side.length, 4);
+  assert.ok(side.every(([x]) => Math.abs(x - 10) < 1e-9));
+  assert.equal(mirrorPreview({ plane: "face" }), null);
 });

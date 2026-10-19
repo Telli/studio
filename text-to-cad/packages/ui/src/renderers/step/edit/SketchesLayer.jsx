@@ -1,7 +1,33 @@
 import { useEffect, useRef } from "react";
-import { cadColors, colorsFor, curvePoints, planeMapping, PREVIEW_FILL_ALPHA, strokePath } from "./sketchDrawing.js";
+import {
+  cadColors,
+  colorsFor,
+  curvePoints,
+  drawArrow,
+  drawArrowHead,
+  drawLabel,
+  fillShapes,
+  framePoint,
+  loopsCentroid,
+  modelMapping,
+  planeMapping,
+  PREVIEW_FILL_ALPHA,
+  screenDirection,
+  strokePath
+} from "./sketchDrawing.js";
 import { sketchGeometry } from "./sketchMode.js";
-import { CLICK_SLOP_PX, extrudeSpan, holeLoops, revolvedFrame, screenSketch, sideIndexes, sketchAt, tagPlace, taperedLoop } from "./sketchPicking.js";
+import {
+  CLICK_SLOP_PX,
+  extrudeSpan,
+  holeLoops,
+  revolvedFrame,
+  screenSketch,
+  sideIndexes,
+  sketchAt,
+  tagPlace,
+  taperedLoop,
+  turnArrowStart
+} from "./sketchPicking.js";
 
 const TAG_FONT_PX = 11;
 const TAG_HEIGHT_PX = 18;
@@ -42,83 +68,154 @@ function drawTag(context, drawn, name, cad, font) {
   context.restore();
 }
 
-/**
- * What an extrude of the sketch would make, drawn over the model as SolidWorks previews one: the
- * sketch's outlines again at each end of its span along the plane's normal, shaded, and the side
- * edges between them, in amber for material added and red for a cut.
- */
-function drawPreview(context, view, shape, through, cad, at) {
-  const span = extrudeSpan(shape, through);
-  const loops = view.state?.loops || [];
-  if (!span || !loops.length) return;
-  const ends = span.map(at);
-  if (!ends.every(Boolean)) return;
-  // Material added in amber with the darker edge the icons draw it with; a cut in red.
-  const fill = shape.kind === "cut" ? cad.cut : cad.solid;
-  context.save();
-  context.strokeStyle = shape.kind === "cut" ? cad.cut : cad.solidEdge;
-  context.lineWidth = 2;
-  // A draft leans the sides in (out, negative) by its angle: each end's outline is moved in by
-  // how far it is from the sketch's plane, in the sketch's own units.
-  const lean = Math.tan(((shape.taper || 0) * Math.PI) / 180) / (view.state?.unit || 1);
-  const holes = holeLoops(loops);
-  loops.forEach((loop, at) => {
-    const [near, far] = ends.map((mapping, end) => taperedLoop(loop, Math.abs(span[end]) * lean, holes[at]).map(mapping.toScreen));
-    if (!near.every(Boolean) || !far.every(Boolean)) return;
-    for (const end of [near, far]) {
-      fillLoops(context, [end], fill, PREVIEW_FILL_ALPHA);
-      context.beginPath();
-      end.forEach(([x, y], index) => (index ? context.lineTo(x, y) : context.moveTo(x, y)));
-      context.closePath();
-      context.stroke();
-    }
-    context.beginPath();
-    for (const index of sideIndexes(loop)) {
-      context.moveTo(near[index][0], near[index][1]);
-      context.lineTo(far[index][0], far[index][1]);
-    }
-    context.stroke();
+// The sides of a swept outline on the screen, between it and its copy: one face for each run of it.
+function sideFaces(near, far) {
+  return near.map((point, index) => {
+    const next = (index + 1) % near.length;
+    return { points: [point, near[next], far[next], far[index]] };
   });
-  context.restore();
 }
 
 /**
- * What a revolve of the sketch would make, drawn as SolidWorks previews one: the profile again at
- * steps around its axis, and its corners' paths between them, in amber for material added and red
- * for a cut. `at(degrees)` is the profile's plane mapping turned that far (`revolvedFrame`).
+ * What an extrude of the sketch would make, drawn over the model as SolidWorks previews one: a
+ * solid shaded once, in amber for material added and red for a cut, the sketch's outlines again at
+ * each end of its span along the plane's normal and the side edges between them; and an arrow at
+ * the end it goes to, pointing the way it goes (both ends at Mid Plane), tagged with its depth
+ * (`shape.label`). One the view cannot sweep (an end the body or a pick says, a depth written as
+ * a size's name, `shape.arrowOnly`) draws its arrow alone, from the sketch, the server's preview
+ * of it drawn apart (`PreviewLayer.jsx`). `model` maps the part's millimetres to the view.
  */
-function drawRevolvePreview(context, view, shape, cad, at) {
+function drawPreview(context, view, shape, through, cad, at, model, font) {
+  const loops = view.state?.loops || [];
+  const frame = view.state?.frame;
+  const unit = view.state?.unit || 1;
+  if (!loops.length || !frame) return;
+  const holes = holeLoops(loops);
+  // Material added in amber with the darker edge the icons draw it with; a cut in red.
+  const fill = shape.kind === "cut" ? cad.cut : cad.solid;
+  const stroke = shape.kind === "cut" ? cad.cut : cad.solidEdge;
+  const span = shape.arrowOnly ? [0, 0] : extrudeSpan(shape, through);
+  if (!span) return;
+  if (!shape.arrowOnly) {
+    const ends = span.map(at);
+    if (!ends.every(Boolean)) return;
+    // A draft leans the sides in (out, negative) by its angle: each end's outline is moved in by
+    // how far it is from the sketch's plane, in the sketch's own units.
+    const lean = Math.tan(((shape.taper || 0) * Math.PI) / 180) / unit;
+    const drawn = loops.map((loop, index) => {
+      const [near, far] = ends.map((mapping, end) => taperedLoop(loop, Math.abs(span[end]) * lean, holes[index]).map(mapping.toScreen));
+      return { loop, hole: holes[index], near, far };
+    }).filter(({ near, far }) => near.every(Boolean) && far.every(Boolean));
+    fillShapes(context, drawn.flatMap(({ hole, near, far }) => [{ points: near, hole }, { points: far, hole }, ...sideFaces(near, far)]),
+      fill, PREVIEW_FILL_ALPHA);
+    context.save();
+    context.strokeStyle = stroke;
+    context.lineWidth = 2;
+    for (const { loop, near, far } of drawn) {
+      for (const end of [near, far]) {
+        context.beginPath();
+        end.forEach(([x, y], point) => (point ? context.lineTo(x, y) : context.moveTo(x, y)));
+        context.closePath();
+        context.stroke();
+      }
+      context.beginPath();
+      for (const corner of sideIndexes(loop)) {
+        context.moveTo(near[corner][0], near[corner][1]);
+        context.lineTo(far[corner][0], far[corner][1]);
+      }
+      context.stroke();
+    }
+    context.restore();
+  }
+  // The arrow at the end it reaches, or at each end of a Mid Plane; from the sketch for one the
+  // body or a pick ends.
+  const middle = loopsCentroid(loops, holes);
+  if (!middle || !model) return;
+  const reach = Math.max(0.5, Math.abs(span[1] - span[0]) / 4, (through || 0) / 50);
+  const arrows = shape.end === "mid" ? [[span[1], 1], [span[0], -1]] : [[shape.reverse ? span[0] : span[1], shape.reverse ? -1 : 1]];
+  arrows.forEach(([offset, sign], index) => {
+    const way = screenDirection(model, framePoint(frame, unit, middle, offset), frame.z.map(value => value * sign), reach);
+    if (!way) return;
+    const place = drawArrow(context, way, stroke);
+    if (index === 0) drawLabel(context, shape.label, place, stroke, font);
+  });
+}
+
+// How far round a full turn's arrow runs, short of closing on itself so its head reads.
+const FULL_TURN_ARROW_DEGREES = 330;
+
+/**
+ * What a revolve of the sketch would make, drawn as SolidWorks previews one: a solid shaded once,
+ * the profile again at steps around its axis and its corners' paths between them, in amber for
+ * material added and red for a cut; the axis, a centerline; and an arrow turning the way it turns,
+ * just outside the profile, tagged with its angle (`shape.label`). `at(degrees)` is the profile's
+ * plane mapping turned that far (`revolvedFrame`).
+ */
+function drawRevolvePreview(context, view, shape, cad, at, font) {
   const loops = view.state?.loops || [];
   const total = shape.revolve.angle;
   if (!loops.length || !total) return;
   const fine = Math.max(4, Math.ceil(Math.abs(total) / 10));
   const mappings = Array.from({ length: fine + 1 }, (_, step) => at((total * step) / fine));
   if (!mappings.every(Boolean)) return;
+  const fill = shape.kind === "cut" ? cad.cut : cad.solid;
+  const stroke = shape.kind === "cut" ? cad.cut : cad.solidEdge;
+  const holes = holeLoops(loops);
+  // The profile at every step, on the screen; a solid shaded once over what its sides sweep, and
+  // its two ends when it does not go all the way round.
+  const steps = loops.map(loop => mappings.map(mapping => loop.map(mapping.toScreen)));
+  const usable = steps.map(rings => rings.every(ring => ring.every(Boolean)));
+  fillShapes(context, steps.flatMap((rings, index) => (!usable[index] ? []
+    : [...rings.slice(1).flatMap((ring, step) => sideFaces(rings[step], ring)),
+      ...(Math.abs(total) < 360 ? [{ points: rings[0], hole: holes[index] }, { points: rings[fine], hole: holes[index] }] : [])])),
+  fill, PREVIEW_FILL_ALPHA);
   context.save();
-  context.strokeStyle = shape.kind === "cut" ? cad.cut : cad.solidEdge;
-  for (const loop of loops) {
+  context.strokeStyle = stroke;
+  steps.forEach((rings, index) => {
+    if (!usable[index]) return;
     // The profile every 30 degrees or so, and where the turn ends.
     const every = Math.max(1, Math.round(fine / Math.max(1, Math.ceil(Math.abs(total) / 30))));
-    mappings.forEach((mapping, step) => {
+    rings.forEach((outline, step) => {
       if (step === 0 || (step % every !== 0 && step !== fine)) return;
-      const outline = loop.map(mapping.toScreen);
-      if (!outline.every(Boolean)) return;
       context.lineWidth = step === fine ? 2 : 1;
       context.beginPath();
-      outline.forEach(([x, y], index) => (index ? context.lineTo(x, y) : context.moveTo(x, y)));
+      outline.forEach(([x, y], point) => (point ? context.lineTo(x, y) : context.moveTo(x, y)));
       context.closePath();
       context.stroke();
-      if (step === fine && Math.abs(total) < 360) fillLoops(context, [outline], shape.kind === "cut" ? cad.cut : cad.solid, PREVIEW_FILL_ALPHA);
     });
     // Each corner's path around the axis.
     context.lineWidth = 1.5;
-    for (const index of sideIndexes(loop)) {
-      const path = mappings.map(mapping => mapping.toScreen(loop[index]));
-      if (!path.every(Boolean)) continue;
+    for (const corner of sideIndexes(loops[index])) {
       context.beginPath();
-      path.forEach(([x, y], step) => (step ? context.lineTo(x, y) : context.moveTo(x, y)));
+      rings.forEach((ring, step) => (step ? context.lineTo(ring[corner][0], ring[corner][1]) : context.moveTo(ring[corner][0], ring[corner][1])));
       context.stroke();
     }
+  });
+  // The axis it turns about, drawn as a centerline past the profile's ends.
+  const { a, b } = shape.revolve;
+  const past = [a.map((value, axis) => value - (b[axis] - a[axis]) * 0.25), b.map((value, axis) => value + (b[axis] - a[axis]) * 0.25)]
+    .map(mappings[0].toScreen);
+  if (past.every(Boolean)) {
+    context.lineWidth = 1.25;
+    context.setLineDash([9, 4, 2, 4]);
+    context.beginPath();
+    context.moveTo(past[0][0], past[0][1]);
+    context.lineTo(past[1][0], past[1][1]);
+    context.stroke();
+    context.setLineDash([]);
+  }
+  // The way it turns: an arrow around the axis, just outside the profile, as far as it turns.
+  const start = turnArrowStart(loops, a, b);
+  const shown = Math.sign(total) * Math.min(Math.abs(total), FULL_TURN_ARROW_DEGREES);
+  const arc = start ? Array.from({ length: fine + 1 }, (_, step) => at((shown * step) / fine)?.toScreen(start) || null) : [];
+  if (arc.length > 1 && arc.every(Boolean)) {
+    context.lineWidth = 2;
+    context.beginPath();
+    arc.forEach(([x, y], step) => (step ? context.lineTo(x, y) : context.moveTo(x, y)));
+    context.stroke();
+    const [before, tip] = arc.slice(-2);
+    const place = drawArrowHead(context, tip, [tip[0] - before[0], tip[1] - before[1]], stroke);
+    drawLabel(context, shape.label, place, stroke, font);
   }
   context.restore();
 }
@@ -134,7 +231,8 @@ function drawRevolvePreview(context, view, shape, cad, at) {
  * With `onPick`, a click on a sketch's line picks it, and with `profiles` (a feature waiting for a
  * sketch) a click inside its outline too; with `onEdit`, a double-click on its line opens it. Such a press is the sketch's, not the model's: claimed
  * before the camera or the model's picking sees it, as the joint handles claim theirs. `preview`
- * draws what an extrude of the selected sketch would make (`{ kind, end, depth, reverse }`, its
+ * draws what an extrude or a revolve of the selected sketch would make, with the way it goes
+ * (`{ kind, end, depth, reverse, taper, label, arrowOnly }` or `{ kind, revolve, label }`, its
  * depth and `through`, the part's extent, in millimetres).
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
@@ -189,25 +287,25 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
         if (!mapping) return;
         const picked = Boolean(chosen && chosen.file === view.file && chosen.line === view.line);
         const hovered = !picked && hover.current === index;
-        if (picked) {
-          fillLoops(context, drawn[index].loops, cad.picked, PICKED_FILL_ALPHA);
-          if (shape && shape.file === view.file && shape.line === view.line) {
-            const frame = view.state.frame;
-            const unit = view.state.unit || 1;
-            if (shape.revolve) {
-              const { a, b } = shape.revolve;
-              drawRevolvePreview(context, view, shape, cad, degrees => {
-                const turned = revolvedFrame(frame, unit, a, b, degrees);
-                return turned ? planeMapping(runtime, width, height, turned, unit) : null;
-              });
-            } else {
-              const at = offset => planeMapping(runtime, width, height,
-                { ...frame, origin: frame.origin.map((value, axis) => value + frame.z[axis] * offset) }, unit);
-              drawPreview(context, view, shape, extent, cad, at);
-            }
+        if (picked) fillLoops(context, drawn[index].loops, cad.picked, PICKED_FILL_ALPHA);
+        // What an extrude or a revolve of it would make: the sketch picked for a new one, or a
+        // reopened feature's own.
+        if (shape && shape.file === view.file && shape.line === view.line) {
+          const frame = view.state.frame;
+          const unit = view.state.unit || 1;
+          if (shape.revolve) {
+            const { a, b } = shape.revolve;
+            drawRevolvePreview(context, view, shape, cad, degrees => {
+              const turned = revolvedFrame(frame, unit, a, b, degrees);
+              return turned ? planeMapping(runtime, width, height, turned, unit) : null;
+            }, colors.font);
+          } else {
+            const at = offset => planeMapping(runtime, width, height,
+              { ...frame, origin: frame.origin.map((value, axis) => value + frame.z[axis] * offset) }, unit);
+            drawPreview(context, view, shape, extent, cad, at, modelMapping(runtime, width, height), colors.font);
           }
-          tag = { drawn: drawn[index], name: view.name || "Sketch" };
         }
+        if (picked) tag = { drawn: drawn[index], name: view.name || "Sketch" };
         for (const curve of sketchGeometry(view.state).curves) {
           context.strokeStyle = picked ? cad.picked : hovered ? colors.hover : curve.defined ? colors.quiet : colors.under;
           context.lineWidth = picked ? 2.5 : hovered ? 2 : 1.25;

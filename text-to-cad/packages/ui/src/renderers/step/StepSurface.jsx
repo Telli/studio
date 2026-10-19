@@ -145,6 +145,7 @@ import {
   editCommand,
   featureNames,
   featureTree,
+  mirrorOutline,
   nextSketchName,
   originAxis,
   planeOutline,
@@ -3277,11 +3278,16 @@ function StepSurfaceBody({ view, data }) {
   [edit.status, edit.state, editTree, edit.selected, edit.sketch, edit.bar]);
   // A plane or the origin the design tree selects, or has under its pointer, drawn on the model;
   // all three while the Sketch command waits for one.
-  const editPlanes = useMemo(() => (edit.sketch ? [] : [...(edit.picking ? ORIGIN_PLANES.map(plane => [`plane:${plane}`, false]) : []),
-    [edit.selected, true], [edit.hovered, false]]).flatMap(([id, strong]) => {
-    const points = typeof id === "string" && id.startsWith("plane:") ? planeOutline(id.slice("plane:".length), edit.state?.bounds) : null;
-    return points ? [{ points, strong }] : [];
-  }), [edit.selected, edit.hovered, edit.picking, edit.sketch, edit.state?.bounds]);
+  const editPlanes = useMemo(() => {
+    const planes = (edit.sketch ? [] : [...(edit.picking ? ORIGIN_PLANES.map(plane => [`plane:${plane}`, false]) : []),
+      [edit.selected, true], [edit.hovered, false]]).flatMap(([id, strong]) => {
+      const points = typeof id === "string" && id.startsWith("plane:") ? planeOutline(id.slice("plane:".length), edit.state?.bounds) : null;
+      return points ? [{ points, strong }] : [];
+    });
+    // Mirror's plane, while its panel is open: the one it mirrors about.
+    const mirrored = edit.command === "mirror" && edit.preview?.mark === "mirror" ? mirrorOutline(edit.preview, edit.state?.bounds) : null;
+    return mirrored ? [...planes, { points: mirrored, strong: true }] : planes;
+  }, [edit.selected, edit.hovered, edit.picking, edit.sketch, edit.state?.bounds, edit.command, edit.preview]);
   const editOrigin = !edit.sketch && (edit.selected === "origin" || edit.hovered === "origin") ? originAxis(edit.state?.bounds) : null;
   // A modeling command opens with Select in hand, its mode turned to what the command picks (a
   // fillet's edges, a hole's face) and the part's faces and edges loaded to be picked, keeping
@@ -3327,11 +3333,13 @@ function StepSurfaceBody({ view, data }) {
     else if (pickedFace) sketchOnPlane(pickedFace);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit.picking, edit.selected, pickedFace?.selector]);
-  // The sketches drawn on the model while none is edited: those nothing uses yet, and the one
-  // selected in the tree.
+  // The sketches drawn on the model while none is edited: those nothing uses yet, the one selected
+  // in the tree, and the one an extrude or a revolve previews (a reopened feature's own).
+  const previewedSketch = edit.preview?.file ? edit.preview : null;
   const shownSketches = useMemo(() => (edit.sketch ? EMPTY_LIST : (edit.state?.sketches || EMPTY_LIST).filter(view => view.state
-    && (view.consumed === null || (selectedTreeSketch && view.file === selectedTreeSketch.file && view.line === selectedTreeSketch.line)))),
-  [edit.sketch, edit.state?.sketches, selectedTreeSketch]);
+    && (view.consumed === null || (selectedTreeSketch && view.file === selectedTreeSketch.file && view.line === selectedTreeSketch.line)
+      || (previewedSketch && view.file === previewedSketch.file && view.line === previewedSketch.line)))),
+  [edit.sketch, edit.state?.sketches, selectedTreeSketch, previewedSketch]);
   // Open Part, on a part of an assembly: its own model shown in this view, to be modeled there (an
   // assembly places its parts; commands act on a part). A host that shows one file alone has none.
   const openFile = host?.navigation?.openFile;
@@ -3647,7 +3655,9 @@ function StepSurfaceBody({ view, data }) {
           onPick={sketchesPickable ? pickSketch : null} profiles={sketchFeature && !selectedTreeSketch} preview={edit.preview}
           onEdit={sketchesPickable && !edit.command ? view => openTreeSketch({ file: view.file, line: view.line, title: view.name }) : null}
           through={partExtent} /> : null}
-        {editing && edit.command && edit.featurePreview ? <PreviewLayer viewport={viewport} preview={edit.featurePreview} /> : null}
+        {editing && edit.command && (edit.featurePreview || edit.preview?.mark === "pattern" || edit.preview?.mark === "hole")
+          ? <PreviewLayer viewport={viewport} preview={edit.featurePreview} mark={edit.preview?.mark ? edit.preview : null} extent={partExtent} />
+          : null}
         {editing ? <div ref={setCommandCard} className="pointer-events-none absolute bottom-2 right-2 top-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col items-stretch"
           data-cad-command-card-place="" /> : null}
       </>;
