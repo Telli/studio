@@ -222,6 +222,22 @@ class Splines(unittest.TestCase):
         with self.assertRaises(SketchError):
             blob.spline((0, 0), (1, 1), closed=True)
 
+    def test_convert_brings_a_spline_edge_or_a_tilted_circle_in_as_a_spline_held_where_the_model_has_it(self):
+        curve = B.Edge.make_spline([B.Vector(0, 0, 2), B.Vector(10, 6, 2), B.Vector(20, 0, 2)])
+        s = Sketch("Sketch1", plane="Top")
+        (spline,) = s.convert(curve)
+        self.assertEqual((type(spline).__name__, s.status), ("Spline", "Fully defined"))
+        self.assertEqual([(round(spline.start.x, 6), round(spline.end.x, 6))], [(0, 20)])
+        # Through the edge where it falls on the plane: its middle at (10, 6) as the edge's is.
+        middle = spline.points[len(spline.points) // 2]
+        self.assertAlmostEqual(math.hypot(middle.x - 10, middle.y - 6), 0, places=1)
+        # A circle tilted to the sketch comes in as the ellipse it falls as: a closed spline.
+        tilted = B.Edge.make_circle(5, B.Plane(origin=(0, 0, 0), z_dir=(1, 0, 1)))
+        (ellipse,) = Sketch("Sketch2", plane="Top").convert(tilted)
+        self.assertTrue(ellipse.closed)
+        widths = [point.x for point in ellipse.points]
+        self.assertAlmostEqual(max(widths) - min(widths), 2 * 5 * math.cos(math.radians(45)), places=1)
+
     def test_a_path_runs_along_a_spline(self):
         s = Sketch("Path", plane="Front")
         s.spline((0, 0), (10, 5), (20, 0))

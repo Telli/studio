@@ -736,10 +736,17 @@ class Sketch:
             if kind == B.GeomType.LINE:
                 start, end = edge.start_point(), edge.end_point()
                 curve = Line(self._named("Line"), point(start), point(end), construction, _source())
-            elif kind == B.GeomType.CIRCLE:
-                if abs(abs(edge.normal().dot(plane.z_dir)) - 1) > 1e-6:
-                    raise SketchError(f"One of those edges is a circle tilted to {self.name}, which would come in as an ellipse. "
-                                      "Convert Entities brings in lines, arcs and circles that lie square to the sketch.")
+            elif kind != B.GeomType.CIRCLE or abs(abs(edge.normal().dot(plane.z_dir)) - 1) > 1e-6:
+                # A spline, an ellipse or a circle tilted to the sketch: a spline through places along
+                # it, as they fall on the plane, each fixed there, as SolidWorks converts one.
+                count = _CONVERTED_SPLINE_POINTS
+                closed = edge.is_closed
+                places = [edge.position_at(i / count) for i in range(count if closed else count + 1)]
+                curve = Spline(self._named("Spline"), [point(place) for place in places], closed, construction, _source())
+                if len({id(each) for each in curve.points}) < len(curve.points):
+                    raise SketchError(f"One of those edges folds onto itself on {self.name}, as it stands square to it. "
+                                      "Pick edges that lie along it.")
+            else:
                 radius = edge.radius / self.unit
                 if edge.is_closed:
                     curve = Circle(self._named("Circle"), point(edge.arc_center), radius, construction, _source())
@@ -748,10 +755,6 @@ class Sketch:
                     turning = (mid.X - start.X) * (end.Y - start.Y) - (mid.Y - start.Y) * (end.X - start.X) > 0
                     curve = Arc(self._named("Arc"), point(edge.arc_center), point(edge.start_point()), point(edge.end_point()),
                                 not turning, construction, _source())
-            else:
-                word = str(kind.name).lower().replace("bspline", "spline").replace("bezier", "spline")
-                raise SketchError(f"One of those edges is a {word}. Convert Entities brings in lines, arcs and circles; "
-                                  "ask the agent to bring in that edge.")
             self.curves.append(curve)
             self._relate("on_edge", (curve,), label="OnEdge",
                          data={"radius": curve.radius * 1.0} if isinstance(curve, Circle) else {})
@@ -1073,6 +1076,10 @@ class Sketch:
 
     def __repr__(self) -> str:
         return f"Sketch({self.name!r}, {len(self.curves)} curves, {len(self.relations)} relations)"
+
+
+# How many stretches a converted spline is brought in by: a place at each end of each.
+_CONVERTED_SPLINE_POINTS = 12
 
 
 def _radius(curve) -> float:
