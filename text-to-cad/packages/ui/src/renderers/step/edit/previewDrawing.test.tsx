@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import PreviewLayer from '../../../../dist/renderers/step/edit/PreviewLayer.js';
 import SketchesLayer from '../../../../dist/renderers/step/edit/SketchesLayer.js';
+import { revolvedFrame, turnArrowStart } from '../../../../dist/renderers/step/edit/sketchPicking.js';
 
 // What the layers draw, kept by a 2D context that draws nothing: the tags' words and how many fills.
 let texts: string[] = [];
@@ -102,5 +103,39 @@ it("an extrude's arrow dragged along its line sets the depth it reaches, and cli
   await waitFor(() => expect(texts.slice(released)).toContain('10 mm'));
   host.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, ...pixel(10) }));
   window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, ...pixel(10) }));
+  expect(onReverse).toHaveBeenCalledTimes(1);
+});
+
+it("a revolve's arrow dragged round its axis sets the angle it reaches, and clicked turns the revolve the other way", async () => {
+  const view = viewport();
+  const { camera } = view.runtimeRef.current;
+  const host = view.hostRef.current;
+  const frame = { origin: [0, 0, 0], x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+  const loops = [[[-5, -5], [5, -5], [5, 5], [-5, 5]]];
+  const sketch = { file: 'a.py', line: 4, name: 'Sketch1', state: { frame, unit: 1, loops, curves: [] } };
+  const [a, b] = [[-8, -10], [-8, 10]];
+  // Where the arrow's head is when the revolve has turned so far.
+  const start = turnArrowStart(loops, a, b);
+  const pixel = (degrees: number) => {
+    const turned = revolvedFrame(frame, 1, a, b, degrees);
+    const point = new THREE.Vector3(...[0, 1, 2].map(axis => turned.origin[axis] + turned.x[axis] * start[0] + turned.y[axis] * start[1])).project(camera);
+    return { clientX: ((point.x + 1) * 800) / 2, clientY: ((1 - point.y) * 600) / 2 };
+  };
+  const onAngle = vi.fn();
+  const onReverse = vi.fn();
+  render(<SketchesLayer viewport={view} sketches={[sketch]} selected={null} through={50}
+    preview={{ kind: 'boss', revolve: { a, b, angle: 90 }, file: 'a.py', line: 4, label: '90°', onAngle, onReverse }} />);
+  await waitFor(() => expect(texts).toContain('90°'));
+  // Taken at its head, a quarter turn round, and dragged to half a turn: drawn and tagged there as it goes.
+  host.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, ...pixel(90) }));
+  window.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, ...pixel(180) }));
+  await waitFor(() => expect(texts).toContain('180°'));
+  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, ...pixel(180) }));
+  expect(onAngle).toHaveBeenCalledWith('180');
+  // Drawn at its panel's angle again once let go; then pressed and let go where it is: a click, which reverses it.
+  const released = texts.length;
+  await waitFor(() => expect(texts.slice(released)).toContain('90°'));
+  host.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, ...pixel(90) }));
+  window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, ...pixel(90) }));
   expect(onReverse).toHaveBeenCalledTimes(1);
 });

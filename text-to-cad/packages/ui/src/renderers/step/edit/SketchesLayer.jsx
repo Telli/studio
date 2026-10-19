@@ -17,7 +17,7 @@ import {
   screenDirection,
   strokePath
 } from "./sketchDrawing.js";
-import { draggedDepth, withUnit } from "./editMode.js";
+import { draggedAngle, draggedDepth, withUnit } from "./editMode.js";
 import { sketchGeometry } from "./sketchMode.js";
 import {
   CLICK_SLOP_PX,
@@ -158,15 +158,16 @@ const FULL_TURN_ARROW_DEGREES = 330;
  * the profile again at steps around its axis and its corners' paths between them, in amber for
  * material added and red for a cut; the axis, a centerline; and an arrow turning the way it turns,
  * just outside the profile, tagged with its angle (`shape.label`). `at(degrees)` is the profile's
- * plane mapping turned that far (`revolvedFrame`).
+ * plane mapping turned that far (`revolvedFrame`). Returns the arrow's head as a handle
+ * (`handleAt`), with where it can turn to: its place on the screen at each whole degree (`reach`).
  */
 function drawRevolvePreview(context, view, shape, cad, at, font) {
   const loops = view.state?.loops || [];
   const total = shape.revolve.angle;
-  if (!loops.length || !total) return;
+  if (!loops.length || !total) return [];
   const fine = Math.max(4, Math.ceil(Math.abs(total) / 10));
   const mappings = Array.from({ length: fine + 1 }, (_, step) => at((total * step) / fine));
-  if (!mappings.every(Boolean)) return;
+  if (!mappings.every(Boolean)) return [];
   const fill = shape.kind === "cut" ? cad.cut : cad.solid;
   const stroke = shape.kind === "cut" ? cad.cut : cad.solidEdge;
   const holes = holeLoops(loops);
@@ -217,6 +218,7 @@ function drawRevolvePreview(context, view, shape, cad, at, font) {
   const start = turnArrowStart(loops, a, b);
   const shown = Math.sign(total) * Math.min(Math.abs(total), FULL_TURN_ARROW_DEGREES);
   const arc = start ? Array.from({ length: fine + 1 }, (_, step) => at((shown * step) / fine)?.toScreen(start) || null) : [];
+  const handles = [];
   if (arc.length > 1 && arc.every(Boolean)) {
     context.lineWidth = 2;
     context.beginPath();
@@ -225,8 +227,11 @@ function drawRevolvePreview(context, view, shape, cad, at, font) {
     const [before, tip] = arc.slice(-2);
     const place = drawArrowHead(context, tip, [tip[0] - before[0], tip[1] - before[1]], stroke);
     drawLabel(context, shape.label, place, stroke, font);
+    const sign = Math.sign(total);
+    handles.push({ from: before, tip, facing: 0, reach: () => Array.from({ length: 360 }, (_, step) => at(sign * (step + 1))?.toScreen(start) || null) });
   }
   context.restore();
+  return handles;
 }
 
 /**
@@ -245,7 +250,8 @@ function drawRevolvePreview(context, view, shape, cad, at, font) {
  * its depth and `through`, the part's extent, in millimetres). An extrude's arrow is a handle, as
  * SolidWorks' is: dragged along its line it sets the depth (`preview.onDepth`, given it as the
  * panel takes it), the extrude drawn at the depth reached until the press ends; clicked, it turns
- * the extrude the other way (`preview.onReverse`).
+ * the extrude the other way (`preview.onReverse`). A revolve's arrow is one too: dragged round its
+ * axis it sets the angle (`preview.onAngle`), clicked it turns the other way.
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
  *   sketches: { file: string, line: number, name: string, state: object | null }[],
@@ -282,9 +288,13 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       const height = host.clientHeight || 1;
       const dpr = window.devicePixelRatio || 1;
       const { sketches: shown, selected: chosen, preview: given, through: extent } = live.current;
-      // A handle being dragged: the extrude drawn at the depth it has reached, tagged with it.
+      // A handle being dragged: the extrude drawn at the depth it has reached, or the revolve turned
+      // as far as its arrow has, tagged with it.
       const dragged = draggedRef.current;
-      const shape = dragged && given && !given.revolve ? { ...given, depth: dragged.mm, label: withUnit(dragged.text, given.units) } : given;
+      const shape = !dragged || !given ? given
+        : given.revolve ? (dragged.degrees ? { ...given, revolve: { ...given.revolve, angle: Math.sign(given.revolve.angle || 1) * dragged.degrees },
+          label: `${dragged.text}°` } : given)
+          : dragged.mm ? { ...given, depth: dragged.mm, label: withUnit(dragged.text, given.units) } : given;
       const mappings = shown.map(view => (view.state ? planeMapping(runtime, width, height, view.state.frame, view.state.unit || 1) : null));
       const key = `${mappings.map(mapping => mapping?.key || "").join("/")}|${version.current}|${dpr}|${hover.current}|${dragged?.text || ""}`;
       if (key === painted) return;
@@ -316,7 +326,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
           const unit = view.state.unit || 1;
           if (shape.revolve) {
             const { a, b } = shape.revolve;
-            drawRevolvePreview(context, view, shape, cad, degrees => {
+            handlesRef.current = drawRevolvePreview(context, view, shape, cad, degrees => {
               const turned = revolvedFrame(frame, unit, a, b, degrees);
               return turned ? planeMapping(runtime, width, height, turned, unit) : null;
             }, colors.font);
@@ -350,10 +360,10 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       return [event.clientX - rect.left, event.clientY - rect.top];
     };
     const under = event => (live.current.onPick ? sketchAt(drawnRef.current, at(event), { profiles: live.current.profiles }) : -1);
-    // The extrude's arrow under the pointer, when the panel takes what it does.
+    // The extrude's or the revolve's arrow under the pointer, when the panel takes what it does.
     const handleUnder = event => {
       const shape = live.current.preview;
-      return shape?.onDepth || shape?.onReverse ? handleAt(handlesRef.current, at(event)) : null;
+      return shape?.onDepth || shape?.onAngle || shape?.onReverse ? handleAt(handlesRef.current, at(event)) : null;
     };
     // How far from the sketch's plane, along a handle's line, the pointer is: in the part's millimetres.
     const reachAt = (event, handle) => {
@@ -377,6 +387,13 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) <= CLICK_SLOP_PX) return;
       drag.moved = true;
       const shape = live.current.preview;
+      // A revolve's arrow turns about its axis, to the degree nearest the pointer.
+      if (drag.reach) {
+        if (!shape?.onAngle) return;
+        draggedRef.current = draggedAngle(drag.reach, at(event));
+        version.current += 1;
+        return;
+      }
       if (!shape?.onDepth || drag.grab === null) return;
       const reached = reachAt(event, drag.handle);
       if (reached === null) return;
@@ -401,7 +418,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       version.current += 1;
       if (event.type === "pointercancel") return;
       if (moved) {
-        if (reached) shape?.onDepth?.(reached.text);
+        if (reached) (reached.degrees ? shape?.onAngle : shape?.onDepth)?.(reached.text);
       } else shape?.onReverse?.();
     }
     const down = event => {
@@ -411,10 +428,11 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
         // The arrow's press: not the camera's, nor the model's to pick under it.
         event.stopPropagation();
         event.preventDefault();
-        const start = handle.facing ? null : reachAt(event, handle);
-        // Where on the arrow it was taken, so its end moves with the pointer rather than jumping to it.
+        const start = handle.facing || handle.reach ? null : reachAt(event, handle);
+        // Where on the arrow it was taken, so its end moves with the pointer rather than jumping to
+        // it; a revolve's, each place its head can turn to, worked out once for the drag.
         drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, handle, moved: false,
-          grab: start === null ? null : start - handle.reached };
+          grab: start === null ? null : start - handle.reached, reach: handle.reach ? handle.reach() : null };
         window.addEventListener("pointermove", dragMove, true);
         window.addEventListener("pointerup", dragEnd, true);
         window.addEventListener("pointercancel", dragEnd, true);
@@ -443,9 +461,10 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
         if (!overHandle) {
           overHandle = true;
           const shape = live.current.preview;
-          const drags = Boolean(shape?.onDepth) && !handle.facing;
+          const what = handle.reach ? "angle" : "depth";
+          const drags = Boolean(handle.reach ? shape?.onAngle : shape?.onDepth) && !handle.facing;
           host.style.cursor = drags ? "grab" : "pointer";
-          host.title = drags ? (shape.onReverse ? "Drag to change the depth. Click to reverse it." : "Drag to change the depth.")
+          host.title = drags ? (shape.onReverse ? `Drag to change the ${what}. Click to reverse it.` : `Drag to change the ${what}.`)
             : "Click to reverse it.";
         }
         return;

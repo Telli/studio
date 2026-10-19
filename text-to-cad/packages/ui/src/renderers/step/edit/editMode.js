@@ -295,6 +295,25 @@ export function draggedDepth(reached, end, units = "mm") {
 }
 
 /**
+ * The angle a revolve's arrow is dragged to, as SolidWorks' handle turns one: of the places its
+ * arrow's head can reach (`reach`, its place on the screen at each whole degree from 1 to 360), the
+ * one nearest the pointer, to the nearest 5 degrees.
+ */
+export function draggedAngle(reach, point) {
+  let best = 1;
+  let nearest = Infinity;
+  reach.forEach((place, index) => {
+    const distance = place ? Math.hypot(place[0] - point[0], place[1] - point[1]) : Infinity;
+    if (distance < nearest) {
+      nearest = distance;
+      best = index + 1;
+    }
+  });
+  const degrees = Math.min(360, Math.max(5, Math.round(best / 5) * 5));
+  return { text: String(degrees), degrees };
+}
+
+/**
  * A linear pattern's way, for the view to draw over the copies the server previews: the axis it
  * runs along (`along`, the other way when reversed), its spacing in the part's millimetres, how
  * many, and the spacing as a tag. Null for a circular one (it goes all the way round), or a

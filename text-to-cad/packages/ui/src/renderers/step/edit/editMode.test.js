@@ -28,6 +28,7 @@ import {
   draggedDepth,
   emptyHistory,
   extrudePreview,
+  draggedAngle,
   draftPreview,
   draftReversed,
   holePreview,
@@ -478,6 +479,16 @@ test("a draft asks for its neutral plane, then its faces, and pulls the way the 
   // Front Plane faces -Y: a part in front of it, at -Y, is pulled that way as it is.
   assert.equal(draftReversed("Front", [[-10, -8, 0], [10, -2, 4]]), false);
   assert.equal(draftPreview({ neutral: "face" }), null);
+});
+
+test("a revolve's arrow dragged turns to the degree nearest the pointer, in steps of 5", () => {
+  // Its head's places round a circle of radius 100 about (0, 0), a degree apart.
+  const reach = Array.from({ length: 360 }, (_, step) => [100 * Math.cos(((step + 1) * Math.PI) / 180), 100 * Math.sin(((step + 1) * Math.PI) / 180)]);
+  assert.deepEqual(draggedAngle(reach, [0, 100]), { text: "90", degrees: 90 });
+  assert.deepEqual(draggedAngle(reach, [100 * Math.cos(1.2), 100 * Math.sin(1.2)]), { text: "70", degrees: 70 });
+  // Never less than 5, nor more than a full turn.
+  assert.equal(draggedAngle(reach, [100, 1]).degrees, 5);
+  assert.equal(draggedAngle(reach, [100, -1]).degrees, 360);
 });
 
 test("an extrude's arrow dragged sets the depth it reaches, in the part's units to the places the panel shows", () => {

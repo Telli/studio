@@ -298,7 +298,10 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const local = !previewOn ? null
     : edit.command === "extrude" || edit.command === "cut" ? handled
       : revolving ? (axisLine && angle !== null && angle > 0 ? { kind, revolve: { a: axisLine.a, b: axisLine.b, angle: values.reverse ? -angle : angle },
-        file: sketch.file, line: sketch.line, label: `${String(values.angle).trim()}°` } : null)
+        file: sketch.file, line: sketch.line, label: `${String(values.angle).trim()}°`,
+        // Its arrow a handle, as an extrude's: dragged round, it sets the Angle; clicked, it turns the other way.
+        onAngle: text => setValues(current => ({ ...current, angle: text })),
+        onReverse: () => setValues(current => ({ ...current, reverse: !current.reverse })) } : null)
         : edit.command === "pattern" ? patternPreview(values, units)
           : edit.command === "hole" ? holePreview(values, units, editing && !repicked ? null : facePick)
             : edit.command === "mirror" ? mirrorPreview(values, editing || !faces.length ? null : facePick)
