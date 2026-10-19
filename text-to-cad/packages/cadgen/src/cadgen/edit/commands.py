@@ -1283,15 +1283,46 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             if not through:
                 amount = same("amount", (-1 if reverse else 1) * (depth / 2 if both else depth), amount)
             code = f"{var} {sign} {names('extrude')}({profile}, amount={amount}{both}{taper})"
+        # Direction 2, as SolidWorks' extrude goes both ways from its sketch: a second extrude of
+        # the same profile the other way, added to the first, Blind (or Through All for a cut), its
+        # own draft. Not at Mid Plane, nor where a pick ends Direction 1, whose way the pick says.
+        second = inputs.get("direction2") in (True, "true", "1", 1)
+        if second and (end == "mid" or up_to):
+            raise CommandError("Direction 2 goes with Blind, Through All or Up To Next in Direction 1.")
+        if second:
+            end2 = str(inputs.get("end2") or "blind").lower()
+            if end2 not in ("blind", "through") or (end2 == "through" and command != "cut"):
+                raise CommandError("Direction 2 goes Blind, or Through All for a cut.")
+            # The other way from Direction 1: down the normal, up it when Direction 1 is reversed.
+            back = "" if inputs.get("reverse") in (True, "true", "1", 1) and not up_to_next else "-"
+            if end2 == "through":
+                amount2 = f"{back}{var}.bounding_box().diagonal"
+            else:
+                depth2 = _value(inputs, "depth2", "Depth 2", parse)
+                amount2 = same("amount2", (-1 if back else 1) * depth2, f"{back}{writer.length(depth2)}")
+            taper2 = ""
+            drafted2 = inputs.get("draft2") in (True, "true", "1", 1)
+            if drafted2:
+                angle2 = _value(inputs, "draft_angle2", "Draft angle 2", parse)
+                if angle2 >= 90:
+                    raise CommandError("A draft angle is less than 90 degrees.")
+                outward2 = inputs.get("outward2") in (True, "true", "1", 1)
+                taper2 = f", taper={'-' if outward2 else ''}{same('taper2', angle2, writer.number(angle2))}"
+            first = code.split(f" {sign} ", 1)[1]
+            code = f"{var} {sign} {first} + {names('extrude')}({profile}, amount={amount2}{taper2})"
         at = max(at, block.last_line)
         shown = [] if through or up_to_next or up_to else [("Depth", depth, units_word)]
         if drafted:
             shown.append(("Draft", angle, "deg"))
+        if second and end2 == "blind":
+            shown.append(("Depth 2", depth2, units_word))
         what = f"from {drawn.get('name') or 'the sketch'}" + (", through all" if through else ", up to next" if up_to_next
                                                               else ", up to a vertex" if end == "vertex" else ", up to a face" if end == "surface"
                                                               else ", mid plane" if end == "mid" else "")
         if drafted:
             what += f", drafted {'out' if outward else 'in'} {_number(angle, False)} degrees"
+        if second:
+            what += ", through all the other way" if end2 == "through" else ", and the other way"
         if thin:
             shown.append(("Thickness", wall, units_word))
             what += {"inside": ", a wall inside it", "outside": ", a wall outside it", "mid": ", a wall astride it"}[side]
@@ -1760,6 +1791,12 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
         flip = _keyword_value(value, "flip")
         return Feature("rib", {"thickness": size(wall), "flip": isinstance(flip, ast.Constant) and flip.value is True},
                        value.func.value.id, {"sketch": value.func.value.id}, target, operator, codes)
+    # Direction 2: two extrudes of one profile added, the second the other way.
+    second = None
+    if (operator in ("+=", "-=") and isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add)
+            and _call_name(value.left) == "extrude" and _call_name(value.right) == "extrude" and value.left.args and value.right.args
+            and code(value.left.args[0]) == code(value.right.args[0])):
+        value, second, name = value.left, value.right, "extrude"
     if operator in ("+=", "-=") and name in ("extrude", "revolve") and value.args and _sketch_of(value.args[0]):
         profile, sketch = value.args[0], _sketch_of(value.args[0])
         if name == "extrude":
@@ -1793,6 +1830,20 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                 values.update(thin=True, thin_thickness=size(wall),
                               thin_side=side.value if isinstance(side, ast.Constant) and side.value in ("outside", "mid") else "inside")
                 held("thin_thickness", profile.args[0], typed(wall))
+            if second is not None:
+                written2 = _keyword_value(second, "amount")
+                through2 = _through_all(written2)
+                amount2 = number(("extrude", "amount", 2)) or 0.0
+                values.update(direction2=True, end2="through" if through2 else "blind", depth2="" if through2 else size(abs(amount2)))
+                if not through2:
+                    held("amount2", written2, typed(amount2))
+                taper2 = _keyword_value(second, "taper")
+                drafted2 = number(("extrude", "taper", 2))
+                if taper2 is not None and drafted2:
+                    outward2 = drafted2 < 0
+                    values.update(draft2=True, draft_angle2=_number(abs(drafted2), False), outward2=outward2)
+                    shown2 = taper2.operand if outward2 and isinstance(taper2, ast.UnaryOp) and isinstance(taper2.op, ast.USub) else taper2
+                    held("taper2", shown2, abs(drafted2), _tight(shown2, text))
             parts = {"profile": code(profile), "sketch": sketch, **({"target": code(ending)} if up_to else {})}
             return Feature("extrude" if operator == "+=" else "cut", values, sketch, parts, target, operator, codes)
         axis = _keyword_value(value, "axis")

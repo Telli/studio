@@ -101,15 +101,23 @@ function drawPreview(context, view, shape, through, cad, at, model, font) {
   const span = shape.arrowOnly ? [0, 0] : extrudeSpan(shape, through);
   if (!span) return [];
   if (!shape.arrowOnly) {
-    const ends = span.map(at);
-    if (!ends.every(Boolean)) return [];
     // A draft leans the sides in (out, negative) by its angle: each end's outline is moved in by
-    // how far it is from the sketch's plane, in the sketch's own units.
-    const lean = Math.tan(((shape.taper || 0) * Math.PI) / 180) / unit;
-    const drawn = loops.map((loop, index) => {
-      const [near, far] = ends.map((mapping, end) => taperedLoop(loop, Math.abs(span[end]) * lean, holes[index]).map(mapping.toScreen));
-      return { loop, hole: holes[index], near, far };
-    }).filter(({ near, far }) => near.every(Boolean) && far.every(Boolean));
+    // how far it is from the sketch's plane, in the sketch's own units. Going both ways (Mid Plane,
+    // Direction 2) and drafted, each way is its own piece from the plane, leaning by its own draft.
+    const both = shape.end === "mid" || shape.depth2 > 0 || Boolean(shape.through2);
+    const lower = shape.end === "mid" || shape.reverse ? shape.taper : shape.taper2;
+    const upper = shape.end === "mid" || !shape.reverse ? shape.taper : shape.taper2;
+    const pieces = both && (lower || upper) ? [[span[0], 0, lower], [0, span[1], upper]] : [[span[0], span[1], shape.taper]];
+    const drawn = [];
+    for (const [from, to, taper] of pieces) {
+      const ends = [at(from), at(to)];
+      if (!ends.every(Boolean)) return [];
+      const lean = Math.tan(((taper || 0) * Math.PI) / 180) / unit;
+      drawn.push(...loops.map((loop, index) => {
+        const [near, far] = [from, to].map((offset, end) => taperedLoop(loop, Math.abs(offset) * lean, holes[index]).map(ends[end].toScreen));
+        return { loop, hole: holes[index], near, far };
+      }).filter(({ near, far }) => near.every(Boolean) && far.every(Boolean)));
+    }
     fillShapes(context, drawn.flatMap(({ hole, near, far }) => [{ points: near, hole }, { points: far, hole }, ...sideFaces(near, far)]),
       fill, PREVIEW_FILL_ALPHA);
     context.save();
@@ -132,20 +140,24 @@ function drawPreview(context, view, shape, through, cad, at, model, font) {
     context.restore();
   }
   // The arrow at the end it reaches, or at each end of a Mid Plane; from the sketch for one the
-  // body or a pick ends. Each is a handle (`handleAt`): where it starts, on the line it moves along.
+  // body or a pick ends. Direction 2's arrow at its own end, the other way, tagged with its depth.
+  // Each is a handle (`handleAt`): where it starts, on the line it moves along, and which depth it sets.
   const middle = loopsCentroid(loops, holes);
   if (!middle || !model) return [];
   const reach = Math.max(0.5, Math.abs(span[1] - span[0]) / 4, (through || 0) / 50);
-  const arrows = shape.end === "mid" ? [[span[1], 1], [span[0], -1]] : [[shape.reverse ? span[0] : span[1], shape.reverse ? -1 : 1]];
+  const second = shape.end !== "mid" && (shape.depth2 > 0 || shape.through2 || shape.label2);
+  const arrows = shape.end === "mid" ? [[span[1], 1, "depth", shape.label], [span[0], -1, "depth", ""]]
+    : [[shape.reverse ? span[0] : span[1], shape.reverse ? -1 : 1, "depth", shape.label],
+      ...(second ? [[shape.reverse ? span[1] : span[0], shape.reverse ? 1 : -1, "depth2", shape.label2 || ""]] : [])];
   const handles = [];
-  arrows.forEach(([offset, sign], index) => {
+  arrows.forEach(([offset, sign, which, label]) => {
     const along = frame.z.map(value => value * sign);
     const way = screenDirection(model, framePoint(frame, unit, middle, offset), along, reach);
     if (!way) return;
     const place = drawArrow(context, way, stroke);
-    if (index === 0) drawLabel(context, shape.label, place, stroke, font);
+    if (label) drawLabel(context, label, place, stroke, font);
     handles.push({ from: place.from, tip: place.tip, facing: place.facing, anchor: framePoint(frame, unit, middle, 0), along,
-      reached: offset * sign });
+      reached: offset * sign, which });
   });
   return handles;
 }
@@ -294,7 +306,8 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       const shape = !dragged || !given ? given
         : given.revolve ? (dragged.degrees ? { ...given, revolve: { ...given.revolve, angle: Math.sign(given.revolve.angle || 1) * dragged.degrees },
           label: `${dragged.text}°` } : given)
-          : dragged.mm ? { ...given, depth: dragged.mm, label: withUnit(dragged.text, given.units) } : given;
+          : dragged.mm ? (dragged.which === "depth2" ? { ...given, depth2: dragged.mm, label2: withUnit(dragged.text, given.units) }
+            : { ...given, depth: dragged.mm, label: withUnit(dragged.text, given.units) }) : given;
       const mappings = shown.map(view => (view.state ? planeMapping(runtime, width, height, view.state.frame, view.state.unit || 1) : null));
       const key = `${mappings.map(mapping => mapping?.key || "").join("/")}|${version.current}|${dpr}|${hover.current}|${dragged?.text || ""}`;
       if (key === painted) return;
@@ -363,7 +376,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
     // The extrude's or the revolve's arrow under the pointer, when the panel takes what it does.
     const handleUnder = event => {
       const shape = live.current.preview;
-      return shape?.onDepth || shape?.onAngle || shape?.onReverse ? handleAt(handlesRef.current, at(event)) : null;
+      return shape?.onDepth || shape?.onDepth2 || shape?.onAngle || shape?.onReverse ? handleAt(handlesRef.current, at(event)) : null;
     };
     // How far from the sketch's plane, along a handle's line, the pointer is: in the part's millimetres.
     const reachAt = (event, handle) => {
@@ -394,10 +407,11 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
         version.current += 1;
         return;
       }
-      if (!shape?.onDepth || drag.grab === null) return;
+      const second = drag.handle.which === "depth2";
+      if (!(second ? shape?.onDepth2 : shape?.onDepth) || drag.grab === null) return;
       const reached = reachAt(event, drag.handle);
       if (reached === null) return;
-      draggedRef.current = draggedDepth(reached - drag.grab, shape.end, shape.units);
+      draggedRef.current = { ...draggedDepth(reached - drag.grab, second ? "blind" : shape.end, shape.units), which: drag.handle.which };
       version.current += 1;
     };
     const stopDrag = () => {
@@ -409,7 +423,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
     function dragEnd(event) {
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.stopPropagation();
-      const { moved } = drag;
+      const { moved, handle } = drag;
       stopDrag();
       leaveHandle(true);
       const shape = live.current.preview;
@@ -418,8 +432,8 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       version.current += 1;
       if (event.type === "pointercancel") return;
       if (moved) {
-        if (reached) (reached.degrees ? shape?.onAngle : shape?.onDepth)?.(reached.text);
-      } else shape?.onReverse?.();
+        if (reached) (reached.degrees ? shape?.onAngle : reached.which === "depth2" ? shape?.onDepth2 : shape?.onDepth)?.(reached.text);
+      } else if (handle.which !== "depth2") shape?.onReverse?.();
     }
     const down = event => {
       if (event.button !== 0 || event.pointerType === "touch") return;
@@ -462,10 +476,11 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
           overHandle = true;
           const shape = live.current.preview;
           const what = handle.reach ? "angle" : "depth";
-          const drags = Boolean(handle.reach ? shape?.onAngle : shape?.onDepth) && !handle.facing;
-          host.style.cursor = drags ? "grab" : "pointer";
-          host.title = drags ? (shape.onReverse ? `Drag to change the ${what}. Click to reverse it.` : `Drag to change the ${what}.`)
-            : "Click to reverse it.";
+          const second = handle.which === "depth2";
+          const drags = Boolean(handle.reach ? shape?.onAngle : second ? shape?.onDepth2 : shape?.onDepth) && !handle.facing;
+          host.style.cursor = drags ? "grab" : second ? "" : "pointer";
+          host.title = drags ? (shape.onReverse && !second ? `Drag to change the ${what}. Click to reverse it.` : `Drag to change the ${what}.`)
+            : second ? "" : "Click to reverse it.";
         }
         return;
       }

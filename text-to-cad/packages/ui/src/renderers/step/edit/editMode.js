@@ -269,7 +269,8 @@ export function extrudePreview(id, values, { units = "mm", sketch = null, frame 
   const end = values.end || "blind";
   const angle = plainNumber(values.draft_angle);
   const taper = values.draft && end !== "next" && angle !== null && angle > 0 && angle < 90 ? (values.outward ? -angle : angle) : 0;
-  const base = { kind: id === "cut" ? "cut" : "boss", end, file: sketch.file, line: sketch.line, taper, depth: 0, reverse: false, units };
+  const base = { kind: id === "cut" ? "cut" : "boss", end, file: sketch.file, line: sketch.line, taper, depth: 0, reverse: false, units,
+    ...secondDirection(values, end, units) };
   if (end === "through") return { ...base, reverse: Boolean(values.reverse), label: END_WORDS.through, ...(values.thin ? { arrowOnly: true } : {}) };
   if (end === "surface" || end === "vertex") {
     const target = end === "surface" ? ending?.center : values.vertex_at;
@@ -283,6 +284,22 @@ export function extrudePreview(id, values, { units = "mm", sketch = null, frame 
   // A thin feature's wall, like a depth written as a size's name, is the server's to preview.
   if (depth === null || !(depth > 0) || values.thin) return { ...base, reverse, arrowOnly: true, label };
   return { ...base, depth: depth * (MM_PER_UNIT[units] || 1), reverse, label };
+}
+
+/**
+ * Direction 2 of an extrude's preview, the other way from its sketch: Through All (`through2`) or
+ * its depth in the part's millimetres (`depth2`), its own draft (`taper2`) and tag (`label2`). A
+ * depth written as a size's name is the server's to preview (`arrowOnly`). Nothing at Mid Plane,
+ * nor where a pick ends Direction 1.
+ */
+function secondDirection(values, end, units) {
+  if (!values.direction2 || end === "mid" || end === "surface" || end === "vertex") return {};
+  const angle = plainNumber(values.draft_angle2);
+  const taper2 = values.draft2 && angle !== null && angle > 0 && angle < 90 ? (values.outward2 ? -angle : angle) : 0;
+  if (values.end2 === "through") return { through2: true, taper2, label2: END_WORDS.through };
+  const depth = plainNumber(values.depth2);
+  const label2 = sizeTag(values.depth2, units);
+  return depth !== null && depth > 0 ? { depth2: depth * (MM_PER_UNIT[units] || 1), taper2, label2 } : { arrowOnly: true, taper2, label2 };
 }
 
 /**
@@ -598,7 +615,8 @@ export function commandDefaults(id, units) {
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
     case "extrude":
     case "cut": return { end: "blind", depth: size.depth, reverse: false, draft: false, draft_angle: size.draft, outward: false,
-      thin: false, thin_thickness: size.thickness, thin_side: "inside" };
+      thin: false, thin_thickness: size.thickness, thin_side: "inside", direction2: false, end2: "blind", depth2: size.depth, draft2: false,
+      draft_angle2: size.draft, outward2: false };
     case "rib": return { thickness: size.thickness, flip: false };
     case "revolve":
     case "revolve_cut": return { axis: "", angle: "360", reverse: false };
@@ -725,6 +743,12 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
     if (values.thin) {
       Object.assign(inputs, { thin: true, thin_thickness: values.thin_thickness, ...(values.thin_side && values.thin_side !== "inside"
         ? { thin_side: values.thin_side } : {}) });
+    }
+    // Direction 2, the other way: Blind or Through All, its own draft; not at Mid Plane, nor Up To a pick.
+    if (values.direction2 && values.end !== "mid" && !upTo) {
+      const through2 = id === "cut" && values.end2 === "through";
+      Object.assign(inputs, { direction2: true, end2: through2 ? "through" : "blind", ...(through2 ? {} : { depth2: values.depth2 }) });
+      if (values.draft2) Object.assign(inputs, { draft2: true, draft_angle2: values.draft_angle2, outward2: Boolean(values.outward2) });
     }
     const ending = upTo ? extrudeEnd(values.end, items) : null;
     if (ending && values.end === "vertex" && values.vertex_at) inputs.vertex_at = values.vertex_at;

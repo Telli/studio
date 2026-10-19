@@ -43,6 +43,10 @@ test("an extrude's preview spans its depth along the normal, the other way rever
   assert.deepEqual(extrudeSpan({ end: "mid", depth: 10, reverse: false }), [-5, 5]);
   assert.deepEqual(extrudeSpan({ end: "through", depth: 0, reverse: true }, 80), [-80, 0]);
   assert.equal(extrudeSpan({ end: "blind", depth: Number.NaN, reverse: false }), null);
+  // Direction 2 runs the other way from the plane, by its depth or through all.
+  assert.deepEqual(extrudeSpan({ end: "blind", depth: 10, reverse: false, depth2: 4 }), [-4, 10]);
+  assert.deepEqual(extrudeSpan({ end: "blind", depth: 10, reverse: true, depth2: 4 }), [-10, 4]);
+  assert.deepEqual(extrudeSpan({ end: "through", depth: 0, reverse: false, through2: true }, 80), [-80, 80]);
 });
 
 test("the preview joins an outline to its copy at its corners, or four times around a round one", () => {

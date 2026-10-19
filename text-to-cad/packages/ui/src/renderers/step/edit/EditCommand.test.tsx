@@ -101,6 +101,23 @@ it('each command that goes somewhere previews the way it goes: an extrude its de
   expect(mirror.setPreview).toHaveBeenLastCalledWith({ mark: 'mirror', plane: 'YZ' });
 });
 
+it("Direction 2 switched on goes the other way by its own depth, its arrow a handle for it", async () => {
+  const user = userEvent.setup();
+  const sketch = { id: 'block.py:9', title: 'Sketch1', plane: 'Top', file: 'block.py', line: 9, constrained: true };
+  const tree = { assembly: false, features: [{ id: 'block.py:9', kind: 'Sketch', title: 'Sketch1', rows: [], sketch }] };
+  const extrude = edit('extrude', 'block.py:9');
+  render(<EditCommand edit={extrude as never} names={NAMES} references={[]} tree={tree} />);
+  await user.click(screen.getByRole('checkbox', { name: 'Direction 2' }));
+  const depths = screen.getAllByRole('textbox', { name: 'Depth' });
+  expect(depths).toHaveLength(2);
+  await user.clear(depths[1]);
+  await user.type(depths[1], '3{Enter}');
+  expect(extrude.setPreview).toHaveBeenLastCalledWith(expect.objectContaining({ depth: 5, depth2: 3, label2: '3 mm', onDepth2: expect.any(Function) }));
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(extrude.run).toHaveBeenCalledWith({ command: 'extrude', sketch: { file: 'block.py', line: 9, name: 'Sketch1' },
+    inputs: { end: 'blind', depth: '5', reverse: false, direction2: true, end2: 'blind', depth2: '3' } });
+});
+
 it('a sweep takes the sketch selected as its profile, then the next as its path, and a rib grows the side it is turned', async () => {
   const user = userEvent.setup();
   const sketch = (id: string, title: string, line: number) => ({ id, kind: 'Sketch', title, rows: [],

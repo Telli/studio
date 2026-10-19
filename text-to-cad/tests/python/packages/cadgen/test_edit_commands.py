@@ -954,8 +954,76 @@ class SketchedFeatures(Commands):
         self.assertIn('    part += extrude(sketch1.thin(1, side="mid"), amount=6)\n', (root / "box.py").read_text(encoding="utf-8"))
 
 
+# A plate 15 below the Top plane, and a square sketched on it to extrude both ways.
+TWO_WAY = {
+    "plate.py": """
+        from build123d import Box, Pos
+        from cadgen import step
+        from cadgen.sketch import Sketch
+
+
+        @step
+        def plate():
+            part = Pos(0, 0, -15) * Box(40, 20, 2)
+            sketch1 = Sketch("Sketch1", plane="Top")
+            sketch1.rectangle((-5, -5), (5, 5))
+            return part
+    """,
+}
+
+
+class TwoDirections(Commands):
+    """Extrude's Direction 2: the sketch made a solid of the other way too, in one feature."""
+
+    def extruded(self, file: str, files: dict, command: str, inputs: dict, replace: str | None = None) -> dict:
+        spec = {"command": command, "sketch": sketch("Sketch1", 9, Path(file).with_suffix(".py").name), "inputs": inputs}
+        reply = self.service.change({"file": file, "files": files, "command": {**spec, **({"replace": {"row": replace}} if replace else {})}})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        return reply
+
+    def test_a_boss_goes_both_ways_from_its_sketch_and_reopens_with_direction_2(self):
+        root, file, state = self.open(TWO_WAY, "plate.step")
+        reply = self.extruded(file, state["files"], "extrude", {"end": "blind", "depth": "6", "direction2": True, "end2": "blind", "depth2": "14"})
+        self.assertIn("    part += extrude(sketch1.face(), amount=6) + extrude(sketch1.face(), amount=-14)\n", (root / "plate.py").read_text(encoding="utf-8"))
+        boss = next(feature for feature in reply["features"] if feature["kind"] == "Boss-Extrude" and feature["sketch"].get("name") == "Sketch1")
+        values = boss["edit"]["values"]
+        self.assertEqual({key: values.get(key) for key in ("end", "depth", "direction2", "end2", "depth2")},
+                         {"end": "blind", "depth": "6", "direction2": True, "end2": "blind", "depth2": "14"})
+        # One feature, not two of one: its depths on the model are Height and Height 2.
+        self.assertEqual(boss["count"], 1)
+        row = next(row for row in reply["rows"] if row["key"] == boss["key"])
+        self.assertEqual([(item["label"], item["value"]) for item in row["inputs"][:2]], [("Height", 6.0), ("Height 2", 14.0)])
+        # Down 14 it meets the plate: one solid, the square 20 tall on it.
+        mass = self.service.change({"file": file, "mass": {}, "files": reply["files"]})["mass"]
+        self.assertAlmostEqual(mass["volume"], 40 * 20 * 2 + 10 * 10 * 20, places=4)
+        self.assertEqual(mass["box"], [[-20, -10, -16], [20, 10, 6]])
+        # Edit Feature: Direction 2 drafted, then turned off, the line one extrude again.
+        drafted = self.extruded(file, reply["files"], "extrude", {**values, "draft2": True, "draft_angle2": "2"}, boss["key"])
+        self.assertIn("amount=6) + extrude(sketch1.face(), amount=-14, taper=2)\n", (root / "plate.py").read_text(encoding="utf-8"))
+        boss = next(feature for feature in drafted["features"] if feature["kind"] == "Boss-Extrude" and feature["sketch"].get("name") == "Sketch1")
+        self.assertEqual((boss["edit"]["values"]["draft2"], boss["edit"]["values"]["draft_angle2"]), (True, "2"))
+        self.extruded(file, drafted["files"], "extrude", {**boss["edit"]["values"], "direction2": False}, boss["key"])
+        self.assertIn("    part += extrude(sketch1.face(), amount=6)\n", (root / "plate.py").read_text(encoding="utf-8"))
+
+    def test_a_cut_goes_through_all_the_other_way_and_refuses_mid_plane(self):
+        root, file, state = self.open(WALLED, "box.step")
+        reply = self.extruded(file, state["files"], "cut", {"end": "blind", "depth": "2", "direction2": True, "end2": "through"})
+        self.assertIn("    part -= extrude(sketch1.face(), amount=2) + extrude(sketch1.face(), amount=-part.bounding_box().diagonal)\n",
+                      (root / "box.py").read_text(encoding="utf-8"))
+        cut = next(feature for feature in reply["features"] if feature["kind"] == "Cut-Extrude")
+        self.assertEqual({key: cut["edit"]["values"].get(key) for key in ("direction2", "end2", "depth2")}, {"direction2": True, "end2": "through", "depth2": ""})
+        # The sketch's 20 by 10 taken out of the block all the way down.
+        mass = self.service.change({"file": file, "mass": {}, "files": reply["files"]})["mass"]
+        self.assertAlmostEqual(mass["volume"], 40 * 20 * 10 - 20 * 10 * 10, places=4)
+        # Mid Plane goes both ways already.
+        refused = self.service.change({"file": file, "files": reply["files"], "command": {"command": "cut", "sketch": sketch("Sketch1", 9, "box.py"),
+                                                                                         "inputs": {"end": "mid", "depth": "4", "direction2": True}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("Direction 2 goes with Blind", refused["error"])
+
+
 # The block's four sides and its bottom face, as the viewer reads them.
-BLOCK_SIDES = [face("f2", (10, 0, 0), 40), face("f3", (-10, 0, 0), 40), face("f4", (0, 5, 0), 80), face("f5", (0, -5, 0), 80)]
+BLOCK_SIDES =[face("f2", (10, 0, 0), 40), face("f3", (-10, 0, 0), 40), face("f4", (0, 5, 0), 80), face("f5", (0, -5, 0), 80)]
 BLOCK_BOTTOM = face("f6", (0, 0, -2), 200)
 
 

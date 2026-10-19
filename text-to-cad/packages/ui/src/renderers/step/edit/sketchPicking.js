@@ -108,14 +108,16 @@ export function tagPlace(drawn, width, height) {
 
 /**
  * The span an extrude takes along its sketch's normal, in the part's millimetres, as a CAD tool
- * previews Direction 1: from the plane by the depth, the other way when reversed, half each way
- * at Mid Plane, and `through` (the part's extent) at Through All. Null without a depth to show.
+ * previews it: from the plane by the depth, the other way when reversed, half each way at Mid
+ * Plane, and `through` (the part's extent) at Through All; Direction 2 (`depth2`, or `through2`)
+ * runs the other way from the plane. Null without a depth to show.
  */
-export function extrudeSpan({ end, depth, reverse }, through = 0) {
+export function extrudeSpan({ end, depth, reverse, depth2 = 0, through2 = false }, through = 0) {
   const length = end === "through" ? through : depth;
   if (!(length > 0)) return null;
   if (end === "mid") return [-length / 2, length / 2];
-  return reverse ? [-length, 0] : [0, length];
+  const back = through2 ? through : depth2 > 0 ? depth2 : 0;
+  return reverse ? [-length, back] : [back ? -back : 0, length];
 }
 
 /** Which of a sketch's outlines are holes: each inside an odd number of the others. */

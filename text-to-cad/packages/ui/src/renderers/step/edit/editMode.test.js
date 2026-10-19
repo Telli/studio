@@ -342,6 +342,15 @@ test("an extrude's draft and Up To Next, and a hole's counterbore or countersink
   assert.deepEqual(drafted.inputs, { end: "blind", depth: "5", reverse: false, draft: true, draft_angle: "3", outward: true });
   const next = commandRequest("cut", { end: "next", depth: "5", reverse: true, draft: true, draft_angle: "3" }, [], null, sketch);
   assert.deepEqual(next.inputs, { end: "next" });
+  // Direction 2: the other way, Blind or (for a cut) Through All, with its own draft; never at Mid Plane.
+  const both = commandRequest("extrude", { end: "blind", depth: "6", reverse: false, direction2: true, end2: "blind", depth2: "14", draft2: true,
+    draft_angle2: "2" }, [], null, sketch);
+  assert.deepEqual(both.inputs, { end: "blind", depth: "6", reverse: false, direction2: true, end2: "blind", depth2: "14", draft2: true,
+    draft_angle2: "2", outward2: false });
+  assert.deepEqual(commandRequest("cut", { end: "blind", depth: "2", reverse: false, direction2: true, end2: "through", depth2: "14" }, [], null, sketch).inputs,
+    { end: "blind", depth: "2", reverse: false, direction2: true, end2: "through" });
+  assert.deepEqual(commandRequest("extrude", { end: "mid", depth: "6", direction2: true, depth2: "4" }, [], null, sketch).inputs,
+    { end: "mid", depth: "6", reverse: false });
   const face = [{ selector: "f6", type: "plane" }];
   const bored = commandRequest("hole", { type: "counterbore", diameter: "3", through: true, cbore_diameter: "6", cbore_depth: "3" }, face);
   assert.deepEqual(bored.inputs, { diameter: "3", depth: "", type: "counterbore", cbore_diameter: "6", cbore_depth: "3" });
@@ -418,6 +427,10 @@ test("an extrude's preview sweeps its depth in millimetres with an arrow the way
   // Mid Plane goes both ways, so Reverse does not apply; Through All is tagged by its name.
   assert.equal(extrudePreview("cut", { ...opened, end: "mid", reverse: true }, { units: "in", sketch }).reverse, false);
   assert.equal(extrudePreview("cut", { ...opened, end: "through" }, { units: "in", sketch }).label, "Through All");
+  // Direction 2 goes the other way by its own depth, with its own draft; one written as a name is the server's to sweep.
+  assert.deepEqual(pick(extrudePreview("extrude", { ...opened, depth: ".25", direction2: true, depth2: ".5", draft2: true, draft_angle2: "3" },
+    { units: "in", sketch }), ["depth", "depth2", "taper2", "label2"]), { depth: 6.35, depth2: 12.7, taper2: 3, label2: ".5 in" });
+  assert.equal(extrudePreview("extrude", { ...opened, depth: ".25", direction2: true, depth2: "WALL" }, { units: "in", sketch }).arrowOnly, true);
   // A depth written as a size's name, Up To Next, Up To Surface: the arrow alone, from the sketch.
   assert.deepEqual(pick(extrudePreview("extrude", { ...opened, depth: "WALL" }, { sketch }), ["arrowOnly", "label"]), { arrowOnly: true, label: "Wall" });
   assert.deepEqual(pick(extrudePreview("extrude", { ...opened, end: "next" }, { sketch }), ["arrowOnly", "reverse", "label"]),

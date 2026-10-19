@@ -51,6 +51,9 @@ const END = Object.freeze({ blind: "Blind", through: "Through All", next: "Up To
 const ends = values => Object.freeze(values.map(value => ({ value, label: END[value] })));
 const BOSS_ENDS = ends(["blind", "next", "vertex", "surface", "mid"]);
 const CUT_ENDS = ends(["blind", "through", "next", "vertex", "surface", "mid"]);
+// Direction 2's: Blind, and Through All for a cut.
+const BOSS_ENDS2 = ends(["blind"]);
+const CUT_ENDS2 = ends(["blind", "through"]);
 // The end conditions with no depth of their own: the body or what is picked says how far.
 const NO_DEPTH = new Set(["through", "next", "vertex", "surface"]);
 // Hole Wizard's types: a plain hole, one with a counterbore or a countersink for a screw's head, or
@@ -316,6 +319,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     ...((extruded.end === "blind" || extruded.end === "mid") && !extruded.arrowOnly
       ? { onDepth: text => setValues(current => ({ ...current, depth: text })) } : {}),
     ...(extruded.end === "blind" || extruded.end === "through" ? { onReverse: () => setValues(current => ({ ...current, reverse: !current.reverse })) } : {}),
+    // Direction 2's arrow sets its own depth, dragged; it always goes the other way.
+    ...(extruded.depth2 > 0 && !extruded.arrowOnly ? { onDepth2: text => setValues(current => ({ ...current, depth2: text })) } : {}),
   } : null;
   const local = !previewOn ? null
     : edit.command === "extrude" || edit.command === "cut" ? handled
@@ -569,6 +574,20 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         <NumberRow label="Instances" value={values.count} disabled={disabled} onChange={set("count")} />
       </> : null}
     </FileSheetSettingsSection>}
+    {/* Direction 2, as SolidWorks' extrude goes both ways from its sketch: switched on, the other way
+        Blind (or Through All for a cut), with its own draft. Not at Mid Plane, which goes both ways
+        already, nor where a pick ends Direction 1. */}
+    {extruding && values.end !== "mid" && !upTo ? <FileSheetSettingsSection title="Direction 2" sectionId="edit-command-direction2"
+      enabled={Boolean(values.direction2)} onEnabledChange={set("direction2")}>
+      <FileSheetSelectRow label="End condition" value={values.end2 || "blind"} options={command.id === "cut" ? CUT_ENDS2 : BOSS_ENDS2}
+        onValueChange={set("end2")} />
+      {values.end2 === "through" ? null : <NumberRow label="Depth" value={values.depth2} unit={units} disabled={disabled} onChange={set("depth2")} />}
+      <FileSheetCheckboxRow label="Draft" checked={Boolean(values.draft2)} disabled={disabled} onCheckedChange={set("draft2")} />
+      {values.draft2 ? <>
+        <NumberRow label="Draft angle" value={values.draft_angle2} unit="deg" disabled={disabled} onChange={set("draft_angle2")} />
+        <FileSheetCheckboxRow label="Draft outward" checked={Boolean(values.outward2)} disabled={disabled} onCheckedChange={set("outward2")} />
+      </> : null}
+    </FileSheetSettingsSection> : null}
     {/* Thin Feature, as SolidWorks' extrude has it: the outline made a wall of a thickness, inside
         it, outside it or astride it, rather than filled. */}
     {extruding ? <FileSheetSettingsSection title="Thin Feature" sectionId="edit-command-thin" enabled={Boolean(values.thin)}

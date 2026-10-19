@@ -1101,6 +1101,13 @@ def _feature_input(kind, step, name, value, units, nth=1):
         plain = shown[0] == "lit" and not LITERALS[shown[1]]["name"]
         return {**item, "label": "Thickness", "value": -float(value), "display": display(-float(value), units),
                 "formula": LITERALS[shown[1]]["text"].lstrip("-") if plain else formula(("neg", shown)), "expr": ("neg", value._e)}
+    if step["op"] == "extrude" and nth == 2 and name in ("amount", "taper"):
+        # Direction 2: the second extrude of a line, its depth as far as it goes the other way.
+        if name == "amount" and float(value) < 0:
+            shown, _ = strip_unit(value._e)
+            item = {**item, "value": -float(value), "display": display(-float(value), units), "formula": formula(("neg", shown)),
+                    "expr": ("neg", value._e)}
+        return {**item, "label": f"{item['label']} 2"}
     if kind == "Pattern" and step["op"] in PATTERNS and float(value) in (0, 1) and name.endswith(("count", "spacing")):
         return None  # the direction a one-row pattern does not use
     if kind == "Pattern" and step["op"] == "move":
@@ -1146,7 +1153,11 @@ def _row_summary(row, units):
                 continue
             seen.add(key)
             inputs.append({**item, "label": f"{relation.name}@{drawn.name}"})
-    repeats = len([s for s in row["steps"] if s["op"] == row["steps"][0]["op"]])
+    # A line run more than once (in a loop) is counted; an operation written twice in it (an
+    # extrude's Direction 2) is not.
+    first_op = row["steps"][0]["op"]
+    written = max(1, len(re.findall(rf"\b{re.escape(first_op)}\(", text)))
+    repeats = len([s for s in row["steps"] if s["op"] == first_op]) // written
     return {
         "key": row["key"],
         "file": row["file"],
