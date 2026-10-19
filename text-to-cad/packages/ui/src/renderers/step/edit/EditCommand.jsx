@@ -81,6 +81,24 @@ const THIN_SIDES = Object.freeze([{ value: "inside", label: "Inside" }, { value:
 // come together are asked for once.
 const PREVIEW_WAIT_MS = 250;
 
+/**
+ * Hole Wizard's other positions, as its Positions tab lists the points it drills at: each hole's
+ * place from the face's center, typed over, and an X to take it out.
+ */
+function OtherHoles({ places, axes, units, disabled, onChange, onRemove }) {
+  return places.map((place, index) => {
+    const name = `Hole ${index + 2}`;
+    return <FileSheetControlRow key={index} label={name} trailing={<span className="flex shrink-0 items-center gap-1">
+      {axes.map(axis => <FileSheetValueInput key={axis} value={place[axis] ?? "0"} ariaLabel={`${name} ${axis.toUpperCase()}`} disabled={disabled}
+        className="w-14" onValueCommit={draft => onChange(index, axis, String(draft).trim())} />)}
+      <span className="w-6 text-micro text-muted-foreground">{units}</span>
+      <button type="button" aria-label={`Remove ${name}`} disabled={disabled}
+        className="flex size-4 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent/70 hover:text-foreground"
+        onClick={() => onRemove(index)}><X className="size-3" aria-hidden="true" /></button>
+    </span>} />;
+  });
+}
+
 /** A number the command takes, typed over as the design tree's are, with its unit. */
 function NumberRow({ label, value, unit = "", disabled, onChange }) {
   return <FileSheetControlRow label={label} trailing={<span className="flex shrink-0 items-center gap-1">
@@ -217,12 +235,19 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   // Direction 1 takes an edge; a circular one turns about it, or about a round face's axis.
   const pickedAxis = edit.command === "pattern" ? edgeAxis(references) : null;
   useEffect(() => { if (pickedAxis) setValues(current => (current.type === "linear" ? { ...current, direction: pickedAxis } : current)); }, [pickedAxis]);
-  // A click on the hole's face puts the hole there: its distance from the face's center.
+  // A click on the hole's face puts a hole there, its distance from the face's center, as Hole
+  // Wizard's Positions place a hole at each click: the first click on a face starts its holes there,
+  // each click after it on that face adds one. Edit Feature's clicks add to the holes it has.
   const { facePoint } = edit;
+  const clickedFace = useRef(null);
   useEffect(() => {
     if (edit.command !== "hole" || !facePoint) return;
     const moved = clickOffsets(facePoint.point, facePoint.center, facePoint.normal, units);
-    if (moved) setValues(current => ({ ...current, ...moved }));
+    const adds = clickedFace.current === null ? Boolean(editing) : clickedFace.current === facePoint.id;
+    clickedFace.current = facePoint.id;
+    if (!moved) return;
+    setValues(current => (adds ? { ...current, more: [...(current.more || []), moved] } : { ...current, ...moved, more: [] }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facePoint, edit.command, units]);
   // Up To Vertex: the end of the edge nearest where it was clicked.
   useEffect(() => {
@@ -385,7 +410,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const offsets = command.id !== "hole" ? [] : editing && !repicked ? editing.axes || [] : faceOffsetAxes(pickedFace);
   const title = editing ? editing.title : command.label;
   // What a reopened feature acts on stays as it is until others are picked, on the body before it.
-  const keptHint = command.id === "hole" ? "Select a flat face on the model to move it there."
+  const keptHint = command.id === "hole" ? "Click its face on the model to add a hole there."
     : `Select ${command.picks === "edges" ? "edges" : "faces"} on the model to pick others.`;
 
   const confirm = { onOk: ok, onCancel: edit.close, okDisabled: Boolean(blocked) || disabled, okReason: blocked || "", busy: edit.saving };
@@ -550,6 +575,11 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         </> : null}
         {offsets.map(axis => <NumberRow key={axis} label={`${axis.toUpperCase()} from center`} value={values[axis]} unit={units}
           disabled={disabled} onChange={set(axis)} />)}
+        <OtherHoles places={values.more || []} axes={offsets} units={units} disabled={disabled}
+          onChange={(index, axis, text) => setValues(current => ({ ...current,
+            more: (current.more || []).map((place, at) => (at === index ? { ...place, [axis]: text } : place)) }))}
+          onRemove={index => setValues(current => ({ ...current, more: (current.more || []).filter((_, at) => at !== index) }))} />
+        {offsets.length ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Click the face again to add a hole there.</p> : null}
       </> : null}
       {command.id === "mirror" ? faces.length && !editing ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>About the selected face.</p>
         : <FileSheetSelectRow label="About" value={values.plane} onValueChange={set("plane")}

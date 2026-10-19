@@ -63,6 +63,10 @@ by hand" below.
   keeps its callout in a comment on its line, as a drawing labels it:
   `tray -= ... * bd.Cylinder(2.5/2, ...)  # M3x0.5 tapped hole`. A Straight Tap is drilled at its
   tap drill; its thread is the callout's.
+  Each click on the face after the first adds a hole there, as Hole Wizard's Positions do: one
+  feature drills the same hole at each place, `tray -= [bd.Pos(*at) * bd.Plane(<face>) *
+  bd.Cylinder(...) for at in ((5, 0), (-5, 0), (0, 2.5))]`, each `at` its offsets from the
+  face's centre.
 - **Chamfer**: `bd.chamfer(<edges>, length=1)`; Distance distance writes `length=1, length2=.5`
   (Flip direction swaps them), Angle distance `length=1, angle=30`.
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.

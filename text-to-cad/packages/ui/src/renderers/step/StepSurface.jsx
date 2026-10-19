@@ -864,6 +864,8 @@ function StepSurfaceBody({ view, data }) {
   // Hole, waiting to hear where its face was clicked (set once edit mode is read, below).
   const pointAtRef = useRef(null);
   const holePointRef = useRef(null);
+  // Whether a click on the face already picked keeps it picked: Hole adds a hole at each click on its face.
+  const keepFaceRef = useRef(false);
   // Edit mode's command whose box takes many (Fillet's edges, Shell's faces), set once it is read.
   const choosingManyRef = useRef(false);
   const lodSelectedPartIdsRef = useRef(EMPTY_LIST);
@@ -2619,6 +2621,8 @@ function StepSurfaceBody({ view, data }) {
       const point = pointAtRef.current?.(clientX, clientY);
       if (point) holePointRef.current({ id: topologyReference.id, point, center: topologyReference.pickData?.center || null,
         normal: topologyReference.pickData?.normal || null });
+      const picked = selectedReferenceIdsRef.current;
+      if (keepFaceRef.current && picked.length === 1 && picked[0] === topologyReference.id) return;
     }
     if (edgeChainActive && topologyReference?.selectorType === "edge") {
       selectReferenceGroup(connectedReferenceIds(edgeChains, topologyReference.id), { multiSelect });
@@ -3262,6 +3266,7 @@ function StepSurfaceBody({ view, data }) {
   const editing = editable && editLayout === "manual";
   // Where on the model a click lands, for a hole to go there or an extrude to end at an edge's end.
   holePointRef.current = editing && ["hole", "extrude", "cut"].includes(edit.command) ? edit.setFacePoint : null;
+  keepFaceRef.current = editing && edit.command === "hole";
   choosingManyRef.current = editing && !edit.sketch && Boolean(editCommand(edit.command)?.many);
   // A pick the open command's panel lists, taken out by its X.
   const deselectReference = useCallback(id => setSelectedReferenceIds(current => current.filter(each => each !== id)), [setSelectedReferenceIds]);

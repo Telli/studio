@@ -12,6 +12,7 @@ order. Builds are not started.
 
 from __future__ import annotations
 
+import math
 import shutil
 import tempfile
 import textwrap
@@ -240,6 +241,25 @@ class BlockCommands(Commands):
         hole = reply["rows"][-1]
         self.assertEqual(hole["kind"], "Hole")
         self.assertEqual([(each["label"], each["display"]) for each in hole["inputs"]], [("Diameter", "2"), ("Depth", "3"), ("X", "5")])
+
+    def test_one_hole_feature_drills_its_hole_at_each_place_and_reopens_with_them(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        reply = self.command(file, state, "hole", BLOCK_TOP, {"diameter": "2", "depth": "3", "x": "5", "more": [{"x": "-5"}, {"x": "0", "y": "2.5"}]})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("part -= [Pos(*at) * Plane(part.faces().sort_by(Axis.Z)[-1]) * Cylinder(2/2, 3, align=(Align.CENTER, Align.CENTER, Align.MAX)) "
+                      "for at in ((5, 0), (-5, 0), (0, 2.5))]\n", (root / "block.py").read_text(encoding="utf-8"))
+        hole = next(feature for feature in reply["features"] if feature["kind"] == "Hole")
+        self.assertEqual({key: hole["edit"]["values"].get(key) for key in ("x", "y", "more")},
+                         {"x": "5", "y": "0", "more": [{"x": "-5", "y": "0"}, {"x": "0", "y": "2.5"}]})
+        # Three holes out of the 20 by 10 by 4 block, each 2 across and 3 deep.
+        mass = self.service.change({"file": file, "mass": {}, "files": reply["files"]})["mass"]
+        self.assertAlmostEqual(mass["volume"], 20 * 10 * 4 - 3 * math.pi * 3, places=3)
+        # One taken out with Edit Feature: the line drills two.
+        edited = self.service.change({"file": file, "files": reply["files"], "command": {
+            "command": "hole", "inputs": {"diameter": "2", "depth": "3", "x": "5", "y": "0", "more": [{"x": "-5", "y": "0"}]},
+            "replace": {"row": hole["key"]}}})
+        self.assertTrue(edited["ok"], edited.get("error"))
+        self.assertIn("for at in ((5, 0), (-5, 0))]\n", (root / "block.py").read_text(encoding="utf-8"))
 
     def test_a_tapped_hole_of_a_standard_size_keeps_its_callout_beside_its_line_and_reopens_as_tapped(self):
         root, file, state = self.open(BLOCK, "block.step")

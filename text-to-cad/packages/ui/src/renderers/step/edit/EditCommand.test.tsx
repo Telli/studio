@@ -202,6 +202,25 @@ it("a hole opens as Hole Wizard's M3 clearance hole, and a size typed over is th
   expect(hole.run).toHaveBeenLastCalledWith({ command: 'hole', selection, inputs: { diameter: '3.3', depth: '' } });
 });
 
+it("each click on a hole's face after the first adds a hole there, listed with an X to take it out", async () => {
+  const user = userEvent.setup();
+  const FACE = { id: 'ref-f1', selectorType: 'face', displaySelector: 'f1', pickData: { surfaceType: 'plane', center: [0, 0, 2], normal: [0, 0, 1], area: 200 } };
+  const click = (point: number[], id = 'ref-f1') => ({ id, point, center: [0, 0, 2], normal: [0, 0, 1] });
+  const hole = edit('hole');
+  const { rerender } = render(<EditCommand edit={{ ...hole, facePoint: click([5, 0, 2]) } as never} names={NAMES} references={[FACE]} />);
+  expect((screen.getByRole('textbox', { name: 'X from center' }) as HTMLInputElement).value).toBe('5');
+  rerender(<EditCommand edit={{ ...hole, facePoint: click([-5, 0, 2]) } as never} names={NAMES} references={[FACE]} />);
+  rerender(<EditCommand edit={{ ...hole, facePoint: click([0, 2.5, 2]) } as never} names={NAMES} references={[FACE]} />);
+  expect((screen.getByRole('textbox', { name: 'Hole 2 X' }) as HTMLInputElement).value).toBe('-5');
+  expect((screen.getByRole('textbox', { name: 'Hole 3 Y' }) as HTMLInputElement).value).toBe('2.5');
+  await user.click(screen.getByRole('button', { name: 'Remove Hole 2' }));
+  await user.click(screen.getByRole('button', { name: 'OK' }));
+  expect(hole.run).toHaveBeenLastCalledWith(expect.objectContaining({ inputs: expect.objectContaining({ x: '5', more: [{ x: '0', y: '2.5' }] }) }));
+  // A click on another face starts the holes over there.
+  rerender(<EditCommand edit={{ ...hole, facePoint: click([1, 1, 2], 'ref-f9') } as never} names={NAMES} references={[FACE]} />);
+  expect(screen.queryByRole('textbox', { name: 'Hole 2 X' })).toBeNull();
+});
+
 it("Mass Properties weigh the part in the project's material, or one picked, and close", async () => {
   const user = userEvent.setup();
   const materials = [{ key: 'aluminum-6061-t6', name: 'Aluminum 6061-T6', density: 2.7 }, { key: 'petg', name: 'PETG', density: 1.27 }];

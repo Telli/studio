@@ -143,6 +143,11 @@ export default function PreviewLayer({ viewport, preview, mark = null, extent = 
       if (marked?.mark === "hole") {
         const way = screenDirection(mapping, marked.at, marked.into, Math.max(0.5, (now.extent || 0) / 50));
         if (way) drawLabel(context, marked.label, drawArrowInto(context, way, cad.cut), cad.cut, font);
+        // Hole Wizard's other positions: an arrow into the face at each.
+        for (const at of marked.also || []) {
+          const other = screenDirection(mapping, at, marked.into, Math.max(0.5, (now.extent || 0) / 50));
+          if (other) drawArrowInto(context, other, cad.cut);
+        }
       }
       // A reference plane's offset, from what it is offset from to where it is.
       if (marked?.mark === "plane" && marked.at && marked.along) {

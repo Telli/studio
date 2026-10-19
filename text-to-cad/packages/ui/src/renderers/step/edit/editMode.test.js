@@ -357,6 +357,12 @@ test("an extrude's draft and Up To Next, and a hole's counterbore or countersink
   const sunk = commandRequest("hole", { type: "countersink", diameter: "3", through: false, depth: "8", csk_diameter: "6", csk_angle: "90" }, face);
   assert.deepEqual(sunk.inputs, { diameter: "3", depth: "8", type: "countersink", csk_diameter: "6", csk_angle: "90" });
   assert.deepEqual(commandRequest("hole", { type: "simple", diameter: "3", through: true }, face).inputs, { diameter: "3", depth: "" });
+  // The same hole at each other place clicked on its face, by its offsets as typed.
+  assert.deepEqual(commandRequest("hole", { type: "simple", diameter: "3", through: true, x: "5", more: [{ x: "-5", y: "0" }, { x: "0", y: " 2.5 " }] }, face).inputs,
+    { diameter: "3", depth: "", x: "5", more: [{ x: "-5", y: "0" }, { x: "0", y: "2.5" }] });
+  // A list of places compares by what it holds: one taken out is a change to write.
+  assert.equal(sameValues({ more: [{ x: "1" }] }, { more: [{ x: "1" }] }), true);
+  assert.equal(sameValues({ more: [{ x: "1" }] }, { more: [{ x: "2" }] }), false);
 });
 
 test("a click on a face puts the hole there: its distance from the face's center, in the part's units", () => {
@@ -459,6 +465,9 @@ test("a hole's arrow goes into its face where it goes in, and a mirror's plane i
   assert.deepEqual(holePreview({ x: "3", y: "-1", z: "5", through: false, depth: "4" }, "mm", top),
     { mark: "hole", at: [3, -1, 2], into: [0, 0, -1], label: "4 mm" });
   assert.equal(holePreview({ through: true }, "mm", top).label, "Through All");
+  // Hole Wizard's other positions: an arrow into the face at each, from the face's center.
+  assert.deepEqual(holePreview({ x: "3", y: "0", through: true, more: [{ x: "-3" }, { y: "2" }] }, "mm", top).also,
+    [[-3, 0, top.center[2]], [0, 2, top.center[2]]]);
   assert.equal(holePreview({}, "mm", null), null);
   const bounds = [[-10, -5, -2], [10, 5, 2]];
   // About an origin plane, as the design tree draws it; about a face, a square on its plane.

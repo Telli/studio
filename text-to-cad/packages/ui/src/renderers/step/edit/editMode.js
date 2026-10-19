@@ -386,10 +386,14 @@ export function holePreview(values, units = "mm", face = null) {
   if (!center || !(length > 0)) return null;
   const unit = Array.from(normal, value => Number(value) / length);
   const mm = MM_PER_UNIT[units] || 1;
-  const moved = ["x", "y", "z"].map(axis => (plainNumber(values[axis]) ?? 0) * mm);
-  const off = moved[0] * unit[0] + moved[1] * unit[1] + moved[2] * unit[2];
-  return { mark: "hole", at: [0, 1, 2].map(axis => Number(center[axis]) + moved[axis] - unit[axis] * off),
-    into: unit.map(value => -value || 0), label: values.through ? END_WORDS.through : sizeTag(values.depth, units) };
+  // Each hole's place on the face: its offsets from the face's center, put back on the face's plane.
+  const placeOf = given => {
+    const moved = ["x", "y", "z"].map(axis => (plainNumber(given[axis]) ?? 0) * mm);
+    const off = moved[0] * unit[0] + moved[1] * unit[1] + moved[2] * unit[2];
+    return [0, 1, 2].map(axis => Number(center[axis]) + moved[axis] - unit[axis] * off);
+  };
+  return { mark: "hole", at: placeOf(values), into: unit.map(value => -value || 0),
+    label: values.through ? END_WORDS.through : sizeTag(values.depth, units), ...(values.more?.length ? { also: values.more.map(placeOf) } : {}) };
 }
 
 // The origin's planes' normals, the way build123d's Plane.XY, Plane.XZ and Plane.YZ face, and those names.
@@ -603,7 +607,7 @@ export function commandDefaults(id, units) {
       // Hole Wizard's: a screw of the part's standard, its size and fit filling the sizes, which stay the engineer's to type over.
       const standard = defaultStandard(units);
       const sized = { type: "simple", standard, size: defaultSize(standard), fit: "normal" };
-      return { ...sized, diameter: size.diameter, depth: size.depth, through: true, x: "0", y: "0", z: "0",
+      return { ...sized, diameter: size.diameter, depth: size.depth, through: true, x: "0", y: "0", z: "0", more: [],
         cbore_diameter: size.cbore, cbore_depth: size.cboreDepth, csk_diameter: size.csk, csk_angle: size.cskAngle, ...holeFill(sized, units) };
     }
     case "shell": return { thickness: size.thickness };
@@ -790,6 +794,11 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       if (values.type === "tapped") inputs.type = "tapped";
       // A hole of a standard's size says so beside its line: "M3 clearance hole, normal fit".
       if (holeCallout(values)) inputs.callout = holeCallout(values);
+      // Hole Wizard's other positions: the same hole at each, by its place on the face.
+      if (values.more?.length) {
+        inputs.more = values.more.map(place => Object.fromEntries(["x", "y", "z"].filter(axis => String(place[axis] ?? "").trim())
+          .map(axis => [axis, String(place[axis]).trim()])));
+      }
       break;
     case "mirror": inputs.plane = values.plane; break;
     case "pattern": {
@@ -821,7 +830,9 @@ export function editingValues(editing, units) {
 
 /** Whether a panel's values are still the ones it opened with, so its OK has nothing to write. */
 export const sameValues = (values, opened) => Object.keys({ ...values, ...opened })
-  .every(key => String(values[key] ?? "").trim() === String(opened[key] ?? "").trim());
+  .every(key => valueText(values[key]) === valueText(opened[key]));
+// A value as the panel compares it: a list (a hole's other places) by what it holds.
+const valueText = value => (value !== null && typeof value === "object" ? JSON.stringify(value) : String(value ?? "").trim());
 
 /** Why a command's OK cannot go yet, or "" when it can. Edit Feature keeps what the feature acts on, so it waits on nothing picked. */
 export function commandBlocked(id, items, sketch = null, values = {}, editing = null, sketches = []) {

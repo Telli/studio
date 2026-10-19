@@ -1059,26 +1059,34 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         depth = None if through else _value(inputs, "depth", "Depth", parse)
         depth_code = f"{var}.bounding_box().diagonal" if through else same("depth", depth, writer.length(depth))
         plane = None if fixed else B.Plane(selections.topology["face"].item(numbers[0]))
-        offsets = {axis: 0.0 for axis in AXES}
-        for axis in (("X", "Y", "Z") if fixed else offset_axes(plane.z_dir)):
-            if str(inputs.get(axis.lower(), "")).strip():
-                offsets[axis] = _value(inputs, axis.lower(), axis, parse, positive=False)
-        if not fixed:
-            unit = 25.4 if units == "in" else 1.0
-            moved = B.Vector(*(offsets[axis] * unit for axis in ("X", "Y", "Z")))
-            # A slanted face moves its hole in X, Y and Z at once: the place clicked, to the places
-            # the panel shows, is put back on the face's plane; one typed well off it is refused.
-            off = moved.dot(plane.z_dir)
-            if len(offset_axes(plane.z_dir)) == 3 and abs(off) > 1e-9:
-                if abs(off) > 0.05:
-                    raise CommandError(f"Those X, Y and Z put the hole's center {abs(off) / unit:.3g} {units_word or 'mm'} off the face. "
-                                       "Click the face where the hole goes.")
-                moved -= plane.z_dir * off
-                offsets = {axis: round(getattr(moved, axis) / unit, 6) for axis in ("X", "Y", "Z")}
-            if selections.topology["face"].item(numbers[0]).distance_to(plane.origin + moved) > 1e-4 + 1e-6 * scale:
-                raise CommandError("The hole's center is off that face. Set where it goes on the face, from the face's center.")
+
+        def placed(given: dict) -> dict:
+            """A hole's place on its face, its distance from the face's center along each axis."""
+            offsets = {axis: 0.0 for axis in AXES}
+            for axis in (("X", "Y", "Z") if fixed else offset_axes(plane.z_dir)):
+                if str(given.get(axis.lower(), "")).strip():
+                    offsets[axis] = _value(given, axis.lower(), axis, parse, positive=False)
+            if not fixed:
+                unit = 25.4 if units == "in" else 1.0
+                moved = B.Vector(*(offsets[axis] * unit for axis in ("X", "Y", "Z")))
+                # A slanted face moves its hole in X, Y and Z at once: the place clicked, to the places
+                # the panel shows, is put back on the face's plane; one typed well off it is refused.
+                off = moved.dot(plane.z_dir)
+                if len(offset_axes(plane.z_dir)) == 3 and abs(off) > 1e-9:
+                    if abs(off) > 0.05:
+                        raise CommandError(f"Those X, Y and Z put the hole's center {abs(off) / unit:.3g} {units_word or 'mm'} off the face. "
+                                           "Click the face where the hole goes.")
+                    moved -= plane.z_dir * off
+                    offsets = {axis: round(getattr(moved, axis) / unit, 6) for axis in ("X", "Y", "Z")}
+                if selections.topology["face"].item(numbers[0]).distance_to(plane.origin + moved) > 1e-4 + 1e-6 * scale:
+                    raise CommandError("The hole's center is off that face. Set where it goes on the face, from the face's center.")
+            return offsets
+
+        # Hole Wizard's Positions: the first hole's place, and one more for each other click on the face.
+        places = [placed(inputs)] + [placed(each) for each in inputs.get("more") or [] if isinstance(each, dict)]
+        offsets = places[0]
         moved = ""
-        if any(offsets.values()):
+        if len(places) == 1 and any(offsets.values()):
             given = [same(axis.lower(), offsets[axis], writer.length(offsets[axis])) if offsets[axis] else "0" for axis in ("X", "Y", "Z")]
             moved = f"{names('Pos')}({', '.join(given[:2] if given[2] == '0' else given)}) * "
         align = names("Align")
@@ -1111,9 +1119,19 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                     f"{same('csk_diameter', sink, writer.length(sink, '/2'))}, {writer.length(height)}, {under}))")
             shown += [("Countersink diameter", sink, units_word), ("Countersink angle", angle, "deg")]
         code = f"{var} -= {moved}{names('Plane')}({face}) * {tool}"
+        if len(places) > 1:
+            # Several holes, one feature: the same hole at each place, `Pos(*at)` from the face's center.
+            spatial = any(place["Z"] for place in places)
+            axes = ("X", "Y", "Z") if spatial else ("X", "Y")
+            first = [same(axis.lower(), offsets[axis], writer.length(offsets[axis])) if offsets[axis] else "0" for axis in axes]
+            rest = [[writer.length(place[axis]) if place[axis] else "0" for axis in axes] for place in places[1:]]
+            listed = ", ".join(f"({', '.join(each)})" for each in [first, *rest])
+            code = f"{var} -= [{names('Pos')}(*at) * {names('Plane')}({face}) * {tool} for at in ({listed})]"
         what = "through all" if through else "a blind hole"
         if kind in ("counterbore", "countersink", "tapped"):
             what = f"{ {'counterbore': 'counterbored', 'countersink': 'countersunk'}.get(kind, kind)}, {what}"
+        if len(places) > 1:
+            what = f"{len(places)} holes, {what.replace('a blind hole', 'blind')}"
         # Hole Wizard's callout for a hole of a standard's size, kept beside its line as a drawing
         # labels the hole: "M3 clearance hole, normal fit", "M3x0.5 tapped hole".
         callout = str(inputs.get("callout") or "").strip()
@@ -1654,6 +1672,12 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
             held("thickness", written.operand, typed(-amount), _tight(written.operand, text))
         return Feature("shell", {"thickness": size(-amount if amount is not None else None)}, f"{counted_items(('offset', 'openings'), 'face')} open",
                        {"openings": code(_keyword_value(value, "openings"))}, target, operator, codes)
+    # Hole Wizard's Positions: the same hole at each place listed, `[Pos(*at) * Plane(<face>) * <hole> for at in (...)]`.
+    places = None
+    if (operator == "-=" and isinstance(value, ast.ListComp) and isinstance(value.elt, ast.BinOp) and len(value.generators) == 1
+            and isinstance(value.generators[0].iter, ast.Tuple) and value.generators[0].iter.elts
+            and all(isinstance(each, ast.Tuple) for each in value.generators[0].iter.elts)):
+        places, value = value.generators[0].iter.elts, value.elt
     if operator == "-=" and isinstance(value, ast.BinOp):
         calls = [node for node in ast.walk(value) if isinstance(node, ast.Call)]
         cylinder = next((node for node in calls if _call_name(node) == "Cylinder" and len(node.args) >= 2), None)
@@ -1682,16 +1706,21 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                 held("csk_diameter", cone.args[1], typed(2 * top))
             moved = next((node for node in calls if _call_name(node) == "Pos"), None)
             for index, axis in enumerate(("x", "y", "z")):
-                if moved is not None and number(("move", axis)) is not None and index < len(moved.args):
+                given = (places[0].elts if places else moved.args if moved is not None else [])
+                if number(("move", axis)) is not None and index < len(given):
                     values[axis] = size(number(("move", axis)))
-                    held(axis, moved.args[index], typed(number(("move", axis))))
+                    held(axis, given[index], typed(number(("move", axis))))
+            if places:
+                values["more"] = [{axis: size(number(("move", axis, nth))) for axis, _ in zip(("x", "y", "z"), place.elts)
+                                   if number(("move", axis, nth)) is not None} for nth, place in enumerate(places[1:], 2)]
             # A sized hole's callout, kept in a comment beside its line; a tapped hole is drilled as a plain one.
             comment = trailing_comment(text, statement)
             if _SIZED.match(comment):
                 values["callout"] = comment
                 if values["callout"].endswith("tapped hole") and values["type"] == "simple":
                     values["type"] = "tapped"
-            return Feature("hole", values, "1 face", {"face": code(plane.args[0])}, target, operator, codes)
+            return Feature("hole", values, f"{len(places)} holes on 1 face" if places else "1 face", {"face": code(plane.args[0])},
+                           target, operator, codes)
     if operator == "=" and name == "draft" and len(value.args) + len(value.keywords) >= 3:
         drafted = value.args[0] if value.args else _keyword_value(value, "faces")
         plane = value.args[1] if len(value.args) > 1 else _keyword_value(value, "neutral_plane")
