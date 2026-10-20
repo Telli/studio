@@ -573,15 +573,6 @@ export function ProjectPage(props: {
       </header>
 
       <div className="flex flex-col gap-8 px-5 py-4">
-        {tab === "overview" && plainWords ? (
-          <ReadmeOverview
-            environmentId={environmentId}
-            cwd={cwd}
-            purpose={studio?.project.brief.purpose ?? ""}
-            mutationId={props.workspaceMutationId}
-            onOpenPath={(path) => openPath(cwd, path)}
-          />
-        ) : null}
         {tab === "overview" ? (
           <ProjectOverview
             environmentId={environmentId}
@@ -596,6 +587,18 @@ export function ProjectPage(props: {
             onShowThreads={isProject ? () => setTab("threads") : null}
             byHand={byHand}
             onStartPart={startPart}
+            threadRef={threadRef}
+            readme={
+              plainWords ? (
+                <ReadmeOverview
+                  environmentId={environmentId}
+                  cwd={cwd}
+                  purpose={studio?.project.brief.purpose ?? ""}
+                  mutationId={props.workspaceMutationId}
+                  onOpenPath={(path) => openPath(cwd, path)}
+                />
+              ) : null
+            }
           />
         ) : tab === "threads" ? (
           <ProjectThreads

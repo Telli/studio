@@ -1,4 +1,9 @@
-import type { EnvironmentId, ScopedProjectRef, ThreadId } from "@t3tools/contracts";
+import type {
+  EnvironmentId,
+  ScopedProjectRef,
+  ScopedThreadRef,
+  ThreadId,
+} from "@t3tools/contracts";
 import { studioFolderName } from "@t3tools/shared/studioProjects";
 import {
   BoxIcon,
@@ -7,7 +12,7 @@ import {
   FileTextIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { useThreadShellsForProjectRefs } from "~/state/entities";
@@ -27,6 +32,8 @@ import {
 import { humanName, partName } from "./partNames";
 import { leadPartOf } from "./leadPart";
 import {
+  CARD_GRID,
+  FileCard,
   FilesModule,
   MODULE_HEADING,
   OverviewModule,
@@ -53,9 +60,8 @@ const STATUS_ORDER: Record<CheckStatus | "none", number> = {
   ready: 2,
   none: 3,
 };
-/** The overview shows this many issues, parts per folder, and threads before "Show all". */
+/** The overview shows this many issues and threads before "Show all". */
 const FIRST_ISSUES = 5;
-const FIRST_PARTS = 8;
 const RECENT_THREADS = 5;
 
 const headingClass = MODULE_HEADING;
@@ -114,7 +120,7 @@ function LeadPart(props: {
         type="button"
         onClick={props.onOpen}
         aria-label={`Open ${part.file.title} in the viewer`}
-        className="flex aspect-[4/3] max-h-80 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50 outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="flex aspect-[4/3] max-h-[32rem] items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50 outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {picture ? (
           <img src={picture} alt="" className="size-full object-contain p-4" />
@@ -223,13 +229,11 @@ function OpenIssues(props: {
 /** One folder's parts, problems first, each with its checks. */
 function FolderParts(props: {
   readonly environmentId: EnvironmentId;
+  readonly threadRef: ScopedThreadRef;
   readonly root: string;
-  readonly label: string | null;
   readonly parts: ReadonlyArray<FolderPart>;
   readonly onOpen: (root: string, path: string) => void;
 }) {
-  const [all, setAll] = useState(false);
-  const shown = all ? props.parts : props.parts.slice(0, FIRST_PARTS);
   const engineering = useEngineeringInterface();
   const files = props.parts.map((part) => part.file);
   const places = engineering
@@ -238,79 +242,49 @@ function FolderParts(props: {
   const pictures = usePictures({
     environmentId: props.environmentId,
     cwd: props.root,
-    paths: shown.map((part) => part.file.picture ?? part.file.path),
+    paths: props.parts.map((part) => part.file.picture ?? part.file.path),
   });
-  return (
-    <div className="flex min-w-0 flex-col">
-      {props.label === null ? null : (
-        <h3 className="mt-2 truncate text-xs font-medium text-foreground">{props.label}</h3>
-      )}
-      <ul className="flex flex-col">
-        {shown.map((part) => {
-          const picture = pictures.get(part.file.picture ?? part.file.path);
-          return (
-            <li
-              key={part.file.path}
-              className="flex min-w-0 items-center gap-3 border-b border-border py-1.5"
+  return props.parts.map((part) => (
+    <FileCard
+      key={part.file.path}
+      environmentId={props.environmentId}
+      threadRef={props.threadRef}
+      root={props.root}
+      file={part.file}
+      picture={pictures.get(part.file.picture ?? part.file.path)}
+      place={places.get(part.file.path)}
+      onOpen={() => props.onOpen(props.root, part.file.path)}
+      footer={
+        <div className="flex flex-wrap items-center gap-1">
+          {part.results.length === 0 ? (
+            <span className="text-2xs text-muted-foreground">Not checked yet</span>
+          ) : (
+            part.results.map((result) => (
+              <CheckBadge
+                key={result.path}
+                result={result}
+                onOpen={() => props.onOpen(props.root, result.model)}
+              />
+            ))
+          )}
+          {part.drawings.map((drawing) => (
+            <button
+              key={drawing}
+              type="button"
+              onClick={() => props.onOpen(props.root, drawing)}
+              aria-label={`Open the drawing of ${part.file.title}`}
+              className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
-              <button
-                type="button"
-                onClick={() => props.onOpen(props.root, part.file.path)}
-                className="flex min-w-0 flex-1 items-center gap-3 rounded-md text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-              >
-                <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
-                  {picture ? (
-                    <img src={picture} alt="" className="size-full object-contain p-1" />
-                  ) : (
-                    <PartIcon file={part.file} className="size-4 text-muted-foreground/60" />
-                  )}
-                </span>
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-xs font-medium text-foreground">
-                    {part.file.title}
-                  </span>
-                  <span className="truncate text-2xs text-muted-foreground">
-                    {part.file.kind}
-                    {places.has(part.file.path) ? ` · ${places.get(part.file.path)}` : ""}
-                  </span>
-                </span>
-              </button>
-              <div className="flex max-w-[55%] shrink-0 flex-wrap items-center justify-end gap-1">
-                {part.results.length === 0 ? (
-                  <span className="text-2xs text-muted-foreground">Not checked yet</span>
-                ) : (
-                  part.results.map((result) => (
-                    <CheckBadge
-                      key={result.path}
-                      result={result}
-                      onOpen={() => props.onOpen(props.root, result.model)}
-                    />
-                  ))
-                )}
-                {part.drawings.map((drawing) => (
-                  <button
-                    key={drawing}
-                    type="button"
-                    onClick={() => props.onOpen(props.root, drawing)}
-                    aria-label={`Open the drawing of ${part.file.title}`}
-                    className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                  >
-                    <Badge variant="outline" size="sm">
-                      <FileTextIcon aria-hidden="true" />
-                      Drawing
-                    </Badge>
-                  </button>
-                ))}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {props.parts.length > FIRST_PARTS ? (
-        <ShowAll all={all} count={props.parts.length} onToggle={() => setAll((value) => !value)} />
-      ) : null}
-    </div>
-  );
+              <Badge variant="outline" size="sm">
+                <FileTextIcon aria-hidden="true" />
+                Drawing
+              </Badge>
+            </button>
+          ))}
+        </div>
+      }
+    />
+  ));
 }
 
 /**
@@ -339,6 +313,10 @@ export function ProjectOverview(props: {
   readonly byHand: boolean;
   /** Starts a blank part to model by hand (`useStartPartByHand`); null where it can't. */
   readonly onStartPart: (() => void) | null;
+  /** The thread the Overview is beside, for the project's photos. */
+  readonly threadRef: ScopedThreadRef;
+  /** The project's README (`ReadmeOverview`), beside the lead part; null where none is shown. */
+  readonly readme: ReactNode | null;
 }) {
   const folders = useProjectChecks({
     environmentId: props.environmentId,
@@ -420,31 +398,50 @@ export function ProjectOverview(props: {
   return (
     <div className="@container flex min-w-0 flex-col gap-8">
       {lead === null ? (
-        reading ? (
-          <p className="text-xs text-muted-foreground">Reading the project</p>
-        ) : (
-          <StartModule byHand={props.byHand} onStartPart={props.onStartPart} />
-        )
+        <>
+          {props.readme}
+          {reading ? (
+            <p className="text-xs text-muted-foreground">Reading the project</p>
+          ) : (
+            <StartModule byHand={props.byHand} onStartPart={props.onStartPart} />
+          )}
+        </>
       ) : (
-        <div className="grid min-w-0 gap-6 @2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+        // The part first, large, with what the project is beside it.
+        <div className="grid min-w-0 items-start gap-6 @3xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
           <LeadPart
             environmentId={props.environmentId}
             part={lead}
             where={engineering ? undefined : lead.file.path}
             onOpen={() => props.onOpen(lead.root, lead.file.path)}
           />
-          <OpenIssues
-            issues={issues}
-            checked={checked}
-            composerRef={props.composerRef}
-            linkTo={props.linkTo}
-            onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
-          />
+          {props.readme === null ? (
+            <OpenIssues
+              issues={issues}
+              checked={checked}
+              composerRef={props.composerRef}
+              linkTo={props.linkTo}
+              onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
+            />
+          ) : (
+            props.readme
+          )}
         </div>
       )}
 
+      {props.readme !== null && (checked || issues.length > 0) ? (
+        <OpenIssues
+          issues={issues}
+          checked={checked}
+          composerRef={props.composerRef}
+          linkTo={props.linkTo}
+          onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
+        />
+      ) : null}
+
       <div className="grid min-w-0 gap-8 @3xl:grid-cols-2">
-        {partCount === 0 ? null : (
+        {/* A project of one part shows it above, large; the module is for picking among several. */}
+        {partCount < 2 ? null : (
           <OverviewModule
             title="Parts and checks"
             count={partCount}
@@ -452,23 +449,35 @@ export function ProjectOverview(props: {
             folded={folded.includes("Parts and checks")}
             onFold={() => toggle("Parts and checks")}
           >
-            {byFolder.map((folder) =>
-              folder.parts.length === 0 ? null : (
-                <FolderParts
-                  key={folder.root}
-                  environmentId={props.environmentId}
-                  root={folder.root}
-                  label={byFolder.length > 1 ? studioFolderName(folder.root) : null}
-                  parts={folder.parts}
-                  onOpen={props.onOpen}
-                />
-              ),
-            )}
+            <div className="flex flex-col gap-4 pt-3">
+              {byFolder.map((folder) =>
+                folder.parts.length === 0 ? null : (
+                  <div key={folder.root} className="flex min-w-0 flex-col gap-2">
+                    {byFolder.length > 1 ? (
+                      <h3 className="truncate text-xs font-medium text-foreground">
+                        {studioFolderName(folder.root)}
+                      </h3>
+                    ) : null}
+                    <div className={CARD_GRID}>
+                      <FolderParts
+                        environmentId={props.environmentId}
+                        threadRef={props.threadRef}
+                        root={folder.root}
+                        parts={folder.parts}
+                        onOpen={props.onOpen}
+                      />
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
           </OverviewModule>
         )}
         {modules.map(([group, files]) => (
           <FilesModule
             key={group}
+            environmentId={props.environmentId}
+            threadRef={props.threadRef}
             group={group}
             files={files}
             folded={folded.includes(group)}
@@ -479,6 +488,7 @@ export function ProjectOverview(props: {
         {props.onShowThreads === null || otherChats === 0 ? null : (
           <OverviewModule
             title="Recent work"
+            wide
             folded={folded.includes("Recent work")}
             onFold={() => toggle("Recent work")}
             action={

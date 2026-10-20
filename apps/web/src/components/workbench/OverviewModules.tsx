@@ -10,15 +10,29 @@ import {
   type LucideIcon,
   RulerIcon,
 } from "lucide-react";
-import { type ReactNode, useCallback, useState } from "react";
+import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 
+import { useAssetUrlState } from "~/assets/assetUrls";
 import { cn } from "~/lib/utils";
+import { projectEnvironment } from "~/state/projects";
+import { useEnvironmentQuery } from "~/state/query";
+import { workspaceAssetResource } from "../files/filePreviewMode";
 import { Button } from "../ui/button";
+import { readmeInline } from "./projectReadme";
 import { filePlaces, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import { useEngineeringInterface } from "./studioInterface";
+import { usePictures } from "./usePictures";
 
-/** A module shows this many files before "Show all". */
-const FIRST_FILES = 6;
+/** A module shows this many files before "Show all": two rows of cards at most widths. */
+const FIRST_FILES = 8;
+/** Pictures a browser shows as they are; models, boards, results and DXF are rendered (`usePictures`). */
+const PHOTO = /\.(?:png|jpe?g|webp|gif)$/i;
+/** Documents shown as a page: their title and how they open. */
+const PAGE = /\.(?:md|mdx|txt)$/i;
+
+/** The card grid every module of files uses. */
+export const CARD_GRID = "grid grid-cols-2 gap-3 @xl:grid-cols-3 @4xl:grid-cols-4";
 const FOLDED_KEY = "studio:overview-folded";
 
 export const MODULE_HEADING =
@@ -137,8 +151,160 @@ export function OverviewModule(props: {
   );
 }
 
-/** A module of one kind of the project's files: its drawings, studies, documents and so on. */
+/** A photo of the project's, by its workspace address; nothing while it loads or if it can't. */
+function Photo(props: {
+  readonly environmentId: EnvironmentId;
+  readonly threadRef: ScopedThreadRef;
+  readonly root: string;
+  readonly path: string;
+}) {
+  const resource = useMemo(
+    () =>
+      workspaceAssetResource({
+        kind: "workspace-file",
+        threadRef: props.threadRef,
+        draft: true,
+        workspaceRoot: props.root,
+        absolutePath: `${props.root.replace(/[\\/]+$/, "")}/${props.path}`,
+      }),
+    [props.threadRef, props.root, props.path],
+  );
+  const url = useAssetUrlState(props.environmentId, resource);
+  const [failed, setFailed] = useState(false);
+  if (url._tag !== "Success" || failed) return null;
+  return (
+    <img src={url.url} alt="" className="size-full object-cover" onError={() => setFailed(true)} />
+  );
+}
+
+/** Markdown as plain words: links by their names, marks dropped. */
+const plainText = (line: string) =>
+  readmeInline(line.replace(/^#+\s*/, "").replace(/^[-*]\s+/, ""))
+    .map((piece) => piece.text)
+    .join("");
+
+/** A document as a small page: its title, then its opening lines, the way a thumbnail reads. */
+function Page(props: {
+  readonly environmentId: EnvironmentId;
+  readonly root: string;
+  readonly path: string;
+}) {
+  const file = useEnvironmentQuery(
+    projectEnvironment.readFile({
+      environmentId: props.environmentId,
+      input: { cwd: props.root, relativePath: props.path },
+    }),
+  ).data;
+  if (!file) return null;
+  const lines = file.contents
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  const heading = lines.find((line) => line.startsWith("#"));
+  const body = lines
+    .filter((line) => line !== heading)
+    .slice(0, 8)
+    .map(plainText)
+    .join(" ");
+  return (
+    <span className="flex size-full flex-col gap-1 overflow-hidden bg-background px-3 py-2.5 text-left">
+      {heading === undefined ? null : (
+        <span className="line-clamp-2 text-2xs font-semibold text-foreground">
+          {plainText(heading)}
+        </span>
+      )}
+      <span className="line-clamp-6 text-3xs leading-snug text-muted-foreground">{body}</span>
+    </span>
+  );
+}
+
+/**
+ * A file as a card: its picture (a render of a model, board, result or DXF, or the photo itself),
+ * else its kind's icon large, then its name and what it is. A press opens it.
+ */
+export function FileCard(props: {
+  readonly environmentId: EnvironmentId;
+  readonly threadRef: ScopedThreadRef;
+  readonly root: string;
+  readonly file: ProjectFile;
+  readonly picture: string | undefined;
+  /** Where it sits, said only where it tells two alike apart (`filePlaces`). */
+  readonly place: string | undefined;
+  readonly onOpen: () => void;
+  /** Under its name: its checks and drawing, for a part. */
+  readonly footer?: ReactNode;
+}) {
+  const Icon = GROUP_ICONS[props.file.group];
+  const photo = PHOTO.test(props.file.path);
+  return (
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <button
+        type="button"
+        onClick={props.onOpen}
+        aria-label={`Open ${props.file.title}`}
+        className="flex aspect-[4/3] min-w-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50 outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      >
+        {props.picture ? (
+          <img src={props.picture} alt="" className="size-full object-contain p-2" />
+        ) : PAGE.test(props.file.path) ? (
+          <Page environmentId={props.environmentId} root={props.root} path={props.file.path} />
+        ) : photo ? (
+          <Photo
+            environmentId={props.environmentId}
+            threadRef={props.threadRef}
+            root={props.root}
+            path={props.file.path}
+          />
+        ) : (
+          <Icon className="size-8 text-muted-foreground/45" aria-hidden="true" />
+        )}
+      </button>
+      <div className="flex min-w-0 flex-col">
+        <span className="truncate text-xs font-medium text-foreground">{props.file.title}</span>
+        <span className="truncate text-2xs text-muted-foreground">
+          {props.file.kind}
+          {props.place === undefined ? "" : ` · ${props.place}`}
+        </span>
+      </div>
+      {props.footer}
+    </div>
+  );
+}
+
+/** One folder's files of a module as cards, pictured where the server can render them. */
+function FolderCards(props: {
+  readonly environmentId: EnvironmentId;
+  readonly threadRef: ScopedThreadRef;
+  readonly root: string;
+  readonly files: ReadonlyArray<ProjectFile>;
+  readonly places: ReadonlyMap<string, string>;
+  readonly onOpen: (root: string, path: string) => void;
+}) {
+  const pictures = usePictures({
+    environmentId: props.environmentId,
+    cwd: props.root,
+    paths: props.files
+      .filter((file) => !PHOTO.test(file.path))
+      .map((file) => file.picture ?? file.path),
+  });
+  return props.files.map((file) => (
+    <FileCard
+      key={`${props.root}\n${file.path}`}
+      environmentId={props.environmentId}
+      threadRef={props.threadRef}
+      root={props.root}
+      file={file}
+      picture={pictures.get(file.picture ?? file.path)}
+      place={props.places.get(file.path)}
+      onOpen={() => props.onOpen(props.root, file.path)}
+    />
+  ));
+}
+
+/** A module of one kind of the project's files, as cards: its drawings, studies, photos, documents. */
 export function FilesModule(props: {
+  readonly environmentId: EnvironmentId;
+  readonly threadRef: ScopedThreadRef;
   readonly group: ProjectGroup;
   readonly files: ReadonlyArray<{ readonly root: string; readonly file: ProjectFile }>;
   readonly folded: boolean;
@@ -152,36 +318,28 @@ export function FilesModule(props: {
   const places = engineering
     ? filePlaces(files)
     : new Map(files.map((file) => [file.path, file.path] as const));
-  const Icon = GROUP_ICONS[props.group];
+  const roots = [...new Set(shown.map(({ root }) => root))];
   return (
     <OverviewModule
       title={props.group}
       count={props.files.length}
       folded={props.folded}
       onFold={props.onFold}
+      wide
     >
-      <ul className="flex flex-col">
-        {shown.map(({ root, file }) => (
-          <li key={`${root}\n${file.path}`} className="border-b border-border py-1.5">
-            <button
-              type="button"
-              onClick={() => props.onOpen(root, file.path)}
-              className="flex w-full min-w-0 items-center gap-3 rounded-md text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-            >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted/50">
-                <Icon className="size-4 text-muted-foreground/70" aria-hidden="true" />
-              </span>
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-xs font-medium text-foreground">{file.title}</span>
-                <span className="truncate text-2xs text-muted-foreground">
-                  {file.kind}
-                  {places.has(file.path) ? ` · ${places.get(file.path)}` : ""}
-                </span>
-              </span>
-            </button>
-          </li>
+      <div className={cn(CARD_GRID, "pt-3")}>
+        {roots.map((root) => (
+          <FolderCards
+            key={root}
+            environmentId={props.environmentId}
+            threadRef={props.threadRef}
+            root={root}
+            files={shown.filter((entry) => entry.root === root).map(({ file }) => file)}
+            places={places}
+            onOpen={props.onOpen}
+          />
         ))}
-      </ul>
+      </div>
       {props.files.length > FIRST_FILES ? (
         <ShowAll all={all} count={props.files.length} onToggle={() => setAll((value) => !value)} />
       ) : null}
