@@ -13,7 +13,7 @@ import { Progress } from "@text-to-cad/ui/primitives/progress";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { AppearanceIcon, COMMAND_ICONS, CompareIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
+import { AppearanceIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
 import { COMMAND_GROUPS, EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_FAMILIES, SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
@@ -315,6 +315,10 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
       ...(group.title === "Inspect" ? [{ id: "mass", label: "Mass Properties", icon: <MassPropertiesIcon aria-hidden="true" />,
         active: edit.inspecting === "mass", disabled: edit.status !== "ready",
         onClick: () => (edit.inspecting === "mass" ? edit.stopInspecting() : edit.inspect("mass")) },
+      // Draft Analysis, as SolidWorks' Evaluate tab checks a molded part's walls against the pull.
+      ...(placing ? [] : [{ id: "draft-analysis", label: "Draft Analysis", icon: <DraftAnalysisIcon aria-hidden="true" />,
+        active: edit.inspecting === "draft", disabled: edit.status !== "ready",
+        onClick: () => (edit.inspecting === "draft" ? edit.stopInspecting() : edit.inspect("draft")) }]),
       // Compare, as SolidWorks' Compare Geometry: what the part gained and lost since a version of it.
       ...(placing ? [] : [{ id: "compare", label: "Compare", icon: <CompareIcon aria-hidden="true" />,
         active: edit.inspecting === "compare", disabled: edit.status !== "ready",

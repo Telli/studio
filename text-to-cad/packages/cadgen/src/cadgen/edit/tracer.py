@@ -1817,7 +1817,7 @@ def _solve(expr, leaf, target):
 
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
-_CHANGES = ("command", "preview", "mass", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
+_CHANGES = ("command", "preview", "mass", "draft_check", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
             "input")
 
 
@@ -1828,6 +1828,8 @@ def edit(request):
         return preview(request)
     if isinstance(request.get("mass"), dict):
         return mass_properties(request)
+    if isinstance(request.get("draft_check"), dict):
+        return draft_analysis(request)
     if isinstance(request.get("command"), dict):
         return command(request)
     if isinstance(request.get("splice"), dict):
@@ -2215,6 +2217,59 @@ def mass_properties(request):
         "materials": [{"key": key, "name": value.name, "density": round(value.density * 1e9, 6)}
                       for key, value in sorted(MATERIALS.items(), key=lambda item: item[1].name)],
     }}
+
+
+# More than this many triangles a Draft Analysis coarsens its mesh to stay under.
+DRAFT_TRIANGLES = 60_000
+
+
+def draft_analysis(request):
+    """Draft Analysis, as SolidWorks shows a molded part's: each triangle of the part classed by its
+    draft against the direction of pull (``pull``, a unit vector; ``angle``, the least draft in
+    degrees): positive (it faces the pull, steeper than the angle), negative (faces away), or
+    needing draft (between, the walls a mold would drag on). Answers the triangles as the view
+    shades them (``positions``, three numbers a corner, three corners a triangle, no corner shared)
+    with each triangle's class (0 positive, 1 negative, 2 needs draft) and each class's area."""
+    script = Path(request["script"]).resolve()
+    root = Path(request.get("root") or script.parent).resolve()
+    if not _as_last_traced(script, root) or str(script) not in STATE:
+        traced = trace(request)
+        if not traced["ok"]:
+            return traced
+    shape = STATE[str(script)]["shape"]
+    spec = request["draft_check"]
+    if not isinstance(shape, B.Shape) or not shape.solids():
+        return {"ok": True, "draft_check": {"error": "This part has no solid to check."}}
+    try:
+        pull = B.Vector(*[float(value) for value in spec.get("pull") or (0, 0, 1)])
+        least = math.radians(float(spec.get("angle", 1)))
+    except (TypeError, ValueError):
+        return {"ok": True, "draft_check": {"error": "Draft Analysis needs a direction of pull and an angle."}}
+    if pull.length == 0:
+        return {"ok": True, "draft_check": {"error": "Pick a direction of pull."}}
+    pull = pull.normalized()
+    tolerance = max(0.01, shape.bounding_box().diagonal * 0.002)
+    for _ in range(4):
+        vertices, triangles = shape.tessellate(tolerance, 0.3)
+        if len(triangles) <= DRAFT_TRIANGLES:
+            break
+        tolerance *= 2
+    positions, classes, areas = [], [], [0.0, 0.0, 0.0]
+    limit = math.sin(least)
+    for a, b, c in triangles:
+        pa, pb, pc = vertices[a], vertices[b], vertices[c]
+        normal = (pb - pa).cross(pc - pa)
+        double = normal.length
+        if double <= 0:
+            continue
+        # A face's draft is how far its outward normal leans along the pull: its sine is the dot.
+        lean = normal.dot(pull) / double
+        kind = 0 if lean >= limit else 1 if lean <= -limit else 2
+        classes.append(kind)
+        areas[kind] += double / 2
+        positions += [round(value, 4) for point in (pa, pb, pc) for value in (point.X, point.Y, point.Z)]
+    return {"ok": True, "draft_check": {"positions": positions, "classes": classes,
+                                         "areas": {"positive": areas[0], "negative": areas[1], "needs": areas[2]}}}
 
 
 def _feature_lines(feature, rel, title, verb):
@@ -3512,7 +3567,7 @@ def handle(request):
         if request.get("op") == "edit":
             reply = edit(request)
             # A preview, or Mass Properties, leaves the part, and so the rollback bar, as they were.
-            return reply if isinstance(request.get("preview"), dict) or isinstance(request.get("mass"), dict) else _with_bar(request, reply)
+            return reply if any(isinstance(request.get(key), dict) for key in ("preview", "mass", "draft_check")) else _with_bar(request, reply)
         return _with_bar(request, trace(request))
     except Exception as error:
         return {"ok": False, "error": str(error), "detail": traceback.format_exc(limit=4)}

@@ -196,6 +196,10 @@ by hand" below.
   it is, at the rollback bar when it is up: its volume, surface area, center of mass (marked on
   the model) and overall size, worked out from its solids, and its mass in a material of cadgen's
   table, the project brief's own as it opens. It writes nothing.
+- **Draft Analysis** (Inspect group) shades the part by its draft against a direction of pull (an
+  origin plane's normal, reversed or not): green where a face leans with the pull by at least the
+  draft angle, red where it leans away, yellow where a wall stands too near the pull for a mold to
+  release it, with each color's area. Use it before adding Draft. It writes nothing.
 - **The rollback bar** under the features (dragged up, or a feature's Rollback) shows the part as
   it was above a feature, the features below it greyed. While it is up, commands act on the body
   there and write their line right above the feature below the bar (a new sketch goes there too),

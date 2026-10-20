@@ -1263,6 +1263,19 @@ class Planes(Commands):
         self.assertIn('    sketch1 = Sketch("Sketch1", plane=plane1)\n', script.read_text(encoding="utf-8"))
         self.assertEqual(sketched["sketch"]["state"]["frame"]["origin"], [0, 0, -4])
 
+    def test_draft_analysis_classes_the_block_by_its_pull(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        reply = self.service.change({"file": file, "files": state["files"], "draft_check": {"pull": [0, 0, 1], "angle": 1}})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        checked = reply["draft_check"]
+        # The top faces the pull, the bottom away from it, and the four walls stand square: they need draft.
+        self.assertAlmostEqual(checked["areas"]["positive"], 200, places=3)
+        self.assertAlmostEqual(checked["areas"]["negative"], 200, places=3)
+        self.assertAlmostEqual(checked["areas"]["needs"], 2 * 20 * 4 + 2 * 10 * 4, places=3)
+        self.assertEqual(len(checked["positions"]), 9 * len(checked["classes"]))
+        # Nothing is written or built: the script is as it was.
+        self.assertNotIn("change", reply)
+
     def test_a_mid_plane_goes_between_two_faces_and_a_plane_normal_to_an_edge_stands_at_its_start(self):
         root, file, state = self.open(BLOCK, "block.step")
         both = [*BLOCK_TOP, face("f2", (0, 0, -2), 200)]

@@ -1131,3 +1131,29 @@ export function redoStep(history) {
   return { change, request: spliced(change) ? { splice: change.redo } : { literal: change.literal, text: change.to },
     next: { done: [...history.done, change], undone: history.undone.slice(0, -1) } };
 }
+
+// ---- Draft Analysis ------------------------------------------------------------------------------
+
+/** Draft Analysis' classes, in the server's order (0, 1, 2), with SolidWorks' colors. */
+export const DRAFT_ORDER = Object.freeze(["positive", "negative", "needs"]);
+export const DRAFT_CLASSES = Object.freeze({
+  positive: { label: "Positive draft", css: "#22c55e", rgb: [0.133, 0.773, 0.369] },
+  negative: { label: "Negative draft", css: "#ef4444", rgb: [0.937, 0.267, 0.267] },
+  needs: { label: "Requires draft", css: "#eab308", rgb: [0.918, 0.702, 0.031] },
+});
+/** The directions of pull Draft Analysis offers: each origin plane's normal, as the part's own planes face. */
+export const PULL_PLANES = Object.freeze([{ value: "Top", label: "Top Plane" }, { value: "Front", label: "Front Plane" }, { value: "Right", label: "Right Plane" }]);
+const PULLS = Object.freeze({ Top: [0, 0, 1], Front: [0, -1, 0], Right: [1, 0, 0] });
+
+/** The direction of pull Draft Analysis sends: its plane's normal, reversed when asked. */
+export function pullOf(settings) {
+  const pull = PULLS[settings?.plane] || PULLS.Top;
+  return settings?.reverse ? pull.map(value => -value || 0) : [...pull];
+}
+
+/** Draft Analysis' legend: each class's area, in the part's units squared. */
+export function draftRows(areas, units) {
+  const scale = units === "in" ? 25.4 ** 2 : units === "cm" ? 100 : units === "m" ? 1e6 : 1;
+  const unit = units === "in" ? "in²" : units === "cm" ? "cm²" : units === "m" ? "m²" : "mm²";
+  return DRAFT_ORDER.map(key => ({ key, label: DRAFT_CLASSES[key].label, value: `${Number(((areas?.[key] || 0) / scale).toFixed(units === "in" ? 3 : 1))} ${unit}` }));
+}

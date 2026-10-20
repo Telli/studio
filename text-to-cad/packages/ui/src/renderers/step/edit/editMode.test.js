@@ -27,6 +27,8 @@ import {
   editingValues,
   planeDetail,
   planeMode,
+  pullOf,
+  draftRows,
   planePreview,
   referencePlanes,
   appearanceNote,
@@ -687,4 +689,11 @@ test("a Plane's picks say which it is: two faces a Mid Plane, an edge Normal to 
   assert.equal(mid.selection.length, 2);
   const normal = commandRequest("plane", { ...commandDefaults("plane", "mm"), end: "end" }, [edge], null);
   assert.deepEqual(normal.inputs, { mode: "normal", end: "end" });
+});
+
+test("Draft Analysis pulls along an origin plane's normal, reversed when asked, and says each class's area", () => {
+  assert.deepEqual(pullOf({ plane: "Top" }), [0, 0, 1]);
+  assert.deepEqual(pullOf({ plane: "Front", reverse: true }), [0, 1, 0]);
+  assert.deepEqual(draftRows({ positive: 200, negative: 200, needs: 240 }, "mm").map(row => row.value), ["200 mm²", "200 mm²", "240 mm²"]);
+  assert.equal(draftRows({ positive: 645.16, negative: 0, needs: 0 }, "in")[0].value, "1 in²");
 });

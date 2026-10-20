@@ -17,6 +17,7 @@ import { TOOL_PANEL_BUTTON_CLASS } from "../../kit/tools/ToolPanel.jsx";
 import EditCommand from "./EditCommand.jsx";
 import EditTree from "./EditTree.jsx";
 import SketchPanel from "./SketchPanel.jsx";
+import DraftAnalysis from "./DraftAnalysis.jsx";
 import MassProperties from "./MassProperties.jsx";
 import MatePanel from "./MatePanel.jsx";
 import DrawingPanel from "./DrawingPanel.jsx";
@@ -88,6 +89,8 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
       onDeselect={onDeselect} />
       // Mass Properties, from the ribbon's Inspect group, in the same card.
       : edit.inspecting === "mass" ? <MassProperties edit={edit} />
+        // Draft Analysis, from the Inspect group: the part shaded by its draft against the pull.
+        : edit.inspecting === "draft" ? <DraftAnalysis edit={edit} />
         : edit.inspecting === "appearance" ? <Appearance edit={edit} />
           // Mate, from the ribbon's Assemble group: an assembly's part placed by two picks.
           : edit.inspecting === "mate" ? <MatePanel edit={edit} references={references} components={tree?.components || []} onDeselect={onDeselect} />

@@ -134,6 +134,7 @@ import { nodeCopyText, selectionCopyPayload } from "./file-view/stepCopy.js";
 import { referenceLabel, referencesFromCopyText, resolveSelectorSelection } from "./file-view/hostReference.js";
 import { applySourceAppearanceToMeshData, sourceAppearanceGeometry } from "@text-to-cad/core/common/sourceSidecar.js";
 import EditBrowser from "./edit/EditBrowser.jsx";
+import DraftAnalysisLayer from "./edit/DraftAnalysisLayer.jsx";
 import PreviewLayer from "./edit/PreviewLayer.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
 import EditLayoutSwitch from "./edit/EditLayoutSwitch.jsx";
@@ -3729,6 +3730,7 @@ function StepSurfaceBody({ view, data }) {
           onEdit={sketchesPickable && !edit.command ? view => openTreeSketch({ file: view.file, line: view.line, title: view.name }) : null}
           through={partExtent} /> : null}
         {editing && !sheetUp && edit.inspecting === "mass" && massMark ? <PreviewLayer viewport={viewport} preview={null} mark={massMark} extent={partExtent} /> : null}
+        {editing && !sheetUp && edit.inspecting === "draft" && edit.draftCheck?.positions ? <DraftAnalysisLayer viewport={viewport} check={edit.draftCheck} /> : null}
         {/* Compare: what the part gained since the version picked, amber, and what it lost, red. */}
         {editing && !sheetUp && edit.inspecting === "compare" && edit.comparison?.shown
           ? <PreviewLayer viewport={viewport} preview={edit.comparison.shown} mark={null} extent={partExtent} /> : null}
