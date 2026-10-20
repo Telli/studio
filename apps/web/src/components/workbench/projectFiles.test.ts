@@ -17,6 +17,7 @@ const demo = [
   "reference/raytac/MDBT50Q.step",
   "plans/bracket-review.md",
   "AGENTS.md",
+  "assets/icon.svg",
   "brief/brief.json",
   "brief/project.md",
   "brief/references/sketch.jpg",

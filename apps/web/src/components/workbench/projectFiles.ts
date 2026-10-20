@@ -72,8 +72,12 @@ const RULES: ReadonlyArray<{ readonly test: RegExp; readonly group: ProjectGroup
   { test: /\.(?:png|jpe?g|webp|gif|heic)$/i, group: "Images" },
 ];
 
-/** Agent instructions and a repository's own files: not the project's work. */
-const NOT_WORK = /(?:^|\/)(?:AGENTS|CLAUDE|GEMINI|CHANGELOG|LICENSE|CONTRIBUTING)\.md$/i;
+/**
+ * Agent instructions, a repository's own files, and the icon a new project is made with
+ * (`ManagedProjectFolders` on the server): not the project's work.
+ */
+const NOT_WORK =
+  /(?:^|\/)(?:AGENTS|CLAUDE|GEMINI|CHANGELOG|LICENSE|CONTRIBUTING)\.md$|^assets\/icon\.svg$/i;
 const HIDDEN_FOLDER = /^(?:\..*|node_modules|__pycache__|dist|build|tmp)$/;
 
 /** What it is and what it is called, or the file's own name for a file of no known kind. */

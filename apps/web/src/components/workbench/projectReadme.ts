@@ -24,7 +24,7 @@ const STARTING_LINE = /^\s*(<[^>]+>|Created in \[T3 Code\]\([^)]*\)\.?)\s*$/;
 
 function readDecision(item: string): ReadmeDecision {
   const plain = { text: item.trim(), when: null, how: null };
-  const match = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(item);
+  const match = /^(.*?)\s*\(([^()]*)\)\s*\.?\s*$/.exec(item);
   if (match === null) return plain;
   const notes = (match[2] ?? "").split(",").map((note) => note.trim().toLowerCase());
   const when = notes.find((note) => /^\d{4}-\d{2}-\d{2}$/.test(note)) ?? null;

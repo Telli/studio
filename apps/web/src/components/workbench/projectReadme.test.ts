@@ -33,6 +33,15 @@ describe("readmeSections", () => {
     ]);
   });
 
+  it("reads a decision that ends with a full stop after its note", () => {
+    const sections = readmeSections(
+      "## Decisions\n\n- Fasten the hook to a wood stud (2026-10-19, asked).\n",
+    );
+    expect(sections.decisions).toEqual([
+      { text: "Fasten the hook to a wood stud", when: "2026-10-19", how: "asked" },
+    ]);
+  });
+
   it("keeps a parenthesis that is not a date or a how", () => {
     const sections = readmeSections("## Decisions\n\n- Wall 2 mm (thicker than the lid)\n");
     expect(sections.decisions).toEqual([

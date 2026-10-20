@@ -1,5 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 
+import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
@@ -30,6 +31,8 @@ export function ReadmeOverview(props: {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly purpose: string;
+  /** Changes when the thread's agent changes files, the README among them. */
+  readonly mutationId: string | null;
   readonly onOpenReadme: () => void;
 }) {
   const readme = useEnvironmentQuery(
@@ -38,6 +41,11 @@ export function ReadmeOverview(props: {
       input: { cwd: props.cwd, relativePath: "README.md" },
     }),
   );
+  useWorkspaceMutationRefresh({
+    mutationId: props.mutationId,
+    refresh: readme.refresh,
+    resourceKey: `studio-readme:${props.cwd}`,
+  });
   const file = readme.data ?? null;
   const sections = readmeSections(file === null || file.truncated ? null : file.contents);
   const whatItIs = sections.whatItIs ?? (props.purpose.trim() || null);

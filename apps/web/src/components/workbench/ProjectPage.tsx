@@ -36,11 +36,13 @@ import { availableTemplates } from "./newTemplates";
 import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
 import { ReadmeOverview } from "./ReadmeOverview";
+import { useStartPartByHand } from "./useStartPartByHand";
 import { ProjectThreads } from "./ProjectThreads";
 import { usePictures } from "./usePictures";
 import { filePlaces, groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import { useEngineeringInterface } from "./studioInterface";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
+import { useWorkspaceMode } from "./workspaceMode";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
@@ -344,6 +346,12 @@ export function ProjectPage(props: {
   const name = studio?.project.name ?? props.projectName;
   // What it is, as the brief says it: the project's description under its name.
   const purpose = studio?.project.brief.purpose.trim().split("\n")[0]?.trim() ?? "";
+  const byHand = useWorkspaceMode(cwd) === "manual";
+  const startPart = useStartPartByHand({
+    composerRef,
+    folder: cwd,
+    units: studio?.project.brief.units ?? "mm",
+  });
   const links = (studio?.project.brief.links ?? "")
     .split("\n")
     .map((line) => line.trim())
@@ -435,7 +443,7 @@ export function ProjectPage(props: {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold text-foreground">{name}</h1>
-            {purpose === "" ? null : (
+            {purpose === "" || (plainWords && tab === "overview") ? null : (
               <p className="mt-0.5 truncate text-xs text-muted-foreground">{purpose}</p>
             )}
           </div>
@@ -485,7 +493,7 @@ export function ProjectPage(props: {
             workspaceMutationId={props.workspaceMutationId}
           />
         )}
-        {isProject ? (
+        {isProject && !(plainWords && tab === "overview") ? (
           <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Folders">
             <span className="me-1 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
               Folders
@@ -570,6 +578,7 @@ export function ProjectPage(props: {
             environmentId={environmentId}
             cwd={cwd}
             purpose={studio?.project.brief.purpose ?? ""}
+            mutationId={props.workspaceMutationId}
             onOpenReadme={() => openPath(cwd, "README.md")}
           />
         ) : null}
@@ -585,6 +594,8 @@ export function ProjectPage(props: {
             onOpen={openPath}
             linkTo={(root, path) => serializeComposerFileLink(threadPath(root, path))}
             onShowThreads={isProject ? () => setTab("threads") : null}
+            byHand={byHand}
+            onStartPart={startPart}
           />
         ) : tab === "threads" ? (
           <ProjectThreads

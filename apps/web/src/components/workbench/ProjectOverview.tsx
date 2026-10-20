@@ -10,6 +10,7 @@ import {
 import { useMemo, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
+import { useThreadShellsForProjectRefs } from "~/state/entities";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { CHECK_STATUS as STATUS, CheckBadge } from "./CheckBadge";
@@ -24,11 +25,27 @@ import {
   worstStatus,
 } from "./checkResults";
 import { humanName, partName } from "./partNames";
-import { classifyProjectFile, filePlaces, type ProjectFile } from "./projectFiles";
+import { leadPartOf } from "./leadPart";
+import {
+  FilesModule,
+  MODULE_HEADING,
+  OverviewModule,
+  ShowAll,
+  StartModule,
+  useFoldedModules,
+} from "./OverviewModules";
+import {
+  classifyProjectFile,
+  filePlaces,
+  groupProjectFiles,
+  type ProjectFile,
+  type ProjectGroup,
+} from "./projectFiles";
 import { ProjectThreads } from "./ProjectThreads";
 import { useEngineeringInterface } from "./studioInterface";
 import { usePictures } from "./usePictures";
 import { useProjectChecks } from "./useProjectChecks";
+import { projectChats } from "./workspaceTitle";
 
 const STATUS_ORDER: Record<CheckStatus | "none", number> = {
   fix: 0,
@@ -41,8 +58,9 @@ const FIRST_ISSUES = 5;
 const FIRST_PARTS = 8;
 const RECENT_THREADS = 5;
 
-const headingClass =
-  "flex items-baseline gap-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+const headingClass = MODULE_HEADING;
+/** Parts are the Parts and checks module; every other kind of file is a module of its own. */
+const PART_GROUPS: ReadonlySet<ProjectGroup> = new Set(["Models", "Boards and wiring"]);
 
 interface FolderPart {
   readonly root: string;
@@ -202,22 +220,6 @@ function OpenIssues(props: {
   );
 }
 
-function ShowAll(props: {
-  readonly all: boolean;
-  readonly count: number;
-  readonly onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={props.onToggle}
-      className="mt-2 self-start text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
-    >
-      {props.all ? "Show fewer" : `Show all ${props.count}`}
-    </button>
-  );
-}
-
 /** One folder's parts, problems first, each with its checks. */
 function FolderParts(props: {
   readonly environmentId: EnvironmentId;
@@ -312,11 +314,12 @@ function FolderParts(props: {
 }
 
 /**
- * The project's overview, the first thing its page shows: the lead part
- * large, the issues its checks found with the fix each suggests (asking for
- * one writes the ask into the composer: the agent proposes and waits), every
- * part with how its checks went, and the threads worked on lately, any
- * waiting on the person first in mind. Checks are the results text-to-cad
+ * The project's overview, the first thing its page shows, made of modules that each appear once
+ * the project holds something for them and update as the agent writes files: the lead part large
+ * (or, with none yet, how to start one), the issues its checks found with the fix each suggests
+ * (asking for one writes the ask into the composer: the agent proposes and waits), every part with
+ * how its checks went, a module for each other kind of file (drawings, studies, documents and so
+ * on), and the project's other chats. Each module folds away. Checks are the results text-to-cad
  * writes beside the parts (`checkResults.ts`).
  */
 export function ProjectOverview(props: {
@@ -332,6 +335,10 @@ export function ProjectOverview(props: {
   readonly linkTo: (root: string, path: string) => string;
   /** Opens the Threads tab; null where the page has none (a thread's own scratch folder). */
   readonly onShowThreads: (() => void) | null;
+  /** The project's parts open in Edit by hand, so a project with none offers to start one. */
+  readonly byHand: boolean;
+  /** Starts a blank part to model by hand (`useStartPartByHand`); null where it can't. */
+  readonly onStartPart: (() => void) | null;
 }) {
   const folders = useProjectChecks({
     environmentId: props.environmentId,
@@ -377,60 +384,74 @@ export function ProjectOverview(props: {
     };
   }, [folders]);
 
-  // The lead part is the first folder's first model, as the project files it (not the sort above).
   const lead = useMemo(() => {
+    const found = leadPartOf(folders);
+    const folder = found === null ? undefined : folders.find((entry) => entry.root === found.root);
+    if (found === null || folder === undefined) return null;
+    return {
+      ...found,
+      results: resultsFor(found.file, folder.results),
+      drawings: drawingsFor(found.file, folder.paths ?? []),
+    };
+  }, [folders]);
+  // Every other kind of file, across the project's folders; the README is read above as itself.
+  const modules = useMemo(() => {
+    const byGroup = new Map<ProjectGroup, Array<{ root: string; file: ProjectFile }>>();
     for (const folder of folders) {
-      const files = (folder.paths ?? [])
-        .map(classifyProjectFile)
-        .filter((file): file is ProjectFile => file !== null);
-      const file = overviewParts(files)[0];
-      if (file !== undefined) {
-        return {
-          root: folder.root,
-          file,
-          results: resultsFor(file, folder.results),
-          drawings: drawingsFor(file, folder.paths ?? []),
-        };
+      for (const { group, files } of groupProjectFiles(folder.paths ?? [])) {
+        if (PART_GROUPS.has(group)) continue;
+        const kept = files.filter((file) => !/^readme\.md$/i.test(file.path));
+        if (kept.length === 0) continue;
+        byGroup.set(group, [
+          ...(byGroup.get(group) ?? []),
+          ...kept.map((file) => ({ root: folder.root, file })),
+        ]);
       }
     }
-    return null;
+    return [...byGroup];
   }, [folders]);
+  const otherChats = projectChats(useThreadShellsForProjectRefs(props.projectRefs)).filter(
+    (chat) => chat.id !== props.currentThreadId,
+  ).length;
+  const { folded, toggle } = useFoldedModules(props.folders[0] ?? "");
   const partCount = byFolder.reduce((total, folder) => total + folder.parts.length, 0);
   const engineering = useEngineeringInterface();
 
   return (
     <div className="@container flex min-w-0 flex-col gap-8">
-      <div className="grid min-w-0 gap-6 @2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-        {lead === null ? (
-          <p className="flex aspect-[4/3] max-h-80 items-center justify-center rounded-md border border-dashed border-border px-6 text-center text-xs text-muted-foreground">
-            {reading
-              ? "Reading the project"
-              : "No parts yet. Describe the part you want in the chat, or add the folder your models are in."}
-          </p>
+      {lead === null ? (
+        reading ? (
+          <p className="text-xs text-muted-foreground">Reading the project</p>
         ) : (
+          <StartModule byHand={props.byHand} onStartPart={props.onStartPart} />
+        )
+      ) : (
+        <div className="grid min-w-0 gap-6 @2xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
           <LeadPart
             environmentId={props.environmentId}
             part={lead}
             where={engineering ? undefined : lead.file.path}
             onOpen={() => props.onOpen(lead.root, lead.file.path)}
           />
-        )}
-        <OpenIssues
-          issues={issues}
-          checked={checked}
-          composerRef={props.composerRef}
-          linkTo={props.linkTo}
-          onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
-        />
-      </div>
+          <OpenIssues
+            issues={issues}
+            checked={checked}
+            composerRef={props.composerRef}
+            linkTo={props.linkTo}
+            onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
+          />
+        </div>
+      )}
 
-      {partCount === 0 ? null : (
-        <section aria-label="Parts and checks" className="flex min-w-0 flex-col">
-          <h2 className={headingClass}>
-            Parts and checks
-            <span className="tabular-nums text-muted-foreground/70">{partCount}</span>
-          </h2>
-          <div className="mt-1.5 border-t border-border">
+      <div className="grid min-w-0 gap-8 @3xl:grid-cols-2">
+        {partCount === 0 ? null : (
+          <OverviewModule
+            title="Parts and checks"
+            count={partCount}
+            wide
+            folded={folded.includes("Parts and checks")}
+            onFold={() => toggle("Parts and checks")}
+          >
             {byFolder.map((folder) =>
               folder.parts.length === 0 ? null : (
                 <FolderParts
@@ -443,23 +464,33 @@ export function ProjectOverview(props: {
                 />
               ),
             )}
-          </div>
-        </section>
-      )}
-
-      {props.onShowThreads === null ? null : (
-        <section aria-label="Recent work" className="flex min-w-0 flex-col">
-          <div className="flex items-baseline justify-between gap-2">
-            <h2 className={headingClass}>Recent work</h2>
-            <button
-              type="button"
-              onClick={props.onShowThreads}
-              className="text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
-            >
-              {engineering ? "Full history" : "Every thread"}
-            </button>
-          </div>
-          <div className="mt-1.5">
+          </OverviewModule>
+        )}
+        {modules.map(([group, files]) => (
+          <FilesModule
+            key={group}
+            group={group}
+            files={files}
+            folded={folded.includes(group)}
+            onFold={() => toggle(group)}
+            onOpen={props.onOpen}
+          />
+        ))}
+        {props.onShowThreads === null || otherChats === 0 ? null : (
+          <OverviewModule
+            title="Recent work"
+            folded={folded.includes("Recent work")}
+            onFold={() => toggle("Recent work")}
+            action={
+              <button
+                type="button"
+                onClick={props.onShowThreads}
+                className="text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
+              >
+                {engineering ? "Full history" : "Every thread"}
+              </button>
+            }
+          >
             <ProjectThreads
               projectRefs={props.projectRefs}
               folderNames={props.folderNames}
@@ -467,9 +498,9 @@ export function ProjectOverview(props: {
               query=""
               limit={RECENT_THREADS}
             />
-          </div>
-        </section>
-      )}
+          </OverviewModule>
+        )}
+      </div>
     </div>
   );
 }
