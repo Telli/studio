@@ -117,3 +117,38 @@ export function readmeSections(markdown: string | null): ReadmeSections {
   const opening = intro.filter((line) => !STARTING_LINE.test(line));
   return { title, whatItIs: text(named("what it is")) ?? text(opening), decisions, more };
 }
+
+export type ReadmeInline =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "link"; readonly text: string; readonly target: string }
+  | { readonly kind: "strong"; readonly text: string };
+
+const INLINE = /\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*|`([^`]+)`/g;
+
+/**
+ * A line of README text in the pieces the Overview shows: plain text, links (a file of the
+ * project, or a web page) and bold. Code marks drop away; the words stay.
+ */
+export function readmeInline(text: string): ReadonlyArray<ReadmeInline> {
+  const pieces: ReadmeInline[] = [];
+  const addText = (more: string) => {
+    if (more === "") return;
+    const previous = pieces.at(-1);
+    if (previous?.kind === "text")
+      pieces[pieces.length - 1] = { kind: "text", text: previous.text + more };
+    else pieces.push({ kind: "text", text: more });
+  };
+  let last = 0;
+  for (const match of text.matchAll(INLINE)) {
+    const at = match.index ?? 0;
+    addText(text.slice(last, at));
+    const [whole, label, target, strong, code] = match;
+    if (label !== undefined && target !== undefined)
+      pieces.push({ kind: "link", text: label, target });
+    else if (strong !== undefined) pieces.push({ kind: "strong", text: strong });
+    else addText(code ?? "");
+    last = at + whole.length;
+  }
+  addText(text.slice(last));
+  return pieces;
+}

@@ -579,7 +579,7 @@ export function ProjectPage(props: {
             cwd={cwd}
             purpose={studio?.project.brief.purpose ?? ""}
             mutationId={props.workspaceMutationId}
-            onOpenReadme={() => openPath(cwd, "README.md")}
+            onOpenPath={(path) => openPath(cwd, path)}
           />
         ) : null}
         {tab === "overview" ? (

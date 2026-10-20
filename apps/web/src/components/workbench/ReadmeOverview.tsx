@@ -4,9 +4,40 @@ import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
-import { type ReadmeDecision, readmeSections } from "./projectReadme";
+import { type ReadmeDecision, readmeInline, readmeSections } from "./projectReadme";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+const LINK =
+  "rounded-sm text-foreground underline decoration-muted-foreground/50 underline-offset-2 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
+
+/** README text as it reads: a link opens the file or page it names, and markdown marks drop away. */
+function ReadmeText(props: { readonly text: string; readonly onOpenPath: (path: string) => void }) {
+  return readmeInline(props.text).map((piece, index) => {
+    const key = `${index}-${piece.kind}`;
+    if (piece.kind === "strong") {
+      return (
+        <strong key={key} className="font-medium">
+          {piece.text}
+        </strong>
+      );
+    }
+    if (piece.kind === "text") return <span key={key}>{piece.text}</span>;
+    return /^https?:\/\//i.test(piece.target) ? (
+      <a key={key} href={piece.target} target="_blank" rel="noreferrer" className={LINK}>
+        {piece.text}
+      </a>
+    ) : (
+      <button
+        key={key}
+        type="button"
+        onClick={() => props.onOpenPath(piece.target)}
+        className={LINK}
+      >
+        {piece.text}
+      </button>
+    );
+  });
+}
 
 /** "Oct 19, asked": when and how a decision was made, as far as its line says. */
 function decisionNote(decision: ReadmeDecision): string | null {
@@ -34,7 +65,8 @@ export function ReadmeOverview(props: {
   readonly purpose: string;
   /** Changes when the thread's agent changes files, the README among them. */
   readonly mutationId: string | null;
-  readonly onOpenReadme: () => void;
+  /** Opens a file of the project, by its path in the README's folder: the README itself, or a link. */
+  readonly onOpenPath: (path: string) => void;
 }) {
   const readme = useEnvironmentQuery(
     projectEnvironment.readFile({
@@ -60,7 +92,9 @@ export function ReadmeOverview(props: {
             Not written yet. Studio writes it from the project's chats.
           </p>
         ) : (
-          <p className="text-sm leading-relaxed whitespace-pre-line text-foreground">{whatItIs}</p>
+          <p className="text-sm leading-relaxed whitespace-pre-line text-foreground">
+            <ReadmeText text={whatItIs} onOpenPath={props.onOpenPath} />
+          </p>
         )}
       </div>
       <div className="flex flex-col gap-1.5">
@@ -76,7 +110,9 @@ export function ReadmeOverview(props: {
                   key={`${decision.text}-${decision.when ?? ""}`}
                   className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground"
                 >
-                  <span>{decision.text}</span>
+                  <span>
+                    <ReadmeText text={decision.text} onOpenPath={props.onOpenPath} />
+                  </span>
                   {note === null ? null : (
                     <span className="text-xs text-muted-foreground">{note}</span>
                   )}
@@ -91,13 +127,15 @@ export function ReadmeOverview(props: {
           <h2 className={SECTION_LABEL}>{section.heading}</h2>
           {section.paragraphs.map((paragraph) => (
             <p key={paragraph} className="text-sm leading-relaxed text-foreground">
-              {paragraph}
+              <ReadmeText text={paragraph} onOpenPath={props.onOpenPath} />
             </p>
           ))}
           {section.items.length === 0 ? null : (
             <ul className="flex list-disc flex-col gap-1 ps-4 text-sm text-foreground">
               {section.items.map((item) => (
-                <li key={item}>{item}</li>
+                <li key={item}>
+                  <ReadmeText text={item} onOpenPath={props.onOpenPath} />
+                </li>
               ))}
             </ul>
           )}
@@ -106,7 +144,7 @@ export function ReadmeOverview(props: {
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>Studio writes this from the project's chats and keeps it current.</span>
         {file === null ? null : (
-          <Button variant="outline" size="xs" onClick={props.onOpenReadme}>
+          <Button variant="outline" size="xs" onClick={() => props.onOpenPath("README.md")}>
             Edit the README
           </Button>
         )}

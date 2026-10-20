@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { readmeSections } from "./projectReadme";
+import { readmeInline, readmeSections } from "./projectReadme";
 
 const README = `# Lanyard clip
 
@@ -100,5 +100,19 @@ describe("readmeSections", () => {
     const empty = { title: null, whatItIs: null, decisions: [], more: [] };
     expect(readmeSections(null)).toEqual(empty);
     expect(readmeSections("  \n")).toEqual(empty);
+  });
+});
+
+describe("readmeInline", () => {
+  it("splits a line into text, links and bold, and drops code marks", () => {
+    expect(
+      readmeInline("[First fit concept](parts/bike_hook.step) · **PETG** and `bike_hook.py`"),
+    ).toEqual([
+      { kind: "link", text: "First fit concept", target: "parts/bike_hook.step" },
+      { kind: "text", text: " · " },
+      { kind: "strong", text: "PETG" },
+      { kind: "text", text: " and bike_hook.py" },
+    ]);
+    expect(readmeInline("Plain words")).toEqual([{ kind: "text", text: "Plain words" }]);
   });
 });
