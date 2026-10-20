@@ -630,6 +630,21 @@ export function useEditMode({ client, file, active, reading = true }) {
     return reply;
   }, [send]);
 
+  /**
+   * A drag still under way, solved where the pointer is now: the sketch as it would be, nothing
+   * written, recorded or shown as saving. Null when it cannot be solved there.
+   */
+  const sketchDrag = useCallback(async op => {
+    const current = sketchRef.current;
+    if (!supported || !file || !current) return null;
+    try {
+      const reply = await client.editChange({ sketch: { ...sketchTarget(current), op: { ...op, live: true } }, file, files: files.current || undefined });
+      return reply?.ok ? reply.sketch?.state || null : null;
+    } catch {
+      return null;
+    }
+  }, [client, file, supported]);
+
   /** Exit Sketch: the part built again with it, and the agent told what changed. */
   const exitSketch = useCallback(async () => {
     const current = sketchRef.current;
@@ -702,6 +717,6 @@ export function useEditMode({ client, file, active, reading = true }) {
     planeOffset, setPlaneOffset,
     stopPicking: () => setPicking(false),
     lookNormalTo: () => setNormalTo(tick => tick + 1),
-    startSketch, openSketch, sketchOp, exitSketch, cancelSketch,
+    startSketch, openSketch, sketchOp, sketchDrag, exitSketch, cancelSketch,
   };
 }

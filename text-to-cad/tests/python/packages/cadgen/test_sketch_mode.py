@@ -137,6 +137,35 @@ class SketchMode(unittest.TestCase):
         self.assertIn("sketch1.diameter(circle1, 6)", self.source())
         self.assertIn("circle1 = sketch1.circle((10, 4), 3)", self.source())
 
+    def test_a_drag_under_way_is_solved_but_not_written(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [30, 10]}})
+        before = self.source()
+        corner = next(curve for curve in self.sketch["state"]["curves"] if curve["id"] == "Line2")["end"]
+        live = self.send({"kind": "move", "points": [{"point": corner, "to": [40, 12]}], "live": True})
+        self.assertTrue(live["live"])
+        self.assertNotIn("change", live)
+        self.assertEqual(self.source(), before)
+        # The rectangle followed: the corner went where it was dragged, and the lines on it with it.
+        points = {point["id"]: (point["x"], point["y"]) for point in live["sketch"]["state"]["points"]}
+        self.assertEqual(points[corner], (40.0, 12.0))
+        # Let go: the same move written.
+        self.send({"kind": "move", "points": [{"point": corner, "to": [40, 12]}]})
+        self.assertIn("sketch1.rectangle(sketch1.origin, (40, 12))", self.source())
+
+    def test_a_circle_dragged_by_its_edge_takes_the_radius(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "circle", "center": {"at": [10, 4]}, "radius": 2})
+        live = self.send({"kind": "move", "curves": [{"curve": "Circle1", "radius": 3.5}], "live": True})
+        self.assertEqual(next(curve for curve in live["sketch"]["state"]["curves"] if curve["id"] == "Circle1")["radius"], 3.5)
+        self.assertIn("circle1 = sketch1.circle((10, 4), 2)", self.source())
+        self.send({"kind": "move", "curves": [{"curve": "Circle1", "radius": 3.5}]})
+        self.assertIn("circle1 = sketch1.circle((10, 4), 3.5)", self.source())
+        # With its diameter dimensioned, the radius is the dimension's: a drag does not change it.
+        self.send({"kind": "dimension", "dimension": "diameter", "refs": ["Circle1"], "value": "5"})
+        self.send({"kind": "move", "curves": [{"curve": "Circle1", "radius": 9}]})
+        self.assertAlmostEqual(next(curve for curve in self.sketch["state"]["curves"] if curve["id"] == "Circle1")["radius"], 2.5, places=6)
+
     def test_relations_that_cannot_hold_leave_the_script_as_it_was(self):
         self.start()
         self.send({"kind": "draw", "entity": "line", "start": {"at": [0, 0]}, "end": {"at": [10, 1]}, "relations": [{"kind": "horizontal"}]})

@@ -138,6 +138,11 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
     let lastAngle = null;
     let pending = null; // Smart Dimension: { picks, dimension, refs, value, placing }
     let drag = null;
+    // A drag's latest live solve (`solveLive`), and the sketch shown between letting go and the written move's answer.
+    let solved = null;
+    let settling = null;
+    let solving = false;
+    let again = false;
     let labels = []; // each dimension's value on screen: { id, x, y, w, h }
     let geometry = null;
     let mapping = null;
@@ -199,8 +204,8 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       if (!mapping || !state) return;
       const { toScreen, perUnit } = mapping;
       const path = (points, closed = false) => strokePath(context, points, toScreen, closed);
-      // A point being dragged is drawn where the pointer has it.
-      const shown = drag?.moved ? draggedState(state, drag) : state;
+      // A drag is drawn as the sketch solved it last, or moved as the pointer has it until that first solve answers.
+      const shown = drag?.moved ? solved || draggedState(state, drag) : settling || state;
       geometry = sketchGeometry(shown);
       const selection = new Set(current.selection);
       const redundant = new Set(state.redundant || []);
@@ -654,7 +659,9 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       current.edit.selectInSketch(next);
       if (!label && !extend) {
         const controls = viewport.runtimeRef?.current?.controls;
-        drag = { id: hit, from: place, to: place, screen, moved: false, pointerId: event.pointerId, controls, controlsWereEnabled: controls?.enabled !== false };
+        drag = { id: hit, from: place, to: place, screen, moved: false, pointerId: event.pointerId, controls, controlsWereEnabled: controls?.enabled !== false,
+          ...radiusGrip(current.sketch.state, hit) };
+        solved = null;
         if (controls) controls.enabled = false;
         try { host.setPointerCapture(event.pointerId); } catch { /* a pointer already gone */ }
       }
@@ -670,6 +677,7 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         event.stopPropagation();
         drag.to = place;
         if (Math.hypot(screen[0] - drag.screen[0], screen[1] - drag.screen[1]) > DRAG_PX) drag.moved = true;
+        if (drag.moved) void solveLive();
         version.current += 1;
         return;
       }
@@ -713,9 +721,30 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       if (done.controls) done.controls.enabled = done.controlsWereEnabled;
       try { host.releasePointerCapture(done.pointerId); } catch { /* released already */ }
       version.current += 1;
-      if (!done.moved) return;
+      if (!done.moved) { solved = null; return; }
       const op = dragOp(live.current.sketch.state, done, live.current.units);
-      if (op) void send(op);
+      if (!op) { solved = null; return; }
+      // The sketch stays where the drag left it until the written move's solve replaces it.
+      settling = solved || draggedState(live.current.sketch.state, done);
+      solved = null;
+      void send(op).finally(() => { settling = null; version.current += 1; });
+    };
+
+    // A drag solved as it goes, the way a CAD tool's sketcher follows the pointer: one solve asked
+    // at a time, the newest place asked again once it answers, nothing written until the drag ends.
+    const solveLive = async () => {
+      if (solving) { again = true; return; }
+      const current = drag;
+      const op = current ? dragOp(live.current.sketch.state, current, live.current.units) : null;
+      if (!op) return;
+      solving = true;
+      try {
+        const state = await live.current.edit.sketchDrag(op);
+        if (state && drag === current) { solved = state; version.current += 1; }
+      } finally {
+        solving = false;
+      }
+      if (again && drag) { again = false; void solveLive(); }
     };
 
     const handleDoubleClick = event => {
@@ -802,8 +831,26 @@ function dragPoints(state, id) {
   return [curve.center];
 }
 
-/** The sketch drawn with a drag's points where the pointer has them. */
+/**
+ * A circle pressed on its edge is sized by the drag, as a CAD tool's sketcher does, when its radius
+ * is a number the sketch may write; pressed anywhere else, or with its size set, it moves.
+ */
+function radiusGrip(state, id) {
+  const curve = (state?.curves || []).find(each => each.id === id);
+  if (curve?.kind !== "circle" || !curve.literal || curve.derived) return {};
+  const center = (state.points || []).find(point => point.id === curve.center);
+  return center ? { radius: { curve: id, center: [center.x, center.y] } } : {};
+}
+
+/** A radius drag's new radius: how far the pointer is from the circle's center. */
+const dragRadius = drag => Math.hypot(drag.to[0] - drag.radius.center[0], drag.to[1] - drag.radius.center[1]);
+
+/** The sketch drawn with a drag's points where the pointer has them, or its circle at the pointer's radius. */
 function draggedState(state, drag) {
+  if (drag.radius) {
+    const radius = dragRadius(drag);
+    return { ...state, curves: (state.curves || []).map(curve => (curve.id === drag.radius.curve ? { ...curve, radius } : curve)) };
+  }
   const delta = [drag.to[0] - drag.from[0], drag.to[1] - drag.from[1]];
   const moving = new Set(dragPoints(state, drag.id).filter(id => {
     const point = state.points.find(each => each.id === id);
@@ -817,8 +864,12 @@ function draggedState(state, drag) {
   return { ...state, points, curves };
 }
 
-/** What a drag sends: the points it moved, to where the pointer left them, to the part's precision. */
+/** What a drag sends: the points it moved, to where the pointer left them, or its circle's radius, to the part's precision. */
 function dragOp(state, drag, units) {
+  if (drag.radius) {
+    const [radius] = rounded([dragRadius(drag)], units);
+    return radius > 0 ? { kind: "move", curves: [{ curve: drag.radius.curve, radius }] } : null;
+  }
   const delta = [drag.to[0] - drag.from[0], drag.to[1] - drag.from[1]];
   const points = dragPoints(state, drag.id)
     .map(id => state.points.find(point => point.id === id))

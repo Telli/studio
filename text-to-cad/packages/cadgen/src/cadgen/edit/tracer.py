@@ -3153,20 +3153,39 @@ def sketch_edit(request):
         broken = set(state.get("errors") or [])
         text, prefer = old, []
         if kind == "move":
+            # Points dragged to where the pointer left them, and circles or arcs dragged by their
+            # edge to a radius (``{"curve", "radius"}``); the solve holds what was dragged and moves
+            # the rest. ``live``: a drag still going, solved and answered but not written.
             edits = sketching.TextEdits(text)
             seen = set()
+
+            def put(literal_id, value):
+                literal = LITERALS.get(literal_id) if literal_id else None
+                if literal_id in seen or not _block_literal(literal, path, block):
+                    return False
+                seen.add(literal_id)
+                edits.replace(literal["line"], literal["col"], literal["line"], literal["end"], sketching.number(float(value)))
+                return True
+
             for move in op.get("points") or []:
                 point = next((p for p in sketch.points if p.name == move.get("point")), None)
                 if point is None or point.fixed:
                     continue
                 for literal_id, value in zip(point.literals, move.get("to") or ()):
-                    literal = LITERALS.get(literal_id) if literal_id else None
-                    if literal_id in seen or not _block_literal(literal, path, block):
-                        continue
-                    seen.add(literal_id)
-                    edits.replace(literal["line"], literal["col"], literal["line"], literal["end"], sketching.number(float(value)))
+                    put(literal_id, value)
                 prefer.append(point.name)
+            for move in op.get("curves") or []:
+                curve = next((c for c in sketch.curves if c.name == move.get("curve")), None)
+                radius = move.get("radius")
+                if curve is None or not isinstance(radius, (int, float)) or radius <= 0:
+                    continue
+                if put(getattr(curve, "literal", None), radius):
+                    prefer.append(curve.name)
             text = edits.apply()
+            if op.get("live"):
+                block, sketch, entry = _sketch_run(request, path, text, line, prefer=prefer)
+                return {"ok": True, "sketchOnly": True, "live": True, "sketch": _sketch_view(sketch, path, line, entry["function"]),
+                        "files": {rel: FILES.get(rel) or _hash(path)}}
         elif kind == "value":
             text, reply = _sketch_value(request, path, text, block, sketch, state, op, files)
             if reply is not None:
