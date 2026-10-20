@@ -1263,6 +1263,28 @@ class Planes(Commands):
         self.assertIn('    sketch1 = Sketch("Sketch1", plane=plane1)\n', script.read_text(encoding="utf-8"))
         self.assertEqual(sketched["sketch"]["state"]["frame"]["origin"], [0, 0, -4])
 
+    def test_a_mid_plane_goes_between_two_faces_and_a_plane_normal_to_an_edge_stands_at_its_start(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        both = [*BLOCK_TOP, face("f2", (0, 0, -2), 200)]
+        made = self.command(file, state, "plane", both, {"mode": "mid"})
+        self.assertTrue(made["ok"], made.get("error"))
+        script = root / "block.py"
+        self.assertIn(".z_dir.dot(", script.read_text(encoding="utf-8"))
+        plane = next(feature for feature in made["features"] if feature["kind"] == "Plane")
+        self.assertEqual([round(value, 6) + 0 for value in plane["plane"]["origin"]], [0, 0, 0])
+        self.assertEqual(plane["edit"]["values"], {"mode": "mid"})
+        # Faces that are not parallel are refused.
+        side = face("f5", (10, 0, 0), 40)
+        refused = self.command(file, made, "plane", [BLOCK_TOP[0], side], {"mode": "mid"})
+        self.assertFalse(refused["ok"])
+        normal = self.command(file, made, "plane", [BLOCK_TOP_EDGES[3]], {"mode": "normal", "end": "start"})
+        self.assertTrue(normal["ok"], normal.get("error"))
+        self.assertIn(".position_at(0), z_dir=", script.read_text(encoding="utf-8"))
+        second = next(feature for feature in normal["features"] if feature["kind"] == "Plane" and feature["edit"]["values"].get("mode") == "normal")
+        self.assertEqual([abs(round(value, 6)) for value in second["plane"]["z"]], [0, 1, 0])
+        self.assertEqual([round(second["plane"]["origin"][i], 6) for i in (0, 2)], [10, 2])
+        self.assertEqual(second["edit"]["values"], {"mode": "normal", "end": "start"})
+
     def test_a_plane_at_an_angle_turns_about_its_own_axis_and_reopens_with_it(self):
         root, file, state = self.open(BLOCK, "block.step")
         made = self.command(file, state, "plane", (), {"reference": "Front", "distance": "0", "angle": "30", "about": "x"})

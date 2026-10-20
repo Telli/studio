@@ -609,7 +609,8 @@ export const EDIT_COMMANDS = Object.freeze([
   { id: "shell", label: "Shell", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
   { id: "pattern", label: "Pattern", group: "Modify", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Modify", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
-  { id: "plane", label: "Plane", group: "Reference", picks: "faces", prompt: "Select a flat face on the model, or a plane in the design tree, to offset from." },
+  { id: "plane", label: "Plane", group: "Reference", picks: "all",
+    prompt: "Select a flat face or a plane in the design tree to offset from, two parallel faces for a Mid Plane, or an edge for a plane normal to it." },
 ]);
 
 /** The ribbon's groups of modeling commands, in its order. */
@@ -635,7 +636,7 @@ export function commandDefaults(id, units) {
     // A draft's neutral plane is picked: an origin plane's name, or "face" for a face of the part.
     case "draft": return { angle: size.draft, neutral: "", reverse: false };
     // A plane's first reference is picked: an origin plane's name, or a face of the part.
-    case "plane": return { reference: "", distance: size.depth, flip: false, angle: "0", about: "x" };
+    case "plane": return { reference: "", distance: size.depth, flip: false, angle: "0", about: "x", end: "start" };
     case "mirror": return { plane: "YZ" };
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
     case "extrude":
@@ -747,6 +748,20 @@ export function clickOffsets(point, center, normal, units) {
  * The request a command's OK sends (`cadgen/edit`): the command, its selection, its inputs as
  * typed and, for Mirror and Pattern, the history feature they copy (none copies the body).
  */
+/**
+ * Which Plane a selection makes, as SolidWorks' Plane reads its references: two faces a Mid Plane,
+ * an edge a plane Normal to Curve, else an offset (from one face, or a plane in the tree). Edit
+ * Feature keeps its plane's own until something else is picked.
+ */
+export function planeMode(items, editing = null) {
+  const faces = items.filter(item => /f\d+$/.test(item.selector)).length;
+  const edges = items.filter(item => /e\d+$/.test(item.selector)).length;
+  if (faces === 2) return "mid";
+  if (edges === 1 && !faces) return "normal";
+  if (!faces && !edges && ["mid", "normal"].includes(editing?.values?.mode)) return editing.values.mode;
+  return "offset";
+}
+
 export function commandRequest(id, values, items, feature, sketch = null, editing = null, sketches = []) {
   // Edit Feature: the feature's own line written again, acting on what it acts on now.
   const replace = editing ? { replace: { row: editing.id } } : {};
@@ -785,6 +800,12 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       inputs: { angle: values.angle, reverse: Boolean(values.reverse) }, ...replace };
   }
   if (id === "plane") {
+    // Mid Plane between two faces, or Normal to Curve at an edge, as what is picked says (Edit Feature keeps its own).
+    const mode = planeMode(items, editing);
+    if (mode === "mid" || mode === "normal") {
+      const wanted = items.filter(item => (mode === "mid" ? /f\d+$/ : /e\d+$/).test(item.selector));
+      return { command: id, selection: wanted, inputs: { mode, ...(mode === "normal" ? { end: values.end === "end" ? "end" : "start" } : {}) }, ...replace };
+    }
     // Offset from a face picked on the model, else from the origin plane picked in the tree.
     const face = items.find(item => /f\d+$/.test(item.selector)) || null;
     // At angle: turned about its own X or Y axis.
@@ -885,7 +906,10 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
   }
   if (id === "plane") {
     const faces = items.filter(item => /f\d+$/.test(item.selector));
-    if (faces.length > 1) return "Select one face.";
+    const edges = items.filter(item => /e\d+$/.test(item.selector));
+    if (faces.length > 2) return "Select one face, or two for a Mid Plane.";
+    if (edges.length > 1 || (edges.length && faces.length)) return "Select one edge for a plane normal to it, or faces.";
+    if (faces.length === 2 || edges.length === 1 || ["mid", "normal"].includes(editing?.values?.mode)) return "";
     return editing || faces.length || values.reference ? "" : "Select a plane in the design tree, or a flat face on the model.";
   }
   if (id === "draft") {

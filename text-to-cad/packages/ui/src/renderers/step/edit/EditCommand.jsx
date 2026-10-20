@@ -39,8 +39,7 @@ import {
   selectionLabel,
   sizeName,
   sketchView,
-  treeSketch
-} from "./editMode.js";
+  treeSketch, planeMode } from "./editMode.js";
 import { COMMAND_ICONS } from "./cadIcons.jsx";
 import { HOLE_STANDARDS, defaultSize, holeFill, holeFits, holeSizeOptions } from "./holeSizes.js";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
@@ -73,6 +72,7 @@ const LISTED = 8;
 const PLANES = Object.freeze([{ value: "XZ", label: "Front Plane" }, { value: "XY", label: "Top Plane" }, { value: "YZ", label: "Right Plane" }]);
 const PATTERNS = Object.freeze([{ value: "linear", label: "Linear" }, { value: "circular", label: "Circular" }]);
 // The axes a plane At angle turns about: its own.
+const CURVE_ENDS = Object.freeze([{ value: "start", label: "Its start" }, { value: "end", label: "Its end" }]);
 const TURN_AXES = Object.freeze([{ value: "x", label: "Its X axis" }, { value: "y", label: "Its Y axis" }]);
 const DIRECTIONS = Object.freeze([{ value: "X", label: "Along X" }, { value: "Y", label: "Along Y" }, { value: "Z", label: "Along Z" }]);
 // A mirror Edit Feature reopens that was made about a face of the part: that face again.
@@ -287,6 +287,9 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     setValues(current => ({ ...current, neutral: "face", reverse: true }));
   }, [drafting, facesKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const planing = edit.command === "plane";
+  // Which Plane what is picked makes (`planeMode`), and what it is picked on.
+  const planeKind = planing ? planeMode(items, editing) : "offset";
+  const planeRefs = planing ? items.filter(item => /[fe]\d+$/.test(item.selector)) : [];
   const treePlane = (drafting || planing) && typeof edit.selected === "string" && edit.selected.startsWith("plane:")
     ? edit.selected.slice("plane:".length) : "";
   // The part's reference planes (Plane1): one clicked in the tree is a draft's neutral plane or
@@ -362,7 +365,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
               // A draft's neutral plane, and its direction of pull.
               : drafting ? draftPreview(values, neutralFace?.pick || planeAt(namedPlane(values.neutral)), edit.state?.bounds)
                 // A reference plane where it would be, and the way it is offset.
-                : planing ? planePreview(values, (editing && !repicked ? null : facePick) || planeAt(namedPlane(values.reference)),
+                : planing && planeKind === "offset" ? planePreview(values, (editing && !repicked ? null : facePick) || planeAt(namedPlane(values.reference)),
                   edit.state?.bounds, units)
               // A sweep's or a loft's sketches, shaded as picked while the server previews what they make.
               : takes && picked.some(Boolean) ? { mark: "picked", sketches: picked.filter(Boolean).map(each => ({ file: each.file, line: each.line })) }
@@ -460,7 +463,14 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     </FileSheetSettingsSection> : null}
     {/* Plane's First Reference, as SolidWorks' Plane asks for it: a flat face picked on the model, or
         an origin plane picked in the design tree; then how far it is offset, and which way. */}
-    {planing ? <FileSheetSettingsSection title="First Reference" sectionId="edit-command-reference">
+    {planing && planeKind !== "offset" ? <FileSheetSettingsSection title={planeKind === "mid" ? "Mid Plane" : "Normal to Curve"} sectionId="edit-command-reference">
+      {planeRefs.length ? <SelectionList items={planeRefs} prompt="" onRemove={removePick} />
+        : <KeptList text={editing?.keeps || ""} hint="Pick faces or an edge on the model to place it again." />}
+      {planeKind === "mid"
+        ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Midway between the two faces, and kept there as the part changes.</p>
+        : <FileSheetSelectRow label="At" value={values.end === "end" ? "end" : "start"} options={CURVE_ENDS} onValueChange={set("end")} />}
+    </FileSheetSettingsSection> : null}
+    {planing && planeKind === "offset" ? <FileSheetSettingsSection title="First Reference" sectionId="edit-command-reference">
       {faces.length ? <SelectionList items={faces} prompt="" onRemove={removePick} />
         : <SelectionBox items={values.reference ? [{ key: "reference", label: namedPlane(values.reference)?.label || `${values.reference} Plane` }]
           : editing && editing.values?.reference === "face" ? [{ key: "reference", label: "Its face, as written" }] : []}

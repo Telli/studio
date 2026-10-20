@@ -76,7 +76,10 @@ by hand" below.
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.
 - **Plane** (Reference Geometry) is a line of its own, offset from an origin plane or a flat face
   of the body: `plane1 = bd.Plane.XY.offset(10)`, `plane2 = bd.Plane(<face>).offset(-.25*INCH)`
-  (a face's plane faces out of the part; a minus flips it). The tree lists it as Plane1, and a
+  (a face's plane faces out of the part; a minus flips it). Two parallel faces picked make a Mid
+  Plane, kept midway: `plane3 = bd.Plane(<a>).offset(bd.Plane(<a>).z_dir.dot(<b>.center() - <a>.center()) / 2)`;
+  an edge a plane normal to it at its start (or end):
+  `plane4 = bd.Plane(origin=<edge>.position_at(0), z_dir=<edge>.tangent_at(0)).offset(0)`. The tree lists it as Plane1, and a
   sketch goes on it by its name: `sketch4 = Sketch("Sketch4", plane=plane1)`, as do a mirror
   (`about=plane1`), a draft's neutral plane (`draft(<faces>, plane1, 2)`) and another plane
   (`plane2 = plane1.offset(5)`), each written after the plane's own line. A line that only

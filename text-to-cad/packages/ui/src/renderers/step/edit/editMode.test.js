@@ -26,6 +26,7 @@ import {
   deleteRefusal,
   editingValues,
   planeDetail,
+  planeMode,
   planePreview,
   referencePlanes,
   appearanceNote,
@@ -597,7 +598,7 @@ test("a color picked tells the agent the hex and where it is written", () => {
 test("a reference plane is offset from an origin plane picked in the tree, or from a face, and says so in the tree", () => {
   const top = { selector: "f1", type: "plane", center: [0, 0, 2], size: 200 };
   const opened = commandDefaults("plane", "mm");
-  assert.deepEqual(opened, { reference: "", distance: "5", flip: false, angle: "0", about: "x" });
+  assert.deepEqual(opened, { reference: "", distance: "5", flip: false, angle: "0", about: "x", end: "start" });
   assert.equal(chooseLine(chooseSteps("plane", { values: opened })), "1 of 1: Select a plane or a flat face to offset from");
   assert.equal(commandBlocked("plane", [], null, opened), "Select a plane in the design tree, or a flat face on the model.");
   assert.deepEqual(commandRequest("plane", { ...opened, reference: "Front" }, [], null),
@@ -672,4 +673,18 @@ test("a chamfer goes as its type says: one distance, a distance each way (flippe
   // A reopened chamfer of two distances opens as one.
   const editing = { id: "a.py:7", command: "chamfer", values: { distance: "0.5", type: "distances", distance2: "1" } };
   assert.deepEqual(editingValues(editing, "mm"), { type: "distances", distance: "0.5", distance2: "1", angle: "45", flip: false });
+});
+
+test("a Plane's picks say which it is: two faces a Mid Plane, an edge Normal to Curve, else an offset", () => {
+  const face = n => ({ selector: `f${n}`, type: "plane" });
+  const edge = { selector: "e3", type: "line" };
+  assert.equal(planeMode([face(1), face(2)]), "mid");
+  assert.equal(planeMode([edge]), "normal");
+  assert.equal(planeMode([face(1)]), "offset");
+  assert.equal(planeMode([], { values: { mode: "mid" } }), "mid");
+  const mid = commandRequest("plane", commandDefaults("plane", "mm"), [face(1), face(2)], null);
+  assert.deepEqual(mid.inputs, { mode: "mid" });
+  assert.equal(mid.selection.length, 2);
+  const normal = commandRequest("plane", { ...commandDefaults("plane", "mm"), end: "end" }, [edge], null);
+  assert.deepEqual(normal.inputs, { mode: "normal", end: "end" });
 });

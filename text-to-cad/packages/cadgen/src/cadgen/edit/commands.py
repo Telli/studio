@@ -1154,6 +1154,41 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         shown = [("Thickness", thickness, units_word)]
         selected = None if fixed else {"argument": "openings", "items": [selections.topology["face"].describe(n) for n in numbers]}
         what = fixed.keeps if fixed else f"{counted(len(numbers), 'face')} open"
+    elif command == "plane" and str(inputs.get("mode") or "") in ("mid", "normal"):
+        # Plane's other references, as SolidWorks' Plane takes them: Mid Plane between two parallel
+        # flat faces (kept midway as the part changes), or Normal to Curve at an edge's start or end.
+        taken = _names_in(body.tree)
+        target = kept.target if kept is not None else next(f"plane{n}" for n in itertools.count(1) if f"plane{n}" not in taken)
+        plane_name = names("Plane")
+        if inputs["mode"] == "mid":
+            items = [item for item in selection if selector_ordinal(item.get("selector"))[0] == "face"]
+            if not items and kept is not None and kept.parts.get("a"):
+                a, b = kept.parts["a"], kept.parts["b"]  # Edit Feature, its faces kept
+            else:
+                if len(items) != 2:
+                    raise CommandError("A Mid Plane goes between two parallel flat faces. Select two.")
+                numbers = resolve(selections.topology["face"], items, scale)
+                if len(set(numbers)) != 2 or any(selections.topology["face"].describe(n)["type"] != "plane" for n in numbers):
+                    raise CommandError("A Mid Plane goes between two flat faces. Select two flat ones.")
+                normals = [B.Plane(selections.topology["face"].item(n)).z_dir for n in numbers]
+                if abs(abs(normals[0].dot(normals[1])) - 1) > 1e-6:
+                    raise CommandError("A Mid Plane goes between parallel faces. These two are not parallel.")
+                a, b = (selections.write("face", [n], one=True) for n in numbers)
+            code = f"{target} = {plane_name}({a}).offset({plane_name}({a}).z_dir.dot({b}.center() - {a}.center()) / 2)"
+            what = "midway between two faces"
+        else:
+            items = [item for item in selection if selector_ordinal(item.get("selector"))[0] == "edge"]
+            if not items and kept is not None and kept.parts.get("edge"):
+                edge = kept.parts["edge"]  # Edit Feature, its edge kept
+            else:
+                if len(items) != 1:
+                    raise CommandError("A plane normal to a curve takes one edge. Select one.")
+                edge = selections.write("edge", resolve(selections.topology["edge"], items, scale), one=True)
+            end = 1 if str(inputs.get("end") or "") == "end" else 0
+            # `.offset(0)`: a plane line is a reference plane by its offset, as the others are.
+            code = f"{target} = {plane_name}(origin={edge}.position_at({end}), z_dir={edge}.tangent_at({end})).offset(0)"
+            what = f"normal to an edge at its {'end' if end else 'start'}"
+        shown = []
     elif command == "plane":
         # Plane, as SolidWorks' Reference Geometry offsets one: from an origin plane, or a flat face
         # of the body (out of the part as it is turned, into it flipped), named Plane1 in the tree.
@@ -1803,6 +1838,24 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
     if (operator == "=" and name == "rotated" and isinstance(value.func, ast.Attribute) and len(value.args) == 1
             and isinstance(value.args[0], ast.Tuple) and len(value.args[0].elts) == 3 and _call_name(value.func.value) == "offset"):
         turn, value, name = value.args[0], value.func.value, "offset"
+    if (operator == "=" and name == "offset" and isinstance(value.func, ast.Attribute) and len(value.args) == 1 and not value.keywords
+            and _call_name(value.func.value) == "Plane"):
+        base = value.func.value
+        origin, z_dir = _keyword_value(base, "origin"), _keyword_value(base, "z_dir")
+        # Normal to Curve: `Plane(origin=<edge>.position_at(0), z_dir=<edge>.tangent_at(0)).offset(0)`.
+        if (isinstance(origin, ast.Call) and _call_name(origin) == "position_at" and isinstance(origin.func, ast.Attribute)
+                and z_dir is not None and not base.args):
+            at_end = bool(origin.args) and isinstance(origin.args[0], ast.Constant) and origin.args[0].value == 1
+            return Feature("plane", {"mode": "normal", "end": "end" if at_end else "start"}, "an edge",
+                           {"edge": code(origin.func.value)}, target, operator, codes)
+        # Mid Plane: `Plane(a).offset(Plane(a).z_dir.dot(b.center() - a.center()) / 2)`.
+        half = value.args[0]
+        if (base.args and isinstance(half, ast.BinOp) and isinstance(half.op, ast.Div) and isinstance(half.left, ast.Call)
+                and _call_name(half.left) == "dot" and half.left.args and isinstance(half.left.args[0], ast.BinOp)):
+            between = half.left.args[0]
+            far = between.left.func.value if isinstance(between.left, ast.Call) and isinstance(between.left.func, ast.Attribute) else None
+            if far is not None:
+                return Feature("plane", {"mode": "mid"}, "two faces", {"a": code(base.args[0]), "b": code(far)}, target, operator, codes)
     if (operator == "=" and name == "offset" and isinstance(value.func, ast.Attribute) and len(value.args) == 1 and not value.keywords):
         # A reference plane, `plane1 = Plane.XY.offset(10)`: from an origin plane, or a face's.
         base = value.func.value
