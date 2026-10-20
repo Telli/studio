@@ -153,6 +153,7 @@ import {
   treeFeatures,
   mirrorOutline,
   nextSketchName,
+  notASketch,
   originAxis,
   planeOutline,
   rolledBack,
@@ -3361,8 +3362,7 @@ function StepSurfaceBody({ view, data }) {
   const selectedTreeSketch = treeSketch(editTree, edit.selected);
   const openTreeSketch = sketch => {
     const view = sketchView(edit.state, sketch);
-    edit.openSketch(view || { error: `${sketch.title} is drawn with build123d's shapes, not as a sketch with relations, so it opens as `
-      + "its sizes only. Change them in the panel, or ask the agent to redraw it as a sketch." });
+    edit.openSketch(view || { error: notASketch(sketch.title), redraw: { title: sketch.title, file: sketch.file, line: sketch.line } });
   };
   const sketchOnPlane = plane => void edit.startSketch(plane, nextSketchName(editTree), edit.planeOffset);
   // A reference Plane of the tree, selected: a sketch goes on it by its line.

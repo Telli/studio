@@ -25,7 +25,8 @@ import {
   treeIds,
   undoStep,
   parameterNote,
-  pullOf
+  pullOf,
+  redrawJob
 } from "./editMode.js";
 import { countChange, sketchNote, TRANSFORM_TOOLS } from "./sketchMode.js";
 
@@ -66,6 +67,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [status, setStatus] = useState(supported && file ? "probing" : "none");
   const [state, setState] = useState(null);
   const [error, setError] = useState("");
+  // The profile an error is about, when the agent can redraw it as a sketch.
+  const [redraw, setRedraw] = useState(null);
   const [choice, setChoice] = useState(null);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -649,11 +652,29 @@ export function useEditMode({ client, file, active, reading = true }) {
   /** Edit Sketch: an existing constrained sketch opened in sketch mode. */
   const openSketch = useCallback(view => {
     if (!view?.state) {
-      setError(view?.error || "This sketch cannot be solved as it is. Ask the agent to look at it.");
+      const message = view?.error || "This sketch cannot be solved as it is. Ask the agent to look at it.";
+      setError(message);
+      // A profile made from build123d's shapes: the agent can redraw it as a sketch, on request.
+      setRedraw(view?.redraw ? { sketch: view.redraw, message } : null);
       return;
     }
     begin(view, false);
   }, [begin]);
+
+  /** Writes the redraw job for the profile the error is about into the chat, to send. */
+  const askRedraw = useCallback(() => {
+    if (!redraw) return;
+    const port = host?.promptContext;
+    if (port?.deliver) {
+      try {
+        void Promise.resolve(port.deliver(createPromptContext([textPart(redrawJob(redraw.sketch), "redraw-sketch")]))).catch(() => {});
+      } catch {
+        // A chat that takes no context: nothing is written, and the error stays as it was.
+        return;
+      }
+    }
+    setError(""); setRedraw(null);
+  }, [host, redraw]);
 
   /** A stroke, relation, dimension, move or delete, written into the sketch and solved again. */
   const sketchOp = useCallback(async op => {
@@ -742,7 +763,10 @@ export function useEditMode({ client, file, active, reading = true }) {
     canRedo: history.undone.length > 0 && !saving,
     choose: leaf => { if (choice) void send({ ...choice.request, leaf }); },
     dismissChoice: () => setChoice(null),
-    dismissError: () => setError(""),
+    dismissError: () => { setError(""); setRedraw(null); },
+    // Shown with the error only while it is still the one about that profile.
+    redraw: redraw && redraw.message === error ? redraw.sketch : null,
+    askRedraw,
     sketch, sketchTool, sketchSelection, construction, picking, normalTo, sketchStep,
     // Mirror Entities and the sketch patterns start from what is selected; every other tool from nothing.
     setSketchTool: tool => { setSketchTool(tool); if (!["mirror", "linear_pattern", "circular_pattern", ...TRANSFORM_TOOLS].includes(tool)) setSketchSelection([]); setSketchStep(0); },

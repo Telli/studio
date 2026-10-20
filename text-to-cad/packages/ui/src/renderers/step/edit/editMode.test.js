@@ -67,7 +67,9 @@ import {
   sizeName,
   suppressNote,
   undoStep,
-  withUnit
+  withUnit,
+  notASketch,
+  redrawJob
 } from "./editMode.js";
 
 test("a size reads as an engineer says it", () => {
@@ -550,7 +552,7 @@ test("a sweep takes its profile then its path, a loft its profiles in order, a r
   assert.equal(commandBlocked("sweep", [], null, {}, null, [one]), "Select the path sketch.");
   assert.equal(commandBlocked("loft_cut", [], null, {}, null, [one, two, three]), "");
   assert.equal(commandBlocked("loft", [], null, {}, null, [{ ...one, constrained: false }, two]),
-    "Sketch1 is drawn with build123d's shapes, not as a sketch. Ask the agent to loft it.");
+    "Sketch1 isn't an editable sketch yet. Ask the agent to loft it.");
   assert.equal(chooseLine(chooseSteps("sweep", { sketches: [one] })), "2 of 2: Select the path sketch");
   assert.equal(chooseLine(chooseSteps("loft", {})), "1 of 2: Select the first profile sketch");
   assert.deepEqual(commandRequest("rib", { thickness: "2", flip: true }, [], null, one), { command: "rib",
@@ -708,4 +710,13 @@ test("a parameter added tells the agent its name, value and line", () => {
   const change = { kind: "parameter", name: "WALL", value: "2.5", file: "block.py", line: 4 };
   assert.equal(parameterNote(change), "In edit mode I added the parameter WALL = 2.5 (block.py, line 4).");
   assert.equal(parameterNote(change, { undo: true }), "In edit mode I took back adding the parameter WALL (block.py, line 4).");
+});
+
+test("a profile made from build123d's shapes says what it is and how to make it editable", () => {
+  assert.equal(notASketch("Sketch1"),
+    "Sketch1 isn't an editable sketch yet: it's built from fixed shapes, so only its sizes change, in the panel.");
+  assert.equal(redrawJob({ title: "Sketch1", file: "parts/hook.py", line: 12 }),
+    "Redraw Sketch1 (parts/hook.py, line 12) as an editable sketch with cadgen.sketch, keeping its shape and sizes, so I can edit it by hand.");
+  assert.equal(redrawJob({ title: "Sketch2", file: null, line: null }),
+    "Redraw Sketch2 as an editable sketch with cadgen.sketch, keeping its shape and sizes, so I can edit it by hand.");
 });

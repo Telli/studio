@@ -571,6 +571,20 @@ export function formulaWords(formula) {
 }
 
 /** What a hand change tells the agent, queued for the person's next message: plain words, the line in parens. */
+/**
+ * What edit mode says of a profile made from build123d's shapes (a rectangle, a circle) rather
+ * than drawn as a sketch with relations: only its sizes change, in the panel.
+ */
+export function notASketch(title) {
+  return `${title} isn't an editable sketch yet: it's built from fixed shapes, so only its sizes change, in the panel.`;
+}
+
+/** The job that redraws such a profile as a sketch the person can edit, for the chat. */
+export function redrawJob(sketch) {
+  const where = sketch.file ? ` (${sketch.file}${sketch.line ? `, line ${sketch.line}` : ""})` : "";
+  return `Redraw ${sketch.title}${where} as an editable sketch with cadgen.sketch, keeping its shape and sizes, so I can edit it by hand.`;
+}
+
 export function changeNote(change) {
   const name = sizeName(change.name);
   const said = name === change.name ? name : `${name} (${change.name})`;
@@ -891,19 +905,19 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
   if (takes) {
     if (editing) return "";
     const drawn = sketches.find(each => each && !each.constrained);
-    if (drawn) return `${drawn.title} is drawn with build123d's shapes, not as a sketch. Ask the agent to ${id.startsWith("loft") ? "loft" : "sweep"} it.`;
+    if (drawn) return `${drawn.title} isn't an editable sketch yet. Ask the agent to ${id.startsWith("loft") ? "loft" : "sweep"} it.`;
     if (takes === "many") return sketches.length >= 2 ? "" : sketches.length ? "Select the next profile sketch." : "Select the first profile sketch.";
     // A sweep's two boxes, each its own: the profile, then the path.
     return !sketches[0] ? "Select the profile sketch." : !sketches[1] ? "Select the path sketch." : "";
   }
   if (id === "rib") {
     if (!sketch) return "Select a sketch of the rib's line.";
-    return sketch.constrained ? "" : `${sketch.title} is drawn with build123d's shapes, not as a sketch. Ask the agent to make the rib.`;
+    return sketch.constrained ? "" : `${sketch.title} isn't an editable sketch yet. Ask the agent to make the rib.`;
   }
   if (id === "extrude" || id === "cut" || id === "revolve" || id === "revolve_cut") {
     if (!sketch) return "Select a sketch in the design tree.";
     const making = id.startsWith("revolve") ? "revolve" : "extrude";
-    if (!sketch.constrained) return `${sketch.title} is drawn with build123d's shapes, not as a sketch. Ask the agent to ${making} it.`;
+    if (!sketch.constrained) return `${sketch.title} isn't an editable sketch yet. Ask the agent to ${making} it.`;
     if (making === "revolve" && !values.axis) return `Draw a centerline in ${sketch.title} to revolve about.`;
     // Up To Surface and Up To Vertex wait for what they end on; Edit Feature keeps its own.
     const keeps = editing && editing.values?.end === values.end;

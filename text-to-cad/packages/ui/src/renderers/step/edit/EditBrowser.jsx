@@ -107,7 +107,11 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
     "pointer-events-auto max-h-full rounded-lg")}>{panel}</ScrollArea>, card) : null;
   return <div className="flex h-full min-h-0 flex-col" data-cad-edit-browser="">
     {edit.error ? <div className="flex items-start gap-1 border-b border-border px-2 py-1.5 text-tiny text-destructive" role="alert">
-      <span className="min-w-0 flex-1">{edit.error}</span>
+      <span className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
+        {edit.error}
+        {edit.redraw ? <Button type="button" variant="outline" size="sm" className={FILE_SHEET_COMPACT_BUTTON_CLASSES}
+          onClick={edit.askRedraw}>Redraw it as a sketch</Button> : null}
+      </span>
       <button type="button" aria-label="Dismiss" className={TOOL_PANEL_BUTTON_CLASS} onClick={edit.dismissError}><X className="size-3" aria-hidden="true" /></button>
     </div> : null}
     {floating || panel}
