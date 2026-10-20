@@ -15,9 +15,9 @@ describe("project starters", () => {
       null,
     );
     expect(starters.map((starter) => starter.label)).toEqual([
-      "Will L bracket machine?",
-      "Is servo power ready for the fab?",
-      "Toolpaths for L bracket",
+      "Check L bracket for CNC machining",
+      "Check servo power for fabrication",
+      "Post G-code for L bracket",
       "Route servo power",
     ]);
     expect(starters[0]?.prompt).toBe(

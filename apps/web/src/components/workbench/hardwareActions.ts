@@ -29,7 +29,7 @@ export interface HardwareAction {
   readonly processes: ReadonlyArray<MakingProcess> | null;
   /** The job, naming the part as given: a link to its file, which the composer shows as the part. */
   readonly prompt: (file: string) => string;
-  /** The job as a starter names it, short: "Will bike hook print?". */
+  /** The job as a starter names it, short: "Check bike hook for 3D printing". */
   readonly short: (name: string) => string;
 }
 
@@ -47,68 +47,68 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "printing",
     group: "Check",
-    label: "Will it print?",
+    label: "3D printing",
     skill: "dfam-check",
     kinds: PRINTABLE,
     processes: PRINTING,
     prompt: (file) =>
       `Check ${file} for 3D printing: overhangs, thin walls, bed fit and the best build orientation. Tell me what to change.`,
-    short: (name) => `Will ${name} print?`,
+    short: (name) => `Check ${name} for 3D printing`,
   },
   {
     id: "cnc",
     group: "Check",
-    label: "Will it machine?",
+    label: "CNC machining",
     skill: "dfm",
     kinds: SOLID,
     processes: ["CNC machining"],
     prompt: (file) =>
       `Check ${file} for CNC machining: tool access, internal corners, thin walls and setups. Tell me what to change.`,
-    short: (name) => `Will ${name} machine?`,
+    short: (name) => `Check ${name} for CNC machining`,
   },
   {
     id: "sheet-metal",
     group: "Check",
-    label: "Will it bend from sheet?",
+    label: "Sheet metal",
     skill: "dfm",
     kinds: ["Part"],
     processes: ["Sheet metal"],
     prompt: (file) =>
       `Check ${file} as a sheet metal part: bend radii, reliefs, and hole and edge distances. Tell me what to change.`,
-    short: (name) => `Will ${name} bend from sheet?`,
+    short: (name) => `Check ${name} as sheet metal`,
   },
   {
     id: "molding",
     group: "Check",
-    label: "Will it mold?",
+    label: "Injection molding",
     skill: "dfm",
     kinds: ["Part"],
     processes: ["Injection molding"],
     prompt: (file) =>
       `Check ${file} for injection molding: draft, wall thickness and undercuts. Tell me what to change.`,
-    short: (name) => `Will ${name} mold?`,
+    short: (name) => `Check ${name} for injection molding`,
   },
   {
     id: "strength",
     group: "Check",
-    label: "Is it strong enough?",
+    label: "Strength under load",
     skill: "fea",
     kinds: SOLID,
     processes: null,
     prompt: (file) =>
       `Check ${file} for strength under its working load. Ask me for the loads, supports and material you need, then tell me where it is weakest and what to change.`,
-    short: (name) => `Is ${name} strong enough?`,
+    short: (name) => `Check ${name} under load`,
   },
   {
     id: "fit",
     group: "Check",
-    label: "Do the parts fit?",
+    label: "Fit and clearance",
     skill: "cad",
     kinds: ["Assembly"],
     processes: null,
     prompt: (file) =>
       `Check the parts in ${file} for collisions and tight clearances, and tell me where they touch or rub and by how much.`,
-    short: (name) => `Do ${name}'s parts fit?`,
+    short: (name) => `Check the fit of ${name}`,
   },
   {
     id: "mass",
@@ -119,7 +119,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     processes: null,
     prompt: (file) =>
       `Tell me the weight, volume and center of mass of ${file} in the project's material, and what makes up most of the weight.`,
-    short: (name) => `Weigh ${name}`,
+    short: (name) => `Weight of ${name}`,
   },
   {
     id: "fea-results",
@@ -135,13 +135,13 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "board-fab",
     group: "Check",
-    label: "Ready for the fab?",
+    label: "Board for fabrication",
     skill: "pcb-dfm",
     kinds: ["Board"],
     processes: null,
     prompt: (file) =>
       `Check ${file} against the fab's limits and tell me what to fix before ordering.`,
-    short: (name) => `Is ${name} ready for the fab?`,
+    short: (name) => `Check ${name} for fabrication`,
   },
   {
     id: "cam-results",
@@ -157,7 +157,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "bambu",
     group: "Make",
-    label: "Print it on my Bambu",
+    label: "Print on a Bambu printer",
     skill: "bambu-labs",
     kinds: PRINTABLE,
     processes: ["3D printing (FDM)"],
@@ -168,7 +168,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "slice",
     group: "Make",
-    label: "Slice for my printer",
+    label: "Slice for FDM",
     skill: "gcode",
     kinds: PRINTABLE,
     processes: ["3D printing (FDM)"],
@@ -178,18 +178,18 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "toolpaths",
     group: "Make",
-    label: "Toolpaths and G-code",
+    label: "G-code for CNC",
     skill: "cam",
     kinds: ["Part"],
     processes: ["CNC machining"],
     prompt: (file) =>
       `Plan the toolpaths for ${file} and post its G-code. Ask me for the machine, stock, tools and workholding you need.`,
-    short: (name) => `Toolpaths for ${name}`,
+    short: (name) => `Post G-code for ${name}`,
   },
   {
     id: "dxf",
     group: "Make",
-    label: "Laser or waterjet cut file",
+    label: "Cut-ready DXF",
     skill: "dxf",
     kinds: ["Part", "Drawing"],
     processes: CUT_FROM_SHEET,
@@ -210,7 +210,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "standard-parts",
     group: "Make",
-    label: "Find the off-the-shelf parts",
+    label: "Off-the-shelf parts",
     skill: "step-parts",
     kinds: SOLID,
     processes: null,
@@ -231,7 +231,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "drawing",
     group: "Document",
-    label: "Drawing with dimensions",
+    label: "Engineering drawing",
     skill: "engineering-drawing",
     kinds: SOLID,
     processes: null,
@@ -285,7 +285,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "write-up",
     group: "Document",
-    label: "Write up what we did",
+    label: "Write up the results",
     skill: null,
     kinds: null,
     processes: null,

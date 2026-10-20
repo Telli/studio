@@ -15,9 +15,9 @@ describe("hardware actions", () => {
       [
         "Check",
         ["Weight and center of mass"],
-        ["Will it machine?", "Will it bend from sheet?", "Will it mold?"],
+        ["CNC machining", "Sheet metal", "Injection molding"],
       ],
-      ["Document", ["Test plan", "Write up what we did"], []],
+      ["Document", ["Test plan", "Write up the results"], []],
     ]);
   });
 
@@ -31,20 +31,20 @@ describe("hardware actions", () => {
     ).toEqual([
       [
         "Check",
-        ["Will it print?", "Is it strong enough?"],
-        ["Will it machine?", "Will it bend from sheet?", "Will it mold?"],
+        ["3D printing", "Strength under load"],
+        ["CNC machining", "Sheet metal", "Injection molding"],
       ],
-      ["Make", ["Print it on my Bambu", "Slice for my printer"], ["Toolpaths and G-code"]],
-      ["Document", ["Test plan", "Write up what we did"], []],
+      ["Make", ["Print on a Bambu printer", "Slice for FDM"], ["G-code for CNC"]],
+      ["Document", ["Test plan", "Write up the results"], []],
     ]);
   });
 
   it("gives an assembly its fit, parts list and instructions", () => {
     expect(labels("Assembly", ["cad"], "3D printing (FDM)")).toEqual([
-      ["Check", ["Do the parts fit?", "Weight and center of mass"], []],
+      ["Check", ["Fit and clearance", "Weight and center of mass"], []],
       [
         "Document",
-        ["Parts list", "Assembly instructions", "Test plan", "Write up what we did"],
+        ["Parts list", "Assembly instructions", "Test plan", "Write up the results"],
         [],
       ],
     ]);
@@ -52,13 +52,13 @@ describe("hardware actions", () => {
 
   it("gives a board board jobs and a mesh no machining", () => {
     expect(labels("Board", ["pcb", "pcb-dfm", "dfm"])).toEqual([
-      ["Check", ["Ready for the fab?"], []],
+      ["Check", ["Board for fabrication"], []],
       ["Make", ["Route the board"], []],
-      ["Document", ["Write up what we did"], []],
+      ["Document", ["Write up the results"], []],
     ]);
     expect(labels("Mesh", ["dfm", "dfam-check", "cam"])).toEqual([
-      ["Check", [], ["Will it print?"]],
-      ["Document", ["Write up what we did"], []],
+      ["Check", [], ["3D printing"]],
+      ["Document", ["Write up the results"], []],
     ]);
   });
 
