@@ -96,7 +96,10 @@ with Source beside the pinned Project tab for the explorer. Code shows T3 Code's
 are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choice for
 `brand/theme.css`.
 
-- **The project's overview.** The Project tab opens on it: the lead part large, the open issues its
+- **The project's overview.** The Project tab (Overview, in Engineering) opens on it: the
+  project's README in its folder first, what it is and its decisions
+  (`- <what was decided> (<YYYY-MM-DD>, asked)`, or `by hand`), which the agent is told to keep,
+  then the lead part large, the open issues its
   checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
   propose and wait), every part with how its checks went and its drawing, and recent work. Checks
   are the results text-to-cad writes beside the parts, `<name>.fea.json` (or a named study's
@@ -104,16 +107,32 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   (`components/workbench/checkResults.ts`), named as an engineer says them (Strength, Vibration,
   Casting), a study that passes saying its safety factor; a drawing is the engineering drawing's
   `<part>_drawing.pdf`. Each opens with a click.
+- **Import.** Studio scans the folders picked on this computer (Documents, Desktop and Downloads to
+  start) for CAD models, drawings, parts lists, datasheets, photos and notes, and proposes a
+  project for each folder that holds models or drawings, imported where it is: Studio only reads
+  them. Loose files are placed in a project (copied into its folder) or left out; copies and older
+  versions are listed and stay put. Import is on Projects (files or a folder, or a scan), takes
+  files dropped anywhere on Home or Projects, and offers the CAD files new in the scanned folders
+  since the last scan. The desktop app reads and copies (`apps/desktop/src/studio/`); what makes a
+  project is decided in the web (`components/workbench/importPlan.ts`).
+- **No usage data.** T3 Code's analytics are off and keyless in this build
+  (`apps/server/src/telemetry/AnalyticsService.ts`), so nothing about its use goes to T3.
 - **Design history.** A turn that changed files ends with what it changed in the design, by part
   and document (a part's script, model, drawing and studies are one entry), each opening beside
   the thread; the work log's groups say which parts they updated ("3 steps, updated the L
   bracket"). The project's Threads tab is its History: the work newest first under its day, each
   piece with how it came out (done, needs you, working, stopped). With code tools on, the turn
   keeps T3 Code's changed-files card and the tab is Threads.
-- **A sidebar of projects.** In Engineering the sidebar lists the projects, not their threads,
-  then the folders in no project: each opens on its page, where its history is, in the thread
-  last open in it on this device (else the one last worked on, else a new one), and says whether
-  work in it needs you or is under way. Engineering with code keeps T3 Code's thread sidebar.
+- **Home, Projects and a top bar.** In Engineering, Studio's pages start with a top bar (the mark,
+  Home, Projects) in place of T3 Code's sidebar, which stays shut and inert
+  (`components/workbench/StudioTopBar.tsx`). Home starts a project from a description (Start makes
+  the project and its first chat, and sends the description as its first message), a chat in a
+  project you have, or a blank part, assembly or board to model by hand, beside the projects worked
+  on last. Projects is all of them, pictured by their first part. A project opens in the thread
+  last open in it on this device (else the one last worked on, else a new one). Its workspace has
+  the project's name in that bar, a picker of the project's chats with New chat at the top of the
+  chat (every chat belongs to a project), and the part tabs along the panel's bottom. Engineering
+  with code keeps T3 Code's thread sidebar, with the projects listed in it.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode
@@ -143,9 +162,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   selection to the part by its geometry and writes a command's line); the frame is
   `text-to-cad/packages/ui/src/renderers/step/edit/`. The CAD skill's `references/edit-mode.md`
   tells the agent how to write parts that edit well.
-- **Manual or AI.** A switch in the viewer's navbar lays a part out for modeling it by hand (edit
-  mode) or for the AI (text-to-cad's viewer as Jake built it, where a selection goes to the agent
-  through Quick Edit, which Manual leaves out). By hand, what a command uses is plain: a sketch is
+- **Ask or Edit by hand.** The workspace's top bar lays a part out for asking the AI
+  (text-to-cad's viewer as Jake built it, where a selection goes to the agent through Quick Edit)
+  or for modeling it by hand (edit mode), per project and Ask until chosen. The viewer takes it
+  from its host context (`studio/editLayout`) and then shows no switch of its own; elsewhere its
+  navbar keeps the switch, as Manual and AI. By hand, what a command uses is plain: a sketch is
   picked on the model or in the design tree and shaded in the selection blue with its name, an
   extrude is previewed in amber (a cut in red, starting into the part), and a command's panel
   floats in a card of its own at the model view's top-right, apart from the design tree, its OK
