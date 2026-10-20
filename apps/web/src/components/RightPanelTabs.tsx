@@ -1194,6 +1194,21 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     return () => viewport.removeEventListener("wheel", handleWheel);
   }, [updateTabScrollState]);
 
+  // The project is home, not one tab among many: pinned first, apart from the rest.
+  const projectTab = engineeringSurfaces ? (
+    <PinnedProjectTab
+      active={props.activeSurfaceId === "files"}
+      view={engineering ? "project" : projectView}
+      withSource={!engineering}
+      onSelect={(view) => {
+        useProjectViewStore.getState().setView(view);
+        const project = props.surfaces.find((surface) => surface.kind === "files");
+        if (project) props.onActivate(project);
+        else props.onAddFiles();
+      }}
+    />
+  ) : null;
+
   return (
     <PreviewPanelShell
       mode={props.mode}
@@ -1216,20 +1231,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         )}
         data-right-panel-tabbar
       >
-        {engineeringSurfaces ? (
-          // The project is home, not one tab among many: pinned first, apart from the rest.
-          <PinnedProjectTab
-            active={props.activeSurfaceId === "files"}
-            view={engineering ? "project" : projectView}
-            withSource={!engineering}
-            onSelect={(view) => {
-              useProjectViewStore.getState().setView(view);
-              const project = props.surfaces.find((surface) => surface.kind === "files");
-              if (project) props.onActivate(project);
-              else props.onAddFiles();
-            }}
-          />
-        ) : null}
+        {engineeringSurfaces && !engineering ? projectTab : null}
         <ScrollArea
           radius="none"
           ref={tabListRef}
@@ -1239,6 +1241,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           data-right-panel-tab-list
         >
           <div className="flex h-full w-max min-w-full items-center gap-1">
+            {/* The engineering interface's Overview is the first of the sheets along the bottom. */}
+            {engineering ? projectTab : null}
             <SortableTabList surfaces={tabSurfaces} onMove={props.onMoveSurface}>
               {tabSurfaces.map((surface) => {
                 const active = surface.id === props.activeSurfaceId;

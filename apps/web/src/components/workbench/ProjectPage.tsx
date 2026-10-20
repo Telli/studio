@@ -302,6 +302,85 @@ function FolderFiles(props: {
   );
 }
 
+/** The project's folders, each one but the thread's own a press from leaving it, and Add a folder. */
+function FoldersRow(props: {
+  readonly environmentId: EnvironmentId;
+  readonly folders: ReadonlyArray<string>;
+  /** The thread's own folder, marked and kept. */
+  readonly cwd: string;
+  /** Null where the folders are no saved project yet: none can be taken out. */
+  readonly onRemove: ((folder: string) => void) | null;
+  readonly onAdd: (folder: string) => void;
+  readonly className?: string;
+}) {
+  return (
+    <div
+      className={cn("flex flex-wrap items-center gap-1.5", props.className)}
+      aria-label="Folders"
+    >
+      <span className="me-1 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+        Folders
+      </span>
+      {props.folders.map((folder) => {
+        const own = studioFolderKey(folder) === studioFolderKey(props.cwd);
+        const folderName = studioFolderName(folder);
+        const onRemove = props.onRemove;
+        return (
+          <span
+            key={folder}
+            className={cn(
+              "inline-flex h-6 min-w-0 items-center gap-1.5 rounded-md border border-border ps-2 text-xs text-foreground",
+              own ? "bg-accent/60 pe-2" : "pe-0.5",
+            )}
+          >
+            <FolderIcon className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="max-w-40 truncate">{folderName}</span>
+            {own || onRemove === null ? null : (
+              <Button
+                variant="ghost-muted"
+                size="icon-xs"
+                aria-label={`Take ${folderName} out of the project`}
+                onClick={() => onRemove(folder)}
+              >
+                <XIcon />
+              </Button>
+            )}
+          </span>
+        );
+      })}
+      <AddFolderMenu
+        environmentId={props.environmentId}
+        exclude={props.folders}
+        onAdd={props.onAdd}
+      />
+    </div>
+  );
+}
+
+/** The links the project's brief gathered, a web address opening in the browser. */
+function LinksList(props: { readonly links: ReadonlyArray<string> }) {
+  return (
+    <section aria-label="Links">
+      <h2 className="mb-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+        Links
+      </h2>
+      <ul className="flex flex-col border-t border-border">
+        {props.links.map((link) => (
+          <li key={link} className="truncate border-b border-border py-1.5 text-xs">
+            {/^https?:\/\//.test(link) ? (
+              <a href={link} target="_blank" rel="noopener noreferrer" className="underline">
+                {link}
+              </a>
+            ) : (
+              link
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * The project page, the engineering surfaces' Project tab (in place of the
  * file explorer). A project is a grouping of folders with one brief
@@ -313,6 +392,10 @@ function FolderFiles(props: {
  * boards, drawings, studies and jobs, documents, fabrication files), each a
  * tile that opens in the viewer or as a document, and every thread in any of
  * its folders. Source stays in T3 Code's explorer (Source, with code tools).
+ * The engineering interface shows the Overview alone, its folders and links at
+ * its end: what the other tabs list, its modules hold, and the project's chats
+ * are down the left (`StudioSidebar`). Its New starts new designs only; the
+ * jobs on a part are in the top bar's menus.
  */
 export function ProjectPage(props: {
   readonly environmentId: EnvironmentId;
@@ -338,6 +421,7 @@ export function ProjectPage(props: {
   };
   const composerRef = useComposerHandleContext();
   const plainWords = useEngineeringInterface();
+  const shownTab = plainWords ? "overview" : tab;
   const studio = useStudioProjectAt(environmentId, cwd);
   const saveProject = useSaveStudioProject(environmentId);
   const knownFolders = useEnvironmentFolders(environmentId);
@@ -366,8 +450,8 @@ export function ProjectPage(props: {
     () =>
       availableTemplates(
         new Set((plugins ?? []).flatMap((plugin) => (plugin.enabled ? plugin.skills : []))),
-      ),
-    [plugins],
+      ).filter((template) => !plainWords || template.source === "new"),
+    [plugins, plainWords],
   );
   // What a template can work from: the models and boards in this thread's folder.
   const parts = useMemo(
@@ -443,7 +527,7 @@ export function ProjectPage(props: {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold text-foreground">{name}</h1>
-            {purpose === "" || (plainWords && tab === "overview") ? null : (
+            {purpose === "" || plainWords ? null : (
               <p className="mt-0.5 truncate text-xs text-muted-foreground">{purpose}</p>
             )}
           </div>
@@ -457,32 +541,36 @@ export function ProjectPage(props: {
                 New
               </Button>
             )}
-            <div role="tablist" aria-label="Project contents" className="flex gap-1">
-              {(
-                [
-                  ["overview", "Overview"],
-                  ["files", "Files"],
-                  ["references", "References"],
-                  ...(isProject ? [["threads", plainWords ? "History" : "Threads"] as const] : []),
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={tab === id}
-                  onClick={() => setTab(id)}
-                  className={cn(
-                    "h-7 rounded-md px-2.5 text-xs outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                    tab === id
-                      ? "bg-accent text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            {plainWords ? null : (
+              <div role="tablist" aria-label="Project contents" className="flex gap-1">
+                {(
+                  [
+                    ["overview", "Overview"],
+                    ["files", "Files"],
+                    ["references", "References"],
+                    ...(isProject
+                      ? [["threads", plainWords ? "History" : "Threads"] as const]
+                      : []),
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === id}
+                    onClick={() => setTab(id)}
+                    className={cn(
+                      "h-7 rounded-md px-2.5 text-xs outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                      tab === id
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         {composerRef === null || plainWords ? null : (
@@ -493,44 +581,17 @@ export function ProjectPage(props: {
             workspaceMutationId={props.workspaceMutationId}
           />
         )}
-        {isProject && !(plainWords && tab === "overview") ? (
-          <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-label="Folders">
-            <span className="me-1 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
-              Folders
-            </span>
-            {folders.map((folder) => {
-              const own = studioFolderKey(folder) === studioFolderKey(cwd);
-              const folderName = studioFolderName(folder);
-              return (
-                <span
-                  key={folder}
-                  className={cn(
-                    "inline-flex h-6 min-w-0 items-center gap-1.5 rounded-md border border-border ps-2 text-xs text-foreground",
-                    own ? "bg-accent/60 pe-2" : "pe-0.5",
-                  )}
-                >
-                  <FolderIcon
-                    className="size-3 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <span className="max-w-40 truncate">{folderName}</span>
-                  {own || studio === null ? null : (
-                    <Button
-                      variant="ghost-muted"
-                      size="icon-xs"
-                      aria-label={`Take ${folderName} out of the project`}
-                      onClick={() => removeFolder(folder)}
-                    >
-                      <XIcon />
-                    </Button>
-                  )}
-                </span>
-              );
-            })}
-            <AddFolderMenu environmentId={environmentId} exclude={folders} onAdd={addFolder} />
-          </div>
+        {isProject && !plainWords ? (
+          <FoldersRow
+            environmentId={environmentId}
+            folders={folders}
+            cwd={cwd}
+            onRemove={studio === null ? null : removeFolder}
+            onAdd={addFolder}
+            className="mt-3"
+          />
         ) : null}
-        <div className={cn("mt-3 flex items-center gap-2", tab === "overview" && "hidden")}>
+        <div className={cn("mt-3 flex items-center gap-2", shownTab === "overview" && "hidden")}>
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -573,7 +634,7 @@ export function ProjectPage(props: {
       </header>
 
       <div className="flex flex-col gap-8 px-5 py-4">
-        {tab === "overview" ? (
+        {shownTab === "overview" ? (
           <ProjectOverview
             environmentId={environmentId}
             folders={folders}
@@ -584,7 +645,7 @@ export function ProjectPage(props: {
             currentThreadId={threadRef.threadId}
             onOpen={openPath}
             linkTo={(root, path) => serializeComposerFileLink(threadPath(root, path))}
-            onShowThreads={isProject ? () => setTab("threads") : null}
+            onShowThreads={isProject && !plainWords ? () => setTab("threads") : null}
             byHand={byHand}
             onStartPart={startPart}
             threadRef={threadRef}
@@ -600,7 +661,7 @@ export function ProjectPage(props: {
               ) : null
             }
           />
-        ) : tab === "threads" ? (
+        ) : shownTab === "threads" ? (
           <ProjectThreads
             projectRefs={projectRefs}
             folderNames={folderNames}
@@ -614,14 +675,14 @@ export function ProjectPage(props: {
               environmentId={environmentId}
               root={folder}
               label={folders.length > 1 ? studioFolderName(folder) : null}
-              tab={tab}
+              tab={shownTab}
               query={query}
               view={view}
               mutationId={
                 studioFolderKey(folder) === studioFolderKey(cwd) ? props.workspaceMutationId : null
               }
               emptyText={
-                tab === "files"
+                shownTab === "files"
                   ? folders.length > 1
                     ? "Nothing filed here yet."
                     : "Nothing here yet. The models, boards and documents the agent makes show up here."
@@ -633,25 +694,18 @@ export function ProjectPage(props: {
             />
           ))
         )}
-        {tab === "references" && links.length > 0 ? (
-          <section aria-label="Links">
-            <h2 className="mb-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
-              Links
-            </h2>
-            <ul className="flex flex-col border-t border-border">
-              {links.map((link) => (
-                <li key={link} className="truncate border-b border-border py-1.5 text-xs">
-                  {/^https?:\/\//.test(link) ? (
-                    <a href={link} target="_blank" rel="noopener noreferrer" className="underline">
-                      {link}
-                    </a>
-                  ) : (
-                    link
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
+        {links.length > 0 && (shownTab === "references" || plainWords) ? (
+          <LinksList links={links} />
+        ) : null}
+        {isProject && plainWords ? (
+          <FoldersRow
+            environmentId={environmentId}
+            folders={folders}
+            cwd={cwd}
+            onRemove={studio === null ? null : removeFolder}
+            onAdd={addFolder}
+            className="border-t border-border pt-4"
+          />
         ) : null}
       </div>
       {composerRef === null ? null : (
