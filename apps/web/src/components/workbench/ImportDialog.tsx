@@ -19,6 +19,7 @@ import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Spinner } from "../ui/spinner";
 import { toastManager } from "../ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { type ImportStart, useImportDialogStore } from "./importDialogStore";
 import {
   countByKind,
@@ -379,12 +380,16 @@ function ImportDialog(props: {
                       <span className="text-xs text-muted-foreground">
                         {describeCounts(project.files)}
                       </span>
-                      <span
-                        className="truncate text-2xs text-muted-foreground/80"
-                        title={project.folder}
-                      >
-                        In {placeName(project.folder, scannedRoots)}
-                      </span>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <span className="truncate text-2xs text-muted-foreground/80">
+                              In {placeName(project.folder, scannedRoots)}
+                            </span>
+                          }
+                        />
+                        <TooltipPopup>{project.folder}</TooltipPopup>
+                      </Tooltip>
                     </span>
                   </label>
                 ))}
@@ -471,12 +476,16 @@ function ImportDialog(props: {
                             <span className="truncate text-sm text-foreground">
                               {baseName(file.path)}
                             </span>
-                            <span
-                              className="truncate text-2xs text-muted-foreground"
-                              title={file.path}
-                            >
-                              In {placeName(file.path, scannedRoots)}
-                            </span>
+                            <Tooltip>
+                              <TooltipTrigger
+                                render={
+                                  <span className="truncate text-2xs text-muted-foreground">
+                                    In {placeName(file.path, scannedRoots)}
+                                  </span>
+                                }
+                              />
+                              <TooltipPopup>{file.path}</TooltipPopup>
+                            </Tooltip>
                           </span>
                           <span className="text-xs text-muted-foreground">Goes to</span>
                           <Select
@@ -533,12 +542,16 @@ function ImportDialog(props: {
                           <span className="truncate text-sm text-foreground">
                             {baseName(file.path)}
                           </span>
-                          <span
-                            className="truncate text-2xs text-muted-foreground"
-                            title={file.path}
-                          >
-                            In {placeName(file.path, scannedRoots)}
-                          </span>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <span className="truncate text-2xs text-muted-foreground">
+                                  In {placeName(file.path, scannedRoots)}
+                                </span>
+                              }
+                            />
+                            <TooltipPopup>{file.path}</TooltipPopup>
+                          </Tooltip>
                         </span>
                         <span className="shrink-0 text-xs text-muted-foreground">{why}</span>
                       </li>
