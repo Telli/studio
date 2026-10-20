@@ -77,19 +77,14 @@ export function ReadmeOverview(props: {
           </ul>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Studio writes this from the project's chats and keeps it current.
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>Studio writes this from the project's chats and keeps it current.</span>
         {file === null ? null : (
-          <>
-            {" "}
-            You can{" "}
-            <Button variant="link" size="xs" onClick={props.onOpenReadme}>
-              edit it
-            </Button>{" "}
-            too.
-          </>
+          <Button variant="outline" size="xs" onClick={props.onOpenReadme}>
+            Edit the README
+          </Button>
         )}
-      </p>
+      </div>
     </section>
   );
 }

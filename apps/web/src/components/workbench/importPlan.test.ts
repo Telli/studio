@@ -6,6 +6,7 @@ import {
   freshFiles,
   type ImportFile,
   needsALook,
+  placeName,
   planImport,
   projectNameFromFolder,
   suggestProject,
@@ -137,5 +138,14 @@ describe("new files since a scan", () => {
       "Downloads",
     );
     expect(whereFilesAre(["/Users/amy/Documents"], files)).toBe("your folders");
+  });
+});
+
+describe("placeName", () => {
+  it("names the scanned folder something is in, else its parent", () => {
+    const roots = ["/Users/amy/Documents", "/Users/amy/Downloads"];
+    expect(placeName("/Users/amy/Documents/Kawarobo", roots)).toBe("Documents");
+    expect(placeName("/Users/amy/Downloads/arm v2.step", roots)).toBe("Downloads");
+    expect(placeName("/Volumes/Work/robots/Sumo", roots)).toBe("robots");
   });
 });

@@ -205,3 +205,14 @@ export function whereFilesAre(
   });
   return root === undefined ? "your folders" : (segmentsOf(root).pop() ?? root);
 }
+
+/** Where a folder or file is, in a word: the scanned folder it is in, else its own parent's name. */
+export function placeName(path: string, roots: ReadonlyArray<string>): string {
+  const root = roots.find((candidate) => {
+    const base = trimSlashes(candidate);
+    return path.startsWith(`${base}/`) || path.startsWith(`${base}\\`);
+  });
+  if (root !== undefined) return segmentsOf(root).pop() ?? root;
+  const parts = segmentsOf(path);
+  return parts[parts.length - 2] ?? path;
+}

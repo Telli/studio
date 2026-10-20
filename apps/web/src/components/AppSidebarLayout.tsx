@@ -329,6 +329,8 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         <Sidebar
           side="left"
           collapsible="offcanvas"
+          // Shut for Studio's top bar: nothing in it is reachable by Tab or a screen reader.
+          {...(studioShell ? { inert: true } : {})}
           data-app-sidebar=""
           role="navigation"
           aria-label={isOnSettings ? "Settings" : "Threads"}

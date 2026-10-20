@@ -13,15 +13,20 @@ import type { StudioNavSection } from "./studioNav";
  * Studio's mark and name, then Home and Projects: how every engineering page starts its top bar,
  * in place of T3's sidebar. A project's workspace puts its own bar after it.
  */
-export function StudioNav(props: { readonly section: StudioNavSection }) {
+export function StudioNav(props: {
+  readonly section: StudioNavSection;
+  /** The mark alone, where the bar is narrow (a project's workspace, beside its chat). */
+  readonly compact?: boolean;
+}) {
   return (
     <nav aria-label={APP_BASE_NAME} className="flex shrink-0 items-center gap-1">
       <Link
         to="/"
+        aria-label={props.compact ? `${APP_BASE_NAME} home` : undefined}
         className="mr-2 flex items-center gap-1.5 rounded-md text-sm font-semibold text-foreground outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset"
       >
         <T3Wordmark aria-hidden className="h-4 w-auto shrink-0" />
-        {APP_BASE_NAME}
+        {props.compact ? null : APP_BASE_NAME}
       </Link>
       <NavLink to="/" current={props.section === "home"}>
         Home

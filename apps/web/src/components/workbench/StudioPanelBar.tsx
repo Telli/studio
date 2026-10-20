@@ -70,6 +70,8 @@ export function StudioPanelBar(props: {
           ))}
         </MenuPopup>
       </Menu>
+      {/* Clear of the panel's own controls, fixed at the title row's end (T3 keeps pr-28 for them). */}
+      <span aria-hidden className="w-28 shrink-0" />
     </div>
   );
 }

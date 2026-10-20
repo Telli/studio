@@ -253,23 +253,20 @@ function StartProject(props: {
         </div>
       )}
       {blank.length === 0 ? null : (
-        <p className="text-sm text-muted-foreground">
-          Or a blank{" "}
-          {blank.map((template, index) => (
-            <span key={template.id}>
-              <Button
-                variant="link"
-                size="xs"
-                disabled={busy}
-                onClick={() => void run({ kind: "blank", template })}
-              >
-                {template.label.toLowerCase()}
-              </Button>
-              {index < blank.length - 2 ? ", " : index === blank.length - 2 ? " or " : ""}
-            </span>
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+          <span>Or start a blank one to model by hand:</span>
+          {blank.map((template) => (
+            <Button
+              key={template.id}
+              variant="outline"
+              size="xs"
+              disabled={busy}
+              onClick={() => void run({ kind: "blank", template })}
+            >
+              {template.label}
+            </Button>
           ))}
-          , to model by hand.
-        </p>
+        </div>
       )}
     </section>
   );

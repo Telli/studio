@@ -25,6 +25,7 @@ import {
   describeCounts,
   type ImportFile,
   needsALook,
+  placeName,
   planImport,
   type ScannedRoot,
   suggestProject,
@@ -167,6 +168,8 @@ function ImportDialog(props: {
     [scans, known, rootsAreProjects],
   );
   const allFiles = useMemo(() => scans.flatMap((scan) => scan.files), [scans]);
+  // Dropped or picked things have no scanned folder around them: they are named by their parent.
+  const scannedRoots = rootsAreProjects ? [] : scans.map((scan) => scan.root);
   const counts = countByKind(allFiles);
   const look = useMemo(() => needsALook(plan.projects.flatMap((project) => project.files)), [plan]);
   const lookCount = look.duplicates.length + look.oldVersions.length;
@@ -376,8 +379,11 @@ function ImportDialog(props: {
                       <span className="text-xs text-muted-foreground">
                         {describeCounts(project.files)}
                       </span>
-                      <span className="truncate text-2xs text-muted-foreground/80">
-                        {project.folder}
+                      <span
+                        className="truncate text-2xs text-muted-foreground/80"
+                        title={project.folder}
+                      >
+                        In {placeName(project.folder, scannedRoots)}
                       </span>
                     </span>
                   </label>
@@ -465,8 +471,11 @@ function ImportDialog(props: {
                             <span className="truncate text-sm text-foreground">
                               {baseName(file.path)}
                             </span>
-                            <span className="truncate text-2xs text-muted-foreground">
-                              {file.path}
+                            <span
+                              className="truncate text-2xs text-muted-foreground"
+                              title={file.path}
+                            >
+                              In {placeName(file.path, scannedRoots)}
                             </span>
                           </span>
                           <span className="text-xs text-muted-foreground">Goes to</span>
@@ -524,8 +533,11 @@ function ImportDialog(props: {
                           <span className="truncate text-sm text-foreground">
                             {baseName(file.path)}
                           </span>
-                          <span className="truncate text-2xs text-muted-foreground">
-                            {file.path}
+                          <span
+                            className="truncate text-2xs text-muted-foreground"
+                            title={file.path}
+                          >
+                            In {placeName(file.path, scannedRoots)}
                           </span>
                         </span>
                         <span className="shrink-0 text-xs text-muted-foreground">{why}</span>

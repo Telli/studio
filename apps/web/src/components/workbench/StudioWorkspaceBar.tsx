@@ -25,7 +25,7 @@ export function StudioWorkspaceBar(props: {
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
-      <StudioNav section="workspace" />
+      <StudioNav section="workspace" compact />
       <span aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border" />
       <span className="truncate text-sm font-semibold text-foreground">{title}</span>
       {isNew ? (
