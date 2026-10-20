@@ -423,6 +423,18 @@ class PlateCommands(Commands):
         self.assertTrue(more["ok"], more.get("error"))
         self.assertIn("GridLocations(-.4*INCH, 0, 4, 1,", (root / "plate.py").read_text(encoding="utf-8"))
 
+    def test_a_hole_patterned_then_mirrored_is_named_once(self):
+        root, file, state = self.open(PLATE, "plate.step")
+        feature = {"row": self.hole_row(state)["key"], "name": "Hole1"}
+        patterned = self.command(file, state, "pattern", (), {"type": "linear", "direction": "X", "spacing": "-.4", "count": "2"}, feature)
+        self.assertTrue(patterned["ok"], patterned.get("error"))
+        feature = {"row": self.hole_row(patterned)["key"], "name": "Hole1"}
+        mirrored = self.command(file, patterned, "mirror", (), {"plane": "XZ"}, feature)
+        self.assertTrue(mirrored["ok"], mirrored.get("error"))
+        text = (root / "plate.py").read_text(encoding="utf-8")
+        self.assertEqual(text.count(":= "), 1)
+        self.assertIn("plate -= bd.mirror(hole1, about=bd.Plane.XZ)\n", text)
+
     def test_a_mirror_of_a_feature_about_a_plane(self):
         root, file, state = self.open(PLATE, "plate.step")
         feature = {"row": self.hole_row(state)["key"], "name": "Hole1"}
@@ -1079,6 +1091,17 @@ class TwoDirections(Commands):
         again = self.extruded(file, reply["files"], "extrude", {**boss["edit"]["values"], "depth2": "6"}, boss["key"])
         self.assertIn(") + extrude(sketch1.face(), amount=6)\n", (root / "plate.py").read_text(encoding="utf-8"))
         self.assertTrue(again["ok"])
+
+    def test_a_cut_that_takes_nothing_away_is_refused(self):
+        root, file, state = self.open(WALLED, "box.step")
+        before = (root / "box.py").read_text(encoding="utf-8")
+        # The sketch is on the block's top: up, away from it, cuts nothing.
+        missed = self.service.change({"file": file, "files": state["files"], "command": {
+            "command": "cut", "sketch": sketch("Sketch1", 9, "box.py"), "inputs": {"end": "blind", "depth": "3"}}})
+        self.assertFalse(missed["ok"])
+        self.assertIn("does not reach the part", missed["error"])
+        self.assertEqual((root / "box.py").read_text(encoding="utf-8"), before)
+        self.extruded(file, state["files"], "cut", {"end": "blind", "depth": "3", "reverse": True})
 
     def test_a_cut_goes_through_all_the_other_way_and_refuses_mid_plane(self):
         root, file, state = self.open(WALLED, "box.step")

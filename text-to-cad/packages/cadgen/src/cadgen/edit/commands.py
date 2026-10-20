@@ -827,6 +827,9 @@ def _tool(body: Body, var: str, feature: dict | None, bar: int | None = None):
     sign = "-=" if isinstance(operator, ast.Sub) else "+="
     if isinstance(tool, ast.Name):
         return tool.id, sign, []
+    # Named already, by a pattern or a mirror made of it before (`part -= (hole1 := ...)`): that name.
+    if isinstance(tool, ast.NamedExpr) and isinstance(tool.target, ast.Name):
+        return tool.target.id, sign, []
     name = fresh_name(body.tree, str(feature.get("name") or "tool"))
     edits = [(tool.lineno, tool.col_offset, f"({name} := "), (tool.end_lineno, tool.end_col_offset, ")")]
     return name, sign, edits

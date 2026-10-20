@@ -1925,6 +1925,19 @@ def _refused_change(files):
     return None
 
 
+# The commands that take material away, checked to take some.
+_CUTS = ("cut", "revolve_cut", "sweep_cut", "loft_cut", "hole")
+
+
+def _volume(shape):
+    """A shape's solids' volume, or None when it has none to weigh."""
+    try:
+        solids = shape.solids() if isinstance(shape, B.Shape) else []
+        return sum(solid.volume for solid in solids) if solids else None
+    except Exception:  # noqa: BLE001 - a shape the kernel cannot weigh is not checked
+        return None
+
+
 def _check(script, traced, plan, scale):
     from cadgen.edit import commands
 
@@ -2005,9 +2018,18 @@ def command(request):
     if plan is None:
         return {"ok": False, "error": why}
     scale = state["shape"].bounding_box().diagonal or 1.0
+    before = _volume(state["shape"])
     _write(plan.path, plan.new)
     after = trace(request)
     failure = _check(script, after, plan, scale)
+    # A cut or a hole that takes nothing away is refused, as SolidWorks refuses a cut that misses
+    # the part, rather than written as a feature that does nothing.
+    if not failure and plan.command in _CUTS and before:
+        now = _volume(STATE[script]["shape"])
+        if now is not None and abs(before - now) <= 1e-9 * before:
+            words = "The hole" if plan.command == "hole" else "The cut"
+            failure = (f"{words} does not reach the part, so nothing changed. "
+                       f"{'Move it onto the part' if plan.command == 'hole' else 'Reverse its direction, or check where its sketch is'}.")
     if failure:
         _write(plan.path, plan.old)
         trace(request)
