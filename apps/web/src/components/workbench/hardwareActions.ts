@@ -2,20 +2,50 @@ import type { STUDIO_PROCESSES } from "@t3tools/shared/studioProjects";
 
 /**
  * Hardware first, code second (`brand.json` `"focus": "hardware"`). The
- * workbench speaks a hardware engineer's verbs: check a part, make it,
- * document it. Each is a job the agent already knows through one of
- * text-to-cad's skills, offered only while an enabled plugin has that skill
- * and only on the kinds of file it applies to. A job that belongs to one way
- * of making things (printing, machining, sheet metal) leads when it is the
- * project's process and waits under the other ways when it is not. A pick
- * writes the job into the composer, naming the part, to edit before sending.
+ * workbench groups a part's jobs the way CAD tools do: Evaluate (strength,
+ * fit, weight), Manufacture by way of making it (a way's check and its outputs
+ * together, the project's own way first), and Document. Each job is one the
+ * agent already knows through one of text-to-cad's skills, offered only while
+ * an enabled plugin has that skill and only on the kinds of file it applies
+ * to. A pick writes the job into the composer, naming the part, to edit
+ * before sending.
  */
 export const HARDWARE_FOCUS = import.meta.env.VITE_APP_FOCUS === "hardware";
 
-export type HardwareActionGroup = "Check" | "Make" | "Document";
+export type HardwareActionGroup = "Evaluate" | "Manufacture" | "Document";
 
 /** How the project's parts are made, as its setup says (`STUDIO_PROCESSES`). */
 export type MakingProcess = (typeof STUDIO_PROCESSES)[number];
+
+/** A way of making things, as Manufacture groups its jobs. */
+export interface MakingWay {
+  readonly id: "printing" | "cnc" | "sheet" | "molding" | "board" | "buy";
+  readonly title: string;
+  /** The setup's processes that are this way; none for a way every project has. */
+  readonly processes: ReadonlyArray<MakingProcess>;
+}
+
+export const MAKING_WAYS: ReadonlyArray<MakingWay> = [
+  {
+    id: "printing",
+    title: "3D printing",
+    processes: [
+      "3D printing (FDM)",
+      "3D printing (resin)",
+      "3D printing (SLS)",
+      "3D printing (metal)",
+    ],
+  },
+  { id: "cnc", title: "CNC machining", processes: ["CNC machining"] },
+  {
+    id: "sheet",
+    title: "Sheet metal and cutting",
+    processes: ["Sheet metal", "Laser or waterjet cutting"],
+  },
+  { id: "molding", title: "Injection molding", processes: ["Injection molding"] },
+  { id: "board", title: "Circuit board", processes: [] },
+  { id: "buy", title: "Buy", processes: [] },
+];
 
 export interface HardwareAction {
   readonly id: string;
@@ -25,8 +55,10 @@ export interface HardwareAction {
   readonly skill: string | null;
   /** The part kinds it applies to, as the context strip names them (`describePart`); null for any. */
   readonly kinds: ReadonlyArray<string> | null;
-  /** The ways of making it is about; null when it holds whatever the process. */
-  readonly processes: ReadonlyArray<MakingProcess> | null;
+  /** In Manufacture, the way of making it belongs to. */
+  readonly way: MakingWay["id"] | null;
+  /** It reads the part and reports, rather than making or writing something: starters lead with one. */
+  readonly checks: boolean;
   /** The job, naming the part as given: a link to its file, which the composer shows as the part. */
   readonly prompt: (file: string) => string;
   /** The job as a starter names it, short: "Check bike hook for 3D printing". */
@@ -35,198 +67,208 @@ export interface HardwareAction {
 
 const SOLID = ["Part", "Assembly"];
 const PRINTABLE = ["Part", "Assembly", "Mesh"];
-const PRINTING: ReadonlyArray<MakingProcess> = [
-  "3D printing (FDM)",
-  "3D printing (resin)",
-  "3D printing (SLS)",
-  "3D printing (metal)",
-];
-const CUT_FROM_SHEET: ReadonlyArray<MakingProcess> = ["Laser or waterjet cutting", "Sheet metal"];
 
 export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
-    id: "printing",
-    group: "Check",
-    label: "3D printing",
-    skill: "dfam-check",
-    kinds: PRINTABLE,
-    processes: PRINTING,
-    prompt: (file) =>
-      `Check ${file} for 3D printing: overhangs, thin walls, bed fit and the best build orientation. Tell me what to change.`,
-    short: (name) => `Check ${name} for 3D printing`,
-  },
-  {
-    id: "cnc",
-    group: "Check",
-    label: "CNC machining",
-    skill: "dfm",
-    kinds: SOLID,
-    processes: ["CNC machining"],
-    prompt: (file) =>
-      `Check ${file} for CNC machining: tool access, internal corners, thin walls and setups. Tell me what to change.`,
-    short: (name) => `Check ${name} for CNC machining`,
-  },
-  {
-    id: "sheet-metal",
-    group: "Check",
-    label: "Sheet metal",
-    skill: "dfm",
-    kinds: ["Part"],
-    processes: ["Sheet metal"],
-    prompt: (file) =>
-      `Check ${file} as a sheet metal part: bend radii, reliefs, and hole and edge distances. Tell me what to change.`,
-    short: (name) => `Check ${name} as sheet metal`,
-  },
-  {
-    id: "molding",
-    group: "Check",
-    label: "Injection molding",
-    skill: "dfm",
-    kinds: ["Part"],
-    processes: ["Injection molding"],
-    prompt: (file) =>
-      `Check ${file} for injection molding: draft, wall thickness and undercuts. Tell me what to change.`,
-    short: (name) => `Check ${name} for injection molding`,
-  },
-  {
     id: "strength",
-    group: "Check",
+    group: "Evaluate",
     label: "Strength under load",
     skill: "fea",
     kinds: SOLID,
-    processes: null,
+    way: null,
+    checks: true,
     prompt: (file) =>
       `Check ${file} for strength under its working load. Ask me for the loads, supports and material you need, then tell me where it is weakest and what to change.`,
     short: (name) => `Check ${name} under load`,
   },
   {
     id: "fit",
-    group: "Check",
+    group: "Evaluate",
     label: "Fit and clearance",
     skill: "cad",
     kinds: ["Assembly"],
-    processes: null,
+    way: null,
+    checks: true,
     prompt: (file) =>
       `Check the parts in ${file} for collisions and tight clearances, and tell me where they touch or rub and by how much.`,
     short: (name) => `Check the fit of ${name}`,
   },
   {
     id: "mass",
-    group: "Check",
+    group: "Evaluate",
     label: "Weight and center of mass",
     skill: "cad",
     kinds: SOLID,
-    processes: null,
+    way: null,
+    checks: true,
     prompt: (file) =>
       `Tell me the weight, volume and center of mass of ${file} in the project's material, and what makes up most of the weight.`,
     short: (name) => `Weight of ${name}`,
   },
   {
     id: "fea-results",
-    group: "Check",
+    group: "Evaluate",
     label: "Explain these results",
     skill: "fea",
     kinds: ["FEA study"],
-    processes: null,
+    way: null,
+    checks: true,
     prompt: (file) =>
       `Walk me through the results in ${file} and tell me what fails, by how much, and what to change.`,
     short: (name) => `Explain the ${name} study`,
   },
   {
-    id: "board-fab",
-    group: "Check",
-    label: "Board for fabrication",
-    skill: "pcb-dfm",
-    kinds: ["Board"],
-    processes: null,
-    prompt: (file) =>
-      `Check ${file} against the fab's limits and tell me what to fix before ordering.`,
-    short: (name) => `Check ${name} for fabrication`,
-  },
-  {
     id: "cam-results",
-    group: "Check",
+    group: "Evaluate",
     label: "Explain this job",
     skill: "cam",
     kinds: ["CAM job"],
-    processes: null,
+    way: null,
+    checks: true,
     prompt: (file) =>
       `Walk me through ${file} and tell me the cycle time, the tools, and anything to fix before cutting.`,
     short: (name) => `Explain the ${name} job`,
   },
   {
+    id: "printing",
+    group: "Manufacture",
+    label: "Check for 3D printing",
+    skill: "dfam-check",
+    kinds: PRINTABLE,
+    way: "printing",
+    checks: true,
+    prompt: (file) =>
+      `Check ${file} for 3D printing: overhangs, thin walls, bed fit and the best build orientation. Tell me what to change.`,
+    short: (name) => `Check ${name} for 3D printing`,
+  },
+  {
+    id: "slice",
+    group: "Manufacture",
+    label: "Slice for FDM",
+    skill: "gcode",
+    kinds: PRINTABLE,
+    way: "printing",
+    checks: false,
+    prompt: (file) => `Slice ${file} for FDM printing and check the G-code.`,
+    short: (name) => `Slice ${name} for printing`,
+  },
+  {
     id: "bambu",
-    group: "Make",
+    group: "Manufacture",
     label: "Print on a Bambu printer",
     skill: "bambu-labs",
     kinds: PRINTABLE,
-    processes: ["3D printing (FDM)"],
+    way: "printing",
+    checks: false,
     prompt: (file) =>
       `Slice ${file} and get it ready on my Bambu printer. Check with me before the print starts.`,
     short: (name) => `Print ${name} on the Bambu`,
   },
   {
-    id: "slice",
-    group: "Make",
-    label: "Slice for FDM",
-    skill: "gcode",
-    kinds: PRINTABLE,
-    processes: ["3D printing (FDM)"],
-    prompt: (file) => `Slice ${file} for FDM printing and check the G-code.`,
-    short: (name) => `Slice ${name} for printing`,
+    id: "cnc",
+    group: "Manufacture",
+    label: "Check for CNC machining",
+    skill: "dfm",
+    kinds: SOLID,
+    way: "cnc",
+    checks: true,
+    prompt: (file) =>
+      `Check ${file} for CNC machining: tool access, internal corners, thin walls and setups. Tell me what to change.`,
+    short: (name) => `Check ${name} for CNC machining`,
   },
   {
     id: "toolpaths",
-    group: "Make",
+    group: "Manufacture",
     label: "G-code for CNC",
     skill: "cam",
     kinds: ["Part"],
-    processes: ["CNC machining"],
+    way: "cnc",
+    checks: false,
     prompt: (file) =>
       `Plan the toolpaths for ${file} and post its G-code. Ask me for the machine, stock, tools and workholding you need.`,
     short: (name) => `Post G-code for ${name}`,
   },
   {
+    id: "sheet-metal",
+    group: "Manufacture",
+    label: "Check as sheet metal",
+    skill: "dfm",
+    kinds: ["Part"],
+    way: "sheet",
+    checks: true,
+    prompt: (file) =>
+      `Check ${file} as a sheet metal part: bend radii, reliefs, and hole and edge distances. Tell me what to change.`,
+    short: (name) => `Check ${name} as sheet metal`,
+  },
+  {
     id: "dxf",
-    group: "Make",
+    group: "Manufacture",
     label: "Cut-ready DXF",
     skill: "dxf",
     kinds: ["Part", "Drawing"],
-    processes: CUT_FROM_SHEET,
+    way: "sheet",
+    checks: false,
     prompt: (file) => `Make a cut-ready DXF of ${file} for laser or waterjet cutting.`,
     short: (name) => `Make a cut file of ${name}`,
   },
   {
     id: "sendcutsend",
-    group: "Make",
+    group: "Manufacture",
     label: "Order from SendCutSend",
     skill: "sendcutsend",
     kinds: ["Part", "Drawing"],
-    processes: CUT_FROM_SHEET,
+    way: "sheet",
+    checks: false,
     prompt: (file) =>
       `Check ${file} for a SendCutSend order: material, thickness and any services it needs.`,
     short: (name) => `Get ${name} ready for SendCutSend`,
   },
   {
-    id: "standard-parts",
-    group: "Make",
-    label: "Off-the-shelf parts",
-    skill: "step-parts",
-    kinds: SOLID,
-    processes: null,
+    id: "molding",
+    group: "Manufacture",
+    label: "Check for injection molding",
+    skill: "dfm",
+    kinds: ["Part"],
+    way: "molding",
+    checks: true,
     prompt: (file) =>
-      `Find the off-the-shelf parts ${file} needs, such as fasteners and bearings, with where to buy them, and import their STEP files.`,
-    short: (name) => `Find standard parts for ${name}`,
+      `Check ${file} for injection molding: draft, wall thickness and undercuts. Tell me what to change.`,
+    short: (name) => `Check ${name} for injection molding`,
+  },
+  {
+    id: "board-fab",
+    group: "Manufacture",
+    label: "Check for fabrication",
+    skill: "pcb-dfm",
+    kinds: ["Board"],
+    way: "board",
+    checks: true,
+    prompt: (file) =>
+      `Check ${file} against the fab's limits and tell me what to fix before ordering.`,
+    short: (name) => `Check ${name} for fabrication`,
   },
   {
     id: "route",
-    group: "Make",
+    group: "Manufacture",
     label: "Route the board",
     skill: "pcb",
     kinds: ["Board"],
-    processes: null,
+    way: "board",
+    checks: false,
     prompt: (file) => `Route ${file} and run the board checks.`,
     short: (name) => `Route ${name}`,
+  },
+  {
+    id: "standard-parts",
+    group: "Manufacture",
+    label: "Off-the-shelf parts",
+    skill: "step-parts",
+    kinds: SOLID,
+    way: "buy",
+    checks: false,
+    prompt: (file) =>
+      `Find the off-the-shelf parts ${file} needs, such as fasteners and bearings, with where to buy them, and import their STEP files.`,
+    short: (name) => `Find standard parts for ${name}`,
   },
   {
     id: "drawing",
@@ -234,7 +276,8 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Engineering drawing",
     skill: "engineering-drawing",
     kinds: SOLID,
-    processes: null,
+    way: null,
+    checks: false,
     prompt: (file) =>
       `Make an engineering drawing of ${file} with its key dimensions and tolerances.`,
     short: (name) => `Draw ${name}`,
@@ -245,7 +288,8 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Parts list",
     skill: null,
     kinds: ["Assembly"],
-    processes: null,
+    way: null,
+    checks: false,
     prompt: (file) =>
       `Make a parts list for ${file} in docs/: each part, how many, its material, and how it is made or where to buy it.`,
     short: (name) => `Parts list for ${name}`,
@@ -256,7 +300,8 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Assembly instructions",
     skill: null,
     kinds: ["Assembly"],
-    processes: null,
+    way: null,
+    checks: false,
     prompt: (file) =>
       `Write assembly instructions for ${file} in docs/, step by step, with the parts and tools each step needs.`,
     short: (name) => `Assembly instructions for ${name}`,
@@ -267,7 +312,8 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Test plan",
     skill: null,
     kinds: SOLID,
-    processes: null,
+    way: null,
+    checks: false,
     prompt: (file) =>
       `Write a test plan for ${file} in docs/: what to test, how, and the pass criteria.`,
     short: (name) => `Test plan for ${name}`,
@@ -278,7 +324,8 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Robot description (URDF)",
     skill: "urdf",
     kinds: ["Assembly"],
-    processes: null,
+    way: null,
+    checks: false,
     prompt: (file) => `Make a URDF for ${file} with its joints and limits.`,
     short: (name) => `Describe ${name} as a robot`,
   },
@@ -288,50 +335,68 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Write up the results",
     skill: null,
     kinds: null,
-    processes: null,
+    way: null,
+    checks: false,
     prompt: (file) =>
       `Round up what this thread did and found on ${file} in a short report in docs/: what was asked, what was done, the results with units, pictures of the results, the verdict, and what to do next.`,
     short: (name) => `Write up the results for ${name}`,
   },
 ];
 
-const GROUPS: ReadonlyArray<HardwareActionGroup> = ["Check", "Make", "Document"];
+const GROUPS: ReadonlyArray<HardwareActionGroup> = ["Evaluate", "Manufacture", "Document"];
+
+/** A run of a menu's jobs, under its title (a way of making it) or none. */
+export interface ActionSection {
+  readonly title: string | null;
+  readonly actions: ReadonlyArray<HardwareAction>;
+}
 
 export interface HardwareActionMenu {
   readonly group: HardwareActionGroup;
-  /** The jobs for this project: its own way of making first, then those that hold for any. */
-  readonly actions: ReadonlyArray<HardwareAction>;
-  /** Jobs for other ways of making it, or for every way while the project hasn't chosen one. */
-  readonly others: ReadonlyArray<HardwareAction>;
+  /** In the menu itself: in Manufacture, the project's own way first, then buying and a board's own. */
+  readonly sections: ReadonlyArray<ActionSection>;
+  /** The other ways of making it, a submenu each; every way while the project hasn't chosen one. */
+  readonly others: ReadonlyArray<ActionSection>;
+  /** Whether the project has chosen how it is made, so the others are "other" ways. */
+  readonly decided: boolean;
 }
 
 /**
- * The jobs for a part of this kind that the enabled plugins' skills can do, by group, in order.
- * With the project's process chosen, the jobs for it lead and the rest of the ways to make it
- * follow apart; until it is chosen, every way to make it waits apart.
+ * The jobs for a part of this kind that the enabled plugins' skills can do, by menu, in order.
+ * Manufacture puts the project's own way of making it first, whole, and the other ways apart.
  */
 export function hardwareActions(
   kind: string,
   skills: ReadonlySet<string>,
   process: MakingProcess | string = "Not decided",
 ): HardwareActionMenu[] {
-  const decided = process !== "Not decided" && process.trim() !== "";
-  const ours = (action: HardwareAction) =>
-    action.processes !== null && action.processes.some((entry) => entry === process);
-  return GROUPS.flatMap((group) => {
-    const offered = HARDWARE_ACTIONS.filter(
-      (action) =>
-        action.group === group &&
-        (action.kinds === null || action.kinds.includes(kind)) &&
-        (action.skill === null || skills.has(action.skill)),
-    );
-    const actions = [
-      ...offered.filter((action) => decided && ours(action)),
-      ...offered.filter((action) => action.processes === null),
-    ];
-    const others = offered.filter(
-      (action) => action.processes !== null && !(decided && ours(action)),
-    );
-    return actions.length === 0 && others.length === 0 ? [] : [{ group, actions, others }];
+  const decided = process.trim() !== "" && process !== "Not decided";
+  const own = MAKING_WAYS.find((way) => way.processes.some((entry) => entry === process)) ?? null;
+  const offered = HARDWARE_ACTIONS.filter(
+    (action) =>
+      (action.kinds === null || action.kinds.includes(kind)) &&
+      (action.skill === null || skills.has(action.skill)),
+  );
+  const inWay = (way: MakingWay): ActionSection => ({
+    title: way.title,
+    actions: offered.filter((action) => action.way === way.id),
+  });
+  return GROUPS.flatMap((group): HardwareActionMenu[] => {
+    if (group !== "Manufacture") {
+      const actions = offered.filter((action) => action.group === group);
+      return actions.length === 0
+        ? []
+        : [{ group, sections: [{ title: null, actions }], others: [], decided }];
+    }
+    const sections = [
+      ...(own === null ? [] : [inWay(own)]),
+      ...MAKING_WAYS.filter((way) => way.processes.length === 0).map(inWay),
+    ].filter((section) => section.actions.length > 0);
+    const others = MAKING_WAYS.filter((way) => way.processes.length > 0 && way !== own)
+      .map(inWay)
+      .filter((section) => section.actions.length > 0);
+    return sections.length === 0 && others.length === 0
+      ? []
+      : [{ group, sections, others, decided }];
   });
 }

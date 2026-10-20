@@ -38,23 +38,21 @@ export function projectStarters(
   // A check for each recent file, then a way to make the most recent one.
   const jobs = subjects.map((file) => {
     const { name, kind } = describePart(file.path, null);
-    const groups = hardwareActions(kind, skills);
-    // Starters start jobs; a write-up (no skill of its own) comes after the work.
-    // A job about how it is made first (will it machine, slice it), then one that holds for any.
-    const of = (group: string) => {
-      const menu = groups.find((entry) => entry.group === group);
-      const all = [...(menu?.actions ?? []), ...(menu?.others ?? [])];
-      return [
-        ...all.filter((action) => action.processes !== null),
-        ...all.filter((action) => action.processes === null),
-      ].filter((action) => action.skill !== null);
-    };
+    // Every job for the part, its ways of making it included, in menu order; starters start jobs,
+    // so a write-up (no skill of its own) comes after the work.
+    const all = hardwareActions(kind, skills)
+      .flatMap((menu) => [...menu.sections, ...menu.others])
+      .flatMap((section) => section.actions)
+      .filter((action) => action.skill !== null);
     return {
       link: serializeComposerFileLink(file.path),
       name: lowerName(name),
-      check: of("Check")[0],
-      make: of("Make")[0],
-      document: of("Document")[0],
+      // A check of how it would be made first, else any check; then a way to make it.
+      check:
+        all.find((action) => action.checks && action.way !== null) ??
+        all.find((action) => action.checks),
+      make: all.find((action) => action.group === "Manufacture" && !action.checks),
+      document: all.find((action) => action.group === "Document"),
     };
   });
   for (const job of jobs) {

@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { ChevronDownIcon } from "lucide-react";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { pluginEnvironment } from "~/state/plugins";
@@ -13,14 +13,18 @@ import {
   MenuItem,
   MenuPopup,
   MenuSeparator,
+  MenuSub,
+  MenuSubPopup,
+  MenuSubTrigger,
   MenuTrigger,
 } from "../ui/menu";
 import { type HardwareAction, hardwareActions } from "./hardwareActions";
 
 /**
- * Check, Make and Document for the part: the jobs its kind takes that the enabled plugins have
- * skills for, the project's own way of making it first and the other ways apart. A pick writes
- * the job, naming the part by a link to its file, into the composer.
+ * Evaluate, Manufacture and Document for the part: the jobs its kind takes that the enabled
+ * plugins have skills for. Manufacture leads with the project's own way of making it, whole, and
+ * keeps the other ways in a submenu each. A pick writes the job, naming the part by a link to its
+ * file, into the composer.
  */
 export function PartActions(props: {
   readonly environmentId: EnvironmentId;
@@ -43,7 +47,6 @@ export function PartActions(props: {
     return hardwareActions(props.kind, skills, props.process);
   }, [list.data, props.kind, props.process]);
   if (groups.length === 0) return null;
-  const decided = props.process !== undefined && !["", "Not decided"].includes(props.process);
   const write = (action: HardwareAction) => {
     const composer = props.composerRef.current;
     if (!composer) return;
@@ -58,8 +61,8 @@ export function PartActions(props: {
 
   return (
     <div className="flex shrink-0 items-center" data-part-actions="">
-      {groups.map(({ group, actions, others }) => (
-        <Menu key={group}>
+      {groups.map((menu) => (
+        <Menu key={menu.group}>
           <MenuTrigger
             render={
               props.inTopBar ? (
@@ -69,7 +72,7 @@ export function PartActions(props: {
               )
             }
           >
-            {group}
+            {menu.group}
             <ChevronDownIcon className="size-3 opacity-60" aria-hidden="true" />
           </MenuTrigger>
           <MenuPopup
@@ -77,15 +80,28 @@ export function PartActions(props: {
             side={props.inTopBar ? "bottom" : "top"}
             sideOffset={props.inTopBar ? 6 : 4}
           >
-            {actions.map(item)}
-            {others.length === 0 ? null : (
+            {menu.sections.map((section, index) => (
+              <Fragment key={section.title ?? `section-${index}`}>
+                {index === 0 ? null : <MenuSeparator />}
+                <MenuGroup>
+                  {section.title === null ? null : <MenuGroupLabel>{section.title}</MenuGroupLabel>}
+                  {section.actions.map(item)}
+                </MenuGroup>
+              </Fragment>
+            ))}
+            {menu.others.length === 0 ? null : (
               <>
-                {actions.length === 0 ? null : <MenuSeparator />}
+                {menu.sections.length === 0 ? null : <MenuSeparator />}
                 <MenuGroup>
                   <MenuGroupLabel>
-                    {decided ? "Other ways to make it" : "Ways to make it"}
+                    {menu.decided ? "Other ways to make it" : "Ways to make it"}
                   </MenuGroupLabel>
-                  {others.map(item)}
+                  {menu.others.map((way) => (
+                    <MenuSub key={way.title}>
+                      <MenuSubTrigger>{way.title}</MenuSubTrigger>
+                      <MenuSubPopup>{way.actions.map(item)}</MenuSubPopup>
+                    </MenuSub>
+                  ))}
                 </MenuGroup>
               </>
             )}

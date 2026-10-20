@@ -2,68 +2,81 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { hardwareActions } from "./hardwareActions";
 
-const labels = (kind: string, skills: string[], process?: string) =>
-  hardwareActions(kind, new Set(skills), process).map(({ group, actions, others }) => [
-    group,
-    actions.map((action) => action.label),
-    others.map((action) => action.label),
+const menus = (kind: string, skills: string[], process?: string) =>
+  hardwareActions(kind, new Set(skills), process).map((menu) => [
+    menu.group,
+    menu.sections.map((section) => [section.title, section.actions.map((action) => action.label)]),
+    menu.others.map((section) => [section.title, section.actions.map((action) => action.label)]),
   ]);
 
 describe("hardware actions", () => {
   it("offers a part only the jobs the installed skills can do, every way to make it apart", () => {
-    expect(labels("Part", ["dfm", "cad"])).toEqual([
+    expect(menus("Part", ["dfm", "cad"])).toEqual([
+      ["Evaluate", [[null, ["Weight and center of mass"]]], []],
       [
-        "Check",
-        ["Weight and center of mass"],
-        ["CNC machining", "Sheet metal", "Injection molding"],
+        "Manufacture",
+        [],
+        [
+          ["CNC machining", ["Check for CNC machining"]],
+          ["Sheet metal and cutting", ["Check as sheet metal"]],
+          ["Injection molding", ["Check for injection molding"]],
+        ],
       ],
-      ["Document", ["Test plan", "Write up the results"], []],
+      ["Document", [[null, ["Test plan", "Write up the results"]]], []],
     ]);
   });
 
-  it("puts the project's own way of making first, and the other ways apart", () => {
+  it("puts the project's own way of making it first, whole, and the other ways apart", () => {
     expect(
-      labels(
+      menus(
         "Part",
-        ["dfm", "dfam-check", "fea", "gcode", "bambu-labs", "cam"],
+        ["dfm", "dfam-check", "fea", "gcode", "bambu-labs", "cam", "step-parts"],
         "3D printing (FDM)",
       ),
     ).toEqual([
+      ["Evaluate", [[null, ["Strength under load"]]], []],
       [
-        "Check",
-        ["3D printing", "Strength under load"],
-        ["CNC machining", "Sheet metal", "Injection molding"],
+        "Manufacture",
+        [
+          ["3D printing", ["Check for 3D printing", "Slice for FDM", "Print on a Bambu printer"]],
+          ["Buy", ["Off-the-shelf parts"]],
+        ],
+        [
+          ["CNC machining", ["Check for CNC machining", "G-code for CNC"]],
+          ["Sheet metal and cutting", ["Check as sheet metal"]],
+          ["Injection molding", ["Check for injection molding"]],
+        ],
       ],
-      ["Make", ["Print on a Bambu printer", "Slice for FDM"], ["G-code for CNC"]],
-      ["Document", ["Test plan", "Write up the results"], []],
+      ["Document", [[null, ["Test plan", "Write up the results"]]], []],
     ]);
   });
 
   it("gives an assembly its fit, parts list and instructions", () => {
-    expect(labels("Assembly", ["cad"], "3D printing (FDM)")).toEqual([
-      ["Check", ["Fit and clearance", "Weight and center of mass"], []],
+    expect(menus("Assembly", ["cad"], "3D printing (FDM)")).toEqual([
+      ["Evaluate", [[null, ["Fit and clearance", "Weight and center of mass"]]], []],
       [
         "Document",
-        ["Parts list", "Assembly instructions", "Test plan", "Write up the results"],
+        [[null, ["Parts list", "Assembly instructions", "Test plan", "Write up the results"]]],
         [],
       ],
     ]);
   });
 
-  it("gives a board board jobs and a mesh no machining", () => {
-    expect(labels("Board", ["pcb", "pcb-dfm", "dfm"])).toEqual([
-      ["Check", ["Board for fabrication"], []],
-      ["Make", ["Route the board"], []],
-      ["Document", ["Write up the results"], []],
+  it("gives a board its own jobs and a mesh no machining", () => {
+    expect(menus("Board", ["pcb", "pcb-dfm", "dfm"])).toEqual([
+      ["Manufacture", [["Circuit board", ["Check for fabrication", "Route the board"]]], []],
+      ["Document", [[null, ["Write up the results"]]], []],
     ]);
-    expect(labels("Mesh", ["dfm", "dfam-check", "cam"])).toEqual([
-      ["Check", [], ["3D printing"]],
-      ["Document", ["Write up the results"], []],
+    expect(menus("Mesh", ["dfm", "dfam-check", "cam"])).toEqual([
+      ["Manufacture", [], [["3D printing", ["Check for 3D printing"]]]],
+      ["Document", [[null, ["Write up the results"]]], []],
     ]);
   });
 
   it("names the part in the job it writes", () => {
-    const [check] = hardwareActions("Part", new Set(["fea"]));
-    expect(check?.actions[0]?.prompt("parts/bracket.step")).toMatch(/^Check parts\/bracket\.step /);
+    const [evaluate] = hardwareActions("Part", new Set(["fea"]));
+    expect(evaluate?.sections[0]?.actions[0]?.prompt("parts/bracket.step")).toMatch(
+      /^Check parts\/bracket\.step /,
+    );
   });
 });
