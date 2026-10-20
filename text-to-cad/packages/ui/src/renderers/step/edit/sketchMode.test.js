@@ -19,6 +19,7 @@ import {
   inferLine,
   polygonCorners,
   polygonSides,
+  relationGlyphs,
   relationsFor,
   relationsOn,
   sketchGeometry,
@@ -310,4 +311,28 @@ test("a sketch pattern takes what is selected, draws its copies where they go, a
   const placed = dimensionLayout(state, state.dimensions[0], 5);
   assert.ok(placed.dimension.every(([, y]) => y !== 10));
   assert.equal(formatValue(360, "mm", "circular_pattern"), "360°");
+});
+
+test("each relation's glyph goes beside what it holds, pushed off it, a picked relation listed itself", () => {
+  const state = {
+    ...STATE,
+    relations: [
+      { id: "Horizontal1", kind: "horizontal", refs: ["Line1"] },
+      { id: "Parallel1", kind: "parallel", refs: ["Line2", "Line4"] },
+      { id: "Coincident1", kind: "coincident", refs: ["Point5", "Line3"] },
+      { id: "OnEdge1", kind: "on_edge", refs: ["Line3"] },
+    ],
+  };
+  const glyphs = relationGlyphs(state);
+  // On Edge is Convert Entities' hold, drawn as no glyph; Coincident only by its point.
+  assert.deepEqual(glyphs.map(glyph => [glyph.id, glyph.on]),
+    [["Horizontal1", "Line1"], ["Parallel1", "Line2"], ["Parallel1", "Line4"], ["Coincident1", "Point5"]]);
+  // A line's glyph sits at its middle, pushed square off it.
+  const [horizontal, right] = glyphs;
+  assert.deepEqual(horizontal.at, [20, 0]);
+  assert.equal(Math.abs(horizontal.away[0]), 0);
+  assert.equal(Math.abs(horizontal.away[1]), 1);
+  assert.deepEqual(right.at, [40, 10]);
+  assert.equal(Math.abs(right.away[0]), 1);
+  assert.deepEqual(relationsOn(state, ["Parallel1"]).map(each => each.id), ["Parallel1"]);
 });

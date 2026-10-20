@@ -217,8 +217,11 @@ export default function SketchPanel({ edit, onPlane, references = [] }) {
         onCheckedChange={value => edit.setConstruction(Boolean(value))} /> : null}
     </FileSheetSettingsSection> : null}
     {!tool && !selection.length && state ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
-      Pick a tool in the ribbon to draw, or select the sketch's lines and points to relate or dimension them. Drag what is blue to move it.
+      Pick a tool in the ribbon to draw, or select the sketch's lines and points to relate or dimension them. Drag what is blue to move it. Click a relation's glyph to pick it; Delete takes it off.
     </p> : null}
+    {/* SolidWorks' View, Sketch Relations: each relation's glyph beside what it holds, a click on one picks it. */}
+    {!tool && state ? <FileSheetCheckboxRow label="Show relations" checked={settings.relations !== false}
+      onCheckedChange={value => edit.setSketchSettings({ relations: Boolean(value) })} /> : null}
     {dimension ? <FileSheetSettingsSection title={filletArc ? selection[0] : dimension.id} sectionId="sketch-dimension">
       <FileSheetControlRow label={dimension.named ? dimension.formula : filletArc || dimension.kind === "fillet" ? "Radius" : "Value"} trailing={<span className="flex shrink-0 items-center gap-1">
         <FileSheetValueInput value={formatValue(dimension.value, units, "plain")} ariaLabel={`${dimension.id} value`} disabled={disabled}

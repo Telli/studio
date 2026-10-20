@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { transitionCameraToViewPreset } from "../../kit/camera/runtimeCamera.js";
 import { requestSceneFrame } from "../../kit/viewport/sceneFrames.js";
-import { arrowHead, circlePoints, colorsFor, curvePoints, overlaps, planeMapping, strokePath } from "./sketchDrawing.js";
+import { arrowHead, circlePoints, colorsFor, curvePoints, drawGlyph, GLYPH_PX, overlaps, planeMapping, strokePath } from "./sketchDrawing.js";
 import {
   chainOf,
   CORNER_TOOLS,
@@ -23,6 +23,7 @@ import {
   polygonCorners,
   polygonSides,
   refAt,
+  relationGlyphs,
   sketchGeometry,
   snap,
   splineThrough,
@@ -213,7 +214,9 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       // What the tool in hand would take: Offset's chain, Sketch Fillet's or Sketch Chamfer's first line.
       const taking = new Set(current.tool === "offset" && hover && geometry.curves.some(curve => curve.id === hover)
         ? (current.settings?.offsetChain === false ? [hover] : chainOf(shown, hover)) : CORNER_TOOLS.includes(current.tool) ? picks.map(pick => pick.id) : []);
-      const lit = id => taking.has(id) || (hover === id && current.tool !== "trim");
+      // A relation hovered or selected (by its glyph) lights what it holds.
+      const related = new Set((state.relations || []).filter(item => selection.has(item.id) || hover === item.id).flatMap(item => item.refs));
+      const lit = id => taking.has(id) || related.has(id) || (hover === id && current.tool !== "trim");
       const colorOf = (id, defined) => (selection.has(id) ? colors.selected : lit(id) ? colors.hover
         : overDefined.has(id) ? colors.over : defined ? colors.defined : colors.under);
 
@@ -248,6 +251,35 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         context.beginPath();
         context.arc(screen[0], screen[1], marked ? 4 : 2.5, 0, 2 * Math.PI);
         context.fill();
+      }
+
+      // The relations, each a glyph beside what it holds, several on one entity side by side along it.
+      // Their boxes go in with the dimensions' labels, so a press picks them and no value covers one.
+      if (current.settings?.relations !== false) {
+        const onEntity = new Map();
+        const toward = (from, step) => {
+          const a = toScreen(from);
+          const b = toScreen([from[0] + (step[0] * 20) / perUnit, from[1] + (step[1] * 20) / perUnit]);
+          if (!a || !b) return null;
+          const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+          return [(b[0] - a[0]) / length, (b[1] - a[1]) / length];
+        };
+        for (const glyph of relationGlyphs(shown)) {
+          const anchor = toScreen(glyph.at);
+          const away = toward(glyph.at, glyph.away);
+          const along = toward(glyph.at, glyph.along);
+          if (!anchor || !away || !along) continue;
+          const index = onEntity.get(glyph.on) || 0;
+          onEntity.set(glyph.on, index + 1);
+          const reach = GLYPH_PX * 0.9 + 4;
+          const step = index * (GLYPH_PX + 3);
+          const x = anchor[0] + away[0] * reach + along[0] * step;
+          const y = anchor[1] + away[1] * reach + along[1] * step;
+          const color = selection.has(glyph.id) ? colors.selected : hover === glyph.id ? colors.hover
+            : glyph.redundant ? colors.over : colors.relation;
+          drawGlyph(context, glyph.kind, x, y, { fill: colors.label, stroke: color });
+          labels.push({ id: glyph.id, glyph: true, x: x - GLYPH_PX / 2, y: y - GLYPH_PX / 2, w: GLYPH_PX, h: GLYPH_PX });
+        }
       }
 
       // The dimensions, each with its value, each stepped out until its value covers no other's.
@@ -534,7 +566,9 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       }, made.dimension);
     };
 
-    const labelAt = screen => labels.find(rect => screen[0] >= rect.x && screen[0] <= rect.x + rect.w && screen[1] >= rect.y && screen[1] <= rect.y + rect.h);
+    // A dimension's value under a place on screen, or, with no tool in hand, a relation's glyph.
+    const labelAt = screen => labels.find(rect => (!rect.glyph || !live.current.tool)
+      && screen[0] >= rect.x && screen[0] <= rect.x + rect.w && screen[1] >= rect.y && screen[1] <= rect.y + rect.h);
 
     // A click with a tool that changes what is drawn, on what it hit.
     const useTool = async (tool, hit, place) => {

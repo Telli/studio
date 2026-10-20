@@ -24,7 +24,7 @@ export function colorsFor(host) {
   const dark = lightText(text);
   return {
     defined: text, under: dark ? "#60a5fa" : "#1d4ed8", over: "#ef4444", selected: "#06b6d4", hover: "#f97316",
-    origin: "#dc2626", preview: dark ? "#93c5fd" : "#2563eb", label: dark ? "rgba(24, 24, 27, 0.9)" : "rgba(255, 255, 255, 0.92)",
+    origin: "#dc2626", preview: dark ? "#93c5fd" : "#2563eb", relation: dark ? "#4ade80" : "#15803d", label: dark ? "rgba(24, 24, 27, 0.9)" : "rgba(255, 255, 255, 0.92)",
     quiet: dark ? "rgba(226, 232, 240, 0.75)" : "rgba(30, 41, 59, 0.75)", font: style.fontFamily || "system-ui, sans-serif",
   };
 }
@@ -398,6 +398,50 @@ export function curvePoints(curve) {
   if (curve.kind === "circle") return circlePoints(curve.c, curve.r);
   const { start, sweep } = arcSweep(curve);
   return circlePoints(curve.c, curve.r, start, sweep);
+}
+
+/** A relation glyph's size on screen, in pixels: SolidWorks' small box beside what a relation holds. */
+export const GLYPH_PX = 14;
+
+/**
+ * A relation's glyph centered at (x, y) on screen: a small box, and in it the relation's sign, as
+ * SolidWorks draws Horizontal (a level stroke), Vertical, Parallel (two slants), Perpendicular,
+ * Equal, Tangent (a circle under a line), Concentric (two rings), Coincident (a dot), Midpoint (a
+ * stroke with a dot at its middle) and Symmetric (a centerline between two dots).
+ */
+export function drawGlyph(context, kind, x, y, { fill, stroke }) {
+  const half = GLYPH_PX / 2;
+  const r = 3;
+  context.beginPath();
+  context.moveTo(x - half + r, y - half);
+  context.arcTo(x + half, y - half, x + half, y + half, r);
+  context.arcTo(x + half, y + half, x - half, y + half, r);
+  context.arcTo(x - half, y + half, x - half, y - half, r);
+  context.arcTo(x - half, y - half, x + half, y - half, r);
+  context.closePath();
+  context.fillStyle = fill;
+  context.fill();
+  context.strokeStyle = stroke;
+  context.lineWidth = 1;
+  context.stroke();
+  const [l, rt, t, b] = [x - 4, x + 4, y - 4, y + 4];
+  context.lineWidth = 1.4;
+  context.fillStyle = stroke;
+  context.beginPath();
+  if (kind === "horizontal") { context.moveTo(l, y); context.lineTo(rt, y); }
+  else if (kind === "vertical") { context.moveTo(x, t); context.lineTo(x, b); }
+  else if (kind === "parallel") { context.moveTo(l, b); context.lineTo(x - 1, t); context.moveTo(x + 1, b); context.lineTo(rt, t); }
+  else if (kind === "perpendicular") { context.moveTo(l, b); context.lineTo(rt, b); context.moveTo(x, b); context.lineTo(x, t); }
+  else if (kind === "equal") { context.moveTo(l, y - 2); context.lineTo(rt, y - 2); context.moveTo(l, y + 2); context.lineTo(rt, y + 2); }
+  else if (kind === "tangent") { context.moveTo(l, t + 1); context.lineTo(rt, t + 1); context.moveTo(x + 3, y + 1.5); context.arc(x, y + 1.5, 3, 0, 2 * Math.PI); }
+  else if (kind === "concentric") { context.moveTo(x + 4, y); context.arc(x, y, 4, 0, 2 * Math.PI); context.moveTo(x + 1.5, y); context.arc(x, y, 1.5, 0, 2 * Math.PI); }
+  else if (kind === "symmetric") { context.moveTo(x, t); context.lineTo(x, b); }
+  else if (kind === "midpoint") { context.moveTo(l, y); context.lineTo(rt, y); }
+  context.stroke();
+  const dot = (cx, cy, radius) => { context.beginPath(); context.arc(cx, cy, radius, 0, 2 * Math.PI); context.fill(); };
+  if (kind === "coincident") dot(x, y, 2.2);
+  else if (kind === "midpoint") dot(x, y, 1.8);
+  else if (kind === "symmetric") { dot(l, y, 1.4); dot(rt, y, 1.4); }
 }
 
 /** Strokes a path through places on the sketch, broken where one is behind the camera. */

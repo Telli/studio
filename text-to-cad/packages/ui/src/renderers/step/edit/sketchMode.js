@@ -479,7 +479,54 @@ export function relationsFor(state, selection) {
 /** The relations and dimensions on what is selected, for the PropertyManager's Existing Relations. */
 export function relationsOn(state, selection) {
   const wanted = new Set(selection);
-  return [...(state?.relations || []), ...(state?.dimensions || [])].filter(item => item.refs.some(ref => wanted.has(ref)));
+  // A relation picked by its glyph is listed itself.
+  return [...(state?.relations || []), ...(state?.dimensions || [])].filter(item => wanted.has(item.id) || item.refs.some(ref => wanted.has(ref)));
+}
+
+/** The relations drawn as glyphs on the sketch: the ones SolidWorks shows beside what they hold. */
+export const GLYPH_KINDS = Object.freeze(["horizontal", "vertical", "parallel", "perpendicular", "equal", "tangent", "concentric",
+  "coincident", "midpoint", "symmetric"]);
+
+/**
+ * Where each relation's glyph goes, as SolidWorks shows sketch relations: one beside each entity
+ * the relation holds (a line at its middle, pushed off it square; a circle or an arc on its rim;
+ * a point beside it), each with the way it is pushed off (`away`, a unit vector in the sketch's
+ * plane). A symmetric relation's glyphs go by its two points, not by its centerline; Coincident's
+ * and Midpoint's by the point they put on a curve.
+ */
+export function relationGlyphs(state) {
+  const { points, curves } = sketchGeometry(state);
+  const curve = id => curves.find(each => each.id === id);
+  const unit = v => { const length = Math.hypot(v[0], v[1]) || 1; return [v[0] / length, v[1] / length]; };
+  const anchor = ref => {
+    if (points.has(ref)) return { at: at(points.get(ref)), away: unit([1, 1]), along: [1, 0] };
+    const found = curve(ref);
+    if (!found) return null;
+    if (found.kind === "line") {
+      const d = unit(sub(found.b, found.a));
+      const n = d[1] > 0 || (d[1] === 0 && d[0] < 0) ? [d[1], -d[0]] : [-d[1], d[0]];
+      return { at: [(found.a[0] + found.b[0]) / 2, (found.a[1] + found.b[1]) / 2], away: n, along: d };
+    }
+    if (found.kind === "spline") {
+      const middle = found.samples[Math.floor(found.samples.length / 2)];
+      return middle ? { at: middle, away: [0, 1], along: [1, 0] } : null;
+    }
+    // A circle on its rim up and to the right; an arc at the middle of its sweep.
+    const angle = found.kind === "circle" ? Math.PI / 4 : (() => { const { start, sweep } = arcSweep(found); return start + sweep / 2; })();
+    const away = [Math.cos(angle), Math.sin(angle)];
+    return { at: [found.c[0] + found.r * away[0], found.c[1] + found.r * away[1]], away, along: [-away[1], away[0]] };
+  };
+  const glyphs = [];
+  for (const relation of state?.relations || []) {
+    if (!GLYPH_KINDS.includes(relation.kind)) continue;
+    const refs = relation.kind === "symmetric" ? relation.refs.slice(0, 2)
+      : relation.kind === "coincident" || relation.kind === "midpoint" ? relation.refs.filter(ref => points.has(ref)) : relation.refs;
+    for (const ref of refs) {
+      const placed = anchor(ref);
+      if (placed) glyphs.push({ id: relation.id, kind: relation.kind, on: ref, refs: relation.refs, redundant: Boolean(relation.redundant), ...placed });
+    }
+  }
+  return glyphs;
 }
 
 // A relation as SolidWorks lists it: "Horizontal1", "Coincident2"; a dimension by its value.
