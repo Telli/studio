@@ -42,6 +42,27 @@ describe("readmeSections", () => {
     ]);
   });
 
+  it("reads a decision written date first, with where it came from", () => {
+    const sections = readmeSections(
+      "## Decisions\n\n- 2026-10-19 — Support the bike by its front wheel. Source: user brief.\n- 2026-10-20: Thicker arm. Source: hand edit.\n",
+    );
+    expect(sections.decisions).toEqual([
+      { text: "Support the bike by its front wheel", when: "2026-10-19", how: "asked" },
+      { text: "Thicker arm", when: "2026-10-20", how: "by hand" },
+    ]);
+  });
+
+  it("keeps every other section, in order, as written", () => {
+    const sections = readmeSections(
+      "# Bike wall hook\n\nHolds a bike.\n\n## Open questions\n\nWall construction; bike weight.\n\n## Notes\n\n- Print it on its side\n- Use four screws\n",
+    );
+    expect(sections.whatItIs).toBe("Holds a bike.");
+    expect(sections.more).toEqual([
+      { heading: "Open questions", paragraphs: ["Wall construction; bike weight."], items: [] },
+      { heading: "Notes", paragraphs: [], items: ["Print it on its side", "Use four screws"] },
+    ]);
+  });
+
   it("keeps a parenthesis that is not a date or a how", () => {
     const sections = readmeSections("## Decisions\n\n- Wall 2 mm (thicker than the lid)\n");
     expect(sections.decisions).toEqual([
@@ -64,14 +85,19 @@ describe("readmeSections", () => {
       "Created in [T3 Code](https://t3.codes).",
       "",
     ].join("\n");
-    expect(readmeSections(started)).toEqual({ title: "Wall hook", whatItIs: null, decisions: [] });
+    expect(readmeSections(started)).toEqual({
+      title: "Wall hook",
+      whatItIs: null,
+      decisions: [],
+      more: [],
+    });
     expect(readmeSections(`${started}\nHolds a bike up by its front wheel.\n`).whatItIs).toBe(
       "Holds a bike up by its front wheel.",
     );
   });
 
   it("gives empty sections for a missing or empty README", () => {
-    const empty = { title: null, whatItIs: null, decisions: [] };
+    const empty = { title: null, whatItIs: null, decisions: [], more: [] };
     expect(readmeSections(null)).toEqual(empty);
     expect(readmeSections("  \n")).toEqual(empty);
   });

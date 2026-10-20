@@ -23,9 +23,10 @@ function decisionNote(decision: ReadmeDecision): string | null {
 
 /**
  * The top of a project's Overview in the engineering interface: its README, read as an engineer
- * reads one. What it is (the brief's purpose until the README says), and the decisions made so
- * far, each with when and whether it was asked of the agent or made by hand. The agent keeps the
- * README as it works (`studioProjectContext`); the person can edit it too.
+ * reads one. What it is (the brief's purpose until the README says), the decisions made so far,
+ * each with when and whether it was asked of the agent or made by hand, then every other section
+ * the README has (open questions, notes). The agent keeps the README as it works
+ * (`studioProjectContext`); the person can edit it too.
  */
 export function ReadmeOverview(props: {
   readonly environmentId: EnvironmentId;
@@ -85,6 +86,23 @@ export function ReadmeOverview(props: {
           </ul>
         )}
       </div>
+      {sections.more.map((section) => (
+        <div key={section.heading} className="flex flex-col gap-1.5">
+          <h2 className={SECTION_LABEL}>{section.heading}</h2>
+          {section.paragraphs.map((paragraph) => (
+            <p key={paragraph} className="text-sm leading-relaxed text-foreground">
+              {paragraph}
+            </p>
+          ))}
+          {section.items.length === 0 ? null : (
+            <ul className="flex list-disc flex-col gap-1 ps-4 text-sm text-foreground">
+              {section.items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>Studio writes this from the project's chats and keeps it current.</span>
         {file === null ? null : (

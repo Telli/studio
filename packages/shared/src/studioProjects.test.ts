@@ -57,6 +57,8 @@ describe("studio projects", () => {
     expect(context).toContain("## The README");
     expect(context).toContain("`## Decisions`");
     expect(context).toContain("(<YYYY-MM-DD>, asked)");
+    expect(context).toContain("`- Support the bike by its front wheel (2026-10-19, asked)`");
+    expect(context).toContain("Studio shows every section.");
     expect(context).toContain("## Starting a project");
     expect(context).toContain("as `name` in `/studio/rover/project.json`");
     expect(context).toContain("at most three short questions");

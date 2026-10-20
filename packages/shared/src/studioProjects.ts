@@ -144,7 +144,8 @@ const THE_README = [
   "",
   "- `#` and the project's name.",
   "- `## What it is`: a short paragraph on what the part or product is for, what it must do, and how it is made.",
-  "- `## Decisions`: one line per decision, newest last, as `- <what was decided> (<YYYY-MM-DD>, asked)`, with `by hand` in place of `asked` for a change the person made by hand (a Hand edit note). Add a line whenever a change settles something. Leave earlier lines as they are; when a decision is reversed, say so on the new line.",
+  "- `## Decisions`: one line per decision, newest last, exactly as `- <what was decided> (<YYYY-MM-DD>, asked)`, for example `- Support the bike by its front wheel (2026-10-19, asked)`, with `by hand` in place of `asked` for a change the person made by hand (a Hand edit note). Add a line whenever a change settles something. Leave earlier lines as they are; when a decision is reversed, say so on the new line.",
+  "- Anything else worth keeping in view, such as open questions or requirements, under its own `##` heading. Studio shows every section.",
 ].join("\n");
 
 function startingAProject(record: string | null): string {
