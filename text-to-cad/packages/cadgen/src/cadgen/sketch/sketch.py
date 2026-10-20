@@ -467,6 +467,12 @@ class Sketch:
     def parallel(self, a: Line, b: Line) -> Relation:
         return self._relate("parallel", (a, b))
 
+    def collinear(self, a: Line, b: Line) -> Relation:
+        """Two lines on one infinite line, as SolidWorks' Collinear holds them."""
+        if not (isinstance(a, Line) and isinstance(b, Line)) or a is b:
+            raise SketchError("Collinear takes two lines.")
+        return self._relate("collinear", (a, b))
+
     def perpendicular(self, a: Line, b: Line) -> Relation:
         return self._relate("perpendicular", (a, b))
 

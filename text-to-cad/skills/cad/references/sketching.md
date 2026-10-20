@@ -66,7 +66,7 @@ def plate():
 
 ## Relations and dimensions
 
-- Relations: `coincident`, `horizontal`, `vertical`, `parallel`, `perpendicular`, `tangent`,
+- Relations: `coincident`, `horizontal`, `vertical`, `parallel`, `perpendicular`, `collinear`, `tangent`,
   `equal`, `midpoint`, `symmetric(a, b, about)`, `concentric`, `fix`.
 - Dimensions: `distance(a, b, size)`, `length(line, size)`, `horizontal_distance(a, b, size)`,
   `vertical_distance(a, b, size)`, `radius(curve, size)`, `diameter(curve, size)`,

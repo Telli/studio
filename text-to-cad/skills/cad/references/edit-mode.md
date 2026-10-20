@@ -235,6 +235,10 @@ by hand" below.
 - Deleting an entity takes out its line and the relations and dimensions on it; a curve drawn
   from one of its points keeps the point where it was. A corner rectangle's line is deleted on its
   own: the rectangle is written as its four lines first.
+- 3 Point Corner Rectangle writes its four lines with `perpendicular` at its first corner and two
+  `parallel`s, so it can stand at any angle; Perimeter Circle writes a `circle` about the center its
+  three clicks give; Centerpoint Straight Slot writes a `slot` with its ends' centers either side
+  of the clicked center.
 - Spline writes `spline1 = sketch2.spline(line1.end, (25, 8), (10, 15))` through each point
   clicked, `closed=True` when its first point was clicked again; a double-click or Enter ends it.
 - The sketch tools write lines too. Sketch Fillet writes `sketch2.fillet(line2, line3, 2)`, Sketch

@@ -199,6 +199,36 @@ class SketchMode(unittest.TestCase):
         self.send({"kind": "driven", "dimension": "D1", "on": False})
         self.assertIn("sketch1.length(line1, 30)\n", self.source())
 
+    def test_a_three_point_rectangle_is_its_lines_square_and_parallel(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "three_point_rectangle", "corner": {"at": [0, 0]}, "along": {"at": [8, 6]},
+                   "opposite": {"at": [5, 10]}, "fourth": {"at": [-3, 4]}})
+        text = self.source()
+        self.assertIn("line1 = sketch1.line((0, 0), (8, 6))", text)
+        self.assertIn("line4 = sketch1.line(line3.end, line1.start)", text)
+        self.assertIn("sketch1.perpendicular(line1, line2)", text)
+        self.assertIn("sketch1.parallel(line2, line4)", text)
+        # Placed, turned, long and wide: five ways it can move, as SolidWorks counts them.
+        self.assertEqual(self.sketch["state"]["dof"], 5)
+        # One of its lines deleted on its own: the rest stay.
+        self.send({"kind": "delete", "items": ["Line3"]})
+        self.assertNotIn("line3 = ", self.source())
+        self.assertIn("line2 = sketch1.line(", self.source())
+
+    def test_collinear_puts_two_lines_on_one(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "line", "start": {"at": [0, 0]}, "end": {"at": [10, 0]}})
+        self.send({"kind": "draw", "entity": "line", "start": {"at": [15, 3]}, "end": {"at": [25, 4]}})
+        self.send({"kind": "relate", "relation": "collinear", "refs": ["Line1", "Line2"]})
+        self.assertIn("sketch1.collinear(line1, line2)", self.source())
+        points = {point["id"]: (point["x"], point["y"]) for point in self.sketch["state"]["points"]}
+        curves = {curve["id"]: curve for curve in self.sketch["state"]["curves"]}
+        (ax, ay), (bx, by) = points[curves["Line1"]["start"]], points[curves["Line1"]["end"]]
+        # Both of Line2's ends on Line1's line, wherever the solve settled the two.
+        for role in ("start", "end"):
+            px, py = points[curves["Line2"][role]]
+            self.assertAlmostEqual((bx - ax) * (py - ay) - (by - ay) * (px - ax), 0, places=6)
+
     def test_relations_that_cannot_hold_leave_the_script_as_it_was(self):
         self.start()
         self.send({"kind": "draw", "entity": "line", "start": {"at": [0, 0]}, "end": {"at": [10, 1]}, "relations": [{"kind": "horizontal"}]})

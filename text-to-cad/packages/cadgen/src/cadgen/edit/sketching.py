@@ -24,7 +24,7 @@ GEOMETRY = ("point", "line", "polyline", "circle", "arc", "three_point_arc", "re
             "linear_pattern", "circular_pattern", "spline")
 # The statements that copy what is drawn: a pattern's copies and its dimension go together.
 PATTERNS = ("linear_pattern", "circular_pattern")
-RELATIONS = ("fix", "coincident", "horizontal", "vertical", "parallel", "perpendicular", "tangent", "equal", "midpoint",
+RELATIONS = ("fix", "coincident", "horizontal", "vertical", "parallel", "perpendicular", "collinear", "tangent", "equal", "midpoint",
              "symmetric", "concentric")
 DIMENSIONS = ("distance", "length", "horizontal_distance", "vertical_distance", "radius", "diameter", "angle")
 # The sketch tools' own lines (`sketch_tools.py`), each with a size as its last argument: a
@@ -382,6 +382,18 @@ def _draw(block: Block, names: Names, state: dict, op: dict) -> list[str]:
             roles = {"corner": f"{targets[1]}.end"}
         lines.append(f"{', '.join(targets)} = {s}.{entity}({corner}, {other}{built})")
         made = targets
+    elif entity == "three_point_rectangle":
+        # SolidWorks' 3 Point Corner Rectangle: at any angle, its first side from the first click to
+        # the second, as wide as the third is off it; written as its four lines, square at its first
+        # corner and parallel two by two, so each line is deleted or trimmed on its own.
+        l1, l2, l3, l4 = (vars_.next("Line") for _ in range(4))
+        lines += [f"{l1} = {s}.line({_point_argument(names, op.get('corner'))}, {_point_argument(names, op.get('along'))}{built})",
+                  f"{l2} = {s}.line({l1}.end, {_point_argument(names, op.get('opposite'))}{built})",
+                  f"{l3} = {s}.line({l2}.end, {_point_argument(names, op.get('fourth'))}{built})",
+                  f"{l4} = {s}.line({l3}.end, {l1}.start{built})",
+                  f"{s}.perpendicular({l1}, {l2})", f"{s}.parallel({l1}, {l3})", f"{s}.parallel({l2}, {l4})"]
+        roles = {"corner": f"{l1}.start", "along": f"{l1}.end", "opposite": f"{l2}.end"}
+        made = [l1, l2, l3, l4]
     elif entity == "circle":
         var = vars_.next("Circle")
         radius = float(op.get("radius") or 0)
@@ -467,7 +479,7 @@ def _draw(block: Block, names: Names, state: dict, op: dict) -> list[str]:
 
 
 # What each relation takes, as a CAD tool offers it for a selection.
-_RELATION_ARITY = {"fix": 1, "horizontal": (1, 2), "vertical": (1, 2), "coincident": 2, "parallel": 2, "perpendicular": 2,
+_RELATION_ARITY = {"fix": 1, "horizontal": (1, 2), "vertical": (1, 2), "coincident": 2, "parallel": 2, "perpendicular": 2, "collinear": 2,
                    "tangent": 2, "equal": 2, "midpoint": 2, "concentric": 2, "symmetric": 3}
 _DIMENSION_ARITY = {"length": 1, "radius": 1, "diameter": 1, "distance": 2, "horizontal_distance": 2, "vertical_distance": 2,
                     "angle": 2}

@@ -33,6 +33,7 @@ import {
   tangentArc,
   tangentStart,
   threePointArc,
+  threePointRectangle,
   toolSize,
   trimPiece,
   typedDimensions,
@@ -105,7 +106,7 @@ test("Smart Dimension makes the dimension SolidWorks makes of what is picked", (
 test("Add Relations offers what the selection can take", () => {
   const offered = selection => relationsFor(STATE, selection).map(each => each.relation);
   assert.deepEqual(offered(["Line1"]), ["horizontal", "vertical"]);
-  assert.deepEqual(offered(["Line1", "Line2"]), ["parallel", "perpendicular", "equal"]);
+  assert.deepEqual(offered(["Line1", "Line2"]), ["parallel", "perpendicular", "collinear", "equal"]);
   assert.deepEqual(offered(["Point5", "Line1"]), ["coincident", "midpoint"]);
   assert.deepEqual(offered(["Line2", "Circle1"]), ["tangent"]);
   assert.deepEqual(offered(["Point1", "Point5", "Line2"]), ["symmetric"]);
@@ -395,4 +396,19 @@ test("each one-key shortcut names a sketch tool, and the tool's tooltip says its
   assert.equal(sketchKey("line"), "L");
   assert.equal(sketchKey("dimension"), "D");
   assert.equal(sketchKey("spline"), null);
+});
+
+test("a 3 Point Corner Rectangle stands square off its first side, a Perimeter Circle goes through its three clicks", () => {
+  const corners = threePointRectangle([0, 0], [10, 0], [4, 6]);
+  assert.deepEqual(corners, { opposite: [10, 6], fourth: [0, 6] });
+  const tilted = threePointRectangle([0, 0], [3, 4], [0, 10]);
+  assert.ok(Math.abs(Math.hypot(tilted.fourth[0], tilted.fourth[1]) - 6) < 1e-9);
+  assert.equal(threePointRectangle([0, 0], [10, 0], [5, 0]), null);
+  const op = drawOp("three_point_rectangle", [{ at: [0, 0] }, { at: [10, 0] }, { at: [4, 6] }], STATE);
+  assert.deepEqual([op.entity, op.opposite.at, op.fourth.at], ["three_point_rectangle", [10, 6], [0, 6]]);
+  const circle = drawOp("perimeter_circle", [{ at: [5, 0] }, { at: [0, 5] }, { at: [-5, 0] }], STATE);
+  assert.equal(circle.entity, "circle");
+  assert.ok(Math.abs(circle.radius - 5) < 1e-9 && Math.hypot(...circle.center.at) < 1e-9);
+  const slot = drawOp("centerpoint_slot", [{ at: [10, 10] }, { at: [14, 10] }, { at: [12, 12] }], STATE);
+  assert.deepEqual([slot.center1.at, slot.center2.at, slot.radius], [[6, 10], [14, 10], 2]);
 });

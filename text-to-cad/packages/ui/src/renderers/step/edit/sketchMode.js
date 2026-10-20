@@ -11,11 +11,14 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "line", label: "Line", prompts: ["Click where the line starts.", "Click where it ends. Keep clicking to chain lines; Escape stops."] },
   { id: "rectangle", label: "Corner Rectangle", prompts: ["Click a corner of the rectangle.", "Click the opposite corner."] },
   { id: "center_rectangle", label: "Center Rectangle", prompts: ["Click the center of the rectangle.", "Click a corner."] },
+  { id: "three_point_rectangle", label: "3 Point Corner Rectangle", prompts: ["Click a corner.", "Click the end of its first side.", "Click to set how wide it is."] },
   { id: "circle", label: "Circle", prompts: ["Click the center of the circle.", "Click to set its radius."] },
+  { id: "perimeter_circle", label: "Perimeter Circle", prompts: ["Click a point the circle passes through.", "Click a second.", "Click a third."] },
   { id: "arc", label: "Centerpoint Arc", prompts: ["Click the center of the arc.", "Click where the arc starts.", "Click where it ends."] },
   { id: "three_point_arc", label: "3 Point Arc", prompts: ["Click where the arc starts.", "Click where it ends.", "Click to set how far it bows."] },
   { id: "tangent_arc", label: "Tangent Arc", prompts: ["Click the end of a line or an arc to go on from.", "Click where the arc ends."] },
   { id: "slot", label: "Straight Slot", prompts: ["Click the center of one end.", "Click the center of the other end.", "Click to set its width."] },
+  { id: "centerpoint_slot", label: "Centerpoint Straight Slot", prompts: ["Click the slot's center.", "Click the center of one end.", "Click to set its width."] },
   { id: "polygon", label: "Polygon", prompts: ["Click the center of the polygon.", "Click a corner."] },
   { id: "spline", label: "Spline", prompts: ["Click where the spline starts.",
     "Click each point it passes through. Double-click or press Enter to end it; click its first point to close it."] },
@@ -67,8 +70,30 @@ export const SKETCH_KEYS = Object.freeze({ l: "line", r: "rectangle", c: "circle
 export const sketchKey = id => (Object.entries(SKETCH_KEYS).find(([, tool]) => tool === id)?.[0] || "").toUpperCase() || null;
 
 /** How many clicks a drawing tool takes; a line chains, so its count restarts from its end. */
-export const TOOL_CLICKS = Object.freeze({ line: 2, centerline: 2, rectangle: 2, center_rectangle: 2, circle: 2, arc: 3, three_point_arc: 3,
-  tangent_arc: 2, slot: 3, polygon: 2, point: 1, spline: Infinity });
+export const TOOL_CLICKS = Object.freeze({ line: 2, centerline: 2, rectangle: 2, center_rectangle: 2, three_point_rectangle: 3, circle: 2,
+  perimeter_circle: 3, arc: 3, three_point_arc: 3, tangent_arc: 2, slot: 3, centerpoint_slot: 3, polygon: 2, point: 1, spline: Infinity });
+
+/**
+ * The tools drawn as one family, as SolidWorks' Sketch tab puts them in one flyout: the family's
+ * button is the tool last picked of it, its chevron the others.
+ */
+export const SKETCH_FAMILIES = Object.freeze({
+  rectangle: ["rectangle", "center_rectangle", "three_point_rectangle"],
+  circle: ["circle", "perimeter_circle"],
+  arc: ["arc", "three_point_arc", "tangent_arc"],
+  slot: ["slot", "centerpoint_slot"],
+});
+
+/** A 3 Point Corner Rectangle's other two corners: square off its first side, as wide as `third` is off it; null when it has no width. */
+export function threePointRectangle(a, b, third) {
+  const along = sub(b, a);
+  const length = Math.hypot(along[0], along[1]);
+  if (!length) return null;
+  const n = [-along[1] / length, along[0] / length];
+  const width = dot(sub(third, a), n);
+  if (Math.abs(width) < 1e-9 * Math.max(1, length)) return null;
+  return { opposite: add(b, scale(n, width)), fourth: add(a, scale(n, width)) };
+}
 
 /**
  * Places along a smooth curve through `places` in order (a Catmull-Rom curve), `closed` round from
@@ -424,6 +449,26 @@ export function drawOp(tool, picks, state, { construction = false, clockwise = f
       const radius = Math.abs(cross(along, sub(refAt(state, third), a)));
       return { kind: "draw", entity: "slot", center1: plain(first), center2: plain(second), radius, ...built };
     }
+    case "three_point_rectangle": {
+      const corners = threePointRectangle(refAt(state, first), refAt(state, second), refAt(state, third));
+      if (!corners) return null;
+      return { kind: "draw", entity: "three_point_rectangle", corner: plain(first), along: plain(second),
+        opposite: { at: corners.opposite }, fourth: { at: corners.fourth }, ...built };
+    }
+    case "perimeter_circle": {
+      // A circle through the three places clicked, made as a circle about the center they give.
+      const circle = threePointArc(refAt(state, first), refAt(state, second), refAt(state, third));
+      return circle ? { kind: "draw", entity: "circle", center: { at: circle.center }, radius: circle.radius, ...built } : null;
+    }
+    case "centerpoint_slot": {
+      // A straight slot about its center: the other end's center as far the other way.
+      const center = refAt(state, first);
+      const end = refAt(state, second);
+      const other = sub(scale(center, 2), end);
+      const along = unit(sub(end, other));
+      const radius = Math.abs(cross(along, sub(refAt(state, third), other)));
+      return { kind: "draw", entity: "slot", center1: { at: other }, center2: plain(second), radius, ...built };
+    }
     case "point":
       return { kind: "draw", entity: "point", at: plain(first), ...built };
     default:
@@ -536,7 +581,7 @@ export function relationsFor(state, selection) {
     if (count("point") === 2) { add_("horizontal"); add_("vertical"); add_("coincident"); }
     if (count("point") === 1 && count("line") === 1) { add_("coincident"); add_("midpoint"); }
     if (count("point") === 1 && round === 1) { add_("coincident"); add_("concentric"); }
-    if (count("line") === 2) { add_("parallel"); add_("perpendicular"); add_("equal"); }
+    if (count("line") === 2) { add_("parallel"); add_("perpendicular"); add_("collinear"); add_("equal"); }
     if (count("line") === 1 && round === 1) add_("tangent");
     if (round === 2) { add_("tangent"); add_("concentric"); add_("equal"); }
     // A spline's end tangent to the line or arc that meets it there.
@@ -559,8 +604,8 @@ export function relationsOn(state, selection) {
 }
 
 /** The relations drawn as glyphs on the sketch: the ones SolidWorks shows beside what they hold. */
-export const GLYPH_KINDS = Object.freeze(["horizontal", "vertical", "parallel", "perpendicular", "equal", "tangent", "concentric",
-  "coincident", "midpoint", "symmetric"]);
+export const GLYPH_KINDS = Object.freeze(["horizontal", "vertical", "parallel", "perpendicular", "collinear", "equal", "tangent", "concentric",
+  "coincident", "midpoint", "symmetric", "fixed"]);
 
 /**
  * Where each relation's glyph goes, as SolidWorks shows sketch relations: one beside each entity
@@ -1112,7 +1157,7 @@ export function countChange(made, op) {
   const next = { ...made };
   const bump = (key, by = 1) => { next[key] = (next[key] || 0) + by; };
   if (op.kind === "draw") {
-    if (op.entity === "rectangle" || op.entity === "center_rectangle") bump("line", 4);
+    if (op.entity === "rectangle" || op.entity === "center_rectangle" || op.entity === "three_point_rectangle") bump("line", 4);
     else if (op.entity === "slot") { bump("arc", 2); bump("line", 2); }
     else if (op.entity === "polygon") bump("line", op.sides || 6);
     else if (op.entity === "three_point_arc") bump("arc");

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronsRight, LoaderCircle, Redo2, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronsRight, LoaderCircle, Redo2, Undo2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -15,7 +15,7 @@ import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { AppearanceIcon, COMMAND_ICONS, CompareIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
 import { COMMAND_GROUPS, EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
-import { SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
+import { SKETCH_FAMILIES, SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
 
 // The viewer's tools in the ribbon's groups, by id, in the words a CAD tool uses (Clip is Section).
@@ -35,8 +35,8 @@ const SKETCH_TINT = "flex text-cad-sketch";
 // names (`compact`) the buttons narrow to their icons.
 const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]";
 // Sketch mode's tools, as SolidWorks' Sketch tab groups them: what draws, then what changes what is drawn.
-const SKETCH_ENTITIES = ["line", "rectangle", "center_rectangle", "circle", "arc", "three_point_arc", "tangent_arc", "slot", "polygon",
-  "spline", "centerline", "point"];
+// A family (`SKETCH_FAMILIES`) is one button and a flyout, by its first tool's id.
+const SKETCH_ENTITIES = ["line", "rectangle", "circle", "arc", "slot", "polygon", "spline", "centerline", "point"];
 const SKETCH_MODIFY = ["fillet", "chamfer", "trim", "extend", "convert", "intersection", "offset", "mirror", "linear_pattern", "circular_pattern"];
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
@@ -108,6 +108,25 @@ function useRibbonFit(rowRef, moreRef, key) {
   return fit;
 }
 
+/** A sketch tool family's flyout, as SolidWorks' Sketch tab has them: a chevron after its button, its tools in a menu. */
+function FamilyMenu({ label, items, onPick }) {
+  return <DropdownMenu modal={false}>
+    <TooltipHint content={`${label} tools`}>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label={`${label} tools`}
+          className="-ml-1 flex h-[3.875rem] w-3.5 shrink-0 items-start justify-center rounded-md pt-3 text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent [&_svg]:size-3">
+          <ChevronDown aria-hidden="true" />
+        </button>
+      </DropdownMenuTrigger>
+    </TooltipHint>
+    <DropdownMenuContent align="start" sideOffset={4} collisionPadding={8} aria-label={`${label} tools`}
+      className={cn(FLOATING_SURFACE_CLASS, "w-60 data-[state=closed]:animate-none!")}>
+      {items.map(item => <DropdownMenuCheckboxItem key={item.id} checked={item.active} disabled={item.disabled}
+        onSelect={() => { onPick(item.id); item.onClick(); }}>{item.icon}{item.hint || item.label}</DropdownMenuCheckboxItem>)}
+    </DropdownMenuContent>
+  </DropdownMenu>;
+}
+
 /** The groups that did not fit, as one menu: each group's title, then its commands. */
 function MoreMenu({ groups }) {
   return <DropdownMenu modal={false}>
@@ -124,7 +143,7 @@ function MoreMenu({ groups }) {
       {groups.map((group, index) => <Fragment key={group.title}>
         {index ? <DropdownMenuSeparator /> : null}
         <DropdownMenuLabel className="text-micro uppercase tracking-wider text-muted-foreground">{group.title}</DropdownMenuLabel>
-        {group.items.map(item => typeof item.active === "boolean"
+        {group.items.flatMap(item => item.variants || [item]).map(item => typeof item.active === "boolean"
           ? <DropdownMenuCheckboxItem key={item.id} checked={item.active} disabled={item.disabled} onSelect={() => item.onClick()}>
             {item.icon}{item.label}
           </DropdownMenuCheckboxItem>
@@ -185,6 +204,8 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   const others = tools.filter(tool => !grouped.has(tool.id));
   const state = edit.state;
   const sketch = edit.sketch;
+  // Each sketch tool family's tool last picked from its flyout, shown as its button.
+  const [lastOfFamily, setLastOfFamily] = useState({});
   // What it is busy with, said with a spinner and a line along the ribbon's foot, as a CAD tool's
   // status bar shows a rebuild: never a word alone that could be a label.
   const busy = busyState(edit);
@@ -245,7 +266,16 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
         { id: "exit", label: "Exit Sketch", icon: <ExitSketchIcon />, disabled: edit.saving, onClick: () => void edit.exitSketch() },
         sketchItem(tool("dimension")),
       ] },
-      { title: "Entities", items: SKETCH_ENTITIES.map(id => sketchItem(tool(id))) },
+      { title: "Entities", items: SKETCH_ENTITIES.map(id => {
+        const family = SKETCH_FAMILIES[id];
+        if (!family) return sketchItem(tool(id));
+        // The family's button is the tool in hand of it, else the one last picked of it.
+        const shown = family.includes(edit.sketchTool) ? edit.sketchTool : lastOfFamily[id] || id;
+        const variants = family.map(each => sketchItem(tool(each)));
+        const pick = each => setLastOfFamily(current => ({ ...current, [id]: each }));
+        return { ...sketchItem(tool(shown)), id, variants,
+          menu: <FamilyMenu label={tool(id).label.split(" ").at(-1)} items={variants} onPick={pick} /> };
+      }) },
       { title: "Modify", items: SKETCH_MODIFY.map(id => sketchItem(tool(id))) },
       { title: "Tools", items: [
         { id: "construction", label: "Construction Geometry", hint: "Construction Geometry (X)", icon: <span className={SKETCH_TINT}><ConstructionIcon /></span>,

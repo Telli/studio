@@ -407,7 +407,8 @@ export const GLYPH_PX = 14;
  * A relation's glyph centered at (x, y) on screen: a small box, and in it the relation's sign, as
  * SolidWorks draws Horizontal (a level stroke), Vertical, Parallel (two slants), Perpendicular,
  * Equal, Tangent (a circle under a line), Concentric (two rings), Coincident (a dot), Midpoint (a
- * stroke with a dot at its middle) and Symmetric (a centerline between two dots).
+ * stroke with a dot at its middle), Symmetric (a centerline between two dots), Collinear (two
+ * strokes on one line) and Fixed (an anchor over its ground).
  */
 export function drawGlyph(context, kind, x, y, { fill, stroke }) {
   const half = GLYPH_PX / 2;
@@ -437,6 +438,11 @@ export function drawGlyph(context, kind, x, y, { fill, stroke }) {
   else if (kind === "concentric") { context.moveTo(x + 4, y); context.arc(x, y, 4, 0, 2 * Math.PI); context.moveTo(x + 1.5, y); context.arc(x, y, 1.5, 0, 2 * Math.PI); }
   else if (kind === "symmetric") { context.moveTo(x, t); context.lineTo(x, b); }
   else if (kind === "midpoint") { context.moveTo(l, y); context.lineTo(rt, y); }
+  else if (kind === "collinear") { context.moveTo(l, y + 2); context.lineTo(x - 1, y - 0.5); context.moveTo(x + 1, y - 1.2); context.lineTo(rt, y - 3.6); }
+  else if (kind === "fixed") {
+    context.moveTo(x, t); context.lineTo(x, y + 1); context.moveTo(l, y + 1); context.lineTo(rt, y + 1);
+    for (const at of [l + 1, x, rt - 1]) { context.moveTo(at, y + 1); context.lineTo(at - 2, b); }
+  }
   context.stroke();
   const dot = (cx, cy, radius) => { context.beginPath(); context.arc(cx, cy, radius, 0, 2 * Math.PI); context.fill(); };
   if (kind === "coincident") dot(x, y, 2.2);

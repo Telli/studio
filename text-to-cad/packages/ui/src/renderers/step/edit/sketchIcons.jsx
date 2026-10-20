@@ -19,6 +19,9 @@ export const SmartDimensionIcon = ({ className }) => <Glyph className={className
 export const LineIcon = ({ className }) => <Glyph className={className}><path d="m3 13 10-10" /><Dot x={3} y={13} /><Dot x={13} y={3} /></Glyph>;
 export const CornerRectangleIcon = ({ className }) => <Glyph className={className}><rect x="2.5" y="4" width="11" height="8" /><Dot x={2.5} y={12} /><Dot x={13.5} y={4} /></Glyph>;
 export const CenterRectangleIcon = ({ className }) => <Glyph className={className}><rect x="2.5" y="4" width="11" height="8" /><path d="M2.5 4l11 8" strokeOpacity=".4" strokeDasharray="1.5 1.5" /><Dot x={8} y={8} /></Glyph>;
+export const ThreePointRectangleIcon = ({ className }) => <Glyph className={className}><path d="M2.5 10 8 4.5l5.5 3L8 13z" /><Dot x={2.5} y={10} /><Dot x={8} y={4.5} /><Dot x={13.5} y={7.5} /></Glyph>;
+export const PerimeterCircleIcon = ({ className }) => <Glyph className={className}><circle cx="8" cy="8" r="5.5" /><Dot x={2.5} y={8} /><Dot x={8} y={2.5} /><Dot x={13.5} y={8} /></Glyph>;
+export const CenterpointSlotIcon = ({ className }) => <Glyph className={className}><path d="M5 5h6a3 3 0 0 1 0 6H5a3 3 0 0 1 0-6z" /><path d="M5 8h6" strokeOpacity=".4" strokeDasharray="1.2 1.2" /><Dot x={8} y={8} /></Glyph>;
 export const CircleIcon = ({ className }) => <Glyph className={className}><circle cx="8" cy="8" r="5.5" /><Dot x={8} y={8} /></Glyph>;
 export const ArcIcon = ({ className }) => <Glyph className={className}><path d="M3 11A5.5 5.5 0 0 1 13 11" /><Dot x={8} y={11} /><Dot x={3} y={11} /><Dot x={13} y={11} /></Glyph>;
 export const ThreePointArcIcon = ({ className }) => <Glyph className={className}><path d="M2.5 11.5A5.5 5.5 0 0 1 13.5 11.5" /><Dot x={2.5} y={11.5} /><Dot x={8} y={6} /><Dot x={13.5} y={11.5} /></Glyph>;
@@ -50,8 +53,9 @@ export const RevolvedCutIcon = ({ className }) => <Glyph className={className}><
 
 /** Each sketch tool's icon, by its id in `SKETCH_TOOLS`. */
 export const SKETCH_TOOL_ICONS = Object.freeze({
-  line: LineIcon, rectangle: CornerRectangleIcon, center_rectangle: CenterRectangleIcon, circle: CircleIcon, arc: ArcIcon,
-  three_point_arc: ThreePointArcIcon, tangent_arc: TangentArcIcon, slot: SlotIcon, polygon: PolygonIcon, spline: SplineIcon, centerline: CenterlineIcon,
+  line: LineIcon, rectangle: CornerRectangleIcon, center_rectangle: CenterRectangleIcon, three_point_rectangle: ThreePointRectangleIcon,
+  circle: CircleIcon, perimeter_circle: PerimeterCircleIcon, arc: ArcIcon,
+  three_point_arc: ThreePointArcIcon, tangent_arc: TangentArcIcon, slot: SlotIcon, centerpoint_slot: CenterpointSlotIcon, polygon: PolygonIcon, spline: SplineIcon, centerline: CenterlineIcon,
   point: PointIcon, dimension: SmartDimensionIcon,
   fillet: SketchFilletIcon, chamfer: SketchChamferIcon, trim: TrimIcon, extend: ExtendIcon,
   linear_pattern: LinearSketchPatternIcon, circular_pattern: CircularSketchPatternIcon, intersection: IntersectionCurveIcon, offset: OffsetIcon, mirror: MirrorIcon, convert: ConvertEntitiesIcon,

@@ -31,6 +31,7 @@ import {
   tangentArc,
   tangentStart,
   threePointArc,
+  threePointRectangle,
   TOOL_CLICKS,
   toolSize,
   trimPiece,
@@ -448,6 +449,32 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         const inferred = landing.point || landing.on ? { end: cursor, relation: null } : inferLine(first, cursor);
         path([first, inferred.end]);
         return { text: fmt(Math.hypot(inferred.end[0] - first[0], inferred.end[1] - first[1])), relation: inferred.relation };
+      }
+      if (tool === "three_point_rectangle") {
+        if (!second) { path([first, cursor]); return { text: fmt(Math.hypot(cursor[0] - first[0], cursor[1] - first[1])) }; }
+        const corners = threePointRectangle(first, second, cursor);
+        if (!corners) { path([first, second]); return null; }
+        path([first, second, corners.opposite, corners.fourth], true);
+        return { text: `${fmt(Math.hypot(second[0] - first[0], second[1] - first[1]))} x ${fmt(Math.hypot(corners.fourth[0] - first[0], corners.fourth[1] - first[1]))}` };
+      }
+      if (tool === "perimeter_circle") {
+        if (!second) { path([first, cursor]); return null; }
+        const circle = threePointArc(first, second, cursor);
+        if (!circle) { path([first, second, cursor]); return null; }
+        path(circlePoints(circle.center, circle.radius));
+        return { text: `R${fmt(circle.radius)}` };
+      }
+      if (tool === "centerpoint_slot") {
+        const end = second || cursor;
+        const other = [2 * first[0] - end[0], 2 * first[1] - end[1]];
+        if (!second) { path([other, cursor]); return { text: fmt(2 * Math.hypot(cursor[0] - first[0], cursor[1] - first[1])) }; }
+        const along = [end[0] - other[0], end[1] - other[1]];
+        const length = Math.hypot(along[0], along[1]) || 1;
+        const n = [-along[1] / length, along[0] / length];
+        const radius = Math.abs((cursor[0] - other[0]) * n[0] + (cursor[1] - other[1]) * n[1]);
+        const angle = Math.atan2(along[1], along[0]);
+        path([...circlePoints(end, radius, angle - Math.PI / 2, Math.PI), ...circlePoints(other, radius, angle + Math.PI / 2, Math.PI)], true);
+        return { text: `${fmt(radius * 2)} wide` };
       }
       if (tool === "rectangle" || tool === "center_rectangle") {
         const [x0, y0, x1, y1] = tool === "rectangle" ? [first[0], first[1], cursor[0], cursor[1]]
