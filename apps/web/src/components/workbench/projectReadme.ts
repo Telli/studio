@@ -16,6 +16,12 @@ export interface ReadmeSections {
   readonly decisions: ReadonlyArray<ReadmeDecision>;
 }
 
+/**
+ * What a new project's README starts with (`ManagedProjectFolders.namedProjectReadme` on the
+ * server): the project's icon and a line saying where it was made, not what it is.
+ */
+const STARTING_LINE = /^\s*(<[^>]+>|Created in \[T3 Code\]\([^)]*\)\.?)\s*$/;
+
 function readDecision(item: string): ReadmeDecision {
   const plain = { text: item.trim(), when: null, how: null };
   const match = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(item);
@@ -52,5 +58,6 @@ export function readmeSections(markdown: string | null): ReadmeSections {
     const item = /^\s*[-*]\s+(.+)$/.exec(line)?.[1];
     return item === undefined ? [] : [readDecision(item)];
   });
-  return { title, whatItIs: text(sections.get("what it is")) ?? text(intro), decisions };
+  const opening = intro.filter((line) => !STARTING_LINE.test(line));
+  return { title, whatItIs: text(sections.get("what it is")) ?? text(opening), decisions };
 }

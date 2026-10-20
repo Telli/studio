@@ -46,6 +46,21 @@ describe("readmeSections", () => {
     );
   });
 
+  it("does not take the README a new project starts with as what it is", () => {
+    const started = [
+      '<img src="assets/icon.svg" width="64" height="64" alt="">',
+      "",
+      "# Wall hook",
+      "",
+      "Created in [T3 Code](https://t3.codes).",
+      "",
+    ].join("\n");
+    expect(readmeSections(started)).toEqual({ title: "Wall hook", whatItIs: null, decisions: [] });
+    expect(readmeSections(`${started}\nHolds a bike up by its front wheel.\n`).whatItIs).toBe(
+      "Holds a bike up by its front wheel.",
+    );
+  });
+
   it("gives empty sections for a missing or empty README", () => {
     const empty = { title: null, whatItIs: null, decisions: [] };
     expect(readmeSections(null)).toEqual(empty);
