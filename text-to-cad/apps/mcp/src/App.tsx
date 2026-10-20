@@ -6,7 +6,7 @@ import { UpdateButton, useUpdateNotice } from '@text-to-cad/ui/update';
 import { viewerLinks } from '@text-to-cad/ui/links';
 import { Button } from '@text-to-cad/ui/primitives/button';
 import { TooltipHint } from '@text-to-cad/ui/primitives/tooltip';
-import { createTabStore, memoryTabRecord } from '@text-to-cad/ui/tab-store';
+import { createTabStore, editLayoutHost, memoryTabRecord } from '@text-to-cad/ui/tab-store';
 import { normalizePath } from '@text-to-cad/ui/cad-viewer';
 import { version } from '../package.json';
 import type { Bridge, HostContext } from './host/bridge';
@@ -118,6 +118,14 @@ export default function App({ bridge, server, launch: initial, presentation = 't
   // it, for as long as this view is open (its tab store is the view's own).
   const tabSettings = useSyncExternalStore(tabStore.settings.subscribe, tabStore.settings.getSnapshot, tabStore.settings.getSnapshot);
   const preference = tabSettings.appearance;
+  // A host that lays its workspace out (Studio: Ask or Edit by hand, `studio/editLayout`) sets how a
+  // part script's model opens, and the navbar leaves the switch to it.
+  const hostLayout = (context as Record<string, unknown>)['studio/editLayout'];
+  useEffect(() => {
+    if (hostLayout !== 'ai' && hostLayout !== 'manual') return;
+    editLayoutHost.set(true);
+    tabStore.settings.update({ editLayout: hostLayout });
+  }, [hostLayout, tabStore]);
   const colorScheme = preference === 'light' || preference === 'dark' ? preference : context.theme === 'dark' ? 'dark' : 'light';
   // After every host context too: the page's first theme is the host's (`main.tsx`), and a host
   // change of theme must not undo the person's.

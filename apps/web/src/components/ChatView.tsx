@@ -616,6 +616,7 @@ import { PluginStarterPrompts } from "./plugins/PluginStarterPrompts";
 import { usePluginFollow } from "./plugins/usePluginFollow";
 import { ChatPicker } from "./workbench/ChatPicker";
 import { PartContextStrip } from "./workbench/PartContextStrip";
+import { StudioPanelBar } from "./workbench/StudioPanelBar";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
 import { useProjectViewStore } from "./workbench/projectView";
@@ -12178,6 +12179,16 @@ export default function ChatView(props: ChatViewProps) {
       {rightPanelPresent && !shouldUsePlanSidebarSheet && activeThreadRef ? (
         <RightPanelTabs
           mode="inline"
+          {...(engineeringInterface
+            ? {
+                layoutControls: (
+                  <StudioPanelBar
+                    folder={activeProject?.workspaceRoot ?? null}
+                    composerRef={composerRef}
+                  />
+                ),
+              }
+            : {})}
           open={rightPanelOpen}
           keybindings={keybindings}
           getShortcutContext={getShortcutContext}

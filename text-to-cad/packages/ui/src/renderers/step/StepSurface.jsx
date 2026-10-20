@@ -143,6 +143,7 @@ import SketchOverlay from "./edit/SketchOverlay.jsx";
 import SheetEditor from "./edit/SheetEditor.jsx";
 import SketchesLayer from "./edit/SketchesLayer.jsx";
 import { useEditLayout } from "./edit/editLayout.js";
+import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
 import {
   ORIGIN_PLANES,
@@ -3262,6 +3263,8 @@ function StepSurfaceBody({ view, data }) {
   // in the navbar): for modeling it by hand, or for asking the AI, which is the view as it is. Laid
   // out for the AI, the part is not read.
   const [editLayout, setEditLayout] = useEditLayout(services);
+  // A host that switches the layout itself (Studio's top bar) leaves the navbar without the switch.
+  const layoutHosted = useSyncExternalStore(editLayoutHost.subscribe, editLayoutHost.get, editLayoutHost.get);
   const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading, reading: editLayout === "manual" });
   // Laid out for editing only once the server says the file has a part script, and only by hand.
   const editable = edit.status !== "none" && edit.status !== "probing";
@@ -3699,7 +3702,7 @@ function StepSurfaceBody({ view, data }) {
   return <RendererShell shell={shell} tools={tools} subToolbar={modelEffects.subToolbar} sidebar={stepSidebar} previewView={previewView}
     // Modeling by hand, nothing asks the AI: Quick Edit is the AI layout's.
     references={selectionActionVisible && !editing ? promptSelection : EMPTY_LIST} referenceChips={editing ? EMPTY_LIST : referenceChips} nameReference={nameReference}
-    navbarControls={editable ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
+    navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
       disabled={Boolean(edit.command || edit.sketch || edit.picking || edit.saving)} /> : null}
     onClearReferences={clearSelected} copySelection={copySelection} onSelectPress={selectPress} onSelectHover={selectHover}
     selectsAnnotations={selects(selectFilter, "annotation")}

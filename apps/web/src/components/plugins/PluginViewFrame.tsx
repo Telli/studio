@@ -33,6 +33,7 @@ import {
   stagedPluginViewHtml,
   stagedPluginViewOrigin,
 } from "./pluginViewHost";
+import { useActiveViewerEditLayout } from "../workbench/workspaceMode";
 
 /** What opens one plugin view: the tool whose result is the view, and where it runs. */
 export interface PluginViewTarget {
@@ -195,7 +196,9 @@ export function PluginViewFrame(props: {
     };
   }, [document_]);
 
-  const live = { theme, size, props, request };
+  // Studio: the CAD views take the workspace's Ask or Edit by hand (`workbench/workspaceMode.ts`).
+  const editLayout = useActiveViewerEditLayout();
+  const live = { theme, size, props, request, editLayout };
   const latest = useRef(live);
   useEffect(() => {
     latest.current = live;
@@ -227,6 +230,7 @@ export function PluginViewFrame(props: {
         },
         safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
         "openai/modelContext": modelContext.current,
+        "studio/editLayout": current.editLayout,
       } as McpAppHostContext;
     };
     const call = async (
@@ -380,7 +384,7 @@ export function PluginViewFrame(props: {
   useEffect(() => {
     hostRef.current?.updateHostContext();
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Context changes trigger a resend.
-  }, [theme, size]);
+  }, [theme, size, editLayout]);
 
   const reload = () => {
     setClosed(false);

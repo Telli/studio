@@ -251,3 +251,30 @@ html[data-studio-focus="hardware"] .chat-markdown :not(pre) > code {
   font-family: inherit;
   font-size: 0.875em;
 }
+
+/*
+ * A project's part tabs run along the bottom of the panel, as a CAD tool's sheet tabs do. The
+ * panel's title row keeps the Overview tab and the workspace's bar (`StudioPanelBar.tsx`), and the
+ * view leaves room for the strip only while there are tabs in it.
+ */
+html[data-studio-focus="hardware"] :has(> [data-right-panel-tabbar]) {
+  position: relative;
+}
+html[data-studio-focus="hardware"] [data-right-panel-tab-list] {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 10;
+  height: 2.25rem;
+  padding-inline: 0.5rem;
+  border-top: 1px solid var(--border);
+  background: var(--background);
+}
+html[data-studio-focus="hardware"] [data-right-panel-tab-list]:not(:has([data-active-tab])) {
+  display: none;
+}
+html[data-studio-focus="hardware"]
+  :has(> [data-right-panel-tabbar]):has([data-right-panel-tab-list] [data-active-tab])
+  > [data-right-panel-surface-content] {
+  padding-bottom: 2.25rem;
+}

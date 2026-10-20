@@ -23,7 +23,8 @@ export function PinnedProjectTab(props: {
   readonly withSource: boolean;
   readonly onSelect: (view: ProjectView) => void;
 }) {
-  const views = props.withSource ? VIEWS : VIEWS.slice(0, 1);
+  // Alone (the engineering interface), the project's page is its Overview, beside the part tabs.
+  const views = props.withSource ? VIEWS : [{ ...VIEWS[0]!, label: "Overview" }];
   return (
     <div className="flex shrink-0 items-center gap-0.5 pe-1.5" data-pinned-project-tab="">
       {views.map(({ view, label, Icon }) => {

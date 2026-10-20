@@ -29,8 +29,15 @@ function readModes(): Record<string, WorkspaceMode> {
 export const useWorkspaceModeStore = create<{
   readonly modes: Readonly<Record<string, WorkspaceMode>>;
   readonly setMode: (folder: string, mode: WorkspaceMode) => void;
+  /** The folder of the workspace on screen, whose mode the CAD views take (`PluginViewFrame`). */
+  readonly activeFolder: string | null;
+  readonly setActiveFolder: (folder: string | null) => void;
 }>()((set, get) => ({
   modes: readModes(),
+  activeFolder: null,
+  setActiveFolder: (folder) => {
+    if (get().activeFolder !== folder) set({ activeFolder: folder });
+  },
   setMode: (folder, mode) => {
     const modes = { ...get().modes, [studioFolderKey(folder)]: mode };
     set({ modes });
@@ -51,6 +58,13 @@ export function workspaceModeFor(
 
 export function useWorkspaceMode(folder: string | null): WorkspaceMode {
   return useWorkspaceModeStore((store) => workspaceModeFor(store.modes, folder));
+}
+
+/** The layout the CAD views on screen take: the workspace on screen's mode. */
+export function useActiveViewerEditLayout(): "ai" | "manual" {
+  return useWorkspaceModeStore((store) =>
+    viewerEditLayout(workspaceModeFor(store.modes, store.activeFolder)),
+  );
 }
 
 /** The viewer's own name for the layout (`text-to-cad/packages/ui/.../edit/editLayout.js`). */
