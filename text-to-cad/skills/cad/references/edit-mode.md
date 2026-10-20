@@ -225,7 +225,13 @@ by hand" below.
   is held to it (`sketch2.coincident(...)`); a line drawn level or plumb gets `horizontal` or
   `vertical`.
 - After each change the drawn coordinates are written where the sketch solved them, so the lines
-  read as the sketch stands: a dimension of 30 turns `(14.32, 8.8)` into `(30, 8.8)`.
+  read as the sketch stands: a dimension of 30 turns `(14.32, 8.8)` into `(30, 8.8)`. The first size
+  dimension of a sketch of two or more curves that nothing sizes yet scales the whole sketch about
+  its origin instead, as SolidWorks' "Scale sketch on first dimension" does: a 30 on a line drawn 20
+  long multiplies every drawn number of the sketch by 1.5, so it keeps its shape.
+- Dragging solves as it goes (nothing written until the drag ends); a circle dragged by its edge
+  takes a new radius. A dimension of what the sketch already sets comes in driven
+  (`sketch2.length(line3, 30, driven=True)`), and the Driven box toggles one.
 - Deleting an entity takes out its line and the relations and dimensions on it; a curve drawn
   from one of its points keeps the point where it was. A corner rectangle's line is deleted on its
   own: the rectangle is written as its four lines first.

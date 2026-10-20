@@ -187,7 +187,9 @@ class Relation:
     """A relation (``dimension`` False: Horizontal1, Tangent1) or a dimension (D1) on entities.
     ``value`` is a dimension's size (in the part's units, or degrees for an angle) and ``raw``
     what the script passed (a named size, traced in edit mode); ``data`` keeps what the drawing
-    decided once (which side a distance is measured to, whether a tangent arc is inside)."""
+    decided once (which side a distance is measured to, whether a tangent arc is inside). A
+    ``driven`` dimension is SolidWorks' driven (reference) dimension: it holds nothing, and
+    ``measured`` is what it measures once the sketch is solved."""
 
     name: str
     kind: str
@@ -197,6 +199,8 @@ class Relation:
     dimension: bool = False
     source: tuple | None = None
     data: dict = field(default_factory=dict)
+    driven: bool = False
+    measured: float | None = None
 
     def __repr__(self) -> str:
         sized = f" = {self.value:g}" if self.value is not None else ""
@@ -271,12 +275,13 @@ class Sketch:
         self._changed()
         return point
 
-    def _relate(self, kind: str, refs, value=None, *, label: str | None = None, data: dict | None = None) -> Relation:
+    def _relate(self, kind: str, refs, value=None, *, label: str | None = None, data: dict | None = None,
+                driven: bool = False) -> Relation:
         dimension = value is not None
         relation = Relation(
             name=f"D{self._counts.get('D', 0) + 1}" if dimension else self._named(label or kind.capitalize()),
             kind=kind, refs=tuple(refs), value=_number(value, "A dimension") if dimension else None,
-            raw=value, dimension=dimension, source=_source(), data=dict(data or {}),
+            raw=value, dimension=dimension, source=_source(), data=dict(data or {}), driven=bool(driven and dimension),
         )
         if dimension:
             self._counts["D"] = self._counts.get("D", 0) + 1
@@ -505,35 +510,38 @@ class Sketch:
 
     # --- dimensions --------------------------------------------------------------------------------
 
-    def distance(self, a, b, value) -> Relation:
+    # Each dimension takes ``driven=True`` to be a driven (reference) dimension, as SolidWorks
+    # makes one that the sketch already determines: shown, measuring what is there, holding nothing.
+
+    def distance(self, a, b, value, *, driven: bool = False) -> Relation:
         """The distance between two points, a point and a line, or two parallel lines."""
         if isinstance(a, Line) and isinstance(b, Point):
             a, b = b, a
         data = {}
         if isinstance(b, Line):
             data["side"] = _side(b, a.start if isinstance(a, Line) else a)
-        return self._relate("distance", (a, b), value, data=data)
+        return self._relate("distance", (a, b), value, data=data, driven=driven)
 
-    def length(self, line: Line, value) -> Relation:
-        return self._relate("length", (line,), value)
+    def length(self, line: Line, value, *, driven: bool = False) -> Relation:
+        return self._relate("length", (line,), value, driven=driven)
 
-    def horizontal_distance(self, a: Point, b: Point, value) -> Relation:
+    def horizontal_distance(self, a: Point, b: Point, value, *, driven: bool = False) -> Relation:
         """How far right ``b`` is of ``a`` (left, when it is drawn left of it)."""
-        return self._relate("horizontal_distance", (a, b), value, data={"sign": 1.0 if b.x >= a.x else -1.0})
+        return self._relate("horizontal_distance", (a, b), value, data={"sign": 1.0 if b.x >= a.x else -1.0}, driven=driven)
 
-    def vertical_distance(self, a: Point, b: Point, value) -> Relation:
+    def vertical_distance(self, a: Point, b: Point, value, *, driven: bool = False) -> Relation:
         """How far above ``a`` ``b`` is (below, when it is drawn below it)."""
-        return self._relate("vertical_distance", (a, b), value, data={"sign": 1.0 if b.y >= a.y else -1.0})
+        return self._relate("vertical_distance", (a, b), value, data={"sign": 1.0 if b.y >= a.y else -1.0}, driven=driven)
 
-    def radius(self, curve, value) -> Relation:
-        return self._relate("radius", (curve,), value)
+    def radius(self, curve, value, *, driven: bool = False) -> Relation:
+        return self._relate("radius", (curve,), value, driven=driven)
 
-    def diameter(self, curve, value) -> Relation:
-        return self._relate("diameter", (curve,), value)
+    def diameter(self, curve, value, *, driven: bool = False) -> Relation:
+        return self._relate("diameter", (curve,), value, driven=driven)
 
-    def angle(self, a: Line, b: Line, degrees) -> Relation:
+    def angle(self, a: Line, b: Line, degrees, *, driven: bool = False) -> Relation:
         """The angle between two lines, in degrees (0 to 180)."""
-        return self._relate("angle", (a, b), degrees)
+        return self._relate("angle", (a, b), degrees, driven=driven)
 
     # --- sketch tools ------------------------------------------------------------------------------
 
@@ -1056,8 +1064,9 @@ class Sketch:
             "curves": curves,
             "relations": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs], "redundant": r.name in redundant, **where(r)}
                           for r in self.relations if not r.dimension],
-            "dimensions": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs], "value": r.value,
-                            "literal": _literal(r.raw), "redundant": r.name in redundant,
+            "dimensions": [{"id": r.name, "kind": r.kind, "refs": [ref.name for ref in r.refs],
+                            "value": r.measured if r.driven and r.measured is not None else r.value,
+                            "literal": _literal(r.raw), "redundant": r.name in redundant, **({"driven": True} if r.driven else {}),
                             "data": {key: _named(value) for key, value in r.data.items()}, **where(r)}
                            for r in self.relations if r.dimension],
             "loops": self._loops(),

@@ -306,7 +306,8 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       const drawDimension = (dimension, color, value, side) => {
         let layout = null;
         let rect = null;
-        const text = formatValue(value, current.units, dimension.kind);
+        const shown = formatValue(value, current.units, dimension.kind);
+        const text = dimension.driven ? `(${shown})` : shown;
         const w = context.measureText(text).width + 8;
         const h = 15;
         for (let level = 0; level < LEVELS; level += 1) {
@@ -340,7 +341,7 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       };
       for (const dimension of state.dimensions || []) {
         const color = selection.has(dimension.id) ? colors.selected : hover === dimension.id ? colors.hover
-          : redundant.has(dimension.id) ? colors.over : colors.defined;
+          : redundant.has(dimension.id) ? colors.over : dimension.driven ? colors.quiet : colors.defined;
         const rect = drawDimension(dimension, color, dimension.value, placements.current.get(dimension.id) || 0);
         if (rect) labels.push({ id: dimension.id, ...rect });
       }
@@ -616,7 +617,8 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       const before = new Set((state.dimensions || []).map(dimension => dimension.id));
       openModify(screen, formatValue(made.value, live.current.units, "plain"), async text => {
         if (!text) return;
-        const reply = await send({ kind: "dimension", dimension: made.dimension, refs: made.refs, value: text });
+        // One the sketch already sets comes in driven, as SolidWorks offers to make it.
+        const reply = await send({ kind: "dimension", dimension: made.dimension, refs: made.refs, value: text, if_redundant: "driven" });
         const added = (reply?.sketch?.state?.dimensions || []).find(dimension => !before.has(dimension.id));
         if (added && side) placements.current.set(added.id, side);
       }, made.dimension);
@@ -856,7 +858,7 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       event.preventDefault();
       event.stopPropagation();
       const dimension = (current.sketch.state.dimensions || []).find(each => each.id === label.id);
-      if (!dimension) return;
+      if (!dimension || dimension.driven) return;
       const shown = dimension.named ? dimension.formula : formatValue(dimension.value, current.units, "plain");
       openModify([label.x + label.w / 2, label.y + label.h / 2], shown, text => {
         if (text && text !== shown) void send({ kind: "value", dimension: dimension.id, text });

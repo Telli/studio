@@ -97,9 +97,14 @@ class SketchMode(unittest.TestCase):
         state = self.sketch["state"]
         self.assertEqual((state["status"], state["dof"]), ("Under defined", 2))
         self.send({"kind": "dimension", "dimension": "length", "refs": ["Line1"], "value": "25"})
-        # The solve moved the drawn corner: the script says where it is now.
-        self.assertIn("sketch1.rectangle(sketch1.origin, (25, 10))", self.source())
+        # The sketch's first size scales it about its origin, as SolidWorks' "Scale sketch on first
+        # dimension" does, so the rectangle keeps its shape: the script says where its corner is now.
+        self.assertIn("sketch1.rectangle(sketch1.origin, (25, 8.333333))", self.source())
         self.assertIn("sketch1.length(line1, 25)", self.source())
+        # A second size only moves what it holds.
+        self.send({"kind": "dimension", "dimension": "length", "refs": ["Line2"], "value": "10"})
+        self.assertIn("sketch1.rectangle(sketch1.origin, (25, 10))", self.source())
+        self.send({"kind": "delete", "items": ["D2"]})
         self.send({"kind": "dimension", "dimension": "length", "refs": ["Line4"], "value": "WIDTH / 4"})
         self.assertIn("sketch1.length(line4, WIDTH / 4)", self.source())
         self.assertEqual(self.sketch["state"]["status"], "Fully defined")
@@ -165,6 +170,34 @@ class SketchMode(unittest.TestCase):
         self.send({"kind": "dimension", "dimension": "diameter", "refs": ["Circle1"], "value": "5"})
         self.send({"kind": "move", "curves": [{"curve": "Circle1", "radius": 9}]})
         self.assertAlmostEqual(next(curve for curve in self.sketch["state"]["curves"] if curve["id"] == "Circle1")["radius"], 2.5, places=6)
+
+    def test_a_dimension_the_sketch_already_sets_is_made_driven(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "rectangle", "corner": {"point": "Origin"}, "opposite": {"at": [30, 10]}})
+        self.send({"kind": "dimension", "dimension": "length", "refs": ["Line1"], "value": "30", "if_redundant": "driven"})
+        self.send({"kind": "dimension", "dimension": "length", "refs": ["Line2"], "value": "10", "if_redundant": "driven"})
+        self.assertEqual(self.sketch["state"]["status"], "Fully defined")
+        # The top line's length is already set: it comes in as a driven dimension, whatever was typed, measuring 30.
+        self.send({"kind": "dimension", "dimension": "length", "refs": ["Line3"], "value": "45", "if_redundant": "driven"})
+        self.assertIn("sketch1.length(line3, 45, driven=True)", self.source())
+        state = self.sketch["state"]
+        self.assertEqual(state["status"], "Fully defined")
+        driven = next(each for each in state["dimensions"] if each["id"] == "D3")
+        self.assertTrue(driven["driven"])
+        self.assertAlmostEqual(driven["value"], 30)
+        # Made driving again it would over define the sketch: refused, the script as it was.
+        before = self.source()
+        refused = self.service.change({"file": self.file, "files": self.files, "sketch": {
+            "file": self.sketch["file"], "line": self.sketch["line"], "op": {"kind": "driven", "dimension": "D3", "on": False}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("over define", refused["error"])
+        self.assertEqual(self.source(), before)
+        # D1 made driven: the width is free again.
+        self.send({"kind": "driven", "dimension": "D1", "on": True})
+        self.assertIn("sketch1.length(line1, 30, driven=True)", self.source())
+        self.assertEqual(self.sketch["state"]["status"], "Under defined")
+        self.send({"kind": "driven", "dimension": "D1", "on": False})
+        self.assertIn("sketch1.length(line1, 30)\n", self.source())
 
     def test_relations_that_cannot_hold_leave_the_script_as_it_was(self):
         self.start()

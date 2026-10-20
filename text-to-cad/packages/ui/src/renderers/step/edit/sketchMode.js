@@ -1110,7 +1110,7 @@ export function countChange(made, op) {
     else if (op.entity === "three_point_arc") bump("arc");
     else if (op.entity === "centerline") bump("line");
     else bump(op.entity);
-  } else if (op.kind === "dimension") bump("dimension");
+  } else if (op.kind === "dimension" || op.kind === "driven") bump("dimension");
   else if (op.kind === "relate") bump("relation");
   else if (op.kind === "value") bump("value");
   else if (op.kind === "move") bump("moved", (op.points || []).length || 1);

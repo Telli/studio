@@ -500,7 +500,9 @@ def _dimension(block: Block, names: Names, op: dict) -> list[str]:
     if kind == "distance":
         # A point to a line, a line to a line: the sketch takes the point first.
         refs.sort(key=lambda ref: ref in names.curves)
-    return [f"{block.var}.{kind}({', '.join(names.item(ref) for ref in refs)}, {_typed(op.get('value'))})"]
+    # A driven (reference) dimension, as SolidWorks makes one the sketch already determines.
+    driven = ", driven=True" if op.get("driven") else ""
+    return [f"{block.var}.{kind}({', '.join(names.item(ref) for ref in refs)}, {_typed(op.get('value'))}{driven})"]
 
 
 def _keyword(call: ast.Call, name: str) -> ast.keyword | None:
@@ -554,6 +556,30 @@ def change(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
     else:
         raise SketchEditError(f"Edit mode cannot make that sketch change ({kind or 'none'}).")
     edits.insert_after(block.last_line, [f"{block.indent}{each}" for each in written])
+    return edits.apply()
+
+
+def set_driven(text: str, line: int, state: dict, dimension: str, on: bool, path: str = "<sketch>") -> str:
+    """``text`` with a dimension made driven (``driven=True`` on its line: it measures, holding
+    nothing) or driving again, as SolidWorks' Driven option toggles one."""
+    block = find_block(text, line, path)
+    names = Names(block, state)
+    made = names.statement_of(dimension)
+    call = _call_of(made.statement, block.var) if made is not None else None
+    if call is None or made.method not in DIMENSIONS:
+        raise SketchEditError(f"{dimension} is not written on a line of its own, so edit mode cannot change it. Ask the agent.")
+    existing = _keyword(call, "driven")
+    edits = TextEdits(text)
+    if existing is not None and not on:
+        # The keyword and the comma before it: `..., driven=True)`.
+        index = call.keywords.index(existing)
+        previous = call.keywords[index - 1] if index else (call.args[-1] if call.args else None)
+        edits.replace(previous.end_lineno, previous.end_col_offset, existing.end_lineno, existing.end_col_offset, "")
+    elif existing is not None:
+        edits.replace_node(existing.value, "True")
+    elif on:
+        last = call.keywords[-1] if call.keywords else call.args[-1]
+        edits.replace(last.end_lineno, last.end_col_offset, last.end_lineno, last.end_col_offset, ", driven=True")
     return edits.apply()
 
 

@@ -2958,6 +2958,111 @@ def _sketch_value(request, path, text, block, sketch, state, op, files):
     return None, traced
 
 
+# The dimensions a sketch can be scaled to on its first, as SolidWorks' "Scale sketch on first
+# dimension" does: sizes, not angles, and only those measured between the sketch's own entities.
+_SCALES = ("length", "diameter", "radius", "distance", "horizontal_distance", "vertical_distance")
+
+
+def _scaled_to_first(text, path, block, sketch, entry, state, op):
+    """``text`` with the sketch scaled about its origin to its first size dimension, as SolidWorks
+    scales a sketch on its first dimension: when nothing in it holds a size yet (no other size
+    dimension, no point fixed, nothing brought in from the model) and every number of its places is
+    written in its own lines, each point's place and each circle's radius are multiplied by what was
+    typed over what is drawn, so the sketch keeps its shape instead of being pulled out of it.
+    Otherwise ``text`` as it is."""
+    from cadgen.edit import sketching
+
+    kind = str(op.get("dimension") or "")
+    refs = [str(ref) for ref in op.get("refs") or []]
+    if kind not in _SCALES or any(each["kind"] in _SCALES and not each.get("driven") for each in state.get("dimensions") or []):
+        return text
+    # A curve alone has no shape to keep: a circle's first diameter sizes it where it is.
+    if len([curve for curve in state.get("curves") or [] if not curve.get("derived")]) < 2:
+        return text
+    if any(point["fixed"] and point["id"] != "Origin" for point in state.get("points") or []) or any(
+            curve.get("converted") for curve in state.get("curves") or []):
+        return text
+    measured = _measured(state, kind, refs)
+    if not measured:
+        return text
+    try:
+        wanted = _evaluated(entry, str(op.get("value") or ""))
+    except sketching.SketchEditError:
+        return text
+    factor = wanted / measured
+    if wanted <= 0 or abs(factor - 1) < 1e-9:
+        return text
+    numbers = [(literal_id, value) for point in sketch.points if point.name != "Origin"
+               for literal_id, value in zip(point.literals, (point.x, point.y))]
+    numbers += [(curve.literal, curve.radius) for curve in sketch.curves if getattr(curve, "literal", None)]
+    edits = sketching.TextEdits(text)
+    seen = set()
+    for literal_id, value in numbers:
+        # A place made from another (a rectangle's corners from its opposite one) follows it.
+        if literal_id is None or literal_id in seen:
+            continue
+        # A number not the sketch's own to write (a size's name, one in another file): nothing is scaled.
+        if not _block_literal(LITERALS.get(literal_id), path, block):
+            return text
+        seen.add(literal_id)
+        literal = LITERALS[literal_id]
+        edits.replace(literal["line"], literal["col"], literal["line"], literal["end"], sketching.number(value * factor))
+    return edits.apply()
+
+
+def _determined(request, path, text, line, state, op):
+    """Whether the sketch already determines what a new dimension would size: written with what it
+    measures now (so it can hold), the solve finds it adds nothing, as SolidWorks finds a dimension
+    that would over define the sketch."""
+    from cadgen.edit import sketching
+
+    measured = _measured(state, str(op.get("dimension") or ""), [str(ref) for ref in op.get("refs") or []])
+    if measured is None:
+        return False
+    had = {each["id"] for each in state.get("dimensions") or []}
+    try:
+        probe = sketching.change(text, line, state, {**op, "value": sketching.number(measured)}, str(path))
+        _, sketch, _ = _sketch_run(request, path, probe, line)
+        redundant = {relation.name for relation in sketch.solve().redundant}
+    except (sketching.SketchEditError, _sketch_api.SketchError):
+        return False
+    return any(relation.dimension and relation.name not in had and relation.name in redundant for relation in sketch.relations)
+
+
+def _measured(state, kind, refs):
+    """What a size dimension on ``refs`` measures in the sketch as it is drawn, or None."""
+    points = {point["id"]: (point["x"], point["y"]) for point in state.get("points") or []}
+    curves = {curve["id"]: curve for curve in state.get("curves") or []}
+    if kind in ("radius", "diameter") and len(refs) == 1 and refs[0] in curves and curves[refs[0]].get("radius"):
+        radius = float(curves[refs[0]]["radius"])
+        return radius * 2 if kind == "diameter" else radius
+    if kind == "length" and len(refs) == 1 and curves.get(refs[0], {}).get("kind") == "line":
+        line = curves[refs[0]]
+        (x0, y0), (x1, y1) = points[line["start"]], points[line["end"]]
+        return math.hypot(x1 - x0, y1 - y0)
+    if kind in ("distance", "horizontal_distance", "vertical_distance") and len(refs) == 2 and all(ref in points for ref in refs):
+        (x0, y0), (x1, y1) = points[refs[0]], points[refs[1]]
+        return {"distance": math.hypot(x1 - x0, y1 - y0), "horizontal_distance": abs(x1 - x0),
+                "vertical_distance": abs(y1 - y0)}[kind]
+    lines = [curves.get(ref) for ref in refs]
+    ends = [(points[line["start"]], points[line["end"]]) for line in lines if line and line.get("kind") == "line"]
+    if kind == "distance" and len(refs) == 2 and len(ends) == 1 and any(ref in points for ref in refs):
+        # A point to a line: how far it is square off the line.
+        (x0, y0), (x1, y1) = ends[0]
+        px, py = points[next(ref for ref in refs if ref in points)]
+        return abs((x1 - x0) * (py - y0) - (y1 - y0) * (px - x0)) / (math.hypot(x1 - x0, y1 - y0) or 1)
+    if kind == "distance" and len(ends) == 2:
+        # Two lines, parallel: how far the second's start is square off the first.
+        (x0, y0), (x1, y1) = ends[0]
+        px, py = ends[1][0]
+        return abs((x1 - x0) * (py - y0) - (y1 - y0) * (px - x0)) / (math.hypot(x1 - x0, y1 - y0) or 1)
+    if kind == "angle" and len(ends) == 2:
+        (a0, a1), (b0, b1) = ends
+        da, db = (a1[0] - a0[0], a1[1] - a0[1]), (b1[0] - b0[0], b1[1] - b0[1])
+        return math.degrees(math.atan2(abs(da[0] * db[1] - da[1] * db[0]), da[0] * db[0] + da[1] * db[1]))
+    return None
+
+
 def _known(block, sketch, typed):
     """Refuses a typed formula whose names the part does not have."""
     from cadgen.edit import sketching
@@ -3204,7 +3309,25 @@ def sketch_edit(request):
         elif kind in ("draw", "relate", "dimension", "construction"):
             if kind == "dimension":
                 _known(block, sketch, str(op.get("value") or ""))
+                scaled = _scaled_to_first(text, path, block, sketch, entry, state, op)
+                # One the sketch already determines made driven, as SolidWorks offers: it measures, holding nothing.
+                if scaled == text and op.get("if_redundant") == "driven" and _determined(request, path, text, line, state, op):
+                    op = {**op, "driven": True}
+                text = scaled
             text = sketching.change(text, line, state, op, str(path))
+        elif kind == "driven":
+            # A dimension made driven, or driving again unless the sketch already determines what it sizes.
+            dimension, on = str(op.get("dimension") or ""), bool(op.get("on", True))
+            text = sketching.set_driven(text, line, state, dimension, on, str(path))
+            if not on:
+                # Driving again, it keeps what it measures now (a number typed over, not a size's name).
+                shown = next((each for each in state.get("dimensions") or [] if each["id"] == dimension), None)
+                if shown and shown.get("driven") and shown.get("literal") and shown.get("value") is not None:
+                    text = sketching.set_value(text, line, state, dimension, sketching.number(float(shown["value"])), str(path))
+                _, probe, _ = _sketch_run(request, path, text, line)
+                if dimension in {relation.name for relation in probe.solve().redundant}:
+                    raise sketching.SketchEditError(f"{dimension} would over define {sketch.name}: what it sizes is already set. "
+                                                    "Delete what sets it, or keep it driven.")
         elif kind == "convert":
             edges = _convert_edges(request, path, block, sketch, entry, op)
             text = _imported(sketch_tools.convert(text, line, state, {**op, "edges": edges[0]}, str(path)), edges[1])

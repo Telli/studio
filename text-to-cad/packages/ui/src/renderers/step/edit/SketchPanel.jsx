@@ -224,11 +224,17 @@ export default function SketchPanel({ edit, onPlane, references = [] }) {
       onCheckedChange={value => edit.setSketchSettings({ relations: Boolean(value) })} /> : null}
     {dimension ? <FileSheetSettingsSection title={filletArc ? selection[0] : dimension.id} sectionId="sketch-dimension">
       <FileSheetControlRow label={dimension.named ? dimension.formula : filletArc || dimension.kind === "fillet" ? "Radius" : "Value"} trailing={<span className="flex shrink-0 items-center gap-1">
-        <FileSheetValueInput value={formatValue(dimension.value, units, "plain")} ariaLabel={`${dimension.id} value`} disabled={disabled}
+        <FileSheetValueInput value={formatValue(dimension.value, units, "plain")} ariaLabel={`${dimension.id} value`} disabled={disabled || dimension.driven}
           onValueCommit={draft => { const text = String(draft).trim(); if (text) void edit.sketchOp({ kind: "value", dimension: dimension.id, text }); }} />
         <span className="w-6 text-micro text-muted-foreground">{dimension.kind === "angle" ? "deg" : units}</span>
       </span>} />
-      <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Type a number, or a size of the part by its name.</p>
+      {/* SolidWorks' Driven option: a dimension that measures, holding nothing, shown in parentheses. */}
+      {filletArc || dimension.kind === "fillet" || dimension.kind === "chamfer" ? null
+        : <FileSheetCheckboxRow label="Driven" checked={Boolean(dimension.driven)} disabled={disabled}
+          onCheckedChange={value => void edit.sketchOp({ kind: "driven", dimension: dimension.id, on: Boolean(value) })} />}
+      <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>{dimension.driven
+        ? "Driven: it measures what the sketch sets. Untick Driven to size with it."
+        : "Type a number, or a size of the part by its name."}</p>
     </FileSheetSettingsSection> : null}
     {selection.length && !dimension && tool?.id !== "mirror" ? <FileSheetSettingsSection title="Selected Entities" sectionId="sketch-selection">
       <ul aria-label="Selected" className="mx-2 mb-1 flex flex-col rounded-md border border-border px-2 py-1 text-tiny leading-5 text-foreground">

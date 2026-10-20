@@ -270,7 +270,7 @@ def solve(sketch, prefer=()) -> Solution:
     terms = [(arc, (lambda arc: lambda x: [np.linalg.norm(u.point(arc.start, x) - u.point(arc.center, x))
                                            - np.linalg.norm(u.point(arc.end, x) - u.point(arc.center, x))])(arc))
              for arc in sketch.curves if isinstance(arc, Arc)]
-    terms += [(relation, fn) for relation in sketch.relations if (fn := _residual(relation, u, scale)) is not None]
+    terms += [(relation, fn) for relation in sketch.relations if not relation.driven and (fn := _residual(relation, u, scale)) is not None]
 
     def residuals(x):
         return np.concatenate([np.atleast_1d(np.asarray(fn(x), dtype=float)) for _, fn in terms]) if terms else np.zeros(0)
@@ -307,6 +307,13 @@ def solve(sketch, prefer=()) -> Solution:
             raise SketchError(f"{sketch.name} can't be solved: {', '.join(named) or 'its relations'} can't all hold without "
                               f"{curve.name} shrinking to nothing. Remove one, or change its value.")
     u.write(sketch, x)
+    # What each driven (reference) dimension measures where the sketch solved: its residual is what
+    # it measures less the value it was written with (an angle's scaled, and in radians).
+    for relation in sketch.relations:
+        if relation.driven and (fn := _residual(relation, u, scale)) is not None:
+            off = float(np.atleast_1d(fn(x))[0])
+            relation.measured = (math.degrees(off / scale + math.radians(relation.value)) if relation.kind == "angle"
+                                 else abs(off + relation.value))
 
     # How defined: the Jacobian's rank against the unknowns, and each relation's share of it.
     if not (n and m):

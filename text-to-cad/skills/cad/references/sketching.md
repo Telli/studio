@@ -73,6 +73,9 @@ def plate():
   `angle(line1, line2, degrees)`.
 - Give dimensions the part's named sizes (`LENGTH`, `LENGTH / 2`), not bare numbers, so a change
   of a size moves the sketch, and so the engineer changes it by name in edit mode.
+- `driven=True` makes any dimension a driven (reference) dimension, as SolidWorks shows one in
+  parentheses: it measures what the sketch already sets and holds nothing, so it never over
+  defines the sketch. Sketch mode writes one when the engineer dimensions something already set.
 
 ## Sketch tools
 
