@@ -7,8 +7,67 @@ import { studioFolderKey } from "@t3tools/shared/studioProjects";
  */
 
 const NAME_LENGTH = 32;
-const LEADING_REQUEST =
-  /^(?:(?:please|i want|i need|i'd like|we need|make me|make|design|create|build|model)\s+)*(?:(?:a|an|the|some|my)\s+)?/i;
+/** How a description asks for something before saying what: "I wanna make a", "Can you design". */
+const LEADING_REQUEST = new RegExp(
+  `^(?:(?:${[
+    "please",
+    "so",
+    "okay",
+    "ok",
+    "hey",
+    "i",
+    "we",
+    "i'd",
+    "we'd",
+    "i'm",
+    "we're",
+    "want to",
+    "want",
+    "wanna",
+    "need to",
+    "need",
+    "would like to",
+    "would like",
+    "like to",
+    "let's",
+    "lets",
+    "help me",
+    "can you",
+    "could you",
+    "can we",
+    "could we",
+    "can i",
+    "try to",
+    "trying to",
+    "going to",
+    "gonna",
+    "to",
+    "make me",
+    "make",
+    "design",
+    "create",
+    "build",
+    "model",
+    "print",
+  ].join("|")})\\s+)*(?:(?:a|an|the|some|my|our)\\s+)?`,
+  "i",
+);
+/** Words that start a new clause: the name is what comes before one, once that is two words. */
+const CLAUSE = new Set([
+  "that",
+  "which",
+  "who",
+  "maybe",
+  "so",
+  "because",
+  "but",
+  "if",
+  "i",
+  "we",
+  "please",
+  "is",
+  "are",
+]);
 const DANGLING = new Set([
   "a",
   "an",
@@ -25,7 +84,10 @@ const DANGLING = new Set([
   "in",
 ]);
 
-/** A name from the description's first words: its first sentence, cut on a word near 32 characters. */
+/**
+ * A name from the description's first words: its first sentence without the asking, up to where a
+ * new clause starts, cut on a word near 32 characters.
+ */
 export function provisionalProjectName(description: string): string {
   const sentence =
     description
@@ -35,6 +97,7 @@ export function provisionalProjectName(description: string): string {
   const words = sentence.replace(LEADING_REQUEST, "").split(" ").filter(Boolean);
   const kept: string[] = [];
   for (const word of words) {
+    if (kept.length >= 2 && CLAUSE.has(word.toLowerCase())) break;
     if ([...kept, word].join(" ").length > NAME_LENGTH && kept.length > 0) break;
     kept.push(word);
   }

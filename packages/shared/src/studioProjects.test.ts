@@ -60,7 +60,13 @@ describe("studio projects", () => {
     expect(context).toContain("## Starting a project");
     expect(context).toContain("as `name` in `/studio/rover/project.json`");
     expect(context).toContain("at most three short questions");
+    expect(context).toContain("before any research or modelling");
+    expect(context).toContain("a printer named means 3D printing");
+    expect(context).toContain("add its decision line to the README in the same turn");
     expect(studioProjectContext(rover, "/work/rover-cad")).not.toContain("as `name` in");
+    expect(studioProjectContext(rover, "/work/rover-cad")).toContain(
+      "- Write `README.md` as above",
+    );
   });
 
   it("tells the agent where the setup is kept, and to propose what it means before changing parts", () => {

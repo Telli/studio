@@ -20,6 +20,28 @@ describe("provisionalProjectName", () => {
     expect(provisionalProjectName("Gear guard. It should be cheap.")).toBe("Gear guard");
   });
 
+  it("drops how the description asks, and stops where a new clause starts", () => {
+    expect(
+      provisionalProjectName(
+        "i wanna make a roomba with arms maybe we can mod an existing roomba is it possible? arms to fold clothes",
+      ),
+    ).toBe("Roomba with arms");
+    expect(
+      provisionalProjectName(
+        "A wall hook that holds my bike up by its front wheel, printed in PETG",
+      ),
+    ).toBe("Wall hook");
+    expect(provisionalProjectName("Can you design a desk lamp arm I can clamp on")).toBe(
+      "Desk lamp arm",
+    );
+    expect(provisionalProjectName("I want to build a cable clip that holds a USB-C cable")).toBe(
+      "Cable clip",
+    );
+    expect(provisionalProjectName("Can opener holder for the kitchen wall")).toBe(
+      "Can opener holder",
+    );
+  });
+
   it("falls back for an empty description", () => {
     expect(provisionalProjectName("   ")).toBe("New project");
     expect(provisionalProjectName("a")).toBe("New project");

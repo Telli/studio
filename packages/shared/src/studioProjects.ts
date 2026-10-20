@@ -148,15 +148,22 @@ const THE_README = [
 ].join("\n");
 
 function startingAProject(record: string | null): string {
+  const readme =
+    "- Write `README.md` as above: what it is, from the description, and a decision line for each thing the description settles.";
   return [
-    "When the project is new (this chat's first message describes what to make):",
+    "When the project is new (this chat's first message describes what to make), start with these, in your first turn and before any research or modelling, so the project's Overview fills in at once:",
     "",
     ...(record === null
-      ? []
+      ? [readme]
       : [
-          `- Give it a short name of two or three words (for example "Lanyard clip") as \`name\` in \`${record}\`, and commit that file in its folder with git.`,
+          `- Give it a short name of two or three words (for example "Lanyard clip") as \`name\` in \`${record}\`.`,
+          "- In that file, set the setup the description says or clearly implies (a printer named means 3D printing), and commit the file in its folder with git.",
+          readme,
         ]),
-    "- Say in one sentence that you started it, then ask at most three short questions, one at a time, before the first draft: what it attaches to or must fit, how it will be made, and any size that matters. Offer two to four answers to each with your tool for asking the person a question, if you have one, else list them. Let them skip the rest.",
+    "",
+    "Then say in one sentence that you started it, and ask at most three short questions, one at a time, before the first draft: what it attaches to or must fit, how it will be made, and any size that matters. Offer two to four answers to each with your tool for asking the person a question, if you have one, else list them. Let them skip the rest.",
+    "",
+    "- When an answer settles something, add its decision line to the README in the same turn, and change the setup when the answer is part of it.",
     "- Skip any question the description already answers, and make the first draft as soon as you know enough.",
   ].join("\n");
 }
