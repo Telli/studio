@@ -1,4 +1,5 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
+import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { DownloadIcon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
@@ -11,7 +12,10 @@ import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { leadPartOf } from "./leadPart";
+import { PartActions } from "./PartActions";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
+import { usePartContext } from "./usePartContext";
+import { useStudioProjectAt } from "./useStudioProjects";
 import { useWorkspaceMode, useWorkspaceModeStore } from "./workspaceMode";
 
 /** What Export offers, each written into the composer as a job for the part on screen. */
@@ -60,10 +64,11 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
 
 /**
  * The rest of a project workspace's top bar, in the panel's title row (the chat's row carries
- * `StudioWorkspaceBar`): Ask or Edit by hand, and Export. The mode is the project's
- * (`workspaceMode.ts`); the CAD views take it from the host context. Choosing one while no part
- * is in front opens the project's lead part that way; with no part yet, the Overview offers to
- * start one.
+ * `StudioWorkspaceBar`): Ask or Edit by hand, the part's jobs (Check, Make, Document) and Export.
+ * The mode is the project's (`workspaceMode.ts`); the CAD views take it from the host context.
+ * Choosing one while no part is in front opens the project's lead part that way; with no part
+ * yet, the Overview offers to start one. The jobs are for the part last on screen, else the lead
+ * part, led by the project's way of making it.
  */
 export function StudioPanelBar(props: {
   readonly folder: string | null;
@@ -84,6 +89,14 @@ export function StudioPanelBar(props: {
   const partInFront = useRightPanelStore(
     (store) => selectActiveRightPanelSurface(store.byThreadKey, threadRef)?.kind === "plugin-app",
   );
+  const shown = usePartContext(threadRef);
+  const studio = useStudioProjectAt(threadRef.environmentId, folder);
+  const subject =
+    shown !== null
+      ? { path: shown.part.path, kind: shown.part.kind }
+      : lead === null
+        ? null
+        : { path: lead.file.path, kind: lead.file.kind };
 
   const exportJob = (prompt: string) => {
     const composer = props.composerRef?.current ?? null;
@@ -109,6 +122,16 @@ export function StudioPanelBar(props: {
           <Toggle value="manual">Edit by hand</Toggle>
         </ToggleGroup>
       </div>
+      {subject === null || props.composerRef === null ? null : (
+        <PartActions
+          environmentId={threadRef.environmentId}
+          file={serializeComposerFileLink(subject.path)}
+          kind={subject.kind}
+          process={studio?.project.brief.process}
+          composerRef={props.composerRef}
+          inTopBar
+        />
+      )}
       <Menu>
         <MenuTrigger render={<Button variant="ghost" size="sm" />}>
           <DownloadIcon />

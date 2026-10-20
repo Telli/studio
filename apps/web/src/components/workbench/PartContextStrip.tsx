@@ -49,7 +49,9 @@ export function PartContextStrip(props: {
   /** Where the engineering surfaces' Check, Make and Document write their jobs. */
   readonly composerRef: ComposerHandleRef;
 }) {
-  if (!WORKBENCH_LAYOUT || props.threadRef === null) return null;
+  // The engineering interface names the part in its top bar and puts its jobs there.
+  const engineering = useEngineeringInterface();
+  if (!WORKBENCH_LAYOUT || props.threadRef === null || engineering) return null;
   return <ThreadPartContext threadRef={props.threadRef} composerRef={props.composerRef} />;
 }
 

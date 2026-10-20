@@ -11,7 +11,7 @@ import { PartActions } from "./PartActions";
 import { shownChecks } from "./partChecks";
 import { buildLabel, materialLabel } from "./partLabels";
 import { partLabel } from "./partNames";
-import { useEngineeringSurfaces } from "./studioInterface";
+import { useEngineeringInterface, useEngineeringSurfaces } from "./studioInterface";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { usePartContext } from "./usePartContext";
 import { useProjectChecks } from "./useProjectChecks";
@@ -67,7 +67,11 @@ interface TitleBlockProps {
  * engineering surfaces only (`useEngineeringSurfaces`), and only while the viewer shows a part of this plugin.
  */
 export function TitleBlock(props: TitleBlockProps) {
-  if (!useEngineeringSurfaces()) return null;
+  const surfaces = useEngineeringSurfaces();
+  // The engineering interface keeps the view clear: the part's jobs are in the top bar
+  // (`StudioPanelBar`), and its facts are not repeated over the model.
+  const engineering = useEngineeringInterface();
+  if (!surfaces || engineering) return null;
   return <ThreadTitleBlock {...props} />;
 }
 
@@ -151,7 +155,7 @@ function ThreadTitleBlock(props: TitleBlockProps) {
             <button
               type="button"
               onClick={() => open(about.of!)}
-              className="truncate rounded-sm font-medium underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              className="truncate rounded-sm font-medium underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
               {partLabel(about.of)}
             </button>

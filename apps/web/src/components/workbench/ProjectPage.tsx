@@ -485,7 +485,7 @@ export function ProjectPage(props: {
             </div>
           </div>
         </div>
-        {composerRef === null ? null : (
+        {composerRef === null || plainWords ? null : (
           <ProjectSetup
             environmentId={environmentId}
             cwd={cwd}
