@@ -1,87 +1,25 @@
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@t3tools/client-runtime/state/models";
-import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
-import { FolderIcon, FolderOpenIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import type { EnvironmentProject } from "@t3tools/client-runtime/state/models";
+import type { EnvironmentId } from "@t3tools/contracts";
+import { FolderIcon, FolderOpenIcon, PlusIcon } from "lucide-react";
+import { useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { isElectron } from "~/env";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { usePrimaryEnvironmentId } from "~/state/environments";
-import { projectEnvironment } from "~/state/projects";
-import { useEnvironmentQuery } from "~/state/query";
-import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { SidebarInset } from "../ui/sidebar";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { NewProjectDialog } from "./NewProjectDialog";
-import { groupProjectFiles } from "./projectFiles";
-import { usePictures } from "./usePictures";
-import { newestOf } from "./projectList";
+import { ProjectTile } from "./ProjectTile";
+import { findProjects } from "./recentProjects";
+import { useEngineeringInterface } from "./studioInterface";
+import { StudioTopBar } from "./StudioTopBar";
 import { useOpenProject } from "./useOpenProject";
 import { useProjectList } from "./useProjectList";
 
-/** The file that pictures a project: its first folder's first model, else board or drawing. */
-const COVER_GROUPS = ["Models", "Boards and wiring", "Drawings", "Studies"] as const;
-
 const threadCount = (count: number) => (count === 1 ? "1 thread" : `${count} threads`);
-
-function ProjectCard(props: {
-  readonly environmentId: EnvironmentId;
-  readonly project: StudioProject;
-  readonly threads: ReadonlyArray<EnvironmentThreadShell>;
-  readonly onOpen: () => void;
-}) {
-  const { environmentId, project } = props;
-  const cwd = project.folders[0] ?? "";
-  const listing = useEnvironmentQuery(
-    cwd === "" ? null : projectEnvironment.listEntries({ environmentId, input: { cwd } }),
-  );
-  const groups = useMemo(
-    () =>
-      groupProjectFiles(
-        (listing.data?.entries ?? [])
-          .filter((entry) => entry.kind === "file" && entry.ignored !== true)
-          .map((entry) => entry.path),
-      ),
-    [listing.data],
-  );
-  const cover =
-    COVER_GROUPS.flatMap((group) => groups.find((entry) => entry.group === group)?.files ?? [])[0]
-      ?.path ?? null;
-  const pictures = usePictures({ environmentId, cwd, paths: cover === null ? [] : [cover] });
-  const picture = cover === null ? undefined : pictures.get(cover);
-  const latest = props.threads.length === 0 ? null : newestOf(props.threads, "");
-  const folders = project.folders.length === 1 ? "1 folder" : `${project.folders.length} folders`;
-
-  return (
-    <button
-      type="button"
-      onClick={props.onOpen}
-      className="group flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-    >
-      <span className="flex aspect-[4/3] items-center justify-center border-b border-border bg-muted/50">
-        {picture ? (
-          <img src={picture} alt="" className="size-full object-contain p-3" />
-        ) : (
-          <LayoutDashboardIcon className="size-8 text-muted-foreground/50" aria-hidden="true" />
-        )}
-      </span>
-      <span className="flex min-w-0 flex-col gap-1 px-3 py-2.5">
-        <span className="truncate text-sm font-medium text-foreground">{project.name}</span>
-        <span className="line-clamp-2 min-h-8 text-xs text-muted-foreground">
-          {project.brief.purpose.trim() || "No brief yet"}
-        </span>
-        <span className="text-2xs text-muted-foreground/80 tabular-nums">
-          {folders} · {threadCount(props.threads.length)}
-          {latest === null ? "" : ` · ${formatRelativeTimeLabel(latest)}`}
-        </span>
-      </span>
-    </button>
-  );
-}
 
 function LooseFolderRow(props: {
   readonly folder: EnvironmentProject;
@@ -135,7 +73,11 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
     open: false,
     folder: null,
   });
+  const [query, setQuery] = useState("");
+  // Engineering has Studio's top bar and plain words; engineering with code keeps the old header.
+  const engineering = useEngineeringInterface();
   useNowMinute();
+  const shown = findProjects(cards, query);
 
   const openDialog = (folder: string | null) =>
     setDialog((current) => ({ count: current.count + 1, open: true, folder }));
@@ -143,29 +85,53 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background">
-        <WorkspacePageHeader electron={isElectron} className="border-b border-border">
-          <span className="text-sm font-medium text-foreground">Projects</span>
-        </WorkspacePageHeader>
+        {engineering ? (
+          <StudioTopBar section="projects">
+            <div className="w-full max-w-72">
+              <Input
+                type="search"
+                size="sm"
+                placeholder="Search projects and parts"
+                aria-label="Search projects and parts"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+          </StudioTopBar>
+        ) : (
+          <WorkspacePageHeader electron={isElectron} className="border-b border-border">
+            <span className="text-sm font-medium text-foreground">Projects</span>
+          </WorkspacePageHeader>
+        )}
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-both">
           <div className="mx-auto flex max-w-6xl flex-col gap-5 px-6 py-6">
             <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <div className="text-2xs font-medium tracking-widest text-muted-foreground uppercase">
-                  Projects
-                </div>
-                <h1 className="mt-1 text-xl font-semibold text-foreground">
-                  {cards.length === 1 ? "1 project" : `${cards.length} projects`}
+              {engineering ? (
+                <h1 className="text-2xl font-semibold text-foreground">
+                  Projects{" "}
+                  <span className="text-base font-normal text-muted-foreground tabular-nums">
+                    {cards.length}
+                  </span>
                 </h1>
-                {!list ? null : (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Each project is a folder in{" "}
-                    <span className="text-foreground select-all">{list.folder}</span>
-                    {list.git
-                      ? " and its own git repository: every change is a commit, and pushing it shares the project."
-                      : ". Install git to give each one its own history."}
-                  </p>
-                )}
-              </div>
+              ) : (
+                <div>
+                  <div className="text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+                    Projects
+                  </div>
+                  <h1 className="mt-1 text-xl font-semibold text-foreground">
+                    {cards.length === 1 ? "1 project" : `${cards.length} projects`}
+                  </h1>
+                  {!list ? null : (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Each project is a folder in{" "}
+                      <span className="text-foreground select-all">{list.folder}</span>
+                      {list.git
+                        ? " and its own git repository: every change is a commit, and pushing it shares the project."
+                        : ". Install git to give each one its own history."}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -181,14 +147,16 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                 </Button>
               </div>
             </div>
-            {cards.length === 0 ? (
+            {shown.length === 0 ? (
               <p className="py-12 text-center text-sm text-muted-foreground">
-                No projects yet. Start one with New project, or make one of a folder below.
+                {cards.length === 0
+                  ? "No projects yet. Start one with New project, or make one of a folder below."
+                  : "No project matches that."}
               </p>
             ) : (
               <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">
-                {cards.map(({ id, project, folder, threads: own }) => (
-                  <ProjectCard
+                {shown.map(({ id, project, folder, threads: own }) => (
+                  <ProjectTile
                     key={id}
                     environmentId={environmentId}
                     project={project}

@@ -21,6 +21,8 @@ export interface NewStudioProject {
   readonly purpose: string;
   /** Folders the project starts with; none makes a new folder named after it. */
   readonly folders: ReadonlyArray<string>;
+  /** Told the project's first folder once it is saved, before its new chat opens (Home's Start). */
+  readonly onFolder?: (folder: string) => void;
 }
 
 /**
@@ -69,6 +71,7 @@ export function useCreateStudioProject(environmentId: EnvironmentId) {
         createdAt: new Date().toISOString(),
       });
       if (id === null) return false;
+      if (folders[0] !== undefined) input.onFolder?.(folders[0]);
       toastManager.add({
         type: "success",
         title: `Created ${name}`,

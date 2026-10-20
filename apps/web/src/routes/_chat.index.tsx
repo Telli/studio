@@ -7,7 +7,11 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { isLocalEnvironmentDisabled } from "../localEnvironment";
 import { isElectron } from "../env";
 import { NoProjectsHero } from "../components/NoProjectsHero";
-import { useEngineeringSurfaces } from "../components/workbench/studioInterface";
+import { StudioHome } from "../components/workbench/StudioHome";
+import {
+  useEngineeringInterface,
+  useEngineeringSurfaces,
+} from "../components/workbench/studioInterface";
 import { sortScopedProjectsForSidebar } from "../components/Sidebar.logic";
 import { Button } from "../components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../components/ui/empty";
@@ -28,13 +32,15 @@ function ChatIndexRouteView() {
   const { environments, isReady } = useEnvironments();
   // Studio's engineering surfaces start on its projects (`workbench/ProjectsHome.tsx`).
   const engineering = useEngineeringSurfaces();
+  // Engineering alone opens on Studio's Home (`workbench/StudioHome.tsx`).
+  const studioHome = useEngineeringInterface();
 
   if (authGateState.status === "hosted-static") {
     if (!isReady) return null;
     if (environments.length === 0) return <HostedStaticOnboardingState />;
   }
 
-  if (engineering) return <Navigate to="/projects" replace />;
+  if (engineering) return studioHome ? <StudioHome /> : <Navigate to="/projects" replace />;
   return <IndexDraftLanding />;
 }
 
