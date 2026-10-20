@@ -1,5 +1,8 @@
 # Product analytics
 
+Studio ships this switched off and without a PostHog key, so nothing below runs unless both
+`T3CODE_TELEMETRY_ENABLED` and `T3CODE_POSTHOG_KEY` are set.
+
 The server owns PostHog delivery, opt-out, and identity for every connected client.
 [Identity selection](../../apps/server/src/telemetry/Identify.ts) hashes an available
 provider account ID, falling back to an installation-scoped ID. This identity can

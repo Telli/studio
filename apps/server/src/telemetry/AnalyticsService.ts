@@ -1,10 +1,11 @@
 /**
- * Anonymous PostHog telemetry service.
+ * Product analytics, off in Studio.
  *
- * Persists an installation-scoped anonymous identifier, buffers events in
- * memory, and flushes batches over Effect's HTTP client. A failed batch is
- * retried with backoff and dropped after a few tries. Each event carries a
- * uuid, so PostHog can tell a retried copy from a new event.
+ * T3 Code sent usage events to PostHog from here. Studio ships no PostHog key
+ * and turns the service off, so `make` returns a service that drops every event
+ * before it reads any identity or starts the sender. The sender stays only
+ * because deleting it changes the server's inferred layer types and tips ws.ts
+ * past TypeScript's instantiation limit (TS2589).
  *
  * @module AnalyticsService
  */
@@ -67,13 +68,11 @@ export function retryDelayMs(failures: number, random: number): number {
 }
 
 const TelemetryEnvConfig = Config.all({
-  posthogKey: Config.String("T3CODE_POSTHOG_KEY").pipe(
-    Config.withDefault("phc_XOWci4oZP4VvLiEyrFqkFjP4CZn55mjYYBMREK5Wd6m"),
-  ),
+  posthogKey: Config.String("T3CODE_POSTHOG_KEY").pipe(Config.withDefault("")),
   posthogHost: Config.String("T3CODE_POSTHOG_HOST").pipe(
     Config.withDefault("https://us.i.posthog.com"),
   ),
-  enabled: Config.Boolean("T3CODE_TELEMETRY_ENABLED").pipe(Config.withDefault(true)),
+  enabled: Config.Boolean("T3CODE_TELEMETRY_ENABLED").pipe(Config.withDefault(false)),
   flushBatchSize: Config.Number("T3CODE_TELEMETRY_FLUSH_BATCH_SIZE").pipe(Config.withDefault(20)),
   maxBufferedEvents: Config.Number("T3CODE_TELEMETRY_MAX_BUFFERED_EVENTS").pipe(
     Config.withDefault(1_000),
@@ -122,6 +121,9 @@ function serverOsFromNodePlatform(platform: string): ClientOs {
 /** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const telemetryConfig = yield* TelemetryEnvConfig;
+  if (!telemetryConfig.enabled || telemetryConfig.posthogKey === "") {
+    return AnalyticsService.of({ record: () => Effect.void, flush: Effect.void });
+  }
   const httpClient = yield* HttpClient.HttpClient;
   const serverConfig = yield* ServerConfig.ServerConfig;
   const identifier = yield* getTelemetryIdentifier;
