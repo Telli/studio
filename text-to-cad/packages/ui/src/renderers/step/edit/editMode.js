@@ -1068,6 +1068,13 @@ export function mateNote(change, { undo = false, redo = false } = {}) {
 }
 
 /** What the agent is told of a Rename: the feature or sketch, its name before and after, and where. */
+/** What the agent is told of a parameter added in edit mode, or taken back. */
+export function parameterNote(change, { undo = false, redo = false } = {}) {
+  const where = `(${change.file}, line ${change.line})`;
+  if (undo) return `In edit mode I took back adding the parameter ${change.name} ${where}.`;
+  return `In edit mode I added the parameter ${change.name} = ${change.value}${redo ? " again" : ""} ${where}.`;
+}
+
 export function renameNote(change, { undo = false, redo = false } = {}) {
   const where = `(${change.file}, line ${change.line})`;
   if (undo) return `In edit mode I took back renaming ${change.title} ${where}.`;

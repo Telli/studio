@@ -30,6 +30,7 @@ import {
   pullOf,
   draftRows,
   interferenceRows,
+  parameterNote,
   planePreview,
   referencePlanes,
   appearanceNote,
@@ -701,4 +702,10 @@ test("Draft Analysis pulls along an origin plane's normal, reversed when asked, 
 
 test("Interference Detection lists each overlapping pair with its shared volume", () => {
   assert.deepEqual(interferenceRows([{ a: "base", b: "pin", volume: 12.566 }], "mm").map(row => [row.label, row.value]), [["base and pin", "12.6 mm³"]]);
+});
+
+test("a parameter added tells the agent its name, value and line", () => {
+  const change = { kind: "parameter", name: "WALL", value: "2.5", file: "block.py", line: 4 };
+  assert.equal(parameterNote(change), "In edit mode I added the parameter WALL = 2.5 (block.py, line 4).");
+  assert.equal(parameterNote(change, { undo: true }), "In edit mode I took back adding the parameter WALL (block.py, line 4).");
 });

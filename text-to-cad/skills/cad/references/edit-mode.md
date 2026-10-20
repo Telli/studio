@@ -24,7 +24,8 @@ by hand" below.
 ## Write the script so it edits well
 
 - **Name the sizes that matter at the top of the file**, one per line, in the project's units:
-  `LENGTH = 2.80`, `WALL = .060`. They become the Parameters. Use plain names, not abbreviations
+  `LENGTH = 2.80`, `WALL = .060`. They become the Parameters (with those the part's own script
+  names at its top, used or not; Add Parameter writes one there). Use plain names, not abbreviations
   (`TRAY_HEIGHT`, not `TH`).
 - **Build each feature from those names**, so a dimension on the model leads back to a size
   (`LENGTH - 2*WALL`), not to a number computed somewhere else.

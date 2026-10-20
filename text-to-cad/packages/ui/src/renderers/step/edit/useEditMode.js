@@ -24,6 +24,7 @@ import {
   treeFeatures,
   treeIds,
   undoStep,
+  parameterNote,
   pullOf
 } from "./editMode.js";
 import { countChange, sketchNote, TRANSFORM_TOOLS } from "./sketchMode.js";
@@ -445,6 +446,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     const renamed = move.change.kind === "rename";
     const painted = move.change.kind === "appearance";
     const mated = move.change.kind === "mate";
+    const parameter = move.change.kind === "parameter";
     const current = sketchRef.current;
     // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
     const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
@@ -454,7 +456,8 @@ export function useEditMode({ client, file, active, reading = true }) {
           : suppressed ? () => suppressNote(move.change, { undo: !redo, redo })
             : renamed ? () => renameNote(move.change, { undo: !redo, redo })
               : painted ? () => appearanceNote(move.change, { undo: !redo, redo })
-                : mated ? () => mateNote(move.change, { undo: !redo, redo }) : null });
+                : mated ? () => mateNote(move.change, { undo: !redo, redo })
+                  : parameter ? () => parameterNote(move.change, { undo: !redo, redo }) : null });
     if (!reply?.ok) return;
     setHistory(move.next);
     if (current) {
@@ -504,6 +507,9 @@ export function useEditMode({ client, file, active, reading = true }) {
     if (String(name ?? "").trim() === target.title) return null;
     return send({ rename: { ...target, name } }, { note: answer => renameNote(answer.change) });
   }, [send]);
+
+  /** Add Parameter, as SolidWorks' Equations adds a global variable: `NAME = value` at the top of the part's script. */
+  const addParameter = useCallback((name, value) => send({ parameter: { name, value } }, { note: answer => parameterNote(answer.change) }), [send]);
 
   /** Appearance's OK: the part colored `color` (#RRGGBB) in its script, then built again with it. */
   const paint = useCallback(color => send({ appearance: { color } }, { note: answer => appearanceNote(answer.change) }), [send]);
@@ -722,7 +728,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
-    inspecting, mass, interference, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, drawing, comparison, compare,
+    inspecting, mass, interference, addParameter, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, drawing, comparison, compare,
     sheetView, openSheet, closeSheet, sheetEdit, undoSheet, redoSheet,
     startRename: id => { if (id) setRenaming(id); },
     stopRename: () => setRenaming(null),

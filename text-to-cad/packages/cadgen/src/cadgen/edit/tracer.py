@@ -1719,7 +1719,9 @@ def trace(request):
             "unit": units if any(_scale_of_leaf(literal["id"], step) for step in steps) else "",
         }
         for literal in LITERALS.values()
-        if literal["name"] and literal["id"] in used and literal["name"].upper() not in UNIT_NAMES
+        # Used by the part, or named at the top of its own script (a parameter added, not used yet).
+        if literal["name"] and literal["name"].upper() not in UNIT_NAMES
+        and (literal["id"] in used or (literal["name"].isupper() and Path(literal["path"]).resolve() == script))
     ]
     params.sort(key=lambda p: (p["file"], p["line"]))
     # The body and its making, for a command to act on (`commands.py`).
@@ -1817,7 +1819,7 @@ def _solve(expr, leaf, target):
 
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
-_CHANGES = ("command", "preview", "mass", "draft_check", "interference", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
+_CHANGES = ("command", "preview", "mass", "draft_check", "interference", "parameter", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
             "input")
 
 
@@ -1844,6 +1846,8 @@ def edit(request):
         return suppress(request)
     if isinstance(request.get("rename"), dict):
         return rename(request)
+    if isinstance(request.get("parameter"), dict):
+        return add_parameter(request)
     if isinstance(request.get("appearance"), dict):
         return appearance(request)
     if isinstance(request.get("mate"), dict):
@@ -2459,6 +2463,65 @@ def suppress(request):
         "title": title,
         "file": rel,
         "line": first,
+        "undo": {"file": rel, "hunks": commands.hunks(new, old)},
+        "redo": {"file": rel, "hunks": commands.hunks(old, new)},
+    }
+    return after
+
+
+def add_parameter(request):
+    """Add Parameter, as SolidWorks' Equations adds a global variable: ``NAME = value`` written at the
+    top of the part's script, after its imports and the sizes named there already, for dimensions
+    and commands to use by name. The value is a number, or the part's sizes with plain arithmetic.
+    Nothing is built: the part is the same until something uses it."""
+    from cadgen.edit import commands, sketching
+
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    spec = request["parameter"]
+    name = "_".join(str(spec.get("name") or "").upper().split())
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,39}", name):
+        return {"ok": False, "error": "A parameter's name is letters, digits and underscores, starting with a letter: WALL, BOSS_DIAMETER."}
+    script = Path(request["script"]).resolve()
+    rel = str(script.relative_to(ROOT)) if script.is_relative_to(ROOT) else script.name
+    old = _read(script)
+    tree = ast.parse(old)
+    known = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+    known |= {(alias.asname or alias.name).split(".")[0] for node in ast.walk(tree)
+              if isinstance(node, (ast.Import, ast.ImportFrom)) for alias in node.names}
+    if name in known:
+        return {"ok": False, "error": f"This part has a {name} already. Pick another name."}
+    try:
+        value = sketching._typed(spec.get("value"))
+    except sketching.SketchEditError:
+        return {"ok": False, "error": "A parameter's value is a number, or the part's sizes with plain arithmetic."}
+    missing = [each for each in sketching.typed_names(value) if each not in known]
+    if missing:
+        return {"ok": False, "error": f"This part has no size called {missing[0]}."}
+    # After the imports and the sizes the script names before its first function.
+    at = 0
+    for index, node in enumerate(tree.body):
+        named = isinstance(node, ast.Assign) and all(isinstance(target, ast.Name) and target.id.isupper() for target in node.targets)
+        docstring = index == 0 and isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+        if isinstance(node, (ast.Import, ast.ImportFrom)) or named or docstring:
+            at = node.end_lineno
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            break
+    edits = commands.Edits(old)
+    edits.after(at, [f"{name} = {value}"])
+    new = edits.apply()
+    _write(script, new)
+    after = trace(request)
+    if not after.get("ok"):
+        _write(script, old)
+        trace(request)
+        return {"ok": False, "error": f"The part does not read with {name} added, so nothing changed."}
+    after["change"] = {
+        "kind": "parameter", "name": name, "value": value, "file": rel, "line": at + 1, "build": False,
         "undo": {"file": rel, "hunks": commands.hunks(new, old)},
         "redo": {"file": rel, "hunks": commands.hunks(old, new)},
     }

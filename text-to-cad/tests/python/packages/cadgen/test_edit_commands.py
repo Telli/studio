@@ -1263,6 +1263,24 @@ class Planes(Commands):
         self.assertIn('    sketch1 = Sketch("Sketch1", plane=plane1)\n', script.read_text(encoding="utf-8"))
         self.assertEqual(sketched["sketch"]["state"]["frame"]["origin"], [0, 0, -4])
 
+    def test_a_parameter_added_is_named_at_the_top_and_listed(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        added = self.service.change({"file": file, "files": state["files"], "parameter": {"name": "wall", "value": "2.5"}})
+        self.assertTrue(added["ok"], added.get("error"))
+        text = (root / "block.py").read_text(encoding="utf-8")
+        self.assertIn("from sizes import WIDTH, DEPTH, HEIGHT\nWALL = 2.5\n", text)
+        # Listed in Parameters though nothing uses it yet, to be typed over or used by name.
+        self.assertIn("WALL", [param["name"] for param in added["params"]])
+        derived = self.service.change({"file": file, "files": added["files"], "parameter": {"name": "LIP", "value": "WALL * 2"}})
+        self.assertTrue(derived["ok"], derived.get("error"))
+        self.assertIn("WALL = 2.5\nLIP = WALL * 2\n", (root / "block.py").read_text(encoding="utf-8"))
+        added = derived
+        self.assertEqual(added["change"]["kind"], "parameter")
+        taken = self.service.change({"file": file, "files": added["files"], "parameter": {"name": "WIDTH", "value": "3"}})
+        self.assertFalse(taken["ok"])
+        unknown = self.service.change({"file": file, "files": added["files"], "parameter": {"name": "RIM", "value": "GAP * 2"}})
+        self.assertIn("no size called GAP", unknown["error"])
+
     def test_split_makes_two_bodies_and_delete_body_takes_one_out(self):
         root, file, state = self.open(BLOCK, "block.step")
         split = self.command(file, state, "split", (), {"plane": "YZ", "keep": "both"})

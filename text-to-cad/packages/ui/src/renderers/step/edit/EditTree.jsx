@@ -127,6 +127,45 @@ function RollbackBar({ index, count, label, disabled, slotAt, onPreview, onMove 
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
  *   tree: ReturnType<typeof import("./editMode.js").featureTree>, onEditSketch?: (sketch: object) => void }} props
  */
+/**
+ * Add Parameter, as SolidWorks' Equations adds a global variable: a name and a value (a number, or
+ * the part's sizes with plain arithmetic), written at the top of the part's script for dimensions
+ * and commands to use by name.
+ */
+function AddParameter({ edit, disabled }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  const submit = async event => {
+    event.preventDefault();
+    if (!name.trim() || !value.trim()) { setError("Type a name and a value."); return; }
+    const reply = await edit.addParameter(name.trim(), value.trim());
+    if (reply?.ok) { setOpen(false); setName(""); setValue(""); setError(""); }
+    else setError(reply?.error || "");
+  };
+  if (!open) {
+    return <button type="button" disabled={disabled} onClick={() => setOpen(true)}
+      className="self-start rounded px-1 py-0.5 text-tiny text-muted-foreground hover:bg-sidebar-accent hover:text-foreground disabled:opacity-50">
+      + Add parameter
+    </button>;
+  }
+  return <form onSubmit={submit} className="flex flex-col gap-1 py-1 pr-1" aria-label="Add parameter">
+    <div className="flex items-center gap-1">
+      <input value={name} onChange={event => { setName(event.target.value); setError(""); }} placeholder="NAME" aria-label="Parameter name" autoFocus
+        className="h-6 min-w-0 flex-1 rounded border border-border bg-background px-1.5 text-tiny uppercase text-foreground outline-none focus:border-ring" />
+      <span className="text-tiny text-muted-foreground">=</span>
+      <input value={value} onChange={event => { setValue(event.target.value); setError(""); }} placeholder="Value" aria-label="Parameter value" inputMode="decimal"
+        className="h-6 w-16 rounded border border-border bg-background px-1.5 text-tiny tabular-nums text-foreground outline-none focus:border-ring" />
+    </div>
+    {error ? <span className="text-tiny leading-4 text-destructive" aria-live="polite">{error}</span> : null}
+    <div className="flex justify-end gap-1">
+      <button type="button" onClick={() => { setOpen(false); setError(""); }} className="rounded px-1.5 py-0.5 text-tiny text-muted-foreground hover:bg-sidebar-accent">Cancel</button>
+      <button type="submit" disabled={disabled} className="rounded bg-primary px-1.5 py-0.5 text-tiny text-primary-foreground disabled:opacity-50">Add</button>
+    </div>
+  </form>;
+}
+
 export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPart = null, backTo = null }) {
   const [open, setOpen] = useState(() => new Set(["parameters", "mates"]));
   // A selection inside a closed part, or a sketch under a closed feature, opens them to it.
@@ -275,6 +314,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
               <span className="w-4 text-micro text-muted-foreground">{UNIT_MARKS[param.unit] || param.unit || ""}</span>
             </span>
           </div>)}
+      {edit.status === "reading" || !edit.addParameter ? null : <AddParameter edit={edit} disabled={disabled} />}
     </div> : null}
     {ORIGIN_PLANES.map(plane => <Row key={plane} id={`plane:${plane}`} depth={1} icon={<PlaneIcon />} title={`${plane} Plane`} {...rowProps} />)}
     <Row id="origin" depth={1} icon={<OriginIcon />} title="Origin" {...rowProps} />
