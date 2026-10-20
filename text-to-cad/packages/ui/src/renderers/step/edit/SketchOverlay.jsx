@@ -34,6 +34,7 @@ import {
   TOOL_CLICKS,
   toolSize,
   trimPiece,
+  SKETCH_KEYS,
   TYPED_TOOLS,
   typedDimensions,
   typedStroke
@@ -854,7 +855,18 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       if (!current.sketch?.state || current.tool) return;
       const screen = localPoint(event);
       const label = labelAt(screen);
-      if (!label) return;
+      if (!label) {
+        // A double-click on a curve selects its chain, the curves joined to it end to end, as CAD sketchers do.
+        const place = mapping?.toLocal(screen);
+        const hit = place ? hitTest(current.sketch.state, place, HIT_PX / (mapping?.perUnit || 1)) : null;
+        const chain = hit ? chainOf(current.sketch.state, hit) : [];
+        if (chain.length > 1) {
+          event.preventDefault();
+          event.stopPropagation();
+          current.edit.selectInSketch(chain);
+        }
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       const dimension = (current.sketch.state.dimensions || []).find(each => each.id === label.id);
@@ -889,6 +901,20 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       } else if ((event.key === "Delete" || event.key === "Backspace") && current.selection.length && !busy) {
         event.preventDefault();
         void send({ kind: "delete", items: current.selection });
+      } else if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && !picks.length && !pending) {
+        const key = event.key.toLowerCase();
+        if (SKETCH_KEYS[key]) {
+          // A one-key shortcut picks up its tool, or puts it down.
+          event.preventDefault();
+          current.edit.setSketchTool(current.tool === SKETCH_KEYS[key] ? null : SKETCH_KEYS[key]);
+        } else if (key === "x") {
+          // Construction Geometry: what is selected, or what is drawn next.
+          event.preventDefault();
+          const curves = new Map((current.sketch.state?.curves || []).map(curve => [curve.id, curve]));
+          const chosen = current.selection.filter(id => curves.has(id));
+          if (chosen.length && !busy) void send({ kind: "construction", items: chosen, on: !chosen.every(id => curves.get(id).construction) });
+          else if (!chosen.length) current.edit.setConstruction(!current.construction);
+        }
       }
     };
     const handleLeave = () => { pointer = null; hover = null; version.current += 1; };

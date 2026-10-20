@@ -24,7 +24,10 @@ import {
   relationsFor,
   relationsOn,
   sketchGeometry,
+  SKETCH_KEYS,
+  sketchKey,
   sketchNote,
+  sketchTool,
   snap,
   splineThrough,
   tangentArc,
@@ -385,4 +388,11 @@ test("a typed rectangle's dimensions go on its level and its plumb line", () => 
     { kind: "dimension", dimension: "length", refs: ["Line1"], value: "12" },
     { kind: "dimension", dimension: "length", refs: ["Line2"], value: "8" },
   ]);
+});
+
+test("each one-key shortcut names a sketch tool, and the tool's tooltip says its key", () => {
+  for (const tool of Object.values(SKETCH_KEYS)) assert.ok(sketchTool(tool), tool);
+  assert.equal(sketchKey("line"), "L");
+  assert.equal(sketchKey("dimension"), "D");
+  assert.equal(sketchKey("spline"), null);
 });

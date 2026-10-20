@@ -15,7 +15,7 @@ import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { AppearanceIcon, COMMAND_ICONS, CompareIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
 import { COMMAND_GROUPS, EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
-import { SKETCH_TOOLS } from "./sketchMode.js";
+import { SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
 
 // The viewer's tools in the ribbon's groups, by id, in the words a CAD tool uses (Clip is Section).
@@ -44,8 +44,8 @@ const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Unde
 const MORE_WIDTH_PX = 46;
 const ALL_NAMED = Object.freeze({ compact: false, count: Infinity });
 
-function RibbonButton({ label, icon, active = false, disabled = false, description, onClick, compact = false }) {
-  return <TooltipHint content={label}>
+function RibbonButton({ label, icon, active = false, disabled = false, description, onClick, compact = false, hint }) {
+  return <TooltipHint content={hint || label}>
     <button type="button" aria-label={label} aria-pressed={active} aria-description={description} disabled={disabled}
       className={cn(BUTTON_CLASS, active && "bg-sidebar-accent text-sidebar-accent-foreground", compact && "min-w-9 justify-center pt-0")}
       onClick={onClick}>
@@ -231,7 +231,9 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
         }
         edit.setSketchTool(active ? null : each.id);
       };
-      return { id: each.id, label: each.label, icon: <span className={SKETCH_TINT}><Icon /></span>, active, disabled: !sketch.state || edit.saving, onClick };
+      const key = sketchKey(each.id);
+      return { id: each.id, label: each.label, hint: key ? `${each.label} (${key})` : undefined, icon: <span className={SKETCH_TINT}><Icon /></span>,
+        active, disabled: !sketch.state || edit.saving, onClick };
     };
     const curves = new Set((sketch.state?.curves || []).map(curve => curve.id));
     const chosen = edit.sketchSelection.filter(id => curves.has(id));
@@ -246,7 +248,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
       { title: "Entities", items: SKETCH_ENTITIES.map(id => sketchItem(tool(id))) },
       { title: "Modify", items: SKETCH_MODIFY.map(id => sketchItem(tool(id))) },
       { title: "Tools", items: [
-        { id: "construction", label: "Construction Geometry", icon: <span className={SKETCH_TINT}><ConstructionIcon /></span>,
+        { id: "construction", label: "Construction Geometry", hint: "Construction Geometry (X)", icon: <span className={SKETCH_TINT}><ConstructionIcon /></span>,
           active: chosen.length ? allConstruction : edit.construction,
           disabled: !sketch.state || edit.saving,
           description: chosen.length ? "Makes the selected entities construction geometry, or no longer" : "Draws what comes next as construction geometry",

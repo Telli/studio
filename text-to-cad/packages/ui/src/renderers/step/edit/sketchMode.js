@@ -58,6 +58,14 @@ const nearness = state => 1e-6 * Math.max(1, ...(state?.points || []).flatMap(po
 
 export const sketchTool = id => SKETCH_TOOLS.find(tool => tool.id === id) || null;
 
+/**
+ * Sketch mode's one-key shortcuts, as Fusion's and SolidCraft's sketchers have them: the tool each
+ * letter picks up (again, puts it down). X, Construction Geometry, is the ribbon's button.
+ */
+export const SKETCH_KEYS = Object.freeze({ l: "line", r: "rectangle", c: "circle", p: "point", d: "dimension", t: "trim", o: "offset" });
+/** The key that picks up a sketch tool, for its tooltip, or null. */
+export const sketchKey = id => (Object.entries(SKETCH_KEYS).find(([, tool]) => tool === id)?.[0] || "").toUpperCase() || null;
+
 /** How many clicks a drawing tool takes; a line chains, so its count restarts from its end. */
 export const TOOL_CLICKS = Object.freeze({ line: 2, centerline: 2, rectangle: 2, center_rectangle: 2, circle: 2, arc: 3, three_point_arc: 3,
   tangent_arc: 2, slot: 3, polygon: 2, point: 1, spline: Infinity });
