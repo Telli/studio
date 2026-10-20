@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { type DesignChange, designChanges } from "./designChanges";
 import { useEngineeringInterface } from "./studioInterface";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
@@ -42,38 +43,52 @@ const iconKey = (kind: string) =>
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 
-function ChangeRow(props: { readonly change: DesignChange; readonly onOpen: (() => void) | null }) {
+/** A change as a chip: what changed, opening it beside the thread where it can be shown. */
+function ChangeChip(props: {
+  readonly change: DesignChange;
+  readonly onOpen: (() => void) | null;
+}) {
   const { change } = props;
   const Icon = ICONS[iconKey(change.kind)]!;
+  // Which of a part's files changed with it (its model, its drawing), said on hover.
+  const aspects = change.aspects.length < 2 ? undefined : change.aspects.join(", ");
+  const chip =
+    "inline-flex h-6 min-w-0 max-w-56 items-center gap-1.5 rounded-md border border-border bg-background px-2 text-xs text-foreground";
   const body = (
     <>
       <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span className="shrink-0 truncate font-medium text-foreground">{change.label}</span>
-      {change.aspects.length < 2 ? null : (
-        <span className="min-w-0 truncate text-muted-foreground">{change.aspects.join(", ")}</span>
-      )}
+      <span className="truncate">{change.label}</span>
     </>
   );
-  const row = "flex h-8 w-full min-w-0 items-center gap-2 px-3 text-left text-xs";
+  const control =
+    props.onOpen === null ? (
+      <span className={chip}>{body}</span>
+    ) : (
+      <button
+        type="button"
+        onClick={props.onOpen}
+        aria-label={`Open ${change.label}`}
+        className={`${chip} outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset`}
+      >
+        {body}
+      </button>
+    );
   return (
-    <li className="border-t border-border first:border-t-0">
-      {props.onOpen === null ? (
-        <div className={row}>{body}</div>
+    <li className="flex min-w-0">
+      {aspects === undefined ? (
+        control
       ) : (
-        <button
-          type="button"
-          onClick={props.onOpen}
-          aria-label={`Open ${change.label}`}
-          className={`${row} outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset`}
-        >
-          {body}
-        </button>
+        <Tooltip>
+          <TooltipTrigger render={control} />
+          <TooltipPopup side="top">{aspects}</TooltipPopup>
+        </Tooltip>
       )}
     </li>
   );
 }
 
-function DesignChangesCard(props: {
+/** What a turn changed, on one quiet line under its reply: "Changed" and a chip for each. */
+function DesignChanges(props: {
   readonly threadRef: ScopedThreadRef;
   readonly changes: ReadonlyArray<DesignChange>;
   readonly other: number;
@@ -84,32 +99,27 @@ function DesignChangesCard(props: {
     <section
       aria-label="What changed"
       data-design-changes=""
-      className="mt-4 overflow-hidden rounded-lg border border-border bg-background"
+      className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5"
     >
-      <h3 className="flex items-baseline gap-2 border-b border-border px-3 py-1.5 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
-        What changed
-        {changes.length > 1 ? (
-          <span className="tabular-nums text-muted-foreground/70">{changes.length}</span>
-        ) : null}
-      </h3>
       {changes.length === 0 ? null : (
-        <ul className="flex flex-col">
-          {changes.map((change) => (
-            <ChangeRow
-              key={`${change.kind}\n${change.label}`}
-              change={change}
-              onOpen={change.open === null ? null : () => open(change.open!)}
-            />
-          ))}
-        </ul>
+        <>
+          <h3 className="text-xs text-muted-foreground">Changed</h3>
+          <ul className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {changes.map((change) => (
+              <ChangeChip
+                key={`${change.kind}\n${change.label}`}
+                change={change}
+                onOpen={change.open === null ? null : () => open(change.open!)}
+              />
+            ))}
+          </ul>
+        </>
       )}
       {other === 0 ? null : (
-        <p
-          className={`px-3 py-1.5 text-2xs text-muted-foreground ${changes.length === 0 ? "" : "border-t border-border"}`}
-        >
+        <p className="text-xs text-muted-foreground">
           {changes.length === 0
             ? `Updated ${plural(other, "project file")}`
-            : `And ${plural(other, "other file")}`}
+            : `and ${plural(other, "other file")}`}
         </p>
       )}
     </section>
@@ -135,5 +145,5 @@ export function TurnDesignChanges(props: {
   );
   if (!engineering) return props.children;
   if (props.threadRef === null || (changes.length === 0 && other === 0)) return null;
-  return <DesignChangesCard threadRef={props.threadRef} changes={changes} other={other} />;
+  return <DesignChanges threadRef={props.threadRef} changes={changes} other={other} />;
 }

@@ -244,6 +244,32 @@ html[data-studio-focus="hardware"]
 }
 
 /*
+ * How long a turn worked is the agent's bookkeeping: its fold is a small quiet line, not a divider
+ * across the chat. It still opens the steps.
+ */
+html[data-studio-focus="hardware"] [data-timeline-root] [data-timeline-row-kind="turn-fold"] > div {
+  border-bottom-color: transparent;
+  padding-block: 0;
+}
+html[data-studio-focus="hardware"]
+  [data-timeline-root]
+  [data-timeline-row-kind="turn-fold"]
+  > div
+  > button {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/*
+ * Which model runs the chat is a setting, not a line of the chat box: the box shows the agent's
+ * mark, and its menu names the model.
+ */
+html[data-studio-focus="hardware"] [data-chat-provider-model-picker-label] {
+  width: 0;
+  flex: none;
+}
+
+/*
  * What the agent sets apart in a reply (a part's name, a value, a file) reads in the interface's
  * own face, as a label, not in a code font. Real code blocks keep theirs.
  */
@@ -253,10 +279,10 @@ html[data-studio-focus="hardware"] .chat-markdown :not(pre) > code {
 }
 
 /*
- * A project's part tabs run along the bottom of the panel, as a CAD tool's sheet tabs do. The
- * panel's title row keeps the Overview tab and the workspace's bar (`StudioPanelBar.tsx`), and the
- * view leaves room for the strip only while there are tabs in it. The tab list is a scroll area
- * that places itself (position, full size), hence the !important.
+ * A project's part tabs run along the bottom of the panel, as a CAD tool's sheet tabs do, the
+ * Overview first. The panel's title row keeps the workspace's bar (`StudioPanelBar.tsx`), and the
+ * view leaves room for the strip only while there are part tabs in it. The tab list is a scroll
+ * area that places itself (position, full size), hence the !important.
  */
 html[data-studio-focus="hardware"] :has(> [data-right-panel-tabbar]) {
   position: relative;
