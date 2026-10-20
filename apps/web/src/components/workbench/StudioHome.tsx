@@ -17,8 +17,12 @@ import { Textarea } from "../ui/textarea";
 import { availableTemplates } from "./newTemplates";
 import type { ListedProject } from "./projectList";
 import { ProjectTile } from "./ProjectTile";
+import { ImportDialogHost } from "./ImportDialog";
+import { ImportDropZone } from "./ImportDropZone";
+import { NewFilesNotice } from "./NewFilesNotice";
 import { findProjects } from "./recentProjects";
 import { StudioTopBar } from "./StudioTopBar";
+import { useImportActions } from "./useImportActions";
 import { useOpenProject } from "./useOpenProject";
 import { useProjectList } from "./useProjectList";
 import { type ProjectStart, useStartProject } from "./useStartProject";
@@ -42,6 +46,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
   const { cards } = useProjectList(environmentId);
   const openProject = useOpenProject();
+  const importActions = useImportActions();
   const [query, setQuery] = useState("");
   useNowMinute();
   const searching = query.trim() !== "";
@@ -62,45 +67,69 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
             />
           </div>
         </StudioTopBar>
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-both">
-          <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
-            <h1 className="text-2xl font-semibold text-foreground">Welcome back</h1>
-            <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-              <StartProject environmentId={environmentId} cards={cards} />
-              <section aria-label="Recent projects" className="flex min-w-0 flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <h2 className={SECTION_LABEL}>
-                    {searching ? "Matching projects" : "Recent projects"}
-                  </h2>
-                  <div className="flex-1" />
-                  <Button variant="link" size="sm" render={<Link to="/projects" />}>
-                    All projects
-                  </Button>
-                </div>
-                {shown.length === 0 ? (
-                  <p className="py-8 text-sm text-muted-foreground">
-                    {cards.length === 0
-                      ? "No projects yet. Describe one to start."
-                      : "No project matches that."}
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    {shown.map(({ id, project, folder, threads }) => (
-                      <ProjectTile
-                        key={id}
-                        environmentId={environmentId}
-                        project={project}
-                        threads={threads}
-                        onOpen={() => void openProject(folder, threads)}
-                      />
-                    ))}
+        <ImportDropZone>
+          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-both">
+            <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-8">
+              <h1 className="text-2xl font-semibold text-foreground">Welcome back</h1>
+              <NewFilesNotice environmentId={environmentId} />
+              <div className="grid gap-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+                <StartProject environmentId={environmentId} cards={cards} />
+                <section aria-label="Recent projects" className="flex min-w-0 flex-col gap-3">
+                  <div className="flex items-center gap-3">
+                    <h2 className={SECTION_LABEL}>
+                      {searching ? "Matching projects" : "Recent projects"}
+                    </h2>
+                    <div className="flex-1" />
+                    <Button variant="link" size="sm" render={<Link to="/projects" />}>
+                      All projects
+                    </Button>
                   </div>
-                )}
-              </section>
+                  {cards.length === 0 && importActions !== null ? (
+                    <div className="flex flex-col items-start gap-2 rounded-xl border border-dashed border-border px-5 py-6">
+                      <span className="text-sm font-medium text-foreground">
+                        Import what you already have
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        Studio scans the folders you pick for CAD models, drawings and parts lists,
+                        and groups them into projects. Your files stay where they are.
+                      </span>
+                      <Button size="sm" variant="outline" onClick={importActions.scan}>
+                        Scan this computer
+                      </Button>
+                    </div>
+                  ) : shown.length === 0 ? (
+                    <p className="py-8 text-sm text-muted-foreground">
+                      {cards.length === 0
+                        ? "No projects yet. Describe one to start."
+                        : "No project matches that."}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      {shown.map(({ id, project, folder, threads }) => (
+                        <ProjectTile
+                          key={id}
+                          environmentId={environmentId}
+                          project={project}
+                          threads={threads}
+                          onOpen={() => void openProject(folder, threads)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {importActions === null || cards.length === 0 ? null : (
+                    <div>
+                      <Button variant="link" size="sm" onClick={() => void importActions.pick()}>
+                        Import files
+                      </Button>
+                    </div>
+                  )}
+                </section>
+              </div>
             </div>
           </div>
-        </div>
+        </ImportDropZone>
       </div>
+      <ImportDialogHost environmentId={environmentId} />
     </SidebarInset>
   );
 }

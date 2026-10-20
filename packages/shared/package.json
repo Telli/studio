@@ -39,6 +39,10 @@
       "types": "./src/studioProjects.ts",
       "import": "./src/studioProjects.ts"
     },
+    "./studioImport": {
+      "types": "./src/studioImport.ts",
+      "import": "./src/studioImport.ts"
+    },
     "./projectFavicon": {
       "types": "./src/projectFavicon.ts",
       "import": "./src/projectFavicon.ts"

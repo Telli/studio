@@ -1,0 +1,548 @@
+import type { EnvironmentId } from "@t3tools/contracts";
+import type { StudioImportKind } from "@t3tools/shared/studioImport";
+import { studioFolderKey } from "@t3tools/shared/studioProjects";
+import { FolderPlusIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
+import {
+  Dialog,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogPanel,
+  DialogPopup,
+  DialogTitle,
+} from "../ui/dialog";
+import { Input } from "../ui/input";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
+import { Spinner } from "../ui/spinner";
+import { toastManager } from "../ui/toast";
+import { type ImportStart, useImportDialogStore } from "./importDialogStore";
+import {
+  countByKind,
+  describeCounts,
+  type ImportFile,
+  needsALook,
+  planImport,
+  type ScannedRoot,
+  suggestProject,
+} from "./importPlan";
+import { readStudioImport, rememberScan } from "./studioImportBridge";
+import { useImportProjects } from "./useImportProjects";
+import { useEnvironmentFolders } from "./useProjectFolders";
+import { useStudioProjects } from "./useStudioProjects";
+
+const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+
+const KIND_LABELS: ReadonlyArray<readonly [StudioImportKind, string]> = [
+  ["model", "CAD models"],
+  ["drawing", "Drawings"],
+  ["partsList", "Parts lists"],
+  ["datasheet", "Datasheets"],
+  ["photo", "Photos"],
+  ["notes", "Notes and specs"],
+];
+
+const baseName = (path: string) => path.split(/[\\/]+/).findLast((part) => part !== "") ?? path;
+const plural = (count: number, one: string, many: string) =>
+  count === 1 ? `1 ${one}` : `${count} ${many}`;
+const NOTHING_FOUND = (root: string): ScannedRoot => ({ root, files: [] });
+
+/** The Import dialog, wherever it was asked for (`importDialogStore.ts`). */
+export function ImportDialogHost(props: { readonly environmentId: EnvironmentId }) {
+  const start = useImportDialogStore((store) => store.start);
+  const count = useImportDialogStore((store) => store.count);
+  const close = useImportDialogStore((store) => store.close);
+  if (start === null) return null;
+  return (
+    <ImportDialog key={count} environmentId={props.environmentId} start={start} onClose={close} />
+  );
+}
+
+/**
+ * Import, as the Final design lays it out: Scan this computer (the folders to look in, what has
+ * been found so far by kind, how many projects it looks like), then the projects found (each
+ * ticked to import, with what it holds and where it is), and Sort for the files in no project
+ * (where each goes) and the copies and older versions that need a look. Nothing is moved: a
+ * project is its folder where it is; only loose files placed in a project are copied into it.
+ */
+function ImportDialog(props: {
+  readonly environmentId: EnvironmentId;
+  readonly start: ImportStart;
+  readonly onClose: () => void;
+}) {
+  const { environmentId, start, onClose } = props;
+  const bridge = readStudioImport();
+  const knownFolders = useEnvironmentFolders(environmentId);
+  const studioProjects = useStudioProjects(environmentId);
+  const known = useMemo(
+    () =>
+      new Set([
+        ...knownFolders.map((folder) => studioFolderKey(folder.workspaceRoot)),
+        ...Object.values(studioProjects).flatMap((project) => project.folders.map(studioFolderKey)),
+      ]),
+    [knownFolders, studioProjects],
+  );
+  const runImport = useImportProjects(environmentId);
+  const [step, setStep] = useState<"scan" | "found" | "sort">(
+    start.kind === "scan" ? "scan" : "found",
+  );
+  const [roots, setRoots] = useState<
+    ReadonlyArray<{ readonly label: string; readonly path: string; readonly checked: boolean }>
+  >([]);
+  const [scans, setScans] = useState<ReadonlyArray<ScannedRoot>>(
+    start.kind === "files" ? start.files.map((file) => ({ root: file.path, files: [file] })) : [],
+  );
+  const [scanning, setScanning] = useState<string | null>(null);
+  const [scanned, setScanned] = useState(start.kind === "files");
+  const [excluded, setExcluded] = useState<ReadonlySet<string>>(new Set());
+  const [placements, setPlacements] = useState<ReadonlyMap<string, number | "new" | null>>(
+    new Map(),
+  );
+  const [newProjectName, setNewProjectName] = useState("Imported files");
+  const [busy, setBusy] = useState(false);
+  const rootsAreProjects = start.kind !== "scan";
+
+  // The folders a first scan offers: Documents, Desktop and Downloads.
+  useEffect(() => {
+    if (start.kind !== "scan" || bridge === null) return;
+    let cancelled = false;
+    void bridge.roots().then((found) => {
+      if (!cancelled) setRoots(found.map((root) => ({ ...root, checked: true })));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [start.kind, bridge]);
+
+  // Files or folders dropped or picked are read at once.
+  useEffect(() => {
+    if (start.kind !== "paths" || bridge === null) return;
+    let cancelled = false;
+    void (async () => {
+      const results: ScannedRoot[] = [];
+      for (const path of start.paths) {
+        if (cancelled) return;
+        setScanning(baseName(path));
+        results.push(await bridge.scan(path).catch(() => NOTHING_FOUND(path)));
+      }
+      if (cancelled) return;
+      setScans(results);
+      setScanning(null);
+      setScanned(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [start, bridge]);
+
+  const scanFolders = async () => {
+    if (bridge === null) return;
+    const chosen = roots.filter((root) => root.checked);
+    const results: ScannedRoot[] = [];
+    for (const root of chosen) {
+      setScanning(root.label);
+      results.push(await bridge.scan(root.path).catch(() => NOTHING_FOUND(root.path)));
+      setScans([...results]);
+    }
+    setScanning(null);
+    setScanned(true);
+    rememberScan({ roots: chosen.map((root) => root.path), at: Date.now() });
+  };
+
+  const addFolder = async () => {
+    const picked = await window.desktopBridge?.pickFolder?.();
+    if (!picked) return;
+    setRoots((current) =>
+      current.some((root) => root.path === picked)
+        ? current
+        : [...current, { label: baseName(picked), path: picked, checked: true }],
+    );
+  };
+
+  const plan = useMemo(
+    () => planImport(scans, known, { rootsAreProjects }),
+    [scans, known, rootsAreProjects],
+  );
+  const allFiles = useMemo(() => scans.flatMap((scan) => scan.files), [scans]);
+  const counts = countByKind(allFiles);
+  const look = useMemo(() => needsALook(plan.projects.flatMap((project) => project.files)), [plan]);
+  const lookCount = look.duplicates.length + look.oldVersions.length;
+  const chosen = plan.projects.filter((project) => !excluded.has(project.folder));
+  const placementOf = (file: ImportFile): number | "new" | null =>
+    placements.has(file.path)
+      ? (placements.get(file.path) ?? null)
+      : (suggestProject(file.path, plan.projects) ?? (rootsAreProjects ? "new" : null));
+  const placed = plan.loose.map((file) => {
+    const to = placementOf(file);
+    if (typeof to !== "number") return { file, to };
+    const index = chosen.indexOf(plan.projects[to]!);
+    return { file, to: index === -1 ? null : index };
+  });
+  const total = chosen.length + (placed.some((entry) => entry.to === "new") ? 1 : 0);
+
+  const finish = async () => {
+    if (busy || total === 0) return;
+    setBusy(true);
+    try {
+      const made = await runImport({ projects: chosen, placements: placed, newProjectName });
+      toastManager.add(
+        made > 0
+          ? {
+              type: "success",
+              title: `Imported ${plural(made, "project", "projects")}`,
+              description: "Your files stay where they are.",
+            }
+          : {
+              type: "error",
+              title: "Nothing was imported",
+              description: "Studio could not add those folders.",
+            },
+      );
+      if (made > 0) onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const destinationLabel = (to: number | "new" | null) =>
+    to === null
+      ? "Leave out"
+      : to === "new"
+        ? "A new project"
+        : (plan.projects[to]?.name ?? "Leave out");
+
+  return (
+    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+      <DialogPopup className="max-w-3xl">
+        {bridge === null ? (
+          <DialogHeader>
+            <DialogTitle>Import works in the Studio app</DialogTitle>
+            <DialogDescription>
+              Open Studio on your computer to scan its folders and import files.
+            </DialogDescription>
+          </DialogHeader>
+        ) : step === "scan" ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Import what you already have</DialogTitle>
+              <DialogDescription>
+                Studio scans the folders you pick for engineering files: CAD models, drawings, parts
+                lists, datasheets and photos of parts. It groups them into projects. Your files stay
+                where they are.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogPanel>
+              <div className="grid gap-6 md:grid-cols-2">
+                <section aria-label="Where to look" className="flex min-w-0 flex-col">
+                  <h3 className={`${SECTION_LABEL} border-b border-border pb-2`}>Where to look</h3>
+                  <ul className="flex flex-col">
+                    {roots.map((root) => {
+                      const found = scans.find((scan) => scan.root === root.path);
+                      return (
+                        <li
+                          key={root.path}
+                          className="flex items-center gap-3 border-b border-border py-2"
+                        >
+                          <Checkbox
+                            checked={root.checked}
+                            disabled={scanning !== null}
+                            aria-label={`Scan ${root.label}`}
+                            onCheckedChange={(checked) =>
+                              setRoots((current) =>
+                                current.map((entry) =>
+                                  entry.path === root.path
+                                    ? { ...entry, checked: checked === true }
+                                    : entry,
+                                ),
+                              )
+                            }
+                          />
+                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                            {root.label}
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                            {scanning === root.label
+                              ? "Scanning now"
+                              : found === undefined
+                                ? ""
+                                : `${found.files.length} found`}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="mt-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={scanning !== null}
+                      onClick={() => void addFolder()}
+                    >
+                      <FolderPlusIcon />
+                      Add a folder or a drive
+                    </Button>
+                  </div>
+                </section>
+                <section
+                  aria-label="Found so far"
+                  className="flex min-w-0 flex-col gap-3 rounded-xl bg-muted/50 p-4"
+                >
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    {scanning !== null ? <Spinner size="sm" /> : null}
+                    {scanning !== null
+                      ? `Scanning ${scanning}`
+                      : scanned
+                        ? "Scan done"
+                        : "Found so far"}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {KIND_LABELS.map(([kind, label]) => (
+                      <div key={kind} className="rounded-lg bg-background px-3 py-2">
+                        <div className="text-lg font-semibold text-foreground tabular-nums">
+                          {counts[kind]}
+                        </div>
+                        <div className="text-xs text-muted-foreground">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {scans.length === 0 ? null : (
+                    <p className="text-sm font-medium text-foreground">
+                      It looks like {plural(plan.projects.length, "project", "projects")} so far
+                    </p>
+                  )}
+                </section>
+              </div>
+            </DialogPanel>
+            <DialogFooter>
+              <span className="me-auto self-center text-xs text-muted-foreground">
+                Studio only reads your files. Nothing is moved, renamed or deleted.
+              </span>
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                Skip for now
+              </Button>
+              {scanned ? (
+                <Button size="sm" onClick={() => setStep("found")}>
+                  Continue
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  disabled={scanning !== null || !roots.some((root) => root.checked)}
+                  onClick={() => void scanFolders()}
+                >
+                  Scan
+                </Button>
+              )}
+            </DialogFooter>
+          </>
+        ) : step === "found" ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                {scanning !== null
+                  ? `Reading ${scanning}`
+                  : `${plural(plan.projects.length, "project", "projects")}, from ${plural(allFiles.length, "file", "files")}`}
+              </DialogTitle>
+              <DialogDescription>
+                Each brings its models, drawings, parts lists and photos together. Uncheck any you
+                don't want.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogPanel>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {plan.projects.map((project) => (
+                  <label
+                    key={project.folder}
+                    className="flex min-w-0 items-start gap-3 rounded-lg border border-border p-3"
+                  >
+                    <Checkbox
+                      checked={!excluded.has(project.folder)}
+                      onCheckedChange={(checked) =>
+                        setExcluded((current) => {
+                          const next = new Set(current);
+                          if (checked === true) next.delete(project.folder);
+                          else next.add(project.folder);
+                          return next;
+                        })
+                      }
+                    />
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="truncate text-sm font-medium text-foreground">
+                        {project.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {describeCounts(project.files)}
+                      </span>
+                      <span className="truncate text-2xs text-muted-foreground/80">
+                        {project.folder}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {plan.projects.length === 0 && plan.loose.length === 0 && scanning === null ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No CAD models or drawings found there that Studio doesn't have already.
+                </p>
+              ) : null}
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                {plan.loose.length === 0 ? null : (
+                  <Button variant="link" size="sm" onClick={() => setStep("sort")}>
+                    {plan.loose.length === 1
+                      ? "1 file is in no project"
+                      : `${plan.loose.length} files are in no project`}
+                  </Button>
+                )}
+                {lookCount === 0 ? null : (
+                  <Button variant="link" size="sm" onClick={() => setStep("sort")}>
+                    {lookCount === 1 ? "1 file needs a look" : `${lookCount} files need a look`}
+                  </Button>
+                )}
+              </div>
+              {placed.some((entry) => entry.to === "new") ? (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    A new project for the loose files:
+                  </span>
+                  <div className="w-60">
+                    <Input
+                      size="sm"
+                      aria-label="New project name"
+                      value={newProjectName}
+                      onChange={(event) => setNewProjectName(event.target.value)}
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </DialogPanel>
+            <DialogFooter>
+              <span className="me-auto self-center text-xs text-muted-foreground">
+                You can import more any time from Projects.
+              </span>
+              {start.kind === "scan" ? (
+                <Button variant="ghost" size="sm" onClick={() => setStep("scan")}>
+                  Back
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" onClick={onClose}>
+                  Cancel
+                </Button>
+              )}
+              <Button
+                size="sm"
+                disabled={busy || total === 0 || scanning !== null}
+                onClick={() => void finish()}
+              >
+                {`Import ${plural(total, "project", "projects")}`}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Sort files</DialogTitle>
+              <DialogDescription>
+                Studio proposes where each loose file goes; a file placed in a project is copied
+                into its folder. Copies and older versions stay where they are.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogPanel>
+              {plan.loose.length === 0 ? null : (
+                <section aria-label="In no project" className="flex flex-col">
+                  <h3 className={`${SECTION_LABEL} border-b border-border pb-2`}>In no project</h3>
+                  <ul className="flex flex-col">
+                    {plan.loose.map((file) => {
+                      const to = placementOf(file);
+                      return (
+                        <li
+                          key={file.path}
+                          className="flex flex-wrap items-center gap-3 border-b border-border py-2"
+                        >
+                          <span className="flex min-w-0 flex-1 flex-col">
+                            <span className="truncate text-sm text-foreground">
+                              {baseName(file.path)}
+                            </span>
+                            <span className="truncate text-2xs text-muted-foreground">
+                              {file.path}
+                            </span>
+                          </span>
+                          <span className="text-xs text-muted-foreground">Goes to</span>
+                          <Select
+                            value={String(to)}
+                            onValueChange={(value) =>
+                              setPlacements((current) =>
+                                new Map(current).set(
+                                  file.path,
+                                  value === "new" ? "new" : value === "null" ? null : Number(value),
+                                ),
+                              )
+                            }
+                          >
+                            <SelectTrigger size="sm" className="w-48" aria-label="Goes to">
+                              <SelectValue>{destinationLabel(to)}</SelectValue>
+                            </SelectTrigger>
+                            <SelectPopup alignItemWithTrigger={false}>
+                              {plan.projects.map((project, index) => (
+                                <SelectItem
+                                  key={project.folder}
+                                  hideIndicator
+                                  value={String(index)}
+                                >
+                                  {project.name}
+                                </SelectItem>
+                              ))}
+                              <SelectItem hideIndicator value="new">
+                                A new project
+                              </SelectItem>
+                              <SelectItem hideIndicator value="null">
+                                Leave out
+                              </SelectItem>
+                            </SelectPopup>
+                          </Select>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              )}
+              {lookCount === 0 ? null : (
+                <section aria-label="Needs a look" className="mt-5 flex flex-col">
+                  <h3 className={`${SECTION_LABEL} border-b border-border pb-2`}>Needs a look</h3>
+                  <ul className="flex flex-col">
+                    {[
+                      ...look.duplicates.map((file) => ({ file, why: "A copy of a newer file" })),
+                      ...look.oldVersions.map((file) => ({ file, why: "An older version" })),
+                    ].map(({ file, why }) => (
+                      <li
+                        key={file.path}
+                        className="flex items-center gap-3 border-b border-border py-2"
+                      >
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate text-sm text-foreground">
+                            {baseName(file.path)}
+                          </span>
+                          <span className="truncate text-2xs text-muted-foreground">
+                            {file.path}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-xs text-muted-foreground">{why}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </DialogPanel>
+            <DialogFooter>
+              <Button size="sm" onClick={() => setStep("found")}>
+                Done
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogPopup>
+    </Dialog>
+  );
+}
