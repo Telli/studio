@@ -49,7 +49,7 @@ export function projectStarters(
       name: lowerName(name),
       // A check of how it would be made first, else any check; then a way to make it.
       check:
-        all.find((action) => action.checks && action.way !== null) ??
+        all.find((action) => action.checks && action.group === "Manufacture") ??
         all.find((action) => action.checks),
       make: all.find((action) => action.group === "Manufacture" && !action.checks),
       document: all.find((action) => action.group === "Document"),

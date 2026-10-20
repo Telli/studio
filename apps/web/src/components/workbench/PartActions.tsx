@@ -22,9 +22,9 @@ import { type HardwareAction, hardwareActions } from "./hardwareActions";
 
 /**
  * Evaluate, Manufacture and Document for the part: the jobs its kind takes that the enabled
- * plugins have skills for. Manufacture leads with the project's own way of making it, whole, and
- * keeps the other ways in a submenu each. A pick writes the job, naming the part by a link to its
- * file, into the composer.
+ * plugins have skills for, the everyday ones in titled sections and the rest in a submenu each
+ * (Manufacture leading with the project's own way of making it). A pick writes the job, naming the
+ * part by a link to its file, into the composer.
  */
 export function PartActions(props: {
   readonly environmentId: EnvironmentId;
@@ -81,10 +81,10 @@ export function PartActions(props: {
             sideOffset={props.inTopBar ? 6 : 4}
           >
             {menu.sections.map((section, index) => (
-              <Fragment key={section.title ?? `section-${index}`}>
+              <Fragment key={section.title}>
                 {index === 0 ? null : <MenuSeparator />}
                 <MenuGroup>
-                  {section.title === null ? null : <MenuGroupLabel>{section.title}</MenuGroupLabel>}
+                  <MenuGroupLabel>{section.title}</MenuGroupLabel>
                   {section.actions.map(item)}
                 </MenuGroup>
               </Fragment>
@@ -93,9 +93,7 @@ export function PartActions(props: {
               <>
                 {menu.sections.length === 0 ? null : <MenuSeparator />}
                 <MenuGroup>
-                  <MenuGroupLabel>
-                    {menu.decided ? "Other ways to make it" : "Ways to make it"}
-                  </MenuGroupLabel>
+                  <MenuGroupLabel>{menu.moreLabel}</MenuGroupLabel>
                   {menu.others.map((way) => (
                     <MenuSub key={way.title}>
                       <MenuSubTrigger>{way.title}</MenuSubTrigger>
