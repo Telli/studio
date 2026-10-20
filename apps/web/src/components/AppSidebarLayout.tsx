@@ -82,7 +82,7 @@ function readInitialThreadSidebarWidth(): number {
   }
 }
 
-function SidebarControl() {
+function SidebarControl({ label = "Toggle main sidebar" }: { label?: string }) {
   const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { toggleSidebar, isMobile, mobileSheetMounted } = useSidebar();
@@ -159,12 +159,13 @@ function SidebarControl() {
                 "pointer-events-auto",
                 isSidebarVisible && stageBackdropVariant && "relative top-auto translate-y-0",
               )}
-              aria-label="Toggle main sidebar"
+              aria-label={label}
             />
           }
         />
         <TooltipPopup side="bottom">
-          Toggle main sidebar{shortcutLabel ? ` (${shortcutLabel})` : ""}
+          {label}
+          {shortcutLabel ? ` (${shortcutLabel})` : ""}
         </TooltipPopup>
       </Tooltip>
     </div>
@@ -242,8 +243,11 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
-  // Studio's engineering pages have a top bar instead (`workbench/StudioTopBar.tsx`): the sidebar stays shut.
-  const studioShell = useEngineeringInterface() && studioNavSection(pathname) !== "other";
+  // Studio's engineering pages have a top bar instead (`workbench/StudioTopBar.tsx`): the sidebar
+  // stays shut on Home and lists a project's chats in its workspace (`workbench/StudioSidebar.tsx`).
+  const studioSection = useEngineeringInterface() ? studioNavSection(pathname) : "other";
+  const studioShell = studioSection !== "other";
+  const studioHome = studioShell && studioSection !== "workspace";
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
   // Subscribed rather than read once: the clamp must track live window size,
@@ -321,7 +325,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         className="h-dvh! min-h-0!"
         data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
         defaultOpen
-        {...(studioShell ? { open: false } : {})}
+        {...(studioHome ? { open: false } : {})}
         style={sidebarProviderStyle}
       >
         <SidebarBrandWidthProbe onWidthChange={setBrandWidth} />
@@ -329,8 +333,8 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         <Sidebar
           side="left"
           collapsible="offcanvas"
-          // Shut for Studio's top bar: nothing in it is reachable by Tab or a screen reader.
-          {...(studioShell ? { inert: true } : {})}
+          // Shut for Studio's Home: nothing in it is reachable by Tab or a screen reader.
+          {...(studioHome ? { inert: true } : {})}
           data-app-sidebar=""
           role="navigation"
           aria-label={isOnSettings ? "Settings" : "Threads"}
@@ -359,7 +363,9 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <SidebarRail onDoubleClick={resetSidebarWidth} />
         </Sidebar>
         {children}
-        {studioShell ? null : <SidebarControl />}
+        {studioHome ? null : (
+          <SidebarControl {...(studioShell ? { label: "Show or hide the chats" } : {})} />
+        )}
         <NavigationHistoryShortcuts />
         <MainAppLocationTracker />
       </SidebarProvider>

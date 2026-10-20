@@ -1,5 +1,6 @@
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId } from "@t3tools/contracts";
+import { Navigate } from "@tanstack/react-router";
 import { DownloadIcon, FolderIcon, FolderOpenIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -66,6 +67,9 @@ function LooseFolderRow(props: {
  */
 export function ProjectsHome() {
   const environmentId = usePrimaryEnvironmentId();
+  // In the engineering interface Home is the one page of projects.
+  const engineering = useEngineeringInterface();
+  if (engineering) return <Navigate to="/" replace />;
   return environmentId === null ? null : <ProjectsHomeFor environmentId={environmentId} />;
 }
 
@@ -94,7 +98,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background">
         {engineering ? (
-          <StudioTopBar section="projects">
+          <StudioTopBar>
             <div className="w-full max-w-72">
               <Input
                 type="search"

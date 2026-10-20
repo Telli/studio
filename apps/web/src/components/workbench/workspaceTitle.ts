@@ -1,4 +1,4 @@
-/** How a project's workspace names itself and its chats (`StudioWorkspaceBar.tsx`, `ChatPicker.tsx`). */
+/** How a project's workspace names itself and its chats (`StudioWorkspaceBar.tsx`, `StudioSidebar.tsx`). */
 
 /** The project's Studio name, else the folder's own name. */
 export function workspaceTitle(studioName: string | null, folder: string | null): string {
@@ -8,7 +8,7 @@ export function workspaceTitle(studioName: string | null, folder: string | null)
   return segments[segments.length - 1] ?? folder;
 }
 
-/** A project's chats as the picker lists them: archived ones left out, the newest first. */
+/** A project's chats as the sidebar lists them: archived ones left out, the newest first. */
 export function projectChats<
   T extends { readonly updatedAt: string; readonly archivedAt: string | null },
 >(threads: ReadonlyArray<T>): T[] {

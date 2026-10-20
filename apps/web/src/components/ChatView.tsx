@@ -614,7 +614,7 @@ import { observeResize } from "~/lib/observeResize";
 import { PluginThreadViewMenuItems } from "./plugins/PluginThreadViewMenuItems";
 import { PluginStarterPrompts } from "./plugins/PluginStarterPrompts";
 import { usePluginFollow } from "./plugins/usePluginFollow";
-import { ChatPicker } from "./workbench/ChatPicker";
+import { PendingStart } from "./workbench/PendingStart";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { StudioPanelBar } from "./workbench/StudioPanelBar";
 import { ProjectPage } from "./workbench/ProjectPage";
@@ -11564,13 +11564,7 @@ export default function ChatView(props: ChatViewProps) {
           />
         </header>
         {engineeringInterface ? (
-          <ChatPicker
-            environmentId={activeThread.environmentId}
-            project={activeProject ?? null}
-            threadId={activeThread.id}
-            draft={!isServerThread}
-            onNewChat={handleNewThreadInActiveProject}
-          />
+          <PendingStart project={activeProject ?? null} draft={!isServerThread} />
         ) : null}
 
         {/* Main content area with optional plan sidebar */}

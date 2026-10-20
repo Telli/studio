@@ -1,19 +1,12 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
 import { LayoutDashboardIcon } from "lucide-react";
-import { useMemo } from "react";
 
 import { useNowMinute } from "~/hooks/useNowMinute";
-import { projectEnvironment } from "~/state/projects";
-import { useEnvironmentQuery } from "~/state/query";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { Badge } from "../ui/badge";
-import { groupProjectFiles } from "./projectFiles";
 import { projectActivity } from "./recentProjects";
-import { usePictures } from "./usePictures";
-
-/** The file that pictures a project: its first folder's first model, else board or drawing. */
-const COVER_GROUPS = ["Models", "Boards and wiring", "Drawings", "Studies"] as const;
+import { useProjectCover } from "./useProjectCover";
 
 /**
  * A project as Home and Projects show it: a picture of its first part, its name (marked New on
@@ -26,24 +19,7 @@ export function ProjectTile(props: {
   readonly onOpen: () => void;
 }) {
   const { environmentId, project } = props;
-  const cwd = project.folders[0] ?? "";
-  const listing = useEnvironmentQuery(
-    cwd === "" ? null : projectEnvironment.listEntries({ environmentId, input: { cwd } }),
-  );
-  const groups = useMemo(
-    () =>
-      groupProjectFiles(
-        (listing.data?.entries ?? [])
-          .filter((entry) => entry.kind === "file" && entry.ignored !== true)
-          .map((entry) => entry.path),
-      ),
-    [listing.data],
-  );
-  const cover =
-    COVER_GROUPS.flatMap((group) => groups.find((entry) => entry.group === group)?.files ?? [])[0]
-      ?.path ?? null;
-  const pictures = usePictures({ environmentId, cwd, paths: cover === null ? [] : [cover] });
-  const picture = cover === null ? undefined : pictures.get(cover);
+  const picture = useProjectCover(environmentId, project);
   // The minute as the page knows it (UTC), so the tile re-reads as time passes.
   const now = Date.parse(`${useNowMinute()}:00Z`);
   const activity = projectActivity({
