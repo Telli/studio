@@ -18,7 +18,7 @@ describe("hardware actions", () => {
         [],
         [
           ["CNC machining", ["Check for CNC machining"]],
-          ["Sheet metal and cutting", ["Check as sheet metal"]],
+          ["Sheet metal", ["Check as sheet metal"]],
           ["Injection molding", ["Check for injection molding"]],
         ],
       ],
@@ -26,7 +26,7 @@ describe("hardware actions", () => {
     ]);
   });
 
-  it("puts the project's own way of making it first, whole, and the other ways apart", () => {
+  it("puts the project's own way of making it first, whole, and each other method apart", () => {
     expect(
       menus(
         "Part",
@@ -38,12 +38,30 @@ describe("hardware actions", () => {
       [
         "Manufacture",
         [
-          ["3D printing", ["Check for 3D printing", "Slice for FDM", "Print on a Bambu printer"]],
+          ["FDM printing", ["Check for FDM printing", "Slice for FDM", "Print on a Bambu printer"]],
           ["Buy", ["Off-the-shelf parts"]],
         ],
         [
+          ["Resin printing (SLA/DLP)", ["Check for resin printing"]],
+          ["SLS and MJF printing", ["Check for SLS printing", "Check for MJF printing"]],
+          ["Metal printing (SLM/DMLS)", ["Check for metal printing"]],
           ["CNC machining", ["Check for CNC machining", "G-code for CNC"]],
-          ["Sheet metal and cutting", ["Check as sheet metal"]],
+          ["Sheet metal", ["Check as sheet metal"]],
+          ["Injection molding", ["Check for injection molding"]],
+        ],
+      ],
+      ["Document", [[null, ["Test plan", "Write up the results"]]], []],
+    ]);
+  });
+
+  it("gives sheet metal its check, flat pattern and order, and cutting its own", () => {
+    expect(menus("Part", ["dfm", "dxf", "sendcutsend"], "Sheet metal")).toEqual([
+      [
+        "Manufacture",
+        [["Sheet metal", ["Check as sheet metal", "Flat pattern DXF", "Order from SendCutSend"]]],
+        [
+          ["CNC machining", ["Check for CNC machining"]],
+          ["Laser and waterjet cutting", ["Cut-ready DXF", "Order from SendCutSend"]],
           ["Injection molding", ["Check for injection molding"]],
         ],
       ],
@@ -62,13 +80,22 @@ describe("hardware actions", () => {
     ]);
   });
 
-  it("gives a board its own jobs and a mesh no machining", () => {
+  it("gives a board its own jobs and a mesh only the printing methods", () => {
     expect(menus("Board", ["pcb", "pcb-dfm", "dfm"])).toEqual([
       ["Manufacture", [["Circuit board", ["Check for fabrication", "Route the board"]]], []],
       ["Document", [[null, ["Write up the results"]]], []],
     ]);
     expect(menus("Mesh", ["dfm", "dfam-check", "cam"])).toEqual([
-      ["Manufacture", [], [["3D printing", ["Check for 3D printing"]]]],
+      [
+        "Manufacture",
+        [],
+        [
+          ["FDM printing", ["Check for FDM printing"]],
+          ["Resin printing (SLA/DLP)", ["Check for resin printing"]],
+          ["SLS and MJF printing", ["Check for SLS printing", "Check for MJF printing"]],
+          ["Metal printing (SLM/DMLS)", ["Check for metal printing"]],
+        ],
+      ],
       ["Document", [[null, ["Write up the results"]]], []],
     ]);
   });

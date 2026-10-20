@@ -17,31 +17,37 @@ export type HardwareActionGroup = "Evaluate" | "Manufacture" | "Document";
 /** How the project's parts are made, as its setup says (`STUDIO_PROCESSES`). */
 export type MakingProcess = (typeof STUDIO_PROCESSES)[number];
 
-/** A way of making things, as Manufacture groups its jobs. */
+/** A way of making things, as Manufacture groups its jobs: one per method the skills know. */
 export interface MakingWay {
-  readonly id: "printing" | "cnc" | "sheet" | "molding" | "board" | "buy";
+  readonly id:
+    | "fdm"
+    | "resin"
+    | "powder"
+    | "metal-print"
+    | "cnc"
+    | "sheet"
+    | "cutting"
+    | "molding"
+    | "board"
+    | "buy";
   readonly title: string;
   /** The setup's processes that are this way; none for a way every project has. */
   readonly processes: ReadonlyArray<MakingProcess>;
 }
 
+/**
+ * The methods, as text-to-cad's skills cover them: `dfam-check` for each way of printing (FDM,
+ * SLA/DLP, SLS and MJF, metal powder bed), `dfm` for machining, sheet metal and molding, `gcode`,
+ * `bambu-labs`, `cam`, `dxf` and `sendcutsend` for what each way makes.
+ */
 export const MAKING_WAYS: ReadonlyArray<MakingWay> = [
-  {
-    id: "printing",
-    title: "3D printing",
-    processes: [
-      "3D printing (FDM)",
-      "3D printing (resin)",
-      "3D printing (SLS)",
-      "3D printing (metal)",
-    ],
-  },
+  { id: "fdm", title: "FDM printing", processes: ["3D printing (FDM)"] },
+  { id: "resin", title: "Resin printing (SLA/DLP)", processes: ["3D printing (resin)"] },
+  { id: "powder", title: "SLS and MJF printing", processes: ["3D printing (SLS)"] },
+  { id: "metal-print", title: "Metal printing (SLM/DMLS)", processes: ["3D printing (metal)"] },
   { id: "cnc", title: "CNC machining", processes: ["CNC machining"] },
-  {
-    id: "sheet",
-    title: "Sheet metal and cutting",
-    processes: ["Sheet metal", "Laser or waterjet cutting"],
-  },
+  { id: "sheet", title: "Sheet metal", processes: ["Sheet metal"] },
+  { id: "cutting", title: "Laser and waterjet cutting", processes: ["Laser or waterjet cutting"] },
   { id: "molding", title: "Injection molding", processes: ["Injection molding"] },
   { id: "board", title: "Circuit board", processes: [] },
   { id: "buy", title: "Buy", processes: [] },
@@ -61,7 +67,7 @@ export interface HardwareAction {
   readonly checks: boolean;
   /** The job, naming the part as given: a link to its file, which the composer shows as the part. */
   readonly prompt: (file: string) => string;
-  /** The job as a starter names it, short: "Check bike hook for 3D printing". */
+  /** The job as a starter names it, short: "Check bike hook for FDM printing". */
   readonly short: (name: string) => string;
 }
 
@@ -130,16 +136,16 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     short: (name) => `Explain the ${name} job`,
   },
   {
-    id: "printing",
+    id: "fdm",
     group: "Manufacture",
-    label: "Check for 3D printing",
+    label: "Check for FDM printing",
     skill: "dfam-check",
     kinds: PRINTABLE,
-    way: "printing",
+    way: "fdm",
     checks: true,
     prompt: (file) =>
-      `Check ${file} for 3D printing: overhangs, thin walls, bed fit and the best build orientation. Tell me what to change.`,
-    short: (name) => `Check ${name} for 3D printing`,
+      `Check ${file} for FDM printing: overhangs, thin walls, small holes, bridges and bed fit, and the best build orientation. Tell me what to change.`,
+    short: (name) => `Check ${name} for FDM printing`,
   },
   {
     id: "slice",
@@ -147,7 +153,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Slice for FDM",
     skill: "gcode",
     kinds: PRINTABLE,
-    way: "printing",
+    way: "fdm",
     checks: false,
     prompt: (file) => `Slice ${file} for FDM printing and check the G-code.`,
     short: (name) => `Slice ${name} for printing`,
@@ -158,11 +164,59 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Print on a Bambu printer",
     skill: "bambu-labs",
     kinds: PRINTABLE,
-    way: "printing",
+    way: "fdm",
     checks: false,
     prompt: (file) =>
       `Slice ${file} and get it ready on my Bambu printer. Check with me before the print starts.`,
     short: (name) => `Print ${name} on the Bambu`,
+  },
+  {
+    id: "resin",
+    group: "Manufacture",
+    label: "Check for resin printing",
+    skill: "dfam-check",
+    kinds: PRINTABLE,
+    way: "resin",
+    checks: true,
+    prompt: (file) =>
+      `Check ${file} for resin (SLA/DLP) printing: supports, thin walls, small holes and fine features, and the best orientation. Tell me what to change.`,
+    short: (name) => `Check ${name} for resin printing`,
+  },
+  {
+    id: "sls",
+    group: "Manufacture",
+    label: "Check for SLS printing",
+    skill: "dfam-check",
+    kinds: PRINTABLE,
+    way: "powder",
+    checks: true,
+    prompt: (file) =>
+      `Check ${file} for SLS printing in PA12: wall thickness, small holes and features, and powder trapped inside. Tell me what to change.`,
+    short: (name) => `Check ${name} for SLS printing`,
+  },
+  {
+    id: "mjf",
+    group: "Manufacture",
+    label: "Check for MJF printing",
+    skill: "dfam-check",
+    kinds: PRINTABLE,
+    way: "powder",
+    checks: true,
+    prompt: (file) =>
+      `Check ${file} for MJF printing: wall thickness, small holes and features, and powder trapped inside. Tell me what to change.`,
+    short: (name) => `Check ${name} for MJF printing`,
+  },
+  {
+    id: "metal-print",
+    group: "Manufacture",
+    label: "Check for metal printing",
+    skill: "dfam-check",
+    kinds: PRINTABLE,
+    way: "metal-print",
+    checks: true,
+    prompt: (file) =>
+      `Check ${file} for metal powder bed printing (SLM/DMLS): overhangs and supports, thin walls, small holes and bridges, and the best orientation. Tell me what to change.`,
+    short: (name) => `Check ${name} for metal printing`,
   },
   {
     id: "cnc",
@@ -201,12 +255,36 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     short: (name) => `Check ${name} as sheet metal`,
   },
   {
+    id: "flat-pattern",
+    group: "Manufacture",
+    label: "Flat pattern DXF",
+    skill: "dxf",
+    kinds: ["Part"],
+    way: "sheet",
+    checks: false,
+    prompt: (file) =>
+      `Make the flat pattern of ${file} as a DXF with its bend lines, ready to cut.`,
+    short: (name) => `Flat pattern of ${name}`,
+  },
+  {
+    id: "sendcutsend-sheet",
+    group: "Manufacture",
+    label: "Order from SendCutSend",
+    skill: "sendcutsend",
+    kinds: ["Part", "Drawing"],
+    way: "sheet",
+    checks: false,
+    prompt: (file) =>
+      `Check ${file} for a SendCutSend order with bending: material, thickness, bends and any other services it needs.`,
+    short: (name) => `Get ${name} ready for SendCutSend`,
+  },
+  {
     id: "dxf",
     group: "Manufacture",
     label: "Cut-ready DXF",
     skill: "dxf",
     kinds: ["Part", "Drawing"],
-    way: "sheet",
+    way: "cutting",
     checks: false,
     prompt: (file) => `Make a cut-ready DXF of ${file} for laser or waterjet cutting.`,
     short: (name) => `Make a cut file of ${name}`,
@@ -217,7 +295,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "Order from SendCutSend",
     skill: "sendcutsend",
     kinds: ["Part", "Drawing"],
-    way: "sheet",
+    way: "cutting",
     checks: false,
     prompt: (file) =>
       `Check ${file} for a SendCutSend order: material, thickness and any services it needs.`,
