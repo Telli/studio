@@ -196,7 +196,7 @@ function StartProject(props: {
           </Button>
           <div className="flex-1" />
           <Button size="sm" disabled={!ready} onClick={startDescribed}>
-            {busy ? "Starting" : "Start"}
+            Start
           </Button>
         </div>
       </div>
