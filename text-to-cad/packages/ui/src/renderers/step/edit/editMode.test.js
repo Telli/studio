@@ -557,7 +557,7 @@ test("a sweep takes its profile then its path, a loft its profiles in order, a r
   assert.equal(commandBlocked("rib", [], null, commandDefaults("rib", "mm")), "Select a sketch of the rib's line.");
   // The ribbon's groups, as SolidWorks' Features tab sets them out.
   assert.deepEqual(COMMAND_GROUPS.map(group => EDIT_COMMANDS.filter(command => command.group === group).map(command => command.id)),
-    [["extrude", "revolve", "sweep", "loft"], ["cut", "revolve_cut", "sweep_cut", "loft_cut", "hole"], ["fillet", "chamfer", "rib", "draft", "shell", "pattern", "mirror"],
+    [["extrude", "revolve", "sweep", "loft"], ["cut", "revolve_cut", "sweep_cut", "loft_cut", "hole"], ["fillet", "chamfer", "rib", "draft", "shell", "pattern", "mirror", "split", "delete_body"],
       ["plane"]]);
 });
 

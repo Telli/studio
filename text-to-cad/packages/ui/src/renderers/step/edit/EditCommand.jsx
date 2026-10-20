@@ -71,6 +71,9 @@ const LISTED = 8;
 // The origin's planes Mirror goes about, by their axes, named as the design tree names them.
 const PLANES = Object.freeze([{ value: "XZ", label: "Front Plane" }, { value: "XY", label: "Top Plane" }, { value: "YZ", label: "Right Plane" }]);
 const PATTERNS = Object.freeze([{ value: "linear", label: "Linear" }, { value: "circular", label: "Circular" }]);
+const SPLIT_KEEPS = Object.freeze([{ value: "both", label: "Both bodies" }, { value: "top", label: "The side the plane faces" },
+  { value: "bottom", label: "The side behind the plane" }]);
+const BODY_MODES = Object.freeze([{ value: "delete", label: "Delete Bodies" }, { value: "keep", label: "Keep Bodies" }]);
 // The axes a plane At angle turns about: its own.
 const CURVE_ENDS = Object.freeze([{ value: "start", label: "Its start" }, { value: "end", label: "Its end" }]);
 const TURN_AXES = Object.freeze([{ value: "x", label: "Its X axis" }, { value: "y", label: "Its Y axis" }]);
@@ -608,6 +611,14 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         : <FileSheetSelectRow label="About" value={values.plane} onValueChange={set("plane")}
           options={[...PLANES, ...planes.map(each => ({ value: each.value, label: each.label })), ...(editing?.values?.plane === "face" ? [SAME_FACE] : [])]} />
         : null}
+      {/* Split, as SolidWorks splits a part into bodies: by a face picked, or a plane; both bodies kept, or one side. */}
+      {command.id === "split" ? <>
+        {faces.length ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>By the selected face's plane.</p>
+          : <FileSheetSelectRow label="Splitting plane" value={values.plane} onValueChange={set("plane")}
+            options={[...PLANES, ...planes.map(each => ({ value: each.value, label: each.label }))]} />}
+        <FileSheetSelectRow label="Keep" value={values.keep} options={SPLIT_KEEPS} onValueChange={set("keep")} />
+      </> : null}
+      {command.id === "delete_body" ? <FileSheetSelectRow label="Type" value={values.mode} options={BODY_MODES} onValueChange={set("mode")} /> : null}
       {command.id === "pattern" ? <>
         <FileSheetSelectRow label="Type" value={values.type} options={PATTERNS} onValueChange={set("type")} />
         {values.type === "linear" ? <>

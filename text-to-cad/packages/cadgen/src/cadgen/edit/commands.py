@@ -696,15 +696,16 @@ def splice(text: str, changes: list[dict]) -> str:
 # The commands.
 
 COMMANDS = ("fillet", "chamfer", "hole", "shell", "draft", "mirror", "pattern", "extrude", "cut", "revolve", "revolve_cut", "sweep",
-            "sweep_cut", "loft", "loft_cut", "rib", "plane")
+            "sweep_cut", "loft", "loft_cut", "rib", "plane", "split", "delete_body")
 FEATURE_WORDS = {"fillet": "Fillet", "chamfer": "Chamfer", "hole": "Hole", "shell": "Shell", "draft": "Draft", "mirror": "Mirror",
                  "pattern": "Pattern", "extrude": "Boss-Extrude", "cut": "Cut-Extrude", "revolve": "Boss-Revolve", "revolve_cut": "Cut-Revolve",
-                 "sweep": "Boss-Sweep", "sweep_cut": "Cut-Sweep", "loft": "Boss-Loft", "loft_cut": "Cut-Loft", "rib": "Rib", "plane": "Plane"}
+                 "sweep": "Boss-Sweep", "sweep_cut": "Cut-Sweep", "loft": "Boss-Loft", "loft_cut": "Cut-Loft", "rib": "Rib", "plane": "Plane",
+                 "split": "Split", "delete_body": "Delete/Keep Body"}
 # The operation each command's line records in the tracer.
 RECORDS = {"fillet": ("fillet",), "chamfer": ("chamfer",), "hole": ("cut",), "shell": ("offset",), "draft": ("draft",),
            "mirror": ("mirror",), "pattern": ("GridLocations", "PolarLocations"), "extrude": ("extrude",), "cut": ("extrude",),
            "revolve": ("revolve",), "revolve_cut": ("revolve",), "sweep": ("sweep",), "sweep_cut": ("sweep",), "loft": ("loft",),
-           "loft_cut": ("loft",), "rib": ("rib",), "plane": ("plane",)}
+           "loft_cut": ("loft",), "rib": ("rib",), "plane": ("plane",), "split": ("split",), "delete_body": ("cut", "add")}
 # The origin's planes as the design tree names them, and as build123d does.
 ORIGIN_PLANES = {"Top": "XY", "Front": "XZ", "Right": "YZ"}
 # The faces a draft tilts, as OCCT's draft takes them.
@@ -1255,6 +1256,52 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         shown = [("Draft angle", angle, "deg")]
         selected = None if fixed else {"argument": "faces", "items": [selections.topology["face"].describe(n) for n in numbers]}
         what = fixed.keeps if fixed else counted(len(numbers), "face")
+    elif command == "split":
+        # Split, as SolidWorks splits a part into bodies: by an origin or reference plane, or a flat
+        # face's plane; both sides kept as bodies of their own, or the side above or below it alone.
+        faces = [item for item in selection if selector_ordinal(item.get("selector"))[0] == "face"]
+        if faces:
+            numbers, face = chosen("face", one=True)
+            if selections.topology["face"].describe(numbers[0])["type"] != "plane":
+                raise CommandError("A body is split by a flat face's plane. Select a flat one, or pick a plane.")
+            plane_code, plane_words = f"{names('Plane')}({face})", "a face's plane"
+        elif str(inputs.get("plane") or "").startswith("named:"):
+            plane_code = plane_words = reference_plane(str(inputs["plane"]))
+        else:
+            plane = str(inputs.get("plane") or "YZ").upper()
+            if plane not in PLANES:
+                raise CommandError("Pick the plane to split the body with.")
+            plane_code, plane_words = f"{names('Plane')}.{plane}", f"the {plane} plane"
+        keep = {"both": "BOTH", "top": "TOP", "bottom": "BOTTOM"}.get(str(inputs.get("keep") or "both"))
+        if keep is None:
+            raise CommandError("Keep both bodies, or the one above or below the plane.")
+        code = f"{var} = {names('split')}({var}, bisect_by={plane_code}, keep={names('Keep')}.{keep})"
+        shown = []
+        what = f"by {plane_words}, keeping {'both bodies' if keep == 'BOTH' else 'the side ' + ('above' if keep == 'TOP' else 'below')}"
+    elif command == "delete_body":
+        # Delete/Keep Body, as SolidWorks takes bodies out of a multibody part: the body a face is
+        # picked on, by its place among the part's bodies; Keep keeps it alone instead.
+        numbers, _face = chosen("face", one=True)
+        face = selections.topology["face"].item(numbers[0])
+        solids = list(picked_on.solids())
+        if len(solids) < 2:
+            raise CommandError("This part is one body. Delete/Keep Body works on a part of several, after a Split.")
+        index = next((i for i, solid in enumerate(solids) if any(face.wrapped.IsSame(each.wrapped) for each in solid.faces())), None)
+        if index is None:
+            raise CommandError("Edit mode cannot tell which body that face is on. Pick another face of it.")
+        # Which body: by its place along the axis the bodies are most spread along.
+        centers = [solid.center() for solid in solids]
+        axis = max(("X", "Y", "Z"), key=lambda a: max(getattr(c, a) for c in centers) - min(getattr(c, a) for c in centers))
+        ordered = sorted(range(len(solids)), key=lambda i: getattr(centers[i], axis))
+        if len({round(getattr(c, axis), 6) for c in centers}) < len(solids):
+            raise CommandError("These bodies sit side by side in a way edit mode cannot name. Ask the agent to remove one.")
+        place = ordered.index(index)
+        source = picked_var or var
+        body_code = f"{source}.solids().sort_by({names('Axis')}.{axis})[{place if place < len(solids) - 1 else -1}]"
+        keeping = str(inputs.get("mode") or "delete") == "keep"
+        code = (f"{var} = {names('Part')}() + {body_code}  # Keep Body" if keeping else f"{var} -= {body_code}  # Delete Body")
+        shown = []
+        what = f"{'kept' if keeping else 'deleted'} the body picked"
     elif command == "mirror":
         faces = [item for item in selection if selector_ordinal(item.get("selector"))[0] == "face"]
         if faces:

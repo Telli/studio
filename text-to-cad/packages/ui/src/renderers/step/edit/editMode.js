@@ -609,6 +609,8 @@ export const EDIT_COMMANDS = Object.freeze([
   { id: "shell", label: "Shell", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
   { id: "pattern", label: "Pattern", group: "Modify", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Modify", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
+  { id: "split", label: "Split", group: "Modify", picks: "faces", prompt: "Pick the plane to split the body with, or select a flat face on the model." },
+  { id: "delete_body", label: "Delete/Keep Body", group: "Modify", picks: "faces", prompt: "Click a face of the body to delete, or to keep." },
   { id: "plane", label: "Plane", group: "Reference", picks: "all",
     prompt: "Select a flat face or a plane in the design tree to offset from, two parallel faces for a Mid Plane, or an edge for a plane normal to it." },
 ]);
@@ -638,6 +640,8 @@ export function commandDefaults(id, units) {
     // A plane's first reference is picked: an origin plane's name, or a face of the part.
     case "plane": return { reference: "", distance: size.depth, flip: false, angle: "0", about: "x", end: "start" };
     case "mirror": return { plane: "YZ" };
+    case "split": return { plane: "YZ", keep: "both" };
+    case "delete_body": return { mode: "delete" };
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
     case "extrude":
     case "cut": return { end: "blind", depth: size.depth, reverse: false, draft: false, draft_angle: size.draft, outward: false,
@@ -845,6 +849,9 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       }
       break;
     case "mirror": inputs.plane = values.plane; break;
+    // Split by a flat face picked on the model, else the plane picked in the panel.
+    case "split": Object.assign(inputs, { plane: items.some(item => /f\d+$/.test(item.selector)) ? "face" : values.plane, keep: values.keep }); break;
+    case "delete_body": inputs.mode = values.mode === "keep" ? "keep" : "delete"; break;
     case "pattern": {
       Object.assign(inputs, { type: values.type, count: values.count });
       if (values.type === "linear") {
@@ -923,6 +930,8 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
   if (id === "hole") return faces.length === 1 ? "" : faces.length ? "Select one face." : "Select a flat face on the model.";
   if (id === "shell") return faces.length ? "" : "Select the faces to open.";
   if (id === "mirror") return faces.length > 1 ? "Select one face, or none to pick a plane." : "";
+  if (id === "split") return faces.length > 1 ? "Select one face, or none to pick a plane." : "";
+  if (id === "delete_body") return faces.length === 1 ? "" : faces.length ? "Select one face of the body." : "Click a face of the body.";
   return "";
 }
 

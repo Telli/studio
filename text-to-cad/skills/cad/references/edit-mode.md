@@ -74,6 +74,12 @@ by hand" below.
   chamfer's length along each edge's first face; flipped, the distance runs along the other, written
   `length=1 * bd.tan(bd.radians(30)), length2=1`, which reopens as Angle distance, flipped.
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.
+- **Split** cuts the body into bodies by an origin or reference plane, or a flat face's plane:
+  `part = split(part, bisect_by=Plane.YZ, keep=Keep.BOTH)` (`Keep.TOP`/`Keep.BOTTOM` keeps one side).
+  **Delete/Keep Body** then takes a body out by a face picked on it:
+  `part -= part.solids().sort_by(Axis.X)[-1]  # Delete Body`, or keeps it alone
+  (`part = Part() + part.solids().sort_by(Axis.X)[0]  # Keep Body`); a body is named by its place
+  along the axis the bodies are most spread along.
 - **Plane** (Reference Geometry) is a line of its own, offset from an origin plane or a flat face
   of the body: `plane1 = bd.Plane.XY.offset(10)`, `plane2 = bd.Plane(<face>).offset(-.25*INCH)`
   (a face's plane faces out of the part; a minus flips it). Two parallel faces picked make a Mid

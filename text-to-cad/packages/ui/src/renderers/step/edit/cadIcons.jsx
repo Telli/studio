@@ -76,6 +76,16 @@ export const PatternIcon = ({ className }) => <Icon className={className}>
 </Icon>;
 
 /** A block and its mirror image across a plane. */
+export const SplitIcon = ({ className }) => <Icon className={className}>
+  <path d="M3 9l6-3 6 3v8l-6 3-6-3z" style={SOLID} />
+  <path d="M13 8l6-3 3 1.5v8l-3 1.5-6-3z" style={SOLID} />
+  <path d="M11 3v18" style={{ ...SKETCH, strokeWidth: 1.4 }} strokeDasharray="2.4 1.6" />
+</Icon>;
+export const DeleteBodyIcon = ({ className }) => <Icon className={className}>
+  <path d="M3 10l5-2.5 5 2.5v7l-5 2.5-5-2.5z" style={SOLID} />
+  <path d="M14 6l3.5 1.7v5L14 14.5l-3.5-1.8v-5z" fill="none" stroke="currentColor" strokeOpacity=".5" strokeDasharray="1.6 1.2" />
+  <path d="m16 15 5 5m0-5-5 5" stroke="#ef4444" strokeWidth="1.8" />
+</Icon>;
 export const MirrorIcon = ({ className }) => <Icon className={className}>
   <path d="M12 2v20" style={{ ...SKETCH, strokeWidth: 1.4 }} strokeDasharray="2.4 1.6" />
   <g>
@@ -248,5 +258,5 @@ export const COMMAND_ICONS = Object.freeze({
   extrude: ExtrudedBossIcon, cut: ExtrudedCutIcon, revolve: RevolvedBossIcon, revolve_cut: RevolvedCutIcon,
   sweep: SweptBossIcon, sweep_cut: SweptCutIcon, loft: LoftedBossIcon, loft_cut: LoftedCutIcon, rib: RibIcon,
   hole: HoleIcon, pattern: PatternIcon, mirror: MirrorIcon, fillet: FilletIcon, chamfer: ChamferIcon, shell: ShellIcon, draft: DraftIcon,
-  plane: ReferencePlaneIcon,
+  plane: ReferencePlaneIcon, split: SplitIcon, delete_body: DeleteBodyIcon,
 });

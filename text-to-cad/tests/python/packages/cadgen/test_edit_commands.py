@@ -1263,6 +1263,23 @@ class Planes(Commands):
         self.assertIn('    sketch1 = Sketch("Sketch1", plane=plane1)\n', script.read_text(encoding="utf-8"))
         self.assertEqual(sketched["sketch"]["state"]["frame"]["origin"], [0, 0, -4])
 
+    def test_split_makes_two_bodies_and_delete_body_takes_one_out(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        split = self.command(file, state, "split", (), {"plane": "YZ", "keep": "both"})
+        self.assertTrue(split["ok"], split.get("error"))
+        script = root / "block.py"
+        self.assertIn("part = split(part, bisect_by=Plane.YZ, keep=Keep.BOTH)\n", script.read_text(encoding="utf-8"))
+        # One body alone is refused: there is nothing to delete it from.
+        alone = self.open(BLOCK, "block.step")
+        refused = self.command(alone[1], alone[2], "delete_body", [face("f6", (10, 0, 0), 40)])
+        self.assertFalse(refused["ok"])
+        deleted = self.command(file, split, "delete_body", [face("f6", (10, 0, 0), 40)], {"mode": "delete"})
+        self.assertTrue(deleted["ok"], deleted.get("error"))
+        self.assertIn("part -= part.solids().sort_by(Axis.X)[-1]  # Delete Body\n", script.read_text(encoding="utf-8"))
+        weighed = self.service.change({"file": file, "files": deleted["files"], "mass": {}})
+        self.assertEqual(weighed["mass"]["solids"], 1)
+        self.assertAlmostEqual(weighed["mass"]["volume"], 400, places=3)
+
     def test_draft_analysis_classes_the_block_by_its_pull(self):
         root, file, state = self.open(BLOCK, "block.step")
         reply = self.service.change({"file": file, "files": state["files"], "draft_check": {"pull": [0, 0, 1], "angle": 1}})
