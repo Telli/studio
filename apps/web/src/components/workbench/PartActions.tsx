@@ -6,20 +6,32 @@ import type { ComposerHandleRef } from "~/composerHandleContext";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
-import { hardwareActions } from "./hardwareActions";
+import {
+  Menu,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuItem,
+  MenuPopup,
+  MenuSeparator,
+  MenuTrigger,
+} from "../ui/menu";
+import { type HardwareAction, hardwareActions } from "./hardwareActions";
 
 /**
- * Check, Make and Document beside the part's name: the jobs its kind takes
- * that the enabled plugins have skills for. A pick writes the job, naming the
- * part by a link to its file, into the composer.
+ * Check, Make and Document for the part: the jobs its kind takes that the enabled plugins have
+ * skills for, the project's own way of making it first and the other ways apart. A pick writes
+ * the job, naming the part by a link to its file, into the composer.
  */
 export function PartActions(props: {
   readonly environmentId: EnvironmentId;
   /** The part as the jobs name it: a link to its file, which the composer shows as the part. */
   readonly file: string;
   readonly kind: string;
+  /** How the project's parts are made, from its setup; unset or "Not decided" offers every way. */
+  readonly process?: string | undefined;
   readonly composerRef: ComposerHandleRef;
+  /** In the workspace's top bar: its buttons, menus opening below. Else small, opening above. */
+  readonly inTopBar?: boolean;
 }) {
   const list = useEnvironmentQuery(
     pluginEnvironment.list({ environmentId: props.environmentId, input: {} }),
@@ -28,34 +40,55 @@ export function PartActions(props: {
     const skills = new Set(
       (list.data?.plugins ?? []).flatMap((plugin) => (plugin.enabled ? plugin.skills : [])),
     );
-    return hardwareActions(props.kind, skills);
-  }, [list.data, props.kind]);
+    return hardwareActions(props.kind, skills, props.process);
+  }, [list.data, props.kind, props.process]);
   if (groups.length === 0) return null;
+  const decided = props.process !== undefined && !["", "Not decided"].includes(props.process);
+  const write = (action: HardwareAction) => {
+    const composer = props.composerRef.current;
+    if (!composer) return;
+    composer.insertTextAtEnd(action.prompt(props.file), { ensureLeadingBoundary: true });
+    composer.focusAtEnd();
+  };
+  const item = (action: HardwareAction) => (
+    <MenuItem key={action.id} onClick={() => write(action)}>
+      {action.label}
+    </MenuItem>
+  );
 
   return (
     <div className="flex shrink-0 items-center" data-part-actions="">
-      {groups.map(({ group, actions }) => (
+      {groups.map(({ group, actions, others }) => (
         <Menu key={group}>
-          <MenuTrigger render={<Button variant="ghost-muted" size="xs" />}>
+          <MenuTrigger
+            render={
+              props.inTopBar ? (
+                <Button variant="ghost" size="sm" />
+              ) : (
+                <Button variant="ghost-muted" size="xs" />
+              )
+            }
+          >
             {group}
             <ChevronDownIcon className="size-3 opacity-60" aria-hidden="true" />
           </MenuTrigger>
-          <MenuPopup align="end" side="top">
-            {actions.map((action) => (
-              <MenuItem
-                key={action.id}
-                onClick={() => {
-                  const composer = props.composerRef.current;
-                  if (!composer) return;
-                  composer.insertTextAtEnd(action.prompt(props.file), {
-                    ensureLeadingBoundary: true,
-                  });
-                  composer.focusAtEnd();
-                }}
-              >
-                {action.label}
-              </MenuItem>
-            ))}
+          <MenuPopup
+            align="end"
+            side={props.inTopBar ? "bottom" : "top"}
+            sideOffset={props.inTopBar ? 6 : 4}
+          >
+            {actions.map(item)}
+            {others.length === 0 ? null : (
+              <>
+                {actions.length === 0 ? null : <MenuSeparator />}
+                <MenuGroup>
+                  <MenuGroupLabel>
+                    {decided ? "Other ways to make it" : "Ways to make it"}
+                  </MenuGroupLabel>
+                  {others.map(item)}
+                </MenuGroup>
+              </>
+            )}
           </MenuPopup>
         </Menu>
       ))}

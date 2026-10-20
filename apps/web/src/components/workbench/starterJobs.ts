@@ -40,10 +40,15 @@ export function projectStarters(
     const { name, kind } = describePart(file.path, null);
     const groups = hardwareActions(kind, skills);
     // Starters start jobs; a write-up (no skill of its own) comes after the work.
-    const of = (group: string) =>
-      (groups.find((entry) => entry.group === group)?.actions ?? []).filter(
-        (action) => action.skill !== null,
-      );
+    // A job about how it is made first (will it machine, slice it), then one that holds for any.
+    const of = (group: string) => {
+      const menu = groups.find((entry) => entry.group === group);
+      const all = [...(menu?.actions ?? []), ...(menu?.others ?? [])];
+      return [
+        ...all.filter((action) => action.processes !== null),
+        ...all.filter((action) => action.processes === null),
+      ].filter((action) => action.skill !== null);
+    };
     return {
       link: serializeComposerFileLink(file.path),
       name: lowerName(name),
