@@ -255,23 +255,26 @@ html[data-studio-focus="hardware"] .chat-markdown :not(pre) > code {
 /*
  * A project's part tabs run along the bottom of the panel, as a CAD tool's sheet tabs do. The
  * panel's title row keeps the Overview tab and the workspace's bar (`StudioPanelBar.tsx`), and the
- * view leaves room for the strip only while there are tabs in it.
+ * view leaves room for the strip only while there are tabs in it. The tab list is a scroll area
+ * that places itself (position, full size), hence the !important.
  */
 html[data-studio-focus="hardware"] :has(> [data-right-panel-tabbar]) {
   position: relative;
 }
 html[data-studio-focus="hardware"] [data-right-panel-tab-list] {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
+  position: absolute !important;
+  inset-inline: 0 !important;
+  top: auto !important;
+  bottom: 0 !important;
   z-index: 10;
-  height: 2.25rem;
+  width: auto !important;
+  height: 2.25rem !important;
   padding-inline: 0.5rem;
   border-top: 1px solid var(--border);
   background: var(--background);
 }
 html[data-studio-focus="hardware"] [data-right-panel-tab-list]:not(:has([data-active-tab])) {
-  display: none;
+  display: none !important;
 }
 html[data-studio-focus="hardware"]
   :has(> [data-right-panel-tabbar]):has([data-right-panel-tab-list] [data-active-tab])
