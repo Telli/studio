@@ -98,10 +98,16 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 
 - **The project's overview.** The Project tab (Overview, in Engineering) opens on it: the
   project's README in its folder first, what it is and its decisions
-  (`- <what was decided> (<YYYY-MM-DD>, asked)`, or `by hand`), which the agent is told to keep,
-  then the lead part large, the open issues its
+  (`- <what was decided> (<YYYY-MM-DD>, asked)`, or `by hand`; a decision written date first reads
+  too), then every other section the README has as written, its links opening what they name. The
+  agent is told to keep it, and on a new project's first turn to name the project, set its setup
+  and write the README before anything else. Below it, modules: the lead part large (or, with no
+  part yet, Start a part by hand), the open issues its
   checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
-  propose and wait), every part with how its checks went and its drawing, and recent work. Checks
+  propose and wait), every part with how its checks went and its drawing, one module for each
+  other kind of file (drawings, studies, documents, manufacturing, images, references), and the
+  project's other chats. A module shows once it has something in it, folds away (remembered on
+  this computer), and is read again whenever the thread's agent changes files. Checks
   are the results text-to-cad writes beside the parts, `<name>.fea.json` (or a named study's
   `FEA/<name>.<study>.json`) and `<stem>.<process>.result.json`
   (`components/workbench/checkResults.ts`), named as an engineer says them (Strength, Vibration,
@@ -164,7 +170,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   tells the agent how to write parts that edit well.
 - **Ask or Edit by hand.** The workspace's top bar lays a part out for asking the AI
   (text-to-cad's viewer as Jake built it, where a selection goes to the agent through Quick Edit)
-  or for modeling it by hand (edit mode), per project and Ask until chosen. The viewer takes it
+  or for modeling it by hand (edit mode), per project and Ask until chosen. Chosen while the
+  Overview is in front, it opens the project's lead part that way; the part tabs run along the
+  panel's bottom. The viewer takes it
   from its host context (`studio/editLayout`) and then shows no switch of its own; elsewhere its
   navbar keeps the switch, as Manual and AI. By hand, what a command uses is plain: a sketch is
   picked on the model or in the design tree and shaded in the selection blue with its name, an
