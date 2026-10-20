@@ -12185,6 +12185,8 @@ export default function ChatView(props: ChatViewProps) {
                   <StudioPanelBar
                     folder={activeProject?.workspaceRoot ?? null}
                     composerRef={composerRef}
+                    threadRef={activeThreadRef}
+                    mutationId={workspaceMutationId}
                   />
                 ),
               }

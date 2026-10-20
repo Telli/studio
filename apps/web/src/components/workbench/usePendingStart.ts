@@ -45,7 +45,7 @@ export function usePendingStart(
  * press while a send is under way is ignored by the chat, so it goes once. This outlives the
  * effect that began it: React may run that effect twice, and the start is taken only once.
  */
-function pressSendWhileHeld(composerRef: ComposerHandleRef, message: string): void {
+export function pressSendWhileHeld(composerRef: ComposerHandleRef, message: string): void {
   let tries = 0;
   const press = () => {
     const composer = composerRef.current;
