@@ -105,9 +105,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   part yet, Start a part by hand), the open issues its
   checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
   propose and wait), every part with how its checks went and its drawing, one module for each
-  other kind of file (drawings, studies, documents, manufacturing, images, references), and the
-  project's other chats. A module shows once it has something in it, folds away (remembered on
-  this computer), and is read again whenever the thread's agent changes files. Checks
+  other kind of file (drawings, studies, documents, manufacturing, images, references), then the
+  project's folders and the brief's links. In Engineering the page is the Overview alone, with no
+  Files, References or History tabs, and its New starts new designs only. A module shows once it
+  has something in it, folds away (remembered on this computer), and is read again whenever the
+  thread's agent changes files. Checks
   are the results text-to-cad writes beside the parts, `<name>.fea.json` (or a named study's
   `FEA/<name>.<study>.json`) and `<stem>.<process>.result.json`
   (`components/workbench/checkResults.ts`), named as an engineer says them (Strength, Vibration,
@@ -117,28 +119,32 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   start) for CAD models, drawings, parts lists, datasheets, photos and notes, and proposes a
   project for each folder that holds models or drawings, imported where it is: Studio only reads
   them. Loose files are placed in a project (copied into its folder) or left out; copies and older
-  versions are listed and stay put. Import is on Projects (files or a folder, or a scan), takes
-  files dropped anywhere on Home or Projects, and offers the CAD files new in the scanned folders
+  versions are listed and stay put. Import is on Home (files or a folder, or a scan), takes files
+  dropped anywhere on Home, and offers the CAD files new in the scanned folders
   since the last scan. The desktop app reads and copies (`apps/desktop/src/studio/`); what makes a
   project is decided in the web (`components/workbench/importPlan.ts`).
 - **No usage data.** T3 Code's analytics are off and keyless in this build
   (`apps/server/src/telemetry/AnalyticsService.ts`), so nothing about its use goes to T3.
-- **Design history.** A turn that changed files ends with what it changed in the design, by part
-  and document (a part's script, model, drawing and studies are one entry), each opening beside
-  the thread; the work log's groups say which parts they updated ("3 steps, updated the L
-  bracket"). The project's Threads tab is its History: the work newest first under its day, each
-  piece with how it came out (done, needs you, working, stopped). With code tools on, the turn
-  keeps T3 Code's changed-files card and the tab is Threads.
-- **Home, Projects and a top bar.** In Engineering, Studio's pages start with a top bar (the mark,
-  Home, Projects) in place of T3 Code's sidebar, which stays shut and inert
-  (`components/workbench/StudioTopBar.tsx`). Home starts a project from a description (Start makes
-  the project and its first chat, and sends the description as its first message), a chat in a
-  project you have, or a blank part, assembly or board to model by hand, beside the projects worked
-  on last. Projects is all of them, pictured by their first part. A project opens in the thread
-  last open in it on this device (else the one last worked on, else a new one). Its workspace has
-  the project's name in that bar, a picker of the project's chats with New chat at the top of the
-  chat (every chat belongs to a project), and the part tabs along the panel's bottom. Engineering
-  with code keeps T3 Code's thread sidebar, with the projects listed in it.
+- **Design history.** A turn that changed files ends with one line of what it changed in the
+  design, a chip per part and document (a part's script, model, drawing and studies are one
+  entry), each opening beside the thread; the work log's groups say which parts they updated ("3
+  steps, updated the L bracket"). With code tools on, the turn keeps T3 Code's changed-files card
+  and the project page keeps its Threads tab.
+- **Home, the switcher and the chats.** In Engineering, Home is Studio's one page (Projects goes
+  to it): a top bar with the mark and a search that opens the quick find, then a project from a
+  description (Start makes the project and its first chat, and sends the description as its first
+  message) or a blank part, assembly or board to model by hand, then every project, pictured by
+  its first part, with Import. T3 Code's sidebar stays shut there. A project opens in the thread
+  last open in it on this device (else the one last worked on, else a new one). In its workspace
+  the project's name in the top bar switches projects (`components/workbench/ProjectSwitcher.tsx`),
+  the sidebar lists the project's chats, newest first with New chat on top, folding away with T3
+  Code's toggle or its shortcut (`StudioSidebar.tsx`), and the part tabs run along the panel's
+  bottom, the Overview first. Engineering with code keeps T3 Code's thread sidebar, with the
+  projects listed in it.
+- **Quick find.** In Engineering ⌘K finds a project, a part in any project (one in another
+  project opens there), or any job for the part on screen, with Home, New project, Settings and
+  the interface switches (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps
+  T3 Code's command palette.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode
@@ -205,11 +211,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **Point, then ask.** What the viewer adds to the chat (Quick Edit's references, a picture of the
   view) lands in the composer, to read and edit before it goes. The viewer is then told the
   context was taken, so the next addition carries only what is new.
-- **Check, Make, Document.** Beside the part's name, the jobs its kind takes: strength under load,
-  CNC, sheet metal, molding, 3D printing, board fab checks; G-code for grbl, slicing, a Bambu
-  print, cut-ready DXF, a SendCutSend order, routing; drawings, standard parts, exports, URDF.
-  Each needs its text-to-cad skill (`components/workbench/hardwareActions.ts`) and writes the job,
-  naming the part, into the composer.
+- **Evaluate, Manufacture, Document.** In the workspace's top bar, the jobs the part's kind takes:
+  simulations, fit, motion and mass; each way of making it (the project's own first: printing,
+  CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
+  export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.
+  Each menu keeps its everyday jobs and ends in More, which opens the quick find on all of its
+  jobs. Each needs its text-to-cad skill (`components/workbench/hardwareActions.ts`) and writes
+  the job, naming the part, into the composer.
 - **Start from a part.** A new thread lists the project's CAD files (a mesh exported beside its
   STEP counts once); picking one offers the same three menus for it.
 - **A checkout's working copy.** `TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs the checkout's own
