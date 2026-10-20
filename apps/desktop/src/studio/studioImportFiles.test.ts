@@ -5,7 +5,7 @@ import * as NodePath from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { copyInto, defaultRoots, scanFolder } from "./studioImport.ts";
+import { copyInto, defaultRoots, scanFolder } from "./studioImportFiles.ts";
 
 let home: string;
 
