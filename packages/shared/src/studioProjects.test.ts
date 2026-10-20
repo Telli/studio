@@ -52,6 +52,17 @@ describe("studio projects", () => {
     expect(context).not.toContain("## Changing the setup");
   });
 
+  it("asks the agent to keep the README's decisions and to start a new project with a few questions", () => {
+    const context = studioProjectContext(rover, "/work/rover-cad", "/studio/rover/project.json");
+    expect(context).toContain("## The README");
+    expect(context).toContain("`## Decisions`");
+    expect(context).toContain("(<YYYY-MM-DD>, asked)");
+    expect(context).toContain("## Starting a project");
+    expect(context).toContain("as `name` in `/studio/rover/project.json`");
+    expect(context).toContain("at most three short questions");
+    expect(studioProjectContext(rover, "/work/rover-cad")).not.toContain("as `name` in");
+  });
+
   it("tells the agent where the setup is kept, and to propose what it means before changing parts", () => {
     const context = studioProjectContext(rover, "/work/rover-cad", "/studio/rover/project.json");
     expect(context).toContain("## Changing the setup");

@@ -139,6 +139,28 @@ const SHOW_YOUR_WORK = [
   "- Call parts and documents by their names (the servo bracket, its drawing, the FEA report), not by file names. When you point to a file, write its path in code formatting (`parts/servo_bracket.step`): Studio shows it as the part it is, one click from opening it.",
 ].join("\n");
 
+const THE_README = [
+  "Keep `README.md` at the root of this thread's folder: Studio shows it as the project's Overview. Write it for an engineer, in plain words:",
+  "",
+  "- `#` and the project's name.",
+  "- `## What it is`: a short paragraph on what the part or product is for, what it must do, and how it is made.",
+  "- `## Decisions`: one line per decision, newest last, as `- <what was decided> (<YYYY-MM-DD>, asked)`, with `by hand` in place of `asked` for a change the person made by hand (a Hand edit note). Add a line whenever a change settles something. Leave earlier lines as they are; when a decision is reversed, say so on the new line.",
+].join("\n");
+
+function startingAProject(record: string | null): string {
+  return [
+    "When the project is new (this chat's first message describes what to make):",
+    "",
+    ...(record === null
+      ? []
+      : [
+          `- Give it a short name of two or three words (for example "Lanyard clip") as \`name\` in \`${record}\`, and commit that file in its folder with git.`,
+        ]),
+    "- Say in one sentence that you started it, then ask at most three short questions, one at a time, before the first draft: what it attaches to or must fit, how it will be made, and any size that matters. Offer two to four answers to each with your tool for asking the person a question, if you have one, else list them. Let them skip the rest.",
+    "- Skip any question the description already answers, and make the first draft as soon as you know enough.",
+  ].join("\n");
+}
+
 const section = (title: string, body: string) =>
   body.trim() === "" ? [] : [`## ${title}`, "", body.trim(), ""];
 
@@ -200,6 +222,8 @@ export function studioProjectContext(
     ...section("Links", links),
     ...section("Notes", brief.notes),
     ...section("Show your work", SHOW_YOUR_WORK),
+    ...section("The README", THE_README),
+    ...section("Starting a project", startingAProject(record)),
     ...section(
       "Where work goes",
       layout.length === 0

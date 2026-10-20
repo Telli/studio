@@ -35,6 +35,7 @@ import { NewDialog } from "./NewDialog";
 import { availableTemplates } from "./newTemplates";
 import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
+import { ReadmeOverview } from "./ReadmeOverview";
 import { ProjectThreads } from "./ProjectThreads";
 import { usePictures } from "./usePictures";
 import { filePlaces, groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
@@ -564,6 +565,14 @@ export function ProjectPage(props: {
       </header>
 
       <div className="flex flex-col gap-8 px-5 py-4">
+        {tab === "overview" && plainWords ? (
+          <ReadmeOverview
+            environmentId={environmentId}
+            cwd={cwd}
+            purpose={studio?.project.brief.purpose ?? ""}
+            onOpenReadme={() => openPath(cwd, "README.md")}
+          />
+        ) : null}
         {tab === "overview" ? (
           <ProjectOverview
             environmentId={environmentId}
