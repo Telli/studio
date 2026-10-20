@@ -4,6 +4,7 @@ import { transitionCameraToViewPreset } from "../../kit/camera/runtimeCamera.js"
 import { requestSceneFrame } from "../../kit/viewport/sceneFrames.js";
 import { arrowHead, circlePoints, colorsFor, curvePoints, drawGlyph, GLYPH_PX, overlaps, planeMapping, strokePath } from "./sketchDrawing.js";
 import {
+  alignTo,
   chainOf,
   CORNER_TOOLS,
   dimensionFor,
@@ -32,7 +33,10 @@ import {
   threePointArc,
   TOOL_CLICKS,
   toolSize,
-  trimPiece
+  trimPiece,
+  TYPED_TOOLS,
+  typedDimensions,
+  typedStroke
 } from "./sketchMode.js";
 
 // How near, in pixels, a press must land to pick something, and to land on a point or a curve.
@@ -56,7 +60,18 @@ const rounded = (place, units) => {
 function ModifyBox({ box, onDone }) {
   const [draft, setDraft] = useState(box.value);
   const inputRef = useRef(null);
-  useEffect(() => { requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.select(); }); }, []);
+  // A value to type over is selected; a size being typed (`typing`) goes on after its first key.
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      const input = inputRef.current;
+      if (!input) return;
+      input.focus();
+      if (box.typing) input.setSelectionRange(input.value.length, input.value.length);
+      else input.select();
+    });
+    // Once, as the box opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const commit = () => { const text = String(draft).trim(); onDone(text || null); };
   return <form className="pointer-events-auto absolute z-30 flex items-center gap-1 rounded-md border border-border bg-background py-0.5 pl-1.5 pr-0.5 shadow-md"
     style={{ left: box.x, top: box.y, transform: "translate(-50%, -50%)" }} role="dialog" aria-label="Modify"
@@ -67,6 +82,7 @@ function ModifyBox({ box, onDone }) {
       onChange={event => setDraft(event.target.value)}
       onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onDone(null); } }} />
     {box.unit ? <span className="text-micro text-muted-foreground">{box.unit}</span> : null}
+    {box.hint ? <span className="text-micro text-muted-foreground">{box.hint}</span> : null}
     <button type="submit" aria-label="OK" className="flex size-5 items-center justify-center rounded text-foreground hover:bg-accent"><Check className="size-3" aria-hidden="true" /></button>
     <button type="button" aria-label="Cancel" className="flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent" onClick={() => onDone(null)}>
       <X className="size-3" aria-hidden="true" />
@@ -366,6 +382,14 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       const tool = current.tool;
       if (tool && tool !== "dimension" && !MODIFY_TOOLS.includes(tool) && !MODEL_TOOLS.includes(tool) && pointer?.local) {
         const landing = landAt(pointer.local);
+        // The inference lines: dotted from each point the place is lined up with.
+        if (landing.guides?.length) {
+          context.strokeStyle = colors.quiet;
+          context.lineWidth = 1;
+          context.setLineDash([2, 4]);
+          for (const guide of landing.guides) path([guide.from, guide.to]);
+          context.setLineDash([]);
+        }
         context.strokeStyle = colors.preview;
         context.lineWidth = 1.5;
         context.setLineDash(tool === "centerline" || current.construction ? [9, 4, 2, 4] : [6, 4]);
@@ -402,7 +426,11 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       if (!state || !mapping) return { at: place };
       const exclude = picks.length && picks[picks.length - 1].point ? [picks[picks.length - 1].point] : [];
       const landed = snap(state, place, SNAP_PX / mapping.perUnit, { exclude });
-      return landed.point || landed.on ? landed : { at: rounded(place, live.current.units) };
+      if (landed.point || landed.on) return landed;
+      // Off the sketch: lined up with a point across or above, as SolidWorks' inference lines take it.
+      const aligned = alignTo(state, place, SNAP_PX / mapping.perUnit, { exclude });
+      const near = rounded(place, live.current.units);
+      return { at: [aligned.x ? aligned.at[0] : near[0], aligned.y ? aligned.at[1] : near[1]], guides: aligned.guides };
     };
 
     // The stroke drawn as it would be with the pointer here, and what to say beside the pointer.
@@ -510,7 +538,14 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       picks = [...picks, ref];
       report();
       if (picks.length < TOOL_CLICKS[tool]) return;
-      const op = drawOp(tool, picks, state, { construction: live.current.construction, clockwise: turning < 0,
+      await makeStroke(tool, picks);
+    };
+
+    // The stroke made from its clicks; then `sized` (a typed stroke's dimensions), and a line goes
+    // on from where it ended, as a CAD tool's Line chains, unless Escape came first.
+    const makeStroke = async (tool, clicks, typed = null) => {
+      const state = live.current.sketch.state;
+      const op = drawOp(tool, clicks, state, { construction: live.current.construction, clockwise: turning < 0,
         sides: live.current.settings?.polygonSides });
       const chain = tool === "line" || tool === "centerline";
       picks = [];
@@ -519,14 +554,35 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       report();
       if (!op) return;
       const started = epoch;
-      const reply = await send(op);
-      // A line goes on from where it ended, as a CAD tool's Line chains, unless Escape came first.
+      let reply = await send(op);
+      if (typed && reply?.ok) {
+        for (const dimension of typedDimensions(typed, state, reply.sketch?.state)) {
+          const sized = await send(dimension);
+          if (!sized?.ok) break;
+          reply = sized;
+        }
+      }
       if (chain && reply?.ok && live.current.tool === tool && started === epoch) {
         const lines = (reply.sketch?.state?.curves || []).filter(curve => curve.kind === "line");
         const last = lines[lines.length - 1];
         if (last) picks = [{ point: last.end, at: refAt(reply.sketch.state, { point: last.end }) }];
         report();
       }
+    };
+
+    // A size typed after a stroke's first click (a digit opens the box): the stroke made at that size,
+    // the way the pointer was when typing began, and dimensioned so.
+    const typeStroke = (tool, key) => {
+      const state = live.current.sketch.state;
+      const first = picks[0];
+      const toward = pointer?.local || refAt(state, first);
+      const screen = pointer?.screen || [0, 0];
+      const hint = tool === "rectangle" || tool === "center_rectangle" ? "width x height" : tool === "circle" ? "diameter" : "length";
+      setBox({ x: screen[0] + 56, y: screen[1] + 28, value: key, unit: live.current.units === "in" ? "in" : live.current.units === "mm" ? "mm" : "", typing: true, hint,
+        onCommit: text => {
+          const typed = typedStroke(tool, live.current.sketch.state, first, toward, text);
+          if (typed && live.current.tool === tool && picks[0] === first) void makeStroke(tool, [first, typed.second], typed);
+        } });
     };
 
     const pickForDimension = (id, place, state = live.current.sketch.state) => {
@@ -810,6 +866,13 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
     const handleKeyDown = event => {
       const current = live.current;
       if (!current.sketch || editableTarget(event.target) || current.box) return;
+      // A digit after a stroke's first click types its size.
+      if (TYPED_TOOLS.includes(current.tool) && picks.length === 1 && !busy && /^[0-9.]$/.test(event.key)
+        && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        typeStroke(current.tool, event.key);
+        return;
+      }
       if (event.key === "Escape") {
         epoch += 1;
         if (picks.length || pending) { picks = []; pending = null; turning = 0; lastAngle = null; report(); }

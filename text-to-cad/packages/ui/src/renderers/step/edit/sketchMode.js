@@ -206,6 +206,73 @@ export function snap(state, place, tolerance, { exclude = [] } = {}) {
   return best ? best.ref : { at: [...place] };
 }
 
+/**
+ * A place lined up with the sketch's points, as SolidWorks' inference lines take it: within
+ * `tolerance` of a point's x it takes that x, and of a point's y that y (the nearest point on each
+ * axis), with a guide from each point lined up with to the place, for the stroke to draw dotted.
+ * `x` and `y` say which of the place's two numbers came from a point.
+ */
+export function alignTo(state, place, tolerance, { exclude = [] } = {}) {
+  const { points } = sketchGeometry(state);
+  let x = null;
+  let y = null;
+  for (const point of points.values()) {
+    if (exclude.includes(point.id)) continue;
+    const dx = Math.abs(point.x - place[0]);
+    const dy = Math.abs(point.y - place[1]);
+    if (dx <= tolerance && (!x || dx < x.d - 1e-12 || (Math.abs(dx - x.d) <= 1e-12 && dy < x.far))) x = { d: dx, far: dy, point };
+    if (dy <= tolerance && (!y || dy < y.d - 1e-12 || (Math.abs(dy - y.d) <= 1e-12 && dx < y.far))) y = { d: dy, far: dx, point };
+  }
+  const aligned = [x ? x.point.x : place[0], y ? y.point.y : place[1]];
+  const guides = [x, y].filter(Boolean).map(({ point }) => ({ from: [point.x, point.y], to: aligned }));
+  return { at: aligned, guides, x: Boolean(x), y: Boolean(y) };
+}
+
+/** The sketch tools whose size can be typed after their first click, as a CAD sketcher's numeric input takes it. */
+export const TYPED_TOOLS = Object.freeze(["line", "centerline", "rectangle", "center_rectangle", "circle"]);
+
+/**
+ * A stroke's size typed after its first click: a line's length, the way the pointer points (level
+ * or plumb when it is near); a rectangle's width and height ("40 x 20", "40 20", or one number for
+ * a square), toward the pointer's side; a circle's diameter. The second click it stands for, and the
+ * dimensions to add once the stroke is made (`side`: which of a rectangle's lines takes each). Null
+ * when what was typed is not sizes.
+ */
+export function typedStroke(tool, state, first, cursor, text) {
+  if (!TYPED_TOOLS.includes(tool) || !first) return null;
+  const numbers = String(text ?? "").trim().split(/\s*[x×*,]\s*|\s+/i).filter(Boolean).map(Number);
+  if (!numbers.length || numbers.length > 2 || numbers.some(n => !Number.isFinite(n) || n <= 0)) return null;
+  const start = refAt(state, first);
+  const toward = sub(cursor || start, start);
+  if (tool === "line" || tool === "centerline") {
+    let way = Math.hypot(toward[0], toward[1]) ? unit(toward) : [1, 0];
+    const inferred = inferLine([0, 0], way);
+    if (inferred.relation === "horizontal") way = [Math.sign(way[0]) || 1, 0];
+    if (inferred.relation === "vertical") way = [0, Math.sign(way[1]) || 1];
+    return { second: { at: add(start, scale(way, numbers[0])) }, dimensions: [{ dimension: "length", value: numbers[0] }] };
+  }
+  if (tool === "circle") return { second: { at: add(start, [numbers[0] / 2, 0]) }, dimensions: [{ dimension: "diameter", value: numbers[0] }] };
+  const [width, height = numbers[0]] = numbers;
+  const half = tool === "center_rectangle" ? 0.5 : 1;
+  const corner = [(toward[0] < 0 ? -1 : 1) * width * half, (toward[1] < 0 ? -1 : 1) * height * half];
+  return { second: { at: add(start, corner) },
+    dimensions: [{ dimension: "length", value: width, side: "level" }, { dimension: "length", value: height, side: "plumb" }] };
+}
+
+/** The dimension changes a typed stroke adds once it is made: each on the new curve it sizes. */
+export function typedDimensions(typed, before, after) {
+  const fresh = new Set(newCurves(before, after));
+  const made = sketchGeometry(after).curves.filter(curve => fresh.has(curve.id));
+  const near = nearness(after);
+  const level = curve => curve.kind === "line" && Math.abs(curve.a[1] - curve.b[1]) <= near;
+  const plumb = curve => curve.kind === "line" && Math.abs(curve.a[0] - curve.b[0]) <= near;
+  return (typed?.dimensions || []).map(wanted => {
+    const curve = wanted.side === "level" ? made.find(level) : wanted.side === "plumb" ? made.find(plumb)
+      : made.find(each => each.kind === (wanted.dimension === "diameter" ? "circle" : "line"));
+    return curve ? { kind: "dimension", dimension: wanted.dimension, refs: [curve.id], value: String(wanted.value) } : null;
+  }).filter(Boolean);
+}
+
 /** A line's end drawn within a few degrees of level or plumb, put on it, with the relation that keeps it so. */
 export function inferLine(start, end, degrees = INFER_DEGREES) {
   const d = sub(end, start);

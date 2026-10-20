@@ -4,6 +4,7 @@ import test from "node:test";
 import { lightText } from "./sketchDrawing.js";
 
 import {
+  alignTo,
   chainOf,
   countChange,
   dimensionFor,
@@ -30,7 +31,9 @@ import {
   tangentStart,
   threePointArc,
   toolSize,
-  trimPiece
+  trimPiece,
+  typedDimensions,
+  typedStroke
 } from "./sketchMode.js";
 
 // A 40 by 20 rectangle from the origin, with a circle in it, as the server solves one.
@@ -335,4 +338,51 @@ test("each relation's glyph goes beside what it holds, pushed off it, a picked r
   assert.deepEqual(right.at, [40, 10]);
   assert.equal(Math.abs(right.away[0]), 1);
   assert.deepEqual(relationsOn(state, ["Parallel1"]).map(each => each.id), ["Parallel1"]);
+});
+
+test("a place near a point's x or y lines up with it, with a guide from the point", () => {
+  const lined = alignTo(STATE, [40.4, 31], 1);
+  assert.deepEqual(lined.at, [40, 31]);
+  assert.equal(lined.x, true);
+  assert.equal(lined.y, false);
+  // The nearest of Point2 and Point3 (both at x 40) by y: Point3, at (40, 20).
+  assert.deepEqual(lined.guides, [{ from: [40, 20], to: [40, 31] }]);
+  const both = alignTo(STATE, [30.3, 19.6], 1);
+  assert.deepEqual(both.at, [30, 20]);
+  assert.equal(both.guides.length, 2);
+  assert.deepEqual(alignTo(STATE, [55, 33], 1).guides, []);
+});
+
+test("a size typed after the first click makes the stroke at that size, the way the pointer points", () => {
+  const corner = { point: "Point3" };
+  // A line: its length along the pointer, put level when the pointer is near level.
+  const line = typedStroke("line", STATE, corner, [60, 20.5], "25");
+  assert.deepEqual(line.second.at, [65, 20]);
+  assert.deepEqual(line.dimensions, [{ dimension: "length", value: 25 }]);
+  // A rectangle toward the pointer's side; one number is a square.
+  assert.deepEqual(typedStroke("rectangle", STATE, corner, [30, 30], "12 x 8").second.at, [28, 28]);
+  assert.deepEqual(typedStroke("rectangle", STATE, corner, [50, 10], "5").second.at, [45, 15]);
+  assert.deepEqual(typedStroke("center_rectangle", STATE, corner, [50, 30], "10x4").second.at, [45, 22]);
+  // A circle's diameter.
+  assert.deepEqual(typedStroke("circle", STATE, corner, [41, 21], "6").dimensions, [{ dimension: "diameter", value: 6 }]);
+  assert.equal(typedStroke("line", STATE, corner, [50, 20], "WIDTH"), null);
+  assert.equal(typedStroke("arc", STATE, corner, [50, 20], "5"), null);
+});
+
+test("a typed rectangle's dimensions go on its level and its plumb line", () => {
+  const before = { points: STATE.points.slice(0, 1), curves: [] };
+  const after = {
+    points: [...before.points, { id: "Point1", x: 0, y: 0 }, { id: "Point2", x: 12, y: 0 }, { id: "Point3", x: 12, y: 8 }, { id: "Point4", x: 0, y: 8 }],
+    curves: [
+      { id: "Line1", kind: "line", start: "Point1", end: "Point2" },
+      { id: "Line2", kind: "line", start: "Point2", end: "Point3" },
+      { id: "Line3", kind: "line", start: "Point3", end: "Point4" },
+      { id: "Line4", kind: "line", start: "Point4", end: "Point1" },
+    ],
+  };
+  const typed = typedStroke("rectangle", before, { point: "Origin" }, [5, 5], "12x8");
+  assert.deepEqual(typedDimensions(typed, before, after), [
+    { kind: "dimension", dimension: "length", refs: ["Line1"], value: "12" },
+    { kind: "dimension", dimension: "length", refs: ["Line2"], value: "8" },
+  ]);
 });
