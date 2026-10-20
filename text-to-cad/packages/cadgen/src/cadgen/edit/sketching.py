@@ -571,6 +571,58 @@ def change(text: str, line: int, state: dict, op: dict, path: str = "<sketch>") 
     return edits.apply()
 
 
+def copy(text: str, line: int, state: dict, items: list[str], by, path: str = "<sketch>") -> str:
+    """``text`` with the entities ``items`` copied ``by`` (dx, dy), as SolidWorks' Copy Entities makes
+    them: a new point where each of theirs is moved to, and a new curve of each kind on those, joined
+    as the originals are, construction kept. Nothing holds the copies to the originals."""
+    block = find_block(text, line, path)
+    vars_ = _Vars(block, state)
+    s = block.var
+    try:
+        dx, dy = (float(value) for value in by)
+    except (TypeError, ValueError):
+        raise SketchEditError("Copy Entities needs how far to copy them.") from None
+    points = {point["id"]: point for point in state.get("points") or []}
+    curves = {curve["id"]: curve for curve in state.get("curves") or []}
+    picked = [curve for curve in (curves.get(item) for item in items)
+              if curve and not curve.get("derived") and not curve.get("converted")]
+    lone = [item for item in items if item in points and item != "Origin"]
+    if not picked and not lone:
+        raise SketchEditError("Select the sketch entities to copy first.")
+    written: list[str] = []
+    made: dict[str, str] = {}
+
+    def point(name: str) -> str:
+        if name not in made:
+            var = vars_.next("Point")
+            written.append(f"{var} = {s}.point({number(points[name]['x'] + dx)}, {number(points[name]['y'] + dy)})")
+            made[name] = var
+        return made[name]
+
+    for name in lone:
+        point(name)
+    for curve in picked:
+        built = ", construction=True" if curve.get("construction") else ""
+        kind = curve["kind"]
+        if kind == "line":
+            start, end = point(curve["start"]), point(curve["end"])
+            written.append(f"{vars_.next('Line')} = {s}.line({start}, {end}{built})")
+        elif kind == "circle":
+            center = point(curve["center"])
+            written.append(f"{vars_.next('Circle')} = {s}.circle({center}, {number(float(curve['radius']))}{built})")
+        elif kind == "arc":
+            center, start, end = point(curve["center"]), point(curve["start"]), point(curve["end"])
+            turn = ", clockwise=True" if curve.get("clockwise") else ""
+            written.append(f"{vars_.next('Arc')} = {s}.arc({center}, {start}, {end}{turn}{built})")
+        elif kind == "spline":
+            through = ", ".join(point(name) for name in curve.get("points") or [])
+            closed = ", closed=True" if curve.get("closed") else ""
+            written.append(f"{vars_.next('Spline')} = {s}.spline({through}{closed}{built})")
+    edits = TextEdits(text)
+    edits.insert_after(block.last_line, [f"{block.indent}{each}" for each in written])
+    return edits.apply()
+
+
 def set_driven(text: str, line: int, state: dict, dimension: str, on: bool, path: str = "<sketch>") -> str:
     """``text`` with a dimension made driven (``driven=True`` on its line: it measures, holding
     nothing) or driving again, as SolidWorks' Driven option toggles one."""

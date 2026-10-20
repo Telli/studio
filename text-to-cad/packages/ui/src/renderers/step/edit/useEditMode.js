@@ -25,7 +25,7 @@ import {
   treeIds,
   undoStep
 } from "./editMode.js";
-import { countChange, sketchNote } from "./sketchMode.js";
+import { countChange, sketchNote, TRANSFORM_TOOLS } from "./sketchMode.js";
 
 // How often the view asks whether the part's files changed (the agent's edits, another view's):
 // an unchanged answer is a hash comparison on the server, and the part is not run.
@@ -707,7 +707,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     dismissError: () => setError(""),
     sketch, sketchTool, sketchSelection, construction, picking, normalTo, sketchStep,
     // Mirror Entities and the sketch patterns start from what is selected; every other tool from nothing.
-    setSketchTool: tool => { setSketchTool(tool); if (!["mirror", "linear_pattern", "circular_pattern"].includes(tool)) setSketchSelection([]); setSketchStep(0); },
+    setSketchTool: tool => { setSketchTool(tool); if (!["mirror", "linear_pattern", "circular_pattern", ...TRANSFORM_TOOLS].includes(tool)) setSketchSelection([]); setSketchStep(0); },
     sketchSettings,
     setSketchSettings: patch => setSketchSettings(current => ({ ...current, ...patch })),
     setSketchStep,

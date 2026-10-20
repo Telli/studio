@@ -235,6 +235,9 @@ by hand" below.
 - Deleting an entity takes out its line and the relations and dimensions on it; a curve drawn
   from one of its points keeps the point where it was. A corner rectangle's line is deleted on its
   own: the rectangle is written as its four lines first.
+- Move, Rotate and Scale Entities rewrite the drawn numbers of the selection's points (and, scaled,
+  its circles' radii), as a drag does; Copy Entities writes new `point`s and the curves on them,
+  joined as the originals are and held to nothing.
 - 3 Point Corner Rectangle writes its four lines with `perpendicular` at its first corner and two
   `parallel`s, so it can stand at any angle; Perimeter Circle writes a `circle` about the center its
   three clicks give; Centerpoint Straight Slot writes a `slot` with its ends' centers either side

@@ -229,6 +229,20 @@ class SketchMode(unittest.TestCase):
             px, py = points[curves["Line2"][role]]
             self.assertAlmostEqual((bx - ax) * (py - ay) - (by - ay) * (px - ax), 0, places=6)
 
+    def test_copy_entities_draws_them_again_moved_and_joined(self):
+        self.start()
+        self.send({"kind": "draw", "entity": "line", "start": {"at": [0, 0]}, "end": {"at": [10, 0]}})
+        self.send({"kind": "draw", "entity": "line", "start": {"point": "Point2"}, "end": {"at": [10, 5]}})
+        self.send({"kind": "draw", "entity": "circle", "center": {"at": [5, 3]}, "radius": 1, "construction": True})
+        self.send({"kind": "copy", "items": ["Line1", "Line2", "Circle1"], "by": [0, 20]})
+        text = self.source()
+        self.assertIn("point5 = sketch1.point(0, 20)", text)
+        self.assertIn("line3 = sketch1.line(point5, point6)", text)
+        # The copies share their corner as the originals do.
+        self.assertIn("line4 = sketch1.line(point6, point7)", text)
+        self.assertIn("circle2 = sketch1.circle(point8, 1, construction=True)", text)
+        self.assertEqual(len([curve for curve in self.sketch["state"]["curves"] if curve["kind"] == "line"]), 4)
+
     def test_relations_that_cannot_hold_leave_the_script_as_it_was(self):
         self.start()
         self.send({"kind": "draw", "entity": "line", "start": {"at": [0, 0]}, "end": {"at": [10, 1]}, "relations": [{"kind": "horizontal"}]})

@@ -31,6 +31,12 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "extend", label: "Extend Entities", prompts: ["Click a line or an arc near the end to run on. It goes on to the first curve it meets."] },
   { id: "offset", label: "Offset Entities", prompts: ["Click a line, an arc or a circle to offset it, and the chain it is part of."] },
   { id: "mirror", label: "Mirror Entities", prompts: ["Click the entities to mirror.", "Click more of them, or the centerline to mirror about."] },
+  { id: "move_entities", label: "Move Entities", prompts: ["Select what to move (Shift adds), then click a base point.", "Click where the base point goes."] },
+  { id: "copy_entities", label: "Copy Entities", prompts: ["Select what to copy (Shift adds), then click a base point.", "Click where the copy's base point goes."] },
+  { id: "rotate_entities", label: "Rotate Entities", prompts: ["Select what to rotate (Shift adds), then click the center to turn it about.",
+    "Click a direction to turn from, or type the angle.", "Click the direction to turn to."] },
+  { id: "scale_entities", label: "Scale Entities", prompts: ["Select what to scale (Shift adds), then click the point to scale it about.",
+    "Click a reference point, or type the scale factor.", "Click where the reference point goes."] },
   { id: "linear_pattern", label: "Linear Sketch Pattern", prompts: ["Click the entities to copy in a row, set the spacing and instances, then make the pattern."] },
   { id: "circular_pattern", label: "Circular Sketch Pattern", prompts: ["Click the entities to copy round, and a point to turn them about (else the origin), then make the pattern."] },
   { id: "convert", label: "Convert Entities", prompts: ["Select edges or a face of the model, then Convert. They come into the sketch and stay on the model as it changes."] },
@@ -78,11 +84,84 @@ export const TOOL_CLICKS = Object.freeze({ line: 2, centerline: 2, rectangle: 2,
  * button is the tool last picked of it, its chevron the others.
  */
 export const SKETCH_FAMILIES = Object.freeze({
+  move_entities: ["move_entities", "copy_entities", "rotate_entities", "scale_entities"],
   rectangle: ["rectangle", "center_rectangle", "three_point_rectangle"],
   circle: ["circle", "perimeter_circle"],
   arc: ["arc", "three_point_arc", "tangent_arc"],
   slot: ["slot", "centerpoint_slot"],
 });
+
+/** The sketch tools that move, copy, turn or size what is selected, as SolidWorks' Move Entities flyout has them. */
+export const TRANSFORM_TOOLS = Object.freeze(["move_entities", "copy_entities", "rotate_entities", "scale_entities"]);
+/** How many clicks each transform tool takes: a base and a target, or a center and a turn (or size) from one direction to another. */
+export const TRANSFORM_CLICKS = Object.freeze({ move_entities: 2, copy_entities: 2, rotate_entities: 3, scale_entities: 3 });
+
+/** The points the selected entities stand on, once each: a line's ends, an arc's center and ends, a circle's center, a spline's points, a point itself. */
+export function entityPoints(state, selection) {
+  const known = new Set((state?.points || []).map(point => point.id));
+  const found = [];
+  const take = id => { if (id && id !== "Origin" && known.has(id) && !found.includes(id)) found.push(id); };
+  for (const id of selection) {
+    if (known.has(id)) { take(id); continue; }
+    const curve = (state?.curves || []).find(each => each.id === id);
+    if (!curve || curve.derived) continue;
+    for (const key of ["start", "end", "center"]) take(curve[key]);
+    for (const point of curve.points || []) take(point);
+  }
+  return found;
+}
+
+/**
+ * What a transform tool does to a place, from its clicks (`placed`, the pointer standing for the
+ * next): Move and Copy by the second click less the first; Rotate about the first by the turn from
+ * the second to the third (or `angle` typed, in degrees); Scale about the first by the third's
+ * distance over the second's (or `factor` typed). Null until it has what it needs.
+ */
+export function transformOf(tool, placed, { angle = null, factor = null, by: typed = null } = {}) {
+  const [a, b, c] = placed;
+  if (tool === "move_entities" || tool === "copy_entities") {
+    if (!a || (!b && !typed)) return null;
+    const by = typed || sub(b, a);
+    return { by, factor: 1, place: p => add(p, by) };
+  }
+  if (!a) return null;
+  if (tool === "rotate_entities") {
+    const turn = angle !== null ? (angle * Math.PI) / 180
+      : b && c ? Math.atan2(c[1] - a[1], c[0] - a[0]) - Math.atan2(b[1] - a[1], b[0] - a[0]) : null;
+    if (turn === null || !Number.isFinite(turn)) return null;
+    const [cs, sn] = [Math.cos(turn), Math.sin(turn)];
+    return { turn, factor: 1, place: p => { const d = sub(p, a); return [a[0] + cs * d[0] - sn * d[1], a[1] + sn * d[0] + cs * d[1]]; } };
+  }
+  if (tool === "scale_entities") {
+    const by = factor !== null ? factor : b && c && hypot(a, b) ? hypot(a, c) / hypot(a, b) : null;
+    if (!by || !Number.isFinite(by) || by <= 0) return null;
+    return { factor: by, place: p => add(a, scale(sub(p, a), by)) };
+  }
+  return null;
+}
+
+/** The change a transform sends for what is selected: its points moved (scaled, its circles' radii too), or Copy's copies. */
+export function transformOp(tool, state, selection, transform) {
+  if (!transform) return null;
+  if (tool === "copy_entities") return selection.length ? { kind: "copy", items: [...selection], by: transform.by } : null;
+  const { points } = sketchGeometry(state);
+  const moved = entityPoints(state, selection).map(id => ({ point: id, to: transform.place(at(points.get(id))) }));
+  const curves = transform.factor === 1 ? [] : (state?.curves || [])
+    .filter(curve => selection.includes(curve.id) && curve.kind === "circle").map(curve => ({ curve: curve.id, radius: curve.radius * transform.factor }));
+  return moved.length || curves.length ? { kind: "move", points: moved, ...(curves.length ? { curves } : {}) } : null;
+}
+
+/** The selected curves as a transform would leave them, to draw where they would go. */
+export function transformedCurves(state, selection, transform) {
+  if (!transform) return [];
+  const { place, factor } = transform;
+  return sketchGeometry(state).curves.filter(curve => selection.includes(curve.id) && !curve.derived).map(curve => {
+    if (curve.kind === "line") return { ...curve, a: place(curve.a), b: place(curve.b), view: null };
+    if (curve.kind === "spline") return { ...curve, samples: curve.samples.map(place) };
+    if (curve.kind === "circle") return { ...curve, c: place(curve.c), r: curve.r * factor };
+    return { ...curve, c: place(curve.c), s: place(curve.s), e: place(curve.e), r: curve.r * factor };
+  });
+}
 
 /** A 3 Point Corner Rectangle's other two corners: square off its first side, as wide as `third` is off it; null when it has no width. */
 export function threePointRectangle(a, b, third) {

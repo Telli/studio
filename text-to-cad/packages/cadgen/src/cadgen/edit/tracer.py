@@ -3315,6 +3315,9 @@ def sketch_edit(request):
                     op = {**op, "driven": True}
                 text = scaled
             text = sketching.change(text, line, state, op, str(path))
+        elif kind == "copy":
+            # Copy Entities: the selection drawn again, moved, held to nothing.
+            text = sketching.copy(text, line, state, [str(item) for item in op.get("items") or []], op.get("by"), str(path))
         elif kind == "driven":
             # A dimension made driven, or driving again unless the sketch already determines what it sizes.
             dimension, on = str(op.get("dimension") or ""), bool(op.get("on", True))

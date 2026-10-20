@@ -10,6 +10,7 @@ import {
   dimensionFor,
   dimensionLayout,
   drawOp,
+  entityPoints,
   extendPiece,
   formatValue,
   newCurves,
@@ -35,6 +36,8 @@ import {
   threePointArc,
   threePointRectangle,
   toolSize,
+  transformOf,
+  transformOp,
   trimPiece,
   typedDimensions,
   typedStroke
@@ -411,4 +414,19 @@ test("a 3 Point Corner Rectangle stands square off its first side, a Perimeter C
   assert.ok(Math.abs(circle.radius - 5) < 1e-9 && Math.hypot(...circle.center.at) < 1e-9);
   const slot = drawOp("centerpoint_slot", [{ at: [10, 10] }, { at: [14, 10] }, { at: [12, 12] }], STATE);
   assert.deepEqual([slot.center1.at, slot.center2.at, slot.radius], [[6, 10], [14, 10], 2]);
+});
+
+test("Move, Rotate and Scale Entities move the points the selection stands on; Copy sends its copies", () => {
+  // Line1 and Line2 share Point2: it moves once.
+  assert.deepEqual(entityPoints(STATE, ["Line1", "Line2", "Circle1"]), ["Point1", "Point2", "Point3", "Point5"]);
+  const moved = transformOp("move_entities", STATE, ["Line1"], transformOf("move_entities", [[0, 0], [5, 2]]));
+  assert.deepEqual(moved, { kind: "move", points: [{ point: "Point1", to: [5, 2] }, { point: "Point2", to: [45, 2] }] });
+  const turned = transformOf("rotate_entities", [[0, 0]], { angle: 90 });
+  const [x, y] = turned.place([40, 0]);
+  assert.ok(Math.abs(x) < 1e-9 && Math.abs(y - 40) < 1e-9);
+  const scaled = transformOp("scale_entities", STATE, ["Circle1"], transformOf("scale_entities", [[0, 0], [1, 0], [2, 0]]));
+  assert.deepEqual(scaled, { kind: "move", points: [{ point: "Point5", to: [60, 20] }], curves: [{ curve: "Circle1", radius: 8 }] });
+  assert.deepEqual(transformOp("copy_entities", STATE, ["Line1"], transformOf("copy_entities", [[0, 0]], { by: [0, 30] })),
+    { kind: "copy", items: ["Line1"], by: [0, 30] });
+  assert.equal(transformOf("rotate_entities", [[0, 0], [1, 0]]), null);
 });

@@ -34,6 +34,11 @@ import {
   threePointRectangle,
   TOOL_CLICKS,
   toolSize,
+  transformedCurves,
+  transformOf,
+  transformOp,
+  TRANSFORM_CLICKS,
+  TRANSFORM_TOOLS,
   trimPiece,
   SKETCH_KEYS,
   TYPED_TOOLS,
@@ -397,6 +402,12 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         context.lineWidth = 1.5;
         context.setLineDash(tool === "centerline" || current.construction ? [9, 4, 2, 4] : [6, 4]);
         const cursor = refAt(state, landing);
+        // A transform's selection drawn where it would go, and its base or center joined to the pointer.
+        if (TRANSFORM_TOOLS.includes(tool) && picks.length) {
+          const placed = picks.map(ref => refAt(state, ref));
+          path([placed[0], cursor]);
+          for (const curve of transformedCurves(state, current.selection, transformOf(tool, [...placed, cursor]))) path(curvePoints(curve));
+        }
         const readout = previewStroke(tool, picks.map(ref => refAt(state, ref)), cursor, landing, path);
         context.setLineDash([]);
         const screen = toScreen(cursor);
@@ -599,6 +610,29 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       }
     };
 
+    // A transform made from its clicks, or from the size typed after its first (`typed`: angle, factor or by).
+    const makeTransform = async (tool, typed = {}) => {
+      const current = live.current;
+      const state = current.sketch.state;
+      const op = transformOp(tool, state, current.selection, transformOf(tool, picks.map(ref => refAt(state, ref)), typed));
+      picks = [];
+      report();
+      if (!op) return;
+      await send(op.points ? { ...op, points: op.points.map(each => ({ ...each, to: rounded(each.to, current.units) })) } : op);
+    };
+
+    const typeTransform = (tool, key) => {
+      const screen = pointer?.screen || [0, 0];
+      const hint = tool === "rotate_entities" ? "degrees" : tool === "scale_entities" ? "scale factor" : "dx, dy";
+      setBox({ x: screen[0] + 56, y: screen[1] + 28, value: key, unit: "", typing: true, hint, onCommit: text => {
+        const numbers = String(text).trim().split(/\s*[,x ]\s*/).filter(Boolean).map(Number);
+        if (!numbers.length || numbers.some(n => !Number.isFinite(n))) return;
+        const typed = tool === "rotate_entities" ? { angle: numbers[0] } : tool === "scale_entities" ? { factor: numbers[0] }
+          : { by: [numbers[0], numbers[1] ?? 0] };
+        if (live.current.tool === tool && picks.length === 1) void makeTransform(tool, typed);
+      } });
+    };
+
     // A size typed after a stroke's first click (a digit opens the box): the stroke made at that size,
     // the way the pointer was when typing began, and dimensioned so.
     const typeStroke = (tool, key) => {
@@ -730,6 +764,28 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         if (busy) return;
         syncTool();
         void useTool(tool, hitTest(current.sketch.state, place, HIT_PX / (mapping?.perUnit || 1)), place);
+        version.current += 1;
+        return;
+      }
+      if (TRANSFORM_TOOLS.includes(tool)) {
+        // Move, Copy, Rotate and Scale Entities: what is selected (a click on an entity when nothing is,
+        // Shift or Ctrl to add), then a base point and where it goes, or a center and the turn or size.
+        const hit = hitTest(current.sketch.state, place, HIT_PX / (mapping?.perUnit || 1));
+        if (extend || !current.selection.length) {
+          if (!hit) return; // the camera's
+          event.preventDefault();
+          event.stopPropagation();
+          const selection = current.selection;
+          current.edit.selectInSketch(selection.includes(hit) ? selection.filter(id => id !== hit) : [...selection, hit]);
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        if (busy) return;
+        syncTool();
+        picks = [...picks, landAt(place)];
+        report();
+        if (picks.length >= TRANSFORM_CLICKS[tool]) void makeTransform(tool);
         version.current += 1;
         return;
       }
@@ -907,6 +963,13 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
     const handleKeyDown = event => {
       const current = live.current;
       if (!current.sketch || editableTarget(event.target) || current.box) return;
+      // A digit after a transform's first click types its angle, factor or distance.
+      if (TRANSFORM_TOOLS.includes(current.tool) && picks.length === 1 && !busy && /^[0-9.-]$/.test(event.key)
+        && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        typeTransform(current.tool, event.key);
+        return;
+      }
       // A digit after a stroke's first click types its size.
       if (TYPED_TOOLS.includes(current.tool) && picks.length === 1 && !busy && /^[0-9.]$/.test(event.key)
         && !event.metaKey && !event.ctrlKey && !event.altKey) {

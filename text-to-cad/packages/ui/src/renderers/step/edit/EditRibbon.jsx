@@ -37,7 +37,7 @@ const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]
 // Sketch mode's tools, as SolidWorks' Sketch tab groups them: what draws, then what changes what is drawn.
 // A family (`SKETCH_FAMILIES`) is one button and a flyout, by its first tool's id.
 const SKETCH_ENTITIES = ["line", "rectangle", "circle", "arc", "slot", "polygon", "spline", "centerline", "point"];
-const SKETCH_MODIFY = ["fillet", "chamfer", "trim", "extend", "convert", "intersection", "offset", "mirror", "linear_pattern", "circular_pattern"];
+const SKETCH_MODIFY = ["fillet", "chamfer", "trim", "extend", "convert", "intersection", "offset", "mirror", "move_entities", "linear_pattern", "circular_pattern"];
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
 // The More button's box, before it is first laid out.
@@ -256,6 +256,16 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
       return { id: each.id, label: each.label, hint: key ? `${each.label} (${key})` : undefined, icon: <span className={SKETCH_TINT}><Icon /></span>,
         active, disabled: !sketch.state || edit.saving, onClick };
     };
+    // A tool, or a family's button (the tool in hand of it, else the one last picked of it) with its flyout.
+    const familyItem = id => {
+      const family = SKETCH_FAMILIES[id];
+      if (!family) return sketchItem(tool(id));
+      const shown = family.includes(edit.sketchTool) ? edit.sketchTool : lastOfFamily[id] || id;
+      const variants = family.map(each => sketchItem(tool(each)));
+      const pick = each => setLastOfFamily(current => ({ ...current, [id]: each }));
+      const name = id === "move_entities" ? "Move Entities" : tool(id).label.split(" ").at(-1);
+      return { ...sketchItem(tool(shown)), id, variants, menu: <FamilyMenu label={name} items={variants} onPick={pick} /> };
+    };
     const curves = new Set((sketch.state?.curves || []).map(curve => curve.id));
     const chosen = edit.sketchSelection.filter(id => curves.has(id));
     const allConstruction = chosen.length > 0 && chosen.every(id => sketch.state.curves.find(curve => curve.id === id)?.construction);
@@ -266,17 +276,8 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
         { id: "exit", label: "Exit Sketch", icon: <ExitSketchIcon />, disabled: edit.saving, onClick: () => void edit.exitSketch() },
         sketchItem(tool("dimension")),
       ] },
-      { title: "Entities", items: SKETCH_ENTITIES.map(id => {
-        const family = SKETCH_FAMILIES[id];
-        if (!family) return sketchItem(tool(id));
-        // The family's button is the tool in hand of it, else the one last picked of it.
-        const shown = family.includes(edit.sketchTool) ? edit.sketchTool : lastOfFamily[id] || id;
-        const variants = family.map(each => sketchItem(tool(each)));
-        const pick = each => setLastOfFamily(current => ({ ...current, [id]: each }));
-        return { ...sketchItem(tool(shown)), id, variants,
-          menu: <FamilyMenu label={tool(id).label.split(" ").at(-1)} items={variants} onPick={pick} /> };
-      }) },
-      { title: "Modify", items: SKETCH_MODIFY.map(id => sketchItem(tool(id))) },
+      { title: "Entities", items: SKETCH_ENTITIES.map(id => familyItem(id)) },
+      { title: "Modify", items: SKETCH_MODIFY.map(id => familyItem(id)) },
       { title: "Tools", items: [
         { id: "construction", label: "Construction Geometry", hint: "Construction Geometry (X)", icon: <span className={SKETCH_TINT}><ConstructionIcon /></span>,
           active: chosen.length ? allConstruction : edit.construction,

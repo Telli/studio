@@ -40,6 +40,10 @@ export const CircularSketchPatternIcon = ({ className }) => <Glyph className={cl
 export const IntersectionCurveIcon = ({ className }) => <Glyph className={className}><path d="M3 5.5h7v7H3z" strokeOpacity=".4" /><path d="M10 5.5l3-3M10 12.5l3-3M3 5.5l3-3h7v7" strokeOpacity=".4" /><path d="M1.5 9h13" strokeDasharray="2 1.4" /><path d="M3 9h7l3-3" strokeWidth={1.6} /></Glyph>;
 export const OffsetIcon = ({ className }) => <Glyph className={className}><path d="M2.5 13.5v-10h11" /><path d="M5.5 13.5v-7h8" strokeOpacity=".6" /></Glyph>;
 export const ConvertEntitiesIcon = ({ className }) => <Glyph className={className}><path d="M3 7v4.5L8 14l5-2.5V7M8 9.5V14" strokeOpacity=".45" /><path d="M3 7 8 4.5 13 7 8 9.5z" /><path d="M8 1v2.4M6.6 2.2 8 3.4l1.4-1.2" strokeOpacity=".7" /></Glyph>;
+export const MoveEntitiesIcon = ({ className }) => <Glyph className={className}><path d="M8 2v12M2 8h12" /><path d="m6.3 3.7 1.7-1.7 1.7 1.7M6.3 12.3 8 14l1.7-1.7M3.7 6.3 2 8l1.7 1.7M12.3 6.3 14 8l-1.7 1.7" /></Glyph>;
+export const CopyEntitiesIcon = ({ className }) => <Glyph className={className}><rect x="2.5" y="2.5" width="7" height="7" rx=".6" strokeOpacity=".55" /><rect x="6.5" y="6.5" width="7" height="7" rx=".6" /></Glyph>;
+export const RotateEntitiesIcon = ({ className }) => <Glyph className={className}><path d="M12.8 6A5 5 0 1 0 13 9.5" /><path d="M13 3v3.2H9.8" /><Dot x={8} y={8} /></Glyph>;
+export const ScaleEntitiesIcon = ({ className }) => <Glyph className={className}><rect x="2.5" y="8.5" width="5" height="5" rx=".5" /><path d="M7.5 8.5 13.5 2.5M10 2.5h3.5V6" /><path d="M2.5 6V2.5H6" strokeOpacity=".5" strokeDasharray="1.2 1.2" /></Glyph>;
 export const MirrorIcon = ({ className }) => <Glyph className={className}><path d="M8 1.5v13" strokeDasharray="2 1.4" /><path d="M6 4.5 2 11.5h4z" /><path d="m10 4.5 4 7h-4z" strokeOpacity=".55" /></Glyph>;
 export const AddRelationIcon = ({ className }) => <Glyph className={className}><path d="M2.5 11.5h7" /><path d="M6.5 4.5v7" /><rect x="10" y="2.5" width="4" height="4" rx=".6" strokeOpacity=".6" /><path d="M11.4 4.5h1.2" strokeOpacity=".6" /></Glyph>;
 export const ConstructionIcon = ({ className }) => <Glyph className={className}><path d="m3 13 10-10" strokeDasharray="2 1.6" /><Dot x={3} y={13} /><Dot x={13} y={3} /></Glyph>;
@@ -58,5 +62,6 @@ export const SKETCH_TOOL_ICONS = Object.freeze({
   three_point_arc: ThreePointArcIcon, tangent_arc: TangentArcIcon, slot: SlotIcon, centerpoint_slot: CenterpointSlotIcon, polygon: PolygonIcon, spline: SplineIcon, centerline: CenterlineIcon,
   point: PointIcon, dimension: SmartDimensionIcon,
   fillet: SketchFilletIcon, chamfer: SketchChamferIcon, trim: TrimIcon, extend: ExtendIcon,
+  move_entities: MoveEntitiesIcon, copy_entities: CopyEntitiesIcon, rotate_entities: RotateEntitiesIcon, scale_entities: ScaleEntitiesIcon,
   linear_pattern: LinearSketchPatternIcon, circular_pattern: CircularSketchPatternIcon, intersection: IntersectionCurveIcon, offset: OffsetIcon, mirror: MirrorIcon, convert: ConvertEntitiesIcon,
 });
