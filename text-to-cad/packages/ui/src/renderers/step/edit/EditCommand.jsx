@@ -589,7 +589,10 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
           onChange={(index, axis, text) => setValues(current => ({ ...current,
             more: (current.more || []).map((place, at) => (at === index ? { ...place, [axis]: text } : place)) }))}
           onRemove={index => setValues(current => ({ ...current, more: (current.more || []).filter((_, at) => at !== index) }))} />
-        {offsets.length ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Click the face again to add a hole there.</p> : null}
+        {/* A face picked before Hole opened holds its hole at its center until it is clicked, which on a rim is
+            over the opening: the first click puts the hole there, and each after it adds one. */}
+        {offsets.length ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>{editing || facePoint
+          ? "Click the face again to add a hole there." : "Click the face where the hole goes."}</p> : null}
       </> : null}
       {command.id === "mirror" ? faces.length && !editing ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>About the selected face.</p>
         : <FileSheetSelectRow label="About" value={values.plane} onValueChange={set("plane")}

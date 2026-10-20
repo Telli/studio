@@ -66,7 +66,9 @@ by hand" below.
   Each click on the face after the first adds a hole there, as Hole Wizard's Positions do: one
   feature drills the same hole at each place, `tray -= [bd.Pos(*at) * bd.Plane(<face>) *
   bd.Cylinder(...) for at in ((5, 0), (-5, 0), (0, 2.5))]`, each `at` its offsets from the
-  face's centre.
+  face's centre. That centre is the face's centre of mass, `bd.Plane(<face>)`'s origin: on a rim
+  it is over the opening, so a hole in a rim always has its offsets, and one left at the centre
+  is refused.
 - **Chamfer**: `bd.chamfer(<edges>, length=1)`; Distance distance writes `length=1, length2=.5`
   (Flip direction swaps them), Angle distance `length=1, angle=30`. build123d measures an angle
   chamfer's length along each edge's first face; flipped, the distance runs along the other, written

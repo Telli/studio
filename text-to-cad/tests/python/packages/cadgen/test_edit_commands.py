@@ -356,6 +356,37 @@ class SlantedHoles(Commands):
         self.assertIn("2.12 mm off the face", refused["error"])
 
 
+# The tray's rim as the viewer reads it: its top face, 40 by 20 rounded at the corners round the
+# 36 by 16 opening, its center over the opening.
+RIM = face("f3", (0, 0, 5), 208 + 4 * math.pi)
+
+
+class RimHoles(Commands):
+    def test_a_hole_in_a_rim_goes_where_the_rim_is_clicked(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        script = root / "tray.py"
+        before = script.read_bytes()
+        weighed = self.service.change({"file": file, "mass": {}, "files": state["files"]})["mass"]
+        # Not clicked, the hole would sit at the rim's center, over the opening.
+        centered = self.command(file, state, "hole", [RIM], {"diameter": "1", "depth": "3"})
+        self.assertFalse(centered["ok"])
+        self.assertIn("Click the face where the hole goes.", centered["error"])
+        self.assertEqual(script.read_bytes(), before)
+        # Clicked on the rim's right side, 19 along X from its center, as the panel takes the click.
+        reply = self.command(file, state, "hole", [RIM], {"diameter": "1", "depth": "3", "x": "19", "y": "0"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("    tray -= Pos(19, 0) * Plane(tray.faces().sort_by(Axis.Z)[-1]) * Cylinder(1/2, 3, "
+                      "align=(Align.CENTER, Align.CENTER, Align.MAX))\n    return tray\n", script.read_text(encoding="utf-8"))
+        # Drilled there: what it took out, found from how far the center of mass moved, is 19 along X
+        # and 1.5 under the rim.
+        drilled = self.service.change({"file": file, "mass": {}, "files": reply["files"]})["mass"]
+        taken = weighed["volume"] - drilled["volume"]
+        self.assertAlmostEqual(taken, math.pi * 0.5 ** 2 * 3, places=3)
+        at = [(weighed["volume"] * was - drilled["volume"] * now) / taken for was, now in zip(weighed["center"], drilled["center"])]
+        for got, wanted in zip(at, (19, 0, 3.5)):
+            self.assertAlmostEqual(got, wanted, places=2)
+
+
 class PlateCommands(Commands):
     def hole_row(self, state):
         return next(row for row in state["rows"] if row["kind"] == "Hole")

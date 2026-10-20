@@ -1087,7 +1087,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                     moved -= plane.z_dir * off
                     offsets = {axis: round(getattr(moved, axis) / unit, 6) for axis in ("X", "Y", "Z")}
                 if selections.topology["face"].item(numbers[0]).distance_to(plane.origin + moved) > 1e-4 + 1e-6 * scale:
-                    raise CommandError("The hole's center is off that face. Set where it goes on the face, from the face's center.")
+                    raise CommandError("The hole's center is off that face. Click the face where the hole goes.")
             return offsets
 
         # Hole Wizard's Positions: the first hole's place, and one more for each other click on the face.

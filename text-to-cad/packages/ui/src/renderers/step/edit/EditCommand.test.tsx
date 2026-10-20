@@ -221,6 +221,20 @@ it("each click on a hole's face after the first adds a hole there, listed with a
   expect(screen.queryByRole('textbox', { name: 'Hole 2 X' })).toBeNull();
 });
 
+it('a face picked before Hole opened holds its hole until it is clicked, and the first click puts the hole there', () => {
+  // A tray's rim: its center is over the opening, so the hole has to be clicked onto it.
+  const RIM = { id: 'ref-f3', selectorType: 'face', displaySelector: 'f3', pickData: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1], area: 220.566 } };
+  const hole = edit('hole');
+  const { rerender } = render(<EditCommand edit={hole as never} names={NAMES} references={[RIM]} />);
+  expect(screen.getByText('Click the face where the hole goes.')).toBeTruthy();
+  rerender(<EditCommand edit={{ ...hole, facePoint: { id: 'ref-f3', point: [19, 0, 5], center: [0, 0, 5], normal: [0, 0, 1] } } as never}
+    names={NAMES} references={[RIM]} />);
+  expect((screen.getByRole('textbox', { name: 'X from center' }) as HTMLInputElement).value).toBe('19');
+  expect((screen.getByRole('textbox', { name: 'Y from center' }) as HTMLInputElement).value).toBe('0');
+  expect(screen.queryByRole('textbox', { name: 'Hole 2 X' })).toBeNull();
+  expect(screen.getByText('Click the face again to add a hole there.')).toBeTruthy();
+});
+
 it("Mass Properties weigh the part in the project's material, or one picked, and close", async () => {
   const user = userEvent.setup();
   const materials = [{ key: 'aluminum-6061-t6', name: 'Aluminum 6061-T6', density: 2.7 }, { key: 'petg', name: 'PETG', density: 1.27 }];
