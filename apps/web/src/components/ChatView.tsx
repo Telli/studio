@@ -614,6 +614,7 @@ import { observeResize } from "~/lib/observeResize";
 import { PluginThreadViewMenuItems } from "./plugins/PluginThreadViewMenuItems";
 import { PluginStarterPrompts } from "./plugins/PluginStarterPrompts";
 import { usePluginFollow } from "./plugins/usePluginFollow";
+import { ChatPicker } from "./workbench/ChatPicker";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
@@ -11561,6 +11562,15 @@ export default function ChatView(props: ChatViewProps) {
               : {})}
           />
         </header>
+        {engineeringInterface ? (
+          <ChatPicker
+            environmentId={activeThread.environmentId}
+            project={activeProject ?? null}
+            threadId={activeThread.id}
+            draft={!isServerThread}
+            onNewChat={handleNewThreadInActiveProject}
+          />
+        ) : null}
 
         {/* Main content area with optional plan sidebar */}
         <div className="relative flex min-h-0 min-w-0 flex-1">

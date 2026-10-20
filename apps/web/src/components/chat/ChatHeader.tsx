@@ -39,6 +39,8 @@ import {
 import { observeResize } from "~/lib/observeResize";
 import { cn } from "~/lib/utils";
 import { useClientSettings } from "../../hooks/useSettings";
+import { StudioWorkspaceBar } from "../workbench/StudioWorkspaceBar";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 
 interface ChatHeaderProps {
   activeThreadEnvironmentId: EnvironmentId;
@@ -90,6 +92,7 @@ export const ChatHeader = memo(function ChatHeader({
   const activeProjectName = activeProject?.title;
   const activeProjectCwd = activeProject?.workspaceRoot ?? null;
   const interfaceFont = useClientSettings((settings) => settings.fontFamilySans);
+  const engineering = useEngineeringInterface();
   const breadcrumbContainerRef = useRef<HTMLDivElement>(null);
   const [collapseParentTitle, setCollapseParentTitle] = useState(false);
   const activeThreadRef = useMemo(
@@ -297,6 +300,10 @@ export const ChatHeader = memo(function ChatHeader({
     },
     [commitRename],
   );
+  // Studio's engineering interface has its own bar here (`workbench/StudioWorkspaceBar.tsx`).
+  if (engineering) {
+    return <StudioWorkspaceBar environmentId={activeThreadEnvironmentId} project={activeProject} />;
+  }
   return (
     <div
       ref={breadcrumbContainerRef}
