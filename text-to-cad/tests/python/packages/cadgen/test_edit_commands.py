@@ -1364,6 +1364,22 @@ class Planes(Commands):
 class Assemblies(Commands):
     """An assembly places its parts: each is modeled on its own, opened from the design tree."""
 
+    def test_interference_detection_finds_two_parts_that_overlap(self):
+        root, file, state = self.open(ASSEMBLY, "assemblies/stack.step")
+        clear = self.service.change({"file": file, "files": state["files"], "interference": {}})
+        self.assertTrue(clear["ok"], clear.get("error"))
+        # The pin stands on the base: touching is not interfering.
+        self.assertEqual((clear["interference"]["pairs"], clear["interference"]["parts"]), ([], 2))
+        pin = root / "parts" / "pin.py"
+        pin.write_text(pin.read_text(encoding="utf-8").replace("Pos(0, 0, 5)", "Pos(0, 0, 4)"), encoding="utf-8")
+        state = self.service.state(file)
+        found = self.service.change({"file": file, "files": state["files"], "interference": {}})
+        pairs = found["interference"]["pairs"]
+        self.assertEqual([(pair["a"], pair["b"]) for pair in pairs], [("base", "pin")])
+        # A millimetre of the pin sunk into the base: pi * 2^2 * 1.
+        self.assertAlmostEqual(pairs[0]["volume"], 4 * 3.141592653589793, places=3)
+        self.assertTrue(found["interference"]["shown"]["removed"]["triangles"])
+
     def test_each_part_names_the_model_open_part_opens_and_the_assembly_takes_no_commands(self):
         root, file, state = self.open(ASSEMBLY, "assemblies/stack.step")
         self.assertEqual([(c["name"], Path(c["step"]).parent.name, Path(c["step"]).name) for c in state["components"]],

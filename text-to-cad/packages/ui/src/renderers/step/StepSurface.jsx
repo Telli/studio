@@ -3731,6 +3731,8 @@ function StepSurfaceBody({ view, data }) {
           through={partExtent} /> : null}
         {editing && !sheetUp && edit.inspecting === "mass" && massMark ? <PreviewLayer viewport={viewport} preview={null} mark={massMark} extent={partExtent} /> : null}
         {editing && !sheetUp && edit.inspecting === "draft" && edit.draftCheck?.positions ? <DraftAnalysisLayer viewport={viewport} check={edit.draftCheck} /> : null}
+        {editing && !sheetUp && edit.inspecting === "interference" && edit.interference?.shown
+          ? <PreviewLayer viewport={viewport} preview={edit.interference.shown} mark={null} extent={partExtent} /> : null}
         {/* Compare: what the part gained since the version picked, amber, and what it lost, red. */}
         {editing && !sheetUp && edit.inspecting === "compare" && edit.comparison?.shown
           ? <PreviewLayer viewport={viewport} preview={edit.comparison.shown} mark={null} extent={partExtent} /> : null}

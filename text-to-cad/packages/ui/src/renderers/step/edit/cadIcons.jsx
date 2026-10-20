@@ -190,6 +190,7 @@ export const AppearanceIcon = ({ className }) => <Icon className={className}>
 </Icon>;
 
 /** A weight on a scale's pan, as Mass Properties is drawn: what the part weighs. */
+export const InterferenceIcon = ({ className }) => <Icon className={className}><rect x="3" y="9" width="11" height="11" rx="1" /><rect x="10" y="4" width="11" height="11" rx="1" /><path d="M10 9h4v6h-4z" fill="#ef4444" fillOpacity=".8" stroke="#ef4444" /></Icon>;
 export const DraftAnalysisIcon = ({ className }) => <Icon className={className}><path d="M4 20 7.5 5h9L20 20z" fill="#22c55e" fillOpacity=".25" /><path d="M4 20 7.5 5M20 20 16.5 5" stroke="#eab308" /><path d="M12 2v6M10 4l2-2 2 2" /></Icon>;
 export const MassPropertiesIcon = ({ className }) => <Icon className={className}>
   <path d="M3 20h18" style={{ ...ACCENT, stroke: "var(--cad-solid-edge)", strokeWidth: 1.5 }} />

@@ -1725,7 +1725,7 @@ def trace(request):
     # The body and its making, for a command to act on (`commands.py`).
     _keep_version(str(script), shape, components)
     STATE[str(script)] = {"dimensions": {d["id"]: d for d in dimensions}, "rows": rows, "units": units,
-                          "shape": shape, "steps": steps, "level": level}
+                          "shape": shape, "steps": steps, "level": level, "components": [c["function"] for c in components]}
     # What a move of the rollback bar alone needs of this trace, while its files read the same.
     LAST.clear()
     LAST.update(script=str(script), root=ROOT, files=dict(FILES), features=[] if components else features,
@@ -1817,7 +1817,7 @@ def _solve(expr, leaf, target):
 
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
-_CHANGES = ("command", "preview", "mass", "draft_check", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
+_CHANGES = ("command", "preview", "mass", "draft_check", "interference", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
             "input")
 
 
@@ -1830,6 +1830,8 @@ def edit(request):
         return mass_properties(request)
     if isinstance(request.get("draft_check"), dict):
         return draft_analysis(request)
+    if isinstance(request.get("interference"), dict):
+        return interference_check(request)
     if isinstance(request.get("command"), dict):
         return command(request)
     if isinstance(request.get("splice"), dict):
@@ -2270,6 +2272,59 @@ def draft_analysis(request):
         positions += [round(value, 4) for point in (pa, pb, pc) for value in (point.X, point.Y, point.Z)]
     return {"ok": True, "draft_check": {"positions": positions, "classes": classes,
                                          "areas": {"positive": areas[0], "negative": areas[1], "needs": areas[2]}}}
+
+
+def interference_check(request):
+    """Interference Detection, as SolidWorks' Evaluate tab runs it on an assembly: every two of its
+    parts (or of a part's bodies) whose solids overlap, with the volume they share, largest first,
+    and that shared material drawn (``removed``, red, as a preview draws a cut). Touching is not
+    interfering: only overlap with volume counts."""
+    from cadgen.geometry import overlap_volume
+
+    script = Path(request["script"]).resolve()
+    root = Path(request.get("root") or script.parent).resolve()
+    if not _as_last_traced(script, root) or str(script) not in STATE:
+        traced = trace(request)
+        if not traced["ok"]:
+            return traced
+    shape = STATE[str(script)]["shape"]
+    if not isinstance(shape, B.Shape):
+        return {"ok": True, "interference": {"error": "This model has no solids to check."}}
+    children = [child for child in (getattr(shape, "children", None) or []) if isinstance(child, B.Shape) and child.solids()]
+    # Each part by the name the design tree gives it (its part function), its label, else its place.
+    traced = STATE[str(script)].get("components") or []
+    label = lambda index, child: child.label or (traced[index] if len(traced) == len(children) else f"Part{index + 1}")  # noqa: E731
+    named = ([(label(index, child), child) for index, child in enumerate(children)] if len(children) > 1
+             else [(f"Body{index + 1}", solid) for index, solid in enumerate(shape.solids())])
+    if len(named) < 2:
+        return {"ok": True, "interference": {"pairs": [], "parts": len(named), "shown": None}}
+    scale = shape.bounding_box().diagonal or 1.0
+    floor = (scale * 1e-6) ** 3
+    pairs, shared = [], []
+    for i in range(len(named)):
+        for j in range(i + 1, len(named)):
+            (name_a, a), (name_b, b) = named[i], named[j]
+            if not a.bounding_box().overlaps(b.bounding_box()):
+                continue  # boxes apart: nothing to share
+            volume = 0.0
+            for solid_a in a.solids():
+                for solid_b in b.solids():
+                    try:
+                        volume += overlap_volume(solid_a, solid_b)
+                    except Exception:  # noqa: BLE001 - a pair the kernel cannot settle is left out, not called clear
+                        continue
+            if volume > floor:
+                pairs.append({"a": name_a, "b": name_b, "volume": volume})
+                try:
+                    shared.append(a & b)
+                except Exception:  # noqa: BLE001 - listed, only not drawn
+                    pass
+    pairs.sort(key=lambda pair: -pair["volume"])
+    shown = None
+    if shared:
+        together = shared[0] if len(shared) == 1 else B.Compound(children=shared)
+        shown = {"removed": _drawn(together, max(0.005, scale * 0.001)), "added": None, "error": None}
+    return {"ok": True, "interference": {"pairs": pairs, "parts": len(named), "shown": shown}}
 
 
 def _feature_lines(feature, rel, title, verb):
@@ -3567,7 +3622,7 @@ def handle(request):
         if request.get("op") == "edit":
             reply = edit(request)
             # A preview, or Mass Properties, leaves the part, and so the rollback bar, as they were.
-            return reply if any(isinstance(request.get(key), dict) for key in ("preview", "mass", "draft_check")) else _with_bar(request, reply)
+            return reply if any(isinstance(request.get(key), dict) for key in ("preview", "mass", "draft_check", "interference")) else _with_bar(request, reply)
         return _with_bar(request, trace(request))
     except Exception as error:
         return {"ok": False, "error": str(error), "detail": traceback.format_exc(limit=4)}

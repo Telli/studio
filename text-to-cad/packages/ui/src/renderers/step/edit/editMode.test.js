@@ -29,6 +29,7 @@ import {
   planeMode,
   pullOf,
   draftRows,
+  interferenceRows,
   planePreview,
   referencePlanes,
   appearanceNote,
@@ -696,4 +697,8 @@ test("Draft Analysis pulls along an origin plane's normal, reversed when asked, 
   assert.deepEqual(pullOf({ plane: "Front", reverse: true }), [0, 1, 0]);
   assert.deepEqual(draftRows({ positive: 200, negative: 200, needs: 240 }, "mm").map(row => row.value), ["200 mm²", "200 mm²", "240 mm²"]);
   assert.equal(draftRows({ positive: 645.16, negative: 0, needs: 0 }, "in")[0].value, "1 in²");
+});
+
+test("Interference Detection lists each overlapping pair with its shared volume", () => {
+  assert.deepEqual(interferenceRows([{ a: "base", b: "pin", volume: 12.566 }], "mm").map(row => [row.label, row.value]), [["base and pin", "12.6 mm³"]]);
 });

@@ -129,6 +129,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   // Draft Analysis: what it checks against (an origin plane's normal, reversed or not, and the least draft), and what it found.
   const [draftSettings, setDraftSettings] = useState({ plane: "Top", reverse: false, angle: 1 });
   const [draftCheck, setDraftCheck] = useState(null);
+  // Interference Detection: the overlapping pairs found, and their shared material to draw.
+  const [interference, setInterference] = useState(null);
   const [previewOn, setPreviewOn] = useState(true);
   const previewWanted = useRef(null);
   const previewAsked = useRef("");
@@ -359,6 +361,19 @@ export function useEditMode({ client, file, active, reading = true }) {
     }, failure => { if (!gone) setDraftCheck({ status: "failed", error: describe(failure) }); });
     return () => { gone = true; };
   }, [inspecting, supported, file, client, state, draftSettings]);
+
+  /** Interference Detection, run again whenever the model is read again. */
+  useEffect(() => {
+    if (inspecting !== "interference" || !supported || !file) { setInterference(null); return undefined; }
+    let gone = false;
+    setInterference(current => ({ ...(current || {}), status: "updating" }));
+    client.editChange({ interference: {}, file, files: files.current || undefined }).then(reply => {
+      if (gone) return;
+      const made = reply?.ok ? reply.interference || {} : { error: reply?.error || "The parts could not be checked." };
+      setInterference(made.error ? { status: "failed", error: made.error } : { status: "ready", ...made });
+    }, failure => { if (!gone) setInterference({ status: "failed", error: describe(failure) }); });
+    return () => { gone = true; };
+  }, [inspecting, supported, file, client, state]);
 
   // A command's OK: its line written after the body, the new feature selected and its panel shut.
   const run = useCallback(async request => {
@@ -707,7 +722,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     hover: setHovered,
     change, undo, redo, run, remove, suppress, editFeature, rollTo,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
-    inspecting, mass, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, drawing, comparison, compare,
+    inspecting, mass, interference, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, drawing, comparison, compare,
     sheetView, openSheet, closeSheet, sheetEdit, undoSheet, redoSheet,
     startRename: id => { if (id) setRenaming(id); },
     stopRename: () => setRenaming(null),

@@ -1157,3 +1157,13 @@ export function draftRows(areas, units) {
   const unit = units === "in" ? "in²" : units === "cm" ? "cm²" : units === "m" ? "m²" : "mm²";
   return DRAFT_ORDER.map(key => ({ key, label: DRAFT_CLASSES[key].label, value: `${Number(((areas?.[key] || 0) / scale).toFixed(units === "in" ? 3 : 1))} ${unit}` }));
 }
+
+// ---- Interference Detection ------------------------------------------------------------------------
+
+/** Interference Detection's results: each overlapping pair, and the volume they share in the part's units cubed. */
+export function interferenceRows(pairs, units) {
+  const scale = units === "in" ? 25.4 ** 3 : units === "cm" ? 1000 : units === "m" ? 1e9 : 1;
+  const unit = units === "in" ? "in³" : units === "cm" ? "cm³" : units === "m" ? "m³" : "mm³";
+  return (pairs || []).map((pair, index) => ({ key: `${index}:${pair.a}:${pair.b}`, label: `${pair.a} and ${pair.b}`,
+    value: `${Number((pair.volume / scale).toPrecision(3))} ${unit}` }));
+}
