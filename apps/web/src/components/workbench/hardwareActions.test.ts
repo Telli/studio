@@ -30,6 +30,15 @@ describe("hardware actions", () => {
     expect(manufacture!.moreLabel).toBe("Other ways to make it");
   });
 
+  it("puts the files to export in Manufacture, after the ways to make it", () => {
+    const manufacture = menu("Manufacture", "Part", ["dfm", "cad"], "CNC machining");
+    expect(titled(manufacture!.sections)).toEqual([
+      ["CNC machining", ["Check for CNC machining"]],
+      ["Export files", ["STEP", "STL and 3MF"]],
+    ]);
+    expect(menu("Manufacture", "Board", ["cad"])).toBeUndefined();
+  });
+
   it("keeps every way to make it apart until the project chooses one", () => {
     const manufacture = menu("Manufacture", "Part", ["dfm", "dxf", "sendcutsend"]);
     expect(manufacture!.sections).toEqual([]);

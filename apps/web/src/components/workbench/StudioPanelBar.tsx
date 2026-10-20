@@ -1,6 +1,5 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
-import { DownloadIcon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
@@ -8,26 +7,14 @@ import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh
 import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
-import { Button } from "../ui/button";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { leadPartOf } from "./leadPart";
+import { useOpenWorkspaceStore } from "./openWorkspace";
 import { PartActions } from "./PartActions";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { usePartContext } from "./usePartContext";
 import { useStudioProjectAt } from "./useStudioProjects";
 import { useWorkspaceMode, useWorkspaceModeStore } from "./workspaceMode";
-
-/** What Export offers, each written into the composer as a job for the part on screen. */
-const EXPORTS = [
-  { label: "STEP", prompt: "Export the part on screen as STEP." },
-  { label: "STL and 3MF", prompt: "Export the part on screen as STL and 3MF." },
-  {
-    label: "Drawing as PDF",
-    prompt: "Make an engineering drawing of the part on screen as a PDF.",
-  },
-  { label: "DXF for cutting", prompt: "Make a cut-ready DXF of the part on screen." },
-] as const;
 
 /** The thread folder's lead part, read again when the agent changes files. */
 function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutationId: string | null) {
@@ -64,7 +51,8 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
 
 /**
  * The rest of a project workspace's top bar, in the panel's title row (the chat's row carries
- * `StudioWorkspaceBar`): Ask or Edit by hand, the part's jobs (Check, Make, Document) and Export.
+ * `StudioWorkspaceBar`): Ask or Edit by hand, and the part's jobs (Evaluate, Manufacture, with the
+ * files to export, and Document; the drawing is one of Document's).
  * The mode is the project's (`workspaceMode.ts`); the CAD views take it from the host context.
  * Choosing one while no part is in front opens the project's lead part that way; with no part
  * yet, the Overview offers to start one. The jobs are for the part last on screen, else the lead
@@ -97,13 +85,25 @@ export function StudioPanelBar(props: {
       : lead === null
         ? null
         : { path: lead.file.path, kind: lead.file.kind };
+  const process = studio?.project.brief.process;
 
-  const exportJob = (prompt: string) => {
-    const composer = props.composerRef?.current ?? null;
-    if (composer === null) return;
-    composer.insertTextAtEnd(prompt, { ensureLeadingBoundary: true });
-    composer.focusAtEnd();
-  };
+  // ⌘K finds jobs for the same part, from over everything (`StudioQuickFind`).
+  const setWorkspace = useOpenWorkspaceStore((store) => store.setWorkspace);
+  const subjectPath = subject?.path ?? null;
+  const subjectKind = subject?.kind ?? null;
+  useEffect(() => {
+    if (folder === null) return;
+    setWorkspace({
+      threadRef,
+      folder,
+      part:
+        subjectPath === null || subjectKind === null
+          ? null
+          : { path: subjectPath, kind: subjectKind },
+      process,
+    });
+    return () => setWorkspace(null);
+  }, [folder, process, setWorkspace, subjectKind, subjectPath, threadRef]);
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -127,24 +127,11 @@ export function StudioPanelBar(props: {
           environmentId={threadRef.environmentId}
           file={serializeComposerFileLink(subject.path)}
           kind={subject.kind}
-          process={studio?.project.brief.process}
+          process={process}
           composerRef={props.composerRef}
           inTopBar
         />
       )}
-      <Menu>
-        <MenuTrigger render={<Button variant="ghost" size="sm" />}>
-          <DownloadIcon />
-          Export
-        </MenuTrigger>
-        <MenuPopup align="end" side="bottom" sideOffset={6}>
-          {EXPORTS.map((entry) => (
-            <MenuItem key={entry.label} onClick={() => exportJob(entry.prompt)}>
-              {entry.label}
-            </MenuItem>
-          ))}
-        </MenuPopup>
-      </Menu>
       {/* Clear of the panel's own controls, fixed at the title row's end (T3 keeps pr-28 for them). */}
       <span aria-hidden className="w-28 shrink-0" />
     </div>

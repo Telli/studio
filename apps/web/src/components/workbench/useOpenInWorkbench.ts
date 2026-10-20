@@ -8,6 +8,23 @@ import { useEnvironmentQuery } from "~/state/query";
 import { pluginAppSurface } from "../plugins/pluginSurfaces";
 
 /**
+ * Opens a file beside a thread: a model, board or drawing in the plugin view that claims it (a
+ * STEP in the CAD view, never as text), anything else as a document, at its line. Takes a path in
+ * the thread's folder, or a full path.
+ */
+export function openInPanel(
+  plugins: Parameters<typeof pluginFileHandlers>[0] | undefined,
+  threadRef: ScopedThreadRef,
+  path: string,
+  line?: number,
+): void {
+  const panels = useRightPanelStore.getState();
+  const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
+  if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
+  else panels.openFile(threadRef, path, line);
+}
+
+/**
  * Opens a file a chat link or file chip names: a model, board or drawing in
  * the plugin view that claims it (a STEP in the CAD view, never as text),
  * anything else in the file preview at its line. Takes a path in the thread's
@@ -21,11 +38,7 @@ export function useOpenChatFile(threadRef: ScopedThreadRef | null) {
   ).data?.plugins;
   return useCallback(
     (path: string, line?: number) => {
-      if (threadRef === null) return;
-      const panels = useRightPanelStore.getState();
-      const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
-      if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
-      else panels.openFile(threadRef, path, line);
+      if (threadRef !== null) openInPanel(plugins, threadRef, path, line);
     },
     [plugins, threadRef],
   );
@@ -40,13 +53,5 @@ export function useOpenInWorkbench(threadRef: ScopedThreadRef) {
   const plugins = useEnvironmentQuery(
     pluginEnvironment.list({ environmentId: threadRef.environmentId, input: {} }),
   ).data?.plugins;
-  return useCallback(
-    (path: string) => {
-      const panels = useRightPanelStore.getState();
-      const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
-      if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
-      else panels.openFile(threadRef, path);
-    },
-    [plugins, threadRef],
-  );
+  return useCallback((path: string) => openInPanel(plugins, threadRef, path), [plugins, threadRef]);
 }

@@ -1,10 +1,14 @@
+import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { ChevronDownIcon } from "lucide-react";
 import { Fragment, useMemo } from "react";
 
+import { openCommandPalette } from "~/commandPaletteBus";
 import type { ComposerHandleRef } from "~/composerHandleContext";
+import { shortcutLabelForCommand } from "~/keybindings";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
+import { primaryServerKeybindingsAtom } from "~/state/server";
 import { Button } from "../ui/button";
 import {
   Menu,
@@ -13,18 +17,17 @@ import {
   MenuItem,
   MenuPopup,
   MenuSeparator,
-  MenuSub,
-  MenuSubPopup,
-  MenuSubTrigger,
+  MenuShortcut,
   MenuTrigger,
 } from "../ui/menu";
 import { type HardwareAction, hardwareActions } from "./hardwareActions";
 
 /**
  * Evaluate, Manufacture and Document for the part: the jobs its kind takes that the enabled
- * plugins have skills for, the everyday ones in titled sections and the rest in a submenu each
- * (Manufacture leading with the project's own way of making it). A pick writes the job, naming the
- * part by a link to its file, into the composer.
+ * plugins have skills for, the everyday ones in titled sections (Manufacture leading with the
+ * project's own way of making it), then one "More" that opens the quick find (⌘K,
+ * `StudioQuickFind`) on all of the menu's jobs, the long tail too. A pick writes the job, naming
+ * the part by a link to its file, into the composer.
  */
 export function PartActions(props: {
   readonly environmentId: EnvironmentId;
@@ -46,6 +49,10 @@ export function PartActions(props: {
     );
     return hardwareActions(props.kind, skills, props.process);
   }, [list.data, props.kind, props.process]);
+  const findShortcut = shortcutLabelForCommand(
+    useAtomValue(primaryServerKeybindingsAtom),
+    "commandPalette.toggle",
+  );
   if (groups.length === 0) return null;
   const write = (action: HardwareAction) => {
     const composer = props.composerRef.current;
@@ -92,15 +99,10 @@ export function PartActions(props: {
             {menu.others.length === 0 ? null : (
               <>
                 {menu.sections.length === 0 ? null : <MenuSeparator />}
-                <MenuGroup>
-                  <MenuGroupLabel>{menu.moreLabel}</MenuGroupLabel>
-                  {menu.others.map((way) => (
-                    <MenuSub key={way.title}>
-                      <MenuSubTrigger>{way.title}</MenuSubTrigger>
-                      <MenuSubPopup>{way.actions.map(item)}</MenuSubPopup>
-                    </MenuSub>
-                  ))}
-                </MenuGroup>
+                <MenuItem onClick={() => openCommandPalette({ query: menu.group })}>
+                  {menu.moreLabel}…
+                  {findShortcut ? <MenuShortcut>{findShortcut}</MenuShortcut> : null}
+                </MenuItem>
               </>
             )}
           </MenuPopup>

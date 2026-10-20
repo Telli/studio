@@ -31,7 +31,7 @@ export interface ActionSectionDef {
 
 /**
  * The sections, as text-to-cad's skills cover the work: `fea` for every simulation, `cad` for fit,
- * motion, mass, pictures and video, `dfam-check` for each way of printing (FDM, SLA/DLP, SLS and
+ * motion, mass, pictures and video and for exporting STEP, STL and 3MF, `dfam-check` for each way of printing (FDM, SLA/DLP, SLS and
  * MJF, metal powder bed), `dfm` for machining, sheet metal and molding, `pcb` and `pcb-dfm` for
  * boards, and `urdf`, `sdf` and `srdf` for robot descriptions.
  */
@@ -79,6 +79,7 @@ export const ACTION_SECTIONS: ReadonlyArray<ActionSectionDef> = [
   },
   { id: "board", group: "Manufacture", title: "Circuit board" },
   { id: "buy", group: "Manufacture", title: "Buy" },
+  { id: "export", group: "Manufacture", title: "Export files" },
   { id: "drawings", group: "Document", title: "Drawings" },
   { id: "building", group: "Document", title: "Building it" },
   { id: "pictures", group: "Document", title: "Pictures and video" },
@@ -640,6 +641,28 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     prompt: (file) =>
       `Find the off-the-shelf parts ${file} needs, such as fasteners and bearings, with where to buy them, and import their STEP files.`,
     short: (name) => `Find standard parts for ${name}`,
+  },
+  {
+    id: "export-step",
+    group: "Manufacture",
+    section: "export",
+    label: "STEP",
+    skill: "cad",
+    kinds: SOLID,
+    checks: false,
+    prompt: (file) => `Export ${file} as STEP.`,
+    short: (name) => `Export ${name} as STEP`,
+  },
+  {
+    id: "export-mesh",
+    group: "Manufacture",
+    section: "export",
+    label: "STL and 3MF",
+    skill: "cad",
+    kinds: SOLID,
+    checks: false,
+    prompt: (file) => `Export ${file} as STL and 3MF.`,
+    short: (name) => `Export ${name} as STL and 3MF`,
   },
   {
     id: "drawing",

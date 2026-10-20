@@ -243,6 +243,7 @@ import {
   settingsSectionLabel,
   studioInterfaceCommands,
 } from "./workbench/studioInterface";
+import { StudioQuickFind } from "./workbench/StudioQuickFind";
 import type { ChatComposerHandle } from "./chat/ChatComposer";
 import { getProjectOrderKey, selectProjectGroupingSettings } from "../logicalProject";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
@@ -541,13 +542,21 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         <div className="contents" inert={state.open}>
           {children}
         </div>
-        <CommandPaletteDialog
-          mode={state.mode}
-          openIntent={state.openIntent}
-          setOpen={setOpen}
-          openOverlayMode={toggleMode}
-          clearOpenIntent={clearOpenIntent}
-        />
+        {/* Studio's engineering interface finds projects, parts and jobs instead. */}
+        {isEngineeringInterface() ? (
+          <StudioQuickFind
+            query={state.openIntent?.kind === "search" ? state.openIntent.query : ""}
+            setOpen={setOpen}
+          />
+        ) : (
+          <CommandPaletteDialog
+            mode={state.mode}
+            openIntent={state.openIntent}
+            setOpen={setOpen}
+            openOverlayMode={toggleMode}
+            clearOpenIntent={clearOpenIntent}
+          />
+        )}
       </CommandDialog>
     </ComposerHandleContext>
   );

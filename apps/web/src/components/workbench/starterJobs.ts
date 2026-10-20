@@ -47,11 +47,14 @@ export function projectStarters(
     return {
       link: serializeComposerFileLink(file.path),
       name: lowerName(name),
-      // A check of how it would be made first, else any check; then a way to make it.
+      // A check of how it would be made first, else any check; then a way to make it (an export
+      // is a file, not a way to make it).
       check:
         all.find((action) => action.checks && action.group === "Manufacture") ??
         all.find((action) => action.checks),
-      make: all.find((action) => action.group === "Manufacture" && !action.checks),
+      make: all.find(
+        (action) => action.group === "Manufacture" && !action.checks && action.section !== "export",
+      ),
       document: all.find((action) => action.group === "Document"),
     };
   });
