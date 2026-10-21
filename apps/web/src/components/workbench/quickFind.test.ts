@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { hardwareActions } from "./hardwareActions";
-import { findJobs, folderParts, holdsWords } from "./quickFind";
+import { findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
 
 const SKILLS = new Set(["fea", "cad", "dfm", "dfam-check", "cam", "gcode", "bambu-labs"]);
 const labels = (query: string, process?: string) =>
@@ -48,6 +48,22 @@ describe("quick find", () => {
     expect(parts.map((part) => [part.project, part.file.path, part.file.picture])).toEqual([
       ["Bike hook", "hook.solidcraft", "hook.step"],
       ["Bike hook", "clip.stl", undefined],
+    ]);
+  });
+
+  it("finds each folder's documents, leaving the README to the Overview", () => {
+    expect(
+      folderDocuments([
+        {
+          project: "roomba",
+          root: "/p/roomba",
+          paths: ["README.md", "docs/prd.md", "parts/bumper.step", "docs/fmea.csv"],
+        },
+        { project: "clip", root: "/p/clip", paths: null },
+      ]).map(({ project, file }) => [project, file.title]),
+    ).toEqual([
+      ["roomba", "PRD"],
+      ["roomba", "FMEA"],
     ]);
   });
 });

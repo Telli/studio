@@ -1,11 +1,14 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useNavigate } from "@tanstack/react-router";
 import { HomeIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
+import { cn } from "~/lib/utils";
+import { buildThreadRouteParams } from "~/threadRoutes";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
@@ -17,26 +20,31 @@ import {
   CommandItem,
   CommandList,
 } from "../ui/command";
+import { chatStanding } from "./chatStanding";
 import { useDocumentTemplates } from "./documentTemplates";
 import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
-import { KIND_ICONS, MENU_ICONS } from "./kinds";
+import { CHAT_ICON, KIND_ICONS, KIND_TINTS, MENU_ICONS } from "./kinds";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { classifyProjectFile, type ProjectGroup } from "./projectFiles";
 import type { ListedProject } from "./projectList";
-import { type FoundPart, findJobs, folderParts, holdsWords } from "./quickFind";
+import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
 import { studioInterfaceCommands } from "./studioInterface";
 import { useFolderPaths } from "./useFolderPaths";
 import { openInPanel } from "./useOpenInWorkbench";
 import { useOpenProject } from "./useOpenProject";
 import { useProjectList } from "./useProjectList";
+import { chatLabel } from "./workspaceTitle";
 
 const ICON = "size-4 shrink-0 text-muted-foreground";
+/** A group lists this many with nothing typed, and this many matches. */
+const SHOWN_UNTYPED = 5;
+const SHOWN_TYPED = 8;
 
-/** A part's or a document's row: its kind's icon (`kinds.ts`). */
-function KindIcon(props: { readonly group: ProjectGroup }) {
-  const Icon = KIND_ICONS[props.group];
-  return <Icon className={ICON} />;
+/** A part's, a document's or a chat's row: its kind's icon in its kind's color (`kinds.ts`). */
+function KindIcon(props: { readonly group: ProjectGroup | "Chats" }) {
+  const Icon = props.group === "Chats" ? CHAT_ICON : KIND_ICONS[props.group];
+  return <Icon className={cn("size-4 shrink-0", KIND_TINTS[props.group])} />;
 }
 
 /** A job's row: the icon of its menu, which is the icon of what it makes. */
@@ -103,6 +111,17 @@ function QuickFindBody(props: {
   const parts = useMemo(
     () =>
       folderParts<ListedProject | null>(
+        listings.map((listing, index) => ({
+          project: owners[index]?.[1] ?? null,
+          root: listing.root,
+          paths: listing.paths,
+        })),
+      ),
+    [listings, owners],
+  );
+  const docs = useMemo(
+    () =>
+      folderDocuments<ListedProject | null>(
         listings.map((listing, index) => ({
           project: owners[index]?.[1] ?? null,
           root: listing.root,
@@ -184,6 +203,55 @@ function QuickFindBody(props: {
           ? found.file.kind
           : `${found.file.kind} · ${found.project?.project.name ?? ""}`,
       run: () => openPart(found),
+    })),
+  };
+  const shownDocs = typed
+    ? docs.filter(({ project, file }) =>
+        holdsWords(
+          `${file.title}\n${file.kind}\n${file.path}\n${project?.project.name ?? ""}`,
+          query,
+        ),
+      )
+    : docs.filter(inHere).slice(0, SHOWN_UNTYPED);
+  const documentFiles: Group = {
+    label: typed || current === null ? "Documents" : `Documents in ${current.project.name}`,
+    rows: shownDocs.map((found) => ({
+      value: `doc:${found.root}\n${found.file.path}`,
+      icon: <KindIcon group="Documents" />,
+      title: found.file.title,
+      description:
+        !typed || inHere(found)
+          ? found.file.kind
+          : `${found.file.kind} · ${found.project?.project.name ?? ""}`,
+      run: () => openPart(found),
+    })),
+  };
+  // Chats, as the sidebar lists a project's: the open project's newest when nothing is typed.
+  const chats = (typed ? cards : current === null ? [] : [current])
+    .flatMap((card) => card.threads.map((thread) => ({ card, thread })))
+    .filter(
+      ({ card, thread }) => !typed || holdsWords(`${thread.title}\n${card.project.name}`, query),
+    )
+    .toSorted((a, b) => b.thread.updatedAt.localeCompare(a.thread.updatedAt))
+    .slice(0, typed ? SHOWN_TYPED : SHOWN_UNTYPED);
+  const chatRows: Group = {
+    label: typed || current === null ? "Chats" : `Chats in ${current.project.name}`,
+    rows: chats.map(({ card, thread }) => ({
+      value: `chat:${thread.id}`,
+      icon: <KindIcon group="Chats" />,
+      title: chatLabel(thread.title),
+      description:
+        card === current
+          ? chatStanding(thread).text
+          : `${chatStanding(thread).text} · ${card.project.name}`,
+      ...(thread.id === workspace?.threadRef.threadId ? { trailing: "Open" } : {}),
+      run: go(() => {
+        if (thread.id === workspace?.threadRef.threadId) return;
+        void navigate({
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
+        });
+      }),
     })),
   };
   const projects: Group = {
@@ -280,7 +348,9 @@ function QuickFindBody(props: {
     rows: places.filter((place) => !typed || holdsWords(`${place.title}\n${place.terms}`, query)),
   };
   const groups = (
-    typed ? [jobs, documentRows, partRows, projects, goTo] : [partRows, projects, goTo]
+    typed
+      ? [jobs, partRows, documentFiles, chatRows, projects, documentRows, goTo]
+      : [partRows, documentFiles, chatRows, projects, goTo]
   ).filter((group): group is Group => group !== null && group.rows.length > 0);
 
   return (
@@ -288,12 +358,12 @@ function QuickFindBody(props: {
       mode="none"
       value={query}
       onValueChange={setQuery}
-      aria-label="Find a project, a part or a job"
+      aria-label="Find a project, a part, a document, a chat or a job"
       inputProps={{
         placeholder:
           partTitle === null
-            ? "Find a project or a part"
-            : `Find a project, a part, or a job for ${partTitle}`,
+            ? "Find a project, a part, a document or a chat"
+            : `Find anything, or a job for ${partTitle}`,
       }}
       footerActionLabel="Choose"
       footerTrailing={

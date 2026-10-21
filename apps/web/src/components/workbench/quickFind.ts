@@ -3,8 +3,9 @@ import { overviewParts } from "./checkResults";
 import { classifyProjectFile, type ProjectFile } from "./projectFiles";
 
 /**
- * What the quick find (`StudioQuickFind`, ⌘K) finds: projects, the parts in them, and every job
- * for the part on screen, the long tail the menus leave to it as well as the everyday ones.
+ * What the quick find (`StudioQuickFind`, ⌘K) finds: projects, the parts, documents and chats in
+ * them, and every job for the part on screen, the long tail the menus leave to it as well as the
+ * everyday ones.
  */
 
 /** Whether the text holds every word typed, ignoring case: "evaluate heat" finds the heat studies. */
@@ -59,5 +60,22 @@ export function folderParts<P>(
     overviewParts(
       (paths ?? []).map(classifyProjectFile).filter((file): file is ProjectFile => file !== null),
     ).map((file) => ({ project, root, file })),
+  );
+}
+
+/** The documents in each folder (a PRD, a report, a table), the README left to the Overview. */
+export function folderDocuments<P>(
+  folders: ReadonlyArray<{
+    readonly project: P;
+    readonly root: string;
+    readonly paths: ReadonlyArray<string> | null;
+  }>,
+): FoundPart<P>[] {
+  return folders.flatMap(({ project, root, paths }) =>
+    (paths ?? [])
+      .map(classifyProjectFile)
+      .filter((file): file is ProjectFile => file !== null)
+      .filter((file) => file.group === "Documents" && !/^readme\.md$/i.test(file.path))
+      .map((file) => ({ project, root, file })),
   );
 }
