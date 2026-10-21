@@ -8185,6 +8185,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               if (request.dialogKind !== "resume_return") {
                 return { behavior: "cancelled" as const };
               }
+              // A fork that names itself (Studio, by VITE_APP_BASE_NAME) keeps the conversation
+              // whole without asking: the agent's token bookkeeping is not the person's question.
+              if (process.env.VITE_APP_BASE_NAME?.trim()) {
+                return { behavior: "completed" as const, result: "continue" as const };
+              }
               const ageMinutes =
                 typeof request.payload.sessionAgeMinutes === "number" &&
                 Number.isFinite(request.payload.sessionAgeMinutes)
