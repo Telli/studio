@@ -104,11 +104,17 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   and write the README before anything else. Below it, modules: the lead part large (or, with no
   part yet, Start a part by hand), the open issues its
   checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
-  propose and wait), the parts by kind, CAD then Electronics, each with how its checks went and
-  what was made from it (its drawing, CAM job, G-code or Gerbers), then Documents, one module for
-  each other kind of file (drawings, analysis, manufacturing, images, references), then the
-  project's folders and the brief's links. In Engineering the page is the Overview alone, with no
-  Files, References or History tabs, and its New starts new designs only. A module shows once it
+  propose and wait), then, in Engineering, everything in the project in one place the way Google
+  Drive shows a folder (`components/workbench/ProjectEverything.tsx`): its chats and every kind
+  of file together, each marked by its kind's icon in its kind's color (`KIND_TINTS`), filtered
+  by type (Chats, CAD, Electronics, Analysis, Manufacturing, Documents, References), as a list
+  (name, kind, how a chat stands or how a part's checks went) or as cards with pictures (a part's
+  with its checks, drawing and manufacturing files); then the parts' versions, the project's
+  folders and the brief's links. The sidebar's Overview opens it across the window, as a Drive
+  folder opens; opening a chat or a file from it brings the chat back with the file beside it.
+  With code tools on, the page keeps a module per kind (CAD, Electronics, then Documents and each
+  other kind of file) and its Files, References and Threads tabs. In Engineering its New starts
+  new designs only. A module shows once it
   has something in it, folds away (remembered on this computer), and is read again whenever the
   thread's agent changes files. Checks
   are the results text-to-cad writes beside the parts, `<name>.fea.json` (or a named study's

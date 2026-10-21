@@ -1,0 +1,15 @@
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
+
+import { formatRelativeTimeLabel } from "~/timestampFormat";
+import { historyOutcome } from "./projectHistory";
+
+/**
+ * How a chat stands, in a word, as the sidebar and the Overview's list say it: waiting on the
+ * person, at work, else when it was last worked on; with the tone to say it in.
+ */
+export function chatStanding(chat: EnvironmentThreadShell) {
+  const outcome = historyOutcome(chat);
+  if (outcome === "needs-you") return { text: "Needs you", tone: "text-warning-foreground" };
+  if (outcome === "working") return { text: "Working", tone: "text-foreground" };
+  return { text: formatRelativeTimeLabel(chat.updatedAt), tone: "text-muted-foreground" };
+}

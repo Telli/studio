@@ -4,15 +4,20 @@ import type {
   ScopedThreadRef,
   ThreadId,
 } from "@t3tools/contracts";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { studioFolderName } from "@t3tools/shared/studioProjects";
-import { CircleXIcon, MessageSquareIcon, TriangleAlertIcon } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
+import { useRightPanelStore } from "~/rightPanelStore";
+import { buildThreadRouteParams } from "~/threadRoutes";
 import { useThreadShellsForProjectRefs } from "~/state/entities";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { CHECK_STATUS as STATUS, CheckBadge } from "./CheckBadge";
+import { CHECK_STATUS as STATUS } from "./CheckBadge";
 import {
   type CheckIssue,
   type CheckResult,
@@ -25,8 +30,9 @@ import {
   worstStatus,
 } from "./checkResults";
 import { KIND_ICONS } from "./kinds";
-import { humanName, lowerName, partName } from "./partNames";
+import { humanName, partName } from "./partNames";
 import { leadPartOf } from "./leadPart";
+import { type FolderPart, MadeBadges, PartFooter, PartIcon } from "./PartBadges";
 import {
   CARD_GRID,
   FileCard,
@@ -47,6 +53,7 @@ import {
   type ProjectGroup,
 } from "./projectFiles";
 import { PartVersions, type VersionedPart } from "./PartVersions";
+import { ProjectEverything } from "./ProjectEverything";
 import { ProjectThreads } from "./ProjectThreads";
 import { useEngineeringInterface } from "./studioInterface";
 import { usePictures } from "./usePictures";
@@ -64,18 +71,6 @@ const FIRST_ISSUES = 5;
 const RECENT_THREADS = 5;
 
 const headingClass = MODULE_HEADING;
-const DrawingIcon = KIND_ICONS.Drawings;
-const MadeIcon = KIND_ICONS.Manufacturing;
-
-interface FolderPart {
-  readonly root: string;
-  readonly file: ProjectFile;
-  readonly results: ReadonlyArray<CheckResult>;
-  /** Its drawing sheets, relative to the folder. */
-  readonly drawings: ReadonlyArray<string>;
-  /** What was made to manufacture it: its CAM jobs, G-code, Gerbers (`manufacturingFor`). */
-  readonly made: ReadonlyArray<ProjectFile>;
-}
 
 interface Issue {
   readonly root: string;
@@ -99,64 +94,6 @@ function HeadingLink(props: { readonly label: string; readonly onClick: () => vo
     >
       {props.label}
     </button>
-  );
-}
-
-/** A part's stand-in until its picture comes: its kind's icon. */
-function PartIcon(props: { readonly file: ProjectFile; readonly className: string }) {
-  const Icon = KIND_ICONS[props.file.group];
-  return <Icon className={props.className} aria-hidden="true" />;
-}
-
-/**
- * What was made to manufacture a part, one of each kind (a CAM job, its G-code, Gerbers), each
- * opening the file that shows it: a toolpath's model before its data.
- */
-function madeKinds(files: ReadonlyArray<ProjectFile>) {
-  const shown = new Map<string, ProjectFile>();
-  for (const file of files) {
-    const kept = shown.get(file.kind);
-    if (kept === undefined || (/\.glb$/i.test(file.path) && !/\.glb$/i.test(kept.path))) {
-      shown.set(file.kind, file);
-    }
-  }
-  return [...shown.values()];
-}
-
-/** What was made from a part, as badges that open it: its drawing sheets and manufacturing files. */
-function MadeBadges(props: { readonly part: FolderPart; readonly onOpen: (path: string) => void }) {
-  const { part } = props;
-  return (
-    <>
-      {part.drawings.map((drawing) => (
-        <button
-          key={drawing}
-          type="button"
-          onClick={() => props.onOpen(drawing)}
-          aria-label={`Open the drawing of ${part.file.title}`}
-          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-        >
-          <Badge variant="outline" size="sm">
-            <DrawingIcon aria-hidden="true" />
-            Drawing
-          </Badge>
-        </button>
-      ))}
-      {madeKinds(part.made).map((made) => (
-        <button
-          key={made.path}
-          type="button"
-          onClick={() => props.onOpen(made.path)}
-          aria-label={`Open the ${lowerName(made.kind)} of ${part.file.title}`}
-          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-        >
-          <Badge variant="outline" size="sm">
-            <MadeIcon aria-hidden="true" />
-            {made.kind}
-          </Badge>
-        </button>
-      ))}
-    </>
   );
 }
 
@@ -323,22 +260,7 @@ function FolderParts(props: {
       picture={pictures.get(part.file.picture ?? part.file.path)}
       place={places.get(part.file.path)}
       onOpen={() => props.onOpen(props.root, part.file.path)}
-      footer={
-        <div className="flex flex-wrap items-center gap-1">
-          {part.results.length === 0 ? (
-            <span className="text-2xs text-muted-foreground">Not checked yet</span>
-          ) : (
-            part.results.map((result) => (
-              <CheckBadge
-                key={result.path}
-                result={result}
-                onOpen={() => props.onOpen(props.root, result.model)}
-              />
-            ))
-          )}
-          <MadeBadges part={part} onOpen={(path) => props.onOpen(props.root, path)} />
-        </div>
-      }
+      footer={<PartFooter part={part} onOpen={(path) => props.onOpen(props.root, path)} />}
     />
   ));
 }
@@ -378,8 +300,6 @@ export function ProjectOverview(props: {
   readonly units: string;
   /** Opens New on Documents (PRD, requirements, FMEA, your own templates); null where it cannot. */
   readonly onNewDocument: (() => void) | null;
-  /** Starts a chat in the project; null where it cannot. */
-  readonly onNewChat: (() => void) | null;
 }) {
   const folders = useProjectChecks({
     environmentId: props.environmentId,
@@ -428,6 +348,28 @@ export function ProjectOverview(props: {
     };
   }, [folders]);
 
+  // Every part and board with its checks, by full path, for the list of everything.
+  const partsByPath = useMemo(
+    () =>
+      new Map(
+        byFolder.flatMap((folder) =>
+          folder.parts.map(
+            (part) => [`${part.root.replace(/[\\/]+$/, "")}/${part.file.path}`, part] as const,
+          ),
+        ),
+      ),
+    [byFolder],
+  );
+  const navigate = useNavigate();
+  // A chat opens in the chat, the Overview going back to its place beside it.
+  const openChat = (chat: EnvironmentThreadShell) => {
+    useRightPanelStore.getState().setMaximized(props.threadRef, false);
+    if (chat.id === props.threadRef.threadId) return;
+    void navigate({
+      to: "/$environmentId/$threadId",
+      params: buildThreadRouteParams(scopeThreadRef(chat.environmentId, chat.id)),
+    });
+  };
   // The lead part as its folder's parts have it, with its checks and what was made from it.
   const lead = useMemo(() => {
     const found = leadPartOf(folders);
@@ -473,7 +415,6 @@ export function ProjectOverview(props: {
       }),
     [byFolder],
   );
-  const documents = modules.find((module) => module.group === "Documents");
   const chats = projectChats(useThreadShellsForProjectRefs(props.projectRefs));
   const otherChats = chats.filter((chat) => chat.id !== props.currentThreadId).length;
   // Every part, the lead part first, for its versions.
@@ -536,6 +477,21 @@ export function ProjectOverview(props: {
       ) : null}
 
       <div className="grid min-w-0 gap-8 @3xl:grid-cols-2">
+        {/* What the project holds, together, as a Drive folder shows it (`ProjectEverything`). */}
+        {engineering ? (
+          <div className="min-w-0 @3xl:col-span-2">
+            <ProjectEverything
+              environmentId={props.environmentId}
+              threadRef={props.threadRef}
+              folders={folders}
+              chats={chats}
+              currentThreadId={props.currentThreadId}
+              parts={partsByPath}
+              onOpenFile={props.onOpen}
+              onOpenChat={openChat}
+            />
+          </div>
+        ) : null}
         {versioned.length === 0 ? null : (
           <PartVersions
             environmentId={props.environmentId}
@@ -549,36 +505,8 @@ export function ProjectOverview(props: {
             onOpen={props.onOpen}
           />
         )}
-        {/* What the project holds, together: its chats first, then its kinds of thing. */}
-        {engineering ? (
-          <OverviewModule
-            title="Chats"
-            icon={MessageSquareIcon}
-            count={chats.length}
-            wide
-            folded={folded.includes("Chats")}
-            onFold={() => toggle("Chats")}
-            {...(props.onNewChat === null
-              ? {}
-              : { action: <HeadingLink label="New chat" onClick={props.onNewChat} /> })}
-          >
-            {chats.length === 0 ? (
-              <p className="pt-3 text-xs text-muted-foreground">
-                No chats yet. Describe what to make and the agent starts on it.
-              </p>
-            ) : (
-              <ProjectThreads
-                projectRefs={props.projectRefs}
-                folderNames={props.folderNames}
-                currentThreadId={props.currentThreadId}
-                query=""
-                limit={RECENT_THREADS}
-              />
-            )}
-          </OverviewModule>
-        ) : null}
         {/* A project of one part shows it above, large; these are for picking among several. */}
-        {partCount < 2
+        {engineering || partCount < 2
           ? null
           : designModules.map((module) => (
               <OverviewModule
@@ -612,37 +540,8 @@ export function ProjectOverview(props: {
                 </div>
               </OverviewModule>
             ))}
-        {documents !== undefined ? (
-          <FilesModule
-            environmentId={props.environmentId}
-            threadRef={props.threadRef}
-            group="Documents"
-            files={documents.files}
-            folded={folded.includes("Documents")}
-            onFold={() => toggle("Documents")}
-            onOpen={props.onOpen}
-            {...(props.onNewDocument === null
-              ? {}
-              : { action: <HeadingLink label="New document" onClick={props.onNewDocument} /> })}
-          />
-        ) : engineering && props.onNewDocument !== null ? (
-          // Documents have a place before there are any: a PRD is often the first thing written.
-          <OverviewModule
-            title="Documents"
-            icon={KIND_ICONS.Documents}
-            wide
-            folded={folded.includes("Documents")}
-            onFold={() => toggle("Documents")}
-            action={<HeadingLink label="New document" onClick={props.onNewDocument} />}
-          >
-            <p className="pt-3 text-xs text-muted-foreground">
-              No documents yet. Start a PRD, the engineering requirements, an FMEA or a design
-              review from a template, or from one of your own.
-            </p>
-          </OverviewModule>
-        ) : null}
         {modules.map(({ group, files }) =>
-          group === "Documents" ? null : (
+          engineering ? null : (
             <FilesModule
               key={group}
               environmentId={props.environmentId}
@@ -652,6 +551,9 @@ export function ProjectOverview(props: {
               folded={folded.includes(group)}
               onFold={() => toggle(group)}
               onOpen={props.onOpen}
+              {...(group === "Documents" && props.onNewDocument !== null
+                ? { action: <HeadingLink label="New document" onClick={props.onNewDocument} /> }
+                : {})}
             />
           ),
         )}

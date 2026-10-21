@@ -8,6 +8,7 @@ import {
   GaugeIcon,
   ImageIcon,
   type LucideIcon,
+  MessageSquareIcon,
   PackageIcon,
   PencilRulerIcon,
   SlidersHorizontalIcon,
@@ -19,8 +20,8 @@ import type { ProjectGroup } from "./projectFiles";
 
 /**
  * One icon for each kind of thing a project holds, the same wherever Studio shows it: the
- * sidebar's sections, New, the Overview's modules and cards, the top bar's menus, the quick find
- * and the chat's change chips. Three kinds are designed from nothing (CAD, Electronics,
+ * Overview's list of everything in the project, New, the part cards, the top bar's menus, the quick
+ * find and the chat's change chips. Three kinds are designed from nothing (CAD, Electronics,
  * Documents); FEA and CAM are not kinds of design but work done on one, so what the top bar's
  * menus make (Analysis from Evaluate, Manufacturing from Manufacture, Drawings from Document)
  * carries the menu's icon and shows on the part it was made from, as a CAD system keeps a study
@@ -96,3 +97,24 @@ export function fileIconKey(kind: string): ProjectGroup | "Setup" {
   if (kind.endsWith(" check")) return "Analysis";
   return FILE_KINDS[kind] ?? "Documents";
 }
+
+/** A project's chats, beside the kinds of file it holds (the Overview's list of everything). */
+export const CHAT_ICON: LucideIcon = MessageSquareIcon;
+
+/**
+ * Each kind's color, as Google Drive colors Docs, Sheets and Slides, so a kind is told at a glance
+ * in a list of everything: blue CAD, green electronics, amber analysis, violet chats, sky
+ * documents, and quiet grey for what is made from a part or gathered for it.
+ */
+export const KIND_TINTS: Readonly<Record<ProjectGroup | "Chats", string>> = {
+  Chats: "text-violet-600 dark:text-violet-400",
+  CAD: "text-blue-600 dark:text-blue-400",
+  Drawings: "text-blue-600 dark:text-blue-400",
+  "Reference parts": "text-blue-600 dark:text-blue-400",
+  Electronics: "text-emerald-600 dark:text-emerald-400",
+  Analysis: "text-amber-600 dark:text-amber-400",
+  Manufacturing: "text-slate-500 dark:text-slate-400",
+  Documents: "text-sky-600 dark:text-sky-400",
+  Images: "text-slate-500 dark:text-slate-400",
+  References: "text-slate-500 dark:text-slate-400",
+};

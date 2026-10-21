@@ -1,8 +1,5 @@
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@t3tools/client-runtime/state/models";
+import type { EnvironmentProject } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { LayoutDashboardIcon, PlusIcon } from "lucide-react";
@@ -16,7 +13,6 @@ import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelS
 import { useProject, useThreadShell } from "~/state/entities";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { buildThreadRouteParams, resolveThreadRouteRef } from "~/threadRoutes";
-import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { SidebarChromeFooter, SidebarChromeHeader } from "../sidebar/SidebarChrome";
 import {
   SidebarContent,
@@ -26,7 +22,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "../ui/sidebar";
-import { historyOutcome } from "./projectHistory";
+import { chatStanding } from "./chatStanding";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { useProjectHeading } from "./StudioWorkspaceBar";
 import { useRememberOpened } from "./useOpenProject";
@@ -46,14 +42,6 @@ function useCurrentFolderId(threadRef: ScopedThreadRef | null): ProjectId | null
     draftId === null ? null : (store.getDraftSession(draftId as DraftId)?.projectId ?? null),
   );
   return thread?.projectId ?? draftProjectId;
-}
-
-/** How a chat stands, in a word: waiting on the person, at work, else when it was last worked on. */
-function standing(chat: EnvironmentThreadShell) {
-  const outcome = historyOutcome(chat);
-  if (outcome === "needs-you") return { text: "Needs you", tone: "text-warning-foreground" };
-  if (outcome === "working") return { text: "Working", tone: "text-foreground" };
-  return { text: formatRelativeTimeLabel(chat.updatedAt), tone: "text-muted-foreground" };
 }
 
 /**
@@ -107,7 +95,11 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
             disabled={threadRef === null}
             onClick={() => {
               done();
-              if (threadRef !== null) useRightPanelStore.getState().open(threadRef, "files");
+              if (threadRef === null) return;
+              // The project's folder view, across the window as a Drive folder opens.
+              const panels = useRightPanelStore.getState();
+              panels.open(threadRef, "files");
+              panels.setMaximized(threadRef, true);
             }}
           >
             <LayoutDashboardIcon aria-hidden="true" />
@@ -138,7 +130,7 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
         <SidebarMenu>
           {chats.map((chat) => {
             const current = chat.id === threadRef?.threadId;
-            const state = standing(chat);
+            const state = chatStanding(chat);
             return (
               <SidebarMenuItem key={chat.id}>
                 <SidebarMenuButton

@@ -13,9 +13,9 @@ import {
 import { useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
-import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { cn } from "~/lib/utils";
+import { useRightPanelStore } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
@@ -522,13 +522,11 @@ export function ProjectPage(props: {
       ? relativePath
       : `${studioFolderKey(root)}/${relativePath}`;
   const open = useOpenInWorkbench(threadRef);
-  const openPath = (root: string, relativePath: string) => open(threadPath(root, relativePath));
-  const handleNewThread = useNewThreadHandler();
-  const projectId = props.projectId;
-  const newChat =
-    projectId === null
-      ? null
-      : () => void handleNewThread(scopeProjectRef(environmentId, projectId));
+  // Opening a thing from the Overview opens it beside the chat, as a Drive folder opens a file.
+  const openPath = (root: string, relativePath: string) => {
+    useRightPanelStore.getState().setMaximized(threadRef, false);
+    open(threadPath(root, relativePath));
+  };
   const openIn = (root: string) => (file: ProjectFile) => openPath(root, file.path);
 
   return (
@@ -655,7 +653,6 @@ export function ProjectPage(props: {
             linkTo={(root, path) => serializeComposerFileLink(threadPath(root, path))}
             onShowThreads={isProject && !plainWords ? () => setTab("threads") : null}
             onNewDocument={composerRef === null ? null : () => openNew("Documents")}
-            onNewChat={newChat}
             byHand={byHand}
             onStartPart={startPart}
             threadRef={threadRef}
