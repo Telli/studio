@@ -1,9 +1,12 @@
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
+
+import type { OpenedThreads } from "./openedThreads";
 
 /** The folder's project record, by path; null when the environment does not know it. */
 export function folderProject(
@@ -12,6 +15,24 @@ export function folderProject(
 ): EnvironmentProject | null {
   const key = studioFolderKey(folder);
   return folders.find((project) => studioFolderKey(project.workspaceRoot) === key) ?? null;
+}
+
+/** When one of the threads was last open on this device; null when none has been. */
+export function lastOpened(
+  threads: ReadonlyArray<EnvironmentThreadShell>,
+  opened: OpenedThreads,
+): string | null {
+  let last: string | null = null;
+  for (const thread of threads) {
+    const at = opened[scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))];
+    if (at !== undefined && (last === null || at > last)) last = at;
+  }
+  return last;
+}
+
+/** Last opened on this device or last worked on, whichever came later: what a list is ordered by. */
+export function lastTouched(card: Pick<ListedProject, "latest" | "opened">): string {
+  return card.opened !== null && card.opened > card.latest ? card.opened : card.latest;
 }
 
 /** When the threads were last worked on, or `since` when none has been. */
@@ -33,6 +54,8 @@ export interface ListedProject {
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
   /** When it was last worked on. */
   readonly latest: string;
+  /** When one of its chats was last open on this device; null when none has been. */
+  readonly opened: string | null;
 }
 
 export interface ListedFolder {
@@ -42,14 +65,16 @@ export interface ListedFolder {
 }
 
 /**
- * Projects with the live threads in their folders, most recently worked on
- * first, then the folders in no project the same way.
+ * Projects with the live threads in their folders, the one last opened on this
+ * device (or worked on, if that came later) first, as a recents list orders
+ * them; then the folders in no project, most recently worked on first.
  */
 export function listProjects(
   projects: Readonly<Record<string, StudioProject>>,
   knownFolders: ReadonlyArray<EnvironmentProject>,
   threads: ReadonlyArray<EnvironmentThreadShell>,
   environmentId: EnvironmentId,
+  opened: OpenedThreads = {},
 ): { readonly cards: ListedProject[]; readonly loose: ListedFolder[] } {
   const live = threads.filter(
     (thread) => thread.archivedAt === null && thread.environmentId === environmentId,
@@ -73,9 +98,10 @@ export function listProjects(
         folders,
         threads: own,
         latest: newestOf(own, project.createdAt),
+        opened: lastOpened(own, opened),
       };
     })
-    .toSorted((a, b) => b.latest.localeCompare(a.latest));
+    .toSorted((a, b) => lastTouched(b).localeCompare(lastTouched(a)));
   const loose: ListedFolder[] = knownFolders
     .filter((folder) => !grouped.has(studioFolderKey(folder.workspaceRoot)))
     .map((folder) => {

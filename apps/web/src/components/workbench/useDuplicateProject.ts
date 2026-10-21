@@ -1,0 +1,106 @@
+import { scopeProjectRef } from "@t3tools/client-runtime/environment";
+import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
+import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
+import { useCallback } from "react";
+
+import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
+import { waitForProject } from "~/state/entities";
+import { projectEnvironment } from "~/state/projects";
+import { useAtomCommand } from "~/state/use-atom-command";
+import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
+import { toastManager } from "../ui/toast";
+import { readStudioImport } from "./studioImportBridge";
+import { useSaveStudioProject } from "./useStudioProjects";
+
+/** A folder's own things that are no project's work: hidden folders, caches and scratch (`projectFiles`). */
+const NOT_COPIED = /^(?:\..*|node_modules|__pycache__|tmp|dist|build)$/;
+
+/** The copy's name: "<name> copy", then "<name> copy 2" and on, past the names already taken. */
+export function copyName(name: string, taken: ReadonlyArray<string>): string {
+  const names = new Set(taken.map((entry) => entry.trim().toLowerCase()));
+  const base = `${name.trim()} copy`;
+  if (!names.has(base.toLowerCase())) return base;
+  for (let count = 2; ; count++) {
+    const next = `${base} ${count}`;
+    if (!names.has(next.toLowerCase())) return next;
+  }
+}
+
+/** The top-level files and folders of a folder's listing to copy, in order, but those already there. */
+export function copiedEntries(
+  paths: ReadonlyArray<string>,
+  present: ReadonlyArray<string> = [],
+): string[] {
+  const there = new Set(present.map((path) => path.split(/[\\/]/)[0]));
+  const top = new Set<string>();
+  for (const path of paths) {
+    const first = path.split(/[\\/]/)[0];
+    if (first && !NOT_COPIED.test(first) && !there.has(first)) top.add(first);
+  }
+  return [...top];
+}
+
+/**
+ * Duplicates a project, as Docs' Make a copy and Fusion's Save as do: a new project named
+ * "<name> copy", with its own folder (which Studio makes, with a repository) holding a copy of the
+ * first folder's work, the other folders shared, the brief and setup kept, and no chats yet. The
+ * copy opens in a new chat. The desktop app copies the files (`studioImport`), so Duplicate is
+ * offered there only: null elsewhere.
+ */
+export function useDuplicateProject(environmentId: EnvironmentId) {
+  const createNew = useAtomCommand(projectEnvironment.createNew, { reportFailure: false });
+  const list = useAtomQueryRunner(projectEnvironment.listEntries, { reportFailure: false });
+  const save = useSaveStudioProject(environmentId);
+  const handleNewThread = useNewThreadHandler();
+  const bridge = readStudioImport();
+  const duplicate = useCallback(
+    async (project: StudioProject, taken: ReadonlyArray<string>): Promise<boolean> => {
+      const source = project.folders[0];
+      if (bridge === null || source === undefined) return false;
+      const name = copyName(project.name, taken);
+      const failed = (description: string) => {
+        toastManager.add({
+          type: "error",
+          title: `Could not duplicate ${project.name}`,
+          description,
+        });
+        return false;
+      };
+      const listed = await list({ environmentId, input: { cwd: source } });
+      if (listed._tag !== "Success") return failed("Its folder could not be read.");
+      const created = await createNew({ environmentId, input: { name } });
+      if (created._tag !== "Success") {
+        const error = squashAtomCommandFailure(created);
+        return failed(error instanceof Error ? error.message : "Its folder could not be made.");
+      }
+      const target = created.value.workspaceRoot;
+      // What the new folder starts with (its repository, Studio's own files) stays as made.
+      const fresh = await list({ environmentId, input: { cwd: target } });
+      const present =
+        fresh._tag === "Success" ? fresh.value.entries.map((entry) => entry.path) : [];
+      const sources = copiedEntries(
+        listed.value.entries.map((entry) => entry.path),
+        present,
+      ).map((entry) => `${source.replace(/[\\/]+$/, "")}/${entry}`);
+      try {
+        await bridge.copy(sources, target);
+      } catch (error) {
+        return failed(error instanceof Error ? error.message : "Its files could not be copied.");
+      }
+      const id = await save(null, {
+        ...project,
+        name,
+        folders: [target, ...project.folders.slice(1)],
+        createdAt: new Date().toISOString(),
+      });
+      if (id === null) return false;
+      toastManager.add({ type: "success", title: `Made ${name}`, description: target });
+      const projectRef = scopeProjectRef(environmentId, created.value.projectId);
+      const ready = await waitForProject(projectRef).catch(() => null);
+      if (ready !== null) await handleNewThread(projectRef).catch(() => undefined);
+      return true;
+    },
+    [bridge, createNew, environmentId, handleNewThread, list, save],
+  );
+  return bridge === null ? null : duplicate;
+}

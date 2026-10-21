@@ -188,6 +188,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                     <ProjectTile
                       key={id}
                       environmentId={environmentId}
+                      id={id}
                       project={project}
                       threads={own}
                       onOpen={() => void openProject(folder, own)}

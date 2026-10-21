@@ -98,15 +98,22 @@ export function PartVersions(props: {
   const versions = listed?.versions ?? null;
   const byScope = useChatsByScope(props.chats);
 
-  // Each new request opens the module and brings it into view, once.
+  // Each new request, or the switcher's Version history, opens the module and brings it into view, once.
   const shownRequest = useRef<typeof request>(null);
+  const revealAt = useVersionRequestStore((store) => store.revealAt);
+  const revealed = useVersionRequestStore((store) => store.revealed);
   const { folded, onFold } = props;
   useEffect(() => {
-    if (asked === null || shownRequest.current === request) return;
+    const asks = asked !== null && shownRequest.current !== request;
+    const reveals = revealAt !== null;
+    if (!asks && !reveals) return;
     shownRequest.current = request;
+    if (reveals) revealed();
+    // A reveal asked for long ago (from a project with no parts) is let go, not acted on.
+    if (!asks && Date.now() - (revealAt ?? 0) > 10_000) return;
     if (folded) onFold();
     section.current?.scrollIntoView({ block: "start", behavior: "smooth" });
-  }, [asked, folded, onFold, request]);
+  }, [asked, folded, onFold, request, revealAt, revealed]);
 
   const choices = useMemo((): VersionChoice[] => {
     if (versions === null) return [];

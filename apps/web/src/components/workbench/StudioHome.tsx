@@ -16,7 +16,9 @@ import { Kbd } from "../ui/kbd";
 import { SidebarInset } from "../ui/sidebar";
 import { Textarea } from "../ui/textarea";
 import { availableTemplates } from "./newTemplates";
+import type { ListedProject } from "./projectList";
 import { ProjectTile } from "./ProjectTile";
+import { splitStarred, useStarredStore } from "./starredProjects";
 import { ImportDialogHost } from "./ImportDialog";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
@@ -24,6 +26,7 @@ import { NewFilesNotice } from "./NewFilesNotice";
 import { StudioTopBar } from "./StudioTopBar";
 import { useImportActions } from "./useImportActions";
 import { useOpenProject } from "./useOpenProject";
+import { useOpenShortcut } from "./useOpenShortcut";
 import { useProjectList } from "./useProjectList";
 import { type ProjectStart, useStartProject } from "./useStartProject";
 
@@ -31,6 +34,9 @@ const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foregroun
 
 /** Blank work Home offers to model by hand, in this order, each while its skill is on. */
 const BLANK_WORK = ["part", "assembly", "board"] as const;
+
+/** Opens the quick find (`StudioQuickFind`): the top bar's search, and Cmd+O on Home. */
+const openFind = () => openCommandPalette();
 
 /** The top bar's search: it opens the quick find (⌘K, `StudioQuickFind`), which finds parts too. */
 function FindButton() {
@@ -41,7 +47,7 @@ function FindButton() {
   return (
     <button
       type="button"
-      onClick={() => openCommandPalette()}
+      onClick={openFind}
       className="flex h-8 w-full max-w-72 items-center gap-2 rounded-lg border border-input bg-background px-2.5 text-sm text-muted-foreground shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset dark:bg-input/32"
     >
       <SearchIcon className="size-4 shrink-0" aria-hidden="true" />
@@ -53,8 +59,8 @@ function FindButton() {
 
 /**
  * Studio's Home, its one page, the way a CAD tool's welcome starts: describe a new project and
- * Start makes it and its first chat, or start a blank part to model by hand; below, every project
- * as a picture, the one worked on last first, with Import. Search finds a project or a part
+ * Start makes it and its first chat, or start a blank part to model by hand; below, the starred
+ * projects, then every other one, as pictures, the one opened last first, with Import. Search finds a project or a part
  * (`StudioQuickFind`). Opening a project goes back to where it was left; inside one, its name
  * switches to another (`ProjectSwitcher`).
  */
@@ -69,6 +75,21 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const openProject = useOpenProject();
   const importActions = useImportActions();
   useNowMinute();
+  useOpenShortcut(openFind);
+  const { starred, rest } = splitStarred(
+    cards,
+    useStarredStore((store) => store.starred),
+  );
+  const tile = ({ id, project, folder, threads }: ListedProject) => (
+    <ProjectTile
+      key={id}
+      environmentId={environmentId}
+      id={id}
+      project={project}
+      threads={threads}
+      onOpen={() => void openProject(folder, threads)}
+    />
+  );
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -84,6 +105,14 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                 <NewFilesNotice environmentId={environmentId} />
                 <StartProject environmentId={environmentId} />
               </div>
+              {starred.length === 0 ? null : (
+                <section aria-label="Starred" className="flex min-w-0 flex-col gap-3">
+                  <h2 className={SECTION_LABEL}>Starred</h2>
+                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                    {starred.map(tile)}
+                  </div>
+                </section>
+              )}
               <section aria-label="Your projects" className="flex min-w-0 flex-col gap-3">
                 <div className="flex items-center gap-3">
                   <h2 className={SECTION_LABEL}>Your projects</h2>
@@ -111,15 +140,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-                    {cards.map(({ id, project, folder, threads }) => (
-                      <ProjectTile
-                        key={id}
-                        environmentId={environmentId}
-                        project={project}
-                        threads={threads}
-                        onOpen={() => void openProject(folder, threads)}
-                      />
-                    ))}
+                    {rest.map(tile)}
                   </div>
                 )}
               </section>

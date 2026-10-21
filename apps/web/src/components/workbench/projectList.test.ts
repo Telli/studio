@@ -1,3 +1,4 @@
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
@@ -6,7 +7,7 @@ import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { EMPTY_BRIEF } from "./briefFolder";
-import { listProjects } from "./projectList";
+import { lastTouched, listProjects } from "./projectList";
 
 const env = "local" as EnvironmentId;
 const folder = (id: string, workspaceRoot: string) =>
@@ -34,6 +35,27 @@ const project = (name: string, folders: string[]): StudioProject => ({
 });
 
 describe("project list", () => {
+  it("puts the project last opened here first, though another was worked on since", () => {
+    const opened = {
+      [scopedThreadKey(scopeThreadRef(env, "t1" as never))]: "2026-10-16T00:00:00.000Z",
+    };
+    const { cards } = listProjects(
+      { rover: project("Rover arm", ["/w/rover"]), lamp: project("Desk lamp", ["/w/lamp"]) },
+      [folder("rover", "/w/rover"), folder("lamp", "/w/lamp")],
+      [
+        thread("t1", "rover", "2026-10-10T00:00:00.000Z"),
+        thread("t2", "lamp", "2026-10-14T00:00:00.000Z"),
+      ],
+      env,
+      opened,
+    );
+    expect(cards.map((card) => [card.project.name, card.opened])).toEqual([
+      ["Rover arm", "2026-10-16T00:00:00.000Z"],
+      ["Desk lamp", null],
+    ]);
+    expect(lastTouched(cards[1]!)).toBe("2026-10-14T00:00:00.000Z");
+  });
+
   it("gathers a project's threads from all its folders, newest project first", () => {
     const { cards, loose } = listProjects(
       {

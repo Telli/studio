@@ -1,5 +1,6 @@
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { useSyncExternalStore } from "react";
 
 /** When each thread was last open on this device, by its scoped key. */
 export type OpenedThreads = Readonly<Record<string, string>>;
@@ -38,15 +39,30 @@ export function withOpened(
   ]);
 }
 
+let current: OpenedThreads | null = null;
+const listeners = new Set<() => void>();
+const snapshot = (): OpenedThreads => (current ??= readOpened());
+
 export function rememberOpened(threadKey: string, at: string): void {
+  current = withOpened(readOpened(), threadKey, at);
+  for (const listener of listeners) listener();
   try {
-    window.localStorage.setItem(
-      OPENED_STORAGE_KEY,
-      JSON.stringify(withOpened(readOpened(), threadKey, at)),
-    );
+    window.localStorage.setItem(OPENED_STORAGE_KEY, JSON.stringify(current));
   } catch {
     // Storage is full or off: opening the project goes to the thread last worked on instead.
   }
+}
+
+/** When each thread was last open on this device, kept current as threads are opened. */
+export function useOpenedThreads(): OpenedThreads {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    snapshot,
+    snapshot,
+  );
 }
 
 /**

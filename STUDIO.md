@@ -146,8 +146,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   description (Start makes the project and its first chat, and sends the description as its first
   message) or a blank part, assembly or board to model by hand, then every project, pictured by
   its first part, with Import. T3 Code's sidebar stays shut there. A project opens in the thread
-  last open in it on this device (else the one last worked on, else a new one). In its workspace
-  the project's name in the top bar switches projects (`components/workbench/ProjectSwitcher.tsx`),
+  last open in it on this device (else the one last worked on, else a new one). Projects are
+  listed as a recents list orders them, the one opened last on this device first (or worked on, if
+  that came later), and the starred ones (kept on this computer) apart at the top of Home and the
+  switcher. In its workspace the project's name in the top bar, a control with its picture,
+  switches projects (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick
+  find on Home), and its top is the project's own menu: Rename, Duplicate (a copy in a new folder,
+  made by the desktop app), Version history and Show in Finder,
   the sidebar lists the project's chats, newest first with New chat on top, folding away with T3
   Code's toggle or its shortcut (`StudioSidebar.tsx`), and the part tabs run along the panel's
   bottom, the Overview first. Engineering with code keeps T3 Code's thread sidebar, with the
