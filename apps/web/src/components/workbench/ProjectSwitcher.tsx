@@ -3,7 +3,6 @@ import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  CheckIcon,
   ChevronsUpDownIcon,
   CopyIcon,
   FolderOpenIcon,
@@ -41,6 +40,9 @@ import { useVersionRequestStore } from "./useVersions";
 
 const rowClass =
   "flex min-w-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-foreground outline-none transition-colors duration-150 hover:bg-accent focus-visible:bg-accent";
+/** A project row: the row is the one hover, its star a quiet part of it. */
+const projectRowClass =
+  "group/row flex min-w-0 items-center rounded-md pe-1 transition-colors duration-150 hover:bg-accent has-[button:focus-visible]:bg-accent";
 const actionClass =
   "flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground outline-none transition-colors duration-150 hover:bg-accent focus-visible:bg-accent [&>svg]:size-3.5 [&>svg]:shrink-0 [&>svg]:text-muted-foreground";
 const groupClass =
@@ -78,9 +80,10 @@ function ProjectThumb(props: {
  * says it is the project (its picture, "Project" over its name, the up-and-down chevrons every
  * switcher has), opened by a click or Cmd+O. Its top is the open project's own menu: Rename,
  * Duplicate (a copy with its own folder, `useDuplicateProject`), Version history (the Overview's
- * Versions) and Show in Finder. Below, the projects to switch to: the starred ones, then the rest,
- * the one opened last first, each with when, and a box to find one by name; then New project and
- * All projects (Home). Picking one opens it where it was left (`useOpenProject`).
+ * Versions), Show in Finder and its star. Below, the other projects to switch to: the starred
+ * ones, then the rest, the one opened last first, each with when (and its star on hover), and a box
+ * to find one by name; then New project and All projects (Home). Picking one opens it where it was
+ * left (`useOpenProject`).
  */
 export function ProjectSwitcher(props: {
   readonly environmentId: EnvironmentId;
@@ -111,8 +114,9 @@ export function ProjectSwitcher(props: {
   const isHere = (card: ListedProject) =>
     here !== null && card.project.folders.some((folder) => studioFolderKey(folder) === here);
   const current = cards.find(isHere) ?? null;
-  const found = findProjects(cards, query);
-  const { starred, rest } = splitStarred(found, starredIds);
+  // The open project is at the top, with its own menu; the list is the others, to switch to.
+  const others = findProjects(cards, query).filter((card) => !isHere(card));
+  const { starred, rest } = splitStarred(others, starredIds);
   const canShowFolder =
     props.folder !== null && serverConfig?.availableEditors.includes("file-manager") === true;
 
@@ -150,38 +154,26 @@ export function ProjectSwitcher(props: {
   };
 
   const row = (card: ListedProject) => {
-    const isOpen = isHere(card);
     const opened = card.opened !== null && card.opened >= card.latest;
     return (
-      <div
-        key={card.id}
-        className={cn(
-          "group/row flex min-w-0 items-center gap-0.5 rounded-md",
-          isOpen && "bg-accent/60",
-        )}
-      >
+      <div key={card.id} className={projectRowClass}>
         <button
           type="button"
-          aria-current={isOpen ? "page" : undefined}
-          className={cn(rowClass, "flex-1", isOpen && "font-medium")}
+          className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left text-sm text-foreground outline-none"
           onClick={() => choose(card)}
         >
           <ProjectThumb environmentId={environmentId} project={card.project} />
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate">{card.project.name}</span>
-            <span className="truncate text-2xs font-normal text-muted-foreground">
-              {isOpen
-                ? "Open now"
-                : `${opened ? "Opened" : "Worked on"} ${formatRelativeTimeLabel(lastTouched(card))}`}
+            <span className="truncate text-2xs text-muted-foreground">
+              {opened ? "Opened" : "Worked on"} {formatRelativeTimeLabel(lastTouched(card))}
             </span>
           </span>
-          {isOpen ? (
-            <CheckIcon className="size-4 shrink-0 text-foreground" aria-hidden="true" />
-          ) : null}
         </button>
         <StarButton
           id={card.id}
           name={card.project.name}
+          quiet
           className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[starred]:opacity-100"
         />
       </div>
@@ -240,9 +232,14 @@ export function ProjectSwitcher(props: {
           <div className="flex min-w-0 items-center gap-2.5 px-1 pb-1.5">
             <ProjectThumb environmentId={environmentId} project={current?.project ?? null} />
             {renaming === null ? (
-              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
-                {props.title}
-              </span>
+              <>
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                  {props.title}
+                </span>
+                {current === null ? null : (
+                  <StarButton id={current.id} name={current.project.name} />
+                )}
+              </>
             ) : (
               <Input
                 autoFocus
@@ -320,8 +317,10 @@ export function ProjectSwitcher(props: {
           aria-label="Find a project"
         />
         <div className="mt-1 flex max-h-80 flex-col overflow-y-auto">
-          {found.length === 0 ? (
-            <p className="px-2 py-3 text-sm text-muted-foreground">No project matches that.</p>
+          {others.length === 0 ? (
+            <p className="px-2 py-3 text-sm text-muted-foreground">
+              {query.trim() === "" ? "No other projects yet." : "No other project matches that."}
+            </p>
           ) : (
             <>
               {starred.length === 0 ? null : (
