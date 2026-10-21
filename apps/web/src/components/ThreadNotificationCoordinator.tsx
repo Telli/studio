@@ -1,3 +1,4 @@
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { presentThreadShell } from "@t3tools/client-runtime/state/models";
 import { useAtomValue } from "@effect/atom-react";
 import { useNavigate, useParams } from "@tanstack/react-router";
@@ -23,6 +24,7 @@ import {
 } from "../threadNotifications";
 import { resolveSidebarThreadStatus } from "./Sidebar.logic";
 import { toastManager } from "./ui/toast";
+import { showChat } from "./workbench/overviewPanel";
 import { isEngineeringInterface } from "./workbench/studioInterface";
 
 export function ThreadNotificationCoordinator() {
@@ -156,6 +158,14 @@ function EnvironmentNotifications({
             : null;
       if (!kind) continue;
       const engineering = isEngineeringInterface();
+      const openChat = () => {
+        // Studio's chats each keep their panel: one left across the window steps back, so it shows.
+        if (engineering) showChat(scopeThreadRef(environmentId, thread.id));
+        void navigate({
+          to: "/$environmentId/$threadId",
+          params: { environmentId, threadId: thread.id },
+        });
+      };
       const title =
         kind === "completion"
           ? engineering
@@ -202,10 +212,7 @@ function EnvironmentNotifications({
             children: engineering ? "Open chat" : "Open thread",
             onClick: () => {
               toastManager.close(toastId);
-              void navigate({
-                to: "/$environmentId/$threadId",
-                params: { environmentId, threadId: thread.id },
-              });
+              openChat();
             },
           },
         });
@@ -228,10 +235,7 @@ function EnvironmentNotifications({
         notification.addEventListener("click", () => {
           notification.close();
           window.focus();
-          void navigate({
-            to: "/$environmentId/$threadId",
-            params: { environmentId, threadId: thread.id },
-          });
+          openChat();
         });
       } catch {
         // Some browsers expose Notification but reject desktop presentation.

@@ -6,6 +6,7 @@ import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { Input } from "../ui/input";
 import { KIND_ICONS, KIND_TINTS } from "./kinds";
 import { type ListedProject, lastTouched } from "./projectList";
+import { waitingChat } from "./recentActivity";
 import { findProjects } from "./recentProjects";
 import { StarButton } from "./StarButton";
 import { splitStarred, useStarredStore } from "./starredProjects";
@@ -27,13 +28,33 @@ export const PROJECT_ROW_CLASS =
 /** A project row: the row is the one hover, its star a quiet part of it. */
 const projectRowClass =
   "group/row flex min-w-0 items-center rounded-md pe-1 transition-colors duration-150 hover:bg-accent has-[button:focus-visible]:bg-accent";
-const groupClass =
-  "px-2 pt-2 pb-1 text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+/** Starred and Recent, as Home and the menus label a group. */
+const groupClass = "px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground";
 
 /** When a project was last opened on this device, or worked on if that came later. */
 export function whenTouched(card: ListedProject): string {
   const opened = card.opened !== null && card.opened >= card.latest;
   return `${opened ? "Opened" : "Worked on"} ${formatRelativeTimeLabel(lastTouched(card))}`;
+}
+
+/**
+ * How a project stands under its name in a list: "Needs you" while one of its chats waits on the
+ * person (a question, an approval), as Home's tiles and the sidebar's chats say it; else when.
+ */
+export function projectStanding(card: ListedProject): {
+  readonly text: string;
+  readonly waiting: boolean;
+} {
+  return waitingChat(card.threads) !== null
+    ? { text: "Needs you", waiting: true }
+    : { text: whenTouched(card), waiting: false };
+}
+
+/** Projects with a chat waiting on the person first, each list otherwise in its own order. */
+export function waitingFirst(cards: ReadonlyArray<ListedProject>): ListedProject[] {
+  return cards.toSorted(
+    (a, b) => Number(waitingChat(b.threads) !== null) - Number(waitingChat(a.threads) !== null),
+  );
 }
 
 /**
@@ -85,9 +106,12 @@ export function ProjectChoices(props: {
   const shown = findProjects(props.cards, query).filter(
     (card) => leaveOut === undefined || !leaveOut(card),
   );
-  const { starred, rest } = splitStarred(shown, starredIds);
+  const split = splitStarred(shown, starredIds);
+  const starred = waitingFirst(split.starred);
+  const rest = waitingFirst(split.rest);
 
   const row = (card: ListedProject) => {
+    const standing = projectStanding(card);
     return (
       <div key={card.id} className={projectRowClass}>
         <button
@@ -98,7 +122,14 @@ export function ProjectChoices(props: {
           <ProjectThumb environmentId={environmentId} project={card.project} />
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate">{card.project.name}</span>
-            <span className="truncate text-2xs text-muted-foreground">{whenTouched(card)}</span>
+            <span
+              className={cn(
+                "truncate text-2xs",
+                standing.waiting ? "text-warning-foreground" : "text-muted-foreground",
+              )}
+            >
+              {standing.text}
+            </span>
           </span>
         </button>
         <StarButton

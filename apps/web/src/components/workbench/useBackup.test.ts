@@ -5,7 +5,6 @@ import { backupFolder, backupPlaceLabel, githubChoice, githubRepository } from "
 const ready = {
   signedIn: true,
   account: "amywork777",
-  hint: null,
   folders: 1,
   folder: { isRepo: true, hasRemote: false },
   backedUpTo: null,
@@ -40,19 +39,25 @@ describe("backup", () => {
   });
 
   it("backs up to GitHub only into a repository of Studio's own", () => {
-    expect(githubChoice(ready)).toEqual({ available: true, note: null });
+    expect(githubChoice(ready)).toEqual({ available: true, note: null, signIn: false });
     expect(
       githubChoice({
         ...ready,
         backedUpTo: "amywork777/roomba",
         folder: { isRepo: true, hasRemote: true },
       }),
-    ).toEqual({ available: true, note: null });
+    ).toEqual({ available: true, note: null, signIn: false });
     expect(githubChoice({ ...ready, folder: { isRepo: true, hasRemote: true } })).toEqual({
       available: false,
       note: "This folder already has a repository of its own, so Studio leaves it alone.",
+      signIn: false,
     });
-    expect(githubChoice({ ...ready, signedIn: false, account: null }).available).toBe(false);
+    // Not signed in says so in plain words, and offers Set up GitHub.
+    expect(githubChoice({ ...ready, signedIn: false, account: null })).toEqual({
+      available: false,
+      note: "Not signed in to GitHub on this Mac yet.",
+      signIn: true,
+    });
     expect(githubChoice({ ...ready, folders: 2 }).available).toBe(false);
     expect(githubChoice({ ...ready, folder: { isRepo: false, hasRemote: false } }).available).toBe(
       false,

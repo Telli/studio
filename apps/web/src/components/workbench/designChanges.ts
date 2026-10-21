@@ -1,4 +1,4 @@
-import { inSentence, partName } from "./partNames";
+import { inSentence, meshFormat, partName } from "./partNames";
 
 /**
  * What a step or a turn changed, as design history reads it: by part and
@@ -98,7 +98,8 @@ export function designChanges(paths: ReadonlyArray<string>): {
       files: [],
     };
     if (!standalone) {
-      const aspect = aspectOf(named.kind);
+      // A mesh is its format: "Clip STL", "model, STL, drawing".
+      const aspect = named.kind === "Mesh" ? meshFormat(raw) : aspectOf(named.kind);
       if (!family.aspects.includes(aspect)) family.aspects.push(aspect);
     }
     family.files.push({ path: raw, kind: named.kind });

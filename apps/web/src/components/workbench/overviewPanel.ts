@@ -1,4 +1,6 @@
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { ScopedThreadRef } from "@t3tools/contracts";
+import { useEffect } from "react";
 
 import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 
@@ -35,4 +37,20 @@ export function frontTab(
  */
 export function showChat(threadRef: ScopedThreadRef): void {
   useRightPanelStore.getState().setMaximized(threadRef, false);
+}
+
+/**
+ * The open chat the agent is waiting on (an approval, a question): it steps back beside its panel,
+ * where its composer asks, once for each request. Spreading the panel again while it waits stays so.
+ */
+export function useShowWaitingChat(
+  threadRef: ScopedThreadRef | null,
+  requestId: string | null,
+): void {
+  const environmentId = threadRef?.environmentId ?? null;
+  const threadId = threadRef?.threadId ?? null;
+  useEffect(() => {
+    if (environmentId === null || threadId === null || requestId === null) return;
+    showChat(scopeThreadRef(environmentId, threadId));
+  }, [environmentId, threadId, requestId]);
 }

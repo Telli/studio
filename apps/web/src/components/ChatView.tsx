@@ -615,7 +615,7 @@ import { PluginThreadViewMenuItems } from "./plugins/PluginThreadViewMenuItems";
 import { PluginStarterPrompts } from "./plugins/PluginStarterPrompts";
 import { usePluginFollow } from "./plugins/usePluginFollow";
 import { PendingStart } from "./workbench/PendingStart";
-import { frontTab } from "./workbench/overviewPanel";
+import { frontTab, useShowWaitingChat } from "./workbench/overviewPanel";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { StudioPanelBar } from "./workbench/StudioPanelBar";
 import { ProjectPage } from "./workbench/ProjectPage";
@@ -5900,6 +5900,10 @@ export default function ChatView(props: ChatViewProps) {
   ]);
   // Studio's engineering surfaces follow files once per run instead (`workbench/useDocumentFollow.ts`).
   const engineeringInterface = useEngineeringInterface();
+  useShowWaitingChat(
+    engineeringInterface ? activeThreadRef : null,
+    activePendingApproval?.requestId ?? activePendingUserInput?.requestId ?? null,
+  );
   const engineeringSurfaces = useEngineeringSurfaces();
   // Engineering with code tools lets the pinned tab show the source files instead (`workbench/projectView.ts`).
   const projectView = useProjectViewStore((state) => state.view);

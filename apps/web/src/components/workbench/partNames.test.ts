@@ -37,6 +37,12 @@ describe("part names", () => {
     expect(partLabel("electronics/servo_power.bom.csv")).toBe("Servo power bill of materials");
   });
 
+  it("calls an exported mesh by its format, and the viewer's own GLB a mesh", () => {
+    expect(partLabel("exports/clip.stl")).toBe("Clip STL");
+    expect(partLabel("exports/clip.3mf")).toBe("Clip 3MF");
+    expect(partLabel("parts/STEP/clip.glb")).toBe("Clip mesh");
+  });
+
   it("calls a file named for what it is by that, and a document by its name", () => {
     expect(partLabel("fab/bom.csv")).toBe("Bill of materials");
     expect(partLabel("fab/gerbers.zip")).toBe("Gerbers");

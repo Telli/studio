@@ -60,11 +60,19 @@ export function useDuplicateProject(environmentId: EnvironmentId) {
       const source = project.folders[0];
       if (bridge === null || source === undefined) return false;
       const name = copyName(project.name, taken);
+      // Copying takes a moment: it says so at once, then becomes what came of it.
+      const toastId = toastManager.add({
+        type: "loading",
+        title: `Duplicating ${project.name}`,
+        timeout: 0,
+        data: { hideCopyButton: true },
+      });
       const failed = (description: string) => {
-        toastManager.add({
+        toastManager.update(toastId, {
           type: "error",
           title: `Could not duplicate ${project.name}`,
           description,
+          timeout: 8_000,
         });
         return false;
       };
@@ -109,14 +117,18 @@ export function useDuplicateProject(environmentId: EnvironmentId) {
         folders: [target, ...project.folders.slice(1)],
         createdAt: new Date().toISOString(),
       });
-      if (id === null) return false;
-      toastManager.add({ type: "success", title: `Made ${name}` });
+      // The save says itself what went wrong.
+      if (id === null) {
+        toastManager.close(toastId);
+        return false;
+      }
+      toastManager.update(toastId, { type: "success", title: `Made ${name}`, timeout: 5_000 });
       const projectRef = scopeProjectRef(environmentId, created.value.projectId);
       const ready = await waitForProject(projectRef).catch(() => null);
       if (ready !== null) await handleNewThread(projectRef).catch(() => undefined);
       return true;
     },
-    [bridge, createNew, environmentId, handleNewThread, list, save],
+    [bridge, createNew, environmentId, handleNewThread, list, read, save, write],
   );
   return bridge === null ? null : duplicate;
 }

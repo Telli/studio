@@ -1,4 +1,6 @@
+import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
+import { useNavigate } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import { GithubIcon, HardDriveUploadIcon } from "lucide-react";
 import { useState } from "react";
@@ -8,7 +10,11 @@ import {
   useGitStackedAction,
   useSourceControlPublishRepositoryAction,
 } from "~/state/sourceControlActions";
+import { readLocalApi } from "~/localApi";
+import { serverEnvironment } from "~/state/server";
+import { shellEnvironment } from "~/state/shell";
 import { sourceControlEnvironment } from "~/state/sourceControl";
+import { useAtomCommand } from "~/state/use-atom-command";
 import { useEnvironmentQuery } from "~/state/query";
 import { vcsEnvironment } from "~/state/vcs";
 import { Button } from "../ui/button";
@@ -113,12 +119,6 @@ export function BackupDialog(props: {
   const toGitHub = githubChoice({
     signedIn: github?.status === "available" && github.auth.status !== "unauthenticated",
     account,
-    hint:
-      github === undefined
-        ? null
-        : github.status !== "available"
-          ? github.installHint
-          : Option.getOrNull(github.auth.detail),
     folders: project.folders.length,
     folder: status === null ? null : { isRepo: status.isRepo, hasRemote: status.hasPrimaryRemote },
     backedUpTo,
@@ -130,10 +130,47 @@ export function BackupDialog(props: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const navigate = useNavigate();
+  // Signing in to GitHub is Settings' Source control: it opens there, the backup waits.
+  const setUpGitHub = () => {
+    props.onOpenChange(false);
+    void navigate({ to: "/settings/source-control" });
+  };
+  const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
+  const openInEditor = useAtomCommand(shellEnvironment.openInEditor, { reportFailure: true });
+  const canReveal = serverConfig?.availableEditors.includes("file-manager") === true;
+  // The toast shows where the backup went: the repository on GitHub, or the folder in Finder.
+  const see = (place: BackupPlace) =>
+    place.kind === "github"
+      ? {
+          children: "Open on GitHub",
+          onClick: () =>
+            void readLocalApi()
+              ?.shell.openExternal(`https://github.com/${place.repository}`)
+              .catch(() =>
+                toastManager.add({ type: "error", title: "GitHub could not be opened" }),
+              ),
+        }
+      : canReveal
+        ? {
+            children: "Show in Finder",
+            onClick: () =>
+              void openInEditor({
+                environmentId,
+                input: { cwd: place.folder, editor: "file-manager" },
+              }),
+          }
+        : undefined;
   const finish = (place: BackupPlace, description: string) => {
     props.onBackedUp(place);
     props.onOpenChange(false);
-    toastManager.add({ type: "success", title: `Backed up ${project.name}`, description });
+    const action = see(place);
+    toastManager.add({
+      type: "success",
+      title: `Backed up ${project.name}`,
+      description,
+      ...(action === undefined ? {} : { actionProps: action }),
+    });
   };
 
   const backUpToGitHub = async () => {
@@ -227,6 +264,11 @@ export function BackupDialog(props: {
           {error === null ? null : <p className="pt-3 text-xs text-destructive">{error}</p>}
         </DialogPanel>
         <DialogFooter>
+          {toGitHub.signIn ? (
+            <Button variant="ghost" disabled={busy} onClick={setUpGitHub}>
+              Set up GitHub
+            </Button>
+          ) : null}
           {choice === "folder" && last?.place.kind === "folder" ? (
             <Button variant="ghost" disabled={busy} onClick={() => run(true)}>
               Another folder

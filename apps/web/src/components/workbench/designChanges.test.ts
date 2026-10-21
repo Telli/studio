@@ -35,10 +35,15 @@ describe("design changes", () => {
   });
 
   it("names a lone aspect with its part, and opens a study's numbers as its model", () => {
-    const { changes } = designChanges(["drawings/bracket.dxf", "fea/plate.fea.json"]);
+    const { changes } = designChanges([
+      "drawings/bracket.dxf",
+      "fea/plate.fea.json",
+      "exports/clip.stl",
+    ]);
     expect(changes.map((change) => [change.label, change.open])).toEqual([
       ["Bracket drawing", "drawings/bracket.dxf"],
       ["Plate FEA study", "fea/plate.fea.glb"],
+      ["Clip STL", "exports/clip.stl"],
     ]);
   });
 

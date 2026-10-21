@@ -1,8 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
-import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -10,10 +9,8 @@ import { openCommandPalette } from "~/commandPaletteBus";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
 import { shortcutLabelForCommand } from "~/keybindings";
-import { useRightPanelStore } from "~/rightPanelStore";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { primaryServerKeybindingsAtom } from "~/state/server";
-import { buildThreadRouteParams } from "~/threadRoutes";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import { SidebarInset } from "../ui/sidebar";
@@ -27,7 +24,7 @@ import { SAMPLE_PROJECT } from "./homeExamples";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
-import { whenTouched } from "./ProjectChoices";
+import { waitingFirst, whenTouched } from "./ProjectChoices";
 import { ProjectPicker } from "./ProjectPicker";
 import { needsYou } from "./recentActivity";
 import { StudioNew } from "./StudioNew";
@@ -107,7 +104,6 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const importActions = useImportActions();
   useNowMinute();
   useOpenShortcut(openFind);
-  const navigate = useNavigate();
   const waiting = useMemo(() => {
     const byProject = new Map<string, EnvironmentThreadShell[]>();
     for (const { card, thread } of needsYou(cards)) {
@@ -115,24 +111,15 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
     }
     return byProject;
   }, [cards]);
-  // Waiting on the person first, each list otherwise in its own order.
-  const waitingFirst = (list: ReadonlyArray<ListedProject>) =>
-    list.toSorted((a, b) => Number(waiting.has(b.id)) - Number(waiting.has(a.id)));
   const split = splitStarred(
     cards,
     useStarredStore((store) => store.starred),
   );
   const starred = waitingFirst(split.starred);
   const rest = waitingFirst(split.rest);
-  const openChat = (thread: EnvironmentThreadShell) => {
-    const ref = scopeThreadRef(thread.environmentId, thread.id);
-    useRightPanelStore.getState().setMaximized(ref, false);
-    void navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
-  };
   const tile = (card: ListedProject) => {
     const { id, project, folder, threads } = card;
     const asking = waiting.get(id) ?? [];
-    const first = asking[0];
     return (
       <ProjectTile
         key={id}
@@ -142,7 +129,8 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
         threads={threads}
         waiting={asking}
         when={whenTouched(card)}
-        onOpen={() => (first === undefined ? void openProject(folder, threads) : openChat(first))}
+        // On the chat waiting on the person, if one is (`useOpenProject`).
+        onOpen={() => void openProject(folder, threads)}
       />
     );
   };

@@ -105,6 +105,15 @@ export function inSentence(name: string): string {
 const PROCESS_ENDING = MANUFACTURING_PROCESSES.join("|");
 
 /**
+ * A mesh by its format, as an engineer asks for one ("send me the STL"): STL, 3MF, OBJ. A GLB is
+ * the viewer's own picture of a part, so it stays a mesh.
+ */
+export function meshFormat(path: string): string {
+  const format = /\.(stl|3mf|obj)$/i.exec(path)?.[1];
+  return format === undefined ? "mesh" : format.toUpperCase();
+}
+
+/**
  * Endings, compound ones first, each with what the file is and what its label
  * adds to the name. `stemmed` endings are part of the name ("bom.csv" alone
  * is the bill of materials).
@@ -139,7 +148,7 @@ const ENDINGS: ReadonlyArray<{
   { ending: /\.(?:step|stp)$/i, kind: "Part", suffix: "" },
   // A SolidCraft design: the part itself, as the engineer edits it in SolidCraft.
   { ending: /\.solidcraft$/i, kind: "Design", suffix: "" },
-  { ending: /\.(?:stl|3mf|obj|glb)$/i, kind: "Mesh", suffix: "mesh" },
+  { ending: /\.(?:stl|3mf|obj|glb)$/i, kind: "Mesh", suffix: (match) => meshFormat(match[0]) },
   { ending: /\.urdf$/i, kind: "Robot", suffix: "robot description" },
   { ending: /\.srdf$/i, kind: "Planning groups", suffix: "planning groups" },
   { ending: /\.sdf$/i, kind: "Simulation model", suffix: "simulation model" },

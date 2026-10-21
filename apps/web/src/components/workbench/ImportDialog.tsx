@@ -37,7 +37,6 @@ import { partLabel } from "./partNames";
 import { usePictures } from "./usePictures";
 import { readStudioImport, rememberScan } from "./studioImportBridge";
 import { useImportProjects } from "./useImportProjects";
-import { useEnvironmentFolders } from "./useProjectFolders";
 import { useStudioProjects } from "./useStudioProjects";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
@@ -116,15 +115,15 @@ function ImportDialog(props: {
 }) {
   const { environmentId, start, onClose } = props;
   const bridge = readStudioImport();
-  const knownFolders = useEnvironmentFolders(environmentId);
   const studioProjects = useStudioProjects(environmentId);
+  // Studio's projects' folders, not every folder the server knows: one removed from Studio
+  // (Remove from Studio) keeps its folder known, and is offered here again.
   const known = useMemo(
     () =>
-      new Set([
-        ...knownFolders.map((folder) => studioFolderKey(folder.workspaceRoot)),
-        ...Object.values(studioProjects).flatMap((project) => project.folders.map(studioFolderKey)),
-      ]),
-    [knownFolders, studioProjects],
+      new Set(
+        Object.values(studioProjects).flatMap((project) => project.folders.map(studioFolderKey)),
+      ),
+    [studioProjects],
   );
   const runImport = useImportProjects(environmentId);
   const [step, setStep] = useState<"scan" | "found" | "sort">(

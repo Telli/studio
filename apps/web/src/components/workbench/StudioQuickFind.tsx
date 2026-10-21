@@ -31,7 +31,7 @@ import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenedThreads } from "./openedThreads";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLabel } from "./partNames";
-import { ProjectThumb, whenTouched } from "./ProjectChoices";
+import { ProjectThumb, projectStanding } from "./ProjectChoices";
 import { classifyProjectFile, type ProjectGroup } from "./projectFiles";
 import type { ListedProject } from "./projectList";
 import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
@@ -68,6 +68,8 @@ interface Row {
   readonly icon: ReactNode;
   readonly title: string;
   readonly description?: string;
+  /** The description asks for the person: a project's chat waiting on them. */
+  readonly waiting?: boolean;
   /** Said at the row's end: "Open" on the project on screen. */
   readonly trailing?: string;
   readonly run: () => void;
@@ -323,17 +325,21 @@ function QuickFindBody(props: {
             query,
           ),
       )
-      // A project as the switcher shows it: its picture and when it was last opened.
-      .map((card) => ({
-        value: `project:${card.id}`,
-        icon: <ProjectThumb environmentId={environmentId} project={card.project} size="sm" />,
-        title: card.project.name,
-        description: whenTouched(card),
-        ...(card === current ? { trailing: "Open" } : {}),
-        run: go(() => {
-          if (card !== current) void openProject(card.folder, card.threads);
-        }),
-      })),
+      // A project as the switcher shows it: its picture and when it was last opened, or Needs you.
+      .map((card) => {
+        const standing = projectStanding(card);
+        return {
+          value: `project:${card.id}`,
+          icon: <ProjectThumb environmentId={environmentId} project={card.project} size="sm" />,
+          title: card.project.name,
+          description: standing.text,
+          waiting: standing.waiting,
+          ...(card === current ? { trailing: "Open" } : {}),
+          run: go(() => {
+            if (card !== current) void openProject(card.folder, card.threads);
+          }),
+        };
+      }),
   };
   const places: ReadonlyArray<Row & { readonly terms: string }> = [
     ...(onHome
@@ -468,7 +474,12 @@ function QuickFindBody(props: {
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-sm text-foreground">{row.title}</span>
                     {row.description ? (
-                      <span className="truncate text-xs text-muted-foreground/70">
+                      <span
+                        className={cn(
+                          "truncate text-xs",
+                          row.waiting ? "text-warning-foreground" : "text-muted-foreground/70",
+                        )}
+                      >
                         {row.description}
                       </span>
                     ) : null}

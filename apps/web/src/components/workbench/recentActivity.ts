@@ -47,6 +47,18 @@ export function homeRecent(
   return [...chats, ...shown].toSorted((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
 }
 
+/** The newest chat waiting on the person (a question, an approval) of these; null when none is. */
+export function waitingChat(
+  threads: ReadonlyArray<EnvironmentThreadShell>,
+): EnvironmentThreadShell | null {
+  let newest: EnvironmentThreadShell | null = null;
+  for (const thread of threads) {
+    if (historyOutcome(thread) !== "needs-you") continue;
+    if (newest === null || thread.updatedAt > newest.updatedAt) newest = thread;
+  }
+  return newest;
+}
+
 /** The chats waiting on the person (a question, an approval), in any project, newest first: Home's tiles say so. */
 export function needsYou(
   cards: ReadonlyArray<ListedProject>,

@@ -87,32 +87,22 @@ export function githubChoice(input: {
   /** GitHub is set up on this computer, and the account it is signed in as. */
   readonly signedIn: boolean;
   readonly account: string | null;
-  /** Why GitHub is not ready, as the source control settings say it. */
-  readonly hint: string | null;
   readonly folders: number;
   /** The folder's git status; null while it is read. */
   readonly folder: { readonly isRepo: boolean; readonly hasRemote: boolean } | null;
   /** The repository an earlier backup made, if any. */
   readonly backedUpTo: string | null;
-}): { readonly available: boolean; readonly note: string | null } {
+}): { readonly available: boolean; readonly note: string | null; readonly signIn: boolean } {
+  // In plain words, not the GitHub tool's own hints (its commands): Set up GitHub shows where.
   if (!input.signedIn || input.account === null) {
-    return {
-      available: false,
-      note: input.hint ?? "Sign in to GitHub in Settings, Source control, first.",
-    };
+    return { available: false, note: "Not signed in to GitHub on this Mac yet.", signIn: true };
   }
-  if (input.folders !== 1) {
-    return { available: false, note: "GitHub backup is for a project of one folder." };
-  }
-  if (input.folder === null) return { available: false, note: null };
-  if (!input.folder.isRepo) {
-    return { available: false, note: "This folder has no version history to send yet." };
-  }
+  const not = (note: string | null) => ({ available: false, note, signIn: false });
+  if (input.folders !== 1) return not("GitHub backup is for a project of one folder.");
+  if (input.folder === null) return not(null);
+  if (!input.folder.isRepo) return not("This folder has no version history to send yet.");
   if (input.folder.hasRemote && input.backedUpTo === null) {
-    return {
-      available: false,
-      note: "This folder already has a repository of its own, so Studio leaves it alone.",
-    };
+    return not("This folder already has a repository of its own, so Studio leaves it alone.");
   }
-  return { available: true, note: null };
+  return { available: true, note: null, signIn: false };
 }
