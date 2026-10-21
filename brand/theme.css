@@ -322,6 +322,11 @@ html[data-studio-focus="hardware"]
   width: 1px;
   background: var(--border);
 }
+/* The arrows that scroll a long row of tabs sit on the tabs' line, not under it. */
+html[data-studio-focus="hardware"] [data-right-panel-tabbar] > [aria-label="Scroll panel tabs"] {
+  align-self: flex-end;
+  height: 2rem;
+}
 /* The pinned Overview: the width of its icon. */
 html[data-studio-focus="hardware"] [data-right-panel-tab-list] [data-pinned-project-tab] {
   width: 2.25rem;

@@ -3,13 +3,12 @@ import { partLabel } from "./partNames";
 import { classifyProjectFile, type ProjectFile, type ProjectGroup } from "./projectFiles";
 
 /**
- * The types the Overview's list of everything in a project filters by, as Google Drive filters a
- * folder by Docs, Sheets and Slides: its chats, its CAD (parts, assemblies, their drawings, and
- * parts bought in), its electronics, the analysis and manufacturing files made from them, its
- * documents, and the references gathered for it.
+ * The types the Overview's list of a project's files filters by, as Google Drive filters a folder
+ * by Docs, Sheets and Slides: its CAD (parts, assemblies, their drawings, and parts bought in), its
+ * electronics, the analysis and manufacturing files made from them, its documents, and the
+ * references gathered for it. Its chats are down the left, not here.
  */
 export type ItemType =
-  | "Chats"
   | "CAD"
   | "Electronics"
   | "Analysis"
@@ -18,7 +17,6 @@ export type ItemType =
   | "References";
 
 export const ITEM_TYPES: ReadonlyArray<ItemType> = [
-  "Chats",
   "CAD",
   "Electronics",
   "Analysis",

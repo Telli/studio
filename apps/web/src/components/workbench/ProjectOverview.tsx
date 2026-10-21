@@ -4,16 +4,12 @@ import type {
   ScopedThreadRef,
   ThreadId,
 } from "@t3tools/contracts";
-import { scopeThreadRef } from "@t3tools/client-runtime/environment";
-import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { studioFolderName } from "@t3tools/shared/studioProjects";
-import { useNavigate } from "@tanstack/react-router";
 import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { useRightPanelStore } from "~/rightPanelStore";
-import { buildThreadRouteParams } from "~/threadRoutes";
 import { useThreadShellsForProjectRefs } from "~/state/entities";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -364,17 +360,7 @@ export function ProjectOverview(props: {
       ),
     [byFolder],
   );
-  const navigate = useNavigate();
   const showChat = () => useRightPanelStore.getState().setMaximized(props.threadRef, false);
-  // A chat opens in the chat, the Overview going back to its place beside it.
-  const openChat = (chat: EnvironmentThreadShell) => {
-    showChat();
-    if (chat.id === props.threadRef.threadId) return;
-    void navigate({
-      to: "/$environmentId/$threadId",
-      params: buildThreadRouteParams(scopeThreadRef(chat.environmentId, chat.id)),
-    });
-  };
   // The lead part as its folder's parts have it, with its checks and what was made from it.
   const lead = useMemo(() => {
     const found = leadPartOf(folders);
@@ -484,18 +470,15 @@ export function ProjectOverview(props: {
       ) : null}
 
       <div className="grid min-w-0 gap-8 @3xl:grid-cols-2">
-        {/* What the project holds, together, as a Drive folder shows it (`ProjectEverything`). */}
+        {/* What the project holds, its files, as a Drive folder shows them (`ProjectEverything`). */}
         {engineering ? (
           <div className="min-w-0 @3xl:col-span-2">
             <ProjectEverything
               environmentId={props.environmentId}
               threadRef={props.threadRef}
               folders={folders}
-              chats={chats}
-              currentThreadId={props.currentThreadId}
               parts={partsByPath}
               onOpenFile={props.onOpen}
-              onOpenChat={openChat}
             />
           </div>
         ) : null}

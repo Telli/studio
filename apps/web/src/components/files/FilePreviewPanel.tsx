@@ -77,7 +77,11 @@ import { BrowserDocumentFrame, isPdfPreviewFile } from "./BrowserDocumentFrame";
 import { DelimitedTablePreview } from "./DelimitedTablePreview";
 import FileBrowserPanel from "./FileBrowserPanel";
 import { FileBreadcrumbs } from "./FileBreadcrumbs";
-import { isEngineeringInterface, useEngineeringSurfaces } from "../workbench/studioInterface";
+import {
+  isEngineeringInterface,
+  useEngineeringInterface,
+  useEngineeringSurfaces,
+} from "../workbench/studioInterface";
 import { FileMarkdownPreview } from "./FileMarkdownPreview";
 import {
   type FileCommentAnnotationEntry,
@@ -1098,9 +1102,12 @@ export default function FilePreviewPanel({
   // Everything preview-related keys off previewPath; a folder has no preview.
   const previewPath = isDirectory ? null : relativePath;
   const [explorerOpen, setExplorerOpen] = useState(initialExplorerOpen);
+  // The engineering interface alone shows a document as a document: rendered, no source, no code
+  // tools, and no folders in its way (its Overview has them).
+  const documentsOnly = useEngineeringInterface();
   const showExplorer = shouldShowFileExplorer({
     relativePath: previewPath,
-    explorerOpen,
+    explorerOpen: explorerOpen && !documentsOnly,
     attachmentOpen: attachment !== undefined,
   });
   // Reading markdown rendered is a preference, not a property of one file. Keeping
@@ -1116,7 +1123,11 @@ export default function FilePreviewPanel({
     Schema.Boolean,
   );
   const engineering = useEngineeringSurfaces();
-  const renderMarkdownPreferred = engineering ? studioRenderMarkdown : codeRenderMarkdown;
+  const renderMarkdownPreferred = documentsOnly
+    ? true
+    : engineering
+      ? studioRenderMarkdown
+      : codeRenderMarkdown;
   const setRenderMarkdownPreferred = engineering ? setStudioRenderMarkdown : setCodeRenderMarkdown;
   const [renderBrowserFilePreferred, setRenderBrowserFilePreferred] = useLocalStorage(
     RENDER_BROWSER_FILE_STORAGE_KEY,
@@ -1287,6 +1298,7 @@ export default function FilePreviewPanel({
             </div>
           </ScrollArea>
           {absolutePath &&
+          !documentsOnly &&
           (environmentId === primaryEnvironmentId || remoteOpenState.mode !== "local-exec") ? (
             <OpenInPicker
               environmentId={environmentId}
@@ -1296,7 +1308,7 @@ export default function FilePreviewPanel({
               compact
             />
           ) : null}
-          {canToggleRendered && renderedMode ? (
+          {canToggleRendered && renderedMode && !(documentsOnly && renderedMode === "markdown") ? (
             <FileSurfaceAction
               label={renderedToggleLabel(renderedMode, rendered)}
               pressed={rendered}
@@ -1330,7 +1342,7 @@ export default function FilePreviewPanel({
               <Globe2 className="size-3.5" />
             </FileSurfaceAction>
           ) : null}
-          {!isHostFile && previewPath !== null ? (
+          {!isHostFile && previewPath !== null && !documentsOnly ? (
             <FileSurfaceAction
               label={explorerOpen ? "Hide file explorer" : "Show file explorer"}
               pressed={explorerOpen}

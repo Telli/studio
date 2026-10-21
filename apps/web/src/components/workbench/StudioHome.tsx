@@ -21,6 +21,7 @@ import { ProjectTile } from "./ProjectTile";
 import { splitStarred, useStarredStore } from "./starredProjects";
 import { ImportDialogHost } from "./ImportDialog";
 import { HomeActivity } from "./HomeActivity";
+import { EXAMPLE_STARTS, PRD_START, SAMPLE_PROJECT } from "./homeExamples";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
@@ -102,9 +103,11 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
           <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-both">
             <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8">
               <div className="flex max-w-3xl flex-col gap-6">
-                <h1 className="text-2xl font-semibold text-foreground">Welcome back</h1>
+                <h1 className="text-2xl font-semibold text-foreground">
+                  {cards.length === 0 ? "Welcome to Studio" : "Welcome back"}
+                </h1>
                 <NewFilesNotice environmentId={environmentId} />
-                <StartProject environmentId={environmentId} />
+                <StartProject environmentId={environmentId} firstTime={cards.length === 0} />
               </div>
               <HomeActivity environmentId={environmentId} cards={cards} />
               {starred.length === 0 ? null : (
@@ -155,7 +158,11 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   );
 }
 
-function StartProject(props: { readonly environmentId: EnvironmentId }) {
+function StartProject(props: {
+  readonly environmentId: EnvironmentId;
+  /** No projects yet: the sample project is offered first. */
+  readonly firstTime: boolean;
+}) {
   const { environmentId } = props;
   const start = useStartProject(environmentId);
   const [description, setDescription] = useState("");
@@ -252,6 +259,58 @@ function StartProject(props: { readonly environmentId: EnvironmentId }) {
             Start
           </Button>
         </div>
+      </div>
+      {props.firstTime ? (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-dashed border-border px-4 py-3">
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-sm font-medium text-foreground">New to Studio?</span>
+            <span className="text-sm text-muted-foreground">
+              The agent builds a servo bracket, checks its strength, draws it and writes its PRD, so
+              each part of Studio has something in it.
+            </span>
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() =>
+              void run({ kind: "described", description: SAMPLE_PROJECT.description, files: [] })
+            }
+          >
+            {SAMPLE_PROJECT.label}
+          </Button>
+        </div>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+        <span>Try one:</span>
+        {EXAMPLE_STARTS.map((example) => (
+          <Button
+            key={example.label}
+            variant="outline"
+            size="xs"
+            disabled={busy}
+            onClick={() =>
+              void run({ kind: "described", description: example.description, files: [] })
+            }
+          >
+            {example.label}
+          </Button>
+        ))}
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => {
+            setDescription(PRD_START);
+            requestAnimationFrame(() => {
+              const box = describe.current;
+              if (box === null) return;
+              box.focus();
+              box.setSelectionRange(PRD_START.length, PRD_START.length);
+            });
+          }}
+        >
+          Start from a PRD
+        </Button>
       </div>
       {blank.length === 0 ? null : (
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

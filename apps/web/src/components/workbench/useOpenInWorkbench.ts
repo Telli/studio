@@ -2,11 +2,12 @@ import { pluginFileHandlers } from "@t3tools/client-runtime/state/plugins";
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useCallback } from "react";
 
-import { useRightPanelStore } from "~/rightPanelStore";
+import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { pluginAppSurface } from "../plugins/pluginSurfaces";
 import { rememberRecentFile } from "./recentFiles";
+import { sameFile, surfaceFile } from "./sameFile";
 
 /**
  * Opens a file beside a thread: a model, board or drawing in the plugin view that claims it (a
@@ -21,6 +22,18 @@ export function openInPanel(
 ): void {
   const panels = useRightPanelStore.getState();
   rememberRecentFile(threadRef, path);
+  // A file already open, however its path was written (in the folder, in full, by the agent),
+  // comes to the front in its own tab rather than in a second one.
+  const open = selectThreadRightPanelState(panels.byThreadKey, threadRef).surfaces.find(
+    (surface) => {
+      const file = surfaceFile(surface);
+      return file !== null && sameFile(file, path);
+    },
+  );
+  if (open !== undefined && (open.kind !== "file" || line === undefined)) {
+    panels.activateSurface(threadRef, open.id);
+    return;
+  }
   const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
   if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
   else panels.openFile(threadRef, path, line);

@@ -61,6 +61,7 @@ const ACRONYMS = new Set([
   "tpu",
   "uart",
   "usb",
+  "xrd",
 ]);
 
 const capitalize = (text: string) => (text === "" ? text : text[0]!.toUpperCase() + text.slice(1));
@@ -81,6 +82,8 @@ export function humanName(stem: string): string {
   const shouted = !/[a-z]/.test(stem);
   const cased = words.map((word) => {
     const lower = word.toLowerCase();
+    // Written in mixed case on purpose (xRD, iPhone): kept as it is.
+    if (/^[a-z]+[A-Z]/.test(word)) return word;
     if (ACRONYMS.has(lower)) return lower.toUpperCase();
     if (word.length === 1) return word.toUpperCase();
     if (shouted ? /^[A-Z]+$/.test(word) : /^[A-Z][a-z]+$/.test(word)) return lower;

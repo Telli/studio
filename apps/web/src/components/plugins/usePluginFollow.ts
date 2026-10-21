@@ -16,6 +16,7 @@ import {
 } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
+import { sameFile, surfaceFile } from "../workbench/sameFile";
 import { agentViewSurface, pluginAppSurface } from "./pluginSurfaces";
 
 interface ThreadFollowState {
@@ -101,6 +102,20 @@ export function usePluginFollow(input: {
     }
     const panels = useRightPanelStore.getState();
     if (agentSurface !== null) {
+      // The agent's view of a file takes the place of a tab already showing it (Studio's one tab
+      // per file, `workbench/sameFile.ts`).
+      const shown = surfaceFile(agentSurface);
+      for (const surface of selectThreadRightPanelState(panels.byThreadKey, threadRef).surfaces) {
+        const file = surfaceFile(surface);
+        if (
+          shown !== null &&
+          file !== null &&
+          surface.id !== agentSurface.id &&
+          sameFile(file, shown)
+        ) {
+          panels.closeSurface(threadRef, surface.id);
+        }
+      }
       // The agent asked for this view, so it opens over any panel choice.
       panels.openProactive(threadRef, agentSurface, panels.getUserActionRevision(threadRef));
       return;

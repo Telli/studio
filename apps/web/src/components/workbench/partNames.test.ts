@@ -14,6 +14,8 @@ describe("part names", () => {
     expect(humanName("fea-summary")).toBe("FEA summary");
     expect(humanName("prd")).toBe("PRD");
     expect(humanName("fmea")).toBe("FMEA");
+    expect(humanName("product_xrd")).toBe("Product XRD");
+    expect(humanName("Product_xRD")).toBe("Product xRD");
   });
 
   it("names a part by its name and what was made from it by the part", () => {
