@@ -1,3 +1,4 @@
+import { isEngineeringInterface } from "./components/workbench/studioInterface";
 import { resolveThreadWorkingStartedAt } from "@t3tools/client-runtime/state/models";
 import {
   type AssetResource,
@@ -399,7 +400,8 @@ export function providerErrorPresentation(
       label:
         item.failure.class === "usage_limit"
           ? "Usage limit reached"
-          : item.title?.trim() || "Provider error",
+          : item.title?.trim() ||
+            (isEngineeringInterface() ? "The AI agent ran into a problem" : "Provider error"),
       detail: item.failure.message,
     };
   }
@@ -407,8 +409,19 @@ export function providerErrorPresentation(
     item.retry.maxAttempts === null
       ? `${item.retry.attempt}`
       : `${item.retry.attempt}/${item.retry.maxAttempts}`;
-  const label =
-    item.status === "running"
+  const studio = isEngineeringInterface();
+  const tries = progress.replace("/", " of ");
+  const label = studio
+    ? item.status === "running"
+      ? `The AI agent stopped answering. Trying again (${tries})`
+      : item.status === "completed"
+        ? "The AI agent is answering again"
+        : item.status === "failed"
+          ? item.failure.class === "usage_limit"
+            ? "Usage limit reached"
+            : `The AI agent stopped answering after ${tries} tries`
+          : "Stopped trying again"
+    : item.status === "running"
       ? `Retrying provider (${progress})`
       : item.status === "completed"
         ? `Provider recovered (${progress} retries)`

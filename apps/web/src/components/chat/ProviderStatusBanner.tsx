@@ -1,3 +1,4 @@
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import { type ProviderInstanceId, type ServerProvider } from "@t3tools/contracts";
 import { memo } from "react";
 import { InfoIcon, XIcon } from "lucide-react";
@@ -104,12 +105,21 @@ export const ProviderStatusBanner = memo(function ProviderStatusBanner({
   const providerName = status.displayName?.trim() || formatProviderDriverKindLabel(status.driver);
   const isUnauthenticated = status.status === "error" && status.auth.status === "unauthenticated";
   const incompatible = getIncompatibleVersion(status);
+  const studio = isEngineeringInterface();
   const title = isUnauthenticated
-    ? `${providerName} is unauthenticated`
+    ? studio
+      ? `${providerName} needs you to sign in again`
+      : `${providerName} is unauthenticated`
     : incompatible
       ? `${providerName} ${status.version ?? ""} is ${incompatible.status === "broken" ? "known to be broken" : "unsupported"}`
-      : `${providerName} provider status`;
-  const message = incompatible?.message ?? getProviderStatusMessage(status);
+      : studio
+        ? `${providerName} isn't ready`
+        : `${providerName} provider status`;
+  const message =
+    incompatible?.message ??
+    (studio && isUnauthenticated
+      ? "Sign in again in Settings, under AI agents."
+      : getProviderStatusMessage(status));
   const isWarning =
     incompatible?.status !== "broken" && (status.status === "warning" || incompatible !== null);
 
@@ -132,7 +142,7 @@ export const ProviderStatusBanner = memo(function ProviderStatusBanner({
           </Tooltip>
           {onOpenProviderSetup && hasProviderSetup(status) ? (
             <InlineButton onClick={() => onOpenProviderSetup(status.instanceId)}>
-              Open provider setup
+              {studio ? "Open AI agents" : "Open provider setup"}
             </InlineButton>
           ) : null}
         </AlertDescription>

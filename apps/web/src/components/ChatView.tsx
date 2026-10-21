@@ -8741,7 +8741,9 @@ export default function ChatView(props: ChatViewProps) {
           sourceThreadId: input.sourceThreadId,
           targetThreadId,
           runId: input.runId,
-          title: `${activeThread.title} fork`,
+          title: engineeringInterface
+            ? `${activeThread.title}, another way`
+            : `${activeThread.title} fork`,
         },
       });
       if (result._tag === "Failure") {
@@ -8770,6 +8772,7 @@ export default function ChatView(props: ChatViewProps) {
     [
       activeEnvironmentUnavailable,
       activeThread,
+      engineeringInterface,
       environmentId,
       forkThreadFromRun,
       navigate,

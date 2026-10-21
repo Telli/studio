@@ -1,3 +1,4 @@
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import { memo, type MouseEventHandler, type PointerEventHandler } from "react";
 import { CheckIcon, ChevronDownIcon, ChevronLeftIcon, Minimize2Icon, PlayIcon } from "lucide-react";
 import { CornerUpRight, ListPlus } from "lucide";
@@ -270,14 +271,21 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
 
   const showResume = canResume && !hasSendableContent && !isEditingQueuedMessage;
 
+  // Studio keeps the agent's bookkeeping (tokens, context) out of the engineer's way, as it
+  // hides the context meter: no Compact chip, and a send keeps the conversation whole.
   const compactTokens =
-    compactBeforeSendTokens !== null && !showResume && !isEditingQueuedMessage
+    compactBeforeSendTokens !== null &&
+    !showResume &&
+    !isEditingQueuedMessage &&
+    !isEngineeringInterface()
       ? formatContextWindowTokens(compactBeforeSendTokens)
       : null;
   const compactsBeforeSend = compactTokens !== null && !keepFullHistory;
 
   const submitLabel = showResume
-    ? "Resume thread"
+    ? isEngineeringInterface()
+      ? "Resume"
+      : "Resume thread"
     : isEditingQueuedMessage
       ? "Update queued message"
       : compactsBeforeSend

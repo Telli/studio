@@ -1,3 +1,5 @@
+import { engineeringStepLabel } from "../workbench/engineeringLabels";
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import { memo } from "react";
 import { type PendingApproval } from "../../session-logic";
 import { cn } from "~/lib/utils";
@@ -13,9 +15,24 @@ export const ComposerPendingApprovalPanel = memo(function ComposerPendingApprova
   pendingCount,
   className,
 }: ComposerPendingApprovalPanelProps) {
-  const Detail = approval.requestKind === "mcp-elicitation" ? "span" : "code";
-  const fallbackLabel =
-    approval.requestKind === "mcp-elicitation"
+  // Studio says what the agent asks to do in its own words; the command stays out of the way.
+  const studio = isEngineeringInterface();
+  const Detail = approval.requestKind === "mcp-elicitation" || studio ? "span" : "code";
+  const studioLabel =
+    approval.requestKind === "command"
+      ? "Asks to go ahead"
+      : approval.requestKind === "file-read"
+        ? "Asks to read a file"
+        : approval.requestKind === "permission" || approval.requestKind === "mcp-elicitation"
+          ? "Asks for access"
+          : "Asks to change files";
+  const studioDetail =
+    approval.requestKind === "command" && approval.detail
+      ? engineeringStepLabel(approval.detail).doing
+      : approval.detail;
+  const fallbackLabel = studio
+    ? studioLabel
+    : approval.requestKind === "mcp-elicitation"
       ? "App access approval"
       : approval.requestKind === "command"
         ? "Command approval"
@@ -52,7 +69,7 @@ export const ComposerPendingApprovalPanel = memo(function ComposerPendingApprova
         aria-label={detailAriaLabel}
         className={cn(
           "block max-h-20 w-full min-w-0 overflow-auto text-xs text-foreground [scrollbar-width:thin] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70 [&::-webkit-scrollbar]:h-1.5",
-          approval.requestKind === "mcp-elicitation"
+          approval.requestKind === "mcp-elicitation" || studio
             ? "whitespace-pre-wrap font-sans wrap-break-word"
             : "whitespace-pre font-mono",
         )}
@@ -60,8 +77,10 @@ export const ComposerPendingApprovalPanel = memo(function ComposerPendingApprova
         tabIndex={0}
       >
         {approval.responseCapability === "not_resumable"
-          ? "Provider process is gone — interrupt or restart the run to respond."
-          : approval.detail || fallbackLabel}
+          ? studio
+            ? "The AI agent has stopped. Stop this work and ask again to answer it."
+            : "Provider process is gone — interrupt or restart the run to respond."
+          : (studio ? studioDetail : approval.detail) || fallbackLabel}
       </Detail>
     </span>
   );

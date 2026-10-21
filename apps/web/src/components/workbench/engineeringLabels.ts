@@ -34,8 +34,22 @@ function fileAfter(command: string, marker: RegExp, endings: RegExp): string | n
   return null;
 }
 
+/** The part a file is of, by its name alone: "parts/clip.stl" is "the clip", whatever its format. */
+function partNamedAfter(command: string, marker: RegExp, endings: RegExp): string | null {
+  const at = command.search(marker);
+  if (at < 0) return null;
+  for (const token of command.slice(at).split(/\s+/)) {
+    const file = base(token);
+    if (endings.test(file)) return inSentence(humanName(file.replace(/\.[^.]+$/, "")));
+  }
+  return null;
+}
+
 const STEP = /\.(?:step|stp)$/i;
 const BOARD = /\.(?:kicad_pcb|kicad_sch)$/i;
+const MODEL = /\.(?:step|stp|stl|3mf|glb)$/i;
+/** A skill's own tool or a helper, not a part's model script: it never "builds" a part. */
+const TOOL_SCRIPT = /(?:^|[\\/])(?:scripts?|skills?|tools?|lib|utils?|helpers?)[\\/]|_tool\.py\b/i;
 const of = (part: string | null, joiner: string) => (part === null ? "" : ` ${joiner} ${part}`);
 
 const RULES: ReadonlyArray<(command: string) => StepLabel | null> = [
@@ -86,6 +100,41 @@ const RULES: ReadonlyArray<(command: string) => StepLabel | null> = [
     if (!/\b(?:snapshot|render)\b/.test(command) || !/\bcadgen\b/.test(command)) return null;
     return { done: "Took a picture of the model", doing: "Taking a picture of the model" };
   },
+  // The skills' own tools, named for what they check or make.
+  (command) => {
+    const tool = /\b(dfam_tool|mold_tool|download_step_part|orca_presets)\.py\b/.exec(command)?.[1];
+    if (tool === undefined) return null;
+    const named = partNamedAfter(command, /\.py\b/, MODEL) ?? "the part";
+    switch (tool) {
+      case "dfam_tool":
+        return {
+          done: `Checked ${named} for 3D printing`,
+          doing: `Checking ${named} for 3D printing`,
+        };
+      case "mold_tool":
+        return { done: `Checked ${named} for molding`, doing: `Checking ${named} for molding` };
+      case "download_step_part":
+        return { done: "Found a standard part", doing: "Finding a standard part" };
+      default:
+        return { done: "Set up the slicer", doing: "Setting up the slicer" };
+    }
+  },
+  (command) => {
+    const format = /\bcadgen(?:\.cli)?\s+(stl|3mf|glb|dxf)\b/.exec(command)?.[1];
+    if (format === undefined) return null;
+    const part = fileAfter(command, new RegExp(`\\b${format}\\b`), STEP) ?? "the model";
+    const as = format.toUpperCase();
+    return { done: `Exported ${part} as ${as}`, doing: `Exporting ${part} as ${as}` };
+  },
+  (command) => {
+    if (!/\bcadgen(?:\.cli)?\s+step\s+inspect\b/.test(command)) return null;
+    const part = fileAfter(command, /\binspect\b/, STEP) ?? "the model";
+    return { done: `Read ${part}`, doing: `Reading ${part}` };
+  },
+  (command) =>
+    /\bpcb\s+drc\b/.test(command)
+      ? { done: "Checked the board", doing: "Checking the board" }
+      : null,
   // A model script builds its part: `python bracket.py`, through any interpreter or cadgen.
   (command) => {
     const script =
@@ -93,14 +142,17 @@ const RULES: ReadonlyArray<(command: string) => StepLabel | null> = [
         command,
       )?.[1];
     if (script === undefined) return null;
+    // A tool or helper script works on the design; only a part's own script builds it.
+    if (TOOL_SCRIPT.test(script)) {
+      return { done: "Worked on the design", doing: "Working on the design" };
+    }
     const name = inSentence(humanName(base(script).replace(/\.py$/, "")));
     return { done: `Built ${name}`, doing: `Building ${name}` };
   },
-  (command) => {
-    const verb = /\bcadgen(?:\.cli)?\s+([a-z][\w-]*)/.exec(command)?.[1];
-    if (verb === undefined) return null;
-    return { done: `CAD tools: ${verb}`, doing: `CAD tools: ${verb}` };
-  },
+  (command) =>
+    /\bcadgen(?:\.cli)?\s+[a-z]/.test(command)
+      ? { done: "Worked on the design", doing: "Working on the design" }
+      : null,
   (command) =>
     /^(?:ls|find|cat|head|tail|grep|rg|fd|tree|wc|sed\s+-n|file|stat|du)\b/.test(command)
       ? { done: "Looked through the project", doing: "Looking through the project" }

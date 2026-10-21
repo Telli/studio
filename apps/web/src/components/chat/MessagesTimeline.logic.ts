@@ -1677,7 +1677,7 @@ export function deriveMessagesTimelineRows(input: {
         createdAt: supersededFold.createdAt,
         runId: supersededFold.runId,
         attemptId: supersededFold.attemptId,
-        label: "Superseded attempt",
+        label: isEngineeringInterface() ? "Stopped to read your message" : "Superseded attempt",
         expanded: input.expandedAttemptIds?.has(supersededFold.attemptId) ?? false,
       });
     }

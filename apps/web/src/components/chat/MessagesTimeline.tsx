@@ -233,7 +233,11 @@ import {
   type WorkGroupScrollAnchor,
 } from "./MessagesTimeline.logic";
 import { TurnDesignChanges } from "../workbench/TurnDesignChanges";
-import { useEngineeringInterface, useFileChipLabel } from "../workbench/studioInterface";
+import {
+  isEngineeringInterface,
+  useEngineeringInterface,
+  useFileChipLabel,
+} from "../workbench/studioInterface";
 import { type ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
 import { readThreadFindPosition } from "./threadFindPosition";
@@ -2336,7 +2340,10 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
     () => replaceComposerContextReferences(resolvedContext.text, (reference) => reference.label),
     [resolvedContext.text],
   );
-  const promptLink = useMemo(() => promptLinkFor(plainText), [plainText]);
+  const promptLink = useMemo(
+    () => (isEngineeringInterface() ? null : promptLinkFor(plainText)),
+    [plainText],
+  );
   const contextClipboardFragment =
     resolvedContext.records.length === 0
       ? null
@@ -2685,11 +2692,15 @@ function UserMessageIntentMarker({
         {presentation.label}
       </TooltipTrigger>
       <TooltipPopup side="top">
-        {intent === "queued_turn"
-          ? "Queued behind the active turn"
-          : intent === "promoted_queued_to_steer"
-            ? "Originally queued, then promoted to steer the active turn"
-            : "Steered the active turn"}
+        {isEngineeringInterface()
+          ? intent === "queued_turn"
+            ? "Sent once the work under way finished"
+            : "Sent while it worked"
+          : intent === "queued_turn"
+            ? "Queued behind the active turn"
+            : intent === "promoted_queued_to_steer"
+              ? "Originally queued, then promoted to steer the active turn"
+              : "Steered the active turn"}
       </TooltipPopup>
     </Tooltip>
   );
@@ -2829,7 +2840,9 @@ function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "at
         icon={row.expanded ? ChevronDown : ChevronRight}
       />
       <span className="text-xs font-medium text-foreground/80">{row.label}</span>
-      <span className="text-2xs text-muted-foreground">Cut off by a steer</span>
+      {isEngineeringInterface() ? null : (
+        <span className="text-2xs text-muted-foreground">Cut off by a steer</span>
+      )}
     </button>
   );
 }
@@ -2980,7 +2993,7 @@ function AssistantMessageMeta({
         className,
       )}
     >
-      {projectedItem && projectedItem.item.status !== "completed" ? (
+      {projectedItem && projectedItem.item.status !== "completed" && !isEngineeringInterface() ? (
         <span className="rounded-full border border-border/70 px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
           {projectedItem.item.status}
         </span>
@@ -3119,12 +3132,15 @@ function v2EventPresentation(item: OrchestrationV2TurnItem): {
         icon: CircleAlertIcon,
       };
     case "run_interrupt_result":
-      return {
-        label: "Run interrupted",
-        detail: item.message,
-        tone: "danger",
-        icon: XIcon,
-      };
+      // A stop the person pressed is not an error: Studio says it quietly.
+      return isEngineeringInterface()
+        ? { label: "Stopped", detail: null, tone: "muted", icon: MinusIcon }
+        : {
+            label: "Run interrupted",
+            detail: item.message,
+            tone: "danger",
+            icon: XIcon,
+          };
     case "handoff":
       return {
         label: "Context handoff",
@@ -3135,17 +3151,31 @@ function v2EventPresentation(item: OrchestrationV2TurnItem): {
         icon: ZapIcon,
       };
     case "fork":
-      return {
-        label: "Conversation fork",
-        detail: `Continues in ${item.targetThreadId}`,
-        tone: "muted",
-        icon: GitForkIcon,
-      };
+      return isEngineeringInterface()
+        ? { label: "Tried another way from here", detail: null, tone: "muted", icon: SplitIcon }
+        : {
+            label: "Conversation fork",
+            detail: `Continues in ${item.targetThreadId}`,
+            tone: "muted",
+            icon: GitForkIcon,
+          };
     case "compaction": {
       const tokenSummary =
         item.beforeTokenCount === undefined && item.afterTokenCount === undefined
           ? null
           : `${item.beforeTokenCount ?? "?"} → ${item.afterTokenCount ?? "?"} tokens`;
+      // Studio keeps the agent's bookkeeping (tokens, context) out of the engineer's way.
+      if (isEngineeringInterface()) {
+        return {
+          label:
+            item.status === "failed"
+              ? "Kept the whole conversation"
+              : "Summed up the earlier conversation",
+          detail: null,
+          tone: "muted",
+          icon: MinusIcon,
+        };
+      }
       return {
         label: "Context compacted",
         detail: item.summary ?? tokenSummary,

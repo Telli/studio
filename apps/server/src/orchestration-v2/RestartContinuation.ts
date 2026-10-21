@@ -85,6 +85,23 @@ function restartContinuationBlocked(
  * Resume only an unfinished root turn. Leftover background work is cleaned up
  * separately and reported on the next user turn; it must not wake a settled run.
  */
+
+/**
+ * The work log's line for a restart, in the app's own name: a fork that names itself
+ * (`VITE_APP_BASE_NAME`, as its web and desktop builds read it) says it plainly.
+ */
+function restartSummary(settled: boolean): string {
+  const fork = process.env.VITE_APP_BASE_NAME?.trim();
+  if (!fork) {
+    return settled
+      ? "T3 Code restarted and stopped background work"
+      : "T3 Code restarted and resumed this turn";
+  }
+  return settled
+    ? `${fork} restarted and stopped the work running in the background`
+    : `${fork} restarted and picked up where it left off`;
+}
+
 export function restartContinuationRun(
   projection: Pick<
     ProjectionRuntimeRecoveryState,
@@ -252,9 +269,7 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
         notification: {
           source: { kind: "system" },
           outcome: "updated",
-          summary: note.settled
-            ? "T3 Code restarted and stopped background work"
-            : "T3 Code restarted and resumed this turn",
+          summary: restartSummary(note.settled),
           detail: text,
         },
         attachments: [],

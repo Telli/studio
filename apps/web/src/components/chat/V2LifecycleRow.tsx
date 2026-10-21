@@ -1,3 +1,4 @@
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import { ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { AgentElapsed } from "./AgentElapsed";
 import { projectedSubagentsToRuntime } from "@t3tools/client-runtime/state/subagentRuntime";
@@ -32,6 +33,7 @@ import {
   ArrowRightLeftIcon,
   ArrowRightIcon,
   GitForkIcon,
+  SplitIcon,
   MessageSquareIcon,
   MinusIcon,
   XIcon,
@@ -94,7 +96,9 @@ export function V2LifecycleRow(props: {
     );
   }
   if (item.type === "run_interrupt_result") {
-    return (
+    return isEngineeringInterface() ? (
+      <TimelineSystemDivider label="Stopped" icon={MinusIcon} />
+    ) : (
       <TimelineSystemDivider
         label="Run interrupted"
         detail={item.message}
@@ -116,6 +120,16 @@ export function V2LifecycleRow(props: {
           : item.status === "pending" || item.status === "running" || item.status === "waiting"
             ? "Compacting context"
             : "Context compacted";
+    // Studio keeps the agent's bookkeeping (tokens, context) out of the engineer's way.
+    if (isEngineeringInterface()) {
+      const studioLabel =
+        item.status === "failed" || item.status === "cancelled" || item.status === "interrupted"
+          ? "Kept the whole conversation"
+          : item.status === "pending" || item.status === "running" || item.status === "waiting"
+            ? "Summing up the earlier conversation"
+            : "Summed up the earlier conversation";
+      return <TimelineSystemDivider label={studioLabel} icon={MinusIcon} />;
+    }
     return (
       <TimelineSystemDivider label={label} detail={item.summary ?? tokenDetail} icon={MinusIcon} />
     );
@@ -159,11 +173,28 @@ export function V2LifecycleRow(props: {
   }
   if (item.type === "fork") {
     const relatedThreadId = item.source.type === "run" ? item.source.threadId : item.targetThreadId;
+    const studio = isEngineeringInterface();
     return (
       <TimelineSystemDivider
-        label={item.source.type === "run" ? "Forked from conversation" : "Conversation fork"}
-        icon={GitForkIcon}
-        actionLabel={item.source.type === "run" ? "Open source conversation" : "Open fork"}
+        label={
+          item.source.type === "run"
+            ? studio
+              ? "Another way, tried from an earlier chat"
+              : "Forked from conversation"
+            : studio
+              ? "Tried another way from here"
+              : "Conversation fork"
+        }
+        icon={studio ? SplitIcon : GitForkIcon}
+        actionLabel={
+          item.source.type === "run"
+            ? studio
+              ? "Open the first way"
+              : "Open source conversation"
+            : studio
+              ? "Open the other way"
+              : "Open fork"
+        }
         onAction={() => props.onOpenThread(relatedThreadId)}
       />
     );

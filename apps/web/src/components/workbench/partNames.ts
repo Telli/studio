@@ -156,6 +156,8 @@ const ENDINGS: ReadonlyArray<{
 
 /** Files every project has, named for what they hold. */
 const KNOWN: ReadonlyArray<readonly [RegExp, string, string]> = [
+  // The project's own README is what its Overview reads (`ReadmeOverview`).
+  [/^(?:\.\/)?readme\.md$/i, "Overview", "Document"],
   [/(?:^|\/)project\.json$/i, "Project setup", "Setup"],
   [/(?:^|\/)brief\/project\.md$/i, "Project brief", "Document"],
   [/(?:^|\/)(?:AGENTS|CLAUDE)\.md$/i, "Notes for the agent", "Document"],

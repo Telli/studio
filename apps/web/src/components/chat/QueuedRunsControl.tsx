@@ -1,3 +1,4 @@
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { deriveThreadQueueWorkflowState } from "@t3tools/client-runtime/state/thread-workflows";
 import { replaceComposerContextReferences } from "@t3tools/shared/composerContextReferences";
@@ -464,7 +465,9 @@ export function QueuedRunsControl({
                           </TooltipTrigger>
                           <TooltipPopup>
                             {activeRun === null
-                              ? "There is no active run to steer"
+                              ? isEngineeringInterface()
+                                ? "Nothing is running right now"
+                                : "There is no active run to steer"
                               : `Send as a steer instead${item.serverIndex === 0 && props.steerShortcutLabel ? ` (${props.steerShortcutLabel})` : ""}`}
                           </TooltipPopup>
                         </Tooltip>

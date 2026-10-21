@@ -1,3 +1,4 @@
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import type {
   EnvironmentId,
   OrchestrationV2ProjectedTurnItem,
@@ -416,7 +417,7 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
       {item.type === "fork" ? (
         <Button size="xs" variant="outline" onClick={() => props.onOpenThread(item.targetThreadId)}>
           <GitBranchIcon className="size-3" />
-          Open fork
+          {isEngineeringInterface() ? "Open the other way" : "Open fork"}
         </Button>
       ) : null}
 

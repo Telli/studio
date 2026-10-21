@@ -1,3 +1,4 @@
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import {
   type ProviderApprovalDecision,
   type ProviderApprovalOption,
@@ -29,12 +30,20 @@ const DEFAULT_APPROVAL_OPTIONS = [
   { decision: "accept", label: "Approve" },
 ] satisfies ReadonlyArray<ProviderApprovalOption>;
 
+/** The same choices in Studio's words. */
+const STUDIO_APPROVAL_OPTIONS = [
+  { decision: "cancel", label: "Stop" },
+  { decision: "decline", label: "Don't allow" },
+  { decision: "acceptForSession", label: "Allow in this chat" },
+  { decision: "accept", label: "Allow" },
+] satisfies ReadonlyArray<ProviderApprovalOption>;
+
 export const ComposerPendingApprovalActions = memo(function ComposerPendingApprovalActions({
   requestId,
   isResponding,
   canRespond,
   disabled = false,
-  options = DEFAULT_APPROVAL_OPTIONS,
+  options = isEngineeringInterface() ? STUDIO_APPROVAL_OPTIONS : DEFAULT_APPROVAL_OPTIONS,
   onRespondToApproval,
 }: ComposerPendingApprovalActionsProps) {
   const primaryOptions = options.filter(

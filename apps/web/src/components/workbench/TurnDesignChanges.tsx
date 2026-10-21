@@ -77,6 +77,11 @@ function DesignChanges(props: {
     const path = change.open;
     if (path === null) return null;
     return () => {
+      // The project's README is its Overview: the pinned tab comes to the front, not a copy.
+      if (/^(?:\.\/)?readme\.md$/i.test(path)) {
+        useRightPanelStore.getState().open(threadRef, "files");
+        return;
+      }
       const folder = useOpenWorkspaceStore.getState().workspace?.folder ?? null;
       if (!compares(change) || checkpointRef === null || folder === null) {
         open(path);

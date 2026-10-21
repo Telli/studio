@@ -113,3 +113,21 @@ describe("engineering tool labels", () => {
     expect(engineeringToolLabel(undefined)).toBeNull();
   });
 });
+
+describe("the skills' tools and exports in an engineer's words", () => {
+  it("names a check or an export by what it does, never as building a tool", () => {
+    expect(
+      engineeringStepLabel("python skills/dfam-check/scripts/dfam_tool.py measure parts/clip.stl")
+        .done,
+    ).toBe("Checked the clip for 3D printing");
+    expect(engineeringStepLabel("python scripts/download_step_part.py M3 screw").done).toBe(
+      "Found a standard part",
+    );
+    expect(engineeringStepLabel("cadgen stl build parts/clip.step").done).toBe(
+      "Exported the clip as STL",
+    );
+    expect(engineeringStepLabel("cadgen pcb drc board.kicad_pcb").done).toBe("Checked the board");
+    expect(engineeringStepLabel("python scripts/helpers/fit.py").done).toBe("Worked on the design");
+    expect(engineeringStepLabel("cadgen tidy").done).toBe("Worked on the design");
+  });
+});

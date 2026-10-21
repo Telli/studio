@@ -5539,7 +5539,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       className="shrink-0"
     >
       <CircleAlertIcon className="size-4" />
-      {providerSetupInstanceId ? "Open provider settings" : "No provider available"}
+      {providerSetupInstanceId
+        ? engineeringInterface
+          ? "Open AI agents"
+          : "Open provider settings"
+        : engineeringInterface
+          ? "No AI agent signed in"
+          : "No provider available"}
     </ComposerControl>
   ) : (
     <>
@@ -7612,7 +7618,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     onPaste={onComposerPaste}
                     placeholder={
                       isComposerApprovalState
-                        ? "Resolve this approval request to continue"
+                        ? engineeringInterface
+                          ? "Allow or decline the step above"
+                          : "Resolve this approval request to continue"
                         : activePendingProgress
                           ? isChoiceOnlyPendingQuestion
                             ? "Choose an option above"

@@ -248,15 +248,20 @@ html[data-studio-focus="hardware"]
  * How long a turn worked is the agent's bookkeeping: its fold is a small quiet line, not a divider
  * across the chat. It still opens the steps.
  */
-html[data-studio-focus="hardware"] [data-timeline-root] [data-timeline-row-kind="turn-fold"] > div {
+html[data-studio-focus="hardware"]
+  [data-timeline-root]
+  :is([data-timeline-row-kind="turn-fold"], [data-timeline-row-kind="working"])
+  > div {
   border-bottom-color: transparent;
   padding-block: 0;
 }
+/* The live "Working for…" line is the same small line, so nothing jumps when the turn ends. */
 html[data-studio-focus="hardware"]
   [data-timeline-root]
-  [data-timeline-row-kind="turn-fold"]
-  > div
-  > button {
+  :is(
+    [data-timeline-row-kind="turn-fold"] > div > button,
+    [data-timeline-row-kind="working"] > div > div
+  ) {
   font-size: 0.75rem;
   line-height: 1rem;
 }
