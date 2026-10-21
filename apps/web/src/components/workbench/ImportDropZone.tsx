@@ -10,11 +10,16 @@ const onAttachBox = (target: EventTarget) =>
 
 /**
  * Drop files or a folder anywhere on Studio's Home or Projects to import them: what lands opens
- * Import on the projects it makes (`ImportDialog.tsx`). A box that attaches what is dropped on it
- * (`data-attach-drop`, Home's start box) takes its own drops. Where there is no desktop app,
+ * Import on the projects it makes (`ImportDialog.tsx`); on a project's Overview (`into`), they are
+ * added to that project (`onPaths`, `useImportIntoProject`). A box that attaches what is dropped on
+ * it (`data-attach-drop`, Home's start box) takes its own drops. Where there is no desktop app,
  * nothing here takes a drop.
  */
-export function ImportDropZone(props: { readonly children: ReactNode }) {
+export function ImportDropZone(props: {
+  readonly children: ReactNode;
+  /** The project dropped files go into, named; unset, they open Import's new projects. */
+  readonly into?: { readonly name: string; readonly onPaths: (paths: string[]) => void };
+}) {
   const show = useImportDialogStore((store) => store.show);
   const [dragging, setDragging] = useState<number | null>(null);
   if (readStudioImport() === null) return props.children;
@@ -42,7 +47,9 @@ export function ImportDropZone(props: { readonly children: ReactNode }) {
         const paths = Array.from(event.dataTransfer.files).flatMap(
           (file) => droppedPath(file) ?? [],
         );
-        if (paths.length > 0) show({ kind: "paths", paths });
+        if (paths.length === 0) return;
+        if (props.into === undefined) show({ kind: "paths", paths });
+        else props.into.onPaths(paths);
       }}
     >
       {props.children}
@@ -53,7 +60,13 @@ export function ImportDropZone(props: { readonly children: ReactNode }) {
             className="flex items-center gap-2 rounded-full border border-primary/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"
           >
             <FolderInputIcon className="size-4 text-primary" aria-hidden="true" />
-            {dragging === 1 ? "Drop to import it" : `Drop to import ${dragging} items`}
+            {props.into === undefined
+              ? dragging === 1
+                ? "Drop to import it"
+                : `Drop to import ${dragging} items`
+              : dragging === 1
+                ? `Drop to add it to ${props.into.name}`
+                : `Drop to add ${dragging} items to ${props.into.name}`}
           </div>
         </div>
       )}

@@ -1,5 +1,6 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
+import { DownloadIcon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
@@ -7,7 +8,9 @@ import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh
 import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
+import { Button } from "../ui/button";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
+import { useImportIntoProject } from "./importIntoProject";
 import { leadPartOf } from "./leadPart";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePanelTabShortcuts } from "./panelTabShortcuts";
@@ -102,6 +105,8 @@ export function StudioPanelBar(props: {
         ? null
         : { path: lead.file.path, kind: lead.file.kind };
   const process = studio?.project.brief.process;
+  // Import beside New, as on Home: files brought into this project's folder.
+  const importer = useImportIntoProject(folder, studio?.project.name ?? "the project");
   // The part in front, as the viewer shows it (it may have moved on from the file it opened).
   const inFront =
     frontKind !== "plugin-app"
@@ -160,8 +165,20 @@ export function StudioPanelBar(props: {
           inTopBar
         />
       )}
-      {/* New closes the row, at its right, as it does Home's Your projects (beside Import). */}
+      {/* Import and New close the row, at its right, as they do Home's Your projects. */}
       <div className="flex-1" />
+      {importer === null ? null : (
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label="Import"
+          title="Import files or a folder into the project"
+          onClick={() => void importer.pick()}
+        >
+          <DownloadIcon aria-hidden="true" />
+          <span className="@max-[40rem]/toolbar:hidden">Import</span>
+        </Button>
+      )}
       {props.composerRef === null || folder === null ? null : (
         <StudioNew
           environmentId={threadRef.environmentId}

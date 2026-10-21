@@ -40,6 +40,8 @@ import {
   type ProjectFile,
   type ProjectGroup,
 } from "./projectFiles";
+import { ImportDropZone } from "./ImportDropZone";
+import { useImportIntoProject } from "./importIntoProject";
 import { useEngineeringInterface } from "./studioInterface";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
 import { useWorkspaceMode } from "./workspaceMode";
@@ -432,6 +434,8 @@ export function ProjectPage(props: {
   const isProject = props.projectId !== null;
   const folders = studio?.project.folders ?? [cwd];
   const name = studio?.project.name ?? props.projectName;
+  // Files dropped on the Overview go into the project, as onto a Drive folder.
+  const importer = useImportIntoProject(isProject && plainWords ? cwd : null, name);
   // What it is, as the brief says it: the project's description under its name.
   const purpose = studio?.project.brief.purpose.trim().split("\n")[0]?.trim() ?? "";
   const byHand = useWorkspaceMode(cwd) === "manual";
@@ -529,7 +533,7 @@ export function ProjectPage(props: {
   };
   const openIn = (root: string) => (file: ProjectFile) => openPath(root, file.path);
 
-  return (
+  const page = (
     <div
       className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-gutter-both"
       data-project-page=""
@@ -748,5 +752,12 @@ export function ProjectPage(props: {
         />
       )}
     </div>
+  );
+  return importer === null ? (
+    page
+  ) : (
+    <ImportDropZone into={{ name, onPaths: (paths) => void importer.copy(paths) }}>
+      {page}
+    </ImportDropZone>
   );
 }
