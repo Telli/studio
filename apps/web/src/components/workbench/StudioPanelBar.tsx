@@ -12,6 +12,7 @@ import { leadPartOf } from "./leadPart";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePanelTabShortcuts } from "./panelTabShortcuts";
 import { PartActions } from "./PartActions";
+import { handToChat } from "./NewDialog";
 import { StudioNew } from "./StudioNew";
 import { StudioTour } from "./StudioTour";
 import { partName } from "./partNames";
@@ -134,8 +135,11 @@ export function StudioPanelBar(props: {
         <StudioNew
           environmentId={threadRef.environmentId}
           cwd={folder}
-          threadRef={threadRef}
-          composerRef={props.composerRef}
+          onCreate={(job) => {
+            if (props.composerRef !== null) handToChat(props.composerRef, job.prompt);
+            // The job goes to this chat: the Overview steps back beside it, so the work shows.
+            useRightPanelStore.getState().setMaximized(threadRef, false);
+          }}
         />
       )}
       {byHandShown || inFront !== null ? (

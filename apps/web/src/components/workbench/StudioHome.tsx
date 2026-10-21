@@ -11,24 +11,22 @@ import { useNowMinute } from "~/hooks/useNowMinute";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { usePrimaryEnvironmentId } from "~/state/environments";
-import { pluginEnvironment } from "~/state/plugins";
-import { useEnvironmentQuery } from "~/state/query";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { buildThreadRouteParams } from "~/threadRoutes";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import { SidebarInset } from "../ui/sidebar";
 import { Textarea } from "../ui/textarea";
-import { availableTemplates } from "./newTemplates";
 import type { ListedProject } from "./projectList";
 import { ProjectTile } from "./ProjectTile";
 import { splitStarred, useStarredStore } from "./starredProjects";
 import { ImportDialogHost } from "./ImportDialog";
-import { EXAMPLE_STARTS, PRD_START, SAMPLE_PROJECT } from "./homeExamples";
+import { SAMPLE_PROJECT } from "./homeExamples";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
 import { needsYou } from "./recentActivity";
+import { StudioNew } from "./StudioNew";
 import { StudioTopBar } from "./StudioTopBar";
 import { useImportActions } from "./useImportActions";
 import { useOpenProject } from "./useOpenProject";
@@ -39,9 +37,6 @@ import { type ProjectStart, useStartProject } from "./useStartProject";
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 /** Project tiles, four across on a wide window, as many as fit on a narrow one. */
 const TILE_GRID = "grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4";
-
-/** Blank work Home offers to model by hand, in this order, each while its skill is on. */
-const BLANK_WORK = ["part", "assembly", "board"] as const;
 
 /** Opens the quick find (`StudioQuickFind`): the top bar's search, and Cmd+O on Home. */
 const openFind = () => openCommandPalette();
@@ -67,7 +62,8 @@ function FindButton() {
 
 /**
  * Studio's Home, its one page, the way a CAD tool's welcome starts: describe a new project and
- * Start makes it and its first chat, or start a blank part to model by hand; below, the starred
+ * Start makes it and its first chat, or New (the same New a project's toolbar has) starts one from
+ * a part, a board or a document; below, the starred
  * projects, then every other one, as pictures of their parts, the one opened last first. A project
  * with a chat waiting on the person (a question, an approval) comes first, says so, and opens on
  * that chat; chats otherwise live in their project, down its left. Search finds a project, a part
@@ -201,15 +197,6 @@ function StartProject(props: {
   useEffect(() => {
     if (hash === "start") describe.current?.focus();
   }, [hash]);
-  const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
-    ?.plugins;
-  const blank = useMemo(() => {
-    const available = availableTemplates(
-      new Set((plugins ?? []).flatMap((plugin) => (plugin.enabled ? plugin.skills : []))),
-    );
-    return BLANK_WORK.flatMap((id) => available.filter((template) => template.id === id));
-  }, [plugins]);
-
   // One start at a time: a second press while the project is being made does nothing.
   const run = async (work: ProjectStart) => {
     if (busy) return;
@@ -227,7 +214,17 @@ function StartProject(props: {
 
   return (
     <section aria-label="Start a project" className="flex min-w-0 flex-col gap-3">
-      <h2 className={SECTION_LABEL}>Start a project</h2>
+      {/* Describe it, or New, the same New a project's toolbar has: here it makes the project. */}
+      <div className="flex items-center gap-3">
+        <h2 className={SECTION_LABEL}>Start a project</h2>
+        <div className="flex-1" />
+        <StudioNew
+          environmentId={environmentId}
+          cwd=""
+          newProject
+          onCreate={(job) => void run({ kind: "new", job })}
+        />
+      </div>
       <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-xs/5 focus-within:border-ring">
         <Textarea
           ref={describe}
@@ -307,53 +304,6 @@ function StartProject(props: {
           </Button>
         </div>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-        <span>Try one:</span>
-        {EXAMPLE_STARTS.map((example) => (
-          <Button
-            key={example.label}
-            variant="outline"
-            size="xs"
-            disabled={busy}
-            onClick={() =>
-              void run({ kind: "described", description: example.description, files: [] })
-            }
-          >
-            {example.label}
-          </Button>
-        ))}
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={() => {
-            setDescription(PRD_START);
-            requestAnimationFrame(() => {
-              const box = describe.current;
-              if (box === null) return;
-              box.focus();
-              box.setSelectionRange(PRD_START.length, PRD_START.length);
-            });
-          }}
-        >
-          Start from a PRD
-        </Button>
-      </div>
-      {blank.length === 0 ? null : (
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>Or start a blank one to model by hand:</span>
-          {blank.map((template) => (
-            <Button
-              key={template.id}
-              variant="outline"
-              size="xs"
-              disabled={busy}
-              onClick={() => void run({ kind: "blank", template })}
-            >
-              {template.label}
-            </Button>
-          ))}
-        </div>
-      )}
     </section>
   );
 }

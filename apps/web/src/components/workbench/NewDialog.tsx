@@ -58,6 +58,23 @@ const STARTS: Readonly<Record<Discipline, string>> = {
   Documents: "a document",
 };
 
+/** New's work, as Create hands it on: what to start, its name and units, and the job in words. */
+export interface NewJob {
+  readonly template: NewTemplate;
+  readonly name: string;
+  readonly units: "mm" | "in";
+  /** The job for the agent (`newWorkPrompt`). */
+  readonly prompt: string;
+}
+
+/** Hands New's job to a chat: written into its composer, which sends it once it holds it. */
+export function handToChat(composerRef: ComposerHandleRef, prompt: string): void {
+  const composer = composerRef.current;
+  if (composer === null) return;
+  composer.insertTextAtEnd(prompt, { ensureLeadingBoundary: true });
+  requestAnimationFrame(() => composer.submit());
+}
+
 /** A template's icon: the kind of thing it makes, a drawing's own, or a file of the person's. */
 function templateIcon(template: NewTemplate) {
   if (template.file !== undefined) return FilePlusIcon;
@@ -88,8 +105,8 @@ function Field(props: {
  * them, and the new work's properties (a name, a folder and units, or the
  * part it works from). Documents are templates too: the built-in ones (PRD,
  * requirements, FMEA, design review), and the person's own files
- * (`documentTemplates.ts`), with Add a template. Create writes the job into
- * the composer.
+ * (`documentTemplates.ts`), with Add a template. Create hands the job on
+ * (`onCreate`): into the open chat in a project, into a new project's first chat on Home.
  */
 export function NewDialog(props: {
   readonly open: boolean;
@@ -108,9 +125,10 @@ export function NewDialog(props: {
   readonly initialDiscipline?: Discipline;
   /** The project's parts, for a template that works from one. */
   readonly parts: ReadonlyArray<string>;
-  readonly composerRef: ComposerHandleRef;
-  /** After Create has handed the job to the chat: show the chat, where the work starts. */
-  readonly onCreated?: () => void;
+  /** On Home: Create makes a new project for the work, and the dialog says so. */
+  readonly newProject?: boolean;
+  /** Create: the work to start, for the host to hand to the agent. */
+  readonly onCreate: (job: NewJob) => void;
 }) {
   const id = useId();
   const fileTemplates = props.fileTemplates ?? [];
@@ -154,10 +172,12 @@ export function NewDialog(props: {
   const ready = selected !== null && (needsPart ? part !== null : name.trim() !== "");
 
   const create = () => {
-    const composer = props.composerRef.current;
-    if (selected === null || composer === null) return;
-    composer.insertTextAtEnd(
-      newWorkPrompt({
+    if (selected === null) return;
+    props.onCreate({
+      template: selected,
+      name,
+      units,
+      prompt: newWorkPrompt({
         template: selected,
         name,
         folder,
@@ -168,12 +188,8 @@ export function NewDialog(props: {
           ? {}
           : { templateLink: serializeComposerFileLink(selected.file) }),
       }),
-      { ensureLeadingBoundary: true },
-    );
+    });
     props.onOpenChange(false);
-    props.onCreated?.();
-    // Create starts the work: the composer sends once it holds the job.
-    requestAnimationFrame(() => composer.submit());
   };
 
   return (
@@ -182,7 +198,10 @@ export function NewDialog(props: {
         <DialogHeader>
           <DialogTitle>New</DialogTitle>
           <DialogDescription>
-            {starts.length === 0 ? "" : `Start ${startLine}. `}Create hands it to the agent.
+            {starts.length === 0
+              ? ""
+              : `Start ${startLine}${props.newProject ? " in a new project" : ""}. `}
+            Create hands it to the agent.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>

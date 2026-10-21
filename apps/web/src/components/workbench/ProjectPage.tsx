@@ -24,7 +24,7 @@ import { Input } from "../ui/input";
 import { AddFolderMenu } from "./AddFolderMenu";
 import { EMPTY_BRIEF } from "./briefFolder";
 import { useDocumentTemplates } from "./documentTemplates";
-import { NewDialog, useNewDialogStore } from "./NewDialog";
+import { NewDialog, handToChat, useNewDialogStore } from "./NewDialog";
 import { availableTemplates, type Discipline } from "./newTemplates";
 import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
@@ -734,9 +734,11 @@ export function ProjectPage(props: {
           {...(newDiscipline === undefined ? {} : { initialDiscipline: newDiscipline })}
           initialTemplateId={null}
           parts={parts}
-          composerRef={composerRef}
-          // The job goes to this chat: the Overview steps back beside it, so the work shows.
-          onCreated={() => useRightPanelStore.getState().setMaximized(threadRef, false)}
+          onCreate={(job) => {
+            handToChat(composerRef, job.prompt);
+            // The job goes to this chat: the Overview steps back beside it, so the work shows.
+            useRightPanelStore.getState().setMaximized(threadRef, false);
+          }}
         />
       )}
     </div>

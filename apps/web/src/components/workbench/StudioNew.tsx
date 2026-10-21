@@ -1,27 +1,28 @@
-import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
+import type { EnvironmentId } from "@t3tools/contracts";
 import { PlusIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import type { ComposerHandleRef } from "~/composerHandleContext";
-import { useRightPanelStore } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
 import { useDocumentTemplates } from "./documentTemplates";
-import { NewDialog, useNewDialogStore } from "./NewDialog";
+import { NewDialog, type NewJob, useNewDialogStore } from "./NewDialog";
 import { availableTemplates } from "./newTemplates";
 
 /**
- * New, first in the panel's toolbar and always there in the engineering interface, as Google
- * Drive's New is: a part, an assembly, a board, a harness or a document (`NewDialog`), written for
- * the agent into this chat, which comes into view to show the work start. It also opens when asked
- * from elsewhere (`useNewDialogStore`: the Document menu's From a template).
+ * New, as Google Drive's New is: a part, an assembly, a board, a harness or a document
+ * (`NewDialog`). The same button and dialog in both places it is: first in a project's panel
+ * toolbar, where Create hands the job to the open chat, and on Home, where it starts a new project
+ * with the job as its first message. It also opens when asked from elsewhere
+ * (`useNewDialogStore`: the Document menu's From a template).
  */
 export function StudioNew(props: {
   readonly environmentId: EnvironmentId;
+  /** The open project's folder; empty on Home. */
   readonly cwd: string;
-  readonly threadRef: ScopedThreadRef;
-  readonly composerRef: ComposerHandleRef;
+  /** On Home: Create makes a new project. */
+  readonly newProject?: boolean;
+  readonly onCreate: (job: NewJob) => void;
 }) {
   const { environmentId } = props;
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
@@ -66,8 +67,8 @@ export function StudioNew(props: {
           {...(discipline === null ? {} : { initialDiscipline: discipline })}
           initialTemplateId={null}
           parts={[]}
-          composerRef={props.composerRef}
-          onCreated={() => useRightPanelStore.getState().setMaximized(props.threadRef, false)}
+          {...(props.newProject ? { newProject: true } : {})}
+          onCreate={props.onCreate}
         />
       ) : null}
     </>

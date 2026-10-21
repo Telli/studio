@@ -1,35 +1,13 @@
 /**
- * Home's ways in for someone new (`StudioHome`): a few projects to start with one press, each a
- * description the agent starts from as if typed; a PRD-first start, which leaves the box to finish
- * the sentence; and a sample project, which the agent builds in front of them so each part of
- * Studio has something in it: a part, its strength check, its drawing and its PRD.
+ * Home's way in for someone new (`StudioHome`): a sample project, which the agent builds in front
+ * of them so each part of Studio has something in it: a part, its strength check, its drawing and
+ * its PRD. Everything else starts from the box or from New, as in a project.
  */
 
 export interface ExampleStart {
   readonly label: string;
   readonly description: string;
 }
-
-export const EXAMPLE_STARTS: ReadonlyArray<ExampleStart> = [
-  {
-    label: "A wall bracket for a 2 kg shelf",
-    description:
-      "A wall bracket that holds a 2 kg shelf, screwed into a stud wall, 3D printed in PETG.",
-  },
-  {
-    label: "An enclosure for an Arduino Uno",
-    description:
-      "A snap-fit enclosure for an Arduino Uno, with openings for its USB and power jacks, 3D printed.",
-  },
-  {
-    label: "A phone stand",
-    description:
-      "A desk stand that holds a phone at 60 degrees, upright or sideways, cut from 3 mm acrylic.",
-  },
-];
-
-/** The box's words for a PRD-first start; the person finishes the sentence. */
-export const PRD_START = "Start with a PRD (product requirements document) for ";
 
 export const SAMPLE_PROJECT: ExampleStart = {
   label: "Try a sample project",
