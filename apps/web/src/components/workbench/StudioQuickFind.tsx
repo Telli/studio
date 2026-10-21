@@ -32,7 +32,7 @@ import { useOpenedThreads } from "./openedThreads";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLabel } from "./partNames";
 import { ProjectThumb, projectStanding } from "./ProjectChoices";
-import { classifyProjectFile, type ProjectGroup } from "./projectFiles";
+import { classifyProjectFile, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import type { ListedProject } from "./projectList";
 import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
 import { homeRecent } from "./recentActivity";
@@ -43,6 +43,7 @@ import { showChat } from "./overviewPanel";
 import { openInPanel } from "./useOpenInWorkbench";
 import { useOpenProject } from "./useOpenProject";
 import { useTourStore } from "./tourSteps";
+import { usePictures } from "./usePictures";
 import { useProjectList } from "./useProjectList";
 import { chatLabel } from "./workspaceTitle";
 
@@ -55,6 +56,32 @@ const SHOWN_TYPED = 8;
 function KindIcon(props: { readonly group: ProjectGroup | "Chats" }) {
   const Icon = props.group === "Chats" ? CHAT_ICON : KIND_ICONS[props.group];
   return <Icon className={cn("size-4 shrink-0", KIND_TINTS[props.group])} />;
+}
+
+/**
+ * A part's picture, small, as the Overview pictures it (`usePictures`, from the same cache), in
+ * the box a project's picture has in this list; its kind's icon there until it has one.
+ */
+function PartThumb(props: {
+  readonly environmentId: EnvironmentId;
+  readonly root: string;
+  readonly file: ProjectFile;
+}) {
+  const path = props.file.picture ?? props.file.path;
+  const picture = usePictures({
+    environmentId: props.environmentId,
+    cwd: props.root,
+    paths: [path],
+  }).get(path);
+  return (
+    <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
+      {picture === undefined ? (
+        <KindIcon group={props.file.group} />
+      ) : (
+        <img src={picture} alt="" className="size-full object-cover" />
+      )}
+    </span>
+  );
 }
 
 /** A job's row: the icon of its menu, which is the icon of what it makes. */
@@ -208,7 +235,7 @@ function QuickFindBody(props: {
     label: typed || current === null ? "Parts" : `Parts in ${current.project.name}`,
     rows: shownParts.map((found) => ({
       value: `part:${found.root}\n${found.file.path}`,
-      icon: <KindIcon group={found.file.group} />,
+      icon: <PartThumb environmentId={environmentId} root={found.root} file={found.file} />,
       title: found.file.title,
       description:
         !typed || inHere(found)
