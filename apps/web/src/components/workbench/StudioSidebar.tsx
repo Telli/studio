@@ -8,7 +8,6 @@ import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { isElectron } from "~/env";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useNowMinute } from "~/hooks/useNowMinute";
-import { cn } from "~/lib/utils";
 import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 import { useProject, useThreadShell } from "~/state/entities";
 import { usePrimaryEnvironmentId } from "~/state/environments";
@@ -22,14 +21,13 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "../ui/sidebar";
-import { chatStanding } from "./chatStanding";
+import { ChatRows } from "./ChatRows";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { showChat, showOverview } from "./overviewPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { useProjectHeading } from "./StudioWorkspaceBar";
 import { useRememberOpened } from "./useOpenProject";
 import { useProjectChats } from "./useProjectChats";
-import { chatLabel } from "./workspaceTitle";
 
 const headingClass = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 
@@ -130,36 +128,18 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
           No chats yet. This one is the first.
         </p>
       ) : (
-        <SidebarMenu>
-          {chats.map((chat) => {
-            const current = chat.id === threadRef?.threadId;
-            const state = chatStanding(chat);
-            return (
-              <SidebarMenuItem key={chat.id}>
-                <SidebarMenuButton
-                  isActive={current}
-                  aria-current={current ? "page" : undefined}
-                  onClick={() => {
-                    done();
-                    // The chat picked shows, the open one too, beside its panel (`showChat`).
-                    const ref = scopeThreadRef(chat.environmentId, chat.id);
-                    showChat(ref);
-                    if (current) return;
-                    void navigate({
-                      to: "/$environmentId/$threadId",
-                      params: buildThreadRouteParams(ref),
-                    });
-                  }}
-                >
-                  <span className="min-w-0 flex-1 truncate">{chatLabel(chat.title)}</span>
-                  <span className={cn("shrink-0 text-2xs font-normal tabular-nums", state.tone)}>
-                    {state.text}
-                  </span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            );
-          })}
-        </SidebarMenu>
+        <ChatRows
+          chats={chats}
+          currentId={threadRef?.threadId ?? null}
+          onOpen={(chat, current) => {
+            done();
+            // The chat picked shows, the open one too, beside its panel (`showChat`).
+            const ref = scopeThreadRef(chat.environmentId, chat.id);
+            showChat(ref);
+            if (current) return;
+            void navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
+          }}
+        />
       )}
     </SidebarGroup>
   );
