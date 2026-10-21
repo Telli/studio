@@ -3,19 +3,16 @@ import { ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { cn } from "~/lib/utils";
+import { Button } from "../ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
-import {
-  PROJECT_CONTROL_CLASS,
-  PROJECT_ROW_CLASS,
-  ProjectChoices,
-  ProjectThumb,
-} from "./ProjectChoices";
+import { PROJECT_ROW_CLASS, ProjectChoices, ProjectThumb } from "./ProjectChoices";
 import type { ListedProject } from "./projectList";
 
 /**
  * Where Home's box sends what is typed: a new project, as it starts, or a chat in a project of
- * yours, chosen the way the project switcher chooses one (`ProjectChoices`): the same control,
- * pictures and list, with New project at its head.
+ * yours. In the box it is one quiet line, as Attach beside it is (the project's picture or a +,
+ * its name, the switcher's chevrons); its list is the project switcher's own (`ProjectChoices`),
+ * with New project at its head.
  */
 export function ProjectPicker(props: {
   readonly environmentId: EnvironmentId;
@@ -44,32 +41,22 @@ export function ProjectPicker(props: {
     >
       <PopoverTrigger
         render={
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             aria-label={`Project: ${chosen === null ? "a new project" : chosen.project.name}. Choose another`}
-            className={cn(PROJECT_CONTROL_CLASS, "h-9")}
           />
         }
       >
         {chosen === null ? (
-          <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-dashed border-border">
-            <PlusIcon className="size-3.5 text-muted-foreground" aria-hidden="true" />
-          </span>
+          <PlusIcon aria-hidden="true" />
         ) : (
-          <ProjectThumb environmentId={environmentId} project={chosen.project} size="sm" />
+          <ProjectThumb environmentId={environmentId} project={chosen.project} size="xs" />
         )}
-        <span className="flex min-w-0 flex-col">
-          <span className="text-3xs leading-3 font-medium tracking-wider text-muted-foreground uppercase">
-            Project
-          </span>
-          <span className="max-w-48 truncate text-sm leading-4 font-semibold text-foreground">
-            {chosen === null ? "New project" : chosen.project.name}
-          </span>
+        <span className="max-w-48 truncate">
+          {chosen === null ? "New project" : chosen.project.name}
         </span>
-        <ChevronsUpDownIcon
-          className="ms-0.5 size-3.5 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
+        <ChevronsUpDownIcon className="text-muted-foreground" aria-hidden="true" />
       </PopoverTrigger>
       <PopoverPopup width="md" padding="compact" align="start" initialFocus={input}>
         <button

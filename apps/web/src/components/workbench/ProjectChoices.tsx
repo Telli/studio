@@ -43,7 +43,7 @@ export function whenTouched(card: ListedProject): string {
 export function ProjectThumb(props: {
   readonly environmentId: EnvironmentId;
   readonly project: StudioProject | null;
-  readonly size?: "sm" | "md";
+  readonly size?: "xs" | "sm" | "md";
 }) {
   const picture = useProjectCover(props.environmentId, props.project);
   const kind = props.project?.template === "board" ? "Electronics" : "CAD";
@@ -52,7 +52,7 @@ export function ProjectThumb(props: {
     <span
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50",
-        props.size === "sm" ? "size-6" : "size-8",
+        props.size === "xs" ? "size-4 rounded-sm" : props.size === "sm" ? "size-6" : "size-8",
       )}
     >
       {picture ? (
