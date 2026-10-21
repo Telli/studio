@@ -1,0 +1,182 @@
+import { useAtomValue } from "@effect/atom-react";
+import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
+import { ChevronLeftIcon, FolderOpenIcon, ScrollTextIcon } from "lucide-react";
+import { useMemo, useState } from "react";
+
+import { pluginEnvironment } from "~/state/plugins";
+import { useEnvironmentQuery } from "~/state/query";
+import { serverEnvironment } from "~/state/server";
+import { shellEnvironment } from "~/state/shell";
+import { useAtomCommand } from "~/state/use-atom-command";
+import ReadOnlySourcePreview from "../files/ReadOnlySourcePreview";
+import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
+import { aboutFile, isPlainText } from "./aboutFile";
+import { CHECK_STATUS } from "./CheckBadge";
+import { type CheckResult, parseCheckResult } from "./checkResults";
+import { FileKindIcon } from "./FileKindIcon";
+import { partLabel } from "./partNames";
+import { openInPanel } from "./useOpenInWorkbench";
+
+/** A check's result as a report: how it went, in a line, then what to fix and what to look at. */
+function CheckReport(props: { readonly result: CheckResult; readonly onOpenModel: () => void }) {
+  const { result } = props;
+  const { variant, word, Icon } = CHECK_STATUS[result.status];
+  return (
+    <section
+      aria-label="Result"
+      className="flex flex-col gap-3 rounded-lg border border-border p-4"
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={variant}>
+          <Icon aria-hidden="true" />
+          {result.check} {word}
+        </Badge>
+        <span className="text-sm text-muted-foreground">{partLabel(result.part)}</span>
+      </div>
+      <p className="text-sm text-foreground">{result.headline}</p>
+      {result.issues.length === 0 ? null : (
+        <ul className="flex flex-col gap-2 border-t border-border pt-3">
+          {result.issues.map((issue, index) => {
+            const Mark = CHECK_STATUS[issue.severity === "error" ? "fix" : "warnings"].Icon;
+            return (
+              <li key={`${index}:${issue.summary}`} className="flex gap-2 text-sm">
+                <Mark
+                  aria-hidden="true"
+                  className={
+                    issue.severity === "error"
+                      ? "mt-0.5 size-4 shrink-0 text-destructive"
+                      : "mt-0.5 size-4 shrink-0 text-warning-foreground"
+                  }
+                />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-foreground">{issue.summary}</span>
+                  {issue.fix === null ? null : (
+                    <span className="text-muted-foreground">Fix: {issue.fix}</span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div>
+        <Button size="sm" variant="outline" onClick={props.onOpenModel}>
+          Show it on the part
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * A file with no viewer of its own, as the engineering interface shows it in place of a code
+ * editor or a "binary file" error: what it is in an engineer's words (`aboutFile`), where it is,
+ * Show in Finder to open it in its own app, and its text one press away, read only, so a machine
+ * file is never edited by accident. A check's result reads as a report (`parseCheckResult`), and
+ * plain text reads as a document.
+ */
+export function StudioFilePage(props: {
+  readonly environmentId: EnvironmentId;
+  readonly threadRef: ScopedThreadRef;
+  readonly relativePath: string;
+  /** The file on the server's disk, for Show in Finder; null when it has none. */
+  readonly absolutePath: string | null;
+  /** Its text; null for a file with none to show (a spreadsheet, a zip). */
+  readonly text: string | null;
+  /** Why it could not be read, when that is not just that it has no text. */
+  readonly problem: string | null;
+}) {
+  const { environmentId, relativePath, text } = props;
+  const [showText, setShowText] = useState(false);
+  const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
+  const openInEditor = useAtomCommand(shellEnvironment.openInEditor, { reportFailure: true });
+  const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
+    ?.plugins;
+  const result = useMemo(
+    () => (text === null ? null : parseCheckResult(relativePath, text)),
+    [relativePath, text],
+  );
+  const name = relativePath.replaceAll("\\", "/").split("/").at(-1) ?? relativePath;
+  const folder = relativePath.replaceAll("\\", "/").split("/").slice(0, -1).join("/");
+  const canReveal =
+    props.absolutePath !== null && serverConfig?.availableEditors.includes("file-manager") === true;
+
+  if (showText && text !== null) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-2">
+          <Button variant="ghost" size="xs" onClick={() => setShowText(false)}>
+            <ChevronLeftIcon />
+            {partLabel(name)}
+          </Button>
+          <span className="truncate text-xs text-muted-foreground">
+            Read only. Ask in the chat to change it.
+          </span>
+        </div>
+        <ReadOnlySourcePreview name={relativePath} text={text} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-8 py-8">
+        <header className="flex items-start gap-4">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-muted">
+            <FileKindIcon path={relativePath} className="size-6" />
+          </span>
+          <span className="flex min-w-0 flex-col gap-1">
+            <h1 className="text-lg font-semibold text-balance text-foreground">
+              {result === null ? partLabel(name) : `${result.check} of ${partLabel(result.part)}`}
+            </h1>
+            <span className="text-sm text-muted-foreground">
+              {result === null ? aboutFile(relativePath) : "A check's result."}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {name}
+              {folder === "" ? "" : `, in ${folder}`}
+            </span>
+          </span>
+        </header>
+        {props.problem === null ? null : (
+          <p className="text-sm text-muted-foreground">{props.problem}</p>
+        )}
+        {result === null ? null : (
+          <CheckReport
+            result={result}
+            onOpenModel={() => openInPanel(plugins, props.threadRef, result.model)}
+          />
+        )}
+        {text !== null && result === null && isPlainText(relativePath) ? (
+          <article className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+            {text}
+          </article>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {canReveal ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                void openInEditor({
+                  environmentId,
+                  input: { cwd: props.absolutePath ?? "", editor: "file-manager" },
+                })
+              }
+            >
+              <FolderOpenIcon />
+              Show in Finder
+            </Button>
+          ) : null}
+          {text !== null && !isPlainText(relativePath) ? (
+            <Button variant="ghost" size="sm" onClick={() => setShowText(true)}>
+              <ScrollTextIcon />
+              Show the text
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}

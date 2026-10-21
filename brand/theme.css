@@ -350,3 +350,16 @@ html[data-studio-focus="hardware"] [data-document-editable] [data-src-plain][con
   outline-offset: 2px;
   background: transparent;
 }
+/*
+ * A file name, a part number or a value set as `code` in a document's words reads as words,
+ * faintly tinted, not as a chip of code. A fenced block is code, and keeps its frame.
+ */
+html[data-studio-focus="hardware"] [data-document] :not(pre) > code {
+  border: 0;
+  border-radius: 0.25rem;
+  background: color-mix(in oklab, var(--muted) 80%, transparent);
+  padding: 0 0.2rem;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}

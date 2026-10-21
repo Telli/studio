@@ -4,7 +4,6 @@ import { DESKTOP_PASTE_AS_TEXT_EVENT } from "../../lib/desktopPasteAsText";
 import { runtimeModeConfig, runtimeModeOptions as runtimeModes } from "./runtimeModeConfig";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { usePrimaryEnvironmentId } from "../../state/environments";
-import { useRightPanelStore } from "~/rightPanelStore";
 import { AttachmentFilePreview } from "../files/AttachmentFilePreview";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import { filterComposerPullRequestMatches } from "@t3tools/shared/composerPullRequestMatches";
@@ -1148,6 +1147,7 @@ import {
   useEngineeringInterface,
 } from "../workbench/studioInterface";
 import { partLabel } from "../workbench/partNames";
+import { useOpenChatFile } from "../workbench/useOpenInWorkbench";
 import { ENGINEERING_RUNTIME_MODES } from "../workbench/engineeringTraits";
 
 const WORKSPACE_SNAPSHOT_RETRY_COOLDOWN_MS = 10_000;
@@ -1931,6 +1931,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const nonPersistedComposerImageIds = attachmentDraft.nonPersistedImageIds;
   const uploadsByImageId = useAttachmentUploadStore((state) => state.uploadsByImageId);
   const openPrLink = useOpenPrLink(routeThreadRef);
+  // A mentioned part opens in the view that claims it (a STEP in the CAD view), as chat links do.
+  const openChatFile = useOpenChatFile(routeThreadRef);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const previewFile = composerFiles.find((file) => file.id === previewFileId);
   const composerContextActions = useMemo(
@@ -1942,7 +1944,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         if (preview) onExpandImage(preview);
       },
       openFile: setPreviewFileId,
-      openMention: (path: string) => useRightPanelStore.getState().openFile(routeThreadRef, path),
+      openMention: (path: string) => openChatFile(path),
       expandVideo: (fileId: string) => {
         const file = composerFiles.find((candidate) => candidate.id === fileId);
         if (!file || !isVideoAttachment(file)) return;
@@ -1967,15 +1969,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         openPrLink(event, url);
       },
     }),
-    [
-      composerFiles,
-      composerImages,
-      gitCwd,
-      environmentId,
-      onExpandImage,
-      openPrLink,
-      routeThreadRef,
-    ],
+    [composerFiles, composerImages, gitCwd, environmentId, onExpandImage, openChatFile, openPrLink],
   );
   const composerContextRecords = useMemo(
     () =>

@@ -103,6 +103,7 @@ import {
 } from "./fileSurfaceChrome";
 import SourceFilePreview from "./ReadOnlySourcePreview";
 import { StudioDocumentSurface } from "../workbench/StudioDocumentSurface";
+import { StudioFilePage } from "../workbench/StudioFilePage";
 import { resolveCenteredFileLineScrollTop } from "./fileLineReveal";
 import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { projectFileCacheKey } from "./fileContentRevision";
@@ -1156,8 +1157,11 @@ export default function FilePreviewPanel({
     (handledReveal?.path === relativePath && handledReveal.requestId === revealRequestId);
   // A document stays rendered with the engineering surfaces on, even when a link names a line.
   const renderMarkdown = isMarkdown && renderMarkdownPreferred && (revealHandled || engineering);
-  const renderBrowserFile = isPdf || (isHtml && renderBrowserFilePreferred && revealHandled);
-  const renderTable = tableDelimiter !== null && renderTablePreferred && revealHandled;
+  // Studio shows a page as a page and a parts list as a table, always: there is no source mode.
+  const renderBrowserFile =
+    isPdf || (isHtml && (documentsOnly || (renderBrowserFilePreferred && revealHandled)));
+  const renderTable =
+    tableDelimiter !== null && (documentsOnly || (renderTablePreferred && revealHandled));
   const renderedMode = isMarkdown
     ? ("markdown" as const)
     : tableDelimiter
@@ -1277,8 +1281,8 @@ export default function FilePreviewPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      {/* Studio's documents head themselves (their title block); their file row stays away. */}
-      {relativePath && attachment === undefined && !(documentsOnly && isMarkdown) ? (
+      {/* Studio's files head themselves (a document's title block, a file's page); no code row. */}
+      {relativePath && attachment === undefined && !documentsOnly ? (
         <div className={FILE_SURFACE_SUBHEADER_CLASS} data-surface-subheader>
           <ScrollArea
             radius="none"
@@ -1426,6 +1430,19 @@ export default function FilePreviewPanel({
               title={relativePath}
               workspaceMutationId={workspaceMutationId}
             />
+          ) : relativePath && file.error && file.data === null && documentsOnly ? (
+            <StudioFilePage
+              environmentId={environmentId}
+              threadRef={threadRef}
+              relativePath={relativePath}
+              absolutePath={absolutePath}
+              text={null}
+              problem={
+                file.readError?.failure === "binary_file"
+                  ? null
+                  : "Studio can't read this file. It may have been moved or deleted."
+              }
+            />
           ) : relativePath && file.error && file.data === null ? (
             <div
               role="alert"
@@ -1491,6 +1508,16 @@ export default function FilePreviewPanel({
                 name={relativePath}
                 text={file.data.contents}
                 delimiter={tableDelimiter}
+              />
+            ) : documentsOnly ? (
+              <StudioFilePage
+                key={relativePath}
+                environmentId={environmentId}
+                threadRef={threadRef}
+                relativePath={relativePath}
+                absolutePath={absolutePath}
+                text={file.data.contents}
+                problem={null}
               />
             ) : file.data.truncated || isHostFile || !canWriteFiles ? (
               <SourceFilePreview
