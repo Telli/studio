@@ -81,6 +81,8 @@ export function PartActions(props: {
         return (
           <Menu key={menu.group}>
             <MenuTrigger
+              aria-label={menu.group}
+              title={menu.group}
               render={
                 props.inTopBar ? (
                   <Button variant="ghost" size="sm" />
@@ -90,7 +92,10 @@ export function PartActions(props: {
               }
             >
               <Icon aria-hidden="true" />
-              {menu.group}
+              {/* On a narrow panel the toolbar shows each menu as its icon, nothing cut off. */}
+              <span className={props.inTopBar ? "@max-[40rem]/toolbar:hidden" : undefined}>
+                {menu.group}
+              </span>
               <ChevronDownIcon className="size-3 opacity-60" aria-hidden="true" />
             </MenuTrigger>
             <MenuPopup

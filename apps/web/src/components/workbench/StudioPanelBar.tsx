@@ -131,7 +131,11 @@ export function StudioPanelBar(props: {
   }, [folder, process, setWorkspace, subjectKind, subjectPath, threadRef]);
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2" data-studio-toolbar="">
+    // A container, so a narrow panel shows the menus as their icons (`PartActions`).
+    <div
+      className="@container/toolbar flex min-w-0 flex-1 items-center gap-2"
+      data-studio-toolbar=""
+    >
       <StudioTour />
       {byHandShown ? (
         <ToggleGroup
