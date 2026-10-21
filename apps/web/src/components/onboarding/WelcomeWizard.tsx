@@ -548,6 +548,7 @@ function PairingForm({
   readonly onPaired: (environmentId: EnvironmentId) => void;
 }) {
   const connectPairingEnvironment = useAtomCommand(connectPairing, { reportFailure: false });
+  const studio = useEngineeringInterface();
   const [pairingUrl, setPairingUrl] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const mountedRef = useRef(true);
@@ -621,27 +622,34 @@ function PairingForm({
         ) : null}
         <Collapsible>
           <div className="flex items-center justify-between gap-3">
-            <CollapsibleTrigger
-              type="button"
-              className="group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <ChevronRightIcon className="size-3.5 group-data-panel-open:rotate-90" />
-              Need a pairing link?
-            </CollapsibleTrigger>
+            {/* The help runs T3's `npx t3` commands, which Studio has no counterpart for. */}
+            {studio ? (
+              <span />
+            ) : (
+              <CollapsibleTrigger
+                type="button"
+                className="group flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <ChevronRightIcon className="size-3.5 group-data-panel-open:rotate-90" />
+                Need a pairing link?
+              </CollapsibleTrigger>
+            )}
             <Button type="submit" disabled={isPairing || pairingUrl.trim().length === 0}>
               {isPairing ? "Pairing..." : "Pair"}
             </Button>
           </div>
-          <CollapsiblePanel>
-            <p className="pt-3 text-sm text-muted-foreground">
-              Run this on the computer with your code.
-            </p>
-            <CommandBlock command="npx t3 pair" className="mt-2" />
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              Start T3 Code first, or run <code className="font-mono">npx t3 serve</code>. Add{" "}
-              <code className="font-mono">--tailscale</code> to use your tailnet.
-            </p>
-          </CollapsiblePanel>
+          {studio ? null : (
+            <CollapsiblePanel>
+              <p className="pt-3 text-sm text-muted-foreground">
+                Run this on the computer with your code.
+              </p>
+              <CommandBlock command="npx t3 pair" className="mt-2" />
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                Start T3 Code first, or run <code className="font-mono">npx t3 serve</code>. Add{" "}
+                <code className="font-mono">--tailscale</code> to use your tailnet.
+              </p>
+            </CollapsiblePanel>
+          )}
         </Collapsible>
       </form>
     </>

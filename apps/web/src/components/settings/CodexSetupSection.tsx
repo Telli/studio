@@ -18,6 +18,7 @@ import { isLoopbackHost } from "@t3tools/shared/preview";
 import { CheckIcon, ChevronRightIcon, ExternalLinkIcon } from "lucide-react";
 import { Children, useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
+import { APP_BASE_NAME } from "../../branding";
 import { ensureLocalApi } from "../../localApi";
 import {
   useEnvironmentHttpBaseUrl,
@@ -37,6 +38,7 @@ import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SettingsRow } from "./settingsLayout";
 import { AddCodexAccountDialog } from "./AddCodexAccountDialog";
 import { getOnboardingProviderState } from "../../onboarding/providerReadiness.logic";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import { getProviderSummary } from "./providerStatus";
 
 const noop = () => undefined;
@@ -64,6 +66,7 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
   const existingAuthenticated = props.provider?.auth.status === "authenticated";
   const existingChecking = existingState === "checking";
   const existingSummary = getProviderSummary(props.provider);
+  const engineering = useEngineeringInterface();
   const content =
     props.mode === "existing" && props.presentation === "onboarding" ? (
       <CodexWelcomeCard
@@ -82,13 +85,21 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
                 />
                 .
               </>
+            ) : engineering ? (
+              "Connected to Codex."
             ) : (
               "Connected with your Codex CLI."
             )
           ) : existingChecking ? (
-            "Checking your Codex CLI..."
+            engineering ? (
+              "Checking Codex..."
+            ) : (
+              "Checking your Codex CLI..."
+            )
           ) : props.provider?.installed ? (
             existingSummary.headline
+          ) : engineering ? (
+            "Use your ChatGPT subscription."
           ) : (
             "Code with your ChatGPT subscription."
           )
@@ -117,7 +128,8 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
           )
         }
         secondaryControl={
-          !existingAuthenticated && !existingReady && !existingChecking ? (
+          // An engineer signs in with ChatGPT; a command-line Codex is a coding setup.
+          !existingAuthenticated && !existingReady && !existingChecking && !engineering ? (
             <Button size="sm" variant="ghost-muted" onClick={() => props.onModeChange("existing")}>
               Use existing CLI
             </Button>
@@ -213,6 +225,7 @@ function ManagedCodexSetup({
   readonly onAutoStartConsumed: () => void;
   readonly allowExistingCli?: boolean;
 }) {
+  const engineering = useEngineeringInterface();
   const target = { environmentId, input: { instanceId } };
   const authQuery = useEnvironmentQuery(serverEnvironment.providerAuthState(target));
   const installQuery = useEnvironmentQuery(serverEnvironment.providerInstallState(target));
@@ -655,7 +668,11 @@ function ManagedCodexSetup({
   const callbackCompletion =
     !handoff && auth?.phase === "waiting" && url ? (
       <div className="flex w-full flex-col gap-3 text-xs leading-relaxed text-muted-foreground">
-        <p>If sign-in doesn't return to T3 Code, paste the URL from the final localhost page.</p>
+        <p>
+          {engineering
+            ? `If sign-in doesn't come back to ${APP_BASE_NAME}, paste the address of the last page your browser opened.`
+            : `If sign-in doesn't return to ${APP_BASE_NAME}, paste the URL from the final localhost page.`}
+        </p>
         <form
           className="flex flex-col gap-2 sm:flex-row sm:items-center"
           onSubmit={(event) => {
@@ -711,7 +728,7 @@ function ManagedCodexSetup({
           <details>
             <summary className="cursor-pointer">Other ways to connect</summary>
             <Button className="mt-2" size="sm" variant="outline" render={<a href={handoffUrl} />}>
-              Use T3 desktop for automatic return
+              Use {APP_BASE_NAME} desktop for automatic return
             </Button>
           </details>
         ) : null}
@@ -803,6 +820,8 @@ function ManagedCodexSetup({
               <CodexSignInDescription />
             ) : authActive || auth?.phase === "failed" || auth?.phase === "cancelled" ? (
               accountDescription
+            ) : engineering ? (
+              "Use your ChatGPT subscription."
             ) : (
               "Code with your ChatGPT subscription."
             )
@@ -866,7 +885,7 @@ function ManagedCodexSetup({
               >
                 Use a different account
               </Button>
-            ) : !authActive && !authenticated && allowExistingCli ? (
+            ) : !authActive && !authenticated && allowExistingCli && !engineering ? (
               <Button
                 size="sm"
                 variant="ghost-muted"
@@ -1028,11 +1047,12 @@ export function CodexManagedRuntimeFields({
     }),
   );
   const executablePath = installation.data?.executablePath ?? "";
+  const engineering = useEngineeringInterface();
   return (
     <>
       <SettingsRow
-        title="Binary path"
-        description="Selected by T3 Code."
+        title={engineering ? "Installed at" : "Binary path"}
+        description={engineering ? `Set by ${APP_BASE_NAME}.` : `Selected by ${APP_BASE_NAME}.`}
         control={
           <div className="w-full sm:w-80">
             <Input

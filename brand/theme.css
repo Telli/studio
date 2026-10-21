@@ -193,7 +193,8 @@ html[data-studio-focus="hardware"]
     [data-thread-details-card] [aria-label="Project actions"],
     [data-thread-details-card] [aria-label="Add project script"],
     [data-thread-details-card] [data-thread-panel-run-context],
-    [data-thread-terminal-drawer],
+    /* Not the setup wizard's: installing or signing in to an agent runs in a terminal there. */
+    [data-thread-terminal-drawer]:not([data-slot="dialog-popup"] *),
     [data-sidebar-branch],
     [data-pull-request-badge],
     [data-testid^="thread-worktree-"],

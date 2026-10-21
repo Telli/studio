@@ -1,5 +1,6 @@
 import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import {
+  engineeringChatWords,
   engineeringFilesLabel,
   engineeringGroupLabel,
   engineeringStepLabel,
@@ -109,6 +110,9 @@ const engineeringSummary = (summary: string, entries: ReadonlyArray<WorkLogEntry
       )
     : summary;
 
+/** A step on T3's own tools, its threads read as chats in the engineering interface. */
+const t3ToolName = (name: string) => (isEngineeringInterface() ? engineeringChatWords(name) : name);
+
 /** A plugin tool's step in an engineer's words ("Showed the model"), in the engineering interface. */
 function engineeringToolStep(entry: WorkLogEntry) {
   if (!isEngineeringInterface()) return null;
@@ -121,7 +125,7 @@ function engineeringToolStep(entry: WorkLogEntry) {
 function singleToolCallLabel(entry: WorkLogEntry): string {
   if (entry.itemType === "reasoning") return entry.detail?.trim().replace(/\s+/g, " ") || "Thought";
   const toolPresentation = resolveWorkEntryToolPresentation(entry, "completed");
-  if (toolPresentation) return toolPresentation.displayName;
+  if (toolPresentation) return t3ToolName(toolPresentation.displayName);
   const item = entry.structuredPayload;
   const title =
     item?.type === "dynamic_tool" ? dynamicToolTitle(item.toolName, item.input, item.title) : null;
@@ -163,7 +167,7 @@ export function workEntryDisplayLabel(entry: WorkLogEntry, workspaceRoot: string
     return thought || entry.label;
   }
   const toolPresentation = resolveWorkEntryToolPresentation(entry);
-  if (toolPresentation) return toolPresentation.displayName;
+  if (toolPresentation) return t3ToolName(toolPresentation.displayName);
   const toolStep = engineeringToolStep(entry);
   if (toolStep) return toolStep.done;
   if (entry.command?.trim()) {
@@ -228,6 +232,8 @@ export function threadReadTargetId(entry: Pick<WorkLogEntry, "structuredPayload"
 }
 
 const THREAD_READ_OBJECT = " a T3 thread";
+// The same step in the engineering interface ("Read a chat", `t3ToolName`).
+const CHAT_READ_OBJECT = " a chat";
 
 export function threadReadTargetTitle(
   shell: Pick<ThreadShell, "title" | "archivedAt" | "deletedAt"> | null,
@@ -238,12 +244,15 @@ export function threadReadTargetTitle(
 
 /**
  * Names the read thread in place of the generic object ("Read a T3 thread" becomes
- * `Read thread “Title”`), keeping the label's tense. Null keeps the generic label.
+ * `Read thread “Title”`, "Read a chat" `Read chat “Title”`), keeping the label's tense.
+ * Null keeps the generic label.
  */
 export function threadReadLabelPrefix(label: string) {
   return label.endsWith(THREAD_READ_OBJECT)
     ? `${label.slice(0, -THREAD_READ_OBJECT.length)} thread`
-    : null;
+    : label.endsWith(CHAT_READ_OBJECT)
+      ? `${label.slice(0, -CHAT_READ_OBJECT.length)} chat`
+      : null;
 }
 
 /** Inspectable read-file output is the path when we have one, otherwise nothing. */
@@ -291,7 +300,7 @@ export function liveWorkEntryLabel(
     ...entry,
     toolLifecycleStatus: status,
   });
-  if (toolPresentation) return toolPresentation.displayName;
+  if (toolPresentation) return t3ToolName(toolPresentation.displayName);
   const command = entry.command?.trim();
   const step =
     command && isEngineeringInterface()

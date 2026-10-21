@@ -4,6 +4,9 @@ import type {
   ServerProviderCompatibilityAdvisory,
 } from "@t3tools/contracts";
 
+import { APP_BASE_NAME } from "../../branding";
+import { isEngineeringInterface } from "../workbench/studioInterface";
+
 /**
  * Visual treatment for each server-reported provider status. Centralized so
  * the default-driver card and per-instance cards share the same language.
@@ -40,17 +43,23 @@ export function getProviderSummary(provider: ServerProvider | undefined) {
       detail: "Waiting for the server to report installation and authentication details.",
     };
   }
+  const engineering = isEngineeringInterface();
   if (!provider.enabled || provider.status === "disabled") {
     return {
       headline: "Disabled",
       detail:
-        provider.message ?? "This provider is installed but disabled for new sessions in T3 Code.",
+        provider.message ??
+        (engineering
+          ? `This AI agent is installed but turned off for new chats in ${APP_BASE_NAME}.`
+          : `This provider is installed but disabled for new sessions in ${APP_BASE_NAME}.`),
     };
   }
   if (!provider.installed) {
     return {
       headline: "Not found",
-      detail: provider.message ?? "CLI not detected on PATH.",
+      detail:
+        provider.message ??
+        (engineering ? "Not installed on this computer." : "CLI not detected on PATH."),
     };
   }
   if (provider.auth.status === "unauthenticated") {

@@ -22,11 +22,22 @@ describe("electron development launcher", () => {
       T3CODE_PORT: "16566",
       T3CODE_HOME: "/tmp/t3",
       T3CODE_OTLP_PROTOCOL: "http/protobuf",
+      VITE_APP_BASE_NAME: "Studio",
+      T3CODE_BRAND_DIR: "/repo/brand",
     });
 
     assert.include(
       environmentScript,
       "if [ -z \"${VITE_DEV_SERVER_URL:-}\" ]; then export VITE_DEV_SERVER_URL='http://127.0.0.1:8526'; fi",
+    );
+    // A fork stays itself when the Dock or a link starts it without the runner.
+    assert.include(
+      environmentScript,
+      "if [ -z \"${VITE_APP_BASE_NAME:-}\" ]; then export VITE_APP_BASE_NAME='Studio'; fi",
+    );
+    assert.include(
+      environmentScript,
+      "if [ -z \"${T3CODE_BRAND_DIR:-}\" ]; then export T3CODE_BRAND_DIR='/repo/brand'; fi",
     );
     assert.include(
       environmentScript,
@@ -104,16 +115,18 @@ describe("electron development launcher", () => {
   });
 
   it("declares why the macOS app needs protected access", () => {
-    const values = resolveMacBundleInfoPlistStrings("T3 Code (Dev) Launcher");
+    const values = resolveMacBundleInfoPlistStrings("T3 Code (Dev) Launcher", "T3 Code");
 
     assert.equal(
       values.NSScreenCaptureUsageDescription,
       "T3 Code captures the active window when you use the snapshot shortcut.",
     );
-    assert.equal(
-      values.NSDocumentsFolderUsageDescription,
-      "T3 Code reads project files you open in the desktop app.",
-    );
+    for (const folder of ["Documents", "Desktop", "Downloads"]) {
+      assert.equal(
+        values[`NS${folder}FolderUsageDescription`],
+        "T3 Code reads the files you import or open.",
+      );
+    }
   });
 
   it("ad-hoc signs the complete development app bundle", () => {
@@ -142,13 +155,20 @@ describe("electron development launcher", () => {
   });
 
   it("derives launcher icons from canonical development and production assets", () => {
-    const development = resolveMacLauncherIconPaths("/runtime", true);
-    const production = resolveMacLauncherIconPaths("/runtime", false);
+    const development = resolveMacLauncherIconPaths("/runtime", true, null);
+    const production = resolveMacLauncherIconPaths("/runtime", false, null);
 
     // The source icons are real repo paths, joined for the host.
     assert.match(development.sourceIconPath, /assets[\\/]dev[\\/]blueprint-macos-1024\.png$/);
     assert.equal(development.generatedIconPath, "/runtime/icon-dev.icns");
     assert.match(production.sourceIconPath, /assets[\\/]prod[\\/]black-macos-1024\.png$/);
     assert.equal(production.generatedIconPath, "/runtime/icon-prod.icns");
+  });
+
+  it("converts a brand's icon to its own file, never reusing T3's", () => {
+    const branded = resolveMacLauncherIconPaths("/runtime", true, "/brand/app-icon.png");
+
+    assert.equal(branded.sourceIconPath, "/brand/app-icon.png");
+    assert.equal(branded.generatedIconPath, "/runtime/icon-brand-dev.icns");
   });
 });

@@ -23,6 +23,7 @@ import {
 } from "../threadNotifications";
 import { resolveSidebarThreadStatus } from "./Sidebar.logic";
 import { toastManager } from "./ui/toast";
+import { isEngineeringInterface } from "./workbench/studioInterface";
 
 export function ThreadNotificationCoordinator() {
   const environmentIds = useEnvironmentIds();
@@ -154,15 +155,20 @@ function EnvironmentNotifications({
             ? "completion"
             : null;
       if (!kind) continue;
+      const engineering = isEngineeringInterface();
       const title =
         kind === "completion"
-          ? "Thread completed"
+          ? engineering
+            ? "Chat finished"
+            : "Thread completed"
           : status === "approval"
             ? "Approval needed"
             : status === "limited"
               ? "Usage limit reached"
               : status === "failed"
-                ? "Thread failed"
+                ? engineering
+                  ? "Chat failed"
+                  : "Thread failed"
                 : "Input needed";
       if (hasNotificationSound(mode)) {
         void playNotificationSound(kind, () =>
@@ -193,7 +199,7 @@ function EnvironmentNotifications({
               ),
           },
           actionProps: {
-            children: "Open thread",
+            children: engineering ? "Open chat" : "Open thread",
             onClick: () => {
               toastManager.close(toastId);
               void navigate({

@@ -19,6 +19,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import { useState } from "react";
 
+import { APP_BASE_NAME } from "../../branding";
 import { ensureLocalApi } from "../../localApi";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -26,6 +27,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { toastManager } from "../ui/toast";
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import { SettingsRow } from "./settingsLayout";
 
 interface AcpSessionProject {
@@ -306,7 +308,7 @@ export function AcpSessionManagementSection(props: {
     <div className="grid gap-3">
       <SettingsRow
         title="Native sessions"
-        description="Resume agent-owned conversations as T3 threads."
+        description={`Resume agent-owned conversations as ${isEngineeringInterface() ? "chats" : `${APP_BASE_NAME} threads`}.`}
         status={
           canList && props.projects.length === 0
             ? "Add a project before importing sessions."

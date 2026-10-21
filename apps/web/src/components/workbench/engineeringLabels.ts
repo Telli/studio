@@ -171,17 +171,29 @@ export function engineeringToolLabel(tool: string | null | undefined): StepLabel
 }
 
 /**
+ * T3's threads as an engineer's chats, in the steps on T3's own tools
+ * (`t3McpToolPresentation`: "Listed T3 threads", "Sent to a T3 thread") and
+ * their groups ("Created 2 threads"): "Listed chats", "Sent to a chat",
+ * "Created 2 chats".
+ */
+export function engineeringChatWords(label: string): string {
+  return label
+    .replace(/\bT3 thread metadata\b/g, "chat details")
+    .replace(/\b(?:T3 )?thread(s?)\b/g, "chat$1");
+}
+
+/**
  * A group of steps in an engineer's words: "Ran 3 commands" reads "3 steps",
  * the tools on T3's own server read as the app's ("Used Studio's tools and
- * took 3 steps"), and the files it changed are the parts they are ("updated
- * the servo bracket"), given the paths it changed.
+ * took 3 steps"), threads read as chats, and the files it changed are the
+ * parts they are ("updated the servo bracket"), given the paths it changed.
  */
 export function engineeringGroupLabel(label: string, changed: ReadonlyArray<string> = []): string {
   const { changes, other } = designChanges(changed);
   const phrase = changesPhrase(changes, other);
   const cased = (word: string, like: string) =>
     like[0] === like[0]?.toUpperCase() ? word[0]!.toUpperCase() + word.slice(1) : word;
-  return label
+  return engineeringChatWords(label)
     .replace(
       /\bUsed (.+?) integrations?\b/g,
       (_m, names: string) =>

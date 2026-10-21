@@ -32,6 +32,7 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { stackedThreadToast, toastManager } from "../ui/toast";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import {
   SettingResetButton,
   SettingsPageContainer,
@@ -168,6 +169,7 @@ function ProjectDetail({
   hasOtherMembers: boolean;
 }) {
   const navigate = useNavigate({ from: "/settings" });
+  const engineering = useEngineeringInterface();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const { environments } = useEnvironments();
   const environmentById = useMemo(
@@ -537,7 +539,8 @@ function ProjectDetail({
           />
         </SettingsSection>
         <ProjectDefaultsSettings category="project" />
-        <ProjectActionsSettings />
+        {/* A project's scripts and `t3.json` are coding tools (`CODE_SETTINGS_ROWS`). */}
+        {engineering ? null : <ProjectActionsSettings />}
         {hasMultipleCheckouts ? checkoutChoices : null}
         <SettingsSection title="Danger">
           <SettingsRow

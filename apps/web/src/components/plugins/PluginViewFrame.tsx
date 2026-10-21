@@ -254,7 +254,7 @@ export function PluginViewFrame(props: {
     const ask = async (message: string) => {
       const approved = await requestConfirmDialog(message);
       if (approved === undefined)
-        throw new McpAppHostRefusal("T3 could not ask for approval here.");
+        throw new McpAppHostRefusal(`${APP_BASE_NAME} could not ask for approval here.`);
       if (approved !== true) throw new McpAppHostRefusal("Declined by the user.");
     };
     const csp = readMcpAppCsp(document_.csp);

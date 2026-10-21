@@ -1,3 +1,4 @@
+import { APP_BASE_NAME } from "../../branding";
 import type { SettingsSearchItem, SettingsSearchItemId } from "../settings/settingsSearch";
 import { CODE_SETTINGS_SECTIONS, settingsSectionLabel } from "./studioInterface";
 
@@ -11,7 +12,10 @@ import { CODE_SETTINGS_SECTIONS, settingsSectionLabel } from "./studioInterface"
 /**
  * Rows an engineer has no use for: where threads start (checkout or worktree),
  * git, diffs and pull requests, usage-limit stops, the sidebar's coding
- * shelves, background git refreshes, the `t3` command and the legacy switches.
+ * shelves, background git refreshes, the `t3` command and the legacy switches;
+ * on Appearance the Dev and Nightly label, diff colors, the composer's branch
+ * controls, the terminal font and word wrap (diffs and file sources); T3's
+ * update track; and a project's actions (its scripts and `t3.json`).
  */
 export const CODE_SETTINGS_ROWS: ReadonlySet<string> = new Set<SettingsSearchItemId>([
   "new-threads",
@@ -31,6 +35,13 @@ export const CODE_SETTINGS_ROWS: ReadonlySet<string> = new Set<SettingsSearchIte
   "legacy-plan-mode",
   "legacy-context-window-indicator",
   "legacy-sidebar",
+  "environment-identification",
+  "diff-color-scheme",
+  "composer-context",
+  "terminal-font",
+  "word-wrap",
+  "update-track",
+  "project-actions",
 ]);
 
 interface SettingCopy {
@@ -79,6 +90,10 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
   ],
   ["text-generation-model", { description: "Writes thread titles and other short text." }],
   ["diagnostics", { description: "Inspect processes, resource use, and logs." }],
+  ["thread-notifications", { title: "Chat notifications" }],
+  // T3's policy is T3's; the row keeps the fact, without its link (`SettingsPanels.tsx`).
+  ["privacy-policy", { title: "Privacy", description: `${APP_BASE_NAME} sends no usage data.` }],
+  ["code-font", { title: "Monospace font", description: "Code blocks and file previews." }],
 ]);
 
 /** A row's own words in the engineering interface, or null where the row keeps its own. */

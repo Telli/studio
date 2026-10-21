@@ -202,14 +202,13 @@ function namedProjectIconSvg(name: string): string {
   ].join("\n");
 }
 
-function namedProjectReadme(name: string): string {
+function namedProjectReadme(name: string, creditT3: boolean): string {
   return [
     `<img src="assets/icon.svg" width="64" height="64" alt="">`,
     "",
     `# ${name}`,
     "",
-    "Created in [T3 Code](https://t3.codes).",
-    "",
+    ...(creditT3 ? ["Created in [T3 Code](https://t3.codes).", ""] : []),
   ].join("\n");
 }
 
@@ -243,6 +242,8 @@ const make = Effect.gen(function* () {
   const git = yield* GitVcsDriver.GitVcsDriver;
   const projects = yield* ProjectService.ProjectService;
   const crypto = yield* Crypto.Crypto;
+  // A fork that names itself (VITE_APP_BASE_NAME, as its web and desktop builds read it) is not T3 Code.
+  const creditT3 = !process.env.VITE_APP_BASE_NAME?.trim();
 
   /**
    * Claims the first free folder among `folderFor(1)`, `folderFor(2)`, ...,
@@ -440,7 +441,10 @@ const make = Effect.gen(function* () {
       args: ["init", `--initial-branch=${branch}`],
       timeoutMs: 10_000,
     });
-    yield* fileSystem.writeFileString(path.join(cwd, "README.md"), namedProjectReadme(name));
+    yield* fileSystem.writeFileString(
+      path.join(cwd, "README.md"),
+      namedProjectReadme(name, creditT3),
+    );
     yield* fileSystem.makeDirectory(path.join(cwd, "assets"));
     yield* fileSystem.writeFileString(
       path.join(cwd, "assets", "icon.svg"),

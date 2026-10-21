@@ -1,4 +1,4 @@
-// This file mostly exists because we want dev mode to say "T3 Code (Dev)" instead of "electron"
+// This file mostly exists because we want dev mode to say "T3 Code (Dev)" (or a fork's name) instead of "electron"
 
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
@@ -15,12 +15,18 @@ const repoRoot = NodePath.resolve(desktopDir, "..", "..");
 const devBundleIdSuffix = NodePath.basename(repoRoot)
   .toLowerCase()
   .replaceAll(/[^a-z0-9]+/g, "");
-const APP_DISPLAY_NAME = isDevelopment ? "T3 Code (Dev)" : "T3 Code (Alpha)";
+// A fork names itself and brings its icon (text-to-cad Studio's `brand/`), as the app's
+// DesktopEnvironment and DesktopAssets do. The bundle id stays. Electron's profile
+// (DesktopUserData's fixed folder names) and the app's name (DesktopAppIdentity's setName)
+// never read the bundle's name, so renaming it moves no local state.
+const APP_BASE_NAME = process.env.VITE_APP_BASE_NAME?.trim() || "T3 Code";
+const brandDir = process.env.T3CODE_BRAND_DIR?.trim();
+const APP_DISPLAY_NAME = `${APP_BASE_NAME} (${isDevelopment ? "Dev" : "Alpha"})`;
 const APP_BUNDLE_ID = isDevelopment
   ? `com.t3tools.t3code.dev.${devBundleIdSuffix || "local"}`
   : "com.t3tools.t3code";
 const APP_PROTOCOL_SCHEMES = isDevelopment ? ["t3code-dev"] : ["t3code"];
-const LAUNCHER_VERSION = 19;
+const LAUNCHER_VERSION = 20;
 const developmentMacIconPngPath = NodePath.join(
   repoRoot,
   "assets",
@@ -28,6 +34,7 @@ const developmentMacIconPngPath = NodePath.join(
   "blueprint-macos-1024.png",
 );
 const productionMacIconPngPath = NodePath.join(repoRoot, "assets", "prod", "black-macos-1024.png");
+const brandMacIconPngPath = brandDir ? NodePath.join(brandDir, "app-icon.png") : null;
 // oxlint-disable-next-line t3code/no-global-process-runtime -- Standalone launcher script has no Effect runtime.
 const hostPlatform = NodeOS.platform();
 
@@ -118,6 +125,9 @@ export function makeDevelopmentEnvironmentScript(environment) {
     ["T3CODE_OTLP_EXPORT_INTERVAL_MS", environment.T3CODE_OTLP_EXPORT_INTERVAL_MS],
     ["T3CODE_OTLP_HEADERS", environment.T3CODE_OTLP_HEADERS],
     ["T3CODE_OTLP_PROTOCOL", environment.T3CODE_OTLP_PROTOCOL],
+    // A fork's name and brand, so a launch from the Dock or a link is still that app.
+    ["VITE_APP_BASE_NAME", environment.VITE_APP_BASE_NAME],
+    ["T3CODE_BRAND_DIR", environment.T3CODE_BRAND_DIR],
     ["T3CODE_DESKTOP_APP_USER_MODEL_ID", APP_BUNDLE_ID],
   ].filter((entry) => typeof entry[1] === "string" && entry[1].trim().length > 0);
   return [
@@ -202,13 +212,20 @@ function registerMacLauncherBundle(appBundlePath) {
   }
 }
 
-// Bundle-internal paths are macOS paths whatever host builds them.
-export function resolveMacLauncherIconPaths(runtimeDir, development = isDevelopment) {
+// Bundle-internal paths are macOS paths whatever host builds them. A brand's icon converts
+// to a file of its own, so a T3 run never picks up the brand's icon or the other way round.
+export function resolveMacLauncherIconPaths(
+  runtimeDir,
+  development = isDevelopment,
+  brandIconPath = brandMacIconPngPath,
+) {
+  const stage = development ? "dev" : "prod";
   return {
-    sourceIconPath: development ? developmentMacIconPngPath : productionMacIconPngPath,
+    sourceIconPath:
+      brandIconPath ?? (development ? developmentMacIconPngPath : productionMacIconPngPath),
     generatedIconPath: NodePath.posix.join(
       runtimeDir,
-      development ? "icon-dev.icns" : "icon-prod.icns",
+      brandIconPath ? `icon-brand-${stage}.icns` : `icon-${stage}.icns`,
     ),
   };
 }
@@ -262,16 +279,23 @@ function ensureMacIconIcns(runtimeDir) {
   }
 }
 
-export function resolveMacBundleInfoPlistStrings(executableName) {
+export function resolveMacBundleInfoPlistStrings(
+  executableName,
+  baseName = APP_BASE_NAME,
+  displayName = APP_DISPLAY_NAME,
+) {
+  // macOS shows this when the app first reads one of these folders (Studio's Import scans all three).
+  const folderAccess = `${baseName} reads the files you import or open.`;
   return {
-    CFBundleDisplayName: APP_DISPLAY_NAME,
-    CFBundleName: APP_DISPLAY_NAME,
+    CFBundleDisplayName: displayName,
+    CFBundleName: displayName,
     CFBundleIdentifier: APP_BUNDLE_ID,
     CFBundleExecutable: executableName,
     CFBundleIconFile: "icon.icns",
-    NSScreenCaptureUsageDescription:
-      "T3 Code captures the active window when you use the snapshot shortcut.",
-    NSDocumentsFolderUsageDescription: "T3 Code reads project files you open in the desktop app.",
+    NSScreenCaptureUsageDescription: `${baseName} captures the active window when you use the snapshot shortcut.`,
+    NSDocumentsFolderUsageDescription: folderAccess,
+    NSDesktopFolderUsageDescription: folderAccess,
+    NSDownloadsFolderUsageDescription: folderAccess,
   };
 }
 
@@ -402,7 +426,7 @@ function buildMacLauncher(electronBinaryPath) {
   if (isDevelopment) {
     // Keep Electron's native executable inside the branded bundle. Launching the
     // node_modules copy makes macOS associate the process (and Dock label) with
-    // Electron.app even though this bundle's Info.plist has the T3 Code name.
+    // Electron.app even though this bundle's Info.plist has the app's name.
     // Its conventional executable name also keeps Electron's default-app runtime
     // in development mode instead of making app.isPackaged report true.
     writeDevelopmentEnvironmentScript();

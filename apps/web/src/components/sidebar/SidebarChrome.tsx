@@ -4,7 +4,7 @@ import { memo, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { APP_MARK_URL, APP_WORDMARK_SUFFIX } from "../../branding";
-import { useEngineeringSurfaces } from "../workbench/studioInterface";
+import { useEngineeringInterface, useEngineeringSurfaces } from "../workbench/studioInterface";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { usePullRequestsSupported } from "../../state/environments";
@@ -116,9 +116,11 @@ export function SidebarBrandWidthProbe({
 }
 
 function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
+  // The engineering interface opens on Studio's Home (`routes/_chat.index.tsx`).
+  const home = useEngineeringInterface();
   return (
     <Link
-      aria-label="Go to threads"
+      aria-label={home ? "Go to Home" : "Go to threads"}
       className={cn(
         "relative z-10 ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset md:flex",
         onBackdrop ? "text-white" : "text-foreground",
@@ -135,7 +137,11 @@ function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
     // Center the visible capitals, without the font's ascender/descender space.
     // Padding keeps ascenders and round-letter overshoot inside the truncation clip.
     <span className="inline-flex min-w-0 items-baseline gap-1 text-sm font-medium tracking-tight">
-      <T3Wordmark aria-label="T3" className="h-[1cap] w-auto shrink-0" />
+      {/* A fork's mark goes unnamed: its name follows as text (`APP_WORDMARK_SUFFIX`). */}
+      <T3Wordmark
+        aria-label={APP_MARK_URL === null ? "T3" : undefined}
+        className="h-[1cap] w-auto shrink-0"
+      />
       <span
         className={cn(
           "truncate [text-box:trim-both_cap_alphabetic] supports-[text-box:trim-both_cap_alphabetic]:py-1",
