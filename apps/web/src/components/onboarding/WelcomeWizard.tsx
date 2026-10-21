@@ -116,6 +116,8 @@ const AGENT_ONBOARDING_THREAD_ID = ThreadId.make("onboarding-agent-setup");
 const ONBOARDING_STAGES = ["Connect", "Agents", "Projects"] as const;
 // Studio's engineering interface signs in to an AI and is done: Home brings in files and samples.
 const STUDIO_STAGES = ["Connect", "Sign in"] as const;
+// On the Mac Studio runs on there is no computer to connect: setup is signing in.
+const STUDIO_LOCAL_STAGES = ["Sign in"] as const;
 const SCAN_LIMIT_MESSAGE = "Scan limit reached. Some projects or conversations may be missing.";
 
 export function WelcomeWizard({
@@ -173,6 +175,15 @@ export function WelcomeWizard({
     setStep("agents");
   };
   const stageIndex = step === "agents" ? 1 : step === "import" ? 2 : 0;
+  // Studio on this Mac goes straight to signing in, with this Mac as the computer.
+  const studioHere = studio && localAvailable;
+  const startedHere = useRef(false);
+  useEffect(() => {
+    if (!studioHere || startedHere.current || step !== "connection" || !primaryEnvironment) return;
+    startedHere.current = true;
+    setSetupIds([primaryEnvironment.environmentId]);
+    setStep("agents");
+  }, [studioHere, step, primaryEnvironment]);
   const finish = useCallback(
     (projectRef?: ScopedProjectRef, importWarning?: string, importedThreadCount = 0) => {
       if (finishingPromiseRef.current !== null) return finishingPromiseRef.current;
@@ -247,11 +258,11 @@ export function WelcomeWizard({
           }
         >
           <WizardSteps
-            steps={studio ? STUDIO_STAGES : ONBOARDING_STAGES}
-            currentStep={stageIndex}
-            isStepDisabled={(index) => isImporting || index >= stageIndex}
+            steps={studioHere ? STUDIO_LOCAL_STAGES : studio ? STUDIO_STAGES : ONBOARDING_STAGES}
+            currentStep={studioHere ? 0 : stageIndex}
+            isStepDisabled={(index) => studioHere || isImporting || index >= stageIndex}
             onStepChange={(index) => {
-              if (isImporting || index > stageIndex) return;
+              if (studioHere || isImporting || index > stageIndex) return;
               setStep(index === 0 ? "connection" : "agents");
             }}
           />
