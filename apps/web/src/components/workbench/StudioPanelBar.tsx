@@ -13,6 +13,7 @@ import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePanelTabShortcuts } from "./panelTabShortcuts";
 import { PartActions } from "./PartActions";
 import { handToChat } from "./NewDialog";
+import { surfaceFile } from "./sameFile";
 import { StudioNew } from "./StudioNew";
 import { StudioTour } from "./StudioTour";
 import { partName } from "./partNames";
@@ -82,9 +83,10 @@ export function StudioPanelBar(props: {
   const frontKind = useRightPanelStore(
     (store) => selectActiveRightPanelSurface(store.byThreadKey, threadRef)?.kind ?? null,
   );
+  // A view the agent opened names its file only in its id (`surfaceFile`).
   const frontFile = useRightPanelStore((store) => {
     const surface = selectActiveRightPanelSurface(store.byThreadKey, threadRef);
-    return surface?.kind === "plugin-app" ? (surface.file ?? null) : null;
+    return surface?.kind === "plugin-app" ? surfaceFile(surface) : null;
   });
   const byHandShown = editsByHand(
     frontKind === null

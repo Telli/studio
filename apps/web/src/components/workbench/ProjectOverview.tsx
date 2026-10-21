@@ -429,7 +429,8 @@ export function ProjectOverview(props: {
           {props.readme}
           {reading ? (
             <p className="text-xs text-muted-foreground">Reading the project</p>
-          ) : (
+          ) : engineering ? null : (
+            // Studio's way to start a part is New, in the toolbar; Files below says so.
             <StartModule byHand={props.byHand} onStartPart={props.onStartPart} />
           )}
         </>

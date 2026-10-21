@@ -24,13 +24,17 @@ const VIEW_KEY = "studio:everything-view";
 /** The list shows this many before "Show all": a screen's worth of rows. */
 const FIRST = 24;
 
+/** Cards with pictures, unless the list was chosen on this computer. */
 function readView(): "list" | "grid" {
   try {
-    return globalThis.localStorage?.getItem(VIEW_KEY) === "grid" ? "grid" : "list";
+    return globalThis.localStorage?.getItem(VIEW_KEY) === "list" ? "list" : "grid";
   } catch {
-    return "list";
+    return "grid";
   }
 }
+
+const LIST_COLUMNS = "grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)]";
+const isPhoto = (path: string) => /\.(?:png|jpe?g|webp|gif)$/i.test(path);
 
 /** A file, as the list shows it. */
 interface Item {
@@ -64,7 +68,7 @@ function FileCards(props: {
     environmentId: props.environmentId,
     cwd: props.root,
     paths: props.items
-      .filter((item) => !/\.(?:png|jpe?g|webp|gif)$/i.test(item.file.path))
+      .filter((item) => !isPhoto(item.file.path))
       .map((item) => item.file.picture ?? item.file.path),
   });
   return props.items.map((item) => {
@@ -87,6 +91,65 @@ function FileCards(props: {
               ),
             })}
       />
+    );
+  });
+}
+
+/** One folder's rows of the list: each file's picture (small) or its kind's icon, then its words. */
+function ListRows(props: {
+  readonly environmentId: EnvironmentId;
+  readonly root: string;
+  readonly items: ReadonlyArray<FileItem>;
+  readonly parts: ReadonlyMap<string, FolderPart>;
+  readonly onOpenFile: (root: string, path: string) => void;
+}) {
+  const pictures = usePictures({
+    environmentId: props.environmentId,
+    cwd: props.root,
+    paths: props.items
+      .filter((item) => !isPhoto(item.file.path))
+      .map((item) => item.file.picture ?? item.file.path),
+  });
+  return props.items.map((file) => {
+    const part = props.parts.get(fullPath(file));
+    const status = part === undefined ? undefined : worstStatus(part.results);
+    const details =
+      status === undefined
+        ? file.file.folder === ""
+          ? "In the project's folder"
+          : `In ${file.file.folder}`
+        : status === null
+          ? "Not checked yet"
+          : capitalize(CHECK_STATUS[status].caption);
+    const picture = pictures.get(file.file.picture ?? file.file.path);
+    return (
+      <button
+        key={fullPath(file)}
+        type="button"
+        role="row"
+        onClick={() => props.onOpenFile(file.root, file.file.path)}
+        className={cn(
+          "grid h-11 items-center gap-3 border-b border-border px-2 text-left text-xs outline-none transition-colors duration-150 hover:bg-accent/60 focus-visible:bg-accent/60",
+          LIST_COLUMNS,
+        )}
+      >
+        <span role="cell" className="flex min-w-0 items-center gap-2.5 text-foreground">
+          <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
+            {picture ? (
+              <img src={picture} alt="" className="size-full object-cover" />
+            ) : (
+              <KindMark group={file.file.group} className="size-4" />
+            )}
+          </span>
+          <span className="truncate">{file.label}</span>
+        </span>
+        <span role="cell" className="truncate text-muted-foreground">
+          {file.file.kind}
+        </span>
+        <span role="cell" className="truncate text-muted-foreground">
+          {details}
+        </span>
+      </button>
     );
   });
 }
@@ -196,45 +259,25 @@ export function ProjectEverything(props: {
         <div role="table" aria-label="Files" className="flex flex-col">
           <div
             role="row"
-            className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3 border-b border-border px-2 pb-1.5 text-2xs font-medium tracking-wider text-muted-foreground uppercase"
+            className={cn(
+              "grid gap-3 border-b border-border px-2 pb-1.5 text-2xs font-medium tracking-wider text-muted-foreground uppercase",
+              LIST_COLUMNS,
+            )}
           >
             <span role="columnheader">Name</span>
             <span role="columnheader">Kind</span>
             <span role="columnheader">Details</span>
           </div>
-          {shown.map((item) => {
-            const { file } = item;
-            const part = props.parts.get(fullPath(file));
-            const status = part === undefined ? undefined : worstStatus(part.results);
-            const details =
-              status === undefined
-                ? file.file.folder === ""
-                  ? "In the project's folder"
-                  : `In ${file.file.folder}`
-                : status === null
-                  ? "Not checked yet"
-                  : capitalize(CHECK_STATUS[status].caption);
-            return (
-              <button
-                key={item.key}
-                type="button"
-                role="row"
-                onClick={() => props.onOpenFile(file.root, file.file.path)}
-                className="grid h-9 grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-3 border-b border-border px-2 text-left text-xs outline-none transition-colors duration-150 hover:bg-accent/60 focus-visible:bg-accent/60"
-              >
-                <span role="cell" className="flex min-w-0 items-center gap-2 text-foreground">
-                  <KindMark group={file.file.group} className="size-4" />
-                  <span className="truncate">{file.label}</span>
-                </span>
-                <span role="cell" className="truncate text-muted-foreground">
-                  {file.file.kind}
-                </span>
-                <span role="cell" className="truncate text-muted-foreground">
-                  {details}
-                </span>
-              </button>
-            );
-          })}
+          {roots.map((root) => (
+            <ListRows
+              key={root}
+              environmentId={props.environmentId}
+              root={root}
+              items={shownFiles.filter((item) => item.root === root)}
+              parts={props.parts}
+              onOpenFile={props.onOpenFile}
+            />
+          ))}
         </div>
       ) : (
         <div className={CARD_GRID}>

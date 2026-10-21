@@ -10,6 +10,7 @@ import { filterComposerPullRequestMatches } from "@t3tools/shared/composerPullRe
 import { importPastedComposerText, readPastedComposerContext } from "../composerInlineTokenPaste";
 import { elementContextToPreviewAnnotation } from "../../lib/elementContext";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
+import { useRightPanelStore } from "~/rightPanelStore";
 import {
   questionAttachmentDraftId,
   countQuestionAttachments,
@@ -6262,9 +6263,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         // focus frame runs to preserve type-to-focus and external inserts.
         expandMobileComposer();
       }
+      // Studio writes jobs into the chat from its menus, the viewer and the Overview: a panel
+      // filling the window steps back, so what was written (and the work it starts) shows.
+      if (inserted && isEngineeringInterface()) {
+        useRightPanelStore.getState().setMaximized(routeThreadRef, false);
+      }
       return inserted;
     },
-    [expandMobileComposer, insertComposerText, isComposerCollapsedMobile],
+    [expandMobileComposer, insertComposerText, isComposerCollapsedMobile, routeThreadRef],
   );
 
   // Context produced by other panels (diff comments, preview picks) asks the store to place

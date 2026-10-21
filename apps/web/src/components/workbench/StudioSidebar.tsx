@@ -23,6 +23,7 @@ import {
   useSidebar,
 } from "../ui/sidebar";
 import { chatStanding } from "./chatStanding";
+import { useOpenWorkspaceStore } from "./openWorkspace";
 import { showOverview } from "./overviewPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { useProjectHeading } from "./StudioWorkspaceBar";
@@ -66,8 +67,11 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
   );
   const { folder, title, isNew } = useProjectHeading(environmentId, project);
   const chats = useProjectChats(environmentId, project);
+  // A new chat has no thread in the address yet; the workspace's own ref covers it too.
+  const workspaceRef = useOpenWorkspaceStore((store) => store.workspace?.threadRef ?? null);
+  const panelRef = threadRef ?? workspaceRef;
   const overviewOpen = useRightPanelStore(
-    (store) => selectActiveRightPanelSurface(store.byThreadKey, threadRef)?.kind === "files",
+    (store) => selectActiveRightPanelSurface(store.byThreadKey, panelRef)?.kind === "files",
   );
   const navigate = useNavigate();
   const handleNewThread = useNewThreadHandler();
@@ -95,10 +99,10 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
         <SidebarMenuItem>
           <SidebarMenuButton
             isActive={overviewOpen}
-            disabled={threadRef === null}
+            disabled={panelRef === null}
             onClick={() => {
               done();
-              if (threadRef !== null) showOverview(threadRef);
+              if (panelRef !== null) showOverview(panelRef);
             }}
           >
             <LayoutDashboardIcon aria-hidden="true" />
@@ -137,7 +141,11 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
                   aria-current={current ? "page" : undefined}
                   onClick={() => {
                     done();
-                    if (current) return;
+                    // The open chat brings itself back from a panel filling the window.
+                    if (current && threadRef !== null) {
+                      useRightPanelStore.getState().setMaximized(threadRef, false);
+                      return;
+                    }
                     void navigate({
                       to: "/$environmentId/$threadId",
                       params: buildThreadRouteParams(scopeThreadRef(chat.environmentId, chat.id)),

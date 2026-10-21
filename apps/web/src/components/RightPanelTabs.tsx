@@ -106,6 +106,7 @@ import {
 } from "./workbench/studioInterface";
 import { partLabel, partName } from "./workbench/partNames";
 import { useProjectViewStore } from "./workbench/projectView";
+import { surfaceFile } from "./workbench/sameFile";
 import { FileKindIcon } from "./workbench/FileKindIcon";
 import { PinnedProjectTab } from "./workbench/PinnedProjectTab";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
@@ -742,10 +743,10 @@ function SurfaceIcon({
     case "plugin-app":
       // In the workbench (Studio) a plugin view is the model or board viewer, marked by its kind.
       return WORKBENCH_LAYOUT ? (
-        surface.file === undefined ? (
+        surfaceFile(surface) === null ? (
           <Box className="size-3 shrink-0" />
         ) : (
-          <FileKindIcon path={surface.file} className="size-3.5" />
+          <FileKindIcon path={surfaceFile(surface) ?? ""} className="size-3.5" />
         )
       ) : (
         <Puzzle className="size-3 shrink-0" />

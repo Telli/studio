@@ -7,6 +7,7 @@ import { useNowMinute } from "~/hooks/useNowMinute";
 import { resolveThreadRouteRef } from "~/threadRoutes";
 import { useSidebar } from "../ui/sidebar";
 import { showOverview } from "./overviewPanel";
+import { useOpenWorkspaceStore } from "./openWorkspace";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { StudioNav } from "./StudioTopBar";
 import { useStudioProjectAt } from "./useStudioProjects";
@@ -44,10 +45,13 @@ export function StudioWorkspaceBar(props: {
   const { folder, title, isNew } = useProjectHeading(props.environmentId, props.project);
   const { isMobile, open } = useSidebar();
   const projectShown = open && !isMobile;
-  const threadRef: ScopedThreadRef | null = useParams({
+  const routeRef: ScopedThreadRef | null = useParams({
     strict: false,
     select: (params) => resolveThreadRouteRef(params),
   });
+  // A new chat has no thread in the address yet; the workspace's own ref covers it too.
+  const workspaceRef = useOpenWorkspaceStore((store) => store.workspace?.threadRef ?? null);
+  const threadRef = routeRef ?? workspaceRef;
 
   return (
     <nav aria-label="Where you are" className="flex min-w-0 flex-1 items-center gap-1">
