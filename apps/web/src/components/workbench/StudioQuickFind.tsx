@@ -3,7 +3,7 @@ import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useNavigate } from "@tanstack/react-router";
-import { HomeIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import { CompassIcon, HomeIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
@@ -33,6 +33,7 @@ import { studioInterfaceCommands } from "./studioInterface";
 import { useFolderPaths } from "./useFolderPaths";
 import { openInPanel } from "./useOpenInWorkbench";
 import { useOpenProject } from "./useOpenProject";
+import { useTourStore } from "./tourSteps";
 import { useProjectList } from "./useProjectList";
 import { chatLabel } from "./workspaceTitle";
 
@@ -293,6 +294,13 @@ function QuickFindBody(props: {
       title: "New project",
       terms: "new project start create",
       run: go(() => void navigate({ to: "/", hash: "start" })),
+    },
+    {
+      value: "go:tour",
+      icon: <CompassIcon className={ICON} />,
+      title: "Take the tour",
+      terms: "tour help start learn how onboarding",
+      run: go(() => useTourStore.getState().start()),
     },
     {
       value: "go:settings",

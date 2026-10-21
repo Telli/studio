@@ -97,6 +97,7 @@ import { WizardPanel, WizardSteps, WizardPopup, WizardHeader } from "../ui/wizar
 import { Dialog } from "../ui/dialog";
 import { toastManager } from "../ui/toast";
 import { cn } from "../../lib/utils";
+import { isEngineeringInterface, useEngineeringInterface } from "../workbench/studioInterface";
 import { formatRelativeTime } from "../../timestampFormat";
 
 /**
@@ -113,6 +114,8 @@ const NO_ENVIRONMENTS: readonly EnvironmentId[] = [];
 
 const AGENT_ONBOARDING_THREAD_ID = ThreadId.make("onboarding-agent-setup");
 const ONBOARDING_STAGES = ["Connect", "Agents", "Projects"] as const;
+// Studio's engineering interface signs in to an AI and is done: Home brings in files and samples.
+const STUDIO_STAGES = ["Connect", "Sign in"] as const;
 const SCAN_LIMIT_MESSAGE = "Scan limit reached. Some projects or conversations may be missing.";
 
 export function WelcomeWizard({
@@ -126,6 +129,7 @@ export function WelcomeWizard({
   readonly onDone: (projectRef?: ScopedProjectRef) => void | Promise<void>;
 }) {
   const completeOnboarding = useCompleteOnboarding();
+  const studio = useEngineeringInterface();
   const [step, setStep] = useState<WizardStep>(resumeEnvironmentId ? "agents" : "connection");
   const { environments } = useEnvironments();
   const [selection, setSelection] = useState<ReadonlySet<EnvironmentId> | null>(null);
@@ -243,7 +247,7 @@ export function WelcomeWizard({
           }
         >
           <WizardSteps
-            steps={ONBOARDING_STAGES}
+            steps={studio ? STUDIO_STAGES : ONBOARDING_STAGES}
             currentStep={stageIndex}
             isStepDisabled={(index) => isImporting || index >= stageIndex}
             onStepChange={(index) => {
@@ -276,7 +280,10 @@ export function WelcomeWizard({
               }}
             />
           ) : step === "agents" ? (
-            <AgentsStep environmentIds={setupIds} onContinue={() => setStep("import")} />
+            <AgentsStep
+              environmentIds={setupIds}
+              onContinue={() => (studio ? void finish() : setStep("import"))}
+            />
           ) : (
             <ImportStep
               scans={scans}
@@ -665,10 +672,15 @@ function AgentsStep({
   readonly onContinue: () => void;
 }) {
   const { environments } = useEnvironments();
+  const studio = useEngineeringInterface();
   return (
     <StepShell
-      title="Connect your agents"
-      description="Choose an agent to start coding. You can add more later."
+      title={studio ? "Sign in to Claude or Codex" : "Connect your agents"}
+      description={
+        studio
+          ? "Studio's AI runs on your own Claude or Codex subscription. Sign in to one now; you can add the other later in Settings."
+          : "Choose an agent to start coding. You can add more later."
+      }
     >
       <ScrollArea scrollFade className="mt-5 h-auto max-h-[min(32rem,55dvh)]">
         <div className="space-y-5 pr-3">
@@ -973,7 +985,11 @@ function AgentCard({
       <div className="min-w-0 flex-1">
         <span className="block text-sm font-medium text-foreground">{displayName}</span>
         <p className="mt-0.5 text-xs leading-relaxed break-words whitespace-pre-wrap text-muted-foreground">
-          {providerState === "ready" ? "Ready to code." : summary.headline}
+          {providerState === "ready"
+            ? isEngineeringInterface()
+              ? "Ready."
+              : "Ready to code."
+            : summary.headline}
           {providerState !== "ready" && summary.detail ? ` · ${summary.detail}` : ""}
         </p>
       </div>

@@ -187,10 +187,26 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   and never deletes from it (`backUp` in `apps/desktop/src/studio/studioImportFiles.ts`). Import
   brings a folder backup back. Where and when are remembered on this computer and shown under the
   menu (`useBackup.ts`).
-- **Quick find.** In Engineering ⌘K finds a project, a part in any project (one in another
-  project opens there), or any job for the part on screen, with Home, New project, Settings and
-  the interface switches (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps
-  T3 Code's command palette.
+- **Quick find.** In Engineering ⌘K finds a project, a part, a document or a chat in any project
+  (one in another project opens there; with nothing typed, the open project's), or any job for
+  the part on screen, with Home, New project, Take the tour, Settings and the interface switches
+  (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's command
+  palette.
+- **Getting around.** The top bar is a path, the project then the open chat, the project's name
+  opening its Overview (`StudioWorkspaceBar.tsx`). The panel's tabs take Chrome's shortcuts:
+  Ctrl+Tab and Ctrl+Shift+Tab go round them, Cmd+1 to 8 to one by its place and Cmd+9 to the last
+  (`panelTabShortcuts.ts`, ahead of T3 Code's own Cmd+number), and a file opens in one tab
+  however its path was written or whoever opened it (`sameFile.ts`). Home lists Needs you (the
+  chats waiting on the person, in any project) and Recent (chats and files opened lately, as
+  Drive's Recent does; files opened beside a chat are remembered, `recentFiles.ts`). In
+  Engineering a document always reads as a document: rendered, with no source view, editor or
+  file tree beside it (`FilePreviewPanel.tsx`).
+- **Onboarding.** Setup speaks Studio's words and ends at signing in to Claude or Codex
+  (`WelcomeWizard.tsx`; Home brings in files). A first Home says Welcome to Studio and offers a
+  sample project the agent builds in front of you (a servo bracket, its strength check, its
+  drawing and its PRD), a few projects to start with one press, and Start from a PRD
+  (`homeExamples.ts`). The first workspace opened gives a four-step tour, once (`StudioTour.tsx`,
+  `tourSteps.ts`): the project, its Overview, the tabs and the toolbar.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode

@@ -13,6 +13,7 @@ import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePanelTabShortcuts } from "./panelTabShortcuts";
 import { PartActions } from "./PartActions";
 import { StudioNew } from "./StudioNew";
+import { StudioTour } from "./StudioTour";
 import { partName } from "./partNames";
 import { usePartContext } from "./usePartContext";
 import { useStudioProjectAt } from "./useStudioProjects";
@@ -128,6 +129,7 @@ export function StudioPanelBar(props: {
 
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2" data-studio-toolbar="">
+      <StudioTour />
       {props.composerRef === null || folder === null ? null : (
         <StudioNew
           environmentId={threadRef.environmentId}

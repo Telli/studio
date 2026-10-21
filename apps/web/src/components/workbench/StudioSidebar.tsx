@@ -81,13 +81,15 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
     <SidebarGroup aria-label="Project">
       {/* The project's switcher is here while the sidebar shows, else in the top bar (one ⌘O). */}
       {(isMobile ? openMobile : open) ? (
-        <ProjectSwitcher
-          environmentId={environmentId}
-          folder={folder}
-          title={title}
-          isNew={isNew}
-          wide
-        />
+        <div data-tour="project">
+          <ProjectSwitcher
+            environmentId={environmentId}
+            folder={folder}
+            title={title}
+            isNew={isNew}
+            wide
+          />
+        </div>
       ) : null}
       <SidebarMenu className="mt-2">
         <SidebarMenuItem>
