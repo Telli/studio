@@ -5,7 +5,7 @@ import * as NodePath from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { copyInto, defaultRoots, scanFolder } from "./studioImportFiles.ts";
+import { backUp, copyInto, defaultRoots, scanFolder } from "./studioImportFiles.ts";
 
 let home: string;
 
@@ -106,5 +106,42 @@ describe("copyInto", () => {
     await expect(
       NodeFSP.access(NodePath.join(home, "project/sub/drawing.dxf")),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe("backUp", () => {
+  it("copies a project with its history, then only what changed, and leaves out caches", async () => {
+    await write("roomba/parts/bumper.step", "solid v1");
+    await write("roomba/.git/objects/ab/cdef", "object");
+    await write("roomba/.git/index.lock", "busy");
+    await write("roomba/node_modules/x/index.js");
+    await write("roomba/.studio/compare/key/older.step");
+    const project = NodePath.join(home, "roomba");
+    const drive = NodePath.join(home, "Google Drive", "Roomba");
+
+    const first = await backUp([project], drive);
+    expect(first.folder).toBe(drive);
+    expect(first.copied).toBe(2);
+    const backed = (relative: string) => NodeFSP.readFile(NodePath.join(drive, relative), "utf8");
+    expect(await backed("roomba/parts/bumper.step")).toBe("solid v1");
+    expect(await backed("roomba/.git/objects/ab/cdef")).toBe("object");
+    await expect(NodeFSP.access(NodePath.join(drive, "roomba/node_modules"))).rejects.toThrow();
+    await expect(NodeFSP.access(NodePath.join(drive, "roomba/.studio"))).rejects.toThrow();
+    await expect(NodeFSP.access(NodePath.join(drive, "roomba/.git/index.lock"))).rejects.toThrow();
+
+    expect((await backUp([project], drive)).copied).toBe(0);
+
+    await write("roomba/parts/bumper.step", "solid v2, a little longer");
+    await write("roomba/docs/PRD.md", "# PRD");
+    expect((await backUp([project], drive)).copied).toBe(2);
+    expect(await backed("roomba/parts/bumper.step")).toBe("solid v2, a little longer");
+  });
+
+  it("refuses to back a project up into itself", async () => {
+    await write("roomba/parts/bumper.step");
+    const project = NodePath.join(home, "roomba");
+    await expect(backUp([project], NodePath.join(project, "backups"))).rejects.toThrow(
+      "Choose a folder outside the project",
+    );
   });
 });

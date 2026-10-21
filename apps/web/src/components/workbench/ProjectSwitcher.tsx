@@ -4,6 +4,7 @@ import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronsUpDownIcon,
+  CloudUploadIcon,
   CopyIcon,
   FolderOpenIcon,
   HistoryIcon,
@@ -30,6 +31,7 @@ import { type ListedProject, lastTouched } from "./projectList";
 import { findProjects } from "./recentProjects";
 import { StarButton } from "./StarButton";
 import { splitStarred, useStarredStore } from "./starredProjects";
+import { backupPlace, useBackup } from "./useBackup";
 import { useDuplicateProject } from "./useDuplicateProject";
 import { useOpenProject } from "./useOpenProject";
 import { useOpenShortcut } from "./useOpenShortcut";
@@ -76,14 +78,15 @@ function ProjectThumb(props: {
 }
 
 /**
- * The project's name in a workspace's top bar, as a CAD tool's document switcher: a control that
- * says it is the project (its picture, "Project" over its name, the up-and-down chevrons every
- * switcher has), opened by a click or Cmd+O. Its top is the open project's own menu: Rename,
- * Duplicate (a copy with its own folder, `useDuplicateProject`), Version history (the Overview's
- * Versions), Show in Finder and its star. Below, the other projects to switch to: the starred
- * ones, then the rest, the one opened last first, each with when (and its star on hover), and a box
- * to find one by name; then New project and All projects (Home). Picking one opens it where it was
- * left (`useOpenProject`).
+ * The project's name at the head of its sidebar (`wide`), or in the top bar while the sidebar is
+ * folded, as a CAD tool's document switcher: a control that says it is the project (its picture,
+ * "Project" over its name, the up-and-down chevrons every switcher has), opened by a click or
+ * Cmd+O. Its top is the open project's own menu: Rename, Duplicate (a copy with its own folder,
+ * `useDuplicateProject`), Version history (the Overview's Versions), Back up (into a folder the
+ * person chooses once, `useBackup`), Show in Finder and its star. Below, the other projects to
+ * switch to: the starred ones, then the rest, the one opened last first, each with when (and its
+ * star on hover), and a box to find one by name; then New project and All projects (Home).
+ * Picking one opens it where it was left (`useOpenProject`).
  */
 export function ProjectSwitcher(props: {
   readonly environmentId: EnvironmentId;
@@ -116,6 +119,11 @@ export function ProjectSwitcher(props: {
   const isHere = (card: ListedProject) =>
     here !== null && card.project.folders.some((folder) => studioFolderKey(folder) === here);
   const current = cards.find(isHere) ?? null;
+  const backup = useBackup(
+    current === null
+      ? null
+      : { id: current.id, name: current.project.name, folders: current.project.folders },
+  );
   // The open project is at the top, with its own menu; the list is the others, to switch to.
   const others = findProjects(cards, query).filter((card) => !isHere(card));
   const { starred, rest } = splitStarred(others, starredIds);
@@ -302,6 +310,16 @@ export function ProjectSwitcher(props: {
               <HistoryIcon aria-hidden="true" />
               Version history
             </button>
+            {backup.backUp === null ? null : (
+              <button
+                type="button"
+                className={actionClass}
+                onClick={go(() => void backup.backUp())}
+              >
+                <CloudUploadIcon aria-hidden="true" />
+                {backup.last === null ? "Back up…" : "Back up now"}
+              </button>
+            )}
             {canShowFolder ? (
               <button type="button" className={actionClass} onClick={go(showFolder)}>
                 <FolderOpenIcon aria-hidden="true" />
@@ -309,6 +327,21 @@ export function ProjectSwitcher(props: {
               </button>
             ) : null}
           </div>
+          {backup.last === null || backup.changeFolder === null ? null : (
+            <p className="flex flex-wrap items-center gap-x-1.5 px-2 pt-1.5 text-2xs text-muted-foreground">
+              <span>
+                Backed up {formatRelativeTimeLabel(new Date(backup.last.at).toISOString())} to{" "}
+                {backupPlace(backup.last.folder)}
+              </span>
+              <button
+                type="button"
+                className="underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
+                onClick={go(() => void backup.changeFolder())}
+              >
+                Change folder
+              </button>
+            </p>
+          )}
         </section>
         <Input
           ref={input}

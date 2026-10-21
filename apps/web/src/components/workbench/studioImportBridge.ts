@@ -1,9 +1,11 @@
 import type { ImportFile } from "./importPlan";
 
 /**
- * Studio's Import on this computer, from the desktop app (`apps/desktop/src/studio/studioImport.ts`,
- * `window.studioImport`): the folders a first scan offers, a walk of one folder (or a file) for its
- * engineering files, a picker for files or folders, and copying into a project's folder.
+ * Studio's files on this computer, from the desktop app (`apps/desktop/src/studio/studioImport.ts`,
+ * `window.studioImport`). Import: the folders a first scan offers, a walk of one folder (or a file)
+ * for its engineering files, a picker for files or folders, and copying into a project's folder.
+ * Back up (`useBackup.ts`): a picker for one folder, and backing a project's folders up into it;
+ * absent from a desktop app built before them.
  */
 export interface StudioImportBridge {
   roots(): Promise<ReadonlyArray<{ readonly label: string; readonly path: string }>>;
@@ -14,6 +16,11 @@ export interface StudioImportBridge {
   }>;
   pick(): Promise<ReadonlyArray<string>>;
   copy(sources: ReadonlyArray<string>, folder: string): Promise<ReadonlyArray<string>>;
+  pickFolder?(title: string, buttonLabel: string): Promise<string | null>;
+  backUp?(
+    sources: ReadonlyArray<string>,
+    folder: string,
+  ): Promise<{ readonly folder: string; readonly copied: number }>;
 }
 
 /** Null outside the desktop app (the hosted or a remote web app), where Import is not offered. */

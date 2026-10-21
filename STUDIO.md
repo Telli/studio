@@ -161,13 +161,20 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   (`StudioSidebar.tsx`): at its top the project's name, a control with its picture that switches
   projects (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on
   Home), whose top is the project's own menu (Rename, Duplicate, a copy in a new folder made by
-  the desktop app, Version history and Show in Finder); then its Overview; then its contents by
+  the desktop app, Version history, Back up and Show in Finder); then its Overview; then its contents by
   kind (`projectContents.ts`): Chats (newest first), CAD (parts, assemblies and drawings),
   Electronics, Analysis and Manufacturing (once jobs have made some) and Documents, each folding
   away, with a + where new things start (a chat, or New on that kind). The top bar names the open
   chat; with the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the
   project's switcher. The part tabs run along the panel's bottom, the Overview first. Engineering with code keeps T3 Code's thread sidebar, with the
   projects listed in it.
+- **Back up.** The project's menu backs it up into a folder chosen the first time (a Google
+  Drive, Dropbox or iCloud folder carries it off the Mac with no sign-in): the desktop app copies
+  each of the project's folders, version history (`.git`) included, into a folder named for the
+  project there, then only what changed each time, and never deletes from it
+  (`backUp` in `apps/desktop/src/studio/studioImportFiles.ts`, `components/workbench/useBackup.ts`).
+  The backup is the project's folder as it was, so Import brings it back. Where and when are
+  remembered on this computer and shown under the menu.
 - **Quick find.** In Engineering ⌘K finds a project, a part in any project (one in another
   project opens there), or any job for the part on screen, with Home, New project, Settings and
   the interface switches (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps
