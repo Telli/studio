@@ -185,9 +185,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   colored icon (`FileKindIcon.tsx`) at its left and its close at its right, as Chrome's are, the
   one in front joined to the toolbar under them. There is no + (New is the one way to add), a
   panel with every tab closed shows the Overview, and a tab's menu has no Copy path. The
-  toolbar is one line of what can be done (`StudioPanelBar.tsx`): New, always first, as Drive's
-  is (`StudioNew.tsx`, which hosts New's dialog in Engineering); then, over a part, Ask or Edit
-  by hand and Evaluate, Manufacture and Document; a narrow window's panel sheet keeps it. Whatever
+  toolbar is one line of what can be done (`StudioPanelBar.tsx`): over a part, Ask or Edit by
+  hand and Evaluate, Manufacture and Document; and New, always there, at its right end, where
+  Home has it beside Import (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow
+  window's panel sheet keeps it. Whatever
   writes into the chat (these menus, Cmd+K, the viewer's Add to chat, the Overview) brings the
   chat back from a panel filling the window, except a hand edit's note, which goes in quietly
   and leaves the keyboard in the view (`viewContext.ts`). Engineering with code keeps T3 Code's

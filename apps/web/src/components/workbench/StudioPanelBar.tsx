@@ -56,11 +56,11 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
 
 /**
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
- * can be done: New, always first (`StudioNew`), then, over a part in the CAD viewer, Ask or Edit
- * by hand (`editsByHand`; the mode is the project's, `workspaceMode.ts`, which the CAD views take
- * from the host context) and the part's jobs (Evaluate, Manufacture, with the files to export,
- * and Document), led by the project's way of making it. ⌘K's jobs are for the part last on
- * screen, else the lead part.
+ * can be done: over a part in the CAD viewer, Ask or Edit by hand (`editsByHand`; the mode is the
+ * project's, `workspaceMode.ts`, which the CAD views take from the host context) and the part's
+ * jobs (Evaluate, Manufacture, with the files to export, and Document), led by the project's way
+ * of making it; and New, always there, at the row's right end (`StudioNew`), where Home has it.
+ * ⌘K's jobs are for the part last on screen, else the lead part.
  */
 export function StudioPanelBar(props: {
   readonly folder: string | null;
@@ -133,20 +133,6 @@ export function StudioPanelBar(props: {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2" data-studio-toolbar="">
       <StudioTour />
-      {props.composerRef === null || folder === null ? null : (
-        <StudioNew
-          environmentId={threadRef.environmentId}
-          cwd={folder}
-          onCreate={(job) => {
-            if (props.composerRef !== null) handToChat(props.composerRef, job.prompt);
-            // The job goes to this chat: the Overview steps back beside it, so the work shows.
-            useRightPanelStore.getState().setMaximized(threadRef, false);
-          }}
-        />
-      )}
-      {byHandShown || inFront !== null ? (
-        <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />
-      ) : null}
       {byHandShown ? (
         <ToggleGroup
           aria-label="How to change the part"
@@ -168,6 +154,19 @@ export function StudioPanelBar(props: {
           process={process}
           composerRef={props.composerRef}
           inTopBar
+        />
+      )}
+      {/* New closes the row, at its right, as it does Home's Your projects (beside Import). */}
+      <div className="flex-1" />
+      {props.composerRef === null || folder === null ? null : (
+        <StudioNew
+          environmentId={threadRef.environmentId}
+          cwd={folder}
+          onCreate={(job) => {
+            if (props.composerRef !== null) handToChat(props.composerRef, job.prompt);
+            // The job goes to this chat: the Overview steps back beside it, so the work shows.
+            useRightPanelStore.getState().setMaximized(threadRef, false);
+          }}
         />
       )}
     </div>
