@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { aboutFile, isPlainText, openLabel } from "./aboutFile";
+import { aboutFile, fileChipWords, isPlainText, openLabel } from "./aboutFile";
 
 describe("about a file", () => {
   it("says what a file with no viewer is, as an engineer would", () => {
@@ -24,5 +24,10 @@ describe("about a file", () => {
     expect(openLabel("cam/bracket.nc")).toBe("Open");
     expect(openLabel("tools/run.command")).toBeNull();
     expect(openLabel("parts/bracket.py")).toBeNull();
+  });
+
+  it("says on a chip what a file is and where, not its path and line", () => {
+    expect(fileChipWords("drawings/clip_drawing.pdf:3")).toBe("Drawing, in drawings");
+    expect(fileChipWords("README.md")).toBe("Document");
   });
 });

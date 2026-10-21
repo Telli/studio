@@ -1,3 +1,5 @@
+import { partName } from "./partNames";
+
 /**
  * What a file with no viewer of its own is, in a sentence an engineer would say, for its page in
  * the engineering interface (`StudioFilePage`): G-code, Gerbers, a schematic, a spreadsheet. The
@@ -60,4 +62,15 @@ const OPEN_LABELS: ReadonlyArray<readonly [RegExp, string]> = [
 
 export function openLabel(path: string): string | null {
   return OPEN_LABELS.find(([test]) => test.test(path))?.[1] ?? null;
+}
+
+/**
+ * A file chip's words on hover, as an engineer would put it: what it is and where ("Drawing, in
+ * drawings"), not its path, line and size.
+ */
+export function fileChipWords(path: string): string {
+  const normalized = path.replaceAll("\\", "/").replace(/:\d+(?::\d+)?$/, "");
+  const kind = partName(normalized)?.kind ?? "File";
+  const folder = normalized.split("/").slice(0, -1).join("/");
+  return folder === "" ? kind : `${kind}, in ${folder}`;
 }

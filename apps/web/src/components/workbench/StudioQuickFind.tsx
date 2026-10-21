@@ -26,6 +26,7 @@ import { useDocumentTemplates } from "./documentTemplates";
 import { FileKindIcon } from "./FileKindIcon";
 import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
 import { CHAT_ICON, KIND_ICONS, KIND_TINTS, MENU_ICONS } from "./kinds";
+import { handToChat } from "./NewDialog";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenedThreads } from "./openedThreads";
 import { useOpenWorkspaceStore } from "./openWorkspace";
@@ -163,6 +164,11 @@ function QuickFindBody(props: {
       composer.insertTextAtEnd(prompt, { ensureLeadingBoundary: true });
       composer.focusAtEnd();
     }
+    close();
+  };
+  // A new document starts as New's Create starts it: written into the chat and sent.
+  const startWork = (prompt: string) => {
+    if (composerRef !== null) handToChat(composerRef, prompt);
     close();
   };
   const openPart = (found: FoundPart<ListedProject | null>) => {
@@ -398,7 +404,7 @@ function QuickFindBody(props: {
               title: template.label,
               description: template.description,
               run: () =>
-                writeJob(
+                startWork(
                   newWorkPrompt({
                     template,
                     name: template.defaultName,

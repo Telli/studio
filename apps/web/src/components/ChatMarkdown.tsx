@@ -1,3 +1,5 @@
+import { fileChipWords } from "./workbench/aboutFile";
+import { isEngineeringInterface } from "./workbench/studioInterface";
 import { MarkdownFindContext, useFindRevealRef } from "./chat/markdownFindContext";
 import {
   buildFileLinkParentSuffixByPath,
@@ -2123,19 +2125,36 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
       if (!api) return;
 
       try {
+        // Studio's menu has the file page's words: Open (beside the chat) and Show in Finder.
         const clicked = await api.contextMenu.show(
-          [
-            ...(onOpenMedia ? ([{ id: "preview-media", label: "Preview media" }] as const) : []),
-            ...(onOpen ? ([{ id: "open", label: openInEditorMenuLabel }] as const) : []),
-            ...(onOpenInBrowser
-              ? ([{ id: "open-in-browser", label: "Open in integrated browser" }] as const)
-              : []),
-            ...(onReveal && revealLabel ? ([{ id: "reveal", label: revealLabel }] as const) : []),
-            { id: "copy-relative", label: "Copy relative path" },
-            { id: "copy-full", label: "Copy full path" },
-          ] as const,
+          isEngineeringInterface()
+            ? ([
+                { id: "open-here", label: "Open" },
+                ...(onReveal && revealLabel
+                  ? ([{ id: "reveal", label: revealLabel }] as const)
+                  : []),
+              ] as const)
+            : ([
+                ...(onOpenMedia
+                  ? ([{ id: "preview-media", label: "Preview media" }] as const)
+                  : []),
+                ...(onOpen ? ([{ id: "open", label: openInEditorMenuLabel }] as const) : []),
+                ...(onOpenInBrowser
+                  ? ([{ id: "open-in-browser", label: "Open in integrated browser" }] as const)
+                  : []),
+                ...(onReveal && revealLabel
+                  ? ([{ id: "reveal", label: revealLabel }] as const)
+                  : []),
+                { id: "copy-relative", label: "Copy relative path" },
+                { id: "copy-full", label: "Copy full path" },
+              ] as const),
           position,
         );
+
+        if (clicked === "open-here") {
+          handleOpenInFilePreview();
+          return;
+        }
 
         if (clicked === "preview-media") {
           onOpenMedia?.();
@@ -2172,6 +2191,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
       handleCopy,
       handleOpenInBrowser,
       handleOpenInEditor,
+      handleOpenInFilePreview,
       handleRevealInFileManager,
       onOpenInBrowser,
       onOpenMedia,
@@ -2268,13 +2288,22 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
           )
         }
       />
-      <TooltipPopup side="top" variant="code">
-        {/* The full path: the chip already shows the shortened form, and a link
-            to the workspace root collapses to a bare label that repeats it. */}
-        <div className="overflow-x-auto whitespace-nowrap scrollbar-thumb-border/78 scrollbar-track-transparent [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/78 [&::-webkit-scrollbar-track]:bg-transparent">
-          <WorkspaceEntryTooltip path={iconPath} label={targetPath} environmentId={environmentId} />
-        </div>
-      </TooltipPopup>
+      {isEngineeringInterface() ? (
+        // What it is and where, in words ("Drawing, in drawings"), not its path and size.
+        <TooltipPopup side="top">{fileChipWords(displayPath)}</TooltipPopup>
+      ) : (
+        <TooltipPopup side="top" variant="code">
+          {/* The full path: the chip already shows the shortened form, and a link
+              to the workspace root collapses to a bare label that repeats it. */}
+          <div className="overflow-x-auto whitespace-nowrap scrollbar-thumb-border/78 scrollbar-track-transparent [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/78 [&::-webkit-scrollbar-track]:bg-transparent">
+            <WorkspaceEntryTooltip
+              path={iconPath}
+              label={targetPath}
+              environmentId={environmentId}
+            />
+          </div>
+        </TooltipPopup>
+      )}
     </Tooltip>
   );
 }, areMarkdownFileLinkPropsEqual);

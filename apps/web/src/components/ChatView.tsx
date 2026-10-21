@@ -12244,6 +12244,19 @@ export default function ChatView(props: ChatViewProps) {
         >
           <RightPanelTabs
             mode="sheet"
+            // A narrow window's panel keeps Studio's toolbar too: New, and the part's jobs.
+            {...(engineeringInterface
+              ? {
+                  toolbar: (
+                    <StudioPanelBar
+                      folder={activeProject?.workspaceRoot ?? null}
+                      composerRef={composerRef}
+                      threadRef={activeThreadRef}
+                      mutationId={workspaceMutationId}
+                    />
+                  ),
+                }
+              : {})}
             open={rightPanelOpen}
             keybindings={keybindings}
             getShortcutContext={getShortcutContext}
