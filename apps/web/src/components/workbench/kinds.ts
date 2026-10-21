@@ -104,18 +104,20 @@ export const CHAT_ICON: LucideIcon = MessageSquareIcon;
 
 /**
  * Each kind's color, as Google Drive colors Docs, Sheets and Slides, so a kind is told at a glance
- * in a list of everything: blue CAD, green electronics, amber analysis, violet chats, sky
- * documents, and quiet grey for what is made from a part or gathered for it.
+ * in a list of everything, each kind a hue of its own: blue CAD (the one blue), violet
+ * electronics (purple boards), magenta documents and the drawings the Document menu makes, cyan
+ * analysis, steel grey manufacturing, and quiet grey for chats and what is gathered for a part.
+ * Never red, amber or green, which say a check failed, needs you or passed.
  */
 export const KIND_TINTS: Readonly<Record<ProjectGroup | "Chats", string>> = {
-  Chats: "text-violet-600 dark:text-violet-400",
+  Chats: "text-slate-500 dark:text-slate-400",
   CAD: "text-blue-600 dark:text-blue-400",
-  Drawings: "text-blue-600 dark:text-blue-400",
-  "Reference parts": "text-blue-600 dark:text-blue-400",
-  Electronics: "text-emerald-600 dark:text-emerald-400",
-  Analysis: "text-amber-600 dark:text-amber-400",
-  Manufacturing: "text-slate-500 dark:text-slate-400",
-  Documents: "text-sky-600 dark:text-sky-400",
+  Drawings: "text-fuchsia-600 dark:text-fuchsia-400",
+  "Reference parts": "text-slate-500 dark:text-slate-400",
+  Electronics: "text-violet-600 dark:text-violet-400",
+  Analysis: "text-cyan-600 dark:text-cyan-400",
+  Manufacturing: "text-slate-600 dark:text-slate-300",
+  Documents: "text-fuchsia-600 dark:text-fuchsia-400",
   Images: "text-slate-500 dark:text-slate-400",
   References: "text-slate-500 dark:text-slate-400",
 };

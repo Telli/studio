@@ -324,7 +324,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   drawings) belongs to the part it was made from, as a CAD system keeps a study or a toolpath with
   its part. Each kind has one icon wherever it shows: the sidebar, New, the Overview's modules and
   badges, the top bar's menus, the quick find and the chat's change chips
-  (`components/workbench/kinds.ts`).
+  (`components/workbench/kinds.ts`), in a color of its own: blue CAD (the one blue), violet
+  electronics, magenta documents and drawings, cyan analysis, steel grey manufacturing. Never
+  red, amber or green, which say how a check went.
 - **Start from a part.** A new thread lists the project's CAD files (a mesh exported beside its
   STEP counts once); picking one offers the same three menus for it.
 - **A checkout's working copy.** `TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs the checkout's own
