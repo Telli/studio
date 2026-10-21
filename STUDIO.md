@@ -13,11 +13,16 @@ here beside the app. His updates merge in (the `jake` remote is fetch-only):
 git fetch jake main && git merge -X subtree=text-to-cad/ jake/main
 ```
 
-Set it up once: `vp i` here; in `text-to-cad/`, a `.venv` with `requirements-dev.txt` and
-`-e packages/cadgen[fea]`, `npm ci` and `scripts/bundle/bundle.sh`. Then
-`TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs it from this repository's `text-to-cad/`
-(`TEXT_TO_CAD_ROOT` points at another checkout). A change to the viewer needs its packages built
-(`npm run build` in `text-to-cad/packages/core` and `packages/ui`) before Studio starts.
+Set it up on a Mac with `scripts/setup-studio.sh`, after Apple's command line tools and Node 24,
+and again after pulling. It installs the packages (the repository's own vp, run through npx when
+none is installed), fetches Electron, makes `text-to-cad/.venv` with uv (Python 3.13,
+`requirements-dev.txt` and the `fea` extra), runs `npm ci`, `npm run build:packages` and
+`scripts/bundle/bundle.sh` in `text-to-cad/`, fetches the browser cadgen draws pictures with, and
+checks for Claude Code; it changes no shell settings. `scripts/run-studio.sh` starts it:
+`TEXT_TO_CAD_DEV=1 vpr studio:desktop`, from this repository's `text-to-cad/` (`TEXT_TO_CAD_ROOT`
+points at another checkout). The development plugin is built with `text-to-cad/.venv`'s Python,
+since a Mac's own python3 can be too old for cadgen. A change to the viewer needs its packages
+built (`npm run build:packages` in `text-to-cad/`) before Studio starts.
 
 ## Run it
 
