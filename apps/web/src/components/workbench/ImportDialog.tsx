@@ -1,9 +1,10 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import type { StudioImportKind } from "@t3tools/shared/studioImport";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
-import { FolderPlusIcon } from "lucide-react";
+import { BoxIcon, FolderPlusIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import {
@@ -31,7 +32,9 @@ import {
   type ScannedRoot,
   suggestProject,
 } from "./importPlan";
+import { KIND_TINTS } from "./kinds";
 import { partLabel } from "./partNames";
+import { usePictures } from "./usePictures";
 import { readStudioImport, rememberScan } from "./studioImportBridge";
 import { useImportProjects } from "./useImportProjects";
 import { useEnvironmentFolders } from "./useProjectFolders";
@@ -54,6 +57,41 @@ const plural = (count: number, one: string, many: string) =>
 const NOTHING_FOUND = (root: string): ScannedRoot => ({ root, files: [] });
 
 /** The Import dialog, wherever it was asked for (`importDialogStore.ts`). */
+
+/** The models the server can picture, by their endings (as `modelPictures.ts` renders them). */
+const PICTURED = /\.(?:step|stp|stl|3mf|glb|dxf|kicad_pcb)$/i;
+
+/**
+ * A found project's picture, as its tile on Home will show it: its first model, rendered where it
+ * lies (nothing is copied to picture it), or the kind's icon until it is.
+ */
+function FoundPicture(props: {
+  readonly environmentId: EnvironmentId;
+  readonly folder: string;
+  readonly files: ReadonlyArray<ImportFile>;
+}) {
+  const root = props.folder.replace(/[\\/]+$/, "");
+  const model = props.files.find(
+    (file) => file.kind === "model" && PICTURED.test(file.path) && file.path.startsWith(`${root}/`),
+  );
+  const path = model === undefined ? null : model.path.slice(root.length + 1);
+  const pictures = usePictures({
+    environmentId: props.environmentId,
+    cwd: root,
+    paths: path === null ? [] : [path],
+  });
+  const picture = path === null ? undefined : pictures.get(path);
+  return (
+    <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
+      {picture ? (
+        <img src={picture} alt="" className="size-full object-cover" />
+      ) : (
+        <BoxIcon className={cn("size-5 opacity-60", KIND_TINTS.CAD)} aria-hidden="true" />
+      )}
+    </span>
+  );
+}
+
 export function ImportDialogHost(props: { readonly environmentId: EnvironmentId }) {
   const start = useImportDialogStore((store) => store.start);
   const count = useImportDialogStore((store) => store.count);
@@ -379,6 +417,11 @@ function ImportDialog(props: {
                           return next;
                         })
                       }
+                    />
+                    <FoundPicture
+                      environmentId={environmentId}
+                      folder={project.folder}
+                      files={project.files}
                     />
                     <span className="flex min-w-0 flex-col gap-0.5">
                       <span className="truncate text-sm font-medium text-foreground">
