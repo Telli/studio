@@ -20,6 +20,7 @@ import type { ListedProject } from "./projectList";
 import { ProjectTile } from "./ProjectTile";
 import { splitStarred, useStarredStore } from "./starredProjects";
 import { ImportDialogHost } from "./ImportDialog";
+import { HomeActivity } from "./HomeActivity";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
@@ -105,6 +106,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                 <NewFilesNotice environmentId={environmentId} />
                 <StartProject environmentId={environmentId} />
               </div>
+              <HomeActivity environmentId={environmentId} cards={cards} />
               {starred.length === 0 ? null : (
                 <section aria-label="Starred" className="flex min-w-0 flex-col gap-3">
                   <h2 className={SECTION_LABEL}>Starred</h2>
