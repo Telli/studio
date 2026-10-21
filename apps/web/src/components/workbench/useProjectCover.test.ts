@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { projectCover } from "./useProjectCover";
+import { projectCover, projectPage } from "./useProjectCover";
 
 describe("a project's picture", () => {
   it("pictures the whole product: its first assembly before its parts", () => {
@@ -21,5 +21,13 @@ describe("a project's picture", () => {
       "electronics/board/board.kicad_pcb",
     );
     expect(projectCover(["README.md", "assets/icon.svg"])).toBeNull();
+  });
+});
+
+describe("a project with nothing to picture", () => {
+  it("is pictured by its first document, else by what its README says", () => {
+    expect(projectPage(["README.md", "docs/prd.md", "assets/icon.svg"])).toBe("docs/prd.md");
+    expect(projectPage(["README.md", "assets/icon.svg"])).toBe("README.md");
+    expect(projectPage(["assets/icon.svg"])).toBeNull();
   });
 });

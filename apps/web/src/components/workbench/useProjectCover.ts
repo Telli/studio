@@ -24,22 +24,40 @@ export function projectCover(paths: ReadonlyArray<string>): string | null {
   return cover === undefined ? null : (cover.picture ?? cover.path);
 }
 
+/**
+ * The document that stands for a project with nothing to picture yet, as a page of words: its
+ * first document, else its README (what it is). Null when it has neither.
+ */
+export function projectPage(paths: ReadonlyArray<string>): string | null {
+  const documents = groupProjectFiles(paths).find((entry) => entry.group === "Documents")?.files;
+  const first = documents?.find((file) => !/^readme\.md$/i.test(file.path)) ?? documents?.[0];
+  if (first !== undefined) return first.path;
+  return paths.find((path) => /^readme\.md$/i.test(path)) ?? null;
+}
+
 /** The file that pictures the project's first folder (`projectCover`); null when none does yet. */
 function useCoverFile(environmentId: EnvironmentId, project: StudioProject | null) {
   const cwd = project?.folders[0] ?? "";
   const listing = useEnvironmentQuery(
     cwd === "" ? null : projectEnvironment.listEntries({ environmentId, input: { cwd } }),
   );
-  const cover = useMemo(
-    () =>
-      projectCover(
-        (listing.data?.entries ?? [])
-          .filter((entry) => entry.kind === "file" && entry.ignored !== true)
-          .map((entry) => entry.path),
-      ),
-    [listing.data],
-  );
-  return { cwd, cover };
+  const { cover, page } = useMemo(() => {
+    const paths = (listing.data?.entries ?? [])
+      .filter((entry) => entry.kind === "file" && entry.ignored !== true)
+      .map((entry) => entry.path);
+    const coverFile = projectCover(paths);
+    return { cover: coverFile, page: coverFile === null ? projectPage(paths) : null };
+  }, [listing.data]);
+  return { cwd, cover, page };
+}
+
+/** The page that stands for a project with nothing to picture (`projectPage`), by its folder. */
+export function useProjectPage(
+  environmentId: EnvironmentId,
+  project: StudioProject | null,
+): { readonly root: string; readonly path: string } | null {
+  const { cwd, page } = useCoverFile(environmentId, project);
+  return page === null ? null : { root: cwd, path: page };
 }
 
 /** Whether the project has a part, a board or a study yet: what its versions are kept of. */

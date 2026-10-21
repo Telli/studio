@@ -170,7 +170,7 @@ const plainText = (line: string) =>
     .join("");
 
 /** A document as a small page: its title, then its opening lines, the way a thumbnail reads. */
-function Page(props: {
+export function Page(props: {
   readonly environmentId: EnvironmentId;
   readonly root: string;
   readonly path: string;

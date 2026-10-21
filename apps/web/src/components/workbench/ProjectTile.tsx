@@ -8,7 +8,8 @@ import { Badge } from "../ui/badge";
 import { KIND_ICONS, KIND_TINTS } from "./kinds";
 import { projectActivity } from "./recentProjects";
 import { StarButton } from "./StarButton";
-import { useProjectCover } from "./useProjectCover";
+import { Page } from "./OverviewModules";
+import { useProjectCover, useProjectPage } from "./useProjectCover";
 import { chatLabel } from "./workspaceTitle";
 
 /**
@@ -32,6 +33,8 @@ export function ProjectTile(props: {
   const { environmentId, project } = props;
   const waiting = props.waiting ?? [];
   const picture = useProjectCover(environmentId, project);
+  // A project of documents is pictured by its first one, as a page of words.
+  const page = useProjectPage(environmentId, project);
   // The minute as the page knows it (UTC), so the tile re-reads as time passes.
   const now = Date.parse(`${useNowMinute()}:00Z`);
   const activity = projectActivity({
@@ -60,6 +63,8 @@ export function ProjectTile(props: {
         <span className="flex aspect-[4/3] items-center justify-center overflow-hidden border-b border-border bg-muted/50">
           {picture ? (
             <img src={picture} alt="" className="size-full object-cover" />
+          ) : page !== null ? (
+            <Page environmentId={environmentId} root={page.root} path={page.path} />
           ) : (
             <KindIcon className={cn("size-8 opacity-60", KIND_TINTS[kind])} aria-hidden="true" />
           )}
