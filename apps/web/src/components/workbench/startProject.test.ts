@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { provisionalProjectName, setPendingStart, takePendingStart } from "./startProject";
+import {
+  nameFromAttachment,
+  provisionalProjectName,
+  referencePaths,
+  setPendingStart,
+  startMessage,
+  takePendingStart,
+} from "./startProject";
 
 describe("provisionalProjectName", () => {
   it("names a project from the start of its description", () => {
@@ -59,5 +66,133 @@ describe("takePendingStart", () => {
     setPendingStart("/p/one", { prompt: "One", files: [] });
     expect(takePendingStart("/p/two")).toBeNull();
     expect(takePendingStart("/p/one")?.prompt).toBe("One");
+  });
+});
+
+describe("startMessage", () => {
+  const files = ["brief/references/Spatula PRD.pdf", "brief/references/Sketches"];
+  const SET_UP =
+    "Read them all before anything else, then set the project up from them: its name, its units, material, process and quantity where they say, and the README with what it is, its requirements and the decisions they settle. Ask me only what they leave open.";
+
+  it("leaves a one-line start as it is", () => {
+    expect(
+      startMessage({
+        description: " A clip for my lanyard ",
+        references: [],
+        attached: 0,
+        newProject: true,
+      }),
+    ).toBe("A clip for my lanyard");
+  });
+
+  it("sets a new project up from the files copied into its References, read first", () => {
+    expect(
+      startMessage({
+        description: "A spatula for cast iron",
+        references: files,
+        attached: 0,
+        newProject: true,
+      }),
+    ).toBe(
+      [
+        "A spatula for cast iron",
+        "",
+        "My files for it are in the project's References:",
+        "- `brief/references/Spatula PRD.pdf`",
+        "- `brief/references/Sketches`",
+        "",
+        SET_UP,
+      ].join("\n"),
+    );
+  });
+
+  it("starts a project from its files alone", () => {
+    expect(
+      startMessage({ description: "", references: files, attached: 0, newProject: true }),
+    ).toBe(
+      [
+        "Set up this project from my files in its References:",
+        "- `brief/references/Spatula PRD.pdf`",
+        "- `brief/references/Sketches`",
+        "",
+        SET_UP,
+      ].join("\n"),
+    );
+  });
+
+  it("names a dozen of many files and counts the rest", () => {
+    const many = Array.from({ length: 15 }, (_, at) => `brief/references/photo ${at + 1}.jpg`);
+    const lines = startMessage({
+      description: "",
+      references: many,
+      attached: 0,
+      newProject: true,
+    }).split("\n");
+    expect(lines.filter((line) => line.startsWith("- `brief/references/photo"))).toHaveLength(12);
+    expect(lines).toContain("- and 3 more in `brief/references/`");
+  });
+
+  it("asks a project of yours to read what was added to it", () => {
+    expect(
+      startMessage({
+        description: "Add a hanging hole",
+        references: files.slice(0, 1),
+        attached: 0,
+        newProject: false,
+      }),
+    ).toBe(
+      [
+        "Add a hanging hole",
+        "",
+        "I added these files to the project's References:",
+        "- `brief/references/Spatula PRD.pdf`",
+        "",
+        "Read them before anything else.",
+      ].join("\n"),
+    );
+    expect(
+      startMessage({
+        description: "",
+        references: files.slice(0, 1),
+        attached: 0,
+        newProject: false,
+      }),
+    ).toBe(
+      [
+        "I added these files to the project's References:",
+        "- `brief/references/Spatula PRD.pdf`",
+        "",
+        "Read them, and add what they settle to the README.",
+      ].join("\n"),
+    );
+  });
+
+  it("asks for the files sent with it where none could be copied", () => {
+    expect(startMessage({ description: "", references: [], attached: 2, newProject: true })).toBe(
+      "Set up this project from the attached files.",
+    );
+    expect(startMessage({ description: "", references: [], attached: 1, newProject: false })).toBe(
+      "Read the attached file.",
+    );
+  });
+});
+
+describe("referencePaths", () => {
+  it("gives each copy by its path in the project, as copied, a taken name kept apart", () => {
+    expect(
+      referencePaths([
+        "/Users/amy/studio-projects/spatula/brief/references/Spatula PRD (2).pdf",
+        "C:\\Projects\\spatula\\brief\\references\\Sketches",
+      ]),
+    ).toEqual(["brief/references/Spatula PRD (2).pdf", "brief/references/Sketches"]);
+  });
+});
+
+describe("nameFromAttachment", () => {
+  it("names a project after its first file or folder, as Import does", () => {
+    expect(nameFromAttachment("Spatula PRD.pdf")).toBe("Spatula PRD");
+    expect(nameFromAttachment("sumo-robot")).toBe("Sumo robot");
+    expect(nameFromAttachment("servo_bracket_v2.step")).toBe("Servo bracket v2");
+    expect(nameFromAttachment(".step")).toBe("New project");
   });
 });

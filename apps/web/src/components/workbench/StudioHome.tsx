@@ -28,6 +28,8 @@ import { waitingFirst, whenTouched } from "./ProjectChoices";
 import { useProjectMenu } from "./ProjectMenu";
 import { ProjectPicker } from "./ProjectPicker";
 import { needsYou } from "./recentActivity";
+import { nameOfPath, type StartAttachment } from "./startProject";
+import { droppedPath, readStudioImport } from "./studioImportBridge";
 import { StudioNew } from "./StudioNew";
 import { StudioTopBar } from "./StudioTopBar";
 import { useImportActions } from "./useImportActions";
@@ -226,10 +228,23 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   );
 }
 
+/** A file attached to Home's box: by its path on this computer, where the desktop app gives one. */
+function fromFile(file: File): StartAttachment {
+  const path = droppedPath(file);
+  return path === null
+    ? { name: file.name, path: null, file }
+    : { name: nameOfPath(path), path, file: null };
+}
+
+const fromPath = (path: string): StartAttachment => ({ name: nameOfPath(path), path, file: null });
+
 /**
  * Home's box: describe what to make and Start. It goes to a new project, as it starts, or to a
  * new chat in a project of yours chosen beside Attach (`ProjectPicker`), the box then reading as a
- * project's chat box does. With no projects yet it offers the sample project.
+ * project's chat box does. Files and folders attached (Attach, or dropped on the box) set the
+ * project up: Start copies them into its References and the agent reads them first, so a project
+ * can start from a PRD and its sketches, with or without a description. With no projects yet it
+ * offers the sample project.
  */
 function StartProject(props: {
   readonly environmentId: EnvironmentId;
@@ -244,9 +259,18 @@ function StartProject(props: {
   const [chosenId, setChosenId] = useState<string | null>(null);
   const chosen = props.cards.find((card) => card.id === chosenId) ?? null;
   const [description, setDescription] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
+  const [attachments, setAttachments] = useState<StartAttachment[]>([]);
   // A file dropped on the box is attached, as the chat's box attaches it (Home elsewhere imports).
   const [attaching, setAttaching] = useState(false);
+  // The desktop app: files and folders, by their paths, copied into the project on Start.
+  const bridge = readStudioImport();
+  const attach = (added: ReadonlyArray<StartAttachment>) =>
+    setAttachments((current) => [
+      ...current,
+      ...added.filter(
+        (item) => item.path === null || !current.some((held) => held.path === item.path),
+      ),
+    ]);
   const fileInput = useRef<HTMLInputElement>(null);
   const describe = useRef<HTMLTextAreaElement>(null);
   const hash = useLocation({ select: (location) => location.hash });
@@ -255,9 +279,9 @@ function StartProject(props: {
     if (hash === "start") describe.current?.focus();
   }, [hash]);
   const run = props.start;
-  const ready = description.trim() !== "" && !busy;
+  const ready = (description.trim() !== "" || attachments.length > 0) && !busy;
   const startDescribed = () => {
-    if (ready) void run({ kind: "described", description, files, project: chosen });
+    if (ready) void run({ kind: "described", description, attachments, project: chosen });
   };
   const placeholder = chosen === null ? "Describe a new project" : ENGINEERING_COMPOSER_PLACEHOLDER;
 
@@ -278,8 +302,7 @@ function StartProject(props: {
           if (!event.dataTransfer.types.includes("Files")) return;
           event.preventDefault();
           setAttaching(false);
-          const dropped = Array.from(event.dataTransfer.files);
-          if (dropped.length > 0) setFiles((current) => [...current, ...dropped]);
+          attach(Array.from(event.dataTransfer.files).map(fromFile));
         }}
         className={cn(
           "relative flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-xs/5 focus-within:border-ring",
@@ -288,7 +311,7 @@ function StartProject(props: {
       >
         {attaching ? (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 text-sm font-medium text-foreground">
-            Drop files to attach
+            {bridge === null ? "Drop files to attach" : "Drop files or folders to attach"}
           </div>
         ) : null}
         <Textarea
@@ -306,19 +329,24 @@ function StartProject(props: {
             }
           }}
         />
-        {files.length === 0 ? null : (
+        {attachments.length === 0 ? null : (
           <ul aria-label="Attached" className="flex flex-wrap gap-1.5">
-            {files.map((file, index) => (
+            {attachments.map((attachment, index) => (
               <li
-                key={`${file.name}-${file.size}-${file.lastModified}`}
+                key={
+                  attachment.path ??
+                  `${attachment.name}-${attachment.file?.size}-${attachment.file?.lastModified}`
+                }
                 className="flex max-w-60 items-center gap-1 rounded-md border border-border bg-muted/40 py-0.5 pr-0.5 pl-2 text-xs text-foreground"
               >
-                <span className="truncate">{file.name}</span>
+                <span className="truncate">{attachment.name}</span>
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  aria-label={`Remove ${file.name}`}
-                  onClick={() => setFiles((current) => current.filter((_, at) => at !== index))}
+                  aria-label={`Remove ${attachment.name}`}
+                  onClick={() =>
+                    setAttachments((current) => current.filter((_, at) => at !== index))
+                  }
                 >
                   <XIcon />
                 </Button>
@@ -326,6 +354,12 @@ function StartProject(props: {
             ))}
           </ul>
         )}
+        {attachments.some((attachment) => attachment.path !== null) ? (
+          <p className="text-xs text-muted-foreground">
+            These go in {chosen === null ? "the new project's" : `${chosen.project.name}'s`}{" "}
+            References, and the agent reads them first.
+          </p>
+        ) : null}
         <div className="flex items-center gap-2">
           <input
             ref={fileInput}
@@ -333,12 +367,19 @@ function StartProject(props: {
             multiple
             hidden
             onChange={(event) => {
-              const picked = Array.from(event.target.files ?? []);
-              setFiles((current) => [...current, ...picked]);
+              attach(Array.from(event.target.files ?? []).map(fromFile));
               event.target.value = "";
             }}
           />
-          <Button variant="ghost" size="sm" onClick={() => fileInput.current?.click()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              // The desktop app's picker takes folders too; the browser's takes files.
+              if (bridge === null) fileInput.current?.click();
+              else void bridge.pick().then((paths) => attach(paths.map(fromPath)));
+            }}
+          >
             <PaperclipIcon />
             Attach
           </Button>
@@ -373,7 +414,7 @@ function StartProject(props: {
               void run({
                 kind: "described",
                 description: SAMPLE_PROJECT.description,
-                files: [],
+                attachments: [],
                 project: null,
               })
             }

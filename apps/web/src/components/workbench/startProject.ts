@@ -1,9 +1,14 @@
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 
+import { BRIEF_REFERENCES } from "./briefFolder";
+import { humanName } from "./partNames";
+
 /**
  * Starting a project from Home (`StudioHome.tsx`): a name to begin with, which the agent replaces
  * with a proper one in its first reply (`studioProjectContext`), and the first message, held until
- * the new project's workspace has a composer to send it from (`usePendingStart.ts`).
+ * the new project's workspace has a composer to send it from (`usePendingStart.ts`). Files and
+ * folders attached to Home's box set the project up: Start copies them into its References, and
+ * the first message asks the agent to read them before anything else (`startMessage`).
  */
 
 const NAME_LENGTH = 32;
@@ -104,6 +109,86 @@ export function provisionalProjectName(description: string): string {
   while (kept.length > 0 && DANGLING.has(kept[kept.length - 1]!.toLowerCase())) kept.pop();
   const name = kept.join(" ");
   return name === "" ? "New project" : name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/**
+ * A file or folder attached to Home's box. In the desktop app it has a path on this computer, and
+ * Start copies it into the project's References. Without one (the web app, or a file dragged from
+ * another app), the browser's `file` goes with the first message instead, as a chat attaches it.
+ */
+export interface StartAttachment {
+  readonly name: string;
+  readonly path: string | null;
+  readonly file: File | null;
+}
+
+/** A file's or folder's name: the last part of its path. */
+export const nameOfPath = (path: string): string =>
+  path.split(/[\\/]+/).findLast((part) => part !== "") ?? path;
+
+/** Each copy in the project's References by its path in the project's folder, as copied. */
+export function referencePaths(copied: ReadonlyArray<string>): string[] {
+  return copied.map((path) => `${BRIEF_REFERENCES}/${nameOfPath(path)}`);
+}
+
+/**
+ * A project started from files alone is named after the first, as Import names one: "Spatula
+ * PRD" from `Spatula PRD.pdf`, "Sumo robot" from a `sumo-robot` folder.
+ */
+export function nameFromAttachment(name: string): string {
+  const stem = name.trim().replace(/\.[A-Za-z][A-Za-z0-9]{0,7}$/, "");
+  return stem === "" ? "New project" : humanName(stem);
+}
+
+/** How many of the copied files the first message names; the rest are counted. */
+const LISTED = 12;
+
+const SET_UP =
+  "Read them all before anything else, then set the project up from them: its name, its units, material, process and quantity where they say, and the README with what it is, its requirements and the decisions they settle. Ask me only what they leave open.";
+
+/**
+ * The first message of a start from Home's box. A description alone goes as it is. With files
+ * copied into the project's References (`references`, by their paths in its folder), it names
+ * them and asks the agent to read them before anything else: a new project is set up from them,
+ * and a project of yours takes them in. Files that could not be copied (`attached`, the web app)
+ * go with the message.
+ */
+export function startMessage(input: {
+  readonly description: string;
+  readonly references: ReadonlyArray<string>;
+  readonly attached: number;
+  /** A new project; else a new chat in one of yours. */
+  readonly newProject: boolean;
+}): string {
+  const said = input.description.trim();
+  const { references, newProject } = input;
+  if (references.length === 0) {
+    if (said !== "" || input.attached === 0) return said;
+    const files = input.attached === 1 ? "the attached file" : "the attached files";
+    return newProject ? `Set up this project from ${files}.` : `Read ${files}.`;
+  }
+  const listed = references.slice(0, LISTED).map((path) => `- \`${path}\``);
+  const more = references.length - listed.length;
+  const list = [...listed, ...(more > 0 ? [`- and ${more} more in \`${BRIEF_REFERENCES}/\``] : [])];
+  if (newProject) {
+    return [
+      ...(said === ""
+        ? ["Set up this project from my files in its References:"]
+        : [said, "", "My files for it are in the project's References:"]),
+      ...list,
+      "",
+      SET_UP,
+    ].join("\n");
+  }
+  return [
+    ...(said === "" ? [] : [said, ""]),
+    "I added these files to the project's References:",
+    ...list,
+    "",
+    said === ""
+      ? "Read them, and add what they settle to the README."
+      : "Read them before anything else.",
+  ].join("\n");
 }
 
 /** What the new project's first chat sends: the description or the new work's job, and any files. */

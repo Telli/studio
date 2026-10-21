@@ -4,7 +4,7 @@ import { toastManager } from "../ui/toast";
 import { readStudioImport } from "./studioImportBridge";
 
 /** An error from the desktop app in its own words, without Electron's wrapping. */
-const plainError = (error: unknown) =>
+export const plainError = (error: unknown) =>
   (error instanceof Error ? error.message : String(error)).replace(
     /^Error invoking remote method '[^']*': (?:Error: )?/,
     "",
