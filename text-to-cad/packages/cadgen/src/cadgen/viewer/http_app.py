@@ -555,6 +555,8 @@ class CadApp:
                     self._handle_artifact_build(request, response, query)
                 elif pathname in ("/__cad/edit/state", "/__cad/edit/change"):
                     self._handle_edit(request, response, pathname)
+                elif pathname in ("/__cad/versions", "/__cad/versions/compare"):
+                    self._handle_versions(request, response, pathname)
                 elif pathname in ("/__cad/analytics", "/__cad/analytics/activity") and self.analytics is not None:
                     # A page's crash report carries its frames (``_report_activity``): room for them, and no more.
                     if int(request.headers.get("content-length") or 0) > (16384 if pathname.endswith("/activity") else 4096):
@@ -838,6 +840,35 @@ class CadApp:
                 result = service.state(str(payload.get("file") or ""), payload.get("files"), payload.get("bar"))
             else:
                 result = service.change(payload)
+        except Exception as error:  # noqa: BLE001
+            result = {"ok": False, "error": str(error) or type(error).__name__}
+        response.send_json(200, result)
+
+    def _handle_versions(self, request, response, pathname):
+        """Studio's versions of a part (``cadgen/edit/versions.py``): the versions of one file in
+        the project's checkpoints, and what changed between two of them. Git and a process of its
+        own do the work, never this one. Failures are answered, as edit mode's are."""
+        if int(request.headers.get("content-length") or 0) > 65536:
+            response.send_empty(413, [("connection", "close")])
+            return
+        try:
+            payload = json.loads(request.body() or b"{}")
+            if type(payload) is not dict:
+                raise ValueError("a versions request is an object")
+            from cadgen.edit import versions
+
+            folder, path = str(payload.get("folder") or ""), str(payload.get("path") or "")
+            if pathname.endswith("/compare"):
+                result = versions.compare(
+                    folder,
+                    path,
+                    str(payload.get("older") or ""),
+                    str(payload.get("newer") or ""),
+                    payload.get("texts") if type(payload.get("texts")) is list else None,
+                    retry=payload.get("retry") is True,
+                )
+            else:
+                result = versions.versions(folder, path)
         except Exception as error:  # noqa: BLE001
             result = {"ok": False, "error": str(error) or type(error).__name__}
         response.send_json(200, result)
