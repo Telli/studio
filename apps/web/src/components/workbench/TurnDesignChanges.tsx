@@ -1,20 +1,10 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import {
-  ActivityIcon,
-  BoxIcon,
-  CircuitBoardIcon,
-  FileCogIcon,
-  FileTextIcon,
-  ImageIcon,
-  type LucideIcon,
-  PencilRulerIcon,
-  SlidersHorizontalIcon,
-} from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 
 import { useRightPanelStore } from "~/rightPanelStore";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { type DesignChange, designChanges } from "./designChanges";
+import { FILE_ICONS, fileIconKey } from "./kinds";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { useEngineeringInterface } from "./studioInterface";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
@@ -22,30 +12,6 @@ import { useVersionRequestStore } from "./useVersions";
 
 /** A part's model, which has versions to compare (`PartVersions`). */
 const VERSIONED = /\.(?:step|stp)$/i;
-
-const ICONS: Readonly<Record<string, LucideIcon>> = {
-  Check: ActivityIcon,
-  Document: FileTextIcon,
-  Part: BoxIcon,
-  Source: BoxIcon,
-  Mesh: BoxIcon,
-  Robot: BoxIcon,
-  Board: CircuitBoardIcon,
-  Schematic: CircuitBoardIcon,
-  Harness: CircuitBoardIcon,
-  Drawing: PencilRulerIcon,
-  "FEA study": ActivityIcon,
-  "CAM job": FileCogIcon,
-  "G-code": FileCogIcon,
-  Gerbers: FileCogIcon,
-  "Bill of materials": FileCogIcon,
-  "Pick and place": FileCogIcon,
-  Image: ImageIcon,
-  Setup: SlidersHorizontalIcon,
-};
-/** The icon's key: a manufacturing check by its own, anything unlisted as a document. */
-const iconKey = (kind: string) =>
-  kind in ICONS ? kind : kind.endsWith(" check") ? "Check" : "Document";
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
 
@@ -57,7 +23,7 @@ function ChangeChip(props: {
   readonly compares: boolean;
 }) {
   const { change } = props;
-  const Icon = ICONS[iconKey(change.kind)]!;
+  const Icon = FILE_ICONS[fileIconKey(change.kind)];
   // Which of a part's files changed with it (its model, its drawing), said on hover.
   const aspects = change.aspects.length < 2 ? undefined : change.aspects.join(", ");
   const chip =

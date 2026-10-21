@@ -193,9 +193,7 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
  * the part editor and is pictured by its STEP.
  */
 export function overviewParts(files: ReadonlyArray<ProjectFile>): ProjectFile[] {
-  const parts = files.filter(
-    (file) => file.group === "Models" || file.group === "Boards and wiring",
-  );
+  const parts = files.filter((file) => file.group === "Mechanical" || file.group === "Electrical");
   const key = (file: ProjectFile) => `${file.folder}/${stemOf(file.name)}`;
   const steps = new Map(
     parts.filter((file) => file.kind === "Part").map((file) => [key(file), file]),
@@ -236,6 +234,44 @@ export function drawingsFor(part: ProjectFile, paths: ReadonlyArray<string>): st
     const name = baseName(path).toLowerCase();
     return /[._-]drawing\.pdf$/.test(name) && name.slice(0, -"_drawing.pdf".length) === stem;
   });
+}
+
+/** How many folders two folder paths share from the top. */
+function sharedFolders(a: string, b: string): number {
+  const left = a.split("/").filter(Boolean);
+  const right = b.split("/").filter(Boolean);
+  let count = 0;
+  while (count < left.length && left[count] === right[count]) count += 1;
+  return count;
+}
+
+/**
+ * What was made to manufacture each part, by the part's path: the CAM jobs, G-code, Gerbers and
+ * the like whose names begin with the part's own (`l_bracket.nc`, `servo_power.gerbers.zip`).
+ * Each file is one part's: the one whose name it begins with most of, then the one in the folder
+ * nearest it, so `bracket_v2.nc` is Bracket v2's, not Bracket's.
+ */
+export function manufacturingFor(
+  parts: ReadonlyArray<ProjectFile>,
+  files: ReadonlyArray<ProjectFile>,
+): Map<string, ProjectFile[]> {
+  const made = new Map<string, ProjectFile[]>();
+  for (const file of files) {
+    if (file.group !== "Manufacturing") continue;
+    const name = file.name.toLowerCase();
+    const owner = parts
+      .filter((part) => {
+        const stem = stemOf(part.name);
+        return name.startsWith(stem) && /[._-]/.test(name.charAt(stem.length));
+      })
+      .toSorted(
+        (a, b) =>
+          stemOf(b.name).length - stemOf(a.name).length ||
+          sharedFolders(b.folder, file.folder) - sharedFolders(a.folder, file.folder),
+      )[0];
+    if (owner !== undefined) made.set(owner.path, [...(made.get(owner.path) ?? []), file]);
+  }
+  return made;
 }
 
 /** The worst status among the results, or null when none has run. */

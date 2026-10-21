@@ -4,6 +4,7 @@ import {
   drawingsFor,
   isCheckResultPath,
   isNamedStudyPath,
+  manufacturingFor,
   overviewParts,
   parseCheckResult,
   proposeFixPrompt,
@@ -222,6 +223,39 @@ describe("check results", () => {
         "docs/bracket.pdf",
       ]),
     ).toEqual(["drawings/bracket_drawing.pdf"]);
+  });
+
+  it("gives each manufacturing file to the part it was made from", () => {
+    const parts = [
+      "parts/bracket.step",
+      "parts/bracket_v2.step",
+      "v1/plate.step",
+      "v2/plate.step",
+      "electronics/servo_power.kicad_pcb",
+    ].map(file);
+    const made = manufacturingFor(parts, [
+      ...parts,
+      ...[
+        "cam/bracket.cam.glb",
+        "cam/bracket.cam.json",
+        "cam/bracket_v2.nc",
+        "v2/out/plate.nc",
+        "electronics/servo_power.gerbers.zip",
+        "electronics/servo_power.bom.csv",
+        "electronics/gerbers.zip",
+        "cam/bracketry.nc",
+        "drawings/bracket_drawing.pdf",
+      ].map(file),
+    ]);
+    const names = (path: string) => made.get(path)?.map((entry) => entry.path) ?? [];
+    expect(names("parts/bracket.step")).toEqual(["cam/bracket.cam.glb", "cam/bracket.cam.json"]);
+    expect(names("parts/bracket_v2.step")).toEqual(["cam/bracket_v2.nc"]);
+    expect(names("v1/plate.step")).toEqual([]);
+    expect(names("v2/plate.step")).toEqual(["v2/out/plate.nc"]);
+    expect(names("electronics/servo_power.kicad_pcb")).toEqual([
+      "electronics/servo_power.gerbers.zip",
+      "electronics/servo_power.bom.csv",
+    ]);
   });
 
   it("asks the agent to propose a fix and wait, never to change the part", () => {

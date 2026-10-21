@@ -2,17 +2,7 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  BoxIcon,
-  CircuitBoardIcon,
-  FileOutputIcon,
-  FileTextIcon,
-  HomeIcon,
-  LayoutDashboardIcon,
-  ListChecksIcon,
-  PlusIcon,
-  SettingsIcon,
-} from "lucide-react";
+import { HomeIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
@@ -28,10 +18,11 @@ import {
   CommandList,
 } from "../ui/command";
 import { useDocumentTemplates } from "./documentTemplates";
-import { hardwareActions } from "./hardwareActions";
+import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
+import { KIND_ICONS, MENU_ICONS } from "./kinds";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenWorkspaceStore } from "./openWorkspace";
-import { classifyProjectFile } from "./projectFiles";
+import { classifyProjectFile, type ProjectGroup } from "./projectFiles";
 import type { ListedProject } from "./projectList";
 import { type FoundPart, findJobs, folderParts, holdsWords } from "./quickFind";
 import { studioInterfaceCommands } from "./studioInterface";
@@ -41,6 +32,18 @@ import { useOpenProject } from "./useOpenProject";
 import { useProjectList } from "./useProjectList";
 
 const ICON = "size-4 shrink-0 text-muted-foreground";
+
+/** A part's or a document's row: its kind's icon (`kinds.ts`). */
+function KindIcon(props: { readonly group: ProjectGroup }) {
+  const Icon = KIND_ICONS[props.group];
+  return <Icon className={ICON} />;
+}
+
+/** A job's row: the icon of its menu, which is the icon of what it makes. */
+function JobIcon(props: { readonly group: HardwareActionGroup }) {
+  const Icon = MENU_ICONS[props.group];
+  return <Icon className={ICON} />;
+}
 
 interface Row {
   readonly value: string;
@@ -156,11 +159,7 @@ function QuickFindBody(props: {
           label: `Jobs for ${partTitle}`,
           rows: findJobs(menus, query).map(({ action, place }) => ({
             value: `job:${action.id}`,
-            icon: action.checks ? (
-              <ListChecksIcon className={ICON} />
-            ) : (
-              <FileOutputIcon className={ICON} />
-            ),
+            icon: <JobIcon group={action.group} />,
             title: action.label,
             description: place,
             run: () => writeJob(action.prompt(serializeComposerFileLink(part.path))),
@@ -178,12 +177,7 @@ function QuickFindBody(props: {
     label: typed || current === null ? "Parts" : `Parts in ${current.project.name}`,
     rows: shownParts.map((found) => ({
       value: `part:${found.root}\n${found.file.path}`,
-      icon:
-        found.file.kind === "Board" ? (
-          <CircuitBoardIcon className={ICON} />
-        ) : (
-          <BoxIcon className={ICON} />
-        ),
+      icon: <KindIcon group={found.file.group} />,
       title: found.file.title,
       description:
         !typed || inHere(found)
@@ -262,7 +256,7 @@ function QuickFindBody(props: {
             )
             .map((template) => ({
               value: `document:${template.id}`,
-              icon: <FileTextIcon className={ICON} />,
+              icon: <KindIcon group="Documents" />,
               title: template.label,
               description: template.description,
               run: () =>

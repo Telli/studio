@@ -1,15 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
-import {
-  ActivityIcon,
-  BotIcon,
-  BoxIcon,
-  CircuitBoardIcon,
-  FactoryIcon,
-  FilePlusIcon,
-  FileTextIcon,
-  FolderOpenIcon,
-} from "lucide-react";
+import { FilePlusIcon, FolderOpenIcon } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import { create as createStore } from "zustand";
 
@@ -28,6 +19,7 @@ import {
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
+import { DISCIPLINE_ICONS, KIND_ICONS } from "./kinds";
 import { partLabel } from "./partNames";
 import { useEngineeringInterface } from "./studioInterface";
 import { useStudioProjectAt } from "./useStudioProjects";
@@ -54,14 +46,21 @@ export const useNewDialogStore = createStore<{
   take: () => set({ discipline: null }),
 }));
 
-export const DISCIPLINE_ICONS: Record<Discipline, typeof BoxIcon> = {
-  Mechanical: BoxIcon,
-  Electrical: CircuitBoardIcon,
-  Simulation: ActivityIcon,
-  Manufacturing: FactoryIcon,
-  Robotics: BotIcon,
-  Documents: FileTextIcon,
+/** What New starts in each discipline, as its description names it. */
+const STARTS: Readonly<Record<Discipline, string>> = {
+  Mechanical: "a part",
+  Electrical: "a board",
+  Simulation: "a study",
+  Manufacturing: "a manufacturing job",
+  Robotics: "a robot description",
+  Documents: "a document",
 };
+
+/** A template's icon: the kind of thing it makes, a drawing's own, or a file of the person's. */
+function templateIcon(template: NewTemplate) {
+  if (template.file !== undefined) return FilePlusIcon;
+  return template.id === "drawing" ? KIND_ICONS.Drawings : DISCIPLINE_ICONS[template.discipline];
+}
 
 function Field(props: {
   readonly label: string;
@@ -140,6 +139,9 @@ export function NewDialog(props: {
       templates.some((template) => template.discipline === entry) ||
       (entry === "Documents" && props.onAddTemplate),
   );
+  const starts = offered.map((entry) => STARTS[entry]);
+  const startLine =
+    starts.length < 2 ? starts.join("") : `${starts.slice(0, -1).join(", ")} or ${starts.at(-1)}`;
   const needsPart = selected?.source === "from-part";
   const writesDocument = selected !== null && isDocumentTemplate(selected);
   // A part by its name in the engineering interface, by its path with code tools on.
@@ -175,7 +177,7 @@ export function NewDialog(props: {
         <DialogHeader>
           <DialogTitle>New</DialogTitle>
           <DialogDescription>
-            Start a part, a board, a study, a job or a document. Create hands it to the agent.
+            {starts.length === 0 ? "" : `Start ${startLine}. `}Create hands it to the agent.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
@@ -207,10 +209,7 @@ export function NewDialog(props: {
                 {templates
                   .filter((template) => template.discipline === discipline)
                   .map((template) => {
-                    const Icon =
-                      template.file === undefined
-                        ? DISCIPLINE_ICONS[template.discipline]
-                        : FilePlusIcon;
+                    const Icon = templateIcon(template);
                     const active = selected?.id === template.id;
                     return (
                       <button

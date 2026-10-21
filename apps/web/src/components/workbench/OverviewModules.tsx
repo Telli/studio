@@ -1,15 +1,4 @@
-import {
-  BookOpenIcon,
-  BoxIcon,
-  ChevronDownIcon,
-  CircuitBoardIcon,
-  FactoryIcon,
-  FileTextIcon,
-  FlaskConicalIcon,
-  ImageIcon,
-  type LucideIcon,
-  RulerIcon,
-} from "lucide-react";
+import { ChevronDownIcon, type LucideIcon } from "lucide-react";
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 
@@ -19,6 +8,7 @@ import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { workspaceAssetResource } from "../files/filePreviewMode";
 import { Button } from "../ui/button";
+import { KIND_ICONS } from "./kinds";
 import { readmeInline } from "./projectReadme";
 import { filePlaces, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import { useEngineeringInterface } from "./studioInterface";
@@ -37,18 +27,6 @@ const FOLDED_KEY = "studio:overview-folded";
 
 export const MODULE_HEADING =
   "flex items-baseline gap-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase";
-
-const GROUP_ICONS: Record<ProjectGroup, LucideIcon> = {
-  Models: BoxIcon,
-  "Boards and wiring": CircuitBoardIcon,
-  Drawings: RulerIcon,
-  Studies: FlaskConicalIcon,
-  Manufacturing: FactoryIcon,
-  Documents: FileTextIcon,
-  Images: ImageIcon,
-  "Reference parts": BoxIcon,
-  References: BookOpenIcon,
-};
 
 function readFolded(): Record<string, ReadonlyArray<string>> {
   try {
@@ -106,6 +84,8 @@ export function ShowAll(props: {
  */
 export function OverviewModule(props: {
   readonly title: string;
+  /** The kind it holds, as Studio marks that kind everywhere (`kinds.ts`). */
+  readonly icon?: LucideIcon;
   readonly count?: number;
   readonly folded: boolean;
   readonly onFold: () => void;
@@ -115,6 +95,7 @@ export function OverviewModule(props: {
   readonly wide?: boolean;
   readonly children: ReactNode;
 }) {
+  const Icon = props.icon;
   return (
     <section
       aria-label={props.title}
@@ -130,6 +111,13 @@ export function OverviewModule(props: {
             "rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           )}
         >
+          {Icon === undefined ? null : (
+            <Icon aria-hidden="true" className="size-3.5 self-center text-foreground/75" />
+          )}
+          {props.title}
+          {props.count === undefined ? null : (
+            <span className="tabular-nums text-muted-foreground/70">{props.count}</span>
+          )}
           <ChevronDownIcon
             aria-hidden="true"
             className={cn(
@@ -137,10 +125,6 @@ export function OverviewModule(props: {
               props.folded && "-rotate-90",
             )}
           />
-          {props.title}
-          {props.count === undefined ? null : (
-            <span className="tabular-nums text-muted-foreground/70">{props.count}</span>
-          )}
         </button>
         {props.folded ? null : props.action}
       </div>
@@ -231,10 +215,10 @@ export function FileCard(props: {
   /** Where it sits, said only where it tells two alike apart (`filePlaces`). */
   readonly place: string | undefined;
   readonly onOpen: () => void;
-  /** Under its name: its checks and drawing, for a part. */
+  /** Under its name: what was made from it, for a part (its checks, drawing, manufacturing files). */
   readonly footer?: ReactNode;
 }) {
-  const Icon = GROUP_ICONS[props.file.group];
+  const Icon = KIND_ICONS[props.file.group];
   const photo = PHOTO.test(props.file.path);
   return (
     <div className="flex min-w-0 flex-col gap-1.5">
@@ -324,6 +308,7 @@ export function FilesModule(props: {
   return (
     <OverviewModule
       title={props.group}
+      icon={KIND_ICONS[props.group]}
       count={props.files.length}
       folded={props.folded}
       onFold={props.onFold}

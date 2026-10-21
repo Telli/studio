@@ -2,34 +2,39 @@ import { MANUFACTURING_PROCESSES } from "./checkResults";
 import { humanName, partName } from "./partNames";
 
 /**
- * A project the way an engineer files it, for the project page: models,
- * boards, drawings, studies and jobs, documents, fabrication files, images,
- * and the references the brief gathered. Source and configuration (the model
- * scripts, settings, environments) are left to the code interface.
+ * A project the way an engineer files it, for the project page: first the three kinds of thing
+ * designed (Mechanical, Electrical and Documents), then what the top bar's jobs make from a part
+ * (its drawings, studies and manufacturing files), then images and the references the brief
+ * gathered. Source and configuration (the model scripts, settings, environments) are left to the
+ * code interface. Each kind has one icon wherever Studio shows it (`kinds.ts`).
  */
 
 export type ProjectGroup =
-  | "Models"
-  | "Boards and wiring"
+  | "Mechanical"
+  | "Electrical"
+  | "Documents"
   | "Drawings"
   | "Studies"
   | "Manufacturing"
-  | "Documents"
   | "Images"
   | "Reference parts"
   | "References";
 
-const GROUP_ORDER: ReadonlyArray<ProjectGroup> = [
-  "Models",
-  "Boards and wiring",
+/** The kinds in the page's order. */
+export const PROJECT_GROUPS: ReadonlyArray<ProjectGroup> = [
+  "Mechanical",
+  "Electrical",
+  "Documents",
   "Drawings",
   "Studies",
   "Manufacturing",
-  "Documents",
   "Images",
   "Reference parts",
   "References",
 ];
+
+/** What is designed: a part or a board, as against what is made from one. */
+export const DESIGN_GROUPS: ReadonlySet<ProjectGroup> = new Set(["Mechanical", "Electrical"]);
 
 export interface ProjectFile {
   readonly path: string;
@@ -55,13 +60,13 @@ const RULES: ReadonlyArray<{ readonly test: RegExp; readonly group: ProjectGroup
   { test: MANUFACTURING_RESULT, group: "Studies" },
   { test: /\.cam\.(?:glb|json)$/i, group: "Manufacturing" },
   { test: /\.(?:nc|gcode|ngc|tap|gco)$/i, group: "Manufacturing" },
-  { test: /\.(?:step|stp)$/i, group: "Models" },
-  { test: /\.solidcraft$/i, group: "Models" },
-  { test: /\.(?:stl|3mf|obj|glb)$/i, group: "Models" },
-  { test: /\.(?:urdf|sdf|srdf)$/i, group: "Models" },
-  { test: /\.kicad_pcb$/i, group: "Boards and wiring" },
-  { test: /\.kicad_sch$/i, group: "Boards and wiring" },
-  { test: /\.harness\.ya?ml$/i, group: "Boards and wiring" },
+  { test: /\.(?:step|stp)$/i, group: "Mechanical" },
+  { test: /\.solidcraft$/i, group: "Mechanical" },
+  { test: /\.(?:stl|3mf|obj|glb)$/i, group: "Mechanical" },
+  { test: /\.(?:urdf|sdf|srdf)$/i, group: "Mechanical" },
+  { test: /\.kicad_pcb$/i, group: "Electrical" },
+  { test: /\.kicad_sch$/i, group: "Electrical" },
+  { test: /\.harness\.ya?ml$/i, group: "Electrical" },
   { test: /\.(?:dxf|dwg|svg)$/i, group: "Drawings" },
   { test: /[._-]drawing\.pdf$/i, group: "Drawings" },
   { test: /\.(?:md|mdx|pdf|txt)$/i, group: "Documents" },
@@ -102,7 +107,7 @@ export function classifyProjectFile(path: string): ProjectFile | null {
   const rule = RULES.find((entry) => entry.test.test(normalized));
   if (rule === undefined) return null;
   const file = { path: normalized, name, folder, group: rule.group, ...named(normalized, name) };
-  if (rule.group !== "Models") return file;
+  if (rule.group !== "Mechanical") return file;
   // A model's folder says what it is: a study's result, a CAM job's, or a part someone else made.
   const folders = segments.slice(0, -1);
   if (folders.some((segment) => STUDY_FOLDER.test(segment))) {
@@ -138,7 +143,7 @@ export function groupProjectFiles(
       (file) =>
         needle === "" || `${file.path}\n${file.title}\n${file.kind}`.toLowerCase().includes(needle),
     );
-  return GROUP_ORDER.flatMap((group) => {
+  return PROJECT_GROUPS.flatMap((group) => {
     const inGroup = files
       .filter((file) => file.group === group)
       .toSorted((a, b) => a.folder.localeCompare(b.folder) || a.name.localeCompare(b.name));

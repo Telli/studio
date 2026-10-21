@@ -3,19 +3,10 @@ import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contrac
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { studioFolderKey, studioFolderName } from "@t3tools/shared/studioProjects";
 import {
-  ActivityIcon,
-  BoxIcon,
   ChevronDownIcon,
-  CircuitBoardIcon,
-  FileCogIcon,
-  FileIcon,
-  FileTextIcon,
   FolderIcon,
-  ImageIcon,
   LayoutGridIcon,
   ListIcon,
-  PackageIcon,
-  PencilRulerIcon,
   PlusIcon,
   XIcon,
 } from "lucide-react";
@@ -40,28 +31,24 @@ import { ReadmeOverview } from "./ReadmeOverview";
 import { useStartPartByHand } from "./useStartPartByHand";
 import { ProjectThreads } from "./ProjectThreads";
 import { usePictures } from "./usePictures";
-import { filePlaces, groupProjectFiles, type ProjectFile, type ProjectGroup } from "./projectFiles";
+import { KIND_ICONS } from "./kinds";
+import {
+  DESIGN_GROUPS,
+  filePlaces,
+  groupProjectFiles,
+  type ProjectFile,
+  type ProjectGroup,
+} from "./projectFiles";
 import { useEngineeringInterface } from "./studioInterface";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
 import { useWorkspaceMode } from "./workspaceMode";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
-const GROUP_ICONS: Record<ProjectGroup, typeof BoxIcon> = {
-  Models: BoxIcon,
-  "Boards and wiring": CircuitBoardIcon,
-  Drawings: PencilRulerIcon,
-  Studies: ActivityIcon,
-  Manufacturing: FileCogIcon,
-  Documents: FileTextIcon,
-  Images: ImageIcon,
-  "Reference parts": PackageIcon,
-  References: FileIcon,
-};
 /** Groups whose files have pictures: everything the CAD plugin can render. */
 const PICTURED: ReadonlySet<ProjectGroup> = new Set([
-  "Models",
-  "Boards and wiring",
+  "Mechanical",
+  "Electrical",
   "Drawings",
   "Studies",
   "Manufacturing",
@@ -89,7 +76,7 @@ function FileTile(props: {
   readonly onOpen: () => void;
 }) {
   const { file } = props;
-  const Icon = GROUP_ICONS[file.group];
+  const Icon = KIND_ICONS[file.group];
   return (
     <button
       type="button"
@@ -120,7 +107,7 @@ function FileRow(props: {
   readonly onOpen: () => void;
 }) {
   const { file } = props;
-  const Icon = GROUP_ICONS[file.group];
+  const Icon = KIND_ICONS[file.group];
   return (
     <button
       type="button"
@@ -477,7 +464,7 @@ export function ProjectPage(props: {
           .filter((entry) => entry.kind === "file" && entry.ignored !== true)
           .map((entry) => entry.path),
       )
-        .filter(({ group }) => group === "Models" || group === "Boards and wiring")
+        .filter(({ group }) => DESIGN_GROUPS.has(group))
         .flatMap(({ files }) => files.map((file) => file.path)),
     [listing.data],
   );

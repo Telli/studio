@@ -104,8 +104,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   and write the README before anything else. Below it, modules: the lead part large (or, with no
   part yet, Start a part by hand), the open issues its
   checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
-  propose and wait), every part with how its checks went and its drawing, one module for each
-  other kind of file (drawings, studies, documents, manufacturing, images, references), then the
+  propose and wait), the parts by kind, Mechanical then Electrical, each with how its checks went
+  and what was made from it (its drawing, CAM job, G-code or Gerbers), then Documents, one module
+  for each other kind of file (drawings, studies, manufacturing, images, references), then the
   project's folders and the brief's links. In Engineering the page is the Overview alone, with no
   Files, References or History tabs, and its New starts new designs only. A module shows once it
   has something in it, folds away (remembered on this computer), and is read again whenever the
@@ -241,6 +242,12 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   Each menu keeps its everyday jobs and ends in More, which opens the quick find on all of its
   jobs. Each needs its text-to-cad skill (`components/workbench/hardwareActions.ts`) and writes
   the job, naming the part, into the composer.
+- **Three kinds, and work done on them.** What is designed is Mechanical, Electrical or Documents,
+  and New offers those. FEA and CAM are not kinds of design but work done on one, for parts and
+  boards alike, so what Evaluate, Manufacture and Document make (studies, manufacturing files,
+  drawings) belongs to the part it was made from, as a CAD system keeps a study or a toolpath with
+  its part. Each kind has one icon wherever it shows: New, the Overview's modules and badges, the
+  top bar's menus, the quick find and the chat's change chips (`components/workbench/kinds.ts`).
 - **Start from a part.** A new thread lists the project's CAD files (a mesh exported beside its
   STEP counts once); picking one offers the same three menus for it.
 - **A checkout's working copy.** `TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs the checkout's own

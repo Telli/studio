@@ -5,13 +5,7 @@ import type {
   ThreadId,
 } from "@t3tools/contracts";
 import { studioFolderName } from "@t3tools/shared/studioProjects";
-import {
-  BoxIcon,
-  CircleXIcon,
-  CircuitBoardIcon,
-  FileTextIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
@@ -24,12 +18,14 @@ import {
   type CheckResult,
   type CheckStatus,
   drawingsFor,
+  manufacturingFor,
   overviewParts,
   proposeFixPrompt,
   resultsFor,
   worstStatus,
 } from "./checkResults";
-import { humanName, partName } from "./partNames";
+import { KIND_ICONS } from "./kinds";
+import { humanName, lowerName, partName } from "./partNames";
 import { leadPartOf } from "./leadPart";
 import {
   CARD_GRID,
@@ -43,8 +39,10 @@ import {
 } from "./OverviewModules";
 import {
   classifyProjectFile,
+  DESIGN_GROUPS,
   filePlaces,
   groupProjectFiles,
+  PROJECT_GROUPS,
   type ProjectFile,
   type ProjectGroup,
 } from "./projectFiles";
@@ -66,8 +64,8 @@ const FIRST_ISSUES = 5;
 const RECENT_THREADS = 5;
 
 const headingClass = MODULE_HEADING;
-/** Parts are the Parts and checks module; every other kind of file is a module of its own. */
-const PART_GROUPS: ReadonlySet<ProjectGroup> = new Set(["Models", "Boards and wiring"]);
+const DrawingIcon = KIND_ICONS.Drawings;
+const MadeIcon = KIND_ICONS.Manufacturing;
 
 interface FolderPart {
   readonly root: string;
@@ -75,6 +73,8 @@ interface FolderPart {
   readonly results: ReadonlyArray<CheckResult>;
   /** Its drawing sheets, relative to the folder. */
   readonly drawings: ReadonlyArray<string>;
+  /** What was made to manufacture it: its CAM jobs, G-code, Gerbers (`manufacturingFor`). */
+  readonly made: ReadonlyArray<ProjectFile>;
 }
 
 interface Issue {
@@ -102,23 +102,73 @@ function NewDocument(props: { readonly onClick: () => void }) {
   );
 }
 
-/** A part's stand-in until its picture comes: a board or a model. */
+/** A part's stand-in until its picture comes: its kind's icon. */
 function PartIcon(props: { readonly file: ProjectFile; readonly className: string }) {
-  return props.file.group === "Boards and wiring" ? (
-    <CircuitBoardIcon className={props.className} aria-hidden="true" />
-  ) : (
-    <BoxIcon className={props.className} aria-hidden="true" />
+  const Icon = KIND_ICONS[props.file.group];
+  return <Icon className={props.className} aria-hidden="true" />;
+}
+
+/**
+ * What was made to manufacture a part, one of each kind (a CAM job, its G-code, Gerbers), each
+ * opening the file that shows it: a toolpath's model before its data.
+ */
+function madeKinds(files: ReadonlyArray<ProjectFile>) {
+  const shown = new Map<string, ProjectFile>();
+  for (const file of files) {
+    const kept = shown.get(file.kind);
+    if (kept === undefined || (/\.glb$/i.test(file.path) && !/\.glb$/i.test(kept.path))) {
+      shown.set(file.kind, file);
+    }
+  }
+  return [...shown.values()];
+}
+
+/** What was made from a part, as badges that open it: its drawing sheets and manufacturing files. */
+function MadeBadges(props: { readonly part: FolderPart; readonly onOpen: (path: string) => void }) {
+  const { part } = props;
+  return (
+    <>
+      {part.drawings.map((drawing) => (
+        <button
+          key={drawing}
+          type="button"
+          onClick={() => props.onOpen(drawing)}
+          aria-label={`Open the drawing of ${part.file.title}`}
+          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        >
+          <Badge variant="outline" size="sm">
+            <DrawingIcon aria-hidden="true" />
+            Drawing
+          </Badge>
+        </button>
+      ))}
+      {madeKinds(part.made).map((made) => (
+        <button
+          key={made.path}
+          type="button"
+          onClick={() => props.onOpen(made.path)}
+          aria-label={`Open the ${lowerName(made.kind)} of ${part.file.title}`}
+          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        >
+          <Badge variant="outline" size="sm">
+            <MadeIcon aria-hidden="true" />
+            {made.kind}
+          </Badge>
+        </button>
+      ))}
+    </>
   );
 }
 
-/** A check as a badge: its name, tinted and marked by how it went; it opens the result. */
-/** The project's lead part, large: the first model of its first folder. */
+/** The project's lead part, large: the first model of its first folder, with what was made from it. */
 function LeadPart(props: {
   readonly environmentId: EnvironmentId;
   readonly part: FolderPart;
   /** Its path, with code tools on. */
   readonly where: string | undefined;
   readonly onOpen: () => void;
+  /** Opens a file made from it, by its path in its folder. */
+  readonly onOpenFile: (path: string) => void;
 }) {
   const { part } = props;
   const pictures = usePictures({
@@ -152,6 +202,11 @@ function LeadPart(props: {
           {props.where === undefined ? "" : ` · ${props.where}`}
         </span>
       </div>
+      {part.drawings.length + part.made.length === 0 ? null : (
+        <div className="flex flex-wrap items-center gap-1">
+          <MadeBadges part={part} onOpen={props.onOpenFile} />
+        </div>
+      )}
     </section>
   );
 }
@@ -281,20 +336,7 @@ function FolderParts(props: {
               />
             ))
           )}
-          {part.drawings.map((drawing) => (
-            <button
-              key={drawing}
-              type="button"
-              onClick={() => props.onOpen(props.root, drawing)}
-              aria-label={`Open the drawing of ${part.file.title}`}
-              className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-            >
-              <Badge variant="outline" size="sm">
-                <FileTextIcon aria-hidden="true" />
-                Drawing
-              </Badge>
-            </button>
-          ))}
+          <MadeBadges part={part} onOpen={(path) => props.onOpen(props.root, path)} />
         </div>
       }
     />
@@ -305,10 +347,11 @@ function FolderParts(props: {
  * The project's overview, the first thing its page shows, made of modules that each appear once
  * the project holds something for them and update as the agent writes files: the lead part large
  * (or, with none yet, how to start one), the issues its checks found with the fix each suggests
- * (asking for one writes the ask into the composer: the agent proposes and waits), every part with
- * how its checks went, a module for each other kind of file (drawings, studies, documents and so
- * on), and the project's other chats. Each module folds away. Checks are the results text-to-cad
- * writes beside the parts (`checkResults.ts`).
+ * (asking for one writes the ask into the composer: the agent proposes and waits), its versions,
+ * then the three kinds of thing designed (Mechanical and Electrical, each part with its checks,
+ * drawing and manufacturing files; Documents), a module for each kind made from them (drawings,
+ * studies, manufacturing files) and the rest, and the project's other chats. Each module folds
+ * away. Checks are the results text-to-cad writes beside the parts (`checkResults.ts`).
  */
 export function ProjectOverview(props: {
   readonly environmentId: EnvironmentId;
@@ -347,12 +390,15 @@ export function ProjectOverview(props: {
       const files = (folder.paths ?? [])
         .map(classifyProjectFile)
         .filter((file): file is ProjectFile => file !== null);
-      const parts = overviewParts(files)
+      const designs = overviewParts(files);
+      const made = manufacturingFor(designs, files);
+      const parts = designs
         .map((file) => ({
           root: folder.root,
           file,
           results: resultsFor(file, folder.results),
           drawings: drawingsFor(file, folder.paths ?? []),
+          made: made.get(file.path) ?? [],
         }))
         .toSorted(
           (a, b) =>
@@ -380,22 +426,23 @@ export function ProjectOverview(props: {
     };
   }, [folders]);
 
+  // The lead part as its folder's parts have it, with its checks and what was made from it.
   const lead = useMemo(() => {
     const found = leadPartOf(folders);
-    const folder = found === null ? undefined : folders.find((entry) => entry.root === found.root);
-    if (found === null || folder === undefined) return null;
-    return {
-      ...found,
-      results: resultsFor(found.file, folder.results),
-      drawings: drawingsFor(found.file, folder.paths ?? []),
-    };
-  }, [folders]);
-  // Every other kind of file, across the project's folders; the README is read above as itself.
+    if (found === null) return null;
+    return (
+      byFolder
+        .find((folder) => folder.root === found.root)
+        ?.parts.find((part) => part.file.path === found.file.path) ?? null
+    );
+  }, [byFolder, folders]);
+  // Every kind of file not designed, across the project's folders, in the page's order; the README
+  // is read above as itself.
   const modules = useMemo(() => {
     const byGroup = new Map<ProjectGroup, Array<{ root: string; file: ProjectFile }>>();
     for (const folder of folders) {
       for (const { group, files } of groupProjectFiles(folder.paths ?? [])) {
-        if (PART_GROUPS.has(group)) continue;
+        if (DESIGN_GROUPS.has(group)) continue;
         const kept = files.filter((file) => !/^readme\.md$/i.test(file.path));
         if (kept.length === 0) continue;
         byGroup.set(group, [
@@ -404,8 +451,27 @@ export function ProjectOverview(props: {
         ]);
       }
     }
-    return [...byGroup];
+    return PROJECT_GROUPS.flatMap((group) => {
+      const files = byGroup.get(group);
+      return files === undefined ? [] : [{ group, files }];
+    });
   }, [folders]);
+  // The designed kinds, Mechanical then Electrical, each a module of its parts by folder.
+  const designModules = useMemo(
+    () =>
+      PROJECT_GROUPS.filter((group) => DESIGN_GROUPS.has(group)).flatMap((group) => {
+        const inGroup = byFolder
+          .map((folder) => ({
+            root: folder.root,
+            parts: folder.parts.filter((part) => part.file.group === group),
+          }))
+          .filter((folder) => folder.parts.length > 0);
+        const count = inGroup.reduce((total, folder) => total + folder.parts.length, 0);
+        return count === 0 ? [] : [{ group, folders: inGroup, count }];
+      }),
+    [byFolder],
+  );
+  const documents = modules.find((module) => module.group === "Documents");
   const chats = projectChats(useThreadShellsForProjectRefs(props.projectRefs));
   const otherChats = chats.filter((chat) => chat.id !== props.currentThreadId).length;
   // Every part, the lead part first, for its versions.
@@ -441,6 +507,7 @@ export function ProjectOverview(props: {
             part={lead}
             where={engineering ? undefined : lead.file.path}
             onOpen={() => props.onOpen(lead.root, lead.file.path)}
+            onOpenFile={(path) => props.onOpen(lead.root, path)}
           />
           {props.readme === null ? (
             <OpenIssues
@@ -480,60 +547,59 @@ export function ProjectOverview(props: {
             onOpen={props.onOpen}
           />
         )}
-        {/* A project of one part shows it above, large; the module is for picking among several. */}
-        {partCount < 2 ? null : (
-          <OverviewModule
-            title="Parts and checks"
-            count={partCount}
-            wide
-            folded={folded.includes("Parts and checks")}
-            onFold={() => toggle("Parts and checks")}
-          >
-            <div className="flex flex-col gap-4 pt-3">
-              {byFolder.map((folder) =>
-                folder.parts.length === 0 ? null : (
-                  <div key={folder.root} className="flex min-w-0 flex-col gap-2">
-                    {byFolder.length > 1 ? (
-                      <h3 className="truncate text-xs font-medium text-foreground">
-                        {studioFolderName(folder.root)}
-                      </h3>
-                    ) : null}
-                    <div className={CARD_GRID}>
-                      <FolderParts
-                        environmentId={props.environmentId}
-                        threadRef={props.threadRef}
-                        root={folder.root}
-                        parts={folder.parts}
-                        onOpen={props.onOpen}
-                      />
+        {/* A project of one part shows it above, large; these are for picking among several. */}
+        {partCount < 2
+          ? null
+          : designModules.map((module) => (
+              <OverviewModule
+                key={module.group}
+                title={module.group}
+                icon={KIND_ICONS[module.group]}
+                count={module.count}
+                wide
+                folded={folded.includes(module.group)}
+                onFold={() => toggle(module.group)}
+              >
+                <div className="flex flex-col gap-4 pt-3">
+                  {module.folders.map((folder) => (
+                    <div key={folder.root} className="flex min-w-0 flex-col gap-2">
+                      {module.folders.length > 1 ? (
+                        <h3 className="truncate text-xs font-medium text-foreground">
+                          {studioFolderName(folder.root)}
+                        </h3>
+                      ) : null}
+                      <div className={CARD_GRID}>
+                        <FolderParts
+                          environmentId={props.environmentId}
+                          threadRef={props.threadRef}
+                          root={folder.root}
+                          parts={folder.parts}
+                          onOpen={props.onOpen}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ),
-              )}
-            </div>
-          </OverviewModule>
-        )}
-        {modules.map(([group, files]) => (
+                  ))}
+                </div>
+              </OverviewModule>
+            ))}
+        {documents !== undefined ? (
           <FilesModule
-            key={group}
             environmentId={props.environmentId}
             threadRef={props.threadRef}
-            group={group}
-            files={files}
-            folded={folded.includes(group)}
-            onFold={() => toggle(group)}
+            group="Documents"
+            files={documents.files}
+            folded={folded.includes("Documents")}
+            onFold={() => toggle("Documents")}
             onOpen={props.onOpen}
-            {...(group === "Documents" && props.onNewDocument !== null
-              ? { action: <NewDocument onClick={props.onNewDocument} /> }
-              : {})}
+            {...(props.onNewDocument === null
+              ? {}
+              : { action: <NewDocument onClick={props.onNewDocument} /> })}
           />
-        ))}
-        {/* Documents have a place before there are any: a PRD is often the first thing written. */}
-        {engineering &&
-        props.onNewDocument !== null &&
-        !modules.some(([group]) => group === "Documents") ? (
+        ) : engineering && props.onNewDocument !== null ? (
+          // Documents have a place before there are any: a PRD is often the first thing written.
           <OverviewModule
             title="Documents"
+            icon={KIND_ICONS.Documents}
             wide
             folded={folded.includes("Documents")}
             onFold={() => toggle("Documents")}
@@ -545,6 +611,20 @@ export function ProjectOverview(props: {
             </p>
           </OverviewModule>
         ) : null}
+        {modules.map(({ group, files }) =>
+          group === "Documents" ? null : (
+            <FilesModule
+              key={group}
+              environmentId={props.environmentId}
+              threadRef={props.threadRef}
+              group={group}
+              files={files}
+              folded={folded.includes(group)}
+              onFold={() => toggle(group)}
+              onOpen={props.onOpen}
+            />
+          ),
+        )}
         {props.onShowThreads === null || otherChats === 0 ? null : (
           <OverviewModule
             title="Recent work"
