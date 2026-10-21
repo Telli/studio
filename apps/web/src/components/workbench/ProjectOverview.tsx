@@ -5,7 +5,7 @@ import type {
   ThreadId,
 } from "@t3tools/contracts";
 import { studioFolderName } from "@t3tools/shared/studioProjects";
-import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
+import { CircleXIcon, MessageSquareIcon, TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
@@ -89,15 +89,15 @@ interface Issue {
 const issuePart = (entry: Issue) =>
   entry.part?.title ?? partName(entry.result.part)?.name ?? humanName(entry.result.part);
 
-/** New document, at the Documents module's heading. */
-function NewDocument(props: { readonly onClick: () => void }) {
+/** A link at a module's heading: New document, New chat. */
+function HeadingLink(props: { readonly label: string; readonly onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={props.onClick}
       className="text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
     >
-      New document
+      {props.label}
     </button>
   );
 }
@@ -378,6 +378,8 @@ export function ProjectOverview(props: {
   readonly units: string;
   /** Opens New on Documents (PRD, requirements, FMEA, your own templates); null where it cannot. */
   readonly onNewDocument: (() => void) | null;
+  /** Starts a chat in the project; null where it cannot. */
+  readonly onNewChat: (() => void) | null;
 }) {
   const folders = useProjectChecks({
     environmentId: props.environmentId,
@@ -547,6 +549,34 @@ export function ProjectOverview(props: {
             onOpen={props.onOpen}
           />
         )}
+        {/* What the project holds, together: its chats first, then its kinds of thing. */}
+        {engineering ? (
+          <OverviewModule
+            title="Chats"
+            icon={MessageSquareIcon}
+            count={chats.length}
+            wide
+            folded={folded.includes("Chats")}
+            onFold={() => toggle("Chats")}
+            {...(props.onNewChat === null
+              ? {}
+              : { action: <HeadingLink label="New chat" onClick={props.onNewChat} /> })}
+          >
+            {chats.length === 0 ? (
+              <p className="pt-3 text-xs text-muted-foreground">
+                No chats yet. Describe what to make and the agent starts on it.
+              </p>
+            ) : (
+              <ProjectThreads
+                projectRefs={props.projectRefs}
+                folderNames={props.folderNames}
+                currentThreadId={props.currentThreadId}
+                query=""
+                limit={RECENT_THREADS}
+              />
+            )}
+          </OverviewModule>
+        ) : null}
         {/* A project of one part shows it above, large; these are for picking among several. */}
         {partCount < 2
           ? null
@@ -593,7 +623,7 @@ export function ProjectOverview(props: {
             onOpen={props.onOpen}
             {...(props.onNewDocument === null
               ? {}
-              : { action: <NewDocument onClick={props.onNewDocument} /> })}
+              : { action: <HeadingLink label="New document" onClick={props.onNewDocument} /> })}
           />
         ) : engineering && props.onNewDocument !== null ? (
           // Documents have a place before there are any: a PRD is often the first thing written.
@@ -603,7 +633,7 @@ export function ProjectOverview(props: {
             wide
             folded={folded.includes("Documents")}
             onFold={() => toggle("Documents")}
-            action={<NewDocument onClick={props.onNewDocument} />}
+            action={<HeadingLink label="New document" onClick={props.onNewDocument} />}
           >
             <p className="pt-3 text-xs text-muted-foreground">
               No documents yet. Start a PRD, the engineering requirements, an FMEA or a design
@@ -625,7 +655,7 @@ export function ProjectOverview(props: {
             />
           ),
         )}
-        {props.onShowThreads === null || otherChats === 0 ? null : (
+        {engineering || props.onShowThreads === null || otherChats === 0 ? null : (
           <OverviewModule
             title="Recent work"
             wide

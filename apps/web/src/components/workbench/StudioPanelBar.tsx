@@ -1,5 +1,6 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
+import { PlusIcon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
@@ -7,10 +8,13 @@ import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh
 import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
+import { Button } from "../ui/button";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { leadPartOf } from "./leadPart";
+import { useNewDialogStore } from "./NewDialog";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { PartActions } from "./PartActions";
+import { partName } from "./partNames";
 import { usePartContext } from "./usePartContext";
 import { useStudioProjectAt } from "./useStudioProjects";
 import { editsByHand, useWorkspaceMode, useWorkspaceModeStore } from "./workspaceMode";
@@ -50,11 +54,12 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
 
 /**
  * The rest of a project workspace's top bar, in the panel's title row (the chat's row carries
- * `StudioWorkspaceBar`): Ask or Edit by hand while the CAD viewer shows a part (`editsByHand`),
- * and the part's jobs (Evaluate, Manufacture, with the files to export, and Document; the drawing
- * is one of Document's). The mode is the project's (`workspaceMode.ts`); the CAD views take it
- * from the host context. With no part yet, the Overview offers to start one. The jobs are for the
- * part last on screen, else the lead part, led by the project's way of making it.
+ * `StudioWorkspaceBar`), one row of what can be done to the thing in front: over the Overview,
+ * the project's New (a part, a board, a document); over a part in the CAD viewer, Ask or Edit by
+ * hand (`editsByHand`; the mode is the project's, `workspaceMode.ts`, which the CAD views take
+ * from the host context) and the part's jobs (Evaluate, Manufacture, with the files to export,
+ * and Document), led by the project's way of making it; over a document, nothing. ⌘K's jobs are
+ * for the part last on screen, else the lead part.
  */
 export function StudioPanelBar(props: {
   readonly folder: string | null;
@@ -71,9 +76,19 @@ export function StudioPanelBar(props: {
     setActiveFolder(folder);
   }, [folder, setActiveFolder]);
   const lead = useLeadPart(threadRef, folder, props.mutationId);
-  // Ask and Edit by hand are ways of changing a part, so they show only with the CAD viewer up.
-  const byHandShown = useRightPanelStore((store) =>
-    editsByHand(selectActiveRightPanelSurface(store.byThreadKey, threadRef)),
+  // What is in front decides the row: over the Overview, the project's New; over a part, the
+  // part's own ways of changing it (Ask, Edit by hand) and its jobs; over a document, nothing.
+  const frontKind = useRightPanelStore(
+    (store) => selectActiveRightPanelSurface(store.byThreadKey, threadRef)?.kind ?? null,
+  );
+  const frontFile = useRightPanelStore((store) => {
+    const surface = selectActiveRightPanelSurface(store.byThreadKey, threadRef);
+    return surface?.kind === "plugin-app" ? (surface.file ?? null) : null;
+  });
+  const byHandShown = editsByHand(
+    frontKind === null
+      ? null
+      : { kind: frontKind, ...(frontFile === null ? {} : { file: frontFile }) },
   );
   const shown = usePartContext(threadRef);
   const studio = useStudioProjectAt(threadRef.environmentId, folder);
@@ -84,6 +99,15 @@ export function StudioPanelBar(props: {
         ? null
         : { path: lead.file.path, kind: lead.file.kind };
   const process = studio?.project.brief.process;
+  // The part in front, as the viewer shows it (it may have moved on from the file it opened).
+  const inFront =
+    frontKind !== "plugin-app"
+      ? null
+      : shown !== null
+        ? { path: shown.part.path, kind: shown.part.kind }
+        : frontFile === null
+          ? null
+          : { path: frontFile, kind: partName(frontFile)?.kind ?? "Part" };
 
   // ⌘K finds jobs for the same part, from over everything (`StudioQuickFind`).
   const setWorkspace = useOpenWorkspaceStore((store) => store.setWorkspace);
@@ -121,11 +145,17 @@ export function StudioPanelBar(props: {
           </ToggleGroup>
         ) : null}
       </div>
-      {subject === null || props.composerRef === null ? null : (
+      {frontKind === "files" && props.composerRef !== null ? (
+        <Button size="sm" onClick={() => useNewDialogStore.getState().ask()}>
+          <PlusIcon aria-hidden="true" />
+          New
+        </Button>
+      ) : null}
+      {inFront === null || props.composerRef === null ? null : (
         <PartActions
           environmentId={threadRef.environmentId}
-          file={serializeComposerFileLink(subject.path)}
-          kind={subject.kind}
+          file={serializeComposerFileLink(inFront.path)}
+          kind={inFront.kind}
           process={process}
           composerRef={props.composerRef}
           inTopBar

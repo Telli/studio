@@ -13,6 +13,7 @@ import {
 import { useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
+import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { cn } from "~/lib/utils";
 import { pluginEnvironment } from "~/state/plugins";
@@ -405,9 +406,9 @@ export function ProjectPage(props: {
   }>({ open: false, count: 0 });
   const documents = useDocumentTemplates(environmentId);
   // New asked for from outside the page (the Document menu's From a template): open while asked.
-  const askedDiscipline = useNewDialogStore((store) => store.discipline);
+  const asked = useNewDialogStore((store) => store.request);
   const takeAsked = useNewDialogStore((store) => store.take);
-  const newDiscipline = askedDiscipline ?? newOpen.discipline;
+  const newDiscipline = asked?.discipline ?? newOpen.discipline;
   const openNew = (discipline?: Discipline) =>
     setNewOpen((current) => ({
       open: true,
@@ -522,11 +523,18 @@ export function ProjectPage(props: {
       : `${studioFolderKey(root)}/${relativePath}`;
   const open = useOpenInWorkbench(threadRef);
   const openPath = (root: string, relativePath: string) => open(threadPath(root, relativePath));
+  const handleNewThread = useNewThreadHandler();
+  const projectId = props.projectId;
+  const newChat =
+    projectId === null
+      ? null
+      : () => void handleNewThread(scopeProjectRef(environmentId, projectId));
   const openIn = (root: string) => (file: ProjectFile) => openPath(root, file.path);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-project-page="">
-      <header className="border-b border-border px-5 pt-5 pb-3">
+      {/* In Engineering the project is named at the sidebar's top and New is in the panel's row. */}
+      <header className={cn("border-b border-border px-5 pt-5 pb-3", plainWords && "hidden")}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
             <h1 className="truncate text-xl font-semibold text-foreground">{name}</h1>
@@ -647,6 +655,7 @@ export function ProjectPage(props: {
             linkTo={(root, path) => serializeComposerFileLink(threadPath(root, path))}
             onShowThreads={isProject && !plainWords ? () => setTab("threads") : null}
             onNewDocument={composerRef === null ? null : () => openNew("Documents")}
+            onNewChat={newChat}
             byHand={byHand}
             onStartPart={startPart}
             threadRef={threadRef}
@@ -712,8 +721,8 @@ export function ProjectPage(props: {
       </div>
       {composerRef === null ? null : (
         <NewDialog
-          key={`${newOpen.count}:${askedDiscipline ?? ""}`}
-          open={newOpen.open || askedDiscipline !== null}
+          key={`${newOpen.count}:${asked === null ? "" : (asked.discipline ?? "first")}`}
+          open={newOpen.open || asked !== null}
           onOpenChange={(open) => {
             if (!open) takeAsked();
             setNewOpen((current) => ({ ...current, open }));

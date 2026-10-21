@@ -157,24 +157,28 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   last open in it on this device (else the one last worked on, else a new one). Projects are
   listed as a recents list orders them, the one opened last on this device first (or worked on, if
   that came later), and the starred ones (kept on this computer) apart at the top of Home and the
-  switcher. In its workspace the sidebar is the project and what lives in it
-  (`StudioSidebar.tsx`): at its top the project's name, a control with its picture that switches
-  projects (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on
-  Home), whose top is the project's own menu (Rename, Duplicate, a copy in a new folder made by
-  the desktop app, Version history, Back up and Show in Finder); then its Overview; then its contents by
-  kind (`projectContents.ts`): Chats (newest first), CAD (parts, assemblies and drawings),
-  Electronics, Analysis and Manufacturing (once jobs have made some) and Documents, each folding
-  away, with a + where new things start (a chat, or New on that kind). The top bar names the open
-  chat; with the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the
-  project's switcher. The part tabs run along the panel's bottom, the Overview first. Engineering with code keeps T3 Code's thread sidebar, with the
+  switcher. In its workspace the sidebar is the project and its chats (`StudioSidebar.tsx`): at
+  its top the project's name, a control with its picture that switches projects
+  (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on Home), whose
+  top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop
+  app, Version history, Back up and Show in Finder); then its Overview, New chat, and its chats,
+  newest first. What the project holds is on its Overview. The top bar names the open chat; with
+  the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the project's
+  switcher. The panel's title row is one row of what can be done to the thing in front
+  (`StudioPanelBar.tsx`): the project's New over the Overview; Ask or Edit by hand and Evaluate,
+  Manufacture and Document over a part; nothing over a document. The part tabs run along the
+  panel's bottom, the Overview first. Engineering with code keeps T3 Code's thread sidebar, with the
   projects listed in it.
-- **Back up.** The project's menu backs it up into a folder chosen the first time (a Google
-  Drive, Dropbox or iCloud folder carries it off the Mac with no sign-in): the desktop app copies
-  each of the project's folders, version history (`.git`) included, into a folder named for the
-  project there, then only what changed each time, and never deletes from it
-  (`backUp` in `apps/desktop/src/studio/studioImportFiles.ts`, `components/workbench/useBackup.ts`).
-  The backup is the project's folder as it was, so Import brings it back. Where and when are
-  remembered on this computer and shown under the menu.
+- **Back up.** A project is already a folder on the Mac with its versions in it; the project's
+  menu backs it up somewhere else (`components/workbench/BackupDialog.tsx`). GitHub: a private
+  repository Studio makes for it with T3 Code's own publish, then each backup committed and
+  pushed over https, as the account the source control settings are signed in as; Studio pushes
+  only to a repository it made, so a folder with a repository of its own is left to it. Or a
+  folder that syncs (a Google Drive, Dropbox or iCloud folder, or a drive): the desktop app copies
+  each of the project's folders there, version history (`.git`) included, then only what changed,
+  and never deletes from it (`backUp` in `apps/desktop/src/studio/studioImportFiles.ts`). Import
+  brings a folder backup back. Where and when are remembered on this computer and shown under the
+  menu (`useBackup.ts`).
 - **Quick find.** In Engineering ⌘K finds a project, a part in any project (one in another
   project opens there), or any job for the part on screen, with Home, New project, Settings and
   the interface switches (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps

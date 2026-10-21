@@ -31,7 +31,8 @@ import { type ListedProject, lastTouched } from "./projectList";
 import { findProjects } from "./recentProjects";
 import { StarButton } from "./StarButton";
 import { splitStarred, useStarredStore } from "./starredProjects";
-import { backupPlace, useBackup } from "./useBackup";
+import { BackupDialog } from "./BackupDialog";
+import { backupPlaceLabel, useLastBackup } from "./useBackup";
 import { useDuplicateProject } from "./useDuplicateProject";
 import { useOpenProject } from "./useOpenProject";
 import { useOpenShortcut } from "./useOpenShortcut";
@@ -119,11 +120,8 @@ export function ProjectSwitcher(props: {
   const isHere = (card: ListedProject) =>
     here !== null && card.project.folders.some((folder) => studioFolderKey(folder) === here);
   const current = cards.find(isHere) ?? null;
-  const backup = useBackup(
-    current === null
-      ? null
-      : { id: current.id, name: current.project.name, folders: current.project.folders },
-  );
+  const backup = useLastBackup(current?.id ?? null);
+  const [backingUp, setBackingUp] = useState(false);
   // The open project is at the top, with its own menu; the list is the others, to switch to.
   const others = findProjects(cards, query).filter((card) => !isHere(card));
   const { starred, rest } = splitStarred(others, starredIds);
@@ -191,209 +189,215 @@ export function ProjectSwitcher(props: {
   };
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        if (next) setOpen(true);
-        else close();
-      }}
-    >
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <PopoverTrigger
-              render={
+    <>
+      <Popover
+        open={open}
+        onOpenChange={(next) => {
+          if (next) setOpen(true);
+          else close();
+        }}
+      >
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <PopoverTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label={`Project ${props.title}: switch project`}
+                    className={cn(
+                      "flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border bg-background py-1 ps-1 pe-2 text-left shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[popup-open]:bg-accent",
+                      props.wide ? "h-11 w-full" : "h-9",
+                    )}
+                  />
+                }
+              />
+            }
+          >
+            <ProjectThumb
+              environmentId={environmentId}
+              project={current?.project ?? null}
+              size={props.wide ? "md" : "sm"}
+            />
+            <span className="flex min-w-0 flex-col">
+              <span className="text-3xs leading-3 font-medium tracking-wider text-muted-foreground uppercase">
+                Project
+              </span>
+              <span className="truncate text-sm leading-4 font-semibold text-foreground">
+                {props.title}
+              </span>
+            </span>
+            {props.isNew ? (
+              <Badge variant="info" size="sm">
+                New
+              </Badge>
+            ) : null}
+            <ChevronsUpDownIcon
+              className={cn(
+                "size-3.5 shrink-0 text-muted-foreground",
+                props.wide ? "ms-auto" : "ms-0.5",
+              )}
+              aria-hidden="true"
+            />
+          </TooltipTrigger>
+          <TooltipPopup side="bottom">Switch project (Cmd+O)</TooltipPopup>
+        </Tooltip>
+        <PopoverPopup width="md" padding="compact" align="start" initialFocus={input}>
+          <section aria-label="This project" className="mb-2 border-b border-border pb-2">
+            <div className="flex min-w-0 items-center gap-2.5 px-1 pb-1.5">
+              <ProjectThumb environmentId={environmentId} project={current?.project ?? null} />
+              {renaming === null ? (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+                    {props.title}
+                  </span>
+                  {current === null ? null : (
+                    <StarButton id={current.id} name={current.project.name} />
+                  )}
+                </>
+              ) : (
+                <Input
+                  autoFocus
+                  size="sm"
+                  value={renaming}
+                  aria-label="Project name"
+                  onChange={(event) => setRenaming(event.target.value)}
+                  onFocus={(event) => event.target.select()}
+                  onBlur={rename}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      rename();
+                    } else if (event.key === "Escape") {
+                      // Leaves the name as it was, and the switcher open.
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setRenaming(null);
+                    }
+                  }}
+                />
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-0.5">
+              {current === null ? null : (
                 <button
                   type="button"
-                  aria-label={`Project ${props.title}: switch project`}
-                  className={cn(
-                    "flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border bg-background py-1 ps-1 pe-2 text-left shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[popup-open]:bg-accent",
-                    props.wide ? "h-11 w-full" : "h-9",
+                  className={actionClass}
+                  onClick={() => setRenaming(current.project.name)}
+                >
+                  <PencilIcon aria-hidden="true" />
+                  Rename
+                </button>
+              )}
+              {current === null || duplicate === null ? null : (
+                <button
+                  type="button"
+                  className={actionClass}
+                  onClick={go(
+                    () =>
+                      void duplicate(
+                        current.project,
+                        cards.map((card) => card.project.name),
+                      ),
                   )}
-                />
-              }
-            />
-          }
-        >
-          <ProjectThumb
-            environmentId={environmentId}
-            project={current?.project ?? null}
-            size={props.wide ? "md" : "sm"}
+                >
+                  <CopyIcon aria-hidden="true" />
+                  Duplicate
+                </button>
+              )}
+              <button type="button" className={actionClass} onClick={go(showVersions)}>
+                <HistoryIcon aria-hidden="true" />
+                Version history
+              </button>
+              {current === null ? null : (
+                <button
+                  type="button"
+                  className={actionClass}
+                  onClick={go(() => setBackingUp(true))}
+                >
+                  <CloudUploadIcon aria-hidden="true" />
+                  Back up…
+                </button>
+              )}
+              {canShowFolder ? (
+                <button type="button" className={actionClass} onClick={go(showFolder)}>
+                  <FolderOpenIcon aria-hidden="true" />
+                  {folderLabel(serverConfig?.environment.platform.os)}
+                </button>
+              ) : null}
+            </div>
+            <p className="px-2 pt-1.5 text-2xs text-muted-foreground">
+              {backup.last === null
+                ? "Only on this Mac. Back up keeps a copy on GitHub or in a folder that syncs."
+                : `Backed up ${formatRelativeTimeLabel(new Date(backup.last.at).toISOString())} to ${backupPlaceLabel(backup.last.place)}.`}
+            </p>
+          </section>
+          <Input
+            ref={input}
+            size="sm"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              const first = starred[0] ?? rest[0];
+              if (event.key !== "Enter" || first === undefined) return;
+              event.preventDefault();
+              choose(first);
+            }}
+            placeholder="Find a project"
+            aria-label="Find a project"
           />
-          <span className="flex min-w-0 flex-col">
-            <span className="text-3xs leading-3 font-medium tracking-wider text-muted-foreground uppercase">
-              Project
-            </span>
-            <span className="truncate text-sm leading-4 font-semibold text-foreground">
-              {props.title}
-            </span>
-          </span>
-          {props.isNew ? (
-            <Badge variant="info" size="sm">
-              New
-            </Badge>
-          ) : null}
-          <ChevronsUpDownIcon
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground",
-              props.wide ? "ms-auto" : "ms-0.5",
-            )}
-            aria-hidden="true"
-          />
-        </TooltipTrigger>
-        <TooltipPopup side="bottom">Switch project (Cmd+O)</TooltipPopup>
-      </Tooltip>
-      <PopoverPopup width="md" padding="compact" align="start" initialFocus={input}>
-        <section aria-label="This project" className="mb-2 border-b border-border pb-2">
-          <div className="flex min-w-0 items-center gap-2.5 px-1 pb-1.5">
-            <ProjectThumb environmentId={environmentId} project={current?.project ?? null} />
-            {renaming === null ? (
+          <div className="mt-1 flex max-h-80 flex-col overflow-y-auto">
+            {others.length === 0 ? (
+              <p className="px-2 py-3 text-sm text-muted-foreground">
+                {query.trim() === "" ? "No other projects yet." : "No other project matches that."}
+              </p>
+            ) : (
               <>
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
-                  {props.title}
-                </span>
-                {current === null ? null : (
-                  <StarButton id={current.id} name={current.project.name} />
+                {starred.length === 0 ? null : (
+                  <>
+                    <p className={groupClass}>Starred</p>
+                    {starred.map(row)}
+                  </>
+                )}
+                {rest.length === 0 ? null : (
+                  <>
+                    {starred.length === 0 ? null : <p className={groupClass}>Recent</p>}
+                    {rest.map(row)}
+                  </>
                 )}
               </>
-            ) : (
-              <Input
-                autoFocus
-                size="sm"
-                value={renaming}
-                aria-label="Project name"
-                onChange={(event) => setRenaming(event.target.value)}
-                onFocus={(event) => event.target.select()}
-                onBlur={rename}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    rename();
-                  } else if (event.key === "Escape") {
-                    // Leaves the name as it was, and the switcher open.
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setRenaming(null);
-                  }
-                }}
-              />
             )}
           </div>
-          <div className="grid grid-cols-2 gap-0.5">
-            {current === null ? null : (
-              <button
-                type="button"
-                className={actionClass}
-                onClick={() => setRenaming(current.project.name)}
-              >
-                <PencilIcon aria-hidden="true" />
-                Rename
-              </button>
-            )}
-            {current === null || duplicate === null ? null : (
-              <button
-                type="button"
-                className={actionClass}
-                onClick={go(
-                  () =>
-                    void duplicate(
-                      current.project,
-                      cards.map((card) => card.project.name),
-                    ),
-                )}
-              >
-                <CopyIcon aria-hidden="true" />
-                Duplicate
-              </button>
-            )}
-            <button type="button" className={actionClass} onClick={go(showVersions)}>
-              <HistoryIcon aria-hidden="true" />
-              Version history
+          <div className="mt-1.5 flex flex-col border-t border-border pt-1.5">
+            <button
+              type="button"
+              className={rowClass}
+              onClick={go(() => void navigate({ to: "/", hash: "start" }))}
+            >
+              <PlusIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+              New project
             </button>
-            {backup.backUp === null ? null : (
-              <button
-                type="button"
-                className={actionClass}
-                onClick={go(() => void backup.backUp())}
-              >
-                <CloudUploadIcon aria-hidden="true" />
-                {backup.last === null ? "Back up…" : "Back up now"}
-              </button>
-            )}
-            {canShowFolder ? (
-              <button type="button" className={actionClass} onClick={go(showFolder)}>
-                <FolderOpenIcon aria-hidden="true" />
-                {folderLabel(serverConfig?.environment.platform.os)}
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className={rowClass}
+              onClick={go(() => void navigate({ to: "/" }))}
+            >
+              <LayoutGridIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+              All projects
+            </button>
           </div>
-          {backup.last === null || backup.changeFolder === null ? null : (
-            <p className="flex flex-wrap items-center gap-x-1.5 px-2 pt-1.5 text-2xs text-muted-foreground">
-              <span>
-                Backed up {formatRelativeTimeLabel(new Date(backup.last.at).toISOString())} to{" "}
-                {backupPlace(backup.last.folder)}
-              </span>
-              <button
-                type="button"
-                className="underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
-                onClick={go(() => void backup.changeFolder())}
-              >
-                Change folder
-              </button>
-            </p>
-          )}
-        </section>
-        <Input
-          ref={input}
-          size="sm"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            const first = starred[0] ?? rest[0];
-            if (event.key !== "Enter" || first === undefined) return;
-            event.preventDefault();
-            choose(first);
-          }}
-          placeholder="Find a project"
-          aria-label="Find a project"
+        </PopoverPopup>
+      </Popover>
+      {current === null ? null : (
+        <BackupDialog
+          open={backingUp}
+          onOpenChange={setBackingUp}
+          environmentId={environmentId}
+          project={{ name: current.project.name, folders: current.project.folders }}
+          last={backup.last}
+          onBackedUp={backup.remember}
         />
-        <div className="mt-1 flex max-h-80 flex-col overflow-y-auto">
-          {others.length === 0 ? (
-            <p className="px-2 py-3 text-sm text-muted-foreground">
-              {query.trim() === "" ? "No other projects yet." : "No other project matches that."}
-            </p>
-          ) : (
-            <>
-              {starred.length === 0 ? null : (
-                <>
-                  <p className={groupClass}>Starred</p>
-                  {starred.map(row)}
-                </>
-              )}
-              {rest.length === 0 ? null : (
-                <>
-                  {starred.length === 0 ? null : <p className={groupClass}>Recent</p>}
-                  {rest.map(row)}
-                </>
-              )}
-            </>
-          )}
-        </div>
-        <div className="mt-1.5 flex flex-col border-t border-border pt-1.5">
-          <button
-            type="button"
-            className={rowClass}
-            onClick={go(() => void navigate({ to: "/", hash: "start" }))}
-          >
-            <PlusIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            New project
-          </button>
-          <button type="button" className={rowClass} onClick={go(() => void navigate({ to: "/" }))}>
-            <LayoutGridIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-            All projects
-          </button>
-        </div>
-      </PopoverPopup>
-    </Popover>
+      )}
+    </>
   );
 }
