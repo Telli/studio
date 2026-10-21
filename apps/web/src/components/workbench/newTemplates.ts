@@ -202,26 +202,6 @@ export const DOCUMENT_TEMPLATES: ReadonlyArray<NewTemplate> = [
     ],
   },
   {
-    id: "mrd",
-    discipline: "Documents",
-    label: "Market requirements (MRD)",
-    description: "Who buys it, what they pay for, and what it competes with.",
-    skill: null,
-    source: "new",
-    folder: "docs",
-    defaultName: "MRD",
-    outline: [
-      "The market and the segment",
-      "Customer needs and pains",
-      "Competing products, with their prices",
-      "Price point and volumes",
-      "Channels",
-      "Positioning",
-      "Risks",
-      "Open questions",
-    ],
-  },
-  {
     id: "requirements",
     discipline: "Documents",
     label: "Engineering requirements",
@@ -271,23 +251,6 @@ export const DOCUMENT_TEMPLATES: ReadonlyArray<NewTemplate> = [
       "Actions, with owners",
     ],
   },
-  {
-    id: "de-risk-plan",
-    discipline: "Documents",
-    label: "De-risk plan",
-    description: "The unknowns, and the experiments and test rigs that settle them.",
-    skill: null,
-    source: "new",
-    folder: "docs",
-    defaultName: "De-risk plan",
-    outline: [
-      "The unknowns, riskiest first",
-      "For each: the experiment or characterization rig that settles it",
-      "What result counts as settled",
-      "What it needs, and how long it takes",
-      "Order of work",
-    ],
-  },
 ];
 
 /** The templates the enabled plugins' skills can do, in their order, documents after the rest. */
@@ -304,11 +267,9 @@ export const isDocumentTemplate = (template: NewTemplate) =>
 /** A built-in document as a sentence names it. */
 const DOCUMENT_NOUNS: Readonly<Record<string, string>> = {
   prd: "product requirements document (PRD)",
-  mrd: "market requirements document (MRD)",
   requirements: "engineering requirements document",
   fmea: "FMEA (failure modes and effects analysis)",
   "design-review": "design review",
-  "de-risk-plan": "de-risk plan",
 };
 
 /** How the agent is told to fill a document: from what the project holds, guessing nothing. */

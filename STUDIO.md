@@ -142,8 +142,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   Threads tab.
 - **Documents from templates.** New's Documents (and the Overview's Documents, the Document
   menu's From a template, and the quick find) start a document the agent writes into `docs/`: a
-  PRD, an MRD, the engineering requirements, an FMEA, a design review or a de-risk plan, each with
-  its sections (`newTemplates.ts` `DOCUMENT_TEMPLATES`), or one of the person's own templates, any
+  PRD, the engineering requirements, an FMEA or a design review, each with its sections
+  (`newTemplates.ts` `DOCUMENT_TEMPLATES`; general to any engineering, so a team's own formats,
+  such as a client's PRD or an xRD, come in as templates), or one of the person's own templates, any
   file in the Templates folder beside Studio's projects (`<projects folder>/Templates`), which the
   agent follows section by section (`documentTemplates.ts`; Add a template copies one in). The
   agent fills each section from the project and writes what is not known as an open question.

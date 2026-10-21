@@ -13,11 +13,9 @@ describe("new templates", () => {
       "test-plan",
       "instructions",
       "prd",
-      "mrd",
       "requirements",
       "fmea",
       "design-review",
-      "de-risk-plan",
     ]);
     expect(
       availableTemplates(new Set(["fea", "cam", "pcb"])).map((entry) => entry.label),
