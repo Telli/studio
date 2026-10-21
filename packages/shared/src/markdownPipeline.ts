@@ -140,6 +140,8 @@ function rehypePreserveImageSourceMeta() {
   };
 }
 
+const DOCUMENT_SOURCE_PROPERTIES = ["dataSrc", "dataSrcKind", "dataSrcPlain"];
+
 const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
   ...defaultSchema,
   attributes: {
@@ -155,6 +157,13 @@ const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
       "dataMarkdownTitle",
       "dataStandalone",
     ],
+    // Where a document's piece sits in its file, for Studio's editing in place (`documentSource.ts`).
+    ...Object.fromEntries(
+      ["p", "li", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6"].map((tag) => [
+        tag,
+        [...(defaultSchema.attributes?.[tag] ?? []), ...DOCUMENT_SOURCE_PROPERTIES],
+      ]),
+    ),
   },
   protocols: {
     ...defaultSchema.protocols,

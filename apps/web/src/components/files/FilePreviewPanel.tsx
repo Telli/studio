@@ -102,6 +102,7 @@ import {
   FileSurfaceLoading,
 } from "./fileSurfaceChrome";
 import SourceFilePreview from "./ReadOnlySourcePreview";
+import { StudioDocumentSurface } from "../workbench/StudioDocumentSurface";
 import { resolveCenteredFileLineScrollTop } from "./fileLineReveal";
 import { DiffCommentAnnotation } from "../diffs/DiffCommentAnnotation";
 import { projectFileCacheKey } from "./fileContentRevision";
@@ -1276,7 +1277,8 @@ export default function FilePreviewPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      {relativePath && attachment === undefined ? (
+      {/* Studio's documents head themselves (their title block); their file row stays away. */}
+      {relativePath && attachment === undefined && !(documentsOnly && isMarkdown) ? (
         <div className={FILE_SURFACE_SUBHEADER_CLASS} data-surface-subheader>
           <ScrollArea
             radius="none"
@@ -1457,7 +1459,19 @@ export default function FilePreviewPanel({
               <Spinner size="lg" />
             </div>
           ) : relativePath && file.data ? (
-            isMarkdown && renderMarkdown ? (
+            isMarkdown && renderMarkdown && documentsOnly ? (
+              // Studio reads a document as a document and edits it in place (Edit, Done).
+              <StudioDocumentSurface
+                key={relativePath}
+                environmentId={environmentId}
+                cwd={cwd}
+                relativePath={relativePath}
+                threadRef={threadRef}
+                contents={file.data.contents}
+                readOnly={isHostFile || !canWriteFiles}
+                onPendingChange={onPendingChange}
+              />
+            ) : isMarkdown && renderMarkdown ? (
               // Markdown reconciles in place across text updates, so a file
               // switch needs a new key or the previous file's disclosure and
               // wrap state carries into the next document.

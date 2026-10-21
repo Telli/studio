@@ -332,3 +332,21 @@ html[data-studio-focus="hardware"] [data-right-panel-tab-list] [data-pinned-proj
   width: 2.25rem;
   padding-inline: 0;
 }
+
+/*
+ * A document is edited where it reads (`StudioDocumentSurface.tsx`): a piece of plain words shows
+ * it takes typing (the text cursor, a faint wash on hover) and, while typed in, a quiet outline.
+ */
+html[data-studio-focus="hardware"] [data-document-editable] [data-src-plain] {
+  cursor: text;
+  border-radius: 0.25rem;
+  transition: background-color 120ms ease;
+}
+html[data-studio-focus="hardware"] [data-document-editable] [data-src-plain]:hover {
+  background: color-mix(in oklab, var(--accent) 60%, transparent);
+}
+html[data-studio-focus="hardware"] [data-document-editable] [data-src-plain][contenteditable] {
+  outline: 1px solid var(--ring);
+  outline-offset: 2px;
+  background: transparent;
+}
