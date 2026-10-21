@@ -734,6 +734,8 @@ export function ProjectPage(props: {
           initialTemplateId={null}
           parts={parts}
           composerRef={composerRef}
+          // The job goes to this chat: the Overview steps back beside it, so the work shows.
+          onCreated={() => useRightPanelStore.getState().setMaximized(threadRef, false)}
         />
       )}
     </div>

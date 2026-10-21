@@ -109,6 +109,8 @@ export function NewDialog(props: {
   /** The project's parts, for a template that works from one. */
   readonly parts: ReadonlyArray<string>;
   readonly composerRef: ComposerHandleRef;
+  /** After Create has handed the job to the chat: show the chat, where the work starts. */
+  readonly onCreated?: () => void;
 }) {
   const id = useId();
   const fileTemplates = props.fileTemplates ?? [];
@@ -169,6 +171,7 @@ export function NewDialog(props: {
       { ensureLeadingBoundary: true },
     );
     props.onOpenChange(false);
+    props.onCreated?.();
     // Create starts the work: the composer sends once it holds the job.
     requestAnimationFrame(() => composer.submit());
   };

@@ -155,12 +155,16 @@ function OpenIssues(props: {
   readonly composerRef: ComposerHandleRef | null;
   readonly linkTo: (root: string, path: string) => string;
   readonly onShow: (issue: Issue) => void;
+  /** Brings the chat into view, where an ask is written. */
+  readonly onShowChat: () => void;
 }) {
   const [all, setAll] = useState(false);
   const shown = all ? props.issues : props.issues.slice(0, FIRST_ISSUES);
   const propose = (entry: Issue) => {
     const composer = props.composerRef?.current;
     if (!composer) return;
+    // The ask is written into the chat: the Overview steps back beside it, so it shows.
+    props.onShowChat();
     const part = entry.part === null ? undefined : props.linkTo(entry.root, entry.part.path);
     composer.insertTextAtEnd(proposeFixPrompt(entry.result, entry.issue, part), {
       ensureLeadingBoundary: true,
@@ -361,9 +365,10 @@ export function ProjectOverview(props: {
     [byFolder],
   );
   const navigate = useNavigate();
+  const showChat = () => useRightPanelStore.getState().setMaximized(props.threadRef, false);
   // A chat opens in the chat, the Overview going back to its place beside it.
   const openChat = (chat: EnvironmentThreadShell) => {
-    useRightPanelStore.getState().setMaximized(props.threadRef, false);
+    showChat();
     if (chat.id === props.threadRef.threadId) return;
     void navigate({
       to: "/$environmentId/$threadId",
@@ -459,6 +464,7 @@ export function ProjectOverview(props: {
               composerRef={props.composerRef}
               linkTo={props.linkTo}
               onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
+              onShowChat={showChat}
             />
           ) : (
             props.readme
@@ -473,6 +479,7 @@ export function ProjectOverview(props: {
           composerRef={props.composerRef}
           linkTo={props.linkTo}
           onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
+          onShowChat={showChat}
         />
       ) : null}
 
