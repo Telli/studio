@@ -2,7 +2,11 @@
 import { parseDelimitedPreview } from "@t3tools/shared/delimitedPreview";
 import { useMemo } from "react";
 
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import { FileSurfaceNotice } from "./fileSurfaceChrome";
+
+/** Studio has no source view to send the rest to, so it shows a parts list nearly whole. */
+const STUDIO_LIMITS = { rows: 1000, columns: 60 } as const;
 
 /** A bounded, readable table for CSV and TSV text; the source view keeps every byte. */
 export function DelimitedTablePreview(props: {
@@ -10,16 +14,19 @@ export function DelimitedTablePreview(props: {
   readonly text: string;
   readonly delimiter: "," | "\t";
 }) {
+  const studio = useEngineeringInterface();
   const table = useMemo(
-    () => parseDelimitedPreview(props.text, props.delimiter),
-    [props.text, props.delimiter],
+    () => parseDelimitedPreview(props.text, props.delimiter, studio ? STUDIO_LIMITS : {}),
+    [props.text, props.delimiter, studio],
   );
   const [header, ...body] = table.rows;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {table.truncated ? (
         <FileSurfaceNotice>
-          Table limited to the first 100 rows and 30 columns. Switch to source for the rest.
+          {studio
+            ? `Shows the first ${STUDIO_LIMITS.rows.toLocaleString()} rows and ${STUDIO_LIMITS.columns} columns.`
+            : "Table limited to the first 100 rows and 30 columns. Switch to source for the rest."}
         </FileSurfaceNotice>
       ) : null}
       <div className="min-h-0 flex-1 overflow-auto">

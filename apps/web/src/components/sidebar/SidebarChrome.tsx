@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, ChartNoAxesColumnIcon, LayoutGridIcon, SettingsIcon } from "lucide-react";
+import { ArrowLeftIcon, ChartNoAxesColumnIcon, HomeIcon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
@@ -207,7 +207,7 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const engineering = useEngineeringSurfaces();
   const handleProjectsClick = useCallback(() => {
     closeMobileSidebar();
-    void navigate({ to: "/projects" });
+    void navigate({ to: "/" });
   }, [closeMobileSidebar, navigate]);
 
   const handleUsageClick = useCallback(() => {
@@ -234,11 +234,8 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
       ) : (
         <>
           {engineering ? (
-            <SidebarUtilityItem
-              icon={<LayoutGridIcon />}
-              label="Projects"
-              onClick={handleProjectsClick}
-            />
+            // Home, as ⌘K and the project switcher name it: Studio's one page of projects.
+            <SidebarUtilityItem icon={<HomeIcon />} label="Home" onClick={handleProjectsClick} />
           ) : null}
           <SidebarUtilityItem
             icon={<SettingsIcon />}

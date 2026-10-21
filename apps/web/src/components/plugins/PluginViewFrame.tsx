@@ -1,3 +1,5 @@
+import { partLabel } from "../workbench/partNames";
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import type { EnvironmentId, PluginViewDocument, ThreadId } from "@t3tools/contracts";
 import {
   makeMcpAppHost,
@@ -36,6 +38,15 @@ import {
 import { useActiveViewerEditLayout } from "../workbench/workspaceMode";
 
 /** What opens one plugin view: the tool whose result is the view, and where it runs. */
+
+/** Why a view could not open, in plain words: the server says it with paths and view names. */
+function plainViewError(message: string): string {
+  if (/outside the thread's workspace/i.test(message)) {
+    return "The viewer can only open files in this chat's folder.";
+  }
+  return "The viewer couldn't open this.";
+}
+
 export interface PluginViewTarget {
   readonly environmentId: EnvironmentId;
   /** The thread whose server process the view talks to; null for an environment-wide view. */
@@ -394,9 +405,17 @@ export function PluginViewFrame(props: {
   return (
     <div ref={boxRef} className="relative flex min-h-0 flex-1 flex-col">
       {closed ? (
-        <Notice text={`${target.title} was closed`} action={reload} actionLabel="Reopen" />
+        <Notice
+          text={`${isEngineeringInterface() ? partLabel(target.title) : target.title} was closed`}
+          action={reload}
+          actionLabel="Reopen"
+        />
       ) : loaded._tag === "error" ? (
-        <Notice text={loaded.message} action={reload} actionLabel="Try again" />
+        <Notice
+          text={isEngineeringInterface() ? plainViewError(loaded.message) : loaded.message}
+          action={reload}
+          actionLabel="Try again"
+        />
       ) : frame === null ? (
         <div className="flex flex-1 items-center justify-center">
           <Spinner />

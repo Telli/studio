@@ -10,7 +10,13 @@ export function filePreviewDelimiter(file: { name: string; mimeType?: string }):
 }
 
 /** Preserve quoted delimiters, escaped quotes and multiline cells; raw mode retains all text. */
-export function parseDelimitedPreview(text: string, delimiter: "," | "\t") {
+export function parseDelimitedPreview(
+  text: string,
+  delimiter: "," | "\t",
+  limits: { readonly rows?: number; readonly columns?: number } = {},
+) {
+  const maxRows = limits.rows ?? 100;
+  const maxColumns = limits.columns ?? 30;
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = "";
@@ -18,7 +24,7 @@ export function parseDelimitedPreview(text: string, delimiter: "," | "\t") {
   let truncated = false;
   let rowStart = text.charCodeAt(0) === 0xfeff ? 1 : 0;
   const endCell = () => {
-    if (row.length < 30) row.push(cell);
+    if (row.length < maxColumns) row.push(cell);
     else truncated = true;
     cell = "";
   };
@@ -43,7 +49,9 @@ export function parseDelimitedPreview(text: string, delimiter: "," | "\t") {
         row = [];
         if (char === "\r" && text[index + 1] === "\n") index++;
         rowStart = index + 1;
-        if (rows.length === 100) return { rows, truncated: truncated || index < text.length - 1 };
+        if (rows.length === maxRows) {
+          return { rows, truncated: truncated || index < text.length - 1 };
+        }
       }
     } else if (cell.length < 2000) cell += char;
     else truncated = true;

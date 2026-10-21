@@ -39,6 +39,7 @@ import { backupPlaceLabel, useLastBackup } from "./useBackup";
 import { useDuplicateProject } from "./useDuplicateProject";
 import { useOpenProject } from "./useOpenProject";
 import { useOpenShortcut } from "./useOpenShortcut";
+import { useProjectHasDesign } from "./useProjectCover";
 import { useProjectList } from "./useProjectList";
 import { useSaveStudioProject } from "./useStudioProjects";
 import { useVersionRequestStore } from "./useVersions";
@@ -91,6 +92,8 @@ export function ProjectSwitcher(props: {
     here !== null && card.project.folders.some((folder) => studioFolderKey(folder) === here);
   const current = cards.find(isHere) ?? null;
   const backup = useLastBackup(current?.id ?? null);
+  // Versions are kept of parts: a project with none yet has no history to show.
+  const hasDesign = useProjectHasDesign(environmentId, current?.project ?? null);
   const [backingUp, setBackingUp] = useState(false);
   // The open project is at the top, with its own menu; the list is the others, to switch to.
   const canShowFolder =
@@ -243,10 +246,12 @@ export function ProjectSwitcher(props: {
                   Duplicate
                 </button>
               )}
-              <button type="button" className={actionClass} onClick={go(showVersions)}>
-                <HistoryIcon aria-hidden="true" />
-                Version history
-              </button>
+              {hasDesign ? (
+                <button type="button" className={actionClass} onClick={go(showVersions)}>
+                  <HistoryIcon aria-hidden="true" />
+                  Version history
+                </button>
+              ) : null}
               {current === null ? null : (
                 <button
                   type="button"

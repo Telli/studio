@@ -24,14 +24,8 @@ export function projectCover(paths: ReadonlyArray<string>): string | null {
   return cover === undefined ? null : (cover.picture ?? cover.path);
 }
 
-/**
- * A project's picture, as Home's tiles and the project switcher show it (`projectCover`).
- * Undefined while it is made, or for a project with nothing to picture yet.
- */
-export function useProjectCover(
-  environmentId: EnvironmentId,
-  project: StudioProject | null,
-): string | undefined {
+/** The file that pictures the project's first folder (`projectCover`); null when none does yet. */
+function useCoverFile(environmentId: EnvironmentId, project: StudioProject | null) {
   const cwd = project?.folders[0] ?? "";
   const listing = useEnvironmentQuery(
     cwd === "" ? null : projectEnvironment.listEntries({ environmentId, input: { cwd } }),
@@ -45,6 +39,26 @@ export function useProjectCover(
       ),
     [listing.data],
   );
+  return { cwd, cover };
+}
+
+/** Whether the project has a part, a board or a study yet: what its versions are kept of. */
+export function useProjectHasDesign(
+  environmentId: EnvironmentId,
+  project: StudioProject | null,
+): boolean {
+  return useCoverFile(environmentId, project).cover !== null;
+}
+
+/**
+ * A project's picture, as Home's tiles and the project switcher show it (`projectCover`).
+ * Undefined while it is made, or for a project with nothing to picture yet.
+ */
+export function useProjectCover(
+  environmentId: EnvironmentId,
+  project: StudioProject | null,
+): string | undefined {
+  const { cwd, cover } = useCoverFile(environmentId, project);
   const pictures = usePictures({ environmentId, cwd, paths: cover === null ? [] : [cover] });
   return cover === null ? undefined : pictures.get(cover);
 }

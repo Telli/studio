@@ -16,6 +16,18 @@ import { NOW, checkpointScopeOf, readCheckpointRef, type PartVersion } from "./v
 import { chatLabel } from "./workspaceTitle";
 
 /** A part of the project, as the Overview lists it. */
+
+/**
+ * Why there are no versions, in plain words: the CAD service says it with the folder's full path
+ * and git's words ("… keeps no versions: it is not a git repository").
+ */
+export function plainVersionsError(error: string | null | undefined): string {
+  if (error && /not a git repository/i.test(error)) {
+    return "No versions: this project's folder doesn't keep a history yet.";
+  }
+  return "Studio couldn't read the versions.";
+}
+
 export interface VersionedPart {
   readonly root: string;
   readonly file: ProjectFile;
@@ -210,7 +222,7 @@ export function PartVersions(props: {
           ) : listed === null ? (
             <p className="text-xs text-muted-foreground">Reading the versions.</p>
           ) : versions === null ? (
-            <p className="text-xs text-muted-foreground">{listed.error}</p>
+            <p className="text-xs text-muted-foreground">{plainVersionsError(listed.error)}</p>
           ) : versions.length === 0 ? (
             <p className="text-xs text-muted-foreground">
               No versions yet. Each chat turn that changes {part.file.title} keeps one.

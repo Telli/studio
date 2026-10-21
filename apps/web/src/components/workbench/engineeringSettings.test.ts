@@ -22,9 +22,13 @@ describe("engineering settings", () => {
 
   it("finds the rows it keeps by the names it shows", () => {
     expect(search("permissions")).toContain("Permissions");
-    expect(search("mark inactive")).toEqual(["Mark inactive threads done"]);
     expect(search("agent update")).toEqual(["Agent update checks"]);
-    expect(search("project order")).toEqual(["Project order"]);
+  });
+
+  it("leaves out rows that do nothing in Studio", () => {
+    // Home, the switcher and Cmd+K order projects by use; the sidebar never says Done.
+    expect(search("project order")).toEqual([]);
+    expect(search("mark inactive")).toEqual([]);
   });
 
   it("words a row plainly only in the engineering interface", () => {

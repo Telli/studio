@@ -50,6 +50,8 @@ export function copiedEntries(
 export function useDuplicateProject(environmentId: EnvironmentId) {
   const createNew = useAtomCommand(projectEnvironment.createNew, { reportFailure: false });
   const list = useAtomQueryRunner(projectEnvironment.listEntries, { reportFailure: false });
+  const read = useAtomQueryRunner(projectEnvironment.readFile, { reportFailure: false });
+  const write = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
   const save = useSaveStudioProject(environmentId);
   const handleNewThread = useNewThreadHandler();
   const bridge = readStudioImport();
@@ -86,6 +88,20 @@ export function useDuplicateProject(environmentId: EnvironmentId) {
         await bridge.copy(sources, target);
       } catch (error) {
         return failed(error instanceof Error ? error.message : "Its files could not be copied.");
+      }
+      // The new folder starts with Studio's own README, which a copy keeps aside rather than
+      // overwrite: the project's README (what it is, its decisions) takes its place here.
+      if (listed.value.entries.some((entry) => entry.path === "README.md")) {
+        const readme = await read({
+          environmentId,
+          input: { cwd: source, relativePath: "README.md" },
+        });
+        if (readme._tag === "Success" && !readme.value.truncated) {
+          await write({
+            environmentId,
+            input: { cwd: target, relativePath: "README.md", contents: readme.value.contents },
+          });
+        }
       }
       const id = await save(null, {
         ...project,

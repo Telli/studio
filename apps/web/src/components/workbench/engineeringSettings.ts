@@ -15,7 +15,9 @@ import { CODE_SETTINGS_SECTIONS, settingsSectionLabel } from "./studioInterface"
  * shelves, background git refreshes, the `t3` command and the legacy switches;
  * on Appearance the Dev and Nightly label, diff colors, the composer's branch
  * controls, the terminal font and word wrap (diffs and file sources); T3's
- * update track; and a project's actions (its scripts and `t3.json`).
+ * update track; a project's actions (its scripts and `t3.json`); and rows that do nothing in
+ * Studio: project order (Home, the switcher and ⌘K always put the one opened last first) and
+ * marking inactive chats done (the sidebar says when a chat was worked on, never Done).
  */
 export const CODE_SETTINGS_ROWS: ReadonlySet<string> = new Set<SettingsSearchItemId>([
   "new-threads",
@@ -42,6 +44,9 @@ export const CODE_SETTINGS_ROWS: ReadonlySet<string> = new Set<SettingsSearchIte
   "word-wrap",
   "update-track",
   "project-actions",
+  "project-order",
+  "auto-settle-inactive-threads",
+  "days-before-auto-settle",
 ]);
 
 interface SettingCopy {
@@ -54,21 +59,6 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
   SettingsSearchItemId,
   SettingCopy
 >([
-  // A settled thread reads Done in this interface.
-  [
-    "auto-settle-inactive-threads",
-    {
-      title: "Mark inactive threads done",
-      description: "Threads with no activity for this long are marked done.",
-    },
-  ],
-  [
-    "days-before-auto-settle",
-    {
-      title: "Days before marking done",
-      description: "A thread with new activity is no longer done.",
-    },
-  ],
   ["response-streaming", { description: "How a reply appears while the agent works." }],
   ["composer-rich-text", { description: "Show formatting such as bold and lists as you type." }],
   [

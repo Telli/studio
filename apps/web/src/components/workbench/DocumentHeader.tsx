@@ -43,7 +43,10 @@ function Cell(props: {
  */
 export function DocumentHeader(props: { readonly text: string; readonly relativePath: string }) {
   const plainWords = useEngineeringInterface();
-  if (!useEngineeringSurfaces()) return null;
+  const surfaces = useEngineeringSurfaces();
+  // In the engineering interface the document's first heading is its title, typed into where it
+  // reads; a title block over it only said it again, with a type guessed from the file's name.
+  if (!surfaces || plainWords) return null;
   return (
     <dl
       data-document-header=""

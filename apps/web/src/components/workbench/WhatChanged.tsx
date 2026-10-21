@@ -154,7 +154,7 @@ export function WhatChanged(props: {
       : shape === null || shape.status === "working"
         ? "Working out what changed."
         : shape.status === "failed"
-          ? `The solids could not be compared: ${shape.error}`
+          ? "The solids couldn't be compared, so here are the two side by side."
           : shape.status === "unsupported"
             ? "This kind of file has no solids to compare: here are the two side by side."
             : shape.same

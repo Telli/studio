@@ -56,6 +56,8 @@ export const CODE_SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
   "/settings/source-control",
   "/settings/storage",
   "/settings/connections",
+  // No chat is archived in Studio (its sidebar lists a project's chats), so there is no archive.
+  "/settings/archived",
 ]);
 
 const ENGINEERING_SETTINGS_LABELS: Readonly<Record<string, string>> = {
