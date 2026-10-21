@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
+import type { EnvironmentId } from "@t3tools/contracts";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -8,7 +8,6 @@ import {
   CopyIcon,
   FolderOpenIcon,
   HistoryIcon,
-  LayoutDashboardIcon,
   LayoutGridIcon,
   PencilIcon,
   PlusIcon,
@@ -27,56 +26,28 @@ import { Input } from "../ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useOpenWorkspaceStore } from "./openWorkspace";
-import { type ListedProject, lastTouched } from "./projectList";
-import { findProjects } from "./recentProjects";
+import {
+  PROJECT_CONTROL_CLASS,
+  PROJECT_ROW_CLASS,
+  ProjectChoices,
+  ProjectThumb,
+} from "./ProjectChoices";
+import type { ListedProject } from "./projectList";
 import { StarButton } from "./StarButton";
-import { splitStarred, useStarredStore } from "./starredProjects";
 import { BackupDialog } from "./BackupDialog";
 import { backupPlaceLabel, useLastBackup } from "./useBackup";
 import { useDuplicateProject } from "./useDuplicateProject";
 import { useOpenProject } from "./useOpenProject";
 import { useOpenShortcut } from "./useOpenShortcut";
-import { useProjectCover } from "./useProjectCover";
 import { useProjectList } from "./useProjectList";
 import { useSaveStudioProject } from "./useStudioProjects";
 import { useVersionRequestStore } from "./useVersions";
 
-const rowClass =
-  "flex min-w-0 items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm text-foreground outline-none transition-colors duration-150 hover:bg-accent focus-visible:bg-accent";
-/** A project row: the row is the one hover, its star a quiet part of it. */
-const projectRowClass =
-  "group/row flex min-w-0 items-center rounded-md pe-1 transition-colors duration-150 hover:bg-accent has-[button:focus-visible]:bg-accent";
 const actionClass =
   "flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground outline-none transition-colors duration-150 hover:bg-accent focus-visible:bg-accent [&>svg]:size-3.5 [&>svg]:shrink-0 [&>svg]:text-muted-foreground";
-const groupClass =
-  "px-2 pt-2 pb-1 text-2xs font-medium tracking-widest text-muted-foreground uppercase";
-
 /** The file manager's name where the project's folder opens: Finder on a Mac. */
 const folderLabel = (os: string | undefined) =>
   os === "darwin" ? "Show in Finder" : os === "win32" ? "Show in File Explorer" : "Show in Files";
-
-/** A project's picture, small, beside its name: on the switcher itself and in its list. */
-function ProjectThumb(props: {
-  readonly environmentId: EnvironmentId;
-  readonly project: StudioProject | null;
-  readonly size?: "sm" | "md";
-}) {
-  const picture = useProjectCover(props.environmentId, props.project);
-  return (
-    <span
-      className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50",
-        props.size === "sm" ? "size-6" : "size-8",
-      )}
-    >
-      {picture ? (
-        <img src={picture} alt="" className="size-full object-contain p-0.5" />
-      ) : (
-        <LayoutDashboardIcon className="size-3.5 text-muted-foreground/60" aria-hidden="true" />
-      )}
-    </span>
-  );
-}
 
 /**
  * The project's name at the head of its sidebar (`wide`), or in the top bar while the sidebar is
@@ -108,7 +79,6 @@ export function ProjectSwitcher(props: {
   const duplicate = useDuplicateProject(environmentId);
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, { reportFailure: true });
   const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
-  const starredIds = useStarredStore((store) => store.starred);
   const input = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -123,8 +93,6 @@ export function ProjectSwitcher(props: {
   const backup = useLastBackup(current?.id ?? null);
   const [backingUp, setBackingUp] = useState(false);
   // The open project is at the top, with its own menu; the list is the others, to switch to.
-  const others = findProjects(cards, query).filter((card) => !isHere(card));
-  const { starred, rest } = splitStarred(others, starredIds);
   const canShowFolder =
     props.folder !== null && serverConfig?.availableEditors.includes("file-manager") === true;
 
@@ -161,33 +129,6 @@ export function ProjectSwitcher(props: {
     }
   };
 
-  const row = (card: ListedProject) => {
-    const opened = card.opened !== null && card.opened >= card.latest;
-    return (
-      <div key={card.id} className={projectRowClass}>
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-1.5 text-left text-sm text-foreground outline-none"
-          onClick={() => choose(card)}
-        >
-          <ProjectThumb environmentId={environmentId} project={card.project} />
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate">{card.project.name}</span>
-            <span className="truncate text-2xs text-muted-foreground">
-              {opened ? "Opened" : "Worked on"} {formatRelativeTimeLabel(lastTouched(card))}
-            </span>
-          </span>
-        </button>
-        <StarButton
-          id={card.id}
-          name={card.project.name}
-          quiet
-          className="opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[starred]:opacity-100"
-        />
-      </div>
-    );
-  };
-
   return (
     <>
       <Popover
@@ -205,10 +146,7 @@ export function ProjectSwitcher(props: {
                   <button
                     type="button"
                     aria-label={`Project ${props.title}: switch project`}
-                    className={cn(
-                      "flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border bg-background py-1 ps-1 pe-2 text-left shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[popup-open]:bg-accent",
-                      props.wide ? "h-11 w-full" : "h-9",
-                    )}
+                    className={cn(PROJECT_CONTROL_CLASS, props.wide ? "h-11 w-full" : "h-9")}
                   />
                 }
               />
@@ -332,46 +270,20 @@ export function ProjectSwitcher(props: {
                 : `Backed up ${formatRelativeTimeLabel(new Date(backup.last.at).toISOString())} to ${backupPlaceLabel(backup.last.place)}.`}
             </p>
           </section>
-          <Input
-            ref={input}
-            size="sm"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              const first = starred[0] ?? rest[0];
-              if (event.key !== "Enter" || first === undefined) return;
-              event.preventDefault();
-              choose(first);
-            }}
-            placeholder="Find a project"
-            aria-label="Find a project"
+          <ProjectChoices
+            environmentId={environmentId}
+            cards={cards}
+            leaveOut={isHere}
+            onChoose={choose}
+            query={query}
+            onQueryChange={setQuery}
+            inputRef={input}
+            none="No other projects yet."
           />
-          <div className="mt-1 flex max-h-80 flex-col overflow-y-auto">
-            {others.length === 0 ? (
-              <p className="px-2 py-3 text-sm text-muted-foreground">
-                {query.trim() === "" ? "No other projects yet." : "No other project matches that."}
-              </p>
-            ) : (
-              <>
-                {starred.length === 0 ? null : (
-                  <>
-                    <p className={groupClass}>Starred</p>
-                    {starred.map(row)}
-                  </>
-                )}
-                {rest.length === 0 ? null : (
-                  <>
-                    {starred.length === 0 ? null : <p className={groupClass}>Recent</p>}
-                    {rest.map(row)}
-                  </>
-                )}
-              </>
-            )}
-          </div>
           <div className="mt-1.5 flex flex-col border-t border-border pt-1.5">
             <button
               type="button"
-              className={rowClass}
+              className={PROJECT_ROW_CLASS}
               onClick={go(() => void navigate({ to: "/", hash: "start" }))}
             >
               <PlusIcon className="size-4 text-muted-foreground" aria-hidden="true" />
@@ -379,7 +291,7 @@ export function ProjectSwitcher(props: {
             </button>
             <button
               type="button"
-              className={rowClass}
+              className={PROJECT_ROW_CLASS}
               onClick={go(() => void navigate({ to: "/" }))}
             >
               <LayoutGridIcon className="size-4 text-muted-foreground" aria-hidden="true" />

@@ -1,18 +1,27 @@
+import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { STUDIO_PROJECT_KINDS } from "@t3tools/shared/studioProjects";
 import { useCallback } from "react";
 
+import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
+import { useRightPanelStore } from "~/rightPanelStore";
 import type { NewJob } from "./NewDialog";
 import { humanName } from "./partNames";
+import type { ListedProject } from "./projectList";
 import { provisionalProjectName, setPendingStart } from "./startProject";
 import { useCreateStudioProject } from "./useCreateStudioProject";
 
-/** How Home starts a project: from a description of it, or from New (a part, a board, a PRD). */
+/**
+ * How Home starts work: from a description, in a new project or as a new chat in one of yours
+ * (`project`), or from New (a part, a board, a PRD) in a new project.
+ */
 export type ProjectStart =
   | {
       readonly kind: "described";
       readonly description: string;
       readonly files: ReadonlyArray<File>;
+      /** The project to start a chat in; null makes a new one. */
+      readonly project: ListedProject | null;
     }
   | { readonly kind: "new"; readonly job: NewJob };
 
@@ -29,10 +38,12 @@ const kindOf = (id: string) => STUDIO_PROJECT_KINDS.find((kind) => kind.id === i
 /**
  * Home's Start: makes the project (a new folder with its repository, `useCreateStudioProject`)
  * and opens its first chat, which sends the description, or New's job, as its first message
- * (`usePendingStart`), the way New in a project hands its job to the open chat.
+ * (`usePendingStart`), the way New in a project hands its job to the open chat. With a project of
+ * yours chosen, it opens a new chat there instead, which sends the description the same way.
  */
 export function useStartProject(environmentId: EnvironmentId) {
   const create = useCreateStudioProject(environmentId);
+  const handleNewThread = useNewThreadHandler();
 
   return useCallback(
     async (start: ProjectStart): Promise<boolean> => {
@@ -40,6 +51,18 @@ export function useStartProject(environmentId: EnvironmentId) {
       if (start.kind === "described") {
         const description = start.description.trim();
         if (description === "") return false;
+        const folder = start.project?.folder ?? null;
+        if (start.project !== null) {
+          if (folder === null) return false;
+          setPendingStart(folder.workspaceRoot, { prompt: description, files: start.files });
+          const draft = await handleNewThread(scopeProjectRef(folder.environmentId, folder.id));
+          // The new chat in front, where its first message shows going out.
+          if (draft !== null) {
+            const ref = scopeThreadRef(folder.environmentId, draft.threadId);
+            useRightPanelStore.getState().setMaximized(ref, false);
+          }
+          return draft !== null;
+        }
         return create({
           environmentId,
           name: provisionalProjectName(description),
@@ -64,6 +87,6 @@ export function useStartProject(environmentId: EnvironmentId) {
         onFolder: (folder) => setPendingStart(folder, { prompt: job.prompt, files: [] }),
       });
     },
-    [create, environmentId],
+    [create, environmentId, handleNewThread],
   );
 }

@@ -156,10 +156,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   Fixture's `diff_revision.py`; routes `/__cad/versions` and `/__cad/versions/compare`). It
   writes under the project folder's `.studio/compare/`, which git is told to leave out.
 - **Home, the switcher and the chats.** In Engineering, Home is Studio's one page (Projects goes
-  to it): a top bar with the mark and a search that opens the quick find, then a project from a
-  description (Start makes the project and its first chat, and sends the description as its first
-  message) or New, the same New and dialog as a project's toolbar (`StudioNew.tsx`), where Create
-  makes a new project and hands the job to its first chat; then every project, pictured by
+  to it): a top bar with the mark and a search that opens the quick find, then a box for what to
+  make. Start sends it to a new project (made, with a first chat that sends it as its first
+  message), or, with a project of yours chosen beside Attach (`ProjectPicker.tsx`, the project
+  switcher's own control and list, `ProjectChoices.tsx`), to a new chat in that project. Then
+  every project, with New and Import beside them to add one: New is the same New and dialog as a
+  project's toolbar (`StudioNew.tsx`), where Create makes a new project and hands the job to its
+  first chat. Every project is pictured by
   its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in one
   column so the box and the tiles line up. A picture that came back empty (the CAD plugin still
   starting) is asked for again (`usePictures.ts`). A project with a chat waiting on the person (a

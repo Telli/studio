@@ -19,12 +19,14 @@ import { SidebarInset } from "../ui/sidebar";
 import { Textarea } from "../ui/textarea";
 import type { ListedProject } from "./projectList";
 import { ProjectTile } from "./ProjectTile";
+import { ENGINEERING_COMPOSER_PLACEHOLDER } from "./studioInterface";
 import { splitStarred, useStarredStore } from "./starredProjects";
 import { ImportDialogHost } from "./ImportDialog";
 import { SAMPLE_PROJECT } from "./homeExamples";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
+import { ProjectPicker } from "./ProjectPicker";
 import { needsYou } from "./recentActivity";
 import { StudioNew } from "./StudioNew";
 import { StudioTopBar } from "./StudioTopBar";
@@ -61,14 +63,15 @@ function FindButton() {
 }
 
 /**
- * Studio's Home, its one page, the way a CAD tool's welcome starts: describe a new project and
- * Start makes it and its first chat, or New (the same New a project's toolbar has) starts one from
- * a part, a board or a document; below, the starred
- * projects, then every other one, as pictures of their parts, the one opened last first. A project
- * with a chat waiting on the person (a question, an approval) comes first, says so, and opens on
- * that chat; chats otherwise live in their project, down its left. Search finds a project, a part
- * or a chat (`StudioQuickFind`). Opening a project goes back to where it was left; inside one, its
- * name switches to another (`ProjectSwitcher`). One column, so the box and the tiles line up.
+ * Studio's Home, its one page, the way a CAD tool's welcome starts. Its box takes what to make:
+ * Start sends it to a new project (made, with a first chat that sends it), or, with a project of
+ * yours chosen beside Attach, to a new chat in that project. Below are your projects, starred
+ * first, as pictures of their parts, the one opened last first, each opening where it was left.
+ * New and Import beside them add a project: New the same New and dialog as a project's toolbar
+ * (a part, a board or a document, in a new project), Import from files. A project with a chat
+ * waiting on the person (a question, an approval) comes first, says so, and opens on that chat;
+ * chats otherwise live in their project, down its left. Search finds a project, a part or a chat
+ * (`StudioQuickFind`). One column, so the box and the tiles line up.
  */
 export function StudioHome() {
   const environmentId = usePrimaryEnvironmentId();
@@ -78,6 +81,7 @@ export function StudioHome() {
 function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
   const { cards } = useProjectList(environmentId);
+  const start = useStartProject(environmentId);
   const openProject = useOpenProject();
   const importActions = useImportActions();
   useNowMinute();
@@ -134,7 +138,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                   {cards.length === 0 ? "Welcome to Studio" : "Welcome back"}
                 </h1>
                 <NewFilesNotice environmentId={environmentId} />
-                <StartProject environmentId={environmentId} firstTime={cards.length === 0} />
+                <StartProject environmentId={environmentId} cards={cards} />
               </div>
               {starred.length === 0 ? null : (
                 <section aria-label="Starred" className="flex min-w-0 flex-col gap-3">
@@ -143,12 +147,19 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                 </section>
               )}
               <section aria-label="Your projects" className="flex min-w-0 flex-col gap-3">
-                <div className="flex items-center gap-3">
+                {/* New and Import both add a project: from a part, board or document, or from files. */}
+                <div className="flex items-center gap-2">
                   <h2 className={SECTION_LABEL}>Your projects</h2>
                   <div className="flex-1" />
                   {importActions === null || cards.length === 0 ? null : (
                     <ImportMenu actions={importActions} />
                   )}
+                  <StudioNew
+                    environmentId={environmentId}
+                    cwd=""
+                    newProject
+                    onCreate={(job) => void start({ kind: "new", job })}
+                  />
                 </div>
                 {cards.length === 0 && importActions !== null ? (
                   <div className="flex flex-col items-start gap-2 rounded-xl border border-dashed border-border px-5 py-6">
@@ -180,13 +191,20 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   );
 }
 
+/**
+ * Home's box: describe what to make and Start. It goes to a new project, as it starts, or to a
+ * new chat in a project of yours chosen beside Attach (`ProjectPicker`), the box then reading as a
+ * project's chat box does. With no projects yet it offers the sample project.
+ */
 function StartProject(props: {
   readonly environmentId: EnvironmentId;
-  /** No projects yet: the sample project is offered first. */
-  readonly firstTime: boolean;
+  readonly cards: ReadonlyArray<ListedProject>;
 }) {
   const { environmentId } = props;
   const start = useStartProject(environmentId);
+  const [chosenId, setChosenId] = useState<string | null>(null);
+  const chosen = props.cards.find((card) => card.id === chosenId) ?? null;
+  const firstTime = props.cards.length === 0;
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
@@ -209,29 +227,19 @@ function StartProject(props: {
   };
   const ready = description.trim() !== "" && !busy;
   const startDescribed = () => {
-    if (ready) void run({ kind: "described", description, files });
+    if (ready) void run({ kind: "described", description, files, project: chosen });
   };
+  const placeholder = chosen === null ? "Describe a new project" : ENGINEERING_COMPOSER_PLACEHOLDER;
 
   return (
-    <section aria-label="Start a project" className="flex min-w-0 flex-col gap-3">
-      {/* Describe it, or New, the same New a project's toolbar has: here it makes the project. */}
-      <div className="flex items-center gap-3">
-        <h2 className={SECTION_LABEL}>Start a project</h2>
-        <div className="flex-1" />
-        <StudioNew
-          environmentId={environmentId}
-          cwd=""
-          newProject
-          onCreate={(job) => void run({ kind: "new", job })}
-        />
-      </div>
+    <section aria-label="Start" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-xs/5 focus-within:border-ring">
         <Textarea
           ref={describe}
           unstyled
           rows={3}
-          aria-label="Describe a new project"
-          placeholder="Describe a new project"
+          aria-label={placeholder}
+          placeholder={placeholder}
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           onKeyDown={(event) => {
@@ -277,13 +285,21 @@ function StartProject(props: {
             <PaperclipIcon />
             Attach
           </Button>
+          {firstTime ? null : (
+            <ProjectPicker
+              environmentId={environmentId}
+              cards={props.cards}
+              chosen={chosen}
+              onChoose={(card) => setChosenId(card?.id ?? null)}
+            />
+          )}
           <div className="flex-1" />
           <Button size="sm" disabled={!ready} onClick={startDescribed}>
             Start
           </Button>
         </div>
       </div>
-      {props.firstTime ? (
+      {firstTime ? (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-dashed border-border px-4 py-3">
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-sm font-medium text-foreground">New to Studio?</span>
@@ -297,7 +313,12 @@ function StartProject(props: {
             variant="outline"
             disabled={busy}
             onClick={() =>
-              void run({ kind: "described", description: SAMPLE_PROJECT.description, files: [] })
+              void run({
+                kind: "described",
+                description: SAMPLE_PROJECT.description,
+                files: [],
+                project: null,
+              })
             }
           >
             {SAMPLE_PROJECT.label}
