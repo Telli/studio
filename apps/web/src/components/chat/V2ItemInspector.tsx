@@ -15,7 +15,7 @@ import {
 import { formatDiffCount } from "@t3tools/client-runtime/diff-count";
 import { isJavaScriptReplTool } from "@t3tools/shared/toolActivity";
 import { ExternalLinkIcon, GitBranchIcon, RotateCcwIcon } from "lucide-react";
-import { memo, Suspense, use, useMemo } from "react";
+import { memo, Suspense, use, useMemo, useState } from "react";
 
 import { useTheme } from "../../hooks/useTheme";
 import { cn } from "../../lib/utils";
@@ -238,6 +238,51 @@ function ToolCallBody(
   );
 }
 
+/**
+ * A step's details in Studio: what it made first (its pictures), then how it went in a line
+ * ("Finished", or the first line of what went wrong), and its command and output behind
+ * "Show the text", read only, as a file page keeps a machine file's text (`StudioFilePage`).
+ */
+function StudioStepBody(props: Parameters<typeof ToolCallBody>[0]) {
+  const [shown, setShown] = useState(false);
+  const failed = props.exitCode !== undefined && props.exitCode !== 0;
+  const firstLine =
+    props.output
+      ?.split("\n")
+      .map((line) => line.trim())
+      .find((line) => line !== "") ?? null;
+  const standing = props.pending
+    ? "Working…"
+    : failed
+      ? `Didn't finish${firstLine === null ? "" : `: ${firstLine}`}`
+      : "Finished";
+  return (
+    <div className="space-y-1.5">
+      {props.images.map((resource) => (
+        <ChatMarkdownAssetImage
+          key={resource.index}
+          environmentId={props.environmentId}
+          resource={resource}
+          alt="What this step made"
+          maxHeightRem={16}
+          onImageExpand={props.onImageExpand}
+        />
+      ))}
+      <div className="flex min-w-0 items-center gap-2">
+        <span
+          className={cn("min-w-0 truncate", failed ? "text-destructive" : "text-muted-foreground")}
+        >
+          {standing}
+        </span>
+        <Button variant="ghost" size="xs" onClick={() => setShown((value) => !value)}>
+          {shown ? "Hide the text" : "Show the text"}
+        </Button>
+      </div>
+      {shown ? <ToolCallBody {...props} images={[]} /> : null}
+    </div>
+  );
+}
+
 export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspectorProps) {
   const fetched = useFetchedTurnItem(props.projectedItem, props.environmentId);
   const item = fetched.item;
@@ -264,12 +309,21 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
       ) : null}
 
       {item.type === "command_execution" ? (
-        <ToolCallBody
-          command={item.input}
-          exitCode={item.exitCode}
-          {...outputState}
-          onImageExpand={props.onImageExpand}
-        />
+        isEngineeringInterface() ? (
+          <StudioStepBody
+            command={item.input}
+            exitCode={item.exitCode}
+            {...outputState}
+            onImageExpand={props.onImageExpand}
+          />
+        ) : (
+          <ToolCallBody
+            command={item.input}
+            exitCode={item.exitCode}
+            {...outputState}
+            onImageExpand={props.onImageExpand}
+          />
+        )
       ) : null}
 
       {item.type === "file_change" ? (
@@ -369,12 +423,21 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
       ) : null}
 
       {item.type === "dynamic_tool" ? (
-        <ToolCallBody
-          toolName={item.toolName}
-          args={item.input}
-          {...outputState}
-          onImageExpand={props.onImageExpand}
-        />
+        isEngineeringInterface() ? (
+          <StudioStepBody
+            toolName={item.toolName}
+            args={item.input}
+            {...outputState}
+            onImageExpand={props.onImageExpand}
+          />
+        ) : (
+          <ToolCallBody
+            toolName={item.toolName}
+            args={item.input}
+            {...outputState}
+            onImageExpand={props.onImageExpand}
+          />
+        )
       ) : null}
 
       {item.type === "approval_request" ? <StructuredValue value={item.prompt} /> : null}
