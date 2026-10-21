@@ -6,6 +6,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { type DesignChange, designChanges } from "./designChanges";
 import { FILE_ICONS, fileIconKey } from "./kinds";
 import { useOpenWorkspaceStore } from "./openWorkspace";
+import { showOverview } from "./overviewPanel";
 import { useEngineeringInterface } from "./studioInterface";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { useVersionRequestStore } from "./useVersions";
@@ -79,7 +80,7 @@ function DesignChanges(props: {
     return () => {
       // The project's README is its Overview: the pinned tab comes to the front, not a copy.
       if (/^(?:\.\/)?readme\.md$/i.test(path)) {
-        useRightPanelStore.getState().open(threadRef, "files");
+        showOverview(threadRef);
         return;
       }
       const folder = useOpenWorkspaceStore.getState().workspace?.folder ?? null;

@@ -615,6 +615,7 @@ import { PluginThreadViewMenuItems } from "./plugins/PluginThreadViewMenuItems";
 import { PluginStarterPrompts } from "./plugins/PluginStarterPrompts";
 import { usePluginFollow } from "./plugins/usePluginFollow";
 import { PendingStart } from "./workbench/PendingStart";
+import { frontTab } from "./workbench/overviewPanel";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { StudioPanelBar } from "./workbench/StudioPanelBar";
 import { ProjectPage } from "./workbench/ProjectPage";
@@ -6104,7 +6105,9 @@ export default function ChatView(props: ChatViewProps) {
   const activateRightPanelSurface = useCallback(
     (surface: RightPanelSurface) => {
       if (!activeThreadRef) return;
-      useRightPanelStore.getState().activateSurface(activeThreadRef, surface.id);
+      // Studio shows its Overview across the window and every other tab beside the chat.
+      if (engineeringInterface) frontTab(activeThreadRef, surface);
+      else useRightPanelStore.getState().activateSurface(activeThreadRef, surface.id);
       if (surface.kind === "preview" && surface.resourceId) {
         setActivePreviewTab(activeThreadRef, surface.resourceId);
       }
@@ -6115,7 +6118,7 @@ export default function ChatView(props: ChatViewProps) {
         onDiffPanelOpen?.();
       }
     },
-    [activeThreadRef, diffOpen, onDiffPanelOpen],
+    [activeThreadRef, diffOpen, engineeringInterface, onDiffPanelOpen],
   );
   const toggleRightPanel = useCallback(() => {
     if (!activeThreadRef) return;

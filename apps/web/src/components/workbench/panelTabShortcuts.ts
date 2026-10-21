@@ -3,6 +3,7 @@ import { useEffect } from "react";
 
 import { isMacPlatform } from "~/lib/utils";
 import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelStore";
+import { frontTab } from "./overviewPanel";
 
 /** The panel's tabs in the order they show: the pinned Overview first, then the rest as they are. */
 export function tabOrder(
@@ -61,7 +62,9 @@ export function usePanelTabShortcuts(threadRef: ScopedThreadRef): void {
       if (target === null) return;
       event.preventDefault();
       event.stopPropagation();
-      panels.activateSurface(threadRef, target);
+      const surface = state.surfaces.find((entry) => entry.id === target);
+      if (surface === undefined) panels.activateSurface(threadRef, target);
+      else frontTab(threadRef, surface);
     };
     // Taken as it comes down, before anything listening on the way back up sees it.
     window.addEventListener("keydown", handle, true);

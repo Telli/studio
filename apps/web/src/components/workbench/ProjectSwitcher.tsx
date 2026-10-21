@@ -17,7 +17,6 @@ import { useCallback, useRef, useState } from "react";
 
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
-import { useRightPanelStore } from "~/rightPanelStore";
 import { serverEnvironment } from "~/state/server";
 import { shellEnvironment } from "~/state/shell";
 import { useAtomCommand } from "~/state/use-atom-command";
@@ -37,6 +36,7 @@ import { Input } from "../ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useOpenWorkspaceStore } from "./openWorkspace";
+import { showOverview } from "./overviewPanel";
 import {
   PROJECT_CONTROL_CLASS,
   PROJECT_ROW_CLASS,
@@ -143,7 +143,7 @@ export function ProjectSwitcher(props: {
   const showVersions = () => {
     const workspace = useOpenWorkspaceStore.getState().workspace;
     if (workspace === null) return;
-    useRightPanelStore.getState().open(workspace.threadRef, "files");
+    showOverview(workspace.threadRef);
     useVersionRequestStore.getState().reveal();
   };
   const showFolder = () => {

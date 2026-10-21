@@ -1,6 +1,6 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 
-import { useRightPanelStore } from "~/rightPanelStore";
+import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 
 /**
  * Opens a project's Overview beside a chat, across the window as a Google Drive folder opens
@@ -11,6 +11,22 @@ export function showOverview(threadRef: ScopedThreadRef): void {
   const panels = useRightPanelStore.getState();
   panels.open(threadRef, "files");
   panels.setMaximized(threadRef, true);
+}
+
+/**
+ * Puts a panel tab in front as Studio shows each: the Overview across the window, as a Drive folder
+ * opens, any other tab beside the chat. Leaving the Overview steps back from the window; a part
+ * the person spread across the window themselves stays so.
+ */
+export function frontTab(
+  threadRef: ScopedThreadRef,
+  surface: { readonly id: string; readonly kind: string },
+): void {
+  const panels = useRightPanelStore.getState();
+  const leaving = selectActiveRightPanelSurface(panels.byThreadKey, threadRef)?.kind === "files";
+  panels.activateSurface(threadRef, surface.id);
+  if (surface.kind === "files") panels.setMaximized(threadRef, true);
+  else if (leaving) panels.setMaximized(threadRef, false);
 }
 
 /**
