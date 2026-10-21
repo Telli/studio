@@ -175,16 +175,23 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   its top the project's name, a control with its picture that switches projects
   (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on Home), whose
   top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop
-  app, Version history, Back up and Show in Finder); then its Overview, New chat, and its chats,
+  app, Version history once it has a part, Back up, Show in Finder, and Remove from Studio, which
+  asks first and keeps the folder's files to import again; T3's Remove project in Settings is
+  hidden in Engineering), then its Overview, New chat, and its chats,
   newest first. What the project holds is on its Overview. The top bar names the open chat; with
   the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the project's
   switcher. The panel's tabs are what was opened lately, along its top as a browser's are
   (`brand/theme.css`): the Overview pinned first as its icon, then each file with its kind's
-  colored icon (`FileKindIcon.tsx`), the one in front joined to the toolbar under them. The
+  colored icon (`FileKindIcon.tsx`) at its left and its close at its right, as Chrome's are, the
+  one in front joined to the toolbar under them. There is no + (New is the one way to add), a
+  panel with every tab closed shows the Overview, and a tab's menu has no Copy path. The
   toolbar is one line of what can be done (`StudioPanelBar.tsx`): New, always first, as Drive's
   is (`StudioNew.tsx`, which hosts New's dialog in Engineering); then, over a part, Ask or Edit
-  by hand and Evaluate, Manufacture and Document. Engineering with code keeps T3 Code's thread sidebar, with the
-  projects listed in it.
+  by hand and Evaluate, Manufacture and Document; a narrow window's panel sheet keeps it. Whatever
+  writes into the chat (these menus, Cmd+K, the viewer's Add to chat, the Overview) brings the
+  chat back from a panel filling the window, except a hand edit's note, which goes in quietly
+  and leaves the keyboard in the view (`viewContext.ts`). Engineering with code keeps T3 Code's
+  thread sidebar, with the projects listed in it.
 - **Back up.** A project is already a folder on the Mac with its versions in it; the project's
   menu backs it up somewhere else (`components/workbench/BackupDialog.tsx`). GitHub: a private
   repository Studio makes for it with T3 Code's own publish, then each backup committed and
@@ -213,8 +220,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   page saying what it is, with Open in its own app on this Mac ("Open the spreadsheet"; the
   desktop app opens documents, sheets, drawings and models only, never a script or an app), Show
   in Finder, and its text one press away, read only (`StudioFilePage.tsx`, `aboutFile.ts`); a
-  check's result reads as a report. Studio has one name for each thing and one way to do it: new
-  UI reuses the component and the words that already exist (Home's New is the toolbar's).
+  check's result reads as a report. A document has no title block over it in Engineering (its
+  first heading is its title), and the Overview's README is typed into where it reads, like a
+  document (`ReadmeOverview.tsx`, `replaceReadmeText`). A file chip in the chat shows its kind's
+  icon, says what the file is and where on hover, and offers Open and Show in Finder. Studio has
+  one name for each thing and one way to do it: new UI reuses the component and the words that
+  already exist (Home's New is the toolbar's; Home is "Home" everywhere; the chat says "AI
+  agent", as Settings does).
 - **Onboarding.** Setup speaks Studio's words and ends at signing in to Claude or Codex
   (`WelcomeWizard.tsx`; Home brings in files). A first Home says Welcome to Studio and offers a
   sample project the agent builds in front of you (a servo bracket, its strength check, its
