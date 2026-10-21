@@ -282,12 +282,12 @@ function AttachedList(props: {
 }
 
 /**
- * Home's box, in two modes named by what you start from, as the part toolbar has Ask and Edit by
- * hand. Start from an idea: say what to make and Start. It goes to a new project, as it starts,
- * or to a new chat in a project of yours chosen beside Attach (`ProjectPicker`), the box then
- * reading as a project's chat box does. Set up from files: drop or choose what you already have
- * (a PRD, requirements, sketches, CAD, a whole folder), say what it is if you like, and Set up
- * project makes a new project from it. Either way, files go into the project's References and
+ * Home's box, in two modes, as the part toolbar has Ask and Edit by hand, each named with its
+ * button's word, as a sign-in form's Sign in and Sign up. Start, from an idea: say what to make
+ * and Start. It goes to a new project, as it starts, or to a new chat in a project of yours chosen
+ * beside Attach (`ProjectPicker`), the box then reading as a project's chat box does. Set up, from
+ * files: drop or choose what you already have (a PRD, requirements, sketches, CAD, a whole
+ * folder), say what it is if you like, and Set up project makes a new project from it. Either way, files go into the project's References and
  * the agent reads them first (`startMessage`). With no projects yet it offers the sample project.
  */
 function StartProject(props: {
@@ -392,8 +392,8 @@ function StartProject(props: {
             if (value === "idea" || value === "files") setMode(value);
           }}
         >
-          <Toggle value="idea">Start from an idea</Toggle>
-          <Toggle value="files">Set up from files</Toggle>
+          <Toggle value="idea">Start</Toggle>
+          <Toggle value="files">Set up</Toggle>
         </ToggleGroup>
         {settingUp ? (
           <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
