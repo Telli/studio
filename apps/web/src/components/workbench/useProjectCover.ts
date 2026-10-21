@@ -16,9 +16,9 @@ const COVER_GROUPS = ["Models", "Boards and wiring", "Drawings", "Studies"] as c
  */
 export function useProjectCover(
   environmentId: EnvironmentId,
-  project: StudioProject,
+  project: StudioProject | null,
 ): string | undefined {
-  const cwd = project.folders[0] ?? "";
+  const cwd = project?.folders[0] ?? "";
   const listing = useEnvironmentQuery(
     cwd === "" ? null : projectEnvironment.listEntries({ environmentId, input: { cwd } }),
   );
