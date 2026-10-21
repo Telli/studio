@@ -1,0 +1,148 @@
+import { describe, expect, it } from "vite-plus/test";
+
+import type { CheckResult } from "./checkResults";
+import {
+  checkChanges,
+  checkpointBefore,
+  checkpointScopeOf,
+  extentLine,
+  readCheckpointRef,
+  scriptRows,
+  sizeChanges,
+  sizeLine,
+  sizeName,
+  volumeLine,
+  type ShapeComparison,
+} from "./versions";
+
+const REF =
+  "refs/t3/orchestration-v2/checkpoints/YmNiZDAxNjdlNTVmODBlZGRkNjY4YTc5NjIyNzU5YzM/ordinal/7";
+const sizes = (...entries: Array<[string, number]>) =>
+  entries.map(([name, value], index) => ({ name, value, line: index + 1 }));
+const done = (input: Partial<Extract<ShapeComparison, { status: "done" }>>): ShapeComparison => ({
+  status: "done",
+  same: false,
+  moved: false,
+  added_mm3: 0,
+  removed_mm3: 0,
+  kept_mm3: 0,
+  older: { bbox: { min: [0, 0, 0], max: [40, 30, 70] }, volume_mm3: 0, bodies: 1 },
+  newer: { bbox: { min: [0, 0, 0], max: [48, 30, 70] }, volume_mm3: 0, bodies: 1 },
+  ...input,
+});
+const check = (check: string, headline: string): CheckResult => ({
+  path: `${check}.json`,
+  model: "",
+  part: "hook.step",
+  check,
+  status: "ready",
+  headline,
+  issues: [],
+});
+
+describe("versions", () => {
+  it("reads a checkpoint ref's thread scope and turn, and the turn before", () => {
+    expect(readCheckpointRef(REF)).toEqual({
+      scope: "YmNiZDAxNjdlNTVmODBlZGRkNjY4YTc5NjIyNzU5YzM",
+      turn: 7,
+    });
+    expect(checkpointBefore(REF)).toBe(REF.replace("/ordinal/7", "/ordinal/6"));
+    expect(checkpointBefore(REF.replace("/ordinal/7", "/ordinal/0"))).toBeNull();
+    expect(readCheckpointRef("refs/heads/main")).toBeNull();
+  });
+
+  it("names a thread's checkpoint scope the way Studio's server does", async () => {
+    // Base64Url of the first 32 hex digits of SHA-256 of "checkpoint-scope:thread:thread%20one%2F2:name:root".
+    expect(await checkpointScopeOf("thread one/2")).toBe(
+      "NDNiZGQ5ZWNmNTYxMDQxNDIxNWE5YTI3MmYyZmIzZjk",
+    );
+  });
+
+  it("says a script's sizes in an engineer's words", () => {
+    expect(sizeName("HOOK_DEPTH")).toBe("Hook depth");
+    expect(sizeName("M3_HOLE_DIA")).toBe("M3 hole dia");
+    expect(sizeName("wallThickness")).toBe("Wall thickness");
+  });
+
+  it("lists the sizes that changed, were added or were removed", () => {
+    const changes = sizeChanges(
+      sizes(["HOOK_DEPTH", 40], ["SCREW_HOLE", 6], ["OLD_TAB", 5], ["WALL", 2]),
+      sizes(["HOOK_DEPTH", 48], ["SCREW_HOLE", 6.35], ["WALL", 2.0004], ["RIB", 3]),
+    )!;
+    expect(changes.map((change) => sizeLine(change, "mm"))).toEqual([
+      "Hook depth 40 to 48 mm",
+      "Screw hole 6 to 6.35 mm",
+      "Rib added: 3 mm",
+      "Old tab removed",
+    ]);
+    expect(sizeChanges(null, sizes(["A", 1]))).toBeNull();
+  });
+
+  it("tells a size written twice apart by its order", () => {
+    const changes = sizeChanges(
+      sizes(["WIDTH", 10], ["WIDTH", 20]),
+      sizes(["WIDTH", 10], ["WIDTH", 25]),
+    )!;
+    expect(changes.map((change) => sizeLine(change, ""))).toEqual(["Width (2) 20 to 25"]);
+  });
+
+  it("says how the volume and the size changed", () => {
+    expect(volumeLine(done({ added_mm3: 6400, removed_mm3: 0, kept_mm3: 52000 }))).toBe(
+      "Volume +6,400 mm³ (+12%)",
+    );
+    expect(volumeLine(done({ added_mm3: 0, removed_mm3: 4800, kept_mm3: 7200 }))).toBe(
+      "Volume −4,800 mm³ (−40%)",
+    );
+    expect(volumeLine(done({ kept_mm3: 100 }))).toBe("Volume unchanged");
+    expect(extentLine(done({}))).toBe("48 × 30 × 70 mm, was 40 × 30 × 70");
+    expect(volumeLine({ status: "working", retryMs: 1000 })).toBeNull();
+  });
+
+  it("says how each check went then and now", () => {
+    expect(
+      checkChanges(
+        [
+          check("Strength", "1 to fix · stress at the hook"),
+          check("FDM printing", "Ready to print"),
+        ],
+        [
+          check("Strength", "Holds the load, safety factor 2.1"),
+          check("FDM printing", "Ready to print"),
+          check("Vibration", "No resonance below 200 Hz"),
+        ],
+      ),
+    ).toEqual([
+      {
+        check: "Strength",
+        line: "Holds the load, safety factor 2.1, was 1 to fix · stress at the hook",
+      },
+      { check: "FDM printing", line: "Ready to print, as before" },
+      { check: "Vibration", line: "No resonance below 200 Hz, new" },
+    ]);
+    expect(checkChanges([check("Strength", "Ready")], [])).toEqual([
+      { check: "Strength", line: "No longer run" },
+    ]);
+  });
+
+  it("shows a script's changed lines with their context, the rest folded", () => {
+    const older = ["import x", "a = 1", "b = 2", "c = 3", "d = 4", "HOOK_DEPTH = 40", "e = 5"].join(
+      "\n",
+    );
+    const newer = ["import x", "a = 1", "b = 2", "c = 3", "d = 4", "HOOK_DEPTH = 48", "e = 5"].join(
+      "\n",
+    );
+    const read = (rows: ReturnType<typeof scriptRows>) => rows.map(({ key: _key, ...row }) => row);
+    expect(read(scriptRows(older, newer, 1))).toEqual([
+      { kind: "folded", count: 4 },
+      { kind: "same", text: "d = 4" },
+      { kind: "removed", text: "HOOK_DEPTH = 40" },
+      { kind: "added", text: "HOOK_DEPTH = 48" },
+      { kind: "same", text: "e = 5" },
+    ]);
+    expect(read(scriptRows("a\nb", "a\nb\nc"))).toEqual([
+      { kind: "same", text: "a" },
+      { kind: "same", text: "b" },
+      { kind: "added", text: "c" },
+    ]);
+  });
+});

@@ -48,6 +48,7 @@ import {
   type ProjectFile,
   type ProjectGroup,
 } from "./projectFiles";
+import { PartVersions, type VersionedPart } from "./PartVersions";
 import { ProjectThreads } from "./ProjectThreads";
 import { useEngineeringInterface } from "./studioInterface";
 import { usePictures } from "./usePictures";
@@ -317,6 +318,8 @@ export function ProjectOverview(props: {
   readonly threadRef: ScopedThreadRef;
   /** The project's README (`ReadmeOverview`), beside the lead part; null where none is shown. */
   readonly readme: ReactNode | null;
+  /** How the project's sizes are written ("mm" or "in"), for the sizes a version changed. */
+  readonly units: string;
 }) {
   const folders = useProjectChecks({
     environmentId: props.environmentId,
@@ -388,9 +391,18 @@ export function ProjectOverview(props: {
     }
     return [...byGroup];
   }, [folders]);
-  const otherChats = projectChats(useThreadShellsForProjectRefs(props.projectRefs)).filter(
-    (chat) => chat.id !== props.currentThreadId,
-  ).length;
+  const chats = projectChats(useThreadShellsForProjectRefs(props.projectRefs));
+  const otherChats = chats.filter((chat) => chat.id !== props.currentThreadId).length;
+  // Every part, the lead part first, for its versions.
+  const versioned = useMemo(() => {
+    const all: VersionedPart[] = byFolder.flatMap((folder) => folder.parts);
+    const first =
+      lead === null
+        ? undefined
+        : all.find((entry) => entry.root === lead.root && entry.file.path === lead.file.path);
+    const rest = all.filter((entry) => entry !== first);
+    return first === undefined ? rest : [first, ...rest];
+  }, [byFolder, lead]);
   const { folded, toggle } = useFoldedModules(props.folders[0] ?? "");
   const partCount = byFolder.reduce((total, folder) => total + folder.parts.length, 0);
   const engineering = useEngineeringInterface();
@@ -440,6 +452,19 @@ export function ProjectOverview(props: {
       ) : null}
 
       <div className="grid min-w-0 gap-8 @3xl:grid-cols-2">
+        {versioned.length === 0 ? null : (
+          <PartVersions
+            environmentId={props.environmentId}
+            threadRef={props.threadRef}
+            parts={versioned}
+            chats={chats}
+            units={props.units}
+            mutationId={props.mutationId}
+            folded={folded.includes("Versions")}
+            onFold={() => toggle("Versions")}
+            onOpen={props.onOpen}
+          />
+        )}
         {/* A project of one part shows it above, large; the module is for picking among several. */}
         {partCount < 2 ? null : (
           <OverviewModule

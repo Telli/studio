@@ -127,9 +127,20 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   (`apps/server/src/telemetry/AnalyticsService.ts`), so nothing about its use goes to T3.
 - **Design history.** A turn that changed files ends with one line of what it changed in the
   design, a chip per part and document (a part's script, model, drawing and studies are one
-  entry), each opening beside the thread; the work log's groups say which parts they updated ("3
-  steps, updated the L bracket"). With code tools on, the turn keeps T3 Code's changed-files card
-  and the project page keeps its Threads tab.
+  entry); a part's chip opens what changed in it at that turn, anything else opens beside the
+  thread. The work log's groups say which parts they updated ("3 steps, updated the L bracket").
+  With code tools on, the turn keeps T3 Code's changed-files card and the project page keeps its
+  Threads tab.
+- **Versions and What changed.** Every chat turn's checkpoint is a version. The Overview's
+  Versions lists a part's versions, newest first, each with when and which chat made it (and Now,
+  for a hand edit since the last turn), and shows what changed between the one picked and the one
+  before, or any earlier one: the part as one model (added green, removed red, unchanged
+  see-through grey) or side by side, the named sizes of its script that changed, its volume and
+  size, how its checks went at each, and the script's lines on request. The CAD service reads the
+  versions with git and compares the solids in a process of its own
+  (`text-to-cad/packages/cadgen/src/cadgen/edit/versions.py` and `solid_diff.py`, ported from
+  Fixture's `diff_revision.py`; routes `/__cad/versions` and `/__cad/versions/compare`). It
+  writes under the project folder's `.studio/compare/`, which git is told to leave out.
 - **Home, the switcher and the chats.** In Engineering, Home is Studio's one page (Projects goes
   to it): a top bar with the mark and a search that opens the quick find, then a project from a
   description (Start makes the project and its first chat, and sends the description as its first

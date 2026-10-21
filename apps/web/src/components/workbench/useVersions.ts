@@ -1,0 +1,188 @@
+import { pluginFileHandlers } from "@t3tools/client-runtime/state/plugins";
+import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { useCallback, useEffect, useState } from "react";
+import { create } from "zustand";
+
+import { pluginEnvironment } from "~/state/plugins";
+import { useEnvironmentQuery } from "~/state/query";
+import { useAtomCommand } from "~/state/use-atom-command";
+import { readTunnelJson } from "./partContext";
+import type { Comparison, PartVersion } from "./versions";
+
+/** A POST to Studio's CAD service, answered with the route's JSON (null when it could not be asked). */
+export type CadPost = (path: string, body: unknown) => Promise<unknown>;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const base64 = (text: string) => {
+  let binary = "";
+  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
+  return btoa(binary);
+};
+
+/**
+ * Studio's CAD service (text-to-cad's viewer server, `cadgen/viewer/http_app.py`), asked through the
+ * CAD plugin's `cad_http` tool for the thread's own server, as the CAD view asks it. Null while the
+ * plugins load, when none opens STEP files, or with no thread.
+ */
+export function useCadService(
+  environmentId: EnvironmentId,
+  threadId: ThreadId | null,
+): CadPost | null {
+  const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
+    ?.plugins;
+  const request = useAtomCommand(pluginEnvironment.request, { reportFailure: false });
+  const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, "part.step")[0];
+  const pluginId = viewer?.pluginId ?? null;
+  const server = viewer?.view.server ?? null;
+  const post = useCallback<CadPost>(
+    async (path, body) => {
+      if (pluginId === null || server === null || threadId === null) return null;
+      const result = await request({
+        environmentId,
+        input: {
+          threadId,
+          pluginId,
+          server,
+          method: "tools/call",
+          params: {
+            name: "cad_http",
+            arguments: {
+              method: "POST",
+              url: path,
+              headers: { "content-type": "application/json", "x-cadgen-viewer": "1" },
+              body: base64(JSON.stringify(body)),
+            },
+          },
+        },
+      });
+      return result._tag === "Success"
+        ? readTunnelJson(result.value.result).catch(() => null)
+        : null;
+    },
+    [environmentId, pluginId, request, server, threadId],
+  );
+  return pluginId === null || server === null || threadId === null ? null : post;
+}
+
+const failure = (reply: unknown) =>
+  isRecord(reply) && typeof reply.error === "string"
+    ? reply.error
+    : "Studio's CAD service did not answer.";
+
+interface VersionsState {
+  readonly versions: ReadonlyArray<PartVersion> | null;
+  readonly error: string | null;
+}
+
+/**
+ * The versions of one file of a project folder (`cadgen/edit/versions.py`), oldest first, read
+ * again whenever the thread's agent changes files. The last list stays shown while it is read.
+ */
+export function usePartVersions(input: {
+  readonly post: CadPost | null;
+  readonly folder: string;
+  readonly path: string | null;
+  readonly mutationId: string | null;
+}): VersionsState | null {
+  const { post, folder, path, mutationId } = input;
+  const [state, setState] = useState<(VersionsState & { readonly key: string }) | null>(null);
+  const key = `${folder}\n${path ?? ""}`;
+  useEffect(() => {
+    if (post === null || path === null) return;
+    let cancelled = false;
+    void post("/__cad/versions", { folder, path }).then((reply) => {
+      if (cancelled) return;
+      setState(
+        isRecord(reply) && reply.ok === true && Array.isArray(reply.versions)
+          ? { key, versions: reply.versions as PartVersion[], error: null }
+          : { key, versions: null, error: failure(reply) },
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `mutationId` is the agent changing files: the versions are read again.
+  }, [folder, key, mutationId, path, post]);
+  return state !== null && state.key === key ? state : null;
+}
+
+interface ComparisonState {
+  readonly comparison: Comparison | null;
+  readonly error: string | null;
+}
+
+/**
+ * What changed in a file between two versions (`cadgen/edit/versions.py` `compare`), asked again
+ * while the CAD service compares the solids in a process of its own. `retry` compares them again
+ * after a failure.
+ */
+export function useComparison(input: {
+  readonly post: CadPost | null;
+  readonly folder: string;
+  readonly path: string;
+  readonly older: string | null;
+  readonly newer: string | null;
+  /** Text files to read at both versions too: the part's check results. */
+  readonly texts: ReadonlyArray<string>;
+}): { readonly state: ComparisonState | null; readonly retry: () => void } {
+  const { post, folder, path, older, newer } = input;
+  const texts = input.texts.join("\n");
+  const [state, setState] = useState<(ComparisonState & { readonly key: string }) | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const key = [folder, path, older ?? "", newer ?? "", texts].join("\n");
+  useEffect(() => {
+    if (post === null || older === null || newer === null) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ask = (retry: boolean) =>
+      post("/__cad/versions/compare", {
+        folder,
+        path,
+        older,
+        newer,
+        texts: texts === "" ? [] : texts.split("\n"),
+        retry,
+      }).then((reply) => {
+        if (cancelled) return;
+        if (!isRecord(reply) || reply.ok !== true || !isRecord(reply.shape)) {
+          setState({ key, comparison: null, error: failure(reply) });
+          return;
+        }
+        const comparison = reply as unknown as Comparison;
+        setState({ key, comparison, error: null });
+        if (comparison.shape.status === "working") {
+          timer = setTimeout(() => void ask(false), comparison.shape.retryMs);
+        }
+      });
+    void ask(attempt > 0);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [attempt, folder, key, newer, older, path, post, texts]);
+  const retry = useCallback(() => setAttempt((count) => count + 1), []);
+  return { state: state !== null && state.key === key ? state : null, retry };
+}
+
+/** A part to show the versions of, asked for from outside the Overview: a Changed chip in the chat. */
+export interface VersionRequest {
+  /** The project folder the part is in. */
+  readonly folder: string;
+  /** The part's file, in that folder. */
+  readonly path: string;
+  /** The checkpoint of the turn that changed it: its version is compared with the one before. */
+  readonly ref: string;
+}
+
+/** The Changed chips ask, and the Overview's Versions takes the request (`PartVersions`). */
+export const useVersionRequestStore = create<{
+  readonly request: VersionRequest | null;
+  readonly ask: (request: VersionRequest) => void;
+  readonly take: () => void;
+}>()((set) => ({
+  request: null,
+  ask: (request) => set({ request }),
+  take: () => set({ request: null }),
+}));

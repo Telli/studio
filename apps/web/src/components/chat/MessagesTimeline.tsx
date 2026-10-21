@@ -4257,7 +4257,11 @@ const AssistantChangedFilesSection = memo(function AssistantChangedFilesSection(
   if (checkpointFiles.length === 0) return null;
 
   return (
-    <TurnDesignChanges threadRef={use(TimelineRowCtx).threadRef} files={checkpointFiles}>
+    <TurnDesignChanges
+      threadRef={use(TimelineRowCtx).threadRef}
+      files={checkpointFiles}
+      checkpointRef={turnSummary.checkpointRef}
+    >
       <AssistantChangedFilesSectionInner
         turnSummary={turnSummary}
         checkpointFiles={checkpointFiles}

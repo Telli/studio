@@ -649,6 +649,7 @@ export function ProjectPage(props: {
             byHand={byHand}
             onStartPart={startPart}
             threadRef={threadRef}
+            units={studio?.project.brief.units ?? "mm"}
             readme={
               plainWords ? (
                 <ReadmeOverview

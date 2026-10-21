@@ -12,10 +12,16 @@ import {
 } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 
+import { useRightPanelStore } from "~/rightPanelStore";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { type DesignChange, designChanges } from "./designChanges";
+import { useOpenWorkspaceStore } from "./openWorkspace";
 import { useEngineeringInterface } from "./studioInterface";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
+import { useVersionRequestStore } from "./useVersions";
+
+/** A part's model, which has versions to compare (`PartVersions`). */
+const VERSIONED = /\.(?:step|stp)$/i;
 
 const ICONS: Readonly<Record<string, LucideIcon>> = {
   Check: ActivityIcon,
@@ -47,6 +53,8 @@ const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ?
 function ChangeChip(props: {
   readonly change: DesignChange;
   readonly onOpen: (() => void) | null;
+  /** It opens what changed in the part, not the part itself. */
+  readonly compares: boolean;
 }) {
   const { change } = props;
   const Icon = ICONS[iconKey(change.kind)]!;
@@ -67,7 +75,7 @@ function ChangeChip(props: {
       <button
         type="button"
         onClick={props.onOpen}
-        aria-label={`Open ${change.label}`}
+        aria-label={props.compares ? `See what changed in ${change.label}` : `Open ${change.label}`}
         className={`${chip} outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset`}
       >
         {body}
@@ -92,9 +100,26 @@ function DesignChanges(props: {
   readonly threadRef: ScopedThreadRef;
   readonly changes: ReadonlyArray<DesignChange>;
   readonly other: number;
+  readonly checkpointRef: string | null;
 }) {
   const open = useOpenInWorkbench(props.threadRef);
-  const { changes, other } = props;
+  const { changes, other, checkpointRef, threadRef } = props;
+  const compares = (change: DesignChange) =>
+    checkpointRef !== null && change.open !== null && VERSIONED.test(change.open);
+  // A changed part shows what changed in it, in the Overview's Versions, at this turn's version.
+  const showChange = (change: DesignChange) => {
+    const path = change.open;
+    if (path === null) return null;
+    return () => {
+      const folder = useOpenWorkspaceStore.getState().workspace?.folder ?? null;
+      if (!compares(change) || checkpointRef === null || folder === null) {
+        open(path);
+        return;
+      }
+      useVersionRequestStore.getState().ask({ folder, path, ref: checkpointRef });
+      useRightPanelStore.getState().open(threadRef, "files");
+    };
+  };
   return (
     <section
       aria-label="What changed"
@@ -109,7 +134,8 @@ function DesignChanges(props: {
               <ChangeChip
                 key={`${change.kind}\n${change.label}`}
                 change={change}
-                onOpen={change.open === null ? null : () => open(change.open!)}
+                onOpen={showChange(change)}
+                compares={compares(change)}
               />
             ))}
           </ul>
@@ -128,14 +154,17 @@ function DesignChanges(props: {
 
 /**
  * What a turn changed in the design, as its entry in the design history: in
- * the engineering interface, the parts and documents it changed (each opens
- * beside the thread) in place of the files `children` lists; elsewhere,
+ * the engineering interface, the parts and documents it changed (a part opens
+ * what changed in it at this turn, in the Overview's Versions; anything else
+ * opens beside the thread) in place of the files `children` lists; elsewhere,
  * `children` as they are. The changes are the turn's checkpoint, so they are
  * what the files say, whatever the agent reported.
  */
 export function TurnDesignChanges(props: {
   readonly threadRef: ScopedThreadRef | null;
   readonly files: ReadonlyArray<{ readonly path: string }>;
+  /** The turn's checkpoint: a changed part opens what changed in it since the turn before. */
+  readonly checkpointRef?: string | null | undefined;
   readonly children: ReactNode;
 }) {
   const engineering = useEngineeringInterface();
@@ -145,5 +174,12 @@ export function TurnDesignChanges(props: {
   );
   if (!engineering) return props.children;
   if (props.threadRef === null || (changes.length === 0 && other === 0)) return null;
-  return <DesignChanges threadRef={props.threadRef} changes={changes} other={other} />;
+  return (
+    <DesignChanges
+      threadRef={props.threadRef}
+      changes={changes}
+      other={other}
+      checkpointRef={props.checkpointRef ?? null}
+    />
+  );
 }
