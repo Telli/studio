@@ -158,7 +158,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **Home, the switcher and the chats.** In Engineering, Home is Studio's one page (Projects goes
   to it): a top bar with the mark and a search that opens the quick find, then a project from a
   description (Start makes the project and its first chat, and sends the description as its first
-  message) or a blank part, assembly or board to model by hand, then every project, pictured by
+  message) or New, the same New and dialog as a project's toolbar (`StudioNew.tsx`), where Create
+  makes a new project and hands the job to its first chat; then every project, pictured by
   its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in one
   column so the box and the tiles line up. A picture that came back empty (the CAD plugin still
   starting) is asked for again (`usePictures.ts`). A project with a chat waiting on the person (a
@@ -206,13 +207,16 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   Engineering a document always reads as a document: rendered, with no source view, editor or
   file tree beside it (`FilePreviewPanel.tsx`), and a parts list as a table and a page as a page.
   A file with no viewer of its own (G-code, Gerbers, a schematic, a spreadsheet, a zip) gets a
-  page saying what it is, with Show in Finder to open it in its own app and its text one press
-  away, read only (`StudioFilePage.tsx`, `aboutFile.ts`); a check's result reads as a report.
+  page saying what it is, with Open in its own app on this Mac ("Open the spreadsheet"; the
+  desktop app opens documents, sheets, drawings and models only, never a script or an app), Show
+  in Finder, and its text one press away, read only (`StudioFilePage.tsx`, `aboutFile.ts`); a
+  check's result reads as a report. Studio has one name for each thing and one way to do it: new
+  UI reuses the component and the words that already exist (Home's New is the toolbar's).
 - **Onboarding.** Setup speaks Studio's words and ends at signing in to Claude or Codex
   (`WelcomeWizard.tsx`; Home brings in files). A first Home says Welcome to Studio and offers a
   sample project the agent builds in front of you (a servo bracket, its strength check, its
-  drawing and its PRD), a few projects to start with one press, and Start from a PRD
-  (`homeExamples.ts`). The first workspace opened gives a four-step tour, once (`StudioTour.tsx`,
+  drawing and its PRD; `homeExamples.ts`). The first workspace opened gives a four-step tour,
+  once (`StudioTour.tsx`,
   `tourSteps.ts`): the project, its Overview, the tabs and the toolbar.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of

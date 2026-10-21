@@ -68,7 +68,7 @@ function CheckReport(props: { readonly result: CheckResult; readonly onOpenModel
       )}
       <div>
         <Button size="sm" variant="outline" onClick={props.onOpenModel}>
-          Show it on the part
+          Show the result
         </Button>
       </div>
     </section>
