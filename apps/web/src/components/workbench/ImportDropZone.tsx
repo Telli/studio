@@ -4,10 +4,15 @@ import { type ReactNode, useState } from "react";
 import { useImportDialogStore } from "./importDialogStore";
 import { droppedPath, readStudioImport } from "./studioImportBridge";
 
+/** Over a box that attaches what is dropped on it, such as Home's start box. */
+const onAttachBox = (target: EventTarget) =>
+  target instanceof Element && target.closest("[data-attach-drop]") !== null;
+
 /**
  * Drop files or a folder anywhere on Studio's Home or Projects to import them: what lands opens
- * Import on the projects it makes (`ImportDialog.tsx`). Where there is no desktop app, nothing
- * here takes a drop.
+ * Import on the projects it makes (`ImportDialog.tsx`). A box that attaches what is dropped on it
+ * (`data-attach-drop`, Home's start box) takes its own drops. Where there is no desktop app,
+ * nothing here takes a drop.
  */
 export function ImportDropZone(props: { readonly children: ReactNode }) {
   const show = useImportDialogStore((store) => store.show);
@@ -19,6 +24,10 @@ export function ImportDropZone(props: { readonly children: ReactNode }) {
       className="relative flex min-h-0 flex-1 flex-col"
       onDragOver={(event) => {
         if (!event.dataTransfer.types.includes("Files")) return;
+        if (onAttachBox(event.target)) {
+          setDragging(null);
+          return;
+        }
         event.preventDefault();
         setDragging(event.dataTransfer.items.length);
       }}
@@ -27,7 +36,7 @@ export function ImportDropZone(props: { readonly children: ReactNode }) {
         setDragging(null);
       }}
       onDrop={(event) => {
-        if (!event.dataTransfer.types.includes("Files")) return;
+        if (!event.dataTransfer.types.includes("Files") || onAttachBox(event.target)) return;
         event.preventDefault();
         setDragging(null);
         const paths = Array.from(event.dataTransfer.files).flatMap(

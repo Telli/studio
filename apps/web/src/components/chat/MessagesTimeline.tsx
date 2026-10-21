@@ -1727,11 +1727,17 @@ function TimelineHistoryControl(props: MessagesTimelineHistoryControls) {
           <button
             type="button"
             disabled={props.loading}
-            aria-label="Load earlier turns"
+            aria-label={isEngineeringInterface() ? "Show earlier messages" : "Load earlier turns"}
             onClick={() => props.onLoadEarlier()}
             className="w-full py-1.5 text-xs text-muted-foreground/60 hover:text-foreground disabled:cursor-default"
           >
-            {props.loading ? "Loading earlier turns…" : "Load earlier turns"}
+            {isEngineeringInterface()
+              ? props.loading
+                ? "Showing earlier messages…"
+                : "Show earlier messages"
+              : props.loading
+                ? "Loading earlier turns…"
+                : "Load earlier turns"}
           </button>
         ) : null}
         {props.error !== null ? (
@@ -2041,7 +2047,13 @@ function TimelineMinimapNavigationButton({
   onClick: () => void;
 }) {
   const previous = direction === "previous";
-  const label = previous ? "Previous turn" : "Next turn";
+  const label = isEngineeringInterface()
+    ? previous
+      ? "Previous message"
+      : "Next message"
+    : previous
+      ? "Previous turn"
+      : "Next turn";
   const Icon = previous ? ChevronUpIcon : ChevronDownIcon;
 
   return (
@@ -3256,7 +3268,7 @@ function V2EventTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "event"
             )}
           />
           <span className="shrink-0 font-medium text-foreground/90">{presentation.label}</span>
-          {item.status !== "completed" ? (
+          {item.status !== "completed" && !isEngineeringInterface() ? (
             <span
               className={cn(
                 "shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-3xs",
@@ -3837,7 +3849,7 @@ function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "workin
       Working for <WorkingTimer createdAt={row.createdAt} />
     </>
   ) : (
-    "Working..."
+    "Working…"
   );
   return (
     <div className="border-b border-border/60 pb-2 pt-1">
@@ -3903,7 +3915,7 @@ function CompactingLabel() {
   return (
     <span className="inline-flex items-center gap-1.5">
       <Minimize2Icon aria-hidden="true" className="size-3" />
-      Compacting…
+      {isEngineeringInterface() ? "Summing up the earlier conversation…" : "Compacting…"}
     </span>
   );
 }

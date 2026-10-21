@@ -1,17 +1,17 @@
 import {
+  Axis3dIcon,
   BookOpenIcon,
-  BotIcon,
   BoxIcon,
   CircuitBoardIcon,
   FactoryIcon,
   FileTextIcon,
   GaugeIcon,
   ImageIcon,
-  type LucideIcon,
   MessageSquareIcon,
   PackageIcon,
   PencilRulerIcon,
   SlidersHorizontalIcon,
+  type LucideIcon,
 } from "lucide-react";
 
 import type { HardwareActionGroup } from "./hardwareActions";
@@ -45,7 +45,8 @@ export const DISCIPLINE_ICONS: Readonly<Record<Discipline, LucideIcon>> = {
   Electronics: KIND_ICONS.Electronics,
   Analysis: KIND_ICONS.Analysis,
   Manufacturing: KIND_ICONS.Manufacturing,
-  Robotics: BotIcon,
+  // The robot face is the AI agent's (Settings, the chat); Robotics is the joints of a mechanism.
+  Robotics: Axis3dIcon,
   Documents: KIND_ICONS.Documents,
 };
 

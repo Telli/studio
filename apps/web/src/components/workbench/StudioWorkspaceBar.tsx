@@ -7,6 +7,7 @@ import { useNowMinute } from "~/hooks/useNowMinute";
 import { resolveThreadRouteRef } from "~/threadRoutes";
 import { useSidebar } from "../ui/sidebar";
 import { showOverview } from "./overviewPanel";
+import { KIND_TINTS } from "./kinds";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { StudioNav } from "./StudioTopBar";
@@ -81,7 +82,7 @@ export function StudioWorkspaceBar(props: {
         aria-current="page"
         className="flex min-w-0 items-center gap-2 px-1 text-sm font-medium text-foreground"
       >
-        <MessageSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <MessageSquareIcon className={`size-4 shrink-0 ${KIND_TINTS.Chats}`} aria-hidden="true" />
         <span className="truncate">{chatLabel(props.chatTitle)}</span>
       </span>
     </nav>

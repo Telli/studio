@@ -115,7 +115,7 @@ export function PartActions(props: {
               {menu.group === "Document" ? (
                 <>
                   <MenuSeparator />
-                  <MenuItem onClick={newDocument}>From a template…</MenuItem>
+                  <MenuItem onClick={newDocument}>New document…</MenuItem>
                 </>
               ) : null}
               {menu.others.length === 0 ? null : (

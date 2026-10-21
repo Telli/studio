@@ -4,7 +4,7 @@ import { type ReactNode, useMemo } from "react";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { type DesignChange, designChanges } from "./designChanges";
-import { FILE_ICONS, fileIconKey } from "./kinds";
+import { FILE_ICONS, fileIconKey, KIND_TINTS } from "./kinds";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { showOverview } from "./overviewPanel";
 import { useEngineeringInterface } from "./studioInterface";
@@ -24,14 +24,17 @@ function ChangeChip(props: {
   readonly compares: boolean;
 }) {
   const { change } = props;
-  const Icon = FILE_ICONS[fileIconKey(change.kind)];
+  const key = fileIconKey(change.kind);
+  const Icon = FILE_ICONS[key];
+  // In its kind's color, as the reply's own file chips and the panel's tabs show it.
+  const tint = key === "Setup" ? "text-muted-foreground" : KIND_TINTS[key];
   // Which of a part's files changed with it (its model, its drawing), said on hover.
   const aspects = change.aspects.length < 2 ? undefined : change.aspects.join(", ");
   const chip =
     "inline-flex h-6 min-w-0 max-w-56 items-center gap-1.5 rounded-md border border-border bg-background px-2 text-xs text-foreground";
   const body = (
     <>
-      <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <Icon className={`size-3.5 shrink-0 ${tint}`} aria-hidden="true" />
       <span className="truncate">{change.label}</span>
     </>
   );

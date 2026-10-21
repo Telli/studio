@@ -193,7 +193,7 @@ function QuickFindBody(props: {
     part === null || partTitle === null
       ? null
       : {
-          label: `Jobs for ${partTitle}`,
+          label: `What to do with ${partTitle}`,
           rows: findJobs(menus, query).map(({ action, place }) => ({
             value: `job:${action.id}`,
             icon: <JobIcon group={action.group} />,
@@ -436,17 +436,17 @@ function QuickFindBody(props: {
       mode="none"
       value={query}
       onValueChange={setQuery}
-      aria-label="Find a project, a part, a document, a chat or a job"
+      aria-label="Find a project, a part, a document or a chat, or what to do with a part"
       inputProps={{
         placeholder:
           partTitle === null
             ? "Find a project, a part, a document or a chat"
-            : `Find anything, or a job for ${partTitle}`,
+            : `Find anything, or what to do with ${partTitle}`,
       }}
       footerActionLabel="Choose"
       footerTrailing={
         typed || partTitle === null ? null : (
-          <span className="text-xs">Type any job, like buckling or G-code</span>
+          <span className="text-xs">Type what to do, like buckling or G-code</span>
         )
       }
     >

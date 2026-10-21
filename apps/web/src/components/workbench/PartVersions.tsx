@@ -225,7 +225,7 @@ export function PartVersions(props: {
             <p className="text-xs text-muted-foreground">{plainVersionsError(listed.error)}</p>
           ) : versions.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No versions yet. Each chat turn that changes {part.file.title} keeps one.
+              No versions yet. Each time the agent changes {part.file.title}, a version is kept.
             </p>
           ) : (
             <>

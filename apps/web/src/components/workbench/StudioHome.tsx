@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { useNowMinute } from "~/hooks/useNowMinute";
+import { cn } from "~/lib/utils";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { usePrimaryEnvironmentId } from "~/state/environments";
@@ -62,7 +63,7 @@ function FindButton() {
       className="flex h-8 w-full max-w-72 items-center gap-2 rounded-lg border border-input bg-background px-2.5 text-sm text-muted-foreground shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset dark:bg-input/32"
     >
       <SearchIcon className="size-4 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate text-left">Search projects and parts</span>
+      <span className="min-w-0 flex-1 truncate text-left">Find anything</span>
       {shortcut ? <Kbd>{shortcut}</Kbd> : null}
     </button>
   );
@@ -247,6 +248,8 @@ function StartProject(props: {
   const chosen = props.cards.find((card) => card.id === chosenId) ?? null;
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  // A file dropped on the box is attached, as the chat's box attaches it (Home elsewhere imports).
+  const [attaching, setAttaching] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const describe = useRef<HTMLTextAreaElement>(null);
   const hash = useLocation({ select: (location) => location.hash });
@@ -263,7 +266,34 @@ function StartProject(props: {
 
   return (
     <section aria-label="Start" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-xs/5 focus-within:border-ring">
+      <div
+        data-attach-drop=""
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          setAttaching(true);
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+          setAttaching(false);
+        }}
+        onDrop={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          setAttaching(false);
+          const dropped = Array.from(event.dataTransfer.files);
+          if (dropped.length > 0) setFiles((current) => [...current, ...dropped]);
+        }}
+        className={cn(
+          "relative flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-xs/5 focus-within:border-ring",
+          attaching && "border-ring",
+        )}
+      >
+        {attaching ? (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 text-sm font-medium text-foreground">
+            Drop files to attach
+          </div>
+        ) : null}
         <Textarea
           ref={describe}
           unstyled
