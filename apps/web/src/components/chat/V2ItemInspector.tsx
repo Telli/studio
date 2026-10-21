@@ -278,13 +278,15 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
             <span className="font-mono text-muted-foreground">
               {formatWorkspaceRelativePath(item.fileName, props.workspaceRoot)}
             </span>
-            {item.additions !== undefined || item.deletions !== undefined ? (
+            {/* Studio shows what a change did on the part (What changed), not its line counts. */}
+            {(item.additions !== undefined || item.deletions !== undefined) &&
+            !isEngineeringInterface() ? (
               <span>
                 <span className="text-success">+{formatDiffCount(item.additions ?? 0)}</span>{" "}
                 <span className="text-destructive">-{formatDiffCount(item.deletions ?? 0)}</span>
               </span>
             ) : null}
-            {item.runId !== null ? (
+            {item.runId !== null && !isEngineeringInterface() ? (
               <Button
                 size="xs"
                 variant="outline"

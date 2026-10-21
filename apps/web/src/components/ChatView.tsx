@@ -8181,7 +8181,8 @@ export default function ChatView(props: ChatViewProps) {
         return;
       }
 
-      if (command === "terminal.toggle") {
+      // Studio keeps the terminal and the diff out of the way: their keys open nothing hidden.
+      if (command === "terminal.toggle" && !engineeringInterface) {
         if (!terminalUiState.terminalOpen && !canReadTerminal && !canOperateTerminal) return;
         event.preventDefault();
         event.stopPropagation();
@@ -8294,7 +8295,7 @@ export default function ChatView(props: ChatViewProps) {
         return;
       }
 
-      if (command === "diff.toggle") {
+      if (command === "diff.toggle" && !engineeringInterface) {
         event.preventDefault();
         event.stopPropagation();
         onToggleDiff();
@@ -8412,6 +8413,7 @@ export default function ChatView(props: ChatViewProps) {
     activeProject,
     activeRightPanelSurface,
     activeProjectScripts,
+    engineeringInterface,
     canReadTerminal,
     canOperateTerminal,
     addTerminalSurface,
