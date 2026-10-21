@@ -14,7 +14,7 @@ export interface Starter {
 }
 
 /** The kinds of project file a starter can be about, by group. */
-const STARTER_GROUPS = new Set(["Mechanical", "Electrical", "Studies", "Drawings"]);
+const STARTER_GROUPS = new Set(["CAD", "Electronics", "Analysis", "Drawings"]);
 const LIMIT = 4;
 
 /**

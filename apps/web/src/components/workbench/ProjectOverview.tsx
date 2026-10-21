@@ -348,9 +348,9 @@ function FolderParts(props: {
  * the project holds something for them and update as the agent writes files: the lead part large
  * (or, with none yet, how to start one), the issues its checks found with the fix each suggests
  * (asking for one writes the ask into the composer: the agent proposes and waits), its versions,
- * then the three kinds of thing designed (Mechanical and Electrical, each part with its checks,
- * drawing and manufacturing files; Documents), a module for each kind made from them (drawings,
- * studies, manufacturing files) and the rest, and the project's other chats. Each module folds
+ * then the three kinds of thing designed (CAD and Electronics, each part with its checks, drawing
+ * and manufacturing files; Documents), a module for each kind made from them (drawings, analysis,
+ * manufacturing files) and the rest, and the project's other chats. Each module folds
  * away. Checks are the results text-to-cad writes beside the parts (`checkResults.ts`).
  */
 export function ProjectOverview(props: {
@@ -456,7 +456,7 @@ export function ProjectOverview(props: {
       return files === undefined ? [] : [{ group, files }];
     });
   }, [folders]);
-  // The designed kinds, Mechanical then Electrical, each a module of its parts by folder.
+  // The designed kinds, CAD then Electronics, each a module of its parts by folder.
   const designModules = useMemo(
     () =>
       PROJECT_GROUPS.filter((group) => DESIGN_GROUPS.has(group)).flatMap((group) => {

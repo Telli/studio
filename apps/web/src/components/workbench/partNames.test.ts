@@ -12,6 +12,8 @@ describe("part names", () => {
     expect(humanName("pcb-mount-rev-b")).toBe("PCB mount rev B");
     expect(humanName("README")).toBe("Readme");
     expect(humanName("fea-summary")).toBe("FEA summary");
+    expect(humanName("prd")).toBe("PRD");
+    expect(humanName("fmea")).toBe("FMEA");
   });
 
   it("names a part by its name and what was made from it by the part", () => {

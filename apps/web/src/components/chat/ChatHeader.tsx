@@ -302,7 +302,13 @@ export const ChatHeader = memo(function ChatHeader({
   );
   // Studio's engineering interface has its own bar here (`workbench/StudioWorkspaceBar.tsx`).
   if (engineering) {
-    return <StudioWorkspaceBar environmentId={activeThreadEnvironmentId} project={activeProject} />;
+    return (
+      <StudioWorkspaceBar
+        environmentId={activeThreadEnvironmentId}
+        project={activeProject}
+        chatTitle={activeThreadTitle}
+      />
+    );
   }
   return (
     <div

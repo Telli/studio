@@ -8,17 +8,17 @@
  */
 
 export type Discipline =
-  | "Mechanical"
-  | "Electrical"
-  | "Simulation"
+  | "CAD"
+  | "Electronics"
+  | "Analysis"
   | "Manufacturing"
   | "Robotics"
   | "Documents";
 
 export const DISCIPLINES: ReadonlyArray<Discipline> = [
-  "Mechanical",
-  "Electrical",
-  "Simulation",
+  "CAD",
+  "Electronics",
+  "Analysis",
   "Manufacturing",
   "Robotics",
   "Documents",
@@ -45,7 +45,7 @@ export interface NewTemplate {
 export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   {
     id: "part",
-    discipline: "Mechanical",
+    discipline: "CAD",
     label: "Part",
     description: "One solid, built from a model script you can change by its dimensions.",
     skill: "cad",
@@ -55,7 +55,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   },
   {
     id: "assembly",
-    discipline: "Mechanical",
+    discipline: "CAD",
     label: "Assembly",
     description: "Parts placed together with mates, using the project's parts where they fit.",
     skill: "cad",
@@ -65,7 +65,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   },
   {
     id: "sheet-metal",
-    discipline: "Mechanical",
+    discipline: "CAD",
     label: "Sheet metal part",
     description: "A bent sheet part with its flat pattern.",
     skill: "cad",
@@ -75,7 +75,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   },
   {
     id: "drawing",
-    discipline: "Mechanical",
+    discipline: "CAD",
     label: "Drawing",
     description: "A dimensioned engineering drawing of a part.",
     skill: "engineering-drawing",
@@ -85,7 +85,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   },
   {
     id: "board",
-    discipline: "Electrical",
+    discipline: "Electronics",
     label: "Board",
     description: "A KiCad board and schematic from the circuit you describe.",
     skill: "pcb",
@@ -95,7 +95,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   },
   {
     id: "harness",
-    discipline: "Electrical",
+    discipline: "Electronics",
     label: "Wiring harness",
     description: "Connectors, wires and lengths, with its bill of materials.",
     skill: "harness",
@@ -105,7 +105,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
   },
   {
     id: "strength-study",
-    discipline: "Simulation",
+    discipline: "Analysis",
     label: "Strength study",
     description: "Stress and deflection of a part under its working load.",
     skill: "fea",
@@ -347,7 +347,10 @@ export function newWorkPrompt(work: NewWork): string {
   const folder = work.folder.trim().replace(/^\/+|\/+$/g, "") || template.folder;
   const target = `${folder}/${fileStem(work.name)}`;
   if (template.file !== undefined) {
-    return `Write ${work.name.trim() || template.label} for this project as ${target}.md, following the template ${work.templateLink ?? template.file} section by section, in its order and with its headings. ${FILL}${ask}`;
+    const word = /\.docx?$/i.test(template.file)
+      ? " It is a Word file: read its text first (on a Mac, `textutil -convert txt -stdout` on it)."
+      : "";
+    return `Write ${work.name.trim() || template.label} for this project as ${target}.md, following the template ${work.templateLink ?? template.file} section by section: its order, its headings, and its tables with their columns and row numbers.${word} ${FILL}${ask}`;
   }
   if (template.outline !== undefined) {
     const noun = DOCUMENT_NOUNS[template.id] ?? template.label;

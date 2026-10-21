@@ -34,8 +34,16 @@ describe("document templates", () => {
         templateLink: "[client_PRD_v2.docx](/Users/x/studio-projects/Templates/client_PRD_v2.docx)",
       }),
     ).toBe(
-      "Write Spatula PRD for this project as docs/spatula_prd.md, following the template [client_PRD_v2.docx](/Users/x/studio-projects/Templates/client_PRD_v2.docx) section by section, in its order and with its headings. Fill each from the project's brief, its parts, their checks and the decisions in its README; write what is not known yet as an open question, not a guess.",
+      "Write Spatula PRD for this project as docs/spatula_prd.md, following the template [client_PRD_v2.docx](/Users/x/studio-projects/Templates/client_PRD_v2.docx) section by section: its order, its headings, and its tables with their columns and row numbers. It is a Word file: read its text first (on a Mac, `textutil -convert txt -stdout` on it). Fill each from the project's brief, its parts, their checks and the decisions in its README; write what is not known yet as an open question, not a guess.",
     );
+  });
+
+  it("names a template after its file, keeping a name like xRD as written", () => {
+    const template = fileTemplate("/Users/x/studio-projects/Templates/DS_template_xRD_20261019.md");
+    expect(template.label).toBe("DS template xRD 20261019");
+    expect(
+      newWorkPrompt({ ...work, name: "Spatula xRD", description: "", template }),
+    ).not.toContain("Word file");
   });
 
   it("offers the folder's own files as templates, not hidden ones or nested ones", () => {

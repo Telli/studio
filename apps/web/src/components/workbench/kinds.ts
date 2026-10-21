@@ -18,19 +18,20 @@ import type { Discipline } from "./newTemplates";
 import type { ProjectGroup } from "./projectFiles";
 
 /**
- * One icon for each kind of thing a project holds, the same wherever Studio shows it: New, the
- * Overview's modules and cards, the top bar's menus, the quick find and the chat's change chips.
- * Three kinds are designed from nothing (Mechanical, Electrical, Documents); FEA and CAM are not
- * kinds of design but work done on one, so what the top bar's menus make (Studies from Evaluate,
- * Manufacturing from Manufacture, Drawings from Document) carries the menu's icon and shows on
- * the part it was made from, as a CAD system keeps a study or a toolpath with its part.
+ * One icon for each kind of thing a project holds, the same wherever Studio shows it: the
+ * sidebar's sections, New, the Overview's modules and cards, the top bar's menus, the quick find
+ * and the chat's change chips. Three kinds are designed from nothing (CAD, Electronics,
+ * Documents); FEA and CAM are not kinds of design but work done on one, so what the top bar's
+ * menus make (Analysis from Evaluate, Manufacturing from Manufacture, Drawings from Document)
+ * carries the menu's icon and shows on the part it was made from, as a CAD system keeps a study
+ * or a toolpath with its part.
  */
 export const KIND_ICONS: Readonly<Record<ProjectGroup, LucideIcon>> = {
-  Mechanical: BoxIcon,
-  Electrical: CircuitBoardIcon,
+  CAD: BoxIcon,
+  Electronics: CircuitBoardIcon,
   Documents: FileTextIcon,
   Drawings: PencilRulerIcon,
-  Studies: GaugeIcon,
+  Analysis: GaugeIcon,
   Manufacturing: FactoryIcon,
   Images: ImageIcon,
   "Reference parts": PackageIcon,
@@ -39,9 +40,9 @@ export const KIND_ICONS: Readonly<Record<ProjectGroup, LucideIcon>> = {
 
 /** New's disciplines, by the kind of thing each makes. */
 export const DISCIPLINE_ICONS: Readonly<Record<Discipline, LucideIcon>> = {
-  Mechanical: KIND_ICONS.Mechanical,
-  Electrical: KIND_ICONS.Electrical,
-  Simulation: KIND_ICONS.Studies,
+  CAD: KIND_ICONS.CAD,
+  Electronics: KIND_ICONS.Electronics,
+  Analysis: KIND_ICONS.Analysis,
   Manufacturing: KIND_ICONS.Manufacturing,
   Robotics: BotIcon,
   Documents: KIND_ICONS.Documents,
@@ -49,26 +50,26 @@ export const DISCIPLINE_ICONS: Readonly<Record<Discipline, LucideIcon>> = {
 
 /** The top bar's menus, by what their jobs make. */
 export const MENU_ICONS: Readonly<Record<HardwareActionGroup, LucideIcon>> = {
-  Evaluate: KIND_ICONS.Studies,
+  Evaluate: KIND_ICONS.Analysis,
   Manufacture: KIND_ICONS.Manufacturing,
   Document: KIND_ICONS.Documents,
 };
 
 /** The kind each kind of file (`partNames.ts`) is filed under. */
 const FILE_KINDS: Readonly<Record<string, ProjectGroup>> = {
-  Part: "Mechanical",
-  Design: "Mechanical",
-  Mesh: "Mechanical",
-  Source: "Mechanical",
-  Robot: "Mechanical",
-  "Planning groups": "Mechanical",
-  "Simulation model": "Mechanical",
-  Board: "Electrical",
-  Schematic: "Electrical",
-  Harness: "Electrical",
+  Part: "CAD",
+  Design: "CAD",
+  Mesh: "CAD",
+  Source: "CAD",
+  Robot: "CAD",
+  "Planning groups": "CAD",
+  "Simulation model": "CAD",
+  Board: "Electronics",
+  Schematic: "Electronics",
+  Harness: "Electronics",
   Drawing: "Drawings",
-  "FEA study": "Studies",
-  Result: "Studies",
+  "FEA study": "Analysis",
+  Result: "Analysis",
   "CAM job": "Manufacturing",
   Toolpath: "Manufacturing",
   "G-code": "Manufacturing",
@@ -92,6 +93,6 @@ export const FILE_ICONS: Readonly<Record<ProjectGroup | "Setup", LucideIcon>> = 
  */
 export function fileIconKey(kind: string): ProjectGroup | "Setup" {
   if (kind === "Setup") return "Setup";
-  if (kind.endsWith(" check")) return "Studies";
+  if (kind.endsWith(" check")) return "Analysis";
   return FILE_KINDS[kind] ?? "Documents";
 }

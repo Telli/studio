@@ -47,10 +47,10 @@ import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
 /** Groups whose files have pictures: everything the CAD plugin can render. */
 const PICTURED: ReadonlySet<ProjectGroup> = new Set([
-  "Mechanical",
-  "Electrical",
+  "CAD",
+  "Electronics",
   "Drawings",
-  "Studies",
+  "Analysis",
   "Manufacturing",
   "Reference parts",
 ]);

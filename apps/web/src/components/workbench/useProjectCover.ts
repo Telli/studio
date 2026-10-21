@@ -7,7 +7,7 @@ import { groupProjectFiles } from "./projectFiles";
 import { usePictures } from "./usePictures";
 
 /** The file that pictures a project: its first folder's first model, else board or drawing. */
-const COVER_GROUPS = ["Mechanical", "Electrical", "Drawings", "Studies"] as const;
+const COVER_GROUPS = ["CAD", "Electronics", "Drawings", "Analysis"] as const;
 
 /**
  * A project's picture, as Home's tiles and the project switcher show it: a render of its first

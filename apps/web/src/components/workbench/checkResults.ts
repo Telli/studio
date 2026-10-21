@@ -193,7 +193,7 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
  * the part editor and is pictured by its STEP.
  */
 export function overviewParts(files: ReadonlyArray<ProjectFile>): ProjectFile[] {
-  const parts = files.filter((file) => file.group === "Mechanical" || file.group === "Electrical");
+  const parts = files.filter((file) => file.group === "CAD" || file.group === "Electronics");
   const key = (file: ProjectFile) => `${file.folder}/${stemOf(file.name)}`;
   const steps = new Map(
     parts.filter((file) => file.kind === "Part").map((file) => [key(file), file]),

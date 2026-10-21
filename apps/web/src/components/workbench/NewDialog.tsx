@@ -48,9 +48,9 @@ export const useNewDialogStore = createStore<{
 
 /** What New starts in each discipline, as its description names it. */
 const STARTS: Readonly<Record<Discipline, string>> = {
-  Mechanical: "a part",
-  Electrical: "a board",
-  Simulation: "a study",
+  CAD: "a part",
+  Electronics: "a board",
+  Analysis: "a study",
   Manufacturing: "a manufacturing job",
   Robotics: "a robot description",
   Documents: "a document",
@@ -120,7 +120,7 @@ export function NewDialog(props: {
     null;
   const [selected, setSelected] = useState<NewTemplate | null>(initial);
   const [discipline, setDiscipline] = useState<Discipline>(
-    props.initialDiscipline ?? initial?.discipline ?? "Mechanical",
+    props.initialDiscipline ?? initial?.discipline ?? "CAD",
   );
   const brief = useStudioProjectAt(props.environmentId, props.cwd)?.project.brief ?? null;
   const [name, setName] = useState(initial?.defaultName ?? "");

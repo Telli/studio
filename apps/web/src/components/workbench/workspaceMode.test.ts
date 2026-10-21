@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { useWorkspaceModeStore, viewerEditLayout, workspaceModeFor } from "./workspaceMode";
+import {
+  editsByHand,
+  useWorkspaceModeStore,
+  viewerEditLayout,
+  workspaceModeFor,
+} from "./workspaceMode";
 
 describe("workspace mode", () => {
   beforeEach(() => {
@@ -32,5 +37,16 @@ describe("workspace mode", () => {
   it("maps to the viewer's edit layout", () => {
     expect(viewerEditLayout("ask")).toBe("ai");
     expect(viewerEditLayout("manual")).toBe("manual");
+  });
+
+  it("offers Edit by hand only while the CAD viewer shows a part", () => {
+    expect(editsByHand({ kind: "plugin-app", file: "parts/bracket.step" })).toBe(true);
+    expect(editsByHand({ kind: "plugin-app", file: "parts/plate.solidcraft" })).toBe(true);
+    expect(editsByHand({ kind: "plugin-app" })).toBe(true);
+    expect(editsByHand({ kind: "plugin-app", file: "electronics/main.kicad_pcb" })).toBe(false);
+    expect(editsByHand({ kind: "plugin-app", file: "parts/bracket.fea.glb" })).toBe(false);
+    expect(editsByHand({ kind: "file", file: "docs/PRD.md" })).toBe(false);
+    expect(editsByHand({ kind: "files" })).toBe(false);
+    expect(editsByHand(null)).toBe(false);
   });
 });

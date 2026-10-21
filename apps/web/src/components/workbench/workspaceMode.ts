@@ -1,6 +1,8 @@
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { create } from "zustand";
 
+import { partName } from "./partNames";
+
 /**
  * How a project's workspace shows its part: Ask (the CAD viewer as Jake built it, with Annotate
  * and Quick Edit) or Edit by hand (Studio's edit mode, with the ribbon and the design tree). The
@@ -70,4 +72,18 @@ export function useActiveViewerEditLayout(): "ai" | "manual" {
 /** The viewer's own name for the layout (`text-to-cad/packages/ui/.../edit/editLayout.js`). */
 export function viewerEditLayout(mode: WorkspaceMode): "ai" | "manual" {
   return mode === "ask" ? "ai" : "manual";
+}
+
+/**
+ * Whether the panel in front can switch between Ask and Edit by hand: the CAD viewer, on a part
+ * (a STEP or a SolidCraft design) or on no file yet. The Overview, a document, a board or a
+ * study's result has nothing to edit by hand, so the switch shows only with the viewer up.
+ */
+export function editsByHand(
+  surface: { readonly kind: string; readonly file?: string | undefined } | null | undefined,
+): boolean {
+  if (surface?.kind !== "plugin-app") return false;
+  if (surface.file === undefined) return true;
+  const kind = partName(surface.file)?.kind;
+  return kind === "Part" || kind === "Design";
 }

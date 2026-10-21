@@ -30,7 +30,7 @@ export function shownChecks(
     folder.results.map((result) => ({ root: folder.root, result })),
   );
   const results =
-    file !== null && file.group === "Mechanical"
+    file !== null && file.group === "CAD"
       ? all.filter(({ result }) => resultsFor(file, [result]).length > 0)
       : [];
   const study = all.find(({ root, result }) => `${normal(root)}/${result.model}` === target);

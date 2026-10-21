@@ -30,10 +30,10 @@ describe("project files", () => {
     expect(
       groupProjectFiles(demo).map(({ group, files }) => [group, files.map((file) => file.name)]),
     ).toEqual([
-      ["Mechanical", ["l_bracket.step", "mounting_plate.step"]],
-      ["Electrical", ["servo_power.kicad_pcb", "servo_power.kicad_sch"]],
+      ["CAD", ["l_bracket.step", "mounting_plate.step"]],
+      ["Electronics", ["servo_power.kicad_pcb", "servo_power.kicad_sch"]],
       ["Documents", ["bracket-review.md"]],
-      ["Studies", ["charging-thermal.glb"]],
+      ["Analysis", ["charging-thermal.glb"]],
       [
         "Manufacturing",
         ["servo_power.bom.csv", "servo_power.gerbers.zip", "l_bracket.cam.glb", "l_bracket.nc"],

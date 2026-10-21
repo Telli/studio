@@ -11,10 +11,9 @@ import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { leadPartOf } from "./leadPart";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { PartActions } from "./PartActions";
-import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { usePartContext } from "./usePartContext";
 import { useStudioProjectAt } from "./useStudioProjects";
-import { useWorkspaceMode, useWorkspaceModeStore } from "./workspaceMode";
+import { editsByHand, useWorkspaceMode, useWorkspaceModeStore } from "./workspaceMode";
 
 /** The thread folder's lead part, read again when the agent changes files. */
 function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutationId: string | null) {
@@ -51,12 +50,11 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
 
 /**
  * The rest of a project workspace's top bar, in the panel's title row (the chat's row carries
- * `StudioWorkspaceBar`): Ask or Edit by hand, and the part's jobs (Evaluate, Manufacture, with the
- * files to export, and Document; the drawing is one of Document's).
- * The mode is the project's (`workspaceMode.ts`); the CAD views take it from the host context.
- * Choosing one while no part is in front opens the project's lead part that way; with no part
- * yet, the Overview offers to start one. The jobs are for the part last on screen, else the lead
- * part, led by the project's way of making it.
+ * `StudioWorkspaceBar`): Ask or Edit by hand while the CAD viewer shows a part (`editsByHand`),
+ * and the part's jobs (Evaluate, Manufacture, with the files to export, and Document; the drawing
+ * is one of Document's). The mode is the project's (`workspaceMode.ts`); the CAD views take it
+ * from the host context. With no part yet, the Overview offers to start one. The jobs are for the
+ * part last on screen, else the lead part, led by the project's way of making it.
  */
 export function StudioPanelBar(props: {
   readonly folder: string | null;
@@ -73,9 +71,9 @@ export function StudioPanelBar(props: {
     setActiveFolder(folder);
   }, [folder, setActiveFolder]);
   const lead = useLeadPart(threadRef, folder, props.mutationId);
-  const open = useOpenInWorkbench(threadRef);
-  const partInFront = useRightPanelStore(
-    (store) => selectActiveRightPanelSurface(store.byThreadKey, threadRef)?.kind === "plugin-app",
+  // Ask and Edit by hand are ways of changing a part, so they show only with the CAD viewer up.
+  const byHandShown = useRightPanelStore((store) =>
+    editsByHand(selectActiveRightPanelSurface(store.byThreadKey, threadRef)),
   );
   const shown = usePartContext(threadRef);
   const studio = useStudioProjectAt(threadRef.environmentId, folder);
@@ -108,19 +106,20 @@ export function StudioPanelBar(props: {
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <div className="flex min-w-0 flex-1 justify-center">
-        <ToggleGroup
-          aria-label="How to change the part"
-          value={[mode]}
-          onValueChange={(next) => {
-            const value = next[0];
-            if (folder === null || (value !== "ask" && value !== "manual")) return;
-            setMode(folder, value);
-            if (!partInFront && lead !== null) open(lead.file.path);
-          }}
-        >
-          <Toggle value="ask">Ask</Toggle>
-          <Toggle value="manual">Edit by hand</Toggle>
-        </ToggleGroup>
+        {byHandShown ? (
+          <ToggleGroup
+            aria-label="How to change the part"
+            value={[mode]}
+            onValueChange={(next) => {
+              const value = next[0];
+              if (folder !== null && (value === "ask" || value === "manual"))
+                setMode(folder, value);
+            }}
+          >
+            <Toggle value="ask">Ask</Toggle>
+            <Toggle value="manual">Edit by hand</Toggle>
+          </ToggleGroup>
+        ) : null}
       </div>
       {subject === null || props.composerRef === null ? null : (
         <PartActions

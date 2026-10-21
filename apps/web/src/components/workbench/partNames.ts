@@ -28,9 +28,15 @@ const ACRONYMS = new Set([
   "cfd",
   "cnc",
   "dc",
+  "dfa",
+  "dfm",
+  "ecn",
+  "eco",
+  "erd",
   "esc",
   "fdm",
   "fea",
+  "fmea",
   "gpio",
   "hdmi",
   "i2c",
@@ -38,13 +44,17 @@ const ACRONYMS = new Set([
   "lcd",
   "led",
   "mcu",
+  "mrd",
   "nema",
+  "nre",
   "pcb",
   "pcba",
   "petg",
   "pla",
+  "prd",
   "psu",
   "rf",
+  "rfq",
   "sla",
   "sls",
   "spi",
@@ -58,11 +68,12 @@ const capitalize = (text: string) => (text === "" ? text : text[0]!.toUpperCase(
 /**
  * A file's stem as a name: "servo_bracket_v2" reads "Servo bracket v2",
  * "enclosureLid" "Enclosure lid", "M3_STANDOFF" "M3 standoff". Part numbers
- * (MDBT50Q, XT60) and the capitals an engineer uses (PCB, FEA) are kept.
+ * (MDBT50Q, XT60), the capitals an engineer uses (PCB, FEA, PRD) and a word
+ * like xRD or iPhone, one small letter before its capitals, are kept.
  */
 export function humanName(stem: string): string {
   const words = stem
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([a-z]{2})([A-Z])/g, "$1 $2")
     .split(/[\s_.-]+/)
     .filter(Boolean);
   if (words.length === 0) return stem;

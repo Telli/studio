@@ -104,9 +104,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   and write the README before anything else. Below it, modules: the lead part large (or, with no
   part yet, Start a part by hand), the open issues its
   checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
-  propose and wait), the parts by kind, Mechanical then Electrical, each with how its checks went
-  and what was made from it (its drawing, CAM job, G-code or Gerbers), then Documents, one module
-  for each other kind of file (drawings, studies, manufacturing, images, references), then the
+  propose and wait), the parts by kind, CAD then Electronics, each with how its checks went and
+  what was made from it (its drawing, CAM job, G-code or Gerbers), then Documents, one module for
+  each other kind of file (drawings, analysis, manufacturing, images, references), then the
   project's folders and the brief's links. In Engineering the page is the Overview alone, with no
   Files, References or History tabs, and its New starts new designs only. A module shows once it
   has something in it, folds away (remembered on this computer), and is read again whenever the
@@ -157,13 +157,16 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   last open in it on this device (else the one last worked on, else a new one). Projects are
   listed as a recents list orders them, the one opened last on this device first (or worked on, if
   that came later), and the starred ones (kept on this computer) apart at the top of Home and the
-  switcher. In its workspace the project's name in the top bar, a control with its picture,
-  switches projects (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick
-  find on Home), and its top is the project's own menu: Rename, Duplicate (a copy in a new folder,
-  made by the desktop app), Version history and Show in Finder,
-  the sidebar lists the project's chats, newest first with New chat on top, folding away with T3
-  Code's toggle or its shortcut (`StudioSidebar.tsx`), and the part tabs run along the panel's
-  bottom, the Overview first. Engineering with code keeps T3 Code's thread sidebar, with the
+  switcher. In its workspace the sidebar is the project and what lives in it
+  (`StudioSidebar.tsx`): at its top the project's name, a control with its picture that switches
+  projects (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on
+  Home), whose top is the project's own menu (Rename, Duplicate, a copy in a new folder made by
+  the desktop app, Version history and Show in Finder); then its Overview; then its contents by
+  kind (`projectContents.ts`): Chats (newest first), CAD (parts, assemblies and drawings),
+  Electronics, Analysis and Manufacturing (once jobs have made some) and Documents, each folding
+  away, with a + where new things start (a chat, or New on that kind). The top bar names the open
+  chat; with the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the
+  project's switcher. The part tabs run along the panel's bottom, the Overview first. Engineering with code keeps T3 Code's thread sidebar, with the
   projects listed in it.
 - **Quick find.** In Engineering ⌘K finds a project, a part in any project (one in another
   project opens there), or any job for the part on screen, with Home, New project, Settings and
@@ -198,11 +201,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   selection to the part by its geometry and writes a command's line); the frame is
   `text-to-cad/packages/ui/src/renderers/step/edit/`. The CAD skill's `references/edit-mode.md`
   tells the agent how to write parts that edit well.
-- **Ask or Edit by hand.** The workspace's top bar lays a part out for asking the AI
-  (text-to-cad's viewer as Jake built it, where a selection goes to the agent through Quick Edit)
-  or for modeling it by hand (edit mode), per project and Ask until chosen. Chosen while the
-  Overview is in front, it opens the project's lead part that way; the part tabs run along the
-  panel's bottom. The viewer takes it
+- **Ask or Edit by hand.** While the CAD viewer shows a part, the workspace's top bar lays it out
+  for asking the AI (text-to-cad's viewer as Jake built it, where a selection goes to the agent
+  through Quick Edit) or for modeling it by hand (edit mode), per project and Ask until chosen;
+  with the Overview, a document or a board in front it is not shown (`editsByHand`). The part
+  tabs run along the panel's bottom. The viewer takes it
   from its host context (`studio/editLayout`) and then shows no switch of its own; elsewhere its
   navbar keeps the switch, as Manual and AI. By hand, what a command uses is plain: a sketch is
   picked on the model or in the design tree and shaded in the selection blue with its name, an
@@ -242,12 +245,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   Each menu keeps its everyday jobs and ends in More, which opens the quick find on all of its
   jobs. Each needs its text-to-cad skill (`components/workbench/hardwareActions.ts`) and writes
   the job, naming the part, into the composer.
-- **Three kinds, and work done on them.** What is designed is Mechanical, Electrical or Documents,
-  and New offers those. FEA and CAM are not kinds of design but work done on one, for parts and
-  boards alike, so what Evaluate, Manufacture and Document make (studies, manufacturing files,
+- **Three kinds, and work done on them.** What is designed is CAD, Electronics or Documents, and
+  New offers those. FEA and CAM are not kinds of design but work done on one, for parts and boards
+  alike, so what Evaluate, Manufacture and Document make (analysis, manufacturing files,
   drawings) belongs to the part it was made from, as a CAD system keeps a study or a toolpath with
-  its part. Each kind has one icon wherever it shows: New, the Overview's modules and badges, the
-  top bar's menus, the quick find and the chat's change chips (`components/workbench/kinds.ts`).
+  its part. Each kind has one icon wherever it shows: the sidebar, New, the Overview's modules and
+  badges, the top bar's menus, the quick find and the chat's change chips
+  (`components/workbench/kinds.ts`).
 - **Start from a part.** A new thread lists the project's CAD files (a mesh exported beside its
   STEP counts once); picking one offers the same three menus for it.
 - **A checkout's working copy.** `TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs the checkout's own

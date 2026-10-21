@@ -2,19 +2,19 @@ import { MANUFACTURING_PROCESSES } from "./checkResults";
 import { humanName, partName } from "./partNames";
 
 /**
- * A project the way an engineer files it, for the project page: first the three kinds of thing
- * designed (Mechanical, Electrical and Documents), then what the top bar's jobs make from a part
- * (its drawings, studies and manufacturing files), then images and the references the brief
- * gathered. Source and configuration (the model scripts, settings, environments) are left to the
+ * A project the way an engineer files it, for the project page and the sidebar: first the three
+ * kinds of thing designed (CAD, Electronics and Documents), then what the top bar's jobs make
+ * from a part (its drawings, analysis and manufacturing files), then images and the references
+ * the brief gathered. Source and configuration (the model scripts, settings, environments) are left to the
  * code interface. Each kind has one icon wherever Studio shows it (`kinds.ts`).
  */
 
 export type ProjectGroup =
-  | "Mechanical"
-  | "Electrical"
+  | "CAD"
+  | "Electronics"
   | "Documents"
   | "Drawings"
-  | "Studies"
+  | "Analysis"
   | "Manufacturing"
   | "Images"
   | "Reference parts"
@@ -22,11 +22,11 @@ export type ProjectGroup =
 
 /** The kinds in the page's order. */
 export const PROJECT_GROUPS: ReadonlyArray<ProjectGroup> = [
-  "Mechanical",
-  "Electrical",
+  "CAD",
+  "Electronics",
   "Documents",
   "Drawings",
-  "Studies",
+  "Analysis",
   "Manufacturing",
   "Images",
   "Reference parts",
@@ -34,7 +34,7 @@ export const PROJECT_GROUPS: ReadonlyArray<ProjectGroup> = [
 ];
 
 /** What is designed: a part or a board, as against what is made from one. */
-export const DESIGN_GROUPS: ReadonlySet<ProjectGroup> = new Set(["Mechanical", "Electrical"]);
+export const DESIGN_GROUPS: ReadonlySet<ProjectGroup> = new Set(["CAD", "Electronics"]);
 
 export interface ProjectFile {
   readonly path: string;
@@ -55,18 +55,18 @@ const MANUFACTURING_RESULT = new RegExp(`\\.(?:${MANUFACTURING_PROCESSES.join("|
 
 /** Where each kind of file is filed; what it is and what it is called are `partNames.ts`'s. */
 const RULES: ReadonlyArray<{ readonly test: RegExp; readonly group: ProjectGroup }> = [
-  { test: /\.fea\.(?:glb|json)$/i, group: "Studies" },
-  { test: /(?:^|\/)FEA\/[^/]+\.(?:glb|json)$/i, group: "Studies" },
-  { test: MANUFACTURING_RESULT, group: "Studies" },
+  { test: /\.fea\.(?:glb|json)$/i, group: "Analysis" },
+  { test: /(?:^|\/)FEA\/[^/]+\.(?:glb|json)$/i, group: "Analysis" },
+  { test: MANUFACTURING_RESULT, group: "Analysis" },
   { test: /\.cam\.(?:glb|json)$/i, group: "Manufacturing" },
   { test: /\.(?:nc|gcode|ngc|tap|gco)$/i, group: "Manufacturing" },
-  { test: /\.(?:step|stp)$/i, group: "Mechanical" },
-  { test: /\.solidcraft$/i, group: "Mechanical" },
-  { test: /\.(?:stl|3mf|obj|glb)$/i, group: "Mechanical" },
-  { test: /\.(?:urdf|sdf|srdf)$/i, group: "Mechanical" },
-  { test: /\.kicad_pcb$/i, group: "Electrical" },
-  { test: /\.kicad_sch$/i, group: "Electrical" },
-  { test: /\.harness\.ya?ml$/i, group: "Electrical" },
+  { test: /\.(?:step|stp)$/i, group: "CAD" },
+  { test: /\.solidcraft$/i, group: "CAD" },
+  { test: /\.(?:stl|3mf|obj|glb)$/i, group: "CAD" },
+  { test: /\.(?:urdf|sdf|srdf)$/i, group: "CAD" },
+  { test: /\.kicad_pcb$/i, group: "Electronics" },
+  { test: /\.kicad_sch$/i, group: "Electronics" },
+  { test: /\.harness\.ya?ml$/i, group: "Electronics" },
   { test: /\.(?:dxf|dwg|svg)$/i, group: "Drawings" },
   { test: /[._-]drawing\.pdf$/i, group: "Drawings" },
   { test: /\.(?:md|mdx|pdf|txt)$/i, group: "Documents" },
@@ -107,11 +107,11 @@ export function classifyProjectFile(path: string): ProjectFile | null {
   const rule = RULES.find((entry) => entry.test.test(normalized));
   if (rule === undefined) return null;
   const file = { path: normalized, name, folder, group: rule.group, ...named(normalized, name) };
-  if (rule.group !== "Mechanical") return file;
+  if (rule.group !== "CAD") return file;
   // A model's folder says what it is: a study's result, a CAM job's, or a part someone else made.
   const folders = segments.slice(0, -1);
   if (folders.some((segment) => STUDY_FOLDER.test(segment))) {
-    return { ...file, group: "Studies", kind: "Result" };
+    return { ...file, group: "Analysis", kind: "Result" };
   }
   if (folders.some((segment) => CAM_FOLDER.test(segment))) {
     return { ...file, group: "Manufacturing", kind: "Toolpath" };

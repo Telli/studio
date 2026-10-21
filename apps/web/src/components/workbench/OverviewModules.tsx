@@ -28,9 +28,9 @@ const FOLDED_KEY = "studio:overview-folded";
 export const MODULE_HEADING =
   "flex items-baseline gap-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 
-function readFolded(): Record<string, ReadonlyArray<string>> {
+function readFolded(storageKey: string): Record<string, ReadonlyArray<string>> {
   try {
-    const stored = JSON.parse(globalThis.localStorage?.getItem(FOLDED_KEY) ?? "{}") as unknown;
+    const stored = JSON.parse(globalThis.localStorage?.getItem(storageKey) ?? "{}") as unknown;
     return stored !== null && typeof stored === "object"
       ? (stored as Record<string, ReadonlyArray<string>>)
       : {};
@@ -39,25 +39,33 @@ function readFolded(): Record<string, ReadonlyArray<string>> {
   }
 }
 
-/** Which of a project's Overview modules are folded away, remembered on this computer. */
-export function useFoldedModules(project: string) {
-  const [folded, setFolded] = useState<ReadonlyArray<string>>(() => readFolded()[project] ?? []);
+/**
+ * Which of a project's Overview modules are folded away, remembered on this computer; another
+ * `storageKey` keeps another list's folds (the sidebar's sections).
+ */
+export function useFoldedModules(project: string, storageKey = FOLDED_KEY) {
+  const [state, setState] = useState(() => ({
+    project,
+    folded: readFolded(storageKey)[project] ?? [],
+  }));
+  // Another project (the sidebar stays as the person switches) reads its own folds.
+  const folded = state.project === project ? state.folded : (readFolded(storageKey)[project] ?? []);
   const toggle = useCallback(
     (module: string) => {
       const next = folded.includes(module)
         ? folded.filter((name) => name !== module)
         : [...folded, module];
-      setFolded(next);
+      setState({ project, folded: next });
       try {
         globalThis.localStorage?.setItem(
-          FOLDED_KEY,
-          JSON.stringify({ ...readFolded(), [project]: next }),
+          storageKey,
+          JSON.stringify({ ...readFolded(storageKey), [project]: next }),
         );
       } catch {
         // Still folded for this visit.
       }
     },
-    [folded, project],
+    [folded, project, storageKey],
   );
   return { folded, toggle };
 }

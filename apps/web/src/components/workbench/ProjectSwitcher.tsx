@@ -92,6 +92,8 @@ export function ProjectSwitcher(props: {
   readonly title: string;
   /** Marked New on its first day. */
   readonly isNew: boolean;
+  /** Across its container, as the head of the project's sidebar. */
+  readonly wide?: boolean;
 }) {
   const { environmentId } = props;
   const { cards } = useProjectList(environmentId);
@@ -196,7 +198,10 @@ export function ProjectSwitcher(props: {
                 <button
                   type="button"
                   aria-label={`Project ${props.title}: switch project`}
-                  className="flex h-9 min-w-0 max-w-full items-center gap-2 rounded-lg border border-border bg-background py-1 ps-1 pe-2 text-left shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[popup-open]:bg-accent"
+                  className={cn(
+                    "flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border bg-background py-1 ps-1 pe-2 text-left shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[popup-open]:bg-accent",
+                    props.wide ? "h-11 w-full" : "h-9",
+                  )}
                 />
               }
             />
@@ -205,7 +210,7 @@ export function ProjectSwitcher(props: {
           <ProjectThumb
             environmentId={environmentId}
             project={current?.project ?? null}
-            size="sm"
+            size={props.wide ? "md" : "sm"}
           />
           <span className="flex min-w-0 flex-col">
             <span className="text-3xs leading-3 font-medium tracking-wider text-muted-foreground uppercase">
@@ -221,7 +226,10 @@ export function ProjectSwitcher(props: {
             </Badge>
           ) : null}
           <ChevronsUpDownIcon
-            className="ms-0.5 size-3.5 shrink-0 text-muted-foreground"
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground",
+              props.wide ? "ms-auto" : "ms-0.5",
+            )}
             aria-hidden="true"
           />
         </TooltipTrigger>
