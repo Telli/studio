@@ -23,6 +23,7 @@ import {
   useSidebar,
 } from "../ui/sidebar";
 import { chatStanding } from "./chatStanding";
+import { showOverview } from "./overviewPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { useProjectHeading } from "./StudioWorkspaceBar";
 import { useRememberOpened } from "./useOpenProject";
@@ -95,11 +96,7 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
             disabled={threadRef === null}
             onClick={() => {
               done();
-              if (threadRef === null) return;
-              // The project's folder view, across the window as a Drive folder opens.
-              const panels = useRightPanelStore.getState();
-              panels.open(threadRef, "files");
-              panels.setMaximized(threadRef, true);
+              if (threadRef !== null) showOverview(threadRef);
             }}
           >
             <LayoutDashboardIcon aria-hidden="true" />

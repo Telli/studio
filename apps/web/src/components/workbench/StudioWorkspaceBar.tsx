@@ -1,9 +1,12 @@
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/models";
-import type { EnvironmentId } from "@t3tools/contracts";
-import { MessageSquareIcon } from "lucide-react";
+import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
+import { useParams } from "@tanstack/react-router";
+import { ChevronRightIcon, MessageSquareIcon } from "lucide-react";
 
 import { useNowMinute } from "~/hooks/useNowMinute";
+import { resolveThreadRouteRef } from "~/threadRoutes";
 import { useSidebar } from "../ui/sidebar";
+import { showOverview } from "./overviewPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { StudioNav } from "./StudioTopBar";
 import { useStudioProjectAt } from "./useStudioProjects";
@@ -25,12 +28,12 @@ export function useProjectHeading(
 }
 
 /**
- * The start of a project workspace's top bar, in the chat's header row: the open chat, by its
- * name, inside its project. While the project shows down the left (`StudioSidebar`, its name and
- * switcher at the top, folded away by the sidebar's own toggle or its shortcut), the bar names
- * the chat alone; folded, the bar leads with Studio's mark (Home) and the project's name, which
- * switches projects (`ProjectSwitcher`, marked New on its first day). The panel's row carries the
- * rest (`StudioPanelBar`).
+ * The start of a project workspace's top bar, in the chat's header row: where the person is, as a
+ * path, the project, then the open chat in it (Google Drive's "My Drive › folder"). While the
+ * project shows down the left (`StudioSidebar`, its switcher at the top), the project's name here
+ * opens its Overview; folded away (the sidebar's own toggle or its shortcut), the bar leads with
+ * Studio's mark (Home) and the project's switcher (`ProjectSwitcher`, marked New on its first
+ * day). The panel's toolbar carries the rest (`StudioPanelBar`).
  */
 export function StudioWorkspaceBar(props: {
   readonly environmentId: EnvironmentId;
@@ -41,10 +44,23 @@ export function StudioWorkspaceBar(props: {
   const { folder, title, isNew } = useProjectHeading(props.environmentId, props.project);
   const { isMobile, open } = useSidebar();
   const projectShown = open && !isMobile;
+  const threadRef: ScopedThreadRef | null = useParams({
+    strict: false,
+    select: (params) => resolveThreadRouteRef(params),
+  });
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-1">
-      {projectShown ? null : (
+    <nav aria-label="Where you are" className="flex min-w-0 flex-1 items-center gap-1">
+      {projectShown ? (
+        <button
+          type="button"
+          disabled={threadRef === null}
+          onClick={() => threadRef !== null && showOverview(threadRef)}
+          className="min-w-0 shrink truncate rounded-md px-1.5 py-1 text-sm text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        >
+          {title}
+        </button>
+      ) : (
         <>
           <StudioNav compact />
           <span aria-hidden className="mx-1.5 h-4 w-px shrink-0 bg-border" />
@@ -54,15 +70,16 @@ export function StudioWorkspaceBar(props: {
             title={title}
             isNew={isNew}
           />
-          <span aria-hidden className="mx-1 shrink-0 text-muted-foreground/60">
-            /
-          </span>
         </>
       )}
-      <span className="flex min-w-0 items-center gap-2 px-1 text-sm font-medium text-foreground">
+      <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+      <span
+        aria-current="page"
+        className="flex min-w-0 items-center gap-2 px-1 text-sm font-medium text-foreground"
+      >
         <MessageSquareIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="truncate">{chatLabel(props.chatTitle)}</span>
       </span>
-    </div>
+    </nav>
   );
 }

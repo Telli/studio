@@ -10,6 +10,7 @@ import { useEnvironmentQuery } from "~/state/query";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { leadPartOf } from "./leadPart";
 import { useOpenWorkspaceStore } from "./openWorkspace";
+import { usePanelTabShortcuts } from "./panelTabShortcuts";
 import { PartActions } from "./PartActions";
 import { StudioNew } from "./StudioNew";
 import { partName } from "./partNames";
@@ -73,6 +74,7 @@ export function StudioPanelBar(props: {
     setActiveFolder(folder);
   }, [folder, setActiveFolder]);
   const lead = useLeadPart(threadRef, folder, props.mutationId);
+  usePanelTabShortcuts(threadRef);
   // What is in front decides the row: over the Overview, the project's New; over a part, the
   // part's own ways of changing it (Ask, Edit by hand) and its jobs; over a document, nothing.
   const frontKind = useRightPanelStore(
