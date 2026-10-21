@@ -105,11 +105,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   part yet, Start a part by hand), the open issues its
   checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
   propose and wait), then, in Engineering, everything in the project in one place the way Google
-  Drive shows a folder (`components/workbench/ProjectEverything.tsx`): its chats and every kind
-  of file together, each marked by its kind's icon in its kind's color (`KIND_TINTS`), filtered
-  by type (Chats, CAD, Electronics, Analysis, Manufacturing, Documents, References), as a list
-  (name, kind, how a chat stands or how a part's checks went) or as cards with pictures (a part's
-  with its checks, drawing and manufacturing files); then the parts' versions, the project's
+  Drive shows a folder (`components/workbench/ProjectEverything.tsx`): every kind of file
+  together (its chats are down the left), each marked by its kind's icon in its kind's color
+  (`KIND_TINTS`), filtered by type (CAD, Electronics, Analysis, Manufacturing, Documents,
+  References), as a list (name, kind, how a part's checks went or where a file is) or as cards
+  with pictures (a part's with its checks, drawing and manufacturing files); then the parts' versions, the project's
   folders and the brief's links. The sidebar's Overview opens it across the window, as a Drive
   folder opens; opening a chat or a file from it brings the chat back with the file beside it.
   With code tools on, the page keeps a module per kind (CAD, Electronics, then Documents and each
@@ -159,7 +159,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   to it): a top bar with the mark and a search that opens the quick find, then a project from a
   description (Start makes the project and its first chat, and sends the description as its first
   message) or a blank part, assembly or board to model by hand, then every project, pictured by
-  its first part, with Import. T3 Code's sidebar stays shut there. A project opens in the thread
+  its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in one
+  column so the box and the tiles line up. A picture that came back empty (the CAD plugin still
+  starting) is asked for again (`usePictures.ts`). A project with a chat waiting on the person (a
+  question, an approval) comes first, says Needs you, and opens on that chat; Home lists no chats
+  of its own. T3 Code's sidebar stays shut there. A project opens in the thread
   last open in it on this device (else the one last worked on, else a new one). Projects are
   listed as a recents list orders them, the one opened last on this device first (or worked on, if
   that came later), and the starred ones (kept on this computer) apart at the top of Home and the
@@ -196,11 +200,14 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   opening its Overview (`StudioWorkspaceBar.tsx`). The panel's tabs take Chrome's shortcuts:
   Ctrl+Tab and Ctrl+Shift+Tab go round them, Cmd+1 to 8 to one by its place and Cmd+9 to the last
   (`panelTabShortcuts.ts`, ahead of T3 Code's own Cmd+number), and a file opens in one tab
-  however its path was written or whoever opened it (`sameFile.ts`). Home lists Needs you (the
-  chats waiting on the person, in any project) and Recent (chats and files opened lately, as
-  Drive's Recent does; files opened beside a chat are remembered, `recentFiles.ts`). In
+  however its path was written or whoever opened it (`sameFile.ts`), from a chat link or a part
+  mentioned in the composer alike. Cmd+K outside a project opens on Recent (chats and files opened
+  lately, as Drive's Recent does; files opened beside a chat are remembered, `recentFiles.ts`). In
   Engineering a document always reads as a document: rendered, with no source view, editor or
-  file tree beside it (`FilePreviewPanel.tsx`).
+  file tree beside it (`FilePreviewPanel.tsx`), and a parts list as a table and a page as a page.
+  A file with no viewer of its own (G-code, Gerbers, a schematic, a spreadsheet, a zip) gets a
+  page saying what it is, with Show in Finder to open it in its own app and its text one press
+  away, read only (`StudioFilePage.tsx`, `aboutFile.ts`); a check's result reads as a report.
 - **Onboarding.** Setup speaks Studio's words and ends at signing in to Claude or Codex
   (`WelcomeWizard.tsx`; Home brings in files). A first Home says Welcome to Studio and offers a
   sample project the agent builds in front of you (a servo bracket, its strength check, its
