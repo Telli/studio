@@ -240,8 +240,8 @@ function fromFile(file: File): StartAttachment {
 
 const fromPath = (path: string): StartAttachment => ({ name: nameOfPath(path), path, file: null });
 
-/** How Home's box starts a project: from words, or from what you already have. */
-type StartMode = "describe" | "setup";
+/** How Home's box starts a project: from an idea in words, or from files you already have. */
+type StartMode = "idea" | "files";
 
 /** What Set up from files does, in order. */
 const SET_UP_STEPS = [
@@ -282,13 +282,13 @@ function AttachedList(props: {
 }
 
 /**
- * Home's box, in two modes, as the part toolbar has Ask and Edit by hand. Describe: say what to
- * make and Start. It goes to a new project, as it starts, or to a new chat in a project of yours
- * chosen beside Attach (`ProjectPicker`), the box then reading as a project's chat box does. Set
- * up from files: drop or choose what you already have (a PRD, requirements, sketches, CAD, a whole
- * folder), say what it is if you like, and Set up project makes a new project from it. Either
- * way, files go into the project's References and the agent reads them first (`startMessage`).
- * With no projects yet it offers the sample project.
+ * Home's box, in two modes named by what you start from, as the part toolbar has Ask and Edit by
+ * hand. Start from an idea: say what to make and Start. It goes to a new project, as it starts,
+ * or to a new chat in a project of yours chosen beside Attach (`ProjectPicker`), the box then
+ * reading as a project's chat box does. Set up from files: drop or choose what you already have
+ * (a PRD, requirements, sketches, CAD, a whole folder), say what it is if you like, and Set up
+ * project makes a new project from it. Either way, files go into the project's References and
+ * the agent reads them first (`startMessage`). With no projects yet it offers the sample project.
  */
 function StartProject(props: {
   readonly environmentId: EnvironmentId;
@@ -300,8 +300,8 @@ function StartProject(props: {
   readonly start: (work: ProjectStart) => Promise<void>;
 }) {
   const { environmentId, firstTime, busy } = props;
-  const [mode, setMode] = useState<StartMode>("describe");
-  const settingUp = mode === "setup";
+  const [mode, setMode] = useState<StartMode>("idea");
+  const settingUp = mode === "files";
   const [chosenId, setChosenId] = useState<string | null>(null);
   const chosen = props.cards.find((card) => card.id === chosenId) ?? null;
   const [description, setDescription] = useState("");
@@ -389,11 +389,11 @@ function StartProject(props: {
           value={[mode]}
           onValueChange={(next) => {
             const value = next[0];
-            if (value === "describe" || value === "setup") setMode(value);
+            if (value === "idea" || value === "files") setMode(value);
           }}
         >
-          <Toggle value="describe">Describe</Toggle>
-          <Toggle value="setup">Set up from files</Toggle>
+          <Toggle value="idea">Start from an idea</Toggle>
+          <Toggle value="files">Set up from files</Toggle>
         </ToggleGroup>
         {settingUp ? (
           <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
