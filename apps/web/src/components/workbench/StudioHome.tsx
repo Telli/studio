@@ -2,8 +2,8 @@ import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useLocation } from "@tanstack/react-router";
-import { PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { FolderInputIcon, PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { useNowMinute } from "~/hooks/useNowMinute";
@@ -12,9 +12,11 @@ import { shortcutLabelForCommand } from "~/keybindings";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { Kbd } from "../ui/kbd";
 import { SidebarInset } from "../ui/sidebar";
 import { Textarea } from "../ui/textarea";
+import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import type { ListedProject } from "./projectList";
 import { ProjectTile } from "./ProjectTile";
 import { ENGINEERING_COMPOSER_PLACEHOLDER } from "./studioInterface";
@@ -238,13 +240,55 @@ function fromFile(file: File): StartAttachment {
 
 const fromPath = (path: string): StartAttachment => ({ name: nameOfPath(path), path, file: null });
 
+/** How Home's box starts a project: from words, or from what you already have. */
+type StartMode = "describe" | "setup";
+
+/** What Set up from files does, in order. */
+const SET_UP_STEPS = [
+  "Add what you have",
+  "Studio reads it and fills in the Overview",
+  "You answer what's left",
+] as const;
+
+/** The files and folders attached to Home's box, each with its Remove. */
+function AttachedList(props: {
+  readonly attachments: ReadonlyArray<StartAttachment>;
+  readonly onRemove: (index: number) => void;
+}) {
+  if (props.attachments.length === 0) return null;
+  return (
+    <ul aria-label="Attached" className="flex flex-wrap gap-1.5">
+      {props.attachments.map((attachment, index) => (
+        <li
+          key={
+            attachment.path ??
+            `${attachment.name}-${attachment.file?.size}-${attachment.file?.lastModified}`
+          }
+          className="flex max-w-60 items-center gap-1 rounded-md border border-border bg-muted/40 py-0.5 pr-0.5 pl-2 text-xs text-foreground"
+        >
+          <span className="truncate">{attachment.name}</span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={`Remove ${attachment.name}`}
+            onClick={() => props.onRemove(index)}
+          >
+            <XIcon />
+          </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
- * Home's box: describe what to make and Start. It goes to a new project, as it starts, or to a
- * new chat in a project of yours chosen beside Attach (`ProjectPicker`), the box then reading as a
- * project's chat box does. Files and folders attached (Attach, or dropped on the box) set the
- * project up: Start copies them into its References and the agent reads them first, so a project
- * can start from a PRD and its sketches, with or without a description. With no projects yet it
- * offers the sample project.
+ * Home's box, in two modes, as the part toolbar has Ask and Edit by hand. Describe: say what to
+ * make and Start. It goes to a new project, as it starts, or to a new chat in a project of yours
+ * chosen beside Attach (`ProjectPicker`), the box then reading as a project's chat box does. Set
+ * up from files: drop or choose what you already have (a PRD, requirements, sketches, CAD, a whole
+ * folder), say what it is if you like, and Set up project makes a new project from it. Either
+ * way, files go into the project's References and the agent reads them first (`startMessage`).
+ * With no projects yet it offers the sample project.
  */
 function StartProject(props: {
   readonly environmentId: EnvironmentId;
@@ -256,6 +300,8 @@ function StartProject(props: {
   readonly start: (work: ProjectStart) => Promise<void>;
 }) {
   const { environmentId, firstTime, busy } = props;
+  const [mode, setMode] = useState<StartMode>("describe");
+  const settingUp = mode === "setup";
   const [chosenId, setChosenId] = useState<string | null>(null);
   const chosen = props.cards.find((card) => card.id === chosenId) ?? null;
   const [description, setDescription] = useState("");
@@ -272,6 +318,11 @@ function StartProject(props: {
       ),
     ]);
   const fileInput = useRef<HTMLInputElement>(null);
+  // The desktop app's picker takes folders too; the browser's takes files.
+  const choose = () => {
+    if (bridge === null) fileInput.current?.click();
+    else void bridge.pick().then((paths) => attach(paths.map(fromPath)));
+  };
   const describe = useRef<HTMLTextAreaElement>(null);
   const hash = useLocation({ select: (location) => location.hash });
   // A workspace's New project (`ProjectSwitcher`) lands here: the box takes the typing.
@@ -279,9 +330,24 @@ function StartProject(props: {
     if (hash === "start") describe.current?.focus();
   }, [hash]);
   const run = props.start;
-  const ready = (description.trim() !== "" || attachments.length > 0) && !busy;
-  const startDescribed = () => {
-    if (ready) void run({ kind: "described", description, attachments, project: chosen });
+  // Setting up needs something to set up from; describing, words or files.
+  const ready =
+    (settingUp ? attachments.length > 0 : description.trim() !== "" || attachments.length > 0) &&
+    !busy;
+  const startNow = () => {
+    if (!ready) return;
+    void run({
+      kind: "described",
+      description,
+      attachments,
+      project: settingUp ? null : chosen,
+    });
+  };
+  const startOnShortcut = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      startNow();
+    }
   };
   const placeholder = chosen === null ? "Describe a new project" : ENGINEERING_COMPOSER_PLACEHOLDER;
 
@@ -311,56 +377,67 @@ function StartProject(props: {
       >
         {attaching ? (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 text-sm font-medium text-foreground">
-            {bridge === null ? "Drop files to attach" : "Drop files or folders to attach"}
+            {settingUp
+              ? "Drop to add them"
+              : bridge === null
+                ? "Drop files to attach"
+                : "Drop files or folders to attach"}
           </div>
         ) : null}
-        <Textarea
-          ref={describe}
-          unstyled
-          rows={3}
-          aria-label={placeholder}
-          placeholder={placeholder}
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-              event.preventDefault();
-              startDescribed();
-            }
+        <ToggleGroup
+          aria-label="How to start"
+          value={[mode]}
+          onValueChange={(next) => {
+            const value = next[0];
+            if (value === "describe" || value === "setup") setMode(value);
           }}
-        />
-        {attachments.length === 0 ? null : (
-          <ul aria-label="Attached" className="flex flex-wrap gap-1.5">
-            {attachments.map((attachment, index) => (
-              <li
-                key={
-                  attachment.path ??
-                  `${attachment.name}-${attachment.file?.size}-${attachment.file?.lastModified}`
-                }
-                className="flex max-w-60 items-center gap-1 rounded-md border border-border bg-muted/40 py-0.5 pr-0.5 pl-2 text-xs text-foreground"
-              >
-                <span className="truncate">{attachment.name}</span>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`Remove ${attachment.name}`}
-                  onClick={() =>
-                    setAttachments((current) => current.filter((_, at) => at !== index))
-                  }
-                >
-                  <XIcon />
-                </Button>
-              </li>
-            ))}
-          </ul>
+        >
+          <Toggle value="describe">Describe</Toggle>
+          <Toggle value="setup">Set up from files</Toggle>
+        </ToggleGroup>
+        {settingUp ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+            <FolderInputIcon className="size-5" aria-hidden="true" />
+            <span>
+              Drop your PRD, requirements, sketches, CAD
+              {bridge === null ? "" : " or a whole folder"}
+            </span>
+            <Button variant="outline" size="sm" onClick={choose}>
+              {bridge === null ? "Choose files" : "Choose files or folders"}
+            </Button>
+          </div>
+        ) : (
+          <Textarea
+            ref={describe}
+            unstyled
+            rows={3}
+            aria-label={placeholder}
+            placeholder={placeholder}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            onKeyDown={startOnShortcut}
+          />
         )}
-        {attachments.some((attachment) => attachment.path !== null) ? (
+        <AttachedList
+          attachments={attachments}
+          onRemove={(index) => setAttachments((current) => current.filter((_, at) => at !== index))}
+        />
+        {settingUp ? (
+          <Input
+            size="sm"
+            aria-label="What it is"
+            placeholder="What it is (optional)"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            onKeyDown={startOnShortcut}
+          />
+        ) : attachments.some((attachment) => attachment.path !== null) ? (
           <p className="text-xs text-muted-foreground">
             These go in {chosen === null ? "the new project's" : `${chosen.project.name}'s`}{" "}
             References, and the agent reads them first.
           </p>
         ) : null}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileInput}
             type="file"
@@ -371,29 +448,42 @@ function StartProject(props: {
               event.target.value = "";
             }}
           />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              // The desktop app's picker takes folders too; the browser's takes files.
-              if (bridge === null) fileInput.current?.click();
-              else void bridge.pick().then((paths) => attach(paths.map(fromPath)));
-            }}
-          >
-            <PaperclipIcon />
-            Attach
-          </Button>
-          {firstTime || props.cards.length === 0 ? null : (
-            <ProjectPicker
-              environmentId={environmentId}
-              cards={props.cards}
-              chosen={chosen}
-              onChoose={(card) => setChosenId(card?.id ?? null)}
-            />
+          {settingUp ? (
+            <ol
+              aria-label="Setting up"
+              className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
+            >
+              {SET_UP_STEPS.map((step, index) => (
+                <li key={step} className="flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className="flex size-4 shrink-0 items-center justify-center rounded-full border border-border text-2xs text-foreground"
+                  >
+                    {index + 1}
+                  </span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" onClick={choose}>
+                <PaperclipIcon />
+                Attach
+              </Button>
+              {firstTime || props.cards.length === 0 ? null : (
+                <ProjectPicker
+                  environmentId={environmentId}
+                  cards={props.cards}
+                  chosen={chosen}
+                  onChoose={(card) => setChosenId(card?.id ?? null)}
+                />
+              )}
+            </>
           )}
           <div className="flex-1" />
-          <Button size="sm" disabled={!ready} onClick={startDescribed}>
-            {busy ? "Starting…" : "Start"}
+          <Button size="sm" disabled={!ready} onClick={startNow}>
+            {settingUp ? (busy ? "Setting up…" : "Set up project") : busy ? "Starting…" : "Start"}
           </Button>
         </div>
       </div>
