@@ -47,8 +47,11 @@ const dev = process.env.TEXT_TO_CAD_DEV?.trim() === "1";
 let marketplace = checkout;
 if (dev) {
   process.stderr.write(`Building the development plugin from ${checkout}...\n`);
+  // The checkout's own Python (its .venv, as new as cadgen needs), else the system's, which on a
+  // Mac with only Apple's command line tools is too old.
+  const venvPython = NodePath.join(checkout, ".venv", "bin", "python");
   const built = NodeChildProcess.spawnSync(
-    "python3",
+    NodeFS.existsSync(venvPython) ? venvPython : "python3",
     [NodePath.join(appRoot, "scripts", "studio-dev-plugin.py"), checkout],
     {
       cwd: appRoot,
