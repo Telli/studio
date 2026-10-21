@@ -10,6 +10,7 @@ import { useComposerHandleContext } from "~/composerHandleContext";
 import { cn } from "~/lib/utils";
 import { buildThreadRouteParams } from "~/threadRoutes";
 import { usePrimaryEnvironmentId } from "~/state/environments";
+import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { CommandPaletteContent } from "../CommandPaletteContent";
@@ -22,13 +23,18 @@ import {
 } from "../ui/command";
 import { chatStanding } from "./chatStanding";
 import { useDocumentTemplates } from "./documentTemplates";
+import { FileKindIcon } from "./FileKindIcon";
 import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
 import { CHAT_ICON, KIND_ICONS, KIND_TINTS, MENU_ICONS } from "./kinds";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
+import { useOpenedThreads } from "./openedThreads";
 import { useOpenWorkspaceStore } from "./openWorkspace";
+import { partLabel } from "./partNames";
 import { classifyProjectFile, type ProjectGroup } from "./projectFiles";
 import type { ListedProject } from "./projectList";
 import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
+import { homeRecent } from "./recentActivity";
+import { useRecentFiles } from "./recentFiles";
 import { studioInterfaceCommands } from "./studioInterface";
 import { useFolderPaths } from "./useFolderPaths";
 import { openInPanel } from "./useOpenInWorkbench";
@@ -85,6 +91,8 @@ function QuickFindBody(props: {
   const composerRef = useComposerHandleContext();
   const openProject = useOpenProject();
   const navigate = useNavigate();
+  const opened = useOpenedThreads();
+  const recentFiles = useRecentFiles();
 
   const here = workspace === null ? null : studioFolderKey(workspace.folder);
   const current =
@@ -255,6 +263,41 @@ function QuickFindBody(props: {
       }),
     })),
   };
+  // What was opened lately, chats and files across every project, as Drive's Recent lists it:
+  // with nothing typed and no project open, so Home's ⌘K jumps back into the work.
+  const recent: Group = {
+    label: "Recent",
+    rows:
+      typed || current !== null
+        ? []
+        : homeRecent(cards, opened, recentFiles, SHOWN_UNTYPED).map((item) => {
+            const ref = scopeThreadRef(item.thread.environmentId, item.thread.id);
+            const openChat = () =>
+              void navigate({
+                to: "/$environmentId/$threadId",
+                params: buildThreadRouteParams(ref),
+              });
+            const description = `${item.card.project.name} · ${formatRelativeTimeLabel(item.at)}`;
+            return item.kind === "chat"
+              ? {
+                  value: `recent:chat:${item.thread.id}`,
+                  icon: <KindIcon group="Chats" />,
+                  title: chatLabel(item.thread.title),
+                  description,
+                  run: go(openChat),
+                }
+              : {
+                  value: `recent:file:${item.thread.id}\n${item.file.path}`,
+                  icon: <FileKindIcon path={item.file.path} className="size-4" />,
+                  title: partLabel(item.file.path.split(/[\\/]/).pop() ?? item.file.path),
+                  description,
+                  run: go(() => {
+                    openInPanel(plugins, ref, item.file.path);
+                    openChat();
+                  }),
+                };
+          }),
+  };
   const projects: Group = {
     label: "Projects",
     rows: cards
@@ -358,7 +401,7 @@ function QuickFindBody(props: {
   const groups = (
     typed
       ? [jobs, partRows, documentFiles, chatRows, projects, documentRows, goTo]
-      : [partRows, documentFiles, chatRows, projects, goTo]
+      : [recent, partRows, documentFiles, chatRows, projects, goTo]
   ).filter((group): group is Group => group !== null && group.rows.length > 0);
 
   return (
@@ -419,7 +462,8 @@ function QuickFindBody(props: {
 /**
  * ⌘K in the engineering interface, in place of T3 Code's command palette: one box that finds a
  * project, a part in any project, or any job for the part on screen, the long tail the menus leave
- * out as well (`quickFind.ts`), with Home, New project, Settings and the other interfaces. A menu's
+ * out as well (`quickFind.ts`), with Home, New project, Settings and the other interfaces. Outside a
+ * project it opens on what was opened lately (Recent). A menu's
  * "More" opens it on that menu's jobs. Picking a job writes it into the chat's composer, as the
  * menus do; picking a part opens it, in its project if that is another.
  */

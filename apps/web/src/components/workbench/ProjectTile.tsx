@@ -1,18 +1,21 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
-import { LayoutDashboardIcon } from "lucide-react";
 
 import { useNowMinute } from "~/hooks/useNowMinute";
+import { cn } from "~/lib/utils";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { Badge } from "../ui/badge";
+import { KIND_ICONS, KIND_TINTS } from "./kinds";
 import { projectActivity } from "./recentProjects";
 import { StarButton } from "./StarButton";
 import { useProjectCover } from "./useProjectCover";
+import { chatLabel } from "./workspaceTitle";
 
 /**
- * A project as Home and Projects show it: a picture of its first part, its name (marked New on
- * its first day), and its latest chat and when, with a star over the picture (shown on hover, and
- * always once starred).
+ * A project as Home and Projects show it: a picture of its main part (its first assembly, else
+ * its first part or board), or its kind's icon until it has one; its name (marked New on its first
+ * day, and Needs you while a chat waits on the person); and its latest chat and when, or the chat
+ * that waits. A star sits over the picture (shown on hover, and always once starred).
  */
 export function ProjectTile(props: {
   readonly environmentId: EnvironmentId;
@@ -20,9 +23,12 @@ export function ProjectTile(props: {
   readonly id: string;
   readonly project: StudioProject;
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
+  /** Its chats waiting on the person (a question, an approval), newest first; Home passes them. */
+  readonly waiting?: ReadonlyArray<EnvironmentThreadShell>;
   readonly onOpen: () => void;
 }) {
   const { environmentId, project } = props;
+  const waiting = props.waiting ?? [];
   const picture = useProjectCover(environmentId, project);
   // The minute as the page knows it (UTC), so the tile re-reads as time passes.
   const now = Date.parse(`${useNowMinute()}:00Z`);
@@ -32,6 +38,15 @@ export function ProjectTile(props: {
     now,
     relative: formatRelativeTimeLabel,
   });
+  const first = waiting[0];
+  const line =
+    first === undefined
+      ? activity.line
+      : waiting.length === 1
+        ? `${chatLabel(first.title)} is waiting on you`
+        : `${waiting.length} chats are waiting on you`;
+  const kind = project.template === "board" ? "Electronics" : "CAD";
+  const KindIcon = KIND_ICONS[kind];
 
   return (
     <div className="group/tile relative flex min-w-0 flex-col">
@@ -40,23 +55,34 @@ export function ProjectTile(props: {
         onClick={props.onOpen}
         className="group flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        <span className="flex aspect-[4/3] items-center justify-center border-b border-border bg-muted/50">
+        <span className="flex aspect-[4/3] items-center justify-center overflow-hidden border-b border-border bg-muted/50">
           {picture ? (
-            <img src={picture} alt="" className="size-full object-contain p-3" />
+            <img src={picture} alt="" className="size-full object-cover" />
           ) : (
-            <LayoutDashboardIcon className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            <KindIcon className={cn("size-8 opacity-60", KIND_TINTS[kind])} aria-hidden="true" />
           )}
         </span>
         <span className="flex min-w-0 flex-col gap-1 px-3 py-2.5">
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate text-sm font-medium text-foreground">{project.name}</span>
-            {activity.isNew ? (
+            {first !== undefined ? (
+              <Badge variant="warning" size="sm">
+                Needs you
+              </Badge>
+            ) : activity.isNew ? (
               <Badge variant="info" size="sm">
                 New
               </Badge>
             ) : null}
           </span>
-          <span className="truncate text-xs text-muted-foreground">{activity.line}</span>
+          <span
+            className={cn(
+              "truncate text-xs",
+              first === undefined ? "text-muted-foreground" : "text-warning-foreground",
+            )}
+          >
+            {line}
+          </span>
         </span>
       </button>
       <StarButton

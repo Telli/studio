@@ -1,16 +1,20 @@
 import { useAtomValue } from "@effect/atom-react";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { useLocation } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { shortcutLabelForCommand } from "~/keybindings";
+import { useRightPanelStore } from "~/rightPanelStore";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { primaryServerKeybindingsAtom } from "~/state/server";
+import { buildThreadRouteParams } from "~/threadRoutes";
 import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import { SidebarInset } from "../ui/sidebar";
@@ -20,11 +24,11 @@ import type { ListedProject } from "./projectList";
 import { ProjectTile } from "./ProjectTile";
 import { splitStarred, useStarredStore } from "./starredProjects";
 import { ImportDialogHost } from "./ImportDialog";
-import { HomeActivity } from "./HomeActivity";
 import { EXAMPLE_STARTS, PRD_START, SAMPLE_PROJECT } from "./homeExamples";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
+import { needsYou } from "./recentActivity";
 import { StudioTopBar } from "./StudioTopBar";
 import { useImportActions } from "./useImportActions";
 import { useOpenProject } from "./useOpenProject";
@@ -33,6 +37,8 @@ import { useProjectList } from "./useProjectList";
 import { type ProjectStart, useStartProject } from "./useStartProject";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+/** Project tiles, four across on a wide window, as many as fit on a narrow one. */
+const TILE_GRID = "grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4";
 
 /** Blank work Home offers to model by hand, in this order, each while its skill is on. */
 const BLANK_WORK = ["part", "assembly", "board"] as const;
@@ -62,9 +68,11 @@ function FindButton() {
 /**
  * Studio's Home, its one page, the way a CAD tool's welcome starts: describe a new project and
  * Start makes it and its first chat, or start a blank part to model by hand; below, the starred
- * projects, then every other one, as pictures, the one opened last first, with Import. Search finds a project or a part
- * (`StudioQuickFind`). Opening a project goes back to where it was left; inside one, its name
- * switches to another (`ProjectSwitcher`).
+ * projects, then every other one, as pictures of their parts, the one opened last first. A project
+ * with a chat waiting on the person (a question, an approval) comes first, says so, and opens on
+ * that chat; chats otherwise live in their project, down its left. Search finds a project, a part
+ * or a chat (`StudioQuickFind`). Opening a project goes back to where it was left; inside one, its
+ * name switches to another (`ProjectSwitcher`). One column, so the box and the tiles line up.
  */
 export function StudioHome() {
   const environmentId = usePrimaryEnvironmentId();
@@ -78,20 +86,43 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const importActions = useImportActions();
   useNowMinute();
   useOpenShortcut(openFind);
-  const { starred, rest } = splitStarred(
+  const navigate = useNavigate();
+  const waiting = useMemo(() => {
+    const byProject = new Map<string, EnvironmentThreadShell[]>();
+    for (const { card, thread } of needsYou(cards)) {
+      byProject.set(card.id, [...(byProject.get(card.id) ?? []), thread]);
+    }
+    return byProject;
+  }, [cards]);
+  // Waiting on the person first, each list otherwise in its own order.
+  const waitingFirst = (list: ReadonlyArray<ListedProject>) =>
+    list.toSorted((a, b) => Number(waiting.has(b.id)) - Number(waiting.has(a.id)));
+  const split = splitStarred(
     cards,
     useStarredStore((store) => store.starred),
   );
-  const tile = ({ id, project, folder, threads }: ListedProject) => (
-    <ProjectTile
-      key={id}
-      environmentId={environmentId}
-      id={id}
-      project={project}
-      threads={threads}
-      onOpen={() => void openProject(folder, threads)}
-    />
-  );
+  const starred = waitingFirst(split.starred);
+  const rest = waitingFirst(split.rest);
+  const openChat = (thread: EnvironmentThreadShell) => {
+    const ref = scopeThreadRef(thread.environmentId, thread.id);
+    useRightPanelStore.getState().setMaximized(ref, false);
+    void navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
+  };
+  const tile = ({ id, project, folder, threads }: ListedProject) => {
+    const asking = waiting.get(id) ?? [];
+    const first = asking[0];
+    return (
+      <ProjectTile
+        key={id}
+        environmentId={environmentId}
+        id={id}
+        project={project}
+        threads={threads}
+        waiting={asking}
+        onOpen={() => (first === undefined ? void openProject(folder, threads) : openChat(first))}
+      />
+    );
+  };
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -101,21 +132,18 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
         </StudioTopBar>
         <ImportDropZone>
           <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-both">
-            <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8">
-              <div className="flex max-w-3xl flex-col gap-6">
+            <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-8">
+              <div className="flex flex-col gap-6">
                 <h1 className="text-2xl font-semibold text-foreground">
                   {cards.length === 0 ? "Welcome to Studio" : "Welcome back"}
                 </h1>
                 <NewFilesNotice environmentId={environmentId} />
                 <StartProject environmentId={environmentId} firstTime={cards.length === 0} />
               </div>
-              <HomeActivity environmentId={environmentId} cards={cards} />
               {starred.length === 0 ? null : (
                 <section aria-label="Starred" className="flex min-w-0 flex-col gap-3">
                   <h2 className={SECTION_LABEL}>Starred</h2>
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-                    {starred.map(tile)}
-                  </div>
+                  <div className={TILE_GRID}>{starred.map(tile)}</div>
                 </section>
               )}
               <section aria-label="Your projects" className="flex min-w-0 flex-col gap-3">
@@ -127,7 +155,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                   )}
                 </div>
                 {cards.length === 0 && importActions !== null ? (
-                  <div className="flex max-w-3xl flex-col items-start gap-2 rounded-xl border border-dashed border-border px-5 py-6">
+                  <div className="flex flex-col items-start gap-2 rounded-xl border border-dashed border-border px-5 py-6">
                     <span className="text-sm font-medium text-foreground">
                       Import what you already have
                     </span>
@@ -144,9 +172,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                     No projects yet. Describe one to start.
                   </p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-                    {rest.map(tile)}
-                  </div>
+                  <div className={TILE_GRID}>{rest.map(tile)}</div>
                 )}
               </section>
             </div>
@@ -206,7 +232,7 @@ function StartProject(props: {
         <Textarea
           ref={describe}
           unstyled
-          rows={4}
+          rows={3}
           aria-label="Describe a new project"
           placeholder="Describe a new project"
           value={description}

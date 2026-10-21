@@ -6,7 +6,7 @@ import { historyOutcome } from "./projectHistory";
 import type { ListedProject } from "./projectList";
 import type { RecentFile } from "./recentFiles";
 
-/** Something Home's Recent lists: a chat opened lately, or a file opened beside one. */
+/** Something Recent lists (⌘K outside a project): a chat opened lately, or a file opened beside one. */
 export type RecentItem =
   | {
       readonly kind: "chat";
@@ -47,7 +47,7 @@ export function homeRecent(
   return [...chats, ...shown].toSorted((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
 }
 
-/** The chats waiting on the person (a question, an approval), in any project, newest first. */
+/** The chats waiting on the person (a question, an approval), in any project, newest first: Home's tiles say so. */
 export function needsYou(
   cards: ReadonlyArray<ListedProject>,
 ): Array<{ readonly card: ListedProject; readonly thread: EnvironmentThreadShell }> {
