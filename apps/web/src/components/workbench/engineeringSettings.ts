@@ -47,6 +47,11 @@ export const CODE_SETTINGS_ROWS: ReadonlySet<string> = new Set<SettingsSearchIte
   "project-order",
   "auto-settle-inactive-threads",
   "days-before-auto-settle",
+  // Studio has no pins or archive, its chats' Delete always asks, and its Import is its own.
+  "unpin-confirmation",
+  "archive-confirmation",
+  "delete-confirmation",
+  "add-project-starts-in",
 ]);
 
 interface SettingCopy {
@@ -70,15 +75,15 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
   ],
   [
     "continue-threads-after-server-update",
-    { description: "Resume interrupted threads after an update, a crash, or a restart." },
-  ],
-  [
-    "add-project-starts-in",
     {
-      description: "The folder the Add Project browser opens in. Leave empty for your home folder.",
+      title: "Continue chats after restarts",
+      description: `Pick up chats that were working when ${APP_BASE_NAME} updated, crashed or restarted.`,
     },
   ],
-  ["text-generation-model", { description: "Writes thread titles and other short text." }],
+  [
+    "text-generation-model",
+    { title: "Model for short text", description: "Names chats and writes other short text." },
+  ],
   ["diagnostics", { description: "Inspect processes, resource use, and logs." }],
   ["thread-notifications", { title: "Chat notifications" }],
   // T3's policy is T3's; the row keeps the fact, without its link (`SettingsPanels.tsx`).
