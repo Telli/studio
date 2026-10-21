@@ -24,13 +24,19 @@ export function readViewContext(content: ReadonlyArray<unknown>): {
     readonly data: string;
     readonly mimeType: string;
   }>;
+  /** A note of a change made by hand in the view ("Hand edit · bracket.py"), not a request. */
+  readonly handEdit: boolean;
 } {
+  let handEdit = false;
   const texts: string[] = [];
   const images: Array<{ name: string; data: string; mimeType: string }> = [];
   for (const block of content) {
     if (!isRecord(block)) continue;
     if (block.type === "text" && typeof block.text === "string" && block.text.trim() !== "") {
       texts.push(block.text.trim());
+      const meta = isRecord(block._meta) ? block._meta : {};
+      const title = meta["openai/title"];
+      if (typeof title === "string" && /^hand edit\b/i.test(title.trim())) handEdit = true;
     } else if (block.type === "image" && typeof block.data === "string") {
       const meta = isRecord(block._meta) ? block._meta : {};
       images.push({
@@ -40,21 +46,25 @@ export function readViewContext(content: ReadonlyArray<unknown>): {
       });
     }
   }
-  return { text: texts.join("\n\n"), images };
+  return { text: texts.join("\n\n"), images, handEdit };
 }
 
 /**
  * Puts what the viewer added (its "Add to chat": the person's words, the file
  * and the references they picked, a picture of the view) into the composer,
- * where it can be read and edited before it goes to the agent.
+ * where it can be read and edited before it goes to the agent. A note of a hand
+ * edit goes in quietly: the keyboard stays in the view, where the person is
+ * still working, and a view filling the window stays as it is.
  */
 export function addViewContextToComposer(
   composer: ChatComposerHandle | null,
   content: ReadonlyArray<unknown>,
 ) {
   if (composer === null) return;
-  const { text, images } = readViewContext(content);
-  if (text !== "") composer.insertTextAtEnd(text, { ensureLeadingBoundary: true });
+  const { text, images, handEdit } = readViewContext(content);
+  if (text !== "") {
+    composer.insertTextAtEnd(text, { ensureLeadingBoundary: true, stayHidden: handEdit });
+  }
   if (images.length > 0) {
     composer.addDroppedFiles(
       images.map(
@@ -65,5 +75,5 @@ export function addViewContextToComposer(
       ),
     );
   }
-  composer.focusAtEnd();
+  if (!handEdit) composer.focusAtEnd();
 }

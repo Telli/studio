@@ -19,7 +19,20 @@ describe("view context", () => {
     ).toEqual({
       text: "Make this hole 6 mm\n\nFile: /w/bracket.step",
       images: [{ name: "cad-view-bracket-step.png", data: "iVBO", mimeType: "image/png" }],
+      handEdit: false,
     });
+  });
+
+  it("knows a note of a hand edit from a request", () => {
+    expect(
+      readViewContext([
+        {
+          type: "text",
+          text: "In edit mode I changed Wall thickness from 2 to 2.5.",
+          _meta: { "openai/title": "Hand edit · bracket.py" },
+        },
+      ]).handEdit,
+    ).toBe(true);
   });
 
   it("names an untitled picture by its place", () => {

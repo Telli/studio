@@ -1469,7 +1469,12 @@ export interface ChatComposerHandle {
   hasPendingAttachments: () => boolean;
   insertTextAtEnd: (
     text: string,
-    options?: { ensureLeadingBoundary?: boolean; clipboardData?: DataTransfer },
+    options?: {
+      ensureLeadingBoundary?: boolean;
+      clipboardData?: DataTransfer;
+      /** Studio: leave a panel filling the window as it is (a note written while working there). */
+      stayHidden?: boolean;
+    },
   ) => boolean;
   /** Apply large-paste folding for text redirected from a blurred composer. */
   pasteTextAtEnd: (text: string, options?: { bypassAutoAttachment?: boolean }) => boolean;
@@ -6271,7 +6276,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       }
       // Studio writes jobs into the chat from its menus, the viewer and the Overview: a panel
       // filling the window steps back, so what was written (and the work it starts) shows.
-      if (inserted && isEngineeringInterface()) {
+      if (inserted && isEngineeringInterface() && options?.stayHidden !== true) {
         useRightPanelStore.getState().setMaximized(routeThreadRef, false);
       }
       return inserted;
