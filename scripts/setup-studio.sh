@@ -42,6 +42,10 @@ else
   npx --yes -p "vite-plus@${vp_version:?}" vp install
 fi
 
+# Electron fetches its app on first use; fetching it now keeps Studio's first start quick.
+step "Downloading the desktop app's runtime (Electron)"
+(cd "$ROOT/apps/desktop" && node -e "require('electron')" >/dev/null)
+
 step "Setting up the CAD plugin's Python"
 cd "$CAD"
 # 3.13: the Python Studio's CAD plugin runs on day to day, with its FEA packages.
