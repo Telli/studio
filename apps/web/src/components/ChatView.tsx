@@ -616,6 +616,7 @@ import { PluginStarterPrompts } from "./plugins/PluginStarterPrompts";
 import { usePluginFollow } from "./plugins/usePluginFollow";
 import { PendingStart } from "./workbench/PendingStart";
 import { frontTab, useShowWaitingChat } from "./workbench/overviewPanel";
+import { useProjectTabs } from "./workbench/projectTabs";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { StudioPanelBar } from "./workbench/StudioPanelBar";
 import { ProjectPage } from "./workbench/ProjectPage";
@@ -5904,6 +5905,8 @@ export default function ChatView(props: ChatViewProps) {
     engineeringInterface ? activeThreadRef : null,
     activePendingApproval?.requestId ?? activePendingUserInput?.requestId ?? null,
   );
+  // Studio's tabs are the project folder's, the same beside each of its chats (`projectTabs.ts`).
+  useProjectTabs(engineeringInterface ? activeThreadRef : null, activeWorkspaceRoot ?? null);
   const engineeringSurfaces = useEngineeringSurfaces();
   // Engineering with code tools lets the pinned tab show the source files instead (`workbench/projectView.ts`).
   const projectView = useProjectViewStore((state) => state.view);

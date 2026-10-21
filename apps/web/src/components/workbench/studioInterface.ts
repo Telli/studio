@@ -40,6 +40,16 @@ export const CODE_SURFACE_LABELS: ReadonlySet<string> = new Set([
 export const ENGINEERING_COMPOSER_PLACEHOLDER =
   "Describe a change to the part, or ask about the design";
 
+/**
+ * The composer's own "/" commands in the engineering interface's words. Its "/" menu there leaves
+ * out the agent's coding commands (/init, /review and the like); the skills stay.
+ */
+export const ENGINEERING_SLASH_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  model: "Pick the AI model for this chat",
+  plan: "Plan first: the agent says what it will do, then waits",
+  default: "Back to working on the design",
+};
+
 /** The composer on a thread that has already run, in place of T3's "send follow-ups". */
 export const ENGINEERING_FOLLOW_UP_PLACEHOLDER =
   "Ask for a change, a check, or attach a sketch or photo";

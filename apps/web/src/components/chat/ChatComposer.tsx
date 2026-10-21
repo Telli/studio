@@ -1144,6 +1144,7 @@ import type { ReviewCommentContext } from "../../reviewCommentContext";
 import {
   ENGINEERING_COMPOSER_PLACEHOLDER,
   ENGINEERING_FOLLOW_UP_PLACEHOLDER,
+  ENGINEERING_SLASH_DESCRIPTIONS,
   isEngineeringInterface,
   useEngineeringInterface,
 } from "../workbench/studioInterface";
@@ -2786,8 +2787,18 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       const visibleProviderSlashCommandItems = providerSlashCommandItems.filter(
         (item) => item.command.name !== "compact" || compactSlashCommandAvailable,
       );
+      // Studio's "/" offers its own commands, in its words, and the skills, not the agent's coding commands.
+      const engineering = isEngineeringInterface();
       const slashCommandItems = slashCommandItemsForPromptPosition(
-        [...builtInSlashCommandItems, ...visibleProviderSlashCommandItems, ...skillItems],
+        engineering
+          ? [
+              ...builtInSlashCommandItems.map((item) => ({
+                ...item,
+                description: ENGINEERING_SLASH_DESCRIPTIONS[item.command] ?? item.description,
+              })),
+              ...skillItems,
+            ]
+          : [...builtInSlashCommandItems, ...visibleProviderSlashCommandItems, ...skillItems],
         composerTrigger.rangeStart === 0,
       );
       return searchSlashCommandItems(slashCommandItems, query);
