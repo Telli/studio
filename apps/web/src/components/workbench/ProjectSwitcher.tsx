@@ -21,16 +21,6 @@ import { serverEnvironment } from "~/state/server";
 import { shellEnvironment } from "~/state/shell";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
-import {
-  AlertDialog,
-  AlertDialogClose,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogPopup,
-  AlertDialogTitle,
-} from "../ui/alert-dialog";
-import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -45,6 +35,7 @@ import {
 import type { ListedProject } from "./projectList";
 import { StarButton } from "./StarButton";
 import { BackupDialog } from "./BackupDialog";
+import { folderLabel, RemoveFromStudioDialog } from "./ProjectMenu";
 import { backupPlaceLabel, useLastBackup } from "./useBackup";
 import { useDuplicateProject } from "./useDuplicateProject";
 import { useOpenProject } from "./useOpenProject";
@@ -56,9 +47,6 @@ import { useVersionRequestStore } from "./useVersions";
 
 const actionClass =
   "flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground outline-none transition-colors duration-150 hover:bg-accent focus-visible:bg-accent [&>svg]:size-3.5 [&>svg]:shrink-0 [&>svg]:text-muted-foreground";
-/** The file manager's name where the project's folder opens: Finder on a Mac. */
-const folderLabel = (os: string | undefined) =>
-  os === "darwin" ? "Show in Finder" : os === "win32" ? "Show in File Explorer" : "Show in Files";
 
 /**
  * The project's name at the head of its sidebar (`wide`), or in the top bar while the sidebar is
@@ -318,25 +306,11 @@ export function ProjectSwitcher(props: {
           </div>
         </PopoverPopup>
       </Popover>
-      {current === null ? null : (
-        <AlertDialog open={removing} onOpenChange={setRemoving}>
-          <AlertDialogPopup>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove {current.project.name} from Studio</AlertDialogTitle>
-              <AlertDialogDescription>
-                Its files stay in its folder on this Mac, untouched, and you can import it again any
-                time.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
-              <Button variant="destructive" onClick={remove}>
-                Remove
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogPopup>
-        </AlertDialog>
-      )}
+      <RemoveFromStudioDialog
+        name={removing && current !== null ? current.project.name : null}
+        onCancel={() => setRemoving(false)}
+        onRemove={remove}
+      />
       {current === null ? null : (
         <BackupDialog
           open={backingUp}

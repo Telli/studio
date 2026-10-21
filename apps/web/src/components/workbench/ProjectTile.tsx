@@ -1,5 +1,6 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
+import { EllipsisIcon } from "lucide-react";
 
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
@@ -16,7 +17,8 @@ import { chatLabel } from "./workspaceTitle";
  * A project as Home and Projects show it: a picture of its main part (its first assembly, else
  * its first part or board), or its kind's icon until it has one; its name (marked New on its first
  * day, and Needs you while a chat waits on the person); and its latest chat and when, or the chat
- * that waits. A star sits over the picture (shown on hover, and always once starred).
+ * that waits. A star sits over the picture (shown on hover, and always once starred). With
+ * `onMenu`, a right-click or the "…" on hover opens its menu, as Drive's on a file (`ProjectMenu`).
  */
 export function ProjectTile(props: {
   readonly environmentId: EnvironmentId;
@@ -29,6 +31,8 @@ export function ProjectTile(props: {
   /** When it was opened or worked on, as the project switcher says it (`whenTouched`). */
   readonly when?: string;
   readonly onOpen: () => void;
+  /** Opens the project's menu at a place on screen (`useProjectMenu`). */
+  readonly onMenu?: (position: { readonly x: number; readonly y: number }) => void;
 }) {
   const { environmentId, project } = props;
   const waiting = props.waiting ?? [];
@@ -58,6 +62,14 @@ export function ProjectTile(props: {
       <button
         type="button"
         onClick={props.onOpen}
+        onContextMenu={
+          props.onMenu === undefined
+            ? undefined
+            : (event) => {
+                event.preventDefault();
+                props.onMenu?.({ x: event.clientX, y: event.clientY });
+              }
+        }
         className="group flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <span className="flex aspect-[4/3] items-center justify-center overflow-hidden border-b border-border bg-muted/50">
@@ -69,7 +81,13 @@ export function ProjectTile(props: {
             <KindIcon className={cn("size-8 opacity-60", KIND_TINTS[kind])} aria-hidden="true" />
           )}
         </span>
-        <span className="flex min-w-0 flex-col gap-1 px-3 py-2.5">
+        <span
+          className={cn(
+            "flex min-w-0 flex-col gap-1 px-3 py-2.5",
+            // Room for the "…" at its end, so a long name stops short of it.
+            props.onMenu !== undefined && "pe-9",
+          )}
+        >
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate text-sm font-medium text-foreground">{project.name}</span>
             {first !== undefined ? (
@@ -97,6 +115,19 @@ export function ProjectTile(props: {
         name={project.name}
         className="absolute top-1.5 right-1.5 bg-background/85 opacity-0 group-hover/tile:opacity-100 group-focus-within/tile:opacity-100 data-[starred]:opacity-100"
       />
+      {props.onMenu === undefined ? null : (
+        <button
+          type="button"
+          aria-label={`More for ${project.name}`}
+          onClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect();
+            props.onMenu?.({ x: box.left, y: box.bottom });
+          }}
+          className="absolute right-1.5 bottom-2 flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-opacity duration-150 hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset group-hover/tile:opacity-100"
+        >
+          <EllipsisIcon className="size-4" aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }

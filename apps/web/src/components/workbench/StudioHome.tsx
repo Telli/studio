@@ -25,6 +25,7 @@ import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
 import { waitingFirst, whenTouched } from "./ProjectChoices";
+import { useProjectMenu } from "./ProjectMenu";
 import { ProjectPicker } from "./ProjectPicker";
 import { needsYou } from "./recentActivity";
 import { StudioNew } from "./StudioNew";
@@ -111,6 +112,12 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
     }
     return byProject;
   }, [cards]);
+  // Each tile's menu, as Drive's on a file: the switcher's actions (`ProjectMenu`).
+  const menu = useProjectMenu({
+    environmentId,
+    cards,
+    onOpen: (card) => void openProject(card.folder, card.threads),
+  });
   const split = splitStarred(
     cards,
     useStarredStore((store) => store.starred),
@@ -131,6 +138,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
         when={whenTouched(card)}
         // On the chat waiting on the person, if one is (`useOpenProject`).
         onOpen={() => void openProject(folder, threads)}
+        onMenu={(position) => menu.show(card, position)}
       />
     );
   };
@@ -213,6 +221,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
         </ImportDropZone>
       </div>
       <ImportDialogHost environmentId={environmentId} />
+      {menu.dialogs}
     </SidebarInset>
   );
 }
