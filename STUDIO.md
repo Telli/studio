@@ -156,7 +156,12 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   versions with git and compares the solids in a process of its own
   (`text-to-cad/packages/cadgen/src/cadgen/edit/versions.py` and `solid_diff.py`, ported from
   Fixture's `diff_revision.py`; routes `/__cad/versions` and `/__cad/versions/compare`). It
-  writes under the project folder's `.studio/compare/`, which git is told to leave out.
+  writes under the project folder's `.studio/compare/`, which git is told to leave out. A picked
+  version that is not the newest has Restore this version, as Google Docs does, with no question
+  first: the part's file and its script go back to how that version had them
+  (`/__cad/versions/restore`), what was on disk kept first as a version unless one already holds
+  it (a commit under `refs/studio/kept/`, made with an index of its own, listed as what you had
+  before restoring), and the agent hears of it with the next message, as a hand edit's note.
 - **Home, the switcher and the chats.** In Engineering, Home is Studio's one page (Projects goes
   to it): a top bar with the mark and a search that opens the quick find, then a box for what to
   make. Start sends it to a new project (made, with a first chat that sends it as its first
