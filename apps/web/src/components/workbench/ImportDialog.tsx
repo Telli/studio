@@ -31,6 +31,7 @@ import {
   type ScannedRoot,
   suggestProject,
 } from "./importPlan";
+import { partLabel } from "./partNames";
 import { readStudioImport, rememberScan } from "./studioImportBridge";
 import { useImportProjects } from "./useImportProjects";
 import { useEnvironmentFolders } from "./useProjectFolders";
@@ -103,7 +104,8 @@ function ImportDialog(props: {
   const [placements, setPlacements] = useState<ReadonlyMap<string, number | "new" | null>>(
     new Map(),
   );
-  const [newProjectName, setNewProjectName] = useState("Imported files");
+  // Null until typed: the loose files' new project is named by its one file, else "Imported files".
+  const [typedName, setTypedName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const rootsAreProjects = start.kind !== "scan";
 
@@ -185,7 +187,12 @@ function ImportDialog(props: {
     const index = chosen.indexOf(plan.projects[to]!);
     return { file, to: index === -1 ? null : index };
   });
-  const total = chosen.length + (placed.some((entry) => entry.to === "new") ? 1 : 0);
+  const makesNew = placed.some((entry) => entry.to === "new");
+  const total = chosen.length + (makesNew ? 1 : 0);
+  const newFiles = placed.filter((entry) => entry.to === "new").map((entry) => entry.file);
+  const onlyNew = newFiles.length === 1 ? newFiles[0] : undefined;
+  const newProjectName =
+    typedName ?? (onlyNew === undefined ? "Imported files" : partLabel(onlyNew.path));
 
   const finish = async () => {
     if (busy || total === 0) return;
@@ -348,7 +355,7 @@ function ImportDialog(props: {
               <DialogTitle>
                 {scanning !== null
                   ? `Reading ${scanning}`
-                  : `${plural(plan.projects.length, "project", "projects")}, from ${plural(allFiles.length, "file", "files")}`}
+                  : `${plural(total, "project", "projects")}, from ${plural(allFiles.length, "file", "files")}`}
               </DialogTitle>
               <DialogDescription>
                 Each brings its models, drawings, parts lists and photos together. Uncheck any you
@@ -393,6 +400,19 @@ function ImportDialog(props: {
                     </span>
                   </label>
                 ))}
+                {makesNew ? (
+                  <div className="flex min-w-0 flex-col gap-1.5 rounded-lg border border-border p-3">
+                    <Input
+                      size="sm"
+                      aria-label="New project name"
+                      value={newProjectName}
+                      onChange={(event) => setTypedName(event.target.value)}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      A new project, with {describeCounts(newFiles)}
+                    </span>
+                  </div>
+                ) : null}
               </div>
               {plan.projects.length === 0 && plan.loose.length === 0 && scanning === null ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">
@@ -413,21 +433,6 @@ function ImportDialog(props: {
                   </Button>
                 )}
               </div>
-              {placed.some((entry) => entry.to === "new") ? (
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    A new project for the loose files:
-                  </span>
-                  <div className="w-60">
-                    <Input
-                      size="sm"
-                      aria-label="New project name"
-                      value={newProjectName}
-                      onChange={(event) => setNewProjectName(event.target.value)}
-                    />
-                  </div>
-                </div>
-              ) : null}
             </DialogPanel>
             <DialogFooter>
               <span className="me-auto self-center text-xs text-muted-foreground">

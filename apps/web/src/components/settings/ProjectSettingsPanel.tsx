@@ -542,39 +542,43 @@ function ProjectDetail({
         {/* A project's scripts and `t3.json` are coding tools (`CODE_SETTINGS_ROWS`). */}
         {engineering ? null : <ProjectActionsSettings />}
         {hasMultipleCheckouts ? checkoutChoices : null}
-        <SettingsSection title="Danger">
-          <SettingsRow
-            title={
-              hasOtherMembers
-                ? "Remove checkout"
-                : group.memberProjects.length > 1
-                  ? "Remove this project everywhere"
-                  : "Remove project"
-            }
-            description={
-              hasOtherMembers
-                ? "Deletes the selected machine's checkout entries and their threads. Other machines and files on disk are not touched."
-                : group.memberProjects.length > 1
-                  ? `Deletes all ${group.memberProjects.length} checkout entries and their threads on every machine. Files on disk are not touched.`
-                  : "Deletes the project entry and its threads. Files on disk are not touched."
-            }
-            control={
-              <Button
-                size="sm"
-                variant="destructive-outline"
-                disabled={!canEditGroup}
-                onClick={() => void removeMembers(group.memberProjects)}
-              >
-                <Trash2Icon />
-                {hasOtherMembers
+        {/* Studio removes a project from its switcher (Remove from Studio), its files kept; this
+            one removed only the folder's entry and left the project's tile behind. */}
+        {engineering ? null : (
+          <SettingsSection title="Danger">
+            <SettingsRow
+              title={
+                hasOtherMembers
                   ? "Remove checkout"
                   : group.memberProjects.length > 1
-                    ? "Remove all entries"
-                    : "Remove project"}
-              </Button>
-            }
-          />
-        </SettingsSection>
+                    ? "Remove this project everywhere"
+                    : "Remove project"
+              }
+              description={
+                hasOtherMembers
+                  ? "Deletes the selected machine's checkout entries and their threads. Other machines and files on disk are not touched."
+                  : group.memberProjects.length > 1
+                    ? `Deletes all ${group.memberProjects.length} checkout entries and their threads on every machine. Files on disk are not touched.`
+                    : "Deletes the project entry and its threads. Files on disk are not touched."
+              }
+              control={
+                <Button
+                  size="sm"
+                  variant="destructive-outline"
+                  disabled={!canEditGroup}
+                  onClick={() => void removeMembers(group.memberProjects)}
+                >
+                  <Trash2Icon />
+                  {hasOtherMembers
+                    ? "Remove checkout"
+                    : group.memberProjects.length > 1
+                      ? "Remove all entries"
+                      : "Remove project"}
+                </Button>
+              }
+            />
+          </SettingsSection>
+        )}
       </SettingsPageContainer>
 
       <ProjectFaviconPickerDialog

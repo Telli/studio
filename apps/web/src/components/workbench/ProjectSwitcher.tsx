@@ -11,6 +11,7 @@ import {
   HomeIcon,
   PencilIcon,
   PlusIcon,
+  Trash2Icon,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
@@ -21,7 +22,17 @@ import { serverEnvironment } from "~/state/server";
 import { shellEnvironment } from "~/state/shell";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogPopup,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
 import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -95,6 +106,15 @@ export function ProjectSwitcher(props: {
   // Versions are kept of parts: a project with none yet has no history to show.
   const hasDesign = useProjectHasDesign(environmentId, current?.project ?? null);
   const [backingUp, setBackingUp] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  // Out of Studio, not off the disk: its folder and files stay, to be imported again any time.
+  const remove = () => {
+    if (current === null) return;
+    setRemoving(false);
+    void save(current.id, null).then((id) => {
+      if (id !== null) void navigate({ to: "/" });
+    });
+  };
   // The open project is at the top, with its own menu; the list is the others, to switch to.
   const canShowFolder =
     props.folder !== null && serverConfig?.availableEditors.includes("file-manager") === true;
@@ -268,6 +288,12 @@ export function ProjectSwitcher(props: {
                   {folderLabel(serverConfig?.environment.platform.os)}
                 </button>
               ) : null}
+              {current === null ? null : (
+                <button type="button" className={actionClass} onClick={go(() => setRemoving(true))}>
+                  <Trash2Icon aria-hidden="true" />
+                  Remove from Studio…
+                </button>
+              )}
             </div>
             <p className="px-2 pt-1.5 text-2xs text-muted-foreground">
               {backup.last === null
@@ -305,6 +331,25 @@ export function ProjectSwitcher(props: {
           </div>
         </PopoverPopup>
       </Popover>
+      {current === null ? null : (
+        <AlertDialog open={removing} onOpenChange={setRemoving}>
+          <AlertDialogPopup>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove {current.project.name} from Studio</AlertDialogTitle>
+              <AlertDialogDescription>
+                Its files stay in its folder on this Mac, untouched, and you can import it again any
+                time.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
+              <Button variant="destructive" onClick={remove}>
+                Remove
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogPopup>
+        </AlertDialog>
+      )}
       {current === null ? null : (
         <BackupDialog
           open={backingUp}
