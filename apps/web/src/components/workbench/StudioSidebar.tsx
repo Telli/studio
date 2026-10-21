@@ -63,7 +63,7 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
   const project: EnvironmentProject | null = useProject(
     folderId === null ? null : scopeProjectRef(environmentId, folderId),
   );
-  const { folder, title, isNew } = useProjectHeading(environmentId, project);
+  const { folder, title } = useProjectHeading(environmentId, project);
   const chats = useProjectChats(environmentId, project);
   // A new chat has no thread in the address yet; the workspace's own ref covers it too.
   const workspaceRef = useOpenWorkspaceStore((store) => store.workspace?.threadRef ?? null);
@@ -84,13 +84,7 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
       {/* The project's switcher is here while the sidebar shows, else in the top bar (one ⌘O). */}
       {(isMobile ? openMobile : open) ? (
         <div data-tour="project">
-          <ProjectSwitcher
-            environmentId={environmentId}
-            folder={folder}
-            title={title}
-            isNew={isNew}
-            wide
-          />
+          <ProjectSwitcher environmentId={environmentId} folder={folder} title={title} wide />
         </div>
       ) : null}
       <SidebarMenu className="mt-2">

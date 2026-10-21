@@ -22,7 +22,7 @@ import {
 } from "../ui/menu";
 import { type HardwareAction, hardwareActions } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
-import { useNewDialogStore } from "./NewDialog";
+import { handToChat, useNewDialogStore } from "./NewDialog";
 
 /** New on Documents (the toolbar's, `StudioNew`): a PRD, requirements, an FMEA, your own. */
 function newDocument() {
@@ -34,8 +34,9 @@ function newDocument() {
  * (`kinds.ts`): the jobs its kind takes that the enabled plugins have skills for, the everyday ones
  * in titled sections (Manufacture leading with the project's own way of making it), then one
  * "More" that opens the quick find (⌘K, `StudioQuickFind`) on all of the menu's jobs, the long
- * tail too; Document also starts a document from a template (`NewDialog`). A pick writes the job,
- * naming the part by a link to its file, into the composer.
+ * tail too; Document also starts a document from a template (`NewDialog`). A pick sends the job to
+ * the chat, naming the part by a link to its file, as New's Create does: its prompt asks for what
+ * it needs (the loads, the machine), so nothing waits on a second press.
  */
 export function PartActions(props: {
   readonly environmentId: EnvironmentId;
@@ -62,12 +63,8 @@ export function PartActions(props: {
     "commandPalette.toggle",
   );
   if (groups.length === 0) return null;
-  const write = (action: HardwareAction) => {
-    const composer = props.composerRef.current;
-    if (!composer) return;
-    composer.insertTextAtEnd(action.prompt(props.file), { ensureLeadingBoundary: true });
-    composer.focusAtEnd();
-  };
+  const write = (action: HardwareAction) =>
+    handToChat(props.composerRef, action.prompt(props.file));
   const item = (action: HardwareAction) => (
     <MenuItem key={action.id} onClick={() => write(action)}>
       {action.label}

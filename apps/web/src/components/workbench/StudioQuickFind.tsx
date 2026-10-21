@@ -161,15 +161,7 @@ function QuickFindBody(props: {
   );
   const partTitle = part === null ? null : (classifyProjectFile(part.path)?.title ?? part.path);
 
-  const writeJob = (prompt: string) => {
-    const composer = composerRef?.current ?? null;
-    if (composer !== null) {
-      composer.insertTextAtEnd(prompt, { ensureLeadingBoundary: true });
-      composer.focusAtEnd();
-    }
-    close();
-  };
-  // A new document starts as New's Create starts it: written into the chat and sent.
+  // A job, or a new document, starts as New's Create starts it: written into the chat and sent.
   const startWork = (prompt: string) => {
     if (composerRef !== null) handToChat(composerRef, prompt);
     close();
@@ -201,7 +193,7 @@ function QuickFindBody(props: {
             icon: <JobIcon group={action.group} />,
             title: action.label,
             description: place,
-            run: () => writeJob(action.prompt(serializeComposerFileLink(part.path))),
+            run: () => startWork(action.prompt(serializeComposerFileLink(part.path))),
           })),
         };
   const shownParts = typed

@@ -30,7 +30,6 @@ import {
   AlertDialogPopup,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
@@ -63,8 +62,8 @@ const folderLabel = (os: string | undefined) =>
 
 /**
  * The project's name at the head of its sidebar (`wide`), or in the top bar while the sidebar is
- * folded, as a CAD tool's document switcher: a control that says it is the project (its picture,
- * "Project" over its name, the up-and-down chevrons every switcher has), opened by a click or
+ * folded, as a CAD tool's document switcher: a control that says it is the project on one line
+ * (its picture, its name, the up-and-down chevrons every switcher has), opened by a click or
  * Cmd+O. Its top is the open project's own menu: Rename, Duplicate (a copy with its own folder,
  * `useDuplicateProject`), Version history (the Overview's Versions), Back up (into a folder the
  * person chooses once, `useBackup`), Show in Finder and its star. Below, the other projects to
@@ -77,8 +76,6 @@ export function ProjectSwitcher(props: {
   /** The workspace's folder: its project is marked open. */
   readonly folder: string | null;
   readonly title: string;
-  /** Marked New on its first day. */
-  readonly isNew: boolean;
   /** Across its container, as the head of the project's sidebar. */
   readonly wide?: boolean;
 }) {
@@ -180,19 +177,9 @@ export function ProjectSwitcher(props: {
               project={current?.project ?? null}
               size={props.wide ? "md" : "sm"}
             />
-            <span className="flex min-w-0 flex-col">
-              <span className="text-3xs leading-3 font-medium tracking-wider text-muted-foreground uppercase">
-                Project
-              </span>
-              <span className="truncate text-sm leading-4 font-semibold text-foreground">
-                {props.title}
-              </span>
+            <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+              {props.title}
             </span>
-            {props.isNew ? (
-              <Badge variant="info" size="sm">
-                New
-              </Badge>
-            ) : null}
             <ChevronsUpDownIcon
               className={cn(
                 "size-3.5 shrink-0 text-muted-foreground",

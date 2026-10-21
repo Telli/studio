@@ -30,6 +30,7 @@ import {
   setupRequest,
 } from "./briefFolder";
 import { MaterialPicker } from "./MaterialPicker";
+import { handToChat } from "./NewDialog";
 import {
   useSaveStudioProject,
   useStudioProjectAt,
@@ -101,8 +102,8 @@ function Property(props: { readonly label: string; readonly children: ReactNode 
 /**
  * The project's setup, shown the way a CAD tool shows its document
  * properties: units, material (from the library, `MaterialPicker`), process
- * and quantity. Picking a value does not change it: it writes the request
- * into the composer, and the agent changes the setup (the project's
+ * and quantity. Picking a value sends the request to the chat, as the part
+ * menus send a job, and the agent changes the setup (the project's
  * `project.json`, `studioProjectContext`), says what it means for the parts,
  * and waits for a go. Only a folder in no project yet is set up in place,
  * since there is no project for the agent to change. What the project is for
@@ -152,10 +153,8 @@ export function ProjectSetup(props: {
       });
       return;
     }
-    const composer = props.composerRef.current;
-    if (!composer) return;
-    composer.insertTextAtEnd(setupRequest(key, value), { ensureLeadingBoundary: true });
-    composer.focusAtEnd();
+    // Sent as a CAD tool applies a property: the agent changes the setup and says what it means.
+    handToChat(props.composerRef, setupRequest(key, value));
   };
   const commitQuantity = () => {
     if (quantity === null) return;

@@ -3,7 +3,6 @@ import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { useParams } from "@tanstack/react-router";
 import { ChevronRightIcon, MessageSquareIcon } from "lucide-react";
 
-import { useNowMinute } from "~/hooks/useNowMinute";
 import { resolveThreadRouteRef } from "~/threadRoutes";
 import { useSidebar } from "../ui/sidebar";
 import { showOverview } from "./overviewPanel";
@@ -14,19 +13,15 @@ import { StudioNav } from "./StudioTopBar";
 import { useStudioProjectAt } from "./useStudioProjects";
 import { chatLabel, workspaceTitle } from "./workspaceTitle";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** How a workspace names its project: its folder, its name, and New on its first day. */
+/** How a workspace names its project: its folder and its name. */
 export function useProjectHeading(
   environmentId: EnvironmentId,
   project: EnvironmentProject | null,
 ) {
   const folder = project?.workspaceRoot ?? null;
   const studio = useStudioProjectAt(environmentId, folder);
-  const now = Date.parse(`${useNowMinute()}:00Z`);
   const title = workspaceTitle(studio?.project.name ?? project?.title ?? null, folder);
-  const isNew = studio !== null && now - Date.parse(studio.project.createdAt) < DAY_MS;
-  return { folder, title, isNew };
+  return { folder, title };
 }
 
 /**
@@ -34,8 +29,8 @@ export function useProjectHeading(
  * path, the project, then the open chat in it (Google Drive's "My Drive › folder"). While the
  * project shows down the left (`StudioSidebar`, its switcher at the top), the project's name here
  * opens its Overview; folded away (the sidebar's own toggle or its shortcut), the bar leads with
- * Studio's mark (Home) and the project's switcher (`ProjectSwitcher`, marked New on its first
- * day). The panel's toolbar carries the rest (`StudioPanelBar`).
+ * Studio's mark (Home) and the project's switcher (`ProjectSwitcher`). The panel's toolbar
+ * carries the rest (`StudioPanelBar`).
  */
 export function StudioWorkspaceBar(props: {
   readonly environmentId: EnvironmentId;
@@ -43,7 +38,7 @@ export function StudioWorkspaceBar(props: {
   /** The open chat's title. */
   readonly chatTitle: string;
 }) {
-  const { folder, title, isNew } = useProjectHeading(props.environmentId, props.project);
+  const { folder, title } = useProjectHeading(props.environmentId, props.project);
   const { isMobile, open } = useSidebar();
   const projectShown = open && !isMobile;
   const routeRef: ScopedThreadRef | null = useParams({
@@ -69,12 +64,7 @@ export function StudioWorkspaceBar(props: {
         <>
           <StudioNav compact />
           <span aria-hidden className="mx-1.5 h-4 w-px shrink-0 bg-border" />
-          <ProjectSwitcher
-            environmentId={props.environmentId}
-            folder={folder}
-            title={title}
-            isNew={isNew}
-          />
+          <ProjectSwitcher environmentId={props.environmentId} folder={folder} title={title} />
         </>
       )}
       <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />

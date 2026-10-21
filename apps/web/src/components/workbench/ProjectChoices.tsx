@@ -18,7 +18,7 @@ import { useProjectCover } from "./useProjectCover";
  * its list, so a project looks and is found the same everywhere.
  */
 
-/** The control a project is chosen with: a bordered button, its picture, "Project" over a name. */
+/** The control a project is chosen with: a bordered button, its picture and its name on one line. */
 export const PROJECT_CONTROL_CLASS =
   "flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border bg-background py-1 ps-1 pe-2 text-left shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset data-[popup-open]:bg-accent";
 
