@@ -105,6 +105,7 @@ import {
 } from "./workbench/studioInterface";
 import { partLabel, partName } from "./workbench/partNames";
 import { useProjectViewStore } from "./workbench/projectView";
+import { FileKindIcon } from "./workbench/FileKindIcon";
 import { PinnedProjectTab } from "./workbench/PinnedProjectTab";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
 
@@ -120,6 +121,8 @@ interface RightPanelTabsProps {
   defaultWidth?: number;
   inlineSize?: PreviewPanelInlineSize;
   layoutControls?: ReactNode;
+  /** A row under the tabs for what can be done to the surface in front (Studio's toolbar). */
+  toolbar?: ReactNode;
   surfaces: readonly RightPanelSurface[];
   /** Fallback environment for surfaces that do not carry their own. */
   environmentId: EnvironmentId | null;
@@ -704,7 +707,10 @@ function SurfaceIcon({
     case "files":
       return <Files className="size-3 shrink-0" />;
     case "file":
-      return (
+      // In the engineering interface a tab wears its file's kind, as a browser tab its site's icon.
+      return isEngineeringInterface() ? (
+        <FileKindIcon path={surface.relativePath} className="size-3.5" />
+      ) : (
         <PierreEntryIcon
           pathValue={surface.relativePath}
           kind="file"
@@ -733,9 +739,13 @@ function SurfaceIcon({
         <Smartphone className="size-3 shrink-0" />
       );
     case "plugin-app":
-      // In the workbench (Studio) a plugin view is the model or board viewer.
+      // In the workbench (Studio) a plugin view is the model or board viewer, marked by its kind.
       return WORKBENCH_LAYOUT ? (
-        <Box className="size-3 shrink-0" />
+        surface.file === undefined ? (
+          <Box className="size-3 shrink-0" />
+        ) : (
+          <FileKindIcon path={surface.file} className="size-3.5" />
+        )
       ) : (
         <Puzzle className="size-3 shrink-0" />
       );
@@ -1527,6 +1537,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           />
         ) : null}
       </div>
+      {props.toolbar === undefined ? null : (
+        <div
+          className="flex h-10 shrink-0 items-center border-b border-border px-3"
+          data-right-panel-toolbar
+        >
+          {props.toolbar}
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col" data-right-panel-surface-content>
         {props.activeSurfaceId === null ? (
           <RightPanelEmptyState

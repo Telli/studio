@@ -1,6 +1,5 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
-import { PlusIcon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
@@ -8,12 +7,11 @@ import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh
 import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
-import { Button } from "../ui/button";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { leadPartOf } from "./leadPart";
-import { useNewDialogStore } from "./NewDialog";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { PartActions } from "./PartActions";
+import { StudioNew } from "./StudioNew";
 import { partName } from "./partNames";
 import { usePartContext } from "./usePartContext";
 import { useStudioProjectAt } from "./useStudioProjects";
@@ -53,13 +51,12 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
 }
 
 /**
- * The rest of a project workspace's top bar, in the panel's title row (the chat's row carries
- * `StudioWorkspaceBar`), one row of what can be done to the thing in front: over the Overview,
- * the project's New (a part, a board, a document); over a part in the CAD viewer, Ask or Edit by
- * hand (`editsByHand`; the mode is the project's, `workspaceMode.ts`, which the CAD views take
+ * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
+ * can be done: New, always first (`StudioNew`), then, over a part in the CAD viewer, Ask or Edit
+ * by hand (`editsByHand`; the mode is the project's, `workspaceMode.ts`, which the CAD views take
  * from the host context) and the part's jobs (Evaluate, Manufacture, with the files to export,
- * and Document), led by the project's way of making it; over a document, nothing. ⌘K's jobs are
- * for the part last on screen, else the lead part.
+ * and Document), led by the project's way of making it. ⌘K's jobs are for the part last on
+ * screen, else the lead part.
  */
 export function StudioPanelBar(props: {
   readonly folder: string | null;
@@ -128,28 +125,30 @@ export function StudioPanelBar(props: {
   }, [folder, process, setWorkspace, subjectKind, subjectPath, threadRef]);
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
-      <div className="flex min-w-0 flex-1 justify-center">
-        {byHandShown ? (
-          <ToggleGroup
-            aria-label="How to change the part"
-            value={[mode]}
-            onValueChange={(next) => {
-              const value = next[0];
-              if (folder !== null && (value === "ask" || value === "manual"))
-                setMode(folder, value);
-            }}
-          >
-            <Toggle value="ask">Ask</Toggle>
-            <Toggle value="manual">Edit by hand</Toggle>
-          </ToggleGroup>
-        ) : null}
-      </div>
-      {frontKind === "files" && props.composerRef !== null ? (
-        <Button size="sm" onClick={() => useNewDialogStore.getState().ask()}>
-          <PlusIcon aria-hidden="true" />
-          New
-        </Button>
+    <div className="flex min-w-0 flex-1 items-center gap-2" data-studio-toolbar="">
+      {props.composerRef === null || folder === null ? null : (
+        <StudioNew
+          environmentId={threadRef.environmentId}
+          cwd={folder}
+          threadRef={threadRef}
+          composerRef={props.composerRef}
+        />
+      )}
+      {byHandShown || inFront !== null ? (
+        <span aria-hidden="true" className="mx-1 h-4 w-px shrink-0 bg-border" />
+      ) : null}
+      {byHandShown ? (
+        <ToggleGroup
+          aria-label="How to change the part"
+          value={[mode]}
+          onValueChange={(next) => {
+            const value = next[0];
+            if (folder !== null && (value === "ask" || value === "manual")) setMode(folder, value);
+          }}
+        >
+          <Toggle value="ask">Ask</Toggle>
+          <Toggle value="manual">Edit by hand</Toggle>
+        </ToggleGroup>
       ) : null}
       {inFront === null || props.composerRef === null ? null : (
         <PartActions
@@ -161,8 +160,6 @@ export function StudioPanelBar(props: {
           inTopBar
         />
       )}
-      {/* Clear of the panel's own controls, fixed at the title row's end (T3 keeps pr-28 for them). */}
-      <span aria-hidden className="w-28 shrink-0" />
     </div>
   );
 }

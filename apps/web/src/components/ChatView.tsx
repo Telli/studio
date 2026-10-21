@@ -12175,7 +12175,7 @@ export default function ChatView(props: ChatViewProps) {
           mode="inline"
           {...(engineeringInterface
             ? {
-                layoutControls: (
+                toolbar: (
                   <StudioPanelBar
                     folder={activeProject?.workspaceRoot ?? null}
                     composerRef={composerRef}

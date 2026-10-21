@@ -716,7 +716,8 @@ export function ProjectPage(props: {
           />
         ) : null}
       </div>
-      {composerRef === null ? null : (
+      {/* In Engineering New is the panel toolbar's, always there (`StudioNew`). */}
+      {composerRef === null || plainWords ? null : (
         <NewDialog
           key={`${newOpen.count}:${asked === null ? "" : (asked.discipline ?? "first")}`}
           open={newOpen.open || asked !== null}

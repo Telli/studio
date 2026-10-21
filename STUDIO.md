@@ -170,10 +170,12 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   app, Version history, Back up and Show in Finder); then its Overview, New chat, and its chats,
   newest first. What the project holds is on its Overview. The top bar names the open chat; with
   the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the project's
-  switcher. The panel's title row is one row of what can be done to the thing in front
-  (`StudioPanelBar.tsx`): the project's New over the Overview; Ask or Edit by hand and Evaluate,
-  Manufacture and Document over a part; nothing over a document. The part tabs run along the
-  panel's bottom, the Overview first. Engineering with code keeps T3 Code's thread sidebar, with the
+  switcher. The panel's tabs are what was opened lately, along its top as a browser's are
+  (`brand/theme.css`): the Overview pinned first as its icon, then each file with its kind's
+  colored icon (`FileKindIcon.tsx`), the one in front joined to the toolbar under them. The
+  toolbar is one line of what can be done (`StudioPanelBar.tsx`): New, always first, as Drive's
+  is (`StudioNew.tsx`, which hosts New's dialog in Engineering); then, over a part, Ask or Edit
+  by hand and Evaluate, Manufacture and Document. Engineering with code keeps T3 Code's thread sidebar, with the
   projects listed in it.
 - **Back up.** A project is already a folder on the Mac with its versions in it; the project's
   menu backs it up somewhere else (`components/workbench/BackupDialog.tsx`). GitHub: a private

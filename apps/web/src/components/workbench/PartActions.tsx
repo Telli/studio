@@ -4,7 +4,6 @@ import { ChevronDownIcon } from "lucide-react";
 import { Fragment, useMemo } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
-import { useRightPanelStore } from "~/rightPanelStore";
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { pluginEnvironment } from "~/state/plugins";
@@ -24,12 +23,9 @@ import {
 import { type HardwareAction, hardwareActions } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
 import { useNewDialogStore } from "./NewDialog";
-import { useOpenWorkspaceStore } from "./openWorkspace";
 
-/** The project's New dialog on Documents, over its Overview: a PRD, requirements, an FMEA, your own. */
+/** New on Documents (the toolbar's, `StudioNew`): a PRD, requirements, an FMEA, your own. */
 function newDocument() {
-  const workspace = useOpenWorkspaceStore.getState().workspace;
-  if (workspace !== null) useRightPanelStore.getState().open(workspace.threadRef, "files");
   useNewDialogStore.getState().ask("Documents");
 }
 

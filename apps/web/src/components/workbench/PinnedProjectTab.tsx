@@ -1,6 +1,7 @@
 import { FileCodeIcon, LayoutDashboardIcon } from "lucide-react";
 
 import { cn } from "~/lib/utils";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { ProjectView } from "./projectView";
 
 const VIEWS = [
@@ -14,7 +15,8 @@ const VIEWS = [
  * boards, documents and outputs that open as tabs come from. It cannot be
  * closed or dragged; a press brings the project page back. With code tools
  * (`studioInterface.ts`, `both`), Source sits beside it: the same place shown
- * as T3 Code's file explorer, scripts and all.
+ * as T3 Code's file explorer, scripts and all. Alone (the engineering interface) it is the
+ * Overview, pinned as a browser pins a tab: its icon only, ahead of the files that open as tabs.
  */
 export function PinnedProjectTab(props: {
   /** Whether the project's surface is the panel's active one. */
@@ -23,8 +25,30 @@ export function PinnedProjectTab(props: {
   readonly withSource: boolean;
   readonly onSelect: (view: ProjectView) => void;
 }) {
-  // Alone (the engineering interface), the project's page is its Overview, beside the part tabs.
-  const views = props.withSource ? VIEWS : [{ ...VIEWS[0]!, label: "Overview" }];
+  if (!props.withSource) {
+    const pressed = props.active && props.view === "project";
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              aria-label="Overview"
+              aria-pressed={pressed}
+              data-pinned-project-tab=""
+              data-active-tab={pressed}
+              onClick={() => props.onSelect("project")}
+              className="flex shrink-0 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            />
+          }
+        >
+          <LayoutDashboardIcon className="size-3.5" aria-hidden="true" />
+        </TooltipTrigger>
+        <TooltipPopup side="bottom">Overview, everything in the project</TooltipPopup>
+      </Tooltip>
+    );
+  }
+  const views = VIEWS;
   return (
     <div className="flex shrink-0 items-center gap-0.5 pe-1.5" data-pinned-project-tab="">
       {views.map(({ view, label, Icon }) => {
