@@ -555,7 +555,7 @@ class CadApp:
                     self._handle_artifact_build(request, response, query)
                 elif pathname in ("/__cad/edit/state", "/__cad/edit/change"):
                     self._handle_edit(request, response, pathname)
-                elif pathname in ("/__cad/versions", "/__cad/versions/compare"):
+                elif pathname in ("/__cad/versions", "/__cad/versions/compare", "/__cad/versions/restore"):
                     self._handle_versions(request, response, pathname)
                 elif pathname in ("/__cad/analytics", "/__cad/analytics/activity") and self.analytics is not None:
                     # A page's crash report carries its frames (``_report_activity``): room for them, and no more.
@@ -846,8 +846,9 @@ class CadApp:
 
     def _handle_versions(self, request, response, pathname):
         """Studio's versions of a part (``cadgen/edit/versions.py``): the versions of one file in
-        the project's checkpoints, and what changed between two of them. Git and a process of its
-        own do the work, never this one. Failures are answered, as edit mode's are."""
+        the project's checkpoints, what changed between two of them, and going back to one (what is
+        on disk kept as a version first). Git and a process of its own do the work, never this one.
+        Failures are answered, as edit mode's are."""
         if int(request.headers.get("content-length") or 0) > 65536:
             response.send_empty(413, [("connection", "close")])
             return
@@ -867,6 +868,8 @@ class CadApp:
                     payload.get("texts") if type(payload.get("texts")) is list else None,
                     retry=payload.get("retry") is True,
                 )
+            elif pathname.endswith("/restore"):
+                result = versions.restore(folder, path, str(payload.get("version") or ""))
             else:
                 result = versions.versions(folder, path)
         except Exception as error:  # noqa: BLE001

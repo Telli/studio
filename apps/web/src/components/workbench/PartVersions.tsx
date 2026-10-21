@@ -3,16 +3,30 @@ import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import type { ComposerHandleRef } from "~/composerHandleContext";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
+import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
+import { toastManager } from "../ui/toast";
 import type { CheckResult } from "./checkResults";
 import { OverviewModule } from "./OverviewModules";
 import type { ProjectFile } from "./projectFiles";
-import { useCadService, usePartVersions, useVersionRequestStore } from "./useVersions";
+import {
+  restoreVersion,
+  useCadService,
+  usePartVersions,
+  useVersionRequestStore,
+} from "./useVersions";
 import { type VersionChoice, WhatChanged } from "./WhatChanged";
-import { NOW, checkpointScopeOf, readCheckpointRef, type PartVersion } from "./versions";
+import {
+  checkpointScopeOf,
+  plainRestoreError,
+  readCheckpointRef,
+  restoreNote,
+  versionChoices,
+} from "./versions";
 import { chatLabel } from "./workspaceTitle";
 
 /** A part of the project, as the Overview lists it. */
@@ -75,6 +89,8 @@ export function PartVersions(props: {
   readonly folded: boolean;
   readonly onFold: () => void;
   readonly onOpen: (root: string, path: string) => void;
+  /** The chat's composer, where a restore's note to the agent goes quietly, as a hand edit's does. */
+  readonly composerRef?: ComposerHandleRef | null;
 }) {
   useNowMinute();
   const post = useCadService(props.environmentId, props.threadRef.threadId);
@@ -101,11 +117,14 @@ export function PartVersions(props: {
   const part =
     asked ?? props.parts.find((entry) => partKey(entry) === chosenKey) ?? props.parts[0] ?? null;
   const key = part === null ? "" : partKey(part);
+  // Each restore reads the versions again, as the agent's changes do.
+  const [restores, setRestores] = useState(0);
+  const [restoring, setRestoring] = useState(false);
   const listed = usePartVersions({
     post,
     folder: part?.root ?? "",
     path: part === null ? null : versionedPath(part.file),
-    mutationId: props.mutationId,
+    mutationId: `${props.mutationId ?? ""}\n${restores}`,
   });
   const versions = listed?.versions ?? null;
   const byScope = useChatsByScope(props.chats);
@@ -129,21 +148,15 @@ export function PartVersions(props: {
 
   const choices = useMemo((): VersionChoice[] => {
     if (versions === null) return [];
-    return versions.map((version: PartVersion, index) => {
-      const turn = readCheckpointRef(version.ref);
-      const chat = turn === null ? undefined : byScope.get(turn.scope);
-      const when = formatRelativeTimeLabel(new Date(version.time * 1000).toISOString());
-      return {
-        id: version.id,
-        label: version.id === NOW ? "Now" : `Version ${index + 1}`,
-        detail:
-          version.id === NOW
-            ? `changed by hand ${when}`
-            : chat === undefined
-              ? when
-              : `${when}, ${chatLabel(chat.title)}`,
-      };
-    });
+    return versionChoices(
+      versions,
+      (version) => {
+        const turn = readCheckpointRef(version.ref);
+        const chat = turn === null ? undefined : byScope.get(turn.scope);
+        return chat === undefined ? null : chatLabel(chat.title);
+      },
+      (version) => formatRelativeTimeLabel(new Date(version.time * 1000).toISOString()),
+    );
   }, [byScope, versions]);
 
   // The version asked for (a chip's turn, found by its checkpoint) or picked, else the newest; against
@@ -180,6 +193,45 @@ export function PartVersions(props: {
     settle();
     setPicked({ key, newer: newerId, older: olderId });
   };
+
+  // Restore this version, as Google Docs has it: no question first, since what was on disk is kept
+  // as a version (`versions.py` `restore`); the agent hears of it with the next message.
+  const restore = async () => {
+    if (post === null || part === null || newer === null || restoring) return;
+    const version = versions?.[newerIndex];
+    if (version === undefined) return;
+    setRestoring(true);
+    const result = await restoreVersion(post, {
+      folder: part.root,
+      path: versionedPath(part.file),
+      version: version.id,
+    });
+    setRestoring(false);
+    if ("error" in result) {
+      toastManager.add({
+        type: "error",
+        title: `Couldn't restore ${newer.label}`,
+        description: plainRestoreError(result.error),
+      });
+      return;
+    }
+    const when = formatRelativeTimeLabel(new Date(version.time * 1000).toISOString());
+    props.composerRef?.current?.insertTextAtEnd(
+      restoreNote({ part: part.file.title, version: newer.label, when, files: result.restored }),
+      { ensureLeadingBoundary: true, stayHidden: true },
+    );
+    toastManager.add({
+      type: "success",
+      title: `Restored ${newer.label} of ${part.file.title}`,
+      ...(result.kept === null ? {} : { description: "What you had is kept as a version." }),
+    });
+    // The newest version, the one just restored, against what was there before it (a chip's
+    // request for a turn's version lets go).
+    settle();
+    setPicked(null);
+    setRestores((count) => count + 1);
+  };
+  const restorable = versions !== null && newerIndex !== -1 && newerIndex < versions.length - 1;
 
   const newestFirst = choices.toReversed();
   const shown = all ? newestFirst : newestFirst.slice(0, SHOWN);
@@ -267,6 +319,20 @@ export function PartVersions(props: {
                   {all ? "Show fewer" : `Show all ${choices.length}`}
                 </button>
               ) : null}
+              {newer === null || !restorable ? null : (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
+                  <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+                    {newer.label} of {part.file.title}, {newer.detail}
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={restoring || post === null}
+                    onClick={() => void restore()}
+                  >
+                    {restoring ? "Restoring…" : "Restore this version"}
+                  </Button>
+                </div>
+              )}
               {newer === null ? null : (
                 <WhatChanged
                   key={`${key}\n${newer.id}`}

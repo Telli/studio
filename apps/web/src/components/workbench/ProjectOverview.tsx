@@ -494,6 +494,7 @@ export function ProjectOverview(props: {
             folded={folded.includes("Versions")}
             onFold={() => toggle("Versions")}
             onOpen={props.onOpen}
+            composerRef={props.composerRef}
           />
         )}
         {/* A project of one part shows it above, large; these are for picking among several. */}

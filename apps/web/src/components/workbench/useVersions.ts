@@ -108,6 +108,28 @@ export function usePartVersions(input: {
   return state !== null && state.key === key ? state : null;
 }
 
+/**
+ * Restores a version of a file (`cadgen/edit/versions.py` `restore`): the file and what it is
+ * built from, written over the files on disk, what was there kept as a version first. Resolves to
+ * the files written (paths in the folder) and the kept version, or the CAD service's reason.
+ */
+export async function restoreVersion(
+  post: CadPost,
+  input: { readonly folder: string; readonly path: string; readonly version: string },
+): Promise<
+  | { readonly restored: ReadonlyArray<string>; readonly kept: string | null }
+  | { readonly error: string }
+> {
+  const reply = await post("/__cad/versions/restore", input);
+  if (isRecord(reply) && reply.ok === true && Array.isArray(reply.restored)) {
+    return {
+      restored: reply.restored.filter((path): path is string => typeof path === "string"),
+      kept: typeof reply.kept === "string" ? reply.kept : null,
+    };
+  }
+  return { error: failure(reply) };
+}
+
 interface ComparisonState {
   readonly comparison: Comparison | null;
   readonly error: string | null;

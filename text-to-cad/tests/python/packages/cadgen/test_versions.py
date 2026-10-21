@@ -156,6 +156,60 @@ class Compare(Project):
             versions.compare(str(self.repo), "missing.step", self.older, self.newer)
 
 
+class Restore(Project):
+    """Going back to a version, as Google Docs' Restore this version does: the part's file and its
+    script as that version had them, what was on disk kept as a version first."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        write(self.repo, "hook.py", "HOOK_DEPTH = 40\n")
+        write(self.repo, "hook.step", "ISO-10303-21; depth 40\n")
+        self.first = checkpoint(self.repo, 0, 1_000)
+        write(self.repo, "hook.py", "HOOK_DEPTH = 48\n")
+        write(self.repo, "hook.step", "ISO-10303-21; depth 48\n")
+        self.second = checkpoint(self.repo, 1, 2_000)
+
+    def listed(self) -> list[str]:
+        return [version["id"] for version in versions.versions(str(self.repo), "hook.step")["versions"]]
+
+    def test_going_back_keeps_what_was_on_disk_as_a_version_first(self):
+        write(self.repo, "hook.py", "HOOK_DEPTH = 52\n")  # a hand edit since the last turn
+        write(self.repo, "hook.step", "ISO-10303-21; depth 52\n")
+        result = versions.restore(str(self.repo), "hook.step", self.first)
+        self.assertEqual(sorted(result["restored"]), ["hook.py", "hook.step"])
+        self.assertEqual((self.repo / "hook.py").read_text(), "HOOK_DEPTH = 40\n")
+        self.assertEqual((self.repo / "hook.step").read_text(), "ISO-10303-21; depth 40\n")
+        kept = result["kept"]
+        self.assertEqual(git(self.repo, "show", f"{kept}:hook.py"), "HOOK_DEPTH = 52")
+        self.assertEqual(self.listed(), [self.first, self.second, kept, "now"])
+        listed = versions.versions(str(self.repo), "hook.step")["versions"]
+        self.assertTrue(listed[2]["ref"].startswith("refs/studio/kept/"))
+        self.assertEqual(listed[3]["blob"], listed[0]["blob"])
+        # The folder's own index and branch are left alone: the kept version has an index of its own.
+        self.assertFalse((self.repo / ".git" / "index").exists())
+
+    def test_going_back_from_a_version_keeps_nothing_new(self):
+        result = versions.restore(str(self.repo), "hook.step", self.first)
+        self.assertIsNone(result["kept"])
+        self.assertEqual(git(self.repo, "for-each-ref", "refs/studio/"), "")
+        self.assertEqual(self.listed(), [self.first, self.second, "now"])
+
+    def test_going_back_and_forth_keeps_each_state_once(self):
+        versions.restore(str(self.repo), "hook.step", self.first)
+        again = versions.restore(str(self.repo), "hook.step", self.second)
+        self.assertIsNone(again["kept"])
+        self.assertEqual((self.repo / "hook.py").read_text(), "HOOK_DEPTH = 48\n")
+        self.assertEqual(self.listed(), [self.first, self.second])
+
+    def test_going_back_to_the_file_on_disk_or_to_no_version_is_refused(self):
+        with self.assertRaisesRegex(versions.VersionsError, "on disk"):
+            versions.restore(str(self.repo), "hook.step", "now")
+        with self.assertRaisesRegex(versions.VersionsError, "no such version"):
+            versions.restore(str(self.repo), "hook.step", "--output=elsewhere")
+        with self.assertRaisesRegex(versions.VersionsError, "not in that version"):
+            versions.restore(str(self.repo), "missing.step", self.first)
+
+
 class NamedSizes(unittest.TestCase):
     def test_numbers_named_as_written_but_units(self):
         source = "INCH = 25.4\nLENGTH = 2.8\nOFFSET = -3\ndef part():\n    depth: float = 12.5\n    flag = True\n    __version__ = 2\n"

@@ -12,6 +12,13 @@ What it writes, the two versions' files and the difference between them, goes un
 ``<folder>/.studio/compare/<key>/``, the key named by the file and the two versions' contents, so a
 comparison is made once and found again. Git is told to leave ``.studio`` out (``info/exclude``), so
 a checkpoint never takes it.
+
+Going back to a version (``restore``, Google Docs' Restore this version) writes the part's file and
+the script it is built from over the files on disk, as that version had them. What was on disk is
+kept first, unless a version already holds it as it is: a commit of the newest version's tree with
+those files as they were, under ``refs/studio/kept/``, made with an index of its own so the folder's
+own index and branch never move. Kept versions are listed with the checkpoints, so going back loses
+nothing and can itself be gone back on.
 """
 
 from __future__ import annotations
@@ -20,15 +27,29 @@ import ast
 import hashlib
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from pathlib import Path
 
-__all__ = ["VersionsError", "compare", "named_sizes", "versions"]
+__all__ = ["VersionsError", "compare", "named_sizes", "restore", "versions"]
 
 CHECKPOINTS = "refs/t3/orchestration-v2/checkpoints/"
+# What was on disk when a version was gone back to: Studio's, beside T3 Code's checkpoints.
+KEPT = "refs/studio/kept/"
+# Who a kept version is by, whatever the folder's git is set up with.
+KEPT_BY = {
+    "GIT_AUTHOR_NAME": "Studio",
+    "GIT_AUTHOR_EMAIL": "studio@localhost",
+    "GIT_COMMITTER_NAME": "Studio",
+    "GIT_COMMITTER_EMAIL": "studio@localhost",
+}
+# A version is a commit's id, as the list gives it.
+COMMIT_ID = re.compile(r"[0-9a-f]{7,64}")
 COMPARE_DIR = ".studio/compare"
 # A comparison still running after this long is taken to have died, and the next request starts it again.
 DIFF_TIMEOUT = 600
@@ -47,14 +68,14 @@ def _no_window() -> dict:
     return {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
 
 
-def _git(cwd: Path, *args: str, stdin: bytes | None = None) -> bytes:
+def _git(cwd: Path, *args: str, stdin: bytes | None = None, env: dict | None = None) -> bytes:
     ran = subprocess.run(
         ["git", *args],
         cwd=str(cwd),
         input=stdin,
         capture_output=True,
         check=False,
-        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        env={**os.environ, "GIT_TERMINAL_PROMPT": "0", **(env or {})},
         **_no_window(),
     )
     if ran.returncode != 0:
@@ -83,8 +104,8 @@ def _in_repository(top: Path, folder: Path, path: str) -> str:
 
 
 def _checkpoints(top: Path) -> list[dict]:
-    """Every chat turn's checkpoint in the repository, oldest first."""
-    listed = _git(top, "for-each-ref", "--format=%(objectname) %(creatordate:unix) %(refname)", CHECKPOINTS)
+    """Every chat turn's checkpoint in the repository, and what was kept on going back, oldest first."""
+    listed = _git(top, "for-each-ref", "--format=%(objectname) %(creatordate:unix) %(refname)", CHECKPOINTS, KEPT)
     rows = []
     for line in listed.decode("utf-8").splitlines():
         commit, when, ref = line.split(" ", 2)
@@ -322,3 +343,85 @@ def compare(
             other = _in_repository(top, folder_path, text)
             result["texts"][text] = {"older": _text_at(top, other, older), "newer": _text_at(top, other, newer)}
     return result
+
+
+def _part_files(top: Path, rel: str, version: str) -> list[str]:
+    """A part's files to go back, each that the version has: the file, and what it is built from
+    beside it (its script by Studio's rule, ``_script_of``, or a SolidCraft design)."""
+    candidates = [rel]
+    script = _script_of(rel)
+    if script is not None and script != rel:
+        candidates.append(script)
+    suffix = Path(rel).suffix.lower()
+    if suffix in (".step", ".stp"):
+        candidates.append(Path(rel).with_suffix(".solidcraft").as_posix())
+    elif suffix == ".py":
+        candidates.append(Path(rel).with_suffix(".step").as_posix())
+    blobs = _blobs(top, [f"{version}:{candidate}" for candidate in candidates])
+    return [candidate for candidate, blob in zip(candidates, blobs) if blob is not None]
+
+
+def _on_record(top: Path, rows: list[dict], files: list[str]) -> bool:
+    """Whether a version (a checkpoint, or one kept before) holds every one of the files as on disk."""
+    if not rows:
+        return False
+    working = [_working_blob(top, file) for file in files]
+    blobs = _blobs(top, [f"{row['commit']}:{file}" for row in rows for file in files])
+    count = len(files)
+    return any(blobs[at : at + count] == working for at in range(0, len(blobs), count))
+
+
+def _keep(top: Path, files: list[str], base: str | None) -> str:
+    """The files as they are on disk, kept as a version: a commit of ``base``'s tree (the newest
+    version) with them as they are, under ``KEPT``. A scratch index does the work, so the folder's
+    own index, branch and files are left as they are."""
+    with tempfile.TemporaryDirectory(prefix="studio-keep-") as scratch:
+        env = {"GIT_INDEX_FILE": str(Path(scratch) / "index"), **KEPT_BY}
+        if base is not None:
+            _git(top, "read-tree", base, env=env)
+        for file in files:
+            if (top / file).is_file():
+                blob = _git(top, "hash-object", "-w", "--", file).decode("utf-8").strip()
+                _git(top, "update-index", "--add", "--cacheinfo", f"100644,{blob},{file}", env=env)
+            else:
+                _git(top, "update-index", "--force-remove", "--", file, env=env)
+        tree = _git(top, "write-tree", env=env).decode("utf-8").strip()
+        parents = ["-p", base] if base is not None else []
+        message = "Kept by Studio before going back to an earlier version"
+        commit = _git(top, "commit-tree", "--no-gpg-sign", tree, *parents, "-m", message, env=env)
+    kept = commit.decode("utf-8").strip()
+    _git(top, "update-ref", f"{KEPT}{int(time.time() * 1000)}-{kept[:12]}", kept)
+    return kept
+
+
+def restore(folder: str, path: str, version: str) -> dict:
+    """Go back to a version of one file of the project, as Google Docs' Restore this version does:
+    the file and what it is built from (``_part_files``), as the version had them, written over the
+    files on disk. What was on disk is kept as a version first (``_keep``), unless one already holds
+    it. ``restored`` is the files written, by their paths in the folder; ``kept`` the kept version's
+    commit, or None when nothing needed keeping."""
+    folder_path = Path(folder).expanduser()
+    top = _repository(folder_path)
+    rel = _in_repository(top, folder_path, path)
+    if version == NOW:
+        raise VersionsError("That is the file on disk already.")
+    if not COMMIT_ID.fullmatch(version):
+        raise VersionsError("There is no such version.")
+    files = _part_files(top, rel, version)
+    if rel not in files:
+        raise VersionsError(f"{path} is not in that version")
+    rows = _checkpoints(top)
+    kept = None if _on_record(top, rows, files) else _keep(top, files, rows[-1]["commit"] if rows else None)
+    for file in files:
+        data = _bytes_at(top, file, version)
+        if data is None:
+            raise VersionsError(f"{file} could not be read at that version")
+        target = top / file
+        target.parent.mkdir(parents=True, exist_ok=True)
+        partial = target.with_name(f".{target.name}.{os.getpid()}.restore")
+        partial.write_bytes(data)
+        if target.exists():
+            shutil.copymode(target, partial)
+        os.replace(partial, target)
+    shown = [Path(os.path.relpath(top / file, folder_path.resolve())).as_posix() for file in files]
+    return {"ok": True, "restored": shown, "kept": kept}

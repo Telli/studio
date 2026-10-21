@@ -1,4 +1,5 @@
 import type { CheckResult } from "./checkResults";
+import { inSentence } from "./partNames";
 
 /**
  * A part's versions and what changed between two of them, as the Overview's Versions shows them
@@ -19,6 +20,71 @@ export interface PartVersion {
 }
 
 export const NOW = "now";
+
+/** Where the CAD service keeps what was on disk when a version was restored (`versions.py`). */
+const KEPT_REF = "refs/studio/kept/";
+
+/** A version kept on restoring another: what the person had then, so it can be gone back to. */
+export function isKeptVersion(version: Pick<PartVersion, "ref">): boolean {
+  return version.ref?.startsWith(KEPT_REF) === true;
+}
+
+/** The earliest version before this one with the same contents, as a restore leaves it; -1 if none. */
+export function sameAsEarlier(versions: ReadonlyArray<Pick<PartVersion, "blob">>, index: number) {
+  const blob = versions[index]?.blob;
+  return blob === undefined
+    ? -1
+    : versions.findIndex((version, at) => at < index && version.blob === blob);
+}
+
+/**
+ * The versions as Versions lists them, oldest first: "Version 3" (or "Now", the file on disk), and
+ * when, with the chat that made it; a kept one says it is what the person had before restoring,
+ * and Now says which version it was restored from, else that it was changed by hand.
+ */
+export function versionChoices(
+  versions: ReadonlyArray<PartVersion>,
+  chatOf: (version: PartVersion) => string | null,
+  whenOf: (version: PartVersion) => string,
+): Array<{ readonly id: string; readonly label: string; readonly detail: string }> {
+  const labelAt = (index: number) => (versions[index]?.id === NOW ? "Now" : `Version ${index + 1}`);
+  return versions.map((version, index) => {
+    const when = whenOf(version);
+    const label = labelAt(index);
+    if (version.id === NOW) {
+      const same = sameAsEarlier(versions, index);
+      return {
+        id: version.id,
+        label,
+        detail: same === -1 ? `changed by hand ${when}` : `restored from ${labelAt(same)}, ${when}`,
+      };
+    }
+    if (isKeptVersion(version)) {
+      return { id: version.id, label, detail: `${when}, what you had before restoring` };
+    }
+    const chat = chatOf(version);
+    return { id: version.id, label, detail: chat === null ? when : `${when}, ${chat}` };
+  });
+}
+
+/** What restoring tells the agent with the person's next message, as a hand edit's note does. */
+export function restoreNote(input: {
+  readonly part: string;
+  readonly version: string;
+  readonly when: string;
+  readonly files: ReadonlyArray<string>;
+}): string {
+  const files = input.files.length === 0 ? "" : ` (${input.files.join(", ")})`;
+  return `In Version history I restored ${inSentence(input.part)} to ${input.version}, from ${input.when}${files}.`;
+}
+
+/** Why a restore did not happen, in plain words: the CAD service's own when it says one. */
+export function plainRestoreError(error: string): string {
+  // A CAD service started before Restore came in has no such route.
+  if (/not found/i.test(error)) return "Studio needs a restart before it can restore a version.";
+  if (/^(?:That is|There is no)\b/.test(error)) return error;
+  return "Studio couldn't restore that version.";
+}
 
 /** A size in a part's script, as the CAD service reads it: `HOOK_DEPTH = 40`. */
 export interface NamedSize {

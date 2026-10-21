@@ -6,12 +6,16 @@ import {
   checkpointBefore,
   checkpointScopeOf,
   extentLine,
+  plainRestoreError,
   readCheckpointRef,
+  restoreNote,
   scriptRows,
   sizeChanges,
   sizeLine,
   sizeName,
+  versionChoices,
   volumeLine,
+  type PartVersion,
   type ShapeComparison,
 } from "./versions";
 
@@ -144,5 +148,65 @@ describe("versions", () => {
       { kind: "same", text: "b" },
       { kind: "added", text: "c" },
     ]);
+  });
+});
+
+describe("restoring a version", () => {
+  const version = (id: string, blob: string, ref: string | null = REF): PartVersion => ({
+    id,
+    ref,
+    time: 0,
+    blob,
+  });
+
+  it("lists what was kept on restoring, and what Now was restored from", () => {
+    const listed = [
+      version("a1", "blob-1"),
+      version("b2", "blob-2"),
+      version("c3", "blob-3", "refs/studio/kept/1729500000000-c3"),
+      version("now", "blob-1", null),
+    ];
+    const choices = versionChoices(
+      listed,
+      (entry) => (entry.id === "b2" ? "Strength check" : null),
+      () => "2 min ago",
+    );
+    expect(choices.map((choice) => [choice.label, choice.detail])).toEqual([
+      ["Version 1", "2 min ago"],
+      ["Version 2", "2 min ago, Strength check"],
+      ["Version 3", "2 min ago, what you had before restoring"],
+      ["Now", "restored from Version 1, 2 min ago"],
+    ]);
+    // A hand edit that matches no version says so.
+    expect(
+      versionChoices(
+        [version("a1", "blob-1"), version("now", "blob-9", null)],
+        () => null,
+        () => "now",
+      )[1],
+    ).toMatchObject({ label: "Now", detail: "changed by hand now" });
+  });
+
+  it("tells the agent which part went back, to which version, and its files", () => {
+    expect(
+      restoreNote({
+        part: "Daisy cover",
+        version: "Version 3",
+        when: "2 hours ago",
+        files: ["parts/daisy_cover.step", "parts/daisy_cover.py"],
+      }),
+    ).toBe(
+      "In Version history I restored the daisy cover to Version 3, from 2 hours ago (parts/daisy_cover.step, parts/daisy_cover.py).",
+    );
+  });
+
+  it("says why it could not, in plain words", () => {
+    expect(plainRestoreError("Not found")).toBe(
+      "Studio needs a restart before it can restore a version.",
+    );
+    expect(plainRestoreError("There is no such version.")).toBe("There is no such version.");
+    expect(plainRestoreError("fatal: unable to write new index file")).toBe(
+      "Studio couldn't restore that version.",
+    );
   });
 });
