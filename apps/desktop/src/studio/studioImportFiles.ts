@@ -12,6 +12,16 @@ import { type StudioImportKind, studioImportKind } from "@t3tools/shared/studioI
  * these (`studioImport.ts`), and the walkthrough script runs them as they are.
  */
 
+/**
+ * The files Studio opens in their own app on this Mac (`shell.openPath`): documents, sheets,
+ * slides, pictures, drawings, models, boards and machine files. Never a script, an app or
+ * anything else that would run.
+ */
+const OPENABLE =
+  /\.(?:xlsx|xlsm|xls|numbers|csv|docx|doc|pages|rtf|txt|md|pptx|ppt|key|pdf|zip|heic|heif|png|jpe?g|gif|tiff?|webp|svg|dwg|dxf|step|stp|iges|igs|stl|3mf|obj|glb|f3d|sldprt|sldasm|kicad_pcb|kicad_sch|kicad_pro|gbr|drl|gcode|gco|nc|ngc|tap|mp4|mov)$/i;
+
+export const isOpenable = (path: string) => OPENABLE.test(path);
+
 export interface StudioImportFile {
   readonly path: string;
   readonly kind: StudioImportKind;

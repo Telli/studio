@@ -38,3 +38,26 @@ export function aboutFile(path: string): string {
 
 /** Plain text, read as a document rather than as code. */
 export const isPlainText = (path: string) => /\.txt$/i.test(path);
+
+/**
+ * What opening a file in its own app on this Mac is called, by what it is: "Open the spreadsheet",
+ * "Open in KiCad", else "Open". Null for a file Studio does not hand to another app. The desktop
+ * app checks the same list again before it opens anything (`isOpenable` in
+ * apps/desktop/src/studio/studioImportFiles.ts), so keep the two together.
+ */
+const OPEN_LABELS: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\.(?:xlsx|xlsm|xls|numbers|csv)$/i, "Open the spreadsheet"],
+  [/\.(?:docx|doc|pages|rtf)$/i, "Open the document"],
+  [/\.(?:pptx|ppt|key)$/i, "Open the slides"],
+  [/\.kicad_(?:pcb|sch|pro)$/i, "Open in KiCad"],
+  [/\.(?:heic|heif|png|jpe?g|gif|tiff?|webp)$/i, "Open the picture"],
+  [/\.zip$/i, "Open the zip"],
+  [
+    /\.(?:txt|md|pdf|svg|dwg|dxf|step|stp|iges|igs|stl|3mf|obj|glb|f3d|sldprt|sldasm|gbr|drl|gcode|gco|nc|ngc|tap|mp4|mov)$/i,
+    "Open",
+  ],
+];
+
+export function openLabel(path: string): string | null {
+  return OPEN_LABELS.find(([test]) => test.test(path))?.[1] ?? null;
+}

@@ -1,8 +1,9 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
-import { ChevronLeftIcon, FolderOpenIcon, ScrollTextIcon } from "lucide-react";
+import { ChevronLeftIcon, ExternalLinkIcon, FolderOpenIcon, ScrollTextIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { usePrimaryEnvironmentId } from "~/state/environments";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { serverEnvironment } from "~/state/server";
@@ -11,11 +12,13 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import ReadOnlySourcePreview from "../files/ReadOnlySourcePreview";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { aboutFile, isPlainText } from "./aboutFile";
+import { toastManager } from "../ui/toast";
+import { aboutFile, isPlainText, openLabel } from "./aboutFile";
 import { CHECK_STATUS } from "./CheckBadge";
 import { type CheckResult, parseCheckResult } from "./checkResults";
 import { FileKindIcon } from "./FileKindIcon";
 import { partLabel } from "./partNames";
+import { readStudioImport } from "./studioImportBridge";
 import { openInPanel } from "./useOpenInWorkbench";
 
 /** A check's result as a report: how it went, in a line, then what to fix and what to look at. */
@@ -37,10 +40,13 @@ function CheckReport(props: { readonly result: CheckResult; readonly onOpenModel
       <p className="text-sm text-foreground">{result.headline}</p>
       {result.issues.length === 0 ? null : (
         <ul className="flex flex-col gap-2 border-t border-border pt-3">
-          {result.issues.map((issue, index) => {
+          {result.issues.map((issue) => {
             const Mark = CHECK_STATUS[issue.severity === "error" ? "fix" : "warnings"].Icon;
             return (
-              <li key={`${index}:${issue.summary}`} className="flex gap-2 text-sm">
+              <li
+                key={`${issue.severity}:${issue.summary}:${issue.fix ?? ""}`}
+                className="flex gap-2 text-sm"
+              >
                 <Mark
                   aria-hidden="true"
                   className={
@@ -72,7 +78,8 @@ function CheckReport(props: { readonly result: CheckResult; readonly onOpenModel
 /**
  * A file with no viewer of its own, as the engineering interface shows it in place of a code
  * editor or a "binary file" error: what it is in an engineer's words (`aboutFile`), where it is,
- * Show in Finder to open it in its own app, and its text one press away, read only, so a machine
+ * Open in its own app on this Mac (the desktop app; "Open the spreadsheet", `openLabel`) and Show
+ * in Finder, and its text one press away, read only, so a machine
  * file is never edited by accident. A check's result reads as a report (`parseCheckResult`), and
  * plain text reads as a document.
  */
@@ -101,6 +108,15 @@ export function StudioFilePage(props: {
   const folder = relativePath.replaceAll("\\", "/").split("/").slice(0, -1).join("/");
   const canReveal =
     props.absolutePath !== null && serverConfig?.availableEditors.includes("file-manager") === true;
+  // Opening in its own app happens on this Mac, so only for files on this Mac's own server.
+  const bridge = readStudioImport();
+  const local = usePrimaryEnvironmentId() === environmentId;
+  const label = openLabel(relativePath);
+  const openFile = bridge?.openFile;
+  const open =
+    local && label !== null && props.absolutePath !== null && openFile !== undefined
+      ? { label, run: () => openFile(props.absolutePath ?? "") }
+      : null;
 
   if (showText && text !== null) {
     return (
@@ -120,7 +136,7 @@ export function StudioFilePage(props: {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-gutter-both">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-8 py-8">
         <header className="flex items-start gap-4">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -154,6 +170,23 @@ export function StudioFilePage(props: {
           </article>
         ) : null}
         <div className="flex flex-wrap gap-2">
+          {open === null ? null : (
+            <Button
+              size="sm"
+              onClick={() =>
+                void open.run().catch((error: unknown) =>
+                  toastManager.add({
+                    type: "error",
+                    title: "Couldn't open it",
+                    description: error instanceof Error ? error.message : "Try Show in Finder.",
+                  }),
+                )
+              }
+            >
+              <ExternalLinkIcon />
+              {open.label}
+            </Button>
+          )}
           {canReveal ? (
             <Button
               variant="outline"

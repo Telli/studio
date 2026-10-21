@@ -5,7 +5,7 @@ import * as NodePath from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { backUp, copyInto, defaultRoots, scanFolder } from "./studioImportFiles.ts";
+import { backUp, copyInto, defaultRoots, isOpenable, scanFolder } from "./studioImportFiles.ts";
 
 let home: string;
 
@@ -143,5 +143,16 @@ describe("backUp", () => {
     await expect(backUp([project], NodePath.join(project, "backups"))).rejects.toThrow(
       "Choose a folder outside the project",
     );
+  });
+});
+
+describe("isOpenable", () => {
+  it("opens documents, sheets, drawings and models in their own app, never anything that runs", () => {
+    for (const path of ["/p/BOM.xlsx", "/p/xRD.docx", "/p/fab/board.zip", "/p/main.kicad_sch"]) {
+      expect(isOpenable(path)).toBe(true);
+    }
+    for (const path of ["/p/run.command", "/p/setup.sh", "/p/Tool.app", "/p/part.py", "/p/a.js"]) {
+      expect(isOpenable(path)).toBe(false);
+    }
   });
 });

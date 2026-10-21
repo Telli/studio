@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { aboutFile, isPlainText } from "./aboutFile";
+import { aboutFile, isPlainText, openLabel } from "./aboutFile";
 
 describe("about a file", () => {
   it("says what a file with no viewer is, as an engineer would", () => {
@@ -16,5 +16,13 @@ describe("about a file", () => {
   it("reads plain text as a document", () => {
     expect(isPlainText("docs/notes.txt")).toBe(true);
     expect(isPlainText("cam/bracket.nc")).toBe(false);
+  });
+
+  it("names opening a file in its own app by what it is, and never offers to run one", () => {
+    expect(openLabel("bom/parts.xlsx")).toBe("Open the spreadsheet");
+    expect(openLabel("electronics/main.kicad_sch")).toBe("Open in KiCad");
+    expect(openLabel("cam/bracket.nc")).toBe("Open");
+    expect(openLabel("tools/run.command")).toBeNull();
+    expect(openLabel("parts/bracket.py")).toBeNull();
   });
 });

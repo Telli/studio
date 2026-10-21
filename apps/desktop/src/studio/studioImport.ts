@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - the IPC handlers check paths with node:path.
 import * as NodePath from "node:path";
 
-import { BrowserWindow, dialog, ipcMain } from "electron";
+import { BrowserWindow, dialog, ipcMain, shell } from "electron";
 import * as Effect from "effect/Effect";
 
 import {
@@ -10,9 +10,10 @@ import {
   STUDIO_IMPORT_PICK_CHANNEL,
   STUDIO_IMPORT_ROOTS_CHANNEL,
   STUDIO_IMPORT_SCAN_CHANNEL,
+  STUDIO_OPEN_FILE_CHANNEL,
   STUDIO_PICK_FOLDER_CHANNEL,
 } from "./studioImportChannels.ts";
-import { backUp, copyInto, defaultRoots, scanFolder } from "./studioImportFiles.ts";
+import { backUp, copyInto, defaultRoots, isOpenable, scanFolder } from "./studioImportFiles.ts";
 
 export type { StudioImportFile, StudioImportScan } from "./studioImportFiles.ts";
 
@@ -21,8 +22,10 @@ export type { StudioImportFile, StudioImportScan } from "./studioImportFiles.ts"
  * for its engineering files (`studioImportKind`), a picker for files or folders, and copying files
  * into a project's folder; proposing projects from what a walk finds is the web's
  * (`apps/web/src/components/workbench/importPlan.ts`). Back up: a picker for one folder, and
- * backing a project's folders up into it (`backUp`). The page reaches it as `window.studioImport`
- * (`studioImportPreload.ts`). It only reads, except where it copies into a folder the person chose.
+ * backing a project's folders up into it (`backUp`). Open: a document, sheet, drawing or model in
+ * its own app on this Mac (`isOpenable`; never a script or an app). The page reaches it as
+ * `window.studioImport` (`studioImportPreload.ts`). It only reads, except where it copies into a
+ * folder the person chose.
  */
 
 const isAbsolutePath = (value: unknown): value is string =>
@@ -75,6 +78,13 @@ export const installStudioImport = Effect.fn("desktop.studioImport.install")(fun
         throw new Error("A backup needs full paths.");
       }
       return backUp(sources, folder);
+    });
+    ipcMain.handle(STUDIO_OPEN_FILE_CHANNEL, async (_event, path: unknown) => {
+      if (!isAbsolutePath(path) || !isOpenable(path)) {
+        throw new Error("Studio opens documents, sheets, drawings and models only.");
+      }
+      const failure = await shell.openPath(path);
+      if (failure !== "") throw new Error(failure);
     });
   });
 });
