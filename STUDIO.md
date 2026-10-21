@@ -164,11 +164,15 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   before restoring), and the agent hears of it with the next message, as a hand edit's note.
 - **Home, the switcher and the chats.** In Engineering, Home is Studio's one page (Projects goes
   to it): a top bar with the mark and a search that opens the quick find, then a box for what to
-  make. Start sends it to a new project (made, with a first chat that sends it as its first
-  message), or, with a project of yours chosen beside Attach (`ProjectPicker.tsx`, the project
-  switcher's own control and list, `ProjectChoices.tsx`), to a new chat in that project. One line
-  is enough to start. Files and whole folders attached to the box (Attach picks folders too in
-  the desktop app; or drop them on the box) set the project up: Start copies them into its
+  make, in two modes on the part toolbar's segmented control. Describe: Start sends what was
+  typed to a new project (made, with a first chat that sends it as its first message), or, with a
+  project of yours chosen beside Attach (`ProjectPicker.tsx`, the project switcher's own control
+  and list, `ProjectChoices.tsx`), to a new chat in that project. One line is enough. Set up from
+  files: a drop area for a PRD, requirements, sketches, CAD or a whole folder (Choose files or
+  folders picks either in the desktop app), an optional What it is line, the three steps it takes
+  (add what you have, Studio reads it and fills in the Overview, you answer what's left) and Set
+  up project, always a new project. Switching keeps what was typed and attached. In both modes
+  the files attached (Attach, the drop area, or dropped on the box) go into the project's
   References (`brief/references/`), where the Overview lists them and every chat can read them,
   and the first message names them and asks the agent to read them all before anything else,
   then fill in the project's name, setup and README from them and ask only what they leave open
