@@ -84,8 +84,8 @@ Its interface is a setting, Engineering, Engineering with code, or Code (Setting
 Interface; or the "Switch to ..." commands in the command palette, which "dev" also finds),
 Engineering by default, per device. Engineering puts every coding tool away (version control,
 editors, terminals, scripts, branches, pull requests, diffs), names parts and documents rather than
-files ("Servo bracket", "Servo bracket drawing", not `parts/servo_bracket.step`) on the project
-page, tabs, file chips in the chat and the work log (`components/workbench/partNames.ts`), says what
+files ("Servo bracket", "Servo bracket drawing", "Servo bracket STL", not
+`parts/servo_bracket.step`) on the project page, tabs, file chips in the chat and the work log (`components/workbench/partNames.ts`), says what
 the agent's steps did to the design ("FEA study on the L bracket", "Built the L bracket") instead of
 the command lines, and reads like a shop drawing: a title block over the viewer with the part's
 type, units, material and build, and
@@ -128,7 +128,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   them. Loose files are placed in a project (copied into its folder) or left out; copies and older
   versions are listed and stay put. Import is on Home (files or a folder, or a scan), takes files
   dropped anywhere on Home, and offers the CAD files new in the scanned folders
-  since the last scan. The desktop app reads and copies (`apps/desktop/src/studio/`); what makes a
+  since the last scan; a project removed from Studio is offered again. Inside a project, Import
+  beside New, or files dropped on its Overview, copy what is picked into the project's folder,
+  never over a file there (`importIntoProject.ts`). The desktop app reads and copies (`apps/desktop/src/studio/`); what makes a
   project is decided in the web (`components/workbench/importPlan.ts`).
 - **No usage data.** T3 Code's analytics are off and keyless in this build
   (`apps/server/src/telemetry/AnalyticsService.ts`), so nothing about its use goes to T3.
@@ -166,13 +168,16 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in one
   column so the box and the tiles line up. A picture that came back empty (the CAD plugin still
   starting) is asked for again (`usePictures.ts`). A project with a chat waiting on the person (a
-  question, an approval) comes first, says Needs you, and opens on that chat; Home lists no chats
-  of its own. T3 Code's sidebar stays shut there. A project opens in the thread
-  last open in it on this device (else the one last worked on, else a new one). Projects are
+  question, an approval) comes first, says Needs you (on Home, in the switcher's list and in
+  Cmd+K), and opens on that chat; Home lists no chats of its own. A tile's right-click, or the …
+  on its hover, is the project's menu, the switcher's own actions in its words
+  (`ProjectMenu.tsx`). T3 Code's sidebar stays shut there. A project opens in the thread last
+  open in it on this device (else the one last worked on, else a new one), with its Overview
+  across the window (`useOpenProject.ts`). Projects are
   listed as a recents list orders them, the one opened last on this device first (or worked on, if
   that came later), and the starred ones (kept on this computer) apart at the top of Home and the
   switcher. In its workspace the sidebar is the project and its chats (`StudioSidebar.tsx`): at
-  its top the project's name, a control with its picture that switches projects
+  its top the project's name, a control on one line with its picture that switches projects
   (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on Home), whose
   top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop
   app, Version history once it has a part, Back up, Show in Finder, and Remove from Studio, which
@@ -180,17 +185,19 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   hidden in Engineering), then its Overview, New chat, and its chats,
   newest first. What the project holds is on its Overview. The top bar names the open chat; with
   the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the project's
-  switcher. The panel's tabs are what was opened lately, along its top as a browser's are
-  (`brand/theme.css`): the Overview pinned first as its icon, then each file with its kind's
+  switcher. The panel's tabs are what was opened lately in the project, along its top as a
+  browser's are (`brand/theme.css`), and the same beside each of the folder's chats, as a Chrome
+  window's (`projectTabs.ts`): the Overview pinned first as its icon, then each file with its kind's
   colored icon (`FileKindIcon.tsx`) at its left and its close at its right, as Chrome's are, the
   one in front joined to the toolbar under them. There is no + (New is the one way to add), a
   panel with every tab closed shows the Overview, and a tab's menu has no Copy path. The
   toolbar is one line of what can be done (`StudioPanelBar.tsx`): over a part, Ask or Edit by
-  hand and Evaluate, Manufacture and Document; and New, always there, at its right end, where
-  Home has it beside Import (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow
+  hand and Evaluate, Manufacture and Document; and Import and New, always there, at its right
+  end, as Home has them (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow
   window's panel sheet keeps it. Whatever
   writes into the chat (these menus, Cmd+K, the viewer's Add to chat, the Overview) brings the
-  chat back from a panel filling the window, except a hand edit's note, which goes in quietly
+  chat back from a panel filling the window, as does a question or approval the agent waits on
+  and a notification's Open chat (`useShowWaitingChat`), except a hand edit's note, which goes in quietly
   and leaves the keyboard in the view (`viewContext.ts`). Engineering with code keeps T3 Code's
   thread sidebar, with the projects listed in it.
 - **Back up.** A project is already a folder on the Mac with its versions in it; the project's
@@ -201,11 +208,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   folder that syncs (a Google Drive, Dropbox or iCloud folder, or a drive): the desktop app copies
   each of the project's folders there, version history (`.git`) included, then only what changed,
   and never deletes from it (`backUp` in `apps/desktop/src/studio/studioImportFiles.ts`). Import
-  brings a folder backup back. Where and when are remembered on this computer and shown under the
+  brings a folder backup back. Not signed in to GitHub is said so, with Set up GitHub (Settings'
+  Source control), never the GitHub tool's commands; a finished backup's toast opens it, on
+  GitHub or in Finder. Where and when are remembered on this computer and shown under the
   menu (`useBackup.ts`).
-- **Quick find.** In Engineering ⌘K finds a project, a part, a document or a chat in any project
-  (one in another project opens there; with nothing typed, the open project's), or any job for
-  the part on screen, with Home, New project, Take the tour, Settings and the interface switches
+- **Quick find.** In Engineering ⌘K finds a project, a part (with its picture), a document or a
+  chat in any project (one in another project opens there; with nothing typed, the open
+  project's), or any job for the part on screen, with Home, New project, Take the tour, Settings and the interface switches
   (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's command
   palette.
 - **Getting around.** The top bar is a path, the project then the open chat, the project's name
@@ -291,8 +300,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   one whose folder changed is updated at the next start, so its tools and views are listed again;
   one the app stops offering is uninstalled, and offered again if it is offered again.
 - **Setup, as a CAD tool shows it.** Under the project's name, its units, material (from a library
-  of common grades, or any name typed), process and quantity. Picking a value writes the request
-  into the composer ("Change the project's material to PETG."); the agent changes the project's
+  of common grades, or any name typed), process and quantity. Picking a value sends the request
+  to the chat ("Change the project's material to PETG."); the agent changes the project's
   `project.json`, which it is told about and may edit, says what the change means for the parts,
   and waits. A folder in no project yet is set up in place. What the project is for and must meet
   is the brief behind Brief.
@@ -305,8 +314,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
   export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.
   Each menu keeps its everyday jobs and ends in More, which opens the quick find on all of its
-  jobs. Each needs its text-to-cad skill (`components/workbench/hardwareActions.ts`) and writes
-  the job, naming the part, into the composer.
+  jobs. Each needs its text-to-cad skill (`components/workbench/hardwareActions.ts`) and sends
+  the job, naming the part, to the chat, as New's Create does: each prompt asks for what it needs
+  (the loads, the machine), so nothing waits on a second press. The composer's / menu offers
+  Studio's own commands in plain words and the skills, not the agent's coding commands.
 - **Three kinds, and work done on them.** What is designed is CAD, Electronics or Documents, and
   New offers those. FEA and CAM are not kinds of design but work done on one, for parts and boards
   alike, so what Evaluate, Manufacture and Document make (analysis, manufacturing files,
