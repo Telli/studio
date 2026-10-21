@@ -152,3 +152,22 @@ export function readmeInline(text: string): ReadonlyArray<ReadmeInline> {
   addText(text.slice(last));
   return pieces;
 }
+
+/** Words with no marks in them (a link, bold, code): the ones the Overview lets you type into. */
+export function isPlainReadmeText(text: string): boolean {
+  return !/[[\]*`<>]/.test(text);
+}
+
+/**
+ * The README with one piece's words changed, where the Overview shows them: the first place the
+ * old words stand, matched however its lines were wrapped. Null when they are no longer there, or
+ * when the new words are empty (a piece is changed here, not removed).
+ */
+export function replaceReadmeText(markdown: string, before: string, after: string): string | null {
+  const words = after.trim();
+  if (words === "" || before.trim() === "") return null;
+  const escaped = before.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = new RegExp(escaped.replace(/\s+/g, "\\s+")).exec(markdown);
+  if (match === null) return null;
+  return markdown.slice(0, match.index) + words + markdown.slice(match.index + match[0].length);
+}

@@ -214,6 +214,8 @@ html[data-studio-focus="hardware"]
       [aria-keyshortcuts="M"]
     ),
     [aria-label="Run in terminal"],
+    /* New is the one way to add; the tabs are what was opened. */
+    [aria-label="Add panel surface"],
     [data-changed-files-state],
     /* The model's context window is the agent's bookkeeping, not the engineer's. */
     [aria-label^="Context window"]

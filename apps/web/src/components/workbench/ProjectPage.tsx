@@ -530,7 +530,10 @@ export function ProjectPage(props: {
   const openIn = (root: string) => (file: ProjectFile) => openPath(root, file.path);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-project-page="">
+    <div
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-gutter-both"
+      data-project-page=""
+    >
       {/* In Engineering the project is named at the sidebar's top and New is in the panel's row. */}
       <header className={cn("border-b border-border px-5 pt-5 pb-3", plainWords && "hidden")}>
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -639,7 +642,10 @@ export function ProjectPage(props: {
         </div>
       </header>
 
-      <div className="flex flex-col gap-8 px-5 py-4">
+      {/* One column in Studio, as Home is, so the README and the files below line up. */}
+      <div
+        className={cn("flex flex-col gap-8 px-5 py-4", plainWords && "mx-auto w-full max-w-5xl")}
+      >
         {shownTab === "overview" ? (
           <ProjectOverview
             environmentId={environmentId}

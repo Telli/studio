@@ -38,6 +38,7 @@ import {
   TerminalSquare,
   Puzzle,
   Box,
+  X as XIcon,
 } from "lucide-react";
 import { Volume2, VolumeOff } from "lucide";
 import {
@@ -372,6 +373,11 @@ function RightPanelEmptyState(props: {
   // -1 means no highlight: it only appears on hover or arrow use.
   const [highlight, setHighlight] = useState(-1);
   const engineering = useEngineeringInterface();
+  // Studio's panel is never empty: with every tab closed, its Overview comes back.
+  const { onAddFiles, filesAvailable } = props;
+  useEffect(() => {
+    if (engineering && filesAvailable) onAddFiles();
+  }, [engineering, filesAvailable, onAddFiles]);
 
   const actions = [
     {
@@ -1065,7 +1071,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       const items: ContextMenuItem<TabContextMenuAction>[] = [];
       if (surface.kind === "device" && props.onRenameDevice)
         items.push({ id: "rename", label: "Rename" });
-      if (surface.kind === "file" && surface.attachment === undefined) {
+      if (surface.kind === "file" && surface.attachment === undefined && !WORKBENCH_LAYOUT) {
         items.push({ id: "copy-path", label: "Copy path" });
       }
       const menuPreviewTabId = previewTabIdOf(surface, props.previewSessions);
@@ -1290,25 +1296,45 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                         : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                     )}
                   >
-                    <PanelTabCloseButton
-                      label={`Close ${title}`}
-                      onClick={() => props.onCloseSurface(surface)}
-                    >
-                      <SurfaceIcon
-                        surface={surface}
-                        sessions={props.previewSessions}
-                        desktopByTabId={props.desktopByTabId}
-                        theme={resolvedTheme}
-                        environmentId={props.environmentId}
-                        pullRequestStatusSeeds={props.pullRequestStatusSeeds}
-                      />
-                      {pending ? (
-                        <span
-                          className="absolute -right-0.5 -bottom-0.5 size-1.5 rounded-full bg-current"
-                          aria-hidden
+                    {WORKBENCH_LAYOUT ? (
+                      // Chrome's tab, as Studio's are: the kind's icon stays at the left.
+                      <span className="relative flex size-4 shrink-0 items-center justify-center">
+                        <SurfaceIcon
+                          surface={surface}
+                          sessions={props.previewSessions}
+                          desktopByTabId={props.desktopByTabId}
+                          theme={resolvedTheme}
+                          environmentId={props.environmentId}
+                          pullRequestStatusSeeds={props.pullRequestStatusSeeds}
                         />
-                      ) : null}
-                    </PanelTabCloseButton>
+                        {pending ? (
+                          <span
+                            className="absolute -right-0.5 -bottom-0.5 size-1.5 rounded-full bg-current"
+                            aria-hidden
+                          />
+                        ) : null}
+                      </span>
+                    ) : (
+                      <PanelTabCloseButton
+                        label={`Close ${title}`}
+                        onClick={() => props.onCloseSurface(surface)}
+                      >
+                        <SurfaceIcon
+                          surface={surface}
+                          sessions={props.previewSessions}
+                          desktopByTabId={props.desktopByTabId}
+                          theme={resolvedTheme}
+                          environmentId={props.environmentId}
+                          pullRequestStatusSeeds={props.pullRequestStatusSeeds}
+                        />
+                        {pending ? (
+                          <span
+                            className="absolute -right-0.5 -bottom-0.5 size-1.5 rounded-full bg-current"
+                            aria-hidden
+                          />
+                        ) : null}
+                      </PanelTabCloseButton>
+                    )}
                     {audio === "none" || !audioRuntimeTabId ? null : (
                       <Tooltip>
                         <TooltipTrigger
@@ -1388,6 +1414,24 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                         </TooltipPopup>
                       </Tooltip>
                     )}
+                    {WORKBENCH_LAYOUT ? (
+                      // …and its × at the right, shown on the tab in front and on hover.
+                      <button
+                        type="button"
+                        aria-label={`Close ${title}`}
+                        data-tab-close=""
+                        className={cn(
+                          "ms-auto flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-sm outline-none hover:bg-muted focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset",
+                          active ? "opacity-100" : "opacity-0 group-hover/tab:opacity-100",
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          props.onCloseSurface(surface);
+                        }}
+                      >
+                        <XIcon className="size-3" aria-hidden="true" />
+                      </button>
+                    ) : null}
                   </SortableTab>
                 );
               })}

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { readmeInline, readmeSections } from "./projectReadme";
+import {
+  isPlainReadmeText,
+  readmeInline,
+  readmeSections,
+  replaceReadmeText,
+} from "./projectReadme";
 
 const README = `# Lanyard clip
 
@@ -114,5 +119,38 @@ describe("readmeInline", () => {
       { kind: "text", text: " and bike_hook.py" },
     ]);
     expect(readmeInline("Plain words")).toEqual([{ kind: "text", text: "Plain words" }]);
+  });
+});
+
+describe("changing the README where the Overview shows it", () => {
+  const readme = [
+    "# Clip",
+    "",
+    "## What it is",
+    "A clip that holds a camera",
+    "to a tray.",
+    "",
+    "## Decisions",
+    "- Print it in PETG (2026-10-19, asked).",
+  ].join("\n");
+
+  it("puts the new words where the old ones stood, however they were wrapped", () => {
+    expect(
+      replaceReadmeText(readme, "A clip that holds a camera to a tray.", "A clip for a camera."),
+    ).toContain("## What it is\nA clip for a camera.\n\n## Decisions");
+    expect(replaceReadmeText(readme, "Print it in PETG", "Print it in PLA")).toContain(
+      "- Print it in PLA (2026-10-19, asked).",
+    );
+  });
+
+  it("changes nothing when the words are gone or the new ones are empty", () => {
+    expect(replaceReadmeText(readme, "Cast it in bronze", "Print it")).toBeNull();
+    expect(replaceReadmeText(readme, "Print it in PETG", "  ")).toBeNull();
+  });
+
+  it("lets only plain words be typed into", () => {
+    expect(isPlainReadmeText("Print it in PETG")).toBe(true);
+    expect(isPlainReadmeText("See [the drawing](drawings/clip.pdf)")).toBe(false);
+    expect(isPlainReadmeText("**Holds** 2 kg")).toBe(false);
   });
 });
