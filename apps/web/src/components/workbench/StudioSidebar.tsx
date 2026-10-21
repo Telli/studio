@@ -24,7 +24,7 @@ import {
 } from "../ui/sidebar";
 import { chatStanding } from "./chatStanding";
 import { useOpenWorkspaceStore } from "./openWorkspace";
-import { showOverview } from "./overviewPanel";
+import { showChat, showOverview } from "./overviewPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { useProjectHeading } from "./StudioWorkspaceBar";
 import { useRememberOpened } from "./useOpenProject";
@@ -141,14 +141,13 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
                   aria-current={current ? "page" : undefined}
                   onClick={() => {
                     done();
-                    // The open chat brings itself back from a panel filling the window.
-                    if (current && threadRef !== null) {
-                      useRightPanelStore.getState().setMaximized(threadRef, false);
-                      return;
-                    }
+                    // The chat picked shows, the open one too, beside its panel (`showChat`).
+                    const ref = scopeThreadRef(chat.environmentId, chat.id);
+                    showChat(ref);
+                    if (current) return;
                     void navigate({
                       to: "/$environmentId/$threadId",
-                      params: buildThreadRouteParams(scopeThreadRef(chat.environmentId, chat.id)),
+                      params: buildThreadRouteParams(ref),
                     });
                   }}
                 >

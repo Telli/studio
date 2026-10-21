@@ -12,3 +12,11 @@ export function showOverview(threadRef: ScopedThreadRef): void {
   panels.open(threadRef, "files");
   panels.setMaximized(threadRef, true);
 }
+
+/**
+ * A chat picked to read (in the sidebar, in Cmd+K): its panel steps back beside it. Each chat keeps
+ * its own panel, so one whose Overview was left across the window would otherwise open hidden.
+ */
+export function showChat(threadRef: ScopedThreadRef): void {
+  useRightPanelStore.getState().setMaximized(threadRef, false);
+}

@@ -39,6 +39,7 @@ import { homeRecent } from "./recentActivity";
 import { useRecentFiles } from "./recentFiles";
 import { studioInterfaceCommands } from "./studioInterface";
 import { useFolderPaths } from "./useFolderPaths";
+import { showChat } from "./overviewPanel";
 import { openInPanel } from "./useOpenInWorkbench";
 import { useOpenProject } from "./useOpenProject";
 import { useTourStore } from "./tourSteps";
@@ -263,11 +264,10 @@ function QuickFindBody(props: {
           : `${chatStanding(thread).text} · ${card.project.name}`,
       ...(thread.id === workspace?.threadRef.threadId ? { trailing: "Open" } : {}),
       run: go(() => {
+        const ref = scopeThreadRef(thread.environmentId, thread.id);
+        showChat(ref);
         if (thread.id === workspace?.threadRef.threadId) return;
-        void navigate({
-          to: "/$environmentId/$threadId",
-          params: buildThreadRouteParams(scopeThreadRef(thread.environmentId, thread.id)),
-        });
+        void navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
       }),
     })),
   };
@@ -280,11 +280,13 @@ function QuickFindBody(props: {
         ? []
         : homeRecent(cards, opened, recentFiles, SHOWN_UNTYPED).map((item) => {
             const ref = scopeThreadRef(item.thread.environmentId, item.thread.id);
-            const openChat = () =>
+            const openChat = () => {
+              showChat(ref);
               void navigate({
                 to: "/$environmentId/$threadId",
                 params: buildThreadRouteParams(ref),
               });
+            };
             const description = `${item.card.project.name} · ${formatRelativeTimeLabel(item.at)}`;
             return item.kind === "chat"
               ? {
