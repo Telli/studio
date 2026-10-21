@@ -166,7 +166,14 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   to it): a top bar with the mark and a search that opens the quick find, then a box for what to
   make. Start sends it to a new project (made, with a first chat that sends it as its first
   message), or, with a project of yours chosen beside Attach (`ProjectPicker.tsx`, the project
-  switcher's own control and list, `ProjectChoices.tsx`), to a new chat in that project. Then
+  switcher's own control and list, `ProjectChoices.tsx`), to a new chat in that project. One line
+  is enough to start. Files and whole folders attached to the box (Attach picks folders too in
+  the desktop app; or drop them on the box) set the project up: Start copies them into its
+  References (`brief/references/`), where the Overview lists them and every chat can read them,
+  and the first message names them and asks the agent to read them all before anything else,
+  then fill in the project's name, setup and README from them and ask only what they leave open
+  (`startMessage` in `startProject.ts`). A project can start from files alone, named after the
+  first; in the web app, without paths to copy, they go with the first message instead. Then
   every project, with New and Import beside them to add one: New is the same New and dialog as a
   project's toolbar (`StudioNew.tsx`), where Create makes a new project and hands the job to its
   first chat. Every project is pictured by
