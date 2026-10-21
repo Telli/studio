@@ -44,7 +44,8 @@ fi
 
 step "Setting up the CAD plugin's Python"
 cd "$CAD"
-[ -x .venv/bin/python ] || uv venv --python 3.12 .venv
+# 3.13: the Python Studio's CAD plugin runs on day to day, with its FEA packages.
+[ -x .venv/bin/python ] || uv venv --python 3.13 .venv
 uv pip install --python .venv/bin/python -r requirements-dev.txt
 uv pip install --python .venv/bin/python -e "./packages/cadgen[fea]"
 
