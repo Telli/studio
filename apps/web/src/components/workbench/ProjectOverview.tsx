@@ -89,6 +89,19 @@ interface Issue {
 const issuePart = (entry: Issue) =>
   entry.part?.title ?? partName(entry.result.part)?.name ?? humanName(entry.result.part);
 
+/** New document, at the Documents module's heading. */
+function NewDocument(props: { readonly onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      className="text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
+    >
+      New document
+    </button>
+  );
+}
+
 /** A part's stand-in until its picture comes: a board or a model. */
 function PartIcon(props: { readonly file: ProjectFile; readonly className: string }) {
   return props.file.group === "Boards and wiring" ? (
@@ -320,6 +333,8 @@ export function ProjectOverview(props: {
   readonly readme: ReactNode | null;
   /** How the project's sizes are written ("mm" or "in"), for the sizes a version changed. */
   readonly units: string;
+  /** Opens New on Documents (PRD, requirements, FMEA, your own templates); null where it cannot. */
+  readonly onNewDocument: (() => void) | null;
 }) {
   const folders = useProjectChecks({
     environmentId: props.environmentId,
@@ -508,8 +523,28 @@ export function ProjectOverview(props: {
             folded={folded.includes(group)}
             onFold={() => toggle(group)}
             onOpen={props.onOpen}
+            {...(group === "Documents" && props.onNewDocument !== null
+              ? { action: <NewDocument onClick={props.onNewDocument} /> }
+              : {})}
           />
         ))}
+        {/* Documents have a place before there are any: a PRD is often the first thing written. */}
+        {engineering &&
+        props.onNewDocument !== null &&
+        !modules.some(([group]) => group === "Documents") ? (
+          <OverviewModule
+            title="Documents"
+            wide
+            folded={folded.includes("Documents")}
+            onFold={() => toggle("Documents")}
+            action={<NewDocument onClick={props.onNewDocument} />}
+          >
+            <p className="pt-3 text-xs text-muted-foreground">
+              No documents yet. Start a PRD, the engineering requirements, an FMEA or a design
+              review from a template, or from one of your own.
+            </p>
+          </OverviewModule>
+        ) : null}
         {props.onShowThreads === null || otherChats === 0 ? null : (
           <OverviewModule
             title="Recent work"

@@ -6,6 +6,7 @@ import {
   BoxIcon,
   CircuitBoardIcon,
   FileOutputIcon,
+  FileTextIcon,
   HomeIcon,
   LayoutDashboardIcon,
   ListChecksIcon,
@@ -26,7 +27,9 @@ import {
   CommandItem,
   CommandList,
 } from "../ui/command";
+import { useDocumentTemplates } from "./documentTemplates";
 import { hardwareActions } from "./hardwareActions";
+import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { classifyProjectFile } from "./projectFiles";
 import type { ListedProject } from "./projectList";
@@ -64,6 +67,7 @@ function QuickFindBody(props: {
   const typed = query.trim() !== "";
   const workspace = useOpenWorkspaceStore((store) => store.workspace);
   const { cards } = useProjectList(environmentId);
+  const documents = useDocumentTemplates(environmentId);
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
   const composerRef = useComposerHandleContext();
@@ -243,13 +247,47 @@ function QuickFindBody(props: {
       run: go(command.run),
     })),
   ];
+  // A document from a template, written into the chat as the New dialog writes it (`NewDialog`).
+  const documentRows: Group | null =
+    !typed || workspace === null
+      ? null
+      : {
+          label: "New document",
+          rows: [...DOCUMENT_TEMPLATES, ...documents.templates]
+            .filter((template) =>
+              holdsWords(
+                `${template.label}\n${template.description}\nnew document template`,
+                query,
+              ),
+            )
+            .map((template) => ({
+              value: `document:${template.id}`,
+              icon: <FileTextIcon className={ICON} />,
+              title: template.label,
+              description: template.description,
+              run: () =>
+                writeJob(
+                  newWorkPrompt({
+                    template,
+                    name: template.defaultName,
+                    folder: template.folder,
+                    units: "mm",
+                    part: null,
+                    description: "",
+                    ...(template.file === undefined
+                      ? {}
+                      : { templateLink: serializeComposerFileLink(template.file) }),
+                  }),
+                ),
+            })),
+        };
   const goTo: Group = {
     label: "Go to",
     rows: places.filter((place) => !typed || holdsWords(`${place.title}\n${place.terms}`, query)),
   };
-  const groups = (typed ? [jobs, partRows, projects, goTo] : [partRows, projects, goTo]).filter(
-    (group): group is Group => group !== null && group.rows.length > 0,
-  );
+  const groups = (
+    typed ? [jobs, documentRows, partRows, projects, goTo] : [partRows, projects, goTo]
+  ).filter((group): group is Group => group !== null && group.rows.length > 0);
 
   return (
     <CommandPaletteContent

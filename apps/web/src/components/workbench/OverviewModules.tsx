@@ -310,6 +310,8 @@ export function FilesModule(props: {
   readonly folded: boolean;
   readonly onFold: () => void;
   readonly onOpen: (root: string, path: string) => void;
+  /** A link at the heading's end: Documents' New document. */
+  readonly action?: ReactNode;
 }) {
   const [all, setAll] = useState(false);
   const shown = all ? props.files : props.files.slice(0, FIRST_FILES);
@@ -326,6 +328,7 @@ export function FilesModule(props: {
       folded={props.folded}
       onFold={props.onFold}
       wide
+      {...(props.action === undefined ? {} : { action: props.action })}
     >
       <div className={cn(CARD_GRID, "pt-3")}>
         {roots.map((root) => (

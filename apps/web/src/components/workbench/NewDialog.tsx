@@ -6,9 +6,12 @@ import {
   BoxIcon,
   CircuitBoardIcon,
   FactoryIcon,
+  FilePlusIcon,
   FileTextIcon,
+  FolderOpenIcon,
 } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
+import { create as createStore } from "zustand";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { cn } from "~/lib/utils";
@@ -33,8 +36,23 @@ import {
   type Discipline,
   type NewTemplate,
   fileStem,
+  isDocumentTemplate,
   newWorkPrompt,
 } from "./newTemplates";
+
+/**
+ * Opens the project's New dialog on one discipline from outside it (the Document menu's From a
+ * template, the Overview's New document); the project page takes the request (`ProjectPage`).
+ */
+export const useNewDialogStore = createStore<{
+  readonly discipline: Discipline | null;
+  readonly ask: (discipline: Discipline) => void;
+  readonly take: () => void;
+}>()((set) => ({
+  discipline: null,
+  ask: (discipline) => set({ discipline }),
+  take: () => set({ discipline: null }),
+}));
 
 export const DISCIPLINE_ICONS: Record<Discipline, typeof BoxIcon> = {
   Mechanical: BoxIcon,
@@ -67,7 +85,10 @@ function Field(props: {
  * New work, the way a CAD system's New dialog starts a part or a drawing, but
  * across engineering: the disciplines down the side, their templates beside
  * them, and the new work's properties (a name, a folder and units, or the
- * part it works from). Create writes the job into the composer.
+ * part it works from). Documents are templates too: the built-in ones (PRD,
+ * requirements, FMEA, design review), and the person's own files
+ * (`documentTemplates.ts`), with Add a template. Create writes the job into
+ * the composer.
  */
 export function NewDialog(props: {
   readonly open: boolean;
@@ -75,17 +96,33 @@ export function NewDialog(props: {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly templates: ReadonlyArray<NewTemplate>;
+  /** The person's own document templates, offered under Documents. */
+  readonly fileTemplates?: ReadonlyArray<NewTemplate>;
+  /** Adds a template file (the desktop app's picker); null where it cannot. */
+  readonly onAddTemplate?: (() => Promise<void>) | null;
+  /** Shows the templates folder in Finder; null where it cannot. */
+  readonly onShowTemplates?: (() => Promise<void>) | null;
   readonly initialTemplateId: string | null;
+  /** The discipline it opens on, else the first template's. */
+  readonly initialDiscipline?: Discipline;
   /** The project's parts, for a template that works from one. */
   readonly parts: ReadonlyArray<string>;
   readonly composerRef: ComposerHandleRef;
 }) {
   const id = useId();
-  const { templates } = props;
+  const fileTemplates = props.fileTemplates ?? [];
+  const templates = [...props.templates, ...fileTemplates];
   const initial =
-    templates.find((template) => template.id === props.initialTemplateId) ?? templates[0] ?? null;
+    templates.find((template) => template.id === props.initialTemplateId) ??
+    (props.initialDiscipline === undefined
+      ? undefined
+      : templates.find((template) => template.discipline === props.initialDiscipline)) ??
+    templates[0] ??
+    null;
   const [selected, setSelected] = useState<NewTemplate | null>(initial);
-  const [discipline, setDiscipline] = useState<Discipline>(initial?.discipline ?? "Mechanical");
+  const [discipline, setDiscipline] = useState<Discipline>(
+    props.initialDiscipline ?? initial?.discipline ?? "Mechanical",
+  );
   const brief = useStudioProjectAt(props.environmentId, props.cwd)?.project.brief ?? null;
   const [name, setName] = useState(initial?.defaultName ?? "");
   const [folder, setFolder] = useState(initial?.folder ?? "");
@@ -98,10 +135,13 @@ export function NewDialog(props: {
     setName(template.defaultName);
     setFolder(template.folder);
   };
-  const offered = DISCIPLINES.filter((entry) =>
-    templates.some((template) => template.discipline === entry),
+  const offered = DISCIPLINES.filter(
+    (entry) =>
+      templates.some((template) => template.discipline === entry) ||
+      (entry === "Documents" && props.onAddTemplate),
   );
   const needsPart = selected?.source === "from-part";
+  const writesDocument = selected !== null && isDocumentTemplate(selected);
   // A part by its name in the engineering interface, by its path with code tools on.
   const plainWords = useEngineeringInterface();
   const partShown = (path: string) => (plainWords ? partLabel(path) : path);
@@ -118,6 +158,9 @@ export function NewDialog(props: {
         units,
         part: part === null ? null : serializeComposerFileLink(part),
         description,
+        ...(selected.file === undefined
+          ? {}
+          : { templateLink: serializeComposerFileLink(selected.file) }),
       }),
       { ensureLeadingBoundary: true },
     );
@@ -132,7 +175,7 @@ export function NewDialog(props: {
         <DialogHeader>
           <DialogTitle>New</DialogTitle>
           <DialogDescription>
-            Start a part, a board, a study or a job. Create hands it to the agent.
+            Start a part, a board, a study, a job or a document. Create hands it to the agent.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
@@ -164,7 +207,10 @@ export function NewDialog(props: {
                 {templates
                   .filter((template) => template.discipline === discipline)
                   .map((template) => {
-                    const Icon = DISCIPLINE_ICONS[template.discipline];
+                    const Icon =
+                      template.file === undefined
+                        ? DISCIPLINE_ICONS[template.discipline]
+                        : FilePlusIcon;
                     const active = selected?.id === template.id;
                     return (
                       <button
@@ -196,6 +242,31 @@ export function NewDialog(props: {
                     );
                   })}
               </div>
+              {discipline === "Documents" && (props.onAddTemplate || props.onShowTemplates) ? (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>Your own formats, such as a client's PRD:</span>
+                  {props.onAddTemplate ? (
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => void props.onAddTemplate?.()}
+                    >
+                      <FilePlusIcon />
+                      Add a template
+                    </Button>
+                  ) : null}
+                  {props.onShowTemplates ? (
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      onClick={() => void props.onShowTemplates?.()}
+                    >
+                      <FolderOpenIcon />
+                      Templates folder
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
 
               {selected === null ? null : (
                 <div className="flex flex-col gap-2.5 border-t border-border pt-3">
@@ -243,34 +314,41 @@ export function NewDialog(props: {
                       </Field>
                     </>
                   )}
-                  <Field label="Units">
-                    <Select
-                      value={units}
-                      onValueChange={(value) => setUnits(value === "in" ? "in" : "mm")}
-                    >
-                      <SelectTrigger size="sm" className="w-40" aria-label="Units">
-                        <SelectValue>{units === "in" ? "Inches" : "Millimeters"}</SelectValue>
-                      </SelectTrigger>
-                      <SelectPopup alignItemWithTrigger={false}>
-                        <SelectItem hideIndicator value="mm">
-                          Millimeters
-                        </SelectItem>
-                        <SelectItem hideIndicator value="in">
-                          Inches
-                        </SelectItem>
-                      </SelectPopup>
-                    </Select>
-                  </Field>
-                  <Field label="What it is" htmlFor={`${id}-description`}>
+                  {writesDocument ? null : (
+                    <Field label="Units">
+                      <Select
+                        value={units}
+                        onValueChange={(value) => setUnits(value === "in" ? "in" : "mm")}
+                      >
+                        <SelectTrigger size="sm" className="w-40" aria-label="Units">
+                          <SelectValue>{units === "in" ? "Inches" : "Millimeters"}</SelectValue>
+                        </SelectTrigger>
+                        <SelectPopup alignItemWithTrigger={false}>
+                          <SelectItem hideIndicator value="mm">
+                            Millimeters
+                          </SelectItem>
+                          <SelectItem hideIndicator value="in">
+                            Inches
+                          </SelectItem>
+                        </SelectPopup>
+                      </Select>
+                    </Field>
+                  )}
+                  <Field
+                    label={writesDocument ? "What it covers" : "What it is"}
+                    htmlFor={`${id}-description`}
+                  >
                     <Textarea
                       id={`${id}-description`}
                       size="sm"
                       value={description}
                       onChange={(event) => setDescription(event.target.value)}
                       placeholder={
-                        needsPart
-                          ? "Anything the agent should know: loads, machine, finish"
-                          : "Size, features, what it attaches to"
+                        writesDocument
+                          ? "Anything it should say, or leave out"
+                          : needsPart
+                            ? "Anything the agent should know: loads, machine, finish"
+                            : "Size, features, what it attaches to"
                       }
                     />
                   </Field>
@@ -278,6 +356,7 @@ export function NewDialog(props: {
                     <p className="text-2xs text-muted-foreground">
                       Saved as {(folder.trim() || selected.folder).replace(/\/+$/, "")}/
                       {fileStem(name)}
+                      {writesDocument ? ".md" : ""}
                     </p>
                   )}
                 </div>

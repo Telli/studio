@@ -4,6 +4,7 @@ import { ChevronDownIcon } from "lucide-react";
 import { Fragment, useMemo } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
+import { useRightPanelStore } from "~/rightPanelStore";
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { pluginEnvironment } from "~/state/plugins";
@@ -21,13 +22,23 @@ import {
   MenuTrigger,
 } from "../ui/menu";
 import { type HardwareAction, hardwareActions } from "./hardwareActions";
+import { useNewDialogStore } from "./NewDialog";
+import { useOpenWorkspaceStore } from "./openWorkspace";
+
+/** The project's New dialog on Documents, over its Overview: a PRD, requirements, an FMEA, your own. */
+function newDocument() {
+  const workspace = useOpenWorkspaceStore.getState().workspace;
+  if (workspace !== null) useRightPanelStore.getState().open(workspace.threadRef, "files");
+  useNewDialogStore.getState().ask("Documents");
+}
 
 /**
  * Evaluate, Manufacture and Document for the part: the jobs its kind takes that the enabled
  * plugins have skills for, the everyday ones in titled sections (Manufacture leading with the
  * project's own way of making it), then one "More" that opens the quick find (⌘K,
- * `StudioQuickFind`) on all of the menu's jobs, the long tail too. A pick writes the job, naming
- * the part by a link to its file, into the composer.
+ * `StudioQuickFind`) on all of the menu's jobs, the long tail too; Document also starts a
+ * document from a template (`NewDialog`). A pick writes the job, naming the part by a link to its
+ * file, into the composer.
  */
 export function PartActions(props: {
   readonly environmentId: EnvironmentId;
@@ -96,9 +107,15 @@ export function PartActions(props: {
                 </MenuGroup>
               </Fragment>
             ))}
+            {menu.group === "Document" ? (
+              <>
+                <MenuSeparator />
+                <MenuItem onClick={newDocument}>From a template…</MenuItem>
+              </>
+            ) : null}
             {menu.others.length === 0 ? null : (
               <>
-                {menu.sections.length === 0 ? null : <MenuSeparator />}
+                {menu.sections.length === 0 && menu.group !== "Document" ? null : <MenuSeparator />}
                 <MenuItem onClick={() => openCommandPalette({ query: menu.group })}>
                   {menu.moreLabel}…
                   {findShortcut ? <MenuShortcut>{findShortcut}</MenuShortcut> : null}

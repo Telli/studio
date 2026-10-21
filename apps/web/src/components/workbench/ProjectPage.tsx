@@ -31,8 +31,9 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { AddFolderMenu } from "./AddFolderMenu";
 import { EMPTY_BRIEF } from "./briefFolder";
-import { NewDialog } from "./NewDialog";
-import { availableTemplates } from "./newTemplates";
+import { useDocumentTemplates } from "./documentTemplates";
+import { NewDialog, useNewDialogStore } from "./NewDialog";
+import { availableTemplates, type Discipline } from "./newTemplates";
 import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
 import { ReadmeOverview } from "./ReadmeOverview";
@@ -410,7 +411,22 @@ export function ProjectPage(props: {
   const [tab, setTab] = useState<"overview" | "files" | "references" | "threads">("overview");
   const [query, setQuery] = useState("");
   const [view, setView] = useState<"grid" | "list">(readView);
-  const [newOpen, setNewOpen] = useState({ open: false, count: 0 });
+  const [newOpen, setNewOpen] = useState<{
+    readonly open: boolean;
+    readonly count: number;
+    readonly discipline?: Discipline;
+  }>({ open: false, count: 0 });
+  const documents = useDocumentTemplates(environmentId);
+  // New asked for from outside the page (the Document menu's From a template): open while asked.
+  const askedDiscipline = useNewDialogStore((store) => store.discipline);
+  const takeAsked = useNewDialogStore((store) => store.take);
+  const newDiscipline = askedDiscipline ?? newOpen.discipline;
+  const openNew = (discipline?: Discipline) =>
+    setNewOpen((current) => ({
+      open: true,
+      count: current.count + 1,
+      ...(discipline === undefined ? {} : { discipline }),
+    }));
   const chooseView = (next: "grid" | "list") => {
     setView(next);
     try {
@@ -533,10 +549,7 @@ export function ProjectPage(props: {
           </div>
           <div className="flex items-center gap-2">
             {templates.length === 0 || composerRef === null ? null : (
-              <Button
-                size="xs"
-                onClick={() => setNewOpen((current) => ({ open: true, count: current.count + 1 }))}
-              >
+              <Button size="xs" onClick={() => openNew()}>
                 <PlusIcon />
                 New
               </Button>
@@ -646,6 +659,7 @@ export function ProjectPage(props: {
             onOpen={openPath}
             linkTo={(root, path) => serializeComposerFileLink(threadPath(root, path))}
             onShowThreads={isProject && !plainWords ? () => setTab("threads") : null}
+            onNewDocument={composerRef === null ? null : () => openNew("Documents")}
             byHand={byHand}
             onStartPart={startPart}
             threadRef={threadRef}
@@ -711,12 +725,19 @@ export function ProjectPage(props: {
       </div>
       {composerRef === null ? null : (
         <NewDialog
-          key={newOpen.count}
-          open={newOpen.open}
-          onOpenChange={(open) => setNewOpen((current) => ({ ...current, open }))}
+          key={`${newOpen.count}:${askedDiscipline ?? ""}`}
+          open={newOpen.open || askedDiscipline !== null}
+          onOpenChange={(open) => {
+            if (!open) takeAsked();
+            setNewOpen((current) => ({ ...current, open }));
+          }}
           environmentId={environmentId}
           cwd={cwd}
           templates={templates}
+          fileTemplates={documents.templates}
+          onAddTemplate={documents.add}
+          onShowTemplates={documents.show}
+          {...(newDiscipline === undefined ? {} : { initialDiscipline: newDiscipline })}
           initialTemplateId={null}
           parts={parts}
           composerRef={composerRef}
