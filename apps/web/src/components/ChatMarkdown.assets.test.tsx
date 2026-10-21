@@ -6,6 +6,9 @@ import { expect, it, vi } from "vite-plus/test";
 
 const mint = vi.hoisted(() => vi.fn());
 vi.mock("@effect/atom-react", () => ({ useAtomValue: () => null }));
+// Studio opens a chat's file links in its viewers (`workbench/useOpenInWorkbench.ts`), which reads
+// the plugin list; these tests are about the markdown, so its file opener is a stand-in.
+vi.mock("./workbench/useOpenInWorkbench", () => ({ useOpenChatFile: () => () => undefined }));
 vi.mock("../hooks/useTheme", () => ({ useTheme: () => ({ resolvedTheme: "dark" }) }));
 vi.mock("../hooks/useFileMetadata", () => ({ useFileMetadata: () => undefined }));
 vi.mock("../hooks/useSettings", async (importOriginal) => {

@@ -19,6 +19,9 @@ import { setMarkdownTaskChecked } from "./files/filePreviewMode";
 
 vi.mock("../hooks/useFileMetadata", () => ({ useFileMetadata: () => null }));
 vi.mock("@effect/atom-react", () => ({ useAtomValue: () => null }));
+// Studio opens a chat's file links in its viewers (`workbench/useOpenInWorkbench.ts`), which reads
+// the plugin list; these tests are about the markdown, so its file opener is a stand-in.
+vi.mock("./workbench/useOpenInWorkbench", () => ({ useOpenChatFile: () => () => undefined }));
 vi.mock("./chat/MermaidDiagram", () => ({
   // Real Mermaid needs layout APIs jsdom lacks; a rendered diagram is an SVG.
   MermaidDiagram: () => <svg aria-label="Diagram" />,

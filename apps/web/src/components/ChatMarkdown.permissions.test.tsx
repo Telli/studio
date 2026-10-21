@@ -28,6 +28,12 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("@effect/atom-react", () => ({ useAtomValue: () => serverConfig }));
+// Studio opens a chat's file links in its viewers (`workbench/useOpenInWorkbench.ts`), which reads
+// the plugin list; with no viewer for a file it opens the file preview, which this stand-in does.
+vi.mock("./workbench/useOpenInWorkbench", () => ({
+  useOpenChatFile: (ref: typeof threadRef | null) => (path: string, line?: number) =>
+    ref === null ? undefined : state.openFile(ref, path, line),
+}));
 vi.mock("../hooks/useTheme", () => ({ useTheme: () => ({ resolvedTheme: "dark" }) }));
 vi.mock("../hooks/useFileMetadata", () => ({ useFileMetadata: () => undefined }));
 vi.mock("../hooks/useSettings", () => ({
