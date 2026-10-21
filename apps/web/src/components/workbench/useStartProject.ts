@@ -25,12 +25,18 @@ export type ProjectStart =
     }
   | { readonly kind: "new"; readonly job: NewJob };
 
-/** A project started from New is named by what New names: "Bracket", else "New board". */
+/**
+ * A project started from New is named by what New names: "Servo bracket", else as new work of its
+ * kind, "New board", "New FMEA" (a word in capitals stays as it is).
+ */
 export function newProjectName(job: Pick<NewJob, "template" | "name">): string {
   const name = job.name.trim();
   if (name !== "" && name !== job.template.defaultName) return humanName(name);
   const label = job.template.label;
-  return `New ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  const firstWord = label.split(" ")[0] ?? label;
+  const lead =
+    firstWord === firstWord.toUpperCase() ? label.charAt(0) : label.charAt(0).toLowerCase();
+  return `New ${lead}${label.slice(1)}`;
 }
 
 const kindOf = (id: string) => STUDIO_PROJECT_KINDS.find((kind) => kind.id === id)!;

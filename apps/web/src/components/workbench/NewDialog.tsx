@@ -19,7 +19,7 @@ import {
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
-import { DISCIPLINE_ICONS, KIND_ICONS } from "./kinds";
+import { DISCIPLINE_ICONS, KIND_ICONS, KIND_TINTS } from "./kinds";
 import { partLabel } from "./partNames";
 import { useEngineeringInterface } from "./studioInterface";
 import { useStudioProjectAt } from "./useStudioProjects";
@@ -81,6 +81,14 @@ function templateIcon(template: NewTemplate) {
   return template.id === "drawing" ? KIND_ICONS.Drawings : DISCIPLINE_ICONS[template.discipline];
 }
 
+/** A template's icon color: its kind's, as the Overview and ⌘K color that kind (`KIND_TINTS`). */
+function templateTint(template: NewTemplate): string {
+  if (template.file !== undefined || template.discipline === "Documents")
+    return KIND_TINTS.Documents;
+  if (template.id === "drawing") return KIND_TINTS.Drawings;
+  return template.discipline === "Robotics" ? KIND_TINTS.CAD : KIND_TINTS[template.discipline];
+}
+
 function Field(props: {
   readonly label: string;
   readonly htmlFor?: string;
@@ -127,8 +135,8 @@ export function NewDialog(props: {
   readonly parts: ReadonlyArray<string>;
   /** On Home: Create makes a new project for the work, and the dialog says so. */
   readonly newProject?: boolean;
-  /** Create: the work to start, for the host to hand to the agent. */
-  readonly onCreate: (job: NewJob) => void;
+  /** Create: the work to start, for the host to hand to the agent; the dialog waits while it runs. */
+  readonly onCreate: (job: NewJob) => void | Promise<unknown>;
 }) {
   const id = useId();
   const fileTemplates = props.fileTemplates ?? [];
@@ -150,6 +158,7 @@ export function NewDialog(props: {
   const [units, setUnits] = useState<"mm" | "in">(brief?.units ?? "mm");
   const [part, setPart] = useState<string | null>(props.parts[0] ?? null);
   const [description, setDescription] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const pick = (template: NewTemplate) => {
     setSelected(template);
@@ -169,11 +178,11 @@ export function NewDialog(props: {
   // A part by its name in the engineering interface, by its path with code tools on.
   const plainWords = useEngineeringInterface();
   const partShown = (path: string) => (plainWords ? partLabel(path) : path);
-  const ready = selected !== null && (needsPart ? part !== null : name.trim() !== "");
+  const ready = selected !== null && (needsPart ? part !== null : name.trim() !== "") && !creating;
 
   const create = () => {
-    if (selected === null) return;
-    props.onCreate({
+    if (selected === null || creating) return;
+    const started = props.onCreate({
       template: selected,
       name,
       units,
@@ -189,7 +198,16 @@ export function NewDialog(props: {
           : { templateLink: serializeComposerFileLink(selected.file) }),
       }),
     });
-    props.onOpenChange(false);
+    // A new project takes a moment to make: Create says so until its chat opens.
+    if (started instanceof Promise) {
+      setCreating(true);
+      void started.finally(() => {
+        setCreating(false);
+        props.onOpenChange(false);
+      });
+    } else {
+      props.onOpenChange(false);
+    }
   };
 
   return (
@@ -250,7 +268,7 @@ export function NewDialog(props: {
                         )}
                       >
                         <Icon
-                          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                          className={cn("mt-0.5 size-4 shrink-0", templateTint(template))}
                           aria-hidden="true"
                         />
                         <span className="flex min-w-0 flex-col gap-0.5">
@@ -328,13 +346,16 @@ export function NewDialog(props: {
                           onChange={(event) => setName(event.target.value)}
                         />
                       </Field>
-                      <Field label="Folder" htmlFor={`${id}-folder`}>
-                        <Input
-                          id={`${id}-folder`}
-                          value={folder}
-                          onChange={(event) => setFolder(event.target.value)}
-                        />
-                      </Field>
+                      {/* Where the file goes is the agent's to keep tidy in Studio. */}
+                      {plainWords ? null : (
+                        <Field label="Folder" htmlFor={`${id}-folder`}>
+                          <Input
+                            id={`${id}-folder`}
+                            value={folder}
+                            onChange={(event) => setFolder(event.target.value)}
+                          />
+                        </Field>
+                      )}
                     </>
                   )}
                   {writesDocument ? null : (
@@ -375,7 +396,7 @@ export function NewDialog(props: {
                       }
                     />
                   </Field>
-                  {needsPart || name.trim() === "" ? null : (
+                  {plainWords || needsPart || name.trim() === "" ? null : (
                     <p className="text-2xs text-muted-foreground">
                       Saved as {(folder.trim() || selected.folder).replace(/\/+$/, "")}/
                       {fileStem(name)}
@@ -392,7 +413,7 @@ export function NewDialog(props: {
             Cancel
           </Button>
           <Button size="sm" onClick={create} disabled={!ready}>
-            Create
+            {creating ? "Creating…" : "Create"}
           </Button>
         </DialogFooter>
       </DialogPopup>

@@ -47,11 +47,11 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
     id: "part",
     discipline: "CAD",
     label: "Part",
-    description: "One solid, built from a model script you can change by its dimensions.",
+    description: "One solid, made to change by its dimensions.",
     skill: "cad",
     source: "new",
     folder: "parts",
-    defaultName: "part",
+    defaultName: "Part",
   },
   {
     id: "assembly",
@@ -61,7 +61,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
     skill: "cad",
     source: "new",
     folder: "assemblies",
-    defaultName: "assembly",
+    defaultName: "Assembly",
   },
   {
     id: "sheet-metal",
@@ -71,7 +71,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
     skill: "cad",
     source: "new",
     folder: "parts",
-    defaultName: "sheet_part",
+    defaultName: "Sheet metal part",
   },
   {
     id: "drawing",
@@ -91,7 +91,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
     skill: "pcb",
     source: "new",
     folder: "electronics",
-    defaultName: "board",
+    defaultName: "Board",
   },
   {
     id: "harness",
@@ -101,7 +101,7 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
     skill: "harness",
     source: "new",
     folder: "electronics",
-    defaultName: "harness",
+    defaultName: "Wiring harness",
   },
   {
     id: "strength-study",

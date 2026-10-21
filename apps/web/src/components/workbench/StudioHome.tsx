@@ -26,6 +26,7 @@ import { SAMPLE_PROJECT } from "./homeExamples";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
+import { whenTouched } from "./ProjectChoices";
 import { ProjectPicker } from "./ProjectPicker";
 import { needsYou } from "./recentActivity";
 import { StudioNew } from "./StudioNew";
@@ -37,6 +38,11 @@ import { useProjectList } from "./useProjectList";
 import { type ProjectStart, useStartProject } from "./useStartProject";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+/** A group within Your projects, in the project switcher's words: Starred, then Recent. */
+const GROUP_LABEL = "text-xs font-medium text-muted-foreground";
+/** A first visit's offer: what it is beside the one button that does it. */
+const OFFER =
+  "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-dashed border-border px-4 py-3";
 /** Project tiles, four across on a wide window, as many as fit on a narrow one. */
 const TILE_GRID = "grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4";
 
@@ -80,8 +86,22 @@ export function StudioHome() {
 
 function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
-  const { cards } = useProjectList(environmentId);
-  const start = useStartProject(environmentId);
+  const { list, cards } = useProjectList(environmentId);
+  // Until the list arrives Home is neither a first visit nor a return, so nothing first-run shows.
+  const loaded = list !== undefined;
+  const firstTime = loaded && cards.length === 0;
+  const startProject = useStartProject(environmentId);
+  const [busy, setBusy] = useState(false);
+  // One start at a time, from the box or from New: a second press while one is made does nothing.
+  const start = async (work: ProjectStart) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await startProject(work);
+    } finally {
+      setBusy(false);
+    }
+  };
   const openProject = useOpenProject();
   const importActions = useImportActions();
   useNowMinute();
@@ -108,7 +128,8 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
     useRightPanelStore.getState().setMaximized(ref, false);
     void navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
   };
-  const tile = ({ id, project, folder, threads }: ListedProject) => {
+  const tile = (card: ListedProject) => {
+    const { id, project, folder, threads } = card;
     const asking = waiting.get(id) ?? [];
     const first = asking[0];
     return (
@@ -119,6 +140,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
         project={project}
         threads={threads}
         waiting={asking}
+        when={whenTouched(card)}
         onOpen={() => (first === undefined ? void openProject(folder, threads) : openChat(first))}
       />
     );
@@ -135,53 +157,68 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
             <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-8">
               <div className="flex flex-col gap-6">
                 <h1 className="text-2xl font-semibold text-foreground">
-                  {cards.length === 0 ? "Welcome to Studio" : "Welcome back"}
+                  {firstTime ? "Welcome to Studio" : "Welcome back"}
                 </h1>
                 <NewFilesNotice environmentId={environmentId} />
-                <StartProject environmentId={environmentId} cards={cards} />
+                <StartProject
+                  environmentId={environmentId}
+                  cards={cards}
+                  firstTime={firstTime}
+                  busy={busy}
+                  start={start}
+                />
               </div>
-              {starred.length === 0 ? null : (
-                <section aria-label="Starred" className="flex min-w-0 flex-col gap-3">
-                  <h2 className={SECTION_LABEL}>Starred</h2>
-                  <div className={TILE_GRID}>{starred.map(tile)}</div>
-                </section>
-              )}
-              <section aria-label="Your projects" className="flex min-w-0 flex-col gap-3">
-                {/* New and Import both add a project: from a part, board or document, or from files. */}
-                <div className="flex items-center gap-2">
-                  <h2 className={SECTION_LABEL}>Your projects</h2>
-                  <div className="flex-1" />
-                  {importActions === null || cards.length === 0 ? null : (
-                    <ImportMenu actions={importActions} />
-                  )}
-                  <StudioNew
-                    environmentId={environmentId}
-                    cwd=""
-                    newProject
-                    onCreate={(job) => void start({ kind: "new", job })}
-                  />
-                </div>
-                {cards.length === 0 && importActions !== null ? (
-                  <div className="flex flex-col items-start gap-2 rounded-xl border border-dashed border-border px-5 py-6">
-                    <span className="text-sm font-medium text-foreground">
-                      Import what you already have
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      Studio scans the folders you pick for CAD models, drawings and parts lists,
-                      and groups them into projects. Your files stay where they are.
-                    </span>
-                    <Button size="sm" variant="outline" onClick={importActions.scan}>
-                      Scan this computer
-                    </Button>
+              {loaded ? (
+                <section aria-label="Your projects" className="flex min-w-0 flex-col gap-3">
+                  {/* New and Import add a project: from a part, board or document, or from files. */}
+                  <div className="flex items-center gap-2">
+                    <h2 className={SECTION_LABEL}>Your projects</h2>
+                    <div className="flex-1" />
+                    {importActions === null || firstTime ? null : (
+                      <ImportMenu actions={importActions} />
+                    )}
+                    <StudioNew
+                      environmentId={environmentId}
+                      cwd=""
+                      newProject
+                      onCreate={(job) => start({ kind: "new", job })}
+                    />
                   </div>
-                ) : cards.length === 0 ? (
-                  <p className="py-8 text-sm text-muted-foreground">
-                    No projects yet. Describe one to start.
-                  </p>
-                ) : (
-                  <div className={TILE_GRID}>{rest.map(tile)}</div>
-                )}
-              </section>
+                  {firstTime ? (
+                    importActions === null ? (
+                      <p className="py-8 text-sm text-muted-foreground">
+                        No projects yet. Describe one above, or use New.
+                      </p>
+                    ) : (
+                      <div className={OFFER}>
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                          <span className="text-sm font-medium text-foreground">
+                            Import what you already have
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            Studio scans the folders you pick for CAD models, drawings and parts
+                            lists, and groups them into projects. Your files stay where they are.
+                          </span>
+                        </span>
+                        <Button size="sm" variant="outline" onClick={importActions.scan}>
+                          Scan this computer
+                        </Button>
+                      </div>
+                    )
+                  ) : (
+                    <>
+                      {starred.length === 0 ? null : (
+                        <>
+                          <h3 className={GROUP_LABEL}>Starred</h3>
+                          <div className={TILE_GRID}>{starred.map(tile)}</div>
+                          {rest.length === 0 ? null : <h3 className={GROUP_LABEL}>Recent</h3>}
+                        </>
+                      )}
+                      {rest.length === 0 ? null : <div className={TILE_GRID}>{rest.map(tile)}</div>}
+                    </>
+                  )}
+                </section>
+              ) : null}
             </div>
           </div>
         </ImportDropZone>
@@ -199,15 +236,17 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
 function StartProject(props: {
   readonly environmentId: EnvironmentId;
   readonly cards: ReadonlyArray<ListedProject>;
+  /** No projects yet: the sample project is offered, and there is nothing to choose. */
+  readonly firstTime: boolean;
+  /** A start is under way (from here or from New). */
+  readonly busy: boolean;
+  readonly start: (work: ProjectStart) => Promise<void>;
 }) {
-  const { environmentId } = props;
-  const start = useStartProject(environmentId);
+  const { environmentId, firstTime, busy } = props;
   const [chosenId, setChosenId] = useState<string | null>(null);
   const chosen = props.cards.find((card) => card.id === chosenId) ?? null;
-  const firstTime = props.cards.length === 0;
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const describe = useRef<HTMLTextAreaElement>(null);
   const hash = useLocation({ select: (location) => location.hash });
@@ -215,16 +254,7 @@ function StartProject(props: {
   useEffect(() => {
     if (hash === "start") describe.current?.focus();
   }, [hash]);
-  // One start at a time: a second press while the project is being made does nothing.
-  const run = async (work: ProjectStart) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await start(work);
-    } finally {
-      setBusy(false);
-    }
-  };
+  const run = props.start;
   const ready = description.trim() !== "" && !busy;
   const startDescribed = () => {
     if (ready) void run({ kind: "described", description, files, project: chosen });
@@ -285,7 +315,7 @@ function StartProject(props: {
             <PaperclipIcon />
             Attach
           </Button>
-          {firstTime ? null : (
+          {firstTime || props.cards.length === 0 ? null : (
             <ProjectPicker
               environmentId={environmentId}
               cards={props.cards}
@@ -295,14 +325,14 @@ function StartProject(props: {
           )}
           <div className="flex-1" />
           <Button size="sm" disabled={!ready} onClick={startDescribed}>
-            Start
+            {busy ? "Starting…" : "Start"}
           </Button>
         </div>
       </div>
       {firstTime ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-dashed border-border px-4 py-3">
+        <div className={OFFER}>
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="text-sm font-medium text-foreground">New to Studio?</span>
+            <span className="text-sm font-medium text-foreground">A sample project</span>
             <span className="text-sm text-muted-foreground">
               The agent builds a servo bracket, checks its strength, draws it and writes its PRD, so
               each part of Studio has something in it.

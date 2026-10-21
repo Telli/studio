@@ -25,6 +25,8 @@ export function ProjectTile(props: {
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
   /** Its chats waiting on the person (a question, an approval), newest first; Home passes them. */
   readonly waiting?: ReadonlyArray<EnvironmentThreadShell>;
+  /** When it was opened or worked on, as the project switcher says it (`whenTouched`). */
+  readonly when?: string;
   readonly onOpen: () => void;
 }) {
   const { environmentId, project } = props;
@@ -41,7 +43,7 @@ export function ProjectTile(props: {
   const first = waiting[0];
   const line =
     first === undefined
-      ? activity.line
+      ? (props.when ?? activity.line)
       : waiting.length === 1
         ? `${chatLabel(first.title)} is waiting on you`
         : `${waiting.length} chats are waiting on you`;

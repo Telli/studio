@@ -2,8 +2,8 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
-import { useNavigate } from "@tanstack/react-router";
-import { CompassIcon, HomeIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import { useLocation, useNavigate } from "@tanstack/react-router";
+import { CompassIcon, HomeIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
@@ -30,6 +30,7 @@ import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenedThreads } from "./openedThreads";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLabel } from "./partNames";
+import { ProjectThumb, whenTouched } from "./ProjectChoices";
 import { classifyProjectFile, type ProjectGroup } from "./projectFiles";
 import type { ListedProject } from "./projectList";
 import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
@@ -91,6 +92,7 @@ function QuickFindBody(props: {
   const composerRef = useComposerHandleContext();
   const openProject = useOpenProject();
   const navigate = useNavigate();
+  const onHome = useLocation({ select: (location) => location.pathname === "/" });
   const opened = useOpenedThreads();
   const recentFiles = useRecentFiles();
 
@@ -313,10 +315,12 @@ function QuickFindBody(props: {
             query,
           ),
       )
+      // A project as the switcher shows it: its picture and when it was last opened.
       .map((card) => ({
         value: `project:${card.id}`,
-        icon: <LayoutDashboardIcon className={ICON} />,
+        icon: <ProjectThumb environmentId={environmentId} project={card.project} size="sm" />,
         title: card.project.name,
+        description: whenTouched(card),
         ...(card === current ? { trailing: "Open" } : {}),
         run: go(() => {
           if (card !== current) void openProject(card.folder, card.threads);
@@ -324,13 +328,17 @@ function QuickFindBody(props: {
       })),
   };
   const places: ReadonlyArray<Row & { readonly terms: string }> = [
-    {
-      value: "go:home",
-      icon: <HomeIcon className={ICON} />,
-      title: "Home",
-      terms: "home projects start",
-      run: go(() => void navigate({ to: "/" })),
-    },
+    ...(onHome
+      ? []
+      : [
+          {
+            value: "go:home",
+            icon: <HomeIcon className={ICON} />,
+            title: "Home",
+            terms: "home projects all start",
+            run: go(() => void navigate({ to: "/" })),
+          },
+        ]),
     {
       value: "go:new-project",
       icon: <PlusIcon className={ICON} />,
@@ -338,13 +346,24 @@ function QuickFindBody(props: {
       terms: "new project start create",
       run: go(() => void navigate({ to: "/", hash: "start" })),
     },
-    {
-      value: "go:tour",
-      icon: <CompassIcon className={ICON} />,
-      title: "Take the tour",
-      terms: "tour help start learn how onboarding",
-      run: go(() => useTourStore.getState().start()),
-    },
+    // The tour shows a project's workspace: from Home it opens the last project first.
+    ...(workspace === null && cards[0] === undefined
+      ? []
+      : [
+          {
+            value: "go:tour",
+            icon: <CompassIcon className={ICON} />,
+            title: "Take the tour",
+            terms: "tour help start learn how onboarding",
+            run: go(() => {
+              const last = cards[0];
+              if (workspace === null && last !== undefined) {
+                void openProject(last.folder, last.threads);
+              }
+              useTourStore.getState().start();
+            }),
+          },
+        ]),
     {
       value: "go:settings",
       icon: <SettingsIcon className={ICON} />,

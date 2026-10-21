@@ -30,6 +30,12 @@ const projectRowClass =
 const groupClass =
   "px-2 pt-2 pb-1 text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 
+/** When a project was last opened on this device, or worked on if that came later. */
+export function whenTouched(card: ListedProject): string {
+  const opened = card.opened !== null && card.opened >= card.latest;
+  return `${opened ? "Opened" : "Worked on"} ${formatRelativeTimeLabel(lastTouched(card))}`;
+}
+
 /**
  * A project's picture, small, beside its name: its main part, as on its tile (`useProjectCover`),
  * or its kind's icon until it has one.
@@ -82,7 +88,6 @@ export function ProjectChoices(props: {
   const { starred, rest } = splitStarred(shown, starredIds);
 
   const row = (card: ListedProject) => {
-    const opened = card.opened !== null && card.opened >= card.latest;
     return (
       <div key={card.id} className={projectRowClass}>
         <button
@@ -93,9 +98,7 @@ export function ProjectChoices(props: {
           <ProjectThumb environmentId={environmentId} project={card.project} />
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate">{card.project.name}</span>
-            <span className="truncate text-2xs text-muted-foreground">
-              {opened ? "Opened" : "Worked on"} {formatRelativeTimeLabel(lastTouched(card))}
-            </span>
+            <span className="truncate text-2xs text-muted-foreground">{whenTouched(card)}</span>
           </span>
         </button>
         <StarButton

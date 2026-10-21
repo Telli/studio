@@ -431,7 +431,7 @@ function ImportDialog(props: {
             </DialogPanel>
             <DialogFooter>
               <span className="me-auto self-center text-xs text-muted-foreground">
-                You can import more any time from Projects.
+                You can import more any time from Home.
               </span>
               {start.kind === "scan" ? (
                 <Button variant="ghost" size="sm" onClick={() => setStep("scan")}>

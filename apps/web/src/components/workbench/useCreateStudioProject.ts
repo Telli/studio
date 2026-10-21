@@ -72,11 +72,8 @@ export function useCreateStudioProject(environmentId: EnvironmentId) {
       });
       if (id === null) return false;
       if (folders[0] !== undefined) input.onFolder?.(folders[0]);
-      toastManager.add({
-        type: "success",
-        title: `Created ${name}`,
-        description: folders.length === 1 ? folders[0] : `${folders.length} folders`,
-      });
+      // The project opening is the news; where its folder is stays in Show in Finder.
+      toastManager.add({ type: "success", title: `Created ${name}` });
 
       if (firstProjectId !== null) {
         const projectRef = scopeProjectRef(input.environmentId, firstProjectId);

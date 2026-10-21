@@ -11782,11 +11782,15 @@ export default function ChatView(props: ChatViewProps) {
                             : undefined
                         }
                       >
-                        <DraftHeroHeadline
-                          draftId={draftId}
-                          activeProjectRef={activeProjectRef}
-                          activeProjectTitle={activeProject?.title ?? null}
-                        />
+                        {/* Studio's chat is already in its project (the sidebar, the top bar): no
+                            headline, and no second project picker, over a new one. */}
+                        {engineeringInterface ? null : (
+                          <DraftHeroHeadline
+                            draftId={draftId}
+                            activeProjectRef={activeProjectRef}
+                            activeProjectTitle={activeProject?.title ?? null}
+                          />
+                        )}
                         <PluginStarterPrompts
                           environmentId={activeProjectRef?.environmentId ?? null}
                           composerRef={composerRef}

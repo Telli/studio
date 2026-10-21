@@ -8,7 +8,7 @@ import {
   CopyIcon,
   FolderOpenIcon,
   HistoryIcon,
-  LayoutGridIcon,
+  HomeIcon,
   PencilIcon,
   PlusIcon,
 } from "lucide-react";
@@ -57,7 +57,7 @@ const folderLabel = (os: string | undefined) =>
  * `useDuplicateProject`), Version history (the Overview's Versions), Back up (into a folder the
  * person chooses once, `useBackup`), Show in Finder and its star. Below, the other projects to
  * switch to: the starred ones, then the rest, the one opened last first, each with when (and its
- * star on hover), and a box to find one by name; then New project and All projects (Home).
+ * star on hover), and a box to find one by name; then New project and Home.
  * Picking one opens it where it was left (`useOpenProject`).
  */
 export function ProjectSwitcher(props: {
@@ -294,8 +294,8 @@ export function ProjectSwitcher(props: {
               className={PROJECT_ROW_CLASS}
               onClick={go(() => void navigate({ to: "/" }))}
             >
-              <LayoutGridIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-              All projects
+              <HomeIcon className="size-4 text-muted-foreground" aria-hidden="true" />
+              Home
             </button>
           </div>
         </PopoverPopup>

@@ -94,7 +94,7 @@ export function useDuplicateProject(environmentId: EnvironmentId) {
         createdAt: new Date().toISOString(),
       });
       if (id === null) return false;
-      toastManager.add({ type: "success", title: `Made ${name}`, description: target });
+      toastManager.add({ type: "success", title: `Made ${name}` });
       const projectRef = scopeProjectRef(environmentId, created.value.projectId);
       const ready = await waitForProject(projectRef).catch(() => null);
       if (ready !== null) await handleNewThread(projectRef).catch(() => undefined);
