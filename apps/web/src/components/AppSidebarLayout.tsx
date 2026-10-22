@@ -82,7 +82,14 @@ function readInitialThreadSidebarWidth(): number {
   }
 }
 
-function SidebarControl({ label = "Toggle main sidebar" }: { label?: string }) {
+function SidebarControl({
+  label = "Toggle main sidebar",
+  filled = false,
+}: {
+  label?: string;
+  /** A filled button, easy to find beside the window's controls (Studio's chats). */
+  filled?: boolean;
+}) {
   const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { toggleSidebar, isMobile, mobileSheetMounted } = useSidebar();
@@ -154,7 +161,13 @@ function SidebarControl({ label = "Toggle main sidebar" }: { label?: string }) {
             <SidebarTrigger
               // Over the stage artwork the trigger is a control on imagery, like the media
               // viewer's arrows; that variant positions itself, so the layout is reset here.
-              variant={isSidebarVisible && stageBackdropVariant ? "media-navigation" : "ghost"}
+              variant={
+                isSidebarVisible && stageBackdropVariant
+                  ? "media-navigation"
+                  : filled
+                    ? "secondary"
+                    : "ghost"
+              }
               className={cn(
                 "pointer-events-auto",
                 isSidebarVisible && stageBackdropVariant && "relative top-auto translate-y-0",
@@ -358,7 +371,9 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <SidebarRail onDoubleClick={resetSidebarWidth} />
         </Sidebar>
         {children}
-        <SidebarControl {...(studioShell ? { label: "Show or hide the chats" } : {})} />
+        <SidebarControl
+          {...(studioShell ? { label: "Show or hide the chats", filled: true } : {})}
+        />
         <NavigationHistoryShortcuts />
         <MainAppLocationTracker />
       </SidebarProvider>

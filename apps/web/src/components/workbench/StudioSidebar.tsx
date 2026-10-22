@@ -4,8 +4,8 @@ import type {
   EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
-import { useNavigate, useParams } from "@tanstack/react-router";
-import { ChevronDownIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
+import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
+import { ChevronDownIcon, HomeIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
 
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { isElectron } from "~/env";
@@ -52,8 +52,8 @@ function useCurrentFolderId(threadRef: ScopedThreadRef | null): ProjectId | null
 }
 
 /**
- * The project the open chat is in, then the chats: the project at the top (its picture and name,
- * which switch projects, and its own menu), its Overview (everything it holds, its CAD,
+ * Home, then the project the open chat is in, then the chats: Home first, marked while it shows;
+ * the project (its picture and name, which switch projects, and its own menu), its Overview (everything it holds, its CAD,
  * electronics, analysis and documents beside its chats), New chat, then the chats, newest first.
  * Chats are always all to hand: every project's, each with its project's name (`useAllChats`), or
  * this project's alone, as ChatGPT lists a project's chats, as the person last chose
@@ -91,6 +91,7 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
     (store) => selectActiveRightPanelSurface(store.byThreadKey, panelRef)?.kind === "files",
   );
   const navigate = useNavigate();
+  const onHome = useLocation({ select: (location) => location.pathname === "/" });
   const handleNewThread = useNewThreadHandler();
   const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
   useNowMinute();
@@ -100,11 +101,27 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
 
   return (
     <SidebarGroup aria-label={inProject ? "Project" : "Chats"}>
+      {/* Home first, marked while it shows: Studio's one page of projects, as ⌘K names it. */}
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            isActive={onHome}
+            aria-current={onHome ? "page" : undefined}
+            onClick={() => {
+              done();
+              if (!onHome) void navigate({ to: "/" });
+            }}
+          >
+            <HomeIcon aria-hidden="true" />
+            <span>Home</span>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
       {inProject ? (
         <>
           {/* The project's switcher is here while the sidebar shows, else in the top bar (one ⌘O). */}
           {(isMobile ? openMobile : open) ? (
-            <div data-tour="project">
+            <div data-tour="project" className="mt-4">
               <ProjectSwitcher environmentId={environmentId} folder={folder} title={title} wide />
             </div>
           ) : null}
@@ -137,7 +154,7 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
           </SidebarMenu>
         </>
       ) : null}
-      <div className={cn("flex flex-col gap-2", inProject ? "mt-6" : null)}>
+      <div className={cn("flex flex-col gap-2", inProject ? "mt-6" : "mt-4")}>
         {/* Chats folds away under its heading, as an Overview module does (`OverviewModules`). */}
         <div className="flex h-7 items-center ps-(--sidebar-row-content-inset)">
           <button
