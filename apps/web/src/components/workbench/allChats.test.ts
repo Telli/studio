@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { allChats } from "./allChats";
+import { allChats, findChats } from "./allChats";
 
 const chat = (id: string, updatedAt: string, archivedAt: string | null = null) => ({
   id,
@@ -33,6 +33,21 @@ describe("allChats", () => {
       },
     ]);
     expect(chats.map((each) => each.id)).toEqual(["a"]);
+  });
+
+  it("finds chats by their name or their project's, every word typed", () => {
+    const chats = [
+      { id: "a", title: "Fillet the top edges" },
+      { id: "b", title: "Motor mount" },
+    ];
+    const projectOf = new Map([
+      ["a", "L bracket"],
+      ["b", "Drone frame"],
+    ]);
+    expect(findChats(chats, projectOf, "").map((chat) => chat.id)).toEqual(["a", "b"]);
+    expect(findChats(chats, projectOf, "drone").map((chat) => chat.id)).toEqual(["b"]);
+    expect(findChats(chats, projectOf, "bracket FILLET").map((chat) => chat.id)).toEqual(["a"]);
+    expect(findChats(chats, projectOf, "bracket motor")).toEqual([]);
   });
 
   it("lists a chat two projects share once, under the first", () => {

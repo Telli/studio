@@ -3,9 +3,11 @@ import { describe, expect, it } from "vite-plus/test";
 import { studioNavSection } from "./studioNav";
 
 describe("studioNavSection", () => {
-  it("places Home and Projects", () => {
+  it("places Studio's pages: Home, Chats, Projects and Needs you", () => {
     expect(studioNavSection("/")).toBe("home");
+    expect(studioNavSection("/chats")).toBe("chats");
     expect(studioNavSection("/projects")).toBe("projects");
+    expect(studioNavSection("/needs-you")).toBe("needs");
   });
 
   it("treats a thread, a draft and a new chat as the workspace", () => {

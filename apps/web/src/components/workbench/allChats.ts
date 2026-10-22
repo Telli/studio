@@ -29,7 +29,21 @@ export function allChats<T extends ChatLike>(
   return { chats: projectChats([...byId.values()]), projectOf };
 }
 
-/** The sidebar's All (`StudioSidebar`): every Studio project's chats, from Home's project list. */
+/** The chats whose name or project's name holds every word typed; all of them with nothing typed. */
+export function findChats<T extends { readonly id: string; readonly title: string }>(
+  chats: ReadonlyArray<T>,
+  projectOf: ReadonlyMap<string, string>,
+  query: string,
+): T[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return [...chats];
+  return chats.filter((chat) => {
+    const text = `${chat.title} ${projectOf.get(chat.id) ?? ""}`.toLowerCase();
+    return words.every((word) => text.includes(word));
+  });
+}
+
+/** Every Studio project's chats, from Home's project list (Chats, and the sidebar's recent chats). */
 export function useAllChats(environmentId: EnvironmentId) {
   const { cards } = useProjectList(environmentId);
   return useMemo(

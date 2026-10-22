@@ -277,22 +277,22 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   question, an approval) comes first, says Needs you (on Home, in the switcher's list and in
   Cmd+K), and opens on that chat; Home lists no chats of its own. A tile's right-click, or the …
   on its hover, is the project's menu, the switcher's own actions in its words
-  (`ProjectMenu.tsx`). Home shows on its own beside the rail (below): arriving folds the list
-  away, leaving brings it back, and a list opened on Home from the rail stays open as you leave
-  through it (`studioPlaces.ts`). A project opens in the thread last
+  (`ProjectMenu.tsx`). A project opens in the thread last
   open in it on this device (else the one last worked on, else a new one), with its Overview
   across the window (`useOpenProject.ts`). Projects are
   listed as a recents list orders them, the one opened last on this device first (or worked on, if
   that came later), and the starred ones (kept on this computer) apart at the top of Home and the
   switcher. The sidebar is a rail of places down the far left, as Slack's (Amy, 2026-10-22,
   `StudioRail.tsx`): Home, Chats, Projects and Needs you (with how many chats wait on you), and
-  Settings at its foot, each icon labelled; and beside it the list the rail picked
-  (`StudioSidebar.tsx`), remembered on this device: every project's chats, each with its project's
-  name (`allChats.ts`); the projects, as the switcher lists them; or the chats waiting on you in
-  any project. Picking the list already open folds it away, as an editor's activity bar does, and
-  folding (the panel button beside the window's controls, or its shortcut) keeps the rail
-  (`collapsible="icon"`). Inside a project, Projects is the project's own page, with All projects
-  to go back: at its top the project's name, a control on one line with its picture that switches projects
+  Settings at its foot, each icon labelled and each opening its own page, as Claude's and ChatGPT's
+  open Chats and Projects (Amy: "each one should open its own page"): Chats, every chat with a box
+  to find one (`ChatPages.tsx`, `allChats.ts`); Projects, the Projects page; Needs you, the chats
+  waiting on your answer or approval in any project. The rail marks the page that shows, and
+  Projects inside a project (`studioPlaces.ts`). Beside the rail the column says where you are
+  (`StudioSidebar.tsx`): on Studio's pages the recent chats, each with its project's name; inside
+  a project, the project. Folding it (the panel button beside the window's controls, or its
+  shortcut) keeps the rail (`collapsible="icon"`). Inside a project the column has All projects to
+  go back, then at its top the project's name, a control on one line with its picture that switches projects
   (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on Home), whose
   top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop
   app, Version history once it has a part, Back up, Show in Finder, and Remove from Studio, which

@@ -1,50 +1,34 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import {
-  BellIcon,
-  FolderIcon,
-  HomeIcon,
-  type LucideIcon,
-  MessagesSquareIcon,
-  SettingsIcon,
-} from "lucide-react";
+import { BellIcon, FolderIcon, HomeIcon, type LucideIcon, SettingsIcon } from "lucide-react";
 
 import { cn } from "~/lib/utils";
 import { useSidebar } from "../ui/sidebar";
+import { CHAT_ICON } from "./kinds";
 import { needsYou } from "./recentActivity";
-import { railMark, type StudioListPlace, useStudioPlaceStore } from "./studioPlaces";
+import { railMark } from "./studioPlaces";
 import { useProjectList } from "./useProjectList";
 
 /** The rail's width, which the sidebar keeps when its list folds away (`AppSidebarLayout`). */
 export const STUDIO_RAIL_WIDTH = 72;
 
+/** Where each place's page is. */
+type RailPage = "/" | "/chats" | "/projects" | "/needs-you" | "/settings";
+
 /**
- * The places down the far left of Studio, as Slack's rail: Home, then the lists the sidebar shows
- * beside it (Chats, Projects, Needs you, with how many chats wait on the person), and Settings at
- * the foot. Picking a list opens it beside the rail; picking the one already open folds it away, as
- * an editor's activity bar does; Home opens Home on its own. The rail stays when the list folds.
+ * The places down the far left of Studio, as Slack's rail, each opening its own page as Claude's
+ * and ChatGPT's sidebars open Chats and Projects: Home, Chats (every chat), Projects, Needs you
+ * (the chats waiting on the person, with how many), and Settings at the foot. The one that shows
+ * is marked; inside a project, Projects is. The rail stays when the list beside it folds.
  */
 export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
-  const { isMobile, open, setOpen, setOpenMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const pathname = useLocation({ select: (location) => location.pathname });
   const navigate = useNavigate();
-  const list = useStudioPlaceStore((store) => store.list);
-  const showList = useStudioPlaceStore((store) => store.showList);
   const { cards } = useProjectList(props.environmentId);
   const waiting = needsYou(cards).length;
-  // On a phone the sidebar is a sheet: its list always shows beside the rail.
-  const listOpen = isMobile || open;
-  const mark = railMark({ pathname, listOpen, list });
-
-  const choose = (place: StudioListPlace) => {
-    if (!isMobile && open && list === place) {
-      void setOpen(false);
-      return;
-    }
-    showList(place);
-    if (!isMobile) void setOpen(true);
-  };
-  const go = (to: "/" | "/settings") => {
+  const mark = railMark(pathname);
+  const go = (to: RailPage) => {
     if (isMobile) setOpenMobile(false);
     void navigate({ to });
   };
@@ -57,23 +41,23 @@ export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
     >
       <RailItem icon={HomeIcon} label="Home" marked={mark === "home"} onClick={() => go("/")} />
       <RailItem
-        icon={MessagesSquareIcon}
+        icon={CHAT_ICON}
         label="Chats"
         marked={mark === "chats"}
-        onClick={() => choose("chats")}
+        onClick={() => go("/chats")}
       />
       <RailItem
         icon={FolderIcon}
         label="Projects"
         marked={mark === "projects"}
-        onClick={() => choose("projects")}
+        onClick={() => go("/projects")}
       />
       <RailItem
         icon={BellIcon}
         label="Needs you"
         count={waiting}
         marked={mark === "needs"}
-        onClick={() => choose("needs")}
+        onClick={() => go("/needs-you")}
       />
       <div className="flex-1" />
       <RailItem
