@@ -4117,7 +4117,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     if (!stat || stat.type !== "File") continue;
 
     const to = path.join(options.outputDir, entry);
-    yield* fs.copyFile(from, to);
+    // Moved, not copied, where the stage and the output share a disk: the stage goes away after,
+    // and a copy needs the DMG and the zip's size free again (a Studio build ran out on the zip).
+    yield* fs.rename(from, to).pipe(Effect.catch(() => fs.copyFile(from, to)));
     copiedArtifacts.push(to);
   }
 

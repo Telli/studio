@@ -86,7 +86,11 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
     (it asks for the password, which stays in the keychain).
   - **Each release:** `STUDIO_SIGN=1 APPLE_KEYCHAIN_PROFILE=studio-notary RUSTUP_TOOLCHAIN=1.95
 scripts/build-studio-app.sh <version>`, then the `gh release create` line it prints: the DMG
-    under its one name, and the zip, its blockmap and `latest-mac.yml` the updater reads.
+    under its one name, and the zip, its blockmap and `latest-mac.yml` the updater reads. It needs
+    about 10 GB free: the last release's files in `release/` and `build/studio-bundle` can go once
+    it is published. 0.1.3 ran out on its last step (2026-10-22), which now moves the DMG and the
+    zip out of the stage instead of copying them; its zip was made from the notarized DMG's app
+    with `ditto -c -k --sequesterRsrc --keepParent`, as 0.1.2's was.
   - The first signed version is still a download: a copy signed ad hoc has no feed to find it.
 - **On each start**, the app's boot step (`apps/desktop/src/studio/studioAppBundle.ts`) points
   it at `Resources/studio`:
