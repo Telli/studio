@@ -262,7 +262,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   question, an approval) comes first, says Needs you (on Home, in the switcher's list and in
   Cmd+K), and opens on that chat; Home lists no chats of its own. A tile's right-click, or the …
   on its hover, is the project's menu, the switcher's own actions in its words
-  (`ProjectMenu.tsx`). T3 Code's sidebar stays shut there. A project opens in the thread last
+  (`ProjectMenu.tsx`). The sidebar shows there too, with every project's chats (below), and the
+  top bar's mark moves into it while it shows. A project opens in the thread last
   open in it on this device (else the one last worked on, else a new one), with its Overview
   across the window (`useOpenProject.ts`). Projects are
   listed as a recents list orders them, the one opened last on this device first (or worked on, if
@@ -273,8 +274,12 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop
   app, Version history once it has a part, Back up, Show in Finder, and Remove from Studio, which
   asks first and keeps the folder's files to import again; T3's Remove project in Settings is
-  hidden in Engineering), then its Overview, New chat, and its chats,
-  newest first. What the project holds is on its Overview. The top bar names the open chat; with
+  hidden in Engineering), then its Overview, New chat, and the chats, newest first. The chats are
+  always all to hand (Amy, 2026-10-22): Chats switches between All, every project's chats, each
+  with its project's name under it, and This project, as the person last chose on this device
+  (`chatScope.ts`, `allChats.ts`); on Home, with no project open, the sidebar lists them all.
+  Opening a chat from another project opens that project. What the project holds is on its
+  Overview. The top bar names the open chat; with
   the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the project's
   switcher. The panel's tabs are what was opened lately in the project, along its top as a
   browser's are (`brand/theme.css`), and the same beside each of the folder's chats, as a Chrome

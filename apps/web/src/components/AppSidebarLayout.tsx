@@ -243,11 +243,9 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
-  // Studio's engineering pages have a top bar instead (`workbench/StudioTopBar.tsx`): the sidebar
-  // stays shut on Home and lists a project's chats in its workspace (`workbench/StudioSidebar.tsx`).
-  const studioSection = useEngineeringInterface() ? studioNavSection(pathname) : "other";
-  const studioShell = studioSection !== "other";
-  const studioHome = studioShell && studioSection !== "workspace";
+  // Studio's engineering pages have a top bar instead (`workbench/StudioTopBar.tsx`); the sidebar
+  // lists the chats on every one of them, Home included (`workbench/StudioSidebar.tsx`).
+  const studioShell = useEngineeringInterface() && studioNavSection(pathname) !== "other";
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
   // Subscribed rather than read once: the clamp must track live window size,
@@ -325,7 +323,6 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         className="h-dvh! min-h-0!"
         data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
         defaultOpen
-        {...(studioHome ? { open: false } : {})}
         style={sidebarProviderStyle}
       >
         <SidebarBrandWidthProbe onWidthChange={setBrandWidth} />
@@ -333,8 +330,6 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         <Sidebar
           side="left"
           collapsible="offcanvas"
-          // Shut for Studio's Home: nothing in it is reachable by Tab or a screen reader.
-          {...(studioHome ? { inert: true } : {})}
           data-app-sidebar=""
           role="navigation"
           aria-label={isOnSettings ? "Settings" : "Threads"}
@@ -363,9 +358,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <SidebarRail onDoubleClick={resetSidebarWidth} />
         </Sidebar>
         {children}
-        {studioHome ? null : (
-          <SidebarControl {...(studioShell ? { label: "Show or hide the chats" } : {})} />
-        )}
+        <SidebarControl {...(studioShell ? { label: "Show or hide the chats" } : {})} />
         <NavigationHistoryShortcuts />
         <MainAppLocationTracker />
       </SidebarProvider>

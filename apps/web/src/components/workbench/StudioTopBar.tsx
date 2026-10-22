@@ -5,12 +5,13 @@ import { APP_BASE_NAME } from "~/branding";
 import { isElectron } from "~/env";
 import { cn } from "~/lib/utils";
 import { T3Wordmark } from "../T3Wordmark";
+import { useSidebar } from "../ui/sidebar";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
 
 /**
- * Studio's mark and name, which always lead Home, the one page of projects: how every engineering
- * page starts its top bar, in place of T3's sidebar. A project's workspace puts its switcher after
- * it (`StudioWorkspaceBar`).
+ * Studio's mark and name, which lead Home, the one page of projects, while the chats are folded
+ * away: how every engineering page starts its top bar then. A project's workspace puts its
+ * switcher after it (`StudioWorkspaceBar`).
  */
 export function StudioNav(props: {
   /** The mark alone, where the bar is narrow (a project's workspace, beside its chat). */
@@ -30,17 +31,21 @@ export function StudioNav(props: {
   );
 }
 
-/** The top bar of Studio's Home: the mark and name, then the page's controls at the end. */
+/**
+ * The top bar of Studio's Home: the mark and name, then the page's controls at the end. While the
+ * chats show down the left, the sidebar's own header carries the mark, as in a project's workspace.
+ */
 export function StudioTopBar(props: {
   readonly children?: ReactNode;
   readonly className?: string;
 }) {
+  const { isMobile, open } = useSidebar();
   return (
     <WorkspacePageHeader
       electron={isElectron}
       className={cn("border-b border-border bg-background", props.className)}
     >
-      <StudioNav />
+      {open && !isMobile ? null : <StudioNav />}
       <div className="flex min-w-0 flex-1 items-center justify-end gap-2">{props.children}</div>
     </WorkspacePageHeader>
   );
