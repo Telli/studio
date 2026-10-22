@@ -33,6 +33,7 @@ import {
   CARD_GRID,
   FileCard,
   FilesModule,
+  HeadingLink,
   MODULE_HEADING,
   OverviewModule,
   ShowAll,
@@ -50,6 +51,7 @@ import {
 } from "./projectFiles";
 import { PartVersions, type VersionedPart } from "./PartVersions";
 import { ProjectEverything } from "./ProjectEverything";
+import { ProjectSizes } from "./ProjectSizes";
 import { ProjectThreads } from "./ProjectThreads";
 import { useEngineeringInterface } from "./studioInterface";
 import { usePictures } from "./usePictures";
@@ -81,18 +83,6 @@ const issuePart = (entry: Issue) =>
   entry.part?.title ?? partName(entry.result.part)?.name ?? humanName(entry.result.part);
 
 /** A link at a module's heading: New document, New chat. */
-function HeadingLink(props: { readonly label: string; readonly onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={props.onClick}
-      className="text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
-    >
-      {props.label}
-    </button>
-  );
-}
-
 /** The project's lead part, large: the first model of its first folder, with what was made from it. */
 function LeadPart(props: {
   readonly environmentId: EnvironmentId;
@@ -483,6 +473,18 @@ export function ProjectOverview(props: {
             />
           </div>
         ) : null}
+        {/* Every named size in one table, shared ones first (`ProjectSizes`). */}
+        {partCount === 0 ? null : (
+          <ProjectSizes
+            environmentId={props.environmentId}
+            threadRef={props.threadRef}
+            folders={props.folders}
+            mutationId={props.mutationId}
+            composerRef={props.composerRef}
+            folded={folded.includes("Sizes")}
+            onFold={() => toggle("Sizes")}
+          />
+        )}
         {versioned.length === 0 ? null : (
           <PartVersions
             environmentId={props.environmentId}

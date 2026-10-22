@@ -330,6 +330,13 @@ class EditService:
     def building(self) -> dict:
         return self._builds.snapshot() if self._builds else {"scripts": [], "done": 0, "error": None}
 
+    def rebuild(self, root: Path, changed: str) -> dict:
+        """Every part that uses ``changed`` (a file relative to ``root``) built again, as after a
+        change here: for a size changed from Studio's Sizes (``sizes.py``)."""
+        if self._builds is not None:
+            self._builds.start(dependents(root, changed))
+        return self.building()
+
     def editable(self, file_ref: str) -> dict:
         """Whether a viewer file has a part script beside it to edit: answered at once, so a view
         that cannot be edited never changes its layout for edit mode while the part is read."""

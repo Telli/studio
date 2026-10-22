@@ -224,6 +224,18 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   file in the Templates folder beside Studio's projects (`<projects folder>/Templates`), which the
   agent follows section by section (`documentTemplates.ts`; Add a template copies one in). The
   agent fills each section from the project and writes what is not known as an open question.
+- **Sizes** (Amy, 2026-10-22: "Variables > pushing and pulling hundreds of features"). The
+  Overview's Sizes is every named size in the project's scripts in one table, as a CAD tool's
+  global variables (`ProjectSizes.tsx`): the shared ones first, with the parts that use them, then
+  each part's own. Shared sizes live in `sizes.py` beside the parts, which import them by name
+  (`from sizes import WALL`); a script's imports resolve from its own folder, so that is where the
+  file goes, the folder holding most of the parts (`text-to-cad/skills/cad/references/edit-mode.md`
+  tells the agent). A number changes where it is written, a click away, and every part that
+  imports its file builds again; a formula (`2 * WALL`) changes where its sizes are. Add shared
+  size appends one, and Use it in parts asks the agent to put it to work; the agent is told of
+  each change in a hidden note, as of a restore. The CAD service reads the sizes from the source
+  without running anything (`cadgen/edit/sizes.py`, `/__cad/sizes`), so a CAD service started
+  before them needs a restart to show them.
 - **Versions and What changed.** Every chat turn's checkpoint is a version. The Overview's
   Versions lists a part's versions, newest first, each with when and which chat made it (and Now,
   for a hand edit since the last turn), and shows what changed between the one picked and the one

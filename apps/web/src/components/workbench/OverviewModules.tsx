@@ -84,6 +84,19 @@ export function ShowAll(props: {
  * One module of a project's Overview: a heading that folds it, how many it holds, and its
  * contents. The Overview shows a module only once there is something in it.
  */
+/** A link at a module's heading end, such as New document. */
+export function HeadingLink(props: { readonly label: string; readonly onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={props.onClick}
+      className="text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
+    >
+      {props.label}
+    </button>
+  );
+}
+
 export function OverviewModule(props: {
   readonly title: string;
   /** The kind it holds, as Studio marks that kind everywhere (`kinds.ts`). */

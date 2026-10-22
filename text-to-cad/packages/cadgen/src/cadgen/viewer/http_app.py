@@ -557,6 +557,8 @@ class CadApp:
                     self._handle_edit(request, response, pathname)
                 elif pathname in ("/__cad/versions", "/__cad/versions/compare", "/__cad/versions/restore"):
                     self._handle_versions(request, response, pathname)
+                elif pathname in ("/__cad/sizes", "/__cad/sizes/set", "/__cad/sizes/add"):
+                    self._handle_sizes(request, response, pathname)
                 elif pathname in ("/__cad/analytics", "/__cad/analytics/activity") and self.analytics is not None:
                     # A page's crash report carries its frames (``_report_activity``): room for them, and no more.
                     if int(request.headers.get("content-length") or 0) > (16384 if pathname.endswith("/activity") else 4096):
@@ -872,6 +874,43 @@ class CadApp:
                 result = versions.restore(folder, path, str(payload.get("version") or ""))
             else:
                 result = versions.versions(folder, path)
+        except Exception as error:  # noqa: BLE001
+            result = {"ok": False, "error": str(error) or type(error).__name__}
+        response.send_json(200, result)
+
+    def _handle_sizes(self, request, response, pathname):
+        """Studio's Sizes (``cadgen/edit/sizes.py``): every named size in a project's scripts, read
+        from the source without running them; one changed where it is written, the parts that use
+        its file then built again in the edit service's processes; a shared one added. Failures are
+        answered, as edit mode's are."""
+        if int(request.headers.get("content-length") or 0) > 65536:
+            response.send_empty(413, [("connection", "close")])
+            return
+        try:
+            payload = json.loads(request.body() or b"{}")
+            if type(payload) is not dict:
+                raise ValueError("a sizes request is an object")
+            from cadgen.edit import sizes
+
+            folder = str(payload.get("folder") or "")
+            if pathname.endswith("/set"):
+                result = sizes.set_size(
+                    folder,
+                    str(payload.get("file") or ""),
+                    str(payload.get("name") or ""),
+                    int(payload.get("line") or 0),
+                    str(payload.get("old") or ""),
+                    str(payload.get("text") or ""),
+                )
+                from cadgen.edit.service import shared_service
+
+                result = {**result, "building": shared_service().rebuild(Path(result["root"]), result["file"])}
+            elif pathname.endswith("/add"):
+                result = sizes.add_shared(
+                    folder, str(payload.get("name") or ""), str(payload.get("text") or ""), str(payload.get("note") or "")
+                )
+            else:
+                result = sizes.sizes(folder)
         except Exception as error:  # noqa: BLE001
             result = {"ok": False, "error": str(error) or type(error).__name__}
         response.send_json(200, result)

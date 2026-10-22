@@ -27,6 +27,11 @@ by hand" below.
   `LENGTH = 2.80`, `WALL = .060`. They become the Parameters (with those the part's own script
   names at its top, used or not; Add Parameter writes one there). Use plain names, not abbreviations
   (`TRAY_HEIGHT`, not `TH`).
+- **Put sizes several parts share in `sizes.py` beside the parts**, one per line with what it is
+  for (`WALL = 2.0  # every outer wall`), and import them by name (`from sizes import WALL`). A
+  part's imports resolve from its own folder, so the file sits in the same folder as the parts.
+  Changing one there, in edit mode or in Studio's Sizes, builds again every part that imports it,
+  so one number drives them all; a part's own sizes stay at the top of its script.
 - **Build each feature from those names**, so a dimension on the model leads back to a size
   (`LENGTH - 2*WALL`), not to a number computed somewhere else.
 - **One feature per line** in the function that designs the part (`outer = ...`,
