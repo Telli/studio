@@ -108,7 +108,10 @@ windows-latest (on a push to `amy/studio-windows`, or Run workflow with a versio
 result there, checks the CAD tools import in the installed app, and keeps the installer, its
 blockmap and `latest.yml` as the run's artifact for three days (`gh run download`). Publish it into
 the version's release with the `gh release upload` line the script prints, which adds
-`Studio-Setup.exe`, the download's one name.
+`Studio-Setup.exe`, the download's one name. The installer is about 480 MB and installs, with no
+questions, in about four minutes (2026-10-22) to `%LOCALAPPDATA%\Programs\text-to-cad-studio`: the
+one-click installer names the folder by the package name. The CAD tools' small files are most of
+those minutes; one archive unpacked on the first start would cut them.
 
 - **Unsigned for now.** Windows warns the first time it opens (More info, then Run anyway), and
   Smart App Control or a company's IT can block it outright. Unlike macOS, Windows installs updates
@@ -120,9 +123,10 @@ the version's release with the `gh release upload` line the script prints, which
 - **Where it differs from the Mac's.** uv's Windows CPython keeps `python.exe` at the top of its
   folder (`resources\studio\python\python.exe`), and the boot step writes paths into the plugin
   with forward slashes, quoted in the skills when they hold a space (a user folder like
-  `C:\Users\Amy Zhou`). T3 Code's Windows payload check allows 80 loose files, and leaves the CAD
-  tools out of that count. Its icon is the brand kit's `favicon.ico`, which has every size Windows
-  draws.
+  `C:\Users\Amy Zhou`). T3 Code's Windows payload check holds its own payload to 80 loose files,
+  to keep its installer quick; Studio's build skips that budget, since the CAD tools' Python alone
+  is tens of thousands of files (and the rest of Studio's payload was already 232). Its icon is the
+  brand kit's `favicon.ico`, which has every size Windows draws.
 - **Installing packages.** This Mac's checkouts leave `apps/mobile` out (a sparse checkout), and
   pnpm then refuses to install over the mobile app's unused patches. GitHub's checkout includes it
   and installs only the desktop app's packages, as T3 Code's release does; locally, add

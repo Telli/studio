@@ -128,8 +128,12 @@ jobs:
           $proc = Start-Process -FilePath $installer -ArgumentList "/S" -Wait -PassThru
           Write-Host "Installed in $([int]$timer.Elapsed.TotalSeconds) s, exit code $($proc.ExitCode)"
           if ($proc.ExitCode -ne 0) { exit $proc.ExitCode }
-          $app = Join-Path $env:LOCALAPPDATA "Programs\Studio"
-          if (-not (Test-Path (Join-Path $app "Studio.exe"))) { throw "Studio.exe is missing from $app" }
+          # The one-click installer names the folder by the package name (text-to-cad-studio).
+          $programs = Join-Path $env:LOCALAPPDATA "Programs"
+          $exe = Get-ChildItem $programs -Filter Studio.exe -Recurse -Depth 1 | Select-Object -First 1
+          if ($null -eq $exe) { throw "Studio.exe is not under $programs" }
+          $app = $exe.DirectoryName
+          Write-Host "Installed at $app"
           $files = Get-ChildItem -Recurse -File $app
           $longest = $files | Sort-Object { $_.FullName.Length } | Select-Object -Last 1
           Write-Host "$($files.Count) files; the longest path is $($longest.FullName.Length) characters: $($longest.FullName)"
