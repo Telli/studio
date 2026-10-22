@@ -36,6 +36,7 @@ import LegacyThreadSidebar from "./LegacySidebar";
 import { useThreadVisitedMigration } from "../hooks/useThreadVisitedMigration";
 import ThreadSidebar from "./Sidebar";
 import { studioNavSection } from "./workbench/studioNav";
+import { STUDIO_RAIL_WIDTH } from "./workbench/StudioRail";
 import { useEngineeringInterface } from "./workbench/studioInterface";
 import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import { SidebarBrandWidthProbe, SidebarChromeHeader } from "./sidebar/SidebarChrome";
@@ -246,8 +247,9 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
-  // Studio's engineering pages have a top bar instead (`workbench/StudioTopBar.tsx`); the sidebar
-  // lists the chats on every one of them, Home included (`workbench/StudioSidebar.tsx`).
+  // Studio's engineering pages have a top bar instead (`workbench/StudioTopBar.tsx`); on every one
+  // of them the sidebar is Studio's rail of places and the list it picked, and folding it keeps
+  // the rail (`workbench/StudioSidebar.tsx`).
   const studioShell = useEngineeringInterface() && studioNavSection(pathname) !== "other";
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
@@ -256,7 +258,9 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   // that would otherwise refresh a render-time snapshot.
   const viewportWidth = useSyncExternalStore(subscribeToViewportWidth, readViewportWidth);
   const [brandWidth, setBrandWidth] = useState(0);
-  const sidebarMinimumWidth = resolveThreadSidebarMinimumWidth(brandWidth);
+  // Studio's rail of places sits inside the sidebar, beside its list (`workbench/StudioRail.tsx`).
+  const sidebarMinimumWidth =
+    resolveThreadSidebarMinimumWidth(brandWidth) + (studioShell ? STUDIO_RAIL_WIDTH : 0);
   const sidebarMaximumWidth = resolveThreadSidebarMaximumWidth(viewportWidth, sidebarMinimumWidth);
   const resetSidebarWidth = () => {
     try {
@@ -279,6 +283,8 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   ) as CSSProperties;
   const sidebarProviderStyle = {
     "--sidebar-width": `${clampThreadSidebarWidth(sidebarWidth, sidebarMinimumWidth, sidebarMaximumWidth)}px`,
+    // Folded, Studio's sidebar keeps its rail (`collapsible="icon"` below).
+    ...(studioShell ? { "--sidebar-width-icon": `${STUDIO_RAIL_WIDTH}px` } : {}),
     "--panel-animation-duration": `${panelAnimationDurationMs}ms`,
     ...windowControlsInsetStyle,
   } as CSSProperties;
@@ -332,7 +338,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         <ProjectProjectionRetention />
         <Sidebar
           side="left"
-          collapsible="offcanvas"
+          collapsible={studioShell ? "icon" : "offcanvas"}
           data-app-sidebar=""
           role="navigation"
           aria-label={isOnSettings ? "Settings" : "Threads"}

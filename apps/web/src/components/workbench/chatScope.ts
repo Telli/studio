@@ -1,47 +1,31 @@
 import { create } from "zustand";
 
 /**
- * How the sidebar lists chats (`StudioSidebar`): in a project, every project's (All, as a chat
- * app's recent chats) or the open project's alone (This project), Home listing them all; and
- * whether the list is folded away under its heading, as an Overview module folds. Per device, as
- * the person last chose, like the starred projects.
+ * Whether a project's chats are folded away under their heading in its page beside the rail
+ * (`StudioSidebar`), as an Overview module folds. Per device, as the person last chose.
  */
-export type ChatScope = "all" | "project";
-
-const SCOPE_KEY = "studio:chat-scope";
 const FOLDED_KEY = "studio:chats-folded";
 
-function read(key: string): string | null {
+function readFolded(): boolean {
   try {
-    return globalThis.localStorage?.getItem(key) ?? null;
+    return globalThis.localStorage?.getItem(FOLDED_KEY) === "true";
   } catch {
-    return null;
-  }
-}
-
-function remember(key: string, value: string): void {
-  try {
-    globalThis.localStorage?.setItem(key, value);
-  } catch {
-    // Storage is full or off: the choice holds until the window closes.
+    return false;
   }
 }
 
 export const useChatScopeStore = create<{
-  readonly scope: ChatScope;
   readonly folded: boolean;
-  readonly setScope: (scope: ChatScope) => void;
   readonly toggleFolded: () => void;
 }>()((set, get) => ({
-  scope: read(SCOPE_KEY) === "project" ? "project" : "all",
-  folded: read(FOLDED_KEY) === "true",
-  setScope: (scope) => {
-    set({ scope });
-    remember(SCOPE_KEY, scope);
-  },
+  folded: readFolded(),
   toggleFolded: () => {
     const folded = !get().folded;
     set({ folded });
-    remember(FOLDED_KEY, String(folded));
+    try {
+      globalThis.localStorage?.setItem(FOLDED_KEY, String(folded));
+    } catch {
+      // Storage is full or off: the choice holds until the window closes.
+    }
   },
 }));

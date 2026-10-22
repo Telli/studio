@@ -100,6 +100,8 @@ export function ProjectChoices(props: {
   readonly inputRef?: RefObject<HTMLInputElement | null>;
   /** What an empty list says with nothing typed. */
   readonly none: string;
+  /** In a column of its own (the rail's Projects), the list runs its full length. */
+  readonly full?: boolean;
 }) {
   const { environmentId, leaveOut, onChoose, query, onQueryChange, inputRef, none } = props;
   const starredIds = useStarredStore((store) => store.starred);
@@ -158,7 +160,7 @@ export function ProjectChoices(props: {
         placeholder="Find a project"
         aria-label="Find a project"
       />
-      <div className="mt-1 flex max-h-80 flex-col overflow-y-auto">
+      <div className={cn("mt-1 flex flex-col", props.full ? null : "max-h-80 overflow-y-auto")}>
         {shown.length === 0 ? (
           <p className="px-2 py-3 text-sm text-muted-foreground">
             {query.trim() === "" ? none : "No project matches that."}

@@ -265,29 +265,33 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   question, an approval) comes first, says Needs you (on Home, in the switcher's list and in
   Cmd+K), and opens on that chat; Home lists no chats of its own. A tile's right-click, or the …
   on its hover, is the project's menu, the switcher's own actions in its words
-  (`ProjectMenu.tsx`). The sidebar shows there too, with every project's chats (below), and the
-  top bar's mark moves into it while it shows. A project opens in the thread last
+  (`ProjectMenu.tsx`). Home shows on its own beside the rail (below): arriving folds the list
+  away, leaving brings it back, and a list opened on Home from the rail stays open as you leave
+  through it (`studioPlaces.ts`). A project opens in the thread last
   open in it on this device (else the one last worked on, else a new one), with its Overview
   across the window (`useOpenProject.ts`). Projects are
   listed as a recents list orders them, the one opened last on this device first (or worked on, if
   that came later), and the starred ones (kept on this computer) apart at the top of Home and the
-  switcher. In its workspace the sidebar is the project and its chats (`StudioSidebar.tsx`): at
-  its top the project's name, a control on one line with its picture that switches projects
+  switcher. The sidebar is a rail of places down the far left, as Slack's (Amy, 2026-10-22,
+  `StudioRail.tsx`): Home, Chats, Projects and Needs you (with how many chats wait on you), and
+  Settings at its foot, each icon labelled; and beside it the list the rail picked
+  (`StudioSidebar.tsx`), remembered on this device: every project's chats, each with its project's
+  name (`allChats.ts`); the projects, as the switcher lists them; or the chats waiting on you in
+  any project. Picking the list already open folds it away, as an editor's activity bar does, and
+  folding (the panel button beside the window's controls, or its shortcut) keeps the rail
+  (`collapsible="icon"`). Inside a project, Projects is the project's own page, with All projects
+  to go back: at its top the project's name, a control on one line with its picture that switches projects
   (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on Home), whose
   top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop
   app, Version history once it has a part, Back up, Show in Finder, and Remove from Studio, which
   asks first and keeps the folder's files to import again; T3's Remove project in Settings is
-  hidden in Engineering), then its Overview, New chat, and the chats, newest first. The chats are
-  always all to hand (Amy, 2026-10-22): Chats switches between All, every project's chats, each
-  with its project's name under it, and This project, as the person last chose on this device
-  (`chatScope.ts`, `allChats.ts`); on Home, with no project open, the sidebar lists them all.
-  The Chats heading folds the list away, as an Overview module folds, and the whole sidebar hides
-  from the panel button beside the window's controls or its shortcut. Like Claude's and Codex's
-  sidebars, that button is a plain dark icon and the rows and their icons read dark, with the
-  Chats label quiet (`brand/theme.css`). T3 Code drew the button white for its stage artwork,
-  which a fork's mark replaces, so on Studio's light sidebar it nearly vanished. The sidebar starts with Home, marked while Home shows; the footer's Home icon is
-  only in T3 Code's sidebar beside code tools.
-  Opening a chat from another project opens that project. What the project holds is on its
+  hidden in Engineering), then its Overview, New chat, and its chats, newest first, which fold
+  away under their heading as an Overview module folds (`chatScope.ts`). Like Claude's and
+  Codex's sidebars, the panel button is a plain dark icon and the rows and their icons read dark,
+  with the lists' labels quiet (`brand/theme.css`). T3 Code drew the button white for its stage
+  artwork, which a fork's mark replaces, so on Studio's light sidebar it nearly vanished. The
+  footer's Home icon is only in T3 Code's sidebar beside code tools, and its Settings only outside
+  Studio's rail. Opening a chat from another project opens that project. What the project holds is on its
   Overview. The top bar names the open chat; with
   the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the project's
   switcher. The panel's tabs are what was opened lately in the project, along its top as a
