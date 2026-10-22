@@ -26,6 +26,7 @@ import serverPackageJson from "../apps/server/package.json" with { type: "json" 
 
 import { applyWebBrandAssets } from "./apply-web-brand-assets.ts";
 import {
+  STUDIO_ENTITLEMENTS,
   STUDIO_MAC_ICON_PNG,
   STUDIO_RESOURCES_DIR,
   studioBuildConfig,
@@ -3821,8 +3822,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     yield* fs.copy(options.studioBundle, path.join(stageProdResourcesDir, STUDIO_RESOURCES_DIR));
   }
 
+  // T3 Code's passkey sign-in; Studio's app has its own entitlements (`studioBuildConfig`).
   const configuredMacPasskeySigning =
-    options.platform === "mac" && options.signed
+    options.platform === "mac" && options.signed && options.studioBundle === undefined
       ? yield* Effect.try({
           try: () => resolveMacPasskeySigningConfiguration(loadRepoEnv({ repoRoot })),
           catch: MacPasskeySigningConfigurationResolutionError.fromCause,
@@ -3917,7 +3919,11 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     build:
       options.studioBundle === undefined
         ? t3BuildConfig
-        : studioBuildConfig(t3BuildConfig, { version: appVersion, signed: options.signed }),
+        : studioBuildConfig(t3BuildConfig, {
+            version: appVersion,
+            signed: options.signed,
+            entitlementsPath: path.join(repoRoot, STUDIO_ENTITLEMENTS),
+          }),
     dependencies: stageDependencies,
     devDependencies: {
       electron: electronVersion,

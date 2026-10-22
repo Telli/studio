@@ -53,11 +53,31 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   - `studio.json`.
 - **The build.** T3 Code's desktop build takes the bundle through `T3CODE_DESKTOP_STUDIO_BUNDLE`
   (`scripts/lib/studio-app.ts`). That gives it Studio's name, id, icon and copyright, and a plain
-  DMG with no update feed and no link schemes. The name is also the `productName` in the app's
-  package.json, which Electron starts the app under, so the app keeps its saved secrets in its own
-  keychain item, "Studio Safe Storage". Under T3 Code's `t3code` it asked for T3 Code's item, and
-  macOS wants the login password for that. It is signed ad hoc, without the hardened runtime,
-  which would stop the bundled Python from loading its libraries.
+  DMG with no link schemes. The name is also the `productName` in the app's package.json, which
+  Electron starts the app under, so the app keeps its saved secrets in its own keychain item,
+  "Studio Safe Storage". Under T3 Code's `t3code` it asked for T3 Code's item, and macOS wants the
+  login password for that. By default it is signed ad hoc, without the hardened runtime, and has
+  no update feed: macOS installs no update to an app signed ad hoc, so a new version is a new
+  download.
+- **Signed, it updates itself** (`STUDIO_SIGN=1`). The build signs with the Developer ID
+  Application certificate in this Mac's keychain, under the hardened runtime with Studio's
+  entitlements (`scripts/studio-app.entitlements.plist`: Electron and Playwright's Node compile
+  JavaScript as they go, and the CAD tools' Python loads libraries signed by others), and Apple
+  notarizes it. It skips T3 Code's passkey sign-in setup, which needs T3's own Apple profile. It
+  carries a zip and Studio's update feed, the releases of `amywork777/studio-download`: T3 Code's
+  updater checks 15 seconds after launch and every 4 minutes, downloads in the background, and the
+  sidebar's update button restarts into the new version. Under the hardened runtime without those
+  entitlements, Playwright's Node crashes and the bundled Python can't load its own library; with
+  them both run (checked 2026-10-22, signed ad hoc with `--options runtime`).
+  - **Once, on Amy's Mac:** join the Apple Developer Program; in Xcode, Settings, Accounts, Manage
+    Certificates, add a Developer ID Application certificate; make an app-specific password at
+    account.apple.com; then save it for notarization with
+    `xcrun notarytool store-credentials studio-notary --apple-id <Apple ID> --team-id <Team ID>`
+    (it asks for the password, which stays in the keychain).
+  - **Each release:** `STUDIO_SIGN=1 APPLE_KEYCHAIN_PROFILE=studio-notary RUSTUP_TOOLCHAIN=1.95
+scripts/build-studio-app.sh <version>`, then the `gh release create` line it prints: the DMG
+    under its one name, and the zip, its blockmap and `latest-mac.yml` the updater reads.
+  - The first signed version is still a download: a copy signed ad hoc has no feed to find it.
 - **On each start**, the app's boot step (`apps/desktop/src/studio/studioAppBundle.ts`) points
   it at `Resources/studio`:
   - its own home, `~/.text-to-cad-studio`;

@@ -15,6 +15,18 @@ export const STUDIO_OWNER = "Amy Zhou";
 export const STUDIO_MAC_ICON_PNG = "brand/app-icon.png";
 /** The bundle's folder, in the app's Resources and in the build's staged resources. */
 export const STUDIO_RESOURCES_DIR = "studio";
+/** What a signed Studio's programs may do under the hardened runtime, from the repository's root. */
+export const STUDIO_ENTITLEMENTS = "scripts/studio-app.entitlements.plist";
+/**
+ * Where a signed Studio finds its updates: the releases of the public repository that holds only
+ * the download, where `latest-mac.yml` names the newest version's zip.
+ */
+export const STUDIO_UPDATE_FEED = Object.freeze({
+  provider: "github",
+  owner: "amywork777",
+  repo: "studio-download",
+  releaseType: "release",
+});
 
 const record = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -35,17 +47,23 @@ export function studioPackageJson<T extends object>(
 
 /**
  * T3 Code's electron-builder config, made Studio's: its name, id, copyright and artifact name; a
- * DMG only, plain, with no update feed (a new version is a new download); none of T3 Code's link
- * schemes or its claim to be a web browser; and the bundle as a resource. Unsigned builds are
- * signed ad hoc, since an Apple silicon Mac runs only signed code, without the hardened runtime,
- * which notarization needs and which would keep the CAD tools' Python from loading its libraries.
+ * plain DMG; none of T3 Code's link schemes or its claim to be a web browser; and the bundle as a
+ * resource.
+ *
+ * A signed build (a Developer ID certificate, then notarized) updates itself: a zip beside the DMG
+ * for the updater, Studio's own feed (`STUDIO_UPDATE_FEED`), and the hardened runtime notarization
+ * needs, with the entitlements the app and the programs it carries run under (`entitlementsPath`).
+ * An unsigned build is signed ad hoc, since an Apple silicon Mac runs only signed code, without the
+ * hardened runtime, and has no feed: macOS installs no update to an app signed ad hoc, so a new
+ * version is a new download.
  */
 export function studioBuildConfig(
   config: Readonly<Record<string, unknown>>,
-  input: { readonly version: string; readonly signed: boolean },
+  input: { readonly version: string; readonly signed: boolean; readonly entitlementsPath: string },
 ): Record<string, unknown> {
   const next = record(config);
-  delete next.publish;
+  if (input.signed) next.publish = [{ ...STUDIO_UPDATE_FEED }];
+  else delete next.publish;
   next.appId = STUDIO_APP_ID;
   next.productName = STUDIO_PRODUCT_NAME;
   // Otherwise it is built from the package's author, T3 Tools.
@@ -60,7 +78,7 @@ export function studioBuildConfig(
   delete extendInfo.CFBundleDocumentTypes;
   next.mac = {
     ...mac,
-    target: ["dmg"],
+    target: input.signed ? ["dmg", "zip"] : ["dmg"],
     category: "public.app-category.graphics-design",
     extendInfo: {
       ...extendInfo,
@@ -70,7 +88,13 @@ export function studioBuildConfig(
         "Studio captures the active window when you use the window capture shortcut.",
     },
     protocols: [],
-    ...(input.signed ? {} : { identity: "-", hardenedRuntime: false }),
+    ...(input.signed
+      ? {
+          hardenedRuntime: true,
+          entitlements: input.entitlementsPath,
+          entitlementsInherit: input.entitlementsPath,
+        }
+      : { identity: "-", hardenedRuntime: false }),
   };
   if (next.dmg !== undefined) {
     const dmg = record(next.dmg);

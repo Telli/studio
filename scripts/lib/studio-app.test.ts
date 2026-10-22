@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { STUDIO_APP_ID, studioBuildConfig, studioPackageJson } from "./studio-app.ts";
+import {
+  STUDIO_APP_ID,
+  STUDIO_UPDATE_FEED,
+  studioBuildConfig,
+  studioPackageJson,
+} from "./studio-app.ts";
 
 const t3Config = {
   appId: "com.t3tools.t3code",
@@ -22,9 +27,13 @@ const t3Config = {
   dmg: { title: "T3 Code 0.0.45 Installer", background: "dmg/dmg-background-latest.png" },
 };
 
+const entitlementsPath = "/repo/scripts/studio-app.entitlements.plist";
+const unsigned = { version: "0.1.0", signed: false, entitlementsPath };
+const signed = { version: "0.1.2", signed: true, entitlementsPath };
+
 describe("studioBuildConfig", () => {
   it("names and identifies the app as Studio, apart from T3 Code", () => {
-    const config = studioBuildConfig(t3Config, { version: "0.1.0", signed: false });
+    const config = studioBuildConfig(t3Config, unsigned);
     expect(config.appId).toBe(STUDIO_APP_ID);
     expect(config.productName).toBe("Studio");
     expect(config.artifactName).toBe("Studio-${version}-${arch}.${ext}");
@@ -34,7 +43,7 @@ describe("studioBuildConfig", () => {
   });
 
   it("carries the bundle as a resource, beside T3 Code's own", () => {
-    const config = studioBuildConfig(t3Config, { version: "0.1.0", signed: false });
+    const config = studioBuildConfig(t3Config, unsigned);
     expect(config.extraResources).toEqual([
       { from: "apps/desktop/prod-resources/resource-monitor", to: "resource-monitor" },
       { from: "apps/desktop/prod-resources/studio", to: "studio" },
@@ -42,7 +51,7 @@ describe("studioBuildConfig", () => {
   });
 
   it("is a plain DMG with no update feed, no link schemes and no web-browser claim", () => {
-    const config = studioBuildConfig(t3Config, { version: "0.1.0", signed: false });
+    const config = studioBuildConfig(t3Config, unsigned);
     const mac = config.mac as Record<string, unknown>;
     expect(config.publish).toBeUndefined();
     expect(mac.target).toEqual(["dmg"]);
@@ -52,16 +61,32 @@ describe("studioBuildConfig", () => {
   });
 
   it("signs ad hoc without the hardened runtime unless signing was asked for", () => {
-    const unsigned = studioBuildConfig(t3Config, { version: "0.1.0", signed: false });
-    expect(unsigned.mac).toMatchObject({ identity: "-", hardenedRuntime: false });
-    const signed = studioBuildConfig(t3Config, { version: "0.1.0", signed: true });
-    expect(signed.mac).not.toHaveProperty("identity");
-    expect(signed.mac).not.toHaveProperty("hardenedRuntime");
+    const adHoc = studioBuildConfig(t3Config, unsigned);
+    expect(adHoc.mac).toMatchObject({ identity: "-", hardenedRuntime: false });
+    const built = studioBuildConfig(t3Config, signed);
+    expect(built.mac).not.toHaveProperty("identity");
+    expect(built.mac).toMatchObject({ hardenedRuntime: true });
+  });
+
+  it("updates itself when signed: the download repository's feed, a zip for the updater, its entitlements", () => {
+    const built = studioBuildConfig(t3Config, signed);
+    expect(built.publish).toEqual([STUDIO_UPDATE_FEED]);
+    expect(STUDIO_UPDATE_FEED).toMatchObject({
+      provider: "github",
+      owner: "amywork777",
+      repo: "studio-download",
+    });
+    expect(built.mac).toMatchObject({
+      target: ["dmg", "zip"],
+      entitlements: entitlementsPath,
+      entitlementsInherit: entitlementsPath,
+    });
+    expect(built.dmg).toEqual({ title: "Studio 0.1.2" });
   });
 
   it("leaves T3 Code's config as it was", () => {
     const before = JSON.stringify(t3Config);
-    studioBuildConfig(t3Config, { version: "0.1.0", signed: false });
+    studioBuildConfig(t3Config, unsigned);
     expect(JSON.stringify(t3Config)).toBe(before);
   });
 });

@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 # Builds Studio as a Mac app, release/Studio-<version>-arm64.dmg, that runs on an Apple silicon Mac
 # with nothing else installed: it carries the CAD tools with a Python of their own, and its first
-# screen installs Claude Code and signs in. Unsigned, it is signed ad hoc, so the person opening it
-# chooses Open Anyway once (System Settings, Privacy & Security).
+# screen installs Claude Code and signs in.
+#
+# Unsigned (the default), it is signed ad hoc: the person opening it chooses Open Anyway once
+# (System Settings, Privacy & Security), and a new version is a new download. With STUDIO_SIGN=1 it
+# is signed with the Developer ID Application certificate in this Mac's keychain, notarized by
+# Apple (APPLE_KEYCHAIN_PROFILE names the credentials `xcrun notarytool store-credentials` saved),
+# and it updates itself from the releases of amywork777/studio-download (scripts/lib/studio-app.ts).
 #
 # Run it from a checkout set up with scripts/setup-studio.sh, with Rust's cargo installed for the
 # desktop build. It stages build/studio-bundle (the CAD tools' Python, their plugin and page, and
@@ -34,6 +39,16 @@ rust="$(rustc --version 2>/dev/null | awk '{print $2}')"
 rust_minor="$(printf '%s' "$rust" | cut -d. -f2)"
 [ "${rust%%.*}" = 1 ] && [ "${rust_minor:-0}" -ge 95 ] ||
   stop "The desktop build needs Rust 1.95 or newer; this Mac has ${rust:-none}. Run rustup update stable, or install 1.95 and set RUSTUP_TOOLCHAIN=1.95."
+signed=false
+if [ "${STUDIO_SIGN:-}" = 1 ]; then
+  security find-identity -v -p codesigning | grep -q "Developer ID Application" ||
+    stop "STUDIO_SIGN=1 needs a Developer ID Application certificate in this Mac's keychain (STUDIO.md, The Mac app)."
+  [ -n "${APPLE_KEYCHAIN_PROFILE:-}" ] ||
+    { [ -n "${APPLE_API_KEY:-}" ] && [ -n "${APPLE_API_KEY_ID:-}" ] && [ -n "${APPLE_API_ISSUER:-}" ]; } ||
+    { [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; } ||
+    stop "STUDIO_SIGN=1 needs notarization credentials: set APPLE_KEYCHAIN_PROFILE to the profile xcrun notarytool store-credentials saved."
+  signed=true
+fi
 
 step "Building the CAD tools' runtime and page"
 (cd "$CAD" && scripts/bundle/bundle.sh && npm run build:mcp)
@@ -77,7 +92,7 @@ JSON
 
 step "Building the app"
 cd "$ROOT"
-T3CODE_DESKTOP_STUDIO_BUNDLE="$BUNDLE" VITE_APP_BASE_NAME=Studio T3CODE_BRAND_DIR="$ROOT/brand" \
+T3CODE_DESKTOP_SIGNED="$signed" T3CODE_DESKTOP_STUDIO_BUNDLE="$BUNDLE" VITE_APP_BASE_NAME=Studio T3CODE_BRAND_DIR="$ROOT/brand" \
   node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64 --build-version "$VERSION"
 
 # The download's one name: the guide page and amywork777/studio-download's README link to
@@ -85,5 +100,11 @@ T3CODE_DESKTOP_STUDIO_BUNDLE="$BUNDLE" VITE_APP_BASE_NAME=Studio T3CODE_BRAND_DI
 cp -c "$ROOT/release/Studio-$VERSION-arm64.dmg" "$ROOT/release/Studio-arm64.dmg" 2>/dev/null ||
   cp "$ROOT/release/Studio-$VERSION-arm64.dmg" "$ROOT/release/Studio-arm64.dmg"
 printf '\n\033[1mStudio is built:\033[0m %s\n' "$ROOT/release/Studio-$VERSION-arm64.dmg"
+assets="$ROOT/release/Studio-arm64.dmg"
+if [ "$signed" = true ]; then
+  # What a running Studio updates from: the zip, its blockmap (for downloading only what changed) and
+  # latest-mac.yml, which names them.
+  assets="$assets $ROOT/release/Studio-$VERSION-arm64.zip $ROOT/release/Studio-$VERSION-arm64.zip.blockmap $ROOT/release/latest-mac.yml"
+fi
 printf 'Publish it with:\n\n  gh release create v%s %s --repo amywork777/studio-download --title "Studio %s"\n\n' \
-  "$VERSION" "$ROOT/release/Studio-arm64.dmg" "$VERSION"
+  "$VERSION" "$assets" "$VERSION"
