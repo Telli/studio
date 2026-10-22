@@ -26,7 +26,9 @@ built (`npm run build:packages` in `text-to-cad/`) before Studio starts.
 
 **The Mac app.** `scripts/build-studio-app.sh [version]` builds `release/Studio-<version>-arm64.dmg`,
 which needs nothing else on an Apple silicon Mac. Its first screen installs Claude Code and signs
-in, so the person needs only their own Claude subscription.
+in, so the person needs only their own Claude subscription. Building it needs Rust 1.95 or newer
+for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one installed beside an older default)
+and about 6 GB free; the download is about 600 MB and the app 1.9 GB.
 
 - **What it carries** (`build/studio-bundle`):
   - the CAD tools with a Python of their own: uv's movable CPython 3.13, with cadgen and its `fea`
