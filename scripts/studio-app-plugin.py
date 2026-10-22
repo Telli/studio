@@ -4,8 +4,9 @@ marketplace the packaged app carries (scripts/build-studio-app.sh).
 
 The app's own Python runs the server and the skills' commands, but the app can live anywhere, so
 its path is not known when the app is built. Every place that names it holds @@STUDIO_PYTHON@@,
-with @@STUDIO_PAGE@@ for the server's page and @@STUDIO_NODE@@ for the Node that cadgen's mesh and
-DXF builders run on; the app fills them in on each start (apps/desktop/src/studio/studioAppBundle.ts).
+with @@STUDIO_PAGE@@ for the server's page; the app fills them in on each start
+(apps/desktop/src/studio/studioAppBundle.ts). cadgen's mesh and DXF builders need no Node of the
+Mac's: cadgen runs them on the one Playwright ships in that Python.
 The layout is the development plugin's (scripts/studio-dev-plugin.py), through the same
 scripts/install/dev_install.py functions; its channel is "dev", as Studio's own is, which keeps
 cadgen's update notices and telemetry off.
@@ -21,7 +22,6 @@ from pathlib import Path
 
 PYTHON = "@@STUDIO_PYTHON@@"
 PAGE = "@@STUDIO_PAGE@@"
-NODE = "@@STUDIO_NODE@@"
 
 
 def main(argv: list[str]) -> int:
@@ -45,7 +45,7 @@ def main(argv: list[str]) -> int:
     server = {
         "command": PYTHON,
         "args": ["-m", "cadgen.cli", "mcp"],
-        "env": {"CADGEN_INSTALL_CHANNEL": "dev", "CADGEN_MCP_APP_DIR": PAGE, "CADGEN_NODE": NODE},
+        "env": {"CADGEN_INSTALL_CHANNEL": "dev", "CADGEN_MCP_APP_DIR": PAGE},
         "startup_timeout_sec": dev_install.CODEX_STARTUP_SECONDS,
     }
     commands = {"cadgen": f"{PYTHON} -m cadgen.cli", "python": PYTHON}

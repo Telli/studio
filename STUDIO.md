@@ -44,7 +44,9 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
 
 - **What it carries** (`build/studio-bundle`):
   - the CAD tools with a Python of their own: uv's movable CPython 3.13, with cadgen and its `fea`
-    extra pinned to the checkout's `.venv`;
+    extra pinned to the checkout's `.venv`. cadgen's STL and DXF builders run on the Node that
+    Playwright ships in it, which cadgen finds itself when none is on PATH (since 0.7.26), so the
+    Mac needs no Node;
   - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
     `@@STUDIO_…@@` placeholders;
   - the plugin's page;
@@ -61,9 +63,7 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   - its own home, `~/.text-to-cad-studio`;
   - its own Electron profile, named by its id, `com.amywork777.studio`, apart from T3 Code's;
   - its name;
-  - the plugin, copied into the home with this copy's paths filled in;
-  - `CADGEN_NODE`, set to Playwright's Node inside the bundled Python, since cadgen's STL and DXF
-    builders need one.
+  - the plugin, copied into the home with this copy's paths filled in.
 - **Gatekeeper.** Unsigned, the person chooses Open Anyway once (System Settings, Privacy and
   Security). The boot step then clears the download's quarantine from the bundled Python, so
   macOS doesn't stop each of its programs again.

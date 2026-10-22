@@ -43,7 +43,7 @@ function resources(): string {
     NodePath.join(bundle, "marketplace", "plugins", "text-to-cad", "codex.mcp.json"),
     JSON.stringify({
       mcpServers: {
-        cad: { command: "@@STUDIO_PYTHON@@", env: { CADGEN_NODE: "@@STUDIO_NODE@@" } },
+        cad: { command: "@@STUDIO_PYTHON@@", env: { CADGEN_MCP_APP_DIR: "@@STUDIO_PAGE@@" } },
       },
     }),
   );
@@ -70,7 +70,8 @@ describe("applyStudioAppBundle", () => {
       T3CODE_DEFAULT_PLUGINS: "text-to-cad",
       T3CODE_PLUGIN_MARKETPLACE: marketplace,
     });
-    expect(env.CADGEN_NODE).toContain(NodePath.join("playwright", "driver", "node"));
+    // cadgen finds its builders' Node itself: Playwright's, in the bundled Python.
+    expect(env).not.toHaveProperty("CADGEN_NODE");
     const skill = NodeFS.readFileSync(
       NodePath.join(marketplace, "plugins", "text-to-cad", "skills", "cad", "SKILL.md"),
       "utf8",
@@ -83,7 +84,7 @@ describe("applyStudioAppBundle", () => {
       ),
     );
     expect(config.mcpServers.cad.command).toBe(python);
-    expect(config.mcpServers.cad.env.CADGEN_NODE).toBe(env.CADGEN_NODE);
+    expect(config.mcpServers.cad.env.CADGEN_MCP_APP_DIR).toBe(NodePath.join(res, "studio", "page"));
   });
 
   it("leaves what the environment already says", () => {

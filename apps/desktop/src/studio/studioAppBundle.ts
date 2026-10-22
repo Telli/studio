@@ -16,8 +16,9 @@ import * as NodePath from "node:path";
  * - The CAD plugin, copied into the home with this copy of the app's paths filled in (the app can
  *   live anywhere), then offered and turned on (`T3CODE_PLUGIN_MARKETPLACE`,
  *   `T3CODE_DEFAULT_PLUGINS`).
- * - The Node that cadgen's mesh and DXF builders run on (`CADGEN_NODE`): Playwright's, inside the
- *   bundled Python, so the Mac needs no Node of its own. The agent's commands inherit it.
+ *
+ * The Mac needs no Node of its own: with none on PATH, cadgen runs its mesh and DXF builders on the
+ * Node Playwright ships inside the bundled Python, finding it itself.
  *
  * Anything already set in the environment wins, so a test can point the app elsewhere. Without a
  * bundle (T3 Code, or Studio run from a checkout) it does nothing.
@@ -34,21 +35,10 @@ export function applyStudioAppBundle(input: {
   const { env } = input;
   const home = env.T3CODE_HOME?.trim() || NodePath.join(input.homeDirectory, settings.home);
   const python = NodePath.join(bundle, "python", "bin", "python3");
-  const node = NodePath.join(
-    bundle,
-    "python",
-    "lib",
-    "python3.13",
-    "site-packages",
-    "playwright",
-    "driver",
-    "node",
-  );
   setDefault(env, "T3CODE_HOME", home);
   setDefault(env, "VITE_APP_BASE_NAME", settings.name);
   setDefault(env, "T3CODE_DESKTOP_PROFILE", settings.profile);
   setDefault(env, "T3CODE_DEFAULT_PLUGINS", settings.plugins.join(","));
-  setDefault(env, "CADGEN_NODE", node);
   try {
     trustBundledTools(bundle);
     // A folder of Studio's own name: T3 Code's plugin store keys a marketplace by its folder name.
@@ -56,7 +46,6 @@ export function applyStudioAppBundle(input: {
     writeFilledCopy(NodePath.join(bundle, "marketplace"), marketplace, {
       "@@STUDIO_PYTHON@@": python,
       "@@STUDIO_PAGE@@": NodePath.join(bundle, "page"),
-      "@@STUDIO_NODE@@": node,
     });
     setDefault(env, "T3CODE_PLUGIN_MARKETPLACE", marketplace);
   } catch (error) {
