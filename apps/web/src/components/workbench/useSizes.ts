@@ -11,40 +11,52 @@ const failure = (reply: unknown) =>
     ? reply.error
     : "Studio's CAD service did not answer.";
 
+/** One project folder's named sizes, or why they could not be read. */
+export type FolderSizes = {
+  readonly folder: string;
+  readonly sizes: ProjectSizes | null;
+  readonly error: string | null;
+};
+
 /**
- * A project folder's named sizes (`cadgen/edit/sizes.py`), read again whenever the thread's agent
- * changes files or a size is changed here (`reads`). The last list stays shown while it is read.
+ * Each project folder's named sizes (`cadgen/edit/sizes.py`), in the project's order, read again
+ * whenever the thread's agent changes files or a size is changed here (`reads`). A part's imports
+ * resolve beside it, so each folder's sizes are its own. The last lists stay shown while they are
+ * read.
  */
 export function useProjectSizes(input: {
   readonly post: CadPost | null;
-  readonly folder: string;
+  readonly folders: ReadonlyArray<string>;
   readonly mutationId: string | null;
   readonly reads: number;
-}): { readonly sizes: ProjectSizes | null; readonly error: string | null } | null {
-  const { post, folder, mutationId, reads } = input;
+}): ReadonlyArray<FolderSizes> | null {
+  const { post, mutationId, reads } = input;
+  const key = input.folders.filter((folder) => folder !== "").join("\n");
   const [state, setState] = useState<{
-    readonly folder: string;
-    readonly sizes: ProjectSizes | null;
-    readonly error: string | null;
+    readonly key: string;
+    readonly read: ReadonlyArray<FolderSizes>;
   } | null>(null);
   useEffect(() => {
-    if (post === null || folder === "") return;
+    if (post === null || key === "") return;
     let cancelled = false;
-    void post("/__cad/sizes", { folder }).then((reply) => {
-      if (cancelled) return;
-      const read = readSizes(reply);
-      setState(
-        "error" in read
-          ? { folder, sizes: null, error: read.error }
-          : { folder, sizes: read, error: null },
-      );
+    void Promise.all(
+      key.split("\n").map((folder) =>
+        post("/__cad/sizes", { folder }).then((reply): FolderSizes => {
+          const read = readSizes(reply);
+          return "error" in read
+            ? { folder, sizes: null, error: read.error }
+            : { folder, sizes: read, error: null };
+        }),
+      ),
+    ).then((read) => {
+      if (!cancelled) setState({ key, read });
     });
     return () => {
       cancelled = true;
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `mutationId` is the agent changing files, `reads` a size changed here: the sizes are read again.
-  }, [folder, mutationId, post, reads]);
-  return state !== null && state.folder === folder ? state : null;
+  }, [key, mutationId, post, reads]);
+  return state !== null && state.key === key ? state.read : null;
 }
 
 /**

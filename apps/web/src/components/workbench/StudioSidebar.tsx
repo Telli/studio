@@ -6,6 +6,7 @@ import type {
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { ChevronDownIcon, ChevronLeftIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { isElectron } from "~/env";
@@ -227,12 +228,12 @@ function StudioList(props: { readonly environmentId: EnvironmentId }) {
 }
 
 /**
- * The sidebar in the engineering interface: Studio's rail of places down the far left
- * (`StudioRail`), each opening its own page, and beside it where the person is: the open project,
- * or the recent chats. The column folds away from the sidebar's own toggle or its shortcut, and the
- * rail stays. With code tools on, the sidebar is T3 Code's own.
+ * Studio's sidebar around a column: Studio's rail of places down the far left (`StudioRail`), each
+ * opening its own page, and beside it the column the page gives it. The column folds away from
+ * the sidebar's own toggle or its shortcut, and the rail stays. Settings puts its sections there
+ * (`AppSidebarLayout`); every other page, where the person is (`StudioSidebar`).
  */
-export function StudioSidebar() {
+export function StudioSidebarFrame(props: { readonly children: ReactNode }) {
   const environmentId = usePrimaryEnvironmentId();
   return (
     <>
@@ -243,12 +244,26 @@ export function StudioSidebar() {
       <div className="flex min-h-0 flex-1">
         {environmentId === null ? null : <StudioRail environmentId={environmentId} />}
         <div className="flex min-w-0 flex-1 flex-col border-s border-sidebar-border group-data-[collapsible=icon]:hidden">
-          <SidebarContent className="min-h-full">
-            {environmentId === null ? null : <StudioList environmentId={environmentId} />}
-          </SidebarContent>
-          <SidebarChromeFooter />
+          {props.children}
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * The sidebar in the engineering interface: the rail (`StudioSidebarFrame`), and beside it where
+ * the person is: the open project, or the recent chats. With code tools on, the sidebar is T3
+ * Code's own.
+ */
+export function StudioSidebar() {
+  const environmentId = usePrimaryEnvironmentId();
+  return (
+    <StudioSidebarFrame>
+      <SidebarContent className="min-h-full">
+        {environmentId === null ? null : <StudioList environmentId={environmentId} />}
+      </SidebarContent>
+      <SidebarChromeFooter />
+    </StudioSidebarFrame>
   );
 }

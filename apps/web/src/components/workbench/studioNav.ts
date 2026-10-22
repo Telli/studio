@@ -2,7 +2,8 @@
  * Which part of Studio a route shows, for the rail and the top bar that replace T3's sidebar in the
  * engineering interface. Home, Chats, Projects and Needs you are Studio's pages, each a place on
  * the rail (`StudioRail`), and a thread or draft is a project's workspace; every other page
- * (settings, usage, pairing) keeps T3's shell.
+ * (settings, usage, pairing) keeps T3's own, though Settings keeps the rail beside its sections
+ * (`studioPlaces`).
  */
 export type StudioNavSection = "home" | "chats" | "projects" | "needs" | "workspace" | "other";
 

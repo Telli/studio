@@ -35,8 +35,9 @@ import {
 import LegacyThreadSidebar from "./LegacySidebar";
 import { useThreadVisitedMigration } from "../hooks/useThreadVisitedMigration";
 import ThreadSidebar from "./Sidebar";
-import { studioNavSection } from "./workbench/studioNav";
+import { railMark } from "./workbench/studioPlaces";
 import { STUDIO_RAIL_WIDTH } from "./workbench/StudioRail";
+import { StudioSidebarFrame } from "./workbench/StudioSidebar";
 import { useEngineeringInterface } from "./workbench/studioInterface";
 import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import { SidebarBrandWidthProbe, SidebarChromeHeader } from "./sidebar/SidebarChrome";
@@ -247,10 +248,10 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
-  // Studio's engineering pages have a top bar instead (`workbench/StudioTopBar.tsx`); on every one
-  // of them the sidebar is Studio's rail of places and the list it picked, and folding it keeps
-  // the rail (`workbench/StudioSidebar.tsx`).
-  const studioShell = useEngineeringInterface() && studioNavSection(pathname) !== "other";
+  // On every place of Studio's rail (`workbench/studioPlaces.ts`), Settings among them, the sidebar
+  // is the rail and the column beside it, and folding it keeps the rail
+  // (`workbench/StudioSidebar.tsx`).
+  const studioShell = useEngineeringInterface() && railMark(pathname) !== null;
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
   // Subscribed rather than read once: the clamp must track live window size,
@@ -354,7 +355,11 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           // The narrow-window sidebar is a sheet, portaled outside the provider's styles.
           style={windowControlsInsetStyle}
         >
-          {isOnSettings ? (
+          {isOnSettings && studioShell ? (
+            <StudioSidebarFrame>
+              <SettingsSidebarNav pathname={pathname} />
+            </StudioSidebarFrame>
+          ) : isOnSettings ? (
             <>
               <SidebarChromeHeader isElectron={isElectron} />
               <SettingsSidebarNav pathname={pathname} />
@@ -367,7 +372,11 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <SidebarRail onDoubleClick={resetSidebarWidth} />
         </Sidebar>
         {children}
-        <SidebarControl {...(studioShell ? { label: "Show or hide the chats" } : {})} />
+        <SidebarControl
+          {...(studioShell
+            ? { label: isOnSettings ? "Show or hide the settings list" : "Show or hide the chats" }
+            : {})}
+        />
         <NavigationHistoryShortcuts />
         <MainAppLocationTracker />
       </SidebarProvider>

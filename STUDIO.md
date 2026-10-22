@@ -233,7 +233,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   tells the agent). A number changes where it is written, a click away, and every part that
   imports its file builds again; a formula (`2 * WALL`) changes where its sizes are. Add shared
   size appends one, and Use it in parts asks the agent to put it to work; the agent is told of
-  each change in a hidden note, as of a restore. The CAD service reads the sizes from the source
+  each change in a hidden note, as of a restore. A project with several folders shows each
+  folder's sizes under its name, since each folder's imports are its own, and Add shared size
+  writes in the first folder with sizes, saying which. The CAD service reads the sizes from the source
   without running anything (`cadgen/edit/sizes.py`, `/__cad/sizes`), so a CAD service started
   before them needs a restart to show them.
 - **Versions and What changed.** Every chat turn's checkpoint is a version. The Overview's
@@ -290,7 +292,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   waiting on your answer or approval in any project. The rail marks the page that shows, and
   Projects inside a project (`studioPlaces.ts`). Beside the rail the column says where you are
   (`StudioSidebar.tsx`): on Studio's pages the recent chats, each with its project's name; inside
-  a project, the project. Folding it (the panel button beside the window's controls, or its
+  a project, the project; on Settings, its sections (T3's settings list inside Studio's frame,
+  `StudioSidebarFrame`), so the rail stays there too. Folding it (the panel button beside the window's controls, or its
   shortcut) keeps the rail (`collapsible="icon"`). Inside a project the column has All projects to
   go back, then at its top the project's name, a control on one line with its picture that switches projects
   (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on Home), whose

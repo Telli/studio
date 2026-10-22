@@ -1,4 +1,5 @@
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
+import { studioFolderName } from "@t3tools/shared/studioProjects";
 import { RulerIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -48,21 +49,41 @@ export function ProjectSizes(props: {
   readonly onFold: () => void;
 }) {
   const post = useCadService(props.environmentId, props.threadRef.threadId);
-  // The first folder's sizes: a part's imports resolve beside it, so sizes are shared within one.
-  const folder = props.folders[0] ?? "";
   const [reads, setReads] = useState(0);
-  const read = useProjectSizes({ post, folder, mutationId: props.mutationId, reads });
+  const read = useProjectSizes({
+    post,
+    folders: props.folders,
+    mutationId: props.mutationId,
+    reads,
+  });
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState<{ readonly name: string; readonly file: string } | null>(null);
-  const sizes = read?.sizes ?? null;
-  const count = sizes?.groups.reduce((total, group) => total + group.sizes.length, 0) ?? 0;
+  // Each folder's sizes are its own (a part's imports resolve beside it), under the folder's name
+  // where the project has several, as the Overview's CAD shows their parts.
+  const readable = (read ?? []).flatMap((entry) =>
+    entry.sizes === null ? [] : [{ folder: entry.folder, sizes: entry.sizes }],
+  );
+  const shown = readable.filter((entry) => entry.sizes.groups.length > 0);
+  const named = (read?.length ?? 0) > 1;
+  const count = shown.reduce(
+    (total, entry) =>
+      total + entry.sizes.groups.reduce((sum, group) => sum + group.sizes.length, 0),
+    0,
+  );
+  // A new shared size goes beside the parts of the first folder with sizes.
+  const home = shown[0] ?? readable[0] ?? null;
   const tell = (note: string) =>
     props.composerRef?.current?.insertTextAtEnd(note, {
       ensureLeadingBoundary: true,
       stayHidden: true,
     });
 
-  const change = async (group: SizeGroup, size: NamedSize, text: string): Promise<boolean> => {
+  const change = async (
+    folder: string,
+    group: SizeGroup,
+    size: NamedSize,
+    text: string,
+  ): Promise<boolean> => {
     if (post === null) return false;
     const result = await changeSize(post, {
       folder,
@@ -93,8 +114,8 @@ export function ProjectSizes(props: {
   };
 
   const add = async (name: string, text: string, note: string): Promise<string | null> => {
-    if (post === null) return "Studio's CAD service is not running.";
-    const result = await addSharedSize(post, { folder, name, text, note });
+    if (post === null || home === null) return "Studio's CAD service is not running.";
+    const result = await addSharedSize(post, { folder: home.folder, name, text, note });
     if ("error" in result) return plainSizesError(result.error);
     tell(sharedAddedNote({ name, file: result.file, text }));
     setAdding(false);
@@ -111,27 +132,48 @@ export function ProjectSizes(props: {
       wide
       folded={props.folded}
       onFold={props.onFold}
-      {...(sizes === null || adding
+      {...(home === null || adding
         ? {}
         : { action: <HeadingLink label="Add shared size" onClick={() => setAdding(true)} /> })}
     >
       <div className="flex min-w-0 flex-col gap-5 pt-3">
         {read === null ? (
           <p className="text-xs text-muted-foreground">Reading the sizes</p>
-        ) : read.error !== null ? (
-          <p className="text-xs text-muted-foreground">{plainSizesError(read.error)}</p>
-        ) : sizes === null || sizes.groups.length === 0 ? (
+        ) : home === null ? (
+          // No folder could be read: the first one's reason.
+          <p className="text-xs text-muted-foreground">
+            {plainSizesError(read.find((entry) => entry.error !== null)?.error ?? "")}
+          </p>
+        ) : shown.length === 0 ? (
           <p className="max-w-prose text-sm text-muted-foreground">
             No named sizes yet. A part's sizes are the named numbers at the top of its script, like
-            WIDTH = 40, and sizes several parts share go in {sizes?.sharedFile ?? "sizes.py"}.
+            WIDTH = 40, and sizes several parts share go in {home.sizes.sharedFile}.
           </p>
         ) : (
-          sizes.groups.map((group) => (
-            <SizeTable key={group.file} group={group} onChange={change} />
+          shown.map((entry) => (
+            <div key={entry.folder} className="flex min-w-0 flex-col gap-3">
+              {named ? (
+                <h3 className="truncate text-sm font-medium text-foreground">
+                  {studioFolderName(entry.folder)}
+                </h3>
+              ) : null}
+              {entry.sizes.groups.map((group) => (
+                <SizeTable
+                  key={group.file}
+                  group={group}
+                  onChange={(changed, size, text) => change(entry.folder, changed, size, text)}
+                />
+              ))}
+            </div>
           ))
         )}
-        {adding && sizes !== null ? (
-          <AddShared sharedFile={sizes.sharedFile} onAdd={add} onCancel={() => setAdding(false)} />
+        {adding && home !== null ? (
+          <AddShared
+            sharedFile={home.sizes.sharedFile}
+            where={named ? studioFolderName(home.folder) : null}
+            onAdd={add}
+            onCancel={() => setAdding(false)}
+          />
         ) : null}
         {added !== null && props.composerRef !== null ? (
           <div className="flex flex-wrap items-center gap-2 text-sm text-foreground">
@@ -256,6 +298,8 @@ function SizeRow(props: {
 /** A new shared size: its name, its number and what it is for, written beside the parts. */
 function AddShared(props: {
   readonly sharedFile: string;
+  /** The folder it goes in, where the project has several; else null. */
+  readonly where: string | null;
   readonly onAdd: (name: string, text: string, note: string) => Promise<string | null>;
   readonly onCancel: () => void;
 }) {
@@ -320,7 +364,10 @@ function AddShared(props: {
           Cancel
         </Button>
         <span className="text-xs text-muted-foreground">
-          {problem ?? `It goes in ${props.sharedFile}, and parts use it by name.`}
+          {problem ??
+            (props.where === null
+              ? `It goes in ${props.sharedFile}, and parts use it by name.`
+              : `It goes in ${props.sharedFile} in ${props.where}, and its parts use it by name.`)}
         </span>
       </div>
     </form>
