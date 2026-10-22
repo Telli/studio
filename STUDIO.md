@@ -281,6 +281,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   always all to hand (Amy, 2026-10-22): Chats switches between All, every project's chats, each
   with its project's name under it, and This project, as the person last chose on this device
   (`chatScope.ts`, `allChats.ts`); on Home, with no project open, the sidebar lists them all.
+  The Chats heading folds the list away, as an Overview module folds, and the whole sidebar hides
+  from the panel button beside the window's controls or its shortcut.
   Opening a chat from another project opens that project. What the project holds is on its
   Overview. The top bar names the open chat; with
   the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the project's

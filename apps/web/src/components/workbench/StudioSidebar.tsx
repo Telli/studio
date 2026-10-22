@@ -5,7 +5,7 @@ import type {
 } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { LayoutDashboardIcon, PlusIcon } from "lucide-react";
+import { ChevronDownIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
 
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { isElectron } from "~/env";
@@ -57,7 +57,8 @@ function useCurrentFolderId(threadRef: ScopedThreadRef | null): ProjectId | null
  * electronics, analysis and documents beside its chats), New chat, then the chats, newest first.
  * Chats are always all to hand: every project's, each with its project's name (`useAllChats`), or
  * this project's alone, as ChatGPT lists a project's chats, as the person last chose
- * (`useChatScopeStore`). With no project open (Home), the chats are every project's. Each chat says
+ * (`useChatScopeStore`), and the list folds away under its heading. With no project open (Home),
+ * the chats are every project's. Each chat says
  * when it was last worked on, or that it needs the person or is at work; the one open now is
  * marked.
  */
@@ -78,6 +79,8 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
   const everyChat = useAllChats(environmentId);
   const scope = useChatScopeStore((store) => store.scope);
   const setScope = useChatScopeStore((store) => store.setScope);
+  const folded = useChatScopeStore((store) => store.folded);
+  const toggleFolded = useChatScopeStore((store) => store.toggleFolded);
   const inProject = folderId !== null;
   const showingAll = !inProject || scope === "all";
   const listed = showingAll ? everyChat.chats : chats;
@@ -105,7 +108,7 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
               <ProjectSwitcher environmentId={environmentId} folder={folder} title={title} wide />
             </div>
           ) : null}
-          <SidebarMenu className="mt-2">
+          <SidebarMenu className="mt-3">
             <SidebarMenuItem>
               <SidebarMenuButton
                 isActive={overviewOpen}
@@ -134,51 +137,74 @@ function ProjectSidebar(props: { readonly environmentId: EnvironmentId }) {
           </SidebarMenu>
         </>
       ) : null}
-      <div
-        className={cn(
-          "flex h-7 items-center justify-between gap-2 ps-(--sidebar-row-content-inset)",
-          inProject ? "mt-3" : null,
-        )}
-      >
-        <span className={headingClass}>Chats</span>
-        {inProject ? (
-          <ToggleGroup
-            aria-label="Which chats"
-            value={[scope]}
-            onValueChange={(next) => {
-              const value = next[0];
-              if (value === "all" || value === "project") setScope(value);
-            }}
+      <div className={cn("flex flex-col gap-2", inProject ? "mt-6" : null)}>
+        {/* Chats folds away under its heading, as an Overview module does (`OverviewModules`). */}
+        <div className="flex h-7 items-center ps-(--sidebar-row-content-inset)">
+          <button
+            type="button"
+            aria-expanded={!folded}
+            onClick={toggleFolded}
+            className={cn(
+              headingClass,
+              "flex items-center gap-1 rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+            )}
           >
-            <Toggle value="all">All</Toggle>
-            <Toggle value="project">This project</Toggle>
-          </ToggleGroup>
-        ) : null}
+            Chats
+            <ChevronDownIcon
+              aria-hidden="true"
+              className={cn("size-3 transition-transform duration-150", folded && "-rotate-90")}
+            />
+          </button>
+        </div>
+        {folded ? null : (
+          <>
+            {inProject ? (
+              <div className="ps-(--sidebar-row-content-inset)">
+                <ToggleGroup
+                  aria-label="Which chats"
+                  value={[scope]}
+                  onValueChange={(next) => {
+                    const value = next[0];
+                    if (value === "all" || value === "project") setScope(value);
+                  }}
+                >
+                  <Toggle value="all">All</Toggle>
+                  <Toggle value="project">This project</Toggle>
+                </ToggleGroup>
+              </div>
+            ) : null}
+            {listed.length === 0 ? (
+              <p className="px-(--sidebar-row-content-inset) py-2 text-xs text-muted-foreground">
+                {showingAll && !inProject
+                  ? "No chats yet. A project's first chat starts with it."
+                  : "No chats yet. This one is the first."}
+              </p>
+            ) : (
+              <ChatRows
+                chats={listed}
+                currentId={threadRef?.threadId ?? null}
+                {...(showingAll
+                  ? {
+                      projectOf: (chat: EnvironmentThreadShell) => everyChat.projectOf.get(chat.id),
+                    }
+                  : {})}
+                onOpen={(chat, current) => {
+                  done();
+                  // The chat picked shows, the open one too, beside its panel (`showChat`); one
+                  // in another project opens that project's workspace.
+                  const ref = scopeThreadRef(chat.environmentId, chat.id);
+                  showChat(ref);
+                  if (current) return;
+                  void navigate({
+                    to: "/$environmentId/$threadId",
+                    params: buildThreadRouteParams(ref),
+                  });
+                }}
+              />
+            )}
+          </>
+        )}
       </div>
-      {listed.length === 0 ? (
-        <p className="px-(--sidebar-row-content-inset) py-2 text-xs text-muted-foreground">
-          {showingAll && !inProject
-            ? "No chats yet. A project's first chat starts with it."
-            : "No chats yet. This one is the first."}
-        </p>
-      ) : (
-        <ChatRows
-          chats={listed}
-          currentId={threadRef?.threadId ?? null}
-          {...(showingAll
-            ? { projectOf: (chat: EnvironmentThreadShell) => everyChat.projectOf.get(chat.id) }
-            : {})}
-          onOpen={(chat, current) => {
-            done();
-            // The chat picked shows, the open one too, beside its panel (`showChat`); one in
-            // another project opens that project's workspace.
-            const ref = scopeThreadRef(chat.environmentId, chat.id);
-            showChat(ref);
-            if (current) return;
-            void navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
-          }}
-        />
-      )}
     </SidebarGroup>
   );
 }
