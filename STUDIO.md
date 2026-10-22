@@ -102,6 +102,32 @@ scripts/build-studio-app.sh <version>`, then the `gh release create` line it pri
   Security). The boot step then clears the download's quarantine from the bundled Python, so
   macOS doesn't stop each of its programs again.
 
+**The Windows app.** The same script, run in Git Bash on Windows, builds the installer
+`release/Studio-<version>-x64.exe`. `.github/workflows/studio-windows.yml` runs it on GitHub's
+windows-latest (on a push to `amy/studio-windows`, or Run workflow with a version), installs the
+result there, checks the CAD tools import in the installed app, and keeps the installer, its
+blockmap and `latest.yml` as the run's artifact for three days (`gh run download`). Publish it into
+the version's release with the `gh release upload` line the script prints, which adds
+`Studio-Setup.exe`, the download's one name.
+
+- **Unsigned for now.** Windows warns the first time it opens (More info, then Run anyway), and
+  Smart App Control or a company's IT can block it outright. Unlike macOS, Windows installs updates
+  to an unsigned app, so every Windows build carries Studio's feed (`latest.yml`), and a signed
+  version later updates an unsigned one. Signing is Microsoft Trusted Signing in Amy's name: an
+  Azure account, a Trusted Signing account, identity validation as an individual, a certificate
+  profile, and an app registration whose secrets go in this repository's GitHub secrets under the
+  `AZURE_*` names T3 Code's build reads; then `STUDIO_SIGN=1` signs it.
+- **Where it differs from the Mac's.** uv's Windows CPython keeps `python.exe` at the top of its
+  folder (`resources\studio\python\python.exe`), and the boot step writes paths into the plugin
+  with forward slashes, quoted in the skills when they hold a space (a user folder like
+  `C:\Users\Amy Zhou`). T3 Code's Windows payload check allows 80 loose files, and leaves the CAD
+  tools out of that count. Its icon is the brand kit's `favicon.ico`, which has every size Windows
+  draws.
+- **Installing packages.** This Mac's checkouts leave `apps/mobile` out (a sparse checkout), and
+  pnpm then refuses to install over the mobile app's unused patches. GitHub's checkout includes it
+  and installs only the desktop app's packages, as T3 Code's release does; locally, add
+  `apps/mobile` to the sparse checkout and install with the same `--filter`s.
+
 ## Run it
 
 In a text-to-cad checkout, `git submodule update --init apps/studio`, then from `apps/studio`,
