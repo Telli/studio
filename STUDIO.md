@@ -28,10 +28,19 @@ built (`npm run build:packages` in `text-to-cad/`) before Studio starts.
 which needs nothing else on an Apple silicon Mac. Its first screen installs Claude Code and signs
 in, so the person needs only their own Claude subscription. Building it needs Rust 1.95 or newer
 for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one installed beside an older default)
-and about 6 GB free; the download is about 600 MB and the app 1.9 GB. Publish a version as a
-release of the public `amywork777/studio-download` (it holds only the download, never code) with
-the asset named `Studio-arm64.dmg`, as the script prints. The guide page and that repository's
-README link to `releases/latest/download/Studio-arm64.dmg`, so a new version changes no link.
+and about 7 GB free; the download is about 600 MB and the app 1.9 GB. The disk image step
+reserves its whole temporary image (about 2.3 GB) at once, so it fails with "No space left" while
+gigabytes still show free. `build/studio-bundle` is read only to stage it: deleting it once the
+build logs "Installing staged production dependencies" gives that step 1.5 GB. Publish a version
+as a release of the public `amywork777/studio-download` (it holds only the download, never code)
+with the asset named `Studio-arm64.dmg`, as the script prints. The website, the guide page and
+that repository's README link to `releases/latest/download/Studio-arm64.dmg`, so a new version
+changes no link.
+
+**The website**, https://studio-for-mac.vercel.app, is one static page in `~/code/studio-site`, on
+Amy's personal Vercel (`amy-zhous-projects-45e75853`); `vercel deploy --prod` there redeploys it.
+Its screenshots are the sample project in a packaged app, driven over Chrome's debugging port
+(`--remote-debugging-port`), since a plain browser can't draw Studio's 3D views.
 
 - **What it carries** (`build/studio-bundle`):
   - the CAD tools with a Python of their own: uv's movable CPython 3.13, with cadgen and its `fea`
