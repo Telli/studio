@@ -41,13 +41,16 @@ README link to `releases/latest/download/Studio-arm64.dmg`, so a new version cha
   - the plugin's page;
   - `studio.json`.
 - **The build.** T3 Code's desktop build takes the bundle through `T3CODE_DESKTOP_STUDIO_BUNDLE`
-  (`scripts/lib/studio-app.ts`). That gives it Studio's name, id and icon, and a plain DMG with
-  no update feed and no link schemes. It is signed ad hoc, without the hardened runtime, which
-  would stop the bundled Python from loading its libraries.
+  (`scripts/lib/studio-app.ts`). That gives it Studio's name, id, icon and copyright, and a plain
+  DMG with no update feed and no link schemes. The name is also the `productName` in the app's
+  package.json, which Electron starts the app under, so the app keeps its saved secrets in its own
+  keychain item, "Studio Safe Storage". Under T3 Code's `t3code` it asked for T3 Code's item, and
+  macOS wants the login password for that. It is signed ad hoc, without the hardened runtime,
+  which would stop the bundled Python from loading its libraries.
 - **On each start**, the app's boot step (`apps/desktop/src/studio/studioAppBundle.ts`) points
   it at `Resources/studio`:
   - its own home, `~/.text-to-cad-studio`;
-  - its own Electron profile, `studio`, apart from T3 Code's;
+  - its own Electron profile, named by its id, `com.amywork777.studio`, apart from T3 Code's;
   - its name;
   - the plugin, copied into the home with this copy's paths filled in;
   - `CADGEN_NODE`, set to Playwright's Node inside the bundled Python, since cadgen's STL and DXF

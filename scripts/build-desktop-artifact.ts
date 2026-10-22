@@ -25,7 +25,12 @@ import gnomeCaptureBundle from "../apps/desktop/gnome-extension/bundle.json" wit
 import serverPackageJson from "../apps/server/package.json" with { type: "json" };
 
 import { applyWebBrandAssets } from "./apply-web-brand-assets.ts";
-import { STUDIO_MAC_ICON_PNG, STUDIO_RESOURCES_DIR, studioBuildConfig } from "./lib/studio-app.ts";
+import {
+  STUDIO_MAC_ICON_PNG,
+  STUDIO_RESOURCES_DIR,
+  studioBuildConfig,
+  studioPackageJson,
+} from "./lib/studio-app.ts";
 import {
   BRAND_ASSET_PATHS,
   resolveWebAssetBrandForChannel,
@@ -3893,7 +3898,7 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     bundlesWslRuntime({ platform: options.platform, runtimeArchivePath: options.wslRuntime }),
     options.arch,
   );
-  const stagePackageJson: StagePackageJson = {
+  const t3StagePackageJson: StagePackageJson = {
     name: "t3code",
     version: appVersion,
     buildVersion: appVersion,
@@ -3918,6 +3923,8 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
       electron: electronVersion,
     },
   };
+  const stagePackageJson =
+    options.studioBundle === undefined ? t3StagePackageJson : studioPackageJson(t3StagePackageJson);
 
   const stagePackageJsonString = yield* encodeJsonString(stagePackageJson);
   yield* fs.writeFileString(path.join(stageAppDir, "package.json"), `${stagePackageJsonString}\n`);

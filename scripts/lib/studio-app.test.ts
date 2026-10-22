@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { STUDIO_APP_ID, studioBuildConfig } from "./studio-app.ts";
+import { STUDIO_APP_ID, studioBuildConfig, studioPackageJson } from "./studio-app.ts";
 
 const t3Config = {
   appId: "com.t3tools.t3code",
@@ -29,6 +29,7 @@ describe("studioBuildConfig", () => {
     expect(config.productName).toBe("Studio");
     expect(config.artifactName).toBe("Studio-${version}-${arch}.${ext}");
     expect(config.dmg).toEqual({ title: "Studio 0.1.0" });
+    expect(config.copyright).toBe("Copyright © Amy Zhou");
     expect(JSON.stringify(config)).not.toContain("T3 Code");
   });
 
@@ -62,5 +63,13 @@ describe("studioBuildConfig", () => {
     const before = JSON.stringify(t3Config);
     studioBuildConfig(t3Config, { version: "0.1.0", signed: false });
     expect(JSON.stringify(t3Config)).toBe(before);
+  });
+});
+
+describe("studioPackageJson", () => {
+  // Electron starts the app under this name, and its keychain item takes it.
+  it("names the app Studio, so it never asks for T3 Code's keychain item", () => {
+    const t3 = { name: "t3code", version: "0.1.1", main: "apps/desktop/dist-electron/boot.cjs" };
+    expect(studioPackageJson(t3)).toEqual({ ...t3, productName: "Studio" });
   });
 });

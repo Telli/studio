@@ -64,11 +64,13 @@ step "Laying out the CAD plugin"
 "$BUNDLE/python/bin/python3" "$ROOT/scripts/studio-app-plugin.py" "$CAD" "$BUNDLE/marketplace"
 mkdir -p "$BUNDLE/page"
 cp "$CAD/apps/mcp/dist/index.html" "$BUNDLE/page/index.html"
+# The Electron profile's folder is named by the app's id, which no other app shares; a folder
+# called "studio" could be any app's of that name.
 cat >"$BUNDLE/studio.json" <<'JSON'
 {
   "name": "Studio",
   "home": ".text-to-cad-studio",
-  "profile": "studio",
+  "profile": "com.amywork777.studio",
   "plugins": ["text-to-cad"]
 }
 JSON

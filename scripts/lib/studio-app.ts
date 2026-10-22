@@ -9,6 +9,8 @@
 /** Studio's own identity, apart from T3 Code's, so the two can be installed side by side. */
 export const STUDIO_APP_ID = "com.amywork777.studio";
 export const STUDIO_PRODUCT_NAME = "Studio";
+/** Whose app it is, for the copyright line in Finder's Get Info. */
+export const STUDIO_OWNER = "Amy Zhou";
 /** Studio's icon, from text-to-cad's brand kit (`brand/README.md`). */
 export const STUDIO_MAC_ICON_PNG = "brand/app-icon.png";
 /** The bundle's folder, in the app's Resources and in the build's staged resources. */
@@ -20,11 +22,23 @@ const record = (value: unknown): Record<string, unknown> =>
     : {};
 
 /**
- * T3 Code's electron-builder config, made Studio's: its name, id and artifact name; a DMG only,
- * plain, with no update feed (a new version is a new download); none of T3 Code's link schemes or
- * its claim to be a web browser; and the bundle as a resource. Unsigned builds are signed ad hoc,
- * since an Apple silicon Mac runs only signed code, without the hardened runtime, which
- * notarization needs and which would keep the CAD tools' Python from loading its libraries.
+ * T3 Code's staged package.json, named Studio. Electron names the running app from its
+ * `productName` (else its `name`, T3 Code's `t3code`) before any of the app's code runs, and macOS
+ * keeps the app's saved secrets in the keychain under that name ("<name> Safe Storage"). Named
+ * `t3code`, Studio asked for T3 Code's keychain item, which needs the login password to open.
+ */
+export function studioPackageJson<T extends object>(
+  packageJson: T,
+): T & { readonly productName: string } {
+  return { ...packageJson, productName: STUDIO_PRODUCT_NAME };
+}
+
+/**
+ * T3 Code's electron-builder config, made Studio's: its name, id, copyright and artifact name; a
+ * DMG only, plain, with no update feed (a new version is a new download); none of T3 Code's link
+ * schemes or its claim to be a web browser; and the bundle as a resource. Unsigned builds are
+ * signed ad hoc, since an Apple silicon Mac runs only signed code, without the hardened runtime,
+ * which notarization needs and which would keep the CAD tools' Python from loading its libraries.
  */
 export function studioBuildConfig(
   config: Readonly<Record<string, unknown>>,
@@ -34,6 +48,8 @@ export function studioBuildConfig(
   delete next.publish;
   next.appId = STUDIO_APP_ID;
   next.productName = STUDIO_PRODUCT_NAME;
+  // Otherwise it is built from the package's author, T3 Tools.
+  next.copyright = `Copyright © ${STUDIO_OWNER}`;
   next.artifactName = "Studio-${version}-${arch}.${ext}";
   next.extraResources = [
     ...(Array.isArray(next.extraResources) ? next.extraResources : []),
