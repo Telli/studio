@@ -23,6 +23,11 @@ CAD="$ROOT/text-to-cad"
 BUNDLE="$ROOT/build/studio-bundle"
 VERSION="${1:-0.1.0}"
 export PATH="$ROOT/node_modules/.bin:$HOME/.local/bin:$PATH"
+# Its scratch folders (the work folder here, the desktop build's stage) stay under build/: every
+# night macOS empties the system's temp folder of what no one has opened in three days (dirhelper,
+# 3:35 AM), and a build running then lost the bundle's empty files, which keep their packages' old
+# dates and are never read, so its update zip no longer matched the app's signature.
+export TMPDIR="$ROOT/build/tmp"
 
 step() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 stop() {
@@ -49,6 +54,9 @@ if [ "${STUDIO_SIGN:-}" = 1 ]; then
     stop "STUDIO_SIGN=1 needs notarization credentials: set APPLE_KEYCHAIN_PROFILE to the profile xcrun notarytool store-credentials saved."
   signed=true
 fi
+
+rm -rf "$TMPDIR"
+mkdir -p "$TMPDIR"
 
 step "Building the CAD tools' runtime and page"
 (cd "$CAD" && scripts/bundle/bundle.sh && npm run build:mcp)

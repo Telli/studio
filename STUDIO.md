@@ -33,7 +33,10 @@ reserves its whole temporary image (about 2.3 GB) at once, so it fails with "No 
 gigabytes still show free. `build/studio-bundle` is read only to stage it: deleting it once the
 build logs "Installing staged production dependencies" gives that step 1.5 GB. The build runs
 `vp run build:desktop` in the checkout, which rewrites the `dist-electron` and server `dist` files
-a running `vpr studio:desktop` watches, so that copy restarts once. Publish a version
+a running `vpr studio:desktop` watches, so that copy restarts once. Its scratch folders, the
+desktop build's stage among them, are in `build/tmp`, not the system's temp folder, which macOS
+empties every night at 3:35 of files no one has opened in three days: a build running then lost
+the bundle's empty files and made an update zip short of the app's signature (2026-10-22). Publish a version
 as a release of the public `amywork777/studio-download` (it holds only the download, never code)
 with the asset named `Studio-arm64.dmg`, as the script prints. The website, the guide page and
 that repository's README link to `releases/latest/download/Studio-arm64.dmg`, so a new version
