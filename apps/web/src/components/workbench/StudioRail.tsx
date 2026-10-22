@@ -3,6 +3,9 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { BellIcon, FolderIcon, HomeIcon, type LucideIcon, SettingsIcon } from "lucide-react";
 
 import { cn } from "~/lib/utils";
+import { useDesktopUpdateState } from "~/state/desktopUpdate";
+import { resolveDesktopUpdateButtonAction } from "../desktopUpdate.logic";
+import { SidebarUpdatePill } from "../sidebar/SidebarUpdatePill";
 import { useSidebar } from "../ui/sidebar";
 import { CHAT_ICON } from "./kinds";
 import { needsYou } from "./recentActivity";
@@ -19,10 +22,11 @@ type RailPage = "/" | "/chats" | "/projects" | "/needs-you" | "/settings";
  * The places down the far left of Studio, as Slack's rail, each opening its own page as Claude's
  * and ChatGPT's sidebars open Chats and Projects: Home, Chats (every chat), Projects, Needs you
  * (the chats waiting on the person, with how many), and Settings at the foot. The one that shows
- * is marked; inside a project, Projects is. The rail stays when the list beside it folds.
+ * is marked; inside a project, Projects is. The rail stays when the list beside it folds, and then
+ * carries the update button above Settings while an update waits (`RailUpdate`).
  */
 export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { isMobile, open, setOpenMobile } = useSidebar();
   const pathname = useLocation({ select: (location) => location.pathname });
   const navigate = useNavigate();
   const { cards } = useProjectList(props.environmentId);
@@ -60,6 +64,7 @@ export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
         onClick={() => go("/needs-you")}
       />
       <div className="flex-1" />
+      {open || isMobile ? null : <RailUpdate />}
       <RailItem
         icon={SettingsIcon}
         label="Settings"
@@ -68,6 +73,23 @@ export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
       />
     </nav>
   );
+}
+
+/**
+ * The update button (`SidebarUpdatePill`) on the rail while the list beside it is folded away, as
+ * the project switcher moves to the top bar: the list's foot holds it otherwise. It shows only when
+ * there is an update to download or restart into, since nothing else says one is out.
+ */
+function RailUpdate() {
+  const state = useDesktopUpdateState();
+  const waiting =
+    state !== null &&
+    (state.status === "downloading" || resolveDesktopUpdateButtonAction(state) !== "none");
+  return waiting ? (
+    <ul aria-label="Update" className="flex w-fit pb-1">
+      <SidebarUpdatePill />
+    </ul>
+  ) : null;
 }
 
 function RailItem(props: {
