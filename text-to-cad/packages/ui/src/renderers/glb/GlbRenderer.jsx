@@ -22,6 +22,7 @@ import { GLB_DECLINED_LIVE_COMMANDS, GLB_RESULT_LIVE, GLB_TOOL, GLB_TOOL_MODES }
 import { useGlbAnimation } from "./useGlbAnimation.js";
 import { useGlbScene } from "./useGlbScene.js";
 import { createResultPreview, markResultView } from "./resultPreview.js";
+import { TOOL_SHORTCUTS } from "../kit/tools/toolShortcuts.js";
 
 const NO_CHOICE = Object.freeze({ field: null, scale: null, loadScale: null, threshold: null, preset: null, markers: null, mode: null, frame: null, sigma: null,
   motion: null });
@@ -558,7 +559,7 @@ function GlbSurface({ view, data }) {
   const shell = useRendererShell({
     view, services: document.services, resource: document.resource, modelKey: document.modelKey, revisionKey: loaded.revision,
     features: cam ? EDGELESS_VIEW_FEATURES : fea ? FEA_VIEW_FEATURES : plainFeatures, toolModes: GLB_TOOL_MODES,
-    ...(result ? {} : { tool: sceneState.tool, measurements: sceneState.measurements, deleteSelection: measure.removeSelected }),
+    ...(result ? {} : { tool: sceneState.tool, deleteSelection: measure.removeSelected }),
     previewable: true, preview, scene, viewSettings: displaySettings, sceneEffects: !result,
     load: { busy: (loaded.busy || pending) && !scene, updating: loaded.busy && Boolean(scene), progress: loaded.progress, alert: loadAlert },
     animation: routine, live: result ? GLB_RESULT_LIVE : plainLive, rendererState: cam ? job.rendererState : rendererState, displaySections: cam ? job.displaySections : markerShow ? [{
@@ -886,7 +887,7 @@ function GlbSurface({ view, data }) {
   // A job's Time row stops where it is when the tool or preview changes, as a motion's does.
   const stopCamInPlace = job.stopInPlace;
   useEffect(() => { stopCamInPlace(); }, [cam, shell.toolMode, shell.previewing]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tools = cam ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", icon: SELECT_ICON })] : fea ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", icon: SELECT_ICON }),
+  const tools = cam ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON })] : fea ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON }),
     // A press opens its panel neutral (an edit cuts); a press while it is up, as its X, removes the cut.
     shell.tools.own({ id: GLB_TOOL.CLIP, label: "Clip", icon: fv.CLIP_ICON, active: clipShown,
       onSelect: () => {
@@ -1007,7 +1008,7 @@ function GlbSurface({ view, data }) {
       previewView={resultPreviewView} viewportOverlay={overlay} references={cam ? camReferences : references}
       onClearReferences={cam ? () => setCamFinding(null) : clearChoice} copySelection={copySelection} />;
   }
-  const strip = [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", icon: SELECT_ICON }), ...sceneTools.tools];
+  const strip = [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON }), ...sceneTools.tools];
   return <RendererShell shell={shell} tools={strip} subToolbar={sceneTools.subToolbar} previewView={previewView}
     references={previewing ? NO_REFERENCES : nodeReferences} referenceChips={previewing ? NO_REFERENCES : chips} nameReference={nameNode}
     onClearReferences={() => { selection.clear(); measure.select([]); }}

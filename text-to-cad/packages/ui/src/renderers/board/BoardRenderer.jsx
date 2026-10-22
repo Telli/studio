@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MousePointer2 } from "lucide-react";
 import { cn } from "@text-to-cad/ui/utils";
 import { BOARD_OVERLAY_COLORS, drawBoardOverlay } from "@text-to-cad/core/lib/board2d/boardOverlay.js";
 import { buildBoardRefToken, parseBoardRefSelector, splitBoardRefSelectors } from "@text-to-cad/core/lib/boardRefs.js";
@@ -62,10 +63,15 @@ const BOARD_UPDATE_STATUS = Object.freeze({ pending: true, label: "Updating boar
 const BOARD_LIVE = Object.freeze({ commands: Object.freeze(["select", "clearSelection"]), declined: Object.freeze({}) });
 const KIND_ICONS = Object.freeze({ parts: PartKindIcon, pads: PadKindIcon, nets: NetKindIcon });
 const KIND_LABELS = Object.freeze({ parts: "Parts", pads: "Pads", nets: "Nets" });
-const SELECT_KINDS = BOARD_SELECT_KINDS.map(id => {
-  const Icon = KIND_ICONS[id];
-  return { id, label: KIND_LABELS[id], icon: <Icon className="size-4" /> };
-});
+// What a board's Select picks (`kit/tools/select/selectFilter.js`): All, its parts, pads and nets as
+// it opens, or one kind alone.
+const SELECT_MODES = Object.freeze([
+  { id: "all", label: "All", kinds: BOARD_SELECT_KINDS, icon: <MousePointer2 className="size-4" /> },
+  ...BOARD_SELECT_KINDS.map(id => {
+    const Icon = KIND_ICONS[id];
+    return { id, label: KIND_LABELS[id], kinds: [id], icon: <Icon className="size-4" /> };
+  })
+]);
 const NO_SELECTION = Object.freeze({ hovered: [], selected: [] });
 // How near a pick must be, in CSS pixels: a cursor's, or a fingertip's (`TOUCH_HIT_PX`).
 const PICK_PX = 6;
@@ -366,7 +372,7 @@ function BoardSurface({ view, data }) {
   const handover = useFlatHandover({
     view, data, workspace, file, shown, ready, alert, tools, selection, references, chips, nameReference,
     capture, currentView, annotationDocument: boardAnnotationDocument, runtime, live: BOARD_LIVE,
-    copySelection: index ? copySelection : null, captureFailed: "Couldn’t capture the board"
+    copySelection: index ? copySelection : null, captureFailed: "Couldn’t capture the board", fit
   });
 
   // ---- the frame ---------------------------------------------------------------
@@ -375,8 +381,8 @@ function BoardSurface({ view, data }) {
   const failed = Boolean(alert) && !shown;
   const compact = Boolean(view.appearance?.compact);
   const chromeHidden = document.loading || failed;
-  const selectMenu = <SelectFilterMenu value={filter} onChange={changeFilter} kinds={SELECT_KINDS} disabled={!shown} />;
-  const { strip, row } = flatViewTools(tools, { mobile, colorScheme, shown, selectMenu });
+  const selectMenu = <SelectFilterMenu value={filter} onChange={changeFilter} modes={SELECT_MODES} disabled={!shown} />;
+  const { strip, row } = flatViewTools(tools, { colorScheme, shown, selectMenu });
   const views = layered ? [boardDisplayControl({ display, sheet, onChange: setDisplay, disabled: !shown })] : [];
   const sidebar = layered || index ? <>
     {index ? <BoardSection index={index} selection={selection} isolated={isolation.isolated} onIsolate={isolation.toggle}
