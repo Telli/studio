@@ -24,6 +24,33 @@ points at another checkout). The development plugin is built with `text-to-cad/.
 since a Mac's own python3 can be too old for cadgen. A change to the viewer needs its packages
 built (`npm run build:packages` in `text-to-cad/`) before Studio starts.
 
+**The Mac app.** `scripts/build-studio-app.sh [version]` builds `release/Studio-<version>-arm64.dmg`,
+which needs nothing else on an Apple silicon Mac. Its first screen installs Claude Code and signs
+in, so the person needs only their own Claude subscription.
+
+- **What it carries** (`build/studio-bundle`):
+  - the CAD tools with a Python of their own: uv's movable CPython 3.13, with cadgen and its `fea`
+    extra pinned to the checkout's `.venv`;
+  - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
+    `@@STUDIO_…@@` placeholders;
+  - the plugin's page;
+  - `studio.json`.
+- **The build.** T3 Code's desktop build takes the bundle through `T3CODE_DESKTOP_STUDIO_BUNDLE`
+  (`scripts/lib/studio-app.ts`). That gives it Studio's name, id and icon, and a plain DMG with
+  no update feed and no link schemes. It is signed ad hoc, without the hardened runtime, which
+  would stop the bundled Python from loading its libraries.
+- **On each start**, the app's boot step (`apps/desktop/src/studio/studioAppBundle.ts`) points
+  it at `Resources/studio`:
+  - its own home, `~/.text-to-cad-studio`;
+  - its own Electron profile, `studio`, apart from T3 Code's;
+  - its name;
+  - the plugin, copied into the home with this copy's paths filled in;
+  - `CADGEN_NODE`, set to Playwright's Node inside the bundled Python, since cadgen's STL and DXF
+    builders need one.
+- **Gatekeeper.** Unsigned, the person chooses Open Anyway once (System Settings, Privacy and
+  Security). The boot step then clears the download's quarantine from the bundled Python, so
+  macOS doesn't stop each of its programs again.
+
 ## Run it
 
 In a text-to-cad checkout, `git submodule update --init apps/studio`, then from `apps/studio`,

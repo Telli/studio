@@ -25,6 +25,7 @@ import gnomeCaptureBundle from "../apps/desktop/gnome-extension/bundle.json" wit
 import serverPackageJson from "../apps/server/package.json" with { type: "json" };
 
 import { applyWebBrandAssets } from "./apply-web-brand-assets.ts";
+import { STUDIO_MAC_ICON_PNG, STUDIO_RESOURCES_DIR, studioBuildConfig } from "./lib/studio-app.ts";
 import {
   BRAND_ASSET_PATHS,
   resolveWebAssetBrandForChannel,
@@ -941,6 +942,8 @@ interface ResolvedBuildOptions {
   readonly mockUpdates: boolean;
   readonly mockUpdateServerPort: number | undefined;
   readonly wslRuntime: string | undefined;
+  /** Studio's bundle (`scripts/build-studio-app.sh`): builds the Studio app (`lib/studio-app.ts`). */
+  readonly studioBundle?: string | undefined;
 }
 
 interface StagePackageJson {
@@ -1684,6 +1687,7 @@ const BuildEnvConfig = Config.all({
   // by the build_linux_cli CI job. The Windows build embeds it verbatim as the
   // WSL runtime.
   wslRuntime: Config.String("T3CODE_DESKTOP_WSL_RUNTIME").pipe(Config.option),
+  studioBundle: Config.String("T3CODE_DESKTOP_STUDIO_BUNDLE").pipe(Config.option),
 });
 
 const MockUpdateServerPortSchema = Schema.NumberFromString.check(
@@ -1777,6 +1781,11 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
 
   const wslRuntime =
     Option.getOrUndefined(input.wslRuntime) ?? Option.getOrUndefined(env.wslRuntime);
+  const configuredStudioBundle = Option.getOrUndefined(env.studioBundle);
+  const studioBundle =
+    configuredStudioBundle === undefined
+      ? undefined
+      : path.resolve(repoRoot, configuredStudioBundle);
 
   return {
     platform,
@@ -1791,6 +1800,7 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
     mockUpdates,
     mockUpdateServerPort,
     wslRuntime,
+    studioBundle,
   } satisfies ResolvedBuildOptions;
 });
 
@@ -3608,7 +3618,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   });
 
   const appVersion = options.version ?? serverPackageJson.version;
-  const iconAssets = resolveDesktopBuildIconAssets(appVersion);
+  const iconAssets =
+    options.studioBundle === undefined
+      ? resolveDesktopBuildIconAssets(appVersion)
+      : { ...resolveDesktopBuildIconAssets(appVersion), macIconPng: STUDIO_MAC_ICON_PNG };
   const commitHash = yield* resolveGitCommitHash(repoRoot);
   const mkdir = options.keepStage ? fs.makeTempDirectory : fs.makeTempDirectoryScoped;
   const stageRoot = yield* mkdir({
@@ -3721,9 +3734,12 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     });
   }
 
-  const webAssetBrand = resolveDesktopWebAssetBrand(appVersion);
-  yield* applyWebBrandAssets(webAssetBrand, "apps/server/dist/client");
-  yield* Effect.log(`[desktop-artifact] Applied ${webAssetBrand} web client branding.`);
+  // Studio's web client keeps the brand its build applied (T3CODE_BRAND_DIR).
+  if (options.studioBundle === undefined) {
+    const webAssetBrand = resolveDesktopWebAssetBrand(appVersion);
+    yield* applyWebBrandAssets(webAssetBrand, "apps/server/dist/client");
+    yield* Effect.log(`[desktop-artifact] Applied ${webAssetBrand} web client branding.`);
+  }
   yield* validateBundledClientAssets(path.dirname(bundledClientEntry));
 
   yield* fs.makeDirectory(path.join(stageAppDir, "apps/desktop"), { recursive: true });
@@ -3795,6 +3811,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   // electron-builder is filtering out stageResourcesDir directory in the AppImage for production
   const stageProdResourcesDir = path.join(stageAppDir, "apps/desktop/prod-resources");
   yield* fs.copy(stageResourcesDir, stageProdResourcesDir);
+  if (options.studioBundle !== undefined) {
+    yield* Effect.log("[desktop-artifact] Staging Studio's bundle...");
+    yield* fs.copy(options.studioBundle, path.join(stageProdResourcesDir, STUDIO_RESOURCES_DIR));
+  }
 
   const configuredMacPasskeySigning =
     options.platform === "mac" && options.signed
@@ -3857,6 +3877,22 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     options.platform === "win"
       ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
       : undefined;
+  const t3BuildConfig = yield* createBuildConfig(
+    options.platform,
+    options.target,
+    appVersion,
+    options.signed,
+    options.mockUpdates,
+    options.mockUpdateServerPort,
+    macPasskeySigning && macEntitlementsPath
+      ? {
+          entitlementsPath: macEntitlementsPath,
+          provisioningProfilePath: macPasskeySigning.provisioningProfilePath,
+        }
+      : undefined,
+    bundlesWslRuntime({ platform: options.platform, runtimeArchivePath: options.wslRuntime }),
+    options.arch,
+  );
   const stagePackageJson: StagePackageJson = {
     name: "t3code",
     version: appVersion,
@@ -3873,22 +3909,10 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     homepage: "https://t3.codes",
     author: "T3 Tools",
     main: "apps/desktop/dist-electron/boot.cjs",
-    build: yield* createBuildConfig(
-      options.platform,
-      options.target,
-      appVersion,
-      options.signed,
-      options.mockUpdates,
-      options.mockUpdateServerPort,
-      macPasskeySigning && macEntitlementsPath
-        ? {
-            entitlementsPath: macEntitlementsPath,
-            provisioningProfilePath: macPasskeySigning.provisioningProfilePath,
-          }
-        : undefined,
-      bundlesWslRuntime({ platform: options.platform, runtimeArchivePath: options.wslRuntime }),
-      options.arch,
-    ),
+    build:
+      options.studioBundle === undefined
+        ? t3BuildConfig
+        : studioBuildConfig(t3BuildConfig, { version: appVersion, signed: options.signed }),
     dependencies: stageDependencies,
     devDependencies: {
       electron: electronVersion,

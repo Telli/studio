@@ -71,3 +71,21 @@ it.effect.each(["t3code", "T3 Code (Alpha)"])(
       );
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
+
+it.effect("gives an app that names its own profile that profile, apart from T3 Code's", () =>
+  Effect.gen(function* () {
+    const userDataPath = yield* resolveUserDataPath({
+      appDataDirectory: "/profiles",
+      isDevelopment: false,
+      platform: "darwin",
+      userDataProfile: "studio",
+    });
+    assert.equal(userDataPath, "/profiles/studio");
+  }).pipe(
+    Effect.provideService(
+      FileSystem.FileSystem,
+      FileSystem.makeNoop({ exists: () => Effect.succeed(false) }),
+    ),
+    Effect.provide(NodeServices.layer),
+  ),
+);

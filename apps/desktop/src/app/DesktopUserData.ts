@@ -37,12 +37,16 @@ export const resolveUserDataPath = Effect.fn("desktop.userData.resolveUserDataPa
     readonly appDataDirectory: string;
     readonly isDevelopment: boolean;
     readonly platform: NodeJS.Platform;
+    /** A profile the app names itself (the Studio app's), apart from T3 Code's. */
+    readonly userDataProfile?: string | undefined;
   }) {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const names = input.isDevelopment
-      ? { current: "t3code-dev", legacy: "T3 Code (Dev)" }
-      : { current: "t3code-v2", legacy: "T3 Code (Alpha)" };
+    const names = input.userDataProfile
+      ? { current: input.userDataProfile, legacy: input.userDataProfile }
+      : input.isDevelopment
+        ? { current: "t3code-dev", legacy: "T3 Code (Dev)" }
+        : { current: "t3code-v2", legacy: "T3 Code (Alpha)" };
     const destinationPath = path.join(input.appDataDirectory, names.current);
     const legacyPath = path.join(input.appDataDirectory, names.legacy);
     const inspect = (resourcePath: string) =>
