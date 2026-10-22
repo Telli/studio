@@ -78,4 +78,10 @@ cd "$ROOT"
 T3CODE_DESKTOP_STUDIO_BUNDLE="$BUNDLE" VITE_APP_BASE_NAME=Studio T3CODE_BRAND_DIR="$ROOT/brand" \
   node scripts/build-desktop-artifact.ts --platform mac --target dmg --arch arm64 --build-version "$VERSION"
 
+# The download's one name: the guide page and amywork777/studio-download's README link to
+# releases/latest/download/Studio-arm64.dmg, so publishing a version changes no link.
+cp -c "$ROOT/release/Studio-$VERSION-arm64.dmg" "$ROOT/release/Studio-arm64.dmg" 2>/dev/null ||
+  cp "$ROOT/release/Studio-$VERSION-arm64.dmg" "$ROOT/release/Studio-arm64.dmg"
 printf '\n\033[1mStudio is built:\033[0m %s\n' "$ROOT/release/Studio-$VERSION-arm64.dmg"
+printf 'Publish it with:\n\n  gh release create v%s %s --repo amywork777/studio-download --title "Studio %s"\n\n' \
+  "$VERSION" "$ROOT/release/Studio-arm64.dmg" "$VERSION"
