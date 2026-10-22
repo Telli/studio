@@ -71,7 +71,8 @@
   --input: oklch(0.922 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-muted-foreground: oklch(0.556 0 0);
+  /* Rows and their icons read dark, as Claude's and Codex's sidebars do; labels stay muted. */
+  --sidebar-muted-foreground: oklch(0.26 0 0);
   --sidebar-control-surface: oklch(0.97 0 0);
   --sidebar-row-hover: oklch(0.97 0 0);
   --sidebar-row-active: oklch(1 0 0);
@@ -93,13 +94,23 @@
   --input: oklch(1 0 0 / 15%);
   --sidebar: oklch(0.25 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-muted-foreground: oklch(0.75 0 0);
+  --sidebar-muted-foreground: oklch(0.9 0 0);
   --sidebar-control-surface: oklch(0.31 0 0);
   --sidebar-row-hover: oklch(0.31 0 0);
   --sidebar-row-active: oklch(0.34 0 0);
   --sidebar-row-selected: oklch(0.31 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-stage-fade: var(--sidebar);
+}
+
+/* The button beside the window's controls that shows and hides the chats: a plain icon, dark
+   enough to find at a glance, as Claude's and Codex's are. */
+:is(html:not([data-theme-id]), html[data-theme-id=""]) [data-sidebar-control] button {
+  --control-icon-color: oklch(0.4 0 0);
+}
+
+:is(html.dark:not([data-theme-id]), html.dark[data-theme-id=""]) [data-sidebar-control] button {
+  --control-icon-color: oklch(0.85 0 0);
 }
 
 /* The mark is a square icon, not a cap-height wordmark: give it room beside the name. */

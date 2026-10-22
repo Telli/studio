@@ -36,7 +36,8 @@ import { useProjectHeading } from "./StudioWorkspaceBar";
 import { useRememberOpened } from "./useOpenProject";
 import { useProjectChats } from "./useProjectChats";
 
-const headingClass = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+// A quiet label over the chats, as Claude's and Codex's sidebars head their recents.
+const headingClass = "text-xs font-medium text-muted-foreground";
 
 /** The folder record the open thread or draft works in. */
 function useCurrentFolderId(threadRef: ScopedThreadRef | null): ProjectId | null {

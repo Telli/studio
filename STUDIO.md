@@ -282,8 +282,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   with its project's name under it, and This project, as the person last chose on this device
   (`chatScope.ts`, `allChats.ts`); on Home, with no project open, the sidebar lists them all.
   The Chats heading folds the list away, as an Overview module folds, and the whole sidebar hides
-  from the panel button beside the window's controls (filled, so it's easy to find) or its
-  shortcut. The sidebar starts with Home, marked while Home shows; the footer's Home icon is
+  from the panel button beside the window's controls or its shortcut. Like Claude's and Codex's
+  sidebars, that button is a plain dark icon and the rows and their icons read dark, with the
+  Chats label quiet (`brand/theme.css`). T3 Code drew the button white for its stage artwork,
+  which a fork's mark replaces, so on Studio's light sidebar it nearly vanished. The sidebar starts with Home, marked while Home shows; the footer's Home icon is
   only in T3 Code's sidebar beside code tools.
   Opening a chat from another project opens that project. What the project holds is on its
   Overview. The top bar names the open chat; with

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 
+import { APP_MARK_URL } from "../branding";
 import { isElectron } from "../env";
 import { getLocalStorageItem, removeLocalStorageItem } from "../hooks/useLocalStorage";
 import {
@@ -82,21 +83,16 @@ function readInitialThreadSidebarWidth(): number {
   }
 }
 
-function SidebarControl({
-  label = "Toggle main sidebar",
-  filled = false,
-}: {
-  label?: string;
-  /** A filled button, easy to find beside the window's controls (Studio's chats). */
-  filled?: boolean;
-}) {
+function SidebarControl({ label = "Toggle main sidebar" }: { label?: string }) {
   const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { toggleSidebar, isMobile, mobileSheetMounted } = useSidebar();
   const isSidebarVisible = useSidebarVisibility();
   const environmentIdentificationMode = useEnvironmentIdentificationMode();
+  // A fork's mark stands in for the stage artwork (`SidebarChromeHeader`), so no artwork sits
+  // behind this control, and its white on-artwork look would be lost on the sidebar.
   const stageBackdropVariant = useSidebarStageBackdropVariant(
-    environmentIdentificationMode === "artwork",
+    APP_MARK_URL === null && environmentIdentificationMode === "artwork",
   );
   const shortcutLabel = shortcutLabelForCommand(keybindings, "sidebar.toggle", {
     context: { usagePageOpen },
@@ -161,13 +157,7 @@ function SidebarControl({
             <SidebarTrigger
               // Over the stage artwork the trigger is a control on imagery, like the media
               // viewer's arrows; that variant positions itself, so the layout is reset here.
-              variant={
-                isSidebarVisible && stageBackdropVariant
-                  ? "media-navigation"
-                  : filled
-                    ? "secondary"
-                    : "ghost"
-              }
+              variant={isSidebarVisible && stageBackdropVariant ? "media-navigation" : "ghost"}
               className={cn(
                 "pointer-events-auto",
                 isSidebarVisible && stageBackdropVariant && "relative top-auto translate-y-0",
@@ -371,9 +361,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <SidebarRail onDoubleClick={resetSidebarWidth} />
         </Sidebar>
         {children}
-        <SidebarControl
-          {...(studioShell ? { label: "Show or hide the chats", filled: true } : {})}
-        />
+        <SidebarControl {...(studioShell ? { label: "Show or hide the chats" } : {})} />
         <NavigationHistoryShortcuts />
         <MainAppLocationTracker />
       </SidebarProvider>
