@@ -31,7 +31,9 @@ for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one installed beside an o
 and about 7 GB free; the download is about 600 MB and the app 1.9 GB. The disk image step
 reserves its whole temporary image (about 2.3 GB) at once, so it fails with "No space left" while
 gigabytes still show free. `build/studio-bundle` is read only to stage it: deleting it once the
-build logs "Installing staged production dependencies" gives that step 1.5 GB. Publish a version
+build logs "Installing staged production dependencies" gives that step 1.5 GB. The build runs
+`vp run build:desktop` in the checkout, which rewrites the `dist-electron` and server `dist` files
+a running `vpr studio:desktop` watches, so that copy restarts once. Publish a version
 as a release of the public `amywork777/studio-download` (it holds only the download, never code)
 with the asset named `Studio-arm64.dmg`, as the script prints. The website, the guide page and
 that repository's README link to `releases/latest/download/Studio-arm64.dmg`, so a new version
@@ -56,7 +58,9 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   DMG with no link schemes. The name is also the `productName` in the app's package.json, which
   Electron starts the app under, so the app keeps its saved secrets in its own keychain item,
   "Studio Safe Storage". Under T3 Code's `t3code` it asked for T3 Code's item, and macOS wants the
-  login password for that. By default it is signed ad hoc, without the hardened runtime, and has
+  login password for that. Its package name, `text-to-cad-studio`, names the updater's download
+  folder; under `t3code` the two apps' updaters shared one and emptied each other's downloads.
+  By default it is signed ad hoc, without the hardened runtime, and has
   no update feed: macOS installs no update to an app signed ad hoc, so a new version is a new
   download.
 - **Signed, it updates itself** (`STUDIO_SIGN=1`). The build signs with the Developer ID

@@ -92,9 +92,14 @@ describe("studioBuildConfig", () => {
 });
 
 describe("studioPackageJson", () => {
-  // Electron starts the app under this name, and its keychain item takes it.
-  it("names the app Studio, so it never asks for T3 Code's keychain item", () => {
+  // Electron starts the app under its product name, and its keychain item takes it; the updater's
+  // download folder takes the package's name.
+  it("names the app Studio, apart from T3 Code's keychain item and update downloads", () => {
     const t3 = { name: "t3code", version: "0.1.1", main: "apps/desktop/dist-electron/boot.cjs" };
-    expect(studioPackageJson(t3)).toEqual({ ...t3, productName: "Studio" });
+    expect(studioPackageJson(t3)).toEqual({
+      ...t3,
+      name: "text-to-cad-studio",
+      productName: "Studio",
+    });
   });
 });

@@ -9,6 +9,8 @@
 /** Studio's own identity, apart from T3 Code's, so the two can be installed side by side. */
 export const STUDIO_APP_ID = "com.amywork777.studio";
 export const STUDIO_PRODUCT_NAME = "Studio";
+/** The app's package name, the one its updater names its download folder by (`studioPackageJson`). */
+export const STUDIO_PACKAGE_NAME = "text-to-cad-studio";
 /** Whose app it is, for the copyright line in Finder's Get Info. */
 export const STUDIO_OWNER = "Amy Zhou";
 /** Studio's icon, from text-to-cad's brand kit (`brand/README.md`). */
@@ -38,11 +40,14 @@ const record = (value: unknown): Record<string, unknown> =>
  * `productName` (else its `name`, T3 Code's `t3code`) before any of the app's code runs, and macOS
  * keeps the app's saved secrets in the keychain under that name ("<name> Safe Storage"). Named
  * `t3code`, Studio asked for T3 Code's keychain item, which needs the login password to open.
+ * electron-builder names the updater's download folder from the package's `name` ("<name>-updater",
+ * in the user's caches), so under `t3code` Studio's updater would share T3 Code's folder, and each
+ * app empties the other's downloaded update when it finds one it didn't fetch.
  */
 export function studioPackageJson<T extends object>(
   packageJson: T,
-): T & { readonly productName: string } {
-  return { ...packageJson, productName: STUDIO_PRODUCT_NAME };
+): T & { readonly name: string; readonly productName: string } {
+  return { ...packageJson, name: STUDIO_PACKAGE_NAME, productName: STUDIO_PRODUCT_NAME };
 }
 
 /**
