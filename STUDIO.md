@@ -413,6 +413,15 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   drawing and its PRD; `homeExamples.ts`). The first workspace opened gives a four-step tour,
   once (`StudioTour.tsx`,
   `tourSteps.ts`): the project, its Overview, the tabs and the toolbar.
+- **Invite codes.** A friend without ChatGPT uses Codex on Amy's OpenAI key: on the Codex card,
+  Use an invite code (the welcome screen; Settings, AI agents, Codex), paste the code
+  (`CodexInviteCode.tsx`, `codexInvite.ts`). The dialog checks the code with Amy's invite server
+  (`~/code/studio-invite`, studio-invite.vercel.app, deployed with the Vercel CLI, not on
+  GitHub), puts the instance on Studio's own setup for as long as Codex is installed or found (only
+  that setup installs Codex), then saves it as an "existing" instance run from that Codex, with
+  the server as its provider in launch arguments and the code as a sensitive variable. Stop using
+  it puts it back on Studio's own setup. Trap: Codex shows no models from a plain OpenAI model
+  list, so the server answers the model list from Codex's own catalog (`npm run catalog` there).
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode

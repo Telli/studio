@@ -98,6 +98,8 @@ import { Dialog } from "../ui/dialog";
 import { toastManager } from "../ui/toast";
 import { cn } from "../../lib/utils";
 import { isEngineeringInterface, useEngineeringInterface } from "../workbench/studioInterface";
+import { CodexInviteCard, CodexInviteDialog } from "../workbench/CodexInviteCode";
+import { usesInvite } from "../workbench/codexInvite";
 import { formatRelativeTime } from "../../timestampFormat";
 
 /**
@@ -913,6 +915,8 @@ function OnboardingCodexSetup({
 }) {
   const canOperateTerminal = useEnvironmentScope(environmentId, AuthTerminalOperateScope);
   const update = useAtomCommand(serverEnvironment.updateSettings, "Codex setup settings");
+  // Studio's invite dialog stays open while the card under it changes setup.
+  const [inviting, setInviting] = useState(false);
   const instanceId =
     createdAccount?.instanceId ??
     provider?.instanceId ??
@@ -951,27 +955,45 @@ function OnboardingCodexSetup({
       },
     });
   };
-  return existingChosen ? (
-    <AgentCard
-      driver="codex"
-      provider={provider}
-      terminalOpen={terminalOpen}
-      terminalAvailable={canOperateTerminal}
-      onOpenTerminal={onOpenTerminal}
-    />
-  ) : (
-    <CodexSetupSection
-      presentation="onboarding"
-      autoStart={createdAccount?.autoStart === true}
-      displayName={createdAccount?.displayName}
-      onAutoStartConsumed={onAutoStartConsumed}
-      environmentId={environmentId}
-      instanceId={instanceId}
-      provider={provider}
-      mode={mode}
-      enabled={provider?.enabled ?? true}
-      onModeChange={changeMode}
-    />
+  return (
+    <>
+      {usesInvite(instance.config) ? (
+        <CodexInviteCard
+          environmentId={environmentId}
+          instanceId={instanceId}
+          provider={provider}
+        />
+      ) : existingChosen ? (
+        <AgentCard
+          driver="codex"
+          provider={provider}
+          terminalOpen={terminalOpen}
+          terminalAvailable={canOperateTerminal}
+          onOpenTerminal={onOpenTerminal}
+        />
+      ) : (
+        <CodexSetupSection
+          presentation="onboarding"
+          autoStart={createdAccount?.autoStart === true}
+          displayName={createdAccount?.displayName}
+          onAutoStartConsumed={onAutoStartConsumed}
+          environmentId={environmentId}
+          instanceId={instanceId}
+          provider={provider}
+          mode={mode}
+          enabled={provider?.enabled ?? true}
+          onModeChange={changeMode}
+          onUseInviteCode={() => setInviting(true)}
+        />
+      )}
+      {inviting ? (
+        <CodexInviteDialog
+          environmentId={environmentId}
+          instanceId={instanceId}
+          onClose={() => setInviting(false)}
+        />
+      ) : null}
+    </>
   );
 }
 

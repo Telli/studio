@@ -86,6 +86,10 @@ vi.mock("../settings/CodexSetupSection", () => ({
   CodexSetupSection: () => null,
   AddManagedCodexAccountDialog: () => null,
 }));
+vi.mock("../workbench/CodexInviteCode", () => ({
+  CodexInviteCard: () => null,
+  CodexInviteDialog: () => null,
+}));
 vi.mock("../cloud/CloudEnvironmentConnectList", () => ({
   CloudEnvironmentConnectRows: () => null,
 }));

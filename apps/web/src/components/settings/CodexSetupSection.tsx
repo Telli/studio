@@ -56,6 +56,8 @@ interface CodexSetupSectionProps {
   readonly displayName?: string | undefined;
   readonly onAutoStartConsumed?: () => void;
   readonly onSignInCancelled?: (() => void) | undefined;
+  /** Studio: an invite code in place of a command-line Codex; the caller owns the dialog. */
+  readonly onUseInviteCode?: (() => void) | undefined;
 }
 
 /** Welcome and provider settings run the same environment-owned setup flow. */
@@ -128,10 +130,19 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
           )
         }
         secondaryControl={
-          // An engineer signs in with ChatGPT; a command-line Codex is a coding setup.
-          !existingAuthenticated && !existingReady && !existingChecking && !engineering ? (
+          // An engineer signs in with ChatGPT or an invite; a command-line Codex is a coding setup.
+          existingAuthenticated || existingReady || existingChecking ? null : !engineering ? (
             <Button size="sm" variant="ghost-muted" onClick={() => props.onModeChange("existing")}>
               Use existing CLI
+            </Button>
+          ) : props.onUseInviteCode ? (
+            <Button
+              size="sm"
+              variant="ghost-muted"
+              disabled={props.readOnly}
+              onClick={props.onUseInviteCode}
+            >
+              Use an invite code
             </Button>
           ) : null
         }
@@ -220,6 +231,7 @@ function ManagedCodexSetup({
   presentation,
   displayName,
   onSignInCancelled,
+  onUseInviteCode,
 }: CodexSetupSectionProps & {
   readonly autoStart: boolean;
   readonly onAutoStartConsumed: () => void;
@@ -894,6 +906,15 @@ function ManagedCodexSetup({
               >
                 Use existing CLI
               </Button>
+            ) : !authActive && !authenticated && allowExistingCli && onUseInviteCode ? (
+              <Button
+                size="sm"
+                variant="ghost-muted"
+                disabled={readOnly || busy}
+                onClick={onUseInviteCode}
+              >
+                Use an invite code
+              </Button>
             ) : null
           }
         >
@@ -1131,7 +1152,7 @@ function CodexSignInDescription({
 }
 
 /** A single, calm setup row for the first-run welcome screen. */
-function CodexWelcomeCard({
+export function CodexWelcomeCard({
   title,
   description,
   control,

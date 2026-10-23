@@ -98,6 +98,8 @@ import { ProviderSetupSection, readAntigravityAuthMethod } from "./ProviderSetup
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
 import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSection";
 import { readCodexSetupMode } from "./CodexSetupSection.logic";
+import { CodexInviteSettingsRow } from "../workbench/CodexInviteCode";
+import { usesInvite } from "../workbench/codexInvite";
 import { providerClients } from "./providerDriverMeta";
 import { searchableSetting } from "./settingsSearch";
 import {
@@ -1001,26 +1003,41 @@ export function EnvironmentProviderSettings({
           ) : mode === "editor" &&
             row.driver === "codex" &&
             readCodexSetupMode(row.instance.config) === "managed" ? (
-            <CodexSetupSection
+            <>
+              <CodexSetupSection
+                environmentId={environmentId}
+                instanceId={row.instanceId}
+                provider={liveProvider}
+                mode={readCodexSetupMode(row.instance.config)}
+                enabled={resolveProviderInstanceEnabled(row.instance)}
+                readOnly={readOnly}
+                onModeChange={(setupMode) =>
+                  updateProviderInstance(row, {
+                    ...row.instance,
+                    enabled: true,
+                    config: {
+                      ...(row.instance.config !== null && typeof row.instance.config === "object"
+                        ? row.instance.config
+                        : {}),
+                      enabled: true,
+                      setupMode,
+                    },
+                  })
+                }
+              />
+              <CodexInviteSettingsRow
+                environmentId={environmentId}
+                instanceId={row.instanceId}
+                provider={liveProvider}
+                readOnly={readOnly}
+              />
+            </>
+          ) : mode === "editor" && row.driver === "codex" && usesInvite(row.instance.config) ? (
+            <CodexInviteSettingsRow
               environmentId={environmentId}
               instanceId={row.instanceId}
               provider={liveProvider}
-              mode={readCodexSetupMode(row.instance.config)}
-              enabled={resolveProviderInstanceEnabled(row.instance)}
               readOnly={readOnly}
-              onModeChange={(setupMode) =>
-                updateProviderInstance(row, {
-                  ...row.instance,
-                  enabled: true,
-                  config: {
-                    ...(row.instance.config !== null && typeof row.instance.config === "object"
-                      ? row.instance.config
-                      : {}),
-                    enabled: true,
-                    setupMode,
-                  },
-                })
-              }
             />
           ) : mode === "editor" &&
             !readOnly &&
