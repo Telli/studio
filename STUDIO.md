@@ -28,7 +28,8 @@ built (`npm run build:packages` in `text-to-cad/`) before Studio starts.
 which needs nothing else on an Apple silicon Mac. Its first screen installs Claude Code and signs
 in, so the person needs only their own Claude subscription. Building it needs Rust 1.95 or newer
 for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one installed beside an older default)
-and about 7 GB free; the download is about 600 MB and the app 1.9 GB. The disk image step
+and about 7 GB free; the download is about 400 MB and the app 1.2 GB (from 0.1.4; 600 MB and
+1.9 GB while the CAD tools went in twice). The disk image step
 reserves its whole temporary image (about 2.3 GB) at once, so it fails with "No space left" while
 gigabytes still show free. `build/studio-bundle` is read only to stage it: deleting it once the
 build logs "Installing staged production dependencies" gives that step 1.5 GB. The build runs
@@ -92,7 +93,10 @@ scripts/build-studio-app.sh <version>`, then the `gh release create` line it pri
     about 10 GB free: the last release's files in `release/` and `build/studio-bundle` can go once
     it is published. 0.1.3 ran out on its last step (2026-10-22), which now moves the DMG and the
     zip out of the stage instead of copying them; its zip was made from the notarized DMG's app
-    with `ditto -c -k --sequesterRsrc --keepParent`, as 0.1.2's was.
+    with `ditto -c -k --sequesterRsrc --keepParent`, as 0.1.2's was. 0.1.4 (2026-10-23) built
+    whole from 8.6 GB free plus the 7.8 GB iOS simulator runtime Amy chose to delete. Publish as a
+    draft with the Windows files too (`gh release create ... --draft`, then `gh release edit
+--draft=false --latest`), so neither updater ever reads a release without its feed.
   - The first signed version is still a download: a copy signed ad hoc has no feed to find it.
 - **On each start**, the app's boot step (`apps/desktop/src/studio/studioAppBundle.ts`) points
   it at `Resources/studio`:
