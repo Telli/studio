@@ -1,6 +1,6 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
-import { DownloadIcon } from "lucide-react";
+import { DownloadIcon, Maximize2Icon, Minimize2Icon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
@@ -17,6 +17,7 @@ import { usePanelTabShortcuts } from "./panelTabShortcuts";
 import { PartActions } from "./PartActions";
 import { handToChat } from "./NewDialog";
 import { surfaceFile } from "./sameFile";
+import { useEditFullScreen } from "./studioFullScreen";
 import { StudioNew } from "./StudioNew";
 import { StudioTour } from "./StudioTour";
 import { partName } from "./partNames";
@@ -96,6 +97,8 @@ export function StudioPanelBar(props: {
       ? null
       : { kind: frontKind, ...(frontFile === null ? {} : { file: frontFile }) },
   );
+  // Edit by hand with a part in front can take the whole screen.
+  const fullScreen = useEditFullScreen(threadRef, byHandShown && mode === "manual");
   const shown = usePartContext(threadRef);
   const studio = useStudioProjectAt(threadRef.environmentId, folder);
   const subject =
@@ -154,6 +157,20 @@ export function StudioPanelBar(props: {
           <Toggle value="ask">Ask</Toggle>
           <Toggle value="manual">Edit by hand</Toggle>
         </ToggleGroup>
+      ) : null}
+      {byHandShown && mode === "manual" ? (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={fullScreen.on ? "Exit full screen" : "Full screen"}
+          aria-pressed={fullScreen.on}
+          title={
+            fullScreen.on ? "Exit full screen" : "Full screen: the part across the whole screen"
+          }
+          onClick={fullScreen.toggle}
+        >
+          {fullScreen.on ? <Minimize2Icon /> : <Maximize2Icon />}
+        </Button>
       ) : null}
       {inFront === null || props.composerRef === null ? null : (
         <PartActions
