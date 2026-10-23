@@ -9,7 +9,7 @@ import { useSidebar } from "../ui/sidebar";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
 
 /**
- * Studio's mark and name, which lead Home, the one page of projects, while the chats are folded
+ * Studio's mark and name, which lead Home and Studio's other pages while the chats are folded
  * away: how every engineering page starts its top bar then. A project's workspace puts its
  * switcher after it (`StudioWorkspaceBar`).
  */

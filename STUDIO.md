@@ -296,8 +296,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   (`/__cad/versions/restore`), what was on disk kept first as a version unless one already holds
   it (a commit under `refs/studio/kept/`, made with an index of its own, listed as what you had
   before restoring), and the agent hears of it with the next message, as a hand edit's note.
-- **Home, the switcher and the chats.** In Engineering, Home is Studio's one page (Projects goes
-  to it): a top bar with the mark and a search that opens the quick find, then a box for what to
+- **Home, the switcher and the chats.** In Engineering, Home is where you start and pick up where
+  you left off, and Projects is every project (Amy, 2026-10-23: they showed the same, since
+  Projects went to Home): a top bar with the mark and a search that opens the quick find, then a box for what to
   make, in two modes on the part toolbar's segmented control, each named with its button's word.
   Start, from an idea: Start sends what was typed to a new project (made, with a first chat that
   sends it as its first message), or, with a project of yours chosen beside Attach
@@ -313,7 +314,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   then fill in the project's name, setup and README from them and ask only what they leave open
   (`startMessage` in `startProject.ts`). A project can start from files alone, named after the
   first; in the web app, without paths to copy, they go with the first message instead. Then
-  every project, with New and Import beside them to add one: New is the same New and dialog as a
+  the starred projects and the last four worked on, with All projects to the Projects page
+  (`ProjectsHome.tsx`: every project, a box to find one, the folders in no project), and New and
+  Import beside them to add one, on both pages: New is the same New and dialog as a
   project's toolbar (`StudioNew.tsx`), where Create makes a new project and hands the job to its
   first chat. Every project is pictured by
   its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in one

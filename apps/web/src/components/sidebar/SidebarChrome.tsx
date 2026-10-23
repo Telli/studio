@@ -236,7 +236,7 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
       ) : (
         <>
           {engineering ? (
-            // Home, as ⌘K and the project switcher name it: Studio's one page of projects.
+            // Home, as ⌘K and the project switcher name it: where Studio starts.
             <SidebarUtilityItem icon={<HomeIcon />} label="Home" onClick={handleProjectsClick} />
           ) : null}
           {studioRail ? null : (

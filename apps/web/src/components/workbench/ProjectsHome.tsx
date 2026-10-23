@@ -1,7 +1,6 @@
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { Navigate } from "@tanstack/react-router";
-import { DownloadIcon, FolderIcon, FolderOpenIcon, PlusIcon } from "lucide-react";
+import { FolderIcon, FolderOpenIcon, PlusIcon } from "lucide-react";
 import { useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
@@ -10,20 +9,28 @@ import { useNowMinute } from "~/hooks/useNowMinute";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { SidebarInset } from "../ui/sidebar";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { ImportDialogHost } from "./ImportDialog";
 import { ImportDropZone } from "./ImportDropZone";
+import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
 import { NewProjectDialog } from "./NewProjectDialog";
-import { ProjectTile } from "./ProjectTile";
+import { waitingFirst } from "./ProjectChoices";
 import { findProjects } from "./recentProjects";
+import { splitStarred, useStarredStore } from "./starredProjects";
 import { useEngineeringInterface } from "./studioInterface";
+import { StudioNew } from "./StudioNew";
 import { StudioTopBar } from "./StudioTopBar";
 import { useImportActions } from "./useImportActions";
 import { useOpenProject } from "./useOpenProject";
 import { useProjectList } from "./useProjectList";
+import { useProjectTiles } from "./useProjectTiles";
+import { useStartOnce } from "./useStartProject";
+
+/** Starred and Recent, as Home and the project switcher label a group. */
+const GROUP_LABEL = "text-xs font-medium text-muted-foreground";
+const TILE_GRID = "grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4";
 
 const threadCount = (count: number) => (count === 1 ? "1 thread" : `${count} threads`);
 
@@ -57,19 +64,16 @@ function LooseFolderRow(props: {
 }
 
 /**
- * Studio's Projects page. A project is a grouping of folders with a brief
- * (`useStudioProjects.ts`): each is a card pictured by its first part, with
- * what it is for and how recently it was worked on, newest first. Folders in
- * no project are listed below, to open or make a project of. New project
- * starts one from a kind and any folders; opening one goes back to the thread
- * last open in it (a new one in its first folder when it has none), on its
- * project page.
+ * Studio's Projects page (the rail's Projects), every project, where Home keeps only the starred
+ * ones and the last few. A project is a grouping of folders with a brief (`useStudioProjects.ts`):
+ * each is a tile as on Home (`useProjectTiles`), the starred ones first, each group with the
+ * projects waiting on the person first, then the one worked on last; the box finds one by name,
+ * what it is for or a chat's title. Folders in no project are listed below, to open or make a
+ * project of. In the engineering interface New and Import add a project as on Home; with code
+ * tools on, New project starts one from a kind and any folders.
  */
 export function ProjectsHome() {
   const environmentId = usePrimaryEnvironmentId();
-  // In the engineering interface Home is the one page of projects.
-  const engineering = useEngineeringInterface();
-  if (engineering) return <Navigate to="/" replace />;
   return environmentId === null ? null : <ProjectsHomeFor environmentId={environmentId} />;
 }
 
@@ -89,7 +93,15 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const availableImport = useImportActions();
   const importActions = engineering ? availableImport : null;
   useNowMinute();
-  const shown = findProjects(cards, query);
+  const { start } = useStartOnce(environmentId);
+  const { tile, dialogs } = useProjectTiles(environmentId, cards);
+  const split = splitStarred(
+    findProjects(cards, query),
+    useStarredStore((store) => store.starred),
+  );
+  const starred = waitingFirst(split.starred);
+  const rest = waitingFirst(split.rest);
+  const shown = [...starred, ...rest];
 
   const openDialog = (folder: string | null) =>
     setDialog((current) => ({ count: current.count + 1, open: true, folder }));
@@ -103,8 +115,8 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
               <Input
                 type="search"
                 size="sm"
-                placeholder="Search projects and parts"
-                aria-label="Search projects and parts"
+                placeholder="Find a project"
+                aria-label="Find a project"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
@@ -148,18 +160,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                 )}
                 <div className="flex items-center gap-2">
                   {importActions !== null ? (
-                    <Menu>
-                      <MenuTrigger render={<Button variant="outline" size="sm" />}>
-                        <DownloadIcon />
-                        Import
-                      </MenuTrigger>
-                      <MenuPopup align="end" side="bottom" sideOffset={6}>
-                        <MenuItem onClick={() => void importActions.pick()}>
-                          Files or a folder
-                        </MenuItem>
-                        <MenuItem onClick={importActions.scan}>Scan this computer</MenuItem>
-                      </MenuPopup>
-                    </Menu>
+                    <ImportMenu actions={importActions} />
                   ) : (
                     <Button
                       variant="outline"
@@ -170,31 +171,44 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                       Add a folder
                     </Button>
                   )}
-                  <Button size="sm" onClick={() => openDialog(null)}>
-                    <PlusIcon />
-                    New project
-                  </Button>
+                  {engineering ? (
+                    <StudioNew
+                      environmentId={environmentId}
+                      cwd=""
+                      newProject
+                      onCreate={(job) => void start({ kind: "new", job })}
+                    />
+                  ) : (
+                    <Button size="sm" onClick={() => openDialog(null)}>
+                      <PlusIcon />
+                      New project
+                    </Button>
+                  )}
                 </div>
               </div>
               {shown.length === 0 ? (
                 <p className="py-12 text-center text-sm text-muted-foreground">
                   {cards.length === 0
-                    ? "No projects yet. Start one with New project, or make one of a folder below."
+                    ? engineering
+                      ? "No projects yet. Start one with New, or Import what you have."
+                      : "No projects yet. Start one with New project, or make one of a folder below."
                     : "No project matches that."}
                 </p>
               ) : (
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4">
-                  {shown.map(({ id, project, folder, threads: own }) => (
-                    <ProjectTile
-                      key={id}
-                      environmentId={environmentId}
-                      id={id}
-                      project={project}
-                      threads={own}
-                      onOpen={() => void openProject(folder, own)}
-                    />
-                  ))}
-                </div>
+                <>
+                  {starred.length === 0 ? null : (
+                    <>
+                      <h2 className={GROUP_LABEL}>Starred</h2>
+                      <div className={TILE_GRID}>{starred.map(tile)}</div>
+                    </>
+                  )}
+                  {rest.length === 0 ? null : (
+                    <>
+                      {starred.length === 0 ? null : <h2 className={GROUP_LABEL}>Recent</h2>}
+                      <div className={TILE_GRID}>{rest.map(tile)}</div>
+                    </>
+                  )}
+                </>
               )}
               {importActions === null ? null : (
                 <p className="text-center text-xs text-muted-foreground">
@@ -224,6 +238,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
         </ImportDropZone>
       </div>
       <ImportDialogHost environmentId={environmentId} />
+      {dialogs}
       <NewProjectDialog
         key={dialog.count}
         open={dialog.open}

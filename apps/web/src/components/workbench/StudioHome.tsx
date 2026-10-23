@@ -1,9 +1,8 @@
 import { useAtomValue } from "@effect/atom-react";
-import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { useLocation } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import { FolderInputIcon, PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { useNowMinute } from "~/hooks/useNowMinute";
@@ -18,7 +17,6 @@ import { SidebarInset } from "../ui/sidebar";
 import { Textarea } from "../ui/textarea";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import type { ListedProject } from "./projectList";
-import { ProjectTile } from "./ProjectTile";
 import { ENGINEERING_COMPOSER_PLACEHOLDER } from "./studioInterface";
 import { splitStarred, useStarredStore } from "./starredProjects";
 import { ImportDialogHost } from "./ImportDialog";
@@ -26,19 +24,18 @@ import { SAMPLE_PROJECT } from "./homeExamples";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
-import { waitingFirst, whenTouched } from "./ProjectChoices";
-import { useProjectMenu } from "./ProjectMenu";
+import { HeadingLink } from "./OverviewModules";
+import { waitingFirst } from "./ProjectChoices";
 import { ProjectPicker } from "./ProjectPicker";
-import { needsYou } from "./recentActivity";
 import { nameOfPath, type StartAttachment } from "./startProject";
 import { droppedPath, readStudioImport } from "./studioImportBridge";
 import { StudioNew } from "./StudioNew";
 import { StudioTopBar } from "./StudioTopBar";
 import { useImportActions } from "./useImportActions";
-import { useOpenProject } from "./useOpenProject";
 import { useOpenShortcut } from "./useOpenShortcut";
 import { useProjectList } from "./useProjectList";
-import { type ProjectStart, useStartProject } from "./useStartProject";
+import { useProjectTiles } from "./useProjectTiles";
+import { type ProjectStart, useStartOnce } from "./useStartProject";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 /** A group within Your projects, in the project switcher's words: Starred, then Recent. */
@@ -46,6 +43,8 @@ const GROUP_LABEL = "text-xs font-medium text-muted-foreground";
 /** A first visit's offer: what it is beside the one button that does it. */
 const OFFER =
   "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-dashed border-border px-4 py-3";
+/** How many of the projects not starred Home shows, the last worked on: one row on a wide window. */
+const HOME_RECENT = 4;
 /** Project tiles, four across on a wide window, as many as fit on a narrow one. */
 const TILE_GRID = "grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4";
 
@@ -72,15 +71,16 @@ function FindButton() {
 }
 
 /**
- * Studio's Home, its one page, the way a CAD tool's welcome starts. Its box takes what to make:
- * Start sends it to a new project (made, with a first chat that sends it), or, with a project of
- * yours chosen beside Attach, to a new chat in that project. Below are your projects, starred
- * first, as pictures of their parts, the one opened last first, each opening where it was left.
- * New and Import beside them add a project: New the same New and dialog as a project's toolbar
- * (a part, a board or a document, in a new project), Import from files. A project with a chat
- * waiting on the person (a question, an approval) comes first, says so, and opens on that chat;
- * chats otherwise live in their project, down its left. Search finds a project, a part or a chat
- * (`StudioQuickFind`). One column, so the box and the tiles line up.
+ * Studio's Home, the way a CAD tool's welcome starts: what to make, and where you left off. Its
+ * box takes what to make: Start sends it to a new project (made, with a first chat that sends it),
+ * or, with a project of yours chosen beside Attach, to a new chat in that project. Below are your
+ * starred projects and the last few you worked on (`HOME_RECENT`), as pictures of their parts,
+ * each opening where it was left; All projects goes to the Projects page, which has every one
+ * (`ProjectsHome`). New and Import beside them add a project: New the same New and dialog as a
+ * project's toolbar (a part, a board or a document, in a new project), Import from files. A project
+ * with a chat waiting on the person (a question, an approval) comes first, says so, and opens on
+ * that chat. Search finds a project, a part or a chat (`StudioQuickFind`). One column, so the box
+ * and the tiles line up.
  */
 export function StudioHome() {
   const environmentId = usePrimaryEnvironmentId();
@@ -93,59 +93,23 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   // Until the list arrives Home is neither a first visit nor a return, so nothing first-run shows.
   const loaded = list !== undefined;
   const firstTime = loaded && cards.length === 0;
-  const startProject = useStartProject(environmentId);
-  const [busy, setBusy] = useState(false);
-  // One start at a time, from the box or from New: a second press while one is made does nothing.
-  const start = async (work: ProjectStart) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await startProject(work);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const openProject = useOpenProject();
+  // One start at a time, from the box or from New.
+  const { busy, start } = useStartOnce(environmentId);
   const importActions = useImportActions();
+  const navigate = useNavigate();
   useNowMinute();
   useOpenShortcut(openFind);
-  const waiting = useMemo(() => {
-    const byProject = new Map<string, EnvironmentThreadShell[]>();
-    for (const { card, thread } of needsYou(cards)) {
-      byProject.set(card.id, [...(byProject.get(card.id) ?? []), thread]);
-    }
-    return byProject;
-  }, [cards]);
-  // Each tile's menu, as Drive's on a file: the switcher's actions (`ProjectMenu`).
-  const menu = useProjectMenu({
-    environmentId,
-    cards,
-    onOpen: (card) => void openProject(card.folder, card.threads),
-  });
+  const { tile, dialogs } = useProjectTiles(environmentId, cards);
   const split = splitStarred(
     cards,
     useStarredStore((store) => store.starred),
   );
   const starred = waitingFirst(split.starred);
-  const rest = waitingFirst(split.rest);
-  const tile = (card: ListedProject) => {
-    const { id, project, folder, threads } = card;
-    const asking = waiting.get(id) ?? [];
-    return (
-      <ProjectTile
-        key={id}
-        environmentId={environmentId}
-        id={id}
-        project={project}
-        threads={threads}
-        waiting={asking}
-        when={whenTouched(card)}
-        // On the chat waiting on the person, if one is (`useOpenProject`).
-        onOpen={() => void openProject(folder, threads)}
-        onMenu={(position) => menu.show(card, position)}
-      />
-    );
-  };
+  // The last few, the ones waiting on the person first; every project is on the Projects page.
+  const recent = waitingFirst(split.rest).slice(0, HOME_RECENT);
+  const allProjects = (
+    <HeadingLink label="All projects" onClick={() => void navigate({ to: "/projects" })} />
+  );
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -209,13 +173,18 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                   ) : (
                     <>
                       {starred.length === 0 ? null : (
-                        <>
-                          <h3 className={GROUP_LABEL}>Starred</h3>
-                          <div className={TILE_GRID}>{starred.map(tile)}</div>
-                          {rest.length === 0 ? null : <h3 className={GROUP_LABEL}>Recent</h3>}
-                        </>
+                        <TileGroup
+                          label="Starred"
+                          action={recent.length === 0 ? allProjects : null}
+                        >
+                          {starred.map(tile)}
+                        </TileGroup>
                       )}
-                      {rest.length === 0 ? null : <div className={TILE_GRID}>{rest.map(tile)}</div>}
+                      {recent.length === 0 ? null : (
+                        <TileGroup label="Recent" action={allProjects}>
+                          {recent.map(tile)}
+                        </TileGroup>
+                      )}
                     </>
                   )}
                 </section>
@@ -225,8 +194,26 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
         </ImportDropZone>
       </div>
       <ImportDialogHost environmentId={environmentId} />
-      {menu.dialogs}
+      {dialogs}
     </SidebarInset>
+  );
+}
+
+/** A group of Home's tiles under its label (Starred, Recent), with what its heading offers. */
+function TileGroup(props: {
+  readonly label: string;
+  readonly action: ReactNode;
+  readonly children: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <h3 className={GROUP_LABEL}>{props.label}</h3>
+        <div className="flex-1" />
+        {props.action}
+      </div>
+      <div className={TILE_GRID}>{props.children}</div>
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { STUDIO_PROJECT_KINDS } from "@t3tools/shared/studioProjects";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useRightPanelStore } from "~/rightPanelStore";
@@ -85,6 +85,28 @@ const kindOf = (id: string) => STUDIO_PROJECT_KINDS.find((kind) => kind.id === i
  * What was attached is copied into the project's References first, and the first message asks
  * the agent to read it before anything else (`startMessage`): a new project is set up from it.
  */
+/**
+ * Starts work as `useStartProject` does, one start at a time, from Home's box or from New on Home
+ * and the Projects page: a second press while one is being made does nothing. `busy` says one is.
+ */
+export function useStartOnce(environmentId: EnvironmentId): {
+  readonly busy: boolean;
+  readonly start: (work: ProjectStart) => Promise<void>;
+} {
+  const startProject = useStartProject(environmentId);
+  const [busy, setBusy] = useState(false);
+  const start = async (work: ProjectStart) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await startProject(work);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return { busy, start };
+}
+
 export function useStartProject(environmentId: EnvironmentId) {
   const create = useCreateStudioProject(environmentId);
   const handleNewThread = useNewThreadHandler();
