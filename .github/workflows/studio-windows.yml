@@ -5,7 +5,7 @@ name: Studio for Windows
 # to amywork777/studio-download is a separate step, by hand (STUDIO.md, The Windows app).
 on:
   push:
-    branches: [amy/studio-windows]
+    branches: ["amy/studio-windows*"]
   workflow_dispatch:
     inputs:
       version:
@@ -28,7 +28,7 @@ jobs:
       run:
         shell: bash
     env:
-      VERSION: ${{ inputs.version || '0.1.2' }}
+      VERSION: ${{ inputs.version || '0.1.3' }}
     steps:
       # actions/checkout's cleanup runs submodule foreach, which fails on the orphaned gitlinks in
       # the vendored .repos tree (release-desktop.yml), so this fetches the commit itself.

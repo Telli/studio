@@ -104,11 +104,13 @@ scripts/build-studio-app.sh <version>`, then the `gh release create` line it pri
 
 **The Windows app.** The same script, run in Git Bash on Windows, builds the installer
 `release/Studio-<version>-x64.exe`. `.github/workflows/studio-windows.yml` runs it on GitHub's
-windows-latest (on a push to `amy/studio-windows`, or Run workflow with a version), installs the
-result there, checks the CAD tools import in the installed app, and keeps the installer, its
+windows-latest (Run workflow with a version, or a push to an `amy/studio-windows…` branch), installs
+the result there, checks the CAD tools import in the installed app, and keeps the installer, its
 blockmap and `latest.yml` as the run's artifact for three days (`gh run download`). Publish it into
 the version's release with the `gh release upload` line the script prints, which adds
-`Studio-Setup.exe`, the download's one name. The installer is about 480 MB and installs, with no
+`Studio-Setup.exe`, the download's one name. Both apps' updaters read the latest release, so from
+0.1.3 on every release carries `latest-mac.yml` and `latest.yml` together: a release with only one
+leaves the other platform's updater with an error. The installer is about 480 MB and installs, with no
 questions, in about four minutes (2026-10-22) to `%LOCALAPPDATA%\Programs\text-to-cad-studio`: the
 one-click installer names the folder by the package name. The CAD tools' small files are most of
 those minutes; one archive unpacked on the first start would cut them.
