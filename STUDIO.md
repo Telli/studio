@@ -112,10 +112,12 @@ blockmap and `latest.yml` as the run's artifact for three days (`gh run download
 the version's release with the `gh release upload` line the script prints, which adds
 `Studio-Setup.exe`, the download's one name. Both apps' updaters read the latest release, so from
 0.1.3 on every release carries `latest-mac.yml` and `latest.yml` together: a release with only one
-leaves the other platform's updater with an error. The installer is about 480 MB and installs, with no
-questions, in about four minutes (2026-10-22) to `%LOCALAPPDATA%\Programs\text-to-cad-studio`: the
-one-click installer names the folder by the package name. The CAD tools' small files are most of
-those minutes; one archive unpacked on the first start would cut them.
+leaves the other platform's updater with an error. The 0.1.3 installer is about 320 MB (482 MB while
+the CAD tools went in twice) and installs, with no questions, in about four minutes to
+`%LOCALAPPDATA%\Programs\text-to-cad-studio`: the one-click installer names the folder by the
+package name. The CAD tools' 20,000 or so small files are most of those minutes; one archive
+unpacked on the first start would cut them. Their deepest path is about 220 characters under a
+short user name, so a long one comes near Windows's 260.
 
 - **Unsigned for now.** Windows warns the first time it opens (More info, then Run anyway), and
   Smart App Control or a company's IT can block it outright. Unlike macOS, Windows installs updates
@@ -129,8 +131,8 @@ those minutes; one archive unpacked on the first start would cut them.
   with forward slashes, quoted in the skills when they hold a space (a user folder like
   `C:\Users\Amy Zhou`). T3 Code's Windows payload check holds its own payload to 80 loose files,
   to keep its installer quick; Studio's build skips that budget, since the CAD tools' Python alone
-  is tens of thousands of files (and the rest of Studio's payload was already 232). Its icon is the
-  brand kit's `favicon.ico`, which has every size Windows draws.
+  is about 20,000 files (the rest of the app is 55). Its icon is the brand kit's `favicon.ico`,
+  which has every size Windows draws.
 - **Installing packages.** This Mac's checkouts leave `apps/mobile` out (a sparse checkout), and
   pnpm then refuses to install over the mobile app's unused patches. GitHub's checkout includes it
   and installs only the desktop app's packages, as T3 Code's release does; locally, add
