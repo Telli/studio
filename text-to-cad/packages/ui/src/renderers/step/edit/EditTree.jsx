@@ -5,10 +5,9 @@ import { TREE_INDENT_PX, TreeRowChevron, TreeRowSurface } from "@text-to-cad/ui/
 import { FileSheetValueInput } from "../../kit/inspector/FileSheet.js";
 import { ORIGIN_PLANES, barIndex, planeDetail, rolledBack, sizeName, treeFeatures } from "./editMode.js";
 import { AssemblyIcon, FeatureIcon, MateTreeIcon, OriginIcon, ParametersIcon, PartIcon, PlaneIcon, SketchIcon } from "./featureIcons.jsx";
+import { nxPlane, treeTitles } from "./nx.js";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
-// How defined a sketch is, marked before its name as SolidWorks marks it: (-) under, (+) over.
-const SKETCH_MARKS = Object.freeze({ "Under defined": "(-) ", "Over defined": "(+) " });
 
 /** A row's name typed over in place, as SolidWorks' tree renames one: Enter or a click away keeps
  * it, Escape leaves it as it was (`onDone` given the name, or null). */
@@ -34,7 +33,7 @@ function RenameInput({ value, onDone }) {
  * Sketch, Rename, Suppress or Unsuppress, Delete), as SolidWorks' does. While `renaming`, its name
  * is typed over (`onRename`, given the name or null). */
 function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, onActivate = null, selected, onSelect, onHover, muted = false, menu = null,
-  slot = null, renaming = null, onRename = null }) {
+  slot = null, renaming = null, onRename = null, check = null }) {
   const active = Boolean(id) && selected === id;
   const row = <TreeRowSurface as="div" dense active={active} role="treeitem" aria-selected={active}
     aria-expanded={expanded === null ? undefined : expanded} tabIndex={-1}
@@ -47,6 +46,10 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
     <span className="flex w-3 shrink-0 justify-center" onClick={event => { if (onToggle) { event.stopPropagation(); onToggle(); } }}>
       <TreeRowChevron expanded={Boolean(expanded)} branch={expanded !== null} />
     </span>
+    {check ? <input type="checkbox" checked={check.checked} disabled={check.disabled} aria-label={check.label}
+      className="size-3 shrink-0 cursor-pointer accent-primary disabled:cursor-default"
+      onClick={event => event.stopPropagation()} onDoubleClick={event => event.stopPropagation()}
+      onChange={event => check.onChange(event.currentTarget.checked)} /> : null}
     {icon}
     {renaming !== null && onRename ? <RenameInput value={renaming} onDone={onRename} />
       : <span className={muted ? "truncate text-muted-foreground" : "truncate"}>{title}</span>}
@@ -147,10 +150,10 @@ function AddParameter({ edit, disabled }) {
   if (!open) {
     return <button type="button" disabled={disabled} onClick={() => setOpen(true)}
       className="self-start rounded px-1 py-0.5 text-tiny text-muted-foreground hover:bg-sidebar-accent hover:text-foreground disabled:opacity-50">
-      + Add parameter
+      + Add expression
     </button>;
   }
-  return <form onSubmit={submit} className="flex flex-col gap-1 py-1 pr-1" aria-label="Add parameter">
+  return <form onSubmit={submit} className="flex flex-col gap-1 py-1 pr-1" aria-label="Add expression">
     <div className="flex items-center gap-1">
       <input value={name} onChange={event => { setName(event.target.value); setError(""); }} placeholder="NAME" aria-label="Parameter name" autoFocus
         className="h-6 min-w-0 flex-1 rounded border border-border bg-background px-1.5 text-tiny uppercase text-foreground outline-none focus:border-ring" />
@@ -167,7 +170,7 @@ function AddParameter({ edit, disabled }) {
 }
 
 export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPart = null, backTo = null }) {
-  const [open, setOpen] = useState(() => new Set(["parameters", "mates"]));
+  const [open, setOpen] = useState(() => new Set(["parameters", "mates", "datum"]));
   // A selection inside a closed part, or a sketch under a closed feature, opens them to it.
   useEffect(() => {
     const selected = edit.selected || "";
@@ -204,6 +207,9 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const greyed = icon => <span className="flex shrink-0 opacity-50">{icon}</span>;
   const rolled = rolledBack(tree, edit.bar);
   const partItems = tree.assembly ? [] : tree.features;
+  // Each row's title as NX's Part Navigator numbers it ("Extrude (2)"), a part's own or each of an assembly's.
+  const titles = treeTitles(tree);
+  const titleOf = row => titles.get(row.id) || row.title;
   const barAt = barIndex(tree, edit.bar);
   const rollItems = feature => {
     const index = partItems.findIndex(each => each.id === feature.id);
@@ -224,7 +230,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const sketchRow = (sketch, depth, own = null, muted = false) => {
     const edits = editItem(sketch);
     return <Row key={sketch.id} id={sketch.id} depth={depth} icon={muted ? greyed(<SketchIcon />) : <SketchIcon />} muted={muted}
-      title={`${SKETCH_MARKS[sketch.status] || ""}${sketch.title}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane${sketch.offset ? `, ${sketch.offset} ${edit.state?.units || ""}`.trimEnd() : ""}` : ""}
+      title={titleOf(sketch)} detail={sketch.plane && sketch.plane !== "Plane" ? `${nxPlane(sketch.plane)}${sketch.offset ? `, ${sketch.offset} ${edit.state?.units || ""}`.trimEnd() : ""}` : ""}
       slot={own ? partItems.findIndex(each => each.id === own.id) : null}
       onActivate={() => onEditSketch(sketch)}
       {...(sketch.constrained ? renamingOf(sketch.id, sketch.title, { sketch: { file: sketch.file, line: sketch.line }, title: sketch.title }) : {})}
@@ -242,7 +248,9 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     const grey = feature.suppressed || out;
     const slot = partItems.findIndex(each => each.id === feature.id);
     return [
-      <Row key={feature.id} id={feature.id} depth={depth} title={feature.title} detail={detail} muted={grey}
+      <Row key={feature.id} id={feature.id} depth={depth} title={titleOf(feature)} detail={detail} muted={grey}
+        check={{ checked: !feature.suppressed, disabled: busy, label: `${titleOf(feature)}: ${feature.suppressed ? "suppressed" : "active"}`,
+          onChange: active => void edit.suppress(feature.id, tree, !active) }}
         icon={grey ? greyed(<FeatureIcon kind={feature.kind} />) : <FeatureIcon kind={feature.kind} />}
         expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null} slot={slot < 0 ? null : slot}
         onActivate={editable(feature) && !busy ? () => edit.editFeature(feature) : null}
@@ -259,7 +267,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     return below ? Number(below.getAttribute("data-cad-edit-bar-slot")) : partItems.length;
   };
   const bar = partItems.length > 1 && edit.status === "ready" ? <RollbackBar key="rollback-bar" index={barAt} count={partItems.length}
-    label={barAt >= partItems.length ? "At the end" : `Above ${partItems[barAt].title}`} disabled={busy}
+    label={barAt >= partItems.length ? "At the end" : `Above ${titleOf(partItems[barAt])}`} disabled={busy}
     slotAt={slotAt} onPreview={setDragged}
     onMove={index => void edit.rollTo(index >= partItems.length ? null : partItems[index].id)} /> : null;
   // Where a dragged bar would go, drawn faintly until it is let go; it takes no room, so the rows
@@ -293,7 +301,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
       title={`${mate.name} (${mate.parts.join(", ")})`} {...rowProps}
       menu={[{ id: "delete", label: "Delete", disabled: busy, onSelect: () => void edit.mate({ delete: mate.label }) }]} />) : []),
   ] : []);
-  return <div ref={treeRef} role="tree" aria-label="Design tree" className="flex flex-col px-1 py-1" data-cad-edit-tree="" onKeyDown={onKeyDown}>
+  return <div ref={treeRef} role="tree" aria-label="Part Navigator" className="flex flex-col px-1 py-1" data-cad-edit-tree="" onKeyDown={onKeyDown}>
     {backTo ? <button type="button" className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1 text-left text-tiny text-muted-foreground hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
       onClick={backTo.open} data-cad-edit-back="">
       <AssemblyIcon /><span className="truncate">{`Back to ${backTo.title}`}</span>
@@ -302,10 +310,11 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     <Row id="" depth={0} icon={tree.assembly ? <AssemblyIcon /> : <PartIcon />} title={name} {...rowProps}
       menu={tree.assembly ? null : [{ id: "appearance", label: "Appearance", disabled: busy, onSelect: () => edit.inspect("appearance") },
         { id: "mass", label: "Mass Properties", disabled: busy, onSelect: () => edit.inspect("mass") }]} />
-    <Row id="" depth={1} icon={<ParametersIcon />} title="Parameters" expanded={open.has("parameters")} onToggle={toggle("parameters")} {...rowProps} />
-    {open.has("parameters") ? <div role="group" aria-label="Parameters" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>
+    {/* The part's named sizes, as NX's Expressions holds them. */}
+    <Row id="" depth={1} icon={<ParametersIcon />} title="Expressions" expanded={open.has("parameters")} onToggle={toggle("parameters")} {...rowProps} />
+    {open.has("parameters") ? <div role="group" aria-label="Expressions" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>
       {edit.status === "reading" ? <span className="flex items-center gap-1 py-1 text-tiny text-foreground"><LoaderCircle className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />Reading the part</span>
-        : params.length === 0 ? <span className="py-1 text-tiny text-muted-foreground">No named sizes yet.</span>
+        : params.length === 0 ? <span className="py-1 text-tiny text-muted-foreground">No expressions yet.</span>
           : params.map(param => <div key={param.id} className="flex min-h-7 items-center justify-between gap-2 pr-1">
             <span className="truncate text-tiny text-foreground/80">{sizeName(param.name)}</span>
             <span className="flex shrink-0 items-center gap-1">
@@ -316,8 +325,9 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
           </div>)}
       {edit.status === "reading" || !edit.addParameter ? null : <AddParameter edit={edit} disabled={disabled} />}
     </div> : null}
-    {ORIGIN_PLANES.map(plane => <Row key={plane} id={`plane:${plane}`} depth={1} icon={<PlaneIcon />} title={`${plane} Plane`} {...rowProps} />)}
-    <Row id="origin" depth={1} icon={<OriginIcon />} title="Origin" {...rowProps} />
+    {/* The origin and its planes, as NX's datum coordinate system: feature 0, before the rest. */}
+    <Row id="origin" depth={1} icon={<OriginIcon />} title="Datum Coordinate System (0)" expanded={open.has("datum")} onToggle={toggle("datum")} {...rowProps} />
+    {open.has("datum") ? ORIGIN_PLANES.map(plane => <Row key={plane} id={`plane:${plane}`} depth={2} icon={<PlaneIcon />} title={nxPlane(plane)} {...rowProps} />) : null}
     {tree.assembly && onOpenPart && tree.components.some(component => component.step)
       ? <p className="px-2 py-1 text-tiny leading-4 text-muted-foreground">Double-click a part to open it and model it.</p> : null}
     {tree.assembly

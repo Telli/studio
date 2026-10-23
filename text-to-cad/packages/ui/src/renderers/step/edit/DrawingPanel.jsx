@@ -45,8 +45,6 @@ export default function DrawingPanel({ edit }) {
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <DrawingIcon className="size-5 shrink-0" />
       <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">Drawing</h2>
-      <ConfirmButtons onOk={() => void ok()} onCancel={edit.stopInspecting} okDisabled={sameValues(values, opened) || edit.saving}
-        busy={edit.saving} />
     </div>
     <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} py-1.5`}>
       {drawing.drawn ? `Drawn to ${drawing.pdf} by ${drawing.script}. Its views and dimensions follow the part.`
@@ -64,5 +62,6 @@ export default function DrawingPanel({ edit }) {
       <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Top, front and right, in third angle.</p>
       <FileSheetCheckboxRow label="Isometric view" checked={values.iso} onCheckedChange={value => set("iso")(Boolean(value))} />
     </FileSheetSettingsSection>
+    <ConfirmButtons className="border-t border-border px-2 py-2" onOk={() => void ok()} onCancel={edit.stopInspecting} okDisabled={sameValues(values, opened) || edit.saving} busy={edit.saving} />
   </div>;
 }

@@ -14,12 +14,11 @@ export default function InterferencePanel({ edit }) {
   const units = edit.state?.units || "mm";
   const found = edit.interference;
   const rows = found?.pairs ? interferenceRows(found.pairs, units) : [];
-  return <div role="dialog" aria-label="Interference Detection" data-cad-interference="" className="flex shrink-0 flex-col"
+  return <div role="dialog" aria-label="Simple Interference" data-cad-interference="" className="flex shrink-0 flex-col"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopInspecting(); } }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <InterferenceIcon className="size-5 shrink-0" />
-      <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">Interference Detection</h2>
-      <ConfirmButtons onCancel={edit.stopInspecting} cancelLabel="Close" />
+      <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">Simple Interference</h2>
     </div>
     <FileSheetSettingsSection title="Results" sectionId="interference-results">
       {found?.status === "failed" ? <p className="px-2 pb-1 text-tiny leading-4 text-destructive" aria-live="polite">{found.error}</p>
@@ -29,5 +28,6 @@ export default function InterferencePanel({ edit }) {
               {found.parts > 1 ? `No interferences: none of the ${found.parts} parts overlap.` : "There is only one part or body to check."}
             </p>}
     </FileSheetSettingsSection>
+    <ConfirmButtons className="border-t border-border px-2 py-2" onCancel={edit.stopInspecting} cancelLabel="Close" />
   </div>;
 }

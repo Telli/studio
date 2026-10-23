@@ -427,6 +427,19 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   the server as its provider in launch arguments and the code as a sensitive variable. Stop using
   it puts it back on Studio's own setup. Trap: Codex shows no models from a plain OpenAI model
   list, so the server answers the model list from Codex's own catalog (`npm run catalog` there).
+- **Edit by hand reads like NX** (Amy, 2026-10-23: "really similar to NX", her team's CAD at
+  Apple), in NX's words and layout over the SolidWorks-built machinery below (`edit/nx.js`): a
+  ribbon of tabs (Home, Analysis, View, Assemblies, Drafting) with Undo and Redo first, Home's
+  groups Direct Sketch, Feature, Detail Feature, Associative Copy, Trim and Datum; one Extrude
+  (and Revolve, Sweep along Guide, Through Curves) whose Boolean, Unite or Subtract, opens the
+  cut command with what was typed; dialogs with OK, Apply and Cancel at their foot; a Part
+  Navigator numbering features as NX does ("Extrude (2)", an Edge Blend for a fillet), a box on
+  each to suppress it, Expressions, and the Datum Coordinate System (0) with its XY, XZ and YZ
+  planes; the sketch tools as NX names them (Finish Sketch, Rapid Dimension, Quick Trim). The
+  script and the agent's notes keep their own names. Ask reads the part once, quietly, after
+  the model opens, so Edit by hand opens on it at once (`useEditMode`); Full screen, beside Ask
+  and Edit by hand, puts the part across the screen (`workbench/studioFullScreen.ts`: the panel
+  maximized, Studio's sidebar hidden, the window full screen).
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode

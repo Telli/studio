@@ -31,7 +31,6 @@ export default function ComparePanel({ edit }) {
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <CompareIcon className="size-5 shrink-0" />
       <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">Compare</h2>
-      <ConfirmButtons onCancel={edit.stopInspecting} cancelLabel="Close" />
     </div>
     <FileSheetSettingsSection title="Compare now with" sectionId="compare-versions">
       {versions.length ? <ul aria-label="Versions" className="mx-2 mb-1 flex flex-col gap-0.5">
@@ -56,5 +55,6 @@ export default function ComparePanel({ edit }) {
           {`Material it lost: ${compareVolume(comparison.removedVolume, units)}`}</span>
       </p>
     </FileSheetSettingsSection> : null}
+    <ConfirmButtons className="border-t border-border px-2 py-2" onCancel={edit.stopInspecting} cancelLabel="Close" />
   </div>;
 }

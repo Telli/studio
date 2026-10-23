@@ -43,10 +43,17 @@ import {
 import { COMMAND_ICONS } from "./cadIcons.jsx";
 import { HOLE_STANDARDS, defaultSize, holeFill, holeFits, holeSizeOptions } from "./holeSizes.js";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
+import { booleanOf, nxCommand } from "./nx.js";
 import { sketchGeometry } from "./sketchMode.js";
 // An extrude's end conditions, as SolidWorks' Direction 1 names them and in its order; a cut can go through all.
-const END = Object.freeze({ blind: "Blind", through: "Through All", next: "Up To Next", vertex: "Up To Vertex", surface: "Up To Surface",
-  mid: "Mid Plane" });
+// The end conditions as NX's Limits name them.
+const END = Object.freeze({ blind: "Value", through: "Through All", next: "Until Next", vertex: "Until Point", surface: "Until Selected",
+  mid: "Symmetric Value" });
+// NX's Boolean, for the commands that add material or take the same shape away (`nx.js`).
+const BOOLEAN_OPTIONS = Object.freeze([{ value: "unite", label: "Unite" }, { value: "subtract", label: "Subtract" }]);
+// What a dialog switching its Boolean hands the dialog opening for the other command: the values
+// typed so far and the sketches picked, read as that one opens (`to`, its command).
+let carry = null;
 const ends = values => Object.freeze(values.map(value => ({ value, label: END[value] })));
 const BOSS_ENDS = ends(["blind", "next", "vertex", "surface", "mid"]);
 const CUT_ENDS = ends(["blind", "through", "next", "vertex", "surface", "mid"]);
@@ -193,7 +200,14 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const command = editCommand(edit.command);
   const units = edit.state?.units || "mm";
   const editing = edit.editing?.command === edit.command ? edit.editing : null;
-  const opened = useMemo(() => (editing ? editingValues(editing, units) : commandDefaults(edit.command, units)), [editing, edit.command, units]);
+  // Values handed over by the Boolean's other command, as this dialog opened.
+  const [carried] = useState(() => (carry?.to === edit.command ? carry : null));
+  useEffect(() => { if (carry === carried) carry = null; }, [carried]);
+  const opened = useMemo(() => {
+    const base = editing ? editingValues(editing, units) : commandDefaults(edit.command, units);
+    // Carried over: what both commands have.
+    return carried ? { ...base, ...Object.fromEntries(Object.entries(carried.values).filter(([key]) => key in base)) } : base;
+  }, [editing, edit.command, units, carried]);
   const [values, setValues] = useState(opened);
   useEffect(() => { setValues(opened); }, [opened]);
   // The sketch an extrude makes a solid of: the one selected in the design tree, or the feature's
@@ -209,7 +223,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   // (a list): each sketch picked in turn, on the model or in the design tree, as SolidWorks' boxes
   // take them, in order; a reopened feature keeps its own.
   const takes = command?.sketches || null;
-  const [picked, setPicked] = useState(() => (editing?.sketches || []).map(each => ({ ...each, title: each.name, constrained: true })));
+  const [picked, setPicked] = useState(() => carried?.picked || (editing?.sketches || []).map(each => ({ ...each, title: each.name, constrained: true })));
   const selectedSketch = takes && !editing ? treeSketch(tree, edit.selected) : null;
   useEffect(() => {
     if (!selectedSketch) return;
@@ -413,15 +427,31 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     if (editing && !repicked && sameValues(values, opened)) { edit.close(); return; }
     void edit.run(commandRequest(command.id, values, acted, feature, sketch, editing, picked));
   };
+  // Apply, as NX's: the feature made, and the dialog open again for the next one.
+  const apply = async () => {
+    if (blocked || disabled) return;
+    const id = command.id;
+    const reply = await edit.run(commandRequest(command.id, values, acted, feature, sketch, editing, picked));
+    if (reply?.ok) edit.open(id);
+  };
+  // The Boolean switched: the other command's dialog, with what was typed and picked.
+  const bool = editing ? null : booleanOf(command.id);
+  const switchBoolean = value => {
+    if (!bool || value === bool.value) return;
+    carry = { to: bool.other, values, picked };
+    edit.open(bool.other);
+  };
   const copies = command.id === "mirror" || command.id === "pattern";
   const pickedFace = references.find(reference => reference?.selectorType === "face")?.pickData?.normal;
   const offsets = command.id !== "hole" ? [] : editing && !repicked ? editing.axes || [] : faceOffsetAxes(pickedFace);
-  const title = editing ? editing.title : command.label;
+  // Its name as NX's ribbon has it, a reopened feature's too (Extrude, Edge Blend).
+  const title = nxCommand(command);
   // What a reopened feature acts on stays as it is until others are picked, on the body before it.
   const keptHint = command.id === "hole" ? "Click its face on the model to add a hole there."
     : `Select ${command.picks === "edges" ? "edges" : "faces"} on the model to pick others.`;
 
-  const confirm = { onOk: ok, onCancel: edit.close, okDisabled: Boolean(blocked) || disabled, okReason: blocked || "", busy: edit.saving };
+  const confirm = { onOk: ok, onApply: editing ? null : () => void apply(), onCancel: edit.close, okDisabled: Boolean(blocked) || disabled,
+    okReason: blocked || "", busy: edit.saving };
   const sketchLabel = sketch ? (sketch.plane && sketch.plane !== "Plane" ? `${sketch.title}, ${sketch.plane} Plane` : sketch.title) : "";
   // Choose: the pick still wanted, or, with each made, the preview to look at before OK. A reopened
   // feature keeps what it acts on, and an extrude its end while the end condition is its own.
@@ -448,7 +478,11 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <Icon className="size-5 shrink-0" aria-hidden="true" />
       <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">{title}</h2>
-      <ConfirmButtons {...confirm} />
+      {/* OK, Apply and Cancel are at the dialog's foot, as NX has them; its title row closes it. */}
+      <button type="button" aria-label="Close" title="Close" disabled={edit.saving} onClick={edit.close}
+        className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:opacity-40 [&_svg]:size-3.5">
+        <X aria-hidden="true" />
+      </button>
     </div>
     {next ? <p role="status" data-cad-choose-step="" className="flex items-center gap-1.5 border-b border-border px-2 py-1.5 text-tiny leading-4 text-foreground">
       <span className={`size-2 shrink-0 rounded-full ${step ? "bg-cad-picked" : "bg-muted-foreground/50"}`} aria-hidden="true" />
@@ -459,7 +493,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     {drafting ? <FileSheetSettingsSection title="Neutral Plane" sectionId="edit-command-neutral">
       <SelectionBox items={values.neutral ? [{ key: "neutral", label: ORIGIN_PLANE_NAMES.has(values.neutral) ? `${values.neutral} Plane`
         : namedPlane(values.neutral)?.label || (neutralFace ? selectionLabel(neutralFace.item) : "Its face, as written") }] : []}
-        prompt="Select a flat face on the model, or a plane in the design tree." onClear={clearNeutral} clearLabel="Clear" />
+        prompt="Select a flat face on the model, or a plane in the Part Navigator." onClear={clearNeutral} clearLabel="Clear" />
       {neutralNote ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">{neutralNote}</p> : null}
       <FileSheetCheckboxRow label="Reverse direction" checked={Boolean(values.reverse)} disabled={disabled || !values.neutral}
         onCheckedChange={set("reverse")} />
@@ -491,11 +525,11 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
       {editing && !repicked ? <KeptList text={editing.keeps} hint={keptHint} />
         : <SelectionList items={listed} prompt={command.prompt} onRemove={removePick} />}
     </FileSheetSettingsSection> : null}
-    {command.sketch ? <FileSheetSettingsSection title="Sketch" sectionId="edit-command-sketch">
+    {command.sketch ? <FileSheetSettingsSection title="Section" sectionId="edit-command-sketch">
       {/* The sketch it takes, picked on the model or in the design tree and shaded there; a
           reopened feature keeps its own. */}
       <SelectionBox items={sketch ? [{ key: `${sketch.file}:${sketch.line}`, label: sketchLabel }] : []}
-        prompt="Select a sketch on the model or in the design tree." clearLabel="Deselect"
+        prompt="Select a sketch on the model or in the Part Navigator." clearLabel="Deselect"
         onClear={editing ? null : () => edit.select(null)} />
     </FileSheetSettingsSection> : null}
     {copies ? <FileSheetSettingsSection title={command.id === "mirror" ? "Mirror" : "Copies"} sectionId="edit-command-copies">
@@ -654,6 +688,11 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     </FileSheetSettingsSection> : null}
     {/* Thin Feature, as SolidWorks' extrude has it: the outline made a wall of a thickness, inside
         it, outside it or astride it, rather than filled. */}
+    {/* Boolean, as NX's Extrude sets it: the shape added to the body (Unite) or taken from it
+        (Subtract), one dialog for both. */}
+    {bool ? <FileSheetSettingsSection title="Boolean" sectionId="edit-command-boolean">
+      <FileSheetSelectRow label="Boolean" value={bool.value} options={BOOLEAN_OPTIONS} onValueChange={switchBoolean} />
+    </FileSheetSettingsSection> : null}
     {extruding ? <FileSheetSettingsSection title="Thin Feature" sectionId="edit-command-thin" enabled={Boolean(values.thin)}
       onEnabledChange={set("thin")}>
       <NumberRow label="Thickness" value={values.thin_thickness} unit={units} disabled={disabled} onChange={set("thin_thickness")} />
@@ -674,5 +713,6 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     {/* Why OK waits, where the list does not already say: two faces for one hole. */}
     {blocked && (listed.length || !command.picks) && !(command.sketch && !sketch) && !takes ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>{blocked}</p> : null}
     {edit.saving ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`} aria-live="polite">Applying</p> : null}
+    <ConfirmButtons {...confirm} className="border-t border-border px-2 py-2" />
   </div>;
 }

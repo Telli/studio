@@ -97,7 +97,7 @@ export function featureTree(state) {
       return {
         // A name given in the tree (the comment at the end of its line) over the tree's own, which
         // still counts it, as SolidWorks numbers the next fillet Fillet2 after Fillet1 is renamed.
-        id: feature.key, kind: feature.kind, title: feature.named || `${feature.kind}${count}`,
+        id: feature.key, kind: feature.kind, title: feature.named || `${feature.kind}${count}`, named: feature.named || "",
         name: feature.name ? sizeName(feature.name) : "", count: feature.count || 1,
         rows: feature.rows || [feature.key], file: feature.file, line: feature.line,
         sketch: feature.sketch ? sketchOf(feature, `sketch:${feature.key}`) : null,
@@ -397,7 +397,8 @@ export function holePreview(values, units = "mm", face = null) {
 
 // The origin's planes' normals, the way build123d's Plane.XY, Plane.XZ and Plane.YZ face, and those names.
 const PLANE_NORMALS = Object.freeze({ Top: [0, 0, 1], Front: [0, -1, 0], Right: [1, 0, 0] });
-const PLANE_AXES = Object.freeze({ Top: "XY", Front: "XZ", Right: "YZ" });
+/** Each origin plane by the axes it holds: NX names its datum planes so ("XY Plane" for Top, `nx.js`). */
+export const PLANE_AXES = Object.freeze({ Top: "XY", Front: "XZ", Right: "YZ" });
 
 /**
  * Whether a draft about an origin plane starts reversed: its direction of pull is the plane's
@@ -591,9 +592,9 @@ export function changeNote(change) {
   return `In edit mode I changed ${said} from ${change.from} to ${change.to} (${change.file}, line ${change.line}).`;
 }
 
-const SKETCH_PROMPT = "Select a sketch on the model or in the design tree.";
-const SWEEP_PROMPT = "Select the profile sketch, then the path sketch, on the model or in the design tree.";
-const LOFT_PROMPT = "Select the profile sketches on the model or in the design tree, in the order the loft goes through them.";
+const SKETCH_PROMPT = "Select a sketch on the model or in the Part Navigator.";
+const SWEEP_PROMPT = "Select the profile sketch, then the path sketch, on the model or in the Part Navigator.";
+const LOFT_PROMPT = "Select the profile sketches on the model or in the Part Navigator, in the order the loft goes through them.";
 
 /**
  * The ribbon's modeling commands, as SolidWorks' Features tab sets them out: the bosses a sketch
@@ -618,7 +619,7 @@ export const EDIT_COMMANDS = Object.freeze([
   { id: "hole", label: "Hole", group: "Cut", picks: "faces", prompt: "Click a flat face where the hole goes." },
   { id: "fillet", label: "Fillet", group: "Modify", picks: "edges", many: true, prompt: "Click edges on the model to add them. Click one again to take it out." },
   { id: "chamfer", label: "Chamfer", group: "Modify", picks: "edges", many: true, prompt: "Click edges on the model to add them. Click one again to take it out." },
-  { id: "rib", label: "Rib", group: "Modify", picks: null, sketch: true, prompt: "Select a sketch of the rib's line on the model or in the design tree." },
+  { id: "rib", label: "Rib", group: "Modify", picks: null, sketch: true, prompt: "Select a sketch of the rib's line on the model or in the Part Navigator." },
   { id: "draft", label: "Draft", group: "Modify", picks: "faces", many: true, prompt: "Click the faces to draft. Click one again to take it out." },
   { id: "shell", label: "Shell", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
   { id: "pattern", label: "Pattern", group: "Modify", picks: null, prompt: "" },
@@ -626,7 +627,7 @@ export const EDIT_COMMANDS = Object.freeze([
   { id: "split", label: "Split", group: "Modify", picks: "faces", prompt: "Pick the plane to split the body with, or select a flat face on the model." },
   { id: "delete_body", label: "Delete/Keep Body", group: "Modify", picks: "faces", prompt: "Click a face of the body to delete, or to keep." },
   { id: "plane", label: "Plane", group: "Reference", picks: "all",
-    prompt: "Select a flat face or a plane in the design tree to offset from, two parallel faces for a Mid Plane, or an edge for a plane normal to it." },
+    prompt: "Select a flat face or a plane in the Part Navigator to offset from, two parallel faces for a Mid Plane, or an edge for a plane normal to it." },
 ]);
 
 /** The ribbon's groups of modeling commands, in its order. */
@@ -915,7 +916,7 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
     return sketch.constrained ? "" : `${sketch.title} isn't an editable sketch yet. Ask the agent to make the rib.`;
   }
   if (id === "extrude" || id === "cut" || id === "revolve" || id === "revolve_cut") {
-    if (!sketch) return "Select a sketch in the design tree.";
+    if (!sketch) return "Select a sketch in the Part Navigator.";
     const making = id.startsWith("revolve") ? "revolve" : "extrude";
     if (!sketch.constrained) return `${sketch.title} isn't an editable sketch yet. Ask the agent to ${making} it.`;
     if (making === "revolve" && !values.axis) return `Draw a centerline in ${sketch.title} to revolve about.`;
@@ -931,11 +932,11 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
     if (faces.length > 2) return "Select one face, or two for a Mid Plane.";
     if (edges.length > 1 || (edges.length && faces.length)) return "Select one edge for a plane normal to it, or faces.";
     if (faces.length === 2 || edges.length === 1 || ["mid", "normal"].includes(editing?.values?.mode)) return "";
-    return editing || faces.length || values.reference ? "" : "Select a plane in the design tree, or a flat face on the model.";
+    return editing || faces.length || values.reference ? "" : "Select a plane in the Part Navigator, or a flat face on the model.";
   }
   if (id === "draft") {
     if (!editing && !items.some(item => !item.neutral && /f\d+$/.test(item.selector))) return "Select the faces to draft.";
-    return values.neutral || items.some(item => item.neutral) ? "" : "Select the neutral plane: a flat face on the model, or a plane in the design tree.";
+    return values.neutral || items.some(item => item.neutral) ? "" : "Select the neutral plane: a flat face on the model, or a plane in the Part Navigator.";
   }
   const faces = items.filter(item => /f\d+$/.test(item.selector));
   // Edit Feature keeps what the feature acts on: it waits only on a hole picked onto two faces.

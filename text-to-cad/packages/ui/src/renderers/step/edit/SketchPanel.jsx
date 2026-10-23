@@ -14,6 +14,7 @@ import { SketchIcon } from "./cadIcons.jsx";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
 import { SelectionList } from "./EditCommand.jsx";
 import { ORIGIN_PLANES, selectionItems } from "./editMode.js";
+import { nxPlane } from "./nx.js";
 import { formatValue, MODEL_TOOLS, MODIFY_TOOLS, newCurves, PATTERN_TOOLS, patternOp, patternSettings, polygonSides, relationsFor, relationsOn, sketchTool,
   toolSize } from "./sketchMode.js";
 
@@ -77,15 +78,16 @@ function PatternSettings({ edit, tool, units, disabled }) {
 function PlanePicker({ edit, onPlane }) {
   return <div role="dialog" aria-label="Sketch" className="flex shrink-0 flex-col" data-cad-sketch-picker=""
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopPicking(); } }}>
-    <Header title="Sketch" actions={<ConfirmButtons onCancel={edit.stopPicking} />} />
-    <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} py-2`}>Select a plane to sketch on: one of these, a plane in the design tree, or a flat face of the model.</p>
+    <Header title="Sketch" />
+    <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} py-2`}>Select a plane to sketch on: one of these, a plane in the Part Navigator, or a flat face of the model.</p>
     {/* An offset plane, as SolidWorks' Plane at an Offset distance: the one picked, moved along its normal. */}
     <SizeRow label="Offset distance" value={edit.planeOffset || "0"} unit={edit.state?.units || ""} disabled={edit.saving}
       onCommit={text => edit.setPlaneOffset(text === "0" ? "" : text)} />
     <div className="flex flex-col gap-1 px-2 pb-2">
       {ORIGIN_PLANES.map(plane => <button key={plane} type="button" className={cn(CHIP_CLASS, "text-left")} disabled={edit.saving}
-        onClick={() => onPlane(plane)}>{`${plane} Plane`}</button>)}
+        onClick={() => onPlane(plane)}>{nxPlane(plane)}</button>)}
     </div>
+    <ConfirmButtons onCancel={edit.stopPicking} className="border-t border-border px-2 py-2" />
   </div>;
 }
 
@@ -150,7 +152,7 @@ function IntersectionCurve({ edit }) {
  * X), a dimension's value, and For construction. The sketch tools' own settings sit with them:
  * Sketch Fillet's radius, Offset Entities' distance with Reverse direction and Select chain, the
  * entities Mirror Entities has, and the model's edges and faces Convert Entities takes. In its
- * title row Exit Sketch (a green check) builds the part again and Discard Changes (a red cross)
+ * dialog's foot Finish Sketch builds the part again and Discard Changes
  * leaves it as it was.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onPlane(plane: string): void, references?: object[] }} props
@@ -177,12 +179,11 @@ export default function SketchPanel({ edit, onPlane, references = [] }) {
   const status = state?.status || "";
   const statusText = !state ? "Not solved" : status === "Under defined"
     ? `Under defined, ${state.dof} ${state.dof === 1 ? "way" : "ways"} it can still move` : status;
-  const finish = { onOk: () => void edit.exitSketch(), onCancel: () => void edit.cancelSketch(), okLabel: "Exit Sketch",
+  const finish = { onOk: () => void edit.exitSketch(), onCancel: () => void edit.cancelSketch(), okLabel: "Finish Sketch",
     cancelLabel: "Discard Changes", busy: disabled };
   return <div role="dialog" aria-label={sketch.name} className="flex shrink-0 flex-col" data-cad-sketch-panel=""
     onKeyDown={event => { if (event.key === "Escape" && edit.sketchTool) { event.stopPropagation(); edit.setSketchTool(null); } }}>
-    <Header title={`Editing ${sketch.name}`} detail={sketch.plane && sketch.plane !== "Plane" ? `${sketch.plane} Plane` : ""}
-      actions={<ConfirmButtons {...finish} />} />
+    <Header title={`Editing ${sketch.name}`} detail={sketch.plane && sketch.plane !== "Plane" ? nxPlane(sketch.plane) : ""} />
     <p className={cn(FILE_SHEET_STATUS_TEXT_CLASSES, "py-1.5", STATUS_CLASSES[status])} aria-live="polite">{edit.saving ? "Solving" : statusText}</p>
     {sketch.error && !state ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2 text-destructive`}>{sketch.error}</p> : null}
     {tool ? <FileSheetSettingsSection title={tool.label} sectionId="sketch-tool">
@@ -264,5 +265,6 @@ export default function SketchPanel({ edit, onPlane, references = [] }) {
       {selectedCurves.length ? <FileSheetCheckboxRow label="For construction" checked={allConstruction} disabled={disabled}
         onCheckedChange={value => void edit.sketchOp({ kind: "construction", items: selectedCurves, on: Boolean(value) })} /> : null}
     </FileSheetSettingsSection> : null}
+    <ConfirmButtons {...finish} className="border-t border-border px-2 py-2" />
   </div>;
 }

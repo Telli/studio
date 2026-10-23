@@ -29,12 +29,11 @@ export default function Appearance({ edit }) {
     const reply = await edit.paint(color);
     if (reply?.ok) edit.stopInspecting();
   };
-  return <div role="dialog" aria-label="Appearance" data-cad-appearance="" className="flex shrink-0 flex-col"
+  return <div role="dialog" aria-label="Edit Object Display" data-cad-appearance="" className="flex shrink-0 flex-col"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopInspecting(); } }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <AppearanceIcon className="size-5 shrink-0" />
-      <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">Appearance</h2>
-      <ConfirmButtons onOk={() => void ok()} onCancel={edit.stopInspecting} okDisabled={color === shown} busy={edit.saving} />
+      <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">Edit Object Display</h2>
     </div>
     <FileSheetSettingsSection title="Color" sectionId="appearance-color">
       <div role="group" aria-label="Swatches" className="grid grid-cols-6 gap-1.5 px-2 pb-1.5">
@@ -47,5 +46,6 @@ export default function Appearance({ edit }) {
       <FileSheetControlRow label="Hex" trailing={<FileSheetValueInput value={color} ariaLabel="Hex"
         onValueCommit={draft => { const hex = hexOf(draft); if (hex) setColor(hex); }} />} />
     </FileSheetSettingsSection>
+    <ConfirmButtons className="border-t border-border px-2 py-2" onOk={() => void ok()} onCancel={edit.stopInspecting} okDisabled={color === shown} busy={edit.saving} />
   </div>;
 }

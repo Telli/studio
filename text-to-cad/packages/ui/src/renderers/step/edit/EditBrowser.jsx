@@ -25,6 +25,7 @@ import DrawingPanel from "./DrawingPanel.jsx";
 import ComparePanel from "./ComparePanel.jsx";
 import Appearance from "./Appearance.jsx";
 import { formulaWords, restates, selectionDimensions, sizeName, treeFeatures } from "./editMode.js";
+import { nxPlane, treeTitles } from "./nx.js";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 
@@ -69,8 +70,11 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
   // A part of an assembly, selected in the tree: an assembly places its parts, so a part is
   // modeled on its own, opened as SolidWorks' Open Part opens it.
   const component = tree.assembly ? tree.components.find(each => each.id === selected) || null : null;
-  const title = !feature ? "" : sketchSelected ? `${feature.sketch?.title || "Sketch"}${feature.sketch?.plane && feature.sketch.plane !== "Plane" ? `, ${feature.sketch.plane} Plane` : ""}`
-    : feature.name ? `${feature.title}, ${feature.name}` : feature.title;
+  // Its title as the Part Navigator has it ("Extrude (2)"), with what the script calls it.
+  const titles = treeTitles(tree);
+  const title = !feature ? "" : sketchSelected
+    ? `${titles.get(feature.sketch?.id) || feature.sketch?.title || "Sketch"}${feature.sketch?.plane && feature.sketch.plane !== "Plane" ? `, ${nxPlane(feature.sketch.plane)}` : ""}`
+    : `${titles.get(feature.id) || feature.title}${feature.name ? `, ${feature.name}` : ""}`;
   // A feature's inputs, its sketch's dimensions among them (D1@Sketch2), each changed through the
   // feature, so the part is built again with it.
   const featureInputs = feature => feature.rows.flatMap(key => (rows.find(row => row.key === key)?.inputs || []).map((input, index) => ({
@@ -130,7 +134,7 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
         {feature.kind === "Sketch" ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
           Double-click it to edit the sketch, or make a solid of it with an extrude or a revolve.</p>
           : feature.suppressed ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
-            Suppressed: its lines are comments in the script. Right-click it and choose Unsuppress to put it back.</p>
+            Suppressed: its lines are comments in the script. Tick its box in the Part Navigator to put it back.</p>
           : inputs.length === 0 ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>Nothing to set here.</p>
           : inputs.map(input => <FileSheetControlRow key={input.key} label={input.label}
             trailing={<ValueField value={input.value} unit={input.unit} label={input.label} disabled={disabled}

@@ -67,6 +67,42 @@ it('a part reads as its sizes and history, a change applies at once and the agen
   expect(result.current.canRedo).toBe(true);
 });
 
+it('laid out for the AI, the part is read once and quietly, so Edit by hand opens on it at once', async () => {
+  const viewer = server();
+  const { result, rerender } = renderHook(({ reading }) => useEditMode({ client: viewer.client, file: FILE, resource: RESOURCE, active: true, reading }),
+    { wrapper: hostWith(() => Promise.resolve()), initialProps: { reading: false } });
+  await act(async () => {});
+  expect(result.current.status).toBe('ready');
+  expect(viewer.client.editState).toHaveBeenCalledWith(FILE, null);
+  // Nothing more is asked while the AI layout is up: the part is not run again and again.
+  const asked = viewer.client.editState.mock.calls.length;
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 1700)); });
+  expect(viewer.client.editState).toHaveBeenCalledTimes(asked);
+  // Edit by hand finds it read, and its first read asks only whether the files changed.
+  rerender({ reading: true });
+  expect(result.current.status).toBe('ready');
+  await act(async () => {});
+  expect(viewer.client.editState).toHaveBeenLastCalledWith(FILE, { 'sizes.py': '20' });
+});
+
+it('a switch to Edit by hand while the quiet read is out waits for that read, not for another', async () => {
+  const viewer = server();
+  let answer: (value: unknown) => void = () => {};
+  viewer.client.editState.mockImplementation(async (_file: string, _files: unknown, options?: { probe?: boolean }) =>
+    (options?.probe ? { ok: true, editable: true } : new Promise(resolve => { answer = resolve; })));
+  const { result, rerender } = renderHook(({ reading }) => useEditMode({ client: viewer.client, file: FILE, resource: RESOURCE, active: true, reading }),
+    { wrapper: hostWith(() => Promise.resolve()), initialProps: { reading: false } });
+  await act(async () => {});
+  expect(result.current.status).toBe('idle');
+  rerender({ reading: true });
+  await act(async () => {});
+  expect(result.current.status).toBe('reading');
+  // One read of the part, shared by both layouts.
+  expect(viewer.client.editState.mock.calls.filter(call => call[1] === null && call.length === 2)).toHaveLength(1);
+  await act(async () => { answer(read('20')); });
+  expect(result.current.status).toBe('ready');
+});
+
 it('a model with no part script beside it is not edited, and the view stays as it was', async () => {
   const client = { editState: vi.fn(async () => ({ ok: true, editable: false })), editChange: vi.fn() };
   const { result } = renderHook(() => useEditMode({ client, file: '/project/imported.step', resource: RESOURCE, active: true }),

@@ -28,7 +28,6 @@ export default function DraftAnalysis({ edit }) {
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <DraftAnalysisIcon className="size-5 shrink-0" />
       <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">Draft Analysis</h2>
-      <ConfirmButtons onCancel={edit.stopInspecting} cancelLabel="Close" />
     </div>
     <FileSheetSettingsSection title="Analysis Parameters" sectionId="draft-parameters">
       <FileSheetSelectRow label="Direction of pull" value={settings.plane} options={PULL_PLANES}
@@ -48,5 +47,6 @@ export default function DraftAnalysis({ edit }) {
         </span>} value={row.value} />)
           : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">Checking the draft</p>}
     </FileSheetSettingsSection>
+    <ConfirmButtons className="border-t border-border px-2 py-2" onCancel={edit.stopInspecting} cancelLabel="Close" />
   </div>;
 }

@@ -55,8 +55,8 @@ const sketchTarget = sketch => ({ file: sketch.file, line: sketch.line, name: sk
  * `status`: `probing` while the server says whether the file has a part script (the view stays as
  * it is), `reading` until the first answer, then `ready`, `none` (no part script beside this file,
  * or no edit mode on the server: nothing to edit, and the view stays as it was) or `error`; `idle`
- * when the part could be edited but is not read, the viewer laid out for the AI instead (`reading`
- * false: the server is only asked whether it has a part script).
+ * while the viewer is laid out for the AI instead (`reading` false) and its one quiet read of the
+ * part is on its way: read once there and not asked about again, so Edit by hand opens on it at once.
  *
  * @param {{ client: object | null, file: string, active: boolean, reading?: boolean }} options
  */
@@ -144,6 +144,12 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [facePoint, setFacePoint] = useState(null);
   const files = useRef(null);
   const probed = useRef("");
+  // The read of the part on its way, for the file on screen: the AI layout's quiet read and Edit by
+  // hand's are one request, so a switch while it is out waits for it, never for a second one.
+  const inflight = useRef(null);
+  // The file on screen now, so a reply for one left behind is not taken for it.
+  const fileRef = useRef(file);
+  fileRef.current = file;
   const historyRef = useRef(history);
   historyRef.current = history;
   const sketchRef = useRef(sketch);
@@ -159,6 +165,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     setSketch(null); setSketchTool(null); setSketchSelection([]); setPicking(false);
     setSheetView(null);
     probed.current = "";
+    inflight.current = null;
     setStatus(supported && file ? "probing" : "none");
   }, [file, supported]);
 
@@ -208,6 +215,20 @@ export function useEditMode({ client, file, active, reading = true }) {
     if (!supported || !file || !active) return undefined;
     let stopped = false;
     let timer = null;
+    // The part read, or the read already on its way for this file.
+    const read = () => {
+      if (inflight.current?.file !== file) {
+        // While the bar is up, the server says it again with the part, in case the file moved it.
+        // A bar still on its way (`pending`) is where it was moved to, not where it was.
+        const current = barRef.current;
+        const bar = current ? [{ bar: current.pending ? { item: current.item } : { before: current.before } }] : [];
+        const entry = { file, promise: client.editState(file, files.current, ...bar) };
+        inflight.current = entry;
+        const done = () => { if (inflight.current === entry) inflight.current = null; };
+        entry.promise.then(done, done);
+      }
+      return inflight.current.promise;
+    };
     const ask = async () => {
       if (stopped) return;
       // First only whether there is a part script to edit, answered at once: a file with none
@@ -224,16 +245,24 @@ export function useEditMode({ client, file, active, reading = true }) {
           return;
         }
       }
-      // Laid out for the AI, the part is not run: only whether it could be edited is known.
-      if (stopped || !reading) return;
+      if (stopped) return;
+      // Laid out for the AI, the part is read once, quietly, and not asked about again: Edit by
+      // hand then opens on it at once, its first read only asking whether the files changed.
+      if (!reading) {
+        if (files.current === null) {
+          try {
+            const reply = await read();
+            if (fileRef.current === file) take(reply);
+          } catch { /* Edit by hand reads it again and says what went wrong. */ }
+        }
+        return;
+      }
       setStatus(current => (current === "idle" ? "reading" : current));
       if (typeof document === "undefined" || !document.hidden) {
-        // While the bar is up, the server says it again with the part, in case the file moved it.
-        // A bar still on its way (`pending`) is where it was moved to, not where it was.
-        const current = barRef.current;
-        const bar = current ? [{ bar: current.pending ? { item: current.item } : { before: current.before } }] : [];
-        try { take(await client.editState(file, files.current, ...bar)); }
-        catch (failure) { if (!stopped) { setError(describe(failure)); setStatus(current => (current === "ready" ? current : "error")); } }
+        try {
+          const reply = await read();
+          if (fileRef.current === file) take(reply);
+        } catch (failure) { if (!stopped) { setError(describe(failure)); setStatus(current => (current === "ready" ? current : "error")); } }
       }
       if (!stopped) timer = setTimeout(ask, POLL_MS);
     };
