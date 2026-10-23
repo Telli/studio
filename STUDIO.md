@@ -58,7 +58,9 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   - `studio.json`.
 - **The build.** T3 Code's desktop build takes the bundle through `T3CODE_DESKTOP_STUDIO_BUNDLE`
   (`scripts/lib/studio-app.ts`). That gives it Studio's name, id, icon and copyright, and a plain
-  DMG with no link schemes. The name is also the `productName` in the app's package.json, which
+  DMG with no link schemes. The bundle goes in as a resource of its own and is kept out of
+  `app.asar`, as T3 Code keeps its other staged resources: up to Mac 0.1.3 it was packed in both,
+  so the app carried the CAD tools' Python twice. The name is also the `productName` in the app's package.json, which
   Electron starts the app under, so the app keeps its saved secrets in its own keychain item,
   "Studio Safe Storage". Under T3 Code's `t3code` it asked for T3 Code's item, and macOS wants the
   login password for that. Its package name, `text-to-cad-studio`, names the updater's download

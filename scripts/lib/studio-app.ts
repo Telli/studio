@@ -88,6 +88,13 @@ export function studioBuildConfig(
     ...(Array.isArray(next.extraResources) ? next.extraResources : []),
     { from: `apps/desktop/prod-resources/${STUDIO_RESOURCES_DIR}`, to: STUDIO_RESOURCES_DIR },
   ];
+  // Out of app.asar, as T3 Code keeps its other staged resources: packed there as well, the app
+  // carried the CAD tools' Python twice.
+  next.files = [
+    ...(Array.isArray(next.files) ? next.files : []),
+    `!apps/desktop/prod-resources/${STUDIO_RESOURCES_DIR}`,
+    `!apps/desktop/prod-resources/${STUDIO_RESOURCES_DIR}/**/*`,
+  ];
   if (input.platform !== "mac") return next;
   const mac = record(next.mac);
   const extendInfo = record(mac.extendInfo);

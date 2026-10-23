@@ -11,6 +11,7 @@ const t3Config = {
   appId: "com.t3tools.t3code",
   productName: "T3 Code (Alpha)",
   artifactName: "T3-Code-${version}-${arch}.${ext}",
+  files: ["!**/*.map", "!apps/desktop/prod-resources/windows-server/**/*"],
   extraResources: [
     { from: "apps/desktop/prod-resources/resource-monitor", to: "resource-monitor" },
   ],
@@ -67,6 +68,19 @@ describe("studioBuildConfig", () => {
       { from: "apps/desktop/prod-resources/resource-monitor", to: "resource-monitor" },
       { from: "apps/desktop/prod-resources/studio", to: "studio" },
     ]);
+  });
+
+  // Packed into app.asar as well, the bundle went into the app twice.
+  it("keeps the bundle out of the app's archive, as T3 Code keeps its staged resources", () => {
+    for (const platform of ["mac", "win"] as const) {
+      const config = studioBuildConfig(t3Config, { ...unsigned, platform });
+      expect(config.files).toEqual([
+        "!**/*.map",
+        "!apps/desktop/prod-resources/windows-server/**/*",
+        "!apps/desktop/prod-resources/studio",
+        "!apps/desktop/prod-resources/studio/**/*",
+      ]);
+    }
   });
 
   it("is a plain DMG with no update feed, no link schemes and no web-browser claim", () => {
