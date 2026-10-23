@@ -1,6 +1,8 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useMemo } from "react";
 
+import { useThreadShells } from "~/state/entities";
+import { NO_PROJECT, noProjectChats, useNoProjectFolder } from "./freeformChat";
 import { useProjectList } from "./useProjectList";
 import { projectChats, workspaceTitle } from "./workspaceTitle";
 
@@ -43,17 +45,24 @@ export function findChats<T extends { readonly id: string; readonly title: strin
   });
 }
 
-/** Every Studio project's chats, from Home's project list (Chats, and the sidebar's recent chats). */
+/**
+ * Every Studio project's chats, from Home's project list, and the chats in no project, from Home's
+ * Ask (`freeformChat.ts`): Chats, and the sidebar's recent chats.
+ */
 export function useAllChats(environmentId: EnvironmentId) {
   const { cards } = useProjectList(environmentId);
-  return useMemo(
-    () =>
-      allChats(
-        cards.map((card) => ({
-          name: workspaceTitle(card.project.name, card.folder?.workspaceRoot ?? null),
-          threads: card.threads,
-        })),
-      ),
-    [cards],
-  );
+  const free = useNoProjectFolder(environmentId).project;
+  const threads = useThreadShells();
+  return useMemo(() => {
+    const unfiled = noProjectChats(threads, environmentId, free?.id ?? null).filter(
+      (thread) => thread.archivedAt === null,
+    );
+    return allChats([
+      ...cards.map((card) => ({
+        name: workspaceTitle(card.project.name, card.folder?.workspaceRoot ?? null),
+        threads: card.threads,
+      })),
+      ...(unfiled.length > 0 ? [{ name: NO_PROJECT, threads: unfiled }] : []),
+    ]);
+  }, [cards, environmentId, free, threads]);
 }

@@ -417,6 +417,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   drawing and its PRD; `homeExamples.ts`). The first workspace opened gives a four-step tour,
   once (`StudioTour.tsx`,
   `tourSteps.ts`): the project, its Overview, the tabs and the toolbar.
+- **Ask, in no project.** Home's box has Start, Ask and Set up. Ask is a question about anything
+  (a part made last week, a file, how something was done) with no project to choose or make, as
+  Claude Code is asked from wherever it runs (Amy, 2026-10-23): a chat in the folder that holds
+  the Studio projects, registered once as the workspace "No project", its first message telling
+  the agent it is in no project, where the projects are, and that other work may be anywhere on
+  the computer (`workbench/freeformChat.ts`). It opens as a chat alone; Chats and the sidebar list
+  it under No project.
 - **Invite codes.** A friend without ChatGPT uses Codex on Amy's OpenAI key: the first screen's
   Invite code row, under the Claude and Codex cards, so a friend never has to pick Codex (in
   Settings it is AI agents, Codex), paste the code

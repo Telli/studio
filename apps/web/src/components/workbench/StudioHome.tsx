@@ -36,6 +36,7 @@ import { useOpenShortcut } from "./useOpenShortcut";
 import { useProjectList } from "./useProjectList";
 import { useProjectTiles } from "./useProjectTiles";
 import { type ProjectStart, useStartOnce } from "./useStartProject";
+import { useAskAnything } from "./freeformChat";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 /** A group within Your projects, in the project switcher's words: Starred, then Recent. */
@@ -228,7 +229,7 @@ function fromFile(file: File): StartAttachment {
 const fromPath = (path: string): StartAttachment => ({ name: nameOfPath(path), path, file: null });
 
 /** How Home's box starts a project: from an idea in words, or from files you already have. */
-type StartMode = "idea" | "files";
+type StartMode = "idea" | "ask" | "files";
 
 /** What Set up from files does, in order. */
 const SET_UP_STEPS = [
@@ -269,9 +270,10 @@ function AttachedList(props: {
 }
 
 /**
- * Home's box, in two modes, as the part toolbar has Ask and Edit by hand, each named with its
- * button's word, as a sign-in form's Sign in and Sign up. Start, from an idea: say what to make
- * and Start. It goes to a new project, as it starts, or to a new chat in a project of yours chosen
+ * Home's box, in three modes, as the part toolbar has Ask and Edit by hand, each named with its
+ * button's word, as a sign-in form's Sign in and Sign up. Ask: a question about anything, in a
+ * chat in no project (`freeformChat.ts`), where the agent finds the work it is about. Start, from
+ * an idea: say what to make and Start. It goes to a new project, as it starts, or to a new chat in a project of yours chosen
  * beside Attach (`ProjectPicker`), the box then reading as a project's chat box does. Set up, from
  * files: drop or choose what you already have (a PRD, requirements, sketches, CAD, a whole
  * folder), say what it is if you like, and Set up project makes a new project from it. Either way, files go into the project's References and
@@ -317,12 +319,27 @@ function StartProject(props: {
     if (hash === "start") describe.current?.focus();
   }, [hash]);
   const run = props.start;
-  // Setting up needs something to set up from; describing, words or files.
+  const asking = mode === "ask";
+  const askAnything = useAskAnything(environmentId);
+  const [askBusy, setAskBusy] = useState(false);
+  // Setting up needs something to set up from; describing and asking, words or files.
   const ready =
     (settingUp ? attachments.length > 0 : description.trim() !== "" || attachments.length > 0) &&
-    !busy;
+    !busy &&
+    !askBusy;
   const startNow = () => {
     if (!ready) return;
+    if (asking) {
+      setAskBusy(true);
+      void askAnything({
+        question: description,
+        paths: attachments.flatMap((attachment) => attachment.path ?? []),
+        files: attachments.flatMap((attachment) =>
+          attachment.path === null && attachment.file !== null ? [attachment.file] : [],
+        ),
+      }).finally(() => setAskBusy(false));
+      return;
+    }
     void run({
       kind: "described",
       description,
@@ -336,7 +353,11 @@ function StartProject(props: {
       startNow();
     }
   };
-  const placeholder = chosen === null ? "Describe a new project" : ENGINEERING_COMPOSER_PLACEHOLDER;
+  const placeholder = asking
+    ? "Ask about anything: a part you made, a file, how something was done"
+    : chosen === null
+      ? "Describe a new project"
+      : ENGINEERING_COMPOSER_PLACEHOLDER;
 
   return (
     <section aria-label="Start" className="flex min-w-0 flex-col gap-3">
@@ -376,10 +397,11 @@ function StartProject(props: {
           value={[mode]}
           onValueChange={(next) => {
             const value = next[0];
-            if (value === "idea" || value === "files") setMode(value);
+            if (value === "idea" || value === "ask" || value === "files") setMode(value);
           }}
         >
           <Toggle value="idea">Start</Toggle>
+          <Toggle value="ask">Ask</Toggle>
           <Toggle value="files">Set up</Toggle>
         </ToggleGroup>
         {settingUp ? (
@@ -418,7 +440,7 @@ function StartProject(props: {
             onChange={(event) => setDescription(event.target.value)}
             onKeyDown={startOnShortcut}
           />
-        ) : attachments.some((attachment) => attachment.path !== null) ? (
+        ) : asking ? null : attachments.some((attachment) => attachment.path !== null) ? (
           <p className="text-xs text-muted-foreground">
             These go in {chosen === null ? "the new project's" : `${chosen.project.name}'s`}{" "}
             References, and the agent reads them first.
@@ -458,7 +480,7 @@ function StartProject(props: {
                 <PaperclipIcon />
                 Attach
               </Button>
-              {firstTime || props.cards.length === 0 ? null : (
+              {asking || firstTime || props.cards.length === 0 ? null : (
                 <ProjectPicker
                   environmentId={environmentId}
                   cards={props.cards}
@@ -470,7 +492,17 @@ function StartProject(props: {
           )}
           <div className="flex-1" />
           <Button size="sm" disabled={!ready} onClick={startNow}>
-            {settingUp ? (busy ? "Setting up…" : "Set up project") : busy ? "Starting…" : "Start"}
+            {settingUp
+              ? busy
+                ? "Setting up…"
+                : "Set up project"
+              : asking
+                ? askBusy
+                  ? "Asking…"
+                  : "Ask"
+                : busy
+                  ? "Starting…"
+                  : "Start"}
           </Button>
         </div>
       </div>
