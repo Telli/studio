@@ -10,7 +10,7 @@ import {
   type ProviderInstanceId,
   type ServerProvider,
 } from "@t3tools/contracts";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, TicketIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { getOnboardingProviderState } from "~/onboarding/providerReadiness.logic";
@@ -181,7 +181,7 @@ export function CodexInviteDialog(props: {
           <DialogHeader>
             <DialogTitle>Use an invite code</DialogTitle>
             <DialogDescription>
-              Paste the code from your invite. With it, Codex works without a ChatGPT plan.
+              Paste the code from your invite. With it, Studio's AI works without a subscription.
             </DialogDescription>
           </DialogHeader>
           <DialogPanel>
@@ -228,6 +228,39 @@ export function CodexInviteDialog(props: {
         </form>
       </DialogPopup>
     </Dialog>
+  );
+}
+
+/**
+ * The welcome screen's invite row, in Studio only, beside Claude's and Codex's cards: a friend with
+ * a code uses it here without knowing it sets up Codex. It goes once Codex is ready or on a code;
+ * its dialog belongs to the screen, which stays while Codex's card changes setup underneath.
+ */
+export function InviteCodeRow(props: {
+  readonly provider: ServerProvider | undefined;
+  readonly config: unknown;
+  readonly onUse: () => void;
+}) {
+  const engineering = useEngineeringInterface();
+  if (
+    !engineering ||
+    usesInvite(props.config) ||
+    getOnboardingProviderState(props.provider) === "ready"
+  )
+    return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background px-4 py-4">
+      <TicketIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <h3 className="text-sm font-medium">Invite code</h3>
+        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+          Have a code someone sent you? Use it instead of a subscription.
+        </p>
+      </div>
+      <Button size="sm" variant="outline" onClick={props.onUse}>
+        Use an invite code
+      </Button>
+    </div>
   );
 }
 

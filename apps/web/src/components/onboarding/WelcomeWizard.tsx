@@ -98,7 +98,7 @@ import { Dialog } from "../ui/dialog";
 import { toastManager } from "../ui/toast";
 import { cn } from "../../lib/utils";
 import { isEngineeringInterface, useEngineeringInterface } from "../workbench/studioInterface";
-import { CodexInviteCard, CodexInviteDialog } from "../workbench/CodexInviteCode";
+import { CodexInviteCard, CodexInviteDialog, InviteCodeRow } from "../workbench/CodexInviteCode";
 import { usesInvite } from "../workbench/codexInvite";
 import { formatRelativeTime } from "../../timestampFormat";
 
@@ -699,7 +699,7 @@ function AgentsStep({
       title={studio ? "Sign in to Claude or Codex" : "Connect your agents"}
       description={
         studio
-          ? "Studio's AI runs on your own Claude or Codex subscription. Sign in to one now; you can add the other later in Settings."
+          ? "Studio's AI runs on your own Claude or Codex subscription, or on an invite code. Set up one now; you can add another later in Settings."
           : "Choose an agent to start coding. You can add more later."
       }
     >
@@ -747,6 +747,8 @@ function ConnectedAgentsStep({
     autoStart: boolean;
   } | null>(null);
   const canOperateTerminal = useEnvironmentScope(environmentId, AuthTerminalOperateScope);
+  // Studio's invite dialog stays open while the Codex card under it changes setup.
+  const [inviting, setInviting] = useState(false);
 
   // Re-probe on entry so freshly installed CLIs show up without a manual
   // refresh; harmless when nothing changed (single-flighted per environment).
@@ -777,6 +779,10 @@ function ConnectedAgentsStep({
       },
     );
   }
+  // An invite sets up Codex, so a friend with a code never has to pick it.
+  const codex = primaryAgents.find((agent) => agent.driver === "codex");
+  const codexInstanceId =
+    codex?.instanceId ?? defaultInstanceIdForDriver(ProviderDriverKind.make("codex"));
   return (
     <section>
       <h2 className="mb-2 text-sm font-medium">{machineLabel}</h2>
@@ -858,7 +864,19 @@ function ConnectedAgentsStep({
             />
           ),
         )}
+        <InviteCodeRow
+          provider={codex?.provider}
+          config={serverConfig?.settings.providerInstances[codexInstanceId]?.config}
+          onUse={() => setInviting(true)}
+        />
       </div>
+      {inviting ? (
+        <CodexInviteDialog
+          environmentId={environmentId}
+          instanceId={codexInstanceId}
+          onClose={() => setInviting(false)}
+        />
+      ) : null}
       {providers?.some(
         (provider) =>
           provider.driver === "codex" && getOnboardingProviderState(provider) === "ready",
@@ -915,8 +933,6 @@ function OnboardingCodexSetup({
 }) {
   const canOperateTerminal = useEnvironmentScope(environmentId, AuthTerminalOperateScope);
   const update = useAtomCommand(serverEnvironment.updateSettings, "Codex setup settings");
-  // Studio's invite dialog stays open while the card under it changes setup.
-  const [inviting, setInviting] = useState(false);
   const instanceId =
     createdAccount?.instanceId ??
     provider?.instanceId ??
@@ -955,45 +971,29 @@ function OnboardingCodexSetup({
       },
     });
   };
-  return (
-    <>
-      {usesInvite(instance.config) ? (
-        <CodexInviteCard
-          environmentId={environmentId}
-          instanceId={instanceId}
-          provider={provider}
-        />
-      ) : existingChosen ? (
-        <AgentCard
-          driver="codex"
-          provider={provider}
-          terminalOpen={terminalOpen}
-          terminalAvailable={canOperateTerminal}
-          onOpenTerminal={onOpenTerminal}
-        />
-      ) : (
-        <CodexSetupSection
-          presentation="onboarding"
-          autoStart={createdAccount?.autoStart === true}
-          displayName={createdAccount?.displayName}
-          onAutoStartConsumed={onAutoStartConsumed}
-          environmentId={environmentId}
-          instanceId={instanceId}
-          provider={provider}
-          mode={mode}
-          enabled={provider?.enabled ?? true}
-          onModeChange={changeMode}
-          onUseInviteCode={() => setInviting(true)}
-        />
-      )}
-      {inviting ? (
-        <CodexInviteDialog
-          environmentId={environmentId}
-          instanceId={instanceId}
-          onClose={() => setInviting(false)}
-        />
-      ) : null}
-    </>
+  return usesInvite(instance.config) ? (
+    <CodexInviteCard environmentId={environmentId} instanceId={instanceId} provider={provider} />
+  ) : existingChosen ? (
+    <AgentCard
+      driver="codex"
+      provider={provider}
+      terminalOpen={terminalOpen}
+      terminalAvailable={canOperateTerminal}
+      onOpenTerminal={onOpenTerminal}
+    />
+  ) : (
+    <CodexSetupSection
+      presentation="onboarding"
+      autoStart={createdAccount?.autoStart === true}
+      displayName={createdAccount?.displayName}
+      onAutoStartConsumed={onAutoStartConsumed}
+      environmentId={environmentId}
+      instanceId={instanceId}
+      provider={provider}
+      mode={mode}
+      enabled={provider?.enabled ?? true}
+      onModeChange={changeMode}
+    />
   );
 }
 

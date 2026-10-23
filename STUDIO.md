@@ -417,8 +417,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   drawing and its PRD; `homeExamples.ts`). The first workspace opened gives a four-step tour,
   once (`StudioTour.tsx`,
   `tourSteps.ts`): the project, its Overview, the tabs and the toolbar.
-- **Invite codes.** A friend without ChatGPT uses Codex on Amy's OpenAI key: on the Codex card,
-  Use an invite code (the welcome screen; Settings, AI agents, Codex), paste the code
+- **Invite codes.** A friend without ChatGPT uses Codex on Amy's OpenAI key: the first screen's
+  Invite code row, under the Claude and Codex cards, so a friend never has to pick Codex (in
+  Settings it is AI agents, Codex), paste the code
   (`CodexInviteCode.tsx`, `codexInvite.ts`). The dialog checks the code with Amy's invite server
   (`~/code/studio-invite`, studio-invite.vercel.app, deployed with the Vercel CLI, not on
   GitHub), puts the instance on Studio's own setup for as long as Codex is installed or found (only

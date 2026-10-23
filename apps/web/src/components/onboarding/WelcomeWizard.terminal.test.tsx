@@ -121,6 +121,7 @@ vi.mock("../settings/CodexSetupSection", () => ({
 vi.mock("../workbench/CodexInviteCode", () => ({
   CodexInviteCard: () => null,
   CodexInviteDialog: () => null,
+  InviteCodeRow: () => null,
 }));
 vi.mock("../settings/providerDriverMeta", () => ({
   providerClients: { get: (driver: string) => ({ label: driver }) },
