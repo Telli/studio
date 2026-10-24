@@ -11,7 +11,6 @@ import { studioProjectsEnvironment } from "~/state/studioProjects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { toastManager } from "../../ui/toast";
-import { SAMPLE_PROJECT } from "../homeExamples";
 import { plainError } from "../importIntoProject";
 import { showOverview } from "../overviewPanel";
 import { listProjects } from "../projectList";
@@ -20,7 +19,15 @@ import { useCreateStudioProject } from "../useCreateStudioProject";
 import { copiedEntries } from "../useDuplicateProject";
 import { openInPanel } from "../useOpenInWorkbench";
 import { useOpenProject } from "../useOpenProject";
-import { findSample, inTurn, SAMPLE_MARKER, SAMPLE_NAME, sampleMode } from "./sampleProject";
+import {
+  copySample,
+  findSample,
+  inTurn,
+  SAMPLE_MARKER,
+  SAMPLE_NAME,
+  SAMPLE_PURPOSE,
+  sampleMode,
+} from "./sampleProject";
 
 /** What the sample is, for its brief: a part bent from sheet. */
 const SAMPLE_KIND = {
@@ -108,25 +115,40 @@ export function useSampleProject(environmentId: EnvironmentId) {
           const entries = listed.value.entries.map((entry) => entry.path);
           const copyInto = async (folder: string) => {
             // The new folder keeps what it starts with (its repository, its icon); its README
-            // gives way to the sample's below.
+            // gives way to the sample's.
             const fresh = await list({ environmentId, input: { cwd: folder, directoryPath: "" } });
             const present =
               fresh._tag === "Success" ? fresh.value.entries.map((entry) => entry.path) : [];
             const from = studioFolderKey(sample);
-            // The marker last, so a copy cut short is never taken for the sample.
-            const sources = copiedEntries(entries, present)
-              .toSorted((a, b) => Number(a === SAMPLE_MARKER) - Number(b === SAMPLE_MARKER))
-              .map((entry) => `${from}/${entry}`);
-            await bridge.copy(sources, folder);
-            if (!entries.includes("README.md")) return;
-            const readme = await read({
-              environmentId,
-              input: { cwd: sample, relativePath: "README.md" },
-            });
-            if (readme._tag !== "Success" || readme.value.truncated) return;
-            await write({
-              environmentId,
-              input: { cwd: folder, relativePath: "README.md", contents: readme.value.contents },
+            await copySample({
+              entries: copiedEntries(entries, present),
+              copy: (names) =>
+                bridge.copy(
+                  names.map((entry) => `${from}/${entry}`),
+                  folder,
+                ),
+              writeReadme: entries.includes("README.md")
+                ? async () => {
+                    const readme = await read({
+                      environmentId,
+                      input: { cwd: sample, relativePath: "README.md" },
+                    });
+                    if (readme._tag !== "Success" || readme.value.truncated) {
+                      throw new Error("Its README could not be read.");
+                    }
+                    const written = await write({
+                      environmentId,
+                      input: {
+                        cwd: folder,
+                        relativePath: "README.md",
+                        contents: readme.value.contents,
+                      },
+                    });
+                    if (written._tag !== "Success") {
+                      throw new Error("Its README could not be written.");
+                    }
+                  }
+                : null,
             });
           };
           return await create({
@@ -135,16 +157,11 @@ export function useSampleProject(environmentId: EnvironmentId) {
             kind: SAMPLE_KIND,
             units: "mm",
             material: "5052-H32 aluminium, 2 mm",
-            purpose: SAMPLE_PROJECT.description,
+            purpose: SAMPLE_PURPOSE,
             folders: [],
-            onFolder: (folder) =>
-              copyInto(folder).catch((error: unknown) => {
-                toastManager.add({
-                  type: "error",
-                  title: "Could not copy the sample project",
-                  description: plainError(error),
-                });
-              }),
+            // A copy that fails throws out of `create` before it says the project was made or
+            // opens its chat, and the catch below says so, once.
+            onFolder: copyInto,
             // Its new chat runs in the copy, where the sample's paths hold.
             show: (ref) =>
               file === undefined ? showOverview(ref) : openInPanel(plugins, ref, file),

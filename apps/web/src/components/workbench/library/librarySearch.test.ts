@@ -64,6 +64,23 @@ describe("filterLibrary", () => {
     expect(found("Evaluate")).toContain("doc:simulation");
   });
 
+  it("finds under New only what New makes from nothing", () => {
+    const underNew = found("New");
+    expect(underNew).toEqual(expect.arrayContaining(["doc:part", "doc:prd"]));
+    // Their templates work from a part, which no New offers.
+    const fromPart = new Set([
+      "doc:drawing",
+      "doc:simulation",
+      "doc:cam-job",
+      "doc:print",
+      "doc:cut-file",
+      "doc:robot",
+      "doc:test-plan",
+      "doc:instructions",
+    ]);
+    expect(underNew.filter((id) => fromPart.has(id))).toEqual([]);
+  });
+
   it("lists everything for a blank search", () => {
     expect(filterLibrary(all, "  ")).toEqual(all);
   });

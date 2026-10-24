@@ -32,6 +32,12 @@ const TEXT_TO_CAD_SKILLS = NodeFS.readdirSync(SKILLS)
   .filter((name) => NodeFS.existsSync(NodePath.join(SKILLS, name, "SKILL.md")))
   .toSorted();
 
+/** A text-to-cad skill's own name: `interface.display_name` in its agents/openai.yaml. */
+const ownName = (skill: string) =>
+  /^\s+display_name:\s*["']?(.*?)["']?\s*$/m.exec(
+    NodeFS.readFileSync(NodePath.join(SKILLS, skill, "agents", "openai.yaml"), "utf8"),
+  )?.[1] ?? null;
+
 /** The sample's outputs that could not be made, so their entries show no example. */
 const NOT_MADE = [
   "doc:board",
@@ -136,7 +142,12 @@ describe("library catalog", () => {
   });
 
   it("says where it is", () => {
-    expect(findItIn(doc("doc:drawing"))).toEqual(["New › CAD", "Document › Drawings"]);
+    expect(findItIn(doc("doc:part"))).toEqual(["New › CAD"]);
+    expect(findItIn(doc("doc:board"))).toEqual([
+      "New › Electronics",
+      "Manufacture › Circuit board",
+    ]);
+    expect(findItIn(doc("doc:drawing"))).toEqual(["Document › Drawings"]);
     expect(findItIn(doc("doc:simulation"))).toContain("Evaluate › Simulation");
     expect(findItIn(doc("doc:simulation"))).toContain("Evaluate › More simulations");
     expect(findItIn(doc("doc:order"))).toEqual([
@@ -145,11 +156,33 @@ describe("library catalog", () => {
     ]);
   });
 
+  it("says New only where New makes it from nothing", () => {
+    // Every New offers only the templates made from nothing; one that works from a part (a
+    // drawing, a study) is found through its entry's menu jobs.
+    const fromNothing = new Set(
+      [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES]
+        .filter((template) => template.source === "new")
+        .map((template) => template.id),
+    );
+    for (const entry of LIBRARY_DOCUMENTS) {
+      const places = findItIn(entry);
+      expect(places, entry.id).not.toEqual([]);
+      expect(
+        places.some((place) => place.startsWith("New ›")),
+        entry.id,
+      ).toBe(entry.templates.some((id) => fromNothing.has(id)));
+    }
+  });
+
   it("names who makes it", () => {
     expect(madeBy(doc("doc:prd"))).toEqual(["the Product requirements (PRD) template"]);
     expect(madeBy(doc("doc:order"))).toEqual(["sendcutsend"]);
     expect(madeBy(doc("doc:manufacturing-check"))).toEqual(["dfm", "dfam-check", "pcb-dfm"]);
     expect(madeBy(doc("doc:parts-list"))).toEqual(["the agent"]);
+    expect(madeBy(doc("doc:drawing"))).toEqual(["engineering-drawing"]);
+    // Their templates work from a part, which no New offers, and their jobs need no skill.
+    expect(madeBy(doc("doc:test-plan"))).toEqual(["the agent"]);
+    expect(madeBy(doc("doc:instructions"))).toEqual(["the agent"]);
   });
 
   it("offers Make one only for what New makes from nothing", () => {
@@ -221,7 +254,7 @@ describe("library catalog", () => {
     });
   });
 
-  it("gives a skill one name: its plugin's for it, else the chat's title-casing", () => {
+  it("gives a skill one name: its plugin's, else text-to-cad's own, else the chat's title-casing", () => {
     const skills = librarySkills([
       plugin("text-to-cad", true, [
         { ...detail("gcode"), displayName: "G-code" },
@@ -231,8 +264,10 @@ describe("library catalog", () => {
     expect(skills.map((skill) => skill.displayName)).toEqual(["G-code", "Pcb Dfm"]);
     expect(skillName("gcode", skills)).toBe("G-code");
     expect(skillName("pcb-dfm", skills)).toBe("Pcb Dfm");
-    // Not installed: no plugin names it, so it reads as the chat would title it.
-    expect(skillName("bambu-labs", skills)).toBe("Bambu Labs");
+    // Not installed: no plugin names it, so it reads as text-to-cad names it, else as the chat
+    // would title it.
+    expect(skillName("sendcutsend", skills)).toBe("SendCutSend");
+    expect(skillName("harness", skills)).toBe("Harness");
     expect(madeBy(doc("doc:print"), (skill) => skillName(skill, skills))).toEqual([
       "G-code",
       "Bambu Labs",
@@ -240,6 +275,20 @@ describe("library catalog", () => {
     expect(madeBy(doc("doc:prd"), (skill) => skillName(skill, skills))).toEqual([
       "the Product requirements (PRD) template",
     ]);
+  });
+
+  it("names each of text-to-cad's skills as its own files do, installed or not", () => {
+    const named = TEXT_TO_CAD_SKILLS.map((name) => [name, ownName(name)]);
+    expect(named.filter(([, name]) => name === null)).toEqual([]);
+    const installed = librarySkills([
+      plugin(
+        "text-to-cad",
+        false,
+        TEXT_TO_CAD_SKILLS.map((name) => ({ ...detail(name), displayName: ownName(name) })),
+      ),
+    ]);
+    expect(TEXT_TO_CAD_SKILLS.map((name) => [name, skillName(name, installed)])).toEqual(named);
+    expect(TEXT_TO_CAD_SKILLS.map((name) => [name, skillName(name, [])])).toEqual(named);
   });
 
   it("asks something of the sample for each of text-to-cad's skills", () => {
@@ -254,11 +303,15 @@ describe("library catalog", () => {
     expect(showsUpAs("dfm")).toEqual([
       "Manufacture: Check for CNC machining, Check as sheet metal, Check for injection molding",
     ]);
+    expect(showsUpAs("pcb")).toEqual([
+      "New: Board",
+      "Manufacture: Route the board, Gerbers and drill files, Placement file and BOM",
+    ]);
+    // A template that works from a part is no New's: the skill shows up in its menus alone.
     expect(showsUpAs("fea")).toEqual([
-      "New: Strength study",
       "Evaluate: Strength under load, Vibration, Drop test, Make it lighter, Explain these results, More simulations",
     ]);
-    expect(showsUpAs("urdf")).toEqual(["New: Robot description", "Document: More documents"]);
+    expect(showsUpAs("urdf")).toEqual(["Document: More documents"]);
     expect(showsUpAs("sendcutsend")).toEqual(["Manufacture: Order from SendCutSend"]);
     expect(showsUpAs("no-such-skill")).toEqual([]);
   });

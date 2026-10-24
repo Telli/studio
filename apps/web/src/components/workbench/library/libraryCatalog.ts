@@ -160,7 +160,7 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     what: "A review for the way it will be made, one finding at a time: 3D printing, CNC machining, sheet metal, molding or a circuit board.",
     give: "The part and its process.",
     asks: null,
-    gets: "Findings, each passing or to fix, with the fix.",
+    gets: "Findings, each passing, to fix or to check, with the fix.",
   }),
   doc({
     id: "doc:cam-job",
@@ -330,7 +330,7 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     what: "Failure modes and effects, ranked by risk, with what to do about each.",
     give: "The part or product.",
     asks: null,
-    gets: "A ranked table: each failure mode, its effect, its risk and the action.",
+    gets: "A table of each failure mode, its effect, its risk priority number and the action, then the highest risks and what to do first.",
   }),
   doc({
     id: "doc:design-review",
@@ -364,10 +364,39 @@ const TRY_ASKING: Readonly<Record<string, string>> = {
   urdf: "Make the URDF for the servo mount.",
 };
 
-/** New's templates behind an entry, or the person's own template for an own entry. */
+/**
+ * text-to-cad's skills as they name themselves (`agents/openai.yaml`'s `display_name`), for where
+ * no installed plugin names them, so a skill reads the same whether text-to-cad is installed or not.
+ */
+const TEXT_TO_CAD_NAMES: Readonly<Record<string, string>> = {
+  "bambu-labs": "Bambu Labs",
+  cad: "CAD",
+  cam: "CAM",
+  "dfam-check": "DfAM Check",
+  dfm: "DFM Review",
+  dxf: "DXF",
+  "engineering-drawing": "Engineering Drawing",
+  fea: "FEA",
+  gcode: "G-code",
+  pcb: "PCB",
+  "pcb-dfm": "PCB DFM Review",
+  sdf: "SDF",
+  sendcutsend: "SendCutSend",
+  srdf: "SRDF",
+  "step-parts": "STEP Parts",
+  urdf: "URDF",
+};
+
+/**
+ * New's templates behind an entry that New makes from nothing, the ones every New offers, or the
+ * person's own template for an own entry. A template that works from a part (a drawing, a study)
+ * is no New's: its entry is reached through its menu jobs.
+ */
 const templatesBehind = (entry: LibraryDocument) =>
   entry.ownTemplate === undefined
-    ? entry.templates.flatMap((id) => TEMPLATES.filter((template) => template.id === id))
+    ? entry.templates.flatMap((id) =>
+        TEMPLATES.filter((template) => template.id === id && template.source === "new"),
+      )
     : [entry.ownTemplate];
 
 /** The part menus' jobs behind an entry. */
@@ -418,9 +447,9 @@ export function findItIn(entry: LibraryDocument): ReadonlyArray<string> {
   ];
 }
 
-/** Make one: the first template behind it that New makes from nothing (not from a part). */
+/** Make one: the first template behind it, which New makes from nothing (not from a part). */
 export function makeOneTemplate(entry: LibraryDocument): NewTemplate | null {
-  return templatesBehind(entry).find((template) => template.source === "new") ?? null;
+  return templatesBehind(entry)[0] ?? null;
 }
 
 /** Each of the person's own templates as an entry of its own, named by its file. */
@@ -452,10 +481,15 @@ const chatName = (name: string, displayName: string | null) =>
 
 /**
  * A skill's one name wherever the library shows it (its card and detail, Made by, what an entry
- * needs): as an installed plugin names it, else as the chat would title it.
+ * needs): as an installed plugin names it, else as text-to-cad names its own skills, else as the
+ * chat would title it.
  */
 export function skillName(name: string, skills: ReadonlyArray<LibrarySkill>): string {
-  return skills.find((skill) => skill.name === name)?.displayName ?? chatName(name, null);
+  return (
+    skills.find((skill) => skill.name === name)?.displayName ??
+    TEXT_TO_CAD_NAMES[name] ??
+    chatName(name, null)
+  );
 }
 
 /** Every skill of every installed plugin, on while its plugin is enabled. */
@@ -496,14 +530,17 @@ const menuLabels = (group: HardwareActionGroup, skill: string) => [
   ),
 ];
 
-/** Shows up as: "<place>: <labels>" for New, then each menu that offers the skill. */
+/**
+ * Shows up as: "<place>: <labels>" for New, by the templates it makes from nothing, then each menu
+ * that offers the skill.
+ */
 export function showsUpAs(skill: string): ReadonlyArray<string> {
   const places = [
     {
       place: "New",
-      labels: TEMPLATES.filter((template) => template.skill === skill).map(
-        (template) => template.label,
-      ),
+      labels: TEMPLATES.filter(
+        (template) => template.skill === skill && template.source === "new",
+      ).map((template) => template.label),
     },
     ...MENUS.map((group) => ({ place: group, labels: menuLabels(group, skill) })),
   ];

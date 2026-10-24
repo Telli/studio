@@ -13,6 +13,14 @@ export const SAMPLE_NAME = "Servo bracket (sample)";
 export const SAMPLE_MARKER = "studio-sample.json";
 
 /**
+ * The copy's Purpose in its brief, which every chat in it reads: what the finished project is, as
+ * its README opens. Never a job to do, so no chat sets out to make it again (Home's prompt for the
+ * agent to build it is `SAMPLE_PROJECT`).
+ */
+export const SAMPLE_PURPOSE =
+  "A mounting bracket for an MG996R servo, bent from 2 mm 5052-H32 aluminium sheet: a sample project to learn Studio with.";
+
+/**
  * The copy of the sample made before: the first project named `SAMPLE_NAME` whose first folder
  * holds the sample's marker (`isMarked`). A project of yours that only shares the name is not it,
  * and no other project's folder is read.
@@ -27,6 +35,25 @@ export async function findSample(
     if (await isMarked(folder)) return { id, project };
   }
   return null;
+}
+
+/**
+ * Copies the sample into a new project's folder: its top-level files and folders but the marker,
+ * then its README in place of the one the folder starts with, then the marker last, so a copy cut
+ * short is never taken for the sample (`findSample`). A step that fails throws, and none after it
+ * runs, so the copy is not reported made.
+ */
+export async function copySample(steps: {
+  /** The sample's top-level entries the folder lacks (`copiedEntries`), the marker among them. */
+  readonly entries: ReadonlyArray<string>;
+  /** Copies entries of the sample into the folder. */
+  readonly copy: (entries: ReadonlyArray<string>) => Promise<unknown>;
+  /** Writes the sample's README over the folder's own; null when the sample has none. */
+  readonly writeReadme: (() => Promise<void>) | null;
+}) {
+  await steps.copy(steps.entries.filter((entry) => entry !== SAMPLE_MARKER));
+  await steps.writeReadme?.();
+  if (steps.entries.includes(SAMPLE_MARKER)) await steps.copy([SAMPLE_MARKER]);
 }
 
 /**

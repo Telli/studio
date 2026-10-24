@@ -134,6 +134,23 @@ describe("hardware actions", () => {
     expect(unsaid.map((action) => `${action.id}: ${action.gets}`)).toEqual([]);
   });
 
+  it("says every outcome a check reports, in one shape", () => {
+    // dfam-check, dfm and pcb-dfm report a pass, a fail and a third outcome (need more info,
+    // review, unverified): each check's line, and the library's Manufacturing check, name all three.
+    const checks = HARDWARE_ACTIONS.filter((action) =>
+      ["dfam-check", "dfm", "pcb-dfm"].includes(action.skill ?? ""),
+    );
+    expect(checks).not.toEqual([]);
+    const unsaid = checks.filter(
+      (action) =>
+        !/^Findings for .+, each passing, to fix or to check, with the fix\.$/.test(action.gets),
+    );
+    expect(unsaid.map((action) => `${action.id}: ${action.gets}`)).toEqual([]);
+    expect(entryOfAction("cnc")?.gets).toBe(
+      "Findings, each passing, to fix or to check, with the fix.",
+    );
+  });
+
   it("every job has its library entry", () => {
     const unlisted = HARDWARE_ACTIONS.filter((action) => entryOfAction(action.id) === null);
     expect(unlisted.map((action) => action.id)).toEqual([]);

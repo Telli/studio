@@ -1,8 +1,23 @@
+// @effect-diagnostics nodeBuiltinImport:off - reads the sample project's README from disk.
+import * as NodeFS from "node:fs";
+import * as NodePath from "node:path";
+
 import type { StudioProject } from "@t3tools/contracts";
 import { EMPTY_STUDIO_BRIEF } from "@t3tools/shared/studioProjects";
 import { describe, expect, it } from "vite-plus/test";
 
-import { findSample, inTurn, SAMPLE_NAME, sampleMode } from "./sampleProject";
+import {
+  copySample,
+  findSample,
+  inTurn,
+  SAMPLE_MARKER,
+  SAMPLE_NAME,
+  SAMPLE_PURPOSE,
+  sampleMode,
+} from "./sampleProject";
+
+const ROOT = NodePath.join(import.meta.dirname, "..", "..", "..", "..", "..", "..");
+const SAMPLE = NodePath.join(ROOT, "studio-sample", "servo-bracket");
 
 const project = (name: string, folder: string): StudioProject => ({
   name,
@@ -50,6 +65,43 @@ describe("sample project", () => {
     expect(sampleMode({ sampleProject: null, canCopy: true })).toBe("prompt");
     expect(sampleMode({ sampleProject: "/s", canCopy: false })).toBe("prompt");
     expect(sampleMode({ sampleProject: "/s", canCopy: true })).toBe("copy");
+  });
+
+  it("copies the sample's README before its marker, and the marker last", async () => {
+    const done: string[] = [];
+    await copySample({
+      entries: ["docs", SAMPLE_MARKER, "parts"],
+      copy: async (entries) => {
+        done.push(`copy ${entries.join(", ")}`);
+      },
+      writeReadme: async () => {
+        done.push("write README.md");
+      },
+    });
+    expect(done).toEqual(["copy docs, parts", "write README.md", `copy ${SAMPLE_MARKER}`]);
+  });
+
+  it("stops at a step that fails, so a copy cut short is never taken for the sample", async () => {
+    const done: string[] = [];
+    const copying = copySample({
+      entries: ["docs", SAMPLE_MARKER],
+      copy: async (entries) => {
+        done.push(`copy ${entries.join(", ")}`);
+      },
+      writeReadme: async () => {
+        throw new Error("Its README could not be written.");
+      },
+    });
+    // It fails as a whole, so the project is not reported made.
+    await expect(copying).rejects.toThrow("Its README could not be written.");
+    expect(done).toEqual(["copy docs"]);
+  });
+
+  it("describes the copy as its README does, not as work to do", () => {
+    // The Purpose goes into every chat in the copy, so it says what the finished project is.
+    const readme = NodeFS.readFileSync(NodePath.join(SAMPLE, "README.md"), "utf8");
+    const whatItIs = readme.split("\n## What it is\n\n")[1] ?? "";
+    expect(whatItIs.slice(0, SAMPLE_PURPOSE.length)).toBe(SAMPLE_PURPOSE);
   });
 
   it("makes a second open wait for the copy the first is making, not make another", async () => {
