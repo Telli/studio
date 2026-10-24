@@ -812,7 +812,7 @@ export interface HardwareActionMenu {
   readonly moreLabel: string;
 }
 
-const MORE_LABELS: Record<HardwareActionGroup, string> = {
+export const MORE_LABELS: Record<HardwareActionGroup, string> = {
   Evaluate: "More simulations",
   Manufacture: "Other ways to make it",
   Document: "More documents",
