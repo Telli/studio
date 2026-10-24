@@ -182,7 +182,7 @@ const plainText = (line: string) =>
     .map((piece) => piece.text)
     .join("");
 
-/** A document as a small page: its title, then its opening lines, the way a thumbnail reads. */
+/** A document, read from its folder, as a small page (`TextPage`); nothing until it is read. */
 export function Page(props: {
   readonly environmentId: EnvironmentId;
   readonly root: string;
@@ -195,7 +195,12 @@ export function Page(props: {
     }),
   ).data;
   if (!file) return null;
-  const lines = file.contents
+  return <TextPage text={file.contents} />;
+}
+
+/** A document's text as a small page: its title, then its opening lines, as a thumbnail reads. */
+export function TextPage(props: { readonly text: string }) {
+  const lines = props.text
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line !== "");

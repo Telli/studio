@@ -76,13 +76,13 @@ export function handToChat(composerRef: ComposerHandleRef, prompt: string): void
 }
 
 /** A template's icon: the kind of thing it makes, a drawing's own, or a file of the person's. */
-function templateIcon(template: NewTemplate) {
+export function templateIcon(template: NewTemplate) {
   if (template.file !== undefined) return FilePlusIcon;
   return template.id === "drawing" ? KIND_ICONS.Drawings : DISCIPLINE_ICONS[template.discipline];
 }
 
 /** A template's icon color: its kind's, as the Overview and ⌘K color that kind (`KIND_TINTS`). */
-function templateTint(template: NewTemplate): string {
+export function templateTint(template: NewTemplate): string {
   if (template.file !== undefined || template.discipline === "Documents")
     return KIND_TINTS.Documents;
   if (template.id === "drawing") return KIND_TINTS.Drawings;
