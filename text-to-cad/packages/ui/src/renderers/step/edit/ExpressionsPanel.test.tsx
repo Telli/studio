@@ -52,8 +52,8 @@ it("opens in the browser's command card, where the other Inspect panels open", (
   expect(card.contains(screen.getByRole('dialog', { name: 'Expressions' }))).toBe(true);
   cleanup();
   card.remove();
-  // Not asked for, it is not there; the Part Navigator keeps its own list of them.
+  // Not asked for, it is not there; the Part Navigator keeps its own list of them, folded at the top.
   render(<EditBrowser edit={edit({ inspecting: null }) as never} names={[]} tree={featureTree(STATE)} />);
   expect(screen.queryByRole('dialog', { name: 'Expressions' })).toBeNull();
-  expect(screen.getByRole('group', { name: 'Expressions' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'User Expressions' }).getAttribute('aria-expanded')).toBe('false');
 });

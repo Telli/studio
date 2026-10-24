@@ -443,8 +443,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   (and Revolve, Sweep along Guide, Through Curves) whose Boolean, Unite or Subtract, opens the
   cut command with what was typed; dialogs with OK, Apply and Cancel at their foot; a Part
   Navigator numbering features as NX does ("Extrude (2)", an Edge Blend for a fillet), a box on
-  each to suppress it, Expressions, and the Datum Coordinate System (0) with its XY, XZ and YZ
-  planes; the sketch tools as NX names them (Finish Sketch, Rapid Dimension, Quick Trim). The
+  each to suppress it, User Expressions folded above it, and the Datum Coordinate System (0) with
+  its XY, XZ and YZ planes; a row's menu in NX's words (Edit Parameters, Edit Sketch, Suppress,
+  Rename, Delete, Make Current Feature) and the viewer's warning on the feature a failed build
+  points at; the sketch tools as NX names them (Finish Sketch, Rapid Dimension, Quick Trim). The
   script and the agent's notes keep their own names. Ask reads the part once, quietly, after
   the model opens, so Edit by hand opens on it at once (`useEditMode`); Full screen, beside Ask
   and Edit by hand, puts the part across the screen (`workbench/studioFullScreen.ts`: the panel
@@ -468,8 +470,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   a new feature, selected, with its inputs to change like any other; a line that does not run,
   or picks something other than the selection, is not written. Undo takes a command's line back. The
   agent hears of each change with the next message (a Hand edit note queued in the composer),
-  never by a message of its own. Edit Feature reopens a feature's panel, Suppress sets one aside,
-  and the rollback bar shows the part as it was above a feature, new features going in there. An
+  never by a message of its own. Edit Parameters reopens a feature's panel, Suppress sets one aside,
+  and the rollback bar (dragged, or put under a feature by Make Current Feature) shows the part as
+  it was above a feature, new features going in there. An
   assembly places its parts: double-click one in its design tree (Open Part) and the part opens on
   its own, in a tab of its own when the assembly is a project file's tab
   (`studio/open-file`, a plugin view's request to open a file beside the thread). The engine is `text-to-cad/packages/cadgen/src/cadgen/edit/` (a

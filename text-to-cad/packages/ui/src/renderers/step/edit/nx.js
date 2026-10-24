@@ -5,7 +5,7 @@
  * groups (Fusion's arrangement), and Extrude's Boolean. What the screen says only: the script, and
  * the notes the agent reads with the person's next message, keep their own names.
  */
-import { PLANE_AXES } from "./editMode.js";
+import { PLANE_AXES, treeFeatures } from "./editMode.js";
 
 /** A modeling command as NX's ribbon names it. Extrude, Revolve, Sweep along Guide and Through
  * Curves also take material away, by their Boolean (`booleanOf`). */
@@ -89,32 +89,91 @@ export const featureIconName = kind => FEATURE_ICON_NAMES[nxKind(kind)] || "extr
 /** An origin plane as NX's datum coordinate system names it: "XY Plane" for SolidWorks' Top. */
 export const nxPlane = name => (PLANE_AXES[name] ? `${PLANE_AXES[name]} Plane` : `${name} Plane`);
 
-/**
- * A part's features numbered as NX's Part Navigator numbers them, in the order they are made after
- * the datum coordinate system (0): a feature's sketch just before it ("Sketch (1) "Sketch1"", then
- * "Extrude (2)"), a name given in the tree after the kind, in quotes. Row id → its title.
- */
-export function navigatorTitles(features) {
-  const titles = new Map();
+// A part's rows as NX's Part Navigator numbers them, in the order they are made after the datum
+// coordinate system (0): a feature's sketch just before it ("Sketch (1)", then "Extrude (2)"). Row id
+// → its `label` and the `name` given in the tree, which a title shows after the label, in quotes.
+function numbered(features) {
+  const rows = new Map();
   let made = 0;
   for (const feature of features || []) {
     if (feature.kind === "Sketch") {
       made += 1;
-      titles.set(feature.id, `Sketch (${made}) "${feature.sketch?.title || feature.title}"`);
+      rows.set(feature.id, { label: `Sketch (${made})`, name: feature.sketch?.title || feature.title });
       continue;
     }
     if (feature.sketch) {
       made += 1;
-      titles.set(feature.sketch.id, `Sketch (${made}) "${feature.sketch.title}"`);
+      rows.set(feature.sketch.id, { label: `Sketch (${made})`, name: feature.sketch.title });
     }
     made += 1;
-    titles.set(feature.id, `${nxKind(feature.kind)} (${made})${feature.named ? ` "${feature.named}"` : ""}`);
+    rows.set(feature.id, { label: `${nxKind(feature.kind)} (${made})`, name: feature.named || "" });
   }
-  return titles;
+  return rows;
 }
+
+/**
+ * A part's features titled as NX's Part Navigator lists them, in the order they are made after the
+ * datum coordinate system (0): a feature's sketch just before it ("Sketch (1) "Sketch1"", then
+ * "Extrude (2)"), a name given in the tree after the kind, in quotes. Row id → its title.
+ */
+export function navigatorTitles(features) {
+  return new Map([...numbered(features)].map(([id, { label, name }]) => [id, name ? `${label} "${name}"` : label]));
+}
+
+/**
+ * A row as the Part Navigator numbers it, without the name given in the tree: "Hole (6)". Empty for a
+ * row the Part Navigator does not list, so whoever names a feature (a face's chip, the timeline) can
+ * keep its own words.
+ */
+export const navigatorLabel = (features, id) => numbered(features).get(id)?.label ?? "";
 
 /** Every row's Part Navigator title in a design tree (`featureTree`): a part's, or each of an assembly's parts'. */
 export function treeTitles(tree) {
   const lists = tree?.assembly ? (tree.components || []).map(component => component.features) : [tree?.features || []];
   return new Map(lists.flatMap(features => [...navigatorTitles(features)]));
+}
+
+// A frame of the Python traceback a part's script stops with, outermost first:
+// `  File "/work/parts/bracket.py", line 9, in bracket`.
+const TRACEBACK_FRAME = /^\s*File "([^"]+)", line (\d+)/gm;
+const slashed = path => String(path).replace(/\\/g, "/");
+
+// The lines of the script a feature stands for, `{ file, line }` each: its own, those folded into it
+// (its sketch's profile, a cut joined to it) and its sketch's.
+function linesOf(feature) {
+  const rows = (feature.rows || []).map(key => ({ file: key.slice(0, key.lastIndexOf(":")), line: Number(key.slice(key.lastIndexOf(":") + 1)) }));
+  return [...rows, { file: feature.file, line: feature.line }, { file: feature.sketch?.file, line: feature.sketch?.line }]
+    .filter(each => each.file && each.line);
+}
+
+// The feature a traceback frame is in the lines of. The frame names its file whole
+// (/work/parts/bracket.py) and a feature's line the project's way (parts/bracket.py): a frame is in
+// the file that ends it, from a folder's start, and the longest such name is the file.
+function ownerOf(features, frame) {
+  let owner = null, length = -1;
+  for (const feature of features) {
+    for (const { file, line } of linesOf(feature)) {
+      const name = slashed(file);
+      if (line === frame.line && name.length > length && (frame.file === name || frame.file.endsWith(`/${name}`))) { owner = feature; length = name.length; }
+    }
+  }
+  return owner;
+}
+
+/**
+ * The feature a failed build points at, and why. A part whose script stops (`edit.error`) says where
+ * in its traceback: the files and lines it stopped in. The feature is the one the deepest of them that
+ * is in any feature's lines is in, so a helper the part calls, which makes no feature of its own,
+ * points at the call in the part's script. `{ id, why }`, `why` the error's last line. Null for an
+ * error that is not a traceback, or points at no feature: nothing is marked that is not known.
+ */
+export function buildFailure(tree, error) {
+  const text = String(error || "").trim();
+  const frames = [...text.matchAll(TRACEBACK_FRAME)].map(([, file, line]) => ({ file: slashed(file), line: Number(line) }));
+  const features = treeFeatures(tree);
+  for (const frame of frames.reverse()) {
+    const owner = ownerOf(features, frame);
+    if (owner) return { id: owner.id, why: text.split("\n").at(-1).trim() };
+  }
+  return null;
 }

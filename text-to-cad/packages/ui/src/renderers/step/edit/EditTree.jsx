@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { LoaderCircle } from "lucide-react";
+import { CircleAlert, LoaderCircle } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@text-to-cad/ui/primitives/context-menu";
 import { TREE_INDENT_PX, TreeRowChevron, TreeRowSurface } from "@text-to-cad/ui/primitives/tree-row";
 import { FileSheetValueInput } from "../../kit/inspector/FileSheet.js";
 import { ORIGIN_PLANES, barIndex, planeDetail, rolledBack, sizeName, treeFeatures } from "./editMode.js";
 import { AssemblyIcon, FeatureIcon, MateTreeIcon, OriginIcon, ParametersIcon, PartIcon, PlaneIcon, SketchIcon } from "./featureIcons.jsx";
-import { nxPlane, treeTitles } from "./nx.js";
+import { buildFailure, nxPlane, treeTitles } from "./nx.js";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 // A row under the pointer is the workspace's pale blue, the selected one its deeper blue.
 const ROW_HOVER_CLASS = "hover:bg-cad-ws-hover", ROW_SELECTED_CLASS = "bg-cad-ws-selected";
+// What a feature that failed to build says, beside its title and on hover.
+const BUILD_FAILED = "Did not build";
 
 /** A row's name typed over in place, as SolidWorks' tree renames one: Enter or a click away keeps
  * it, Escape leaves it as it was (`onDone` given the name, or null). */
@@ -30,15 +32,17 @@ function RenameInput({ value, onDone }) {
 }
 
 /** One row of the tree: its place (depth), its disclosure when it has rows under it, its icon and
- * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch, Edit Feature on a feature),
- * else opens or closes it; a right-click selects it and opens its menu (`menu`: Edit Feature, Edit
- * Sketch, Rename, Suppress or Unsuppress, Delete), as SolidWorks' does. While `renaming`, its name
- * is typed over (`onRename`, given the name or null). */
+ * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch, Edit Parameters on a feature),
+ * else opens or closes it; a right-click selects it and opens its menu (`menu`, in NX's words and order).
+ * While `renaming`, its name is typed over (`onRename`, given the name or null). `warn`: why the
+ * feature did not build, marked beside its name with the viewer's warning and said on hover. `role`:
+ * "treeitem" for a row of the tree; a row above it (the part's name) has none.
+ */
 function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, onActivate = null, selected, onSelect, onHover, muted = false, menu = null,
-  slot = null, renaming = null, onRename = null, check = null }) {
+  slot = null, renaming = null, onRename = null, check = null, warn = null, role = "treeitem" }) {
   const active = Boolean(id) && selected === id;
-  const row = <TreeRowSurface as="div" dense active={active} role="treeitem" aria-selected={active}
-    aria-expanded={expanded === null ? undefined : expanded} tabIndex={-1}
+  const row = <TreeRowSurface as="div" dense active={active} role={role} aria-selected={role === "treeitem" ? active : undefined}
+    aria-expanded={expanded === null ? undefined : expanded} tabIndex={-1} title={warn ? `${BUILD_FAILED}: ${warn}` : undefined}
     className={`cursor-default select-none ${active ? ROW_SELECTED_CLASS : ROW_HOVER_CLASS}`} style={{ paddingLeft: 4 + depth * (TREE_INDENT_PX + 2) }}
     data-cad-edit-tree-row={id || title} data-cad-edit-bar-slot={slot ?? undefined}
     onClick={() => { if (id) onSelect(id); else onToggle?.(); }}
@@ -55,6 +59,8 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
     {icon}
     {renaming !== null && onRename ? <RenameInput value={renaming} onDone={onRename} />
       : <span className={muted ? "truncate text-muted-foreground" : "truncate"}>{title}</span>}
+    {/* The alert card's warning icon, amber as the card draws a warning. */}
+    {warn && renaming === null ? <CircleAlert role="img" aria-label={BUILD_FAILED} className="size-3.5 shrink-0 text-amber-500" /> : null}
     {detail && renaming === null ? <span className="ml-auto truncate pl-2 text-muted-foreground">{detail}</span> : null}
   </TreeRowSurface>;
   if (!menu?.length) return row;
@@ -118,20 +124,18 @@ function RollbackBar({ index, count, label, disabled, slotAt, onPreview, onMove 
 }
 
 /**
- * Edit mode's design tree, as SolidWorks' FeatureManager shows a part: its name at the top, its
- * Parameters (the named sizes, typed over to change), the Front, Top and Right planes and the
- * Origin, then its features in the order the script makes them, each solid's sketch under it and a
- * sketch nothing uses yet on a row of its own. An assembly lists its parts as components, each
- * opening to its own features. Selecting a feature draws its dimensions on the model and shows its
- * inputs under the tree; selecting a plane draws it; double-clicking a sketch edits it, and a
- * feature a command made reopens that command's panel (`edit.editFeature`). Suppress sets a feature
- * aside, greyed where it is (`edit.suppress`). Delete (the key, or the row's menu) takes the
- * selected feature out of the script (`edit.remove`). The rollback bar under a part's features
- * (`edit.rollTo`) shows the part as it was above one, those below it greyed; new features go there.
- *
- * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
- *   tree: ReturnType<typeof import("./editMode.js").featureTree>, onEditSketch?: (sketch: object) => void }} props
+ * A fold above the tree, drawn as a row (its chevron, its icon, its name): the Part Navigator's User
+ * Expressions, which NX lists above the model's history. A button, as the tree's rows are not.
  */
+function HeadFold({ depth, icon, title, expanded, onToggle }) {
+  return <TreeRowSurface as="button" type="button" dense aria-expanded={expanded} data-cad-edit-tree-row={title} onClick={onToggle}
+    className={`cursor-default select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 ${ROW_HOVER_CLASS}`}
+    style={{ paddingLeft: 4 + depth * (TREE_INDENT_PX + 2) }}>
+    <span className="flex w-3 shrink-0 justify-center"><TreeRowChevron expanded={expanded} /></span>
+    {icon}<span className="truncate">{title}</span>
+  </TreeRowSurface>;
+}
+
 /**
  * Add Parameter, as SolidWorks' Equations adds a global variable: a name and a value (a number, or
  * the part's sizes with plain arithmetic), written at the top of the part's script for dimensions
@@ -174,8 +178,8 @@ function AddParameter({ edit, disabled }) {
 /**
  * The part's expressions, as NX's Expressions lists them: each named size with its value typed over
  * in place (a change is one number in the part's script), then Add expression. The Part Navigator
- * lists them under the part, and Expressions in the Inspect tab opens the same list as a panel
- * (`ExpressionsPanel.jsx`).
+ * lists them under its User Expressions, folded, and Expressions in the Inspect tab opens the same
+ * list as a panel (`ExpressionsPanel.jsx`).
  */
 export function ExpressionRows({ edit }) {
   const params = edit.state?.params || [];
@@ -195,8 +199,27 @@ export function ExpressionRows({ edit }) {
   </>;
 }
 
+/**
+ * Edit mode's Part Navigator, as NX lists a part: its name, then User Expressions folded above the
+ * tree (the named sizes, typed over to change), and the tree, which opens with the Datum Coordinate
+ * System (0) and its planes and goes on with the features in the order the script makes them, numbered
+ * as NX numbers them (`nx.js`): each with its icon, its own name, its variable's name at the right and
+ * a box to suppress it, a solid's sketch under it, a sketch nothing uses yet on a row of its own. An
+ * assembly lists its parts as components, each opening to its own features. Selecting a feature draws
+ * its dimensions on the model and shows its inputs under the tree; selecting a plane draws it;
+ * double-clicking a sketch edits it, and a feature a command made reopens that command's panel
+ * (`edit.editFeature`). A row's menu is NX's: Edit Parameters, Edit Sketch, Suppress or Unsuppress
+ * (`edit.suppress` sets a feature aside, greyed where it is), Rename, Delete (`edit.remove`, as the
+ * key does) and Make Current Feature. That one puts the rollback bar just under the feature
+ * (`edit.rollTo`), so the part shows as it was there, the features below it greyed and new ones going
+ * in at the bar; the bar is dragged to the same effect. The feature a failed build points at wears the
+ * viewer's warning (`buildFailure`).
+ *
+ * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
+ *   tree: ReturnType<typeof import("./editMode.js").featureTree>, onEditSketch?: (sketch: object) => void }} props
+ */
 export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPart = null, backTo = null }) {
-  const [open, setOpen] = useState(() => new Set(["parameters", "mates", "datum"]));
+  const [open, setOpen] = useState(() => new Set(["mates", "datum"]));
   // A selection inside a closed part, or a sketch under a closed feature, opens them to it.
   useEffect(() => {
     const selected = edit.selected || "";
@@ -219,16 +242,18 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const disabled = edit.saving || edit.status !== "ready";
   const rowProps = { selected: edit.selected, onSelect: edit.select, onHover: edit.hover };
   const name = sizeName(edit.state?.name || "") || "Part";
-  // A row's menu: Edit Feature on a feature a command made, Edit Sketch where it has a sketch to
-  // edit, and Delete on a feature or a sketch of its own (a feature's sketch goes with its feature).
+  // The feature a failed build points at, to be marked.
+  const failure = buildFailure(tree, edit.error);
+  // A row's menu, in NX's words and order: Edit Parameters on a feature a command made, Edit Sketch
+  // where it has a sketch to edit, Suppress or Unsuppress, Rename, Delete (on a feature or a sketch of
+  // its own: a feature's sketch goes with its feature), Make Current Feature.
   const busy = disabled || Boolean(edit.sketch);
-  // Edit Feature works on a part's own body: in an assembly, a part is opened to edit its features.
+  // Edit Parameters works on a part's own body: in an assembly, a part is opened to edit its features.
   const editable = feature => Boolean(feature.edit) && !tree.assembly;
-  const featureItem = feature => (editable(feature) ? [{ id: "edit-feature", label: "Edit Feature", disabled: busy, onSelect: () => edit.editFeature(feature) }] : []);
-  const suppressItem = (feature, separatorBefore) => ({ id: "suppress", label: feature.suppressed ? "Unsuppress" : "Suppress", disabled: busy,
-    separatorBefore, onSelect: () => void edit.suppress(feature.id, tree, !feature.suppressed) });
-  // A suppressed feature, and the sketch under it, greyed as SolidWorks greys them; so are the
-  // features below the rollback bar.
+  const featureItem = feature => (editable(feature) ? [{ id: "edit-parameters", label: "Edit Parameters", disabled: busy, onSelect: () => edit.editFeature(feature) }] : []);
+  const suppressItem = feature => ({ id: "suppress", label: feature.suppressed ? "Unsuppress" : "Suppress", disabled: busy,
+    onSelect: () => void edit.suppress(feature.id, tree, !feature.suppressed) });
+  // A suppressed feature, and the sketch under it, greyed; so are the features below the rollback bar.
   const greyed = icon => <span className="flex shrink-0 opacity-50">{icon}</span>;
   const rolled = rolledBack(tree, edit.bar);
   const partItems = tree.assembly ? [] : tree.features;
@@ -236,32 +261,33 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const titles = treeTitles(tree);
   const titleOf = row => titles.get(row.id) || row.title;
   const barAt = barIndex(tree, edit.bar);
-  const rollItems = feature => {
+  // Make Current Feature: the rollback bar just under the feature, above the next one, or at the end
+  // past the last; nothing to do for the feature the bar is under already.
+  const currentItem = feature => {
     const index = partItems.findIndex(each => each.id === feature.id);
     if (index < 0) return [];
-    return [
-      { id: "rollback", label: "Rollback", disabled: busy || index === 0 || index === barAt, separatorBefore: true,
-        onSelect: () => void edit.rollTo(feature.id) },
-      ...(edit.bar ? [{ id: "roll-to-end", label: "Roll to End", disabled: busy, onSelect: () => void edit.rollTo(null) }] : []),
-    ];
+    return [{ id: "make-current", label: "Make Current Feature", disabled: busy || barAt === index + 1,
+      onSelect: () => void edit.rollTo(partItems[index + 1]?.id ?? null) }];
   };
   const editItem = sketch => (sketch?.constrained ? [{ id: "edit-sketch", label: "Edit Sketch", disabled, onSelect: () => onEditSketch(sketch) }] : []);
-  const deleteItem = (id, separatorBefore) => ({ id: "delete", label: "Delete", destructive: true, disabled: disabled || Boolean(edit.sketch),
-    separatorBefore, onSelect: () => void edit.remove(id, tree) });
+  const deleteItem = id => ({ id: "delete", label: "Delete", destructive: true, disabled: disabled || Boolean(edit.sketch),
+    onSelect: () => void edit.remove(id, tree) });
+  // The groups a menu is made of, each set off from the one before by a line: what edits the row, what
+  // changes it, what makes it current.
+  const menuOf = (...groups) => groups.filter(group => group.length)
+    .flatMap((group, index) => group.map((item, at) => (index > 0 && at === 0 ? { ...item, separatorBefore: true } : item)));
   // Rename, from the menu or F2: the row's name typed over in place, written into the script.
   const renameItem = id => ({ id: "rename", label: "Rename", disabled: busy || tree.assembly, onSelect: () => edit.startRename(id) });
   const renamingOf = (id, title, target) => (edit.renaming === id && !busy && !tree.assembly
     ? { renaming: title, onRename: name => (name === null ? edit.stopRename() : void edit.rename(target, name)) } : {});
-  const sketchRow = (sketch, depth, own = null, muted = false) => {
-    const edits = editItem(sketch);
-    return <Row key={sketch.id} id={sketch.id} depth={depth} icon={muted ? greyed(<SketchIcon />) : <SketchIcon />} muted={muted}
+  const sketchRow = (sketch, depth, own = null, muted = false) => (
+    <Row key={sketch.id} id={sketch.id} depth={depth} icon={muted ? greyed(<SketchIcon />) : <SketchIcon />} muted={muted}
       title={titleOf(sketch)} detail={sketch.plane && sketch.plane !== "Plane" ? `${nxPlane(sketch.plane)}${sketch.offset ? `, ${sketch.offset} ${edit.state?.units || ""}`.trimEnd() : ""}` : ""}
       slot={own ? partItems.findIndex(each => each.id === own.id) : null}
-      onActivate={() => onEditSketch(sketch)}
+      onActivate={() => onEditSketch(sketch)} warn={failure?.id === sketch.id ? failure.why : null}
       {...(sketch.constrained ? renamingOf(sketch.id, sketch.title, { sketch: { file: sketch.file, line: sketch.line }, title: sketch.title }) : {})}
-      menu={[...edits, ...(sketch.constrained ? [renameItem(sketch.id)] : []), ...(own ? [...rollItems(own), deleteItem(sketch.id, true)] : [])]}
-      {...rowProps} />;
-  };
+      menu={menuOf(editItem(sketch), [...(sketch.constrained ? [renameItem(sketch.id)] : []), ...(own ? [deleteItem(sketch.id)] : [])], own ? currentItem(own) : [])}
+      {...rowProps} />);
   const featureRows = (feature, depth) => {
     const out = rolled.has(feature.id);
     if (feature.kind === "Sketch") return [sketchRow(feature.sketch, depth, feature, out)];
@@ -269,7 +295,6 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     const expanded = open.has(feature.id);
     const detail = feature.suppressed ? "Suppressed" : feature.kind === "Plane" ? planeDetail(feature, edit.state?.units || "")
       : `${feature.name}${feature.count > 1 ? ` ×${feature.count}` : ""}`;
-    const edits = [...featureItem(feature), ...editItem(feature.sketch)];
     const grey = feature.suppressed || out;
     const slot = partItems.findIndex(each => each.id === feature.id);
     return [
@@ -280,7 +305,9 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
         expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null} slot={slot < 0 ? null : slot}
         onActivate={editable(feature) && !busy ? () => edit.editFeature(feature) : null}
         {...renamingOf(feature.id, feature.title, { feature: feature.id, title: feature.title })}
-        menu={[...edits, renameItem(feature.id), ...rollItems(feature), suppressItem(feature, true), deleteItem(feature.id, true)]} {...rowProps} />,
+        warn={failure?.id === feature.id ? failure.why : null}
+        menu={menuOf([...featureItem(feature), ...editItem(feature.sketch)], [suppressItem(feature), renameItem(feature.id), deleteItem(feature.id)], currentItem(feature))}
+        {...rowProps} />,
       branch && expanded ? sketchRow(feature.sketch, depth + 1, null, grey) : null,
     ];
   };
@@ -326,35 +353,37 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
       title={`${mate.name} (${mate.parts.join(", ")})`} {...rowProps}
       menu={[{ id: "delete", label: "Delete", disabled: busy, onSelect: () => void edit.mate({ delete: mate.label }) }]} />) : []),
   ] : []);
-  return <div ref={treeRef} role="tree" aria-label="Part Navigator" className="flex flex-col px-1 py-1" data-cad-edit-tree="" onKeyDown={onKeyDown}>
+  return <div ref={treeRef} className="flex flex-col px-1 py-1" data-cad-edit-tree="" onKeyDown={onKeyDown}>
     {backTo ? <button type="button" className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1 text-left text-tiny text-muted-foreground hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
       onClick={backTo.open} data-cad-edit-back="">
       <AssemblyIcon /><span className="truncate">{`Back to ${backTo.title}`}</span>
     </button> : null}
-    {/* The part's own menu, as SolidWorks' part row has it: its Appearance and its Mass Properties. */}
-    <Row id="" depth={0} icon={tree.assembly ? <AssemblyIcon /> : <PartIcon />} title={name} {...rowProps}
+    {/* The part's own menu: its Appearance and its Mass Properties. */}
+    <Row id="" depth={0} role="none" icon={tree.assembly ? <AssemblyIcon /> : <PartIcon />} title={name} {...rowProps}
       menu={tree.assembly ? null : [{ id: "appearance", label: "Appearance", disabled: busy, onSelect: () => edit.inspect("appearance") },
         { id: "mass", label: "Mass Properties", disabled: busy, onSelect: () => edit.inspect("mass") }]} />
-    {/* The part's named sizes, as NX's Expressions holds them. */}
-    <Row id="" depth={1} icon={<ParametersIcon />} title="Expressions" expanded={open.has("parameters")} onToggle={toggle("parameters")} {...rowProps} />
-    {open.has("parameters") ? <div role="group" aria-label="Expressions" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>
+    {/* The part's named sizes, as NX's User Expressions holds them: folded, above the tree. */}
+    <HeadFold depth={1} icon={<ParametersIcon />} title="User Expressions" expanded={open.has("expressions")} onToggle={toggle("expressions")} />
+    {open.has("expressions") ? <div role="group" aria-label="User Expressions" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>
       <ExpressionRows edit={edit} />
     </div> : null}
-    {/* The origin and its planes, as NX's datum coordinate system: feature 0, before the rest. */}
-    <Row id="origin" depth={1} icon={<OriginIcon />} title="Datum Coordinate System (0)" expanded={open.has("datum")} onToggle={toggle("datum")} {...rowProps} />
-    {open.has("datum") ? ORIGIN_PLANES.map(plane => <Row key={plane} id={`plane:${plane}`} depth={2} icon={<PlaneIcon />} title={nxPlane(plane)} {...rowProps} />) : null}
-    {tree.assembly && onOpenPart && tree.components.some(component => component.step)
-      ? <p className="px-2 py-1 text-tiny leading-4 text-muted-foreground">Double-click a part to open it and model it.</p> : null}
-    {tree.assembly
-      ? tree.components.flatMap(component => [
-        // A part of the assembly opens on its own to be modeled, as SolidWorks' Open Part opens it.
-        <Row key={component.id} id={component.id} depth={1} icon={<PartIcon />} title={component.title}
-          expanded={open.has(component.id)} onToggle={toggle(component.id)}
-          onActivate={component.step && onOpenPart ? () => onOpenPart(component) : null}
-          menu={component.step && onOpenPart ? [{ id: "open-part", label: "Open Part", onSelect: () => onOpenPart(component) }] : null}
-          {...rowProps} />,
-        ...(open.has(component.id) ? features(component.features, 2) : []),
-      ]).concat(mateRows())
-      : partRows()}
+    <div role="tree" aria-label="Part Navigator" className="flex flex-col">
+      {/* The origin and its planes, as NX's datum coordinate system: feature 0, before the rest. */}
+      <Row id="origin" depth={1} icon={<OriginIcon />} title="Datum Coordinate System (0)" expanded={open.has("datum")} onToggle={toggle("datum")} {...rowProps} />
+      {open.has("datum") ? ORIGIN_PLANES.map(plane => <Row key={plane} id={`plane:${plane}`} depth={2} icon={<PlaneIcon />} title={nxPlane(plane)} {...rowProps} />) : null}
+      {tree.assembly && onOpenPart && tree.components.some(component => component.step)
+        ? <p className="px-2 py-1 text-tiny leading-4 text-muted-foreground">Double-click a part to open it and model it.</p> : null}
+      {tree.assembly
+        ? tree.components.flatMap(component => [
+          // A part of the assembly opens on its own to be modeled, as SolidWorks' Open Part opens it.
+          <Row key={component.id} id={component.id} depth={1} icon={<PartIcon />} title={component.title}
+            expanded={open.has(component.id)} onToggle={toggle(component.id)}
+            onActivate={component.step && onOpenPart ? () => onOpenPart(component) : null}
+            menu={component.step && onOpenPart ? [{ id: "open-part", label: "Open Part", onSelect: () => onOpenPart(component) }] : null}
+            {...rowProps} />,
+          ...(open.has(component.id) ? features(component.features, 2) : []),
+        ]).concat(mateRows())
+        : partRows()}
+    </div>
   </div>;
 }
