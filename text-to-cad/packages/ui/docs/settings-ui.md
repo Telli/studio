@@ -1455,7 +1455,8 @@ in a box with a note it only hands the keyboard back to the model.
 
 Where the host leaves it to the person (`asked` on the shell: edit mode's workspace, `step/edit/`), the box does not
 follow what is picked or drawn. It opens when asked for (Ask, in the toolbar or in the bar beside a pick), on what is
-picked, or on the file as a whole with nothing picked, and the keyboard is in its note; until then it stays shut
+picked (a feature the person chose is its line in the part's script, a range of that file, with a chip of the Part
+Navigator's name for it), or on the file as a whole with nothing picked, and the keyboard is in its note; until then it stays shut
 however much is picked or drawn, and a note already written keeps it open as ever. Escape, a send, the X and the picks being let go of put the ask away (the
 host's: `step/edit/selectionBarState.js`), and so does a command or a sketch opening.
 

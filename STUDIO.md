@@ -456,7 +456,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   selected is not a pick, or the bar would stand over the part all the while it is worked on. Ask,
   in the bar or the toolbar, opens Quick Edit, which the workspace shows only once asked (with
   nothing picked, on the part as a whole); Escape, a send, its X, the picks emptying or a command or
-  sketch opening put it away (`selectionBarState.js`). Simple view's Quick Edit is as it always was.
+  sketch opening put it away (`selectionBarState.js`). A feature chosen goes to the agent as a
+  `text-range` reference to its line in its script, with a chip named as the Part Navigator names it
+  ("Hole (6)"), the chip's X letting go of the pick (`featureAsk.jsx`; the script's absolute path is the
+  engine's `root` with the feature's `file`). Simple view's Quick Edit is as it always was.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode

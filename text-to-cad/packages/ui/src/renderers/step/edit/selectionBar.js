@@ -4,7 +4,9 @@
  * wires it). Picking a face, an edge or a feature with no command open offers a small bar beside it: Ask,
  * Add to context, Annotate and Edit.
  */
+import { validatePromptReference } from "@text-to-cad/core/prompt";
 import { treeFeatures } from "./editMode.js";
+import { navigatorLabel } from "./nx.js";
 
 /** How far the bar stands from what it is about (`GAP`), and from the view's edges and below the toolbar (`EDGE`), in px. */
 export const SELECTION_BAR_GAP_PX = 10;
@@ -138,4 +140,66 @@ export function screenBox(runtime, points, width, height) {
     left = Math.min(left, px); right = Math.max(right, px); top = Math.min(top, py); bottom = Math.max(bottom, py);
   }
   return Number.isFinite(left) ? { left, top, right, bottom } : null;
+}
+
+const slashed = path => String(path ?? "").replace(/\\/g, "/");
+
+/**
+ * Where the part's project starts, as an absolute path with `/`s, which the files a feature is in (`file`, named from it) are
+ * relative to: what the engine says of the state it read (`state.root`), else its script's own path (`state.script`) less the
+ * script's name among the files it read (`state.files`, the longest if two agree). Empty where neither says, never a guess.
+ */
+export function projectRoot(state) {
+  const root = slashed(state?.root).replace(/\/+$/, "");
+  if (root) return root;
+  const script = slashed(state?.script);
+  const own = Object.keys(state?.files || {}).map(slashed).filter(name => name && script.endsWith(`/${name}`)).sort((a, b) => b.length - a.length)[0];
+  return own ? script.slice(0, script.length - own.length - 1) : "";
+}
+
+/**
+ * A row as the Part Navigator numbers it without the name given in the tree ("Hole (6)"), in a part's tree or in whichever
+ * part of an assembly has it; empty for a row it does not list.
+ */
+export function rowLabel(tree, id) {
+  const lists = tree?.assembly ? (tree.components || []).map(component => component.features) : [tree?.features || []];
+  for (const features of lists) {
+    const label = navigatorLabel(features, id);
+    if (label) return label;
+  }
+  return "";
+}
+
+/**
+ * The statement a feature (or sketch) chosen (`pick`, from `featurePick`) stands for in its script, as a prompt reference: a
+ * `text-range` over its line, whole, in the script's absolute path (the feature's `file` is named from the project's top,
+ * `root`, unless it lies outside it, when the engine names it in full), under the words the Part Navigator names it by
+ * (`label`: "Hole (6)"). What Ask carries for a feature, as a face's selector is what it carries for a face; Add to context delivers the
+ * same. Null where it cannot be told: no project, or no file or line, or a path the prompt does not take.
+ */
+export function featureReference({ root, pick, label }) {
+  const source = pick?.sketch || pick?.feature;
+  const file = slashed(source?.file), line = Number(source?.line);
+  if (!file || !Number.isSafeInteger(line) || line < 1) return null;
+  const path = /^(?:[A-Za-z]:)?\//.test(file) ? file : root ? `${slashed(root).replace(/\/+$/, "")}/${file}` : "";
+  if (!path) return null;
+  try {
+    return validatePromptReference({ resource: { kind: "workspace-file", path },
+      target: { kind: "text-range", start: { line: line - 1, character: 0 }, end: { line, character: 0 } }, ...(label ? { label } : {}) });
+  } catch {
+    return null;
+  }
+}
+
+const NOTHING = Object.freeze([]);
+
+/**
+ * What the picks are, in the prompt grammar and as Quick Edit's chips: the model's selection (`selection`, its `selectionChips`)
+ * where it can be read (`selectionActionVisible`), the same arrays the surface read; and the feature chosen (`feature`:
+ * `{ reference, chip }`, `featureAsk`) after it. What Ask has Quick Edit carry, and what Add to context delivers.
+ */
+export function pickedReferences({ selectionActionVisible, selection, selectionChips, feature }) {
+  const model = Boolean(selectionActionVisible);
+  if (!feature) return { references: model ? selection : NOTHING, chips: model ? selectionChips : NOTHING };
+  return { references: [...(model ? selection : NOTHING), feature.reference], chips: [...(model ? selectionChips : NOTHING), feature.chip] };
 }

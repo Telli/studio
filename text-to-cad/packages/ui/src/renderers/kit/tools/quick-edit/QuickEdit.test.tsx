@@ -144,6 +144,24 @@ it('Escape in an empty box it was asked for is the viewer\'s own, whose answer c
   expect(escape).toHaveBeenCalledTimes(1);
 });
 
+it('carries a range of a script as it carries a face: counted by its name, in the context as the reference it is', async () => {
+  const send = vi.fn(async () => ({ status: 'sent' as const, partIds: [] }));
+  const script = { kind: 'workspace-file', path: '/models/parts/bracket.py' } as const;
+  const range = { resource: script, target: { kind: 'text-range', start: { line: 16, character: 0 }, end: { line: 17, character: 0 } }, label: 'Hole (6)' } as const;
+  mount(testHost({ promptContext: { getSnapshot: () => composer, subscribe: () => () => {}, deliver: vi.fn(), send } as never }), { asked: true, references: [range] });
+  // With no chips of the renderer's, the header counts it, and says what it is by its label.
+  expect(box()!.querySelector('[data-quick-edit-chip="references"]')!.textContent).toBe('1 ref');
+  expect(quickEditReferenceIds([range])).toEqual(['Hole (6)']);
+  write('Make it 3.4 mm.');
+  fireEvent.click(within(box()!).getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  const context = (send.mock.calls[0] as unknown[])[0] as any;
+  expect(context.parts.map((part: any) => part.id)).toEqual(['text', 'file', 'reference-0']);
+  expect(context.parts[2].reference).toMatchObject({ resource: script, target: { kind: 'text-range' }, label: 'Hole (6)' });
+  // A range with no label is counted by its place: 17:1–18:1.
+  expect(quickEditReferenceIds([{ ...range, label: undefined }])).toEqual(['17:1–18:1']);
+});
+
 it('follows what it would carry, as it always has, unless the host says otherwise', () => {
   const { update } = mount(testHost(), { asked: null });
   expect(box()).toBeNull();

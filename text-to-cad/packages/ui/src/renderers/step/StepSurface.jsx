@@ -146,7 +146,8 @@ import EditLayoutSwitch from "./edit/EditLayoutSwitch.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
 import EditTimeline from "./edit/EditTimeline.jsx";
 import EditSelectionBar from "./edit/EditSelectionBar.jsx";
-import { boundsCorners, featurePick, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
+import { featureAsk } from "./edit/featureAsk.jsx";
+import { boundsCorners, featurePick, pickedReferences, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
 import { chosenThrough, useAsked, useChosenFeature } from "./edit/selectionBarState.js";
 import { DRAWING_TOOL_ICONS, ToolIcon } from "./edit/cadIcons.jsx";
 import { drawingToolVariant } from "../../annotation/toolbar.jsx";
@@ -3688,8 +3689,14 @@ function StepSurfaceBody({ view, data }) {
   // on the part as a whole. Escape, a send, Clear (the box's X) or the picks emptying put it away, and so does a command or a sketch opening.
   const { asked, ask, clear: clearAsked } = useAsked({ editing, picked: selectionCount > 0 || Boolean(rowPick),
     held: commandOpen || sketchOpen, file: selectedKey });
-  // Quick Edit carries the selection when it shows (`quickEditShown`) and the selection can be read.
-  const quickEditCarries = quickEditShown({ editing, asked, selectionActionVisible }) && selectionActionVisible;
+  // Ask on a feature carries the statement that makes it (`featureAsk`): one reference to its line in its script, and a chip naming it
+  // whose X lets go of the pick. Where the model has faces or edges picked they are what Ask carries instead.
+  const featureCarried = useMemo(() => (!modelPicks.length && rowPick ? featureAsk({ state: edit.state, tree: editTree, pick: rowPick, onRemove: dropFeature }) : null),
+    [modelPicks.length, rowPick, edit.state, editTree, dropFeature]);
+  // What the picks are, in the prompt grammar and as chips: what Quick Edit carries when it shows (`quickEditShown`), and what Add to context will deliver.
+  const carried = useMemo(() => pickedReferences({ selectionActionVisible, selection: promptSelection, selectionChips: referenceChips, feature: featureCarried }),
+    [selectionActionVisible, promptSelection, referenceChips, featureCarried]);
+  const quickEditOpen = quickEditShown({ editing, asked, selectionActionVisible });
   // Which feature made a face is not known yet, so a face has no Edit; a row is its own feature (`selectionBarActions`).
   const barActions = selectionToolActive && !previewing && !asked
     ? selectionBarActions({ editing, picks: barPicks, commandOpen, sketching: sketchOpen, busy: edit.saving || edit.rolling }) : EMPTY_LIST;
@@ -3800,7 +3807,7 @@ function StepSurfaceBody({ view, data }) {
     // The edit chrome's icons are drawn from this sprite, which the frame mounts once.
     iconSprite={<NxIconSprite />} drawingToolIcons={DRAWING_TOOL_ICONS}
     // Quick Edit shows with a selection to carry in Simple view, as always, and in the workspace once Ask has asked for it.
-    references={quickEditCarries ? promptSelection : EMPTY_LIST} referenceChips={quickEditCarries ? referenceChips : EMPTY_LIST}
+    references={quickEditOpen ? carried.references : EMPTY_LIST} referenceChips={quickEditOpen ? carried.chips : EMPTY_LIST}
     quickEditAsked={editing ? asked : null} nameReference={nameReference}
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
       disabled={layoutHeld} /> : null}

@@ -137,3 +137,26 @@ it('a row the Part Navigator or the timeline selects is chosen; clearing the sel
   handed.select(null);
   expect([edit.select.mock.calls.at(-1), choose.mock.calls.length]).toEqual([[null], 1]);
 });
+
+it('letting go of the feature chosen, as its chip\'s X does, ends the ask that was about it alone; another pick keeps it', () => {
+  type Props = { editing: boolean; held: boolean; file: string; others: boolean };
+  const both = ({ others, ...state }: Props) => {
+    const feature = useChosenFeature(state);
+    // What is picked: the feature chosen, and what else (a face).
+    const asking = useAsked({ ...state, picked: feature.chosen || others });
+    return { feature, asking };
+  };
+  const base = { ...PART, others: false };
+  const view = renderHook((props: Props) => both(props), { initialProps: base });
+  act(() => view.result.current.feature.choose());
+  act(() => view.result.current.asking.ask());
+  expect(view.result.current.asking.asked).toBe(true);
+  act(() => view.result.current.feature.drop());
+  expect(view.result.current.asking.asked).toBe(false);
+  // With a face picked as well, the ask is about it too, and stays.
+  view.rerender({ ...base, others: true });
+  act(() => view.result.current.feature.choose());
+  act(() => view.result.current.asking.ask());
+  act(() => view.result.current.feature.drop());
+  expect(view.result.current.asking.asked).toBe(true);
+});

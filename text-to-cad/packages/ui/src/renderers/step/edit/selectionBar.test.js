@@ -3,8 +3,12 @@ import test from "node:test";
 
 import * as THREE from "three";
 
+import { formatPromptMessage, formatPromptReference } from "@text-to-cad/core/prompt";
+import { createQuickEditContext } from "../../kit/tools/quick-edit/quickEditPrompt.js";
 import { featureTree } from "./editMode.js";
-import { boundsCorners, featurePick, placeBar, quickEditShown, screenBox, selectionBarActions } from "./selectionBar.js";
+import {
+  boundsCorners, featurePick, featureReference, pickedReferences, placeBar, projectRoot, quickEditShown, rowLabel, screenBox, selectionBarActions
+} from "./selectionBar.js";
 
 // The workspace with Select in hand and nothing open: what the bar is offered under.
 const WORKSPACE = { editing: true, commandOpen: false, sketching: false, featureOf: () => null };
@@ -189,4 +193,120 @@ test("puts the model's points on the screen where the camera sees them, the mode
   assert.equal(screenBox(runtime, [[0, 0, 500]], 600, 400), null);
   assert.equal(screenBox(runtime, [], 600, 400), null);
   assert.deepEqual(rounded(screenBox(runtime, [...plate, [0, 0, 500]], 600, 400)), { left: 260, top: 210, right: 360, bottom: 250 });
+});
+
+// The sample bracket as the engine reads it: two extrudes a command made from sketches, an Edge Blend and a Hole written
+// by hand, and a Pattern. The Part Navigator numbers them, a sketch just before the extrude that takes it: Sketch (1),
+// Extrude (2), Sketch (3), Extrude (4), Edge Blend (5), Hole (6), Pattern Feature (7).
+const BRACKET_STATE = {
+  units: "mm", name: "bracket", root: "/work/bracket", script: "/work/bracket/bracket.py", files: { "bracket.py": "ab12" },
+  features: [
+    { key: "e1", kind: "Boss-Extrude", name: "plate", file: "bracket.py", line: 8, edit: command, sketch: sketched("SKETCH_000", 5) },
+    { key: "e2", kind: "Boss-Extrude", name: "plate", file: "bracket.py", line: 13, edit: command, sketch: sketched("SKETCH_001", 10) },
+    { key: "b1", kind: "Fillet", name: "plate", file: "bracket.py", line: 15 },
+    { key: "h1", kind: "Hole", name: "plate", file: "bracket.py", line: 17 },
+    { key: "p1", kind: "Pattern", name: "plate", file: "bracket.py", line: 19 },
+  ],
+};
+const BRACKET = featureTree(BRACKET_STATE);
+const STEP = { kind: "workspace-file", path: "/work/bracket/bracket.step", revision: "r1" };
+
+test("works out where the project starts: the engine says, else the script's own path says", () => {
+  assert.equal(projectRoot({ root: "/work/bracket" }), "/work/bracket");
+  assert.equal(projectRoot({ root: "C:\\work\\bracket\\" }), "C:/work/bracket");
+  // A reply that says none: the script's path less its own name among the files read, the longest if two agree.
+  assert.equal(projectRoot({ script: "/work/bracket/plate.py", files: { "plate.py": "a" } }), "/work/bracket");
+  assert.equal(projectRoot({ script: "/work/bracket/parts/plate.py", files: { "plate.py": "a", "parts/plate.py": "b", "sizes.py": "c" } }), "/work/bracket");
+  assert.equal(projectRoot({ script: "C:\\work\\plate.py", files: { "plate.py": "a" } }), "C:/work");
+  // Nothing to go by is no root, never a guess.
+  assert.equal(projectRoot({ script: "/work/bracket/plate.py", files: { "sizes.py": "a" } }), "");
+  assert.equal(projectRoot({}), "");
+  assert.equal(projectRoot(null), "");
+});
+
+test("labels a row as the Part Navigator numbers it", () => {
+  assert.equal(rowLabel(BRACKET, "h1"), "Hole (6)");
+  assert.equal(rowLabel(BRACKET, "e2"), "Extrude (4)");
+  assert.equal(rowLabel(BRACKET, "sketch:e2"), "Sketch (3)");
+  assert.equal(rowLabel(BRACKET, "nowhere"), "");
+  // An assembly's parts are numbered each from its own start.
+  const assembly = featureTree({ components: [
+    { file: "base.py", name: "base", features: [{ key: "c1", kind: "Boss-Extrude", name: "base", file: "base.py", line: 3 }] },
+    { file: "pin.py", name: "pin", features: [{ key: "d1", kind: "Hole", name: "pin", file: "pin.py", line: 4 }] }] });
+  assert.deepEqual([rowLabel(assembly, "c1"), rowLabel(assembly, "d1")], ["Extrude (1)", "Hole (1)"]);
+});
+
+test("names a feature's statement as a range of its script: its whole line, in the script's absolute path, under its Part Navigator name", () => {
+  const reference = featureReference({ root: "/work/bracket", pick: featurePick(BRACKET, "h1"), label: "Hole (6)" });
+  assert.deepEqual(reference, {
+    resource: { kind: "workspace-file", path: "/work/bracket/bracket.py" },
+    target: { kind: "text-range", start: { line: 16, character: 0 }, end: { line: 17, character: 0 } },
+    label: "Hole (6)",
+  });
+  // As the prompt spells a range: line 17, whole.
+  assert.equal(formatPromptReference(reference), "/work/bracket/bracket.py:17:1-18:1");
+  // A sketch picked is its own statement, not the extrude's it was made for.
+  const sketch = featureReference({ root: "/work/bracket", pick: featurePick(BRACKET, "sketch:e2"), label: "Sketch (3)" });
+  assert.equal(formatPromptReference(sketch), "/work/bracket/bracket.py:10:1-11:1");
+  // A file the engine names in full (outside the project's top folder) is kept as it is; a root's trailing slash makes no double.
+  const outside = featureTree({ features: [{ key: "h2", kind: "Hole", name: "plate", file: "/shared/holes.py", line: 3 }] });
+  assert.equal(formatPromptReference(featureReference({ root: "/work/bracket/", pick: featurePick(outside, "h2"), label: "Hole (1)" })), "/shared/holes.py:3:1-4:1");
+  assert.equal(formatPromptReference(featureReference({ root: "/work/bracket/", pick: featurePick(BRACKET, "b1"), label: "Edge Blend (5)" })),
+    "/work/bracket/bracket.py:15:1-16:1");
+});
+
+test("makes no reference where it would have to guess: no project, no file or line, a path the prompt refuses", () => {
+  const hole = featurePick(BRACKET, "h1");
+  assert.equal(featureReference({ root: "", pick: hole, label: "Hole (6)" }), null);
+  const moved = (patch) => ({ ...hole, feature: { ...hole.feature, ...patch } });
+  assert.equal(featureReference({ root: "/work/bracket", pick: moved({ file: "" }), label: "Hole (6)" }), null);
+  assert.equal(featureReference({ root: "/work/bracket", pick: moved({ line: 0 }), label: "Hole (6)" }), null);
+  assert.equal(featureReference({ root: "/work/bracket", pick: moved({ line: undefined }), label: "Hole (6)" }), null);
+  assert.equal(featureReference({ root: "/work/bracket", pick: moved({ file: "../other.py" }), label: "Hole (6)" }), null);
+  // A sketch the script does not name has no place of its own to point at, and the feature's is not its.
+  const profile = featurePick(featureTree({ features: [{ key: "e9", kind: "Boss-Extrude", name: "plate", file: "bracket.py", line: 8,
+    sketch: { plane: "Top", status: "" } }] }), "sketch:e9");
+  assert.equal(featureReference({ root: "/work/bracket", pick: profile, label: "Sketch (1)" }), null);
+  assert.equal(featureReference({ root: "/work/bracket", pick: null, label: "Hole (6)" }), null);
+});
+
+// What a face is to Quick Edit, as the surface hands it over: a reference in the prompt grammar, and its chip.
+const FACE = { resource: STEP, target: { kind: "cad-selector", selectors: ["o1.f12"] } };
+const FACE_CHIP = { key: "face", label: "bracket · face 12" };
+const HOLE = { reference: featureReference({ root: "/work/bracket", pick: featurePick(BRACKET, "h1"), label: "Hole (6)" }),
+  chip: { key: "feature:h1", label: "Hole (6)" } };
+
+test("carries a face's picks as it always has, the very references and chips the surface read", () => {
+  const selection = [FACE], chips = [FACE_CHIP];
+  const picked = pickedReferences({ selectionActionVisible: true, selection, selectionChips: chips, feature: null });
+  assert.equal(picked.references, selection);
+  assert.equal(picked.chips, chips);
+  // A selection that cannot be read carries nothing.
+  const unread = pickedReferences({ selectionActionVisible: false, selection, selectionChips: chips, feature: null });
+  assert.deepEqual([unread.references, unread.chips], [[], []]);
+});
+
+test("carries the chosen feature's statement, and its chip, when Ask is on a feature", () => {
+  const picked = pickedReferences({ selectionActionVisible: false, selection: [], selectionChips: [], feature: HOLE });
+  assert.deepEqual(picked.references, [HOLE.reference]);
+  assert.deepEqual(picked.chips, [HOLE.chip]);
+  // Beside a selection of parts that can be read, after it.
+  const part = { resource: STEP, target: { kind: "cad-selector", selectors: ["o1"] } };
+  const both = pickedReferences({ selectionActionVisible: true, selection: [part], selectionChips: [{ key: "part", label: "base" }], feature: HOLE });
+  assert.deepEqual(both.references, [part, HOLE.reference]);
+  assert.deepEqual(both.chips.map(chip => chip.key), ["part", "feature:h1"]);
+});
+
+test("puts a feature's statement in the context Quick Edit would send, named for the person as the Part Navigator names it", () => {
+  const { references } = pickedReferences({ selectionActionVisible: false, selection: [], selectionChips: [], feature: HOLE });
+  const context = createQuickEditContext({ resource: STEP, references, text: "Make the hole 3.4 mm." });
+  assert.deepEqual(context.parts.map(part => [part.id, part.kind]), [["text", "text"], ["file", "reference"], ["reference-0", "reference"]]);
+  const range = context.parts[2].reference;
+  assert.deepEqual([range.target.kind, range.label, range.resource.path], ["text-range", "Hole (6)", "/work/bracket/bracket.py"]);
+  assert.equal(formatPromptMessage(context),
+    "Make the hole 3.4 mm.\n\nFile: /work/bracket/bracket.step\nReferences:\n/work/bracket/bracket.py:17:1-18:1");
+  // A face goes as it did, a selector in the STEP.
+  const face = createQuickEditContext({ resource: STEP, references: pickedReferences({ selectionActionVisible: true, selection: [FACE],
+    selectionChips: [FACE_CHIP], feature: null }).references, text: "Round it." });
+  assert.equal(formatPromptMessage(face), "Round it.\n\nFile: /work/bracket/bracket.step\nReferences:\n/work/bracket/bracket.step#o1.f12");
 });
