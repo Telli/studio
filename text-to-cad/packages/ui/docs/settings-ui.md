@@ -1467,8 +1467,11 @@ without the note (`addToContext`, `step/edit/useAddToContext.js`): the file, the
 is the range of its script, named as the Part Navigator names it) and the snapshot Queue would attach, made and handed over inside
 the press. It is offered only where the destination is a composer (`canAddToContext`), so a host with no chat box shows neither
 button. The toolbar's is dimmed with nothing picked, its reason "Select a face, edge or feature first", as the toolbar's dimmed
-buttons give theirs. Once it has gone the picks and the ink are let go of (as a Queue lets go of the box's), so the next one starts
-fresh; a failure keeps them and is said in the viewport's card, in the words Quick Edit shows under its note (`deliveryFailure`).
+buttons give theirs. While a command, a sketch or a panel is open, whose picks are that same selection, the toolbar's Ask and Add to
+context are both dimmed ("Finish or cancel the command first", as Simple view's switch says of the same hold) and the bar is not
+shown: letting the picks go after a delivery or a send would empty the command's. Once it has gone the picks and the ink are let go
+of (as a Queue lets go of the box's), so the next one starts fresh; a failure keeps them and is said in the viewport's card, in the
+words Quick Edit shows under its note (`deliveryFailure`).
 
 The person's picks put the keyboard in the note, each one (a pick right after their
 primary press in this view), and so does a first annotation stroke once the pen lifts. A

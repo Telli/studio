@@ -464,8 +464,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   and the snapshot a Queue would attach, into the chat box without sending, and lets go of the picks (and the ink) once they are
   there, so faces, edges and features can be collected and one message written; a failure keeps them and is said in the viewport's card.
   It is there only where the host has a chat box to fill (`canAddToContext`: never in Jake's standalone viewer), and the toolbar's is
-  dimmed, saying "Select a face, edge or feature first", until something is picked. Quick Edit's X and a send let go of a feature
-  chosen too, as a press on the background does. Simple view's Quick Edit is as it always was.
+  dimmed, saying "Select a face, edge or feature first", until something is picked. While a command, a sketch or a panel is open its
+  picks are the model's selection (an Edge Blend's edges), which a delivery or a send would let go of, so the toolbar's Ask and Add to
+  context are both dimmed, saying "Finish or cancel the command first" (Simple view's switch says the same of the same hold), and the
+  bar is not shown. Quick Edit's X and a send let go of a feature chosen too, as a press on the background does. Simple view's Quick
+  Edit is as it always was.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode

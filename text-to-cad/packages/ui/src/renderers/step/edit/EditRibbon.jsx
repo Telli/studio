@@ -42,8 +42,10 @@ const TAB_CLASS = "flex items-center border-b-2 border-transparent px-2.5 text-t
 const TITLE_CLASS = "text-micro uppercase leading-3 tracking-wider text-muted-foreground";
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
-// What Add to context says while it has nothing to add.
+// What the agent's buttons say while they cannot be used: Add to context with nothing to add, and both while a command is open
+// (the words Simple view's switch gives for the same hold).
 const NOTHING_PICKED_WORDS = "Select a face, edge or feature first";
+const COMMAND_OPEN_WORDS = "Finish or cancel the command first";
 // The More button's box, before it is first laid out.
 const MORE_WIDTH_PX = 46;
 const ALL_NAMED = Object.freeze({ compact: false, count: Infinity });
@@ -263,9 +265,12 @@ function searchable(groups, extras = []) {
  *   `onAddContext` are the agent's buttons, each left out (and the group with them) while the host
  *   gives none (Add to context needs a chat box to fill). `picked`: there is something for Add to context to add, a face,
  *   an edge or a feature; without, it is dimmed and says what to select, while Ask, which asks about the part as a whole, is not.
+ *   `held`: a command, a sketch or a panel is open, and the selection is its own (an Edge Blend's edges): both buttons are dimmed
+ *   and say to finish or cancel it first, before anything about what is picked, since picking would not help. The selection bar
+ *   stays out of an open command all the same.
  */
 export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id), onSketch = () => edit.startPicking(), sketchLabel = "Sketch",
-  canOpenParts = false, onNormalTo = null, onAsk = null, onAddContext = null, picked = false, view = null }) {
+  canOpenParts = false, onNormalTo = null, onAsk = null, onAddContext = null, picked = false, held = false, view = null }) {
   const byId = new Map(tools.map(tool => [tool.id, tool]));
   // The tab in front, as NX keeps it while the part is open.
   const [tab, setTab] = useState("solid");
@@ -423,10 +428,14 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     if (id === "sketch") return [sketchCommand];
     const command = EDIT_COMMANDS.find(each => each.id === id);
     if (command) return [commandItem(command)];
-    if (id === "ask") return onAsk ? [{ id, label: "Ask", icon: <AskIcon />, onClick: () => onAsk() }] : [];
+    if (id === "ask") {
+      return onAsk ? [{ id, label: "Ask", icon: <AskIcon />, disabled: held, description: held ? COMMAND_OPEN_WORDS : undefined,
+        onClick: () => onAsk() }] : [];
+    }
     if (id === "add-context") {
-      return onAddContext ? [{ id, label: "Add to context", icon: <AddContextIcon />, disabled: !picked,
-        description: picked ? undefined : NOTHING_PICKED_WORDS, onClick: () => onAddContext() }] : [];
+      const reason = held ? COMMAND_OPEN_WORDS : picked ? undefined : NOTHING_PICKED_WORDS;
+      return onAddContext ? [{ id, label: "Add to context", icon: <AddContextIcon />, disabled: Boolean(reason), description: reason,
+        onClick: () => onAddContext() }] : [];
     }
     return viewerTool(id);
   };

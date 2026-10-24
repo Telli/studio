@@ -92,6 +92,34 @@ it("dims Add to context, saying what to select, until something is picked", asyn
   expect(commandsIn('Ask the agent')).toEqual(['Ask']);
 });
 
+it("dims Ask and Add to context while a command is open, whose picks they would empty, with the reason Simple view's switch gives for the same hold", async () => {
+  const user = userEvent.setup();
+  const onAsk = vi.fn(), onAddContext = vi.fn();
+  const agent = (props: Record<string, unknown> = {}) =>
+    <EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={onAsk} onAddContext={onAddContext} picked {...props} />;
+  const { rerender } = render(agent({ held: true }));
+  const WAIT = 'Finish or cancel the command first';
+  const states = () => ['Ask', 'Add to context'].map(name => {
+    const button = command('Ask the agent', name) as HTMLButtonElement;
+    return [button.disabled, button.getAttribute('aria-description')];
+  });
+  expect(states()).toEqual([[true, WAIT], [true, WAIT]]);
+  await user.click(command('Ask the agent', 'Ask'));
+  await user.click(command('Ask the agent', 'Add to context'));
+  expect([onAsk, onAddContext].map(handler => handler.mock.calls.length)).toEqual([0, 0]);
+  // With nothing picked too, the command is what they wait for: picking would not help.
+  rerender(agent({ held: true, picked: false }));
+  expect(states()).toEqual([[true, WAIT], [true, WAIT]]);
+  // Closed, Ask is there again, and Add to context as it is with and without a pick.
+  rerender(agent());
+  expect(states()).toEqual([[false, null], [false, null]]);
+  await user.click(command('Ask the agent', 'Ask'));
+  await user.click(command('Ask the agent', 'Add to context'));
+  expect([onAsk, onAddContext].map(handler => handler.mock.calls.length)).toEqual([1, 1]);
+  rerender(agent({ picked: false }));
+  expect(states()).toEqual([[false, null], [true, 'Select a face, edge or feature first']]);
+});
+
 it("heads the toolbar with Solid, Sketch and Inspect, Assemble only for an assembly, and Drafting where a part has its sheet", () => {
   const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
   expect(tabNames()).toEqual(['Solid', 'Sketch', 'Inspect', 'Drafting']);

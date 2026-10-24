@@ -90,6 +90,37 @@ it('takes one press at a time, and the next starts fresh once the last has settl
   expect(chat.deliver).toHaveBeenCalledTimes(3);
 });
 
+it('waits while a command is open, whose picks are the selection, and takes the press after it has closed', () => {
+  const chat = chatBox();
+  const view = adding(chat.host, { held: true });
+  // What is picked is still the picks, and the chat box is still there: the toolbar is the one to say it waits.
+  expect([view.result.current.offered, view.result.current.picked]).toEqual([true, true]);
+  act(() => view.result.current.add());
+  expect(chat.deliver).not.toHaveBeenCalled();
+  expect([view.onAdded, view.onFailed].map(callback => callback.mock.calls.length)).toEqual([0, 0]);
+  view.rerender({ held: false });
+  act(() => view.result.current.add());
+  expect(chat.deliver).toHaveBeenCalledTimes(1);
+});
+
+it("keeps the picks of a command that opens while the chat box is still answering, and still says if it refuses", async () => {
+  const chat = chatBox();
+  const view = adding(chat.host);
+  act(() => view.result.current.add());
+  view.rerender({ held: true });
+  await chat.answer({ status: 'added', partIds: [] });
+  // The context is in the chat box, but the selection is the command's now: it is not let go of.
+  expect([view.onAdded, view.onFailed].map(callback => callback.mock.calls.length)).toEqual([0, 0]);
+  // The press is spent: the next, once the command has closed, is taken, and a refusal is said whether or not a command is open.
+  view.rerender({ held: false });
+  act(() => view.result.current.add());
+  expect(chat.deliver).toHaveBeenCalledTimes(2);
+  view.rerender({ held: true });
+  await chat.answer({ status: 'failed', message: 'Wait for the last message to reach the chat.' });
+  expect(view.onFailed).toHaveBeenCalledWith('Wait for the last message to reach the chat.');
+  expect(view.onAdded).not.toHaveBeenCalled();
+});
+
 it('has nothing to add with nothing picked: a file alone is no pick', () => {
   const chat = chatBox();
   const view = adding(chat.host, { references: [] });

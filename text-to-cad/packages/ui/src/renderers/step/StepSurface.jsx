@@ -3775,8 +3775,10 @@ function StepSurfaceBody({ view, data }) {
   const clearSelected = () => { clearAssemblySelection(); measure.select([]); clearAsked(); dropFeature(); };
   // Where the host has a chat box to fill, the selection bar's Add to context and the toolbar's put what Ask carries (`carried`) there with
   // no note and nothing sent (`useAddToContext`). Once it is there the picks are let go of, and the ink with them (it went in the snapshot), as
-  // a Queue lets go of both, so the next one starts fresh; if the box does not take it they are kept, and the viewport says why.
+  // a Queue lets go of both, so the next one starts fresh; if the box does not take it they are kept, and the viewport says why. While a
+  // command or a sketch is open the selection is its own (an Edge Blend's edges), so it waits, and the toolbar's buttons say so.
   const addContext = useAddToContext({ resource: promptResource, references: carried.references, prompt: shell.frame.quickEditPrompt,
+    held: commandOpen || sketchOpen,
     onAdded: () => { clearSelected(); if (shell.frame.annotation.hasAnnotation) shell.frame.annotation.forget(); },
     onFailed: reportActionError });
 
@@ -3828,7 +3830,7 @@ function StepSurfaceBody({ view, data }) {
     ribbon={editing ? (stripTools, view) => <EditRibbon tools={stripTools} view={view} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
       sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)}
       onNormalTo={normalTarget ? edit.lookNormalTo : null} onAsk={ask}
-      onAddContext={addContext.offered ? addContext.add : null} picked={addContext.picked} /> : null}
+      onAddContext={addContext.offered ? addContext.add : null} picked={addContext.picked} held={commandOpen || sketchOpen} /> : null}
     leftDock={editing ? <EditBrowser edit={editWithRows} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
       onDeselect={deselectReference} /> : null}

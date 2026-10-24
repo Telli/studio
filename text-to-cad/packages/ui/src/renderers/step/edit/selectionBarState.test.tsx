@@ -45,7 +45,7 @@ it('is cleared when a command or a sketch opens, and asking while one is open is
   act(() => view.result.current.ask());
   view.show({ held: true });
   expect(view.result.current.asked).toBe(false);
-  // Asked with the command already open (the toolbar's Ask is there all the while), it stays while that one is.
+  // Asked with the command already open (the toolbar's Ask waits for it now, but the latch does not rely on that), it stays while that one is.
   act(() => view.result.current.ask());
   expect(view.result.current.asked).toBe(true);
   view.show({ held: true, picked: true });
