@@ -41,11 +41,13 @@ export function renderableMeshParts(meshData) {
  * by every layer, so no two of them can disagree about what is on screen.
  *
  * `edgeRuntimes` are the selector and display-edge runtimes as POSED (the layers own those);
- * they decide whether the topology linework has anything to draw.
+ * they decide whether the topology linework has anything to draw. `selectionColor`: the colour a pick
+ * and what the pointer rests on are lit in, in place of the viewer's own (the workspace's orange):
+ * every layer that lights one reads it from the edge settings here.
  */
 export function useStepViewPolicy({
   meshData, themeSettings, displaySettings, renderMode, renderConfiguration, renderPartsIndividually,
-  pickMode, pickableParts, pickableFaces, pickableEdges, hiddenPartIds, selectedPartIds, focusedPartId
+  pickMode, pickableParts, pickableFaces, pickableEdges, hiddenPartIds, selectedPartIds, focusedPartId, selectionColor = null
 }) {
   const resolveViewerRenderState = useMemo(() => createViewerRenderStateResolver(), []);
   const normalizedViewerRenderState = useMemo(() => resolveViewerRenderState({
@@ -76,7 +78,10 @@ export function useStepViewPolicy({
   const explodedViewActive = normalizedExplodedSettings.enabled && explodablePartCount > 1;
   const effectiveRenderPartsIndividually = renderPartsIndividually ||
     explodedViewActive;
-  const displayEdgeSettings = normalizedViewerRenderState.edgeSettings;
+  const resolvedEdgeSettings = normalizedViewerRenderState.edgeSettings;
+  const displayEdgeSettings = useMemo(() => (selectionColor
+    ? { ...resolvedEdgeSettings, highlightColor: selectionColor, hoverColor: selectionColor }
+    : resolvedEdgeSettings), [resolvedEdgeSettings, selectionColor]);
   const wireframeMode = displayModeIsWireframe(normalizedDisplayMode);
   const displayModeForceEdges = !explicitViewPolicy && displayModeForcesEdges(normalizedDisplayMode);
   const displayModeThroughEdges = !explicitViewPolicy && displayModeShowsThroughEdges(normalizedDisplayMode);

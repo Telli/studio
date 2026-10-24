@@ -9,6 +9,10 @@ import { useCallback } from "react";
  */
 export const LAYOUTS = Object.freeze(["manual", "ai"]);
 
+/** A pick on the model laid out for modeling it by hand (the workspace), and what the pointer rests on: orange, as the
+ * design has the selection (its walkthrough's selected face). The ai layout keeps the viewer's own colour. */
+export const WORKSPACE_SELECTION_COLOR = "#ff9a2e";
+
 /**
  * The layout and the way to change it, from the shell's services: `preferences` (the tab's
  * settings) and `onPreferenceChange` (its writer).

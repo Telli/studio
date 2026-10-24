@@ -352,7 +352,9 @@ export default function SheetEditor({ edit, colorScheme = "light" }) {
   const said = view?.error || note || (sheet?.warnings?.length ? sheet.warnings[0] : "")
     || sheetHint({ tool, first: picks[0], selected, busy });
   const failed = Boolean(view?.error);
-  return <div role="region" aria-label="Sheet" data-cad-sheet-editor="" className="absolute inset-0 z-20 flex flex-col bg-background">
+  // Up in the view under the workspace's toolbar, which floats over the view's top (`--cad-workspace-top`).
+  return <div role="region" aria-label="Sheet" data-cad-sheet-editor="" className="absolute inset-x-0 bottom-0 z-20 flex flex-col bg-background"
+    style={{ top: "var(--cad-workspace-top, 0px)" }}>
     <div ref={drawingView.containerRef} className="relative min-h-0 flex-1 overflow-hidden">
       <canvas ref={drawingView.canvasRef} className="absolute inset-0 touch-none" aria-label={`Sheet ${index} of ${count}`} />
       {!prepared ? <p className="absolute inset-0 flex items-center justify-center text-xs text-muted-foreground">

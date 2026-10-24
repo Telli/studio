@@ -1,7 +1,8 @@
-import { VIEWPORT_INSET_PX, VIEWPORT_STACK_BOTTOM, VIEWPORT_TOP_BAR_PX } from "./viewportLayout.js";
+import { VIEWPORT_CORNER_INSET_PX, VIEWPORT_CUBE_SIZE, VIEWPORT_INSET_PX, VIEWPORT_STACK_BOTTOM, VIEWPORT_TOP_BAR_PX } from "./viewportLayout.js";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LoaderCircle, Play, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, LoaderCircle, Play, SlidersHorizontal, X } from "lucide-react";
+import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { Button } from "@text-to-cad/ui/primitives/button";
 import { ToolbarButton } from "@text-to-cad/ui/primitives/toolbar-button";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
@@ -64,6 +65,50 @@ const SIDEBAR_POSITION = Object.freeze({ top: INSET, left: INSET, bottom: INSET 
 // section, under tabs) runs down from under it to the view's bottom inset, clear of Quick Edit's
 // peek (`--cad-quick-edit-peek`, which the sheet publishes while it peeks).
 const SIDEBAR_POSITION_PHONE = Object.freeze({ top: INSET, left: INSET, bottom: `calc(var(--cad-quick-edit-peek, 0px) + ${INSET})` });
+// The workspace (edit mode's frame) floats over the canvas, so the canvas keeps its box in either layout. Its
+// toolbar's height, measured onto the viewport (`--cad-workspace-top`), is what the rest at the top keeps below.
+const WORKSPACE_TOP = "var(--cad-workspace-top, 0px)";
+const UNDER_TOOLBAR = `calc(${WORKSPACE_TOP} + ${INSET})`;
+// The Part Navigator and the dialog stop an inset above the cube's line, as the tool stack does, whichever
+// bottom corner the cube is in.
+const NAVIGATOR_POSITION = Object.freeze({ top: UNDER_TOOLBAR, maxHeight: `calc(100% - ${WORKSPACE_TOP} - ${INSET} - ${VIEWPORT_STACK_BOTTOM})` });
+const DIALOG_PLACE_POSITION = Object.freeze({ top: UNDER_TOOLBAR, bottom: VIEWPORT_STACK_BOTTOM });
+// The timeline runs along the bottom edge up to the cube, its corner's room (the cube's box and an inset) kept
+// on the cube's side. A corner a host leaves to the default reads `auto` (`ViewPlaneControl`), which makes the
+// margin on that side invalid, and an invalid margin is none: the timeline reaches the edge where the cube is not.
+const cubeRoom = (side, fallback) => `calc(var(--cad-viewport-corner-${side}, ${fallback}) + ${VIEWPORT_CUBE_SIZE} + ${INSET})`;
+const TIMELINE_POSITION = Object.freeze({ marginLeft: cubeRoom("left", "auto"), marginRight: cubeRoom("right", `${VIEWPORT_CORNER_INSET_PX}px`) });
+// The workspace fades in as the layout turns to it and out as Simple view takes its place: one opacity
+// transition this long (`duration-150`).
+const WORKSPACE_FADE_MS = 150;
+
+/**
+ * The workspace's chrome as the frame draws it. While `up` (the tools are), what the renderer hands over
+ * (`chrome`); once the layout takes it away (Simple view: the tools still up, nothing handed over), what it
+ * was, kept `leaving` for its fade, then gone. Put away with the rest of the tools (a load, Preview, a compact
+ * view), it is gone at once, and comes back with them at once: `fadeIn` only as the layout turns to it.
+ */
+function useWorkspaceChrome(chrome, up) {
+  const live = Boolean(chrome) && up;
+  const layout = up && !chrome;
+  const kept = useRef(null);
+  const [phase, setPhase] = useState({ live, layout, fadeIn: false, leaving: null });
+  if (phase.live !== live || phase.layout !== layout) {
+    setPhase({
+      live, layout,
+      fadeIn: live && (phase.live ? phase.fadeIn : phase.layout || Boolean(phase.leaving)),
+      leaving: live || !layout ? null : phase.live ? kept.current : phase.leaving
+    });
+  }
+  if (live) kept.current = chrome;
+  useEffect(() => {
+    if (!phase.leaving) return undefined;
+    const done = setTimeout(() => setPhase(current => (current.leaving ? { ...current, leaving: null } : current)), WORKSPACE_FADE_MS);
+    return () => clearTimeout(done);
+  }, [phase.leaving]);
+  if (live) return { chrome, leaving: false, fadeIn: phase.fadeIn };
+  return phase.leaving ? { chrome: phase.leaving, leaving: true, fadeIn: false } : null;
+}
 
 /** One of the view's controls: a tile of the strip, or of Preview's corner, named on hover. */
 /** One of the view's controls in the navbar: its icon button, named on hover, below it. */
@@ -179,19 +224,24 @@ const DOUBLE_PRESS_MS = 600;
  *   `alertBody`, `alertStartsDismissed`: what a renderer lists under the alert it raised itself (a
  *   result's findings: `kit/status/findings.jsx`), a function of the card's `dismiss`, so a row
  *   chosen can put the card away, and whether that alert starts put away (suggestions only).
- *   `ribbon`, `leftDock`: edit mode's frame (`step/edit/`), laid out as a CAD tool lays out its
- *   window: a ribbon across the top, given the strip's tools (the strip then keeps only the view's
- *   own controls), and a design tree docked at the left, beside the viewport rather than over it,
- *   so a camera fit still centres in what is visible; it stands in for the file sidebar. Both are
- *   put away with the rest of the tools (loading, Preview, a compact view), and the dock in a view
- *   too narrow for it and the model.
+ *   `ribbon`, `leftDock`, `bottomDock`, `dialogPlace`: edit mode's frame (`step/edit/`), the workspace,
+ *   laid out as a CAD tool lays out its window and floating over the canvas, so the canvas keeps its
+ *   box, and the model its place, whether the workspace or Simple view's ai layout is up: the toolbar
+ *   across the top (`ribbon`, given the strip's tools; the strip then keeps only the view's own
+ *   controls, under the toolbar with its panels and Quick Edit); the Part Navigator, a card at the
+ *   top-left under it holding `leftDock`, which folds to its title and stands in for the file sidebar;
+ *   beside it the place the open command's dialog mounts in (`dialogPlace`, a ref callback); and the
+ *   timeline along the bottom up to the cube (`bottomDock`, drawing its own surface, as the toolbar
+ *   does). It fades in as the layout turns to it and out as Simple view takes its place, in one
+ *   transition; it is put away at once with the rest of the tools (loading, Preview, a compact view),
+ *   and the Part Navigator in a view too narrow for it and the model.
  *   `navbarControls`: the renderer's own controls at the navbar's right end, put away with the
  *   view's tools (edit mode's switch between modeling by hand and asking the AI).
  */
 export default function RendererShell({ shell, tools, toolPanels = null, subToolbar = null, sidebar = null, sidebarStartsOpen = null, references = null, referenceChips = null, nameReference = null, onClearReferences = null, copySelection = null, contextMenuItems = null,
   onContextMenuOpenChange = null, viewportOverlay = null, previewView = null,
   frameProvider = null, iconSprite = null, drawingToolIcons = null, onCanvasPointerDown = null, onSelectPress = null, onSelectHover = null, selectsAnnotations = true, inkTouches = null,
-  alertBody = null, alertStartsDismissed = false, ribbon = null, leftDock = null, navbarControls = null }) {
+  alertBody = null, alertStartsDismissed = false, ribbon = null, leftDock = null, bottomDock = null, dialogPlace = null, navbarControls = null }) {
   const { t } = useI18n();
   const frame = shell.frame;
   // What a tool's letter takes up (`useRendererShell`'s `onKey`): the strip as drawn now, none
@@ -375,6 +425,24 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
   const editFrame = !toolsHidden && !previewing;
   // Reserve the sidebar tile's room; the toolbar is centred on the viewport whenever it fits.
   const besideSidebarTile = mobile && !previewing && Boolean(sidebar || hasAnimation);
+  // The workspace, over the canvas while the tools are up, and for its fade as Simple view takes its place.
+  const workspace = useWorkspaceChrome(ribbon || leftDock || bottomDock || dialogPlace ? { ribbon, leftDock, bottomDock, dialogPlace } : null, editFrame);
+  // The Part Navigator folded to its title, as long as the frame is up.
+  const [navigatorFolded, setNavigatorFolded] = useState(false);
+  // The toolbar's height, which the strip, its panels and Quick Edit keep below, and a renderer's own
+  // layers over the top of the view (`--cad-workspace-top` on the viewport).
+  const workspaceToolbar = useRef(null);
+  const toolbarUp = Boolean(workspace && !workspace.leaving && workspace.chrome.ribbon);
+  useLayoutEffect(() => {
+    const toolbar = workspaceToolbar.current;
+    const viewport = toolbar?.closest("[data-cad-scene-backdrop]");
+    if (!toolbarUp || !toolbar || !viewport) return undefined;
+    const measure = () => viewport.style.setProperty("--cad-workspace-top", `${Math.round(toolbar.getBoundingClientRect().height)}px`);
+    measure();
+    const resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    resized?.observe(toolbar);
+    return () => { resized?.disconnect(); viewport.style.removeProperty("--cad-workspace-top"); };
+  }, [toolbarUp]);
 
   // The controls at the top — the strip, a wrapped one, and the tool's row under it — are measured
   // into variables, so a tool change or a resize moves what hangs below them without redrawing the
@@ -526,16 +594,13 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
     >
       {iconSprite}
       <div className="relative flex h-full min-w-0 flex-col overflow-hidden bg-transparent">
-        {ribbon && editFrame ? ribbon(tools) : null}
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <div className="@container/cad-frame flex h-full min-w-0">
-            {leftDock && editFrame ? <aside aria-label="Design tree" data-cad-dock="left"
-              className="flex h-full w-60 shrink-0 flex-col border-r border-border bg-background @max-xl/cad-frame:hidden">{leftDock}</aside> : null}
-            {/* The render pane's box. The canvas fills exactly this area, so a camera fit
-                centres in what is visible and a change of the pane's size reaches the scene
-                as a plain resize. Its background is the
-                scene's edge colour: the canvas is resized on the next frame, and one frame of
-                the chrome's background above a dark stage is a visible band. */}
+            {/* The render pane's box. The canvas fills exactly this area, and nothing stands beside
+                it, the workspace included (it floats over it), so the box is the same in either
+                layout and a change of the pane's size reaches the scene as a plain resize. Its
+                background is the scene's edge colour: the canvas is resized on the next frame, and
+                one frame of the chrome's background above a dark stage is a visible band. */}
             <div
               className="@container/cad-viewport pointer-events-none relative min-w-0 flex-1 overflow-hidden"
               data-cad-scene-backdrop={frame.sceneBackdrop}
@@ -602,7 +667,7 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
                   onClick={() => setPreviewPanelOpen(open => !open)} data-preview-settings=""><SlidersHorizontal className="size-3.5" aria-hidden="true" /></NavbarControl>
                 <NavbarControl label={t("preview.exit")} onClick={leavePreview}><X className="size-3.5" aria-hidden="true" /></NavbarControl>
               </>, view.navbarSlot) : null}
-              <PreviewChrome active={previewing}
+              <PreviewChrome active={previewing} top={toolbarUp ? WORKSPACE_TOP : undefined}
                 end={inNavbar ? null : <>
                   <ToolbarButton label={t("preview.settings")} tooltipSide="bottom" active={previewPanelOpen} aria-pressed={previewPanelOpen}
                     disabled={shell.idle} className={stripButtonClass} onClick={() => setPreviewPanelOpen(open => !open)} data-preview-settings="">
@@ -651,6 +716,32 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
               </ViewportTopRight>
 
               </PreviewChrome>
+              {/* The workspace, over the canvas: the toolbar across the top, the Part Navigator at the
+                  top-left under it (folded, its title alone, what it holds kept), the open command's
+                  dialog beside it, and the timeline along the bottom to the cube. The top-right stays
+                  Quick Edit's and the bottom corner the cube's. Inert while it fades. */}
+              {workspace ? <div data-cad-workspace="" inert={workspace.leaving} aria-hidden={workspace.leaving || undefined}
+                className={cn("pointer-events-none absolute inset-0 z-20 transition-opacity duration-150 motion-reduce:transition-none",
+                  workspace.fadeIn && "starting:opacity-0", workspace.leaving && "opacity-0")}>
+                {workspace.chrome.ribbon ? <div ref={workspaceToolbar} className="pointer-events-auto absolute inset-x-0 top-0" data-cad-dock="toolbar">
+                  {workspace.chrome.ribbon(tools)}
+                </div> : null}
+                {workspace.chrome.leftDock ? <aside aria-label="Part Navigator" data-cad-dock="navigator" style={NAVIGATOR_POSITION}
+                  className={cn(FLOATING_SURFACE_CLASS, "pointer-events-auto absolute left-2 flex w-64 flex-col overflow-hidden rounded-lg @max-xl/cad-viewport:hidden")}>
+                  <button type="button" aria-expanded={!navigatorFolded} onClick={() => setNavigatorFolded(folded => !folded)}
+                    className="flex h-7 shrink-0 items-center gap-1 px-2.5 text-left text-micro uppercase leading-3 tracking-wider text-muted-foreground hover:bg-cad-ws-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45">
+                    <span className="min-w-0 flex-1 truncate">Part Navigator</span>
+                    <ChevronDown className={cn("size-3 shrink-0", navigatorFolded && "-rotate-90")} aria-hidden="true" />
+                  </button>
+                  <div hidden={navigatorFolded} className="flex min-h-0 flex-initial flex-col border-t border-border">{workspace.chrome.leftDock}</div>
+                </aside> : null}
+                {workspace.chrome.dialogPlace ? <div ref={workspace.chrome.dialogPlace} data-cad-command-card-place="" style={DIALOG_PLACE_POSITION}
+                  className={cn("pointer-events-none absolute flex w-72 max-w-[calc(100%-1rem)] flex-col items-stretch",
+                    workspace.chrome.leftDock ? "left-[calc(16rem+1rem)] @max-xl/cad-viewport:left-2" : "left-2")} /> : null}
+                {workspace.chrome.bottomDock ? <div className="pointer-events-auto absolute inset-x-0 bottom-0" data-cad-dock="timeline" style={TIMELINE_POSITION}>
+                  {workspace.chrome.bottomDock}
+                </div> : null}
+              </div> : null}
               {/* The file's sections, and for a file with routines the shell's own Animation section after them:
                   the tools view's alone. Preview has no sidebar (hidden, so a tree keeps its state); its
                   routine is its playbar's, under the model. */}

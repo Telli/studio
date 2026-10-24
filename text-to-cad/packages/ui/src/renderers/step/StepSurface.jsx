@@ -149,7 +149,7 @@ import SketchOverlay from "./edit/SketchOverlay.jsx";
 import SheetEditor from "./edit/SheetEditor.jsx";
 import SketchesLayer from "./edit/SketchesLayer.jsx";
 import { NxIconSprite } from "../../lib/nxIcons.generated.jsx";
-import { useEditLayout } from "./edit/editLayout.js";
+import { WORKSPACE_SELECTION_COLOR, useEditLayout } from "./edit/editLayout.js";
 import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
 import {
@@ -3299,8 +3299,8 @@ function StepSurfaceBody({ view, data }) {
   choosingManyRef.current = editing && !edit.sketch && (Boolean(editCommand(edit.command)?.many) || edit.inspecting === "mate");
   // A pick the open command's panel lists, taken out by its X.
   const deselectReference = useCallback(id => setSelectedReferenceIds(current => current.filter(each => each !== id)), [setSelectedReferenceIds]);
-  // The place over the model's top-right corner where an open command's or sketch's panel floats,
-  // in a card of its own apart from the design tree (`edit/EditBrowser.jsx`).
+  // The place beside the Part Navigator, at the view's top-left, where an open command's or sketch's
+  // panel floats in a card of its own (`edit/EditBrowser.jsx`); the frame draws it (`dialogPlace`).
   const [commandCard, setCommandCard] = useState(null);
   useEditShortcuts(edit, editing);
   const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
@@ -3560,7 +3560,9 @@ function StepSurfaceBody({ view, data }) {
     pickMode, pickableParts: layerProps.pickableParts,
     pickableFaces: pickable(viewerPickableFacesForTool), pickableEdges: pickable(viewerPickableEdgesForTool),
     hiddenPartIds: layerProps.hiddenPartIds, selectedPartIds: layerProps.selectedPartIds,
-    focusedPartId: layerProps.focusedPartIds
+    focusedPartId: layerProps.focusedPartIds,
+    // Modeling by hand, a pick on the model is the workspace's orange; Simple view's ai layout keeps the viewer's own.
+    selectionColor: editing ? WORKSPACE_SELECTION_COLOR : null
   });
   lodSelectedPartIdsRef.current = layerProps.selectedPartIds;
 
@@ -3752,6 +3754,7 @@ function StepSurfaceBody({ view, data }) {
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
       onDeselect={deselectReference} /> : null}
+    dialogPlace={editing ? setCommandCard : null}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
       // The drawing's sheet, up in the view, covers the part: the part's own layers, which take
@@ -3779,8 +3782,6 @@ function StepSurfaceBody({ view, data }) {
         {editing && !sheetUp && edit.command && (edit.featurePreview || ["pattern", "hole", "draft", "plane"].includes(edit.preview?.mark))
           ? <PreviewLayer viewport={viewport} preview={edit.featurePreview} mark={edit.preview?.mark ? edit.preview : null} extent={partExtent} />
           : null}
-        {editing ? <div ref={setCommandCard} className="pointer-events-none absolute bottom-2 right-2 top-2 z-30 flex w-72 max-w-[calc(100%-1rem)] flex-col items-stretch"
-          data-cad-command-card-place="" /> : null}
       </>;
     }} />;
 }

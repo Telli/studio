@@ -186,3 +186,42 @@ it("brings the Sketch tab to the front while a sketch is open, and Finish Sketch
   expect(tabNames()).toEqual(['Solid', 'Sketch', 'Inspect', 'Drafting']);
   expect(frontTab()).toBe('Solid');
 });
+
+/**
+ * jsdom lays nothing out: each group is 120px wide with its names and 80px without them, and the row
+ * 400px, less the More button's 46px while it stands beside the row. Returns the undo.
+ */
+function layOutRibbon() {
+  const keys = ['offsetWidth', 'clientWidth'] as const;
+  const saved = keys.map(key => Object.getOwnPropertyDescriptor(HTMLElement.prototype, key));
+  Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get(this: HTMLElement) {
+    if (this.hasAttribute('data-cad-ribbon-group')) return this.closest('[data-compact="true"]') ? 80 : 120;
+    return this.hasAttribute('data-cad-ribbon-more') ? 46 : 0;
+  } });
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get(this: HTMLElement) {
+    if (!this.hasAttribute('data-compact')) return 0;
+    return this.parentElement?.querySelector('[data-cad-ribbon-more]') ? 354 : 400;
+  } });
+  return () => keys.forEach((key, index) => {
+    const descriptor = saved[index];
+    if (descriptor) Object.defineProperty(HTMLElement.prototype, key, descriptor); else delete (HTMLElement.prototype as any)[key];
+  });
+}
+
+it("pins Ask the agent at the toolbar's right end, and still folds the groups into More where the row is narrow", () => {
+  const restore = layOutRibbon();
+  try {
+    render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={vi.fn()} />);
+    // A folded group is hidden from the accessibility tree, so it has no name to be found by.
+    const labelled = (title: string) => document.querySelector<HTMLElement>(`[role="group"][aria-label="${title}"]`)!;
+    // At the row's right end, as the design has it, whatever room there is before it.
+    expect(labelled('Ask the agent').className).toMatch(/\bml-auto\b/);
+    // Six groups need 720px with their names and 480px without: the names go, then the groups at the
+    // right fold behind More, Ask the agent among them.
+    expect(screen.getByRole('button', { name: 'More commands' })).toBeTruthy();
+    expect(['Inspect', 'Select', 'Ask the agent'].map(title => labelled(title).getAttribute('aria-hidden'))).toEqual([null, 'true', 'true']);
+    expect(command('Create', 'Extrude').textContent).toBe('');
+  } finally {
+    restore();
+  }
+});

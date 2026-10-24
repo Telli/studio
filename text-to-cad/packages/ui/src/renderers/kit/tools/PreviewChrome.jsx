@@ -8,15 +8,16 @@ import { VIEWPORT_INSET_PX } from "../shell/viewportLayout.js";
  * view's corners, always there: at the top-right `end` (its settings button and the way out),
  * tiles with no surface under them, the model showing through; under it `panel`, its settings,
  * docked at the view's right edge while they are open. The top-left is the file sidebar's, the
- * Preview's sections (Position, Animation), drawn by the frame (`RendererShell.jsx`).
+ * Preview's sections (Position, Animation), drawn by the frame (`RendererShell.jsx`). `top`: the room a
+ * toolbar across the view's top takes (the workspace's), which `children` keep below.
  *
- * @param {{ active: boolean, end?: import("react").ReactNode, panel?: import("react").ReactNode,
+ * @param {{ active: boolean, top?: string, end?: import("react").ReactNode, panel?: import("react").ReactNode,
  *   children?: import("react").ReactNode }} props
  */
-export default function PreviewChrome({ active, end = null, panel = null, children }) {
+export default function PreviewChrome({ active, top = undefined, end = null, panel = null, children }) {
   return <>
     <div data-preview-chrome="" hidden={active} inert={active}
-      className="pointer-events-none absolute inset-0 z-20">
+      className="pointer-events-none absolute inset-0 z-20" style={top === undefined ? undefined : { top }}>
       <ToolbarTooltipScope enabled={!active}>{children}</ToolbarTooltipScope>
     </div>
     {active ? <ToolbarTooltipScope enabled><div data-preview-controls=""

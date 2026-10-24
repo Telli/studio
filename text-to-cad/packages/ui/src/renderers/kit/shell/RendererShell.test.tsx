@@ -1,0 +1,128 @@
+import React, { forwardRef, useEffect } from 'react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+
+// The workspace's frame (`ribbon`, `leftDock`, `bottomDock` and `dialogPlace`): its toolbar, Part
+// Navigator, dialog and timeline float over the canvas, whose box is the same whether they are up or
+// Simple view's ai layout is in their place, so turning Simple view on or off never moves the model.
+// Under the shell harness, with the WebGL viewport replaced by an empty box that counts its mounts.
+const viewport = vi.hoisted(() => ({ mounts: 0 }));
+vi.mock('../../../../dist/renderers/kit/shell/ShellViewport.js', () => ({
+  default: forwardRef(function MockViewport(props: any) {
+    useEffect(() => { viewport.mounts += 1; }, []);
+    return <div data-mock-viewport=""><canvas />{typeof props.children === 'function'
+      ? props.children({ runtimeRef: { current: null }, hostRef: { current: null }, mountRef: { current: null }, viewerReadyTick: 0, commitScene: () => true })
+      : null}</div>;
+  }),
+}));
+import HarnessRenderer from '../../../../dist/renderers/shell-harness/HarnessRenderer.js';
+import { ViewerHostContext } from '../../../../dist/host/context.js';
+import { testHost } from '../../../../dist/host/testing/host.js';
+import { ViewerMobileContext } from '../../../../dist/file-viewer/responsive.js';
+
+// jsdom lays nothing out: the toolbar is given the height it has in the app.
+const TOOLBAR_HEIGHT = 114;
+const boxOf = Element.prototype.getBoundingClientRect;
+beforeEach(() => {
+  vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    return this.matches('[data-cad-dock="toolbar"]') ? DOMRect.fromRect({ x: 0, y: 0, width: 1280, height: TOOLBAR_HEIGHT }) : boxOf.call(this);
+  };
+  viewport.mounts = 0;
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); Element.prototype.getBoundingClientRect = boxOf; });
+
+// What a renderer hands the frame for its workspace: the toolbar (given the strip's tools), the Part
+// Navigator's content, the timeline, and the place its command's dialog mounts in.
+const places: (HTMLElement | null)[] = [];
+const WORKSPACE = Object.freeze({
+  ribbon: (tools: { id: string }[]) => <div role="toolbar" aria-label="Design">{tools.map(tool => tool.id).join(' ')}</div>,
+  leftDock: <div role="tree" aria-label="Features" />,
+  bottomDock: <div role="toolbar" aria-label="Timeline" />,
+  dialogPlace: (place: HTMLElement | null) => { places.push(place); },
+});
+
+/** The harness's frame with `workspace` handed to it (none: the ai layout); `show` hands it another. */
+function shell(workspace: object = {}) {
+  let settings: any = { toolStack: { panels: {}, collapsed: {} } };
+  const preferences = { getSnapshot: () => settings, subscribe: () => () => {}, update(patch: object) { settings = { ...settings, ...patch }; } };
+  const element = (handed: object) => <ViewerHostContext.Provider value={testHost()}><ViewerMobileContext.Provider value={false}>
+    <HarnessRenderer {...({ source: { id: 'one' }, file: { path: '/models/panel.harness', name: 'panel.harness', kind: 'file' }, document: null,
+      notice: null, onReady() {}, onOpenFile() {}, appearance: { colorScheme: 'light' }, state: undefined, onStateChange() {}, reload() {},
+      data: { services: { preferences }, ...handed } } as any)} />
+  </ViewerMobileContext.Provider></ViewerHostContext.Provider>;
+  const view = render(element(workspace));
+  return { ...view, show: (handed: object) => view.rerender(element(handed)) };
+}
+const backdrop = () => document.querySelector<HTMLElement>('[data-cad-scene-backdrop]')!;
+const dock = (name: string) => document.querySelector<HTMLElement>(`[data-cad-dock="${name}"]`);
+const workspaceLayer = () => document.querySelector<HTMLElement>('[data-cad-workspace]');
+const stage = (name: string) => act(() => { fireEvent.click(document.querySelector(`[data-harness-stage="${name}"]`)!); });
+
+it("keeps the canvas's box when the workspace shows", async () => {
+  const view = shell();
+  const box = backdrop();
+  const frame = box.parentElement;
+  // Nothing stands beside the canvas's box in the frame, in either layout: the chrome is over it.
+  const beside = () => [backdrop().previousElementSibling, backdrop().nextElementSibling];
+  expect(beside()).toEqual([null, null]);
+  view.show(WORKSPACE);
+  expect([backdrop(), backdrop().parentElement, beside()]).toEqual([box, frame, [null, null]]);
+  const toolbar = screen.getByRole('toolbar', { name: 'Design' });
+  for (const part of [toolbar, dock('navigator'), screen.getByRole('toolbar', { name: 'Timeline' })]) expect(box.contains(part)).toBe(true);
+  // The strip's tools are the toolbar's.
+  expect(toolbar.textContent).toBe('select pencil shapes keep pose');
+  // Simple view again: the same box, and the canvas was never mounted again.
+  view.show({});
+  expect([backdrop(), backdrop().parentElement, beside()]).toEqual([box, frame, [null, null]]);
+  await waitFor(() => expect(dock('navigator')).toBeNull());
+  expect([screen.queryByRole('toolbar', { name: 'Design' }), screen.queryByRole('toolbar', { name: 'Timeline' }), viewport.mounts]).toEqual([null, null, 1]);
+});
+
+it("floats the Part Navigator at the canvas's top left, folding to its title, and the dialog's place beside it", () => {
+  places.length = 0;
+  shell(WORKSPACE);
+  const navigator = dock('navigator')!;
+  const fold = within(navigator).getByRole('button', { name: 'Part Navigator' });
+  const tree = within(navigator).getByRole('tree', { name: 'Features' });
+  expect(fold.getAttribute('aria-expanded')).toBe('true');
+  // Folded to its title, what it holds is kept, unseen; unfolded, it is back as it was.
+  fireEvent.click(fold);
+  expect([fold.getAttribute('aria-expanded'), navigator.contains(tree), Boolean(tree.closest('[hidden]'))]).toEqual(['false', true, true]);
+  fireEvent.click(fold);
+  expect([fold.getAttribute('aria-expanded'), Boolean(tree.closest('[hidden]'))]).toEqual(['true', false]);
+  // The dialog's place is the renderer's, beside the navigator rather than in it, and over the canvas
+  // rather than in the canvas's own layer.
+  const place = places.at(-1)!;
+  expect(place.hasAttribute('data-cad-command-card-place')).toBe(true);
+  expect([place.parentElement, navigator.contains(place), place.closest('[data-mock-viewport]')]).toEqual([navigator.parentElement, false, null]);
+});
+
+it("keeps the strip, its panels and Quick Edit under the toolbar, and where they always were in Simple view", () => {
+  const view = shell(WORKSPACE);
+  const chrome = () => document.querySelector<HTMLElement>('[data-preview-chrome]')!;
+  expect(backdrop().style.getPropertyValue('--cad-workspace-top')).toBe(`${TOOLBAR_HEIGHT}px`);
+  expect(chrome().style.top).toBe('var(--cad-workspace-top, 0px)');
+  view.show({});
+  expect([backdrop().style.getPropertyValue('--cad-workspace-top'), chrome().style.top]).toEqual(['', '']);
+});
+
+it("fades the workspace out as Simple view takes its place, taking no presses while it goes, and puts it away at once with the rest of the tools", async () => {
+  const view = shell();
+  view.show(WORKSPACE);
+  const layer = workspaceLayer()!;
+  // One opacity transition, none where motion is reduced.
+  expect(layer.className).toMatch(/\btransition-opacity\b.*\bduration-150\b.*\bmotion-reduce:transition-none\b/);
+  expect(layer.hasAttribute('inert')).toBe(false);
+  view.show({});
+  expect([workspaceLayer(), layer.hasAttribute('inert'), layer.getAttribute('aria-hidden')]).toEqual([layer, true, 'true']);
+  await waitFor(() => expect(workspaceLayer()).toBeNull());
+  // While the model loads, the tools are put away, the workspace with them: at once.
+  view.show(WORKSPACE);
+  expect(workspaceLayer()).not.toBeNull();
+  stage('finding');
+  expect(workspaceLayer()).toBeNull();
+  stage('idle');
+  expect(workspaceLayer()).not.toBeNull();
+});

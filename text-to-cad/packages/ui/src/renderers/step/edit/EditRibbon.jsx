@@ -26,7 +26,9 @@ const LABELS = Object.freeze({ clip: "Edit Section", references: "Select", explo
 const FAMILY_NAMES = Object.freeze({ rectangle: "Rectangle", circle: "Circle", arc: "Arc", slot: "Slot", move_entities: "Move Curve" });
 // Each command a picture large enough to tell apart, as SolidWorks' CommandManager draws its own: every
 // one the icon generator's (`cadIcons.jsx`, `sketchIcons.jsx`), the view's tools as the strip shows them.
-const BUTTON_CLASS = "flex h-[3.875rem] min-w-12 flex-col items-center justify-start gap-1 rounded-md px-1 pt-1.5 text-tiny leading-none text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-6 [&_svg]:shrink-0";
+// Under the pointer the workspace's pale blue (`--cad-ws-hover`), pressed its deeper one (`PRESSED_CLASS`).
+const BUTTON_CLASS = "flex h-[3.875rem] min-w-12 flex-col items-center justify-start gap-1 rounded-md px-1 pt-1.5 text-tiny leading-none text-sidebar-foreground/85 transition-colors hover:bg-cad-ws-hover hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-6 [&_svg]:shrink-0";
+const PRESSED_CLASS = "bg-cad-ws-selected text-sidebar-accent-foreground hover:bg-cad-ws-selected";
 // A long name wraps to two lines under its icon, as SolidWorks' CommandManager sets them; without
 // names (`compact`) the buttons narrow to their icons.
 const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]";
@@ -47,7 +49,7 @@ const ALL_NAMED = Object.freeze({ compact: false, count: Infinity });
 function RibbonButton({ label, icon, active, disabled = false, description, onClick, compact = false, hint }) {
   return <TooltipHint content={hint || label}>
     <button type="button" aria-label={label} aria-pressed={active} aria-description={description} disabled={disabled}
-      className={cn(BUTTON_CLASS, active && "bg-sidebar-accent text-sidebar-accent-foreground", compact && "min-w-9 justify-center pt-0")}
+      className={cn(BUTTON_CLASS, active && PRESSED_CLASS, compact && "min-w-9 justify-center pt-0")}
       onClick={onClick}>
       {icon}
       {compact ? null : <span className={LABEL_CLASS}>{label}</span>}
@@ -55,10 +57,10 @@ function RibbonButton({ label, icon, active, disabled = false, description, onCl
   </TooltipHint>;
 }
 
-/** A group: its buttons over its title, which is its menu (`menu`) where the group has one. */
-function RibbonGroup({ title, folded = false, menu = null, children }) {
+/** A group: its buttons over its title, which is its menu (`menu`) where the group has one; `end`, at the row's right end. */
+function RibbonGroup({ title, folded = false, end = false, menu = null, children }) {
   return <div role="group" aria-label={title} aria-hidden={folded || undefined} data-cad-ribbon-group=""
-    className={cn("flex shrink-0 flex-col items-center border-r border-border px-1 last:border-r-0", folded && "invisible")}>
+    className={cn("flex shrink-0 flex-col items-center border-r border-border px-1 last:border-r-0", end && "ml-auto", folded && "invisible")}>
     <div className="flex items-center gap-0.5 pt-1">{children}</div>
     {menu || <span className={cn(TITLE_CLASS, "pb-1 pt-0.5")}>{title}</span>}
   </div>;
@@ -70,7 +72,9 @@ function RibbonGroup({ title, folded = false, menu = null, children }) {
  * behind the More button (`count`: the groups shown; Infinity, all of them). Each layout is
  * measured before it is painted. A folded group keeps its place, unseen past the edge, so each
  * group's right edge reads the same whichever are folded; the width the groups took with their
- * names is kept, to know when they fit again.
+ * names is kept, to know when they fit again. The edges are the groups' widths summed, as the row
+ * packs them with no gap: where they place themselves (the agent's group at the row's end) does
+ * not change what they need.
  */
 function useRibbonFit(rowRef, moreRef, key) {
   const [fit, setFit] = useState(ALL_NAMED);
@@ -82,7 +86,8 @@ function useRibbonFit(rowRef, moreRef, key) {
     const more = moreRef.current?.offsetWidth || 0;
     // The room the groups have with no More button beside them.
     const room = row.clientWidth + more + 1;
-    const rights = groups.map(group => group.offsetLeft + group.offsetWidth);
+    let packed = 0;
+    const rights = groups.map(group => (packed += group.offsetWidth));
     let next;
     if (row.dataset.compact !== "true") {
       named.current = rights.at(-1);
@@ -115,7 +120,7 @@ function FamilyMenu({ label, items, onPick }) {
     <TooltipHint content={`${label} tools`}>
       <DropdownMenuTrigger asChild>
         <button type="button" aria-label={`${label} tools`}
-          className="-ml-1 flex h-[3.875rem] w-3.5 shrink-0 items-start justify-center rounded-md pt-3 text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-expanded:bg-sidebar-accent [&_svg]:size-3">
+          className="-ml-1 flex h-[3.875rem] w-3.5 shrink-0 items-start justify-center rounded-md pt-3 text-sidebar-foreground/60 transition-colors hover:bg-cad-ws-hover hover:text-sidebar-accent-foreground aria-expanded:bg-cad-ws-selected [&_svg]:size-3">
           <ChevronDown aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
@@ -141,7 +146,7 @@ function GroupItems({ items }) {
 function GroupMenu({ title, items }) {
   return <DropdownMenu modal={false}>
     <DropdownMenuTrigger asChild>
-      <button type="button" className={cn(TITLE_CLASS, "mb-1 mt-0.5 flex items-center gap-0.5 rounded-sm px-1 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 aria-expanded:bg-sidebar-accent")}>
+      <button type="button" className={cn(TITLE_CLASS, "mb-1 mt-0.5 flex items-center gap-0.5 rounded-sm px-1 transition-colors hover:bg-cad-ws-hover hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 aria-expanded:bg-cad-ws-selected")}>
         {title}<ChevronDown className="size-2.5 shrink-0" aria-hidden="true" />
       </button>
     </DropdownMenuTrigger>
@@ -158,7 +163,7 @@ function MoreMenu({ groups }) {
   return <DropdownMenu modal={false}>
     <TooltipHint content="More commands">
       <DropdownMenuTrigger asChild>
-        <button type="button" aria-label="More commands" className={cn(BUTTON_CLASS, "min-w-9 justify-center pt-0 aria-expanded:bg-sidebar-accent")}>
+        <button type="button" aria-label="More commands" className={cn(BUTTON_CLASS, "min-w-9 justify-center pt-0 aria-expanded:bg-cad-ws-selected")}>
           <ChevronsRight aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
@@ -192,7 +197,7 @@ function RibbonGroups({ groups }) {
   const folded = groups.slice(fit.count);
   return <>
     <div ref={rowRef} data-compact={fit.compact ? "true" : "false"} className="relative flex min-w-0 flex-1 items-stretch overflow-hidden">
-      {groups.map((group, index) => <RibbonGroup key={group.title} title={group.title} folded={index >= fit.count}
+      {groups.map((group, index) => <RibbonGroup key={group.title} title={group.title} folded={index >= fit.count} end={group.end}
         menu={group.shown === undefined ? null : <GroupMenu title={group.title} items={group.items} />}>
         {/* A tool's settings (Select's filter) are its chevron after its button, as on the strip. */}
         {shownItems(group).map(({ id, menu, ...item }) => <Fragment key={id}><RibbonButton {...item} compact={fit.compact} />{menu || null}</Fragment>)}
@@ -262,8 +267,8 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   // The tab row: Undo and Redo as small icons at its left, the tabs, and at its right where the part stands.
   const tabRow = (list, active, onPick, end) => <div data-cad-ribbon-tabs="" className="flex h-7 shrink-0 items-center gap-0.5 border-b border-border px-1.5">
     <div className="flex shrink-0 items-center gap-0.5 pr-2">
-      <ToolbarButton label="Undo" disabled={!edit.canUndo} onClick={() => void edit.undo()}><UndoIcon className="size-4" /></ToolbarButton>
-      <ToolbarButton label="Redo" disabled={!edit.canRedo} onClick={() => void edit.redo()}><RedoIcon className="size-4" /></ToolbarButton>
+      <ToolbarButton label="Undo" className="hover:bg-cad-ws-hover" disabled={!edit.canUndo} onClick={() => void edit.undo()}><UndoIcon className="size-4" /></ToolbarButton>
+      <ToolbarButton label="Redo" className="hover:bg-cad-ws-hover" disabled={!edit.canRedo} onClick={() => void edit.redo()}><RedoIcon className="size-4" /></ToolbarButton>
     </div>
     <div role="tablist" aria-label="Ribbon tabs" className="flex h-full shrink-0 items-stretch gap-0.5">
       {list.map(each => <button key={each.id} type="button" role="tab" aria-selected={each.id === active}
@@ -381,7 +386,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   // enough to show every one (`whole`). Every group's title is its menu all the same.
   const whole = (title, items) => ({ title, items, shown: items.length });
   const groupsOf = {
-    solid: () => SOLID_GROUPS.map(group => ({ title: group.title, items: group.items.flatMap(solidItems), shown: group.shown })),
+    solid: () => SOLID_GROUPS.map(group => ({ title: group.title, items: group.items.flatMap(solidItems), shown: group.shown, end: group.end })),
     sketch: () => [whole("Direct Sketch", [sketchCommand])],
     // Inspect: what measures and checks the part, how it is seen, and the part's named sizes.
     inspect: () => [

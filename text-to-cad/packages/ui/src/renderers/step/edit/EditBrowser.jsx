@@ -40,14 +40,15 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
 }
 
 /**
- * Edit mode's browser, docked at the viewer's left as a CAD tool's left pane: the design tree
- * (`EditTree.jsx`: the part, its Parameters, the origin's planes, its features with their
+ * Edit mode's browser, what the Part Navigator holds (the frame's card at the view's top-left): the
+ * design tree (`EditTree.jsx`: the part, its Parameters, the origin's planes, its features with their
  * sketches), and under it the selection's own values, as a PropertyManager shows them: a
  * feature's inputs, or a sketch's dimensions. Every value is typed over to change it; a change is
  * one number in the part's script (`cadgen/edit`). While a modeling command is open, its panel
  * floats in a card of its own over the model (`card`), apart from the tree, where a feature to copy
  * is picked; while a sketch is edited, or the Sketch command waits for its plane, the sketch's
- * PropertyManager does (`SketchPanel.jsx`).
+ * PropertyManager does (`SketchPanel.jsx`). What went wrong is said in that card too, so the Part
+ * Navigator folded to its title never hides it.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, names: ReturnType<typeof import("./editMode.js").featureNames>,
  *   tree: ReturnType<typeof import("./editMode.js").featureTree>, references?: object[],
@@ -56,7 +57,7 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
  *   opened on its own, to be modeled (SolidWorks' Open Part), and `backTo` ({ title, open }) the
  *   assembly a part was opened from; `onEditSketch`: a sketch's
  *   double-click in the tree; `onPlane`: an origin plane picked for a new sketch; `card`: the
- *   place over the model's top-right corner where the open command's panel floats;
+ *   place beside the Part Navigator where the open command's panel floats;
  *   `onDeselect`: a face or edge the command's panel lists taken out of the selection (its id).
  */
 export default function EditBrowser({ edit, names, tree, references = [], onEditSketch = () => {}, onPlane = () => {}, onOpenPart = null,
@@ -109,19 +110,20 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
                 // Expressions, from the Inspect tab: the part's user expressions, typed over to change them.
                 : edit.inspecting === "expressions" ? <ExpressionsPanel edit={edit} />
                   : null;
+  // What went wrong, over what follows it (`ruled`): the open panel, or the tree where there is no card.
+  const error = ruled => edit.error ? <div className={cn("flex items-start gap-1 px-2 py-1.5 text-tiny text-destructive", ruled && "border-b border-border")} role="alert">
+    <span className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
+      {edit.error}
+      {edit.redraw ? <Button type="button" variant="outline" size="sm" className={FILE_SHEET_COMPACT_BUTTON_CLASSES}
+        onClick={edit.askRedraw}>Redraw it as a sketch</Button> : null}
+    </span>
+    <button type="button" aria-label="Dismiss" className={TOOL_PANEL_BUTTON_CLASS} onClick={edit.dismissError}><X className="size-3" aria-hidden="true" /></button>
+  </div> : null;
   // The card scrolls in the viewer's one ScrollArea once its panel is taller than the view.
-  const floating = panel && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(FLOATING_SURFACE_CLASS,
-    "pointer-events-auto max-h-full rounded-lg")}>{panel}</ScrollArea>, card) : null;
+  const floating = (panel || edit.error) && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(FLOATING_SURFACE_CLASS,
+    "pointer-events-auto max-h-full rounded-lg")}>{error(Boolean(panel))}{panel}</ScrollArea>, card) : null;
   return <div className="flex h-full min-h-0 flex-col" data-cad-edit-browser="">
-    {edit.error ? <div className="flex items-start gap-1 border-b border-border px-2 py-1.5 text-tiny text-destructive" role="alert">
-      <span className="flex min-w-0 flex-1 flex-col items-start gap-1.5">
-        {edit.error}
-        {edit.redraw ? <Button type="button" variant="outline" size="sm" className={FILE_SHEET_COMPACT_BUTTON_CLASSES}
-          onClick={edit.askRedraw}>Redraw it as a sketch</Button> : null}
-      </span>
-      <button type="button" aria-label="Dismiss" className={TOOL_PANEL_BUTTON_CLASS} onClick={edit.dismissError}><X className="size-3" aria-hidden="true" /></button>
-    </div> : null}
-    {floating || panel}
+    {floating || <>{error(true)}{panel}</>}
     <ScrollArea className="min-h-0 flex-1">
       <EditTree edit={edit} tree={tree} onEditSketch={onEditSketch} onOpenPart={onOpenPart} backTo={backTo} />
       {component && !edit.command && !edit.sketch ? <FileSheetSettingsSection title={component.title} sectionId="edit-component">

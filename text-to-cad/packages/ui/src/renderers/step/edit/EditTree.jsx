@@ -8,6 +8,8 @@ import { AssemblyIcon, FeatureIcon, MateTreeIcon, OriginIcon, ParametersIcon, Pa
 import { nxPlane, treeTitles } from "./nx.js";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
+// A row under the pointer is the workspace's pale blue, the selected one its deeper blue.
+const ROW_HOVER_CLASS = "hover:bg-cad-ws-hover", ROW_SELECTED_CLASS = "bg-cad-ws-selected";
 
 /** A row's name typed over in place, as SolidWorks' tree renames one: Enter or a click away keeps
  * it, Escape leaves it as it was (`onDone` given the name, or null). */
@@ -37,7 +39,7 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
   const active = Boolean(id) && selected === id;
   const row = <TreeRowSurface as="div" dense active={active} role="treeitem" aria-selected={active}
     aria-expanded={expanded === null ? undefined : expanded} tabIndex={-1}
-    className="cursor-default select-none" style={{ paddingLeft: 4 + depth * (TREE_INDENT_PX + 2) }}
+    className={`cursor-default select-none ${active ? ROW_SELECTED_CLASS : ROW_HOVER_CLASS}`} style={{ paddingLeft: 4 + depth * (TREE_INDENT_PX + 2) }}
     data-cad-edit-tree-row={id || title} data-cad-edit-bar-slot={slot ?? undefined}
     onClick={() => { if (id) onSelect(id); else onToggle?.(); }}
     onContextMenu={() => { if (id && menu?.length) onSelect(id); }}

@@ -192,8 +192,9 @@ export default function EditDimensions({ viewport, dimensions, units, disabled =
         onEdit={setEditing} onHover={setHovered}
         onCommit={text => { setEditing(null); if (String(text).trim() && String(text).trim() !== String(dimension.display)) onChange(dimension, String(text).trim()); }} />)}
     </div>
-    {choice ? <div className="pointer-events-auto absolute left-1/2 top-12 z-30 w-[min(20rem,calc(100%-1rem))] -translate-x-1/2 rounded-lg border border-border bg-background p-2.5 text-tiny shadow-md"
-      role="dialog" aria-label="Which size to change">
+    {/* Under the workspace's toolbar, which floats over the view's top (`--cad-workspace-top`). */}
+    {choice ? <div className="pointer-events-auto absolute left-1/2 z-30 w-[min(20rem,calc(100%-1rem))] -translate-x-1/2 rounded-lg border border-border bg-background p-2.5 text-tiny shadow-md"
+      style={{ top: "calc(var(--cad-workspace-top, 0px) + 3rem)" }} role="dialog" aria-label="Which size to change">
       <p className="mb-2 text-foreground">That value comes from a formula. Change which size?</p>
       <div className="flex flex-wrap gap-1">
         {choice.options.map(option => <Button key={option.id} type="button" variant="outline" size="sm" className="h-7 px-2 text-tiny"
