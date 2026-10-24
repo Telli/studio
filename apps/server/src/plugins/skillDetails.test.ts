@@ -60,6 +60,18 @@ describe("readSkillDetail", () => {
     });
   });
 
+  it("keeps a SKILL.md description that holds a colon", () => {
+    const folder = skillFolder({
+      "SKILL.md": "---\ndescription: Typical requests: make a bracket\n---\n",
+    });
+    expect(readSkillDetail(folder, "fea")).toEqual({
+      name: "fea",
+      displayName: null,
+      description: "Typical requests: make a bracket",
+      defaultPrompt: null,
+    });
+  });
+
   it("never throws on a broken file", () => {
     const folder = skillFolder({
       "SKILL.md": "# FEA\n\nNo front matter in this one.\n",

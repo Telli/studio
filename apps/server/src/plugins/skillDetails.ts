@@ -4,7 +4,9 @@
  * `agents/openai.yaml` gives a display name (`interface.display_name`), a
  * one-line description (`short_description`) and an ask that shows the skill off
  * (`default_prompt`); the description in `SKILL.md`'s front matter stands in
- * when openai.yaml has none. Each file is read on its own, so one that is
+ * when openai.yaml has none. That front matter is read by the Claude skill
+ * picker's own reader, so a description holding a colon ("Typical requests: ...")
+ * is kept, as Claude Code keeps it. Each file is read on its own, so one that is
  * missing or broken costs only what it would have said.
  */
 import * as NodeFS from "node:fs";
@@ -14,8 +16,7 @@ import type { PluginSkillDetail } from "@t3tools/contracts";
 import { clip, isRecord } from "@t3tools/plugins";
 import { parse as parseYaml } from "yaml";
 
-/** The text between a SKILL.md's first two `---` lines. */
-const FRONT_MATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
+import { parseSkillFrontmatter } from "../provider/Drivers/ClaudeSkills.ts";
 
 /** A file's text, or "" when it cannot be read. */
 function readText(file: string): string {
@@ -48,15 +49,14 @@ function textOf(value: unknown, max: number): string | null {
  * described by its name alone.
  */
 export function readSkillDetail(skillFolder: string, name: string): PluginSkillDetail {
-  const skill = parseMap(
-    FRONT_MATTER.exec(readText(NodePath.join(skillFolder, "SKILL.md")))?.[1] ?? "",
-  );
+  const skill = parseSkillFrontmatter(readText(NodePath.join(skillFolder, "SKILL.md")));
+  const skillDescription = skill.kind === "parsed" ? skill.description : undefined;
   const agent = parseMap(readText(NodePath.join(skillFolder, "agents", "openai.yaml")));
   const face = isRecord(agent.interface) ? agent.interface : {};
   return {
     name: clip(name, 128),
     displayName: textOf(face.display_name, 160),
-    description: textOf(face.short_description, 400) ?? textOf(skill.description, 400) ?? "",
+    description: textOf(face.short_description, 400) ?? textOf(skillDescription, 400) ?? "",
     defaultPrompt: textOf(face.default_prompt, 300),
   };
 }
