@@ -150,6 +150,8 @@ import { featureAsk } from "./edit/featureAsk.jsx";
 import { boundsCorners, featurePick, pickedReferences, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
 import { chosenThrough, useAsked, useChosenFeature } from "./edit/selectionBarState.js";
 import { useAddToContext } from "./edit/useAddToContext.js";
+import { faceShapesOf, faceShapesText } from "../kit/tools/annotate/faceShapes.js";
+import { parseCadRefSelector, parseCadRefToken } from "@text-to-cad/core/lib/cadRefs.js";
 import { DRAWING_TOOL_ICONS, ToolIcon } from "./edit/cadIcons.jsx";
 import { drawingToolVariant } from "../../annotation/toolbar.jsx";
 import SketchOverlay from "./edit/SketchOverlay.jsx";
@@ -1629,6 +1631,8 @@ function StepSurfaceBody({ view, data }) {
     ["select", "clearSelection"].map(name => [name, (...args) => stepLiveCommandsRef.current[name]?.(...args)])
   ), []);
   const promptReferencesRef = useRef(() => EMPTY_LIST);
+  // The ink drawn on a face, as shapes on it in the part's units, for what goes to the agent (`faceShapes.js`).
+  const faceMarksRef = useRef(() => "");
   const escapeRef = useRef(() => false);
   // Escape has something to do here whenever there is a selection to clear or a tool other than
   // Select in hand.
@@ -1673,6 +1677,7 @@ function StepSurfaceBody({ view, data }) {
     },
     promptReferences: () => promptReferencesRef.current(),
     promptContext: createCadPromptContext,
+    marks: items => faceMarksRef.current(items),
     // A prompt's view: the one motion on screen — the pose Position holds off its default, or the
     // routine's kept frame (Explode is the view settings') — the parts hidden, and those isolated
     // (a snapshot ghosts the rest, as isolation dims it).
@@ -3773,12 +3778,26 @@ function StepSurfaceBody({ view, data }) {
   // Everything picked goes: the parts and references, the measurements, and the feature chosen, as a press on the model's background lets
   // go of them. Quick Edit's X and a send clear it too, and the box Ask opened goes with them.
   const clearSelected = () => { clearAssemblySelection(); measure.select([]); clearAsked(); dropFeature(); };
-  // Where the host has a chat box to fill, the selection bar's Add to context and the toolbar's put what Ask carries (`carried`) there with
-  // no note and nothing sent (`useAddToContext`). Once it is there the picks are let go of, and the ink with them (it went in the snapshot), as
+  // The marks drawn on a face go to the agent as shapes in its coordinates, in the part's units, in Simple view and the workspace
+  // alike: Quick Edit's every way and Add to context. A face is named as its chip is (`nameReference`'s words: "bracket · face 12");
+  // a touch that is no face (an edge) has no name, so no mark is said to be on it.
+  faceMarksRef.current = items => {
+    const units = edit.state?.units || "mm";
+    const labelOf = ref => {
+      const selectors = parseCadRefToken(ref)?.selectors || [];
+      if (selectors.length !== 1 || parseCadRefSelector(selectors[0])?.selectorType !== "face") return null;
+      const name = nameReference({ resource: promptResource, target: { kind: "cad-selector", selectors } });
+      return name && typeof name === "object" ? `${name.name} · ${name.kind} ${name.number}` : name || "";
+    };
+    return faceShapesText(faceShapesOf(items, { units, labelOf }), units);
+  };
+  // Where the host has a chat box to fill, the selection bar's Add to context and the toolbar's put what Ask carries (`carried`), and the
+  // ink, there with no note and nothing sent (`useAddToContext`); ink alone is something to add. Once it is there the picks are let go of,
+  // and the ink with them (it went in the snapshot and the marks on a face), as
   // a Queue lets go of both, so the next one starts fresh; if the box does not take it they are kept, and the viewport says why. While a
   // command or a sketch is open the selection is its own (an Edge Blend's edges), so it waits, and the toolbar's buttons say so.
   const addContext = useAddToContext({ resource: promptResource, references: carried.references, prompt: shell.frame.quickEditPrompt,
-    held: commandOpen || sketchOpen,
+    held: commandOpen || sketchOpen, annotated: shell.frame.annotation.hasAnnotation,
     onAdded: () => { clearSelected(); if (shell.frame.annotation.hasAnnotation) shell.frame.annotation.forget(); },
     onFailed: reportActionError });
 

@@ -134,6 +134,49 @@ it('has nothing to add with nothing picked: a file alone is no pick', () => {
   expect(view.result.current.picked).toBe(true);
 });
 
+const MARKS = "Marks on the model, in each face's own coordinates (mm):\n"
+  + 'bracket · face 12: plane through (10, 0, 5), normal (0, 0, 1), u along (1, 0, 0), v along (0, 1, 0)\n'
+  + '- rectangle centred at (12, 4.5), 8 × 3, turned 0°';
+
+it('adds ink alone: what is drawn is something to carry, with the snapshot and the marks on a face, and lets go of it once there', async () => {
+  const chat = chatBox();
+  const prompt = { views: () => [{ label: 'view 1' }], files: () => Promise.resolve({ inline: '{}' }), read: null, marks: () => MARKS };
+  const view = adding(chat.host, { references: [], annotated: true, prompt: prompt as never });
+  expect(view.result.current.picked).toBe(true);
+  act(() => view.result.current.add());
+  expect(parts(chat.delivered()[0])).toEqual([['file', 'reference'], ['marks', 'text'], ['snapshot', 'attachment']]);
+  await chat.answer({ status: 'added', partIds: [] });
+  expect(view.onAdded).toHaveBeenCalledTimes(1);
+  // The ink gone with it, there is nothing to add again.
+  view.rerender({ references: [], annotated: false, prompt: prompt as never });
+  expect(view.result.current.picked).toBe(false);
+  act(() => view.result.current.add());
+  expect(chat.deliver).toHaveBeenCalledTimes(1);
+});
+
+it("carries the same marks as Quick Edit's Queue and Send, after the references", async () => {
+  const prompt = { views: () => [], files: () => null, read: null, marks: () => MARKS };
+  const chat = chatBox();
+  const view = adding(chat.host, { prompt: prompt as never });
+  act(() => view.result.current.add());
+  const take = vi.fn(async (_context: unknown) => ({ status: 'added' as const, partIds: [] }));
+  const host = testHost({ promptContext: { getSnapshot: () => composer, subscribe: () => () => {}, deliver: take, send: take } as never });
+  render(<ViewerHostContext.Provider value={host}><div data-slot="cad-file-view">
+    <QuickEdit resource={STEP} asked references={[FACE] as never} prompt={prompt as never} />
+  </div></ViewerHostContext.Provider>);
+  for (const action of ['Queue', 'Send']) {
+    const note = screen.getByRole('textbox', { name: 'Describe your changes' });
+    note.textContent = 'Cut a window here for the cable.';
+    fireEvent.input(note);
+    fireEvent.click(within(screen.getByRole('region', { name: 'Quick Edit' })).getByRole('button', { name: action }));
+    await waitFor(() => expect(take).toHaveBeenCalledTimes(action === 'Queue' ? 1 : 2));
+  }
+  const contexts = [chat.delivered()[0], ...take.mock.calls.map(call => call[0] as any)];
+  // Each the file, the face, then the marks: the same text part every way it goes.
+  expect(contexts.map(context => parts(context).filter(([id]: string[]) => id !== 'text'))).toEqual(Array(3).fill([['file', 'reference'], ['reference-0', 'reference'], ['marks', 'text']]));
+  expect(contexts.map(context => context.parts.find((part: any) => part.id === 'marks').text)).toEqual([MARKS, MARKS, MARKS]);
+});
+
 it('is offered only where the host has a chat box to fill', () => {
   const offered = (destination: object) => adding(chatBox(destination).host).result.current.offered;
   expect(offered(composer)).toBe(true);

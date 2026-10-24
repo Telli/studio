@@ -244,7 +244,9 @@ they do not transfer Promise or Blob values across native IPC.
 
 Quick Edit is the shared, host-neutral note to the agent
 ([the design system](settings-ui.md#quick-edit)), and its buttons are what the host can carry out.
-Every way it goes carries its words, references and a snapshot packet captured at
+Every way it goes carries its words, references, the marks drawn on a face as shapes in that face's
+own coordinates (a `marks` text part after the references, from the shell's `marks` option:
+[annotation](annotation.md)) and a snapshot packet captured at
 Copy, Queue or Send. The packet includes the current view plus distinct drawn views
 with remaining ink; an equivalent drawn entry uses the exact current framing.
 Shared input and inline annotation ([annotation](annotation.md)) appear once; measurements

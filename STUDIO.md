@@ -461,14 +461,18 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   ("Hole (6)"), the chip's X letting go of the pick (`featureAsk.jsx`; the script's absolute path is the
   engine's `root` with the feature's `file`). Add to context, in the bar or the toolbar's Ask the agent group, is Quick Edit's
   Queue without the note (`useAddToContext.js`, `addToContext` in `quickEditPrompt.js`): it puts the same references Ask carries,
-  and the snapshot a Queue would attach, into the chat box without sending, and lets go of the picks (and the ink) once they are
+  the marks on a face and the snapshot a Queue would attach, into the chat box without sending, and lets go of the picks (and the ink) once they are
   there, so faces, edges and features can be collected and one message written; a failure keeps them and is said in the viewport's card.
   It is there only where the host has a chat box to fill (`canAddToContext`: never in Jake's standalone viewer), and the toolbar's is
-  dimmed, saying "Select a face, edge or feature first", until something is picked. While a command, a sketch or a panel is open its
+  dimmed, saying "Select a face, edge or feature first", until something is picked or drawn (ink alone is something to add). While a command, a sketch or a panel is open its
   picks are the model's selection (an Edge Blend's edges), which a delivery or a send would let go of, so the toolbar's Ask and Add to
   context are both dimmed, saying "Finish or cancel the command first" (Simple view's switch says the same of the same hold), and the
-  bar is not shown. Quick Edit's X and a send let go of a feature chosen too, as a press on the background does. Simple view's Quick
-  Edit is as it always was.
+  bar is not shown. Quick Edit's X and a send let go of a feature chosen too, as a press on the background does. Annotate, the
+  toolbar's third agent button, is the viewer's own Pencil with Shapes in its chevron's menu, each showing what it draws with (the
+  bar's Annotate takes up the Pencil). Marks drawn on a face go to the agent as shapes in that face's own coordinates, in the part's
+  units (`kit/tools/annotate/faceShapes.js`: a mark on one face alone, flat on it; any other stays with the picture and the faces it
+  touches), as a text part after the references, in every way Quick Edit goes and in Add to context. Simple view's Quick Edit is as
+  it always was, but for those marks, which it carries too.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode

@@ -53,29 +53,78 @@ it("opens a group's command from its menu", async () => {
 it("leaves out a group with nothing behind it", async () => {
   const user = userEvent.setup();
   const onAsk = vi.fn();
-  const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
+  // A view whose strip has no drawing tools, and a host with nothing to ask: no group at all.
+  const UNDRAWN = PART_TOOLS.filter(each => each.id !== 'pencil' && each.id !== 'shapes');
+  const { rerender } = render(<EditRibbon tools={UNDRAWN} edit={edit() as never} />);
   expect(screen.queryByRole('group', { name: 'Ask the agent' })).toBeNull();
   expect(Object.keys(layout())).toEqual(['Create', 'Modify', 'Construct', 'Inspect', 'Select']);
   // With Ask to wire, the group is there with Ask alone: Add to context and Annotate wait for what they need.
-  rerender(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={onAsk} />);
+  rerender(<EditRibbon tools={UNDRAWN} edit={edit() as never} onAsk={onAsk} />);
   expect(Object.keys(layout()).at(-1)).toBe('Ask the agent');
   expect(commandsIn('Ask the agent')).toEqual(['Ask']);
   await user.click(command('Ask the agent', 'Ask'));
   expect(onAsk).toHaveBeenCalledTimes(1);
-  rerender(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={onAsk} onAddContext={vi.fn()} />);
+  rerender(<EditRibbon tools={UNDRAWN} edit={edit() as never} onAsk={onAsk} onAddContext={vi.fn()} />);
   expect(commandsIn('Ask the agent')).toEqual(['Ask', 'Add to context']);
-  // The viewer's pencil is not in the toolbar until Annotate is.
-  expect(screen.queryByRole('button', { name: 'Pencil' })).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Annotate' })).toBeNull();
+  // The strip's Pencil is Annotate, whatever the host has to ask with.
+  rerender(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={onAsk} onAddContext={vi.fn()} />);
+  expect(commandsIn('Ask the agent')).toEqual(['Ask', 'Add to context', 'Annotate']);
+  rerender(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
+  expect(commandsIn('Ask the agent')).toEqual(['Annotate']);
 });
 
-it("dims Add to context, saying what to select, until something is picked", async () => {
+it("holds Annotate in Ask the agent: the viewer's Pencil, with Shapes in its menu as a sketch tool family's flyout has its tools", async () => {
+  const user = userEvent.setup();
+  // Each drawing tool shows what it draws with, as the strip draws it (`ToolIcon` by `drawingToolVariant`).
+  const drawing = (id: string, label: string, variant: string, active = false) =>
+    ({ ...tool(id, label), icon: <svg data-icon={variant} />, active });
+  const tools = (pencil = drawing('pencil', 'Pencil', 'freedraw'), shapes = drawing('shapes', 'Shapes', 'rectangle')) =>
+    [...PART_TOOLS.filter(each => each.id !== 'pencil' && each.id !== 'shapes'), pencil, shapes];
+  const [pencil, shapes] = [drawing('pencil', 'Pencil', 'highlighter'), drawing('shapes', 'Shapes', 'rectangle')];
+  const { rerender } = render(<EditRibbon tools={tools(pencil, shapes)} edit={edit() as never} onAsk={vi.fn()} />);
+  const annotate = () => command('Ask the agent', 'Annotate');
+  const icon = () => annotate().querySelector('svg')?.getAttribute('data-icon');
+  // The button takes up the Pencil, and shows what it draws with.
+  expect([icon(), annotate().getAttribute('aria-pressed')]).toEqual(['highlighter', 'false']);
+  await user.click(annotate());
+  expect([pencil.onSelect.mock.calls.length, shapes.onSelect.mock.calls.length]).toEqual([1, 0]);
+  // Its chevron lists both, each as the strip shows it; Shapes picked there takes it up and is the button from then on.
+  await user.click(screen.getByRole('button', { name: 'Annotate tools' }));
+  const menu = screen.getByRole('menu', { name: 'Annotate tools' });
+  expect(within(menu).getAllByRole('menuitemcheckbox').map(item => [item.textContent, item.querySelector('svg')?.getAttribute('data-icon')]))
+    .toEqual([['Pencil', 'highlighter'], ['Shapes', 'rectangle']]);
+  await user.click(within(menu).getByRole('menuitemcheckbox', { name: /Shapes/ }));
+  expect(shapes.onSelect).toHaveBeenCalledTimes(1);
+  rerender(<EditRibbon tools={tools(pencil, drawing('shapes', 'Shapes', 'arrow', true))} edit={edit() as never} onAsk={vi.fn()} />);
+  expect([icon(), annotate().getAttribute('aria-pressed')]).toEqual(['arrow', 'true']);
+  // Put down, it stays the one last picked; the Pencil in hand is the button again.
+  rerender(<EditRibbon tools={tools(pencil, shapes)} edit={edit() as never} onAsk={vi.fn()} />);
+  expect(icon()).toBe('rectangle');
+  await user.click(annotate());
+  expect(shapes.onSelect).toHaveBeenCalledTimes(2);
+  rerender(<EditRibbon tools={tools(drawing('pencil', 'Pencil', 'eraser', true), shapes)} edit={edit() as never} onAsk={vi.fn()} />);
+  expect([icon(), annotate().getAttribute('aria-pressed')]).toEqual(['eraser', 'true']);
+  // The group's menu has both too, and the one taken up there is the button's from then on, as from its own menu.
+  rerender(<EditRibbon tools={tools(pencil, shapes)} edit={edit() as never} onAsk={vi.fn()} />);
+  expect(icon()).toBe('rectangle');
+  await user.click(screen.getByRole('button', { name: 'Ask the agent commands' }));
+  const groupMenu = screen.getByRole('menu');
+  expect([...within(groupMenu).getAllByRole('menuitem'), ...within(groupMenu).getAllByRole('menuitemcheckbox')].map(item => item.textContent))
+    .toEqual(['Ask', 'Pencil', 'Shapes']);
+  await user.click(within(groupMenu).getByRole('menuitemcheckbox', { name: /Pencil/ }));
+  expect(pencil.onSelect).toHaveBeenCalledTimes(2);
+  expect(icon()).toBe('highlighter');
+});
+
+it("dims Add to context, saying what to select, until something is picked or drawn", async () => {
   const user = userEvent.setup();
   const onAddContext = vi.fn();
   const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={vi.fn()} onAddContext={onAddContext} />);
   const add = () => command('Ask the agent', 'Add to context') as HTMLButtonElement;
-  // With nothing picked it has nothing to add: dimmed, with its reason as the dimmed buttons of the toolbar give theirs. Ask is not held.
-  expect(commandsIn('Ask the agent')).toEqual(['Ask', 'Add to context']);
+  // With nothing picked or drawn (`useAddToContext`'s `picked`) it has nothing to add: dimmed, with its reason as the dimmed buttons of
+  // the toolbar give theirs. Ask is not held, nor Annotate, which draws what it would add.
+  expect(commandsIn('Ask the agent')).toEqual(['Ask', 'Add to context', 'Annotate']);
+  expect((command('Ask the agent', 'Annotate') as HTMLButtonElement).disabled).toBe(false);
   expect(add().disabled).toBe(true);
   expect(add().getAttribute('aria-description')).toBe('Select a face, edge or feature first');
   expect((command('Ask the agent', 'Ask') as HTMLButtonElement).disabled).toBe(false);
@@ -87,9 +136,9 @@ it("dims Add to context, saying what to select, until something is picked", asyn
   expect(add().getAttribute('aria-description')).toBeNull();
   await user.click(add());
   expect(onAddContext).toHaveBeenCalledTimes(1);
-  // Where the host has no chat box to fill it is not dimmed but left out; Ask stays.
+  // Where the host has no chat box to fill it is not dimmed but left out; Ask stays, and Annotate.
   rerender(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={vi.fn()} picked />);
-  expect(commandsIn('Ask the agent')).toEqual(['Ask']);
+  expect(commandsIn('Ask the agent')).toEqual(['Ask', 'Annotate']);
 });
 
 it("dims Ask and Add to context while a command is open, whose picks they would empty, with the reason Simple view's switch gives for the same hold", async () => {
@@ -137,6 +186,8 @@ it("groups the Solid tab's commands as the design does, each under NX's name", (
     Construct: ['Datum Plane'],
     Inspect: ['Measure', 'Edit Section'],
     Select: ['Select'],
+    // The strip's Pencil, with Shapes in its menu.
+    'Ask the agent': ['Annotate'],
   });
 });
 
@@ -566,8 +617,8 @@ async function toolbarHas(user: ReturnType<typeof userEvent.setup>) {
 
 it("never disagrees with the toolbar: it lists each command of every tab the toolbar has, under the same name, and nothing else", async () => {
   const user = userEvent.setup();
-  // The strip's Select and the agent's buttons are the toolbar's, and no CAD command.
-  const NOT_CAD = new Set(['Select', 'Ask', 'Add to context']);
+  // The strip's Select and the agent's buttons (Annotate's menu: the strip's Pencil and Shapes) are the toolbar's, and no CAD command.
+  const NOT_CAD = new Set(['Select', 'Ask', 'Add to context', 'Pencil', 'Shapes']);
   const states: [string, Record<string, unknown>, Record<string, unknown>][] = [
     ['a part', {}, {}],
     ['a part with its sheet', { state: { units: 'mm', components: [], drawing: { sheets: 1 } } }, {}],

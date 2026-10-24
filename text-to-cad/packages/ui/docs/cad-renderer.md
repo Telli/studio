@@ -1681,7 +1681,8 @@ so Undo cannot bring old ink back over the new model; the drawing tool stays in 
 each piece of ink put down, erased, restyled or filled, and a clear, is a step.
 They are the keyboard's, with no buttons: ⌘Z and ⇧⌘Z (Ctrl+Z and Ctrl+Y) walk them from anywhere
 in the viewer but a text field. A Quick Edit note
-carries the annotations as files: the annotation file, the views they were drawn in as a
+carries the marks drawn on a face as shapes in that face's own coordinates, in words
+(`kit/tools/annotate/faceShapes.js`, the shell's `marks`), and the annotations as files: the annotation file, the views they were drawn in as a
 snapshot job, and a picture of each ([annotations](annotation.md#lifetime-and-capture)).
 
 ### File navbar

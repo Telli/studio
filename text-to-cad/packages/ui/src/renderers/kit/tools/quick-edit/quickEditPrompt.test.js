@@ -113,6 +113,32 @@ test("a file the host failed to make is not left unhandled when nothing waits fo
   assert.deepEqual(unhandled, []);
 });
 
+test("carries the marks drawn on a face as a text part after the references, the same however it goes", async () => {
+  const MARKS = "Marks on the model, in each face's own coordinates (mm):\n"
+    + "bracket · face 12: plane through (10, 0, 5), normal (0, 0, 1), u along (1, 0, 0), v along (0, 1, 0)\n"
+    + "- rectangle centred at (12, 4.5), 8 × 3, turned 0°";
+  const read = async () => new Blob([]);
+  const prompt = { views: () => [{ label: 'view 1' }], files: () => Promise.resolve({ inline: '{}' }), read, marks: () => MARKS };
+  assert.equal(promptAttachments(prompt).marks, MARKS);
+  // Send and Queue: the note, the file, the picks, the marks, then the snapshot.
+  const sent = createQuickEditContext({ resource: STEP, references: [FACE], text: 'Cut a window here.', ...promptAttachments(prompt) });
+  assert.deepEqual(parts(sent), [['text', 'text'], ['file', 'reference'], ['reference-0', 'reference'], ['marks', 'text'], ['snapshot', 'attachment']]);
+  // Add to context: the same, with no note.
+  const host = chatHost();
+  await addToContext(host, { resource: STEP, references: [FACE], ...promptAttachments(prompt) });
+  const [added] = host.delivered;
+  assert.deepEqual(parts(added), parts(sent).slice(1));
+  assert.equal(added.parts.find(part => part.id === 'marks').text, MARKS);
+  // The message reads them after what the person wrote, before what it is about.
+  assert.equal(formatPromptMessage(createQuickEditContext({ resource: STEP, references: [FACE], text: 'Cut a window here.', marks: MARKS })),
+    `Cut a window here.\n\n${MARKS}\n\nFile: /work/bracket/bracket.step\nReferences:\n/work/bracket/bracket.step#o1.f12`);
+  // With no mark on a face, or a prompt that keeps none, there is no part for them.
+  for (const none of [{ ...prompt, marks: () => '' }, { views: prompt.views, files: prompt.files, read }, null]) {
+    const context = createQuickEditContext({ resource: STEP, references: [FACE], text: 'Round it.', ...promptAttachments(none) });
+    assert.equal(context.parts.some(part => part.id === 'marks'), false);
+  }
+});
+
 test("a note is its own part, and none is made of an empty one", () => {
   const written = createQuickEditContext({ resource: STEP, references: [FACE], text: "  Round it. " });
   assert.deepEqual(parts(written), [["text", "text"], ["file", "reference"], ["reference-0", "reference"]]);

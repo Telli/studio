@@ -1464,9 +1464,10 @@ a feature chosen too, as a press on the model's background does.
 **Add to context** (edit mode's selection bar, beside a pick, and the toolbar's Ask the agent group) puts the picks into the chat
 box without opening Quick Edit and without sending, to collect several faces, edges and features and write one message. It is Queue
 without the note (`addToContext`, `step/edit/useAddToContext.js`): the file, the same references Ask would carry (a feature chosen
-is the range of its script, named as the Part Navigator names it) and the snapshot Queue would attach, made and handed over inside
-the press. It is offered only where the destination is a composer (`canAddToContext`), so a host with no chat box shows neither
-button. The toolbar's is dimmed with nothing picked, its reason "Select a face, edge or feature first", as the toolbar's dimmed
+is the range of its script, named as the Part Navigator names it), the marks on a face and the snapshot Queue would attach, made and
+handed over inside the press. It is offered only where the destination is a composer (`canAddToContext`), so a host with no chat box shows neither
+button. Ink counts as something to add: alone it goes as the snapshot's annotation and the marks on a face. The toolbar's is dimmed
+with nothing picked and nothing drawn, its reason "Select a face, edge or feature first", as the toolbar's dimmed
 buttons give theirs. While a command, a sketch or a panel is open, whose picks are that same selection, the toolbar's Ask and Add to
 context are both dimmed ("Finish or cancel the command first", as Simple view's switch says of the same hold) and the bar is not
 shown: letting the picks go after a delivery or a send would empty the command's. Once it has gone the picks and the ink are let go
@@ -1511,7 +1512,8 @@ then runs `cadgen snapshot --job <file>`.
 Queue and Send clear the note and what it carries, and so close the box, once the
 note has gone. Copy Prompt keeps it all, since nothing has gone yet: its button
 shows a tick for a moment. A failure keeps the note and says why in the box. The message is
-one format, sent, queued or copied: what the person wrote; then `File: <path>`; then
+one format, sent, queued or copied: what the person wrote; then the marks drawn on a face, as shapes in each face's own
+coordinates, under "Marks on the model, in each face's own coordinates (mm):" ([annotation](annotation.md)); then `File: <path>`; then
 `References:` and one reference per line; then each file that travels as a file by its
 label and path — `Snapshot (cadgen snapshot --job):` — or the compact object under
 `Snapshot JSON (cadgen snapshot --job):`.

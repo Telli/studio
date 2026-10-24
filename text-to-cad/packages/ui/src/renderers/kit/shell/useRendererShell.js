@@ -150,6 +150,10 @@ const EMPTY = Object.freeze({});
  *   renderer reports its live `selection` itself, in the prompt grammar, through `live.state`.
  * @param {{ active?: boolean, handle?: () => boolean }} [options.escape]  Escape, innermost first: `handle` returns
  *   true when it spent the key. After it there is nothing of the viewer's own left to close.
+ * @param {((items: readonly object[]) => string) | null} [options.marks]  The ink drawn on the renderer's faces, in words, for
+ *   every way a Quick Edit goes and for Add to context (`frame.quickEditPrompt.marks()`, beside its views): the marks on a face
+ *   as shapes in its coordinates (`kit/tools/annotate/faceShapes.js`), for a renderer that names its faces. Called at the press,
+ *   with the ink then.
  * @param {{ signatures?: Record<string, string>, read: () => Record<string, unknown> } | null} [options.rendererState]
  *   The renderer's own slices of the file's view (`fileView.js`): `read()` is called when the view is written,
  *   never at render — state a renderer keeps outside React (a pose written per frame) is saved as it is at that
@@ -188,7 +192,7 @@ export function useRendererShell({
   view, services, resource, modelKey, revisionKey = "", features, toolModes = null, tool = null, previewable = false, preview = null, scene, load,
   viewSettings = null, viewerRef: providedViewerRef = null,
   animation = null, live = EMPTY, promptReferences = null, promptContext = createViewPromptContext,
-  escape = EMPTY, rendererState = null, viewState = null, annotationUnits = "mm", deleteSelection = null,
+  escape = EMPTY, rendererState = null, viewState = null, annotationUnits = "mm", deleteSelection = null, marks = null,
   sceneEffects = false,
   onCameraSettled = null, preserveInteractionPixelRatio = false, runtimeLifecycle = null,
   onRuntimeAlert = null, presentationReport = null,
@@ -491,7 +495,11 @@ export function useRendererShell({
     const shown = liveResourceRef.current?.() || resourceRef.current;
     return shown?.kind === "workspace-file" ? shown.path : null;
   }, []);
-  // Quick Edit captures the current view and annotation views; the host prepares JSON at the press.
+  // The renderer's words for the ink on its faces, as it is when a Quick Edit goes.
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
+  // Quick Edit captures the current view and annotation views; the host prepares JSON at the press. The marks drawn on a
+  // face go beside them, in words.
   const quickEditPrompt = useMemo(() => ({
     views: () => (host.promptFiles && promptFile() ? promptViews(currentView(), annotationRef.current.views, annotationRef.current.items) : []),
     files: views => {
@@ -500,6 +508,7 @@ export function useRendererShell({
       return host.promptFiles.create({ name: input.split("/").pop(), input, views, annotation: annotationNow() });
     },
     read: path => host.promptFiles.read(path),
+    marks: () => (annotationRef.current.items.length ? marksRef.current?.(annotationRef.current.items) || "" : ""),
   }), [host.promptFiles, currentView, annotationNow, promptFile]);
   // The view as it is on screen, the annotation's ink in it: the annotation's Copy.
   const captureView = useCallback(() => {
