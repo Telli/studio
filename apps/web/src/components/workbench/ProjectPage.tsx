@@ -44,7 +44,7 @@ import { ImportDropZone } from "./ImportDropZone";
 import { useImportIntoProject } from "./importIntoProject";
 import { useEngineeringInterface } from "./studioInterface";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
-import { useWorkspaceMode } from "./workspaceMode";
+import { useSimpleView } from "./simpleView";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
@@ -438,7 +438,7 @@ export function ProjectPage(props: {
   const importer = useImportIntoProject(isProject && plainWords ? cwd : null, name);
   // What it is, as the brief says it: the project's description under its name.
   const purpose = studio?.project.brief.purpose.trim().split("\n")[0]?.trim() ?? "";
-  const byHand = useWorkspaceMode(cwd) === "manual";
+  const byHand = !useSimpleView();
   const startPart = useStartPartByHand({
     composerRef,
     folder: cwd,

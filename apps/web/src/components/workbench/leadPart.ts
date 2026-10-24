@@ -9,7 +9,7 @@ interface ReadFolder {
 
 /**
  * The project's lead part: the first part of the first folder that has one, in the order the
- * project files them. The Overview shows it large, and Edit by hand opens it.
+ * project files them. The Overview shows it large, and the workspace opens it.
  */
 export function leadPartOf(
   folders: ReadonlyArray<ReadFolder>,

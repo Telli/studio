@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { PluginAppSurface } from "~/rightPanelStore";
 import { TitleBlock } from "../workbench/TitleBlock";
 import { useOpenInWorkbench } from "../workbench/useOpenInWorkbench";
+import { pluginViewKey } from "../workbench/viewerEditState";
 import { PluginViewFrame } from "./PluginViewFrame";
 
 const isAbsolute = (path: string) => path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path);
@@ -40,7 +41,8 @@ export default function PluginViewPanel(props: {
     if (opened?.id !== surface.id) setOpened({ id: surface.id, file: named });
   }, [opened?.id, surface.id, named]);
   const file = opened?.id === surface.id ? opened.file : named;
-  // A file the view asks for (a CAD view's Open Part) opens beside the thread in a tab of its own.
+  // A file the view asks for (a CAD view's Open Part) opens beside the thread in a tab of its own,
+  // and what the view says of its part is kept by this tab, for Studio's bar (`StudioPanelBar`).
   const threadRef = useMemo(
     () => scopeThreadRef(props.environmentId, props.threadId),
     [props.environmentId, props.threadId],
@@ -71,6 +73,7 @@ export default function PluginViewPanel(props: {
         onSendMessage={props.onSendMessage}
         onAddContext={props.onAddContext}
         onOpenFile={openInWorkbench}
+        editStateKey={pluginViewKey(threadRef, surface.id)}
       />
     </>
   );

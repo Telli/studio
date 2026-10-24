@@ -278,7 +278,7 @@ export function ProjectOverview(props: {
   readonly linkTo: (root: string, path: string) => string;
   /** Opens the Threads tab; null where the page has none (a thread's own scratch folder). */
   readonly onShowThreads: (() => void) | null;
-  /** The project's parts open in Edit by hand, so a project with none offers to start one. */
+  /** Simple view is off: the project's parts open in the full workspace, to start one by hand. */
   readonly byHand: boolean;
   /** Starts a blank part to model by hand (`useStartPartByHand`); null where it can't. */
   readonly onStartPart: (() => void) | null;

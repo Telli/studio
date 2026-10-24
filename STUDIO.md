@@ -447,10 +447,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   its XY, XZ and YZ planes; a row's menu in NX's words (Edit Parameters, Edit Sketch, Suppress,
   Rename, Delete, Make Current Feature) and the viewer's warning on the feature a failed build
   points at; the sketch tools as NX names them (Finish Sketch, Rapid Dimension, Quick Trim). The
-  script and the agent's notes keep their own names. Ask reads the part once, quietly, after
-  the model opens, so Edit by hand opens on it at once (`useEditMode`); Full screen, beside Ask
-  and Edit by hand, puts the part across the screen (`workbench/studioFullScreen.ts`: the panel
-  maximized, Studio's sidebar hidden, the window full screen).
+  script and the agent's notes keep their own names. Simple view reads the part once, quietly,
+  after the model opens, so the full workspace opens on it at once (`useEditMode`).
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode
@@ -481,13 +479,17 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   selection to the part by its geometry and writes a command's line); the frame is
   `text-to-cad/packages/ui/src/renderers/step/edit/`. The CAD skill's `references/edit-mode.md`
   tells the agent how to write parts that edit well.
-- **Ask or Edit by hand.** While the CAD viewer shows a part, the workspace's top bar lays it out
-  for asking the AI (text-to-cad's viewer as Jake built it, where a selection goes to the agent
-  through Quick Edit) or for modeling it by hand (edit mode), per project and Ask until chosen;
-  with the Overview, a document or a board in front it is not shown (`editsByHand`). The part
-  tabs run along the panel's bottom. The viewer takes it
-  from its host context (`studio/editLayout`) and then shows no switch of its own; elsewhere its
-  navbar keeps the switch, as Manual and AI. By hand, what a command uses is plain: a sketch is
+- **Simple view.** Studio's bar turns it on and off where the CAD viewer in front has two layouts.
+  On, the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection goes to
+  the agent through Quick Edit; off, the full workspace (edit mode). One choice for the person,
+  across projects, the full workspace the first time (`workbench/simpleView.ts`). The viewer says
+  what its part allows (`studio/notifications/edit-state`, to a host offering `studioEditState`):
+  a STEP with no part script has one layout, so no toggle shows, and a command, sketch or pick
+  open, or a change saving, holds the toggle until it is finished or cancelled; a view that closes
+  or opens another file forgets it (`workbench/viewerEditState.ts`). The part tabs run along the
+  panel's bottom. The viewer takes the layout from its host context (`studio/editLayout`) and then
+  shows no switch of its own; elsewhere its navbar keeps the switch, as Manual and AI. By hand,
+  what a command uses is plain: a sketch is
   picked on the model or in the design tree and shaded in the selection blue with its name, an
   extrude is previewed in amber (a cut in red, starting into the part), and a command's panel
   floats in a card of its own at the model view's top-right, apart from the design tree, its OK

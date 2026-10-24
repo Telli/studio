@@ -121,6 +121,14 @@ export interface McpAppHostOptions {
    * `studio/open-file`, a CAD view's Open Part). Absent, the app is not offered it.
    */
   readonly openFile?: ((path: string) => Promise<void>) | undefined;
+  /**
+   * Hears what Studio's CAD view says of the part on screen (`studio/notifications/edit-state`):
+   * whether it has both layouts (`editable`) and whether an open command holds them (`busy`).
+   * Absent, the app is not offered it.
+   */
+  readonly onEditState?:
+    | ((state: { readonly editable: boolean; readonly busy: boolean }) => void)
+    | undefined;
   /** The app asked to be closed (`ui/notifications/request-teardown`). */
   readonly onRequestTeardown: () => void;
   readonly onSizeChanged: (size: { readonly width?: number; readonly height?: number }) => void;
@@ -257,6 +265,7 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
             updateModelContext: { text: {}, structuredContent: {} },
             downloadFile: {},
             ...(options.openFile === undefined ? {} : { openFiles: {} }),
+            ...(options.onEditState === undefined ? {} : { studioEditState: {} }),
             sandbox: {
               ...(options.app.csp === undefined ? {} : { csp: options.app.csp }),
               ...(options.app.permissions === undefined
@@ -428,6 +437,13 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
       case "ui/notifications/request-teardown":
         options.onRequestTeardown();
         return;
+      case "studio/notifications/edit-state": {
+        const { editable, busy } = params;
+        if (typeof editable === "boolean" && typeof busy === "boolean") {
+          options.onEditState?.({ editable, busy });
+        }
+        return;
+      }
       default:
       // notifications/message (logging) and unknown notifications are ignored.
     }

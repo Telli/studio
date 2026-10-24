@@ -1,6 +1,6 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
-import { DownloadIcon, Maximize2Icon, Minimize2Icon } from "lucide-react";
+import { DownloadIcon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
@@ -9,7 +9,8 @@ import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelS
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
-import { Toggle, ToggleGroup } from "../ui/toggle-group";
+import { Toggle } from "../ui/toggle";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useImportIntoProject } from "./importIntoProject";
 import { leadPartOf } from "./leadPart";
 import { useOpenWorkspaceStore } from "./openWorkspace";
@@ -17,13 +18,13 @@ import { usePanelTabShortcuts } from "./panelTabShortcuts";
 import { PartActions } from "./PartActions";
 import { handToChat } from "./NewDialog";
 import { surfaceFile } from "./sameFile";
-import { useEditFullScreen } from "./studioFullScreen";
+import { setSimpleView, simpleViewToggle, useSimpleView } from "./simpleView";
 import { StudioNew } from "./StudioNew";
 import { StudioTour } from "./StudioTour";
 import { partName } from "./partNames";
 import { usePartContext } from "./usePartContext";
 import { useStudioProjectAt } from "./useStudioProjects";
-import { editsByHand, useWorkspaceMode, useWorkspaceModeStore } from "./workspaceMode";
+import { frontViewBusy, pluginViewKey, useViewerEditState } from "./viewerEditState";
 
 /** The thread folder's lead part, read again when the agent changes files. */
 function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutationId: string | null) {
@@ -60,11 +61,11 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
 
 /**
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
- * can be done: over a part in the CAD viewer, Ask or Edit by hand (`editsByHand`; the mode is the
- * project's, `workspaceMode.ts`, which the CAD views take from the host context) and the part's
- * jobs (Evaluate, Manufacture, with the files to export, and Document), led by the project's way
- * of making it; and New, always there, at the row's right end (`StudioNew`), where Home has it.
- * ⌘K's jobs are for the part last on screen, else the lead part.
+ * can be done: over a part in the CAD viewer, the part's jobs (Evaluate, Manufacture, with the
+ * files to export, and Document), led by the project's way of making it; Simple view where the
+ * viewer in front has two layouts (`simpleView.ts`, the person's choice, which every CAD view
+ * takes from its host context); and Import and New, always there, at the row's right end
+ * (`StudioNew`), where Home has them. ⌘K's jobs are for the part last on screen, else the lead part.
  */
 export function StudioPanelBar(props: {
   readonly folder: string | null;
@@ -74,16 +75,10 @@ export function StudioPanelBar(props: {
   readonly mutationId: string | null;
 }) {
   const { folder, threadRef } = props;
-  const mode = useWorkspaceMode(folder);
-  const setMode = useWorkspaceModeStore((store) => store.setMode);
-  const setActiveFolder = useWorkspaceModeStore((store) => store.setActiveFolder);
-  useEffect(() => {
-    setActiveFolder(folder);
-  }, [folder, setActiveFolder]);
   const lead = useLeadPart(threadRef, folder, props.mutationId);
   usePanelTabShortcuts(threadRef);
-  // What is in front decides the row: over the Overview, the project's New; over a part, the
-  // part's own ways of changing it (Ask, Edit by hand) and its jobs; over a document, nothing.
+  // What is in front decides the row: over the Overview, the project's New; over a part, its jobs
+  // and Simple view; over a document, nothing.
   const frontKind = useRightPanelStore(
     (store) => selectActiveRightPanelSurface(store.byThreadKey, threadRef)?.kind ?? null,
   );
@@ -92,13 +87,16 @@ export function StudioPanelBar(props: {
     const surface = selectActiveRightPanelSurface(store.byThreadKey, threadRef);
     return surface?.kind === "plugin-app" ? surfaceFile(surface) : null;
   });
-  const byHandShown = editsByHand(
-    frontKind === null
-      ? null
-      : { kind: frontKind, ...(frontFile === null ? {} : { file: frontFile }) },
+  // Simple view, by what the CAD view in front says of its part (`viewerEditState.ts`): shown
+  // where it has two layouts, held while a command or sketch is open in it.
+  const frontView = useRightPanelStore((store) => {
+    const surface = selectActiveRightPanelSurface(store.byThreadKey, threadRef);
+    return surface?.kind === "plugin-app" ? pluginViewKey(threadRef, surface.id) : null;
+  });
+  const simpleView = useSimpleView();
+  const toggle = useViewerEditState((store) =>
+    simpleViewToggle(frontView === null ? undefined : store.byView[frontView]),
   );
-  // Edit by hand with a part in front can take the whole screen.
-  const fullScreen = useEditFullScreen(threadRef, byHandShown && mode === "manual");
   const shown = usePartContext(threadRef);
   const studio = useStudioProjectAt(threadRef.environmentId, folder);
   const subject =
@@ -145,33 +143,6 @@ export function StudioPanelBar(props: {
       data-studio-toolbar=""
     >
       <StudioTour />
-      {byHandShown ? (
-        <ToggleGroup
-          aria-label="How to change the part"
-          value={[mode]}
-          onValueChange={(next) => {
-            const value = next[0];
-            if (folder !== null && (value === "ask" || value === "manual")) setMode(folder, value);
-          }}
-        >
-          <Toggle value="ask">Ask</Toggle>
-          <Toggle value="manual">Edit by hand</Toggle>
-        </ToggleGroup>
-      ) : null}
-      {byHandShown && mode === "manual" ? (
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={fullScreen.on ? "Exit full screen" : "Full screen"}
-          aria-pressed={fullScreen.on}
-          title={
-            fullScreen.on ? "Exit full screen" : "Full screen: the part across the whole screen"
-          }
-          onClick={fullScreen.toggle}
-        >
-          {fullScreen.on ? <Minimize2Icon /> : <Maximize2Icon />}
-        </Button>
-      ) : null}
       {inFront === null || props.composerRef === null ? null : (
         <PartActions
           environmentId={threadRef.environmentId}
@@ -182,8 +153,31 @@ export function StudioPanelBar(props: {
           inTopBar
         />
       )}
-      {/* Import and New close the row, at its right, as they do Home's Your projects. */}
+      {/* Simple view, Import and New close the row, at its right; Home's Your projects ends in Import and New too. */}
       <div className="flex-1" />
+      {toggle === "hidden" ? null : (
+        <Tooltip>
+          {/* Hovered through a span: a held toggle takes no pointer of its own, and says why. */}
+          <TooltipTrigger render={<span className="flex shrink-0" />}>
+            <Toggle
+              variant="outline"
+              size="sm"
+              pressed={simpleView}
+              disabled={toggle === "held"}
+              onPressedChange={(on) => {
+                // As the store has it at the press: a command opened since holds the layout.
+                if (frontViewBusy(useViewerEditState.getState().byView, frontView)) return;
+                setSimpleView(on);
+              }}
+            >
+              Simple view
+            </Toggle>
+          </TooltipTrigger>
+          <TooltipPopup side="bottom">
+            {toggle === "held" ? "Finish or cancel the command first" : "Simple view"}
+          </TooltipPopup>
+        </Tooltip>
+      )}
       {importer === null ? null : (
         <Button
           variant="outline"

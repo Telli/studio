@@ -35,7 +35,8 @@ import {
   stagedPluginViewHtml,
   stagedPluginViewOrigin,
 } from "./pluginViewHost";
-import { useActiveViewerEditLayout } from "../workbench/workspaceMode";
+import { useSimpleView, viewerEditLayout } from "../workbench/simpleView";
+import { useViewerEditState, type ViewerEditState } from "../workbench/viewerEditState";
 
 /** What opens one plugin view: the tool whose result is the view, and where it runs. */
 
@@ -105,6 +106,11 @@ export function PluginViewFrame(props: {
   readonly onAddContext?: ((content: ReadonlyArray<unknown>) => void) | undefined;
   /** Opens a file beside the thread in a view of its own (a CAD view's Open Part); without it the view is told no. */
   readonly onOpenFile?: ((path: string) => void) | undefined;
+  /**
+   * Where Studio's bar finds what this CAD view says of its part, for Simple view
+   * (`workbench/viewerEditState.ts`); without it the view is not asked.
+   */
+  readonly editStateKey?: string | undefined;
 }) {
   const { target } = props;
   const theme = useHtmlRenderTheme();
@@ -207,8 +213,8 @@ export function PluginViewFrame(props: {
     };
   }, [document_]);
 
-  // Studio: the CAD views take the workspace's Ask or Edit by hand (`workbench/workspaceMode.ts`).
-  const editLayout = useActiveViewerEditLayout();
+  // Studio: the CAD views take Simple view's layout, or the full workspace's (`workbench/simpleView.ts`).
+  const editLayout = viewerEditLayout(useSimpleView());
   const live = { theme, size, props, request, editLayout };
   const latest = useRef(live);
   useEffect(() => {
@@ -223,6 +229,12 @@ export function PluginViewFrame(props: {
     if (frame === null || document_ === null) return;
     const targetOrigin = "origin" in frame ? frame.origin : "*";
     const contentWindow = () => frameRef.current?.contentWindow ?? null;
+    // What the view says of its part, kept while this host is up and forgotten once it is gone and
+    // can hear no more: closed, reloaded or opened on another file, the view holds nothing.
+    const editKey = props.editStateKey;
+    const forgetEditState = () => {
+      if (editKey !== undefined) useViewerEditState.getState().remove(editKey);
+    };
     const hostContext = (): McpAppHostContext => {
       const current = latest.current;
       return {
@@ -343,6 +355,12 @@ export function PluginViewFrame(props: {
               open(path);
             },
           }),
+      ...(editKey === undefined
+        ? {}
+        : {
+            onEditState: (state: ViewerEditState) =>
+              useViewerEditState.getState().set(editKey, state),
+          }),
       downloadFile: async (files) => {
         await ask(`Save ${files.map((file) => file.name).join(", ")} from ${target.title}?`);
         for (const file of files) {
@@ -367,7 +385,10 @@ export function PluginViewFrame(props: {
         }
       },
       onRequestTeardown: () => {
-        void host.teardown().then(() => setClosed(true));
+        void host.teardown().then(() => {
+          forgetEditState();
+          setClosed(true);
+        });
       },
       onSizeChanged: () => {
         // The view fills a fixed box; its preferred height does not apply.
@@ -388,6 +409,7 @@ export function PluginViewFrame(props: {
       window.removeEventListener("message", receive);
       void host.teardown();
       hostRef.current = null;
+      forgetEditState();
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A new document needs a new host; the rest is read through `latest`.
   }, [frame, document_]);

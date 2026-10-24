@@ -38,7 +38,6 @@ import ThreadSidebar from "./Sidebar";
 import { railMark } from "./workbench/studioPlaces";
 import { STUDIO_RAIL_WIDTH } from "./workbench/StudioRail";
 import { StudioSidebarFrame } from "./workbench/StudioSidebar";
-import { useStudioFullScreen } from "./workbench/studioFullScreen";
 import { useEngineeringInterface } from "./workbench/studioInterface";
 import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import { SidebarBrandWidthProbe, SidebarChromeHeader } from "./sidebar/SidebarChrome";
@@ -253,8 +252,6 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   // is the rail and the column beside it, and folding it keeps the rail
   // (`workbench/StudioSidebar.tsx`).
   const studioShell = useEngineeringInterface() && railMark(pathname) !== null;
-  // Edit by hand in full screen: the sidebar steps aside (`workbench/studioFullScreen.ts`).
-  const studioFullScreen = useStudioFullScreen((store) => store.on);
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
   // Subscribed rather than read once: the clamp must track live window size,
@@ -333,7 +330,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   return (
     <PanelAnimationSuppressionProvider value={panelAnimationsSuppressed}>
       <SidebarProvider
-        className={cn("h-dvh! min-h-0!", studioFullScreen && "[&>[data-slot=sidebar]]:hidden")}
+        className="h-dvh! min-h-0!"
         data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
         defaultOpen
         style={sidebarProviderStyle}
@@ -375,15 +372,11 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           <SidebarRail onDoubleClick={resetSidebarWidth} />
         </Sidebar>
         {children}
-        {studioFullScreen ? null : (
-          <SidebarControl
-            {...(studioShell
-              ? {
-                  label: isOnSettings ? "Show or hide the settings list" : "Show or hide the chats",
-                }
-              : {})}
-          />
-        )}
+        <SidebarControl
+          {...(studioShell
+            ? { label: isOnSettings ? "Show or hide the settings list" : "Show or hide the chats" }
+            : {})}
+        />
         <NavigationHistoryShortcuts />
         <MainAppLocationTracker />
       </SidebarProvider>

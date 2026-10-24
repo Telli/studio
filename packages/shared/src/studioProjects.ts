@@ -130,9 +130,9 @@ export function studioOtherFolders(project: StudioProject, folder: string): Read
  * the viewer, and a report when a job's results are worth keeping. Studio
  * opens the report, or the result, beside the chat.
  */
-/** So every profile opens in Edit by hand as a sketch, not as its sizes only. */
+/** So every profile opens in Studio's workspace as a sketch, not as its sizes only. */
 const EDITABLE_SKETCHES = [
-  "Draw every 2D profile you extrude, revolve, cut, sweep or loft with `cadgen.sketch` (the cad skill's `references/sketching.md`): lines, arcs and circles held by relations and dimensions that take the part's named sizes. Studio's Edit by hand opens only those as sketches; a profile made from build123d's shapes (`BuildSketch` with `Rectangle`, `Circle`, `Polygon` and the like) opens as its sizes only.",
+  "Draw every 2D profile you extrude, revolve, cut, sweep or loft with `cadgen.sketch` (the cad skill's `references/sketching.md`): lines, arcs and circles held by relations and dimensions that take the part's named sizes. Studio's workspace opens only those as sketches; a profile made from build123d's shapes (`BuildSketch` with `Rectangle`, `Circle`, `Polygon` and the like) opens as its sizes only.",
   "When you change a part that still has such a profile, redraw it with `cadgen.sketch` in the same change, keeping its shape and sizes.",
 ].join("\n\n");
 

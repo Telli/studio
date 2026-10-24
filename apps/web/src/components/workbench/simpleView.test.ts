@@ -1,0 +1,95 @@
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+
+import {
+  editsByHand,
+  setSimpleView,
+  simpleViewToggle,
+  useSimpleViewStore,
+  viewerEditLayout,
+} from "./simpleView";
+
+const KEY = "studio:simple-view";
+
+/** This device's storage, as the page has it. */
+function storage(values = new Map<string, string>()) {
+  return {
+    values,
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => void values.set(key, value),
+  };
+}
+
+/** Studio started again, reading the choice from storage as it opens. */
+async function restart() {
+  vi.resetModules();
+  return (await import("./simpleView")).useSimpleViewStore.getState().on;
+}
+
+describe("Simple view", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useSimpleViewStore.setState({ on: false });
+  });
+
+  it("shows the full workspace the first time", async () => {
+    vi.stubGlobal("localStorage", storage());
+    expect(await restart()).toBe(false);
+    expect(viewerEditLayout(false)).toBe("manual");
+    // A project left in Ask before Simple view came is not carried over: the full workspace still.
+    vi.stubGlobal(
+      "localStorage",
+      storage(new Map([["studio:workspace-modes", JSON.stringify({ "/p/clip": "ask" })]])),
+    );
+    expect(await restart()).toBe(false);
+  });
+
+  it("remembers the choice across projects", async () => {
+    const before = JSON.stringify({ "/p/clip": "manual" });
+    const stored = storage(new Map([["studio:workspace-modes", before]]));
+    vi.stubGlobal("localStorage", stored);
+    setSimpleView(true);
+    expect(useSimpleViewStore.getState().on).toBe(true);
+    expect(viewerEditLayout(true)).toBe("ai");
+    // One choice for the person, not for a folder: every project opens in it, after a restart too.
+    expect(await restart()).toBe(true);
+    // The old per-project choices are left as they were.
+    expect(stored.values.get("studio:workspace-modes")).toBe(before);
+    // And off again, the way it came.
+    setSimpleView(false);
+    expect(stored.values.has(KEY)).toBe(true);
+    expect(await restart()).toBe(false);
+  });
+
+  it("still works when storage throws", async () => {
+    const blocked = () => {
+      throw new Error("Storage is off");
+    };
+    vi.stubGlobal("localStorage", { getItem: blocked, setItem: blocked });
+    expect(await restart()).toBe(false);
+    const { setSimpleView: set, useSimpleViewStore: store } = await import("./simpleView");
+    expect(() => set(true)).not.toThrow();
+    // The choice holds for the session.
+    expect(store.getState().on).toBe(true);
+  });
+
+  it("shows the toggle only where there are two layouts", () => {
+    // A view that has said nothing, or is gone.
+    expect(simpleViewToggle(undefined)).toBe("hidden");
+    // An imported STEP, with no part script beside it: the viewer's one layout.
+    expect(simpleViewToggle({ editable: false, busy: false })).toBe("hidden");
+    expect(simpleViewToggle({ editable: true, busy: false })).toBe("shown");
+    // A command or sketch open holds it until it is finished or cancelled.
+    expect(simpleViewToggle({ editable: true, busy: true })).toBe("held");
+  });
+
+  it("knows the CAD viewer on a part from every other panel", () => {
+    expect(editsByHand({ kind: "plugin-app", file: "parts/bracket.step" })).toBe(true);
+    expect(editsByHand({ kind: "plugin-app", file: "parts/plate.solidcraft" })).toBe(true);
+    expect(editsByHand({ kind: "plugin-app" })).toBe(true);
+    expect(editsByHand({ kind: "plugin-app", file: "electronics/main.kicad_pcb" })).toBe(false);
+    expect(editsByHand({ kind: "plugin-app", file: "parts/bracket.fea.glb" })).toBe(false);
+    expect(editsByHand({ kind: "file", file: "docs/PRD.md" })).toBe(false);
+    expect(editsByHand({ kind: "files" })).toBe(false);
+    expect(editsByHand(null)).toBe(false);
+  });
+});

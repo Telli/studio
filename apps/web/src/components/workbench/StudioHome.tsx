@@ -270,8 +270,8 @@ function AttachedList(props: {
 }
 
 /**
- * Home's box, in three modes, as the part toolbar has Ask and Edit by hand, each named with its
- * button's word, as a sign-in form's Sign in and Sign up. Ask: a question about anything, in a
+ * Home's box, in three modes, each named with its button's word, as a sign-in form's Sign in and
+ * Sign up. Ask: a question about anything, in a
  * chat in no project (`freeformChat.ts`), where the agent finds the work it is about. Start, from
  * an idea: say what to make and Start. It goes to a new project, as it starts, or to a new chat in a project of yours chosen
  * beside Attach (`ProjectPicker`), the box then reading as a project's chat box does. Set up, from

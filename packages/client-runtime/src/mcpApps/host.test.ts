@@ -415,6 +415,62 @@ describe("makeMcpAppHost", () => {
     expect(plain.sent.find((m) => m.id === 3)?.error).toMatchObject({ code: -32601 });
   });
 
+  it("forwards the viewer's edit state", () => {
+    const states: Array<{ editable: boolean; busy: boolean }> = [];
+    const { host } = setup({ onEditState: (state) => void states.push(state) });
+    initialize(host);
+    const editState = (params: Record<string, unknown>) =>
+      host.receive({ jsonrpc: "2.0", method: "studio/notifications/edit-state", params });
+    editState({ editable: true, busy: false });
+    editState({ editable: true, busy: true });
+    // Only the two answers travel on, whatever else comes with them.
+    editState({ editable: false, busy: false, file: "/project/parts/tray.step" });
+    expect(states).toEqual([
+      { editable: true, busy: false },
+      { editable: true, busy: true },
+      { editable: false, busy: false },
+    ]);
+  });
+
+  it("advertises studioEditState only when it can take it", () => {
+    const capabilities = (sent: ReadonlyArray<Record<string, unknown>>) =>
+      (sent[0]?.result as { hostCapabilities: Record<string, unknown> } | undefined)
+        ?.hostCapabilities;
+    const able = setup({ onEditState: () => undefined });
+    initialize(able.host);
+    expect(capabilities(able.sent)?.studioEditState).toEqual({});
+    const plain = setup();
+    initialize(plain.host);
+    expect(capabilities(plain.sent)?.studioEditState).toBeUndefined();
+  });
+
+  it("ignores an edit state that is not two booleans", () => {
+    const states: Array<{ editable: boolean; busy: boolean }> = [];
+    const { host, sent } = setup({ onEditState: (state) => void states.push(state) });
+    initialize(host);
+    const answered = sent.length;
+    for (const params of [
+      { editable: "yes", busy: false },
+      { editable: true },
+      { busy: false },
+      { editable: 1, busy: 0 },
+      { editable: null, busy: null },
+    ]) {
+      host.receive({ jsonrpc: "2.0", method: "studio/notifications/edit-state", params });
+    }
+    host.receive({ jsonrpc: "2.0", method: "studio/notifications/edit-state" });
+    expect(states).toEqual([]);
+    // A notification is never answered, taken or not.
+    expect(sent).toHaveLength(answered);
+    // The next well-formed one is taken as ever.
+    host.receive({
+      jsonrpc: "2.0",
+      method: "studio/notifications/edit-state",
+      params: { editable: true, busy: false },
+    });
+    expect(states).toEqual([{ editable: true, busy: false }]);
+  });
+
   it("tears down after the app answers, or after the timeout, and passes on its own request", async () => {
     vi.useFakeTimers();
     try {

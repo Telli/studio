@@ -28,7 +28,7 @@ const ABOUT: ReadonlyArray<readonly [RegExp, string]> = [
   [/\.zip$/i, "A zip archive."],
   [
     /\.py$/i,
-    "The script the part is built from. Ask in the chat to change it, or use Edit by hand.",
+    "The script the part is built from. Ask in the chat to change it, or edit the part by hand.",
   ],
   [/\.ya?ml$/i, "Settings or data the tools read."],
   [/\.json$/i, "Data the tools read and write."],
