@@ -109,6 +109,8 @@
    * (a toolbar button, a Part Navigator row, a timeline item) and what is pressed or selected. */
   --color-cad-ws-hover: var(--cad-ws-hover);
   --color-cad-ws-selected: var(--cad-ws-selected);
+  /* What the agent made, as the timeline marks it with a dot (what you made is the muted foreground). */
+  --color-cad-agent: var(--cad-agent);
 }
 
 :root {
@@ -203,6 +205,7 @@
   --cad-cancel: oklch(0.58 0.21 27);
   --cad-ws-hover: #eef4fc;
   --cad-ws-selected: #e1ecfa;
+  --cad-agent: #7c3aed;
 }
 
 .dark {
@@ -293,4 +296,5 @@
   --cad-cancel: oklch(0.7 0.19 27);
   --cad-ws-hover: #1d2a3a;
   --cad-ws-selected: #24364d;
+  --cad-agent: #a78bfa;
 }

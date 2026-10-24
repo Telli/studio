@@ -143,6 +143,7 @@ import PreviewLayer from "./edit/PreviewLayer.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
 import EditLayoutSwitch from "./edit/EditLayoutSwitch.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
+import EditTimeline from "./edit/EditTimeline.jsx";
 import { DRAWING_TOOL_ICONS, ToolIcon } from "./edit/cadIcons.jsx";
 import { drawingToolVariant } from "../../annotation/toolbar.jsx";
 import SketchOverlay from "./edit/SketchOverlay.jsx";
@@ -3755,6 +3756,7 @@ function StepSurfaceBody({ view, data }) {
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
       onDeselect={deselectReference} /> : null}
+    bottomDock={editing ? <EditTimeline edit={edit} tree={editTree} onEditSketch={openTreeSketch} /> : null}
     dialogPlace={editing ? setCommandCard : null} dialogOpen={editing && floatsCard(edit)}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
