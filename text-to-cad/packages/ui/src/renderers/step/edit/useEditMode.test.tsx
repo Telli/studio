@@ -68,7 +68,7 @@ it('a part reads as its sizes and history, a change applies at once and the agen
 });
 
 it("a part whose script stops says where it stopped, for as long as that error stands", async () => {
-  const stoppedAt = { file: 'plate.py', line: 9, text: 'plate = fillet(plate.edges(), radius=WALL)' };
+  const stoppedAt = { frames: [{ file: 'plate.py', line: 9, text: 'plate = fillet(plate.edges(), radius=WALL)' }] };
   const trace = 'Traceback (most recent call last):\n  File "/project/parts/plate.py", line 9, in plate\nValueError: Failed creating a fillet';
   const refusal = 'That number is no longer in the source. Look again.';
   const viewer = server();

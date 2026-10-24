@@ -242,7 +242,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const disabled = edit.saving || edit.status !== "ready";
   const rowProps = { selected: edit.selected, onSelect: edit.select, onHover: edit.hover };
   const name = sizeName(edit.state?.name || "") || "Part";
-  // The feature a failed build stopped in, to be marked: the one with the very line the engine says it stopped at.
+  // The feature a failed build stopped in, to be marked: the one with the line the engine says it stopped at, or with the call into the helper that did.
   const failure = buildFailure(tree, edit.error, edit.failure);
   // A row's menu, in NX's words and order: Edit Parameters on a feature a command made, Edit Sketch
   // where it has a sketch to edit, Suppress or Unsuppress, Rename, Delete (on a feature or a sketch of

@@ -98,10 +98,10 @@ const KERNEL = ["/work/.venv/lib/python3.13/site-packages/build123d/operations_g
 const WHY = "OCP.StdFail.StdFail_NotDone: BRep_API: command not done";
 
 // The part as the engine reads it: each feature gives its first line as written, and the rows folded
-// into one (a profile's line, a cut joined to it) give theirs.
+// into one (a profile's line, a cut joined to it) give theirs. The hole is made by a helper the part calls.
 const SOURCE = {
   profile: "profile = Circle(RADIUS)", base: "base = extrude(profile, amount=HEIGHT)", blend: "base = fillet(base.edges(), radius=WALL)",
-  chamfer: "base = chamfer(base.edges(), length=1)", hole: "base -= Pos(0, 0, 0) * Cylinder(HOLE, HEIGHT)",
+  chamfer: "base = chamfer(base.edges(), length=1)", hole: "base = drill(base, HOLE)",
 };
 const SOURCED = featureTree({
   rows: [
@@ -118,38 +118,65 @@ const SOURCED = featureTree({
     { key: "servo.py:27", kind: "Hole", name: "base", file: "servo.py", line: 27, text: SOURCE.hole },
   ],
 });
-// Where the engine says the script stopped: its file as the history names it, its line, and the line as read.
-const stoppedAt = (line, text, file = "servo.py") => ({ file, line, text });
+// How the engine says where the script stopped: the frames of its traceback in the project's own files,
+// deepest first, each with its file as the history names it, its line and the line as read.
+const at = (line, text, file = "servo.py") => ({ file, line, text });
+const stoppedAt = (...frames) => ({ frames });
+// The line in a helper's file that raised, which makes no row; the part's call into it is the hole's row.
+const IN_DRILL = at(8, "return base - Pos(0, 0, 0) * Cylinder(HOLE, HEIGHT)", "helpers.py");
 const FILLET_FAILED = traceback(TRACER, ["/work/servo/servo.py", 24, SOURCE.blend], KERNEL);
 
 test("a failed build marks the feature whose line it stopped at, told by file, number and words, and says why", () => {
-  assert.deepEqual(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, SOURCE.blend)), { id: "servo.py:24", why: WHY });
+  assert.deepEqual(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(24, SOURCE.blend))), { id: "servo.py:24", why: WHY });
   // A line folded into a feature, its profile's, is the feature's.
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(11, SOURCE.profile))?.id, "servo.py:12");
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(11, SOURCE.profile)))?.id, "servo.py:12");
   // The files are told by their names, whichever way a system writes its paths.
   const nested = featureTree({ features: [{ key: "parts/servo.py:24", kind: "Fillet", name: "base", file: "parts/servo.py", line: 24, text: SOURCE.blend }] });
-  assert.equal(buildFailure(nested, FILLET_FAILED, stoppedAt(24, SOURCE.blend, "parts\\servo.py"))?.id, "parts/servo.py:24");
+  assert.equal(buildFailure(nested, FILLET_FAILED, stoppedAt(at(24, SOURCE.blend, "parts\\servo.py")))?.id, "parts/servo.py:24");
+});
+
+test("an error inside a helper marks the feature that called it: the helper's line is no row, so the walk goes on to the call", () => {
+  assert.deepEqual(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(IN_DRILL, at(27, SOURCE.hole))), { id: "servo.py:27", why: WHY });
+  // However many helpers deep, and with a function of the part's own between, whose line is no row either.
+  const deeper = stoppedAt(at(3, "raise ValueError", "helpers.py"), IN_DRILL, at(40, "return drill(base, HOLE)"), at(27, SOURCE.hole));
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, deeper)?.id, "servo.py:27");
+});
+
+test("the deepest frame a row agrees with is the one that counts", () => {
+  // Both frames are lines of rows, as when a function of the part's own does the fillet and the hole follows it.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(24, SOURCE.blend), at(27, SOURCE.hole)))?.id, "servo.py:24");
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(27, SOURCE.hole), at(24, SOURCE.blend)))?.id, "servo.py:27");
 });
 
 test("a line that moved marks nothing: not its own row, and not the neighbour now at its number", () => {
   // A line was written above the fillet: it stands at 25 now, where the last good part's chamfer was.
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(25, SOURCE.blend)), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(25, SOURCE.blend))), null);
   // Two lines above it, where the last good part had nothing at all.
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(26, SOURCE.blend)), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(26, SOURCE.blend))), null);
   // The fillet's number with the chamfer's words.
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, SOURCE.chamfer)), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(24, SOURCE.chamfer))), null);
+});
+
+test("a call that moved marks nothing either, though the helper it called is told of", () => {
+  // The call into the helper stands at 28 now, where the last good part had nothing; at 25, where its chamfer was.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(IN_DRILL, at(28, SOURCE.hole))), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(IN_DRILL, at(25, SOURCE.hole))), null);
+  // The call's number with another line's words.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(IN_DRILL, at(27, SOURCE.chamfer))), null);
+  // The helper's own line is told by its words too: a row's number and words are the only way in.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(27, SOURCE.hole, "helpers.py"))), null);
 });
 
 test("a line the last good part does not hold marks nothing, whatever sits at its number", () => {
   // Rewritten (the radius typed over in the line) or new: no row of the last good part reads so.
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, "base = fillet(base.edges(), radius=40)")), null);
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(25, "base = shell(base, thickness=1)")), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(24, "base = fillet(base.edges(), radius=40)"))), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(25, "base = shell(base, thickness=1)"))), null);
   // The same words at the same number in another file are another line.
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, SOURCE.blend, "helpers.py")), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(24, SOURCE.blend, "helpers.py"))), null);
   // Nothing to tell it by.
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, "")), null);
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, { file: "servo.py", text: SOURCE.blend }), null);
-  assert.equal(buildFailure({ assembly: false, features: [] }, FILLET_FAILED, stoppedAt(24, SOURCE.blend)), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(24, ""))), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt({ file: "servo.py", text: SOURCE.blend })), null);
+  assert.equal(buildFailure({ assembly: false, features: [] }, FILLET_FAILED, stoppedAt(at(24, SOURCE.blend))), null);
 });
 
 test("features whose lines read alike are told by their numbers, and a line two features stand for marks neither", () => {
@@ -159,10 +186,10 @@ test("features whose lines read alike are told by their numbers, and a line two 
       { key: "servo.py:30", kind: "Fillet", name: "base", file: "servo.py", line: 30, text: SOURCE.blend },
     ],
   });
-  assert.equal(buildFailure(twice, FILLET_FAILED, stoppedAt(30, SOURCE.blend))?.id, "servo.py:30");
-  assert.equal(buildFailure(twice, FILLET_FAILED, stoppedAt(24, SOURCE.blend))?.id, "servo.py:24");
-  assert.equal(buildFailure(twice, FILLET_FAILED, stoppedAt(27, SOURCE.blend)), null);
-  // A line both claim cannot say which of them it is.
+  assert.equal(buildFailure(twice, FILLET_FAILED, stoppedAt(at(30, SOURCE.blend)))?.id, "servo.py:30");
+  assert.equal(buildFailure(twice, FILLET_FAILED, stoppedAt(at(24, SOURCE.blend)))?.id, "servo.py:24");
+  assert.equal(buildFailure(twice, FILLET_FAILED, stoppedAt(at(27, SOURCE.blend))), null);
+  // A line both claim cannot say which of them it is, and the calls outwards from it are not asked.
   const shared = featureTree({
     rows: [{ key: "servo.py:3", file: "servo.py", line: 3, code: SOURCE.profile }],
     features: [
@@ -170,16 +197,19 @@ test("features whose lines read alike are told by their numbers, and a line two 
       { key: "servo.py:9", kind: "Boss-Extrude", name: "b", file: "servo.py", line: 9, text: SOURCE.base, rows: ["servo.py:3", "servo.py:9"] },
     ],
   });
-  assert.equal(buildFailure(shared, FILLET_FAILED, stoppedAt(3, SOURCE.profile)), null);
-  assert.equal(buildFailure(shared, FILLET_FAILED, stoppedAt(9, SOURCE.base))?.id, "servo.py:9");
+  assert.equal(buildFailure(shared, FILLET_FAILED, stoppedAt(at(3, SOURCE.profile))), null);
+  assert.equal(buildFailure(shared, FILLET_FAILED, stoppedAt(at(3, SOURCE.profile), at(9, SOURCE.base))), null);
+  assert.equal(buildFailure(shared, FILLET_FAILED, stoppedAt(at(9, SOURCE.base)))?.id, "servo.py:9");
 });
 
 test("an engine that says no line marks nothing, though the traceback holds a frame", () => {
-  // A script that does not parse never ran, so the engine finds no line of the part's own to name, though
-  // its traceback names one. An engine that says nothing of where leaves only that traceback's line number,
-  // the failing script's, which the last good part's rows stop matching once a line is written above.
+  // A script that does not parse never ran, so the engine finds no frame of the part's own to name, though
+  // its traceback names a line. An engine that says nothing of where leaves only that traceback's line
+  // number, the failing script's, which the last good part's rows stop matching once a line is written above.
   assert.equal(buildFailure(SOURCED, FILLET_FAILED, null), null);
   assert.equal(buildFailure(SOURCED, FILLET_FAILED), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt()), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, {}), null);
 });
 
 test("says why in the last line of the traceback the tracer gives for a fillet that cannot be made", () => {
@@ -205,7 +235,7 @@ test("says why in the last line of the traceback the tracer gives for a fillet t
     "    ...<2 lines>...",
     "ValueError: Failed creating a fillet with radius of 50, try a smaller value or use max_fillet() to find the largest valid fillet radius",
   ].join("\n");
-  assert.deepEqual(buildFailure(SOURCED, error, stoppedAt(24, SOURCE.blend)), {
+  assert.deepEqual(buildFailure(SOURCED, error, stoppedAt(at(24, SOURCE.blend))), {
     id: "servo.py:24", why: "ValueError: Failed creating a fillet with radius of 50, try a smaller value or use max_fillet() to find the largest valid fillet radius" });
 });
 
@@ -214,11 +244,11 @@ test("says nothing of an error that points at no feature", () => {
   assert.equal(buildFailure(SOURCED, "Another feature is named Lid. Pick another name."), null);
   assert.equal(buildFailure(SOURCED, "Another feature is named Lid. Pick another name.", null), null);
   // No error to say, whatever place is held.
-  assert.equal(buildFailure(SOURCED, "", stoppedAt(24, SOURCE.blend)), null);
-  assert.equal(buildFailure(SOURCED, undefined, stoppedAt(24, SOURCE.blend)), null);
+  assert.equal(buildFailure(SOURCED, "", stoppedAt(at(24, SOURCE.blend))), null);
+  assert.equal(buildFailure(SOURCED, undefined, stoppedAt(at(24, SOURCE.blend))), null);
   // A line that makes no feature, and a file the part does not have.
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(99, "x = 1")), null);
-  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, SOURCE.blend, "notservo.py")), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(99, "x = 1"))), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(at(24, SOURCE.blend, "notservo.py"))), null);
 });
 
 test("a failed build in an assembly points at the part's feature, by its file", () => {
@@ -230,7 +260,9 @@ test("a failed build in an assembly points at the part's feature, by its file", 
     ],
   });
   // The same line number in two parts' files: the file and the words tell them apart.
-  assert.equal(buildFailure(assembly, WHY, stoppedAt(7, "lid = extrude(base, amount=3)", "lid.py"))?.id, "lid.py:7");
-  assert.equal(buildFailure(assembly, WHY, stoppedAt(7, "tray = extrude(base, amount=3)", "tray.py"))?.id, "tray.py:7");
-  assert.equal(buildFailure(assembly, WHY, stoppedAt(7, "tray = extrude(base, amount=3)", "lid.py")), null);
+  assert.equal(buildFailure(assembly, WHY, stoppedAt(at(7, "lid = extrude(base, amount=3)", "lid.py")))?.id, "lid.py:7");
+  assert.equal(buildFailure(assembly, WHY, stoppedAt(at(7, "tray = extrude(base, amount=3)", "tray.py")))?.id, "tray.py:7");
+  assert.equal(buildFailure(assembly, WHY, stoppedAt(at(7, "tray = extrude(base, amount=3)", "lid.py"))), null);
+  // A helper both parts share, called from the lid: the lid's row.
+  assert.equal(buildFailure(assembly, WHY, stoppedAt(at(3, "raise ValueError", "helpers.py"), at(7, "lid = extrude(base, amount=3)", "lid.py")))?.id, "lid.py:7");
 });

@@ -1066,18 +1066,28 @@ def _source_line(rel, line):
         return ""
 
 
+# The most frames of the project's own that a failed trace tells of: the deepest ones, where the line
+# that raised and the call into any helper it is in are.
+STOPPED_FRAMES = 6
+
+
 def _stopped_at(error):
-    """Where a part's script stopped, in the project's own files: the deepest frame of the error's
-    traceback that lies in one (build123d's, cadgen's and Python's own do not). It is named as a row of
-    the history names its place (``file`` from the project's top, ``line``) with that line as written
-    (``text``), so a view still holding the last good trace can tell by all three which of its rows ran
-    it. None when no frame is the project's: a script that does not parse never ran."""
+    """Where a part's script stopped, in the project's own files: the frames of the error's traceback
+    that lie in one (build123d's, cadgen's and Python's own do not), the deepest first and at most
+    ``STOPPED_FRAMES``. Each is named as a row of the history names its place (``file`` from the
+    project's top, ``line``) with that line as written (``text``), so a view still holding the last good
+    trace can tell by all three which of its rows ran it. The deepest is the line that raised; when that
+    is in a helper, which makes no row of its own, the next is the call the feature's row stands at.
+    None when no frame is the project's: a script that does not parse never ran."""
+    frames = []
     for frame in reversed(traceback.extract_tb(error.__traceback__)):
         # `<string>` and the like are no file: a relative name would read as one under the folder it runs in.
         if frame.lineno and Path(frame.filename).is_absolute() and _inside(frame.filename):
             rel = _relative(frame.filename)
-            return {"file": rel, "line": frame.lineno, "text": _source_line(rel, frame.lineno)}
-    return None
+            frames.append({"file": rel, "line": frame.lineno, "text": _source_line(rel, frame.lineno)})
+            if len(frames) == STOPPED_FRAMES:
+                break
+    return {"frames": frames} if frames else None
 
 
 # Copies made one by one, as edit mode's Pattern writes them up Z or about a picked axis:

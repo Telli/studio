@@ -34,12 +34,11 @@ import { countChange, sketchNote, TRANSFORM_TOOLS } from "./sketchMode.js";
 // an unchanged answer is a hash comparison on the server, and the part is not run.
 const POLL_MS = 1500;
 const describe = error => (error instanceof Error ? error.message : String(error || "The change could not be made."));
-// Where a script that did not build stopped (`{ file, line, text }`, from the engine), kept with the
-// error it is the place of. The same place again, as every poll says it, is no new state.
+// Where a script that did not build stopped (`{ frames }`, from the engine), kept with the error it is
+// the place of. The same place again, as every poll says it, is no new state.
 const stoppedAtOf = (current, message, at) => {
   const next = at && typeof at === "object" ? { message, at } : null;
-  const same = current === next || (current && next && current.message === next.message
-    && current.at.file === next.at.file && current.at.line === next.at.line && current.at.text === next.at.text);
+  const same = current === next || (current && next && current.message === next.message && JSON.stringify(current.at) === JSON.stringify(next.at));
   return same ? current : next;
 };
 // A feature's title in the design tree a reply describes: "Fillet2".

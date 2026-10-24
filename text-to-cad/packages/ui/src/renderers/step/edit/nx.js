@@ -137,19 +137,25 @@ const slashed = path => String(path).replace(/\\/g, "/");
 
 /**
  * The feature a failed build is at, and why. The tree is the last part that built; the script that
- * stopped (`edit.error`, its traceback) has moved on from it, and the engine says where it stopped:
- * the deepest line of the project's own that the traceback holds (`edit.failure`, `{ file, line,
- * text }`, the line as written). A feature is that one only when a line it stands for (`lines`) is
- * that very line, the same file, the same number and the same words. A line that moved, was rewritten
- * or is new is no row of this tree, and neither is the neighbour now at its number: nothing is marked
- * that is not known. `{ id, why }`, `why` the error's last line; null when no feature agrees, or two do.
+ * stopped (`edit.error`, its traceback) has moved on from it, and the engine says where it stopped: the
+ * frames of the traceback in the project's own files, the deepest first (`edit.failure.frames`, each
+ * `{ file, line, text }`, the line as written). The deepest is the line that raised; when that is in a
+ * helper, which makes no row, the next is the call the feature's row stands at. So the walk goes outwards
+ * from the deepest frame and stops at the first one a feature's line agrees with: the same file, the same
+ * number and the same words. A line that moved, was rewritten or is new is no row of this tree, and neither
+ * is the neighbour now at its number: nothing is marked that is not known. `{ id, why }`, `why` the
+ * error's last line; null when no frame agrees with a feature, or the first that does agrees with two.
  */
 export function buildFailure(tree, error, failure) {
   const why = String(error || "").trim().split("\n").at(-1).trim();
-  const { file, line, text } = failure || {};
-  const words = String(text ?? "").trim();
-  if (!why || !file || !line || !words) return null;
-  const owners = treeFeatures(tree).filter(feature => (feature.lines || [])
-    .some(each => each.line === line && slashed(each.file) === slashed(file) && String(each.text).trim() === words));
-  return owners.length === 1 ? { id: owners[0].id, why } : null;
+  if (!why) return null;
+  const features = treeFeatures(tree);
+  for (const { file, line, text } of failure?.frames || []) {
+    const words = String(text ?? "").trim();
+    if (!file || !line || !words) continue;
+    const owners = features.filter(feature => (feature.lines || [])
+      .some(each => each.line === line && slashed(each.file) === slashed(file) && String(each.text).trim() === words));
+    if (owners.length) return owners.length === 1 ? { id: owners[0].id, why } : null;
+  }
+  return null;
 }

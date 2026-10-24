@@ -302,8 +302,8 @@ class ConstrainedSketches(unittest.TestCase):
         self.assertIn("LENGTH = 50\n", (root / "bracket.py").read_text(encoding="utf-8"))
 
 
-# A tray whose fillet cannot be made once WALL is big enough, with the rounding in a helper file of
-# its own in the second part.
+# A tray whose fillet cannot be made once WALL is big enough: rounded in the part's own line, by a
+# helper's function the part calls, and at the bottom of a chain of helper calls longer than a failure tells of.
 ROUNDED = {
     "tray.py": """
         from build123d import Axis, Box, fillet
@@ -332,19 +332,40 @@ ROUNDED = {
             outer = rounded(outer, WALL)
             return outer
     """,
+    "deep.py": """
+        from build123d import Box
+        from cadgen import step
+        from helpers import descend
+
+        WALL = 2
+
+
+        @step
+        def deep():
+            outer = Box(40, 20, 10)
+            outer = descend(outer, WALL, 9)
+            return outer
+    """,
     "helpers.py": """
         from build123d import Axis, fillet
 
 
         def rounded(shape, radius):
             return fillet(shape.edges().filter_by(Axis.Z), radius=radius)
+
+
+        def descend(shape, radius, depth):
+            if depth == 0:
+                return rounded(shape, radius)
+            return descend(shape, radius, depth - 1)
     """,
 }
 
 
 class FailedBuild(unittest.TestCase):
-    """A part whose script stops says where it stopped, in its own files, so the viewer can tell which
-    row of the last good part held that very line. A row of the history reads its line the same way."""
+    """A part whose script stops says where it stopped: the frames of its traceback in its own files, so
+    the viewer can tell which row of the last good part held that very line, or made the call that did. A
+    row of the history reads its line the same way."""
 
     def setUp(self):
         self.service = edit.EditService(build=False)
@@ -367,21 +388,38 @@ class FailedBuild(unittest.TestCase):
         good, bad = self.too_big("tray")
         self.assertFalse(bad["ok"])
         self.assertIn("ValueError", bad["error"])
-        # The deepest frame in the project (build123d's and the tracer's are not), as a row names it.
+        # The frames of the traceback in the project's own files (build123d's and the tracer's are not),
+        # deepest first, each as a row names its place: here the part's own line, and no other.
         rounding = "outer = fillet(outer.edges().filter_by(Axis.Z), radius=WALL)"
-        self.assertEqual(bad["failure"], {"file": "tray.py", "line": self.line_of("tray.py", rounding), "text": rounding})
+        frames = [{"file": "tray.py", "line": self.line_of("tray.py", rounding), "text": rounding}]
+        self.assertEqual(bad["failure"], {"frames": frames})
         # Its text is the row's own, so the row of the last good part that held this line can be told by it.
         fillet = next(row for row in good["rows"] if row["kind"] == "Fillet")
-        self.assertEqual((fillet["file"], fillet["line"], fillet["code"]), tuple(bad["failure"].values()))
+        self.assertEqual((fillet["file"], fillet["line"], fillet["code"]), tuple(frames[0].values()))
 
-    def test_it_is_the_deepest_frame_in_the_project_even_in_another_file(self):
+    def test_a_helper_that_stops_gives_its_line_and_then_the_call_the_feature_stands_at(self):
         good, bad = self.too_big("helped")
         self.assertFalse(bad["ok"])
-        rounding = "return fillet(shape.edges().filter_by(Axis.Z), radius=radius)"
-        self.assertEqual(bad["failure"], {"file": "helpers.py", "line": self.line_of("helpers.py", rounding), "text": rounding})
-        # The feature the call makes is the part's own line, which is no line the failure names.
+        raising = "return fillet(shape.edges().filter_by(Axis.Z), radius=radius)"
+        call = "outer = rounded(outer, WALL)"
+        frames = [{"file": "helpers.py", "line": self.line_of("helpers.py", raising), "text": raising},
+                  {"file": "helped.py", "line": self.line_of("helped.py", call), "text": call}]
+        self.assertEqual(bad["failure"], {"frames": frames})
+        # The helper's line makes no row of the history; the call that made the fillet is the row.
         fillet = next(row for row in good["rows"] if row["kind"] == "Fillet")
-        self.assertEqual((fillet["file"], fillet["code"]), ("helped.py", "outer = rounded(outer, WALL)"))
+        self.assertEqual((fillet["file"], fillet["line"], fillet["code"]), tuple(frames[1].values()))
+        self.assertNotIn(("helpers.py", frames[0]["line"]), [(row["file"], row["line"]) for row in good["rows"]])
+
+    def test_a_chain_of_helpers_longer_than_six_tells_of_the_deepest_six(self):
+        _, bad = self.too_big("deep")
+        self.assertFalse(bad["ok"])
+        frames = bad["failure"]["frames"]
+        self.assertEqual(len(frames), 6)
+        # The line that raised first, then each call outwards; the part's own call is past the cap.
+        self.assertEqual([frame["file"] for frame in frames], ["helpers.py"] * 6)
+        self.assertEqual([frame["text"] for frame in frames],
+                         ["return fillet(shape.edges().filter_by(Axis.Z), radius=radius)", "return rounded(shape, radius)"]
+                         + ["return descend(shape, radius, depth - 1)"] * 4)
 
     def test_a_script_that_cannot_be_read_names_no_line(self):
         (self.root / "tray.py").write_text("from cadgen import step\n\n\n@step\ndef tray(:\n    pass\n", encoding="utf-8")

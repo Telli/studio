@@ -269,11 +269,13 @@ export interface CadEditState {
   reason?: 'no-script';
   error?: string;
   /**
-   * Where a part's script stopped (`ok: false`): the deepest line of the project's own that the error's
-   * traceback holds, named as a row of `rows` names its place, with the line as written. Null when the
-   * traceback holds none (a script that does not parse).
+   * Where a part's script stopped (`ok: false`): the frames of the error's traceback that lie in the
+   * project's own files, the deepest first and at most six, each named as a row of `rows` names its
+   * place, with the line as written. The deepest is the line that raised; when that is in a helper, the
+   * next is the call the feature's row stands at. Null when no frame is the project's (a script that does
+   * not parse).
    */
-  failure?: { file: string; line: number; text: string } | null;
+  failure?: { frames: { file: string; line: number; text: string }[] } | null;
   script?: string;
   name?: string;
   units?: 'mm' | 'in';

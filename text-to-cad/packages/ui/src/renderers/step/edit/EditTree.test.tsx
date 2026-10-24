@@ -47,11 +47,11 @@ it("a renamed feature shows its own name and the tree still counts it, and its n
 
 // A bracket: a plate (an extrude a command made, from a sketch of its own), then a fillet and a hole the
 // commands made. Numbered as NX does: Sketch (1), Extrude (2), Edge Blend (3), Hole (4). The engine gives each
-// feature its first line as written, and each row of the history its own.
+// feature its first line as written, and each row of the history its own. The hole is made by a helper the part calls.
 const SOURCE = {
   plate: 'plate = extrude(outline, amount=THICKNESS)',
   fillet: 'plate = fillet(plate.edges().filter_by(Axis.Z), radius=WALL)',
-  hole: 'plate -= Pos(10, 0, 0) * Cylinder(HOLE, THICKNESS)',
+  hole: 'plate = drill(plate, HOLE)',
 };
 const PART = {
   units: 'mm', name: 'bracket',
@@ -243,13 +243,17 @@ const failed = (line: number, code = SOURCE.fillet) => [
   'ValueError: Failed creating a fillet with radius of 40, try a smaller value or use max_fillet() to find the largest valid fillet radius',
 ].join('\n');
 const WHY = 'ValueError: Failed creating a fillet with radius of 40, try a smaller value or use max_fillet() to find the largest valid fillet radius';
-// Where the engine says it stopped: the file as the history names it, the line, and the line as read.
-const stoppedAt = (line: number, text = SOURCE.fillet) => ({ file: 'bracket.py', line, text });
+// How the engine says where the script stopped: the frames of its traceback in the project's own files, deepest
+// first, each with the file as the history names it, the line and the line as read.
+const at = (line: number, text: string, file = 'bracket.py') => ({ file, line, text });
+const stoppedAt = (...frames: ReturnType<typeof at>[]) => ({ frames });
+// The line in a helper's file that raised: it makes no row, and the part's call into it is the hole's.
+const IN_DRILL = at(4, 'return plate - Pos(10, 0, 0) * Cylinder(radius, height)', 'helpers.py');
 // The rows wearing the warning, by their ids.
 const markedRows = () => screen.queryAllByRole('img', { name: 'Did not build' }).map(mark => mark.closest('[data-tree-row]')?.getAttribute('data-cad-edit-tree-row'));
 
 it("marks the feature whose build failed with the viewer's warning, and says why on hover", () => {
-  render(<EditTree edit={part({ error: failed(9), failure: stoppedAt(9) }) as never} tree={partTree()} />);
+  render(<EditTree edit={part({ error: failed(9), failure: stoppedAt(at(9, SOURCE.fillet)) }) as never} tree={partTree()} />);
   // The row the engine's file, line and words name, beside its title, in the alert card's amber.
   const marked = row('Edge Blend (3)');
   const mark = within(marked).getByRole('img', { name: 'Did not build' });
@@ -261,20 +265,36 @@ it("marks the feature whose build failed with the viewer's warning, and says why
   expect(row('Hole (4)').getAttribute('title')).toBeNull();
 });
 
+it("marks the feature that called the helper an error was raised in", () => {
+  // The helper's line makes no row; the part's call into it is the hole's, so that is the row.
+  render(<EditTree edit={part({ error: failed(10, SOURCE.hole), failure: stoppedAt(IN_DRILL, at(10, SOURCE.hole)) }) as never} tree={partTree()} />);
+  expect(markedRows()).toEqual([HOLE]);
+  expect(row('Hole (4)').getAttribute('title')).toBe(`Did not build: ${WHY}`);
+});
+
 it("marks nothing for a line that moved: the script has moved on from the tree", () => {
   // A line was written above the fillet, and it stands at 10 now, where the last good part's hole was.
   // Neither the hole, which reads otherwise, nor the fillet, which sat at 9, is that line.
-  render(<EditTree edit={part({ error: failed(10), failure: stoppedAt(10) }) as never} tree={partTree()} />);
+  render(<EditTree edit={part({ error: failed(10), failure: stoppedAt(at(10, SOURCE.fillet)) }) as never} tree={partTree()} />);
+  expect(markedRows()).toEqual([]);
+});
+
+it("marks nothing for a call that moved, though the helper it called is told of", () => {
+  // The call into the helper stands at 11 now, where the last good part had nothing; and at 9, where its fillet was.
+  render(<EditTree edit={part({ error: failed(11, SOURCE.hole), failure: stoppedAt(IN_DRILL, at(11, SOURCE.hole)) }) as never} tree={partTree()} />);
+  expect(markedRows()).toEqual([]);
+  cleanup();
+  render(<EditTree edit={part({ error: failed(9, SOURCE.hole), failure: stoppedAt(IN_DRILL, at(9, SOURCE.hole)) }) as never} tree={partTree()} />);
   expect(markedRows()).toEqual([]);
 });
 
 it("marks nothing for a line the last good part does not hold", () => {
   // The radius typed over in the line itself: no row of the last good part reads so, though one sits at its number.
   const rewritten = 'plate = fillet(plate.edges().filter_by(Axis.Z), radius=40)';
-  render(<EditTree edit={part({ error: failed(9, rewritten), failure: stoppedAt(9, rewritten) }) as never} tree={partTree()} />);
+  render(<EditTree edit={part({ error: failed(9, rewritten), failure: stoppedAt(at(9, rewritten)) }) as never} tree={partTree()} />);
   expect(markedRows()).toEqual([]);
   cleanup();
-  // The engine found no line of the part's own (a script that does not parse): nothing, whatever the traceback holds.
+  // The engine found no frame of the part's own (a script that does not parse): nothing, whatever the traceback holds.
   render(<EditTree edit={part({ error: failed(9), failure: null }) as never} tree={partTree()} />);
   expect(markedRows()).toEqual([]);
 });
@@ -285,7 +305,8 @@ it("marks nothing for an engine that says no line, though the traceback names on
 });
 
 it("marks nothing for an error that points at no feature", () => {
-  const patches = [{ error: 'Another feature is named Lid. Pick another name.' }, { error: failed(99), failure: stoppedAt(99, 'plate = shell(plate, thickness=1)') }, { error: '' }];
+  const patches = [{ error: 'Another feature is named Lid. Pick another name.' },
+    { error: failed(99), failure: stoppedAt(at(99, 'plate = shell(plate, thickness=1)')) }, { error: '' }];
   for (const patch of patches) {
     render(<EditTree edit={part(patch) as never} tree={partTree()} />);
     expect(markedRows()).toEqual([]);
