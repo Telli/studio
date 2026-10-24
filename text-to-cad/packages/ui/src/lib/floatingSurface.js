@@ -1,8 +1,8 @@
 /**
  * The surfaces of everything that floats over the model, defined here once so they cannot drift
- * apart; a caller adds layout, never a surface of its own. Both are translucent and blurred, so the
- * model reads through without the text losing to it, with a border that keeps the edge on a light
- * scene and a dark one alike.
+ * apart; a caller adds layout, never a surface of its own. The first three are translucent and
+ * blurred, so the model reads through without the text losing to it, with a border that keeps the
+ * edge on a light scene and a dark one alike; the workspace's is white.
  *
  * `FLOATING_SURFACE_CLASS`: the popovers and menus opened over the viewport (a mode menu, the
  * viewport's context menu, the app menu, the explorer, Display's settings, the Animation section's Playback settings) — read while
@@ -22,6 +22,13 @@
  * Tailwind's backdrop utilities compose in an order of their own.)
  */
 export const DARK_PICTURE_ATTRIBUTE = "data-cad-dark-picture";
+/**
+ * `WORKSPACE_SURFACE_CLASS`: the cards of the workspace (edit mode laid out for modeling by hand), up over the live
+ * canvas for as long as it is: the Part Navigator, the open command's dialog and the timeline. White as the
+ * workspace's toolbar is (the background, opaque, in either theme), a 1px hairline and 6px corners (`rounded-sm`),
+ * and no backdrop filter: a blur over the live canvas is computed again for every frame the canvas draws.
+ */
+export const WORKSPACE_SURFACE_CLASS = "rounded-sm border border-border bg-background text-foreground";
 export const FLOATING_SURFACE_CLASS = "border border-border bg-background/75 text-foreground shadow-sm backdrop-blur-md "
   + "[[data-cad-dark-picture]_&:not(.dark_*)]:[backdrop-filter:blur(12px)_contrast(0.5)_brightness(1.333)]";
 export const FILE_SIDEBAR_SURFACE_CLASS = "border border-border bg-background/55 text-foreground shadow-sm backdrop-blur-[4px] "

@@ -1,7 +1,8 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import EditBrowser from '../../../../dist/renderers/step/edit/EditBrowser.js';
+import EditBrowser, { floatsCard } from '../../../../dist/renderers/step/edit/EditBrowser.js';
 import { featureTree } from '../../../../dist/renderers/step/edit/editMode.js';
+import { WORKSPACE_SURFACE_CLASS } from '../../../../dist/lib/floatingSurface.js';
 
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); document.querySelectorAll('[data-test-card]').forEach(node => node.remove()); });
@@ -24,6 +25,10 @@ it("says what went wrong in the card beside the Part Navigator, so the navigator
   const { container } = render(<EditBrowser edit={edit() as never} names={[]} tree={featureTree(STATE)} card={card} />);
   const alert = screen.getByRole('alert');
   expect([card.contains(alert), container.contains(alert), alert.textContent]).toEqual([true, false, 'The fillet could not be built.']);
+  // The card is the workspace's white surface: opaque, blurring nothing of the live canvas under it.
+  const surface = card.querySelector<HTMLElement>('[data-cad-command-card]')!;
+  expect(surface.className.split(/\s+/)).toEqual(expect.arrayContaining(WORKSPACE_SURFACE_CLASS.split(' ')));
+  expect(surface.className).not.toMatch(/\bbackdrop-|bg-background\//);
   cleanup();
   // With a command's dialog open it heads the dialog, in the same card.
   render(<EditBrowser edit={edit({ inspecting: 'expressions', change: vi.fn(), addParameter: vi.fn(), stopInspecting: vi.fn() }) as never}
@@ -34,4 +39,23 @@ it("says what went wrong in the card beside the Part Navigator, so the navigator
   // With no place to float in, it heads the tree, as it did.
   render(<EditBrowser edit={edit() as never} names={[]} tree={featureTree(STATE)} />);
   expect(screen.getByRole('alert').closest('[data-cad-edit-browser]')).not.toBeNull();
+});
+
+it("says whether it floats a card in the dialog's place, as the frame keeps the column clear of one", () => {
+  const card = place();
+  const panel = { change: vi.fn(), addParameter: vi.fn(), stopInspecting: vi.fn() };
+  const states = {
+    nothing: edit({ error: '' }),
+    'what went wrong': edit(),
+    'an Inspect panel': edit({ error: '', inspecting: 'expressions', ...panel }),
+    'the drawing, with no sheet yet': edit({ error: '', inspecting: 'drawing' }),
+  };
+  const floated = Object.fromEntries(Object.entries(states).map(([name, state]) => {
+    render(<EditBrowser edit={state as never} names={[]} tree={featureTree(STATE)} card={card} />);
+    const shown = card.childElementCount > 0;
+    cleanup();
+    return [name, [floatsCard(state), shown]];
+  }));
+  expect(floated).toEqual({ nothing: [false, false], 'what went wrong': [true, true], 'an Inspect panel': [true, true],
+    'the drawing, with no sheet yet': [false, false] });
 });

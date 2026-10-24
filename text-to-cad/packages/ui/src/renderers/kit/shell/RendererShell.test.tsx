@@ -19,6 +19,7 @@ import HarnessRenderer from '../../../../dist/renderers/shell-harness/HarnessRen
 import { ViewerHostContext } from '../../../../dist/host/context.js';
 import { testHost } from '../../../../dist/host/testing/host.js';
 import { ViewerMobileContext } from '../../../../dist/file-viewer/responsive.js';
+import { WORKSPACE_SURFACE_CLASS } from '../../../../dist/lib/floatingSurface.js';
 
 // jsdom lays nothing out: the toolbar is given the height it has in the app.
 const TOOLBAR_HEIGHT = 114;
@@ -55,7 +56,13 @@ function shell(workspace: object = {}) {
   const view = render(element(workspace));
   return { ...view, show: (handed: object) => view.rerender(element(handed)) };
 }
+// A toolbar that draws what the frame hands it of the view (its own controls, its catching-up), as EditRibbon
+// draws them at its tab row's right end.
+const WITH_VIEW = Object.freeze({ ...WORKSPACE,
+  ribbon: (_tools: unknown[], view: { controls?: React.ReactNode, status?: React.ReactNode } | null) =>
+    <div role="toolbar" aria-label="Design">{view?.controls}{view?.status}</div> });
 const backdrop = () => document.querySelector<HTMLElement>('[data-cad-scene-backdrop]')!;
+const column = () => document.querySelector<HTMLElement>('[data-cad-tool-groups]')!;
 const dock = (name: string) => document.querySelector<HTMLElement>(`[data-cad-dock="${name}"]`);
 const workspaceLayer = () => document.querySelector<HTMLElement>('[data-cad-workspace]');
 const stage = (name: string) => act(() => { fireEvent.click(document.querySelector(`[data-harness-stage="${name}"]`)!); });
@@ -84,6 +91,9 @@ it("floats the Part Navigator at the canvas's top left, folding to its title, an
   places.length = 0;
   shell(WORKSPACE);
   const navigator = dock('navigator')!;
+  // White, as the toolbar is: opaque, and blurring nothing of the live canvas under it.
+  expect(navigator.className.split(/\s+/)).toEqual(expect.arrayContaining(WORKSPACE_SURFACE_CLASS.split(' ')));
+  expect(navigator.className).not.toMatch(/\bbackdrop-|bg-background\//);
   const fold = within(navigator).getByRole('button', { name: 'Part Navigator' });
   const tree = within(navigator).getByRole('tree', { name: 'Features' });
   expect(fold.getAttribute('aria-expanded')).toBe('true');
@@ -125,4 +135,40 @@ it("fades the workspace out as Simple view takes its place, taking no presses wh
   expect(workspaceLayer()).toBeNull();
   stage('idle');
   expect(workspaceLayer()).not.toBeNull();
+});
+
+it("puts Projection, Display and Preview, and the view catching up, in the toolbar while the workspace is up, and leaves them on the strip in Simple view", async () => {
+  const view = shell(WITH_VIEW);
+  const toolbar = screen.getByRole('toolbar', { name: 'Design' });
+  const controls = ['Projection', 'Display mode', 'Preview'];
+  // A control by its name, whatever it says it is set to ("Projection: Orthographic" is Projection).
+  const named = (root: Element) => [...root.querySelectorAll('button')].map(button => (button.getAttribute('aria-label') || '').split(':')[0])
+    .filter(name => controls.includes(name));
+  expect([named(toolbar), named(column())]).toEqual([controls, []]);
+  // The toolbar holds the tools too: the column keeps no strip at all.
+  expect(within(column()).queryByRole('group', { name: 'Interaction tools' })).toBeNull();
+  // A newer revision loading behind the model is said with the part's build status, at the toolbar's end.
+  stage('editing');
+  await waitFor(() => expect(toolbar.querySelector('[data-view-update-status]')).not.toBeNull());
+  expect(column().querySelector('[data-view-update-status]')).toBeNull();
+  // Simple view: the strip ends with them again, and the view catching up is under it, as it always was.
+  view.show({});
+  expect(named(column())).toEqual(controls);
+  await waitFor(() => expect(column().querySelector('[data-view-update-status]')).not.toBeNull());
+});
+
+it("moves the column beside an open dialog, so a tool's own row and its panels never hide under it", () => {
+  const view = shell({ ...WORKSPACE, dialogOpen: false });
+  // No dialog: the column spans the view, an inset in, and centres what it holds.
+  expect([column().style.left, column().className]).toEqual(['8px', expect.not.stringMatching(/\bleft-\[/)]);
+  // A dialog beside the Part Navigator: the column is the room past the dialog, or past the dialog alone in a
+  // view too narrow for the navigator.
+  view.show({ ...WORKSPACE, dialogOpen: true });
+  expect(column().style.left).toBe('');
+  expect(column().className).toMatch(/\bleft-\[calc\(35rem\+8px\)\] @max-xl\/cad-viewport:left-\[calc\(18rem\+16px\)\]/);
+  view.show({ ...WORKSPACE, dialogOpen: false });
+  expect(column().style.left).toBe('8px');
+  // Simple view has no dialog's place to keep clear of.
+  view.show({ dialogOpen: true });
+  expect(column().style.left).toBe('8px');
 });

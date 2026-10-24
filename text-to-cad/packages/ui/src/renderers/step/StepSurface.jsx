@@ -137,7 +137,7 @@ import { modelMenuDescriptor, partMenuDescriptor, topologyMenuDescriptor } from 
 import { selectionCopyPayload } from "./file-view/stepCopy.js";
 import { referenceLabel, referencesFromCopyText, resolveSelectorSelection } from "./file-view/hostReference.js";
 import { applySourceAppearanceToMeshData, sourceAppearanceGeometry } from "@text-to-cad/core/common/sourceSidecar.js";
-import EditBrowser from "./edit/EditBrowser.jsx";
+import EditBrowser, { floatsCard } from "./edit/EditBrowser.jsx";
 import DraftAnalysisLayer from "./edit/DraftAnalysisLayer.jsx";
 import PreviewLayer from "./edit/PreviewLayer.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
@@ -3748,13 +3748,14 @@ function StepSurfaceBody({ view, data }) {
     contextMenuItems={selectionToolActive
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}
     onContextMenuOpenChange={handleViewportContextMenuOpenChange}
-    ribbon={editing ? stripTools => <EditRibbon tools={stripTools} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
+    // The toolbar is handed the view's own controls and its catching-up too, for its tab row's right end.
+    ribbon={editing ? (stripTools, view) => <EditRibbon tools={stripTools} view={view} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
       sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)}
       onNormalTo={normalTarget ? edit.lookNormalTo : null} /> : null}
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
       onDeselect={deselectReference} /> : null}
-    dialogPlace={editing ? setCommandCard : null}
+    dialogPlace={editing ? setCommandCard : null} dialogOpen={editing && floatsCard(edit)}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
       // The drawing's sheet, up in the view, covers the part: the part's own layers, which take

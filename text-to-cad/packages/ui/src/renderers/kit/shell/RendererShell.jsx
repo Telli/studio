@@ -1,8 +1,8 @@
 import { VIEWPORT_CORNER_INSET_PX, VIEWPORT_CUBE_SIZE, VIEWPORT_INSET_PX, VIEWPORT_STACK_BOTTOM, VIEWPORT_TOP_BAR_PX } from "./viewportLayout.js";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, LoaderCircle, Play, SlidersHorizontal, X } from "lucide-react";
-import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
+import { WORKSPACE_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { Button } from "@text-to-cad/ui/primitives/button";
 import { ToolbarButton } from "@text-to-cad/ui/primitives/toolbar-button";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
@@ -73,6 +73,12 @@ const UNDER_TOOLBAR = `calc(${WORKSPACE_TOP} + ${INSET})`;
 // bottom corner the cube is in.
 const NAVIGATOR_POSITION = Object.freeze({ top: UNDER_TOOLBAR, maxHeight: `calc(100% - ${WORKSPACE_TOP} - ${INSET} - ${VIEWPORT_STACK_BOTTOM})` });
 const DIALOG_PLACE_POSITION = Object.freeze({ top: UNDER_TOOLBAR, bottom: VIEWPORT_STACK_BOTTOM });
+// While a dialog is open there, the top column (a tool's own row and its panels) is the room past it, so none of
+// it hides under the dialog: past the navigator (16rem, an inset in) and the dialog (18rem, an inset past it), or
+// past the dialog alone where the navigator gives way to a narrow view (`BESIDE_DIALOG_CLASS`).
+const TOOLBAR_POSITION_BESIDE_DIALOG = Object.freeze({ top: INSET, right: INSET, bottom: VIEWPORT_STACK_BOTTOM });
+const BESIDE_DIALOG_CLASS = Object.freeze({ navigator: "left-[calc(35rem+8px)] @max-xl/cad-viewport:left-[calc(18rem+16px)]",
+  alone: "left-[calc(18rem+16px)]" });
 // The timeline runs along the bottom edge up to the cube, its corner's room (the cube's box and an inset) kept
 // on the cube's side. A corner a host leaves to the default reads `auto` (`ViewPlaneControl`), which makes the
 // margin on that side invalid, and an invalid margin is none: the timeline reaches the edge where the cube is not.
@@ -234,14 +240,19 @@ const DOUBLE_PRESS_MS = 600;
  *   timeline along the bottom up to the cube (`bottomDock`, drawing its own surface, as the toolbar
  *   does). It fades in as the layout turns to it and out as Simple view takes its place, in one
  *   transition; it is put away at once with the rest of the tools (loading, Preview, a compact view),
- *   and the Part Navigator in a view too narrow for it and the model.
+ *   and the Part Navigator in a view too narrow for it and the model. While the toolbar is up the
+ *   view's own controls (Projection, Display, Preview) and the view catching up are its, not the
+ *   strip's: `ribbon(tools, view)` is handed them (`view.controls`, small tiles for its tab row's right
+ *   end, and `view.status`; null while it fades). `dialogOpen`: the dialog's place holds something,
+ *   and the top column, a tool's own row and its panels, keeps to the room past it.
  *   `navbarControls`: the renderer's own controls at the navbar's right end, put away with the
  *   view's tools (edit mode's switch between modeling by hand and asking the AI).
  */
 export default function RendererShell({ shell, tools, toolPanels = null, subToolbar = null, sidebar = null, sidebarStartsOpen = null, references = null, referenceChips = null, nameReference = null, onClearReferences = null, copySelection = null, contextMenuItems = null,
   onContextMenuOpenChange = null, viewportOverlay = null, previewView = null,
   frameProvider = null, iconSprite = null, drawingToolIcons = null, onCanvasPointerDown = null, onSelectPress = null, onSelectHover = null, selectsAnnotations = true, inkTouches = null,
-  alertBody = null, alertStartsDismissed = false, ribbon = null, leftDock = null, bottomDock = null, dialogPlace = null, navbarControls = null }) {
+  alertBody = null, alertStartsDismissed = false, ribbon = null, leftDock = null, bottomDock = null, dialogPlace = null, dialogOpen = false,
+  navbarControls = null }) {
   const { t } = useI18n();
   const frame = shell.frame;
   // What a tool's letter takes up (`useRendererShell`'s `onKey`): the strip as drawn now, none
@@ -433,6 +444,8 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
   // layers over the top of the view (`--cad-workspace-top` on the viewport).
   const workspaceToolbar = useRef(null);
   const toolbarUp = Boolean(workspace && !workspace.leaving && workspace.chrome.ribbon);
+  // A dialog open beside the Part Navigator: the top column keeps to the room past it.
+  const besideDialog = Boolean(dialogOpen && workspace && !workspace.leaving && workspace.chrome.dialogPlace);
   useLayoutEffect(() => {
     const toolbar = workspaceToolbar.current;
     const viewport = toolbar?.closest("[data-cad-scene-backdrop]");
@@ -503,7 +516,7 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
       controls.style.removeProperty("left");
       for (const name of ["--cad-tools-bottom", "--cad-file-sidebar-max-width", "--cad-top-right-left"]) viewport.style.removeProperty(name);
     };
-  }, [toolsHidden, mobile, besideSidebarTile, Boolean(sidebar), Boolean(references)]);
+  }, [toolsHidden, mobile, besideSidebarTile, Boolean(sidebar), Boolean(references), toolbarUp, besideDialog]);
   // Display's tile is its mode's sphere; on a phone with no room for it, its More row shows the same.
   const DisplayIcon = (frame.displayMode?.options?.find(option => option.value === frame.displayMode.value) || frame.displayMode?.options?.[0])?.Icon;
   const copyAction = () => {
@@ -532,11 +545,35 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
   // One place says the view is catching up: a newer revision of the file loading behind the model on
   // screen, or a Display change being prepared — the latter's failure first, since it is the one with
   // something to retry. Under the strip at the top centre, or in its place where there is no strip.
-  const updateStatus = failed ? null : <div className="pointer-events-none flex max-w-full items-center" data-viewport-status="">
-    <ViewUpdateStatus status={frame.loading.updating && !frame.viewUpdate.status.error
-      ? modelUpdateStatus(frame.loading.progress) : frame.viewUpdate.status} onRetry={frame.viewUpdate.retry}
+  // While the workspace's toolbar is up it says it there instead, beside the part's build status.
+  const viewUpdateStatus = frame.loading.updating && !frame.viewUpdate.status.error ? modelUpdateStatus(frame.loading.progress) : frame.viewUpdate.status;
+  const updateStatus = failed || toolbarUp ? null : <div className="pointer-events-none flex max-w-full items-center" data-viewport-status="">
+    <ViewUpdateStatus status={viewUpdateStatus} onRetry={frame.viewUpdate.retry}
       className="rounded-md bg-background/95 px-1 py-0.5 shadow-sm" />
   </div>;
+  // The view's own controls: Projection, Display, then Preview (a 3D view's). They end the strip, or, while the
+  // workspace's toolbar is up, are its small tiles at its tab row's right end, their names below them.
+  const viewControls = tooltipSide => (shell.previewable && !previewing ? [
+    { id: "projection", label: t("projection.label"), icon: <ProjectionIcon value={frame.projection.value} />, disabled: shell.idle,
+      tile: <ProjectionPopover disabled={shell.idle} boundary={frame.hostElement} projection={frame.projection} tooltipSide={tooltipSide} />,
+      // In a phone's More, a standard nested submenu of the two choices.
+      submenu: () => <DropdownMenuRadioGroup value={frame.projection.value} onValueChange={frame.projection.onChange}>
+        <DropdownMenuRadioItem value="orthographic"><OrthographicProjectionIcon className="size-4" />{t("projection.orthographic")}</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value="perspective"><PerspectiveProjectionIcon className="size-4" />{t("projection.perspective")}</DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup> },
+    { id: "display", label: t("display.label"), icon: DisplayIcon ? <DisplayIcon /> : null, disabled: shell.idle,
+      tile: <DisplayPopover disabled={shell.idle} boundary={frame.hostElement} mode={frame.displayMode} grid={frame.grid} gates={frame.displayGates}
+        tooltipSide={tooltipSide} />,
+      // In a phone's More, a standard nested submenu of the same list: the modes, then Grid.
+      submenu: () => <DisplayMenuItems mode={frame.displayMode} grid={frame.grid} gates={frame.displayGates} /> },
+    { id: "preview", label: t("preview.label"), icon: <Play aria-hidden="true" />, disabled: shell.idle, onSelect: enterPreview,
+      tile: <ViewControl label={t("preview.label")} tooltipSide={tooltipSide} disabled={shell.idle} onClick={enterPreview}><Play aria-hidden="true" /></ViewControl> }
+  ] : []);
+  // What the toolbar is handed of the view while it is up.
+  const toolbarView = toolbarUp ? {
+    controls: viewControls("bottom").map(control => <Fragment key={control.id}>{control.tile}</Fragment>),
+    status: failed ? null : <ViewUpdateStatus status={viewUpdateStatus} onRetry={frame.viewUpdate.retry} className="text-tiny" />
+  } : null;
   const quickEdit = references ? <QuickEdit key={frame.modelKey} className="self-stretch" hidden={chromeHidden} docked={mobile}
     resource={frame.resource} references={references} chips={referenceChips} nameReference={nameReference} annotation={annotation} prompt={frame.quickEditPrompt}
     onCopy={copyAction} onEscape={frame.escape} onClear={clearQuickEdit} disabled={viewerLoading || !scene} /> : null;
@@ -680,26 +717,14 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
                   onClose={() => setPreviewPanelOpen(false)} render={frame.previewSettings} /> : null}>
 
               {/* The file explorer floats over the top-left corner, above the sidebar, which stays drawn under it. */}
-              {toolsHidden ? null : <div className="group/tool-stack pointer-events-none absolute z-20 flex flex-col items-center gap-2" style={besideSidebarTile ? TOOLBAR_POSITION_PHONE_SIDEBAR : TOOLBAR_POSITION}
+              {toolsHidden ? null : <div className={cn("group/tool-stack pointer-events-none absolute z-20 flex flex-col items-center gap-2",
+                besideDialog && BESIDE_DIALOG_CLASS[workspace.chrome.leftDock ? "navigator" : "alone"])}
+                style={besideDialog ? TOOLBAR_POSITION_BESIDE_DIALOG : besideSidebarTile ? TOOLBAR_POSITION_PHONE_SIDEBAR : TOOLBAR_POSITION}
                 data-mobile={mobile ? "" : undefined} data-cad-tool-groups=""><StripTouchProvider value={mobile}>
                 {/* The view's controls end the strip, after a rule: Projection, Display, then Preview (on a
-                    phone, always in its More menu). */}
+                    phone, always in its More menu); the workspace's toolbar holds them while it is up. */}
                 <div ref={topControls} className="relative flex max-w-full shrink-0 flex-col items-center gap-2" data-cad-top-controls="">
-                  <FloatingToolBar tools={ribbon ? [] : tools} touch={mobile} views={shell.previewable && !previewing ? [
-                    { id: "projection", label: t("projection.label"), icon: <ProjectionIcon value={frame.projection.value} />, disabled: shell.idle,
-                      tile: <ProjectionPopover disabled={shell.idle} boundary={frame.hostElement} projection={frame.projection} />,
-                      // In a phone's More, a standard nested submenu of the two choices.
-                      submenu: () => <DropdownMenuRadioGroup value={frame.projection.value} onValueChange={frame.projection.onChange}>
-                        <DropdownMenuRadioItem value="orthographic"><OrthographicProjectionIcon className="size-4" />{t("projection.orthographic")}</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="perspective"><PerspectiveProjectionIcon className="size-4" />{t("projection.perspective")}</DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup> },
-                    { id: "display", label: t("display.label"), icon: DisplayIcon ? <DisplayIcon /> : null, disabled: shell.idle,
-                      tile: <DisplayPopover disabled={shell.idle} boundary={frame.hostElement} mode={frame.displayMode} grid={frame.grid} gates={frame.displayGates} />,
-                      // In a phone's More, a standard nested submenu of the same list: the modes, then Grid.
-                      submenu: () => <DisplayMenuItems mode={frame.displayMode} grid={frame.grid} gates={frame.displayGates} /> },
-                    { id: "preview", label: t("preview.label"), icon: <Play aria-hidden="true" />, disabled: shell.idle, onSelect: enterPreview,
-                      tile: <ViewControl label={t("preview.label")} disabled={shell.idle} onClick={enterPreview}><Play aria-hidden="true" /></ViewControl> }
-                  ] : []} />
+                  <FloatingToolBar tools={ribbon ? [] : tools} touch={mobile} views={toolbarUp ? [] : viewControls("top")} />
                   {/* The tool in hand's own row, then the view catching up, under the strip. */}
                   {previewing ? null : toolRow}
                   {previewing ? null : updateStatus}
@@ -724,10 +749,10 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
                 className={cn("pointer-events-none absolute inset-0 z-20 transition-opacity duration-150 motion-reduce:transition-none",
                   workspace.fadeIn && "starting:opacity-0", workspace.leaving && "opacity-0")}>
                 {workspace.chrome.ribbon ? <div ref={workspaceToolbar} className="pointer-events-auto absolute inset-x-0 top-0" data-cad-dock="toolbar">
-                  {workspace.chrome.ribbon(tools)}
+                  {workspace.chrome.ribbon(tools, toolbarView)}
                 </div> : null}
                 {workspace.chrome.leftDock ? <aside aria-label="Part Navigator" data-cad-dock="navigator" style={NAVIGATOR_POSITION}
-                  className={cn(FLOATING_SURFACE_CLASS, "pointer-events-auto absolute left-2 flex w-64 flex-col overflow-hidden rounded-lg @max-xl/cad-viewport:hidden")}>
+                  className={cn(WORKSPACE_SURFACE_CLASS, "pointer-events-auto absolute left-2 flex w-64 flex-col overflow-hidden @max-xl/cad-viewport:hidden")}>
                   <button type="button" aria-expanded={!navigatorFolded} onClick={() => setNavigatorFolded(folded => !folded)}
                     className="flex h-7 shrink-0 items-center gap-1 px-2.5 text-left text-micro uppercase leading-3 tracking-wider text-muted-foreground hover:bg-cad-ws-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45">
                     <span className="min-w-0 flex-1 truncate">Part Navigator</span>

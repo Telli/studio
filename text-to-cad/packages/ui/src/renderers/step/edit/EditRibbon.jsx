@@ -32,6 +32,9 @@ const PRESSED_CLASS = "bg-cad-ws-selected text-sidebar-accent-foreground hover:b
 // A long name wraps to two lines under its icon, as SolidWorks' CommandManager sets them; without
 // names (`compact`) the buttons narrow to their icons.
 const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]";
+// The view's own controls the frame hands over (Projection, Display, Preview: the strip's small tiles), lit as
+// the toolbar's buttons are: the workspace's pale blue under the pointer, its deeper one while a menu is open.
+const VIEW_CONTROLS_CLASS = "flex shrink-0 items-center gap-0.5 [&_button:hover]:bg-cad-ws-hover [&_button[aria-expanded=true]]:bg-cad-ws-selected";
 // A tab: its name in capitals, the one in front underlined.
 const TAB_CLASS = "flex items-center border-b-2 border-transparent px-2.5 text-tiny uppercase leading-none tracking-wider text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45";
 // A group's title, in capitals under its buttons; where it is the group's menu it is a button too.
@@ -223,19 +226,22 @@ function RibbonGroups({ groups }) {
  * edited the Sketch tab alone is up, holding the sketch's tools as NX's sketch task environment
  * does: Finish Sketch (back to Solid), the curves to draw and edit (Quick Trim, Offset Curve...),
  * Rapid Dimension, and the features to make of it. A narrow view keeps the icons and drops the
- * names, then folds the groups at the right into a More menu.
+ * names, then folds the groups at the right into a More menu. At the tab row's right end, before
+ * where the part stands, the view's own (`view`, the frame's: `RendererShell`'s `ribbon(tools, view)`):
+ * its controls, Projection, Display and Preview, and the view catching up.
  *
  * @param {{ tools: import("../../kit/tools/FloatingToolBar.js").ViewportTool[],
  *   edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onCommand?: (id: string) => void,
  *   onSketch?: () => void, sketchLabel?: string, onNormalTo?: (() => void) | null,
- *   onAsk?: (() => void) | null, onAddContext?: (() => void) | null }} props
+ *   onAsk?: (() => void) | null, onAddContext?: (() => void) | null,
+ *   view?: { controls?: import("react").ReactNode, status?: import("react").ReactNode } | null }} props
  *   `onCommand` opens a command (the surface turns Select to what it picks); `onSketch` is the
  *   Sketch button (`sketchLabel`: "Edit Sketch" while a sketch is selected); `onAsk` and
  *   `onAddContext` are the agent's buttons, each left out (and the group with them) while the host
  *   gives none.
  */
 export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id), onSketch = () => edit.startPicking(), sketchLabel = "Sketch",
-  canOpenParts = false, onNormalTo = null, onAsk = null, onAddContext = null }) {
+  canOpenParts = false, onNormalTo = null, onAsk = null, onAddContext = null, view = null }) {
   const byId = new Map(tools.map(tool => [tool.id, tool]));
   // The tab in front, as NX keeps it while the part is open.
   const [tab, setTab] = useState("solid");
@@ -275,7 +281,11 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
         className={cn(TAB_CLASS, each.id === active && "border-info font-medium text-foreground")}
         onClick={() => onPick(each.id)}>{each.title}</button>)}
     </div>
-    <div className="ml-auto flex min-w-0 items-center gap-2 pl-2 text-tiny leading-4" aria-live="polite">{end}</div>
+    <div className="ml-auto flex min-w-0 items-center gap-2 pl-2">
+      {view?.controls ? <div className={VIEW_CONTROLS_CLASS} data-cad-ribbon-view="">{view.controls}</div> : null}
+      {view?.status || null}
+      <div className="flex min-w-0 items-center gap-2 text-tiny leading-4" aria-live="polite">{end}</div>
+    </div>
   </div>;
   const ribbon = (label, groups, end, { tabs, active, onPick, key = label, sketching = false }) => <div data-cad-ribbon="" data-cad-sketch-ribbon={sketching ? "" : undefined}
     aria-busy={busy ? true : undefined}

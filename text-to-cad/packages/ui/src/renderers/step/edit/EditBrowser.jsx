@@ -12,7 +12,7 @@ import {
   FileSheetSettingsSection,
   FileSheetValueInput
 } from "../../kit/inspector/FileSheet.js";
-import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
+import { WORKSPACE_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { TOOL_PANEL_BUTTON_CLASS } from "../../kit/tools/ToolPanel.jsx";
 import EditCommand from "./EditCommand.jsx";
 import EditTree from "./EditTree.jsx";
@@ -29,6 +29,17 @@ import { formulaWords, restates, selectionDimensions, sizeName, treeFeatures } f
 import { nxPlane, treeTitles } from "./nx.js";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
+
+/**
+ * Whether the browser floats a card in the dialog's place beside the Part Navigator (`card`): the open
+ * command's or sketch's panel, a panel the toolbar opened (Measure Bodies, Expressions...; the Drawing
+ * once the part has its sheet), or what went wrong. The frame keeps the top column clear of it
+ * (`RendererShell`'s `dialogOpen`).
+ */
+export function floatsCard(edit) {
+  return Boolean(edit.sketch || edit.picking || edit.command || edit.error
+    || (edit.inspecting && (edit.inspecting !== "drawing" || edit.state?.drawing)));
+}
 
 /** A number of the part, as its row shows it: its value in the source, typed over to change it, and its unit. */
 function ValueField({ value, unit, label, disabled, onCommit }) {
@@ -119,9 +130,9 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
     </span>
     <button type="button" aria-label="Dismiss" className={TOOL_PANEL_BUTTON_CLASS} onClick={edit.dismissError}><X className="size-3" aria-hidden="true" /></button>
   </div> : null;
-  // The card scrolls in the viewer's one ScrollArea once its panel is taller than the view.
-  const floating = (panel || edit.error) && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(FLOATING_SURFACE_CLASS,
-    "pointer-events-auto max-h-full rounded-lg")}>{error(Boolean(panel))}{panel}</ScrollArea>, card) : null;
+  // The card, the workspace's white surface, scrolls in the viewer's one ScrollArea once its panel is taller than the view.
+  const floating = (panel || edit.error) && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(WORKSPACE_SURFACE_CLASS,
+    "pointer-events-auto max-h-full")}>{error(Boolean(panel))}{panel}</ScrollArea>, card) : null;
   return <div className="flex h-full min-h-0 flex-col" data-cad-edit-browser="">
     {floating || <>{error(true)}{panel}</>}
     <ScrollArea className="min-h-0 flex-1">
