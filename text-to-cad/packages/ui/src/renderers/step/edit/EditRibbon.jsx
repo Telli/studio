@@ -142,11 +142,15 @@ function GroupItems({ items }) {
     : <DropdownMenuItem key={item.id} disabled={item.disabled} onSelect={() => item.onClick()}>{item.icon}{item.label}</DropdownMenuItem>);
 }
 
-/** A group's title as its menu, as Fusion's toolbar has them: a small arrow after the title, every item of the group in the menu. */
+/**
+ * A group's title as its menu, as Fusion's toolbar has them: a small arrow after the title, every item of the group in the menu.
+ * Called "<title> commands", its title in its name: a group and its command can be called alike (Select, Measure,
+ * Expressions, Exploded Views), and a button called by that name is the command.
+ */
 function GroupMenu({ title, items }) {
   return <DropdownMenu modal={false}>
     <DropdownMenuTrigger asChild>
-      <button type="button" className={cn(TITLE_CLASS, "mb-1 mt-0.5 flex items-center gap-0.5 rounded-sm px-1 transition-colors hover:bg-cad-ws-hover hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 aria-expanded:bg-cad-ws-selected")}>
+      <button type="button" aria-label={`${title} commands`} className={cn(TITLE_CLASS, "mb-1 mt-0.5 flex items-center gap-0.5 rounded-sm px-1 transition-colors hover:bg-cad-ws-hover hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 aria-expanded:bg-cad-ws-selected")}>
         {title}<ChevronDown className="size-2.5 shrink-0" aria-hidden="true" />
       </button>
     </DropdownMenuTrigger>

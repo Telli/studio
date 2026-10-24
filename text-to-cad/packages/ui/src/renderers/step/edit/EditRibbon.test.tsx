@@ -113,6 +113,31 @@ it("gives every command of the old Analysis, View and Assemblies tabs a group", 
   expect(layout()).toEqual({ Constraints: ['Assembly Constraints'], 'Exploded Views': ['Exploded Views'] });
 });
 
+it("names each group's menu apart from a command of the same name, the group's word in its name", async () => {
+  const user = userEvent.setup();
+  render(<EditRibbon tools={ASSEMBLY_TOOLS} edit={edit({ state: { units: 'mm', components: [{ id: 'base' }], drawing: null } }) as never} onAsk={vi.fn()} onNormalTo={vi.fn()} />);
+  // Select, Measure, Expressions and Exploded Views are a group and its one command (or a command and the group it is in),
+  // so a button called by that name is the command, and one call finds one.
+  const menuOf = (title: string) => within(group(title)).getByRole('button', { name: `${title} commands` });
+  const namesOnTab = () => screen.getAllByRole('button').map(button => button.getAttribute('aria-label') || '');
+  expect(screen.getAllByRole('button', { name: 'Select' })).toHaveLength(1);
+  expect(command('Select', 'Select')).toBe(screen.getByRole('button', { name: 'Select' }));
+  for (const title of ['Create', 'Modify', 'Construct', 'Inspect', 'Select', 'Ask the agent']) {
+    // The title is what the menu shows, and is in the name it is called by.
+    expect([menuOf(title).getAttribute('aria-haspopup'), menuOf(title).textContent]).toEqual(['menu', title]);
+  }
+  await user.click(screen.getByRole('tab', { name: 'Inspect' }));
+  expect(screen.getAllByRole('button', { name: 'Measure' })).toHaveLength(1);
+  expect(screen.getAllByRole('button', { name: 'Expressions' })).toHaveLength(1);
+  for (const title of ['Measure', 'Analyze', 'Section', 'Display', 'Expressions']) expect(menuOf(title).textContent).toBe(title);
+  await user.click(screen.getByRole('tab', { name: 'Assemble' }));
+  expect(screen.getAllByRole('button', { name: 'Exploded Views' })).toHaveLength(1);
+  for (const title of ['Constraints', 'Exploded Views']) expect(menuOf(title).textContent).toBe(title);
+  // No two buttons of the toolbar are called alike.
+  const names = namesOnTab().filter(Boolean);
+  expect(new Set(names).size).toBe(names.length);
+});
+
 it("keeps the drawing's commands in Drafting", async () => {
   const user = userEvent.setup();
   const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
