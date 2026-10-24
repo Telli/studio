@@ -67,6 +67,7 @@ No one is named for any action yet: each owner is an open question.
 | Action | Owner | Status |
 | --- | --- | --- |
 | Measure an MG996R's tab holes, output axis, case and spline (test plan 1) | Not assigned | Open |
+| Make the cut file's bend line dashed: its BEND layer is solid, SendCutSend asks for a dashed bend line in a DXF, and cadgen 0.7.26's DXF writer can't write one; or send the bracket as a STEP at 2.032 mm (ER-7, ER-11) | Not assigned | Open |
 | Round the clip's lips, thicken its wall to 2.0 mm, repair its STL, and check it again; then slice it in PETG at 0.2 mm | Not assigned | Open |
 | Plan the spline's broaching and draw the adapter with its fits | Not assigned | Open |
 | Set the M3 screws' tightening torque | Not assigned | Open |

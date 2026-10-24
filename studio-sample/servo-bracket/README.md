@@ -21,6 +21,7 @@ A mounting bracket for an MG996R servo, bent from 2 mm 5052-H32 aluminium sheet:
 ## Open actions
 
 - Measure a real MG996R before the bracket is ordered: its tab holes, output axis, case and spline. The bracket's holes and cutout follow them.
+- Make the cut file's bend line dashed before it is uploaded: its BEND layer is solid, SendCutSend asks for a dashed bend line in a DXF, and cadgen 0.7.26's DXF writer can't write one. Or send the bracket as a STEP at the sheet's 2.032 mm, which needs no bend line.
 - Fix the cable clip before it is printed: round its lips, thicken its wall from 1.6 to 2.0 mm, repair its STL and check it again, then slice it in PETG at 0.2 mm.
 - Have the horn adapter's 25-tooth spline broached after milling: its CAM job leaves the spline uncut.
 - To send SendCutSend the STEP as well as the cut file, remodel the bracket at the sheet's 2.032 mm and run its flat pattern, cut file and strength study again.
