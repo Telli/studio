@@ -3756,7 +3756,8 @@ function StepSurfaceBody({ view, data }) {
     leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
       onDeselect={deselectReference} /> : null}
-    bottomDock={editing ? <EditTimeline edit={edit} tree={editTree} onEditSketch={openTreeSketch} /> : null}
+    // The drawing's sheet covers the view and keeps its one line of feedback at the bottom-left, where the timeline stands.
+    bottomDock={editing && !edit.sheetView ? <EditTimeline edit={edit} tree={editTree} onEditSketch={openTreeSketch} /> : null}
     dialogPlace={editing ? setCommandCard : null} dialogOpen={editing && floatsCard(edit)}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;

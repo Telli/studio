@@ -1,45 +1,83 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 
-import { barIndex, featureTree, rolledBack } from "./editMode.js";
+import { parse } from "@babel/parser";
+import traverseModule from "@babel/traverse";
+
+import { barIndex, featureTree, rolledBack, sketchTreeId } from "./editMode.js";
 import { slotAtX, timelineItems } from "./timeline.js";
 
-const outline = (name, line) => ({ name, plane: "Top", file: "bracket.py", line, status: "Fully defined" });
+const traverse = traverseModule.default ?? traverseModule;
+const sketched = (name, line) => ({ name, plane: "Top", file: "bracket.py", line, status: "Fully defined" });
 
-// A part as the engine reads it: two sketches of their own, each followed by the extrude that
-// takes it, then an Edge Blend. The Part Navigator lists them in this order and numbers them
-// Sketch (1), Extrude (2), Sketch (3), Extrude (4), Edge Blend (5).
+// The sample bracket as the engine reads it (`tracer.py`): an extrude takes the sketch it was made from, and the
+// engine nests that sketch under the extrude (`sketch`), so a sketch is a feature of its own only while nothing
+// uses it. Two extrudes made from sketches, then an Edge Blend. The Part Navigator numbers them, a sketch just
+// before the extrude that takes it: Sketch (1), Extrude (2), Sketch (3), Extrude (4), Edge Blend (5).
 const PART = featureTree({
   features: [
-    { key: "s1", kind: "Sketch", file: "bracket.py", line: 5, sketch: outline("Outline", 5) },
-    { key: "e1", kind: "Boss-Extrude", name: "plate", file: "bracket.py", line: 8 },
-    { key: "s2", kind: "Sketch", file: "bracket.py", line: 10, sketch: outline("Rim", 10) },
-    { key: "e2", kind: "Boss-Extrude", name: "plate", file: "bracket.py", line: 13 },
+    { key: "e1", kind: "Boss-Extrude", name: "plate", file: "bracket.py", line: 8, sketch: sketched("SKETCH_000", 5) },
+    { key: "e2", kind: "Boss-Extrude", name: "plate", file: "bracket.py", line: 13, named: "upright", sketch: sketched("SKETCH_001", 10) },
     { key: "b1", kind: "Fillet", name: "plate", file: "bracket.py", line: 15 },
   ],
 });
-const IDS = ["s1", "e1", "s2", "e2", "b1"];
+const IDS = ["e1", "e2", "b1"];
+// What the timeline draws, left to right: each feature's own sketch just before it.
+const iconsOf = items => items.flatMap(item => [item.sketch, item].filter(Boolean));
 
 test("lists items in the Part Navigator's order", () => {
   const { items } = timelineItems(PART, null);
+  // One item, and one place for the marker, for each feature the Part Navigator lists as a row of the part.
   assert.deepEqual(items.map(item => item.id), IDS);
-  // Sketches are items like the rest, each as the Part Navigator titles it (its kind numbered after
-  // the datum coordinate system), and each draws the icon of its kind.
-  assert.deepEqual(items.map(item => item.title), ['Sketch (1) "Outline"', "Extrude (2)", 'Sketch (3) "Rim"', "Extrude (4)", "Edge Blend (5)"]);
-  assert.deepEqual(items.map(item => item.kind), ["Sketch", "Boss-Extrude", "Sketch", "Boss-Extrude", "Fillet"]);
-  // Each carries the feature of the tree it stands for, for whoever edits it.
+  assert.deepEqual(items.map(item => item.kind), ["Boss-Extrude", "Boss-Extrude", "Fillet"]);
   items.forEach((item, index) => assert.equal(item.feature, PART.features[index]));
+  // Drawn, the sketch each extrude was made from stands just before it, and every icon has the title the Part Navigator
+  // numbers it under (its kind numbered after the datum coordinate system, a name given in the tree quoted).
+  assert.deepEqual(iconsOf(items).map(icon => icon.title),
+    ['Sketch (1) "SKETCH_000"', "Extrude (2)", 'Sketch (3) "SKETCH_001"', 'Extrude (4) "upright"', "Edge Blend (5)"]);
+  assert.deepEqual(iconsOf(items).map(icon => icon.kind), ["Sketch", "Boss-Extrude", "Sketch", "Boss-Extrude", "Fillet"]);
+});
+
+test("draws the sketch a feature was made from just before it, under the id the Part Navigator selects it by", () => {
+  const [first, second, blend] = timelineItems(PART, null).items;
+  // The id a sketch picked on the model selects (`sketchTreeId`), and the Part Navigator's row for it carries.
+  assert.equal(first.sketch.id, sketchTreeId(PART, { file: "bracket.py", line: 5 }));
+  assert.equal(second.sketch.id, sketchTreeId(PART, { file: "bracket.py", line: 10 }));
+  assert.equal(first.sketch.id, PART.features[0].sketch.id);
+  assert.notEqual(first.sketch.id, first.id);
+  // The feature is what edits it: Edit Sketch opens the sketch the feature holds.
+  assert.equal(first.sketch.feature, PART.features[0]);
+  assert.equal(second.sketch.feature.sketch, PART.features[1].sketch);
+  // A feature made from no sketch has none to draw.
+  assert.equal(blend.sketch, null);
+});
+
+test("draws a sketch nothing uses yet once, as an item of its own", () => {
+  const loose = featureTree({
+    features: [
+      { key: "e1", kind: "Boss-Extrude", name: "plate", file: "bracket.py", line: 8, sketch: sketched("SKETCH_000", 5) },
+      { key: "s9", kind: "Sketch", file: "bracket.py", line: 12, sketch: sketched("SKETCH_001", 12) },
+    ],
+  });
+  const { items } = timelineItems(loose, null);
+  assert.deepEqual(items.map(item => item.id), ["e1", "s9"]);
+  // Its sketch is the item itself, not one more before it, and it is selected by its own id.
+  assert.equal(items[1].sketch, null);
+  assert.equal(items[1].id, sketchTreeId(loose, { file: "bracket.py", line: 12 }));
+  assert.deepEqual(iconsOf(items).map(icon => icon.title), ['Sketch (1) "SKETCH_000"', "Extrude (2)", 'Sketch (3) "SKETCH_001"']);
 });
 
 test("puts the marker after the last active item", () => {
-  assert.equal(timelineItems(PART, null).marker, 5);
+  assert.equal(timelineItems(PART, null).marker, 3);
   const { items, marker } = timelineItems(PART, { item: "e2" });
-  assert.equal(marker, 3);
-  // What stands past the marker is rolled back: the fourth item and the fifth.
-  assert.deepEqual(items.map(item => item.rolledBack), [false, false, false, true, true]);
-  assert.deepEqual(timelineItems(PART, null).items.map(item => item.rolledBack), [false, false, false, false, false]);
+  // Above the second extrude: what stands past the marker is rolled back, and the sketch an extrude was made from goes with it.
+  assert.equal(marker, 1);
+  assert.deepEqual(items.map(item => item.rolledBack), [false, true, true]);
+  assert.deepEqual(items.map(item => item.sketch?.rolledBack ?? null), [false, true, null]);
+  assert.deepEqual(timelineItems(PART, null).items.map(item => item.rolledBack), [false, false, false]);
   // A bar over an item the tree no longer holds leaves the part whole, as the Part Navigator does.
-  assert.equal(timelineItems(PART, { item: "gone" }).marker, 5);
+  assert.equal(timelineItems(PART, { item: "gone" }).marker, 3);
 });
 
 test("agrees with the Part Navigator's rollback bar wherever it is", () => {
@@ -48,8 +86,9 @@ test("agrees with the Part Navigator's rollback bar wherever it is", () => {
     assert.equal(marker, barIndex(PART, bar));
     const rolled = rolledBack(PART, bar);
     assert.deepEqual(items.filter(item => item.rolledBack).map(item => item.id), IDS.filter(id => rolled.has(id)));
-    // Every item past the marker is rolled back, and none before it.
+    // Every item past the marker is rolled back, and none before it; a sketch is as its feature is.
     assert.deepEqual(items.map((item, index) => item.rolledBack), items.map((item, index) => index >= marker));
+    assert.ok(items.every(item => !item.sketch || item.sketch.rolledBack === item.rolledBack));
   }
 });
 
@@ -60,7 +99,7 @@ test("lists no items for an assembly, whose Part Navigator has no rollback bar",
 });
 
 test("places a dragged marker between items", () => {
-  // The marker's index is how many item centres the pointer has passed.
+  // The marker's index is how many centres the pointer has passed: those of the items, each with the sketch drawn before it.
   assert.equal(slotAtX(25, [10, 30, 50]), 1);
   assert.equal(slotAtX(60, [10, 30, 50]), 3);
   assert.equal(slotAtX(5, [10, 30, 50]), 0);
@@ -71,11 +110,44 @@ test("places a dragged marker between items", () => {
 
 test("marks who made each item, and nothing unknown", () => {
   const { items } = timelineItems(PART, null, { e2: "agent" });
-  assert.deepEqual(items.map(item => item.author), [null, null, null, "agent", null]);
-  assert.deepEqual(timelineItems(PART, null, { s1: "you", e1: "agent" }).items.map(item => item.author), ["you", "agent", null, null, null]);
+  assert.deepEqual(items.map(item => item.author), [null, "agent", null]);
+  // A sketch has no author of its own: it carries its feature's, if the feature has one.
+  assert.deepEqual(items.map(item => item.sketch?.author ?? null), [null, "agent", null]);
+  assert.deepEqual(timelineItems(PART, null, { e1: "you", b1: "agent" }).items.map(item => item.author), ["you", null, "agent"]);
   // No record, a record of someone else, or one that is not a name: nothing is marked.
-  assert.ok(timelineItems(PART, null).items.every(item => item.author === null));
-  assert.ok(timelineItems(PART, null, { e1: "someone", s1: 1, e2: null, b1: {} }).items.every(item => item.author === null));
-  assert.ok(timelineItems(PART, null, undefined).items.every(item => item.author === null));
-  assert.ok(timelineItems(PART, null, null).items.every(item => item.author === null));
+  const unmarked = authors => iconsOf(timelineItems(PART, null, authors).items).every(icon => icon.author === null);
+  assert.ok(unmarked(undefined));
+  assert.ok(unmarked(null));
+  assert.ok(unmarked({}));
+  assert.ok(unmarked({ e1: "someone", e2: 1, b1: null }));
+  assert.ok(unmarked({ e1: {}, e2: "Agent" }));
+});
+
+/**
+ * StepSurface's own condition for handing the frame its timeline (`bottomDock`), as written there, to be run on a
+ * state of the view: the view itself cannot be mounted here (its viewport is the browser suite's), and a copy of the
+ * rule written in this test would pin nothing.
+ */
+function timelineCondition() {
+  const source = fs.readFileSync(new URL("../StepSurface.jsx", import.meta.url), "utf8");
+  const ast = parse(source, { sourceType: "module", plugins: ["jsx"] });
+  const found = [];
+  traverse(ast, {
+    JSXAttribute(path) {
+      const { name, value } = path.node;
+      if (name.name === "bottomDock" && value?.expression?.type === "ConditionalExpression") found.push(value.expression.test);
+    },
+  });
+  assert.equal(found.length, 1, "StepSurface hands the frame its timeline under one condition");
+  const condition = source.slice(found[0].start, found[0].end);
+  return scope => Boolean(Function("scope", `with (scope) { return (${condition}); }`)(scope));
+}
+
+test("is put away while the drawing's sheet is up, as the part's layers are", () => {
+  const up = timelineCondition();
+  assert.equal(up({ editing: true, edit: { sheetView: null } }), true);
+  // The sheet covers the view and keeps its one line of feedback at the bottom-left, where the timeline stands.
+  assert.equal(up({ editing: true, edit: { sheetView: { page: 1 } } }), false);
+  // Simple view lays the view out for asking the AI, with no timeline.
+  assert.equal(up({ editing: false, edit: { sheetView: null } }), false);
 });

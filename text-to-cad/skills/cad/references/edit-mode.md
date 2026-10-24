@@ -218,9 +218,11 @@ by hand" below.
   there too), so a feature can be put in early in the history. Nothing below the bar changes. Make
   Current Feature on the last feature brings the part back.
 - **The timeline** along the bottom of the workspace lists the same features as icons, in the same
-  order, sketches of their own among them. A click selects one and a double-click edits it (Edit
-  Parameters, or Edit Sketch on a sketch). The rollback bar is its marker, after the last feature
-  the part still has: dragged back, it rolls the part back to there, as Make Current Feature does.
+  order, each with the sketch it was made from just before it (a sketch nothing uses yet is an icon
+  of its own). A click selects one and a double-click edits it (Edit Parameters, or Edit Sketch on
+  a sketch). The rollback bar is its marker, after the last feature the part still has: dragged
+  back, it rolls the part back to there, as Make Current Feature does, a feature and its sketch
+  going together. It is put away while the drawing's sheet is up.
 - **Suppress** takes a feature out of the part but keeps its lines, as comments under a line that
   says what they are; Unsuppress puts them back exactly. A boolean that starts a name keeps the
   name meanwhile, on a line of its own:

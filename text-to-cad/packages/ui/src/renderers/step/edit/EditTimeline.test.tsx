@@ -1,27 +1,31 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import EditTimeline from '../../../../dist/renderers/step/edit/EditTimeline.js';
-import { featureTree } from '../../../../dist/renderers/step/edit/editMode.js';
+import { featureTree, sketchTreeId } from '../../../../dist/renderers/step/edit/editMode.js';
 import { WORKSPACE_SURFACE_CLASS } from '../../../../dist/lib/floatingSurface.js';
 
-const outline = (name: string, line: number) => ({ name, plane: 'Top', file: 'bracket.py', line, status: 'Fully defined' });
+const sketched = (name: string, line: number) => ({ name, plane: 'Top', file: 'bracket.py', line, status: 'Fully defined' });
 const command = { command: 'extrude', values: {}, keeps: '' };
 
-// A part as the engine reads it: two sketches of their own, the extrudes a command made from them, and
-// an Edge Blend written by hand. The Part Navigator numbers them Sketch (1), Extrude (2), Sketch (3),
-// Extrude (4), Edge Blend (5).
+// The sample bracket as the engine reads it (`tracer.py`): an extrude takes the sketch it was made from, and the
+// engine nests that sketch under the extrude (`sketch`), so a sketch is a feature of its own only while nothing
+// uses it. Two extrudes a command made from sketches, then an Edge Blend written by hand, a Hole and a Pattern.
+// The Part Navigator numbers them, a sketch just before the extrude that takes it: Sketch (1), Extrude (2),
+// Sketch (3), Extrude (4), Edge Blend (5), Hole (6), Pattern Feature (7).
 const STATE = {
   units: 'mm', name: 'bracket', params: [], rows: [],
   features: [
-    { key: 's1', kind: 'Sketch', file: 'bracket.py', line: 5, sketch: outline('Outline', 5) },
-    { key: 'e1', kind: 'Boss-Extrude', name: 'plate', file: 'bracket.py', line: 8, edit: command },
-    { key: 's2', kind: 'Sketch', file: 'bracket.py', line: 10, sketch: outline('Rim', 10) },
-    { key: 'e2', kind: 'Boss-Extrude', name: 'plate', file: 'bracket.py', line: 13, edit: command },
+    { key: 'e1', kind: 'Boss-Extrude', name: 'plate', file: 'bracket.py', line: 8, edit: command, sketch: sketched('SKETCH_000', 5) },
+    { key: 'e2', kind: 'Boss-Extrude', name: 'plate', file: 'bracket.py', line: 13, edit: command, sketch: sketched('SKETCH_001', 10) },
     { key: 'b1', kind: 'Fillet', name: 'plate', file: 'bracket.py', line: 15 },
+    { key: 'h1', kind: 'Hole', name: 'plate', file: 'bracket.py', line: 17 },
+    { key: 'p1', kind: 'Pattern', name: 'plate', file: 'bracket.py', line: 19 },
   ],
 };
 const TREE = featureTree(STATE);
-const IDS = ['s1', 'e1', 's2', 'e2', 'b1'];
+// What is drawn, left to right: the id each icon is selected by, and the title it is named by.
+const ICONS = ['sketch:e1', 'e1', 'sketch:e2', 'e2', 'b1', 'h1', 'p1'];
+const TITLES = ['Sketch (1) "SKETCH_000"', 'Extrude (2)', 'Sketch (3) "SKETCH_001"', 'Extrude (4)', 'Edge Blend (5)', 'Hole (6)', 'Pattern Feature (7)'];
 
 function edit(patch: Record<string, unknown> = {}) {
   return { status: 'ready', saving: false, state: STATE, selected: null, bar: null, sketch: null,
@@ -35,16 +39,25 @@ const timeline = (patch: Record<string, unknown> = {}, onEditSketch = vi.fn()) =
 const items = () => within(screen.getByRole('group', { name: 'Timeline' })).getAllByRole('button');
 const item = (name: string) => screen.getByRole('button', { name });
 const marker = () => screen.getByRole('slider', { name: 'Rollback marker' });
+/** Which icons are drawn as the part will not have them: those past the marker. */
+const rolledBackIcons = () => items().map(button => button.hasAttribute('data-rolled-back'));
 
-// jsdom lays nothing out: the items stand 36px apart from the left edge, 28px wide, so their centres
-// are 14, 50, 86, 122 and 158 (the pointer positions below are read against them). Capturing a pointer
-// is the browser's own, so it is stubbed.
+// jsdom lays nothing out: the groups (a feature, with the sketch it was made from just before it) stand 8px
+// apart from the left edge, each as wide as its 28px tiles and the 4px between a sketch and its feature. So they
+// stand at 0 to 60, 68 to 128, 136 to 164, 172 to 200 and 208 to 236, and their centres, which a pointer is
+// read against below, are 30, 98, 150, 186 and 222. Capturing a pointer is the browser's own, so it is stubbed.
 const boxOf = Element.prototype.getBoundingClientRect;
 beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
   Element.prototype.getBoundingClientRect = function (this: Element) {
-    const id = this.getAttribute('data-cad-timeline-item');
-    return id ? DOMRect.fromRect({ x: IDS.indexOf(id) * 36, y: 0, width: 28, height: 36 }) : boxOf.call(this);
+    if (!this.hasAttribute('data-cad-timeline-group')) return boxOf.call(this);
+    let x = 0;
+    for (const group of [...this.parentElement!.children].filter(each => each.hasAttribute('data-cad-timeline-group'))) {
+      const width = group.children.length * 28 + (group.children.length - 1) * 4;
+      if (group === this) return DOMRect.fromRect({ x, y: 0, width, height: 36 });
+      x += width + 8;
+    }
+    return boxOf.call(this);
   };
   for (const name of ['setPointerCapture', 'releasePointerCapture']) Object.defineProperty(Element.prototype, name, { configurable: true, value() {} });
   Object.defineProperty(Element.prototype, 'hasPointerCapture', { configurable: true, value: () => true });
@@ -56,16 +69,24 @@ afterEach(() => {
 
 /** The marker pressed, dragged through `xs` and let go at the last. */
 function drag(xs: number[], { release = true } = {}) {
-  fireEvent.pointerDown(marker(), { button: 0, pointerId: 1, clientX: 200 });
+  fireEvent.pointerDown(marker(), { button: 0, pointerId: 1, clientX: 300 });
   for (const clientX of xs) fireEvent.pointerMove(marker(), { pointerId: 1, clientX });
   if (release) fireEvent.pointerUp(marker(), { pointerId: 1, clientX: xs.at(-1) });
 }
 
-it("shows every item as its icon, in the Part Navigator's order, named by its title", () => {
+it("shows every item as its icon, in the Part Navigator's order, a feature's own sketch just before it", () => {
   timeline();
-  expect(items().map(button => button.getAttribute('aria-label'))).toEqual(['Sketch (1) "Outline"', 'Extrude (2)', 'Sketch (3) "Rim"', 'Extrude (4)', 'Edge Blend (5)']);
-  expect(items().map(button => button.querySelector('use')?.getAttribute('href'))).toEqual(['#nx-sketch', '#nx-extrude', '#nx-sketch', '#nx-extrude', '#nx-blend']);
-  expect(items().map(button => button.getAttribute('data-cad-timeline-item'))).toEqual(IDS);
+  expect(items().map(button => button.getAttribute('aria-label'))).toEqual(TITLES);
+  expect(items().map(button => button.querySelector('use')?.getAttribute('href')))
+    .toEqual(['#nx-sketch', '#nx-extrude', '#nx-sketch', '#nx-extrude', '#nx-blend', '#nx-hole', '#nx-pattern']);
+  expect(items().map(button => button.getAttribute('data-cad-timeline-item'))).toEqual(ICONS);
+});
+
+it("keeps a feature and its sketch in one group, which is what the marker steps over", () => {
+  timeline();
+  const groups = [...document.querySelectorAll('[data-cad-timeline-group]')];
+  expect(groups.map(group => [...group.querySelectorAll('button')].map(button => button.getAttribute('aria-label'))))
+    .toEqual([[TITLES[0], TITLES[1]], [TITLES[2], TITLES[3]], [TITLES[4]], [TITLES[5]], [TITLES[6]]]);
 });
 
 it("selects on a click and edits on a double-click: Edit Parameters on a feature, Edit Sketch on a sketch", () => {
@@ -74,20 +95,45 @@ it("selects on a click and edits on a double-click: Edit Parameters on a feature
   expect(own.select).toHaveBeenLastCalledWith('e2');
   fireEvent.doubleClick(item('Extrude (4)'));
   expect(own.editFeature).toHaveBeenCalledTimes(1);
-  expect(own.editFeature).toHaveBeenLastCalledWith(TREE.features[3]);
+  expect(own.editFeature).toHaveBeenLastCalledWith(TREE.features[1]);
   expect(onEditSketch).not.toHaveBeenCalled();
-  fireEvent.doubleClick(item('Sketch (3) "Rim"'));
+  // The sketch an extrude was made from opens as the Part Navigator's row for it does.
+  fireEvent.doubleClick(item('Sketch (3) "SKETCH_001"'));
   expect(onEditSketch).toHaveBeenCalledTimes(1);
-  expect(onEditSketch).toHaveBeenLastCalledWith(TREE.features[2].sketch);
+  expect(onEditSketch).toHaveBeenLastCalledWith(TREE.features[1].sketch);
   expect(own.editFeature).toHaveBeenCalledTimes(1);
   // A feature no command made has no Edit Parameters: a double-click does nothing, as in the Part Navigator.
   fireEvent.doubleClick(item('Edge Blend (5)'));
   expect([own.editFeature, onEditSketch].map(each => each.mock.calls.length)).toEqual([1, 1]);
 });
 
+it("selects a sketch an extrude was made from by the id the Part Navigator selects it by, and marks it selected", () => {
+  const { own } = timeline();
+  fireEvent.click(item('Sketch (3) "SKETCH_001"'));
+  // The id a sketch picked on the model selects too (`sketchTreeId`).
+  expect(own.select).toHaveBeenLastCalledWith(sketchTreeId(TREE, { file: 'bracket.py', line: 10 }));
+  expect(own.select).toHaveBeenLastCalledWith('sketch:e2');
+  cleanup();
+  timeline({ selected: 'sketch:e2' });
+  expect(items().map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true', 'false', 'false', 'false', 'false']);
+});
+
+it("draws a sketch nothing uses yet once, as an item of its own", () => {
+  const loose = { ...STATE, features: [STATE.features[0],
+    { key: 's9', kind: 'Sketch', file: 'bracket.py', line: 12, sketch: sketched('SKETCH_001', 12) }] };
+  const { own, onEditSketch } = timeline({ state: loose, selected: 's9' });
+  expect(items().map(button => button.getAttribute('data-cad-timeline-item'))).toEqual(['sketch:e1', 'e1', 's9']);
+  expect(items().map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true']);
+  fireEvent.doubleClick(item('Sketch (3) "SKETCH_001"'));
+  expect(onEditSketch).toHaveBeenLastCalledWith(featureTree(loose).features[1].sketch);
+  fireEvent.click(item('Sketch (3) "SKETCH_001"'));
+  expect(own.select).toHaveBeenLastCalledWith(sketchTreeId(featureTree(loose), { file: 'bracket.py', line: 12 }));
+});
+
 it("marks the selected item", () => {
   timeline({ selected: 'e1' });
-  expect(items().map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false', 'false', 'false']);
+  // The extrude alone: its sketch is selected by an id of its own.
+  expect(items().map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'true', 'false', 'false', 'false', 'false', 'false']);
 });
 
 it("is the workspace's white card, and lights an item in its pale blue under the pointer and its deeper blue selected", () => {
@@ -100,12 +146,13 @@ it("is the workspace's white card, and lights an item in its pale blue under the
   const tile = (name: string) => item(name).firstElementChild!.className;
   expect(tile('Extrude (2)')).toMatch(/\bbg-cad-ws-selected\b/);
   expect(tile('Extrude (4)')).toMatch(/group-hover\/item:bg-cad-ws-hover/);
+  expect(tile('Sketch (1) "SKETCH_000"')).toMatch(/group-hover\/item:bg-cad-ws-hover/);
 });
 
 it("edits nothing while the part is busy, as the Part Navigator's rows do not", () => {
   const { own, onEditSketch } = timeline({ saving: true });
   fireEvent.doubleClick(item('Extrude (2)'));
-  fireEvent.doubleClick(item('Sketch (1) "Outline"'));
+  fireEvent.doubleClick(item('Sketch (1) "SKETCH_000"'));
   expect([own.editFeature, onEditSketch].map(each => each.mock.calls.length)).toEqual([0, 0]);
   fireEvent.click(item('Extrude (2)'));
   expect(own.select).toHaveBeenCalledWith('e1');
@@ -114,31 +161,50 @@ it("edits nothing while the part is busy, as the Part Navigator's rows do not", 
   const sketching = timeline({ sketch: { file: 'bracket.py', line: 5 } });
   fireEvent.doubleClick(item('Extrude (2)'));
   expect(sketching.own.editFeature).not.toHaveBeenCalled();
-  fireEvent.doubleClick(item('Sketch (3) "Rim"'));
+  fireEvent.doubleClick(item('Sketch (3) "SKETCH_001"'));
   expect(sketching.onEditSketch).toHaveBeenCalledTimes(1);
 });
 
 it("stands the marker after the last item the part has, and greys what the rollback bar leaves out", () => {
   timeline();
   expect([marker().getAttribute('aria-valuenow'), marker().getAttribute('aria-valuetext')]).toEqual(['5', 'At the end']);
-  expect(items().some(button => button.hasAttribute('data-rolled-back'))).toBe(false);
+  expect(rolledBackIcons().some(Boolean)).toBe(false);
   cleanup();
   timeline({ bar: { item: 'e2' } });
-  expect([marker().getAttribute('aria-valuenow'), marker().getAttribute('aria-valuetext')]).toEqual(['3', 'Above Extrude (4)']);
-  expect(items().map(button => button.hasAttribute('data-rolled-back'))).toEqual([false, false, false, true, true]);
+  // Above the second extrude, which goes with the sketch it was made from; the marker's places are the features'.
+  expect([marker().getAttribute('aria-valuenow'), marker().getAttribute('aria-valuetext'), marker().getAttribute('aria-valuemax')]).toEqual(['1', 'Above Extrude (4)', '5']);
+  expect(rolledBackIcons()).toEqual([false, false, true, true, true, true, true]);
 });
 
-it("greys a suppressed item where it stands, rolled back or not", () => {
+it("draws the marker in the gap before the first item the part leaves out, past every sketch drawn before the items ahead of it", () => {
+  // In px at 16px a rem, from the list's left edge. The tiles are 28px, 8px apart with a 4px gap between a sketch and its
+  // feature, in 8px of padding: the groups stand at 8 to 68, 76 to 136, 144 to 172, 180 to 208 and 216 to 244.
+  const at = () => parseFloat(/translateX\((.*)rem\)/.exec(marker().style.transform)![1]) * 16;
+  timeline();
+  expect(at()).toBe(244);
+  cleanup();
+  // Before the second extrude and its sketch, where the first and its sketch end.
+  timeline({ bar: { item: 'e2' } });
+  expect(at()).toBe(68);
+  cleanup();
+  timeline({ bar: { item: 'b1' } });
+  expect(at()).toBe(136);
+  cleanup();
+  timeline({ bar: { item: 'p1' } });
+  expect(at()).toBe(208);
+});
+
+it("greys a suppressed item and its sketch where they stand, rolled back or not", () => {
   const aside = { ...STATE, features: STATE.features.map(feature => (feature.key === 'e1' ? { ...feature, suppressed: true } : feature)) };
   timeline({ state: aside });
-  expect(items().map(button => button.hasAttribute('data-suppressed'))).toEqual([false, true, false, false, false]);
-  expect(items().some(button => button.hasAttribute('data-rolled-back'))).toBe(false);
+  expect(items().map(button => button.hasAttribute('data-suppressed'))).toEqual([true, true, false, false, false, false, false]);
+  expect(rolledBackIcons().some(Boolean)).toBe(false);
 });
 
-it("marks who made an item with a dot, and an item nobody is known to have made with none", () => {
-  timeline({ state: { ...STATE, authors: { s1: 'you', e2: 'agent', b1: 'someone else' } } });
+it("marks who made an item with a dot, a sketch with its feature's, and an item nobody is known to have made with none", () => {
+  timeline({ state: { ...STATE, authors: { e2: 'agent', b1: 'you', p1: 'someone else' } } });
   const dots = items().map(button => button.querySelector('[data-cad-timeline-author]')?.getAttribute('data-cad-timeline-author') ?? null);
-  expect(dots).toEqual(['you', null, null, 'agent', null]);
+  expect(dots).toEqual([null, null, 'agent', 'agent', 'you', null, null]);
   cleanup();
   // A part from before Studio kept track has neither.
   timeline();
@@ -147,40 +213,49 @@ it("marks who made an item with a dot, and an item nobody is known to have made 
 
 it("says on hover what an item is, who made it and whether it is set aside", () => {
   vi.useFakeTimers();
-  const aside = { ...STATE, authors: { e2: 'agent', s1: 'you' },
+  const aside = { ...STATE, authors: { e2: 'agent', b1: 'you' },
     features: STATE.features.map(feature => (feature.key === 'e1' ? { ...feature, suppressed: true } : feature)) };
   timeline({ state: aside });
   const hover = (node: Element) => { fireEvent.pointerMove(node, { pointerType: 'mouse' }); act(() => { vi.advanceTimersByTime(450); }); };
-  hover(item('Extrude (4)'));
-  expect(screen.getByRole('tooltip').textContent).toBe('Extrude (4)Made by the agent');
-  fireEvent.pointerLeave(item('Extrude (4)'));
-  hover(item('Sketch (1) "Outline"'));
-  expect(screen.getByRole('tooltip').textContent).toBe('Sketch (1) "Outline"Made by you');
-  fireEvent.pointerLeave(item('Sketch (1) "Outline"'));
-  hover(item('Extrude (2)'));
-  expect(screen.getByRole('tooltip').textContent).toBe('Extrude (2)Suppressed');
-  fireEvent.pointerLeave(item('Extrude (2)'));
+  const said = (name: string) => { hover(item(name)); const text = screen.getByRole('tooltip').textContent; fireEvent.pointerLeave(item(name)); return text; };
+  expect(said('Extrude (4)')).toBe('Extrude (4)Made by the agent');
+  expect(said('Sketch (3) "SKETCH_001"')).toBe('Sketch (3) "SKETCH_001"Made by the agent');
+  expect(said('Edge Blend (5)')).toBe('Edge Blend (5)Made by you');
+  expect(said('Sketch (1) "SKETCH_000"')).toBe('Sketch (1) "SKETCH_000"Suppressed');
   // Nothing more to say of an item from before Studio kept track.
-  hover(item('Edge Blend (5)'));
-  expect(screen.getByRole('tooltip').textContent).toBe('Edge Blend (5)');
+  expect(said('Hole (6)')).toBe('Hole (6)');
 });
 
 it("moves the marker under the pointer, and rolls the part back only when it is let go", () => {
   const { own } = timeline();
-  drag([180, 100], { release: false });
-  // The marker stands between the third and fourth items and what is past it is greyed, but the part has not moved.
-  expect(items().map(button => button.hasAttribute('data-rolled-back'))).toEqual([false, false, false, true, true]);
+  drag([250, 160], { release: false });
+  // The marker stands between the third and fourth features, and what is past it is greyed, but the part has not moved.
+  expect(rolledBackIcons()).toEqual([false, false, false, false, false, true, true]);
   expect(own.rollTo).not.toHaveBeenCalled();
-  fireEvent.pointerUp(marker(), { pointerId: 1, clientX: 100 });
+  fireEvent.pointerUp(marker(), { pointerId: 1, clientX: 160 });
   expect(own.rollTo).toHaveBeenCalledTimes(1);
-  expect(own.rollTo).toHaveBeenCalledWith('e2');
+  expect(own.rollTo).toHaveBeenCalledWith('h1');
   // The bar is the part's to move: until it does, the timeline shows where it is.
-  expect(items().some(button => button.hasAttribute('data-rolled-back'))).toBe(false);
+  expect(rolledBackIcons().some(Boolean)).toBe(false);
+});
+
+it("moves a feature and the sketch it was made from as one, the marker never standing between them", () => {
+  const { own } = timeline();
+  // The second extrude and its sketch stand from 68px to 128px, their middle at 98. Over the sketch, short of the
+  // middle, the marker is before both: the sketch goes with the extrude.
+  drag([90], { release: false });
+  expect(rolledBackIcons()).toEqual([false, false, true, true, true, true, true]);
+  // Over the extrude, past the middle, it is after both: they stay.
+  fireEvent.pointerMove(marker(), { pointerId: 1, clientX: 110 });
+  expect(rolledBackIcons()).toEqual([false, false, false, false, true, true, true]);
+  fireEvent.pointerUp(marker(), { pointerId: 1, clientX: 110 });
+  expect(own.rollTo).toHaveBeenCalledTimes(1);
+  expect(own.rollTo).toHaveBeenCalledWith('b1');
 });
 
 it("rolls to the end when the marker is let go past the last item, as Make Current Feature on the last feature does", () => {
-  const { own } = timeline({ bar: { item: 'e2' } });
-  drag([150, 400]);
+  const { own } = timeline({ bar: { item: 'h1' } });
+  drag([200, 400]);
   expect(own.rollTo).toHaveBeenCalledTimes(1);
   expect(own.rollTo).toHaveBeenCalledWith(null);
 });
@@ -188,20 +263,20 @@ it("rolls to the end when the marker is let go past the last item, as Make Curre
 it("never rolls back past the first item, nor does anything for a marker let go where it was", () => {
   const { own } = timeline();
   drag([100, -50]);
-  expect(own.rollTo).toHaveBeenLastCalledWith('e1');
+  expect(own.rollTo).toHaveBeenLastCalledWith('e2');
   own.rollTo.mockClear();
   // Out and back to the slot it began at, or never out of it.
-  drag([100, 190]);
-  drag([180]);
+  drag([100, 290]);
+  drag([280]);
   expect(own.rollTo).not.toHaveBeenCalled();
 });
 
 it("puts the marker back where it was when the drag is cancelled", () => {
   const { own } = timeline();
-  drag([30], { release: false });
-  expect(items().map(button => button.hasAttribute('data-rolled-back'))).toEqual([false, true, true, true, true]);
+  drag([60], { release: false });
+  expect(rolledBackIcons()).toEqual([false, false, true, true, true, true, true]);
   fireEvent.pointerCancel(marker(), { pointerId: 1 });
-  expect(items().some(button => button.hasAttribute('data-rolled-back'))).toBe(false);
+  expect(rolledBackIcons().some(Boolean)).toBe(false);
   expect(own.rollTo).not.toHaveBeenCalled();
 });
 
@@ -209,26 +284,26 @@ it("lets go of a drag when the marker is taken away in the middle of it", () => 
   const own = edit();
   const tree = featureTree(STATE);
   const { rerender } = render(<EditTimeline edit={own as never} tree={tree} />);
-  drag([30], { release: false });
-  expect(items().map(button => button.hasAttribute('data-rolled-back'))).toEqual([false, true, true, true, true]);
+  drag([60], { release: false });
+  expect(rolledBackIcons()).toEqual([false, false, true, true, true, true, true]);
   // The part is read again: no marker, then the part is back and the marker is where the part has it.
   rerender(<EditTimeline edit={{ ...own, status: 'reading' } as never} tree={tree} />);
   rerender(<EditTimeline edit={own as never} tree={tree} />);
-  expect(items().some(button => button.hasAttribute('data-rolled-back'))).toBe(false);
+  expect(rolledBackIcons().some(Boolean)).toBe(false);
   expect(marker().getAttribute('aria-valuenow')).toBe('5');
   expect(own.rollTo).not.toHaveBeenCalled();
 });
 
 it("moves the marker an item at a time with the arrow keys", () => {
-  const { own } = timeline({ bar: { item: 'e2' } });
+  const { own } = timeline({ bar: { item: 'h1' } });
   const key = (name: string) => fireEvent.keyDown(marker(), { key: name });
-  // Above the fourth: back one is above the third, on one is above the fifth.
+  // Above the fourth feature: back one is above the third, on one is above the fifth.
   key('ArrowLeft');
-  expect(own.rollTo).toHaveBeenLastCalledWith('s2');
-  key('ArrowRight');
   expect(own.rollTo).toHaveBeenLastCalledWith('b1');
+  key('ArrowRight');
+  expect(own.rollTo).toHaveBeenLastCalledWith('p1');
   key('Home');
-  expect(own.rollTo).toHaveBeenLastCalledWith('e1');
+  expect(own.rollTo).toHaveBeenLastCalledWith('e2');
   key('End');
   expect(own.rollTo).toHaveBeenLastCalledWith(null);
   expect(own.rollTo).toHaveBeenCalledTimes(4);
@@ -239,7 +314,7 @@ it("moves the marker an item at a time with the arrow keys", () => {
   fireEvent.keyDown(marker(), { key: 'End' });
   expect(whole.own.rollTo).not.toHaveBeenCalled();
   fireEvent.keyDown(marker(), { key: 'ArrowLeft' });
-  expect(whole.own.rollTo).toHaveBeenCalledWith('b1');
+  expect(whole.own.rollTo).toHaveBeenCalledWith('p1');
 });
 
 it("keeps the marker still while the part is busy", () => {
@@ -255,9 +330,10 @@ it("keeps the marker still while the part is busy", () => {
 });
 
 it("has no marker where there is nothing to roll back to, and no timeline where there is nothing", () => {
+  // One feature, drawn with the sketch it was made from, has no earlier part to roll back to.
   const one = { ...STATE, features: STATE.features.slice(0, 1) };
   timeline({ state: one });
-  expect(items().length).toBe(1);
+  expect(items().length).toBe(2);
   expect(screen.queryByRole('slider')).toBeNull();
   cleanup();
   // Not until the part is read.
