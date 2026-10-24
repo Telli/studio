@@ -10,11 +10,12 @@ import { faceShapesOf, faceShapesText } from './faceShapes.js';
  * Marks on a face, as shapes in that face's own coordinates: what the agent gets of the annotation beside its picture.
  */
 
-// A 20 × 10 × 4 block, part "block", its top face (face 6 of /work/block.step) at z = 4; with `boss`, a 4 × 4 × 2 boss on
-// it at x 4 to 8, its top at z = 6. An orthographic camera looks at the top face's middle from straight above, or tipped
-// `tilt` degrees back from above about X, turned `roll` degrees about its view, `span` millimetres from the window's middle
-// to its top. From straight above, unturned, at the span of 50, one pixel is a millimetre: screen pixel (x, y) is (x − 50, 50 − y).
-function rig({ roll = 0, tilt = 0, span = 50, boss = false } = {}) {
+// A 20 × 10 × 4 block (or `block`'s width and depth), part "block", its top face (face 6 of /work/block.step) at z = 4; with
+// `boss`, a 4 × 4 × 2 boss on it at x 4 to 8, its top at z = 6. A camera looks at the top face's middle from 100 mm away,
+// straight down, or tipped `tilt` degrees back from above about X, turned `roll` degrees about its view, `span` millimetres
+// from the window's middle to its top at the face's middle: orthographic, or with `perspective`. From straight above,
+// unturned, orthographic at the span of 50, one pixel is a millimetre: screen pixel (x, y) is (x − 50, 50 − y).
+function rig({ roll = 0, tilt = 0, span = 50, boss = false, perspective = false, block = [20, 10] } = {}) {
   const scene = new THREE.Scene();
   const modelGroup = new THREE.Group();
   scene.add(modelGroup);
@@ -24,9 +25,10 @@ function rig({ roll = 0, tilt = 0, span = 50, boss = false } = {}) {
     mesh.position.set(x, y, z);
     modelGroup.add(mesh);
   };
-  part('block', [20, 10, 4], [0, 0, 2]);
+  part('block', [...block, 4], [0, 0, 2]);
   if (boss) part('boss', [4, 4, 2], [6, 0, 5]);
-  const camera = new THREE.OrthographicCamera(-span, span, span, -span, 0.1, 500);
+  const camera = perspective ? new THREE.PerspectiveCamera(2 * Math.atan(span / 100) * 180 / Math.PI, 1, 0.1, 500)
+    : new THREE.OrthographicCamera(-span, span, span, -span, 0.1, 500);
   const turn = degrees => degrees * Math.PI / 180;
   const X = new THREE.Vector3(1, 0, 0), target = new THREE.Vector3(0, 0, 4);
   const back = new THREE.Vector3(0, 0, 1).applyAxisAngle(X, turn(tilt));
@@ -113,6 +115,48 @@ test("says a Shapes rectangle as one only where it lies square on the face; slan
     assert.ok(shape.points.some(point => Math.hypot(point[0] - corner[0], point[1] - corner[1]) <= 0.1),
       `no corner within 0.1 of (${corner}): ${JSON.stringify(shape.points)}`);
   }
+});
+
+test("finds a drawn rectangle's four straight sides at any turn and tilt: square on a rectangle, slanted its four corners", () => {
+  const box = ([fx, fy, tx, ty]) => [{ x: fx, y: fy }, { x: tx, y: ty }];
+  const drawnOn = (view, [from, to]) => {
+    const runtime = rig({ span: 12.5, ...view });
+    const [ink] = projectAnnotations(runtime, shapeMarks('rectangle', from, to, STYLE), SIZE, { touchesAt: onTop });
+    const corners = [[from.x, from.y], [to.x, from.y], [to.x, to.y], [from.x, to.y]].map(([x, y]) => onTopFace(runtime, ink.level.point, { x, y }));
+    return { shape: faceShapesOf([ink], { units: 'mm', labelOf })[0].shapes[0], corners, middle: onTopFace(runtime, ink.level.point, { x: 50, y: 50 }) };
+  };
+  // Square on, turned 5°, in either projection: a rectangle of the 10 × 5 mm drawn, under the window's middle.
+  for (const perspective of [false, true]) {
+    const { shape, middle } = drawnOn({ roll: 5, perspective }, box([30, 40, 70, 60]));
+    assert.deepEqual(shape, { kind: 'rectangle', center: tenths(middle), size: [10, 5], angle: 5 }, perspective ? 'in perspective' : 'orthographic');
+  }
+  // Isometric-like, it lands as a parallelogram: its four corners, each where a drawn corner falls on the face.
+  const near = (points, corner, within) => points.some(point => Math.hypot(point[0] - corner[0], point[1] - corner[1]) <= within);
+  const iso = drawnOn({ tilt: 54.7, roll: 45, block: [400, 400] }, box([30, 40, 70, 60]));
+  assert.deepEqual([iso.shape.kind, iso.shape.points.length], ['polygon', 4]);
+  assert.ok(iso.corners.every(corner => near(iso.shape.points, corner, 0.1)), JSON.stringify(iso.shape.points));
+  // At any turn and tilt, in either projection, it is never said as its outline: square on a rectangle, else its four corners,
+  // every corner said where the drawn one falls (a rectangle's rebuilt from its centre, size and angle as said, to their tenths).
+  const corners = ({ center: [cu, cv], size: [w, h], angle }) => {
+    const t = angle * Math.PI / 180, along = [Math.cos(t) * w / 2, Math.sin(t) * w / 2], across = [-Math.sin(t) * h / 2, Math.cos(t) * h / 2];
+    return [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => [cu + a * along[0] + b * across[0], cv + a * along[1] + b * across[1]]);
+  };
+  const boxes = [[30, 40, 70, 60], [36, 44, 61, 52], [25, 30, 75, 70], [45, 47, 55, 53]].map(box);
+  let index = 0;
+  for (const perspective of [false, true]) {
+    for (const tilt of [0, 20, 40, 54.7, 65]) {
+      for (const roll of [0, 5, 17, 33, 45, 62, 81]) {
+        const { shape, corners: drawn } = drawnOn({ tilt, roll, perspective, block: [400, 400] }, boxes[index++ % boxes.length]);
+        const at = `${perspective ? 'perspective' : 'orthographic'}, tilt ${tilt}, roll ${roll}: ${JSON.stringify(shape)}`;
+        if (tilt === 0) assert.equal(shape.kind, 'rectangle', at);
+        if (shape.kind === 'rectangle') assert.ok(drawn.every(corner => near(corners(shape), corner, 0.15)), at);
+        else assert.ok(shape.kind === 'polygon' && shape.points.length === 4 && drawn.every(corner => near(shape.points, corner, 0.1)), at);
+      }
+    }
+  }
+  // Too small to say at a tenth, its corners all one point, it is no polygon.
+  const tiny = drawn('tiny', [[0, 0, 4], [0.04, 0, 4], [0.03, 0.02, 4], [0.01, 0.02, 4], [0, 0, 4]], { closed: true, shape: 'rectangle' });
+  assert.deepEqual(faceShapesOf([tiny], { units: 'mm', labelOf })[0].shapes, [{ kind: 'polyline', points: [[0, 0]] }]);
 });
 
 test("says an ellipse only where its outline is one, on a slanted face too, fitted to all of it; else the polygon it is", () => {

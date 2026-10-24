@@ -149,7 +149,8 @@ were drawn from every angle, lying on the surface they were drawn on. The STEP, 
     the model's +X laid on the face (+Y where +X is within 10° of the normal) and `v` the normal across
     `u`. A shape is said as what it is on the face: a Shapes rectangle is a rectangle only where its
     straight sides meet square there (within half a degree, opposite sides equal within the rounding),
-    else, as on a face slanted to the view, the polygon of the four corners those sides meet at; an
+    else, as on a face slanted to the view, the polygon of the four corners those sides meet at (its
+    whole outline only where no four straight sides are found, as at a view that grazes the face); an
     ellipse is one only where its outline fits the ellipse fitted to the area it closes round within
     the rounding, else the polygon it is. A Shapes line, arrow (once, by its line) and text keep their
     shape; a closed stroke or a fill is a polygon, any other stroke a polyline. Lengths are in the part's units

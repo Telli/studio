@@ -6,8 +6,9 @@
 // the renderer says, naming them (`labelOf`): the kit reads no reference's grammar. Each face has one frame: its origin the
 // level's point of the first mark on it, `u` the model's +X laid on the face (+Y where +X is within 10° of the face's normal),
 // `v` the normal across `u`. A shape is said as what it is on the face, never as what was drawn on the screen: a Shapes
-// rectangle on a face slanted to the view lands as a parallelogram, and is said as the polygon of its corners. Lengths are in
-// the part's units to a tenth, directions to a thousandth, angles in degrees to a tenth. Pure.
+// rectangle on a face slanted to the view lands as a parallelogram, and is said as the polygon of the corners its straight
+// sides meet at; its whole outline only where no four straight sides are found (as at a view that grazes the face). Lengths
+// are in the part's units to a tenth, directions to a thousandth, angles in degrees to a tenth. Pure.
 
 /** How near its level's plane each point of a mark on a face lies, in the part's units. */
 const ON_FACE = 0.05;
@@ -137,10 +138,28 @@ function squared(shape, key) {
   else if (angle > 45) { angle -= 90; [along, across] = [across, along]; }
   return { ...shape, center: tenths(shape.center), [key]: tenths([along, across]), angle: tenth(angle) };
 }
+// A ring with every point that lies on the line of its two neighbours (within `tolerance`) dropped, again and again until none
+// does: each straight run one edge, however its points first fell.
+function straightened(loop, tolerance) {
+  const kept = [...loop];
+  for (let dropped = true; dropped && kept.length > 3;) {
+    dropped = false;
+    for (let index = 0; index < kept.length && kept.length > 3; index += 1) {
+      const [ax, ay] = kept[(index + kept.length - 1) % kept.length], [px, py] = kept[index], [bx, by] = kept[(index + 1) % kept.length];
+      if (Math.abs((bx - ax) * (py - ay) - (by - ay) * (px - ax)) <= tolerance * Math.hypot(bx - ax, by - ay)) {
+        kept.splice(index, 1);
+        index -= 1;
+        dropped = true;
+      }
+    }
+  }
+  return kept;
+}
 // A Shapes rectangle's four straight sides, its corners rounded or not: the four longest edges of its outline's hull, in order
-// round it, each at least twice as long as any other edge (an arc's); null where the outline has no four such sides.
+// round it, each at least twice as long as any other edge (an arc's); null where the outline has no four such sides (as at a
+// view that grazes the face).
 function fourSides(points) {
-  const hull = simplifiedRing(hullOf(points), STRAIGHT);
+  const hull = straightened(hullOf(points), STRAIGHT);
   if (hull.length < 4) return null;
   const edges = hull.map((from, index) => {
     const to = hull[(index + 1) % hull.length];
@@ -173,7 +192,8 @@ function rectangleOf(points) {
     return Math.abs(Math.atan2(x * ny - y * nx, x * nx + y * ny) * 180 / Math.PI - 90) <= SQUARE_DEGREES;
   });
   if (!square || Math.abs(lengths[0] - lengths[2]) > ROUNDING || Math.abs(lengths[1] - lengths[3]) > ROUNDING) {
-    return { kind: "polygon", points: roundedPoints(corners, true) };
+    const four = roundedPoints(corners, true);
+    return four.length >= 3 ? { kind: "polygon", points: four } : { kind: "polyline", points: four };
   }
   // Turned as its four sides are, on the whole.
   const first = Math.atan2(edges[0][1], edges[0][0]);
