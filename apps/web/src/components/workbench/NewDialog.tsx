@@ -513,11 +513,7 @@ export function NewDialog(props: {
                       </Select>
                     </Field>
                   )}
-                  {/* A built-in document lists What it covers above, so here it says What it is. */}
-                  <Field
-                    label={selected.file === undefined ? "What it is" : "What it covers"}
-                    htmlFor={`${id}-description`}
-                  >
+                  <Field label="What it is" htmlFor={`${id}-description`}>
                     <Textarea
                       id={`${id}-description`}
                       size="sm"

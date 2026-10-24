@@ -1,13 +1,7 @@
 import type { InstalledPlugin } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  availableTemplates,
-  fileStem,
-  NEW_TEMPLATES,
-  newWorkPrompt,
-  templateOffers,
-} from "./newTemplates";
+import { fileStem, NEW_TEMPLATES, newWorkPrompt, templateOffers } from "./newTemplates";
 
 const template = (id: string) => NEW_TEMPLATES.find((entry) => entry.id === id)!;
 
@@ -34,9 +28,15 @@ const textToCad = plugin("text-to-cad", true, ["cad", "engineering-drawing", "fe
 const offers = templateOffers(new Set(["cad"]), [textToCad]);
 const offerOf = (id: string) => offers.find((offer) => offer.template.id === id);
 
+/** The templates New offers on, with these skills on. */
+const onWith = (skills: ReadonlyArray<string>) =>
+  templateOffers(new Set(skills), [textToCad])
+    .filter((offer) => offer.availability.on)
+    .map((offer) => offer.template);
+
 describe("new templates", () => {
   it("offers only what the installed skills can do; documents need none", () => {
-    expect(availableTemplates(new Set(["cad"])).map((entry) => entry.id)).toEqual([
+    expect(onWith(["cad"]).map((entry) => entry.id)).toEqual([
       "part",
       "assembly",
       "sheet-metal",
@@ -47,9 +47,7 @@ describe("new templates", () => {
       "fmea",
       "design-review",
     ]);
-    expect(
-      availableTemplates(new Set(["fea", "cam", "pcb"])).map((entry) => entry.label),
-    ).toContain("Strength study");
+    expect(onWith(["fea", "cam", "pcb"]).map((entry) => entry.label)).toContain("Strength study");
   });
 
   it("names new work by a file name the agent can use", () => {
@@ -76,10 +74,6 @@ describe("new templates", () => {
     });
     expect(offerOf("part")?.availability).toEqual({ on: true });
     expect(offerOf("prd")?.availability).toEqual({ on: true });
-    // On exactly where New offered it before.
-    expect(
-      offers.filter((offer) => offer.availability.on).map((offer) => offer.template.id),
-    ).toEqual(availableTemplates(new Set(["cad"])).map((entry) => entry.id));
   });
 
   it("keeps the order New shows", () => {

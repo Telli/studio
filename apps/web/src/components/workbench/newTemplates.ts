@@ -258,13 +258,6 @@ export const DOCUMENT_TEMPLATES: ReadonlyArray<NewTemplate> = [
   },
 ];
 
-/** The templates the enabled plugins' skills can do, in their order, documents after the rest. */
-export function availableTemplates(skills: ReadonlySet<string>): NewTemplate[] {
-  return [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES].filter(
-    (template) => template.skill === null || skills.has(template.skill),
-  );
-}
-
 /** A template as New offers it: whether it can be made now, else the skill it needs and why. */
 export interface TemplateOffer {
   readonly template: NewTemplate;
@@ -272,9 +265,10 @@ export interface TemplateOffer {
 }
 
 /**
- * Every template New shows, in `availableTemplates`' order: on where it is offered, else off,
- * naming its skill and the plugin that lists it, as the library does (`missingSkill`). A template
- * whose skill no plugin ships (`UNLISTED_TEMPLATES`) is left out until a plugin lists it.
+ * Every template New shows, in their order, documents after the rest: on where it needs no skill
+ * or the enabled plugins' skills (`skills`) hold its skill, else off, naming that skill and the
+ * plugin that lists it, as the library does (`missingSkill`). A template whose skill no plugin
+ * ships (`UNLISTED_TEMPLATES`) is left out until a plugin lists it.
  */
 export function templateOffers(
   skills: ReadonlySet<string>,
