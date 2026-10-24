@@ -8,6 +8,8 @@
  * - reads the checkout as a plugin marketplace and installs and enables its
  *   `text-to-cad` plugin on first start (apps/server/src/plugins/BundledPlugins.ts);
  * - names and brands the app from `brand/` (text-to-cad's mark, icons and accent);
+ * - offers the finished sample project (`studio-sample/servo-bracket`) to Try a sample project,
+ *   which copies it in the desktop app (`T3CODE_SAMPLE_PROJECT`);
  * - keeps its state in `~/.text-to-cad-studio`, never in T3 Code's own home.
  *
  * - edits parts by hand in text-to-cad's own viewer (its edit mode, `cadgen/edit`);
@@ -150,6 +152,7 @@ const run = NodeChildProcess.spawnSync(
       T3CODE_DEFAULT_PLUGINS: defaults.join(","),
       VITE_APP_BASE_NAME: brand.name,
       T3CODE_BRAND_DIR: brandDir,
+      T3CODE_SAMPLE_PROJECT: NodePath.join(appRoot, "studio-sample", "servo-bracket"),
     },
   },
 );

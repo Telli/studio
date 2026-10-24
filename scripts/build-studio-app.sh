@@ -15,9 +15,9 @@
 #
 # Run it from a checkout set up with scripts/setup-studio.sh (on Windows, the steps in
 # .github/workflows/studio-windows.yml), with Rust's cargo installed for the desktop build. It
-# stages build/studio-bundle (the CAD tools' Python, their plugin and page, and studio.json), which
-# the desktop build copies into the app's resources (scripts/lib/studio-app.ts) and which the app
-# sets itself up from on each start (apps/desktop/src/studio/studioAppBundle.ts).
+# stages build/studio-bundle (the CAD tools' Python, their plugin and page, the sample project and
+# studio.json), which the desktop build copies into the app's resources (scripts/lib/studio-app.ts)
+# and which the app sets itself up from on each start (apps/desktop/src/studio/studioAppBundle.ts).
 #
 #   scripts/build-studio-app.sh [version]    (0.1.0 when left out)
 set -euo pipefail
@@ -132,6 +132,10 @@ cat >"$BUNDLE/studio.json" <<'JSON'
   "plugins": ["text-to-cad"]
 }
 JSON
+
+# The finished servo bracket, which Try a sample project copies into a new project.
+step "Copying the sample project"
+cp -R "$ROOT/studio-sample" "$BUNDLE/sample"
 
 step "Building the app"
 cd "$ROOT"

@@ -17,6 +17,8 @@ import * as NodePath from "node:path";
  * - The CAD plugin, copied into the home with this copy of the app's paths filled in (the app can
  *   live anywhere), then offered and turned on (`T3CODE_PLUGIN_MARKETPLACE`,
  *   `T3CODE_DEFAULT_PLUGINS`).
+ * - The finished sample project, where the bundle has one (`T3CODE_SAMPLE_PROJECT`), which Try a
+ *   sample project copies into a new project.
  *
  * The computer needs no Node of its own: with none on PATH, cadgen runs its mesh and DXF builders on
  * the Node Playwright ships inside the bundled Python, finding it itself, on a Mac or on Windows.
@@ -50,6 +52,8 @@ export function applyStudioAppBundle(input: {
   setDefault(env, "VITE_APP_BASE_NAME", settings.name);
   setDefault(env, "T3CODE_DESKTOP_PROFILE", settings.profile);
   setDefault(env, "T3CODE_DEFAULT_PLUGINS", settings.plugins.join(","));
+  const sample = NodePath.join(bundle, "sample", "servo-bracket");
+  if (NodeFS.existsSync(sample)) setDefault(env, "T3CODE_SAMPLE_PROJECT", sample);
   try {
     trustBundledTools(bundle);
     // A folder of Studio's own name: T3 Code's plugin store keys a marketplace by its folder name.

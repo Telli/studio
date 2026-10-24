@@ -56,6 +56,8 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
     `@@STUDIO_…@@` placeholders;
   - the plugin's page;
+  - the finished sample project (`studio-sample/`), which Try a sample project copies into a new
+    project (`T3CODE_SAMPLE_PROJECT`);
   - `studio.json`.
 - **The build.** T3 Code's desktop build takes the bundle through `T3CODE_DESKTOP_STUDIO_BUNDLE`
   (`scripts/lib/studio-app.ts`). That gives it Studio's name, id, icon and copyright, and a plain
@@ -413,8 +415,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   agent", as Settings does).
 - **Onboarding.** Setup speaks Studio's words and ends at signing in to Claude or Codex
   (`WelcomeWizard.tsx`; Home brings in files). A first Home says Welcome to Studio and offers a
-  sample project the agent builds in front of you (a servo bracket, its strength check, its
-  drawing and its PRD; `homeExamples.ts`). The first workspace opened gives a four-step tour,
+  sample project: in the desktop app, the finished servo bracket Studio ships, copied into a
+  project of your own and opened again on later tries (`useSampleProject.ts`); elsewhere one the
+  agent builds in front of you (the bracket, its strength check, its drawing and its PRD;
+  `homeExamples.ts`). The first workspace opened gives a four-step tour,
   once (`StudioTour.tsx`,
   `tourSteps.ts`): the project, its Overview, the tabs and the toolbar.
 - **Ask, in no project.** Home's box has Start, Ask and Set up. Ask is a question about anything

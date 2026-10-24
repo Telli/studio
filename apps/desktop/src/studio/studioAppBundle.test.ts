@@ -107,16 +107,38 @@ describe("applyStudioAppBundle", () => {
     expect(config.mcpServers.cad.command).toBe(python);
   });
 
+  it("points the app at its sample project when the bundle has one", () => {
+    const res = resources();
+    const sample = NodePath.join(res, "studio", "sample", "servo-bracket");
+    write(
+      NodePath.join(sample, "studio-sample.json"),
+      '{ "sample": "servo-bracket", "version": 1 }',
+    );
+    const env: Record<string, string | undefined> = {};
+    applyStudioAppBundle({ resourcesPath: res, homeDirectory: tempDir(), env });
+    expect(env.T3CODE_SAMPLE_PROJECT).toBe(sample);
+  });
+
+  it("leaves the sample unset without one", () => {
+    const env: Record<string, string | undefined> = {};
+    applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: tempDir(), env });
+    expect(env.T3CODE_SAMPLE_PROJECT).toBeUndefined();
+  });
+
   it("leaves what the environment already says", () => {
     const home = tempDir();
+    const res = resources();
+    write(NodePath.join(res, "studio", "sample", "servo-bracket", "studio-sample.json"), "{}");
     const env: Record<string, string | undefined> = {
       T3CODE_HOME: NodePath.join(home, "elsewhere"),
+      T3CODE_SAMPLE_PROJECT: NodePath.join(home, "my-sample"),
     };
-    applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: home, env });
+    applyStudioAppBundle({ resourcesPath: res, homeDirectory: home, env });
     expect(env.T3CODE_HOME).toBe(NodePath.join(home, "elsewhere"));
     expect(env.T3CODE_PLUGIN_MARKETPLACE).toBe(
       NodePath.join(home, "elsewhere", "studio-app-plugins"),
     );
+    expect(env.T3CODE_SAMPLE_PROJECT).toBe(NodePath.join(home, "my-sample"));
   });
 
   it("does nothing without a bundle, as in T3 Code or Studio from a checkout", () => {

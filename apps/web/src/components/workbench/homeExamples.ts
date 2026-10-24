@@ -1,7 +1,9 @@
 /**
- * Home's way in for someone new (`StudioHome`): a sample project, which the agent builds in front
- * of them so each part of Studio has something in it: a part, its strength check, its drawing and
- * its PRD. Everything else starts from the box or from New, as in a project.
+ * Home's way in for someone new (`StudioHome`): a sample project. Where the desktop app can copy
+ * it, that is the finished one Studio ships, with this description as its purpose
+ * (`useSampleProject`); elsewhere the agent builds it in front of them from this description, so
+ * each part of Studio has something in it: a part, its strength check, its drawing and its PRD.
+ * Everything else starts from the box or from New, as in a project.
  */
 
 export interface ExampleStart {

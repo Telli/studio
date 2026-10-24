@@ -37,6 +37,7 @@ import { useProjectList } from "./useProjectList";
 import { useProjectTiles } from "./useProjectTiles";
 import { type ProjectStart, useStartOnce } from "./useStartProject";
 import { useAskAnything } from "./freeformChat";
+import { useSampleProject } from "./library/useSampleProject";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 /** A group within Your projects, in the project switcher's words: Starred, then Recent. */
@@ -506,32 +507,50 @@ function StartProject(props: {
           </Button>
         </div>
       </div>
-      {firstTime ? (
-        <div className={OFFER}>
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="text-sm font-medium text-foreground">A sample project</span>
-            <span className="text-sm text-muted-foreground">
-              The agent builds a servo bracket, checks its strength, draws it and writes its PRD, so
-              each part of Studio has something in it.
-            </span>
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={busy}
-            onClick={() =>
-              void run({
-                kind: "described",
-                description: SAMPLE_PROJECT.description,
-                attachments: [],
-                project: null,
-              })
-            }
-          >
-            {SAMPLE_PROJECT.label}
-          </Button>
-        </div>
-      ) : null}
+      {firstTime ? <SampleOffer environmentId={environmentId} busy={busy} start={run} /> : null}
     </section>
+  );
+}
+
+/**
+ * A first visit's sample project: where the desktop app can copy it, the finished one Studio
+ * ships, opened as a project of your own (`useSampleProject`); elsewhere the prompt in which the
+ * agent builds it.
+ */
+function SampleOffer(props: {
+  readonly environmentId: EnvironmentId;
+  /** A start is under way (from Home's box or from New). */
+  readonly busy: boolean;
+  readonly start: (work: ProjectStart) => Promise<void>;
+}) {
+  const sample = useSampleProject(props.environmentId);
+  const [opening, setOpening] = useState(false);
+  const open = () => {
+    if (sample === null) {
+      void props.start({
+        kind: "described",
+        description: SAMPLE_PROJECT.description,
+        attachments: [],
+        project: null,
+      });
+      return;
+    }
+    setOpening(true);
+    void sample.open().finally(() => setOpening(false));
+  };
+  return (
+    <div className={OFFER}>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-sm font-medium text-foreground">A sample project</span>
+        <span className="text-sm text-muted-foreground">
+          {sample === null
+            ? "The agent builds a servo bracket, checks its strength, draws it and writes its PRD, so each part of Studio has something in it."
+            : "A finished servo bracket project: the part, its drawing, its strength study, its PRD, and an example of almost everything else Studio makes."}
+        </span>
+      </span>
+      <Button size="sm" variant="outline" disabled={props.busy || opening} onClick={open}>
+        {SAMPLE_PROJECT.label}
+      </Button>
+    </div>
   );
 }
