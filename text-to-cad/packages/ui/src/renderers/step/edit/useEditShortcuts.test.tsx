@@ -66,3 +66,61 @@ it('F2 renames what the tree has selected, and Cmd+8 turns the view Normal To, f
   expect(startRename).toHaveBeenCalledTimes(1);
   expect(lookNormalTo).toHaveBeenCalledTimes(1);
 });
+
+/** A viewer with a button and a text field in it, edit mode given only the command search to ask for (`active`: the workspace is up). */
+function searchViewer(active = true, edit: Record<string, unknown> = {}) {
+  const element = document.createElement('div');
+  element.innerHTML = '<button type="button">Fillet</button><input aria-label="Width value" />';
+  document.body.append(element);
+  const findCommand = vi.fn();
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    <ViewerElementContext.Provider value={{ current: element }}>{children}</ViewerElementContext.Provider>;
+  renderHook(() => useEditShortcuts({ canUndo: false, canRedo: false, findCommand, ...edit } as never, active), { wrapper });
+  return { element, button: element.querySelector('button')!, input: element.querySelector('input')!, findCommand };
+}
+
+it('S opens command search, not while typing', () => {
+  const { button, input, findCommand } = searchViewer();
+  // The key is the search's: nothing else is to take it.
+  expect(press(button, { key: 's' })).toBe(false);
+  expect(findCommand).toHaveBeenCalledTimes(1);
+  // A text field keeps its own S, and the search is not asked again.
+  expect(press(input, { key: 's' })).toBe(true);
+  expect(findCommand).toHaveBeenCalledTimes(1);
+  // Caps Lock types a capital without Shift held.
+  press(button, { key: 'S' });
+  expect(findCommand).toHaveBeenCalledTimes(2);
+});
+
+it('S with a modifier, held down, or pressed outside the viewer is left alone', () => {
+  const { button, findCommand } = searchViewer();
+  for (const modifier of [{ metaKey: true }, { ctrlKey: true }, { altKey: true }, { shiftKey: true }]) {
+    expect(press(button, { key: 's', ...modifier })).toBe(true);
+  }
+  expect(press(button, { key: 's', repeat: true })).toBe(true);
+  const outside = document.createElement('button');
+  document.body.append(outside);
+  expect(press(outside, { key: 's' })).toBe(true);
+  // A key already taken is not taken twice.
+  const taken = new KeyboardEvent('keydown', { key: 's', bubbles: true, cancelable: true });
+  taken.preventDefault();
+  button.dispatchEvent(taken);
+  expect(findCommand).not.toHaveBeenCalled();
+  // The page's background after a press inside the viewer is the viewer's key, as for the other keys.
+  button.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+  expect(press(document.body, { key: 's' })).toBe(false);
+  expect(findCommand).toHaveBeenCalledTimes(1);
+});
+
+it('S is not taken in Simple view', () => {
+  const { button, findCommand } = searchViewer(false);
+  // Edit mode is not up: whatever the strip gives the key stays the strip's.
+  expect(press(button, { key: 's' })).toBe(true);
+  expect(findCommand).not.toHaveBeenCalled();
+});
+
+it("S is not taken while the drawing's sheet is up, which takes its own keys", () => {
+  const { button, findCommand } = searchViewer(true, { sheetView: { payload: {} } });
+  expect(press(button, { key: 's' })).toBe(true);
+  expect(findCommand).not.toHaveBeenCalled();
+});

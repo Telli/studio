@@ -223,6 +223,14 @@ by hand" below.
   a sketch). The rollback bar is its marker, after the last feature the part still has: dragged
   back, it rolls the part back to there, as Make Current Feature does, a feature and its sketch
   going together. It is put away while the drawing's sheet is up.
+- **Command search** (S, anywhere in the workspace but a text field) is a box under the toolbar that
+  runs any button of the toolbar by name, on whichever tab: type "fillet" and Edge Blend is the
+  first result, "pocket" or "cut" Extrude with its Boolean set to Subtract, "mate" Assembly
+  Constraints. NX's name for a command is found first, then the words other tools have for it
+  (SolidWorks' and Fusion's); Enter runs the first result (the arrow keys move the choice), Escape
+  puts the box away. It runs a result as its button does, and lists what the toolbar has and no
+  more: a button the toolbar shows dimmed is dimmed in it, with the toolbar's reason, and while a
+  sketch is open it is the sketch's tools and the features made of it. Simple view leaves S alone.
 - **Suppress** takes a feature out of the part but keeps its lines, as comments under a line that
   says what they are; Unsuppress puts them back exactly. A boolean that starts a name keeps the
   name meanwhile, on a line of its own:

@@ -16,9 +16,10 @@ import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { AddContextIcon, AppearanceIcon, AskIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, InterferenceIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, ExpressionsIcon, MassPropertiesIcon, MateIcon, RedoIcon, SketchIcon, UndoIcon } from "./cadIcons.jsx";
 import { EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
-import { SKETCH_FAMILIES, SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
+import { SKETCH_ENTITIES, SKETCH_FAMILIES, SKETCH_MODIFY, SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
 import { SOLID_GROUPS, booleanOf, nxCommand, workspaceTabs } from "./nx.js";
+import CommandSearchBox from "./CommandSearchBox.jsx";
 
 // The viewer's tools the tabs place, by id, under NX's names (Clip is NX's Edit Section).
 const LABELS = Object.freeze({ clip: "Edit Section", references: "Select", exploded: "Exploded Views" });
@@ -39,10 +40,6 @@ const VIEW_CONTROLS_CLASS = "flex shrink-0 items-center gap-0.5 [&_button:hover]
 const TAB_CLASS = "flex items-center border-b-2 border-transparent px-2.5 text-tiny uppercase leading-none tracking-wider text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45";
 // A group's title, in capitals under its buttons; where it is the group's menu it is a button too.
 const TITLE_CLASS = "text-micro uppercase leading-3 tracking-wider text-muted-foreground";
-// Sketch mode's tools, as SolidWorks' Sketch tab groups them: what draws, then what changes what is drawn.
-// A family (`SKETCH_FAMILIES`) is one button and a flyout, by its first tool's id.
-const SKETCH_ENTITIES = ["line", "rectangle", "circle", "arc", "slot", "polygon", "spline", "centerline", "point"];
-const SKETCH_MODIFY = ["fillet", "chamfer", "trim", "extend", "convert", "intersection", "offset", "mirror", "move_entities", "linear_pattern", "circular_pattern"];
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
 // The More button's box, before it is first laid out.
@@ -214,6 +211,22 @@ function RibbonGroups({ groups }) {
 }
 
 /**
+ * What the command search may run, `{ id, label, icon, disabled, description, run }` for each item of `groups` (a family's
+ * flyout tools too) and of `extras`, by its id: the toolbar's own items, so the search lists what the toolbar has, named, pictured
+ * and dimmed as the toolbar has it, and nothing it has not. `run` is what the item says it does to be run, else its click, which is
+ * left alone while its tool or panel is already on, as the strip's letter leaves a tool already in hand (`pressToolKey`).
+ */
+function searchable(groups, extras = []) {
+  const found = new Map();
+  for (const item of [...groups.flatMap(group => group.items.flatMap(each => each.variants || [each])), ...extras]) {
+    if (found.has(item.id)) continue;
+    found.set(item.id, { id: item.id, label: item.label, icon: item.icon, disabled: Boolean(item.disabled), description: item.description,
+      run: item.run || (() => { if (!item.active) item.onClick(); }) });
+  }
+  return [...found.values()];
+}
+
+/**
  * Edit mode's toolbar, across the top of the viewer: Fusion's arrangement in NX's words. Its tab
  * row has Undo and Redo of the hand changes at the left, the tabs after them, and at the right the
  * part's units and where its build stands (or the sketch and how defined it is). Solid holds the
@@ -229,6 +242,10 @@ function RibbonGroups({ groups }) {
  * names, then folds the groups at the right into a More menu. At the tab row's right end, before
  * where the part stands, the view's own (`view`, the frame's: `RendererShell`'s `ribbon(tools, view)`):
  * its controls, Projection, Display and Preview, and the view catching up.
+ *
+ * S asks for the command search (`edit.findAsked` counts the asks, `useEditShortcuts.js`): a box under
+ * the toolbar (`CommandSearchBox.jsx`) that finds any button of the toolbar by name, on whichever tab, and
+ * runs it as pressing the button does (`searchable`).
  *
  * @param {{ tools: import("../../kit/tools/FloatingToolBar.js").ViewportTool[],
  *   edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onCommand?: (id: string) => void,
@@ -255,6 +272,13 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   }
   // Each sketch tool family's tool last picked from its flyout, shown as its button.
   const [lastOfFamily, setLastOfFamily] = useState({});
+  // The command search, opened by each ask made while this toolbar stands (S: `edit.findCommand`), and not by one made before it did.
+  const [finding, setFinding] = useState(false);
+  const [asked, setAsked] = useState(edit.findAsked);
+  if (asked !== edit.findAsked) {
+    setAsked(edit.findAsked);
+    setFinding(true);
+  }
   // What it is busy with, said with a spinner and a line along the ribbon's foot, as a CAD tool's
   // status bar shows a rebuild: never a word alone that could be a label.
   const busy = busyState(edit);
@@ -287,15 +311,19 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
       <div className="flex min-w-0 items-center gap-2 text-tiny leading-4" aria-live="polite">{end}</div>
     </div>
   </div>;
-  const ribbon = (label, groups, end, { tabs, active, onPick, key = label, sketching = false }) => <div data-cad-ribbon="" data-cad-sketch-ribbon={sketching ? "" : undefined}
-    aria-busy={busy ? true : undefined}
-    className="relative flex min-h-0 shrink-0 flex-col overflow-hidden border-b border-border bg-background" role="toolbar" aria-label={label}>
-    {tabRow(tabs, active, onPick, end)}
-    <div className="flex min-h-0 items-stretch overflow-hidden">
-      <RibbonGroups key={key} groups={groups} />
+  // `finds`: the items the command search may run, whichever tab each is on (`searchable`); the box is the toolbar's neighbour, for the toolbar clips.
+  const ribbon = (label, groups, end, { tabs, active, onPick, key = label, sketching = false, finds }) => <>
+    <div data-cad-ribbon="" data-cad-sketch-ribbon={sketching ? "" : undefined}
+      aria-busy={busy ? true : undefined}
+      className="relative flex min-h-0 shrink-0 flex-col overflow-hidden border-b border-border bg-background" role="toolbar" aria-label={label}>
+      {tabRow(tabs, active, onPick, end)}
+      <div className="flex min-h-0 items-stretch overflow-hidden">
+        <RibbonGroups key={key} groups={groups} />
+      </div>
+      {busy ? <Progress value={busy.progress} className="absolute inset-x-0 bottom-0" aria-label={busy.text} /> : null}
     </div>
-    {busy ? <Progress value={busy.progress} className="absolute inset-x-0 bottom-0" aria-label={busy.text} /> : null}
-  </div>;
+    {finding ? <CommandSearchBox items={finds()} sketching={sketching} onClose={() => setFinding(false)} /> : null}
+  </>;
   const statusLine = (text, failed = false) => <span className={cn("flex min-w-0 items-center gap-1",
     busy ? "text-foreground" : failed ? "text-destructive" : "text-muted-foreground")}>
     {busy ? <LoaderCircle className="size-3.5 shrink-0 animate-spin" aria-hidden="true" /> : null}<span className="truncate">{text}</span>
@@ -334,7 +362,15 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     const chosen = edit.sketchSelection.filter(id => curves.has(id));
     const allConstruction = chosen.length > 0 && chosen.every(id => sketch.state.curves.find(curve => curve.id === id)?.construction);
     const sketchStatus = sketch.state?.status || "Not solved";
-    return ribbon("Sketch", [
+    // Construction geometry, what is selected or what is drawn next; a switch, so the search presses it whether it is on or off.
+    const toggleConstruction = () => (chosen.length ? void edit.sketchOp({ kind: "construction", items: chosen, on: !allConstruction })
+      : edit.setConstruction(!edit.construction));
+    // The features to make of the sketch, as NX names them; each finishes the sketch first, and subtracts by its Boolean in its dialog.
+    const features = EDIT_COMMANDS.filter(command => command.sketch || command.sketches);
+    const featureItem = command => ({ id: command.id, label: nxCommand(command), icon: commandIcon(command.id), disabled: edit.saving || !sketch.state,
+      onClick: async () => { const reply = await edit.exitSketch(); if (reply?.ok) onCommand(command.id); } });
+    const isSubtract = command => booleanOf(command.id)?.value === "subtract";
+    const groups = [
       { title: "Sketch", items: [
         { id: "exit", label: "Finish Sketch", icon: <ExitSketchIcon />, disabled: edit.saving, onClick: () => void edit.exitSketch() },
         { id: "normal", label: "Orient View to Sketch", icon: <NormalToIcon />, onClick: edit.lookNormalTo },
@@ -347,23 +383,24 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
           active: chosen.length ? allConstruction : edit.construction,
           disabled: !sketch.state || edit.saving,
           description: chosen.length ? "Makes the selected entities construction geometry, or no longer" : "Draws what comes next as construction geometry",
-          onClick: () => (chosen.length ? void edit.sketchOp({ kind: "construction", items: chosen, on: !allConstruction })
-            : edit.setConstruction(!edit.construction)) },
+          run: toggleConstruction, onClick: toggleConstruction },
       ] },
-      // The features to make of it, as NX names them; each subtracts by its Boolean in its dialog.
-      { title: "Feature", items: EDIT_COMMANDS.filter(command => (command.sketch || command.sketches) && booleanOf(command.id)?.value !== "subtract")
-        .map(command => ({ id: command.id, label: nxCommand(command), icon: commandIcon(command.id), disabled: edit.saving || !sketch.state,
-          onClick: async () => { const reply = await edit.exitSketch(); if (reply?.ok) onCommand(command.id); } })) },
-    ], <>
+      // Each subtracts by its Boolean in its dialog, so the toolbar has the Subtract of each in its unite command's.
+      { title: "Feature", items: features.filter(command => !isSubtract(command)).map(featureItem) },
+    ];
+    return ribbon("Sketch", groups, <>
       {statusLine(edit.saving ? "Solving" : `Editing ${sketch.name}`)}
       <span className={cn("shrink-0 text-micro", STATUS_CLASSES[sketchStatus] || "text-destructive")}>{sketchStatus}</span>
-    </>, { sketching: true, tabs: workspaceTabs({ sketching: true }), active: "sketch", onPick: () => {} });
+    </>, { sketching: true, tabs: workspaceTabs({ sketching: true }), active: "sketch", onPick: () => {},
+      finds: () => searchable(groups, features.filter(isSubtract).map(featureItem)) });
   }
 
   const commandItem = command => {
     const open = edit.command === command.id || edit.command === booleanOf(command.id)?.other;
+    // The search opens it as `onCommand` does, and not again one already open: an open Extrude is turned to its Subtract, not closed.
     return { id: command.id, label: nxCommand(command), icon: commandIcon(command.id), active: open, disabled: modelingOff,
-      description: placingWords, onClick: () => (open ? edit.close() : onCommand(command.id)) };
+      description: placingWords, run: () => { if (edit.command !== command.id) onCommand(command.id); },
+      onClick: () => (open ? edit.close() : onCommand(command.id)) };
   };
   // Sketch, or Edit Sketch on the one selected: a new sketch waits for its plane, and a press again gives it up.
   const sketchCommand = { id: "sketch", label: sketchLabel, icon: <SketchIcon />, active: edit.picking, disabled: modelingOff,
@@ -425,5 +462,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   return ribbon("Design", groupsOf[front.id]().filter(group => group.items.length), <>
     {statusLine(status, Boolean(state?.building?.error))}
     {state?.units ? <span className="shrink-0 text-micro text-muted-foreground/80">{unitWord(state.units)}</span> : null}
-  </>, { tabs, active: front.id, onPick: setTab, key: `Design:${front.id}` });
+  </>, { tabs, active: front.id, onPick: setTab, key: `Design:${front.id}`,
+    // Every tab's items, not the one in front; a command's Subtract is the Boolean of the unite command's dialog.
+    finds: () => searchable(tabs.flatMap(each => groupsOf[each.id]()), EDIT_COMMANDS.filter(command => booleanOf(command.id)?.value === "subtract").map(commandItem)) });
 }

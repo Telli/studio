@@ -1,12 +1,16 @@
 import { useContext, useEffect, useRef } from "react";
 import { ViewerElementContext } from "../../../host/context.js";
+import { shortcutOfEvent } from "../../kit/tools/toolShortcuts.js";
 import { isEditableTarget } from "../../kit/viewport/dom.js";
 
 /**
  * Undo and Redo from the keyboard while edit mode is up, as a CAD tool takes them: Cmd+Z (Ctrl+Z),
- * and Shift+Cmd+Z or Ctrl+Y; and F2, Rename on what the design tree has selected. Only the viewer that owns the key acts on it, as the viewer's own
+ * and Shift+Cmd+Z or Ctrl+Y; F2, Rename on what the design tree has selected; and S, which asks the toolbar
+ * for its command search (`edit.findCommand`, answered by `EditRibbon.jsx`). Only the viewer that owns the key acts on it, as the viewer's own
  * shortcuts decide (`kit/shell/useViewerShortcuts.js`): focus inside it, or the page background
- * after the last press was inside it. A text field keeps its own Undo.
+ * after the last press was inside it. A text field keeps its own Undo, and its S.
+ *
+ * While edit mode is not up (Simple view, the AI layout) none of this is taken: S is whatever the strip gives it.
  *
  * @param {ReturnType<typeof import("./useEditMode.js").useEditMode>} edit
  * @param {boolean} active edit mode is up for this file.
@@ -32,6 +36,17 @@ export function useEditShortcuts(edit, active) {
         if ((!inViewer && !(background && pointerInside)) || isEditableTarget(target) || !latest.current.selected) return;
         event.preventDefault();
         latest.current.startRename?.(latest.current.selected);
+        return;
+      }
+      // S, the command search: a single key as a tool's letter is (`kit/tools/toolShortcuts.js`), so with Cmd, Ctrl, Alt or Shift held it
+      // is not S, and held down it asks once. The viewer's own letters are off while the toolbar stands, so the key is free.
+      if (shortcutOfEvent(event) === "S") {
+        const target = event.target;
+        const inViewer = target instanceof Node && element.contains(target);
+        const background = target === document.body || target === document.documentElement || target === document;
+        if ((!inViewer && !(background && pointerInside)) || isEditableTarget(target) || event.repeat) return;
+        event.preventDefault();
+        latest.current.findCommand?.();
         return;
       }
       if (!(event.metaKey || event.ctrlKey)) return;

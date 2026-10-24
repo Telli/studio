@@ -25,7 +25,11 @@ import {
   relationsFor,
   relationsOn,
   sketchGeometry,
+  SKETCH_ENTITIES,
+  SKETCH_FAMILIES,
   SKETCH_KEYS,
+  SKETCH_MODIFY,
+  SKETCH_TOOLS,
   sketchKey,
   sketchNote,
   sketchTool,
@@ -429,4 +433,11 @@ test("Move, Rotate and Scale Entities move the points the selection stands on; C
   assert.deepEqual(transformOp("copy_entities", STATE, ["Line1"], transformOf("copy_entities", [[0, 0]], { by: [0, 30] })),
     { kind: "copy", items: ["Line1"], by: [0, 30] });
   assert.equal(transformOf("rotate_entities", [[0, 0], [1, 0]]), null);
+});
+
+test("the sketch toolbar places every sketch tool once: its curve and edit groups, their flyouts, and Rapid Dimension", () => {
+  const placed = [...SKETCH_ENTITIES, ...SKETCH_MODIFY].flatMap(id => SKETCH_FAMILIES[id] || [id]);
+  assert.deepEqual([...placed, "dimension"].sort(), SKETCH_TOOLS.map(tool => tool.id).sort());
+  // A family is a button by its first tool.
+  for (const [id, tools] of Object.entries(SKETCH_FAMILIES)) assert.equal(tools[0], id);
 });

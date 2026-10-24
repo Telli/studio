@@ -111,6 +111,9 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [sketchStep, setSketchStep] = useState(0);
   // A press of Normal To: the view turns to look straight at the sketch again.
   const [normalTo, setNormalTo] = useState(0);
+  // A press of S: the toolbar opens its command search. A count, so each ask is heard once by the toolbar standing, and an
+  // ask made while none stood (a load, Preview) is not heard by the one that comes.
+  const [findAsked, setFindAsked] = useState(0);
   // The sketch tools' settings, kept for the session as their PropertyManager keeps them: Sketch
   // Fillet's radius, Offset Entities' distance, Reverse direction and Select chain.
   const [sketchSettings, setSketchSettings] = useState(() => ({ filletRadius: "", chamferDistance: "", offsetDistance: "", offsetReverse: false,
@@ -826,6 +829,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     planeOffset, setPlaneOffset,
     stopPicking: () => setPicking(false),
     lookNormalTo: () => setNormalTo(tick => tick + 1),
+    findAsked, findCommand: () => setFindAsked(count => count + 1),
     startSketch, openSketch, sketchOp, sketchDrag, exitSketch, cancelSketch,
   };
 }

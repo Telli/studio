@@ -277,3 +277,15 @@ it("the drawing's sheet opens in the view, a change made on it is drawn again an
   act(() => { result.current.open('fillet'); });
   expect(result.current.sheetView).toBe(null);
 });
+
+it('S asks the toolbar for its command search by counting, so each ask is heard once and an old one is not heard again', async () => {
+  const viewer = server();
+  const { result } = renderHook(() => useEditMode({ client: viewer.client, file: FILE, resource: RESOURCE, active: true }),
+    { wrapper: hostWith(() => Promise.resolve()) });
+  await act(async () => {});
+  expect(result.current.findAsked).toBe(0);
+  act(() => result.current.findCommand());
+  expect(result.current.findAsked).toBe(1);
+  act(() => result.current.findCommand());
+  expect(result.current.findAsked).toBe(2);
+});

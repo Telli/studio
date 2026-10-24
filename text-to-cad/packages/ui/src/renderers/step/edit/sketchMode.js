@@ -91,6 +91,15 @@ export const SKETCH_FAMILIES = Object.freeze({
   slot: ["slot", "centerpoint_slot"],
 });
 
+/**
+ * The sketch toolbar's tools, as NX's sketch task environment groups them: what draws (Curve), then what changes
+ * what is drawn (Edit Curve), each a button by its first tool's id, and a family's (`SKETCH_FAMILIES`) the first
+ * of its flyout. Rapid Dimension and Convert To/From Reference stand in the Constraints group after them.
+ */
+export const SKETCH_ENTITIES = Object.freeze(["line", "rectangle", "circle", "arc", "slot", "polygon", "spline", "centerline", "point"]);
+export const SKETCH_MODIFY = Object.freeze(["fillet", "chamfer", "trim", "extend", "convert", "intersection", "offset", "mirror", "move_entities",
+  "linear_pattern", "circular_pattern"]);
+
 /** The sketch tools that move, copy, turn or size what is selected, as SolidWorks' Move Entities flyout has them. */
 export const TRANSFORM_TOOLS = Object.freeze(["move_entities", "copy_entities", "rotate_entities", "scale_entities"]);
 /** How many clicks each transform tool takes: a base and a target, or a center and a turn (or size) from one direction to another. */
