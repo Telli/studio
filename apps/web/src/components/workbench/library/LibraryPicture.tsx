@@ -48,7 +48,14 @@ export function LibraryPicture(props: {
   if (picture?.kind === "image") {
     return (
       <span className={box}>
-        <img src={picture.url} alt="" className="size-full object-cover" />
+        {/* The library mounts some forty of these: each loads when it nears the screen. */}
+        <img
+          src={picture.url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="size-full object-cover"
+        />
       </span>
     );
   }

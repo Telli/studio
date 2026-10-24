@@ -33,18 +33,22 @@ import {
 } from "./newTemplates";
 
 /**
- * Opens the project's New dialog from outside it (the panel's New over the Overview, the Document
- * menu's From a template), on one discipline or the first; the project page takes the request
- * (`ProjectPage`).
+ * Opens New from outside it (the panel's New over the Overview, the Document menu's From a
+ * template, the library's Make one), on one discipline or the first, and on one template or that
+ * discipline's first. Whichever New is on the page takes the request (`StudioNew`, `ProjectPage`).
  */
 export const useNewDialogStore = createStore<{
-  /** New asked for, on a discipline or on none; null when not asked. */
-  readonly request: { readonly discipline: Discipline | null } | null;
-  readonly ask: (discipline?: Discipline) => void;
+  /** New asked for, on a discipline and a template or on none; null when not asked. */
+  readonly request: {
+    readonly discipline: Discipline | null;
+    readonly templateId: string | null;
+  } | null;
+  readonly ask: (discipline?: Discipline, templateId?: string) => void;
   readonly take: () => void;
 }>()((set) => ({
   request: null,
-  ask: (discipline) => set({ request: { discipline: discipline ?? null } }),
+  ask: (discipline, templateId) =>
+    set({ request: { discipline: discipline ?? null, templateId: templateId ?? null } }),
   take: () => set({ request: null }),
 }));
 

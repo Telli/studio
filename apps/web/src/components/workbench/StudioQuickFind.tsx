@@ -2,8 +2,8 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
-import { useLocation, useNavigate } from "@tanstack/react-router";
-import { CompassIcon, HomeIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { CompassIcon, HomeIcon, LibraryBigIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
@@ -26,6 +26,7 @@ import { useDocumentTemplates } from "./documentTemplates";
 import { FileKindIcon } from "./FileKindIcon";
 import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
 import { CHAT_ICON, KIND_ICONS, KIND_TINTS, MENU_ICONS } from "./kinds";
+import { libraryHref } from "./library/librarySearch";
 import { handToChat } from "./NewDialog";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenedThreads } from "./openedThreads";
@@ -123,6 +124,7 @@ function QuickFindBody(props: {
   const composerRef = useComposerHandleContext();
   const openProject = useOpenProject();
   const navigate = useNavigate();
+  const router = useRouter();
   const onHome = useLocation({ select: (location) => location.pathname === "/" });
   const opened = useOpenedThreads();
   const recentFiles = useRecentFiles();
@@ -398,6 +400,19 @@ function QuickFindBody(props: {
           },
         ]),
     {
+      value: "go:library",
+      icon: <LibraryBigIcon className={ICON} />,
+      title: "Library",
+      terms: "library examples document types skills templates what can studio make",
+      // From a project, the library's Make one comes back to it, where its New is.
+      run: go(
+        () =>
+          void navigate(
+            libraryHref(workspace === null ? {} : { from: router.state.location.href }),
+          ),
+      ),
+    },
+    {
       value: "go:settings",
       icon: <SettingsIcon className={ICON} />,
       title: "Settings",
@@ -519,8 +534,8 @@ function QuickFindBody(props: {
 /**
  * ⌘K in the engineering interface, in place of T3 Code's command palette: one box that finds a
  * project, a part in any project, or any job for the part on screen, the long tail the menus leave
- * out as well (`quickFind.ts`), with Home, New project, Settings and the other interfaces. Outside a
- * project it opens on what was opened lately (Recent). A menu's
+ * out as well (`quickFind.ts`), with Home, New project, the Library, Settings and the other
+ * interfaces. Outside a project it opens on what was opened lately (Recent). A menu's
  * "More" opens it on that menu's jobs. Picking a job writes it into the chat's composer, as the
  * menus do; picking a part opens it, in its project if that is another.
  */

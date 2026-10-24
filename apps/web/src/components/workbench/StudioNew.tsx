@@ -14,7 +14,8 @@ import { availableTemplates } from "./newTemplates";
  * (`NewDialog`). The same button and dialog in both places it is: first in a project's panel
  * toolbar, where Create hands the job to the open chat, and on Home, where it starts a new project
  * with the job as its first message. It also opens when asked from elsewhere
- * (`useNewDialogStore`: the Document menu's From a template).
+ * (`useNewDialogStore`: the Document menu's From a template, the library's Make one), on the
+ * template asked for.
  */
 export function StudioNew(props: {
   readonly environmentId: EnvironmentId;
@@ -39,6 +40,7 @@ export function StudioNew(props: {
   const asked = useNewDialogStore((store) => store.request);
   const takeAsked = useNewDialogStore((store) => store.take);
   const discipline = asked?.discipline ?? null;
+  const templateId = asked?.templateId ?? null;
 
   return (
     <>
@@ -51,7 +53,7 @@ export function StudioNew(props: {
       </Button>
       {opened.open || asked !== null ? (
         <NewDialog
-          key={`${opened.count}:${asked === null ? "" : (discipline ?? "first")}`}
+          key={`${opened.count}:${asked === null ? "" : `${discipline ?? "first"}:${templateId ?? ""}`}`}
           open
           onOpenChange={(open) => {
             if (open) return;
@@ -65,7 +67,7 @@ export function StudioNew(props: {
           onAddTemplate={documents.add}
           onShowTemplates={documents.show}
           {...(discipline === null ? {} : { initialDiscipline: discipline })}
-          initialTemplateId={null}
+          initialTemplateId={templateId}
           parts={[]}
           {...(props.newProject ? { newProject: true } : {})}
           onCreate={props.onCreate}

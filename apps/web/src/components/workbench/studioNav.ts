@@ -1,11 +1,19 @@
 /**
  * Which part of Studio a route shows, for the rail and the top bar that replace T3's sidebar in the
  * engineering interface. Home, Chats, Projects and Needs you are Studio's pages, each a place on
- * the rail (`StudioRail`), and a thread or draft is a project's workspace; every other page
- * (settings, usage, pairing) keeps T3's own, though Settings keeps the rail beside its sections
- * (`studioPlaces`).
+ * the rail (`StudioRail`); the Library is Studio's page too, reached from New, the part menus, ⌘K
+ * and Settings rather than from the rail; and a thread or draft is a project's workspace. Every
+ * other page (settings, usage, pairing) keeps T3's own, though Settings keeps the rail beside its
+ * sections (`studioPlaces`).
  */
-export type StudioNavSection = "home" | "chats" | "projects" | "needs" | "workspace" | "other";
+export type StudioNavSection =
+  | "home"
+  | "chats"
+  | "projects"
+  | "needs"
+  | "library"
+  | "workspace"
+  | "other";
 
 const T3_PAGES = new Set([
   "settings",
@@ -23,6 +31,7 @@ export function studioNavSection(pathname: string): StudioNavSection {
   const [first] = segments;
   if (segments.length === 1 && first === "chats") return "chats";
   if (segments.length === 1 && first === "needs-you") return "needs";
+  if (segments.length === 1 && first === "library") return "library";
   if (first === "projects" && segments.length === 1) return "projects";
   if (first === "draft" || first === "new") return "workspace";
   if (first !== undefined && T3_PAGES.has(first)) return "other";

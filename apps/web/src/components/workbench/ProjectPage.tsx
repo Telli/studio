@@ -407,7 +407,8 @@ export function ProjectPage(props: {
     readonly discipline?: Discipline;
   }>({ open: false, count: 0 });
   const documents = useDocumentTemplates(environmentId);
-  // New asked for from outside the page (the Document menu's From a template): open while asked.
+  // New asked for from outside the page (the Document menu's From a template, the library's Make
+  // one): open while asked, on the template asked for.
   const asked = useNewDialogStore((store) => store.request);
   const takeAsked = useNewDialogStore((store) => store.take);
   const newDiscipline = asked?.discipline ?? newOpen.discipline;
@@ -729,7 +730,7 @@ export function ProjectPage(props: {
       {/* In Engineering New is the panel toolbar's, always there (`StudioNew`). */}
       {composerRef === null || plainWords ? null : (
         <NewDialog
-          key={`${newOpen.count}:${asked === null ? "" : (asked.discipline ?? "first")}`}
+          key={`${newOpen.count}:${asked === null ? "" : `${asked.discipline ?? "first"}:${asked.templateId ?? ""}`}`}
           open={newOpen.open || asked !== null}
           onOpenChange={(open) => {
             if (!open) takeAsked();
@@ -742,7 +743,7 @@ export function ProjectPage(props: {
           onAddTemplate={documents.add}
           onShowTemplates={documents.show}
           {...(newDiscipline === undefined ? {} : { initialDiscipline: newDiscipline })}
-          initialTemplateId={null}
+          initialTemplateId={asked?.templateId ?? null}
           parts={parts}
           onCreate={(job) => {
             handToChat(composerRef, job.prompt);
