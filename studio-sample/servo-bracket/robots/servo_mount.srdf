@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<!--
+  srdf: servo_mount | urdf: servo_mount.urdf, beside it (cadgen urdf validate, strict: clean)
+  task: turning the horn through its range with joint-space goals, and a tool frame for a load bolted to the adapter
+  urdf table: root base_link; links base_link, horn_link, tool0 (frame-only); joints horn_joint (revolute,
+    base_link -> horn_link, -1.0471975512 to 1.0471975512 rad, no mimic) and tool0_joint (fixed, horn_link -> tool0)
+  virtual joint: world_to_base, fixed, world -> base_link: the bracket is bolted to a wall by its flange
+  passive joints: none
+  groups: horn, the chain base_link -> horn_link: its one active joint, horn_joint. horn_face, the link tool0: the
+    adapter's top face, what a load bolts to
+  end effector: horn_face, group horn_face on parent_link horn_link of parent_group horn; target/TCP link tool0. It
+    shares no link with horn, and tool0 is joined to horn_link by tool0_joint
+  states (radians, within the URDF's limits): home 0; ccw_limit 1.0471975512 and cw_limit -1.0471975512, the ends of
+    the servo's 120 degrees of travel, counter-clockwise and clockwise seen from above
+  disabled collisions: base_link and horn_link, Adjacent (horn_joint joins them). Across the travel they never touch:
+    checks/servo_mount_fit.py turned the adapter from -60 to +60 degrees in 15 degree steps and found 1.699 mm at the
+    closest. tool0 has no collision geometry, so it is in no pair
+  solver: none chosen. With one joint about its own axis, IK can only set the face's turn about +Z: plan with the
+    named states or a joint value, not a pose
+  assumptions: tool0 is the TCP; no MoveIt Setup Assistant matrix was sampled; MoveIt smoke tests not run (no MoveIt here)
+-->
+<robot name="servo_mount">
+  <virtual_joint name="world_to_base" type="fixed" parent_frame="world" child_link="base_link" />
+  <group name="horn">
+    <chain base_link="base_link" tip_link="horn_link" />
+  </group>
+  <group name="horn_face">
+    <link name="tool0" />
+  </group>
+  <group_state name="home" group="horn">
+    <joint name="horn_joint" value="0" />
+  </group_state>
+  <group_state name="ccw_limit" group="horn">
+    <joint name="horn_joint" value="1.0471975512" />
+  </group_state>
+  <group_state name="cw_limit" group="horn">
+    <joint name="horn_joint" value="-1.0471975512" />
+  </group_state>
+  <end_effector name="horn_face" parent_link="horn_link" group="horn_face" parent_group="horn" />
+  <!-- Joined by horn_joint; the fit check's sweep of the travel found no contact either. -->
+  <disable_collisions link1="base_link" link2="horn_link" reason="Adjacent" />
+</robot>

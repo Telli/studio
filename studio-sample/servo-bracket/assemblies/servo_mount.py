@@ -1,7 +1,8 @@
 """The servo mount: the bracket with an MG996R dropped into its cutout horn up, held by four ISO 4762 M3x8 socket head
 screws (downloaded from step.parts) in the bracket's tapped holes, the horn adapter on the servo's output, and the
 cable clip bonded to the flange. Each part is placed by its mates, solved on every run; the horn turns 60 degrees
-each way (the datasheet's 120 degrees of travel)."""
+each way (the datasheet's 120 degrees of travel), and the `range` clip turns it through that travel for the motion
+video."""
 
 import sys
 from pathlib import Path
@@ -23,6 +24,8 @@ from sizes import SERVO_LENGTH, SERVO_SHAFT_FROM_END, SERVO_SPLINE, SERVO_TRAVEL
 SCREW = PARTS / "imported" / "iso4762_socket_head_cap_screw_m3x8.step"  # step.parts: iso4762_socket_head_cap_screw_m3x8
 CLIP_FROM_SIDE = 1.0  # the clip's outer side in from the flange's side edge, at the servo's output end
 CLIP_FROM_BOTTOM = 2.0  # the clip's lower end up from the flange's bottom edge
+HORN_AXIS = (SERVO_LENGTH / 2 - SERVO_SHAFT_FROM_END, SERVO_Y, 0)  # the servo's output axis, along +Z
+RANGE_SECONDS = 6.0  # one cycle of the range clip: 0, up to +60, back through 0 to -60, and back to 0
 
 KINEMATICS = {
     "mates": [
@@ -30,15 +33,29 @@ KINEMATICS = {
             "horn",
             parent="#mg996r",
             child="#horn_adapter",
-            origin=(SERVO_LENGTH / 2 - SERVO_SHAFT_FROM_END, SERVO_Y, 0),
+            origin=HORN_AXIS,
             direction=(0, 0, 1),
             limits=(-SERVO_TRAVEL / 2, SERVO_TRAVEL / 2),
         ),
     ],
 }
 
+# The horn adapter turned about the horn's axis through the servo's whole travel, as the `horn` mate allows.
+ANIMATION = f"""
+export const clips = {{
+  range: {{
+    label: "Horn through its range",
+    duration: {RANGE_SECONDS},
+    update(t, m) {{
+      const angle = {SERVO_TRAVEL / 2} * Math.sin(2 * Math.PI * t / {RANGE_SECONDS});
+      m.get("horn_adapter").rotate([0, 0, 1], angle, [{HORN_AXIS[0]}, {HORN_AXIS[1]}, {HORN_AXIS[2]}]);
+    }},
+  }},
+}};
+"""
 
-@step(kinematics=KINEMATICS)
+
+@step(kinematics=KINEMATICS, animation=ANIMATION)
 def servo_mount():
     bracket = servo_bracket()
     shelf_top = bracket.faces().sort_by(bd.Axis.Z)[-1]

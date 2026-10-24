@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+<!--
+  robot: servo_mount | consumers: CAD Viewer, robot_state_publisher and RViz, MoveIt (servo_mount.srdf), Gazebo (servo_mount.sdf)
+  units: meters, kilograms, radians | frames: base_link is the frame of assemblies/servo_mount.step: X along the
+    bracket's bend, +Y out from the wall, +Z up, origin at the bend's outside corner halfway along it. A documented
+    exception to REP-103's +X forward: a mount bolted to a wall has no forward, and keeping the CAD frame keeps every
+    number here checkable against the STEP.
+  root: base_link | source of dimensions: assemblies/servo_mount.step (document 0f80b609bc12) and parts/sizes.py
+    (Tower Pro's MG996R datasheet)
+  meshes: meshes/, one 3MF per link, exported by base_link.py and horn_link.py beside this file in that link's own
+    frame, so every visual origin is identity; source units mm, scale 0.001; coarse display meshes (mesh tolerance
+    1e-2 of each part's size, 0.8 rad)
+  inertials: OCCT volume properties (centre of mass and inertia about it) of each part in the saved STEP, combined per
+    link with the parallel-axis theorem, computed by a throwaway script. Densities: 5052-H32 and 6061 aluminium
+    169.344 lb/ft^3 = 2712.6 kg/m^3 (SendCutSend, sendcutsend-specs.json); PETG 1.25 g/cm^3 (Bambu Studio's Bambu
+    PETG Basic); steel 7850 kg/m^3 (assumed); the MG996R 55 g (Tower Pro) spread over its envelope. Masses: bracket
+    19.054 g, servo 55 g, screws 4 x 0.881 g, clip 0.341 g, adapter 8.807 g. Confidence: estimated.
+  links:
+  - base_link: physical. Everything that does not turn: the bracket, the MG996R's body, its four M3x8 screws and the
+    cable clip. Collision: five boxes from the parts' extents (shelf, flange, servo case, servo tabs with the screw
+    heads, clip).
+  - horn_link: physical. The horn adapter. Frame on the servo's output axis at the top of the spline, where the
+    adapter's bore ends, axes as base_link's. Collision: the adapter's cylinder, 24 mm across and 8 mm tall.
+  - tool0: frame-only. The centre of the adapter's top face, where a load bolts to its four M3 holes.
+  joints:
+  - horn_joint: revolute, base_link -> horn_link, origin (9.95, 22.3, 15.9) mm: the axis and the spline's top found on
+    the adapter's bore in the STEP. Axis +Z. Positive turns the adapter counter-clockwise seen from above, as the
+    CAD mate `horn` does. Limits -60 to +60 deg, the datasheet's 120 deg of travel (parts/sizes.py). Effort 0.9218
+    N m, the stall torque of 9.4 kgf cm at 4.8 V; velocity 5.5116 rad/s, 60 deg in 0.19 s at 4.8 V (Tower Pro's
+    MG996R page, towerpro.com.tw/product/mg996r, read 2026-10-23).
+  - tool0_joint: fixed, horn_link -> tool0, 4 mm up the axis.
+  assumptions:
+  - the servo's body is its datasheet envelope (parts/mg996r.py), at a uniform density, for its inertia
+  - the screws are steel: the step.parts file gives no material
+  - the clip is solid PETG; a print with infill weighs less
+  - the 4.8 V figures, the lower of the datasheet's two supplies; Tower Pro's page also says 0.17 s per 60 deg (its
+    table) against 0.19 s (its text), and the slower is used
+  - which way a longer servo pulse turns the horn was not checked against positive horn_joint
+  - the screw tips under the shelf and the servo's spline are not in the collision boxes
+-->
+<robot name="servo_mount">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0.0001536 0.0190969 -0.0080684" rpy="0 0 0" />
+      <mass value="0.077920161" />
+      <inertia ixx="1.63044115e-05" ixy="1.21675284e-07" ixz="1.07038435e-07" iyy="2.64375997e-05" iyz="-1.86843409e-06" izz="2.50760428e-05" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="meshes/base_link.3mf" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="shelf">
+      <origin xyz="0 0.02 -0.001" rpy="0 0 0" />
+      <geometry>
+        <box size="0.064 0.04 0.002" />
+      </geometry>
+    </collision>
+    <collision name="flange">
+      <origin xyz="0 0.001 -0.016" rpy="0 0 0" />
+      <geometry>
+        <box size="0.064 0.002 0.032" />
+      </geometry>
+    </collision>
+    <collision name="servo_case">
+      <origin xyz="0 0.0223 -0.0083" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0409 0.02 0.037" />
+      </geometry>
+    </collision>
+    <collision name="servo_tabs_and_screw_heads">
+      <origin xyz="0 0.0223 0.00275" rpy="0 0 0" />
+      <geometry>
+        <box size="0.054 0.02 0.0055" />
+      </geometry>
+    </collision>
+    <collision name="cable_clip">
+      <origin xyz="0.027 0.0058785 -0.026" rpy="0 0 0" />
+      <geometry>
+        <box size="0.008 0.0077571 0.008" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="horn_link">
+    <inertial>
+      <origin xyz="0 0 -0.000017" rpy="0 0 0" />
+      <mass value="0.008807385" />
+      <inertia ixx="3.8287442e-07" ixy="0" ixz="0" iyy="3.8287442e-07" iyz="0" izz="6.73180019e-07" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="meshes/horn_link.3mf" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.012" length="0.008" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="tool0" />
+  <joint name="horn_joint" type="revolute">
+    <parent link="base_link" />
+    <child link="horn_link" />
+    <origin xyz="0.00995 0.0223 0.0159" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.0471975512" upper="1.0471975512" effort="0.9218" velocity="5.5116" />
+  </joint>
+  <joint name="tool0_joint" type="fixed">
+    <parent link="horn_link" />
+    <child link="tool0" />
+    <origin xyz="0 0 0.004" rpy="0 0 0" />
+  </joint>
+</robot>
