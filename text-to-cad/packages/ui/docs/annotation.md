@@ -137,17 +137,22 @@ were drawn from every angle, lying on the surface they were drawn on. The STEP, 
   - Each item also keeps what the viewer knows of it beyond its ink, and the file leaves it out: its
     `level` (`{ point, normal }`), `under` (each point where it falls on the model, whatever the
     placement: on the visible surface under it, exactly on the level where that surface is the
-    level's, or on the level where no part is drawn; the ink itself stands two pixels off it toward
-    the eye), and `shape`, the Shapes tool's that drew it (`shapeMarks` and `textMark` record it; an
+    level's, or nowhere, NaN, where no part is drawn under it; the ink itself stands two pixels off
+    it toward the eye), and `shape`, the Shapes tool's that drew it (`shapeMarks` and `textMark` record it; an
     arrow's line and both wings are each `arrow`).
   - **Marks on a face** (`kit/tools/annotate/faceShapes.js`) reach the agent as shapes in that
     face's own coordinates, beside the picture and the faces they touch. A mark counts when its first
-    touch is a face, it touches no other face, and every point, where it falls, lies within 0.05 of the
-    part's units of its level's plane; every other mark stays with the picture and its touches, and no
-    face is guessed for it. Each face's frame starts at the level's point of the first mark on it, `u`
+    touch is a face, it touches no other face, and every point falls on the model within 0.05 of the
+    part's units of its level's plane: a mark run off the part into the air, or drawn from the air onto
+    it, is not drawn on the face. Every other mark stays with the picture and its touches, and no face
+    is guessed for it. Each face's frame starts at the level's point of the first mark on it, `u`
     the model's +X laid on the face (+Y where +X is within 10° of the normal) and `v` the normal across
-    `u`. A Shapes rectangle, ellipse, line, arrow (once, by its line) and text keep their shape; a
-    closed stroke or a fill is a polygon, any other stroke a polyline. Lengths are in the part's units
+    `u`. A shape is said as what it is on the face: a Shapes rectangle is a rectangle only where its
+    straight sides meet square there (within half a degree, opposite sides equal within the rounding),
+    else, as on a face slanted to the view, the polygon of the four corners those sides meet at; an
+    ellipse is one only where its outline fits the ellipse fitted to the area it closes round within
+    the rounding, else the polygon it is. A Shapes line, arrow (once, by its line) and text keep their
+    shape; a closed stroke or a fill is a polygon, any other stroke a polyline. Lengths are in the part's units
     (an inch part's converted from the model's millimetres) to a tenth, directions to a thousandth,
     angles in degrees to a tenth. `faceShapesText` words them as one text part (`marks`, after the
     references) that every way a Quick Edit goes and Add to context carry: a heading

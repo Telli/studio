@@ -21,8 +21,8 @@ import { requestSceneFrame } from "../../viewport/sceneFrames.js";
 /**
  * A mark as Annotate keeps it: an annotation mark (`@text-to-cad/core/common/annotation.js`, the shape a prompt's
  * annotation file and a snapshot job read), its points a Float32Array, and the viewer's own record of it: its `level`
- * (`levelOf`'s plane, as numbers), `under` (each point where it falls on the model: x, y, z triples, as `points`) and
- * `shape` (the Shapes tool's that drew it).
+ * (`levelOf`'s plane, as numbers), `under` (each point where it falls on the model: x, y, z triples, as `points`, NaN for
+ * a point with no part under it) and `shape` (the Shapes tool's that drew it).
  * @typedef {import("@text-to-cad/core/common/annotation.js").AnnotationMark & { points: Float32Array,
  *   level?: { point: number[], normal: number[] }, under?: Float32Array,
  *   shape?: import("../../../../annotation/tools.js").ShapeTool }} AnnotationItem
@@ -480,8 +480,8 @@ function levelDepth(view, level, point) {
  * `touches`: what each mark was drawn over, most first — the face or edge (`ref`, from `touchesAt`,
  * a screen point's `[{ part, ref }]`), else the part. Each mark keeps its `level` and, in `under`, where
  * each point falls on the model, whatever the placement: on the visible surface under it (exactly on the
- * level where that surface is the level's), or on the level where no part is drawn. The ink stands off it
- * toward the eye, and On plane may leave it. A Shapes mark keeps its `shape`.
+ * level where that surface is the level's), or nowhere (NaN) where no part is drawn under it. The ink stands
+ * off it toward the eye, and On plane may leave it. A Shapes mark keeps its `shape`.
  *
  * @param {object} runtime  The viewer runtime (`THREE`, `camera`, `modelGroup`, `renderer`, `scene`, `activeClipPlanes`).
  * @param {import("../../../../annotation/geometry.js").ScreenMark[]} marks
@@ -535,12 +535,13 @@ export function projectAnnotations(runtime, marks, size, { placement = "surface"
     const positions = new Float32Array(points.length * 3);
     points.forEach((point, index) => view.at(point, depths[index]).toArray(positions, index * 3));
     // Where each point falls on the model, before the ink stands off it: the surface under it — on the level exactly where
-    // that surface is the level's — or the level where no part is drawn.
-    const under = new Float32Array(points.length * 3);
+    // that surface is the level's — and nowhere (NaN) where no part is drawn under it: ink carried on into the air is on no face.
+    const under = new Float32Array(points.length * 3).fill(NaN);
     points.forEach((point, index) => {
       const found = map?.under(point);
-      const there = found ? view.at(found, found.depth) : null;
-      const onIt = !there || Math.abs(there.clone().sub(own.point).dot(own.normal)) <= ON_LEVEL;
+      if (!found) return;
+      const there = view.at(found, found.depth);
+      const onIt = Math.abs(there.clone().sub(own.point).dot(own.normal)) <= ON_LEVEL;
       (onIt ? view.at(point, onLevel(point)) : there).toArray(under, index * 3);
     });
     const item = { id: mark.id, kind: mark.kind, points: positions, color: mark.color, ...(mark.group ? { group: mark.group } : {}),

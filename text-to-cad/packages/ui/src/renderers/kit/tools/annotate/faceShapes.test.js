@@ -11,9 +11,10 @@ import { faceShapesOf, faceShapesText } from './faceShapes.js';
  */
 
 // A 20 × 10 × 4 block, part "block", its top face (face 6 of /work/block.step) at z = 4; with `boss`, a 4 × 4 × 2 boss on
-// it at x 4 to 8, its top at z = 6. Seen from straight above by an orthographic camera, one screen pixel one millimetre,
-// turned `roll` degrees about the view: unturned, screen pixel (x, y) is (x − 50, 50 − y) on the block.
-function rig({ roll = 0, boss = false } = {}) {
+// it at x 4 to 8, its top at z = 6. An orthographic camera looks at the top face's middle from straight above, or tipped
+// `tilt` degrees back from above about X, turned `roll` degrees about its view, `span` millimetres from the window's middle
+// to its top. From straight above, unturned, at the span of 50, one pixel is a millimetre: screen pixel (x, y) is (x − 50, 50 − y).
+function rig({ roll = 0, tilt = 0, span = 50, boss = false } = {}) {
   const scene = new THREE.Scene();
   const modelGroup = new THREE.Group();
   scene.add(modelGroup);
@@ -25,11 +26,13 @@ function rig({ roll = 0, boss = false } = {}) {
   };
   part('block', [20, 10, 4], [0, 0, 2]);
   if (boss) part('boss', [4, 4, 2], [6, 0, 5]);
-  const camera = new THREE.OrthographicCamera(-50, 50, 50, -50, 0.1, 500);
-  const turn = roll * Math.PI / 180;
-  camera.up.set(-Math.sin(turn), Math.cos(turn), 0);
-  camera.position.set(0, 0, 100);
-  camera.lookAt(0, 0, 0);
+  const camera = new THREE.OrthographicCamera(-span, span, span, -span, 0.1, 500);
+  const turn = degrees => degrees * Math.PI / 180;
+  const X = new THREE.Vector3(1, 0, 0), target = new THREE.Vector3(0, 0, 4);
+  const back = new THREE.Vector3(0, 0, 1).applyAxisAngle(X, turn(tilt));
+  camera.up.copy(new THREE.Vector3(0, 1, 0).applyAxisAngle(X, turn(tilt)).applyAxisAngle(back, turn(roll)));
+  camera.position.copy(target).addScaledVector(back, 100);
+  camera.lookAt(target);
   scene.add(camera);
   scene.updateMatrixWorld(true);
   return { THREE, scene, camera, modelGroup, activeClipPlanes: [], requestRender() {} };
@@ -49,6 +52,16 @@ const NAMES = { [TOP]: 'block · face 6', [SIDE]: 'block · face 2' };
 const labelOf = ref => (/\.f\d+$/.test(ref) ? NAMES[ref] ?? '' : null);
 const onTop = () => [{ part: 'block', ref: TOP }];
 const outline = points => points.map(([x, y]) => ({ x, y }));
+const tenths = values => values.map(value => Math.round(value * 10) / 10 || 0);
+// Where a screen point falls on the top face's plane, along its ray: in the face's frame (u along X, v along Y) from `origin`.
+function onTopFace(runtime, origin, { x, y }) {
+  const caster = new THREE.Raycaster();
+  caster.setFromCamera(new THREE.Vector2(x / SIZE.width * 2 - 1, 1 - y / SIZE.height * 2), runtime.camera);
+  const at = caster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -4), new THREE.Vector3());
+  return [at.x - origin[0], at.y - origin[1]];
+}
+// Each point of a mark where it falls, in the top face's frame from `origin`.
+const uvOf = (item, origin) => Array.from({ length: item.under.length / 3 }, (_, index) => [item.under[index * 3] - origin[0], item.under[index * 3 + 1] - origin[1]]);
 const stroke = (id, points) => ({ kind: 'stroke', id, points: outline(points), closed: false, color: '#ff2d55', width: 2, opacity: 1 });
 // A mark as the viewer keeps it, drawn exactly on a plane through its first point (in the model's millimetres).
 const drawn = (id, points, { normal = [0, 0, 1], ref = TOP, ...rest } = {}) => {
@@ -80,6 +93,48 @@ test("keeps a Shapes rectangle a rectangle: its centre, its size and how far it 
   const [group] = faceShapesOf(items, { units: 'mm', labelOf });
   // Its middle is the face's (0, 0); its first corner, where the frame starts, is 4.2 and 0.7 from it.
   assert.deepEqual(group.shapes, [{ kind: 'rectangle', center: [4.2, 0.7], size: [8, 3], angle: 30 }]);
+});
+
+test("says a Shapes rectangle as one only where it lies square on the face; slanted to the view, the four-cornered polygon it lies as", () => {
+  // Seen square on, a rounded Shapes rectangle is a rectangle on the face, its corners where its straight sides meet: 8 × 3 mm
+  // turned 30°, its middle under the window's.
+  const square = rig({ roll: 30, span: 12.5 });
+  const [flat] = projectAnnotations(square, shapeMarks('rectangle', { x: 34, y: 44 }, { x: 66, y: 56 }, STYLE), SIZE, { touchesAt: onTop });
+  assert.deepEqual(faceShapesOf([flat], { units: 'mm', labelOf })[0].shapes,
+    [{ kind: 'rectangle', center: tenths(onTopFace(square, flat.level.point, { x: 50, y: 50 })), size: [8, 3], angle: 30 }]);
+  // Tipped 45° back as well, the face takes it as a parallelogram: the polygon of the corners its straight sides meet at, each
+  // where a corner of the rectangle drawn on the screen falls on the face.
+  const slanted = rig({ roll: 30, tilt: 45, span: 12.5 });
+  const [ink] = projectAnnotations(slanted, shapeMarks('rectangle', { x: 38, y: 46 }, { x: 62, y: 54 }, STYLE), SIZE, { touchesAt: onTop });
+  const [shape] = faceShapesOf([ink], { units: 'mm', labelOf })[0].shapes;
+  const drawnCorners = [[38, 46], [62, 46], [62, 54], [38, 54]].map(([x, y]) => onTopFace(slanted, ink.level.point, { x, y }));
+  assert.deepEqual([shape.kind, shape.points.length], ['polygon', 4]);
+  for (const corner of drawnCorners) {
+    assert.ok(shape.points.some(point => Math.hypot(point[0] - corner[0], point[1] - corner[1]) <= 0.1),
+      `no corner within 0.1 of (${corner}): ${JSON.stringify(shape.points)}`);
+  }
+});
+
+test("says an ellipse only where its outline is one, on a slanted face too, fitted to all of it; else the polygon it is", () => {
+  const slanted = rig({ roll: 30, tilt: 45, span: 12.5 });
+  const [ink] = projectAnnotations(slanted, shapeMarks('ellipse', { x: 38, y: 46 }, { x: 62, y: 54 }, STYLE), SIZE, { touchesAt: onTop });
+  const [ellipse] = faceShapesOf([ink], { units: 'mm', labelOf })[0].shapes;
+  assert.equal(ellipse.kind, 'ellipse');
+  // As said, to the tenth, it runs through the ink all the way round.
+  const { center: [cu, cv], radii: [a, b], angle } = ellipse;
+  const turn = angle * Math.PI / 180;
+  for (const [u, v] of uvOf(ink, ink.level.point)) {
+    const along = (u - cu) * Math.cos(turn) + (v - cv) * Math.sin(turn), across = (v - cv) * Math.cos(turn) - (u - cu) * Math.sin(turn);
+    const off = Math.abs((along / a) ** 2 + (across / b) ** 2 - 1) / (2 * Math.hypot(along / (a * a), across / (b * b)));
+    assert.ok(off <= 0.15, `(${u}, ${v}) is ${off} off the ellipse said`);
+  }
+  // A closed outline called a shape it is not, a square an ellipse and a trapezoid a rectangle, is the polygon it is.
+  const square = drawn('round', [[0, 0, 4], [4, 0, 4], [4, 4, 4], [0, 4, 4], [0, 0, 4]], { closed: true, shape: 'ellipse' });
+  const trapezoid = drawn('box', [[0, 0, 4], [6, 0, 4], [5, 3, 4], [1, 3, 4], [0, 0, 4]], { closed: true, shape: 'rectangle' });
+  assert.deepEqual(faceShapesOf([square, trapezoid], { units: 'mm', labelOf })[0].shapes, [
+    { kind: 'polygon', points: [[0, 0], [4, 0], [4, 4], [0, 4]] },
+    { kind: 'polygon', points: [[0, 0], [6, 0], [5, 3], [1, 3]] },
+  ]);
 });
 
 test("keeps each Shapes tool's own shape: a line's ends, an arrow from its tail to its tip, text where it was written, an ellipse", () => {
@@ -124,6 +179,12 @@ test("leaves a mark across two faces to the picture", () => {
   const flat = stroke('flat', [[42, 50], [50, 50]]);
   assert.deepEqual(shapes([flat], point => (x(point) < -4 ? onTop() : [{ part: 'block', ref: SPLIT }])), []);
   assert.deepEqual(shapes([flat], () => [{ part: 'block', ref: EDGE }, ...onTop()]), []);
+  // Half of it run off the block into the air, it is not drawn on the face, so it is not said as on it; nor a line drawn from
+  // the air onto the face (over nothing the renderer names nothing).
+  const block = point => (Math.abs(x(point)) <= 10 ? onTop() : []);
+  assert.deepEqual(shapes([stroke('off', [[50, 47], [75, 47]])], block), []);
+  assert.deepEqual(shapes(shapeMarks('line', { x: 80, y: 47 }, { x: 55, y: 47 }, STYLE), block), []);
+  assert.deepEqual(shapes(shapeMarks('arrow', { x: 80, y: 47 }, { x: 55, y: 47 }, STYLE), block), []);
   // On the top face alone, it is a shape on it; but not in a view that names no face.
   assert.deepEqual(shapes([flat], onTop).map(group => group.shapes), [[{ kind: 'polyline', points: [[0, 0], [8, 0]] }]]);
   assert.deepEqual(faceShapesOf(projectAnnotations(runtime, [flat], SIZE, { touchesAt: onTop }), { units: 'mm' }), []);

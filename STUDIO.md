@@ -470,8 +470,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   bar is not shown. Quick Edit's X and a send let go of a feature chosen too, as a press on the background does. Annotate, the
   toolbar's third agent button, is the viewer's own Pencil with Shapes in its chevron's menu, each showing what it draws with (the
   bar's Annotate takes up the Pencil). Marks drawn on a face go to the agent as shapes in that face's own coordinates, in the part's
-  units (`kit/tools/annotate/faceShapes.js`: a mark on one face alone, flat on it; any other stays with the picture and the faces it
-  touches), as a text part after the references, in every way Quick Edit goes and in Add to context. Simple view's Quick Edit is as
+  units (`kit/tools/annotate/faceShapes.js`: a mark on one face alone, flat on it and all of it over the part; any other stays with the
+  picture and the faces it touches; a shape said as what it is on the face, so a rectangle drawn on a face slanted to the view is the
+  polygon of its four corners there), as a text part after the references, in every way Quick Edit goes and in Add to context. Simple view's Quick Edit is as
   it always was, but for those marks, which it carries too.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of

@@ -1,14 +1,22 @@
 // Marks on a face, as shapes in that face's own coordinates: what a prompt carries of the annotation beside its picture and
 // what each mark touches (`annotation3d.js`), so the agent gets geometry, not a paragraph ("Cut a window here for the servo's
-// cable, about this size"). A mark counts when its first touch is a face, it touches no other face, and every point, where
-// it falls on the model (`under`), lies within 0.05 of the part's units of its level's plane; every other mark stays with
-// the picture and its touches, and no face is guessed for it. Which touches are faces the renderer says, naming them
-// (`labelOf`): the kit reads no reference's grammar. Each face has one frame: its origin the level's point of the
-// first mark on it, `u` the model's +X laid on the face (+Y where +X is within 10° of the face's normal), `v` the normal
-// across `u`. Lengths are in the part's units to a tenth, directions to a thousandth, angles in degrees to a tenth. Pure.
+// cable, about this size"). A mark counts when its first touch is a face, it touches no other face, and every point falls on
+// the model (`under`) within 0.05 of the part's units of its level's plane: one point over nothing, and the mark is not drawn
+// on the face. Every other mark stays with the picture and its touches, and no face is guessed for it. Which touches are faces
+// the renderer says, naming them (`labelOf`): the kit reads no reference's grammar. Each face has one frame: its origin the
+// level's point of the first mark on it, `u` the model's +X laid on the face (+Y where +X is within 10° of the face's normal),
+// `v` the normal across `u`. A shape is said as what it is on the face, never as what was drawn on the screen: a Shapes
+// rectangle on a face slanted to the view lands as a parallelogram, and is said as the polygon of its corners. Lengths are in
+// the part's units to a tenth, directions to a thousandth, angles in degrees to a tenth. Pure.
 
 /** How near its level's plane each point of a mark on a face lies, in the part's units. */
 const ON_FACE = 0.05;
+// What a length is said to, in the part's units: how near a shape is said as one must come to the ink.
+const ROUNDING = 0.1;
+// A rectangle's sides are square to each other within this many degrees.
+const SQUARE_DEGREES = 0.5;
+// A hull's points this near (in the part's units) to the line of their neighbours are on one straight side.
+const STRAIGHT = 1e-3;
 // The part's units in the model's millimetres; units the model is not converted from are its own.
 const MILLIMETRES = Object.freeze({ mm: 1, in: 25.4 });
 // +X within this of a face's normal (the cosine of 10°) lies too steeply across the face to measure along it: +Y does.
@@ -30,6 +38,7 @@ const SAME_NORMAL = Math.cos(0.5 * Math.PI / 180);
 
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const minus = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const minus2 = (a, b) => [a[0] - b[0], a[1] - b[1]];
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const unit = a => { const length = Math.hypot(...a) || 1; return a.map(value => value / length); };
 // A length to a tenth and a direction to a thousandth, never -0.
@@ -54,9 +63,10 @@ function frameOf(level) {
   return { origin: [...level.point], u, v: cross(normal, u), normal };
 }
 const pointsOf = values => Array.from({ length: values.length / 3 }, (_, index) => [values[index * 3], values[index * 3 + 1], values[index * 3 + 2]]);
+// Whether every point is on the model (none over nothing: NaN) and on the level's plane.
 const liesOn = (points, level, tolerance) => {
   const normal = unit(level.normal);
-  return points.every(point => Math.abs(dot(minus(point, level.point), normal)) <= tolerance);
+  return points.every(point => point.every(Number.isFinite) && Math.abs(dot(minus(point, level.point), normal)) <= tolerance);
 };
 const samePlane = (frame, level, tolerance) => dot(frame.normal, unit(level.normal)) >= SAME_NORMAL
   && Math.abs(dot(minus(level.point, frame.origin), frame.normal)) <= tolerance;
@@ -97,12 +107,13 @@ function roundedPoints(points, closed) {
 function polylineOf(points, tolerance) {
   return { kind: "polyline", points: roundedPoints(simplified(points, tolerance), false) };
 }
+// A closed line's fewest points within `tolerance` of it; where it started on a side, its start is no corner.
+function simplifiedRing(loop, tolerance) {
+  const kept = simplified([...loop, loop[0]], tolerance).slice(0, -1);
+  return kept.length > 3 && segmentDistance(kept[0], kept.at(-1), kept[1]) <= tolerance ? kept.slice(1) : kept;
+}
 function polygonOf(points, tolerance) {
-  const loop = ring(points);
-  let kept = simplified([...loop, loop[0]], tolerance).slice(0, -1);
-  // Where it started on a side, its start is no corner.
-  if (kept.length > 3 && segmentDistance(kept[0], kept.at(-1), kept[1]) <= tolerance) kept = kept.slice(1);
-  const corners = roundedPoints(kept, true);
+  const corners = roundedPoints(simplifiedRing(ring(points), tolerance), true);
   return corners.length >= 3 ? { kind: "polygon", points: corners } : { kind: "polyline", points: corners };
 }
 
@@ -126,27 +137,53 @@ function squared(shape, key) {
   else if (angle > 45) { angle -= 90; [along, across] = [across, along]; }
   return { ...shape, center: tenths(shape.center), [key]: tenths([along, across]), angle: tenth(angle) };
 }
-// The rectangle a Shapes rectangle lies in on the face: the least that holds every point, one side along a side of their hull.
-function rectangleOf(points) {
-  const hull = hullOf(points);
-  let best = null;
-  hull.forEach(([ax, ay], index) => {
-    const [bx, by] = hull[(index + 1) % hull.length];
-    const length = Math.hypot(bx - ax, by - ay);
-    if (length < 1e-9) return;
-    const ux = (bx - ax) / length, uy = (by - ay) / length;
-    const along = hull.map(([x, y]) => x * ux + y * uy), across = hull.map(([x, y]) => y * ux - x * uy);
-    const box = { ux, uy, a: [Math.min(...along), Math.max(...along)], b: [Math.min(...across), Math.max(...across)] };
-    box.area = (box.a[1] - box.a[0]) * (box.b[1] - box.b[0]);
-    if (!best || box.area < best.area - 1e-9 * Math.max(1, best.area)) best = box;
+// A Shapes rectangle's four straight sides, its corners rounded or not: the four longest edges of its outline's hull, in order
+// round it, each at least twice as long as any other edge (an arc's); null where the outline has no four such sides.
+function fourSides(points) {
+  const hull = simplifiedRing(hullOf(points), STRAIGHT);
+  if (hull.length < 4) return null;
+  const edges = hull.map((from, index) => {
+    const to = hull[(index + 1) % hull.length];
+    return { index, from, to, length: Math.hypot(to[0] - from[0], to[1] - from[1]) };
   });
-  if (!best) return null;
-  const { ux, uy, a, b } = best;
-  const middle = [(a[0] + a[1]) / 2, (b[0] + b[1]) / 2];
-  return squared({ kind: "rectangle", center: [middle[0] * ux - middle[1] * uy, middle[0] * uy + middle[1] * ux],
-    size: [a[1] - a[0], b[1] - b[0]], angle: Math.atan2(uy, ux) * 180 / Math.PI }, "size");
+  const longest = [...edges].sort((a, b) => b.length - a.length);
+  if (longest.length > 4 && longest[3].length < 2 * longest[4].length) return null;
+  return longest.slice(0, 4).sort((a, b) => a.index - b.index);
 }
-// The ellipse a Shapes ellipse is on the face: the one with the area, the middle and the spread of the area it closes round.
+// Where the lines along two sides cross; null where they run parallel.
+function meet(a, b) {
+  const dx = a.to[0] - a.from[0], dy = a.to[1] - a.from[1], ex = b.to[0] - b.from[0], ey = b.to[1] - b.from[1];
+  const across = dx * ey - dy * ex;
+  if (Math.abs(across) < 1e-12 * Math.hypot(dx, dy) * Math.hypot(ex, ey)) return null;
+  const t = ((b.from[0] - a.from[0]) * ey - (b.from[1] - a.from[1]) * ex) / across;
+  return [a.from[0] + t * dx, a.from[1] + t * dy];
+}
+const wrapped = radians => Math.atan2(Math.sin(radians), Math.cos(radians));
+// A Shapes rectangle as it lies on the face, its corners where its straight sides meet: a rectangle where those sides are square
+// to each other within half a degree and its opposite sides equal within the rounding; else, as on a face slanted to the view,
+// the polygon of its four corners. Null where it has no four straight sides.
+function rectangleOf(points) {
+  const sides = fourSides(points);
+  const corners = sides?.map((side, index) => meet(sides[(index + 3) % 4], side));
+  if (!corners || corners.some(corner => !corner)) return null;
+  const edges = corners.map((corner, index) => minus2(corners[(index + 1) % 4], corner));
+  const lengths = edges.map(([x, y]) => Math.hypot(x, y));
+  const square = edges.every(([x, y], index) => {
+    const [nx, ny] = edges[(index + 1) % 4];
+    return Math.abs(Math.atan2(x * ny - y * nx, x * nx + y * ny) * 180 / Math.PI - 90) <= SQUARE_DEGREES;
+  });
+  if (!square || Math.abs(lengths[0] - lengths[2]) > ROUNDING || Math.abs(lengths[1] - lengths[3]) > ROUNDING) {
+    return { kind: "polygon", points: roundedPoints(corners, true) };
+  }
+  // Turned as its four sides are, on the whole.
+  const first = Math.atan2(edges[0][1], edges[0][0]);
+  const turn = edges.reduce((sum, [x, y], index) => sum + wrapped(Math.atan2(y, x) - first - index * Math.PI / 2), 0) / 4;
+  const center = [0, 1].map(axis => corners.reduce((sum, corner) => sum + corner[axis], 0) / 4);
+  return squared({ kind: "rectangle", center, size: [(lengths[0] + lengths[2]) / 2, (lengths[1] + lengths[3]) / 2],
+    angle: (first + turn) * 180 / Math.PI }, "size");
+}
+// The ellipse a Shapes ellipse is on the face: the one with the area, the middle and the spread of the area it closes round
+// (any view takes an ellipse to one), where every point of its outline lies within the rounding of it; null where it does not.
 function ellipseOf(points) {
   const loop = ring(points);
   if (loop.length < 3) return null;
@@ -164,9 +201,17 @@ function ellipseOf(points) {
   const cx = sx / (6 * area), cy = sy / (6 * area);
   const xx = sxx / (12 * area) - cx * cx, yy = syy / (12 * area) - cy * cy, xy = sxy / (24 * area) - cx * cy;
   const middle = (xx + yy) / 2, spread = Math.hypot((xx - yy) / 2, xy);
-  const shape = squared({ kind: "ellipse", center: [cx + mx, cy + my],
-    radii: [2 * Math.sqrt(Math.max(0, middle + spread)), 2 * Math.sqrt(Math.max(0, middle - spread))],
-    angle: Math.atan2(2 * xy, xx - yy) * 90 / Math.PI }, "radii");
+  const major = 2 * Math.sqrt(Math.max(0, middle + spread)), minor = 2 * Math.sqrt(Math.max(0, middle - spread));
+  const turn = Math.atan2(2 * xy, xx - yy) / 2, cos = Math.cos(turn), sin = Math.sin(turn);
+  if (!(minor > 1e-9)) return null;
+  // How far each point of the outline is from it, to first order (its distance along the ellipse's gradient).
+  const fits = loop.every(([x, y]) => {
+    const dx = x - mx - cx, dy = y - my - cy, along = dx * cos + dy * sin, across = dy * cos - dx * sin;
+    const slope = 2 * Math.hypot(along / (major * major), across / (minor * minor));
+    return slope > 0 && Math.abs((along / major) ** 2 + (across / minor) ** 2 - 1) / slope <= ROUNDING;
+  });
+  if (!fits) return null;
+  const shape = squared({ kind: "ellipse", center: [cx + mx, cy + my], radii: [major, minor], angle: turn * 180 / Math.PI }, "radii");
   // A circle is turned no way at all.
   return shape.radii[0] === shape.radii[1] ? { ...shape, angle: 0 } : shape;
 }
@@ -183,8 +228,9 @@ function shapeOf(item, points, tolerance) {
 
 /**
  * The marks drawn on a face, as shapes in each face's own coordinates: a face for each, with the shapes on it in the order
- * they were drawn. An arrow is said once, by its line (the first of its group); a Shapes rectangle, ellipse, line, arrow
- * and text keep their own shape, a closed stroke or a fill is a polygon, any other stroke a polyline.
+ * they were drawn. An arrow is said once, by its line (the first of its group); a Shapes line, arrow and text keep their own
+ * shape, and a rectangle and an ellipse theirs where they lie as one on the face (else the polygon each is); a closed stroke
+ * or a fill is a polygon, any other stroke a polyline.
  *
  * @param {readonly import("./annotation3d.js").AnnotationItem[]} items  The annotation's ink, as `projectAnnotations` makes it.
  * @param {{ units?: string, labelOf?: ((ref: string) => string | null) | null }} [options]  `units`: the part's ("mm", the

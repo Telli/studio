@@ -300,9 +300,10 @@ test("each mark keeps its level, where each point falls on the model and a Shape
   const [over] = projectAnnotations(runtime, [stroke('over', [[44, 50], [56, 50]])], size, { placement: 'plane' });
   assert.ok(heights(over).every(z => z === 2), `ink: ${heights(over)}`);
   assert.deepEqual([...new Set(under(over).map(([, , z]) => z))].sort((a, b) => a - b), [0, 10]);
-  // Off the model it falls on its level.
+  // Off the model it falls on nothing: no point of it is on the model, whatever level its ink is at.
   const [beside] = projectAnnotations(runtime, [stroke('beside', [[80, 50], [90, 50]])], size, { cpuBudget: 100 });
-  assert.ok(under(beside).every(([, , z]) => z === 0));
+  assert.ok(heights(beside).every(z => z === 2), `ink: ${heights(beside)}`);
+  assert.ok(under(beside).every(point => point.every(Number.isNaN)), `under: ${JSON.stringify(under(beside))}`);
   // The annotation file is as it always was: none of these is the file's.
   const marks = normalizeAnnotation(JSON.parse(JSON.stringify(annotationDocumentOf([line, over])))).marks;
   assert.deepEqual(marks.flatMap(mark => ['level', 'under', 'shape'].filter(key => key in mark)), []);
