@@ -18,12 +18,14 @@ const EXAMPLES: Readonly<
 /** The rendered pictures' URLs, by path from this folder. */
 const IMAGES = import.meta.glob<string>("./pictures/*.webp", { eager: true, import: "default" });
 
-/** The sample's Markdown, by path from this folder: `SAMPLE`, then its path in the sample. */
-const PAGES = import.meta.glob<string>("../../../../../../studio-sample/servo-bracket/**/*.md", {
-  eager: true,
-  query: "?raw",
-  import: "default",
-});
+/**
+ * The sample's Markdown, by path from this folder: `SAMPLE`, then its path in the sample. Its
+ * READMEs are no entry's example, so they stay out of the bundle.
+ */
+const PAGES = import.meta.glob<string>(
+  ["../../../../../../studio-sample/servo-bracket/**/*.md", "!**/README.md"],
+  { eager: true, query: "?raw", import: "default" },
+);
 const SAMPLE = "../../../../../../studio-sample/servo-bracket/";
 
 /** A picture's file name in `pictures/`: its path in the sample, each "/" as "__", then ".webp". */
