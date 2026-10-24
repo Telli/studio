@@ -8,7 +8,7 @@ import { Button } from "../ui/button";
 import { useDocumentTemplates } from "./documentTemplates";
 import { NewDialog, type NewJob } from "./NewDialog";
 import { type NewRequest, useNewDialogStore } from "./newDialogStore";
-import { availableTemplates } from "./newTemplates";
+import { templateOffers } from "./newTemplates";
 
 /**
  * New, as Google Drive's New is: a part, an assembly, a board, a harness or a document
@@ -29,13 +29,15 @@ export function StudioNew(props: {
   const { environmentId } = props;
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
-  const templates = useMemo(
-    () =>
-      availableTemplates(
-        new Set((plugins ?? []).flatMap((plugin) => (plugin.enabled ? plugin.skills : []))),
-      ).filter((template) => template.source === "new"),
-    [plugins],
-  );
+  const offers = useMemo(() => {
+    const known = plugins ?? [];
+    const skills = new Set(known.flatMap((plugin) => (plugin.enabled ? plugin.skills : [])));
+    // Until the plugins are known, only what needs no skill, so nothing reads as not installed.
+    return templateOffers(skills, known).filter(
+      (offer) =>
+        offer.template.source === "new" && (plugins !== undefined || offer.availability.on),
+    );
+  }, [plugins]);
   const documents = useDocumentTemplates(environmentId);
   // Each open is a fresh dialog (`count`), on what was asked for, if anything.
   const [opened, setOpened] = useState<{
@@ -74,7 +76,7 @@ export function StudioNew(props: {
           }}
           environmentId={environmentId}
           cwd={props.cwd}
-          templates={templates}
+          offers={offers}
           fileTemplates={documents.templates}
           onAddTemplate={documents.add}
           onShowTemplates={documents.show}

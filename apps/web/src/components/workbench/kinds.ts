@@ -4,6 +4,7 @@ import {
   BoxIcon,
   CircuitBoardIcon,
   FactoryIcon,
+  FilePlusIcon,
   FileTextIcon,
   GaugeIcon,
   ImageIcon,
@@ -15,7 +16,7 @@ import {
 } from "lucide-react";
 
 import type { HardwareActionGroup } from "./hardwareActions";
-import type { Discipline } from "./newTemplates";
+import type { Discipline, NewTemplate } from "./newTemplates";
 import type { ProjectGroup } from "./projectFiles";
 
 /**
@@ -49,6 +50,12 @@ export const DISCIPLINE_ICONS: Readonly<Record<Discipline, LucideIcon>> = {
   Robotics: Axis3dIcon,
   Documents: KIND_ICONS.Documents,
 };
+
+/** A New template's icon: the kind of thing it makes, a drawing's own, or a file of the person's. */
+export function templateIcon(template: NewTemplate) {
+  if (template.file !== undefined) return FilePlusIcon;
+  return template.id === "drawing" ? KIND_ICONS.Drawings : DISCIPLINE_ICONS[template.discipline];
+}
 
 /** The top bar's menus, by what their jobs make. */
 export const MENU_ICONS: Readonly<Record<HardwareActionGroup, LucideIcon>> = {
@@ -121,3 +128,11 @@ export const KIND_TINTS: Readonly<Record<ProjectGroup | "Chats", string>> = {
   Images: "text-slate-500 dark:text-slate-400",
   References: "text-slate-500 dark:text-slate-400",
 };
+
+/** A New template's icon color: its kind's, as the Overview and ⌘K color that kind. */
+export function templateTint(template: NewTemplate): string {
+  if (template.file !== undefined || template.discipline === "Documents")
+    return KIND_TINTS.Documents;
+  if (template.id === "drawing") return KIND_TINTS.Drawings;
+  return template.discipline === "Robotics" ? KIND_TINTS.CAD : KIND_TINTS[template.discipline];
+}

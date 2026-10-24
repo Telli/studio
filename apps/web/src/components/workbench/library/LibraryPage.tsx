@@ -1,5 +1,5 @@
 import type { EnvironmentId, InstalledPlugin } from "@t3tools/contracts";
-import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { type LucideIcon, PlusIcon, PuzzleIcon } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
@@ -7,7 +7,7 @@ import { cn } from "~/lib/utils";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
-import { Button, InlineButton } from "../../ui/button";
+import { Button } from "../../ui/button";
 import {
   Dialog,
   DialogDescription,
@@ -45,7 +45,8 @@ import {
   libraryGroup,
   type LibrarySearch,
 } from "./librarySearch";
-import { SAMPLE_NAME } from "./sampleProject";
+import { NeedsSkill, PluginsLink } from "./NeedsSkill";
+import { SeeTheExample } from "./SeeTheExample";
 import { useSampleProject } from "./useSampleProject";
 
 /** Each group of document types by its place's icon: New's, then each part menu's (`kinds.ts`). */
@@ -272,11 +273,6 @@ function LibraryCard(props: {
   );
 }
 
-/** Settings › Plugins, where a plugin is turned on or installed. */
-function PluginsLink() {
-  return <InlineButton render={<Link to="/settings/plugins" />}>Settings › Plugins</InlineButton>;
-}
-
 /**
  * An entry's detail: its picture large, what it is, then a document type's You give, It asks you
  * first, You get, Made by and Find it in, or a skill's Try asking and Shows up as. See the example
@@ -295,21 +291,14 @@ function EntryDetail(props: {
   /** Opens New on a template; null where no New would take it. */
   readonly onMakeOne: ((template: NewTemplate) => void) | null;
 }) {
-  const { entry, plugins, skillLabel, onMakeOne } = props;
-  const [opening, setOpening] = useState(false);
+  const { entry, plugins, skillLabel, openExample, onMakeOne } = props;
   const state =
     entry.kind === "document" && plugins !== undefined ? availability(entry, plugins) : null;
   const template =
     entry.kind === "document" && state?.on === true && onMakeOne !== null
       ? makeOneTemplate(entry)
       : null;
-  const example = props.openExample === null ? null : entry.example;
-  const pluginName = (id: string) => plugins?.find((plugin) => plugin.id === id)?.displayName ?? id;
-  const seeExample = (file: string) => {
-    if (props.openExample === null) return;
-    setOpening(true);
-    void props.openExample(file).finally(() => setOpening(false));
-  };
+  const example = openExample === null ? null : entry.example;
 
   const shownAs = entry.kind === "skill" ? showsUpAs(entry.name) : [];
   const rows: ReadonlyArray<readonly [string, ReactNode]> =
@@ -361,11 +350,8 @@ function EntryDetail(props: {
             ))}
           </dl>
         )}
-        {state === null || state.on ? null : (
-          <p className="text-sm text-foreground">
-            Needs the {skillLabel(state.skill)} skill, from the {pluginName(state.plugin)} plugin,
-            which is {state.installed ? "turned off" : "not installed"}. <PluginsLink />
-          </p>
+        {state === null || state.on || plugins === undefined ? null : (
+          <NeedsSkill needs={state} plugins={plugins} />
         )}
         {entry.kind === "skill" && !entry.on ? (
           <p className="text-sm text-foreground">
@@ -375,18 +361,8 @@ function EntryDetail(props: {
       </DialogPanel>
       {example === null && template === null ? null : (
         <DialogFooter>
-          {example === null ? null : (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:me-auto">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={opening}
-                onClick={() => seeExample(example)}
-              >
-                See the example
-              </Button>
-              <span className="text-xs text-muted-foreground">Opens in {SAMPLE_NAME}</span>
-            </div>
+          {example === null || openExample === null ? null : (
+            <SeeTheExample file={example} open={openExample} size="sm" className="sm:me-auto" />
           )}
           {template === null || onMakeOne === null ? null : (
             <Button size="sm" onClick={() => onMakeOne(template)}>

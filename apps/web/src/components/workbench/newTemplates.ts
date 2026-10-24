@@ -2,10 +2,15 @@
  * What a new piece of work can be, the way a CAD system's New dialog offers
  * templates (a part, an assembly, a drawing) but across engineering: boards
  * and harnesses, studies, manufacturing, robots, documents. Each runs on one
- * of text-to-cad's skills and is offered only while an enabled plugin has it.
+ * of text-to-cad's skills and can be made only while an enabled plugin has it;
+ * New shows the rest dimmed, naming the skill (`templateOffers`).
  * A template either makes something new (a name, a folder, units) or works
  * from a part the project already holds (which one).
  */
+
+import type { InstalledPlugin } from "@t3tools/contracts";
+
+import { type Availability, missingSkill, UNLISTED_TEMPLATES } from "./library/skillAvailability";
 
 export type Discipline =
   | "CAD"
@@ -258,6 +263,30 @@ export function availableTemplates(skills: ReadonlySet<string>): NewTemplate[] {
   return [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES].filter(
     (template) => template.skill === null || skills.has(template.skill),
   );
+}
+
+/** A template as New offers it: whether it can be made now, else the skill it needs and why. */
+export interface TemplateOffer {
+  readonly template: NewTemplate;
+  readonly availability: Availability;
+}
+
+/**
+ * Every template New shows, in `availableTemplates`' order: on where it is offered, else off,
+ * naming its skill and the plugin that lists it, as the library does (`missingSkill`). A template
+ * whose skill no plugin ships (`UNLISTED_TEMPLATES`) is left out until a plugin lists it.
+ */
+export function templateOffers(
+  skills: ReadonlySet<string>,
+  plugins: ReadonlyArray<InstalledPlugin>,
+): TemplateOffer[] {
+  return [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES].flatMap((template): TemplateOffer[] => {
+    const { skill } = template;
+    if (skill === null || skills.has(skill)) return [{ template, availability: { on: true } }];
+    const listed = plugins.some((plugin) => plugin.skills.includes(skill));
+    if (!listed && UNLISTED_TEMPLATES.includes(template.id)) return [];
+    return [{ template, availability: missingSkill(skill, plugins) }];
+  });
 }
 
 /** Whether a template writes a document of its own (a built-in one's sections, or a file to follow). */

@@ -2,8 +2,7 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { PuzzleIcon } from "lucide-react";
 
 import { cn } from "~/lib/utils";
-import { KIND_ICONS, KIND_TINTS } from "../kinds";
-import { templateIcon, templateTint } from "../NewDialog";
+import { KIND_ICONS, KIND_TINTS, templateIcon, templateTint } from "../kinds";
 import { DOCUMENT_TEMPLATES, NEW_TEMPLATES } from "../newTemplates";
 import { Page, TextPage } from "../OverviewModules";
 import type { LibraryDocument, LibraryEntry } from "./libraryCatalog";

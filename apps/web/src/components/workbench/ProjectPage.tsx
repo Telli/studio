@@ -26,7 +26,7 @@ import { EMPTY_BRIEF } from "./briefFolder";
 import { useDocumentTemplates } from "./documentTemplates";
 import { NewDialog, handToChat } from "./NewDialog";
 import { useNewDialogStore } from "./newDialogStore";
-import { availableTemplates, type Discipline } from "./newTemplates";
+import { type Discipline, templateOffers } from "./newTemplates";
 import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
 import { ReadmeOverview } from "./ReadmeOverview";
@@ -469,13 +469,16 @@ export function ProjectPage(props: {
   const listing = useEnvironmentQuery(
     projectEnvironment.listEntries({ environmentId, input: { cwd } }),
   );
-  const templates = useMemo(
-    () =>
-      availableTemplates(
-        new Set((plugins ?? []).flatMap((plugin) => (plugin.enabled ? plugin.skills : []))),
-      ).filter((template) => !plainWords || template.source === "new"),
-    [plugins, plainWords],
-  );
+  const offers = useMemo(() => {
+    const known = plugins ?? [];
+    const skills = new Set(known.flatMap((plugin) => (plugin.enabled ? plugin.skills : [])));
+    // Until the plugins are known, only what needs no skill, so nothing reads as not installed.
+    return templateOffers(skills, known).filter(
+      (offer) =>
+        (!plainWords || offer.template.source === "new") &&
+        (plugins !== undefined || offer.availability.on),
+    );
+  }, [plugins, plainWords]);
   // What a template can work from: the models and boards in this thread's folder.
   const parts = useMemo(
     () =>
@@ -563,7 +566,7 @@ export function ProjectPage(props: {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {templates.length === 0 || composerRef === null ? null : (
+            {offers.length === 0 || composerRef === null ? null : (
               <Button size="xs" onClick={() => openNew()}>
                 <PlusIcon />
                 New
@@ -749,7 +752,7 @@ export function ProjectPage(props: {
           onOpenChange={(open) => setNewOpen((current) => ({ ...current, open }))}
           environmentId={environmentId}
           cwd={cwd}
-          templates={templates}
+          offers={offers}
           fileTemplates={documents.templates}
           onAddTemplate={documents.add}
           onShowTemplates={documents.show}
