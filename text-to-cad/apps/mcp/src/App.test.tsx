@@ -1,6 +1,7 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CadViewerProps } from '@text-to-cad/ui/cad-viewer';
+import { editLayoutHost } from '@text-to-cad/ui/tab-store';
 import { version } from '../package.json';
 import App from './App';
 import type { HostContext } from './host/bridge';
@@ -262,6 +263,33 @@ it('an inline host that cannot show a view full size gets no Full size, and stil
   expect(container.querySelector('[aria-label="Full size"]')).toBeNull();
   expect(viewer.props!.fullSize).toBeNull();
   expect(viewer.props!.host.environment.compact).toBeUndefined();
+});
+
+it('a host that lays the workspace out hears what the part on screen allows as it changes, until the view goes; a host that does not, nothing', () => {
+  const said = (notify: ReturnType<typeof vi.fn>) => notify.mock.calls
+    .filter(([method]) => method === 'studio/notifications/edit-state').map(([, params]) => params);
+  try {
+    const studio = host({ displayMode: 'fullscreen', 'studio/editLayout': 'manual' }, { studioEditState: {} });
+    const { unmount } = render(<App bridge={studio.bridge as any} server={studio.server as any} launch={home} />);
+    // The STEP view says what its part allows (`editLayoutHost`): a part script, then a command open, then the part gone.
+    act(() => editLayoutHost.reportEditState({ editable: true, busy: false }));
+    act(() => editLayoutHost.reportEditState({ editable: true, busy: true }));
+    act(() => editLayoutHost.reportEditState(null));
+    expect(said(studio.bridge.notify)).toEqual([{ editable: false, busy: false }, { editable: true, busy: false },
+      { editable: true, busy: true }, { editable: false, busy: false }]);
+    // A view closed says nothing more.
+    unmount();
+    act(() => editLayoutHost.reportEditState({ editable: true, busy: true }));
+    expect(said(studio.bridge.notify)).toHaveLength(4);
+
+    const plain = host({ displayMode: 'fullscreen' });
+    render(<App bridge={plain.bridge as any} server={plain.server as any} launch={home} />);
+    act(() => editLayoutHost.reportEditState({ editable: true, busy: false }));
+    expect(said(plain.bridge.notify)).toEqual([]);
+  } finally {
+    editLayoutHost.reportEditState(null);
+    editLayoutHost.set(false);
+  }
 });
 
 it('a Quick Edit queues into a tab host\'s composer always, into an inline host\'s when it takes model context, and sends where the host takes messages', () => {

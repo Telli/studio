@@ -150,7 +150,7 @@ import SketchOverlay from "./edit/SketchOverlay.jsx";
 import SheetEditor from "./edit/SheetEditor.jsx";
 import SketchesLayer from "./edit/SketchesLayer.jsx";
 import { NxIconSprite } from "../../lib/nxIcons.generated.jsx";
-import { WORKSPACE_SELECTION_COLOR, useEditLayout } from "./edit/editLayout.js";
+import { WORKSPACE_SELECTION_COLOR, editLayoutState, useEditLayout } from "./edit/editLayout.js";
 import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
 import {
@@ -3287,12 +3287,20 @@ function StepSurfaceBody({ view, data }) {
   // in the navbar): for modeling it by hand, or for asking the AI, which is the view as it is. Laid
   // out for the AI, the part is not read.
   const [editLayout, setEditLayout] = useEditLayout(services);
-  // A host that switches the layout itself (Studio's top bar) leaves the navbar without the switch.
+  // A host that switches the layout itself (Studio's Simple view) leaves the navbar without the switch.
   const layoutHosted = useSyncExternalStore(editLayoutHost.subscribe, editLayoutHost.get, editLayoutHost.get);
   const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading, reading: editLayout === "manual" });
-  // Laid out for editing only once the server says the file has a part script, and only by hand.
-  const editable = edit.status !== "none" && edit.status !== "probing";
+  // Laid out for editing only once the server says the file has a part script, and only by hand; a
+  // command, sketch or pick open, or a change being saved, holds the switch (`layoutHeld`).
+  const { editable, busy: layoutHeld } = editLayoutState(edit);
   const editing = editable && editLayout === "manual";
+  // The host's switch hears what the navbar's hangs on, and nothing once this part leaves the
+  // screen. A picture drawn out of sight for the library (`compact`) is not the part on screen.
+  const reportsEditState = !view.appearance?.compact;
+  useEffect(() => {
+    if (reportsEditState) editLayoutHost.reportEditState({ editable, busy: layoutHeld });
+  }, [reportsEditState, editable, layoutHeld]);
+  useEffect(() => (reportsEditState ? () => editLayoutHost.reportEditState(null) : undefined), [reportsEditState]);
   // Where on the model a click lands, for a hole to go there or an extrude to end at an edge's end.
   holePointRef.current = editing && ["hole", "extrude", "cut"].includes(edit.command) ? edit.setFacePoint : null;
   keepFaceRef.current = editing && edit.command === "hole";
@@ -3743,7 +3751,7 @@ function StepSurfaceBody({ view, data }) {
     // Modeling by hand, nothing asks the AI: Quick Edit is the AI layout's.
     references={selectionActionVisible && !editing ? promptSelection : EMPTY_LIST} referenceChips={editing ? EMPTY_LIST : referenceChips} nameReference={nameReference}
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
-      disabled={Boolean(edit.command || edit.sketch || edit.picking || edit.saving)} /> : null}
+      disabled={layoutHeld} /> : null}
     onClearReferences={clearSelected} copySelection={copySelection} onSelectPress={selectPress} onSelectHover={selectHover}
     selectsAnnotations={selects(selectFilter, "annotation")} inkTouches={inkTouches}
     contextMenuItems={selectionToolActive

@@ -118,14 +118,22 @@ export default function App({ bridge, server, launch: initial, presentation = 't
   // it, for as long as this view is open (its tab store is the view's own).
   const tabSettings = useSyncExternalStore(tabStore.settings.subscribe, tabStore.settings.getSnapshot, tabStore.settings.getSnapshot);
   const preference = tabSettings.appearance;
-  // A host that lays its workspace out (Studio: Ask or Edit by hand, `studio/editLayout`) sets how a
-  // part script's model opens, and the navbar leaves the switch to it.
+  // A host that lays its workspace out (Studio's Simple view, `studio/editLayout`) sets how a part
+  // script's model opens, and the navbar leaves the switch to it.
   const hostLayout = (context as Record<string, unknown>)['studio/editLayout'];
   useEffect(() => {
     if (hostLayout !== 'ai' && hostLayout !== 'manual') return;
     editLayoutHost.set(true);
     tabStore.settings.update({ editLayout: hostLayout });
   }, [hostLayout, tabStore]);
+  // Its switch shows and holds as the navbar's would: the host that asks for it (`studioEditState`)
+  // hears what the part on screen allows, now and at each change (`editLayoutHost`).
+  useEffect(() => {
+    if (!bridge.hostCapabilities.studioEditState) return undefined;
+    const send = () => bridge.notify('studio/notifications/edit-state', { ...editLayoutHost.editState() });
+    send();
+    return editLayoutHost.subscribeEditState(send);
+  }, [bridge]);
   const colorScheme = preference === 'light' || preference === 'dark' ? preference : context.theme === 'dark' ? 'dark' : 'light';
   // After every host context too: the page's first theme is the host's (`main.tsx`), and a host
   // change of theme must not undo the person's.

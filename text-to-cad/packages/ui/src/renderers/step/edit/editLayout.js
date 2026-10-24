@@ -14,6 +14,22 @@ export const LAYOUTS = Object.freeze(["manual", "ai"]);
 export const WORKSPACE_SELECTION_COLOR = "#ff9a2e";
 
 /**
+ * What the switch between the layouts hangs on, from edit mode (`useEditMode`): `editable` once the
+ * server says the file has a part script (the two layouts; a build that failed still has them), and
+ * `busy` while a command, a sketch or a pick is open or a change is being saved, which holds the
+ * switch until it is finished or cancelled. The navbar's switch and a host's own (Studio's Simple
+ * view, `tab-store/editLayoutHost.ts`) read the same.
+ * @param {{ status: string, command?: unknown, sketch?: unknown, picking?: boolean, saving?: boolean }} edit
+ * @returns {{ editable: boolean, busy: boolean }}
+ */
+export function editLayoutState(edit) {
+  return {
+    editable: edit.status !== "none" && edit.status !== "probing",
+    busy: Boolean(edit.command || edit.sketch || edit.picking || edit.saving),
+  };
+}
+
+/**
  * The layout and the way to change it, from the shell's services: `preferences` (the tab's
  * settings) and `onPreferenceChange` (its writer).
  * @param {{ preferences?: { editLayout?: string } | null, onPreferenceChange?: (patch: object) => void }} services
