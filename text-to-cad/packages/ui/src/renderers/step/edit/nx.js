@@ -1,9 +1,9 @@
 /**
  * Edit mode in Siemens NX's words: the CAD program the people asking for it knew best ("really
  * similar to NX", 2026-10-23). Its commands as NX's ribbon names them, its features as NX's Part
- * Navigator lists them ("Extrude (2)", an Edge Blend where a fillet is), the ribbon's tabs and
- * groups, and Extrude's Boolean. What the screen says only: the script, and the notes the agent
- * reads with the person's next message, keep their own names.
+ * Navigator lists them ("Extrude (2)", an Edge Blend where a fillet is), the toolbar's tabs and
+ * groups (Fusion's arrangement), and Extrude's Boolean. What the screen says only: the script, and
+ * the notes the agent reads with the person's next message, keep their own names.
  */
 import { PLANE_AXES } from "./editMode.js";
 
@@ -31,14 +31,33 @@ export function booleanOf(id) {
   return null;
 }
 
-/** NX's Home tab: its groups and the modeling commands each holds (a subtracting one opens by its Boolean). */
-export const NX_GROUPS = Object.freeze([
-  { title: "Feature", commands: ["extrude", "revolve", "hole", "rib", "sweep", "loft"] },
-  { title: "Detail Feature", commands: ["fillet", "chamfer", "draft", "shell"] },
-  { title: "Associative Copy", commands: ["pattern", "mirror"] },
-  { title: "Trim", commands: ["split", "delete_body"] },
-  { title: "Datum", commands: ["plane"] },
+/**
+ * The Solid tab's groups, in Fusion's arrangement with NX's names. A group is its title, what it
+ * holds (modeling commands by their `EDIT_COMMANDS` id, "sketch", or a tool of the viewer or the
+ * agent: "measure", "clip", "references", "ask", "add-context", "annotate"), and how many of them
+ * show as buttons (`shown`); the group's title is its menu, with every one. A subtracting command
+ * (Extruded Cut...) is not listed: it opens by its unite command's Boolean.
+ */
+export const SOLID_GROUPS = Object.freeze([
+  { title: "Create", items: ["sketch", "extrude", "revolve", "sweep", "loft", "rib", "hole", "pattern", "mirror"], shown: 4 },
+  { title: "Modify", items: ["fillet", "chamfer", "shell", "draft", "split", "delete_body"], shown: 3 },
+  { title: "Construct", items: ["plane"], shown: 1 },
+  { title: "Inspect", items: ["measure", "clip"], shown: 2 },
+  { title: "Select", items: ["references"], shown: 1 },
+  { title: "Ask the agent", items: ["ask", "add-context", "annotate"], shown: 3 },
 ]);
+
+const TAB_TITLES = Object.freeze({ solid: "Solid", sketch: "Sketch", inspect: "Inspect", assemble: "Assemble", drafting: "Drafting" });
+
+/**
+ * The toolbar's tabs, in order, each `{ id, title }`: Solid, Sketch and Inspect; Assemble for an
+ * assembly (`assembly`); Drafting where a drawing's sheet has commands to offer (`drawing`). While a
+ * sketch is edited (`sketching`) its task environment has the Sketch tab alone.
+ */
+export function workspaceTabs({ assembly = false, sketching = false, drawing = false } = {}) {
+  const ids = sketching ? ["sketch"] : ["solid", "sketch", "inspect", ...(assembly ? ["assemble"] : []), ...(drawing ? ["drafting"] : [])];
+  return ids.map(id => ({ id, title: TAB_TITLES[id] }));
+}
 
 // A feature's kind as the Part Navigator names it; a kind not here keeps its own.
 export const NX_KINDS = Object.freeze({

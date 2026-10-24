@@ -435,9 +435,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   it puts it back on Studio's own setup. Trap: Codex shows no models from a plain OpenAI model
   list, so the server answers the model list from Codex's own catalog (`npm run catalog` there).
 - **Edit by hand reads like NX** (Amy, 2026-10-23: "really similar to NX", her team's CAD at
-  Apple), in NX's words and layout over the SolidWorks-built machinery below (`edit/nx.js`): a
-  ribbon of tabs (Home, Analysis, View, Assemblies, Drafting) with Undo and Redo first, Home's
-  groups Direct Sketch, Feature, Detail Feature, Associative Copy, Trim and Datum; one Extrude
+  Apple), in NX's words over the SolidWorks-built machinery below (`edit/nx.js`), with a toolbar
+  laid out as Fusion's: tabs Solid, Sketch and Inspect (Assemble in an assembly, Drafting for the
+  part's sheet) with Undo and Redo at the tab row's left, Solid's groups Create, Modify,
+  Construct, Inspect and Select, each showing its most-used commands as buttons and the whole
+  group in its title's menu; one Extrude
   (and Revolve, Sweep along Guide, Through Curves) whose Boolean, Unite or Subtract, opens the
   cut command with what was typed; dialogs with OK, Apply and Cancel at their foot; a Part
   Navigator numbering features as NX does ("Extrude (2)", an Edge Blend for a fillet), a box on

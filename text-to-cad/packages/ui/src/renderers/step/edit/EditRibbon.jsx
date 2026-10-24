@@ -10,17 +10,17 @@ import {
   DropdownMenuTrigger
 } from "@text-to-cad/ui/primitives/dropdown-menu";
 import { Progress } from "@text-to-cad/ui/primitives/progress";
+import { ToolbarButton } from "@text-to-cad/ui/primitives/toolbar-button";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { AppearanceIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, InterferenceIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, RedoIcon, SketchIcon, UndoIcon } from "./cadIcons.jsx";
+import { AddContextIcon, AppearanceIcon, AskIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, InterferenceIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, ExpressionsIcon, MassPropertiesIcon, MateIcon, RedoIcon, SketchIcon, UndoIcon } from "./cadIcons.jsx";
 import { EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_FAMILIES, SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
-import { NX_GROUPS, booleanOf, nxCommand } from "./nx.js";
+import { SOLID_GROUPS, booleanOf, nxCommand, workspaceTabs } from "./nx.js";
 
-// The viewer's tools the ribbon's tabs place, by id, under NX's names (Clip is NX's Edit Section).
-const PLACED_TOOLS = Object.freeze(["references", "measure", "clip", "exploded", "annotate"]);
+// The viewer's tools the tabs place, by id, under NX's names (Clip is NX's Edit Section).
 const LABELS = Object.freeze({ clip: "Edit Section", references: "Select", exploded: "Exploded Views" });
 // A sketch tool family's button name, as NX's flyouts are named.
 const FAMILY_NAMES = Object.freeze({ rectangle: "Rectangle", circle: "Circle", arc: "Arc", slot: "Slot", move_entities: "Move Curve" });
@@ -30,6 +30,10 @@ const BUTTON_CLASS = "flex h-[3.875rem] min-w-12 flex-col items-center justify-s
 // A long name wraps to two lines under its icon, as SolidWorks' CommandManager sets them; without
 // names (`compact`) the buttons narrow to their icons.
 const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]";
+// A tab: its name in capitals, the one in front underlined.
+const TAB_CLASS = "flex items-center border-b-2 border-transparent px-2.5 text-tiny uppercase leading-none tracking-wider text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45";
+// A group's title, in capitals under its buttons; where it is the group's menu it is a button too.
+const TITLE_CLASS = "text-micro uppercase leading-3 tracking-wider text-muted-foreground";
 // Sketch mode's tools, as SolidWorks' Sketch tab groups them: what draws, then what changes what is drawn.
 // A family (`SKETCH_FAMILIES`) is one button and a flyout, by its first tool's id.
 const SKETCH_ENTITIES = ["line", "rectangle", "circle", "arc", "slot", "polygon", "spline", "centerline", "point"];
@@ -40,7 +44,7 @@ const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Unde
 const MORE_WIDTH_PX = 46;
 const ALL_NAMED = Object.freeze({ compact: false, count: Infinity });
 
-function RibbonButton({ label, icon, active = false, disabled = false, description, onClick, compact = false, hint }) {
+function RibbonButton({ label, icon, active, disabled = false, description, onClick, compact = false, hint }) {
   return <TooltipHint content={hint || label}>
     <button type="button" aria-label={label} aria-pressed={active} aria-description={description} disabled={disabled}
       className={cn(BUTTON_CLASS, active && "bg-sidebar-accent text-sidebar-accent-foreground", compact && "min-w-9 justify-center pt-0")}
@@ -51,11 +55,12 @@ function RibbonButton({ label, icon, active = false, disabled = false, descripti
   </TooltipHint>;
 }
 
-function RibbonGroup({ title, folded = false, children }) {
+/** A group: its buttons over its title, which is its menu (`menu`) where the group has one. */
+function RibbonGroup({ title, folded = false, menu = null, children }) {
   return <div role="group" aria-label={title} aria-hidden={folded || undefined} data-cad-ribbon-group=""
     className={cn("flex shrink-0 flex-col items-center border-r border-border px-1 last:border-r-0", folded && "invisible")}>
     <div className="flex items-center gap-0.5 pt-1">{children}</div>
-    <span className="pb-1 pt-0.5 text-micro uppercase leading-3 tracking-wider text-muted-foreground">{title}</span>
+    {menu || <span className={cn(TITLE_CLASS, "pb-1 pt-0.5")}>{title}</span>}
   </div>;
 }
 
@@ -123,6 +128,31 @@ function FamilyMenu({ label, items, onPick }) {
   </DropdownMenu>;
 }
 
+/** A group's items as a menu lists them, each with its icon: a tool or command in hand is ticked. */
+function GroupItems({ items }) {
+  return items.flatMap(item => item.variants || [item]).map(item => typeof item.active === "boolean"
+    ? <DropdownMenuCheckboxItem key={item.id} checked={item.active} disabled={item.disabled} onSelect={() => item.onClick()}>
+      {item.icon}{item.label}
+    </DropdownMenuCheckboxItem>
+    : <DropdownMenuItem key={item.id} disabled={item.disabled} onSelect={() => item.onClick()}>{item.icon}{item.label}</DropdownMenuItem>);
+}
+
+/** A group's title as its menu, as Fusion's toolbar has them: a small arrow after the title, every item of the group in the menu. */
+function GroupMenu({ title, items }) {
+  return <DropdownMenu modal={false}>
+    <DropdownMenuTrigger asChild>
+      <button type="button" className={cn(TITLE_CLASS, "mb-1 mt-0.5 flex items-center gap-0.5 rounded-sm px-1 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 aria-expanded:bg-sidebar-accent")}>
+        {title}<ChevronDown className="size-2.5 shrink-0" aria-hidden="true" />
+      </button>
+    </DropdownMenuTrigger>
+    {/* Closes with no exit animation, so a quick second press always reaches the title. */}
+    <DropdownMenuContent align="start" sideOffset={4} collisionPadding={8} aria-label={title}
+      className={cn(FLOATING_SURFACE_CLASS, "w-56 data-[state=closed]:animate-none!")}>
+      <GroupItems items={items} />
+    </DropdownMenuContent>
+  </DropdownMenu>;
+}
+
 /** The groups that did not fit, as one menu: each group's title, then its commands. */
 function MoreMenu({ groups }) {
   return <DropdownMenu modal={false}>
@@ -139,67 +169,79 @@ function MoreMenu({ groups }) {
       {groups.map((group, index) => <Fragment key={group.title}>
         {index ? <DropdownMenuSeparator /> : null}
         <DropdownMenuLabel className="text-micro uppercase tracking-wider text-muted-foreground">{group.title}</DropdownMenuLabel>
-        {group.items.flatMap(item => item.variants || [item]).map(item => typeof item.active === "boolean"
-          ? <DropdownMenuCheckboxItem key={item.id} checked={item.active} disabled={item.disabled} onSelect={() => item.onClick()}>
-            {item.icon}{item.label}
-          </DropdownMenuCheckboxItem>
-          : <DropdownMenuItem key={item.id} disabled={item.disabled} onSelect={() => item.onClick()}>{item.icon}{item.label}</DropdownMenuItem>)}
+        <GroupItems items={group.items} />
       </Fragment>)}
     </DropdownMenuContent>
   </DropdownMenu>;
 }
 
+// The buttons a group draws: its first `shown` items, all of them where the group has no menu of its own.
+const shownItems = group => (group.shown === undefined ? group.items : group.items.slice(0, group.shown));
+
 /**
- * The ribbon's groups (`{ title, items }`, each item a button's `{ id, label, icon, active?,
+ * The ribbon's groups (`{ title, items, shown? }`, each item a button's `{ id, label, icon, active?,
  * disabled?, description?, menu?, onClick }`) in one row, and what does not fit in its More menu.
+ * A group with `shown` draws that many of its items as buttons and its title as a menu of all of
+ * them; one without draws them all, under a plain title.
  */
 function RibbonGroups({ groups }) {
   const rowRef = useRef(null);
   const moreRef = useRef(null);
-  const key = groups.map(group => `${group.title}:${group.items.map(item => item.label).join(",")}`).join("|");
+  const key = groups.map(group => `${group.title}:${shownItems(group).map(item => item.label).join(",")}`).join("|");
   const fit = useRibbonFit(rowRef, moreRef, key);
   const folded = groups.slice(fit.count);
   return <>
     <div ref={rowRef} data-compact={fit.compact ? "true" : "false"} className="relative flex min-w-0 flex-1 items-stretch overflow-hidden">
-      {groups.map((group, index) => <RibbonGroup key={group.title} title={group.title} folded={index >= fit.count}>
+      {groups.map((group, index) => <RibbonGroup key={group.title} title={group.title} folded={index >= fit.count}
+        menu={group.shown === undefined ? null : <GroupMenu title={group.title} items={group.items} />}>
         {/* A tool's settings (Select's filter) are its chevron after its button, as on the strip. */}
-        {group.items.map(({ id, menu, ...item }) => <Fragment key={id}><RibbonButton {...item} compact={fit.compact} />{menu || null}</Fragment>)}
+        {shownItems(group).map(({ id, menu, ...item }) => <Fragment key={id}><RibbonButton {...item} compact={fit.compact} />{menu || null}</Fragment>)}
       </RibbonGroup>)}
     </div>
     {folded.length ? <div ref={moreRef} className="flex shrink-0 flex-col items-center border-x border-border px-1" data-cad-ribbon-more="">
       <div className="flex items-center pt-1"><MoreMenu groups={folded} /></div>
-      <span className="pb-1 pt-0.5 text-micro uppercase leading-3 tracking-wider text-muted-foreground">More</span>
+      <span className={cn(TITLE_CLASS, "pb-1 pt-0.5")}>More</span>
     </div> : null}
   </>;
 }
 
 /**
- * Edit mode's ribbon, across the top of the viewer as NX's: its tabs along the top, each with Undo
- * and Redo of the hand changes first. Home holds the selection, Sketch (a new sketch, or Edit
- * Sketch on the one selected) and the modeling commands in NX's groups and names (Feature:
- * Extrude, Revolve, Hole...; Detail Feature: Edge Blend, Chamfer...), each opening its dialog;
- * Analysis, View, Assemblies and Drafting hold the rest, and the viewer's tools the strip over the
- * model would otherwise hold. While a sketch is edited it holds the sketch's tools instead, as
- * NX's sketch task environment does: Finish Sketch, the curves to draw and edit (Quick Trim,
- * Offset Curve...), Rapid Dimension, and the features to make of it. The part's units and where
- * its build stands, or the sketch and how defined it is, sit at its right end. A narrow view keeps
- * the icons and drops the names, then folds the groups at the right into a More menu.
+ * Edit mode's toolbar, across the top of the viewer: Fusion's arrangement in NX's words. Its tab
+ * row has Undo and Redo of the hand changes at the left, the tabs after them, and at the right the
+ * part's units and where its build stands (or the sketch and how defined it is). Solid holds the
+ * modeling commands in groups (`SOLID_GROUPS`: Create, Modify, Construct), each opening its
+ * dialog, then Measure and Edit Section, Select, and the agent's Ask and Add to context. Sketch
+ * holds the Sketch command (Edit Sketch on a sketch selected); Inspect measures and checks the
+ * part, orients and colors its view and lists its Expressions; Assemble, for an assembly, holds
+ * Assembly Constraints and Exploded Views; Drafting the part's drawing. A group shows its
+ * most-used commands as buttons over its title, which is its menu of them all. While a sketch is
+ * edited the Sketch tab alone is up, holding the sketch's tools as NX's sketch task environment
+ * does: Finish Sketch (back to Solid), the curves to draw and edit (Quick Trim, Offset Curve...),
+ * Rapid Dimension, and the features to make of it. A narrow view keeps the icons and drops the
+ * names, then folds the groups at the right into a More menu.
  *
  * @param {{ tools: import("../../kit/tools/FloatingToolBar.js").ViewportTool[],
  *   edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onCommand?: (id: string) => void,
- *   onSketch?: () => void, sketchLabel?: string, onNormalTo?: (() => void) | null }} props
+ *   onSketch?: () => void, sketchLabel?: string, onNormalTo?: (() => void) | null,
+ *   onAsk?: (() => void) | null, onAddContext?: (() => void) | null }} props
  *   `onCommand` opens a command (the surface turns Select to what it picks); `onSketch` is the
- *   Sketch button (`sketchLabel`: "Edit Sketch" while a sketch is selected).
+ *   Sketch button (`sketchLabel`: "Edit Sketch" while a sketch is selected); `onAsk` and
+ *   `onAddContext` are the agent's buttons, each left out (and the group with them) while the host
+ *   gives none.
  */
 export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id), onSketch = () => edit.startPicking(), sketchLabel = "Sketch",
-  canOpenParts = false, onNormalTo = null }) {
+  canOpenParts = false, onNormalTo = null, onAsk = null, onAddContext = null }) {
   const byId = new Map(tools.map(tool => [tool.id, tool]));
-  const placedTools = new Set(PLACED_TOOLS);
-  const others = tools.filter(tool => !placedTools.has(tool.id));
-  // The ribbon tab in front, as NX keeps it while the part is open.
-  const [tab, setTab] = useState("home");
+  // The tab in front, as NX keeps it while the part is open.
+  const [tab, setTab] = useState("solid");
   const state = edit.state;
   const sketch = edit.sketch;
+  // A sketch ends, Finish Sketch or not: the toolbar returns to Solid, not to the tab the sketch was opened from.
+  const [sketched, setSketched] = useState(Boolean(sketch));
+  if (sketched !== Boolean(sketch)) {
+    setSketched(Boolean(sketch));
+    if (!sketch) setTab("solid");
+  }
   // Each sketch tool family's tool last picked from its flyout, shown as its button.
   const [lastOfFamily, setLastOfFamily] = useState({});
   // What it is busy with, said with a spinner and a line along the ribbon's foot, as a CAD tool's
@@ -217,31 +259,31 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   const commandIcon = id => { const Icon = COMMAND_ICONS[id]; return <Icon aria-hidden="true" />; };
   const toolItem = tool => ({ id: tool.id, label: LABELS[tool.id] || tool.label, icon: tool.icon, active: tool.active === true,
     disabled: tool.disabled, description: tool.description, menu: tool.menu, onClick: () => tool.onSelect() });
-  const edits = { title: "Edit", items: [
-    { id: "undo", label: "Undo", icon: <UndoIcon />, disabled: !edit.canUndo, onClick: () => void edit.undo() },
-    { id: "redo", label: "Redo", icon: <RedoIcon />, disabled: !edit.canRedo, onClick: () => void edit.redo() },
-  ] };
-  // NX's ribbon: its tabs along the top (Home, Analysis, View...), the tab in front's groups under them.
-  const tabRow = (list, active, onPick) => <div role="tablist" aria-label="Ribbon tabs" data-cad-ribbon-tabs=""
-    className="flex h-6 shrink-0 items-end gap-0.5 border-b border-border px-1.5">
-    {list.map(each => <button key={each.id} type="button" role="tab" aria-selected={each.id === active}
-      className={cn("h-full rounded-t-md px-2.5 text-tiny leading-none text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45",
-        each.id === active && "bg-sidebar-accent font-medium text-foreground")}
-      onClick={() => onPick(each.id)}>{each.title}</button>)}
+  // The tab row: Undo and Redo as small icons at its left, the tabs, and at its right where the part stands.
+  const tabRow = (list, active, onPick, end) => <div data-cad-ribbon-tabs="" className="flex h-7 shrink-0 items-center gap-0.5 border-b border-border px-1.5">
+    <div className="flex shrink-0 items-center gap-0.5 pr-2">
+      <ToolbarButton label="Undo" disabled={!edit.canUndo} onClick={() => void edit.undo()}><UndoIcon className="size-4" /></ToolbarButton>
+      <ToolbarButton label="Redo" disabled={!edit.canRedo} onClick={() => void edit.redo()}><RedoIcon className="size-4" /></ToolbarButton>
+    </div>
+    <div role="tablist" aria-label="Ribbon tabs" className="flex h-full shrink-0 items-stretch gap-0.5">
+      {list.map(each => <button key={each.id} type="button" role="tab" aria-selected={each.id === active}
+        className={cn(TAB_CLASS, each.id === active && "border-info font-medium text-foreground")}
+        onClick={() => onPick(each.id)}>{each.title}</button>)}
+    </div>
+    <div className="ml-auto flex min-w-0 items-center gap-2 pl-2 text-tiny leading-4" aria-live="polite">{end}</div>
   </div>;
-  const ribbon = (label, groups, end, sketching = false, tabs = null, key = label) => <div data-cad-ribbon="" data-cad-sketch-ribbon={sketching ? "" : undefined}
+  const ribbon = (label, groups, end, { tabs, active, onPick, key = label, sketching = false }) => <div data-cad-ribbon="" data-cad-sketch-ribbon={sketching ? "" : undefined}
     aria-busy={busy ? true : undefined}
     className="relative flex min-h-0 shrink-0 flex-col overflow-hidden border-b border-border bg-background" role="toolbar" aria-label={label}>
-    {tabs}
+    {tabRow(tabs, active, onPick, end)}
     <div className="flex min-h-0 items-stretch overflow-hidden">
       <RibbonGroups key={key} groups={groups} />
-      <div className="flex shrink-0 flex-col items-end justify-center gap-0.5 px-2 text-tiny leading-4" aria-live="polite">{end}</div>
     </div>
     {busy ? <Progress value={busy.progress} className="absolute inset-x-0 bottom-0" aria-label={busy.text} /> : null}
   </div>;
-  const statusLine = (text, failed = false) => <span className={cn("flex items-center gap-1",
+  const statusLine = (text, failed = false) => <span className={cn("flex min-w-0 items-center gap-1",
     busy ? "text-foreground" : failed ? "text-destructive" : "text-muted-foreground")}>
-    {busy ? <LoaderCircle className="size-3.5 shrink-0 animate-spin" aria-hidden="true" /> : null}{text}
+    {busy ? <LoaderCircle className="size-3.5 shrink-0 animate-spin" aria-hidden="true" /> : null}<span className="truncate">{text}</span>
   </span>;
 
   if (sketch) {
@@ -278,7 +320,6 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     const allConstruction = chosen.length > 0 && chosen.every(id => sketch.state.curves.find(curve => curve.id === id)?.construction);
     const sketchStatus = sketch.state?.status || "Not solved";
     return ribbon("Sketch", [
-      edits,
       { title: "Sketch", items: [
         { id: "exit", label: "Finish Sketch", icon: <ExitSketchIcon />, disabled: edit.saving, onClick: () => void edit.exitSketch() },
         { id: "normal", label: "Orient View to Sketch", icon: <NormalToIcon />, onClick: edit.lookNormalTo },
@@ -300,8 +341,8 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
           onClick: async () => { const reply = await edit.exitSketch(); if (reply?.ok) onCommand(command.id); } })) },
     ], <>
       {statusLine(edit.saving ? "Solving" : `Editing ${sketch.name}`)}
-      <span className={cn("text-micro", STATUS_CLASSES[sketchStatus] || "text-destructive")}>{sketchStatus}</span>
-    </>, true, tabRow([{ id: "sketch", title: "Sketch" }], "sketch", () => {}));
+      <span className={cn("shrink-0 text-micro", STATUS_CLASSES[sketchStatus] || "text-destructive")}>{sketchStatus}</span>
+    </>, { sketching: true, tabs: workspaceTabs({ sketching: true }), active: "sketch", onPick: () => {} });
   }
 
   const commandItem = command => {
@@ -309,62 +350,65 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     return { id: command.id, label: nxCommand(command), icon: commandIcon(command.id), active: open, disabled: modelingOff,
       description: placingWords, onClick: () => (open ? edit.close() : onCommand(command.id)) };
   };
+  // Sketch, or Edit Sketch on the one selected: a new sketch waits for its plane, and a press again gives it up.
+  const sketchCommand = { id: "sketch", label: sketchLabel, icon: <SketchIcon />, active: edit.picking, disabled: modelingOff,
+    description: placingWords, onClick: () => (edit.picking ? edit.stopPicking() : onSketch()) };
   // A panel the ribbon opens beside the tree (Measure Bodies, Draft Analysis...), and closes again.
   const panelItem = (id, label, icon, what, disabled = edit.status !== "ready") => ({ id, label, icon, active: edit.inspecting === what, disabled,
     onClick: () => (edit.inspecting === what ? edit.stopInspecting() : edit.inspect(what)) });
   const viewerTool = id => (byId.has(id) ? [toolItem(byId.get(id))] : []);
+  // What a SOLID_GROUPS item is, drawn: the Sketch command, a modeling command, the agent's Ask or Add to
+  // context where the host gives them, or a tool of the viewer's strip (Measure, Edit Section, Select).
+  // Annotate has no button until the pencil is placed here, so nothing draws it.
+  const solidItems = id => {
+    if (id === "sketch") return [sketchCommand];
+    const command = EDIT_COMMANDS.find(each => each.id === id);
+    if (command) return [commandItem(command)];
+    if (id === "ask") return onAsk ? [{ id, label: "Ask", icon: <AskIcon />, onClick: () => onAsk() }] : [];
+    if (id === "add-context") return onAddContext ? [{ id, label: "Add to context", icon: <AddContextIcon />, onClick: () => onAddContext() }] : [];
+    return viewerTool(id);
+  };
   const drawing = placing ? [] : state?.drawing ? [
     panelItem("drawing", "Drawing", <DrawingIcon />, "drawing"),
     { id: "edit-sheet", label: "Edit Sheet", icon: <EditSheetIcon />, active: Boolean(edit.sheetView), disabled: edit.status !== "ready",
       onClick: () => (edit.sheetView ? edit.closeSheet() : void edit.openSheet(1)) }]
     : [{ id: "make-drawing", label: "New Sheet", icon: <DrawingIcon />, disabled: edit.status !== "ready" || edit.saving,
       onClick: async () => { const reply = await edit.drawing({ make: true }); if (reply?.ok) edit.inspect("drawing"); } }];
-  // NX's tabs, each with Undo and Redo first as its Quick Access Toolbar keeps them.
-  const tabs = [
-    // Home: the selection, a sketch, and the modeling commands in NX's groups (Feature, Detail Feature...).
-    { id: "home", title: "Home", groups: [
-      edits,
-      { title: "Selection", items: viewerTool("references") },
-      { title: "Direct Sketch", items: [{ id: "sketch", label: sketchLabel, icon: <SketchIcon />, active: edit.picking, disabled: modelingOff,
-        description: placingWords, onClick: () => (edit.picking ? edit.stopPicking() : onSketch()) }] },
-      ...NX_GROUPS.map(group => ({ title: group.title, items: group.commands.map(id => EDIT_COMMANDS.find(command => command.id === id))
-        .filter(Boolean).map(commandItem) })),
-    ] },
-    // Analysis: what measures and checks the part.
-    { id: "analysis", title: "Analysis", groups: [
-      edits,
-      { title: "Measure", items: [...viewerTool("measure"), panelItem("mass", "Measure Bodies", <MassPropertiesIcon aria-hidden="true" />, "mass")] },
-      { title: "Shape", items: placing ? [] : [panelItem("draft-analysis", "Draft Analysis", <DraftAnalysisIcon aria-hidden="true" />, "draft")] },
-      { title: "Check", items: [panelItem("interference", "Simple Interference", <InterferenceIcon aria-hidden="true" />, "interference"),
-        ...(placing ? [] : [panelItem("compare", "Compare", <CompareIcon aria-hidden="true" />, "compare")])] },
-    ] },
-    // View: how the part is seen.
-    { id: "view", title: "View", groups: [
-      edits,
-      { title: "Orientation", items: [{ id: "normal-to", label: "Orient View", icon: <NormalToIcon />,
-        disabled: !onNormalTo, hint: "Orient View: look straight at the face or plane selected",
-        description: onNormalTo ? undefined : "Select a flat face, or a plane in the Part Navigator, to look straight at it.",
-        onClick: () => onNormalTo?.() }] },
-      { title: "Visibility", items: viewerTool("clip") },
-      { title: "Display", items: placing ? [] : [panelItem("appearance", "Edit Object Display", <AppearanceIcon />, "appearance")] },
-      { title: "Markup", items: viewerTool("annotate") },
-      { title: "Tools", items: others.map(toolItem) },
-    ] },
-    // Assemblies: an assembly's parts placed by Assembly Constraints, and its exploded views.
-    { id: "assemblies", title: "Assemblies", groups: [
-      edits,
-      { title: "Constraints", items: placing ? [panelItem("mate", "Assembly Constraints", <MateIcon aria-hidden="true" />, "mate",
-        edit.status !== "ready" || edit.saving)] : [] },
-      { title: "Exploded Views", items: viewerTool("exploded") },
-    ] },
-    // Drafting: the part's drawing.
-    { id: "drafting", title: "Drafting", groups: [edits, { title: "Sheet", items: drawing }] },
-  ].map(each => ({ ...each, groups: each.groups.filter(group => group.items.length) }))
-    // A tab with nothing but Undo and Redo is not offered.
-    .filter(each => each.groups.some(group => group !== edits));
+  // An assembly: it places its parts (Assembly Constraints), or the view has parts to separate (Exploded Views).
+  const tabs = workspaceTabs({ assembly: placing || byId.has("exploded"), drawing: drawing.length > 0 });
   const front = tabs.find(each => each.id === tab) || tabs[0];
-  return ribbon("Design", front.groups, <>
+  // Solid's groups (`SOLID_GROUPS`) show their most-used commands as buttons; the other tabs' groups are small
+  // enough to show every one (`whole`). Every group's title is its menu all the same.
+  const whole = (title, items) => ({ title, items, shown: items.length });
+  const groupsOf = {
+    solid: () => SOLID_GROUPS.map(group => ({ title: group.title, items: group.items.flatMap(solidItems), shown: group.shown })),
+    sketch: () => [whole("Direct Sketch", [sketchCommand])],
+    // Inspect: what measures and checks the part, how it is seen, and the part's named sizes.
+    inspect: () => [
+      whole("Measure", [...viewerTool("measure"), panelItem("mass", "Measure Bodies", <MassPropertiesIcon />, "mass")]),
+      whole("Analyze", [
+        ...(placing ? [] : [panelItem("draft-analysis", "Draft Analysis", <DraftAnalysisIcon />, "draft")]),
+        panelItem("interference", "Simple Interference", <InterferenceIcon />, "interference"),
+        ...(placing ? [] : [panelItem("compare", "Compare", <CompareIcon />, "compare")])]),
+      whole("Section", viewerTool("clip")),
+      whole("Display", [
+        { id: "normal-to", label: "Orient View", icon: <NormalToIcon />,
+          disabled: !onNormalTo, hint: "Orient View: look straight at the face or plane selected",
+          description: onNormalTo ? undefined : "Select a flat face, or a plane in the Part Navigator, to look straight at it.",
+          onClick: () => onNormalTo?.() },
+        ...(placing ? [] : [panelItem("appearance", "Edit Object Display", <AppearanceIcon />, "appearance")])]),
+      whole("Expressions", [panelItem("expressions", "Expressions", <ExpressionsIcon />, "expressions", false)]),
+    ],
+    // Assemble: an assembly's parts placed by Assembly Constraints, and its exploded views.
+    assemble: () => [
+      whole("Constraints", placing ? [panelItem("mate", "Assembly Constraints", <MateIcon />, "mate", edit.status !== "ready" || edit.saving)] : []),
+      whole("Exploded Views", viewerTool("exploded")),
+    ],
+    // Drafting: the part's drawing.
+    drafting: () => [whole("Sheet", drawing)],
+  };
+  return ribbon("Design", groupsOf[front.id]().filter(group => group.items.length), <>
     {statusLine(status, Boolean(state?.building?.error))}
-    {state?.units ? <span className="text-micro text-muted-foreground/80">{unitWord(state.units)}</span> : null}
-  </>, false, tabRow(tabs, front.id, setTab), `Design:${front.id}`);
+    {state?.units ? <span className="shrink-0 text-micro text-muted-foreground/80">{unitWord(state.units)}</span> : null}
+  </>, { tabs, active: front.id, onPick: setTab, key: `Design:${front.id}` });
 }

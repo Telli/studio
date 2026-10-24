@@ -97,7 +97,7 @@ test("draws the strip's tools the workspace shows, each showing what it has in h
 test("draws the toolbar's other buttons and their panels from the generator, each its own", () => {
   const icons = [cad.SketchIcon, cad.ExitSketchIcon, cad.MassPropertiesIcon, cad.DraftAnalysisIcon, cad.InterferenceIcon,
     cad.CompareIcon, cad.AppearanceIcon, cad.MateIcon, cad.DrawingIcon, cad.EditSheetIcon, NormalToIcon, ConstructionIcon,
-    cad.UndoIcon, cad.RedoIcon, cad.DeleteDimensionIcon];
+    cad.UndoIcon, cad.RedoIcon, cad.DeleteDimensionIcon, cad.ExpressionsIcon, cad.AskIcon, cad.AddContextIcon];
   const names = icons.map((Icon, index) => drawnName(Icon, `icon ${index}`));
   assert.equal(new Set(names).size, names.length);
   // The drawing's sheet dimensions as a sketch does; its Undo and Redo are the ribbon's.

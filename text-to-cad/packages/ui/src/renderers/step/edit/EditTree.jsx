@@ -169,6 +169,30 @@ function AddParameter({ edit, disabled }) {
   </form>;
 }
 
+/**
+ * The part's expressions, as NX's Expressions lists them: each named size with its value typed over
+ * in place (a change is one number in the part's script), then Add expression. The Part Navigator
+ * lists them under the part, and Expressions in the Inspect tab opens the same list as a panel
+ * (`ExpressionsPanel.jsx`).
+ */
+export function ExpressionRows({ edit }) {
+  const params = edit.state?.params || [];
+  const disabled = edit.saving || edit.status !== "ready";
+  return <>
+    {edit.status === "reading" ? <span className="flex items-center gap-1 py-1 text-tiny text-foreground"><LoaderCircle className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />Reading the part</span>
+      : params.length === 0 ? <span className="py-1 text-tiny text-muted-foreground">No expressions yet.</span>
+        : params.map(param => <div key={param.id} className="flex min-h-7 items-center justify-between gap-2 pr-1">
+          <span className="truncate text-tiny text-foreground/80">{sizeName(param.name)}</span>
+          <span className="flex shrink-0 items-center gap-1">
+            <FileSheetValueInput value={param.text} ariaLabel={`${sizeName(param.name)} value`} disabled={disabled}
+              onValueCommit={draft => { const text = String(draft).trim(); if (text && text !== String(param.text)) edit.change({ literal: param.id, text }); }} />
+            <span className="w-4 text-micro text-muted-foreground">{UNIT_MARKS[param.unit] || param.unit || ""}</span>
+          </span>
+        </div>)}
+    {edit.status === "reading" || !edit.addParameter ? null : <AddParameter edit={edit} disabled={disabled} />}
+  </>;
+}
+
 export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPart = null, backTo = null }) {
   const [open, setOpen] = useState(() => new Set(["parameters", "mates", "datum"]));
   // A selection inside a closed part, or a sketch under a closed feature, opens them to it.
@@ -190,7 +214,6 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const treeRef = useRef(null);
   // Where the rollback bar is being dragged to, while it is.
   const [dragged, setDragged] = useState(null);
-  const params = edit.state?.params || [];
   const disabled = edit.saving || edit.status !== "ready";
   const rowProps = { selected: edit.selected, onSelect: edit.select, onHover: edit.hover };
   const name = sizeName(edit.state?.name || "") || "Part";
@@ -313,17 +336,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     {/* The part's named sizes, as NX's Expressions holds them. */}
     <Row id="" depth={1} icon={<ParametersIcon />} title="Expressions" expanded={open.has("parameters")} onToggle={toggle("parameters")} {...rowProps} />
     {open.has("parameters") ? <div role="group" aria-label="Expressions" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>
-      {edit.status === "reading" ? <span className="flex items-center gap-1 py-1 text-tiny text-foreground"><LoaderCircle className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />Reading the part</span>
-        : params.length === 0 ? <span className="py-1 text-tiny text-muted-foreground">No expressions yet.</span>
-          : params.map(param => <div key={param.id} className="flex min-h-7 items-center justify-between gap-2 pr-1">
-            <span className="truncate text-tiny text-foreground/80">{sizeName(param.name)}</span>
-            <span className="flex shrink-0 items-center gap-1">
-              <FileSheetValueInput value={param.text} ariaLabel={`${sizeName(param.name)} value`} disabled={disabled}
-                onValueCommit={draft => { const text = String(draft).trim(); if (text && text !== String(param.text)) edit.change({ literal: param.id, text }); }} />
-              <span className="w-4 text-micro text-muted-foreground">{UNIT_MARKS[param.unit] || param.unit || ""}</span>
-            </span>
-          </div>)}
-      {edit.status === "reading" || !edit.addParameter ? null : <AddParameter edit={edit} disabled={disabled} />}
+      <ExpressionRows edit={edit} />
     </div> : null}
     {/* The origin and its planes, as NX's datum coordinate system: feature 0, before the rest. */}
     <Row id="origin" depth={1} icon={<OriginIcon />} title="Datum Coordinate System (0)" expanded={open.has("datum")} onToggle={toggle("datum")} {...rowProps} />
