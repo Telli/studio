@@ -64,7 +64,7 @@ Not set. The quantity is not decided, and no quote has been asked for; the SendC
 
 - The strength study passes with a safety factor of at least 2: now 3.66.
 - The fit check finds no collision and the horn clears through 60° each way: now none, 1.7 mm at the closest.
-- The bracket passes its sheet metal check and SendCutSend's preflight: both pass now.
+- The bracket passes its sheet metal check and SendCutSend's preflight: both fail now on one count, the cut file's bend line, which is solid where SendCutSend asks for a dashed one.
 - The clip passes its FDM check: it fails now, on thin lips and an open mesh.
 - The first mount passes its test plan (`docs/servo_mount_test_plan.md`): not built yet.
 

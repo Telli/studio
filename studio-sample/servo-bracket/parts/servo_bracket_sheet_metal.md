@@ -1,6 +1,6 @@
 # Servo bracket: sheet metal check
 
-As drawn, the bracket's bend, flanges and holes meet SendCutSend's rules for bending 0.080 in 5052-H32, so nothing has to change. Two things are worth checking on the first part, and one is not known.
+As drawn, the bracket's bend, flanges and holes meet SendCutSend's rules for bending 0.080 in 5052-H32, so the part needs no change. Its cut file does: the bend line is solid, and SendCutSend asks for a dashed one. Two things are worth checking on the first part, and one is not known.
 
 ## Scope
 
@@ -49,7 +49,7 @@ As drawn, the bracket's bend, flanges and holes meet SendCutSend's rules for ben
 | Hole to edge, general guides | The same 1.725 mm web between each tapped hole and the cutout | Protolabs Network: at least the sheet thickness (2.0 mm). Protolabs: 0.125 in (3.175 mm) for sheet over 0.036 in. | review | Under both general rules; SendCutSend's rule governs. The servo sets both the screw holes and the cutout, so the web cannot grow without a different servo pattern. Tap the holes after bending and look for a bulge in the web on the first part. |
 | Hole spacing | 7.0 mm edge to edge across each tab, 44.95 mm along | Protolabs Network: holes at least 2 × thickness (4.0 mm) apart | pass | None |
 | Tap size | M3 × 0.5, in 2.000 mm of sheet | SendCutSend `tapping_specs.smallest_tap` M2 × 0.4, `largest_tap` 1/4-28 | pass | None. The configurator lists the exact sizes. |
-| Cut file | `cut/servo_bracket_cut.dxf`, in millimetres ($INSUNITS 4), 64 × 69.094 mm. Closed CUT contours: the outline, the cutout and six circles. One BEND line runs across the full 64 mm. No duplicates. | cadgen's drawing checks (`validate_dxf_file`: no findings). SendCutSend's ordering guide, Bending: a bend line marks the centre of the bend and runs right across. | pass | None |
+| Cut file | `cut/servo_bracket_cut.dxf`, in millimetres ($INSUNITS 4), 64 × 69.094 mm. Closed CUT contours: the outline, the cutout and six circles. One BEND line runs across the full 64 mm. No duplicates. The BEND layer's linetype is Continuous, a solid line. | cadgen's drawing checks (`validate_dxf_file`: no findings). SendCutSend's ordering guide, Bending: a bend line marks the centre of the bend and runs right across, and its line type depends on the CAD software. SendCutSend's CNC bending page (read 2026-10-24): a dashed bend line in a .dxf or .dwg file. | fail | Make the BEND layer dashed, then run the SendCutSend preflight again (`cut/servo_bracket_sendcutsend.md`). cadgen's `@dxf` writes every layer solid, so the cut file's script can't do it yet. |
 | Bend angle tolerance | 90° bend, 40 mm shelf | SendCutSend `bend_angle_tolerance_up_to_24` ±1° | review | ±1° moves the shelf's front edge up to 0.70 mm (40 × tan 1°). If the servo must sit level, check the bend on the first part. |
 | Grain direction | Not given by the model or the order | None of the sources gives one for this bend | unverified | A bend this tight (inside radius 0.48 × thickness) usually runs across the rolling direction. Ask SendCutSend if it matters. |
 

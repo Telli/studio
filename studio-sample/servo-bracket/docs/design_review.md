@@ -21,8 +21,8 @@ More views: [front](../pictures/servo_mount_front.png), [side](../pictures/servo
 
 ## Requirements met, and not met
 
-- Met in the models and checks: the servo's case fits its cutout (ER-1), it holds 20 N at the horn with a safety factor of 3.66 (ER-3), the sheet and its bend are as required (ER-4, ER-5), the horn turns its whole 120° touching nothing (ER-6), SendCutSend can make it as drawn (ER-7), and the wall holes (ER-8), the load's holes (ER-9) and the robot descriptions (ER-13) are as required.
-- Not met: the cable clip fails its FDM check (ER-10), and the bracket cannot go to SendCutSend as a STEP until it is modelled at the sheet's 2.032 mm (ER-11).
+- Met in the models and checks: the servo's case fits its cutout (ER-1), it holds 20 N at the horn with a safety factor of 3.66 (ER-3), the sheet and its bend are as required (ER-4, ER-5), the horn turns its whole 120° touching nothing (ER-6), and the wall holes (ER-8), the load's holes (ER-9) and the robot descriptions (ER-13) are as required.
+- Not met: the cut file is not ready for SendCutSend, as its bend line is solid where SendCutSend asks for a dashed one (ER-7), the cable clip fails its FDM check (ER-10), and the bracket cannot go to SendCutSend as a STEP until it is modelled at the sheet's 2.032 mm (ER-11).
 - Open: the servo's hole spacing is assumed until a servo is measured (ER-2), and SendCutSend's hole size for tapping M3 is not known (ER-12).
 - Not yet tested: nothing has been made, so the test plan (`docs/servo_mount_test_plan.md`) has not been run.
 
@@ -32,8 +32,8 @@ More views: [front](../pictures/servo_mount_front.png), [side](../pictures/servo
 | --- | --- | --- |
 | Strength, 20 N down at the horn | Passes: 48.9 MPa at the peak, at a corner of the cutout, against 179.3 MPa yield, a safety factor of 3.66. 0.141 mm of movement at most. | `docs/servo_bracket_strength_report.md` |
 | Fit and clearance | No part collides. The tightest gap is 0.217 mm, the servo's case at the cutout's corners. The horn clears everything by 1.699 mm through its travel. | `assemblies/servo_mount_fit.md` |
-| Sheet metal | Every SendCutSend rule passes. For review: the inside radius is under the general guides' 1 × thickness, the 1.725 mm web beside each tapped hole is under their 2.0 mm, and ±1° of bend moves the shelf's edge up to 0.70 mm. The grain direction is unverified. | `parts/servo_bracket_sheet_metal.md` |
-| SendCutSend preflight | Ready to upload as the cut file, in ALU-080 with one bend. The STEP is not ready: it is 2.000 mm against the sheet's 2.032 mm. Nothing was uploaded or ordered. | `cut/servo_bracket_sendcutsend.md` |
+| Sheet metal | The part passes every SendCutSend rule. Its cut file fails one: the bend line is solid, where SendCutSend asks for a dashed one. For review: the inside radius is under the general guides' 1 × thickness, the 1.725 mm web beside each tapped hole is under their 2.0 mm, and ±1° of bend moves the shelf's edge up to 0.70 mm. The grain direction is unverified. | `parts/servo_bracket_sheet_metal.md` |
+| SendCutSend preflight | Needs edits before upload: the cut file's bend line is solid, and SendCutSend asks for a dashed one in a DXF, which cadgen's `@dxf` can't yet write. Every other check passes, in ALU-080 with one bend. The STEP is not ready either: it is 2.000 mm against the sheet's 2.032 mm. Nothing was uploaded or ordered. | `cut/servo_bracket_sendcutsend.md` |
 | FDM printing, the cable clip | Fails on two counts: the channel's lips narrow to 0.37 mm, where a wall that stands free needs 1.6 mm, and its STL is not watertight. No supports needed; it prints standing up. | `parts/cable_clip_fdm.md` |
 | CAM job, the horn adapter | Planned: 9 operations in 2 setups on a 3-axis mill, 2 min 50 s of moves before tool changes. Four tools are held to the machine's 10,000 rpm, under the speed their size and the material call for, so they cut slower. The spline is left to be broached. | `cam/horn_adapter.cam.glb` |
 | Robot descriptions | The URDF, SRDF and SDF all validate, strict. | `robots/servo_mount.urdf` |
@@ -53,7 +53,7 @@ From the FMEA (`docs/fmea.md`), highest first:
 ## Decisions needed
 
 1. Measure a real MG996R before the bracket is ordered, or accept the hole spacing and output axis the parts use.
-2. Order the bracket as the cut file, ready now, or remodel it at 2.032 mm so the STEP can go too.
+2. Order the bracket as the cut file once its bend line is dashed, which cadgen can't yet write, or remodel it at 2.032 mm so it can go as a STEP, which needs no bend line.
 3. Tap the four holes by hand, as planned, or have SendCutSend tap them once its hole size for M3 is known.
 4. Fix the cable clip now, as its FDM check says, which means building the clip, the mount and its fit check again.
 5. Decide who broaches the adapter's spline, and to what size and fit.

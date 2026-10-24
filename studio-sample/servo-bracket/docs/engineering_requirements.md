@@ -1,6 +1,6 @@
 # Servo bracket: engineering requirements
 
-Thirteen requirements, each traced to a line of the PRD (`docs/prd.md`) and verified by analysis, test or inspection. Nine are met in the models and checks, one waits on a real servo, one on SendCutSend, and two are not met: the cable clip and a STEP upload. None has been tested on a real part yet.
+Thirteen requirements, each traced to a line of the PRD (`docs/prd.md`) and verified by analysis, test or inspection. Eight are met in the models and checks, one waits on a real servo, one on SendCutSend, and three are not met: the cut file's bend line, the cable clip and a STEP upload. None has been tested on a real part yet.
 
 ## A table of requirements: ID, requirement, target and tolerance, where it comes from (the PRD's line), how it is verified (analysis, test or inspection), and its status
 
@@ -12,7 +12,7 @@ Thirteen requirements, each traced to a line of the PRD (`docs/prd.md`) and veri
 | ER-4 | The sheet | 5052-H32 aluminium, 0.080 in ±0.005 in (1.905 to 2.159 mm). The model is 2.000 mm. | PRD M3 | Inspection. | Met: 2.000 mm is inside the sheet's tolerance. |
 | ER-5 | The bend | One 90° bend ±1°, inside radius 0.965 mm, SendCutSend's for this sheet. | PRD M3 | Analysis: the sheet metal check. Test: test plan 2. | Met in the model. |
 | ER-6 | The horn's travel | 120°, 60° each way, touching nothing. | PRD M4 | Analysis: the fit check's sweep of the travel. Test: test plan 5. | Met in the model: 1.699 mm at the closest, at every angle. |
-| ER-7 | Made by SendCutSend as drawn | Every rule of SendCutSend's ALU-080 for cutting and bending. | PRD S1 | Analysis: the sheet metal check and the SendCutSend preflight. | Met: every rule passes, and the cut file is ready to upload. |
+| ER-7 | Made by SendCutSend as drawn | Every rule of SendCutSend's ALU-080 for cutting and bending. | PRD S1 | Analysis: the sheet metal check and the SendCutSend preflight. | Not met: the cut file's bend line is solid, and SendCutSend asks for a dashed one in a DXF, which cadgen's `@dxf` can't yet write. Every other rule passes. |
 | ER-8 | The wall holes | Two Ø4.5 mm holes for M4, 52 mm apart, 16 mm below the top of the shelf. Cuts ±0.127 mm, bend to edge ±0.381 mm. | PRD S2 | Inspection: the drawing. Test: test plan 2. | Met in the model. |
 | ER-9 | The load's holes | Four M3 × 0.5 tapped holes on a Ø16 mm circle, in a Ø24 × 8 mm 6061-T6 adapter on the horn's axis. Tolerance not set. | PRD S3 | Inspection. | Met in the model, and its CAM job is planned. The spline in its bore is to be broached, which no job plans yet. |
 | ER-10 | The lead clip | A Ø4 mm channel with a 2.6 mm opening. Walls at least 1.2 mm, and 1.6 mm where they stand free. | PRD S4 | Analysis: the FDM check. Test: test plan 7. | Not met: the channel's lips narrow to 0.37 mm at the thinnest, and the clip's STL is not watertight. |
