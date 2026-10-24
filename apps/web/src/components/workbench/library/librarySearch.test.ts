@@ -4,9 +4,12 @@ import { describe, expect, it } from "vite-plus/test";
 import { LIBRARY_DOCUMENTS, librarySkills } from "./libraryCatalog";
 import { filterLibrary, libraryGroup, validateLibrarySearch } from "./librarySearch";
 
+/** A display name that no document type's own words hold, so only the shown name can find it. */
+const DISPLAY_NAMES: Readonly<Record<string, string>> = { fea: "Finite element analysis" };
+
 const detail = (name: string): PluginSkillDetail => ({
   name,
-  displayName: null,
+  displayName: DISPLAY_NAMES[name] ?? null,
   description: `What ${name} does.`,
   defaultPrompt: null,
 });
@@ -48,6 +51,13 @@ describe("filterLibrary", () => {
   it("finds a document type by the skill that makes it", () => {
     expect(found("sendcutsend")).toContain("doc:order");
     expect(found("dfam-check")).toContain("doc:manufacturing-check");
+  });
+
+  it("finds a document type by its skill's name as the page shows it, and by its own name", () => {
+    expect(found("finite element")).toEqual(
+      expect.arrayContaining(["doc:simulation", "skill:text-to-cad/fea"]),
+    );
+    expect(found("fea")).toContain("doc:simulation");
   });
 
   it("finds a document type by where it is", () => {

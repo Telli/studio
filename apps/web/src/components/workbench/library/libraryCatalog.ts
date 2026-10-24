@@ -6,6 +6,7 @@
  */
 
 import type { InstalledPlugin } from "@t3tools/contracts";
+import { formatProviderSkillDisplayName } from "@t3tools/shared/inlineSkills";
 
 import {
   ACTION_SECTIONS,
@@ -48,6 +49,7 @@ export interface LibrarySkill {
   readonly pluginId: string;
   readonly pluginName: string;
   readonly name: string;
+  /** Its name as the chat shows it: its own display name, else its name title-cased. */
   readonly displayName: string;
   readonly description: string;
   readonly tryAsking: string | null;
@@ -382,11 +384,19 @@ export function entryOfAction(actionId: string): LibraryDocument | null {
   return LIBRARY_DOCUMENTS.find((entry) => entry.actions.includes(actionId)) ?? null;
 }
 
-/** Made by: its skills, a template no skill runs as "the <label> template", else the agent. */
-export function madeBy(entry: LibraryDocument): ReadonlyArray<string> {
+/**
+ * Made by: its skills, each by its name or as `name` shows it (`skillName`), a template no skill
+ * runs as "the <label> template", else the agent.
+ */
+export function madeBy(
+  entry: LibraryDocument,
+  name: (skill: string) => string = (skill) => skill,
+): ReadonlyArray<string> {
   const makers = [
-    ...templatesBehind(entry).map((template) => template.skill ?? `the ${template.label} template`),
-    ...jobsBehind(entry).flatMap((job) => (job.skill === null ? [] : [job.skill])),
+    ...templatesBehind(entry).map((template) =>
+      template.skill === null ? `the ${template.label} template` : name(template.skill),
+    ),
+    ...jobsBehind(entry).flatMap((job) => (job.skill === null ? [] : [name(job.skill)])),
   ];
   return makers.length === 0 ? ["the agent"] : [...new Set(makers)];
 }
@@ -436,6 +446,18 @@ export function ownTemplateEntries(files: ReadonlyArray<NewTemplate>): LibraryDo
   );
 }
 
+/** A skill's name as the chat shows it: its own display name, else its name title-cased. */
+const chatName = (name: string, displayName: string | null) =>
+  formatProviderSkillDisplayName(displayName === null ? { name } : { name, displayName });
+
+/**
+ * A skill's one name wherever the library shows it (its card and detail, Made by, what an entry
+ * needs): as an installed plugin names it, else as the chat would title it.
+ */
+export function skillName(name: string, skills: ReadonlyArray<LibrarySkill>): string {
+  return skills.find((skill) => skill.name === name)?.displayName ?? chatName(name, null);
+}
+
 /** Every skill of every installed plugin, on while its plugin is enabled. */
 export function librarySkills(plugins: ReadonlyArray<InstalledPlugin>): LibrarySkill[] {
   return plugins.flatMap((plugin) =>
@@ -448,7 +470,7 @@ export function librarySkills(plugins: ReadonlyArray<InstalledPlugin>): LibraryS
         pluginId: plugin.id,
         pluginName: plugin.displayName,
         name: detail.name,
-        displayName: detail.displayName ?? detail.name,
+        displayName: chatName(detail.name, detail.displayName),
         description: detail.description,
         tryAsking: (ours ? TRY_ASKING[detail.name] : undefined) ?? detail.defaultPrompt,
         on: plugin.enabled,

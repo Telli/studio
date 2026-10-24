@@ -11,6 +11,7 @@ import {
   type LibraryEntry,
   madeBy,
   showsUpAs,
+  skillName,
 } from "./libraryCatalog";
 
 /** Where a document type is found: New, or the part menu one of its jobs is in. */
@@ -69,14 +70,22 @@ export function libraryGroup(entry: LibraryDocument): LibraryGroup {
   return HARDWARE_ACTIONS.find((job) => job.id === first)?.group ?? "New";
 }
 
-/** What the search box looks through: an entry's name, what it is, its skills and where it is. */
-const searchText = (entry: LibraryEntry) =>
+/**
+ * What the search box looks through: an entry's name, what it is, its skills, by their names and
+ * as the page shows them (`shown`), and where it is.
+ */
+const searchText = (entry: LibraryEntry, shown: (skill: string) => string) =>
   (entry.kind === "document"
-    ? [entry.name, entry.what, ...madeBy(entry), ...findItIn(entry)]
+    ? [entry.name, entry.what, ...madeBy(entry), ...madeBy(entry, shown), ...findItIn(entry)]
     : [entry.name, entry.displayName, entry.description, ...showsUpAs(entry.name)]
   ).join("\n");
 
-/** The entries that hold every word typed, ignoring case, in their order; all of them for none. */
+/**
+ * The entries that hold every word typed, ignoring case, in their order; all of them for none. A
+ * skill is named as the page names it, by the skills among `entries` (`skillName`).
+ */
 export function filterLibrary(entries: ReadonlyArray<LibraryEntry>, query: string): LibraryEntry[] {
-  return entries.filter((entry) => holdsWords(searchText(entry), query));
+  const skills = entries.filter((entry) => entry.kind === "skill");
+  const shown = (skill: string) => skillName(skill, skills);
+  return entries.filter((entry) => holdsWords(searchText(entry, shown), query));
 }

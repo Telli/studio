@@ -18,6 +18,7 @@ import {
   makeOneTemplate,
   ownTemplateEntries,
   showsUpAs,
+  skillName,
   UNLISTED_TEMPLATES,
 } from "./libraryCatalog";
 import libraryExamples from "./libraryExamples.json";
@@ -218,6 +219,27 @@ describe("library catalog", () => {
       on: true,
       example: null,
     });
+  });
+
+  it("gives a skill one name: its plugin's for it, else the chat's title-casing", () => {
+    const skills = librarySkills([
+      plugin("text-to-cad", true, [
+        { ...detail("gcode"), displayName: "G-code" },
+        detail("pcb-dfm"),
+      ]),
+    ]);
+    expect(skills.map((skill) => skill.displayName)).toEqual(["G-code", "Pcb Dfm"]);
+    expect(skillName("gcode", skills)).toBe("G-code");
+    expect(skillName("pcb-dfm", skills)).toBe("Pcb Dfm");
+    // Not installed: no plugin names it, so it reads as the chat would title it.
+    expect(skillName("bambu-labs", skills)).toBe("Bambu Labs");
+    expect(madeBy(doc("doc:print"), (skill) => skillName(skill, skills))).toEqual([
+      "G-code",
+      "Bambu Labs",
+    ]);
+    expect(madeBy(doc("doc:prd"), (skill) => skillName(skill, skills))).toEqual([
+      "the Product requirements (PRD) template",
+    ]);
   });
 
   it("asks something of the sample for each of text-to-cad's skills", () => {

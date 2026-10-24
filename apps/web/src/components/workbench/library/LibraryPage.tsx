@@ -21,9 +21,10 @@ import { Input } from "../../ui/input";
 import { ChatPage } from "../ChatPages";
 import { useDocumentTemplates } from "../documentTemplates";
 import { MENU_ICONS } from "../kinds";
-import { useNewDialogStore } from "../NewDialog";
+import { useNewDialogStore } from "../newDialogStore";
 import type { NewTemplate } from "../newTemplates";
 import { CARD_GRID, OverviewModule } from "../OverviewModules";
+import { useEngineeringInterface } from "../studioInterface";
 import {
   availability,
   findItIn,
@@ -34,6 +35,7 @@ import {
   makeOneTemplate,
   ownTemplateEntries,
   showsUpAs,
+  skillName,
 } from "./libraryCatalog";
 import { LibraryPicture } from "./LibraryPicture";
 import {
@@ -52,9 +54,9 @@ const GROUP_ICONS: Readonly<Record<LibraryGroup, LucideIcon>> = { New: PlusIcon,
 /** A group's place on the page, which `group` in the URL scrolls to. */
 const groupAnchor = (key: string) => `library-${key}`;
 
-/** An entry's name: a document type's as New or the menus say it, a skill's as the chat shows it. */
-const entryName = (entry: LibraryEntry) =>
-  entry.kind === "document" ? entry.name : entry.displayName;
+/** An entry's name: a document type's as New or the menus say it, a skill's as `skillLabel` does. */
+const entryName = (entry: LibraryEntry, skillLabel: (name: string) => string) =>
+  entry.kind === "document" ? entry.name : skillLabel(entry.name);
 
 interface Group {
   readonly key: string;
@@ -115,9 +117,8 @@ function LibraryContent(props: {
     ),
   ].filter((group) => group.entries.length > 0);
 
-  // A skill by the name Studio shows it by (`displayName`), where its plugin is installed.
-  const skillLabel = (name: string) =>
-    skills.find((skill) => skill.name === name)?.displayName ?? name;
+  // Every skill on the page by its one name (`skillName`): cards, details, Made by, what it needs.
+  const skillLabel = (name: string) => skillName(name, skills);
   // Under a card's name: why it can't be made now. Nothing until the plugins are known.
   const offNote = (entry: LibraryEntry) => {
     if (plugins === undefined) return null;
@@ -145,7 +146,9 @@ function LibraryContent(props: {
     }
     void navigate({ to: "/library", search: { ...search, entry: undefined }, replace: true });
   };
-  // New on the template, wherever the library was opened from (Home when from nowhere).
+  // New on the template, back where the library was opened from, else on Home. Offered only where
+  // a New will take the ask: a page that linked here, or the engineering interface's Home.
+  const engineering = useEngineeringInterface();
   const makeOne = (template: NewTemplate) => {
     useNewDialogStore.getState().ask(template.discipline, template.id);
     if (search.from === undefined) void navigate({ to: "/" });
@@ -202,6 +205,7 @@ function LibraryContent(props: {
                     <LibraryCard
                       key={entry.id}
                       entry={entry}
+                      name={entryName(entry, skillLabel)}
                       environmentId={environmentId}
                       note={offNote(entry)}
                       onOpen={() => openEntry(entry.id)}
@@ -227,7 +231,7 @@ function LibraryContent(props: {
             plugins={plugins}
             skillLabel={skillLabel}
             openExample={sample === null ? null : sample.open}
-            onMakeOne={makeOne}
+            onMakeOne={search.from !== undefined || engineering ? makeOne : null}
           />
         )}
       </Dialog>
@@ -238,6 +242,7 @@ function LibraryContent(props: {
 /** An entry as a card, as Home's project tiles are: its picture over its name. A press opens it. */
 function LibraryCard(props: {
   readonly entry: LibraryEntry;
+  readonly name: string;
   readonly environmentId: EnvironmentId;
   /** Why it can't be made now, under its name; null when it can. */
   readonly note: string | null;
@@ -258,9 +263,7 @@ function LibraryCard(props: {
         />
       </span>
       <span className="flex min-w-0 flex-col gap-0.5 px-3 py-2">
-        <span className="truncate text-sm font-medium text-foreground">
-          {entryName(props.entry)}
-        </span>
+        <span className="truncate text-sm font-medium text-foreground">{props.name}</span>
         {props.note === null ? null : (
           <span className="truncate text-xs text-muted-foreground">{props.note}</span>
         )}
@@ -278,7 +281,8 @@ function PluginsLink() {
  * An entry's detail: its picture large, what it is, then a document type's You give, It asks you
  * first, You get, Made by and Find it in, or a skill's Try asking and Shows up as. See the example
  * opens its example in the sample project, where the sample can be copied; Make one opens New on
- * its template, where it can be made. One that can't be made says which skill it needs and why.
+ * its template, where it can be made and a New will take the ask. One that can't be made says
+ * which skill it needs and why.
  */
 function EntryDetail(props: {
   readonly entry: LibraryEntry;
@@ -288,13 +292,17 @@ function EntryDetail(props: {
   readonly skillLabel: (name: string) => string;
   /** Opens a file of the sample project (`useSampleProject`); null where it can't be copied. */
   readonly openExample: ((file: string) => Promise<boolean>) | null;
-  readonly onMakeOne: (template: NewTemplate) => void;
+  /** Opens New on a template; null where no New would take it. */
+  readonly onMakeOne: ((template: NewTemplate) => void) | null;
 }) {
-  const { entry, plugins, skillLabel } = props;
+  const { entry, plugins, skillLabel, onMakeOne } = props;
   const [opening, setOpening] = useState(false);
   const state =
     entry.kind === "document" && plugins !== undefined ? availability(entry, plugins) : null;
-  const template = entry.kind === "document" && state?.on === true ? makeOneTemplate(entry) : null;
+  const template =
+    entry.kind === "document" && state?.on === true && onMakeOne !== null
+      ? makeOneTemplate(entry)
+      : null;
   const example = props.openExample === null ? null : entry.example;
   const pluginName = (id: string) => plugins?.find((plugin) => plugin.id === id)?.displayName ?? id;
   const seeExample = (file: string) => {
@@ -310,7 +318,7 @@ function EntryDetail(props: {
           ["You give", entry.give],
           ...(entry.asks === null ? [] : [["It asks you first", entry.asks] as const]),
           ["You get", entry.gets],
-          ["Made by", madeBy(entry).map(skillLabel).join(", ")],
+          ["Made by", madeBy(entry, skillLabel).join(", ")],
           ["Find it in", findItIn(entry).join(", ")],
         ]
       : [
@@ -332,7 +340,7 @@ function EntryDetail(props: {
   return (
     <DialogPopup className="max-w-xl">
       <DialogHeader>
-        <DialogTitle>{entryName(entry)}</DialogTitle>
+        <DialogTitle>{entryName(entry, skillLabel)}</DialogTitle>
       </DialogHeader>
       <DialogPanel>
         <LibraryPicture
@@ -380,8 +388,8 @@ function EntryDetail(props: {
               <span className="text-xs text-muted-foreground">Opens in {SAMPLE_NAME}</span>
             </div>
           )}
-          {template === null ? null : (
-            <Button size="sm" onClick={() => props.onMakeOne(template)}>
+          {template === null || onMakeOne === null ? null : (
+            <Button size="sm" onClick={() => onMakeOne(template)}>
               Make one
             </Button>
           )}

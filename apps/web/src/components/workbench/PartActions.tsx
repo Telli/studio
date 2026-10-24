@@ -22,7 +22,8 @@ import {
 } from "../ui/menu";
 import { type HardwareAction, hardwareActions } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
-import { handToChat, useNewDialogStore } from "./NewDialog";
+import { handToChat } from "./NewDialog";
+import { useNewDialogStore } from "./newDialogStore";
 
 /** New on Documents (the toolbar's, `StudioNew`): a PRD, requirements, an FMEA, your own. */
 function newDocument() {

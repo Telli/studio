@@ -1,12 +1,13 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { PlusIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
 import { useDocumentTemplates } from "./documentTemplates";
-import { NewDialog, type NewJob, useNewDialogStore } from "./NewDialog";
+import { NewDialog, type NewJob } from "./NewDialog";
+import { type NewRequest, useNewDialogStore } from "./newDialogStore";
 import { availableTemplates } from "./newTemplates";
 
 /**
@@ -15,7 +16,7 @@ import { availableTemplates } from "./newTemplates";
  * toolbar, where Create hands the job to the open chat, and on Home, where it starts a new project
  * with the job as its first message. It also opens when asked from elsewhere
  * (`useNewDialogStore`: the Document menu's From a template, the library's Make one), on the
- * template asked for.
+ * template asked for: it takes the request, so the ask opens this New once and no other.
  */
 export function StudioNew(props: {
   readonly environmentId: EnvironmentId;
@@ -36,29 +37,40 @@ export function StudioNew(props: {
     [plugins],
   );
   const documents = useDocumentTemplates(environmentId);
-  const [opened, setOpened] = useState({ open: false, count: 0 });
-  const asked = useNewDialogStore((store) => store.request);
-  const takeAsked = useNewDialogStore((store) => store.take);
-  const discipline = asked?.discipline ?? null;
-  const templateId = asked?.templateId ?? null;
+  // Each open is a fresh dialog (`count`), on what was asked for, if anything.
+  const [opened, setOpened] = useState<{
+    readonly open: boolean;
+    readonly count: number;
+    readonly asked: NewRequest | null;
+  }>({ open: false, count: 0, asked: null });
+  const pending = useNewDialogStore((store) => store.request);
+  const take = useNewDialogStore((store) => store.take);
+  useEffect(() => {
+    if (pending === null) return;
+    const asked = take();
+    if (asked === null) return;
+    // oxlint-disable-next-line react/set-state-in-effect -- Takes the ask out of the store, so this New alone opens on it.
+    setOpened((current) => ({ open: true, count: current.count + 1, asked }));
+  }, [pending, take]);
+  const discipline = opened.asked?.discipline ?? null;
 
   return (
     <>
       <Button
         size="sm"
-        onClick={() => setOpened((current) => ({ open: true, count: current.count + 1 }))}
+        onClick={() =>
+          setOpened((current) => ({ open: true, count: current.count + 1, asked: null }))
+        }
       >
         <PlusIcon aria-hidden="true" />
         New
       </Button>
-      {opened.open || asked !== null ? (
+      {opened.open ? (
         <NewDialog
-          key={`${opened.count}:${asked === null ? "" : `${discipline ?? "first"}:${templateId ?? ""}`}`}
+          key={opened.count}
           open
           onOpenChange={(open) => {
-            if (open) return;
-            takeAsked();
-            setOpened((current) => ({ ...current, open: false }));
+            if (!open) setOpened((current) => ({ ...current, open: false }));
           }}
           environmentId={environmentId}
           cwd={props.cwd}
@@ -67,7 +79,7 @@ export function StudioNew(props: {
           onAddTemplate={documents.add}
           onShowTemplates={documents.show}
           {...(discipline === null ? {} : { initialDiscipline: discipline })}
-          initialTemplateId={templateId}
+          initialTemplateId={opened.asked?.templateId ?? null}
           parts={[]}
           {...(props.newProject ? { newProject: true } : {})}
           onCreate={props.onCreate}

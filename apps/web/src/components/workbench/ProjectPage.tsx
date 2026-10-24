@@ -10,7 +10,7 @@ import {
   PlusIcon,
   XIcon,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
@@ -24,7 +24,8 @@ import { Input } from "../ui/input";
 import { AddFolderMenu } from "./AddFolderMenu";
 import { EMPTY_BRIEF } from "./briefFolder";
 import { useDocumentTemplates } from "./documentTemplates";
-import { NewDialog, handToChat, useNewDialogStore } from "./NewDialog";
+import { NewDialog, handToChat } from "./NewDialog";
+import { useNewDialogStore } from "./newDialogStore";
 import { availableTemplates, type Discipline } from "./newTemplates";
 import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
@@ -405,13 +406,11 @@ export function ProjectPage(props: {
     readonly open: boolean;
     readonly count: number;
     readonly discipline?: Discipline;
+    readonly templateId?: string;
   }>({ open: false, count: 0 });
   const documents = useDocumentTemplates(environmentId);
-  // New asked for from outside the page (the Document menu's From a template, the library's Make
-  // one): open while asked, on the template asked for.
-  const asked = useNewDialogStore((store) => store.request);
-  const takeAsked = useNewDialogStore((store) => store.take);
-  const newDiscipline = asked?.discipline ?? newOpen.discipline;
+  const pendingNew = useNewDialogStore((store) => store.request);
+  const takeNew = useNewDialogStore((store) => store.take);
   const openNew = (discipline?: Discipline) =>
     setNewOpen((current) => ({
       open: true,
@@ -428,6 +427,21 @@ export function ProjectPage(props: {
   };
   const composerRef = useComposerHandleContext();
   const plainWords = useEngineeringInterface();
+  // New asked for from outside the page (the Document menu's From a template, the library's Make
+  // one): where this page shows its New, it takes the request and opens on it, once.
+  const showsNew = composerRef !== null && !plainWords;
+  useEffect(() => {
+    if (pendingNew === null || !showsNew) return;
+    const asked = takeNew();
+    if (asked === null) return;
+    // oxlint-disable-next-line react/set-state-in-effect -- Takes the ask out of the store, so this New alone opens on it.
+    setNewOpen((current) => ({
+      open: true,
+      count: current.count + 1,
+      ...(asked.discipline === null ? {} : { discipline: asked.discipline }),
+      ...(asked.templateId === null ? {} : { templateId: asked.templateId }),
+    }));
+  }, [pendingNew, showsNew, takeNew]);
   const shownTab = plainWords ? "overview" : tab;
   const studio = useStudioProjectAt(environmentId, cwd);
   const saveProject = useSaveStudioProject(environmentId);
@@ -730,20 +744,17 @@ export function ProjectPage(props: {
       {/* In Engineering New is the panel toolbar's, always there (`StudioNew`). */}
       {composerRef === null || plainWords ? null : (
         <NewDialog
-          key={`${newOpen.count}:${asked === null ? "" : `${asked.discipline ?? "first"}:${asked.templateId ?? ""}`}`}
-          open={newOpen.open || asked !== null}
-          onOpenChange={(open) => {
-            if (!open) takeAsked();
-            setNewOpen((current) => ({ ...current, open }));
-          }}
+          key={newOpen.count}
+          open={newOpen.open}
+          onOpenChange={(open) => setNewOpen((current) => ({ ...current, open }))}
           environmentId={environmentId}
           cwd={cwd}
           templates={templates}
           fileTemplates={documents.templates}
           onAddTemplate={documents.add}
           onShowTemplates={documents.show}
-          {...(newDiscipline === undefined ? {} : { initialDiscipline: newDiscipline })}
-          initialTemplateId={asked?.templateId ?? null}
+          {...(newOpen.discipline === undefined ? {} : { initialDiscipline: newOpen.discipline })}
+          initialTemplateId={newOpen.templateId ?? null}
           parts={parts}
           onCreate={(job) => {
             handToChat(composerRef, job.prompt);

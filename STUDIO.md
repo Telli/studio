@@ -390,9 +390,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   menu (`useBackup.ts`).
 - **Quick find.** In Engineering ⌘K finds a project, a part (with its picture), a document or a
   chat in any project (one in another project opens there; with nothing typed, the open
-  project's), or any job for the part on screen, with Home, New project, Take the tour, Settings and the interface switches
-  (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's command
-  palette.
+  project's), or any job for the part on screen, with Home, New project, Take the tour, the
+  Library (every document type and skill: what each makes and, where the sample project has one,
+  its example; `components/workbench/library/LibraryPage.tsx`), Settings and the interface
+  switches (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's
+  command palette.
 - **Getting around.** The top bar is a path, the project then the open chat, the project's name
   opening its Overview (`StudioWorkspaceBar.tsx`). The panel's tabs take Chrome's shortcuts:
   Ctrl+Tab and Ctrl+Shift+Tab go round them, Cmd+1 to 8 to one by its place and Cmd+9 to the last

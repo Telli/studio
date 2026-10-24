@@ -2,7 +2,6 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { FilePlusIcon, FolderOpenIcon } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
-import { create as createStore } from "zustand";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { cn } from "~/lib/utils";
@@ -31,26 +30,6 @@ import {
   isDocumentTemplate,
   newWorkPrompt,
 } from "./newTemplates";
-
-/**
- * Opens New from outside it (the panel's New over the Overview, the Document menu's From a
- * template, the library's Make one), on one discipline or the first, and on one template or that
- * discipline's first. Whichever New is on the page takes the request (`StudioNew`, `ProjectPage`).
- */
-export const useNewDialogStore = createStore<{
-  /** New asked for, on a discipline and a template or on none; null when not asked. */
-  readonly request: {
-    readonly discipline: Discipline | null;
-    readonly templateId: string | null;
-  } | null;
-  readonly ask: (discipline?: Discipline, templateId?: string) => void;
-  readonly take: () => void;
-}>()((set) => ({
-  request: null,
-  ask: (discipline, templateId) =>
-    set({ request: { discipline: discipline ?? null, templateId: templateId ?? null } }),
-  take: () => set({ request: null }),
-}));
 
 /** What New starts in each discipline, as its description names it. */
 const STARTS: Readonly<Record<Discipline, string>> = {
