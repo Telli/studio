@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
-  editsByHand,
   setSimpleView,
   simpleViewToggle,
   useSimpleViewStore,
@@ -80,16 +79,5 @@ describe("Simple view", () => {
     expect(simpleViewToggle({ editable: true, busy: false })).toBe("shown");
     // A command or sketch open holds it until it is finished or cancelled.
     expect(simpleViewToggle({ editable: true, busy: true })).toBe("held");
-  });
-
-  it("knows the CAD viewer on a part from every other panel", () => {
-    expect(editsByHand({ kind: "plugin-app", file: "parts/bracket.step" })).toBe(true);
-    expect(editsByHand({ kind: "plugin-app", file: "parts/plate.solidcraft" })).toBe(true);
-    expect(editsByHand({ kind: "plugin-app" })).toBe(true);
-    expect(editsByHand({ kind: "plugin-app", file: "electronics/main.kicad_pcb" })).toBe(false);
-    expect(editsByHand({ kind: "plugin-app", file: "parts/bracket.fea.glb" })).toBe(false);
-    expect(editsByHand({ kind: "file", file: "docs/PRD.md" })).toBe(false);
-    expect(editsByHand({ kind: "files" })).toBe(false);
-    expect(editsByHand(null)).toBe(false);
   });
 });

@@ -1,6 +1,5 @@
 import { create } from "zustand";
 
-import { partName } from "./partNames";
 import type { ViewerEditState } from "./viewerEditState";
 
 const STORAGE_KEY = "studio:simple-view";
@@ -50,17 +49,4 @@ export function viewerEditLayout(simple: boolean): "ai" | "manual" {
 export function simpleViewToggle(state: ViewerEditState | undefined): "hidden" | "shown" | "held" {
   if (state === undefined || !state.editable) return "hidden";
   return state.busy ? "held" : "shown";
-}
-
-/**
- * Whether the panel in front is the CAD viewer on a part (a STEP or a SolidCraft design) or on no
- * file yet. The Overview, a document, a board or a study's result has nothing to edit by hand.
- */
-export function editsByHand(
-  surface: { readonly kind: string; readonly file?: string | undefined } | null | undefined,
-): boolean {
-  if (surface?.kind !== "plugin-app") return false;
-  if (surface.file === undefined) return true;
-  const kind = partName(surface.file)?.kind;
-  return kind === "Part" || kind === "Design";
 }
