@@ -20,6 +20,7 @@ import {
   PluginOperationError,
   type PluginOperationErrorReason,
   type PluginServerStatus,
+  type PluginSkillDetail,
 } from "@t3tools/contracts";
 import {
   buildCatalog,
@@ -59,6 +60,7 @@ import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "../config.ts";
 import * as PluginFiles from "./pluginFiles.ts";
+import { readSkillDetail } from "./skillDetails.ts";
 
 /** A marketplace T3 reads: a git repository it clones, or a folder used in place. */
 export type MarketplaceSource =
@@ -264,6 +266,7 @@ const makeWith = (sources: ReadonlyArray<MarketplaceSource>) =>
     const starting = new Set<string>();
     const fetching = new Map<string, Fiber.Fiber<void>>();
     const updateCache = new Map<string, boolean>();
+    const skillDetailsCache = new Map<string, ReadonlyArray<PluginSkillDetail>>();
     let catalogCache: {
       readonly signature: string;
       readonly entries: Array<PluginCatalogEntry>;
@@ -389,6 +392,23 @@ const makeWith = (sources: ReadonlyArray<MarketplaceSource>) =>
       return available;
     };
 
+    /** Each skill described by its own files. `toInstalled` runs on every list, so a version is read once. */
+    const skillDetailsOf = (
+      record: InstalledRecord,
+      read: ReadPlugin | Error,
+    ): ReadonlyArray<PluginSkillDetail> => {
+      if (read instanceof Error || read.skillsDir === null) return [];
+      const cacheKey = `${record.root}\0${record.commit ?? ""}\0${read.manifest.version ?? ""}`;
+      const cached = skillDetailsCache.get(cacheKey);
+      if (cached !== undefined) return cached;
+      const skillsDir = path.join(record.root, read.skillsDir);
+      const details = read.skills
+        .slice(0, 200)
+        .map((name) => readSkillDetail(path.join(skillsDir, name), name));
+      skillDetailsCache.set(cacheKey, details);
+      return details;
+    };
+
     const toInstalled = (record: InstalledRecord): InstalledPlugin => {
       const read = readInstalled(record);
       const market = markets.find((item) => item.id === record.marketplace);
@@ -434,6 +454,7 @@ const makeWith = (sources: ReadonlyArray<MarketplaceSource>) =>
         skills: (read instanceof Error ? [] : read.skills)
           .slice(0, 200)
           .map((skill) => clip(skill, 128)),
+        skillDetails: skillDetailsOf(record, read),
         servers: servers.slice(0, 32),
         views: views.slice(0, 64),
         compatibility: compatibilityOfFolder(PluginFiles.nodeFolder(record.root)),

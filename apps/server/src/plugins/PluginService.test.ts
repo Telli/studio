@@ -168,6 +168,9 @@ describe("plugins", () => {
           const installed = yield* plugins.install("local-market/demo");
           assert.strictEqual(installed.id, "demo");
           assert.deepEqual(installed.skills, ["parts"]);
+          assert.deepEqual(installed.skillDetails, [
+            { name: "parts", displayName: null, description: "", defaultPrompt: null },
+          ]);
           assert.deepEqual(installed.servers, [
             { name: "main", transport: "stdio", state: "ready", error: null },
           ]);
