@@ -2,14 +2,11 @@ import React, { useState } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import FloatingToolBar from '../../../../../dist/renderers/kit/tools/FloatingToolBar.js';
-import { MeasureIcon, SelectIcon, SelectModeMenu, STEP_SELECT_DEFAULT } from '../../../../../dist/renderers/step/components/workbench/SelectionModes.js';
+import { SelectModeMenu, STEP_SELECT_DEFAULT } from '../../../../../dist/renderers/step/components/workbench/SelectionModes.js';
 
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-const badges = (root: Element) => [...root.querySelectorAll('svg[data-tool-icon-base]')].map(icon =>
-  `${icon.getAttribute('data-tool-icon-base')}:${icon.querySelector('[data-tool-icon-badge]')?.getAttribute('data-tool-icon-badge') ?? ''}`);
 const menu = () => document.querySelector('[role=menu]')!;
 const glyphs = (root: Element) => [...root.querySelectorAll('svg[data-mode-glyph]')].map(icon => icon.getAttribute('data-mode-glyph'));
 const filterItems = () => [...document.querySelectorAll('[data-select-filter]')].map(item => [item.textContent, item.getAttribute('aria-checked')]);
@@ -71,26 +68,4 @@ it('an assembly offers Parts, and a file with no joints no Position', async () =
   await user.click(screen.getByRole('button', { name: 'Selection filter: Parts' }));
   expect(filterItems()).toEqual([['All', 'false'], ['Parts', 'true'], ['Faces', 'false'], ['Edges', 'false']]);
   expect([groupItems(), menu().querySelectorAll('[role=separator]').length]).toEqual([[], 0]);
-});
-
-it('the strip badges Select and Measure with the kind they pick alone, and none for All', () => {
-  render(<FloatingToolBar tools={[
-    { id: 'select', label: 'Select', active: true, icon: <SelectIcon mode="faces" aria-hidden="true" />, onSelect: () => {} },
-    { id: 'measure', label: 'Measure', active: false, icon: <MeasureIcon mode="vertex" aria-hidden="true" />, onSelect: () => {} },
-    { id: 'other', label: 'Other', active: false, icon: <MeasureIcon mode="all" aria-hidden="true" />, onSelect: () => {} }]} />);
-  expect(badges(document.body)).toEqual(['select:faces', 'measure:points', 'measure:']);
-});
-
-it('the strip shows Select as the plain pointer and Measure as its ruler, and opens no menu', async () => {
-  const user = userEvent.setup();
-  const select = vi.fn();
-  render(<FloatingToolBar tools={[
-    { id: 'select', label: 'Select', active: true, icon: <SelectIcon aria-hidden="true" />, onSelect: select },
-    { id: 'measure', label: 'Measure', active: false, icon: <MeasureIcon aria-hidden="true" />, onSelect: () => {} }]} />);
-  const button = screen.getByRole('button', { name: 'Select', exact: true });
-  expect(button.querySelector('[data-select-mode]')).toBeNull();
-  expect(badges(document.body)).toEqual(['select:', 'measure:']);
-  await user.click(button);
-  expect(select).toHaveBeenCalledOnce();
-  expect(screen.queryByRole('menu')).toBeNull();
 });

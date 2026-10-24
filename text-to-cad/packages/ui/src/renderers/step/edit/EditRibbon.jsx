@@ -24,11 +24,9 @@ const PLACED_TOOLS = Object.freeze(["references", "measure", "clip", "exploded",
 const LABELS = Object.freeze({ clip: "Edit Section", references: "Select", exploded: "Exploded Views" });
 // A sketch tool family's button name, as NX's flyouts are named.
 const FAMILY_NAMES = Object.freeze({ rectangle: "Rectangle", circle: "Circle", arc: "Arc", slot: "Slot", move_entities: "Move Curve" });
-// Each command a picture large enough to tell apart, as SolidWorks' CommandManager draws its own:
-// the modeling commands in their colors (`cadIcons.jsx`), the sketch tools in sketch blue, and the
-// view's tools plain, as its view toolbar keeps them.
+// Each command a picture large enough to tell apart, as SolidWorks' CommandManager draws its own: every
+// one the icon generator's (`cadIcons.jsx`, `sketchIcons.jsx`), the view's tools as the strip shows them.
 const BUTTON_CLASS = "flex h-[3.875rem] min-w-12 flex-col items-center justify-start gap-1 rounded-md px-1 pt-1.5 text-tiny leading-none text-sidebar-foreground/85 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 disabled:pointer-events-none disabled:opacity-40 [&_svg]:size-6 [&_svg]:shrink-0";
-const SKETCH_TINT = "flex text-cad-sketch";
 // A long name wraps to two lines under its icon, as SolidWorks' CommandManager sets them; without
 // names (`compact`) the buttons narrow to their icons.
 const LABEL_CLASS = "max-w-[4.75rem] whitespace-normal text-center leading-[1.1]";
@@ -262,7 +260,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
         edit.setSketchTool(active ? null : each.id);
       };
       const key = sketchKey(each.id);
-      return { id: each.id, label: each.label, hint: key ? `${each.label} (${key})` : undefined, icon: <span className={SKETCH_TINT}><Icon /></span>,
+      return { id: each.id, label: each.label, hint: key ? `${each.label} (${key})` : undefined, icon: <Icon />,
         active, disabled: !sketch.state || edit.saving, onClick };
     };
     // A tool, or a family's button (the tool in hand of it, else the one last picked of it) with its flyout.
@@ -283,13 +281,13 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
       edits,
       { title: "Sketch", items: [
         { id: "exit", label: "Finish Sketch", icon: <ExitSketchIcon />, disabled: edit.saving, onClick: () => void edit.exitSketch() },
-        { id: "normal", label: "Orient View to Sketch", icon: <span className={SKETCH_TINT}><NormalToIcon /></span>, onClick: edit.lookNormalTo },
+        { id: "normal", label: "Orient View to Sketch", icon: <NormalToIcon />, onClick: edit.lookNormalTo },
       ] },
       { title: "Curve", items: SKETCH_ENTITIES.map(id => familyItem(id)) },
       { title: "Edit Curve", items: SKETCH_MODIFY.map(id => familyItem(id)) },
       { title: "Constraints", items: [
         sketchItem(tool("dimension")),
-        { id: "construction", label: "Convert To/From Reference", hint: "Convert To/From Reference (X)", icon: <span className={SKETCH_TINT}><ConstructionIcon /></span>,
+        { id: "construction", label: "Convert To/From Reference", hint: "Convert To/From Reference (X)", icon: <ConstructionIcon />,
           active: chosen.length ? allConstruction : edit.construction,
           disabled: !sketch.state || edit.saving,
           description: chosen.length ? "Makes the selected entities construction geometry, or no longer" : "Draws what comes next as construction geometry",
@@ -343,7 +341,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     // View: how the part is seen.
     { id: "view", title: "View", groups: [
       edits,
-      { title: "Orientation", items: [{ id: "normal-to", label: "Orient View", icon: <span className={SKETCH_TINT}><NormalToIcon /></span>,
+      { title: "Orientation", items: [{ id: "normal-to", label: "Orient View", icon: <NormalToIcon />,
         disabled: !onNormalTo, hint: "Orient View: look straight at the face or plane selected",
         description: onNormalTo ? undefined : "Select a flat face, or a plane in the Part Navigator, to look straight at it.",
         onClick: () => onNormalTo?.() }] },

@@ -49,12 +49,15 @@ export const NX_KINDS = Object.freeze({
 });
 export const nxKind = kind => NX_KINDS[kind] || kind || "Feature";
 
-// The generator's icon (`nxIcons.generated.jsx`) for each row the Part Navigator lists, by the name it
-// gives the row: a feature's kind, the datum coordinate system, a sketch.
+// The generator's icon (`lib/nxIcons.generated.jsx`) for each row the Part Navigator lists, by the name
+// it gives the row: a feature's kind, the datum coordinate system, a sketch; and, by what they are in
+// NX's words, the part or assembly it opens on, its Expressions, and an assembly's Constraints.
 const FEATURE_ICON_NAMES = Object.freeze({
   Extrude: "extrude", Revolve: "revolve", "Sweep along Guide": "sweep", "Through Curves": "loft", Hole: "hole", Rib: "rib",
   "Edge Blend": "blend", Chamfer: "chamfer", Draft: "draft", Shell: "shell", "Pattern Feature": "pattern",
-  "Mirror Feature": "mirror", "Split Body": "split", "Datum Plane": "plane", "Datum Coordinate System": "csys", Sketch: "sketch",
+  "Mirror Feature": "mirror", "Split Body": "split", "Move Object": "move", "Datum Plane": "plane",
+  "Datum Coordinate System": "csys", Sketch: "sketch", Part: "part", Assembly: "assembly", Expressions: "expressions",
+  Constraints: "assembly-constraints",
 });
 
 /**

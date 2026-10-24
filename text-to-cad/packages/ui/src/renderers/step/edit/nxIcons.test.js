@@ -1,27 +1,52 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { COMMAND_ICON_NAMES, COMMAND_ICONS } from "./cadIcons.jsx";
+import { fileURLToPath } from "node:url";
+import * as cad from "./cadIcons.jsx";
+import { COMMAND_ICON_NAMES, COMMAND_ICONS, SELECT_ICON_NAMES, TOOL_ICON_NAMES, ToolIcon } from "./cadIcons.jsx";
 import { EDIT_COMMANDS } from "./editMode.js";
 import { NX_KINDS, booleanOf, featureIconName } from "./nx.js";
-import { NX_ICON_NAMES, NxIcon, NxIconSprite } from "./nxIcons.generated.jsx";
+import { SKETCH_TOOLS } from "./sketchMode.js";
+import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICON_NAMES, SKETCH_TOOL_ICONS, SmartDimensionIcon } from "./sketchIcons.jsx";
+import { TAB_TOOL_MODE } from "../workbench/constants.js";
+import { NX_ICON_NAMES, NxIcon, NxIconSprite } from "../../../lib/nxIcons.generated.jsx";
 
-// Edit mode's icons all come from one generator (`scripts/nx-icons.py`), so a command, a feature and
-// the sprite have to agree on its names. The sprite is host elements all the way down: read it as a
-// tree rather than rendering it.
-const GENERATED = readFileSync(new URL("./nxIcons.generated.jsx", import.meta.url), "utf8");
+// The workspace's icons all come from one generator (`scripts/nx-icons.py`), so a command, a tool, a
+// row and the sprite have to agree on its names. The sprite is host elements all the way down: read it
+// as a tree rather than rendering it.
+const MODULE = new URL("../../../lib/nxIcons.generated.jsx", import.meta.url);
+const GENERATOR = fileURLToPath(new URL("../../../../scripts/nx-icons.py", import.meta.url));
+const GENERATED = readFileSync(MODULE, "utf8");
 const tree = node => (node && typeof node === "object" ? [node, ...[node.props?.children ?? []].flat(Infinity).flatMap(tree)] : []);
 
-test("draws every command from the generator", () => {
-  for (const { id } of EDIT_COMMANDS) {
-    const Icon = COMMAND_ICONS[id];
-    assert.equal(typeof Icon, "function", `${id} has an icon`);
-    const drawn = Icon({ className: "size-5" });
-    assert.equal(drawn.type, NxIcon, `${id} draws the generator's icon`);
-    assert.equal(drawn.props.className, "size-5");
-    assert.equal(drawn.props.name, COMMAND_ICON_NAMES[id]);
-    assert.ok(NX_ICON_NAMES.includes(COMMAND_ICON_NAMES[id]), `${id} draws "${COMMAND_ICON_NAMES[id]}", which the generator has no icon of`);
+// An icon component, drawn: the generator's icon it names, which the sprite must have.
+function drawnName(Icon, label) {
+  assert.equal(typeof Icon, "function", `${label} has an icon`);
+  const drawn = Icon({ className: "size-5" });
+  assert.equal(drawn.type, NxIcon, `${label} draws the generator's icon`);
+  assert.equal(drawn.props.className, "size-5");
+  assert.ok(NX_ICON_NAMES.includes(drawn.props.name), `${label} draws "${drawn.props.name}", which the generator has no icon of`);
+  return drawn.props.name;
+}
+
+// What the generator writes with `flag`, to a file of its own.
+function generate(flag, file) {
+  const dir = mkdtempSync(path.join(tmpdir(), "nx-icons-"));
+  try {
+    const out = path.join(dir, file);
+    const run = spawnSync("python3", [GENERATOR, flag, out], { encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return readFileSync(out, "utf8");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
+}
+
+test("draws every command from the generator", () => {
+  for (const { id } of EDIT_COMMANDS) assert.equal(drawnName(COMMAND_ICONS[id], id), COMMAND_ICON_NAMES[id]);
 });
 
 test("a subtracting command draws its unite command's icon, its Boolean being set in its dialog", () => {
@@ -30,21 +55,48 @@ test("a subtracting command draws its unite command's icon, its Boolean being se
   for (const id of subtracting) assert.equal(COMMAND_ICON_NAMES[id], COMMAND_ICON_NAMES[booleanOf(id).other], id);
 });
 
-// What the Part Navigator lists: a feature by the kind the engine gives it (Boss-Extrude) or the
-// name NX does (Extrude), and the two rows that are not features.
-const KEPT_NAMES = ["Hole", "Chamfer", "Shell", "Draft", "Rib"];
-const NX_NAMES = [...new Set(Object.values(NX_KINDS)), ...KEPT_NAMES, "Sketch", "Datum Coordinate System"];
+test("draws every sketch tool, each its own picture", () => {
+  for (const { id } of SKETCH_TOOLS) assert.equal(drawnName(SKETCH_TOOL_ICONS[id], id), SKETCH_TOOL_ICON_NAMES[id]);
+  assert.equal(new Set(SKETCH_TOOLS.map(({ id }) => SKETCH_TOOL_ICON_NAMES[id])).size, SKETCH_TOOLS.length);
+});
 
-test("draws every Part Navigator kind", () => {
+test("draws the strip's tools the workspace shows", () => {
+  // Each of a part's strip tools: Select, Annotate's Pencil and Shapes, Measure, Explode and Clip.
+  assert.deepEqual(Object.keys(TOOL_ICON_NAMES).sort(), Object.values(TAB_TOOL_MODE).sort());
+  for (const id of ["references", "pencil", "shapes", "measure", "exploded", "clip"]) {
+    assert.equal(drawnName(({ className }) => ToolIcon({ id, className }), id), TOOL_ICON_NAMES[id]);
+  }
+  // Select shows what it picks alone, as its filter has it; a pick with no picture of its own, its own.
+  for (const [mode, name] of Object.entries(SELECT_ICON_NAMES)) {
+    assert.equal(drawnName(({ className }) => ToolIcon({ id: "references", mode, className }), mode), name);
+  }
+  assert.equal(ToolIcon({ id: "references", mode: "position" }).props.name, TOOL_ICON_NAMES.references);
+});
+
+test("draws the toolbar's other buttons and their panels from the generator, each its own", () => {
+  const icons = [cad.SketchIcon, cad.ExitSketchIcon, cad.MassPropertiesIcon, cad.DraftAnalysisIcon, cad.InterferenceIcon,
+    cad.CompareIcon, cad.AppearanceIcon, cad.MateIcon, cad.DrawingIcon, cad.EditSheetIcon, NormalToIcon, ConstructionIcon];
+  const names = icons.map((Icon, index) => drawnName(Icon, `icon ${index}`));
+  assert.equal(new Set(names).size, names.length);
+  // The drawing's sheet dimensions as a sketch does.
+  assert.equal(drawnName(SmartDimensionIcon, "Smart Dimension"), SKETCH_TOOL_ICON_NAMES.dimension);
+});
+
+// What the Part Navigator lists: a feature by the kind the engine gives it (Boss-Extrude) or the
+// name NX does (Extrude), and the rows that are not features.
+const KEPT_NAMES = ["Hole", "Chamfer", "Shell", "Draft", "Rib"];
+const ROWS = ["Sketch", "Datum Coordinate System", "Part", "Assembly", "Expressions", "Constraints"];
+const NX_NAMES = [...new Set(Object.values(NX_KINDS)), ...KEPT_NAMES, ...ROWS];
+
+test("draws every Part Navigator row", () => {
   for (const kind of [...NX_NAMES, ...Object.keys(NX_KINDS)]) {
     assert.ok(NX_ICON_NAMES.includes(featureIconName(kind)), `${kind} draws an icon the generator has`);
   }
   // A kind names the same feature either way, so it wears the same icon either way.
   for (const [kind, name] of Object.entries(NX_KINDS)) assert.equal(featureIconName(kind), featureIconName(name), kind);
-  // Features told apart wear different icons. Move Object has none of its own yet: like any kind
-  // the tree has no picture for, it reads as a solid feature.
-  const apart = NX_NAMES.filter(name => name !== "Move Object");
-  assert.equal(new Set(apart.map(featureIconName)).size, apart.length);
+  // Rows told apart wear different icons; a kind the tree has no picture for reads as a solid feature.
+  assert.equal(new Set(NX_NAMES.map(featureIconName)).size, NX_NAMES.length);
+  assert.equal(featureIconName("Thicken"), featureIconName("Extrude"));
 });
 
 test("keeps ids of its own", () => {
@@ -68,4 +120,39 @@ test("draws each icon from its symbol in the sprite", () => {
     assert.equal(drawn.props["aria-hidden"], "true");
     assert.deepEqual(tree(drawn).filter(element => element.type === "use").map(element => element.props.href), [`#nx-${name}`]);
   }
+});
+
+// Red and green say how something went (failed, passed), so no icon is drawn in them; the set's
+// yellow-orange is the one warm color it has. The check is a status mark, not an icon.
+test("draws no icon in a status color", () => {
+  const hue = hex => {
+    const [r, g, b] = [0, 2, 4].map(at => Number.parseInt(hex.slice(at, at + 2), 16) / 255);
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), chroma = max - min;
+    if (chroma < 0.2) return null; // a grey
+    const turn = max === r ? (g - b) / chroma : max === g ? (b - r) / chroma + 2 : (r - g) / chroma + 4;
+    return (turn * 60 + 360) % 360;
+  };
+  const status = [];
+  for (const [, name, body] of GENERATED.matchAll(/<symbol id="nx-([^"]+)"([\s\S]*?)<\/symbol>/g)) {
+    if (name === "check") continue;
+    for (const [, hex] of body.matchAll(/#([0-9a-fA-F]{6})\b/g)) {
+      const at = hue(hex);
+      if (at !== null && (at < 20 || at > 340 || (at > 75 && at < 165))) status.push(`${name}: #${hex}`);
+    }
+  }
+  assert.deepEqual(status, []);
+});
+
+test("the module is exactly what the generator writes", () => {
+  // Never edited by hand: an icon changes in the generator, which writes the module again.
+  assert.ok(generate("--jsx", "nxIcons.generated.jsx") === GENERATED, "run `python3 scripts/nx-icons.py --jsx` and commit what it writes");
+});
+
+test("the sheet shows every icon by name at 16, 24 and 32 px, on light and on dark", () => {
+  const sheet = generate("--sheet", "sheet.html");
+  for (const name of NX_ICON_NAMES) {
+    assert.equal(sheet.split(`href="#nx-${name}"`).length - 1, 6, `${name} at three sizes, twice`);
+    assert.ok(sheet.includes(`>${name}<`), `${name} is named`);
+  }
+  for (const size of [16, 24, 32]) assert.ok(sheet.includes(`width="${size}" height="${size}"`), `${size} px`);
 });

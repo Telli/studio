@@ -3,7 +3,7 @@ import { requestSceneFrame } from "../kit/viewport/sceneFrames.js";
 import { buildEdgeChainGraph } from "./workbench/edgeChainSelection.js";
 "use client";
 
-import { MeasureIcon, SelectIcon, SelectModeMenu, STEP_SELECT_DEFAULT, stepSelectModes } from "./components/workbench/SelectionModes.jsx";
+import { SelectModeMenu, STEP_SELECT_DEFAULT, stepSelectModes } from "./components/workbench/SelectionModes.jsx";
 import { pickModeOf } from "../kit/tools/select/selectFilter.js";
 import { selects } from "../kit/tools/select/selectFilter.js";
 import { NO_CONNECTED_SELECTION, connectedSelectionApplies, selectGeometryMode } from "./workbench/selectionFilter.js";
@@ -89,7 +89,7 @@ import {
 } from "@text-to-cad/core/lib/render/meshCost.js";
 import { createAnimationClock, AnimationClockProvider } from "./workbench/animationClockStore.js";
 import { useMeasureSession } from "../kit/tools/measure/useMeasureSession.js";
-import MeasureFilterMenu, { MEASURE_MODES } from "../kit/tools/measure/MeasureFilterMenu.jsx";
+import MeasureFilterMenu from "../kit/tools/measure/MeasureFilterMenu.jsx";
 import { MEASURE_FILTER_DEFAULT } from "../kit/tools/measure/measureFilter.js";
 import { fileKey } from "./workbench/entryPaths.js";
 import {
@@ -143,10 +143,11 @@ import PreviewLayer from "./edit/PreviewLayer.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
 import EditLayoutSwitch from "./edit/EditLayoutSwitch.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
+import { ToolIcon } from "./edit/cadIcons.jsx";
 import SketchOverlay from "./edit/SketchOverlay.jsx";
 import SheetEditor from "./edit/SheetEditor.jsx";
 import SketchesLayer from "./edit/SketchesLayer.jsx";
-import { NxIconSprite } from "./edit/nxIcons.generated.jsx";
+import { NxIconSprite } from "../../lib/nxIcons.generated.jsx";
 import { useEditLayout } from "./edit/editLayout.js";
 import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
@@ -3579,26 +3580,28 @@ function StepSurfaceBody({ view, data }) {
   const measureFilterMenu = useMemo(() => <MeasureFilterMenu value={measureFilter} disabled={measureToolDisabled}
     onChange={value => { setMeasureFilter(value); handleSelectTabToolMode(TAB_TOOL_MODE.MEASURE); }} />,
   [measureFilter, measureToolDisabled, handleSelectTabToolMode]);
+  // Every tool drawn by the icon generator (`edit/cadIcons.jsx`), the shell's and the model effects' too:
+  // the toolbar shows these tools as the strip does.
   const tools = [
     shell.tools.own({
       id: TAB_TOOL_MODE.REFERENCES,
       label: referenceSelectionPending ? "Preparing selection" : "Select", shortcut: TOOL_SHORTCUTS.select,
-      // The pointer, badged with what it picks alone (its chevron's menu), none for All.
-      icon: <SelectIcon mode={pickModeOf(selectFilter, stepSelectModes({ assembly: isAssemblyView, posable: poseAvailable })).id} className="size-3.5" aria-hidden="true" />,
+      // The pointer, on what it picks alone (its chevron's menu): a block for All.
+      icon: <ToolIcon id={TAB_TOOL_MODE.REFERENCES} mode={pickModeOf(selectFilter, stepSelectModes({ assembly: isAssemblyView, posable: poseAvailable })).id} className="size-3.5" />,
       active: !topologySelectionDeferred && selectionToolActive, disabled: selectDisabled,
       menu: selectModeMenu,
       onSelect: () => handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES),
     }),
-    ...shell.tools.drawing.map(tool => ({ ...tool, disabled: toolIdle })),
+    ...shell.tools.drawing.map(tool => ({ ...tool, disabled: toolIdle, icon: <ToolIcon id={tool.id} className="size-3.5" /> })),
     shell.tools.own({ id: TAB_TOOL_MODE.MEASURE, label: "Measure", shortcut: TOOL_SHORTCUTS.measure,
-      icon: <MeasureIcon mode={pickModeOf(measureFilter, MEASURE_MODES).id} className="size-3.5" aria-hidden="true" />,
+      icon: <ToolIcon id={TAB_TOOL_MODE.MEASURE} className="size-3.5" />,
       active: tabToolMode === TAB_TOOL_MODE.MEASURE, disabled: measureToolDisabled,
       menu: measureFilterMenu,
       // A press takes it up — again, results and all, where they are kept — and does nothing while
       // it is the tool.
       onSelect: () => { if (tabToolMode !== TAB_TOOL_MODE.MEASURE) handleSelectTabToolMode(TAB_TOOL_MODE.MEASURE); } }),
     // Position is Select's: its knobs, where Select picks it. Routines play in preview.
-    ...modelEffects.tools,
+    ...modelEffects.tools.map(tool => ({ ...tool, icon: <ToolIcon id={tool.id} className="size-3.5" /> })),
   ].filter(Boolean);
 
   // ---- copying the selection ----------------------------------------------------------------

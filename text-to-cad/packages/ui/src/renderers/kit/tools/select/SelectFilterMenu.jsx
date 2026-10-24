@@ -9,8 +9,7 @@ import { pickModeOf } from "./selectFilter.js";
  * follows (`children`: how a pick grows, Group faces and Group edges) comes after a rule. Measure's
  * menu is this one too (`MeasureFilterMenu.jsx`): `name` marks its trigger and rows
  * (`data-<name>-filter-trigger`, `data-<name>-filter`) and `triggerName` names its chevron
- * ("Measure filter"), so the two chevrons on the strip are told apart. The strip's button shows the
- * mode chosen as a badge on the tool's glyph (`modeGlyphs.jsx`'s `ToolModeIcon`).
+ * ("Measure filter"), so the two chevrons on the strip are told apart.
  *
  * @param {{ value: readonly string[], onChange(filter: readonly string[]): void,
  *   modes: { id: string, label: string, kinds: readonly string[], icon?: import("react").ReactNode }[],

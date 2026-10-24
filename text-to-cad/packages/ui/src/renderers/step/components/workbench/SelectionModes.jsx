@@ -2,22 +2,9 @@ import { PositionIcon } from '../../../kit/tools/ChangedDot.jsx';
 import { CONNECTED_SELECTION, SELECT_GEOMETRY, connectedSelectionApplies } from '../../workbench/selectionFilter.js';
 import { DropdownMenuCheckboxItem } from '@text-to-cad/ui/primitives/dropdown-menu';
 import SelectFilterMenu from "../../../kit/tools/select/SelectFilterMenu.jsx";
-import { ModeGlyph, ToolModeIcon, modeGlyphIcon } from "../../../kit/tools/select/modeGlyphs.jsx";
+import { ModeGlyph, modeGlyphIcon } from "../../../kit/tools/select/modeGlyphs.jsx";
 
 const lucideIcon = Icon => <Icon className="size-3.5" strokeWidth={2} aria-hidden="true" />;
-
-/** The Select tool's button icon: the pointer, badged with what it picks alone (`mode`), none for All. */
-export function SelectIcon({ mode = "all", ...props }) {
-  return <ToolModeIcon tool="select" mode={mode} {...props} />;
-}
-
-// What each of Measure's modes is badged with: a vertex the point in a ring, an edge or a face the cube's.
-const MEASURE_BADGES = Object.freeze({ vertex: "points", edge: "edges", face: "faces" });
-
-/** The Measure tool's button icon: the ruler, badged with what it picks alone (`mode`), none for All. */
-export function MeasureIcon({ mode = "all", ...props }) {
-  return <ToolModeIcon tool="measure" mode={MEASURE_BADGES[mode] || mode} {...props} />;
-}
 
 const glyphIcon = modeGlyphIcon;
 // The overlays All picks too, beside the model's geometry: the annotations and measurements,

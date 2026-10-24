@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-"""Studio's NX-style feature icons, drawn from 3D on one isometric grid.
+"""Studio's NX-style icons, drawn from 3D on one isometric grid.
 
 Every icon is built from boxes, cylinders and faces in model space, projected the same way
 (2:1 isometric, 1 unit = 1 px at 32 px) and lit the same way (top lightest, the side facing +y
-mid, the side facing +x darkest), in flat tones of three materials: yellow for what a feature
-makes, gray for the body it works on, blue for sketches, planes and directions. Outlines stay
-1 px at every size.
+mid, the side facing +x darkest), in flat tones of five materials: yellow-orange for what a feature
+makes (and what a pick takes), gray for the body it works on, blue for sketches, planes and
+directions, tan for datums, purple for the agent. A sketch tool is drawn flat, in the sketch's
+blue, as NX draws its curve tools: its curves, and white handles where its clicks go. Outlines stay
+1 px at every size. Red, amber and green say how something went, so no icon wears them: the check
+is a status mark, not an icon.
 
-With no arguments it prints the hidden <svg> of <symbol>s the mockup uses. `--jsx OUT` writes the
-viewer's module instead (src/renderers/step/edit/nxIcons.generated.jsx): the sprite as a component,
-the icons' names, and NxIcon, which draws one by name. Run it again whenever an icon changes. Every
-id is "nx-" and the icon's name, so nothing collides with the page the sprite is mounted in.
+With no arguments it prints the hidden <svg> of <symbol>s the mockup uses. `--jsx [OUT]` writes the
+viewer's module instead (src/lib/nxIcons.generated.jsx unless OUT is given): the sprite as a
+component, the icons' names, and NxIcon, which draws one by name. `--sheet OUT` writes a page of
+every icon, named, at 16, 24 and 32 px on light and on dark, the set Amy approved first. Run it
+again whenever an icon changes. Every id is "nx-" and the icon's name, so nothing collides with the
+page the sprite is mounted in.
 """
 
 import argparse
+import html
 import math
+import os
 import re
 import sys
 from xml.etree import ElementTree
@@ -25,14 +32,24 @@ TAN = dict(top="#F8E7C4", left="#EFD6A6", right="#E4C287", edge="#B5853A")
 GHOST = dict(top="#FFEBC0", left="#FCDDA2", right="#F7CF86", edge="#CF9235")
 BLUE, BLUE_FILL, DARK = "#2F73D9", "#DFEBFC", "#39424D"
 PURPLE, PURPLE_FILL = "#7C3AED", "#F1EAFE"
+# The agent's purple as a material, for what it draws with (Annotate's marker).
+AGENT = dict(top="#C9AEFB", left="#A47AF6", right="#8B55F0", edge="#5B21B6")
+# Faces as Draft Analysis shades them against the pull, in the direction's blue.
+DRAWS = dict(left="#C4D8F6", right="#94B6EA")
 DASH = "2.2 1.6"
+CURVE, REFERENCE = 1.8, 1.3  # a sketch curve's width, and a reference line's, dashed
+GHOSTLY = 0.6  # the opacity of a sketch's ghost: what a tool takes away, or what was there before
 PREFIX = "nx-"  # on every id this writes: symbols, gradients, clip paths
-FSIDE = f"{PREFIX}fside"  # the one gradient the icons share: the side of a cylinder
+FSIDE = f"{PREFIX}fside"  # the gradients the icons share: the side of a cylinder a feature makes,
+BSIDE = f"{PREFIX}bside"  # and of one the body has
+MODULE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "lib", "nxIcons.generated.jsx")
 
 SHARED = (
     f'<linearGradient id="{FSIDE}" x1="0" y1="0" x2="1" y2="0">'
     '<stop offset="0" stop-color="#F9BE45"/><stop offset=".55" stop-color="#EFA72D"/>'
     '<stop offset="1" stop-color="#DC8E1A"/></linearGradient>'
+    f'<linearGradient id="{BSIDE}" x1="0" y1="0" x2="1" y2="0">'
+    f'<stop offset="0" stop-color="{BODY["left"]}"/><stop offset="1" stop-color="{BODY["right"]}"/></linearGradient>'
 )
 CHECK = (
     f'<symbol id="{PREFIX}check" viewBox="0 0 12 12"><path d="m2.3 6.3 2.4 2.4 5-5.4" fill="none" '
@@ -41,8 +58,16 @@ CHECK = (
 
 
 def num(v):
-    v = round(v + 0.0, 2)
+    # Snapped to 9 places first, so a coordinate the trig puts a hair either side of a half (2.125)
+    # rounds the same on every platform's libm, and the module is the same wherever it is written.
+    v = round(round(v + 0.0, 9), 2)
     return str(int(v)) if v == int(v) else f"{v:.2f}".rstrip("0")
+
+
+def polar(cx, cy, r, degrees):
+    """The point `degrees` anticlockwise from +x on screen (whose y grows down) round (cx, cy)."""
+    a = math.radians(degrees)
+    return (cx + r * math.cos(a), cy - r * math.sin(a))
 
 
 def edge(color, dash=None):
@@ -166,6 +191,63 @@ class Icon:
             self.shape([at(cone, k0), at(end, k0), at(end, k1), at(cone, k1)], tone)
         self.shape([at(end, -1), at(length, -1), at(length, 1), at(end, 1)], "#C9D1DA")
         self.outline([tip, at(cone, -1), at(length, -1), at(length, 1), at(cone, 1)], FEAT["edge"])
+
+    def marker(self, tip, length=13, width=4.6):
+        """The agent's marker, drawing at tip: Annotate's, in the agent's purple."""
+        ux, uy = math.sqrt(0.5), -math.sqrt(0.5)
+        nx, ny = -uy, ux
+
+        def at(s, k):
+            return (tip[0] + ux * s + nx * k * width / 2, tip[1] + uy * s + ny * k * width / 2)
+
+        nib, cap = 3.6, length - 3
+        self.shape([tip, at(nib, -0.55), at(nib, 0.55)], PURPLE)
+        for k0, k1, tone in ((-1, -1 / 3, AGENT["top"]), (-1 / 3, 1 / 3, AGENT["left"]), (1 / 3, 1, AGENT["right"])):
+            self.shape([at(nib, k0 * 0.55), at(nib + 1.6, k0), at(cap, k0), at(cap, k1), at(nib + 1.6, k1), at(nib, k1 * 0.55)], tone)
+        self.shape([at(cap, -1), at(length, -1), at(length, 1), at(cap, 1)], PURPLE)
+        self.outline([tip, at(nib, -0.55), at(nib + 1.6, -1), at(length, -1), at(length, 1), at(nib + 1.6, 1), at(nib, 0.55)], AGENT["edge"])
+
+    def pointer(self, tip):
+        """The pointer, its tip at `tip`: what Select picks with."""
+        x, y = tip
+        arrow = [(x, y), (x, y + 10.6), (x + 2.7, y + 8.1), (x + 4.5, y + 12.2), (x + 6.4, y + 11.4), (x + 4.6, y + 7.4), (x + 8.2, y + 7.4)]
+        self.shape(arrow, "#fff")
+        self.outline(arrow, DARK)
+
+    # A sketch tool is drawn flat, in screen units: curves in the sketch's blue, regions filled pale,
+    # and a white handle where each click goes.
+
+    def handle(self, x, y, s=2):
+        """Where a click goes: a white square edged in the sketch's blue."""
+        box = [(x - s, y - s), (x + s, y - s), (x + s, y + s), (x - s, y + s)]
+        self.shape(box, "#fff")
+        self.outline(box, BLUE)
+
+    def curve(self, d, extent, width=CURVE, dash=None, color=BLUE, fill="none", opacity=None):
+        """A sketch curve along the path `d`; `extent`, points its box must hold."""
+        extra = (f' stroke-dasharray="{dash}"' if dash else "") + (f' opacity="{num(opacity)}"' if opacity else "")
+        self.raw(
+            f'<path d="{d}" fill="{fill}" stroke="{color}" stroke-width="{num(width)}" stroke-linecap="round" '
+            f'stroke-linejoin="round"{extra}/>',
+            extent,
+        )
+
+    def region(self, pts, width=CURVE, ghost=False):
+        """A closed sketch curve through `pts`, filled pale; a ghost, dashed and faint."""
+        self.curve(self.d(pts), pts, width, DASH if ghost else None, fill="none" if ghost else BLUE_FILL, opacity=GHOSTLY if ghost else None)
+
+    def circle(self, cx, cy, r, width=CURVE, ghost=False, fill=BLUE_FILL, dash=None):
+        self.curve(f"M{num(cx - r)} {num(cy)} A{num(r)} {num(r)} 0 1 0 {num(cx + r)} {num(cy)} A{num(r)} {num(r)} 0 1 0 "
+                   f"{num(cx - r)} {num(cy)} Z", [(cx - r, cy - r), (cx + r, cy + r)], width, DASH if ghost else dash,
+                   fill="none" if ghost else fill, opacity=GHOSTLY if ghost else None)
+
+    def arc(self, cx, cy, r, a0, a1, width=CURVE, dash=None):
+        """An arc turning anticlockwise on screen from a0 to a1 degrees; returns its ends."""
+        start, end = polar(cx, cy, r, a0), polar(cx, cy, r, a1)
+        large = 1 if (a1 - a0) % 360 > 180 else 0
+        extent = [polar(cx, cy, r, a0 + (a1 - a0) * i / 8) for i in range(9)]
+        self.curve(f"M{num(start[0])} {num(start[1])} A{num(r)} {num(r)} 0 {large} 0 {num(end[0])} {num(end[1])}", extent, width, dash)
+        return start, end
 
     def symbol(self, size=32):
         xs = [p[0] for p in self.pts]
@@ -445,10 +527,671 @@ def ask():
     return ic
 
 
-ICONS = (
-    sketch, extrude, revolve, hole, lambda: rounded("blend"), lambda: rounded("chamfer"), shell, draft, rib,
-    pattern, mirror, datum_plane, csys, sweep, loft, split, delete, ask,
+# The sketch tools, one each, flat: what each draws, or what it does to what is drawn, with a handle
+# at each click it takes. What a tool takes away, or what was there before, is a ghost: dashed and
+# faint, and never filled (a half-clear fill greys on a dark page).
+
+
+def sketch_tool(name):
+    """A sketch tool's icon: every one of them is "sketch-" and its name."""
+    return Icon(f"sketch-{name}")
+
+
+def sketch_line():
+    ic = sketch_tool("line")
+    ic.stroke([(-9.5, 8.5), (9.5, -8.5)], width=CURVE)
+    ic.handle(-9.5, 8.5)
+    ic.handle(9.5, -8.5)
+    return ic
+
+
+RECTANGLE = [(-10.5, -7.5), (10.5, -7.5), (10.5, 7.5), (-10.5, 7.5)]
+
+
+def sketch_rectangle():
+    ic = sketch_tool("rectangle")
+    ic.region(RECTANGLE)
+    ic.handle(-10.5, 7.5)
+    ic.handle(10.5, -7.5)
+    return ic
+
+
+def sketch_center_rectangle():
+    ic = sketch_tool("center-rectangle")
+    ic.region(RECTANGLE)
+    ic.stroke([(0, 0), (10.5, -7.5)], width=REFERENCE, dash=DASH)
+    ic.handle(0, 0)
+    ic.handle(10.5, -7.5)
+    return ic
+
+
+def sketch_three_point_rectangle():
+    ic = sketch_tool("three-point-rectangle")
+    a, b, c, d = (-9, 0.5), (3, -8.5), (9, -0.5), (-3, 8.5)
+    ic.region([a, b, c, d])
+    for x, y in (a, b, c):
+        ic.handle(x, y)
+    return ic
+
+
+def sketch_circle():
+    ic = sketch_tool("circle")
+    ic.circle(0, 0, 9.5)
+    edge_at = polar(0, 0, 9.5, 45)
+    ic.stroke([(0, 0), edge_at], width=REFERENCE, dash=DASH)
+    ic.handle(0, 0)
+    ic.handle(*edge_at)
+    return ic
+
+
+def sketch_three_point_circle():
+    ic = sketch_tool("three-point-circle")
+    ic.circle(0, 0, 9.5)
+    for degrees in (150, 30, 270):
+        ic.handle(*polar(0, 0, 9.5, degrees))
+    return ic
+
+
+def sketch_arc():
+    ic = sketch_tool("arc")
+    centre = (0, 6)
+    start, end = ic.arc(*centre, 11.5, 25, 155)
+    for at in (start, end):
+        ic.stroke([centre, at], width=REFERENCE, dash=DASH)
+    for at in (centre, start, end):
+        ic.handle(*at)
+    return ic
+
+
+def sketch_three_point_arc():
+    ic = sketch_tool("three-point-arc")
+    start, end, top = (-10, 5), (10, 5), (0, -6)
+    # its centre (0, c), as far from an end as from the top: 10**2 + (5 - c)**2 = (c + 6)**2
+    c = (10 ** 2 + 5 ** 2 - 6 ** 2) / (2 * 5 + 2 * 6)
+    spread = math.degrees(math.atan2(c - end[1], end[0]))
+    ic.arc(0, c, c - top[1], spread, 180 - spread)
+    for at in (start, top, end):
+        ic.handle(*at)
+    return ic
+
+
+def sketch_tangent_arc():
+    ic = sketch_tool("tangent-arc")
+    ic.stroke([(-11, 7), (-2, 7)], width=CURVE)
+    _, end = ic.arc(-2, -3, 10, 270, 360)
+    ic.handle(-2, 7)
+    ic.handle(*end)
+    return ic
+
+
+def slot_path(half=6, r=5.5):
+    return (f"M{num(-half)} {num(-r)} H{num(half)} A{num(r)} {num(r)} 0 0 1 {num(half)} {num(r)} H{num(-half)} "
+            f"A{num(r)} {num(r)} 0 0 1 {num(-half)} {num(-r)} Z"), [(-half - r, -r), (half + r, r)]
+
+
+def sketch_slot():
+    ic = sketch_tool("slot")
+    d, extent = slot_path()
+    ic.curve(d, extent, fill=BLUE_FILL)
+    ic.handle(-6, 0)
+    ic.handle(6, 0)
+    return ic
+
+
+def sketch_center_slot():
+    ic = sketch_tool("center-slot")
+    d, extent = slot_path()
+    ic.curve(d, extent, fill=BLUE_FILL)
+    ic.stroke([(-6, 0), (6, 0)], width=REFERENCE, dash=DASH)
+    ic.handle(0, 0)
+    ic.handle(6, 0)
+    return ic
+
+
+def sketch_polygon():
+    ic = sketch_tool("polygon")
+    ic.region([polar(0, 0, 10.5, 60 * i) for i in range(6)])
+    ic.stroke([(0, 0), (10.5, 0)], width=REFERENCE, dash=DASH)
+    ic.handle(0, 0)
+    ic.handle(10.5, 0)
+    return ic
+
+
+def sketch_spline():
+    ic = sketch_tool("spline")
+    ic.curve("M-10.5 6 C-8 -5 -3 -6 0 0 S8 6 10.5 -6", [(-10.5, -4), (10.5, 4), (-10.5, 6), (10.5, -6)])
+    for x, y in ((-10.5, 6), (0, 0), (10.5, -6)):
+        ic.handle(x, y)
+    return ic
+
+
+def sketch_reference_line():
+    ic = sketch_tool("reference-line")
+    ic.stroke([(-9.5, 8.5), (9.5, -8.5)], width=1.6, dash="3 1.8")
+    ic.handle(-9.5, 8.5)
+    ic.handle(9.5, -8.5)
+    return ic
+
+
+def sketch_point():
+    ic = sketch_tool("point")
+    for degrees in (0, 90, 180, 270):
+        ic.stroke([polar(0, 0, 4.8, degrees), polar(0, 0, 9.5, degrees)], width=1.6)
+    ic.handle(0, 0, 2.6)
+    return ic
+
+
+def dimension(ic, y, x0, x1, foot):
+    """A dimension between x0 and x1 at height y, its extension lines down to `foot`."""
+    for x in (x0, x1):
+        ic.stroke([(x, foot), (x, y - 2.2)], width=1)
+    middle = ((x0 + x1) / 2, y)
+    ic.arrow(middle, (x0, y), width=1.3, length=3.4, half=2)
+    ic.arrow(middle, (x1, y), width=1.3, length=3.4, half=2)
+
+
+def sketch_dimension():
+    ic = sketch_tool("dimension")
+    ic.stroke([(-9.5, 8.5), (9.5, 8.5)], width=CURVE)
+    dimension(ic, -2, -9.5, 9.5, 6)
+    value = [(-4, -8.5), (4, -8.5), (4, -4.5), (-4, -4.5)]
+    ic.shape(value, "#fff")
+    ic.outline(value, BLUE)
+    for at in ((-9.5, 8.5), (9.5, 8.5)):
+        ic.handle(*at)
+    return ic
+
+
+def corner(kind):
+    """A corner made round (Fillet) or cut (Chamfer), clicked at the sharp corner it was, a ghost."""
+    ic = sketch_tool(kind)
+    ic.curve("M-9 0 V-9 H0", [(-9, -9), (0, 0)], dash=DASH, opacity=GHOSTLY)
+    turn = "A9 9 0 0 1 0 -9" if kind == "fillet" else "L0 -9"
+    ic.curve(f"M-9 10.5 V0 {turn} H10.5", [(-9, -9), (10.5, 10.5)], width=2.2)
+    ic.handle(-9, -9)
+    return ic
+
+
+def sketch_trim():
+    ic = sketch_tool("trim")
+    ic.stroke([(3, -10), (3, 10)], width=CURVE)
+    ic.stroke([(-10.5, 1), (3, 1)], width=CURVE)
+    ic.curve("M3 1 H10.5", [(3, 1), (10.5, 1)], dash=DASH, opacity=GHOSTLY)
+    # the click on the piece cut away
+    ic.stroke([(5, -1.5), (9.5, 3.5)], width=1.6)
+    ic.stroke([(9.5, -1.5), (5, 3.5)], width=1.6)
+    return ic
+
+
+def sketch_extend():
+    ic = sketch_tool("extend")
+    ic.stroke([(8, -10), (8, 10)], width=CURVE)
+    ic.stroke([(-10.5, 1), (-2, 1)], width=CURVE)
+    ic.curve("M-2 1 H4", [(-2, 1), (4, 1)], dash=DASH)
+    ic.head((8, 1), (0, 1), length=3.6, half=2.2)
+    ic.handle(-2, 1)
+    return ic
+
+
+def sketch_offset():
+    ic = sketch_tool("offset")
+    # a chain, and the same chain 5 in from it
+    ic.curve("M-10 10.5 V-1 A9 9 0 0 1 -1 -10 H10.5", [(-10, -10), (10.5, 10.5)], dash=DASH, opacity=GHOSTLY)
+    ic.curve("M-5 10.5 V-1 A4 4 0 0 1 -1 -5 H10.5", [(-5, -5), (10.5, 10.5)])
+    ic.arrow((7, -10), (7, -5.6), width=1.2, length=2.8, half=1.7)
+    return ic
+
+
+def sketch_mirror():
+    ic = sketch_tool("mirror")
+    ic.stroke([(0, -11), (0, 11)], width=REFERENCE, dash=DASH)
+    ic.region([(-2.5, -8), (-2.5, 8), (-10.5, 8)])
+    ic.region([(2.5, -8), (2.5, 8), (10.5, 8)], ghost=True)
+    return ic
+
+
+def sketch_move():
+    ic = sketch_tool("move")
+    ic.circle(-5.5, 4.5, 5, ghost=True)
+    ic.circle(5.5, -4.5, 5)
+    ic.arrow((-5.5, 4.5), (2.3, -1.9), width=1.4, length=3.4, half=2)
+    ic.handle(5.5, -4.5)
+    return ic
+
+
+def sketch_copy():
+    ic = sketch_tool("copy")
+    ic.circle(-5.5, 4.5, 5)
+    ic.circle(5.5, -4.5, 5)
+    ic.arrow((-5.5, 4.5), (2.3, -1.9), width=1.4, length=3.4, half=2)
+    ic.handle(-5.5, 4.5)
+    ic.handle(5.5, -4.5)
+    return ic
+
+
+def sketch_rotate():
+    ic = sketch_tool("rotate")
+    pivot, turn = (-6, 8), math.radians(50)
+
+    def turned(x, y):
+        return (pivot[0] + x * math.cos(turn) + y * math.sin(turn), pivot[1] - x * math.sin(turn) + y * math.cos(turn))
+
+    bar = [(0, 0), (15, 0), (15, -6), (0, -6)]
+    ic.region([(pivot[0] + x, pivot[1] + y) for x, y in bar], ghost=True)
+    ic.region([turned(x, y) for x, y in bar])
+    ic.arc(*pivot, 17, 8, 36, width=1.4)
+    ic.head(polar(*pivot, 17, 44), polar(*pivot, 17, 36), length=3.6, half=2.1)
+    ic.handle(*pivot)
+    return ic
+
+
+def sketch_scale():
+    ic = sketch_tool("scale")
+    ic.region([(-10, 9), (-10, -10), (9, -10), (9, 9)])
+    ic.region([(-10, 9), (-10, 1), (-2, 1), (-2, 9)], ghost=True)
+    ic.arrow((-3, 0), (5.5, -6.5), width=1.4, length=3.4, half=2)
+    ic.handle(-10, 9)
+    return ic
+
+
+def sketch_linear_pattern():
+    ic = sketch_tool("linear-pattern")
+    ic.circle(-8, 4, 3.6)
+    for x in (0, 8):
+        ic.circle(x, 4, 3.6, ghost=True)
+    ic.arrow((-8, -5.5), (11.5, -5.5), width=1.4, length=3.4, half=2)
+    return ic
+
+
+def sketch_circular_pattern():
+    ic = sketch_tool("circular-pattern")
+    ic.circle(0, 0, 8, width=REFERENCE, dash=DASH, fill="none")
+    ic.circle(*polar(0, 0, 8, 90), 3.4)
+    for degrees in (210, 330):
+        ic.circle(*polar(0, 0, 8, degrees), 3.4, ghost=True)
+    ic.handle(0, 0)
+    return ic
+
+
+def sketch_project():
+    """Project Curve: a face of the part, and its edges brought down into the sketch."""
+    ic = sketch_tool("project")
+    plane = ic.proj([(-1, -1, 0), (11, -1, 0), (11, 11, 0), (-1, 11, 0)])
+    ic.shape(plane, BLUE_FILL)
+    ic.outline(plane, BLUE)
+    foot = ic.proj([(1, 1, 0), (9, 1, 0), (9, 9, 0), (1, 9, 0)])
+    ic.raw(f'<path d="{ic.d(foot)}" fill="none" stroke="{BLUE}" stroke-width="{num(CURVE)}" stroke-linejoin="round"/>', foot)
+    for x, y in ((9, 1), (9, 9), (1, 9)):
+        ic.stroke([ic.P(x, y, 0), ic.P(x, y, 6)], width=1, dash="1.6 1.4")
+    ic.box(1, 1, 6, 9, 9, 11, BODY)
+    return ic
+
+
+def sketch_intersection():
+    """Intersection Curve: where the part crosses the sketch's plane, drawn on the part."""
+    ic = sketch_tool("intersection")
+    ic.box(1, 1, 0, 9, 9, 4.5, BODY)
+    plane = ic.proj([(-1, -1, 4.5), (11, -1, 4.5), (11, 11, 4.5), (-1, 11, 4.5)])
+    ic.shape(plane, BLUE_FILL, ' fill-opacity=".85"')
+    ic.outline(plane, BLUE)
+    ic.box(1, 1, 4.5, 9, 9, 10, BODY)
+    loop = ic.proj([(9, 1, 4.5), (9, 9, 4.5), (1, 9, 4.5)])
+    ic.raw(f'<path d="{ic.d(loop, False)}" fill="none" stroke="{BLUE}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>', loop)
+    return ic
+
+
+def sketch_convert_reference():
+    """Convert To/From Reference: a curve made a reference line, or back."""
+    ic = sketch_tool("convert-reference")
+    ic.stroke([(-11, 4), (1, -8)], width=CURVE)
+    ic.stroke([(-1, 8), (11, -4)], width=1.6, dash="3 1.8")
+    # one into the other, and back
+    ic.arrow((0.5, 0.5), (-3.2, -3.2), width=1.3, length=3, half=1.8)
+    ic.arrow((-0.5, -0.5), (3.2, 3.2), width=1.3, length=3, half=1.8)
+    return ic
+
+
+def finish_sketch():
+    ic = Icon("finish-sketch")
+    plane = ic.proj([(0, 0, 0), (12, 0, 0), (12, 12, 0), (0, 12, 0)])
+    ic.shape(plane, BLUE_FILL)
+    ic.outline(plane, BLUE)
+    arc = [(6 + 3 * math.cos(math.radians(a)), 6 + 3 * math.sin(math.radians(a)), 0) for a in range(0, 181, 15)]
+    ic.stroke(ic.proj([(3, 3, 0), (9, 3, 0)] + arc + [(3, 3, 0)]), width=1.6)
+    tick = [(2.5, -4.5), (6, -1), (12.5, -9)]
+    ic.stroke(tick, "#fff", width=4.6)
+    ic.stroke(tick, BLUE, width=2.6)
+    return ic
+
+
+# The workspace's other tools: what each looks at or does, on the part.
+
+
+def silhouette(ic, x0, y0, z0, x1, y1, z1):
+    P = ic.P
+    return [P(x0, y0, z1), P(x1, y0, z1), P(x1, y0, z0), P(x1, y1, z0), P(x0, y1, z0), P(x0, y1, z1)]
+
+
+SELECT_KINDS = ("all", "face", "edge", "face-group", "body", "part")
+
+
+def select(kind):
+    """Select, and each of its filters: the pointer on a block, what it picks in the pick's orange."""
+    ic = Icon("select" if kind == "all" else f"select-{kind}")
+    s, h = 10, 6
+    if kind == "part":
+        # an assembly's part: the block on the plate, picked alone
+        ic.box(-1.5, -1.5, 0, s + 1.5, s + 1.5, 2.5, BODY)
+        ic.box(1.5, 1.5, 2.5, s - 1.5, s - 1.5, h + 2.5, FEAT)
+        ic.pointer((2.5, 0.5))
+        return ic
+    ic.box(0, 0, 0, s, s, h, FEAT if kind == "body" else BODY)
+    if kind == "face":
+        top = ic.proj([(0, 0, h), (s, 0, h), (s, s, h), (0, s, h)])
+        ic.shape(top, FEAT["top"])
+        ic.outline(top, FEAT["edge"])
+    elif kind == "face-group":
+        for pts, tone in (([(0, 0, h), (s, 0, h), (s, s, h), (0, s, h)], FEAT["top"]),
+                          ([(0, s, h), (s, s, h), (s, s, 0), (0, s, 0)], FEAT["left"])):
+            ic.face(pts, tone)
+            ic.outline(ic.proj(pts), FEAT["edge"])
+    elif kind == "edge":
+        ic.stroke([ic.P(s, 0, h), ic.P(s, s, h)], FEAT["right"], width=2.6)
+    tips = {"all": (3.5, 4.5), "face": (1, -1.5), "edge": (4, 2), "face-group": (-4, 3.5), "body": (3.5, 4.5)}
+    ic.pointer(tips[kind])
+    return ic
+
+
+def measure():
+    ic = Icon("measure")
+    ic.box(0, 0, 0, 12, 12, 6, BODY)
+    # the distance between two of its corners, measured over it
+    dimension(ic, -9.5, -12, 12, -1.5)
+    for x in (-12, 12):
+        ic.handle(x, 0, 1.6)
+    return ic
+
+
+def measure_bodies():
+    """Measure Bodies: a body, and where its mass centres."""
+    ic = Icon("measure-bodies")
+    ic.box(0, 0, 0, 12, 12, 8, BODY)
+    cx, cy, r = 0, 1.5, 5
+    ic.raw(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(r)}" fill="#fff"/>', [(cx - r, cy - r), (cx + r, cy + r)])
+    ic.raw(f'<path d="M{num(cx)} {num(cy)} V{num(cy - r)} A{num(r)} {num(r)} 0 0 1 {num(cx + r)} {num(cy)} Z '
+           f'M{num(cx)} {num(cy)} V{num(cy + r)} A{num(r)} {num(r)} 0 0 1 {num(cx - r)} {num(cy)} Z" fill="{DARK}"/>')
+    ic.raw(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(r)}" {edge(DARK)}/>')
+    return ic
+
+
+def draft_analysis():
+    """Draft Analysis: a drafted body, its faces shaded by how they draw against the pull above it."""
+    ic = Icon("draft-analysis")
+    b, a, h = 12, 2.6, 8
+    P = ic.P
+    sil = [P(a, a, h), P(b - a, a, h), P(b, 0, 0), P(b, b, 0), P(0, b, 0), P(a, b - a, h)]
+    ic.shape(sil, BODY["right"])
+    ic.face([(a, a, h), (b - a, a, h), (b - a, b - a, h), (a, b - a, h)], BODY["top"])
+    ic.face([(a, b - a, h), (b - a, b - a, h), (b, b, 0), (0, b, 0)], DRAWS["left"])
+    ic.face([(b - a, a, h), (b - a, b - a, h), (b, b, 0), (b, 0, 0)], DRAWS["right"])
+    ic.outline(sil, BODY["edge"])
+    top = P(b / 2, b / 2, h)
+    ic.arrow(top, (top[0], top[1] - 11.5))
+    return ic
+
+
+def section():
+    """Edit Section: the part cut on a plane, the half before it gone, what the cut shows hatched."""
+    ic = Icon("section")
+    s, h, cut = 12, 8, 6
+    ic.outline(silhouette(ic, cut, 0, 0, s, s, h), BODY["edge"], dash="1.6 1.4")
+    ic.box(0, 0, 0, cut, s, h, BODY)
+    face = ic.proj([(cut, 0, h), (cut, s, h), (cut, s, 0), (cut, 0, 0)])
+    ic.shape(face, BLUE_FILL)
+    ic.raw(f'<g clip-path="url(#{ic.clip(face)})">')
+    for k in range(-2, 5):
+        a, b = ic.P(cut, 3 * k, h + 2), ic.P(cut, 3 * k + 10, h - 8)
+        ic.raw(f'<path d="M{num(a[0])} {num(a[1])} L{num(b[0])} {num(b[1])}" stroke="{BLUE}" stroke-width=".9"/>')
+    ic.raw("</g>")
+    ic.outline(face, BLUE)
+    plane = ic.proj([(cut, -2, -1.5), (cut, s + 2, -1.5), (cut, s + 2, h + 1.5), (cut, -2, h + 1.5)])
+    ic.outline(plane, BLUE)
+    return ic
+
+
+def exploded():
+    """Exploded Views: an assembly's parts drawn apart, along the way they come off."""
+    ic = Icon("exploded")
+    ic.box(0, 0, 0, 11, 11, 4, BODY)
+    lo, hi, z0 = 2.5, 8.5, 8.5
+    for x, y in ((hi, lo), (hi, hi), (lo, hi)):
+        ic.stroke([ic.P(x, y, 4), ic.P(x, y, z0)], width=1, dash="1.6 1.4")
+    ic.box(lo, lo, z0, hi, hi, z0 + 4, BODY)
+    return ic
+
+
+def interference():
+    """Simple Interference: two bodies, and the volume both fill, seen through the one in front."""
+    ic = Icon("interference")
+    ic.box(0, 0, 0, 8, 8, 9.5, BODY)
+    ic.box(3.5, 3.5, 0, 13, 13, 5, BODY)
+    ic.box(3.5, 3.5, 0, 8, 8, 5, FEAT)
+    ic.box(0, 0, 5, 8, 8, 9.5, BODY)
+    return ic
+
+
+def compare():
+    """Compare: the part as it is, what it gained in the feature's color, what it lost a ghost."""
+    ic = Icon("compare")
+    ic.box(0, 0, 0, 12, 12, 5, BODY)
+    ic.outline(silhouette(ic, 7, 0.5, 5, 11.5, 5, 10), BODY["edge"], dash="1.6 1.4")
+    ic.box(0.5, 6, 5, 5.5, 11.5, 10, FEAT)
+    return ic
+
+
+def appearance():
+    """Edit Object Display: the part's color, picked: a ball shaded as the part is."""
+    ic = Icon("appearance")
+    r = 10.5
+    fill = ic.gradient((-5, -6), (6, 8), [(0, "#FFFFFF"), (0.35, BODY["left"]), (1, BODY["right"])])
+    ic.raw(f'<circle cx="0" cy="0" r="{num(r)}" fill="{fill}"/>', [(-r, -r), (r, r)])
+    ic.raw(f'<circle cx="0" cy="0" r="{num(r)}" {edge(BODY["edge"])}/>')
+    # a drop of the color it is given, on it
+    drop = "M5.5 -1 C5.5 -1 1.5 3.6 1.5 6.2 A4 4 0 0 0 9.5 6.2 C9.5 3.6 5.5 -1 5.5 -1 Z"
+    ic.raw(f'<path d="{drop}" fill="{BLUE}"/>', [(1.5, -1), (9.5, 10.2)])
+    ic.raw(f'<path d="{drop}" fill="none" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>')
+    return ic
+
+
+def orient_view():
+    """Orient View: the plane picked, turned from where it is seen to square on to the view."""
+    ic = Icon("orient-view")
+    seen = [(-12.5, 6.5), (-4.5, 2.5), (3.5, 6.5), (-4.5, 10.5)]
+    ic.shape(seen, BLUE_FILL)
+    ic.outline(seen, BLUE, dash="1.6 1.4")
+    square = [(-0.5, -11.5), (12.5, -11.5), (12.5, 1.5), (-0.5, 1.5)]
+    ic.shape(square, BLUE_FILL)
+    ic.outline(square, BLUE)
+    # its normal, pointing out at the one looking
+    cx, cy, r = 6, -5, 3.2
+    ic.raw(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(r)}" fill="#fff"/>')
+    ic.raw(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(r)}" {edge(BLUE)}/>')
+    ic.raw(f'<circle cx="{num(cx)}" cy="{num(cy)}" r="1.3" fill="{BLUE}"/>')
+    ic.raw(f'<path d="M-9.5 3.5 C-9.5 -2.5 -7.5 -5 -4.6 -5" fill="none" stroke="{BLUE}" stroke-width="1.6" stroke-linecap="round"/>',
+           [(-9.5, -5)])
+    ic.head((-0.9, -5), (-5, -5), length=4, half=2.3)
+    return ic
+
+
+PAPER = [(-12, -9), (12, -9), (12, 9), (-12, 9)]
+
+
+def drawing_sheet(ic):
+    """A drawing's sheet and its title block."""
+    ic.shape(PAPER, "#fff")
+    ic.outline(PAPER, BODY["edge"])
+    block = [(3, 4), (12, 4), (12, 9), (3, 9)]
+    ic.shape(block, BODY["top"])
+    ic.outline(block, BODY["edge"])
+    ic.stroke([(3, 6.5), (12, 6.5)], BODY["edge"], width=0.8)
+
+
+def drawing():
+    ic = Icon("drawing")
+    drawing_sheet(ic)
+    ic.box(-4.5, 1, 0, 1.5, 7, 4.5, BODY)  # the part's view, at the sheet's top left
+    return ic
+
+
+def edit_sheet():
+    ic = Icon("edit-sheet")
+    drawing_sheet(ic)
+    ic.stroke([(-9, 2.5), (-1, 2.5)], DARK, width=1.4)
+    for x in (-9, -1):
+        ic.stroke([(x, 1), (x, -6)], BLUE, width=0.9)
+    ic.arrow((-5, -4.5), (-9, -4.5), width=1.1, length=2.6, half=1.6)
+    ic.arrow((-5, -4.5), (-1, -4.5), width=1.1, length=2.6, half=1.6)
+    ic.pencil((1.5, -2), length=12, width=4.4)
+    return ic
+
+
+def assembly_constraints():
+    """Assembly Constraints: a part brought to another, its pin on the hole's axis."""
+    ic = Icon("assembly-constraints")
+    ic.box(0, 0, 0, 12, 12, 5, BODY)
+    ic.hole(6, 6, 5, 3.6, 2.4, wall=BODY["right"], rim=BODY["edge"])
+    x, top = ic.P(6, 6, 5)
+    ic.stroke([(x, top), (x, top - 15)], width=1.2, dash=DASH)
+    ic.cylinder(6, 6, 10, 15.5, 3.6, BODY, side=f"url(#{BSIDE})")
+    ic.arrow((x + 6.5, top - 13), (x + 6.5, top - 3.5), width=1.4, length=3.4, half=2)
+    return ic
+
+
+def part():
+    """A part: one body, a bracket."""
+    ic = Icon("part")
+    s, t, H = 12, 2.5, 10
+    P = ic.P
+    sil = [P(0, 0, H), P(t, 0, H), P(t, 0, t), P(s, 0, t), P(s, 0, 0), P(s, s, 0), P(0, s, 0), P(0, s, H)]
+    ic.shape(sil, BODY["right"])
+    ic.face([(0, 0, H), (t, 0, H), (t, s, H), (0, s, H)], BODY["top"])
+    ic.face([(t, 0, t), (s, 0, t), (s, s, t), (t, s, t)], BODY["top"])
+    ic.face([(t, 0, H), (t, s, H), (t, s, t), (t, 0, t)], BODY["right"])
+    ic.face([(s, 0, t), (s, s, t), (s, s, 0), (s, 0, 0)], BODY["right"])
+    ic.face([(0, s, 0), (s, s, 0), (s, s, t), (t, s, t), (t, s, H), (0, s, H)], BODY["left"])
+    ic.outline(sil, BODY["edge"])
+    ic.hole(7.5, 6, t, 2.4, 1.6, wall=BODY["right"], rim=BODY["edge"])
+    return ic
+
+
+def assembly():
+    """An assembly: parts placed together, a block and a pin on a plate."""
+    ic = Icon("assembly")
+    ic.box(0, 0, 0, 13, 13, 2.5, BODY)
+    ic.box(1, 1, 2.5, 6.5, 12, 8, BODY)
+    ic.cylinder(9.8, 7, 2.5, 8.5, 2.6, BODY, side=f"url(#{BSIDE})")
+    return ic
+
+
+def move():
+    """Move Object: the body where it was, a ghost, and where it is now."""
+    ic = Icon("move")
+    s, h, d = 7, 6, 8
+    for pts, tone in (([(0, 0, h), (s, 0, h), (s, s, h), (0, s, h)], GHOST["top"]),
+                      ([(0, s, h), (s, s, h), (s, s, 0), (0, s, 0)], GHOST["left"]),
+                      ([(s, 0, h), (s, s, h), (s, s, 0), (s, 0, 0)], GHOST["right"])):
+        ic.face(pts, tone)
+    ic.outline(silhouette(ic, 0, 0, 0, s, s, h), GHOST["edge"], dash="1.6 1.4")
+    ic.box(d, 0, 0, d + s, s, h, FEAT)
+    ic.arrow(ic.P(1, s / 2, h + 3), ic.P(d + s - 1, s / 2, h + 3))
+    return ic
+
+
+def expressions():
+    """Expressions: a part's named values, a name equal to its value."""
+    ic = Icon("expressions")
+    card = [(-11.5, -8), (11.5, -8), (11.5, 8), (-11.5, 8)]
+    ic.shape(card, "#fff")
+    ic.outline(card, BODY["edge"])
+    # a name, equal to its value
+    ic.stroke([(-8, -3), (-3, 3)], DARK, width=1.5)
+    ic.stroke([(-3, -3), (-8, 3)], DARK, width=1.5)
+    for y in (-1.6, 1.6):
+        ic.stroke([(-0.5, y), (3.5, y)], BLUE, width=1.5)
+    value = [(5.5, -3), (9, -3), (9, 3), (5.5, 3)]
+    ic.shape(value, BLUE_FILL)
+    ic.outline(value, BLUE)
+    return ic
+
+
+# The agent's tools, in its purple.
+
+
+def add_context():
+    """Add to context: the selection put into the chat box, to go with the next message."""
+    ic = Icon("add-context")
+    bubble = (
+        "M-7.5 -10 H7.5 A4.5 4.5 0 0 1 12 -5.5 V1 A4.5 4.5 0 0 1 7.5 5.5 H-1.5 L-6.5 10.5 V5.5 H-7.5 "
+        "A4.5 4.5 0 0 1 -12 1 V-5.5 A4.5 4.5 0 0 1 -7.5 -10 Z"
+    )
+    ic.raw(f'<path d="{bubble}" fill="{PURPLE_FILL}"/>', [(-12, -10), (12, 10.5)])
+    ic.raw(f'<path d="{bubble}" {edge(PURPLE)}/>')
+    ic.stroke([(-4.8, -2.25), (4.8, -2.25)], PURPLE, width=2.4)
+    ic.stroke([(0, -7), (0, 2.5)], PURPLE, width=2.4)
+    return ic
+
+
+def annotate():
+    """Annotate: a mark drawn on the part, with the agent's marker."""
+    ic = Icon("annotate")
+    ic.box(0, 0, 0, 12, 12, 5, BODY)
+    mark = ic.proj([(1.5, 10.5, 5), (3.5, 7, 5), (6, 8.5, 5), (8, 4.5, 5), (10.5, 5.5, 5)])
+    ic.raw(f'<path d="M{num(mark[0][0])} {num(mark[0][1])} ' + " ".join(
+        f"Q{num(mark[i][0])} {num(mark[i][1])} {num((mark[i][0] + mark[i + 1][0]) / 2)} {num((mark[i][1] + mark[i + 1][1]) / 2)}"
+        for i in range(1, len(mark) - 1)) + f' L{num(mark[-1][0])} {num(mark[-1][1])}" fill="none" stroke="{PURPLE}" '
+        f'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>', mark)
+    ic.marker(mark[-1])
+    return ic
+
+
+def shapes():
+    """Shapes: a box drawn on the part and an arrow at it, in the agent's purple."""
+    ic = Icon("shapes")
+    ic.box(0, 0, 0, 12, 12, 5, BODY)
+    box = ic.proj([(2, 4, 5), (9, 4, 5), (9, 11, 5), (2, 11, 5)])
+    ic.raw(f'<path d="{ic.d(box)}" fill="{PURPLE_FILL}" stroke="{PURPLE}" stroke-width="1.7" stroke-linejoin="round"/>', box)
+    ic.arrow((12.5, -9.5), (5, -1.2), PURPLE, width=1.8, length=4.4, half=2.6)
+    return ic
+
+
+# Every icon, in the sprite's order, by the group the sheet shows it in: the set Amy approved, then
+# what the workspace adds to it.
+GROUPS = (
+    ("Approved", "The modeling commands and the Part Navigator's features, as Amy approved them; the check is a status mark.", (
+        sketch, extrude, revolve, hole, lambda: rounded("blend"), lambda: rounded("chamfer"), shell, draft, rib,
+        pattern, mirror, datum_plane, csys, sweep, loft, split, delete, ask,
+    )),
+    ("The agent's tools", "Beside Ask, in the agent's purple: Add to context, Annotate (the Pencil) and Shapes.", (
+        add_context, annotate, shapes,
+    )),
+    ("The workspace's tools", "The strip's tools, the Analysis, View, Assemblies and Drafting tabs, and Expressions.", (
+        lambda: select("all"), measure, section, exploded, measure_bodies, draft_analysis, interference, compare,
+        appearance, orient_view, drawing, edit_sheet, assembly_constraints, expressions,
+    )),
+    ("Select's filters", "What Select picks alone, the pick in the selection's orange.", tuple(
+        (lambda kind=kind: select(kind)) for kind in SELECT_KINDS if kind != "all"
+    )),
+    ("The Part Navigator's rows", "A part, an assembly, and Move Object.", (part, assembly, move)),
+    ("The sketch tools", "Finish Sketch, each tool of the sketch task environment in its order, and Convert To/From Reference.", (
+        finish_sketch, sketch_line, sketch_rectangle, sketch_center_rectangle, sketch_three_point_rectangle, sketch_circle,
+        sketch_three_point_circle, sketch_arc, sketch_three_point_arc, sketch_tangent_arc, sketch_slot, sketch_center_slot,
+        sketch_polygon, sketch_spline, sketch_reference_line, sketch_point, sketch_dimension, lambda: corner("fillet"),
+        lambda: corner("chamfer"), sketch_trim, sketch_extend, sketch_offset, sketch_mirror, sketch_move, sketch_copy,
+        sketch_rotate, sketch_scale, sketch_linear_pattern, sketch_circular_pattern, sketch_project, sketch_intersection,
+        sketch_convert_reference,
+    )),
 )
+ICONS = tuple(make for _, _, makers in GROUPS for make in makers)
 
 
 def symbols():
@@ -456,11 +1199,11 @@ def symbols():
     return [("check", CHECK)] + [(ic.name, ic.symbol()) for ic in (make() for make in ICONS)]
 
 
-def sprite():
+def sprite(drawn=None):
     """The hidden <svg> of <symbol>s, for a page to paste in."""
     return "\n".join(
         ['<svg width="0" height="0" style="position:absolute" aria-hidden="true">', f"<defs>{SHARED}</defs>"]
-        + [markup for _, markup in symbols()]
+        + [markup for _, markup in drawn or symbols()]
         + ["</svg>"]
     )
 
@@ -491,8 +1234,8 @@ MODULE = """\
 // Generated by scripts/nx-icons.py --jsx. To change an icon, change the generator and run it again;
 // never edit this file.
 //
-// Edit mode's icons, drawn in NX's language: one hidden SVG sprite (NxIconSprite), mounted once, and
-// NxIcon, which draws one of its symbols by name. Every id in the sprite starts with "@PREFIX@".
+// The CAD workspace's icons, drawn in NX's language: one hidden SVG sprite (NxIconSprite), mounted
+// once, and NxIcon, which draws one of its symbols by name. Every id in the sprite starts with "@PREFIX@".
 
 /** The name of every icon in the sprite: what NxIcon takes. */
 export const NX_ICON_NAMES = Object.freeze([
@@ -536,14 +1279,84 @@ def module():
     return re.sub(r"@([A-Z]+)@", lambda match: values[match.group(1)], MODULE)
 
 
+SHEET_PAGE = """\
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Studio CAD icons</title>
+<style>
+:root { --page: #f6f7f9; --ink: #1f2328; --muted: #5e6672; --card: #ffffff; --rule: #e3e6ea; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --page: #1c1d20; --ink: #e8eaed; --muted: #a2a9b3; --card: #26282c; --rule: #3a3d42; }
+}
+:root[data-theme="dark"] { --page: #1c1d20; --ink: #e8eaed; --muted: #a2a9b3; --card: #26282c; --rule: #3a3d42; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px 16px 48px; background: var(--page); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1180px; margin: 0 auto; }
+h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+h2 { margin: 32px 0 2px; font-size: 15px; font-weight: 600; }
+p { margin: 0; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; margin-top: 12px; }
+figure { margin: 0; background: var(--card); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.sizes { display: flex; align-items: center; justify-content: space-evenly; height: 48px; }
+.light { background: #ffffff; }
+.dark { background: #27292d; }
+figcaption { padding: 6px 8px; font-size: 12px; border-top: 1px solid var(--rule); overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+@SPRITE@
+<main>
+<h1>Studio's CAD icons</h1>
+<p>Every icon scripts/nx-icons.py draws, at 16, 24 and 32 px, on the viewer's light and dark backgrounds.</p>
+@GROUPS@
+</main>
+</body>
+</html>
+"""
+
+
+def sheet_page():
+    """A page of every icon by group, each named, at 16, 24 and 32 px on light and on dark."""
+    drawn = symbols()
+
+    def card(name):
+        tiles = "".join(
+            f'<div class="sizes {theme}">' + "".join(
+                f'<svg width="{size}" height="{size}" aria-hidden="true"><use href="#{PREFIX}{name}"/></svg>' for size in (16, 24, 32)
+            ) + "</div>" for theme in ("light", "dark")
+        )
+        return f"<figure>{tiles}<figcaption>{html.escape(name)}</figcaption></figure>"
+
+    names = iter(name for name, _ in drawn)
+    check = next(names)  # the sprite's status mark, shown with the set it came with
+    sections = []
+    for index, (title, about, makers) in enumerate(GROUPS):
+        group = ([check] if index == 0 else []) + [next(names) for _ in makers]
+        sections.append(f"<section><h2>{html.escape(title)}</h2><p>{html.escape(about)}</p>"
+                        f'<div class="grid">{"".join(card(name) for name in group)}</div></section>')
+    return SHEET_PAGE.replace("@SPRITE@", sprite(drawn)).replace("@GROUPS@", "\n".join(sections))
+
+
+def write(path, text):
+    with open(path, "w", encoding="utf-8", newline="\n") as out:
+        out.write(text)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--jsx", metavar="OUT", help="write the viewer's module to OUT instead of printing the sprite")
+    parser.add_argument("--jsx", metavar="OUT", nargs="?", const=MODULE_PATH,
+                        help="write the viewer's module (src/lib/nxIcons.generated.jsx, or OUT) instead of printing the sprite")
+    parser.add_argument("--sheet", metavar="OUT", help="write a page of every icon at 16, 24 and 32 px, on light and on dark")
     args = parser.parse_args(argv)
     if args.jsx:
-        with open(args.jsx, "w", encoding="utf-8", newline="\n") as out:
-            out.write(module())
-    else:
+        write(args.jsx, module())
+    if args.sheet:
+        write(args.sheet, sheet_page())
+    if not args.jsx and not args.sheet:
         print(sprite())
 
 
