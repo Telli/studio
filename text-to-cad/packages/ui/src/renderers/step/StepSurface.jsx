@@ -16,6 +16,7 @@ import * as THREE from "three";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { hasAuthoredMaterials } from "@text-to-cad/core/common/inspectEnvironment.js";
 import { displayRecordsBounds, mergeBoundsList } from "@text-to-cad/core/lib/viewer/autoZoom.js";
+import { referenceExplodedViewMatrix } from "@text-to-cad/core/lib/viewer/referenceGeometry.js";
 import { VIEWER_PICK_MODE } from "@text-to-cad/core/lib/viewer/constants.js";
 import { runtimeModelKeyMatches, toNumber } from "@text-to-cad/core/lib/viewer/modelRuntime.js";
 import { normalizePartIdList } from "@text-to-cad/core/lib/viewer/partVisualState.js";
@@ -144,6 +145,9 @@ import EditDimensions from "./edit/EditDimensions.jsx";
 import EditLayoutSwitch from "./edit/EditLayoutSwitch.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
 import EditTimeline from "./edit/EditTimeline.jsx";
+import EditSelectionBar from "./edit/EditSelectionBar.jsx";
+import { boundsCorners, featurePick, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
+import { chosenThrough, useAsked, useChosenFeature } from "./edit/selectionBarState.js";
 import { DRAWING_TOOL_ICONS, ToolIcon } from "./edit/cadIcons.jsx";
 import { drawingToolVariant } from "../../annotation/toolbar.jsx";
 import SketchOverlay from "./edit/SketchOverlay.jsx";
@@ -3161,9 +3165,11 @@ function StepSurfaceBody({ view, data }) {
     available: Boolean(viewerSelectedPartIds.length || selectedReferenceIds.length)
   };
 
-  // What Escape means in this renderer, innermost first: a measurement in progress, then
-  // the Measure tool, then the selection, then isolation.
+  // What Escape means in this renderer, innermost first: the box Ask opened, the bar beside a feature
+  // chosen, a measurement in progress, then the Measure tool, then the selection, then isolation.
   escapeRef.current = () => {
+    if (asked) { clearAsked(); return true; }
+    if (featureBarShown) { dropFeature(); return true; }
     // Escape cancels the measurement in progress and leaves the tool armed, the way it does in a CAD
     // measure tool. Only once there is nothing to cancel does it leave the tool.
     if (!previewing && tabToolMode === TAB_TOOL_MODE.MEASURE && measure.drafting) { measure.cancelDraft(); return true; }
@@ -3294,6 +3300,12 @@ function StepSurfaceBody({ view, data }) {
   // command, sketch or pick open, or a change being saved, holds the switch (`layoutHeld`).
   const { editable, busy: layoutHeld } = editLayoutState(edit);
   const editing = editable && editLayout === "manual";
+  // A command, a sketch or a plane being waited for, a panel the toolbar opened, or the drawing's sheet over the part: the selection
+  // bar stays out of them. The feature selected is a pick for the bar only once the person has chosen it (`useChosenFeature`).
+  const commandOpen = Boolean(edit.command || edit.picking || edit.inspecting || edit.sheetView);
+  const sketchOpen = Boolean(edit.sketch);
+  const { chosen: featureChosen, choose: chooseFeature, drop: dropFeature } = useChosenFeature({ editing,
+    held: commandOpen || sketchOpen, file: selectedKey });
   // The host's switch hears what the navbar's hangs on, and nothing once this part leaves the
   // screen. A picture drawn out of sight for the library (`compact`) is not the part on screen.
   const reportsEditState = !view.appearance?.compact;
@@ -3657,10 +3669,48 @@ function StepSurfaceBody({ view, data }) {
   const selectEdit = edit.select;
   const pickSketch = useCallback(view => {
     const id = sketchTreeId(editTree, view);
-    if (id) selectEdit(id);
-  }, [editTree, selectEdit]);
+    if (id) { selectEdit(id); chooseFeature(); }
+  }, [editTree, selectEdit, chooseFeature]);
   const partBounds = edit.state?.bounds;
   const partExtent = partBounds ? Math.hypot(...partBounds[1].map((value, axis) => value - partBounds[0][axis])) : 0;
+
+  // ---- the selection bar and Ask ---------------------------------------------------------------
+  // In the workspace, picking a face, an edge or a feature with Select in hand and no command open offers a small bar beside
+  // it (`edit/EditSelectionBar.jsx`): Ask, Add to context, Annotate and Edit. A face or an edge is the model's pick; a feature is a
+  // row the person pressed in the Part Navigator or the timeline, or a sketch they picked on the model. They are separate selections, and
+  // the bar is about the model's picks while there are any, else the feature chosen.
+  const modelPicks = useMemo(() => (selectionActionVisible
+    ? selectedReferences.filter(reference => reference?.selectorType === "face" || reference?.selectorType === "edge")
+      .map(reference => ({ kind: reference.selectorType, id: reference.id, reference })) : EMPTY_LIST), [selectionActionVisible, selectedReferences]);
+  const rowPick = useMemo(() => (featureChosen ? featurePick(editTree, edit.selected) : null), [featureChosen, editTree, edit.selected]);
+  const barPicks = modelPicks.length ? modelPicks : rowPick ? [rowPick] : EMPTY_LIST;
+  // Ask opens Quick Edit, which the workspace shows only once asked (`quickEditShown`): on what is picked, or with nothing picked,
+  // on the part as a whole. Escape, a send, Clear (the box's X) or the picks emptying put it away, and so does a command or a sketch opening.
+  const { asked, ask, clear: clearAsked } = useAsked({ editing, picked: selectionCount > 0 || Boolean(rowPick),
+    held: commandOpen || sketchOpen, file: selectedKey });
+  // Quick Edit carries the selection when it shows (`quickEditShown`) and the selection can be read.
+  const quickEditCarries = quickEditShown({ editing, asked, selectionActionVisible }) && selectionActionVisible;
+  // Which feature made a face is not known yet, so a face has no Edit; a row is its own feature (`selectionBarActions`).
+  const barActions = selectionToolActive && !previewing && !asked
+    ? selectionBarActions({ editing, picks: barPicks, commandOpen, sketching: sketchOpen, busy: edit.saving || edit.rolling }) : EMPTY_LIST;
+  const rowEdited = barPicks.length === 1 && barPicks[0].kind === "feature" ? barPicks[0] : null;
+  // The bar beside a feature chosen is put away by Escape, the feature staying selected.
+  const featureBarShown = barActions.length > 0 && rowEdited !== null;
+  // The Part Navigator and the timeline select a row when the person presses it, and that chooses its feature.
+  const editWithRows = chosenThrough(edit, chooseFeature);
+  // Edit does what a double-click on the row does: the sketch opens in the Sketch tab, a feature its Edit Parameters.
+  const editRow = () => { if (rowEdited?.sketch) openTreeSketch(rowEdited.sketch); else if (rowEdited) edit.editFeature(rowEdited.feature); };
+  // Annotate takes up the viewer's Pencil, as the strip's does.
+  const pencil = tools.find(tool => tool.id === "pencil");
+  // Where the picks are: the boxes of the faces and edges as they sit on the model now, an Explode moving them with their part, or
+  // the whole part for a row; the bar stands by what falls on the screen.
+  const barAnchor = () => {
+    if (!modelPicks.length) return boundsCorners(partBounds ? { min: partBounds[0], max: partBounds[1] } : null);
+    const runtime = runtimeRefRef.current?.current;
+    const selectorRuntime = layersApiRef.current?.activeSelectorRuntime;
+    return modelPicks.flatMap(({ id, reference }) => boundsCorners(selectorReferenceBounds(selectorRuntime, [id]),
+      runtime ? referenceExplodedViewMatrix(runtime, selectorReferenceForId(selectorRuntime, id) || reference)?.elements : null));
+  };
 
   // ---- the file sidebar --------------------------------------------------------------------------
   // Down the left: the model tree and Position's joints, whatever the tool; the kept effects are
@@ -3713,7 +3763,8 @@ function StepSurfaceBody({ view, data }) {
   const { press: selectPress, hover: selectHover } = measureSelectHandlers(measure, () => runtimeRefRef.current?.current,
     clearAssemblySelection, { picks: selects(selectFilter, "measurement") });
   // Everything picked goes: the parts and references, and the measurements.
-  const clearSelected = () => { clearAssemblySelection(); measure.select([]); };
+  // Quick Edit's X and a send clear it too, and the box Ask opened goes with them.
+  const clearSelected = () => { clearAssemblySelection(); measure.select([]); clearAsked(); };
 
   // ---- Preview ----------------------------------------------------------------------------
   // Its own scene while it is open, filled by its own layers inside its own viewport from the same
@@ -3748,11 +3799,13 @@ function StepSurfaceBody({ view, data }) {
   return <RendererShell shell={shell} tools={tools} subToolbar={tabToolMode === TAB_TOOL_MODE.MEASURE ? <MeasurementsBar measure={measure} /> : modelEffects.subToolbar} sidebar={stepSidebar} previewView={previewView}
     // The edit chrome's icons are drawn from this sprite, which the frame mounts once.
     iconSprite={<NxIconSprite />} drawingToolIcons={DRAWING_TOOL_ICONS}
-    // Modeling by hand, nothing asks the AI: Quick Edit is the AI layout's.
-    references={selectionActionVisible && !editing ? promptSelection : EMPTY_LIST} referenceChips={editing ? EMPTY_LIST : referenceChips} nameReference={nameReference}
+    // Quick Edit shows with a selection to carry in Simple view, as always, and in the workspace once Ask has asked for it.
+    references={quickEditCarries ? promptSelection : EMPTY_LIST} referenceChips={quickEditCarries ? referenceChips : EMPTY_LIST}
+    quickEditAsked={editing ? asked : null} nameReference={nameReference}
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
       disabled={layoutHeld} /> : null}
     onClearReferences={clearSelected} copySelection={copySelection} onSelectPress={selectPress} onSelectHover={selectHover}
+    onCanvasPointerDown={dropFeature}
     selectsAnnotations={selects(selectFilter, "annotation")} inkTouches={inkTouches}
     contextMenuItems={selectionToolActive
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}
@@ -3760,12 +3813,12 @@ function StepSurfaceBody({ view, data }) {
     // The toolbar is handed the view's own controls and its catching-up too, for its tab row's right end.
     ribbon={editing ? (stripTools, view) => <EditRibbon tools={stripTools} view={view} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
       sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)}
-      onNormalTo={normalTarget ? edit.lookNormalTo : null} /> : null}
-    leftDock={editing ? <EditBrowser edit={edit} names={editNames} tree={editTree} references={selectedReferences}
+      onNormalTo={normalTarget ? edit.lookNormalTo : null} onAsk={ask} /> : null}
+    leftDock={editing ? <EditBrowser edit={editWithRows} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
       onDeselect={deselectReference} /> : null}
     // The drawing's sheet covers the view and keeps its one line of feedback at the bottom-left, where the timeline stands.
-    bottomDock={editing && !edit.sheetView ? <EditTimeline edit={edit} tree={editTree} onEditSketch={openTreeSketch} /> : null}
+    bottomDock={editing && !edit.sheetView ? <EditTimeline edit={editWithRows} tree={editTree} onEditSketch={openTreeSketch} /> : null}
     dialogPlace={editing ? setCommandCard : null} dialogOpen={editing && floatsCard(edit)}
     viewportOverlay={viewport => {
       runtimeRefRef.current = viewport.runtimeRef;
@@ -3774,6 +3827,10 @@ function StepSurfaceBody({ view, data }) {
       const sheetUp = editing && Boolean(edit.sheetView);
       return <>
         <StepSceneLayers viewport={viewport} stepScene={stepScene} policy={viewPolicyResolved} props={layerProps} api={layersApiRef} />
+        {barActions.length ? <EditSelectionBar viewport={viewport} actions={barActions} anchor={barAnchor}
+          anchorKey={barPicks.map(pick => `${pick.kind}:${pick.id}`).join(",")}
+          editKind={rowEdited?.sketch ? "Sketch" : rowEdited?.feature.kind} editHint={rowEdited?.sketch ? "Edit Sketch" : "Edit Parameters"}
+          onAsk={ask} onAnnotate={pencil && !pencil.disabled ? pencil.onSelect : undefined} onEdit={rowEdited ? editRow : undefined} /> : null}
         {sheetUp ? <SheetEditor edit={edit} colorScheme={resolvedColorSchemeMode} /> : null}
         {editing && !sheetUp ? <EditDimensions viewport={viewport} dimensions={editDimensions} units={edit.state?.units || ""} disabled={edit.saving}
           planes={editPlanes} origin={editOrigin}

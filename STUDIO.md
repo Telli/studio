@@ -448,7 +448,15 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   Rename, Delete, Make Current Feature) and the viewer's warning on the feature a failed build
   points at; the sketch tools as NX names them (Finish Sketch, Rapid Dimension, Quick Trim). The
   script and the agent's notes keep their own names. Simple view reads the part once, quietly,
-  after the model opens, so the full workspace opens on it at once (`useEditMode`).
+  after the model opens, so the full workspace opens on it at once (`useEditMode`). A pick in the
+  workspace (a face or an edge on the model, a feature the person pressed in the Part Navigator or
+  on the timeline, a sketch picked on the model) with no command open offers a small bar beside it
+  (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Ask, Annotate and Edit (Edit Parameters, or Edit
+  Sketch; a face has none until the engine says which feature made it). A feature a command's OK
+  selected is not a pick, or the bar would stand over the part all the while it is worked on. Ask,
+  in the bar or the toolbar, opens Quick Edit, which the workspace shows only once asked (with
+  nothing picked, on the part as a whole); Escape, a send, its X, the picks emptying or a command or
+  sketch opening put it away (`selectionBarState.js`). Simple view's Quick Edit is as it always was.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode

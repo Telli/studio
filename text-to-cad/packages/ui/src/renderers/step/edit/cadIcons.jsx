@@ -36,9 +36,10 @@ export const EditSheetIcon = generatedIcon("edit-sheet");
 export const DeleteDimensionIcon = generatedIcon("delete-dimension");
 /** Expressions: the part's named sizes, and their panel. */
 export const ExpressionsIcon = generatedIcon("expressions");
-/** Ask, and Add to context: the agent's buttons in the toolbar. */
+/** Ask, Add to context and Annotate: the agent's buttons in the toolbar and in the bar beside a pick. */
 export const AskIcon = generatedIcon("ask");
 export const AddContextIcon = generatedIcon("add-context");
+export const AnnotateIcon = generatedIcon("annotate");
 /** Undo and Redo, the ribbon's and the sheet's. */
 export const UndoIcon = generatedIcon("undo");
 export const RedoIcon = generatedIcon("redo");

@@ -118,6 +118,20 @@ it("keeps the strip, its panels and Quick Edit under the toolbar, and where they
   expect([backdrop().style.getPropertyValue('--cad-workspace-top'), chrome().style.top]).toEqual(['', '']);
 });
 
+it("opens Quick Edit on the file as a whole when the renderer says it was asked for, and keeps it shut until then", () => {
+  const quickEdit = () => screen.queryByRole('region', { name: 'Quick Edit' });
+  // Nothing picked and nothing drawn: the renderer that does not say leaves it to what it would carry, which is nothing.
+  const view = shell();
+  expect(quickEdit()).toBeNull();
+  view.show({ quickEditAsked: true });
+  expect(quickEdit()).not.toBeNull();
+  // The workspace asks for it with Ask, and puts it away again with the answer.
+  view.show({ quickEditAsked: false });
+  expect(quickEdit()).toBeNull();
+  view.show({ quickEditAsked: true, ...WORKSPACE });
+  expect(quickEdit()).not.toBeNull();
+});
+
 it("fades the workspace out as Simple view takes its place, taking no presses while it goes, and puts it away at once with the rest of the tools", async () => {
   const view = shell();
   view.show(WORKSPACE);

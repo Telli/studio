@@ -66,6 +66,11 @@ export function quickEditReferenceIds(selection) {
  * as long as it is open: the size is the box's own, written to it a frame at a time, so a drag
  * renders nothing, and it goes with the box — the next one opens at the default size.
  *
+ * Where the host leaves it to the person to open (`asked`: a boolean), the box does not follow what it would carry.
+ * Asked for (`true`) it opens whatever there is, with nothing picked or drawn too, on the file as a whole, and takes
+ * the keyboard as a pick of theirs does; not asked (`false`) it stays shut however much is picked or drawn, but for
+ * a note already written, which keeps it open as always. Without `asked` (null) it follows what it would carry.
+ *
  * @param {{ resource: import("@text-to-cad/core/prompt").ResourceRef,
  *   references?: readonly import("@text-to-cad/core/prompt").PromptReference[],
  *   chips?: readonly import("./ReferenceChips.jsx").ReferenceChip[] | null,
@@ -74,7 +79,7 @@ export function quickEditReferenceIds(selection) {
  *     read(path: string): Promise<Blob>, annotation(): object | null } | null,
  *   nameReference?: ((reference: import("@text-to-cad/core/prompt").PromptReference) => string | import("../../inspector/pickGlyph.jsx").CompactName) | null,
  *   onCopy?: () => boolean, onEscape?: () => unknown, onClear?: () => void, disabled?: boolean,
- *   hidden?: boolean, className?: string, style?: import("react").CSSProperties }} props
+ *   asked?: boolean | null, hidden?: boolean, className?: string, style?: import("react").CSSProperties }} props
  *   `nameReference`: what the renderer calls a reference into the file on screen, for its chip in
  *   the note ("cam"); "" where it has no name for it, which then reads as its file and ids.
  *   `onCopy`: the viewer's own copy (⌘C / Ctrl+C: the selection's references, or the annotation),
@@ -84,7 +89,7 @@ export function quickEditReferenceIds(selection) {
  *   sight with all it holds (the view is loading).
  */
 export default function QuickEdit({ resource, references = EMPTY, chips = null, annotation = null, prompt = null, nameReference = null, onCopy, onEscape, onClear, disabled = false,
-  hidden = false, docked = false, className, style }) {
+  asked = null, hidden = false, docked = false, className, style }) {
   const host = useViewerHost();
   const destination = usePromptDestination();
   const [text, setText] = useState("");
@@ -99,7 +104,7 @@ export default function QuickEdit({ resource, references = EMPTY, chips = null, 
   const annotated = Boolean(annotation?.present);
   const attached = referenceIds.length > 0 || annotated;
   const written = Boolean(text.trim());
-  const open = written || attached;
+  const open = written || (asked ?? attached);
   // Docked (a phone's) it is a bottom sheet, opening at a peek of its header and chips; a swipe up,
   // or a tap on its title, brings up the note and its buttons, and a swipe down puts them away again,
   // what is written kept.
@@ -166,6 +171,9 @@ export default function QuickEdit({ resource, references = EMPTY, chips = null, 
     takeKeyboard();
     return undefined;
   }, [referenceKey, annotated, takeKeyboard]);
+
+  // Asked for, it opens for the person, whose keyboard it takes: they pressed what opened it.
+  useEffect(() => { if (asked) takeKeyboard(); }, [asked, takeKeyboard]);
 
   // Unfolded by its title, the note takes the keyboard.
   const unfold = () => { setUnfolded(current => !current); };

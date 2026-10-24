@@ -1453,6 +1453,12 @@ box goes; measurements are not Quick Edit's, and stay. A note that has gone (Cop
 Escape in an empty box is the viewer's Escape (clearing the selection, and so the box);
 in a box with a note it only hands the keyboard back to the model.
 
+Where the host leaves it to the person (`asked` on the shell: edit mode's workspace, `step/edit/`), the box does not
+follow what is picked or drawn. It opens when asked for (Ask, in the toolbar or in the bar beside a pick), on what is
+picked, or on the file as a whole with nothing picked, and the keyboard is in its note; until then it stays shut
+however much is picked or drawn, and a note already written keeps it open as ever. Escape, a send, the X and the picks being let go of put the ask away (the
+host's: `step/edit/selectionBarState.js`), and so does a command or a sketch opening.
+
 The person's picks put the keyboard in the note, each one (a pick right after their
 primary press in this view), and so does a first annotation stroke once the pen lifts. A
 selection an agent or host makes through the live controller (`select`) opens it without

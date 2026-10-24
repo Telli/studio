@@ -247,12 +247,15 @@ const DOUBLE_PRESS_MS = 600;
  *   and the top column, a tool's own row and its panels, keeps to the room past it.
  *   `navbarControls`: the renderer's own controls at the navbar's right end, put away with the
  *   view's tools (edit mode's switch between modeling by hand and asking the AI).
+ *   `quickEditAsked`: for a renderer with a button of its own to ask for Quick Edit (the workspace's Ask). `true`:
+ *   it is open, whatever is picked or drawn, and with nothing picked on the file as a whole; `false`: it is shut
+ *   until asked, a written note excepted; null (the default): it follows what it would carry (`references`).
  */
 export default function RendererShell({ shell, tools, toolPanels = null, subToolbar = null, sidebar = null, sidebarStartsOpen = null, references = null, referenceChips = null, nameReference = null, onClearReferences = null, copySelection = null, contextMenuItems = null,
   onContextMenuOpenChange = null, viewportOverlay = null, previewView = null,
   frameProvider = null, iconSprite = null, drawingToolIcons = null, onCanvasPointerDown = null, onSelectPress = null, onSelectHover = null, selectsAnnotations = true, inkTouches = null,
   alertBody = null, alertStartsDismissed = false, ribbon = null, leftDock = null, bottomDock = null, dialogPlace = null, dialogOpen = false,
-  navbarControls = null }) {
+  navbarControls = null, quickEditAsked = null }) {
   const { t } = useI18n();
   const frame = shell.frame;
   // What a tool's letter takes up (`useRendererShell`'s `onKey`): the strip as drawn now, none
@@ -576,7 +579,7 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
   } : null;
   const quickEdit = references ? <QuickEdit key={frame.modelKey} className="self-stretch" hidden={chromeHidden} docked={mobile}
     resource={frame.resource} references={references} chips={referenceChips} nameReference={nameReference} annotation={annotation} prompt={frame.quickEditPrompt}
-    onCopy={copyAction} onEscape={frame.escape} onClear={clearQuickEdit} disabled={viewerLoading || !scene} /> : null;
+    asked={quickEditAsked} onCopy={copyAction} onEscape={frame.escape} onClear={clearQuickEdit} disabled={viewerLoading || !scene} /> : null;
   const body = (
     <div
       className={cn("relative flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground", pointing && "cursor-pointer")}

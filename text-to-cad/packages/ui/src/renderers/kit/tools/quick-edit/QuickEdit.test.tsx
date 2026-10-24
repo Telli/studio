@@ -102,6 +102,57 @@ it('opens with an annotation while there is ink, taking the keyboard once the pe
   expect(note()).toBe('A boss here.');
 });
 
+it('is the person\'s to open when the host says so: shut until asked, whatever it would carry, and open on the file as a whole when asked with nothing picked', () => {
+  const carrying = { references: [face], annotation: { present: true } };
+  const { update } = mount(testHost(), { asked: false });
+  // Picked and drawn on, and still no box: nothing asked for it.
+  update({ asked: false, ...carrying });
+  expect(box()).toBeNull();
+  // Asked, it carries what there is, and the keyboard is in its note: the person asked for it.
+  update({ asked: true, ...carrying });
+  expect(box()).not.toBeNull();
+  expect(box()!.querySelector('[data-quick-edit-chip="references"]')!.textContent).toBe('1 ref');
+  expect(box()!.querySelector('[data-quick-edit-ref="annotation"]')!.textContent).toBe('Annotation');
+  expect(document.activeElement).toBe(field());
+  // No longer asked, it goes; the file, which it always carries, is not what keeps it open.
+  update({ asked: false, ...carrying });
+  expect(box()).toBeNull();
+  // Asked with nothing picked or drawn, it is the whole part's: no chips, the file as ever, the note to write in.
+  update({ asked: true, references: [], annotation: null });
+  expect(box()).not.toBeNull();
+  expect(box()!.querySelector('[data-quick-edit-chip="references"]')).toBeNull();
+  expect(document.activeElement).toBe(field());
+  expect(buttons()[0]).toBe('Close Quick Edit');
+});
+
+it('keeps a note written after it was asked for, however it is asked about, until the X', () => {
+  const clear = vi.fn();
+  const { update } = mount(testHost(), { asked: true, onClear: clear });
+  write('Cut a window here.');
+  update({ asked: false, onClear: clear });
+  expect(note()).toBe('Cut a window here.');
+  // The X clears it all, the note and, through the renderer, what was asked; nothing is left to keep the box.
+  fireEvent.click(within(box()!).getByRole('button', { name: 'Close Quick Edit' }));
+  expect(clear).toHaveBeenCalledTimes(1);
+  expect(box()).toBeNull();
+});
+
+it('Escape in an empty box it was asked for is the viewer\'s own, whose answer closes it', () => {
+  const escape = vi.fn();
+  mount(testHost(), { asked: true, onEscape: escape });
+  fireEvent.keyDown(field(), { key: 'Escape' });
+  expect(escape).toHaveBeenCalledTimes(1);
+});
+
+it('follows what it would carry, as it always has, unless the host says otherwise', () => {
+  const { update } = mount(testHost(), { asked: null });
+  expect(box()).toBeNull();
+  update({ asked: null, references: [face] });
+  expect(box()).not.toBeNull();
+  update({ asked: undefined, references: [] });
+  expect(box()).toBeNull();
+});
+
 it('offers the buttons the host can carry out, the rightmost primary and pressed by Enter', async () => {
   const send = vi.fn(async () => ({ status: 'sent' as const, partIds: [] }));
   const deliver = vi.fn(async () => ({ status: 'added' as const, partIds: [] }));
