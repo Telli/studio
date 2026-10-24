@@ -109,6 +109,7 @@ const DOUBLE_PRESS_MS = 600;
  *   contextMenuItems?: ((press: { clientX: number, clientY: number, shiftKey: boolean }) => object[] | null) | null,
  *   onContextMenuOpenChange?: ((open: boolean) => void) | null,
  *   frameProvider?: ((frame: import("react").ReactNode) => import("react").ReactNode) | null,
+ *   iconSprite?: import("react").ReactNode,
  *   onCanvasPointerDown?: ((event: import("react").PointerEvent) => void) | null,
  *   viewportOverlay?: import("react").ReactNode | ((viewport: { runtimeRef: object, hostRef: object,
  *     mountRef: object, viewerReadyTick: number, commitScene: () => boolean }) => import("react").ReactNode) }} props
@@ -151,6 +152,8 @@ const DOUBLE_PRESS_MS = 600;
  *   `frameProvider`: the renderer wraps the WHOLE frame — its own context, above the tool
  *   stack as well as the viewport, because both read it. It is given the frame and returns
  *   it wrapped; a renderer that passes none is mounted exactly as it is.
+ *   `iconSprite`: the hidden SVG sprite the renderer's chrome draws its icons from (`<use href="#…"/>`),
+ *   mounted once in the frame; a renderer that draws its icons itself passes none.
  *   `onCanvasPointerDown`: a press that landed on the canvas, before anything in the viewport sees
  *   it. The frame focuses itself on such a press whatever the renderer does; this is for a renderer
  *   that also has something to put down when the person reaches for the model.
@@ -184,7 +187,7 @@ const DOUBLE_PRESS_MS = 600;
  */
 export default function RendererShell({ shell, tools, toolPanels = null, subToolbar = null, sidebar = null, sidebarStartsOpen = null, references = null, referenceChips = null, nameReference = null, onClearReferences = null, copySelection = null, contextMenuItems = null,
   onContextMenuOpenChange = null, viewportOverlay = null, previewView = null,
-  frameProvider = null, onCanvasPointerDown = null, onSelectPress = null, onSelectHover = null, selectsAnnotations = true, inkTouches = null,
+  frameProvider = null, iconSprite = null, onCanvasPointerDown = null, onSelectPress = null, onSelectHover = null, selectsAnnotations = true, inkTouches = null,
   alertBody = null, alertStartsDismissed = false, ribbon = null, leftDock = null, navbarControls = null }) {
   const { t } = useI18n();
   const frame = shell.frame;
@@ -518,6 +521,7 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
       onPointerLeave={() => { if (overSelectable.current || hoveredAnnotation) leaveSelectHover(); }}
       ref={frame.hostRef}
     >
+      {iconSprite}
       <div className="relative flex h-full min-w-0 flex-col overflow-hidden bg-transparent">
         {ribbon && editFrame ? ribbon(tools) : null}
         <div className="relative min-h-0 flex-1 overflow-hidden">

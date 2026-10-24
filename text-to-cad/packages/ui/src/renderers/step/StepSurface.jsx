@@ -146,6 +146,7 @@ import EditRibbon from "./edit/EditRibbon.jsx";
 import SketchOverlay from "./edit/SketchOverlay.jsx";
 import SheetEditor from "./edit/SheetEditor.jsx";
 import SketchesLayer from "./edit/SketchesLayer.jsx";
+import { NxIconSprite } from "./edit/nxIcons.generated.jsx";
 import { useEditLayout } from "./edit/editLayout.js";
 import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
@@ -3728,6 +3729,8 @@ function StepSurfaceBody({ view, data }) {
   };
 
   return <RendererShell shell={shell} tools={tools} subToolbar={tabToolMode === TAB_TOOL_MODE.MEASURE ? <MeasurementsBar measure={measure} /> : modelEffects.subToolbar} sidebar={stepSidebar} previewView={previewView}
+    // The edit chrome's icons are drawn from this sprite, which the frame mounts once.
+    iconSprite={<NxIconSprite />}
     // Modeling by hand, nothing asks the AI: Quick Edit is the AI layout's.
     references={selectionActionVisible && !editing ? promptSelection : EMPTY_LIST} referenceChips={editing ? EMPTY_LIST : referenceChips} nameReference={nameReference}
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}

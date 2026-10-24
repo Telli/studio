@@ -41,13 +41,27 @@ export const NX_GROUPS = Object.freeze([
 ]);
 
 // A feature's kind as the Part Navigator names it; a kind not here keeps its own.
-const NX_KINDS = Object.freeze({
+export const NX_KINDS = Object.freeze({
   "Boss-Extrude": "Extrude", "Cut-Extrude": "Extrude", "Intersect-Extrude": "Extrude",
   "Boss-Revolve": "Revolve", "Cut-Revolve": "Revolve", "Boss-Sweep": "Sweep along Guide", "Cut-Sweep": "Sweep along Guide",
   "Boss-Loft": "Through Curves", "Cut-Loft": "Through Curves", Fillet: "Edge Blend", Pattern: "Pattern Feature",
   Mirror: "Mirror Feature", Plane: "Datum Plane", "Move/Copy": "Move Object", Split: "Split Body",
 });
 export const nxKind = kind => NX_KINDS[kind] || kind || "Feature";
+
+// The generator's icon (`nxIcons.generated.jsx`) for each row the Part Navigator lists, by the name it
+// gives the row: a feature's kind, the datum coordinate system, a sketch.
+const FEATURE_ICON_NAMES = Object.freeze({
+  Extrude: "extrude", Revolve: "revolve", "Sweep along Guide": "sweep", "Through Curves": "loft", Hole: "hole", Rib: "rib",
+  "Edge Blend": "blend", Chamfer: "chamfer", Draft: "draft", Shell: "shell", "Pattern Feature": "pattern",
+  "Mirror Feature": "mirror", "Split Body": "split", "Datum Plane": "plane", "Datum Coordinate System": "csys", Sketch: "sketch",
+});
+
+/**
+ * The generator's icon for a row of the Part Navigator, by its kind as the engine names it ("Cut-Extrude")
+ * or as NX does ("Extrude"): a Boolean changes no icon. A kind without one of its own reads as a solid feature.
+ */
+export const featureIconName = kind => FEATURE_ICON_NAMES[nxKind(kind)] || "extrude";
 
 /** An origin plane as NX's datum coordinate system names it: "XY Plane" for SolidWorks' Top. */
 export const nxPlane = name => (PLANE_AXES[name] ? `${PLANE_AXES[name]} Plane` : `${name} Plane`);
