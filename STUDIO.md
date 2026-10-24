@@ -523,11 +523,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   simulations, fit, motion and mass; each way of making it (the project's own first: printing,
   CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
   export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.
-  Each menu keeps its everyday jobs and ends in More, which opens the quick find on all of its
-  jobs. Each needs its text-to-cad skill (`components/workbench/hardwareActions.ts`) and sends
-  the job, naming the part, to the chat, as New's Create does: each prompt asks for what it needs
-  (the loads, the machine), so nothing waits on a second press. The composer's / menu offers
-  Studio's own commands in plain words and the skills, not the agent's coding commands.
+  Each job says in a line what it makes. Each menu keeps its everyday jobs; when it has more, its
+  More opens the quick find on all of its jobs. Each menu ends in What each makes…, which opens
+  the library at that menu's document types. Each job needs its text-to-cad skill
+  (`components/workbench/hardwareActions.ts`) and sends the job, naming the part, to the chat, as
+  New's Create does: each prompt asks for what it needs (the loads, the machine), so nothing waits
+  on a second press. The composer's / menu offers Studio's own commands in plain words and the
+  skills, not the agent's coding commands.
 - **Three kinds, and work done on them.** What is designed is CAD, Electronics or Documents, and
   New offers those. FEA and CAM are not kinds of design but work done on one, for parts and boards
   alike, so what Evaluate, Manufacture and Document make (analysis, manufacturing files,
