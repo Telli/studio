@@ -268,6 +268,12 @@ export interface CadEditState {
   editable?: boolean;
   reason?: 'no-script';
   error?: string;
+  /**
+   * Where a part's script stopped (`ok: false`): the deepest line of the project's own that the error's
+   * traceback holds, named as a row of `rows` names its place, with the line as written. Null when the
+   * traceback holds none (a script that does not parse).
+   */
+  failure?: { file: string; line: number; text: string } | null;
   script?: string;
   name?: string;
   units?: 'mm' | 'in';

@@ -67,6 +67,35 @@ it('a part reads as its sizes and history, a change applies at once and the agen
   expect(result.current.canRedo).toBe(true);
 });
 
+it("a part whose script stops says where it stopped, for as long as that error stands", async () => {
+  const stoppedAt = { file: 'plate.py', line: 9, text: 'plate = fillet(plate.edges(), radius=WALL)' };
+  const trace = 'Traceback (most recent call last):\n  File "/project/parts/plate.py", line 9, in plate\nValueError: Failed creating a fillet';
+  const refusal = 'That number is no longer in the source. Look again.';
+  const viewer = server();
+  // The first read stops; a change is then refused in words; another change makes the script stop again.
+  viewer.client.editState.mockImplementation(async (_file: string, _files: unknown, options?: { probe?: boolean }) => (
+    options?.probe ? { ok: true, editable: true } : { ok: false, error: trace, failure: stoppedAt }));
+  viewer.client.editChange.mockResolvedValueOnce({ ok: false, error: refusal });
+  const { result } = renderHook(() => useEditMode({ client: viewer.client, file: FILE, resource: RESOURCE, active: true }),
+    { wrapper: hostWith(() => Promise.resolve()) });
+  await act(async () => {});
+  expect(result.current.error).toBe(trace);
+  expect(result.current.failure).toEqual(stoppedAt);
+
+  // A refusal in words is another error: the place was the one before's.
+  await act(async () => { await result.current.change({ literal: 'sizes.py:2:8', text: '5' }); });
+  expect(result.current.error).toBe(refusal);
+  expect(result.current.failure).toBe(null);
+
+  // A change that makes the script stop says where, too, and dismissing the error takes the place with it.
+  viewer.client.editChange.mockResolvedValueOnce({ ok: false, error: trace, failure: stoppedAt });
+  await act(async () => { await result.current.change({ literal: 'sizes.py:2:8', text: '5000' }); });
+  expect(result.current.failure).toEqual(stoppedAt);
+  act(() => result.current.dismissError());
+  expect(result.current.error).toBe('');
+  expect(result.current.failure).toBe(null);
+});
+
 it('laid out for the AI, the part is read once and quietly, so Edit by hand opens on it at once', async () => {
   const viewer = server();
   const { result, rerender } = renderHook(({ reading }) => useEditMode({ client: viewer.client, file: FILE, resource: RESOURCE, active: true, reading }),

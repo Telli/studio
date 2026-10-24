@@ -212,7 +212,7 @@ export function ExpressionRows({ edit }) {
  * (`edit.suppress` sets a feature aside, greyed where it is), Rename, Delete (`edit.remove`, as the
  * key does) and Make Current Feature. That one puts the rollback bar just under the feature
  * (`edit.rollTo`), so the part shows as it was there, the features below it greyed and new ones going
- * in at the bar; the bar is dragged to the same effect. The feature a failed build points at wears the
+ * in at the bar; the bar is dragged to the same effect. The feature a failed build stopped in wears the
  * viewer's warning (`buildFailure`).
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
@@ -242,8 +242,8 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const disabled = edit.saving || edit.status !== "ready";
   const rowProps = { selected: edit.selected, onSelect: edit.select, onHover: edit.hover };
   const name = sizeName(edit.state?.name || "") || "Part";
-  // The feature a failed build points at, to be marked.
-  const failure = buildFailure(tree, edit.error);
+  // The feature a failed build stopped in, to be marked: the one with the very line the engine says it stopped at.
+  const failure = buildFailure(tree, edit.error, edit.failure);
   // A row's menu, in NX's words and order: Edit Parameters on a feature a command made, Edit Sketch
   // where it has a sketch to edit, Suppress or Unsuppress, Rename, Delete (on a feature or a sketch of
   // its own: a feature's sketch goes with its feature), Make Current Feature.

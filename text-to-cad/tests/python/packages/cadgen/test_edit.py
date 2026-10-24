@@ -302,6 +302,105 @@ class ConstrainedSketches(unittest.TestCase):
         self.assertIn("LENGTH = 50\n", (root / "bracket.py").read_text(encoding="utf-8"))
 
 
+# A tray whose fillet cannot be made once WALL is big enough, with the rounding in a helper file of
+# its own in the second part.
+ROUNDED = {
+    "tray.py": """
+        from build123d import Axis, Box, fillet
+        from cadgen import step
+
+        WALL = 2
+
+
+        @step
+        def tray():
+            outer = Box(40, 20, 10)
+            outer = fillet(outer.edges().filter_by(Axis.Z), radius=WALL)
+            return outer
+    """,
+    "helped.py": """
+        from build123d import Box
+        from cadgen import step
+        from helpers import rounded
+
+        WALL = 2
+
+
+        @step
+        def helped():
+            outer = Box(40, 20, 10)
+            outer = rounded(outer, WALL)
+            return outer
+    """,
+    "helpers.py": """
+        from build123d import Axis, fillet
+
+
+        def rounded(shape, radius):
+            return fillet(shape.edges().filter_by(Axis.Z), radius=radius)
+    """,
+}
+
+
+class FailedBuild(unittest.TestCase):
+    """A part whose script stops says where it stopped, in its own files, so the viewer can tell which
+    row of the last good part held that very line. A row of the history reads its line the same way."""
+
+    def setUp(self):
+        self.service = edit.EditService(build=False)
+        self.addCleanup(self.service.close)
+        self.root = project(ROUNDED)
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def line_of(self, name: str, text: str) -> int:
+        """The line of a file that reads ``text``, counted from 1 as a traceback counts them."""
+        return [line.strip() for line in (self.root / name).read_text(encoding="utf-8").splitlines()].index(text) + 1
+
+    def too_big(self, step: str):
+        file = str(self.root / f"{step}.step")
+        good = self.service.state(file)
+        self.assertTrue(good["ok"], good.get("error"))
+        wall = next(param for param in good["params"] if param["name"] == "WALL")
+        return good, self.service.change({"file": file, "literal": wall["id"], "text": "50", "files": good["files"]})
+
+    def test_a_failed_trace_says_the_line_it_stopped_at(self):
+        good, bad = self.too_big("tray")
+        self.assertFalse(bad["ok"])
+        self.assertIn("ValueError", bad["error"])
+        # The deepest frame in the project (build123d's and the tracer's are not), as a row names it.
+        rounding = "outer = fillet(outer.edges().filter_by(Axis.Z), radius=WALL)"
+        self.assertEqual(bad["failure"], {"file": "tray.py", "line": self.line_of("tray.py", rounding), "text": rounding})
+        # Its text is the row's own, so the row of the last good part that held this line can be told by it.
+        fillet = next(row for row in good["rows"] if row["kind"] == "Fillet")
+        self.assertEqual((fillet["file"], fillet["line"], fillet["code"]), tuple(bad["failure"].values()))
+
+    def test_it_is_the_deepest_frame_in_the_project_even_in_another_file(self):
+        good, bad = self.too_big("helped")
+        self.assertFalse(bad["ok"])
+        rounding = "return fillet(shape.edges().filter_by(Axis.Z), radius=radius)"
+        self.assertEqual(bad["failure"], {"file": "helpers.py", "line": self.line_of("helpers.py", rounding), "text": rounding})
+        # The feature the call makes is the part's own line, which is no line the failure names.
+        fillet = next(row for row in good["rows"] if row["kind"] == "Fillet")
+        self.assertEqual((fillet["file"], fillet["code"]), ("helped.py", "outer = rounded(outer, WALL)"))
+
+    def test_a_script_that_cannot_be_read_names_no_line(self):
+        (self.root / "tray.py").write_text("from cadgen import step\n\n\n@step\ndef tray(:\n    pass\n", encoding="utf-8")
+        bad = self.service.state(str(self.root / "tray.step"))
+        self.assertFalse(bad["ok"])
+        # The traceback names the script's line, but no frame of the part ran, so no place is named.
+        self.assertIsNone(bad.get("failure"))
+
+    def test_a_good_part_has_no_failure_and_each_feature_carries_its_first_line(self):
+        state = self.service.state(str(self.root / "tray.step"))
+        self.assertTrue(state["ok"], state.get("error"))
+        self.assertNotIn("failure", state)
+        lines = (self.root / "tray.py").read_text(encoding="utf-8").splitlines()
+        self.assertEqual([(f["kind"], f["text"]) for f in state["features"]],
+                         [(f["kind"], lines[f["line"] - 1].strip()) for f in state["features"]])
+        self.assertEqual([f["text"] for f in state["features"]],
+                         ["outer = Box(40, 20, 10)", "outer = fillet(outer.edges().filter_by(Axis.Z), radius=WALL)"])
+
+
 class WhatAChangeBuilds(unittest.TestCase):
     def test_the_parts_that_use_the_changed_file(self):
         root = project(PLATE)

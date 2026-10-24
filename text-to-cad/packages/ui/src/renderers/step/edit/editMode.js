@@ -69,9 +69,20 @@ const SKETCH_DIMENSION = /:(x|y|r|diameter)$/;
  * numbered by kind within each part (Boss-Extrude1, Boss-Extrude2, Cut-Extrude1, Fillet1),
  * each solid's sketch under it (Sketch1, on the plane it lies on), and an assembly's parts as
  * its components (Daisy tray<1>), each with its own features. A feature's id is the line of the
- * history that makes it, so a command that copies a feature finds its row by it.
+ * history that makes it, so a command that copies a feature finds its row by it. It keeps the lines of
+ * the script it stands for (`lines`), each as the engine read it, for a failed build to be told by.
  */
 export function featureTree(state) {
+  const rowOf = new Map((state?.rows || []).map(row => [row.key, row]));
+  // A feature's lines, `{ file, line, text }` each: its own first, then the rows folded into it (the
+  // profile it extrudes, a cut joined to it). `text` is the line as written, empty from an engine that gave none.
+  const linesOf = feature => {
+    const folded = (feature.rows || []).filter(key => key !== feature.key).map(key => {
+      const row = rowOf.get(key), at = key.lastIndexOf(":");
+      return { file: row?.file ?? key.slice(0, at), line: row?.line ?? Number(key.slice(at + 1)), text: row?.code || "" };
+    });
+    return [{ file: feature.file, line: feature.line, text: feature.text || "" }, ...folded].filter(each => each.file && each.line);
+  };
   const partFeatures = features => {
     const counts = new Map();
     // A sketch with relations keeps the name its script gives it; a profile is numbered in order,
@@ -90,7 +101,8 @@ export function featureTree(state) {
       if (feature.kind === "Sketch") {
         // A sketch nothing makes a solid of yet: a row of its own, as a CAD tree lists it.
         const sketch = sketchOf(feature, feature.key);
-        return { id: feature.key, kind: "Sketch", title: sketch.title, name: "", count: 1, rows: [], file: feature.file, line: feature.line, sketch };
+        return { id: feature.key, kind: "Sketch", title: sketch.title, name: "", count: 1, rows: [], file: feature.file, line: feature.line,
+          lines: linesOf(feature), sketch };
       }
       const count = (counts.get(feature.kind) || 0) + 1;
       counts.set(feature.kind, count);
@@ -99,7 +111,7 @@ export function featureTree(state) {
         // still counts it, as SolidWorks numbers the next fillet Fillet2 after Fillet1 is renamed.
         id: feature.key, kind: feature.kind, title: feature.named || `${feature.kind}${count}`, named: feature.named || "",
         name: feature.name ? sizeName(feature.name) : "", count: feature.count || 1,
-        rows: feature.rows || [feature.key], file: feature.file, line: feature.line,
+        rows: feature.rows || [feature.key], file: feature.file, line: feature.line, lines: linesOf(feature),
         sketch: feature.sketch ? sketchOf(feature, `sketch:${feature.key}`) : null,
         // What Edit Feature opens the feature's command with, when a command writes its line.
         edit: feature.edit || null,

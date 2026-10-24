@@ -97,14 +97,92 @@ const TRACER = ["/work/.venv/lib/python3.13/site-packages/cadgen/edit/tracer.py"
 const KERNEL = ["/work/.venv/lib/python3.13/site-packages/build123d/operations_generic.py", 541, "return Solid.fillet(...)"];
 const WHY = "OCP.StdFail.StdFail_NotDone: BRep_API: command not done";
 
-test("a failed build marks the feature at the line its error points at, and says why", () => {
-  const error = traceback(TRACER, ["/work/servo/servo.py", 24, "part = fillet(part.edges(), radius=40)"], KERNEL);
-  assert.deepEqual(buildFailure({ assembly: false, features: DEMO }, error), { id: BLEND.id, why: WHY });
-  // Windows writes its paths the other way round.
-  assert.equal(buildFailure({ assembly: false, features: DEMO }, traceback(["C:\\work\\servo\\servo.py", 27, "hole(...)"], KERNEL))?.id, HOLE.id);
+// The part as the engine reads it: each feature gives its first line as written, and the rows folded
+// into one (a profile's line, a cut joined to it) give theirs.
+const SOURCE = {
+  profile: "profile = Circle(RADIUS)", base: "base = extrude(profile, amount=HEIGHT)", blend: "base = fillet(base.edges(), radius=WALL)",
+  chamfer: "base = chamfer(base.edges(), length=1)", hole: "base -= Pos(0, 0, 0) * Cylinder(HOLE, HEIGHT)",
+};
+const SOURCED = featureTree({
+  rows: [
+    { key: "servo.py:11", file: "servo.py", line: 11, code: SOURCE.profile },
+    { key: "servo.py:12", file: "servo.py", line: 12, code: SOURCE.base },
+    { key: "servo.py:24", file: "servo.py", line: 24, code: SOURCE.blend },
+    { key: "servo.py:25", file: "servo.py", line: 25, code: SOURCE.chamfer },
+    { key: "servo.py:27", file: "servo.py", line: 27, code: SOURCE.hole },
+  ],
+  features: [
+    { key: "servo.py:12", kind: "Boss-Extrude", name: "base", file: "servo.py", line: 12, text: SOURCE.base, rows: ["servo.py:11", "servo.py:12"] },
+    { key: "servo.py:24", kind: "Fillet", name: "base", file: "servo.py", line: 24, text: SOURCE.blend },
+    { key: "servo.py:25", kind: "Chamfer", name: "base", file: "servo.py", line: 25, text: SOURCE.chamfer },
+    { key: "servo.py:27", kind: "Hole", name: "base", file: "servo.py", line: 27, text: SOURCE.hole },
+  ],
+});
+// Where the engine says the script stopped: its file as the history names it, its line, and the line as read.
+const stoppedAt = (line, text, file = "servo.py") => ({ file, line, text });
+const FILLET_FAILED = traceback(TRACER, ["/work/servo/servo.py", 24, SOURCE.blend], KERNEL);
+
+test("a failed build marks the feature whose line it stopped at, told by file, number and words, and says why", () => {
+  assert.deepEqual(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, SOURCE.blend)), { id: "servo.py:24", why: WHY });
+  // A line folded into a feature, its profile's, is the feature's.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(11, SOURCE.profile))?.id, "servo.py:12");
+  // The files are told by their names, whichever way a system writes its paths.
+  const nested = featureTree({ features: [{ key: "parts/servo.py:24", kind: "Fillet", name: "base", file: "parts/servo.py", line: 24, text: SOURCE.blend }] });
+  assert.equal(buildFailure(nested, FILLET_FAILED, stoppedAt(24, SOURCE.blend, "parts\\servo.py"))?.id, "parts/servo.py:24");
 });
 
-test("reads the traceback the tracer gives for a fillet that cannot be made", () => {
+test("a line that moved marks nothing: not its own row, and not the neighbour now at its number", () => {
+  // A line was written above the fillet: it stands at 25 now, where the last good part's chamfer was.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(25, SOURCE.blend)), null);
+  // Two lines above it, where the last good part had nothing at all.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(26, SOURCE.blend)), null);
+  // The fillet's number with the chamfer's words.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, SOURCE.chamfer)), null);
+});
+
+test("a line the last good part does not hold marks nothing, whatever sits at its number", () => {
+  // Rewritten (the radius typed over in the line) or new: no row of the last good part reads so.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, "base = fillet(base.edges(), radius=40)")), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(25, "base = shell(base, thickness=1)")), null);
+  // The same words at the same number in another file are another line.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, SOURCE.blend, "helpers.py")), null);
+  // Nothing to tell it by.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, "")), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, { file: "servo.py", text: SOURCE.blend }), null);
+  assert.equal(buildFailure({ assembly: false, features: [] }, FILLET_FAILED, stoppedAt(24, SOURCE.blend)), null);
+});
+
+test("features whose lines read alike are told by their numbers, and a line two features stand for marks neither", () => {
+  const twice = featureTree({
+    features: [
+      { key: "servo.py:24", kind: "Fillet", name: "base", file: "servo.py", line: 24, text: SOURCE.blend },
+      { key: "servo.py:30", kind: "Fillet", name: "base", file: "servo.py", line: 30, text: SOURCE.blend },
+    ],
+  });
+  assert.equal(buildFailure(twice, FILLET_FAILED, stoppedAt(30, SOURCE.blend))?.id, "servo.py:30");
+  assert.equal(buildFailure(twice, FILLET_FAILED, stoppedAt(24, SOURCE.blend))?.id, "servo.py:24");
+  assert.equal(buildFailure(twice, FILLET_FAILED, stoppedAt(27, SOURCE.blend)), null);
+  // A line both claim cannot say which of them it is.
+  const shared = featureTree({
+    rows: [{ key: "servo.py:3", file: "servo.py", line: 3, code: SOURCE.profile }],
+    features: [
+      { key: "servo.py:5", kind: "Boss-Extrude", name: "a", file: "servo.py", line: 5, text: SOURCE.base, rows: ["servo.py:3", "servo.py:5"] },
+      { key: "servo.py:9", kind: "Boss-Extrude", name: "b", file: "servo.py", line: 9, text: SOURCE.base, rows: ["servo.py:3", "servo.py:9"] },
+    ],
+  });
+  assert.equal(buildFailure(shared, FILLET_FAILED, stoppedAt(3, SOURCE.profile)), null);
+  assert.equal(buildFailure(shared, FILLET_FAILED, stoppedAt(9, SOURCE.base))?.id, "servo.py:9");
+});
+
+test("an engine that says no line marks nothing, though the traceback holds a frame", () => {
+  // A script that does not parse never ran, so the engine finds no line of the part's own to name, though
+  // its traceback names one. An engine that says nothing of where leaves only that traceback's line number,
+  // the failing script's, which the last good part's rows stop matching once a line is written above.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, null), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED), null);
+});
+
+test("says why in the last line of the traceback the tracer gives for a fillet that cannot be made", () => {
   // A real one, its paths shortened: build123d's error, then a second traceback chained to it that holds
   // the part's own line, past the tracer's frame and under build123d's wrapper.
   const error = [
@@ -119,7 +197,7 @@ test("reads the traceback the tracer gives for a fillet that cannot be made", ()
     '  File "/work/packages/cadgen/src/cadgen/edit/tracer.py", line 1668, in trace',
     "    shape = model.func()",
     '  File "/work/servo/servo.py", line 24, in servo',
-    "    outer = fillet(outer.edges().filter_by(Axis.Z), radius=RADIUS)",
+    `    ${SOURCE.blend}`,
     '  File "/work/packages/cadgen/src/cadgen/edit/tracer.py", line 431, in wrapper',
     "    result = original(*args, **kwargs)",
     '  File "/work/.venv/lib/python3.13/site-packages/build123d/topology/three_d.py", line 371, in fillet',
@@ -127,53 +205,32 @@ test("reads the traceback the tracer gives for a fillet that cannot be made", ()
     "    ...<2 lines>...",
     "ValueError: Failed creating a fillet with radius of 50, try a smaller value or use max_fillet() to find the largest valid fillet radius",
   ].join("\n");
-  assert.deepEqual(buildFailure({ assembly: false, features: DEMO }, error), {
-    id: BLEND.id, why: "ValueError: Failed creating a fillet with radius of 50, try a smaller value or use max_fillet() to find the largest valid fillet radius" });
-});
-
-test("a failed build points at the feature whose lines it stopped in, its sketch's and a cut folded into it too", () => {
-  const folded = featureTree({
-    features: [
-      { key: "box.py:6", kind: "Boss-Extrude", name: "box", file: "box.py", line: 6, rows: ["box.py:5", "box.py:6", "box.py:8"],
-        sketch: { name: "Outline", plane: "Top", file: "box.py", line: 5, status: "Fully defined" } },
-      { key: "box.py:9", kind: "Fillet", name: "box", file: "box.py", line: 9 },
-    ],
-  });
-  const at = line => buildFailure(folded, traceback(TRACER, ["/work/box.py", line, "..."]))?.id;
-  assert.equal(at(8), "box.py:6");
-  assert.equal(at(5), "box.py:6");
-  assert.equal(at(9), "box.py:9");
-});
-
-test("a failed build points at the part's own frame that makes a feature, the deepest one first", () => {
-  const tree = { assembly: false, features: DEMO };
-  // A helper the part calls fails: its frame makes no feature, so the call in the part's script is the row.
-  const helper = traceback(TRACER, ["/work/servo/servo.py", 27, "hole = drill(part)"], ["/work/servo/helpers.py", 8, "raise ValueError"]);
-  assert.equal(buildFailure(tree, helper)?.id, HOLE.id);
-  // Both frames make features: the one it stopped in.
-  const both = traceback(TRACER, ["/work/servo/servo.py", 24, "a"], ["/work/servo/servo.py", 27, "b"]);
-  assert.equal(buildFailure(tree, both)?.id, HOLE.id);
+  assert.deepEqual(buildFailure(SOURCED, error, stoppedAt(24, SOURCE.blend)), {
+    id: "servo.py:24", why: "ValueError: Failed creating a fillet with radius of 50, try a smaller value or use max_fillet() to find the largest valid fillet radius" });
 });
 
 test("says nothing of an error that points at no feature", () => {
-  const tree = { assembly: false, features: DEMO };
-  // No traceback: a refusal in words.
-  assert.equal(buildFailure(tree, "Another feature is named Lid. Pick another name."), null);
-  assert.equal(buildFailure(tree, ""), null);
-  assert.equal(buildFailure(tree, undefined), null);
-  // A line that makes no feature, a file the part does not have, and no part to point in.
-  assert.equal(buildFailure(tree, traceback(TRACER, ["/work/servo/servo.py", 99, "x"])), null);
-  assert.equal(buildFailure(tree, traceback(TRACER, ["/work/notservo.py", 24, "x"])), null);
-  assert.equal(buildFailure({ assembly: false, features: [] }, traceback(TRACER, ["/work/servo/servo.py", 24, "x"])), null);
+  // A refusal in words: the engine names no line of it.
+  assert.equal(buildFailure(SOURCED, "Another feature is named Lid. Pick another name."), null);
+  assert.equal(buildFailure(SOURCED, "Another feature is named Lid. Pick another name.", null), null);
+  // No error to say, whatever place is held.
+  assert.equal(buildFailure(SOURCED, "", stoppedAt(24, SOURCE.blend)), null);
+  assert.equal(buildFailure(SOURCED, undefined, stoppedAt(24, SOURCE.blend)), null);
+  // A line that makes no feature, and a file the part does not have.
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(99, "x = 1")), null);
+  assert.equal(buildFailure(SOURCED, FILLET_FAILED, stoppedAt(24, SOURCE.blend, "notservo.py")), null);
 });
 
 test("a failed build in an assembly points at the part's feature, by its file", () => {
   const assembly = featureTree({
+    rows: [{ key: "tray.py:7", file: "tray.py", line: 7, code: "tray = extrude(base, amount=3)" }, { key: "lid.py:7", file: "lid.py", line: 7, code: "lid = extrude(base, amount=3)" }],
     components: [
-      { file: "tray.py", name: "tray", features: [{ key: "tray.py:7", kind: "Boss-Extrude", name: "tray", file: "tray.py", line: 7 }] },
-      { file: "lid.py", name: "lid", features: [{ key: "lid.py:7", kind: "Boss-Extrude", name: "lid", file: "lid.py", line: 7 }] },
+      { file: "tray.py", name: "tray", features: [{ key: "tray.py:7", kind: "Boss-Extrude", name: "tray", file: "tray.py", line: 7, text: "tray = extrude(base, amount=3)" }] },
+      { file: "lid.py", name: "lid", features: [{ key: "lid.py:7", kind: "Boss-Extrude", name: "lid", file: "lid.py", line: 7, text: "lid = extrude(base, amount=3)" }] },
     ],
   });
-  assert.equal(buildFailure(assembly, traceback(TRACER, ["/work/lid.py", 7, "x"]))?.id, "lid.py:7");
-  assert.equal(buildFailure(assembly, traceback(TRACER, ["/work/tray.py", 7, "x"]))?.id, "tray.py:7");
+  // The same line number in two parts' files: the file and the words tell them apart.
+  assert.equal(buildFailure(assembly, WHY, stoppedAt(7, "lid = extrude(base, amount=3)", "lid.py"))?.id, "lid.py:7");
+  assert.equal(buildFailure(assembly, WHY, stoppedAt(7, "tray = extrude(base, amount=3)", "tray.py"))?.id, "tray.py:7");
+  assert.equal(buildFailure(assembly, WHY, stoppedAt(7, "tray = extrude(base, amount=3)", "lid.py")), null);
 });

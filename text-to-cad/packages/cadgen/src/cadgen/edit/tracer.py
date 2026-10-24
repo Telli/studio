@@ -1066,6 +1066,20 @@ def _source_line(rel, line):
         return ""
 
 
+def _stopped_at(error):
+    """Where a part's script stopped, in the project's own files: the deepest frame of the error's
+    traceback that lies in one (build123d's, cadgen's and Python's own do not). It is named as a row of
+    the history names its place (``file`` from the project's top, ``line``) with that line as written
+    (``text``), so a view still holding the last good trace can tell by all three which of its rows ran
+    it. None when no frame is the project's: a script that does not parse never ran."""
+    for frame in reversed(traceback.extract_tb(error.__traceback__)):
+        # `<string>` and the like are no file: a relative name would read as one under the folder it runs in.
+        if frame.lineno and Path(frame.filename).is_absolute() and _inside(frame.filename):
+            rel = _relative(frame.filename)
+            return {"file": rel, "line": frame.lineno, "text": _source_line(rel, frame.lineno)}
+    return None
+
+
 # Copies made one by one, as edit mode's Pattern writes them up Z or about a picked axis:
 # `[Pos(0, 0, i * 12) * boss for i in range(1, 4)]`, `[boss.rotate(axis, i * 360 / 6) for i in range(1, 6)]`.
 _COPIES = re.compile(r"\[\s*(?:\w+\.rotate\(|(?:\w+\.)?Pos\().*\bfor\s+\w+\s+in\s+range\(")
@@ -1394,6 +1408,13 @@ def _with_suppressed(features, suppressed):
     return out
 
 
+def _with_text(features):
+    """Each feature with its first line as written (``text``), as a row of the history gives its own
+    (``code``): the line a failed build is told apart by (``_stopped_at``)."""
+    return [{**feature, "text": _source_line(feature["file"], feature["line"])} if feature.get("file") and feature.get("line") else feature
+            for feature in features]
+
+
 def _editable(features, rows, steps, sketches, units):
     """Each feature a ribbon command writes, with what Edit Feature opens it with (``edit``): the
     command, its values in the part's units, what it keeps (its edges, faces, the feature it
@@ -1668,8 +1689,8 @@ def trace(request):
                 shape = model.func()
             finally:
                 RECORDING = False
-    except Exception:
-        return {"ok": False, "error": traceback.format_exc(limit=6)}
+    except Exception as error:
+        return {"ok": False, "error": traceback.format_exc(limit=6), "failure": _stopped_at(error)}
     finally:
         sys.path.remove(str(script.parent))
 
@@ -1694,14 +1715,14 @@ def trace(request):
     sketches = _sketches(steps, rows)
     for component in components:
         hidden = _suppressed_in(component["file"], {component["function"]}, sketches)
-        component["features"] = _editable(_with_suppressed(_with_sketches(component["features"], sketches, component), hidden),
-                                          rows, steps, sketches, units)
+        component["features"] = _with_text(_editable(_with_suppressed(_with_sketches(component["features"], sketches, component), hidden),
+                                                     rows, steps, sketches, units))
     if not components:
         scopes: dict = {}
         for row in timeline:
             scopes.setdefault(row["file"], set()).add(row["function"])
         hidden = [item for rel, functions in scopes.items() for item in _suppressed_in(rel, functions, sketches)]
-        features = _editable(_with_suppressed(_with_sketches(_features(rows, timeline), sketches), hidden), rows, steps, sketches, units)
+        features = _with_text(_editable(_with_suppressed(_with_sketches(_features(rows, timeline), sketches), hidden), rows, steps, sketches, units))
     dimensions = _dimensions(steps, units)
     row_of = {index: row["key"] for row in rows for index in row["steps"]}
     for dimension in dimensions:

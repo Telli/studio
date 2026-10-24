@@ -34,6 +34,14 @@ import { countChange, sketchNote, TRANSFORM_TOOLS } from "./sketchMode.js";
 // an unchanged answer is a hash comparison on the server, and the part is not run.
 const POLL_MS = 1500;
 const describe = error => (error instanceof Error ? error.message : String(error || "The change could not be made."));
+// Where a script that did not build stopped (`{ file, line, text }`, from the engine), kept with the
+// error it is the place of. The same place again, as every poll says it, is no new state.
+const stoppedAtOf = (current, message, at) => {
+  const next = at && typeof at === "object" ? { message, at } : null;
+  const same = current === next || (current && next && current.message === next.message
+    && current.at.file === next.at.file && current.at.line === next.at.line && current.at.text === next.at.text);
+  return same ? current : next;
+};
 // A feature's title in the design tree a reply describes: "Fillet2".
 const titleOf = (state, row) => treeFeatures(featureTree(state)).find(feature => feature.id === row)?.title
   || featureNames(state?.rows || []).find(name => name.key === row)?.title || "";
@@ -67,6 +75,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [status, setStatus] = useState(supported && file ? "probing" : "none");
   const [state, setState] = useState(null);
   const [error, setError] = useState("");
+  // Where the script stopped, when the error is a part that did not build.
+  const [stoppedAt, setStoppedAt] = useState(null);
   // The profile an error is about, when the agent can redraw it as a sketch.
   const [redraw, setRedraw] = useState(null);
   const [choice, setChoice] = useState(null);
@@ -179,7 +189,9 @@ export function useEditMode({ client, file, active, reading = true }) {
     if (!reply.ok) {
       if (reply.reason === "no-script") { setStatus("none"); return; }
       setStatus(current => (current === "ready" ? current : "error"));
-      setError(reply.error || "The part could not be read.");
+      const message = reply.error || "The part could not be read.";
+      setError(message);
+      setStoppedAt(current => stoppedAtOf(current, message, reply.failure));
       return;
     }
     if (reply.drawingOnly) {
@@ -295,7 +307,12 @@ export function useEditMode({ client, file, active, reading = true }) {
       const placed = "bar" in request || !barRef.current ? request : { ...request, bar: { before: barRef.current.before } };
       const reply = await client.editChange({ ...placed, file, files: files.current || undefined });
       if (reply.choose) { setChoice({ request, options: reply.choose }); return reply; }
-      if (!reply.ok) { setError(reply.error || "The change could not be made."); return reply; }
+      if (!reply.ok) {
+        const message = reply.error || "The change could not be made.";
+        setError(message);
+        setStoppedAt(current => stoppedAtOf(current, message, reply.failure));
+        return reply;
+      }
       setError("");
       take(reply);
       if (reply.change) {
@@ -795,6 +812,8 @@ export function useEditMode({ client, file, active, reading = true }) {
     dismissError: () => { setError(""); setRedraw(null); },
     // Shown with the error only while it is still the one about that profile.
     redraw: redraw && redraw.message === error ? redraw.sketch : null,
+    // Where the build stopped, shown with the error only while it is still the one it is the place of.
+    failure: stoppedAt && stoppedAt.message === error ? stoppedAt.at : null,
     askRedraw,
     sketch, sketchTool, sketchSelection, construction, picking, normalTo, sketchStep,
     // Mirror Entities and the sketch patterns start from what is selected; every other tool from nothing.

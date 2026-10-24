@@ -149,7 +149,7 @@ by hand" below.
   a loop goes whole when every line in it is the feature's. A feature whose name a later line
   still uses is not deleted: the engineer is told which feature uses it. A sketch of its own goes
   with its lines.
-- **Edit Feature** (a feature's menu, or a double-click on it) reopens the command that wrote the
+- **Edit Parameters** (a feature's menu, or a double-click on it) reopens the command that wrote the
   feature's line, with its values, and writes that same line again in its place. What the line
   acts on stays as written (its edges, faces, the feature it copies, its sketch) unless the
   engineer picks others: a fillet's, chamfer's, shell's, draft's or hole's panel rolls the part back to
@@ -197,7 +197,7 @@ by hand" below.
   mate's Delete takes it out of its call.
 - **Rename** (a row's menu, or F2) names a feature as the engineer calls it: the name is the
   comment at the end of the feature's line (`part -= ...  # Cable notch`), which the design tree
-  shows in place of Cut-Extrude2 and Edit Feature keeps; a sketch's is its own
+  shows in place of Cut-Extrude2 and Edit Parameters keeps; a sketch's is its own
   (`Sketch("Cable notch", ...)`). A hole of a standard size is named by its callout until renamed.
   No two features share a name, and nothing is built.
 - **Appearance** (the ribbon's Display group, or the part's menu in the tree) colors the part with
@@ -212,11 +212,11 @@ by hand" below.
   origin plane's normal, reversed or not): green where a face leans with the pull by at least the
   draft angle, red where it leans away, yellow where a wall stands too near the pull for a mold to
   release it, with each color's area. Use it before adding Draft. It writes nothing.
-- **The rollback bar** under the features (dragged up, or a feature's Rollback) shows the part as
-  it was above a feature, the features below it greyed. While it is up, commands act on the body
-  there and write their line right above the feature below the bar (a new sketch goes there too),
-  so a feature can be put in early in the history. Nothing below the bar changes. Roll to End
-  brings the part back.
+- **The rollback bar** under the features (dragged up, or a feature's Make Current Feature) shows
+  the part as it was above the bar, the features below it greyed. While it is up, commands act on
+  the body there and write their line right above the feature below the bar (a new sketch goes
+  there too), so a feature can be put in early in the history. Nothing below the bar changes. Make
+  Current Feature on the last feature brings the part back.
 - **Suppress** takes a feature out of the part but keeps its lines, as comments under a line that
   says what they are; Unsuppress puts them back exactly. A boolean that starts a name keeps the
   name meanwhile, on a line of its own:
@@ -299,7 +299,7 @@ by hand" below.
   each one ("In edit mode I changed Length (LENGTH) from 2.80 to 3.00 (parts/sizes.py, line 8).",
   "In edit mode I added Fillet2, radius 0.03 in, 1 edge (parts/housing_geometry.py, line 37).",
   "In edit mode I deleted Fillet1 (parts/housing_geometry.py, line 31).", "In edit mode I changed
-  Fillet2 to radius 0.05 in, 1 edge (...)." for Edit Feature, "In edit mode I suppressed Fillet1:
+  Fillet2 to radius 0.05 in, 1 edge (...)." for Edit Parameters, "In edit mode I suppressed Fillet1:
   its lines are comments now (...).").
   A sketch is told once, when the engineer leaves it ("In edit mode I drew Sketch2 on the Top
   Plane (parts/plate.py, line 13): drew 4 lines and a circle, added 5 dimensions.").

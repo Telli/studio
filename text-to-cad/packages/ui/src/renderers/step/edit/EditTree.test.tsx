@@ -46,15 +46,26 @@ it("a renamed feature shows its own name and the tree still counts it, and its n
 });
 
 // A bracket: a plate (an extrude a command made, from a sketch of its own), then a fillet and a hole the
-// commands made. Numbered as NX does: Sketch (1), Extrude (2), Edge Blend (3), Hole (4).
+// commands made. Numbered as NX does: Sketch (1), Extrude (2), Edge Blend (3), Hole (4). The engine gives each
+// feature its first line as written, and each row of the history its own.
+const SOURCE = {
+  plate: 'plate = extrude(outline, amount=THICKNESS)',
+  fillet: 'plate = fillet(plate.edges().filter_by(Axis.Z), radius=WALL)',
+  hole: 'plate -= Pos(10, 0, 0) * Cylinder(HOLE, THICKNESS)',
+};
 const PART = {
-  units: 'mm', name: 'bracket', rows: [],
+  units: 'mm', name: 'bracket',
+  rows: [
+    { key: 'bracket.py:8', file: 'bracket.py', line: 8, code: SOURCE.plate },
+    { key: 'bracket.py:9', file: 'bracket.py', line: 9, code: SOURCE.fillet },
+    { key: 'bracket.py:10', file: 'bracket.py', line: 10, code: SOURCE.hole },
+  ],
   params: [{ id: 'bracket.py:3', name: 'TRAY_WIDTH', text: '40', unit: 'mm' }, { id: 'bracket.py:4', name: 'WALL', text: '2', unit: 'mm' }],
   features: [
-    { key: 'bracket.py:8', kind: 'Boss-Extrude', name: 'plate', file: 'bracket.py', line: 8, edit: { command: 'extrude', values: {}, keeps: '' },
+    { key: 'bracket.py:8', kind: 'Boss-Extrude', name: 'plate', file: 'bracket.py', line: 8, text: SOURCE.plate, edit: { command: 'extrude', values: {}, keeps: '' },
       sketch: { name: 'Outline', plane: 'Top', file: 'bracket.py', line: 7, status: 'Fully defined' } },
-    { key: 'bracket.py:9', kind: 'Fillet', name: 'plate', file: 'bracket.py', line: 9, edit: { command: 'fillet', values: {}, keeps: '4 edges' } },
-    { key: 'bracket.py:10', kind: 'Hole', name: 'plate', file: 'bracket.py', line: 10, edit: { command: 'hole', values: {}, keeps: '' } },
+    { key: 'bracket.py:9', kind: 'Fillet', name: 'plate', file: 'bracket.py', line: 9, text: SOURCE.fillet, edit: { command: 'fillet', values: {}, keeps: '4 edges' } },
+    { key: 'bracket.py:10', kind: 'Hole', name: 'plate', file: 'bracket.py', line: 10, text: SOURCE.hole, edit: { command: 'hole', values: {}, keeps: '' } },
   ],
 };
 const FILLET = 'bracket.py:9', HOLE = 'bracket.py:10';
@@ -213,7 +224,7 @@ it("lists an assembly's parts and mates in the tree, under the same header", () 
 
 // What the part's script stops with when a fillet cannot be made, as the tracer words it (a real one, its
 // paths shortened): build123d's own error, then the tracer's frame, the fillet's line in the part, build123d's.
-const failed = (line: number) => [
+const failed = (line: number, code = SOURCE.fillet) => [
   'Traceback (most recent call last):',
   '  File "/work/.venv/lib/python3.13/site-packages/build123d/topology/three_d.py", line 367, in fillet',
   '    new_shape = self._make_3d_result(fillet_builder.Shape())',
@@ -225,31 +236,59 @@ const failed = (line: number) => [
   '  File "/work/packages/cadgen/src/cadgen/edit/tracer.py", line 1668, in trace',
   '    shape = model.func()',
   `  File "/work/parts/bracket.py", line ${line}, in bracket`,
-  '    plate = fillet(plate.edges(), radius=40)',
+  `    ${code}`,
   '  File "/work/.venv/lib/python3.13/site-packages/build123d/topology/three_d.py", line 371, in fillet',
   '    raise ValueError(',
   '    ...<2 lines>...',
   'ValueError: Failed creating a fillet with radius of 40, try a smaller value or use max_fillet() to find the largest valid fillet radius',
 ].join('\n');
 const WHY = 'ValueError: Failed creating a fillet with radius of 40, try a smaller value or use max_fillet() to find the largest valid fillet radius';
+// Where the engine says it stopped: the file as the history names it, the line, and the line as read.
+const stoppedAt = (line: number, text = SOURCE.fillet) => ({ file: 'bracket.py', line, text });
+// The rows wearing the warning, by their ids.
+const markedRows = () => screen.queryAllByRole('img', { name: 'Did not build' }).map(mark => mark.closest('[data-tree-row]')?.getAttribute('data-cad-edit-tree-row'));
 
 it("marks the feature whose build failed with the viewer's warning, and says why on hover", () => {
-  render(<EditTree edit={part({ error: failed(9) }) as never} tree={partTree()} />);
-  // The row the error's file and line point at, beside its title, in the alert card's amber.
+  render(<EditTree edit={part({ error: failed(9), failure: stoppedAt(9) }) as never} tree={partTree()} />);
+  // The row the engine's file, line and words name, beside its title, in the alert card's amber.
   const marked = row('Edge Blend (3)');
   const mark = within(marked).getByRole('img', { name: 'Did not build' });
   expect(mark.getAttribute('class')).toMatch(/\btext-amber-500\b/);
   expect(marked.getAttribute('title')).toBe(`Did not build: ${WHY}`);
   expect(marked.textContent).toBe('Edge Blend (3)Plate');
   // No other row says it.
-  expect(screen.getAllByRole('img', { name: 'Did not build' })).toHaveLength(1);
+  expect(markedRows()).toEqual([FILLET]);
   expect(row('Hole (4)').getAttribute('title')).toBeNull();
 });
 
+it("marks nothing for a line that moved: the script has moved on from the tree", () => {
+  // A line was written above the fillet, and it stands at 10 now, where the last good part's hole was.
+  // Neither the hole, which reads otherwise, nor the fillet, which sat at 9, is that line.
+  render(<EditTree edit={part({ error: failed(10), failure: stoppedAt(10) }) as never} tree={partTree()} />);
+  expect(markedRows()).toEqual([]);
+});
+
+it("marks nothing for a line the last good part does not hold", () => {
+  // The radius typed over in the line itself: no row of the last good part reads so, though one sits at its number.
+  const rewritten = 'plate = fillet(plate.edges().filter_by(Axis.Z), radius=40)';
+  render(<EditTree edit={part({ error: failed(9, rewritten), failure: stoppedAt(9, rewritten) }) as never} tree={partTree()} />);
+  expect(markedRows()).toEqual([]);
+  cleanup();
+  // The engine found no line of the part's own (a script that does not parse): nothing, whatever the traceback holds.
+  render(<EditTree edit={part({ error: failed(9), failure: null }) as never} tree={partTree()} />);
+  expect(markedRows()).toEqual([]);
+});
+
+it("marks nothing for an engine that says no line, though the traceback names one", () => {
+  render(<EditTree edit={part({ error: failed(9) }) as never} tree={partTree()} />);
+  expect(markedRows()).toEqual([]);
+});
+
 it("marks nothing for an error that points at no feature", () => {
-  for (const error of ['Another feature is named Lid. Pick another name.', failed(99), '']) {
-    render(<EditTree edit={part({ error }) as never} tree={partTree()} />);
-    expect(screen.queryByRole('img', { name: 'Did not build' })).toBeNull();
+  const patches = [{ error: 'Another feature is named Lid. Pick another name.' }, { error: failed(99), failure: stoppedAt(99, 'plate = shell(plate, thickness=1)') }, { error: '' }];
+  for (const patch of patches) {
+    render(<EditTree edit={part(patch) as never} tree={partTree()} />);
+    expect(markedRows()).toEqual([]);
     cleanup();
   }
 });

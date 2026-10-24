@@ -326,6 +326,35 @@ test("an assembly's tree lists its parts as components, each numbered on its own
   assert.deepEqual(tree.components.map(c => [c.title, c.features[0].title]), [["Daisy tray<1>", "Boss-Extrude1"], ["Daisy cover<1>", "Boss-Extrude1"]]);
 });
 
+test("a feature stands for the lines of the script it is made from, each with its text as the engine read it", async () => {
+  const { featureTree } = await import("./editMode.js");
+  const state = {
+    // The history's rows read their own line as written; a feature's own line is the one it names.
+    rows: [
+      { key: "box.py:5", file: "box.py", line: 5, code: "profile = Circle(RADIUS)" },
+      { key: "box.py:6", file: "box.py", line: 6, code: "body = extrude(profile, amount=HEIGHT)" },
+      { key: "box.py:8", file: "box.py", line: 8, code: "body -= Pos(0, 0, 2) * Cylinder(1, 9)" },
+    ],
+    features: [
+      { key: "box.py:6", kind: "Boss-Extrude", name: "body", file: "box.py", line: 6, text: "body = extrude(profile, amount=HEIGHT)",
+        rows: ["box.py:5", "box.py:6", "box.py:8"] },
+      { key: "sketch@box.py:12", kind: "Sketch", name: null, file: "box.py", line: 12, text: "s = Sketch('Outline', plane='Top')", rows: [],
+        sketch: { name: "Outline", file: "box.py", line: 12, plane: "Top" } },
+    ],
+  };
+  const [body, sketch] = featureTree(state).features;
+  // Its own line first, then those folded into it: its profile's and the cut joined to it.
+  assert.deepEqual(body.lines, [
+    { file: "box.py", line: 6, text: "body = extrude(profile, amount=HEIGHT)" },
+    { file: "box.py", line: 5, text: "profile = Circle(RADIUS)" },
+    { file: "box.py", line: 8, text: "body -= Pos(0, 0, 2) * Cylinder(1, 9)" },
+  ]);
+  assert.deepEqual(sketch.lines, [{ file: "box.py", line: 12, text: "s = Sketch('Outline', plane='Top')" }]);
+  // An older engine gives a feature no text: its lines say where they are, and nothing of what they read.
+  const older = featureTree({ features: [{ key: "box.py:6", kind: "Boss-Extrude", file: "box.py", line: 6, rows: ["box.py:6"] }] });
+  assert.deepEqual(older.features[0].lines, [{ file: "box.py", line: 6, text: "" }]);
+});
+
 test("what edit mode is busy with is said, with how far a rebuild has got", () => {
   assert.deepEqual(busyState({ status: "reading" }), { text: "Reading the part", progress: null });
   assert.deepEqual(busyState({ status: "ready", rolling: true }), { text: "Rolling back", progress: null });

@@ -133,47 +133,23 @@ export function treeTitles(tree) {
   return new Map(lists.flatMap(features => [...navigatorTitles(features)]));
 }
 
-// A frame of the Python traceback a part's script stops with, outermost first:
-// `  File "/work/parts/bracket.py", line 9, in bracket`.
-const TRACEBACK_FRAME = /^\s*File "([^"]+)", line (\d+)/gm;
 const slashed = path => String(path).replace(/\\/g, "/");
 
-// The lines of the script a feature stands for, `{ file, line }` each: its own, those folded into it
-// (its sketch's profile, a cut joined to it) and its sketch's.
-function linesOf(feature) {
-  const rows = (feature.rows || []).map(key => ({ file: key.slice(0, key.lastIndexOf(":")), line: Number(key.slice(key.lastIndexOf(":") + 1)) }));
-  return [...rows, { file: feature.file, line: feature.line }, { file: feature.sketch?.file, line: feature.sketch?.line }]
-    .filter(each => each.file && each.line);
-}
-
-// The feature a traceback frame is in the lines of. The frame names its file whole
-// (/work/parts/bracket.py) and a feature's line the project's way (parts/bracket.py): a frame is in
-// the file that ends it, from a folder's start, and the longest such name is the file.
-function ownerOf(features, frame) {
-  let owner = null, length = -1;
-  for (const feature of features) {
-    for (const { file, line } of linesOf(feature)) {
-      const name = slashed(file);
-      if (line === frame.line && name.length > length && (frame.file === name || frame.file.endsWith(`/${name}`))) { owner = feature; length = name.length; }
-    }
-  }
-  return owner;
-}
-
 /**
- * The feature a failed build points at, and why. A part whose script stops (`edit.error`) says where
- * in its traceback: the files and lines it stopped in. The feature is the one the deepest of them that
- * is in any feature's lines is in, so a helper the part calls, which makes no feature of its own,
- * points at the call in the part's script. `{ id, why }`, `why` the error's last line. Null for an
- * error that is not a traceback, or points at no feature: nothing is marked that is not known.
+ * The feature a failed build is at, and why. The tree is the last part that built; the script that
+ * stopped (`edit.error`, its traceback) has moved on from it, and the engine says where it stopped:
+ * the deepest line of the project's own that the traceback holds (`edit.failure`, `{ file, line,
+ * text }`, the line as written). A feature is that one only when a line it stands for (`lines`) is
+ * that very line, the same file, the same number and the same words. A line that moved, was rewritten
+ * or is new is no row of this tree, and neither is the neighbour now at its number: nothing is marked
+ * that is not known. `{ id, why }`, `why` the error's last line; null when no feature agrees, or two do.
  */
-export function buildFailure(tree, error) {
-  const text = String(error || "").trim();
-  const frames = [...text.matchAll(TRACEBACK_FRAME)].map(([, file, line]) => ({ file: slashed(file), line: Number(line) }));
-  const features = treeFeatures(tree);
-  for (const frame of frames.reverse()) {
-    const owner = ownerOf(features, frame);
-    if (owner) return { id: owner.id, why: text.split("\n").at(-1).trim() };
-  }
-  return null;
+export function buildFailure(tree, error, failure) {
+  const why = String(error || "").trim().split("\n").at(-1).trim();
+  const { file, line, text } = failure || {};
+  const words = String(text ?? "").trim();
+  if (!why || !file || !line || !words) return null;
+  const owners = treeFeatures(tree).filter(feature => (feature.lines || [])
+    .some(each => each.line === line && slashed(each.file) === slashed(file) && String(each.text).trim() === words));
+  return owners.length === 1 ? { id: owners[0].id, why } : null;
 }
