@@ -260,8 +260,9 @@ a temporary file before calling `cadgen snapshot --job <file>`.
 inside the gesture while the files are still being made; its references name their
 files by absolute path, as copied references do (below), and every file is named by
 its path, since text carries no file (without `promptFiles`, a prompt carries none). **Queue** is there where the
-destination is a composer (`destination.kind === "composer"`): `deliver`, the
-context for the person's next message. **Send** is there where the prompt port
+destination is a composer (`canAddToContext`: `destination.kind === "composer"` and available): `deliver`, the
+context for the person's next message. Edit mode's Add to context (`addToContext`) is the same delivery with no note, offered
+on the same condition. **Send** is there where the prompt port
 has `send`. The context is built at the press, from what is live then; a changed
 document or revision never retargets it. A Quick Edit that reached its destination
 (copied, queued or sent: no `failed` or `cancelled` receipt) tells the host once,

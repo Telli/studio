@@ -69,6 +69,29 @@ it("leaves out a group with nothing behind it", async () => {
   expect(screen.queryByRole('button', { name: 'Annotate' })).toBeNull();
 });
 
+it("dims Add to context, saying what to select, until something is picked", async () => {
+  const user = userEvent.setup();
+  const onAddContext = vi.fn();
+  const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={vi.fn()} onAddContext={onAddContext} />);
+  const add = () => command('Ask the agent', 'Add to context') as HTMLButtonElement;
+  // With nothing picked it has nothing to add: dimmed, with its reason as the dimmed buttons of the toolbar give theirs. Ask is not held.
+  expect(commandsIn('Ask the agent')).toEqual(['Ask', 'Add to context']);
+  expect(add().disabled).toBe(true);
+  expect(add().getAttribute('aria-description')).toBe('Select a face, edge or feature first');
+  expect((command('Ask the agent', 'Ask') as HTMLButtonElement).disabled).toBe(false);
+  await user.click(add());
+  expect(onAddContext).not.toHaveBeenCalled();
+  // Picked, it adds.
+  rerender(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={vi.fn()} onAddContext={onAddContext} picked />);
+  expect(add().disabled).toBe(false);
+  expect(add().getAttribute('aria-description')).toBeNull();
+  await user.click(add());
+  expect(onAddContext).toHaveBeenCalledTimes(1);
+  // Where the host has no chat box to fill it is not dimmed but left out; Ask stays.
+  rerender(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onAsk={vi.fn()} picked />);
+  expect(commandsIn('Ask the agent')).toEqual(['Ask']);
+});
+
 it("heads the toolbar with Solid, Sketch and Inspect, Assemble only for an assembly, and Drafting where a part has its sheet", () => {
   const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
   expect(tabNames()).toEqual(['Solid', 'Sketch', 'Inspect', 'Drafting']);

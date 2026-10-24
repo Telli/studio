@@ -41,18 +41,20 @@ export const referenceToken = reference => formatPromptReference(reference);
 export const quickEditSelection = references => references.filter(reference => reference.target.kind !== "whole-resource");
 
 /**
- * A Quick Edit as one prompt context: what the person wrote, the file on screen (always), the
+ * A Quick Edit as one prompt context: what the person wrote (no part for an empty note: Add to
+ * context carries none), the file on screen (always), the
  * selection in it (`references`, in the prompt grammar), and — once the host has made them
  * (`files`) — the current and drawn views with the annotation, inline
  * when small or named by the saved .snapshot.json path. No pictures are rendered or attached. Built at the press.
  *
- * @param {{ resource: object, references?: object[], text: string, views?: { label: string }[],
+ * @param {{ resource: object, references?: object[], text?: string, views?: { label: string }[],
  *   files?: Promise<{ snapshot?: string, inline?: string }> | null,
  *   read?: (path: string) => Promise<Blob> }} quickEdit
  */
 export function createQuickEditContext({ resource, references = [], text, views = [], files = null, read = null }) {
+  const note = String(text || "").trim();
   const parts = [
-    textPart(String(text || "").trim(), "text"),
+    ...(note ? [textPart(note, "text")] : []),
     referencePart({ resource: { ...resource }, target: { kind: "whole-resource" } }, "file"),
     ...quickEditSelection(references).map((reference, index) => referencePart({ ...reference, resource: { ...reference.resource } }, `reference-${index}`)),
   ];
@@ -77,4 +79,53 @@ export function createQuickEditContext({ resource, references = [], text, views 
  */
 export async function copiedQuickEdit(context) {
   return resolvePromptMessage(context);
+}
+
+/**
+ * What a Quick Edit's `prompt` (the shell's `quickEditPrompt`) attaches at a press, as `createQuickEditContext` takes it: the views
+ * it carries, the files the host makes of them (none without views, or where the host makes none) and how to read one. Read within
+ * the press, the same for every way a Quick Edit goes and for Add to context, so they carry the same.
+ *
+ * @param {{ views(): { label: string }[], files(views: { label: string }[]): Promise<object> | null, read(path: string): Promise<Blob> } | null | undefined} prompt
+ */
+export function promptAttachments(prompt) {
+  const views = prompt?.views() ?? [];
+  const files = views.length ? prompt.files(views) : null;
+  void files?.catch(() => {});
+  return { views, files, read: prompt?.read };
+}
+
+/**
+ * Why a delivery did not go, in the words Quick Edit shows under its note: the host's own, else "The prompt did not go."; empty once
+ * it went. Only a failed or cancelled receipt is a failure.
+ */
+export const deliveryFailure = result => (result && (result.status === "failed" || result.status === "cancelled")
+  ? result.message || "The prompt did not go." : "");
+
+/**
+ * Whether the host has a chat box to fill: the prompt destination (`usePromptDestination()`) is a composer that can take context for
+ * the person's next message. Quick Edit offers Queue where it holds, and the workspace Add to context; neither is offered elsewhere.
+ *
+ * @param {{ kind?: string, available?: boolean } | null | undefined} destination
+ */
+export const canAddToContext = destination => destination?.kind === "composer" && Boolean(destination.available);
+
+/**
+ * Add to context: the picks (`references`, in the prompt grammar) go into the host's chat box as context for the person's next
+ * message, with no note and nothing sent. It is a Queue without the note: the file on screen, the picks, and the views and files
+ * the Quick Edit `prompt` would attach (`promptAttachments`; pass them only where Queue would, and no picture is made for it).
+ * Made and handed over inside the press, as Queue is, so the host binds its destination in the gesture. Never throws: a context that
+ * cannot be made, or a host that cannot take it, is a rejection. Settles with the host's receipt (`deliveryFailure` reads it).
+ *
+ * @param {{ promptContext: import("@text-to-cad/core/prompt").PromptContextPort }} host
+ * @param {{ resource: object, references: object[], views?: { label: string }[], files?: Promise<object> | null,
+ *   read?: ((path: string) => Promise<Blob>) | null }} input
+ * @returns {Promise<import("@text-to-cad/core/prompt").PromptDeliveryResult>}
+ */
+export function addToContext(host, { resource, references, views = [], files = null, read = null }) {
+  try {
+    return Promise.resolve(host.promptContext.deliver(createQuickEditContext({ resource, references, text: "", views, files, read })));
+  } catch (error) {
+    return Promise.reject(error);
+  }
 }

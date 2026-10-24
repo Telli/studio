@@ -451,15 +451,21 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   after the model opens, so the full workspace opens on it at once (`useEditMode`). A pick in the
   workspace (a face or an edge on the model, a feature the person pressed in the Part Navigator or
   on the timeline, a sketch picked on the model) with no command open offers a small bar beside it
-  (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Ask, Annotate and Edit (Edit Parameters, or Edit
-  Sketch; a face has none until the engine says which feature made it). A feature a command's OK
+  (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Ask, Add to context, Annotate and Edit (Edit
+  Parameters, or Edit Sketch; a face has none until the engine says which feature made it). A feature a command's OK
   selected is not a pick, or the bar would stand over the part all the while it is worked on. Ask,
   in the bar or the toolbar, opens Quick Edit, which the workspace shows only once asked (with
   nothing picked, on the part as a whole); Escape, a send, its X, the picks emptying or a command or
   sketch opening put it away (`selectionBarState.js`). A feature chosen goes to the agent as a
   `text-range` reference to its line in its script, with a chip named as the Part Navigator names it
   ("Hole (6)"), the chip's X letting go of the pick (`featureAsk.jsx`; the script's absolute path is the
-  engine's `root` with the feature's `file`). Simple view's Quick Edit is as it always was.
+  engine's `root` with the feature's `file`). Add to context, in the bar or the toolbar's Ask the agent group, is Quick Edit's
+  Queue without the note (`useAddToContext.js`, `addToContext` in `quickEditPrompt.js`): it puts the same references Ask carries,
+  and the snapshot a Queue would attach, into the chat box without sending, and lets go of the picks (and the ink) once they are
+  there, so faces, edges and features can be collected and one message written; a failure keeps them and is said in the viewport's card.
+  It is there only where the host has a chat box to fill (`canAddToContext`: never in Jake's standalone viewer), and the toolbar's is
+  dimmed, saying "Select a face, edge or feature first", until something is picked. Quick Edit's X and a send let go of a feature
+  chosen too, as a press on the background does. Simple view's Quick Edit is as it always was.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, and the
   script stays its source: text-to-cad's own viewer is laid out as a CAD tool, with a ribbon of
   its tools across the top (Undo and Redo of hand changes; Select; Measure and Section; Explode

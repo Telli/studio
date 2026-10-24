@@ -11,7 +11,9 @@ import { FLOATING_SURFACE_CLASS } from "../../../../lib/floatingSurface.js";
 import { capturePointer } from "../../../../lib/pointerCapture.js";
 import ResizeGrip from "../ResizeGrip.jsx";
 import { TOOL_PANEL_BUTTON_CLASS } from "../ToolPanel.jsx";
-import { copiedQuickEdit, createQuickEditContext, pastedLines, quickEditSelection } from "./quickEditPrompt.js";
+import {
+  canAddToContext, copiedQuickEdit, createQuickEditContext, deliveryFailure, pastedLines, promptAttachments, quickEditSelection
+} from "./quickEditPrompt.js";
 import { insertAtCaret, markSelectedPills, noteText, pasteNodes, selectPillAt } from "./noteEditor.js";
 import ReferenceChips from "./ReferenceChips.jsx";
 
@@ -27,8 +29,6 @@ const PICK_MS = 1500;
 // 15rem wide, its note growing with what is written.
 export const QUICK_EDIT_LIMITS = Object.freeze({ minWidth: 208, maxWidth: 640, minHeight: 56, maxHeight: 320 });
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-const failure = result => (result && (result.status === "failed" || result.status === "cancelled") ? result.message || "The prompt did not go." : "");
 
 /** Each selected reference by its ids, one a line, as the prompt grammar names them (`promptReferenceIds`). */
 export function quickEditReferenceIds(selection) {
@@ -219,7 +219,7 @@ export default function QuickEdit({ resource, references = EMPTY, chips = null, 
     return () => document.removeEventListener("selectionchange", mark);
   }, [open]);
 
-  const canQueue = destination.kind === "composer" && destination.available;
+  const canQueue = canAddToContext(destination);
   const canSend = typeof host.promptContext.send === "function";
   const ready = written && !pending && !disabled;
 
@@ -241,17 +241,14 @@ export default function QuickEdit({ resource, references = EMPTY, chips = null, 
     setError("");
     let outcome;
     try {
-      const views = prompt?.views() ?? [];
-      const files = views.length ? prompt.files(views) : null;
-      void files?.catch(() => {});
-      const context = createQuickEditContext({ resource, references: selection, text, views, files, read: prompt?.read });
+      const context = createQuickEditContext({ resource, references: selection, text, ...promptAttachments(prompt) });
       if (action === "send") outcome = host.promptContext.send(context);
       else if (action === "queue") outcome = host.promptContext.deliver(context);
       else outcome = host.clipboard.writeText(copiedQuickEdit(context)).then(() => ({ status: "copied" }));
     } catch (caught) { outcome = Promise.reject(caught); }
     setPending(action);
     Promise.resolve(outcome).then(result => {
-      const message = failure(result);
+      const message = deliveryFailure(result);
       if (message) throw new Error(message);
       try { host.usage?.used("quickEdit"); } catch { /* counting a use never fails it */ }
       if (action === "copy") showCopied();

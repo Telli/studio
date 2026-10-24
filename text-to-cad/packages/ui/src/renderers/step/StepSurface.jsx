@@ -149,6 +149,7 @@ import EditSelectionBar from "./edit/EditSelectionBar.jsx";
 import { featureAsk } from "./edit/featureAsk.jsx";
 import { boundsCorners, featurePick, pickedReferences, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
 import { chosenThrough, useAsked, useChosenFeature } from "./edit/selectionBarState.js";
+import { useAddToContext } from "./edit/useAddToContext.js";
 import { DRAWING_TOOL_ICONS, ToolIcon } from "./edit/cadIcons.jsx";
 import { drawingToolVariant } from "../../annotation/toolbar.jsx";
 import SketchOverlay from "./edit/SketchOverlay.jsx";
@@ -3769,9 +3770,15 @@ function StepSurfaceBody({ view, data }) {
   // lights it (`measureSelection.js`); only while Select picks measurements.
   const { press: selectPress, hover: selectHover } = measureSelectHandlers(measure, () => runtimeRefRef.current?.current,
     clearAssemblySelection, { picks: selects(selectFilter, "measurement") });
-  // Everything picked goes: the parts and references, and the measurements.
-  // Quick Edit's X and a send clear it too, and the box Ask opened goes with them.
-  const clearSelected = () => { clearAssemblySelection(); measure.select([]); clearAsked(); };
+  // Everything picked goes: the parts and references, the measurements, and the feature chosen, as a press on the model's background lets
+  // go of them. Quick Edit's X and a send clear it too, and the box Ask opened goes with them.
+  const clearSelected = () => { clearAssemblySelection(); measure.select([]); clearAsked(); dropFeature(); };
+  // Where the host has a chat box to fill, the selection bar's Add to context and the toolbar's put what Ask carries (`carried`) there with
+  // no note and nothing sent (`useAddToContext`). Once it is there the picks are let go of, and the ink with them (it went in the snapshot), as
+  // a Queue lets go of both, so the next one starts fresh; if the box does not take it they are kept, and the viewport says why.
+  const addContext = useAddToContext({ resource: promptResource, references: carried.references, prompt: shell.frame.quickEditPrompt,
+    onAdded: () => { clearSelected(); if (shell.frame.annotation.hasAnnotation) shell.frame.annotation.forget(); },
+    onFailed: reportActionError });
 
   // ---- Preview ----------------------------------------------------------------------------
   // Its own scene while it is open, filled by its own layers inside its own viewport from the same
@@ -3820,7 +3827,8 @@ function StepSurfaceBody({ view, data }) {
     // The toolbar is handed the view's own controls and its catching-up too, for its tab row's right end.
     ribbon={editing ? (stripTools, view) => <EditRibbon tools={stripTools} view={view} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
       sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)}
-      onNormalTo={normalTarget ? edit.lookNormalTo : null} onAsk={ask} /> : null}
+      onNormalTo={normalTarget ? edit.lookNormalTo : null} onAsk={ask}
+      onAddContext={addContext.offered ? addContext.add : null} picked={addContext.picked} /> : null}
     leftDock={editing ? <EditBrowser edit={editWithRows} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
       onDeselect={deselectReference} /> : null}
@@ -3837,7 +3845,8 @@ function StepSurfaceBody({ view, data }) {
         {barActions.length ? <EditSelectionBar viewport={viewport} actions={barActions} anchor={barAnchor}
           anchorKey={barPicks.map(pick => `${pick.kind}:${pick.id}`).join(",")}
           editKind={rowEdited?.sketch ? "Sketch" : rowEdited?.feature.kind} editHint={rowEdited?.sketch ? "Edit Sketch" : "Edit Parameters"}
-          onAsk={ask} onAnnotate={pencil && !pencil.disabled ? pencil.onSelect : undefined} onEdit={rowEdited ? editRow : undefined} /> : null}
+          onAsk={ask} onAddContext={addContext.offered && addContext.picked ? addContext.add : undefined}
+          onAnnotate={pencil && !pencil.disabled ? pencil.onSelect : undefined} onEdit={rowEdited ? editRow : undefined} /> : null}
         {sheetUp ? <SheetEditor edit={edit} colorScheme={resolvedColorSchemeMode} /> : null}
         {editing && !sheetUp ? <EditDimensions viewport={viewport} dimensions={editDimensions} units={edit.state?.units || ""} disabled={edit.saving}
           planes={editPlanes} origin={editOrigin}

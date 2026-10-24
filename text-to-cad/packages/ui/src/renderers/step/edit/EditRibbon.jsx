@@ -42,6 +42,8 @@ const TAB_CLASS = "flex items-center border-b-2 border-transparent px-2.5 text-t
 const TITLE_CLASS = "text-micro uppercase leading-3 tracking-wider text-muted-foreground";
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
+// What Add to context says while it has nothing to add.
+const NOTHING_PICKED_WORDS = "Select a face, edge or feature first";
 // The More button's box, before it is first laid out.
 const MORE_WIDTH_PX = 46;
 const ALL_NAMED = Object.freeze({ compact: false, count: Infinity });
@@ -254,15 +256,16 @@ function searchable(groups, extras = []) {
  * @param {{ tools: import("../../kit/tools/FloatingToolBar.js").ViewportTool[],
  *   edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onCommand?: (id: string) => void,
  *   onSketch?: () => void, sketchLabel?: string, onNormalTo?: (() => void) | null,
- *   onAsk?: (() => void) | null, onAddContext?: (() => void) | null,
+ *   onAsk?: (() => void) | null, onAddContext?: (() => void) | null, picked?: boolean,
  *   view?: { controls?: import("react").ReactNode, status?: import("react").ReactNode } | null }} props
  *   `onCommand` opens a command (the surface turns Select to what it picks); `onSketch` is the
  *   Sketch button (`sketchLabel`: "Edit Sketch" while a sketch is selected); `onAsk` and
  *   `onAddContext` are the agent's buttons, each left out (and the group with them) while the host
- *   gives none.
+ *   gives none (Add to context needs a chat box to fill). `picked`: there is something for Add to context to add, a face,
+ *   an edge or a feature; without, it is dimmed and says what to select, while Ask, which asks about the part as a whole, is not.
  */
 export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id), onSketch = () => edit.startPicking(), sketchLabel = "Sketch",
-  canOpenParts = false, onNormalTo = null, onAsk = null, onAddContext = null, view = null }) {
+  canOpenParts = false, onNormalTo = null, onAsk = null, onAddContext = null, picked = false, view = null }) {
   const byId = new Map(tools.map(tool => [tool.id, tool]));
   // The tab in front, as NX keeps it while the part is open.
   const [tab, setTab] = useState("solid");
@@ -421,7 +424,10 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     const command = EDIT_COMMANDS.find(each => each.id === id);
     if (command) return [commandItem(command)];
     if (id === "ask") return onAsk ? [{ id, label: "Ask", icon: <AskIcon />, onClick: () => onAsk() }] : [];
-    if (id === "add-context") return onAddContext ? [{ id, label: "Add to context", icon: <AddContextIcon />, onClick: () => onAddContext() }] : [];
+    if (id === "add-context") {
+      return onAddContext ? [{ id, label: "Add to context", icon: <AddContextIcon />, disabled: !picked,
+        description: picked ? undefined : NOTHING_PICKED_WORDS, onClick: () => onAddContext() }] : [];
+    }
     return viewerTool(id);
   };
   const drawing = placing ? [] : state?.drawing ? [

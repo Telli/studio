@@ -1458,7 +1458,17 @@ follow what is picked or drawn. It opens when asked for (Ask, in the toolbar or 
 picked (a feature the person chose is its line in the part's script, a range of that file, with a chip of the Part
 Navigator's name for it), or on the file as a whole with nothing picked, and the keyboard is in its note; until then it stays shut
 however much is picked or drawn, and a note already written keeps it open as ever. Escape, a send, the X and the picks being let go of put the ask away (the
-host's: `step/edit/selectionBarState.js`), and so does a command or a sketch opening.
+host's: `step/edit/selectionBarState.js`), and so does a command or a sketch opening. The X and a send let go of
+a feature chosen too, as a press on the model's background does.
+
+**Add to context** (edit mode's selection bar, beside a pick, and the toolbar's Ask the agent group) puts the picks into the chat
+box without opening Quick Edit and without sending, to collect several faces, edges and features and write one message. It is Queue
+without the note (`addToContext`, `step/edit/useAddToContext.js`): the file, the same references Ask would carry (a feature chosen
+is the range of its script, named as the Part Navigator names it) and the snapshot Queue would attach, made and handed over inside
+the press. It is offered only where the destination is a composer (`canAddToContext`), so a host with no chat box shows neither
+button. The toolbar's is dimmed with nothing picked, its reason "Select a face, edge or feature first", as the toolbar's dimmed
+buttons give theirs. Once it has gone the picks and the ink are let go of (as a Queue lets go of the box's), so the next one starts
+fresh; a failure keeps them and is said in the viewport's card, in the words Quick Edit shows under its note (`deliveryFailure`).
 
 The person's picks put the keyboard in the note, each one (a pick right after their
 primary press in this view), and so does a first annotation stroke once the pen lifts. A
@@ -1477,7 +1487,8 @@ first. While there is no note they are disabled, dimmed but still drawn:
   spelled as copied references are, and its files by the paths they were saved at,
   since text carries no file.
 - **Queue** (list-plus icon), where the destination is a composer: the note goes
-  into the context of the person's next message.
+  into the context of the person's next message. Edit mode's **Add to context** (above) is this
+  delivery with no note.
 - **Send** (up arrow), where the host can post a message: the note goes now, as the
   person's message.
 
