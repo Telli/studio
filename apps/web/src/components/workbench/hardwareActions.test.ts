@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { type HardwareActionMenu, hardwareActions } from "./hardwareActions";
+import { HARDWARE_ACTIONS, type HardwareActionMenu, hardwareActions } from "./hardwareActions";
+import { entryOfAction } from "./library/libraryCatalog";
 
 const titled = (sections: HardwareActionMenu["sections"]) =>
   sections.map((section) => [section.title, section.actions.map((action) => action.label)]);
@@ -123,5 +124,18 @@ describe("hardware actions", () => {
     expect(evaluate?.sections[0]?.actions[0]?.prompt("parts/bracket.step")).toMatch(
       /^Check parts\/bracket\.step /,
     );
+  });
+
+  it("says what every job makes", () => {
+    // One line under the job's name in its menu: a sentence, at most 90 characters.
+    const unsaid = HARDWARE_ACTIONS.filter(
+      (action) => !/^\S.*\.$/.test(action.gets) || action.gets.length > 90,
+    );
+    expect(unsaid.map((action) => `${action.id}: ${action.gets}`)).toEqual([]);
+  });
+
+  it("every job has its library entry", () => {
+    const unlisted = HARDWARE_ACTIONS.filter((action) => entryOfAction(action.id) === null);
+    expect(unlisted.map((action) => action.id)).toEqual([]);
   });
 });

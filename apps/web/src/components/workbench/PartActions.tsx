@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ChevronDownIcon } from "lucide-react";
 import { Fragment, useMemo } from "react";
 
@@ -22,8 +23,10 @@ import {
 } from "../ui/menu";
 import { type HardwareAction, hardwareActions } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
+import { type LibraryGroup, libraryHref } from "./library/librarySearch";
 import { handToChat } from "./NewDialog";
 import { useNewDialogStore } from "./newDialogStore";
+import { useOpenWorkspaceStore } from "./openWorkspace";
 
 /** New on Documents (the toolbar's, `StudioNew`): a PRD, requirements, an FMEA, your own. */
 function newDocument() {
@@ -32,12 +35,14 @@ function newDocument() {
 
 /**
  * Evaluate, Manufacture and Document for the part, each marked with the icon of what its jobs make
- * (`kinds.ts`): the jobs its kind takes that the enabled plugins have skills for, the everyday ones
- * in titled sections (Manufacture leading with the project's own way of making it), then one
- * "More" that opens the quick find (⌘K, `StudioQuickFind`) on all of the menu's jobs, the long
- * tail too; Document also starts a document from a template (`NewDialog`). A pick sends the job to
- * the chat, naming the part by a link to its file, as New's Create does: its prompt asks for what
- * it needs (the loads, the machine), so nothing waits on a second press.
+ * (`kinds.ts`): the jobs its kind takes that the enabled plugins have skills for, each over its line
+ * on what you get (`gets`), the everyday ones in titled sections (Manufacture leading with the
+ * project's own way of making it), then one "More" that opens the quick find (⌘K,
+ * `StudioQuickFind`) on all of the menu's jobs, the long tail too; Document also starts a document
+ * from a template (`NewDialog`). Each menu ends with "What each makes…", the library open on its
+ * group. A pick sends the job to the chat, naming the part by a link to its file, as New's Create
+ * does: its prompt asks for what it needs (the loads, the machine), so nothing waits on a second
+ * press.
  */
 export function PartActions(props: {
   readonly environmentId: EnvironmentId;
@@ -63,14 +68,30 @@ export function PartActions(props: {
     useAtomValue(primaryServerKeybindingsAtom),
     "commandPalette.toggle",
   );
+  const navigate = useNavigate();
+  const router = useRouter();
   if (groups.length === 0) return null;
   const write = (action: HardwareAction) =>
     handToChat(props.composerRef, action.prompt(props.file));
   const item = (action: HardwareAction) => (
-    <MenuItem key={action.id} onClick={() => write(action)}>
-      {action.label}
+    <MenuItem key={action.id} label={action.label} onClick={() => write(action)}>
+      <span className="flex min-w-0 flex-col">
+        <span>{action.label}</span>
+        <span className="text-xs text-muted-foreground">{action.gets}</span>
+      </span>
     </MenuItem>
   );
+  // The library on the menu's entries. Its Make one comes back here only while this view has a
+  // New to take the request (the workspace's, as ⌘K's Library does); from elsewhere, to Home's.
+  const browse = (group: LibraryGroup) =>
+    void navigate(
+      libraryHref({
+        group,
+        ...(useOpenWorkspaceStore.getState().workspace === null
+          ? {}
+          : { from: router.state.location.href }),
+      }),
+    );
 
   return (
     <div className="flex shrink-0 items-center" data-part-actions="">
@@ -127,6 +148,8 @@ export function PartActions(props: {
                   </MenuItem>
                 </>
               )}
+              <MenuSeparator />
+              <MenuItem onClick={() => browse(menu.group)}>What each makes…</MenuItem>
             </MenuPopup>
           </Menu>
         );
