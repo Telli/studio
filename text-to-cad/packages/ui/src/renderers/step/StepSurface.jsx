@@ -3,7 +3,7 @@ import { requestSceneFrame } from "../kit/viewport/sceneFrames.js";
 import { buildEdgeChainGraph } from "./workbench/edgeChainSelection.js";
 "use client";
 
-import { SelectModeMenu, STEP_SELECT_DEFAULT, stepSelectModes } from "./components/workbench/SelectionModes.jsx";
+import { SelectModeMenu, STEP_MEASURE_MODES, STEP_SELECT_DEFAULT, stepSelectModes } from "./components/workbench/SelectionModes.jsx";
 import { pickModeOf } from "../kit/tools/select/selectFilter.js";
 import { selects } from "../kit/tools/select/selectFilter.js";
 import { NO_CONNECTED_SELECTION, connectedSelectionApplies, selectGeometryMode } from "./workbench/selectionFilter.js";
@@ -143,7 +143,8 @@ import PreviewLayer from "./edit/PreviewLayer.jsx";
 import EditDimensions from "./edit/EditDimensions.jsx";
 import EditLayoutSwitch from "./edit/EditLayoutSwitch.jsx";
 import EditRibbon from "./edit/EditRibbon.jsx";
-import { ToolIcon } from "./edit/cadIcons.jsx";
+import { DRAWING_TOOL_ICONS, ToolIcon } from "./edit/cadIcons.jsx";
+import { drawingToolVariant } from "../../annotation/toolbar.jsx";
 import SketchOverlay from "./edit/SketchOverlay.jsx";
 import SheetEditor from "./edit/SheetEditor.jsx";
 import SketchesLayer from "./edit/SketchesLayer.jsx";
@@ -3577,11 +3578,12 @@ function StepSurfaceBody({ view, data }) {
     connected={connectedSelection} onConnectedChange={(id, checked) => setConnectedSelection(current => ({ ...current, [id]: checked }))} />,
   [selectFilter, isAssemblyView, poseAvailable, selectDisabled, connectedSelection, changeSelectFilter, handleSelectTabToolMode]);
   // What Measure snaps to: its chevron's filter, whose change takes Measure up, as Select's does Select.
-  const measureFilterMenu = useMemo(() => <MeasureFilterMenu value={measureFilter} disabled={measureToolDisabled}
+  const measureFilterMenu = useMemo(() => <MeasureFilterMenu value={measureFilter} disabled={measureToolDisabled} modes={STEP_MEASURE_MODES}
     onChange={value => { setMeasureFilter(value); handleSelectTabToolMode(TAB_TOOL_MODE.MEASURE); }} />,
   [measureFilter, measureToolDisabled, handleSelectTabToolMode]);
-  // Every tool drawn by the icon generator (`edit/cadIcons.jsx`), the shell's and the model effects' too:
-  // the toolbar shows these tools as the strip does.
+  // Every tool drawn by the icon generator (`edit/cadIcons.jsx`), the shell's and the model effects' too,
+  // each showing what it has in hand: Select's and Measure's filter, the tool Pencil or Shapes draws with.
+  // The toolbar shows these tools as the strip does.
   const tools = [
     shell.tools.own({
       id: TAB_TOOL_MODE.REFERENCES,
@@ -3592,9 +3594,10 @@ function StepSurfaceBody({ view, data }) {
       menu: selectModeMenu,
       onSelect: () => handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES),
     }),
-    ...shell.tools.drawing.map(tool => ({ ...tool, disabled: toolIdle, icon: <ToolIcon id={tool.id} className="size-3.5" /> })),
+    ...shell.tools.drawing.map(tool => ({ ...tool, disabled: toolIdle,
+      icon: <ToolIcon id={tool.id} mode={drawingToolVariant(tool.id, shell.frame.annotation)} className="size-3.5" /> })),
     shell.tools.own({ id: TAB_TOOL_MODE.MEASURE, label: "Measure", shortcut: TOOL_SHORTCUTS.measure,
-      icon: <ToolIcon id={TAB_TOOL_MODE.MEASURE} className="size-3.5" />,
+      icon: <ToolIcon id={TAB_TOOL_MODE.MEASURE} mode={pickModeOf(measureFilter, STEP_MEASURE_MODES).id} className="size-3.5" />,
       active: tabToolMode === TAB_TOOL_MODE.MEASURE, disabled: measureToolDisabled,
       menu: measureFilterMenu,
       // A press takes it up — again, results and all, where they are kept — and does nothing while
@@ -3733,7 +3736,7 @@ function StepSurfaceBody({ view, data }) {
 
   return <RendererShell shell={shell} tools={tools} subToolbar={tabToolMode === TAB_TOOL_MODE.MEASURE ? <MeasurementsBar measure={measure} /> : modelEffects.subToolbar} sidebar={stepSidebar} previewView={previewView}
     // The edit chrome's icons are drawn from this sprite, which the frame mounts once.
-    iconSprite={<NxIconSprite />}
+    iconSprite={<NxIconSprite />} drawingToolIcons={DRAWING_TOOL_ICONS}
     // Modeling by hand, nothing asks the AI: Quick Edit is the AI layout's.
     references={selectionActionVisible && !editing ? promptSelection : EMPTY_LIST} referenceChips={editing ? EMPTY_LIST : referenceChips} nameReference={nameReference}
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}

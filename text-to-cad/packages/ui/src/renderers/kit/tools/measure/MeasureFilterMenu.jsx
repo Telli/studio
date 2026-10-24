@@ -12,10 +12,12 @@ export const MEASURE_MODES = Object.freeze([
 
 /**
  * Measure's menu: the chevron after its button on the strip, Select's own (`SelectFilterMenu.jsx`)
- * with what Measure picks (`measureFilter.js`): All, Vertices, Edges or Faces.
+ * with what Measure picks (`measureFilter.js`): All, Vertices, Edges or Faces. `modes`: these, each
+ * with an icon of the renderer's own, where it draws its strip's icons itself.
  *
- * @param {{ value: readonly string[], onChange(filter: readonly string[]): void, disabled?: boolean }} props
+ * @param {{ value: readonly string[], onChange(filter: readonly string[]): void, disabled?: boolean,
+ *   modes?: typeof MEASURE_MODES }} props
  */
-export default function MeasureFilterMenu({ value, onChange, disabled = false }) {
-  return <SelectFilterMenu value={value} onChange={onChange} modes={MEASURE_MODES} disabled={disabled} name="measure" triggerName="Measure filter" />;
+export default function MeasureFilterMenu({ value, onChange, disabled = false, modes = MEASURE_MODES }) {
+  return <SelectFilterMenu value={value} onChange={onChange} modes={modes} disabled={disabled} name="measure" triggerName="Measure filter" />;
 }

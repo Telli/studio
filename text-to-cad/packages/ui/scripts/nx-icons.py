@@ -192,8 +192,8 @@ class Icon:
         self.shape([at(end, -1), at(length, -1), at(length, 1), at(end, 1)], "#C9D1DA")
         self.outline([tip, at(cone, -1), at(length, -1), at(length, 1), at(cone, 1)], FEAT["edge"])
 
-    def marker(self, tip, length=13, width=4.6):
-        """The agent's marker, drawing at tip: Annotate's, in the agent's purple."""
+    def marker(self, tip, length=13, width=4.6, chisel=False):
+        """The agent's marker, drawing at tip: Annotate's, in the agent's purple; `chisel`, the highlighter's broad nib."""
         ux, uy = math.sqrt(0.5), -math.sqrt(0.5)
         nx, ny = -uy, ux
 
@@ -201,11 +201,29 @@ class Icon:
             return (tip[0] + ux * s + nx * k * width / 2, tip[1] + uy * s + ny * k * width / 2)
 
         nib, cap = 3.6, length - 3
-        self.shape([tip, at(nib, -0.55), at(nib, 0.55)], PURPLE)
+        # the nib: a point, or the chisel's flat, slanted edge
+        nose = [at(0, -0.55), at(1.4, 0.55)] if chisel else [tip]
+        self.shape(nose + [at(nib, 0.55), at(nib, -0.55)], PURPLE)
         for k0, k1, tone in ((-1, -1 / 3, AGENT["top"]), (-1 / 3, 1 / 3, AGENT["left"]), (1 / 3, 1, AGENT["right"])):
             self.shape([at(nib, k0 * 0.55), at(nib + 1.6, k0), at(cap, k0), at(cap, k1), at(nib + 1.6, k1), at(nib, k1 * 0.55)], tone)
         self.shape([at(cap, -1), at(length, -1), at(length, 1), at(cap, 1)], PURPLE)
-        self.outline([tip, at(nib, -0.55), at(nib + 1.6, -1), at(length, -1), at(length, 1), at(nib + 1.6, 1), at(nib, 0.55)], AGENT["edge"])
+        self.outline(nose[:1] + [at(nib, -0.55), at(nib + 1.6, -1), at(length, -1), at(length, 1), at(nib + 1.6, 1), at(nib, 0.55)] + nose[1:],
+                     AGENT["edge"])
+
+    def rubber(self, tip, length=11, width=7.4):
+        """The agent's eraser, rubbing at tip: a block of white rubber in a purple sleeve."""
+        ux, uy = math.sqrt(0.5), -math.sqrt(0.5)
+        nx, ny = -uy, ux
+
+        def at(s, k):
+            return (tip[0] + ux * s + nx * k * width / 2, tip[1] + uy * s + ny * k * width / 2)
+
+        sleeve = 5
+        self.shape([at(0, -1), at(sleeve, -1), at(sleeve, 1), at(0, 1)], "#fff")
+        for k0, k1, tone in ((-1, -1 / 3, AGENT["top"]), (-1 / 3, 1 / 3, AGENT["left"]), (1 / 3, 1, AGENT["right"])):
+            self.shape([at(sleeve, k0), at(length, k0), at(length, k1), at(sleeve, k1)], tone)
+        self.outline([at(0, -1), at(length, -1), at(length, 1), at(0, 1)], AGENT["edge"])
+        self.stroke([at(sleeve, -1), at(sleeve, 1)], AGENT["edge"], width=1)
 
     def pointer(self, tip):
         """The pointer, its tip at `tip`: what Select picks with."""
@@ -499,10 +517,8 @@ def split():
     return ic
 
 
-def delete():
-    ic = Icon("delete")
-    ic.box(0, 0, 0, 11, 11, 8, BODY)
-    cx, cy, r, k = 7.5, 7, 5.2, 2.1
+def delete_badge(ic, cx, cy, r=5.2, k=2.1):
+    """Delete's mark: a dark disc and its white cross, ringed white so it reads on what it takes."""
     ic.raw(
         f'<circle cx="{num(cx)}" cy="{num(cy)}" r="{num(r)}" fill="{DARK}" stroke="#fff" stroke-width="1.4"/>',
         [(cx - r, cy - r), (cx + r, cy + r)],
@@ -511,6 +527,12 @@ def delete():
         f'<path d="M{num(cx - k)} {num(cy - k)} L{num(cx + k)} {num(cy + k)} M{num(cx + k)} {num(cy - k)} '
         f'L{num(cx - k)} {num(cy + k)}" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>'
     )
+
+
+def delete():
+    ic = Icon("delete")
+    ic.box(0, 0, 0, 11, 11, 8, BODY)
+    delete_badge(ic, 7.5, 7)
     return ic
 
 
@@ -872,7 +894,7 @@ def silhouette(ic, x0, y0, z0, x1, y1, z1):
     return [P(x0, y0, z1), P(x1, y0, z1), P(x1, y0, z0), P(x1, y1, z0), P(x0, y1, z0), P(x0, y1, z1)]
 
 
-SELECT_KINDS = ("all", "face", "edge", "face-group", "body", "part")
+SELECT_KINDS = ("all", "face", "edge", "face-group", "edge-group", "body", "part", "position")
 
 
 def select(kind):
@@ -884,6 +906,18 @@ def select(kind):
         ic.box(-1.5, -1.5, 0, s + 1.5, s + 1.5, 2.5, BODY)
         ic.box(1.5, 1.5, 2.5, s - 1.5, s - 1.5, h + 2.5, FEAT)
         ic.pointer((2.5, 0.5))
+        return ic
+    if kind == "position":
+        # a joint's knob, taken to turn the part on it
+        ic.box(0, 0, 0, s, s, 4, BODY)
+        cx, cy = ic.P(s / 2, s / 2, 9)
+        ic.raw(f'<path d="M{num(cx - 9)} {num(cy)} A9 4.5 0 0 0 {num(cx + 7.8)} {num(cy + 2.25)}" fill="none" stroke="{BLUE}" '
+               f'stroke-width="1.5" stroke-linecap="round"/>', [(cx - 9, cy), (cx, cy + 4.5)])
+        ic.head((cx + 9.6, cy - 0.6), (cx + 7.8, cy + 2.25), length=3.6, half=2.2)
+        knob = (cx - 3.5, cy + 4.15)
+        ic.raw(f'<circle cx="{num(knob[0])}" cy="{num(knob[1])}" r="2.6" fill="#fff"/>', [(knob[0] - 2.6, knob[1] - 2.6)])
+        ic.raw(f'<circle cx="{num(knob[0])}" cy="{num(knob[1])}" r="2.6" {edge(BLUE)}/>')
+        ic.pointer((knob[0] + 0.5, knob[1] + 0.5))
         return ic
     ic.box(0, 0, 0, s, s, h, FEAT if kind == "body" else BODY)
     if kind == "face":
@@ -897,18 +931,37 @@ def select(kind):
             ic.outline(ic.proj(pts), FEAT["edge"])
     elif kind == "edge":
         ic.stroke([ic.P(s, 0, h), ic.P(s, s, h)], FEAT["right"], width=2.6)
-    tips = {"all": (3.5, 4.5), "face": (1, -1.5), "edge": (4, 2), "face-group": (-4, 3.5), "body": (3.5, 4.5)}
+    elif kind == "edge-group":
+        # the chain of edges round its top face
+        ic.stroke(ic.proj([(0, 0, h), (s, 0, h), (s, s, h), (0, s, h), (0, 0, h)]), FEAT["right"], width=2.4)
+    tips = {"all": (3.5, 4.5), "face": (1, -1.5), "edge": (4, 2), "face-group": (-4, 3.5), "edge-group": (4, 2), "body": (3.5, 4.5)}
     ic.pointer(tips[kind])
     return ic
 
 
-def measure():
-    ic = Icon("measure")
-    ic.box(0, 0, 0, 12, 12, 6, BODY)
+MEASURE_KINDS = ("all", "vertex", "edge", "face")
+
+
+def measure(kind):
+    """Measure, and each of its filters: a distance over a block, what it measures alone in the pick's orange."""
+    ic = Icon("measure" if kind == "all" else f"measure-{kind}")
+    s, h = 12, 6
+    ic.box(0, 0, 0, s, s, h, BODY)
+    if kind == "face":
+        top = ic.proj([(0, 0, h), (s, 0, h), (s, s, h), (0, s, h)])
+        ic.shape(top, FEAT["top"])
+        ic.outline(top, FEAT["edge"])
+    elif kind == "edge":
+        ic.stroke([ic.P(0, s, h), ic.P(s, s, h)], FEAT["right"], width=2.6)
     # the distance between two of its corners, measured over it
     dimension(ic, -9.5, -12, 12, -1.5)
     for x in (-12, 12):
-        ic.handle(x, 0, 1.6)
+        if kind == "vertex":
+            dot = [(x - 2, -2), (x + 2, -2), (x + 2, 2), (x - 2, 2)]
+            ic.shape(dot, FEAT["top"])
+            ic.outline(dot, FEAT["edge"])
+        elif kind == "all":
+            ic.handle(x, 0, 1.6)
     return ic
 
 
@@ -1055,6 +1108,30 @@ def edit_sheet():
     return ic
 
 
+def turn(name, back):
+    """Undo (`back`) and Redo: the change last made, turned back, or made again."""
+    ic = Icon(name)
+    cx, cy, r = 0, 2.5, 8.5
+    # up over the top from below on one side, and down on the other, where the head points
+    a0, a1 = (-35, 188) if back else (215, -8)
+    steps = [a0 + (a1 - a0) * i / 24 for i in range(25)]
+    arc = [polar(cx, cy, r, a) for a in steps]
+    ic.stroke(arc[:-4], width=2.4)
+    ic.head(arc[-1], arc[-4], length=5.2, half=3.4)
+    return ic
+
+
+def delete_dimension():
+    """Delete, on a drawing's sheet: the dimension picked, taken off it."""
+    ic = Icon("delete-dimension")
+    dimension(ic, -2.5, -11, 11, 6)
+    value = [(-4, -9), (4, -9), (4, -5), (-4, -5)]
+    ic.shape(value, "#fff")
+    ic.outline(value, BLUE)
+    delete_badge(ic, 6.5, 6.5)
+    return ic
+
+
 def assembly_constraints():
     """Assembly Constraints: a part brought to another, its pin on the hole's axis."""
     ic = Icon("assembly-constraints")
@@ -1127,6 +1204,13 @@ def expressions():
 # The agent's tools, in its purple.
 
 
+def smooth(points):
+    """A hand-drawn mark through `points`: each bend rounded off, as a pen draws it."""
+    (x0, y0), (xn, yn) = points[0], points[-1]
+    bends = [f"Q{num(x)} {num(y)} {num((x + nx) / 2)} {num((y + ny) / 2)}" for (x, y), (nx, ny) in zip(points[1:-1], points[2:])]
+    return " ".join([f"M{num(x0)} {num(y0)}", *bends, f"L{num(xn)} {num(yn)}"])
+
+
 def add_context():
     """Add to context: the selection put into the chat box, to go with the next message."""
     ic = Icon("add-context")
@@ -1144,20 +1228,71 @@ def add_context():
 def annotate():
     """Annotate: a mark drawn on the part, with the agent's marker."""
     ic = Icon("annotate")
-    ic.box(0, 0, 0, 12, 12, 5, BODY)
+    drawn_on(ic)
     mark = ic.proj([(1.5, 10.5, 5), (3.5, 7, 5), (6, 8.5, 5), (8, 4.5, 5), (10.5, 5.5, 5)])
-    ic.raw(f'<path d="M{num(mark[0][0])} {num(mark[0][1])} ' + " ".join(
-        f"Q{num(mark[i][0])} {num(mark[i][1])} {num((mark[i][0] + mark[i + 1][0]) / 2)} {num((mark[i][1] + mark[i + 1][1]) / 2)}"
-        for i in range(1, len(mark) - 1)) + f' L{num(mark[-1][0])} {num(mark[-1][1])}" fill="none" stroke="{PURPLE}" '
-        f'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>', mark)
+    ic.raw(f'<path d="{smooth(mark)}" fill="none" stroke="{PURPLE}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>', mark)
     ic.marker(mark[-1])
+    return ic
+
+
+def drawn_on(ic):
+    """The part the agent's marks are drawn on: a block, its top face the page."""
+    ic.box(0, 0, 0, 12, 12, 5, BODY)
+
+
+def highlighter():
+    """Annotate's highlighter: a broad, clear band over the part, with its chisel."""
+    ic = Icon("annotate-highlighter")
+    drawn_on(ic)
+    a, b = ic.P(1.5, 9, 5), ic.P(9.5, 2.5, 5)
+    ic.raw(f'<path d="M{num(a[0])} {num(a[1])} L{num(b[0])} {num(b[1])}" fill="none" stroke="{PURPLE}" stroke-width="4.4" '
+           f'stroke-opacity=".45" stroke-linecap="butt"/>', [a, b])
+    ic.marker(b, chisel=True)
+    return ic
+
+
+def eraser():
+    """Annotate's eraser: a mark taken off the part where it has been."""
+    ic = Icon("annotate-eraser")
+    drawn_on(ic)
+    mark = ic.proj([(1.5, 10.5, 5), (3.5, 7, 5), (6, 8.5, 5), (8, 4.5, 5), (10.5, 5.5, 5)])
+    kept, gone = smooth(mark[:3]), smooth(mark[2:])
+    ic.raw(f'<path d="{kept}" fill="none" stroke="{PURPLE}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>', mark)
+    ic.raw(f'<path d="{gone}" fill="none" stroke="{PURPLE}" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="{DASH}" opacity="{num(GHOSTLY)}"/>')
+    ic.rubber(mark[-1])
+    return ic
+
+
+SHAPE_KINDS = ("rectangle", "line", "arrow", "ellipse", "text")
+
+
+def shape_mark(kind):
+    """Each of Shapes' tools, as its mark on the part."""
+    ic = Icon(f"shapes-{kind}")
+    drawn_on(ic)
+    stroke = f'fill="none" stroke="{PURPLE}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"'
+    if kind == "rectangle":
+        box = ic.proj([(2, 3, 5), (10, 3, 5), (10, 10, 5), (2, 10, 5)])
+        ic.raw(f'<path d="{ic.d(box)}" fill="{PURPLE_FILL}" stroke="{PURPLE}" stroke-width="1.9" stroke-linejoin="round"/>', box)
+    elif kind == "line":
+        a, b = ic.P(1.5, 9.5, 5), ic.P(10.5, 2.5, 5)
+        ic.raw(f'<path d="M{num(a[0])} {num(a[1])} L{num(b[0])} {num(b[1])}" {stroke}/>', [a, b])
+    elif kind == "arrow":
+        ic.arrow((11, -10.5), (1.5, 0.5), PURPLE, width=1.9, length=4.8, half=2.8)
+    elif kind == "ellipse":
+        cx, cy = ic.P(6, 6, 5)
+        ic.raw(f'<ellipse cx="{num(cx)}" cy="{num(cy)}" rx="7.4" ry="3.7" fill="{PURPLE_FILL}" stroke="{PURPLE}" stroke-width="1.9"/>',
+               [(cx - 7.4, cy - 3.7), (cx + 7.4, cy + 3.7)])
+    else:
+        # a T, as text is set over the part
+        ic.raw(f'<path d="M-5 -9 H5 M0 -9 V3" fill="none" stroke="{PURPLE}" stroke-width="2.6" stroke-linecap="round"/>', [(-5, -9), (5, 3)])
     return ic
 
 
 def shapes():
     """Shapes: a box drawn on the part and an arrow at it, in the agent's purple."""
     ic = Icon("shapes")
-    ic.box(0, 0, 0, 12, 12, 5, BODY)
+    drawn_on(ic)
     box = ic.proj([(2, 4, 5), (9, 4, 5), (9, 11, 5), (2, 11, 5)])
     ic.raw(f'<path d="{ic.d(box)}" fill="{PURPLE_FILL}" stroke="{PURPLE}" stroke-width="1.7" stroke-linejoin="round"/>', box)
     ic.arrow((12.5, -9.5), (5, -1.2), PURPLE, width=1.8, length=4.4, half=2.6)
@@ -1171,15 +1306,19 @@ GROUPS = (
         sketch, extrude, revolve, hole, lambda: rounded("blend"), lambda: rounded("chamfer"), shell, draft, rib,
         pattern, mirror, datum_plane, csys, sweep, loft, split, delete, ask,
     )),
-    ("The agent's tools", "Beside Ask, in the agent's purple: Add to context, Annotate (the Pencil) and Shapes.", (
-        add_context, annotate, shapes,
+    ("The agent's tools", "Beside Ask, in the agent's purple: Add to context; Annotate (the Pencil) with its pen, "
+     "highlighter and eraser; Shapes, and each shape it draws.", (
+        add_context, annotate, highlighter, eraser, shapes, *((lambda kind=kind: shape_mark(kind)) for kind in SHAPE_KINDS),
     )),
-    ("The workspace's tools", "The strip's tools, the Analysis, View, Assemblies and Drafting tabs, and Expressions.", (
-        lambda: select("all"), measure, section, exploded, measure_bodies, draft_analysis, interference, compare,
-        appearance, orient_view, drawing, edit_sheet, assembly_constraints, expressions,
+    ("The workspace's tools", "The strip's tools, the Analysis, View, Assemblies and Drafting tabs, Expressions, "
+     "and Undo and Redo.", (
+        lambda: select("all"), lambda: measure("all"), section, exploded, measure_bodies, draft_analysis, interference,
+        compare, appearance, orient_view, drawing, edit_sheet, delete_dimension, assembly_constraints, expressions,
+        lambda: turn("undo", back=True), lambda: turn("redo", back=False),
     )),
-    ("Select's filters", "What Select picks alone, the pick in the selection's orange.", tuple(
-        (lambda kind=kind: select(kind)) for kind in SELECT_KINDS if kind != "all"
+    ("Select's and Measure's filters", "What each picks alone, the pick in the selection's orange, and how Select grows a pick.", (
+        *((lambda kind=kind: select(kind)) for kind in SELECT_KINDS if kind != "all"),
+        *((lambda kind=kind: measure(kind)) for kind in MEASURE_KINDS if kind != "all"),
     )),
     ("The Part Navigator's rows", "A part, an assembly, and Move Object.", (part, assembly, move)),
     ("The sketch tools", "Finish Sketch, each tool of the sketch task environment in its order, and Convert To/From Reference.", (

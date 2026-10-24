@@ -40,6 +40,6 @@ test('the drawing controls are one row at every width, its buttons in order on o
   const touch = await layout();
   assert.ok(touch.every(button => Math.round(button.box.height) === 36), 'touch tiles');
   await controls.getByRole('button', { name: 'Highlighter', exact: true }).click();
-  await page.waitForFunction(() => document.querySelector('[data-cad-toolbar] [aria-label="Pencil"] svg')?.getAttribute('class')?.includes('lucide-highlighter'));
+  await page.waitForFunction(() => document.querySelector('[data-cad-toolbar] [aria-label="Pencil"] use')?.getAttribute('href') === '#nx-annotate-highlighter');
   assert.deepEqual(errors, []);
 });

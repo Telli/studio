@@ -6,12 +6,15 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import * as cad from "./cadIcons.jsx";
-import { COMMAND_ICON_NAMES, COMMAND_ICONS, SELECT_ICON_NAMES, TOOL_ICON_NAMES, ToolIcon } from "./cadIcons.jsx";
+import { COMMAND_ICON_NAMES, COMMAND_ICONS, DRAWING_TOOL_ICONS, SELECT_GROUP_ICON_NAMES, TOOL_ICON_NAMES, ToolIcon } from "./cadIcons.jsx";
 import { EDIT_COMMANDS } from "./editMode.js";
 import { NX_KINDS, booleanOf, featureIconName } from "./nx.js";
 import { SKETCH_TOOLS } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICON_NAMES, SKETCH_TOOL_ICONS, SmartDimensionIcon } from "./sketchIcons.jsx";
 import { TAB_TOOL_MODE } from "../workbench/constants.js";
+import { CONNECTED_SELECTION, SELECT_GEOMETRY } from "../workbench/selectionFilter.js";
+import { MEASURE_SNAP_KINDS } from "../../kit/tools/measure/measureFilter.js";
+import { PENCIL_TOOLS, SHAPE_TOOLS, toolFamily } from "../../../annotation/tools.js";
 import { NX_ICON_NAMES, NxIcon, NxIconSprite } from "../../../lib/nxIcons.generated.jsx";
 
 // The workspace's icons all come from one generator (`scripts/nx-icons.py`), so a command, a tool, a
@@ -60,25 +63,44 @@ test("draws every sketch tool, each its own picture", () => {
   assert.equal(new Set(SKETCH_TOOLS.map(({ id }) => SKETCH_TOOL_ICON_NAMES[id])).size, SKETCH_TOOLS.length);
 });
 
-test("draws the strip's tools the workspace shows", () => {
+test("draws the strip's tools the workspace shows, each showing what it has in hand", () => {
   // Each of a part's strip tools: Select, Annotate's Pencil and Shapes, Measure, Explode and Clip.
   assert.deepEqual(Object.keys(TOOL_ICON_NAMES).sort(), Object.values(TAB_TOOL_MODE).sort());
   for (const id of ["references", "pencil", "shapes", "measure", "exploded", "clip"]) {
     assert.equal(drawnName(({ className }) => ToolIcon({ id, className }), id), TOOL_ICON_NAMES[id]);
   }
-  // Select shows what it picks alone, as its filter has it; a pick with no picture of its own, its own.
-  for (const [mode, name] of Object.entries(SELECT_ICON_NAMES)) {
-    assert.equal(drawnName(({ className }) => ToolIcon({ id: "references", mode, className }), mode), name);
+  // As the strip has always shown them: Select and Measure what their filters pick alone, Pencil and
+  // Shapes the drawing tool each draws with; each a picture of its own, All the tool's own.
+  const inHand = {
+    references: ["all", ...SELECT_GEOMETRY.map(({ id }) => id), "position"],
+    measure: ["all", ...MEASURE_SNAP_KINDS.map(({ id }) => id)],
+    pencil: PENCIL_TOOLS,
+    shapes: SHAPE_TOOLS,
+  };
+  for (const [id, modes] of Object.entries(inHand)) {
+    const names = modes.map(mode => drawnName(({ className }) => ToolIcon({ id, mode, className }), `${id}: ${mode}`));
+    assert.equal(new Set(names).size, modes.length, `${id} shows each of ${modes.join(", ")} its own way`);
   }
-  assert.equal(ToolIcon({ id: "references", mode: "position" }).props.name, TOOL_ICON_NAMES.references);
+  assert.equal(ToolIcon({ id: "references", mode: "all" }).props.name, TOOL_ICON_NAMES.references);
+  assert.equal(ToolIcon({ id: "measure", mode: "all" }).props.name, TOOL_ICON_NAMES.measure);
+  // Select's menu also grows a pick (Group faces, Group edges), each drawn its own way.
+  const grows = CONNECTED_SELECTION.map(({ id }) => SELECT_GROUP_ICON_NAMES[id]);
+  for (const name of grows) assert.ok(NX_ICON_NAMES.includes(name), name);
+  assert.equal(new Set([...grows, ...inHand.references.map(mode => ToolIcon({ id: "references", mode }).props.name)]).size, grows.length + inHand.references.length);
+  // The row under the strip draws each drawing tool as the strip's button does when it is in hand.
+  for (const tool of [...PENCIL_TOOLS, ...SHAPE_TOOLS]) {
+    assert.equal(DRAWING_TOOL_ICONS[tool]?.type, NxIcon, tool);
+    assert.equal(DRAWING_TOOL_ICONS[tool].props.name, ToolIcon({ id: toolFamily(tool), mode: tool }).props.name, tool);
+  }
 });
 
 test("draws the toolbar's other buttons and their panels from the generator, each its own", () => {
   const icons = [cad.SketchIcon, cad.ExitSketchIcon, cad.MassPropertiesIcon, cad.DraftAnalysisIcon, cad.InterferenceIcon,
-    cad.CompareIcon, cad.AppearanceIcon, cad.MateIcon, cad.DrawingIcon, cad.EditSheetIcon, NormalToIcon, ConstructionIcon];
+    cad.CompareIcon, cad.AppearanceIcon, cad.MateIcon, cad.DrawingIcon, cad.EditSheetIcon, NormalToIcon, ConstructionIcon,
+    cad.UndoIcon, cad.RedoIcon, cad.DeleteDimensionIcon];
   const names = icons.map((Icon, index) => drawnName(Icon, `icon ${index}`));
   assert.equal(new Set(names).size, names.length);
-  // The drawing's sheet dimensions as a sketch does.
+  // The drawing's sheet dimensions as a sketch does; its Undo and Redo are the ribbon's.
   assert.equal(drawnName(SmartDimensionIcon, "Smart Dimension"), SKETCH_TOOL_ICON_NAMES.dimension);
 });
 

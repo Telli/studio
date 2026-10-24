@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronsRight, LoaderCircle, Redo2, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronsRight, LoaderCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -13,7 +13,7 @@ import { Progress } from "@text-to-cad/ui/primitives/progress";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { AppearanceIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, InterferenceIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, SketchIcon } from "./cadIcons.jsx";
+import { AppearanceIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, InterferenceIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, MassPropertiesIcon, MateIcon, RedoIcon, SketchIcon, UndoIcon } from "./cadIcons.jsx";
 import { EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_FAMILIES, SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
@@ -218,8 +218,8 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   const toolItem = tool => ({ id: tool.id, label: LABELS[tool.id] || tool.label, icon: tool.icon, active: tool.active === true,
     disabled: tool.disabled, description: tool.description, menu: tool.menu, onClick: () => tool.onSelect() });
   const edits = { title: "Edit", items: [
-    { id: "undo", label: "Undo", icon: <Undo2 aria-hidden="true" />, disabled: !edit.canUndo, onClick: () => void edit.undo() },
-    { id: "redo", label: "Redo", icon: <Redo2 aria-hidden="true" />, disabled: !edit.canRedo, onClick: () => void edit.redo() },
+    { id: "undo", label: "Undo", icon: <UndoIcon />, disabled: !edit.canUndo, onClick: () => void edit.undo() },
+    { id: "redo", label: "Redo", icon: <RedoIcon />, disabled: !edit.canRedo, onClick: () => void edit.redo() },
   ] };
   // NX's ribbon: its tabs along the top (Home, Analysis, View...), the tab in front's groups under them.
   const tabRow = (list, active, onPick) => <div role="tablist" aria-label="Ribbon tabs" data-cad-ribbon-tabs=""

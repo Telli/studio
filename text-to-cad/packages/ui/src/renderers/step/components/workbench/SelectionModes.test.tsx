@@ -8,7 +8,8 @@ beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve(
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 const menu = () => document.querySelector('[role=menu]')!;
-const glyphs = (root: Element) => [...root.querySelectorAll('svg[data-mode-glyph]')].map(icon => icon.getAttribute('data-mode-glyph'));
+// The generator's icons a menu draws (`<use href="#nx-…">`), by name.
+const icons = (root: Element) => [...root.querySelectorAll('use')].map(use => use.getAttribute('href')!.replace('#nx-', ''));
 const filterItems = () => [...document.querySelectorAll('[data-select-filter]')].map(item => [item.textContent, item.getAttribute('aria-checked')]);
 const groupItems = () => screen.queryAllByRole('menuitemcheckbox').map(item => item.textContent);
 const choose = (user: ReturnType<typeof userEvent.setup>, id: string) => user.click(document.querySelector<HTMLElement>(`[data-select-filter="${id}"]`)!);
@@ -30,7 +31,7 @@ it('Select\'s menu is the strip\'s chevron: one choice of what a click takes, Al
   render(<Menu initial={STEP_SELECT_DEFAULT} assembly={false} posable onChange={change} onConnectedChange={connectedChange} />);
   const button = screen.getByRole('button', { name: 'Selection filter: everything' });
   // The button is the strip's narrow chevron beside the tool, as a design tool's toolbar has it.
-  expect([glyphs(button), !!button.querySelector('svg.lucide-chevron-down'), button.classList.contains('w-3'),
+  expect([icons(button), !!button.querySelector('svg.lucide-chevron-down'), button.classList.contains('w-3'),
     button.getAttribute('data-select-filter-trigger')]).toEqual([[], true, true, 'all']);
   await user.click(button);
   expect(menu().getAttribute('aria-label')).toBe('Selection filter');
@@ -40,8 +41,9 @@ it('Select\'s menu is the strip\'s chevron: one choice of what a click takes, Al
     .toEqual(['Pick', Node.DOCUMENT_POSITION_FOLLOWING]);
   expect(screen.getAllByRole('menuitemradio').length).toBe(4);
   expect(filterItems()).toEqual([['All', 'true'], ['Faces', 'false'], ['Edges', 'false'], ['Position', 'false']]);
-  // All is the pointer; Faces and Edges, and the two grouping options, each their own glyph.
-  expect(glyphs(menu())).toEqual(['select', 'faces', 'edges', 'groupEdges', 'groupFaces']);
+  // Each drawn by the icon generator, as the strip's button is: All the pointer on the part; Faces,
+  // Edges and Position, and the two grouping options, each their own.
+  expect(icons(menu())).toEqual(['select', 'select-face', 'select-edge', 'select-position', 'select-edge-group', 'select-face-group']);
   // All picks faces and edges: both grouping options apply, after a rule.
   expect(groupItems()).toEqual(['Group edges', 'Group faces']);
   await user.click(screen.getByRole('menuitemcheckbox', { name: 'Group faces' }));

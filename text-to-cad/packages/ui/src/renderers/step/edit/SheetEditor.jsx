@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Redo2, Trash2, Undo2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { ToolbarButton } from "@text-to-cad/ui/primitives/toolbar-button";
 import { cn } from "@text-to-cad/ui/utils";
 import { drawDrawing, modelToScreen, prepareDrawing, screenToModel } from "@text-to-cad/core/lib/drawing2d/index.js";
@@ -12,6 +12,7 @@ import { readDrawingThemeColors } from "../../dxf/themeColors.js";
 import { useDrawingView } from "../../dxf/useDrawingView.js";
 import { TOUCH_HIT_PX, isEditableTarget } from "../../kit/viewport/dom.js";
 import { SmartDimensionIcon } from "./sketchIcons.jsx";
+import { DeleteDimensionIcon, RedoIcon, UndoIcon } from "./cadIcons.jsx";
 import {
   alignMove, circleEdit, clampMove, deleteEdit, dimensionEdit, dimensionTarget, dimensionText, edgeEnds, moveEdit, movingTogether,
   ownerOf, placeDimension, sheetDimensions, sheetHint, viewAt
@@ -363,10 +364,10 @@ export default function SheetEditor({ edit, colorScheme = "light" }) {
         onClick={() => setTool(current => (current === "dimension" ? "select" : "dimension"))}>
         <SmartDimensionIcon className="size-4" />
       </ToolbarButton>
-      <ToolbarButton label="Delete" disabled={!selected || busy} onClick={remove}><Trash2 className="size-4" /></ToolbarButton>
+      <ToolbarButton label="Delete" disabled={!selected || busy} onClick={remove}><DeleteDimensionIcon className="size-4" /></ToolbarButton>
       <span className="mx-0.5 h-4 w-px bg-border" aria-hidden="true" />
-      <ToolbarButton label="Undo" disabled={!view?.undo?.length || busy} onClick={() => void edit.undoSheet()}><Undo2 className="size-4" /></ToolbarButton>
-      <ToolbarButton label="Redo" disabled={!view?.redo?.length || busy} onClick={() => void edit.redoSheet()}><Redo2 className="size-4" /></ToolbarButton>
+      <ToolbarButton label="Undo" disabled={!view?.undo?.length || busy} onClick={() => void edit.undoSheet()}><UndoIcon className="size-4" /></ToolbarButton>
+      <ToolbarButton label="Redo" disabled={!view?.redo?.length || busy} onClick={() => void edit.redoSheet()}><RedoIcon className="size-4" /></ToolbarButton>
       {count > 1 ? <>
         <span className="mx-0.5 h-4 w-px bg-border" aria-hidden="true" />
         <ToolbarButton label="Previous sheet" disabled={index <= 1 || busy} onClick={() => void edit.openSheet(index - 1)}>
