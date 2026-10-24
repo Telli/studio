@@ -87,6 +87,8 @@ export default defineConfig({
       // text-to-cad (Jake's CAD harness, merged in as a subtree) keeps its own formatting, so his
       // updates still merge.
       "text-to-cad/**",
+      // The sample project holds the skills' own output, kept as they wrote it.
+      "studio-sample/**",
       // Macroscope's glob-per-line ignore grammar, not Markdown: formatting
       // it rewrites `*` as `_` and joins lines.
       ".macroscope/ignore.md",
