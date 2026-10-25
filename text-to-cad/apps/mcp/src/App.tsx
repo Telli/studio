@@ -6,7 +6,7 @@ import { UpdateButton, useUpdateNotice } from '@text-to-cad/ui/update';
 import { viewerLinks } from '@text-to-cad/ui/links';
 import { Button } from '@text-to-cad/ui/primitives/button';
 import { TooltipHint } from '@text-to-cad/ui/primitives/tooltip';
-import { createTabStore, editLayoutHost, memoryTabRecord } from '@text-to-cad/ui/tab-store';
+import { createTabStore, editLayoutHost, focusHost, memoryTabRecord } from '@text-to-cad/ui/tab-store';
 import { normalizePath } from '@text-to-cad/ui/cad-viewer';
 import { version } from '../package.json';
 import type { Bridge, HostContext } from './host/bridge';
@@ -133,6 +133,14 @@ export default function App({ bridge, server, launch: initial, presentation = 't
     const send = () => bridge.notify('studio/notifications/edit-state', { ...editLayoutHost.editState() });
     send();
     return editLayoutHost.subscribeEditState(send);
+  }, [bridge]);
+  // A host that opens a part at a line of its script (Studio's References, `studio/focus`) has the part on screen select
+  // the feature there (`focusHost`), and the host that asks to (`studioFocus`) hears when the view has taken it.
+  const hostFocus = (context as Record<string, unknown>)['studio/focus'];
+  useEffect(() => { focusHost.set(hostFocus); }, [hostFocus]);
+  useEffect(() => {
+    if (!bridge.hostCapabilities.studioFocus) return undefined;
+    return focusHost.subscribeTaken(nonce => bridge.notify('studio/notifications/focus-taken', { nonce }));
   }, [bridge]);
   const colorScheme = preference === 'light' || preference === 'dark' ? preference : context.theme === 'dark' ? 'dark' : 'light';
   // After every host context too: the page's first theme is the host's (`main.tsx`), and a host

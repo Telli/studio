@@ -471,6 +471,38 @@ describe("makeMcpAppHost", () => {
     expect(states).toEqual([{ editable: true, busy: false }]);
   });
 
+  it("advertises studioFocus only when it can hear a focus taken", () => {
+    const capabilities = (sent: ReadonlyArray<Record<string, unknown>>) =>
+      (sent[0]?.result as { hostCapabilities: Record<string, unknown> } | undefined)
+        ?.hostCapabilities;
+    const able = setup({ onFocusTaken: () => undefined });
+    initialize(able.host);
+    expect(capabilities(able.sent)?.studioFocus).toEqual({});
+    const plain = setup();
+    initialize(plain.host);
+    expect(capabilities(plain.sent)?.studioFocus).toBeUndefined();
+  });
+
+  it("forwards the number of the focus the view took, and nothing that is not one", () => {
+    const taken: Array<number> = [];
+    const { host, sent } = setup({ onFocusTaken: (nonce) => void taken.push(nonce) });
+    initialize(host);
+    const answered = sent.length;
+    for (const params of [
+      { nonce: 3 },
+      { nonce: "3" },
+      {},
+      { nonce: null },
+      { nonce: 4, path: "parts/bracket.py" },
+    ]) {
+      host.receive({ jsonrpc: "2.0", method: "studio/notifications/focus-taken", params });
+    }
+    host.receive({ jsonrpc: "2.0", method: "studio/notifications/focus-taken" });
+    expect(taken).toEqual([3, 4]);
+    // A notification is never answered, taken or not.
+    expect(sent).toHaveLength(answered);
+  });
+
   it("tears down after the app answers, or after the timeout, and passes on its own request", async () => {
     vi.useFakeTimers();
     try {

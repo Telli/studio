@@ -37,6 +37,11 @@ import {
 } from "./pluginViewHost";
 import { useSimpleView, viewerEditLayout } from "../workbench/simpleView";
 import { useViewerEditState, type ViewerEditState } from "../workbench/viewerEditState";
+import {
+  takeViewerFocus,
+  useViewerFocus,
+  viewerFocusPlace,
+} from "../workbench/references/viewerFocus";
 
 /** What opens one plugin view: the tool whose result is the view, and where it runs. */
 
@@ -215,7 +220,9 @@ export function PluginViewFrame(props: {
 
   // Studio: the CAD views take Simple view's layout, or the full workspace's (`workbench/simpleView.ts`).
   const editLayout = viewerEditLayout(useSimpleView());
-  const live = { theme, size, props, request, editLayout };
+  // Studio: where a reference opens this part's view (`workbench/references/viewerFocus.ts`).
+  const focus = useViewerFocus(target);
+  const live = { theme, size, props, request, editLayout, focus };
   const latest = useRef(live);
   useEffect(() => {
     latest.current = live;
@@ -254,6 +261,7 @@ export function PluginViewFrame(props: {
         safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
         "openai/modelContext": modelContext.current,
         "studio/editLayout": current.editLayout,
+        "studio/focus": current.focus,
       } as McpAppHostContext;
     };
     const call = async (
@@ -361,6 +369,11 @@ export function PluginViewFrame(props: {
             onEditState: (state: ViewerEditState) =>
               useViewerEditState.getState().set(editKey, state),
           }),
+      ...(viewerFocusPlace(target) === null
+        ? {}
+        : {
+            onFocusTaken: (nonce: number) => takeViewerFocus(latest.current.props.target, nonce),
+          }),
       downloadFile: async (files) => {
         await ask(`Save ${files.map((file) => file.name).join(", ")} from ${target.title}?`);
         for (const file of files) {
@@ -417,7 +430,7 @@ export function PluginViewFrame(props: {
   useEffect(() => {
     hostRef.current?.updateHostContext();
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Context changes trigger a resend.
-  }, [theme, size, editLayout]);
+  }, [theme, size, editLayout, focus]);
 
   const reload = () => {
     setClosed(false);

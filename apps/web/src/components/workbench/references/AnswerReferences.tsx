@@ -1,20 +1,45 @@
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
+import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { BotIcon, GlobeIcon } from "lucide-react";
-import { memo } from "react";
+import { memo, useCallback, type MouseEvent } from "react";
 
+import { useOpenLink } from "~/browser/useOpenLink";
 import { cn } from "~/lib/utils";
+import { projectEnvironment } from "~/state/projects";
+import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
+import { toastManager } from "../../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../../ui/tooltip";
 import { FileKindIcon } from "../FileKindIcon";
+import { useSimpleViewStore } from "../simpleView";
 import { useEngineeringInterface } from "../studioInterface";
+import { useFolderPaths } from "../useFolderPaths";
+import { useOpenChatFile } from "../useOpenInWorkbench";
+import type { SourceTarget } from "./answerSources";
+import { openReference, referenceOpening } from "./openReference";
 import { referenceLabel, type AnswerReference } from "./turnReferences";
 
 /**
  * The References under an answer, in the engineering interface: what the answer cites, or what
  * its turn opened, each with when the agent opened it (`turnReferences`). It reads as a sibling
  * of the "Changed" line (`TurnDesignChanges`), which replaces the changed-files card there: the
- * same margin and a quiet heading, with no frame of its own.
+ * same margin and a quiet heading, with no frame of its own. Each opens where it came from.
  */
 
 const QUIET = "text-muted-foreground";
+const ROW = "flex min-w-0 items-center gap-2 py-0.5 text-xs";
+// The workspace's pale-blue hover (#eef4fc, dark #1d2a3a), from the one blue no app theme changes,
+// with nothing that moves; its band reaches past the text, which stays where it was.
+const PRESSABLE =
+  "-mx-1 w-[calc(100%+0.5rem)] rounded-md px-1 text-left outline-none hover:bg-info/8 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset dark:hover:bg-info/20";
+
+/** Where the list's chat is: its thread, the thread's environment and its folder. */
+interface ReferencesBeside {
+  readonly threadRef: ScopedThreadRef | null;
+  readonly environmentId: EnvironmentId;
+  readonly root: string | undefined;
+}
+
+type ReferenceOpener = (target: SourceTarget, event: MouseEvent<HTMLElement>) => void;
 
 /**
  * The references to list under an answer: its own, in the engineering interface, when it has some.
@@ -27,6 +52,50 @@ export function useShownReferences(
   return engineering && references !== undefined && references.length > 0 ? references : null;
 }
 
+/**
+ * Opens a reference where it came from, beside the list's chat (`referenceOpening`,
+ * `openReference`): a part by its model in the thread's folder, a section by reading its
+ * document, a page as the person's link setting has it. Null beside no chat, where none opens.
+ */
+function useOpenReference({
+  threadRef,
+  environmentId,
+  root,
+}: ReferencesBeside): ReferenceOpener | null {
+  const openFile = useOpenChatFile(threadRef);
+  // Until the folder is listed, a part's script opens as a file.
+  const [listing] = useFolderPaths(environmentId, root === undefined ? [] : [root]);
+  const files = listing?.paths ?? null;
+  const readFile = useAtomQueryRunner(projectEnvironment.readFile, { reportFailure: false });
+  const openLink = useOpenLink(threadRef);
+  const open = useCallback<ReferenceOpener>(
+    (target, event) => {
+      if (threadRef === null) return;
+      const modifiers = { metaKey: event.metaKey, ctrlKey: event.ctrlKey };
+      const read = async (relativePath: string) => {
+        if (root === undefined) return null;
+        const result = await readFile({ environmentId, input: { cwd: root, relativePath } });
+        return result._tag === "Success" ? result.value.contents : null;
+      };
+      void referenceOpening(target, { root: root ?? null, files, read }).then((opening) => {
+        if (opening === null) return;
+        openReference(opening, {
+          openFile,
+          openLink: (url) =>
+            void openLink(url, { event: modifiers }).catch((error: unknown) => {
+              console.error(error);
+              toastManager.add({ type: "error", title: "Unable to open the page" });
+            }),
+          threadKey: scopedThreadKey(threadRef),
+          simpleView: useSimpleViewStore.getState().on,
+        });
+      });
+    },
+    [environmentId, files, openFile, openLink, readFile, root, threadRef],
+  );
+  return threadRef === null ? null : open;
+}
+
 /** A file wears its kind's icon, as the panel's tabs do; a page the chat's icon for links. */
 function ReferenceIcon(props: { readonly target: AnswerReference["target"] }) {
   const { target } = props;
@@ -37,15 +106,20 @@ function ReferenceIcon(props: { readonly target: AnswerReference["target"] }) {
 
 /**
  * One reference: its number, its icon, its name, where in it, and when it was opened. The row is
- * one element, with its text in full on hover while it truncates.
+ * one element, with its text in full on hover while it truncates: a button that opens it, on a
+ * press, Enter or Space, but for the agent's own knowledge, which opens nothing.
  */
-function ReferenceRow(props: { readonly reference: AnswerReference }) {
-  const { reference } = props;
+function ReferenceRow(props: {
+  readonly reference: AnswerReference;
+  readonly onOpen: ReferenceOpener | null;
+}) {
+  const { reference, onOpen } = props;
   const { name, where } = referenceLabel(reference);
+  const said = where === null ? name : `${name}, ${where}`;
   // What the agent did not open, or knew without opening, reads quieter. It is not a failure.
   const quiet = reference.opened === "not opened" || reference.opened === "own knowledge";
-  const row = (
-    <div className="flex min-w-0 items-center gap-2 py-0.5 text-xs">
+  const body = (
+    <>
       <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">
         {reference.n}
       </span>
@@ -57,30 +131,58 @@ function ReferenceRow(props: { readonly reference: AnswerReference }) {
       <span className={cn("ms-auto shrink-0 ps-2", quiet ? QUIET : "text-foreground")}>
         {reference.opened}
       </span>
-    </div>
+    </>
   );
+  const row =
+    onOpen === null || reference.target.kind === "own" ? (
+      <div className={ROW}>{body}</div>
+    ) : (
+      <button
+        type="button"
+        aria-label={`Open ${said}`}
+        onClick={(event) => onOpen(reference.target, event)}
+        className={cn(ROW, PRESSABLE)}
+      >
+        {body}
+      </button>
+    );
   return (
     <li className="min-w-0">
       <Tooltip>
         <TooltipTrigger render={row} />
-        <TooltipPopup side="top">{where === null ? name : `${name}, ${where}`}</TooltipPopup>
+        <TooltipPopup side="top">{said}</TooltipPopup>
       </Tooltip>
     </li>
   );
 }
 
-export const AnswerReferences = memo(function AnswerReferences(props: {
-  readonly references: ReadonlyArray<AnswerReference> | null;
-}) {
-  if (props.references === null) return null;
+function ReferenceList(
+  props: ReferencesBeside & { readonly references: ReadonlyArray<AnswerReference> },
+) {
+  const open = useOpenReference(props);
   return (
     <section aria-label="References" className="mt-3 flex min-w-0 flex-col gap-1">
       <h3 className="text-xs text-muted-foreground">References</h3>
       <ol className="flex min-w-0 flex-col">
         {props.references.map((reference) => (
-          <ReferenceRow key={reference.n} reference={reference} />
+          <ReferenceRow key={reference.n} reference={reference} onOpen={open} />
         ))}
       </ol>
     </section>
+  );
+}
+
+export const AnswerReferences = memo(function AnswerReferences(
+  props: ReferencesBeside & { readonly references: ReadonlyArray<AnswerReference> | null },
+) {
+  const { references } = props;
+  if (references === null) return null;
+  return (
+    <ReferenceList
+      references={references}
+      threadRef={props.threadRef}
+      environmentId={props.environmentId}
+      root={props.root}
+    />
   );
 });

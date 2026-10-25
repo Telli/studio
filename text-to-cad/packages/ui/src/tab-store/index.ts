@@ -9,3 +9,4 @@ export { TAB_FILE_LIMIT, TAB_RECORD_VERSION, defaultTabRecord, normalizeAppearan
 export type { Appearance, EditLayout, LibraryLayout, OpenedFrom, TabRecord, TabSettings, ToolStackLayout } from './tabRecord.js';
 export { useTabViewerState } from './useTabViewerState.js';
 export { editLayoutHost } from './editLayoutHost.js';
+export { focusHost } from './focusHost.js';

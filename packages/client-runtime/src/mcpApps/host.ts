@@ -129,6 +129,12 @@ export interface McpAppHostOptions {
   readonly onEditState?:
     | ((state: { readonly editable: boolean; readonly busy: boolean }) => void)
     | undefined;
+  /**
+   * Hears that Studio's CAD view has taken the place its host context asked it to show
+   * (`studio/focus`, from a reference under an answer), by the ask's number
+   * (`studio/notifications/focus-taken`). Absent, the app is not offered it.
+   */
+  readonly onFocusTaken?: ((nonce: number) => void) | undefined;
   /** The app asked to be closed (`ui/notifications/request-teardown`). */
   readonly onRequestTeardown: () => void;
   readonly onSizeChanged: (size: { readonly width?: number; readonly height?: number }) => void;
@@ -266,6 +272,7 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
             downloadFile: {},
             ...(options.openFile === undefined ? {} : { openFiles: {} }),
             ...(options.onEditState === undefined ? {} : { studioEditState: {} }),
+            ...(options.onFocusTaken === undefined ? {} : { studioFocus: {} }),
             sandbox: {
               ...(options.app.csp === undefined ? {} : { csp: options.app.csp }),
               ...(options.app.permissions === undefined
@@ -442,6 +449,11 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
         if (typeof editable === "boolean" && typeof busy === "boolean") {
           options.onEditState?.({ editable, busy });
         }
+        return;
+      }
+      case "studio/notifications/focus-taken": {
+        const { nonce } = params;
+        if (typeof nonce === "number") options.onFocusTaken?.(nonce);
         return;
       }
       default:

@@ -1,7 +1,7 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { CadViewerProps } from '@text-to-cad/ui/cad-viewer';
-import { editLayoutHost } from '@text-to-cad/ui/tab-store';
+import { editLayoutHost, focusHost } from '@text-to-cad/ui/tab-store';
 import { version } from '../package.json';
 import App from './App';
 import type { HostContext } from './host/bridge';
@@ -289,6 +289,32 @@ it('a host that lays the workspace out hears what the part on screen allows as i
   } finally {
     editLayoutHost.reportEditState(null);
     editLayoutHost.set(false);
+  }
+});
+
+it('a host that opens a part at a line of its script hands the part on screen the place, and hears when it is taken; a host that does not, nothing', () => {
+  const taken = (notify: ReturnType<typeof vi.fn>) => notify.mock.calls
+    .filter(([method]) => method === 'studio/notifications/focus-taken').map(([, params]) => params);
+  try {
+    const studio = host({ displayMode: 'fullscreen', 'studio/focus': { path: 'parts/bracket.py', line: 12, nonce: 3 } }, { studioFocus: {} });
+    const { unmount } = render(<App bridge={studio.bridge as any} server={studio.server as any} launch={home} />);
+    expect(focusHost.get()).toEqual({ path: 'parts/bracket.py', line: 12, nonce: 3 });
+    // The STEP view takes it (`focusHost`), and the host lets it go.
+    act(() => focusHost.take(3));
+    expect(taken(studio.bridge.notify)).toEqual([{ nonce: 3 }]);
+    act(() => studio.bridge.change({ 'studio/focus': null }));
+    expect(focusHost.get()).toBeNull();
+    // A view closed says nothing more.
+    unmount();
+    act(() => focusHost.take(4));
+    expect(taken(studio.bridge.notify)).toHaveLength(1);
+
+    const plain = host({ displayMode: 'fullscreen' });
+    render(<App bridge={plain.bridge as any} server={plain.server as any} launch={home} />);
+    act(() => focusHost.take(5));
+    expect(taken(plain.bridge.notify)).toEqual([]);
+  } finally {
+    focusHost.set(null);
   }
 });
 

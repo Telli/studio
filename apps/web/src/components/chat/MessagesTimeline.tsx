@@ -2901,7 +2901,12 @@ function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "mess
           resolvedTheme={ctx.resolvedTheme}
           onOpenTurnDiff={ctx.onOpenTurnDiff}
         />
-        <AnswerReferences references={references} />
+        <AnswerReferences
+          references={references}
+          threadRef={ctx.threadRef}
+          environmentId={ctx.activeThreadEnvironmentId}
+          root={ctx.workspaceRoot}
+        />
         {row.showAssistantMeta ? (
           <AssistantMessageMeta
             className="mt-1.5"
