@@ -62,6 +62,7 @@ describe("splitSources", () => {
       "[4] #Heading with no file",
       "[1] parts/bracket.py:12-18",
       "[see above] docs/prd.md",
+      "[5](https://example.com/page)",
       "[2] docs/prd.md",
     ].join("\n");
     expect(splitSources(answer)).toEqual({
@@ -188,21 +189,89 @@ describe("splitSources", () => {
     ]);
   });
 
-  it("cuts a description after the target", () => {
+  it("cuts a description after a plain path or an address", () => {
     const answer = [
       "Sources:",
       "[1] parts/bracket.py:12-18 — the hole pattern",
-      "[2] docs/prd.md#Scope – what we make",
+      "[2] docs/prd.md – what we make",
       "[3] https://example.com/page - the vendor's page",
       "[4] https://example.com/a?b=c and more words",
-      "[5] own knowledge: ISO 273 — clearance holes",
+    ].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      { n: 1, target: { kind: "file", path: "parts/bracket.py", lines: [12, 18], heading: null } },
+      { n: 2, target: { kind: "file", path: "docs/prd.md", lines: null, heading: null } },
+      { n: 3, target: { kind: "url", url: "https://example.com/page" } },
+      { n: 4, target: { kind: "url", url: "https://example.com/a?b=c" } },
+    ]);
+  });
+
+  it("keeps the rest of the line for a heading and for own knowledge", () => {
+    const answer = [
+      "Sources:",
+      "[1] docs/prd.md#Fits - clearance",
+      "[2] docs/prd.md#Scope – what we make",
+      "[3] own knowledge: ISO 2768 - tolerances",
+      "[4] own knowledge: ISO 273 — clearance holes",
+    ].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      {
+        n: 1,
+        target: { kind: "file", path: "docs/prd.md", lines: null, heading: "Fits - clearance" },
+      },
+      {
+        n: 2,
+        target: { kind: "file", path: "docs/prd.md", lines: null, heading: "Scope – what we make" },
+      },
+      { n: 3, target: { kind: "own", text: "ISO 2768 - tolerances" } },
+      { n: 4, target: { kind: "own", text: "ISO 273 — clearance holes" } },
+    ]);
+  });
+
+  it("reads a link to anything but a web page as a file", () => {
+    const answer = [
+      "Sources:",
+      "[1] [bracket](parts/bracket.py:12-18)",
+      "[2] [the scope](docs/prd.md#Scope) — what we make",
+      "[3] [Servo bracket](./parts/servo_bracket.py)",
     ].join("\n");
     expect(splitSources(answer).sources).toEqual([
       { n: 1, target: { kind: "file", path: "parts/bracket.py", lines: [12, 18], heading: null } },
       { n: 2, target: { kind: "file", path: "docs/prd.md", lines: null, heading: "Scope" } },
-      { n: 3, target: { kind: "url", url: "https://example.com/page" } },
-      { n: 4, target: { kind: "url", url: "https://example.com/a?b=c" } },
-      { n: 5, target: { kind: "own", text: "ISO 273" } },
+      {
+        n: 3,
+        target: { kind: "file", path: "./parts/servo_bracket.py", lines: null, heading: null },
+      },
+    ]);
+  });
+
+  it("leaves the backticks out of a path, wherever they sit", () => {
+    const answer = [
+      "Sources:",
+      "[1] `a.py`:12-18",
+      "[2] `docs/prd.md`#Scope",
+      "[3] parts/`bracket.py`",
+      "[4] docs/prd.md#The `foo` option",
+    ].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      { n: 1, target: { kind: "file", path: "a.py", lines: [12, 18], heading: null } },
+      { n: 2, target: { kind: "file", path: "docs/prd.md", lines: null, heading: "Scope" } },
+      { n: 3, target: { kind: "file", path: "parts/bracket.py", lines: null, heading: null } },
+      {
+        n: 4,
+        target: { kind: "file", path: "docs/prd.md", lines: null, heading: "The `foo` option" },
+      },
+    ]);
+  });
+
+  it("reads a colon after the number as the footnote style", () => {
+    const answer = [
+      "Sources:",
+      "[1]: https://example.com/page",
+      "- [2]: parts/bracket.py:12-18",
+    ].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      { n: 1, target: { kind: "url", url: "https://example.com/page" } },
+      { n: 2, target: { kind: "file", path: "parts/bracket.py", lines: [12, 18], heading: null } },
     ]);
   });
 

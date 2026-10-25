@@ -13,9 +13,12 @@ export type SourceTarget =
 /** `Sources:` as models also write it: in bold or italics, as a heading, the colon in or out. */
 const SOURCES_LINE = /^(?:#{1,6}[ \t]+)?(\*{1,3}|_{1,3})?Sources(?::\1|\1:?)$/;
 const LIST_BULLET = /^[-*]\s+/;
-/** `[3] parts/bracket.py:12-18`. The space keeps a link, `[3](https://…)`, from reading as one. */
-const SOURCE_ENTRY = /^\[(\d+)\]\s+(\S.*)$/;
-/** What may follow a target: `parts/bracket.py:12-18 — the hole pattern`. */
+/**
+ * `[3] parts/bracket.py:12-18`, or `[3]: …` as a footnote is written. The space after it keeps
+ * a link, `[3](https://…)`, from reading as a source.
+ */
+const SOURCE_ENTRY = /^\[(\d+)\]:?\s+(\S.*)$/;
+/** What may follow a plain path: `parts/bracket.py:12-18 — the hole pattern`. */
 const DESCRIPTION = / [—–-] /;
 /** A target in backticks or angle brackets is taken whole: a file name can hold ` - `. */
 const WRAPPED_TARGET = /^(?:`([^`]*)`|<([^>]*)>)(?: [—–-] .*)?$/;
@@ -25,56 +28,69 @@ const WRAPPED_TARGET = /^(?:`([^`]*)`|<([^>]*)>)(?: [—–-] .*)?$/;
  */
 const MARKDOWN_LINK = /^\[[^\]]*\]\((\S+?)\)(?=\s|$)/;
 const OWN_KNOWLEDGE = /^own knowledge\b\s*:?/i;
+/** An address ends at its first space, so a description after it needs no cutting. */
 const WEB_ADDRESS = /^https?:\/\/\S+/i;
 const PATH_WITH_HEADING = /^([^#]*)#(.*)$/;
 const PATH_WITH_LINES = /^(.*?):(\d+)(?:-(\d+))?$/;
 
-/** The target alone: what is inside its marks, or what comes before a description. */
-function targetOf(text: string): string {
+/** A link's address, or what is inside backticks or angle brackets: a target read whole. */
+function wholeTarget(text: string): string | null {
+  const link = MARKDOWN_LINK.exec(text)?.[1];
+  if (link !== undefined) return link;
   const wrapped = WRAPPED_TARGET.exec(text);
-  if (wrapped !== null) return (wrapped[1] ?? wrapped[2] ?? "").trim();
-  return (text.split(DESCRIPTION, 1)[0] ?? "").trim();
+  return wrapped === null ? null : (wrapped[1] ?? wrapped[2] ?? "").trim();
 }
 
-/** A file with no path is no source. */
+/** A file with no path is no source. Backticks never belong to a path, wherever they sit. */
 function fileTarget(
   path: string,
   lines: [number, number] | null,
   heading: string | null,
 ): SourceTarget | null {
-  const name = path.trim();
+  const name = path.replaceAll("`", "").trim();
   return name === "" ? null : { kind: "file", path: name, lines, heading };
 }
 
-function readFileTarget(target: string): SourceTarget | null {
+/**
+ * `path#Heading`, whose heading keeps the rest of the line; else `path:12-18`, `path:12` or
+ * `path`, which loses a description after it when `cutDescription` is set.
+ */
+function readFileTarget(target: string, cutDescription: boolean): SourceTarget | null {
   const titled = PATH_WITH_HEADING.exec(target);
   if (titled !== null) return fileTarget(titled[1] ?? "", null, (titled[2] ?? "").trim() || null);
-  const ranged = PATH_WITH_LINES.exec(target);
-  if (ranged === null) return fileTarget(target, null, null);
+  const plain = (cutDescription ? (target.split(DESCRIPTION, 1)[0] ?? target) : target).trim();
+  const ranged = PATH_WITH_LINES.exec(plain);
+  if (ranged === null) return fileTarget(plain, null, null);
   const [, path = "", first = "", last = first] = ranged;
   const from = Number(first);
   const to = Number(last);
   return fileTarget(path, [Math.min(from, to), Math.max(from, to)], null);
 }
 
-/** One source's target as written after its number; null when nothing there can be a source. */
+/**
+ * One source's target as written after its number: an address, `own knowledge: …`, or a file as
+ * `path`, `path:12-18` or `path#Heading`; null when nothing there can be a source. A link (by its
+ * address) and a target in backticks or angle brackets are taken whole. Any other loses a
+ * description (` — `, ` – ` or ` - `) after a plain path or an address only: a heading and own
+ * knowledge keep the rest of the line.
+ */
 function readTarget(text: string): SourceTarget | null {
-  const link = MARKDOWN_LINK.exec(text)?.[1];
-  if (link !== undefined) return { kind: "url", url: link };
-  const target = targetOf(text);
+  const whole = wholeTarget(text);
+  const target = whole ?? text;
   if (OWN_KNOWLEDGE.test(target)) {
     return { kind: "own", text: target.replace(OWN_KNOWLEDGE, "").trim() };
   }
   const address = WEB_ADDRESS.exec(target)?.[0];
   if (address !== undefined) return { kind: "url", url: address };
-  return readFileTarget(target);
+  return readFileTarget(target, whole === null);
 }
 
 /**
  * The answer without its Sources block, and the block's sources in the order written. The block
- * is the message's last: the last Sources line and the lines under it, each a source. A Sources
- * line with anything else under it is part of the answer, which comes back as it is. A line of
- * the block that cannot be read is dropped, and so is a number that repeats.
+ * is the message's last: the last Sources line and the lines under it, each `[1] target` or
+ * `[1]: target`. A Sources line with anything else under it is part of the answer, which comes
+ * back as it is. A line of the block that cannot be read is dropped, and so is a number that
+ * repeats.
  */
 export function splitSources(markdown: string): {
   body: string;
