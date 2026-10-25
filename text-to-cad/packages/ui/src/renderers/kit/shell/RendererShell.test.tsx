@@ -188,29 +188,36 @@ it("moves the column beside an open dialog, so a tool's own row and its panels n
 });
 
 // A toolbar that holds the strip's tools as buttons, as EditRibbon does: the Pencil taken up from it brings the drawing
-// tools' row under it, the column's one row.
+// tools' row under it, the column's one row, and Keep (`panel.harness`'s) a panel to the tool stack under that.
 const WITH_TOOLS = Object.freeze({ ...WORKSPACE,
   ribbon: (tools: { id: string, label: string, onSelect: () => void }[]) => <div role="toolbar" aria-label="Design">
     {tools.map(tool => <button key={tool.id} type="button" onClick={tool.onSelect}>{tool.label}</button>)}</div> });
 const controls = () => document.querySelector<HTMLElement>('[data-cad-top-controls]')!;
 const topRightLeft = () => backdrop().style.getPropertyValue('--cad-top-right-left');
+/** How far the column is moved right: its margins, the one shift. */
+const shifted = () => [column().style.marginLeft, column().style.marginRight];
 
 /**
  * A view laid out as the app lays it, for the top controls' measure: `view` px wide; the column an inset in from its
- * sides; its controls as wide as their one row (`row`), centred in the column and moved by their own `left`; and the Part
- * Navigator 16rem wide, an inset in, or no box at all where a view too narrow for it hides it (`navigator: false`).
+ * sides, moved by its margins; its one row (`row` px wide) and the tool stack's panel (`panel`), each centred in it; and
+ * the Part Navigator 16rem wide, an inset in, open or folded to its 28px title, or no box at all where a view too narrow
+ * for it hides it.
  */
-function layOut({ view, row, navigator = true }: { view: number, row: number, navigator?: boolean }) {
+function layOut({ view, row = 0, panel = 0, navigator = 'open' }:
+  { view: number, row?: number, panel?: number, navigator?: 'open' | 'folded' | 'hidden' }) {
   const box = (x: number, y: number, width: number, height: number) => DOMRect.fromRect({ x, y, width, height });
   Element.prototype.getBoundingClientRect = function (this: Element) {
+    const shift = parseFloat(document.querySelector<HTMLElement>('[data-cad-tool-groups]')?.style.marginLeft ?? '') || 0;
+    const centred = (width: number) => 8 + (view - 16 - width) / 2 + shift;
     if (this.matches('[data-cad-dock="toolbar"]')) return box(0, 0, view, TOOLBAR_HEIGHT);
     if (this.matches('[data-cad-scene-backdrop]')) return box(0, 0, view, 700);
-    if (this.matches('[data-cad-tool-groups]')) return box(8, TOOLBAR_HEIGHT + 8, view - 16, 500);
-    if (this.matches('[data-cad-dock="navigator"]')) return navigator ? box(8, TOOLBAR_HEIGHT + 8, 256, 400) : box(0, 0, 0, 0);
-    const top = this.closest<HTMLElement>('[data-cad-top-controls]');
-    if (top && (this === top || this.parentElement === top)) {
-      return box(8 + (view - 16 - row) / 2 + (parseFloat(top.style.left) || 0), TOOLBAR_HEIGHT + 8, row, 36);
+    if (this.matches('[data-cad-tool-groups]')) return box(8 + shift, TOOLBAR_HEIGHT + 8, view - 16, 500);
+    if (this.matches('[data-cad-dock="navigator"]')) {
+      return navigator === 'hidden' ? box(0, 0, 0, 0) : box(8, TOOLBAR_HEIGHT + 8, 256, navigator === 'folded' ? 28 : 400);
     }
+    if (this.matches('[data-cad-tool-stack] [data-tool-panel]')) return panel ? box(centred(panel), TOOLBAR_HEIGHT + 60, panel, 120) : box(0, 0, 0, 0);
+    const top = this.closest<HTMLElement>('[data-cad-top-controls]');
+    if (top && (this === top || this.parentElement === top)) return box(centred(row), TOOLBAR_HEIGHT + 8, row, row ? 36 : 0);
     return boxOf.call(this);
   };
 }
@@ -240,46 +247,61 @@ it("leaves a row that clears the Part Navigator centred across the view, and Qui
   // Centred in a 1280px view, a 300px row starts at 490, well past the navigator's right edge and an inset (264 + 8).
   layOut({ view: 1280, row: 300 });
   const view = drawing(resize);
-  expect([controls().style.left, topRightLeft()]).toEqual(['', '798px']);
+  expect([...shifted(), topRightLeft()]).toEqual(['', '', '798px']);
   // The same as with no Part Navigator at all.
   view.show({ ...WITH_TOOLS, leftDock: null });
   resize();
-  expect([controls().style.left, topRightLeft()]).toEqual(['', '798px']);
+  expect([...shifted(), topRightLeft()]).toEqual(['', '', '798px']);
 });
 
-it("moves a row that would run under the Part Navigator right by just the overlap, and no further than the column has room", () => {
+it("moves the column right by just the overlap of a row that would run under the Part Navigator, and no further than it has room", () => {
   const resize = resizing();
   // Centred in a 700px view, a 300px row starts at 200: 72px short of the navigator's right edge and an inset.
   layOut({ view: 700, row: 300 });
   drawing(resize);
-  expect(controls().style.left).toBe('72px');
+  expect(shifted()).toEqual(['72px', '-72px']);
   // Quick Edit's corner starts an inset past where the row now ends.
   expect(topRightLeft()).toBe(`${200 + 72 + 300 + 8}px`);
   // A row too wide to clear it goes as far as the column lets it: its right edge at the column's, (584 - 500) / 2 on.
   layOut({ view: 600, row: 500 });
   resize();
-  expect(controls().style.left).toBe('42px');
+  expect(shifted()).toEqual(['42px', '-42px']);
 });
 
-it("moves no row while the Part Navigator is folded, hidden by a narrow view, or has a dialog beside it", () => {
+it("moves the column past the Part Navigator folded to its title too, and not while a narrow view hides it or a dialog stands beside it", () => {
   const resize = resizing();
   layOut({ view: 700, row: 300 });
   const view = drawing(resize);
-  expect(controls().style.left).toBe('72px');
-  // Folded to its title: the row is centred again, and the corner's room is the row's.
-  const fold = () => fireEvent.click(within(dock('navigator')!).getByRole('button', { name: 'Part Navigator' }));
-  fold();
+  expect(shifted()).toEqual(['72px', '-72px']);
+  // Folded, its title still stands at the rows' height, as wide: the row clears its right edge and an inset.
+  fireEvent.click(within(dock('navigator')!).getByRole('button', { name: 'Part Navigator' }));
+  layOut({ view: 700, row: 300, navigator: 'folded' });
   resize();
-  expect([controls().style.left, topRightLeft()]).toEqual(['', `${200 + 300 + 8}px`]);
-  // Open again in a view too narrow for it, which hides it: it has no box of its own.
-  fold();
-  layOut({ view: 700, row: 300, navigator: false });
+  expect([...shifted(), topRightLeft()]).toEqual(['72px', '-72px', `${200 + 72 + 300 + 8}px`]);
+  // A view too narrow for it hides it: it has no box, and the row is centred again.
+  layOut({ view: 700, row: 300, navigator: 'hidden' });
   resize();
-  expect(controls().style.left).toBe('');
-  // A dialog beside it: the column is the room past both (above), and its rows are not moved within it.
+  expect([...shifted(), topRightLeft()]).toEqual(['', '', `${200 + 300 + 8}px`]);
+  // A dialog beside it: the column is the room past both (above), and is not moved within it.
   layOut({ view: 700, row: 300 });
   view.show({ ...WITH_TOOLS, dialogOpen: true });
   resize();
-  expect(controls().style.left).toBe('');
+  expect(shifted()).toEqual(['', '']);
   expect(column().className).toMatch(/\bleft-\[calc\(35rem\+8px\)\]/);
+});
+
+it("moves the tool stack's panels with the rows, one shift for the column, so a panel never runs under the Part Navigator", () => {
+  const resize = resizing();
+  // A 400px panel alone, centred in a 700px view, starts at 150: 122px short of the navigator's edge and an inset.
+  layOut({ view: 700, panel: 400 });
+  shell(WITH_TOOLS);
+  fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+  resize();
+  expect(document.querySelector('[data-cad-tool-stack] [data-tool-panel]')).not.toBeNull();
+  expect(shifted()).toEqual(['122px', '-122px']);
+  // With the drawing tools' row over it, the panel, further left, decides, and both move as one: the row ends 122px on.
+  fireEvent.click(screen.getByRole('button', { name: 'Pencil' }));
+  layOut({ view: 700, row: 300, panel: 400 });
+  resize();
+  expect([...shifted(), topRightLeft()]).toEqual(['122px', '-122px', `${200 + 122 + 300 + 8}px`]);
 });

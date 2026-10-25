@@ -76,7 +76,7 @@ const DIALOG_PLACE_POSITION = Object.freeze({ top: UNDER_TOOLBAR, bottom: VIEWPO
 // While a dialog is open there, the top column (a tool's own row and its panels) is the room past it, so none of
 // it hides under the dialog: past the navigator (16rem, an inset in) and the dialog (18rem, an inset past it), or
 // past the dialog alone where the navigator gives way to a narrow view (`BESIDE_DIALOG_CLASS`). With none open, the
-// column spans the view, and its rows move right only as far as clears the navigator (the top controls' measure).
+// column spans the view, and moves right only as far as clears the navigator (the top controls' measure).
 const TOOLBAR_POSITION_BESIDE_DIALOG = Object.freeze({ top: INSET, right: INSET, bottom: VIEWPORT_STACK_BOTTOM });
 const BESIDE_DIALOG_CLASS = Object.freeze({ navigator: "left-[calc(35rem+8px)] @max-xl/cad-viewport:left-[calc(18rem+16px)]",
   alone: "left-[calc(18rem+16px)]" });
@@ -449,9 +449,9 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
   const workspaceToolbar = useRef(null);
   const toolbarUp = Boolean(workspace && !workspace.leaving && workspace.chrome.ribbon);
   // A dialog open beside the Part Navigator: the top column keeps to the room past it. No dialog, and the
-  // navigator open: the rows keep clear of it (the top controls' measure).
+  // navigator up, folded or not: the column keeps clear of it (the top controls' measure).
   const besideDialog = Boolean(dialogOpen && workspace && !workspace.leaving && workspace.chrome.dialogPlace);
-  const navigatorOpen = Boolean(!besideDialog && workspace && !workspace.leaving && workspace.chrome.leftDock && !navigatorFolded);
+  const navigatorUp = Boolean(!besideDialog && workspace && !workspace.leaving && workspace.chrome.leftDock);
   useLayoutEffect(() => {
     const toolbar = workspaceToolbar.current;
     const viewport = toolbar?.closest("[data-cad-scene-backdrop]");
@@ -475,6 +475,24 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
     // The rows with something in them: an empty one (no update under way) still takes the
     // column's gap, which would leave a wider gap over the sidebar than at its sides.
     const rowsOf = () => [...controls.children].map(row => row.getBoundingClientRect()).filter(box => box.height > 0);
+    // The column, centred across the view, moved right only as far as what it holds (its rows, and the tool stack's
+    // panels under them) runs under the Part Navigator, folded or not, and an inset past it, and only as far as it has
+    // room: one measure, one shift, by its margins, which the frame's style leaves alone. What clears the navigator
+    // already stays put, and so does Quick Edit's room. A view too narrow for the navigator hides it, and nothing moves.
+    const movePast = (column, past) => {
+      column.style.removeProperty("margin-left");
+      column.style.removeProperty("margin-right");
+      const edge = past ? viewport.querySelector('[data-cad-dock="navigator"]')?.getBoundingClientRect() : null;
+      if (!edge?.width) return;
+      const panels = [...column.querySelectorAll("[data-cad-tool-stack] [data-tool-panel]")].map(panel => panel.getBoundingClientRect());
+      const held = [...rowsOf(), ...panels].filter(box => box.width > 0 && box.height > 0);
+      if (!held.length) return;
+      const overlap = edge.right + VIEWPORT_INSET_PX - Math.min(...held.map(box => box.left));
+      const shift = Math.min(overlap, column.getBoundingClientRect().right - Math.max(...held.map(box => box.right)));
+      if (shift <= 0) return;
+      column.style.marginLeft = `${shift}px`;
+      column.style.marginRight = `${-shift}px`;
+    };
     const measure = () => {
       const column = controls.parentElement;
       if (mobile && column) {
@@ -485,16 +503,8 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
         // Start at the viewport centre, keeping the sidebar gap and the right edge padding.
         // Offset the flex-centred controls without changing the room TouchStrip uses for More.
         controls.style.left = `${Math.min(room, Math.max(0, centered)) - room / 2}px`;
-      } else if (navigatorOpen && column) {
-        // Centred across the view, the rows move right only as far as clears the Part Navigator, an inset past it, and
-        // only as far as the column has room: a row that clears it already stays put, and so does Quick Edit's room.
-        controls.style.removeProperty("left");
-        const navigator = viewport.querySelector('[data-cad-dock="navigator"]')?.getBoundingClientRect();
-        const centred = rowsOf();
-        const overlap = navigator?.width && centred.length ? navigator.right + VIEWPORT_INSET_PX - Math.min(...centred.map(row => row.left)) : 0;
-        const room = Math.max(0, column.getBoundingClientRect().width - controls.getBoundingClientRect().width);
-        if (overlap > 0) controls.style.left = `${Math.min(room / 2, overlap)}px`;
       } else controls.style.removeProperty("left");
+      if (column) movePast(column, navigatorUp && !mobile);
       const rows = rowsOf();
       const top = controls.getBoundingClientRect().top;
       const below = `${Math.round(VIEWPORT_INSET_PX * 2 + Math.max(top, ...rows.map(box => box.bottom)) - top)}px`;
@@ -514,11 +524,14 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
     };
     measure();
     if (typeof ResizeObserver === "undefined") return undefined;
-    // What moves them: the controls, the view, the sidebar (out or away, resized), and what comes
-    // and goes in the top-right corner (Quick Edit opening, closing, resized).
+    // What moves them: the controls, the view, the tool stack (a panel opening or closing), the sidebar
+    // (out or away, resized), and what comes and goes in the top-right corner (Quick Edit opening,
+    // closing, resized).
     const resized = new ResizeObserver(measure);
     resized.observe(controls);
     resized.observe(viewport);
+    const stack = controls.parentElement?.querySelector("[data-cad-tool-stack]");
+    if (stack) resized.observe(stack);
     const watch = () => {
       for (const element of viewport.querySelectorAll(`aside[data-cad-file-sidebar], [data-file-sidebar-tools], ${CORNER_BOXES}`)) resized.observe(element);
     };
@@ -530,9 +543,10 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
     return () => {
       resized.disconnect(); changed?.disconnect();
       controls.style.removeProperty("left");
+      for (const name of ["margin-left", "margin-right"]) controls.parentElement?.style.removeProperty(name);
       for (const name of ["--cad-tools-bottom", "--cad-file-sidebar-max-width", "--cad-top-right-left"]) viewport.style.removeProperty(name);
     };
-  }, [toolsHidden, mobile, besideSidebarTile, Boolean(sidebar), Boolean(references), toolbarUp, besideDialog, navigatorOpen]);
+  }, [toolsHidden, mobile, besideSidebarTile, Boolean(sidebar), Boolean(references), toolbarUp, besideDialog, navigatorUp]);
   // Display's tile is its mode's sphere; on a phone with no room for it, its More row shows the same.
   const DisplayIcon = (frame.displayMode?.options?.find(option => option.value === frame.displayMode.value) || frame.displayMode?.options?.[0])?.Icon;
   const copyAction = () => {
