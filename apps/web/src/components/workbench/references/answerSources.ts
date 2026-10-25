@@ -27,15 +27,24 @@ const SOURCE_ENTRY = /^\[(\d+)\](?::\s*|\s+)(\S.*)$/;
  * read as `a.py`, while `docs/Design notes (v2).md` keeps its parentheses.
  */
 const DESCRIPTION = / [—–-] .*$|(?<=:\d+(?:[-–—]\d+)?)(?::.*|\s+\(.*\))$|(?<=\.\w+)\s+\(.*\)$/;
-/** A target in backticks or angle brackets is taken whole: a file name can hold ` - `. */
-const WRAPPED_TARGET = /^(?:`([^`]*)`|<([^>]*)>)(?: [—–-] .*)?$/;
+/**
+ * A target that starts with a backtick span: the span is the target as written, a file name in it
+ * can hold ` - `, and `:12-18` or `#Heading` may follow it directly. Anything else after the span
+ * is a description, however it begins: ` (…)`, ` — …`, `: …` or plain words.
+ */
+const BACKTICK_TARGET = /^`([^`]+)`(:\d+(?:[-–—]\d+)?|#.*)?/;
+/** A target in angle brackets is taken whole, with a description after it as ` — …`. */
+const ANGLE_TARGET = /^<([^>]*)>(?: [—–-] .*)?$/;
 /**
  * `[title](address)`, taken whole too; a `.`, `,` or `;` after it is left out. The address can
  * hold parentheses (`Torx_(screw_drive)`), so it ends at the first `)` that a space or the end of
  * the line follows.
  */
 const MARKDOWN_LINK = /^\[[^\]]*\]\((\S+?)\)(?=[.,;]*(?:\s|$))/;
-const OWN_KNOWLEDGE = /^own knowledge\b\s*[:—–-]?/i;
+/**
+ * The separator is a colon, or a dash with a space after it: `own knowledge-based` loses nothing.
+ */
+const OWN_KNOWLEDGE = /^own knowledge\b\s*(?::|[—–-](?=\s))?/i;
 /** An address ends at its first space, so a description after it needs no cutting. */
 const WEB_ADDRESS = /^https?:\/\/\S+/i;
 /** `path#Heading`. A `#` after a space is part of a description, as in `— #6-32 screws`. */
@@ -43,12 +52,14 @@ const PATH_WITH_HEADING = /^((?:.*?\S)?)#(.*)$/;
 /** `path:12` or `path:12-18`, the range also written with an en or an em dash. */
 const PATH_WITH_LINES = /^(.*?):(\d+)(?:[-–—](\d+))?$/;
 
-/** A link's address, or what is inside backticks or angle brackets: a target read whole. */
+/** A link's address, or the target in its backticks or angle brackets: a target read whole. */
 function wholeTarget(text: string): string | null {
   const link = MARKDOWN_LINK.exec(text)?.[1];
   if (link !== undefined) return link;
-  const wrapped = WRAPPED_TARGET.exec(text);
-  return wrapped === null ? null : (wrapped[1] ?? wrapped[2] ?? "").trim();
+  const ticked = BACKTICK_TARGET.exec(text);
+  if (ticked !== null) return `${ticked[1] ?? ""}${ticked[2] ?? ""}`.trim();
+  const angled = ANGLE_TARGET.exec(text);
+  return angled === null ? null : (angled[1] ?? "").trim();
 }
 
 /** A file with no path is no source. Backticks never belong to a path, wherever they sit. */
@@ -84,9 +95,9 @@ function readFileTarget(target: string, cutDescription: boolean): SourceTarget |
 /**
  * One source's target as written after its number: an address, `own knowledge: …`, or a file as
  * `path`, `path:12-18` or `path#Heading`; null when nothing there can be a source. A link (by its
- * address) and a target in backticks or angle brackets are taken whole. Any other loses its
- * description (see `DESCRIPTION`) after a plain path or an address only: a heading and own
- * knowledge keep the rest of the line.
+ * address), a target that starts with a backtick span and a target in angle brackets are taken
+ * whole. Any other loses its description (see `DESCRIPTION`) after a plain path or an address
+ * only: a heading and own knowledge keep the rest of the line.
  */
 function readTarget(text: string): SourceTarget | null {
   const whole = wholeTarget(text);

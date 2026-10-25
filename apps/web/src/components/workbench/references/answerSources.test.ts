@@ -363,12 +363,44 @@ describe("splitSources", () => {
       "[2] own knowledge – ISO 2768",
       "[3] own knowledge - ISO 2768",
       "[4] own knowledge: ISO 2768",
+      "[5] own knowledge:ISO 2768",
     ].join("\n");
     expect(splitSources(answer).sources).toEqual([
       { n: 1, target: { kind: "own", text: "ISO 2768" } },
       { n: 2, target: { kind: "own", text: "ISO 2768" } },
       { n: 3, target: { kind: "own", text: "ISO 2768" } },
       { n: 4, target: { kind: "own", text: "ISO 2768" } },
+      { n: 5, target: { kind: "own", text: "ISO 2768" } },
+    ]);
+  });
+
+  it("keeps a dash glued to the next word after own knowledge", () => {
+    expect(splitSources("Sources:\n[1] own knowledge-based estimate").sources).toEqual([
+      { n: 1, target: { kind: "own", text: "-based estimate" } },
+    ]);
+  });
+
+  it("takes a backtick span for the target, and cuts a description after it", () => {
+    const answer = [
+      "Sources:",
+      "[1] `parts/bracket.py:12-18` (the hole pattern)",
+      "[2] `parts/bracket.py`:12-18 — the hole pattern",
+      "[3] `docs/prd.md#Fits` the clearance table",
+      "[4] `docs/prd.md`#Fits",
+      "[5] `parts/bracket.py`: the hole pattern",
+      "[6] `https://example.com/page` the vendor's page",
+      "[7] `own knowledge: ISO 2768` (a standard)",
+      "[8] ``a.py``",
+    ].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      { n: 1, target: { kind: "file", path: "parts/bracket.py", lines: [12, 18], heading: null } },
+      { n: 2, target: { kind: "file", path: "parts/bracket.py", lines: [12, 18], heading: null } },
+      { n: 3, target: { kind: "file", path: "docs/prd.md", lines: null, heading: "Fits" } },
+      { n: 4, target: { kind: "file", path: "docs/prd.md", lines: null, heading: "Fits" } },
+      { n: 5, target: { kind: "file", path: "parts/bracket.py", lines: null, heading: null } },
+      { n: 6, target: { kind: "url", url: "https://example.com/page" } },
+      { n: 7, target: { kind: "own", text: "ISO 2768" } },
+      { n: 8, target: { kind: "file", path: "a.py", lines: null, heading: null } },
     ]);
   });
 
