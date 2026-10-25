@@ -33,7 +33,8 @@ __all__ = ["EditService", "dependents", "project_root", "script_for", "shared_se
 # is stopped, and the next request starts a fresh tracer.
 TRACE_TIMEOUT = 180
 BUILD_TIMEOUT = 900
-# Folders a project's own scripts never live in.
+# Folders a project's own scripts never live in: left out of the scan for what uses a file, and of
+# the scripts who made each feature is judged against (`authors.py`).
 _SKIP = re.compile(r"^(\.|node_modules$|__pycache__$|tmp$|dist$|build$|vendor$|site-packages$)")
 _SCAN_LIMIT = 4000
 _PART = re.compile(r"^\s*@step\b", re.M)

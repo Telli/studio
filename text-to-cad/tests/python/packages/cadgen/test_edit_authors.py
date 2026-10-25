@@ -3,9 +3,9 @@ first line of its statement, the agent's when a turn's checkpoint made since Stu
 track holds it, and nobody's otherwise: a line from before then, and one no checkpoint holds yet.
 
 They drive the edit service end to end, as the viewer's server does, on a small part in a fresh git
-repository. A turn's checkpoint is made as Studio's server makes one: the folder staged in an index
-of its own, committed and kept under a hidden ref, the branch left where it is. Builds are not
-started.
+repository a Studio chat has run in. A checkpoint is made as Studio's server makes one: the folder
+staged in an index of its own, committed and kept under a hidden ref, the branch left where it is.
+Builds are not started.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -66,14 +67,15 @@ def git(repo: Path, *args: str, env: dict | None = None) -> str:
     return ran.stdout.strip()
 
 
-def checkpoint(repo: Path, ordinal: int, when: str | None = None) -> str:
-    """A turn's checkpoint, as Studio's server makes one at the end of the turn."""
+def checkpoint(repo: Path, ordinal: int, when: str | None = None, scope: str = "t") -> str:
+    """A chat's checkpoint, as Studio's server makes one at the end of each turn, and as its first
+    run starts (ordinal 0)."""
     index = repo / ".git" / "checkpoint-index"
     staged = {"GIT_INDEX_FILE": str(index)}
     git(repo, "add", "-A", env=staged)
     tree = git(repo, "write-tree", env=staged)
     index.unlink()
-    ref = f"refs/t3/orchestration-v2/checkpoints/t/ordinal/{ordinal}"
+    ref = f"refs/t3/orchestration-v2/checkpoints/{scope}/ordinal/{ordinal}"
     dated = {"GIT_COMMITTER_DATE": when, "GIT_AUTHOR_DATE": when} if when else {}
     commit = git(repo, "commit-tree", tree, "-m", f"t3 checkpoint ref={ref}", env=dated)
     git(repo, "update-ref", ref, commit)
@@ -86,6 +88,10 @@ def made_by(reply: dict) -> dict[str, str]:
     return {text[key]: author for key, author in reply["authors"].items()}
 
 
+def key_of(reply: dict, line: str) -> str:
+    return next(feature["key"] for feature in reply["features"] if feature["text"] == line)
+
+
 class Authors(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -95,12 +101,15 @@ class Authors(unittest.TestCase):
     def tearDownClass(cls):
         cls.service.close()
 
-    def project(self, *, repository: bool = True) -> tuple[Path, str]:
+    def project(self, *, repository: bool = True, chat: bool = True) -> tuple[Path, str]:
+        """The block in a fresh folder: a git repository a chat has run in (its first run's checkpoint), unless not."""
         root = Path(tempfile.mkdtemp(prefix="cadgen-edit-authors-")).resolve()
         self.addCleanup(shutil.rmtree, root, True)
         if repository:
             git(root, "init", "-q")
         self.write(root, BLOCK)
+        if repository and chat:
+            checkpoint(root, 0)
         return root, str(root / "block.step")
 
     @staticmethod
@@ -169,7 +178,7 @@ class Authors(unittest.TestCase):
         checkpoint(root, 2)
         again = self.read(file, running["files"])
         self.assertTrue(again["unchanged"])
-        self.assertEqual(again["authors"], {next(feature["key"] for feature in running["features"] if feature["text"] == AGENT_CHAMFER): "agent"})
+        self.assertEqual(again["authors"], {key_of(running, AGENT_CHAMFER): "agent"})
 
     def test_never_starts_outside_a_git_folder(self):
         root, file = self.project(repository=False)
@@ -219,6 +228,88 @@ class Authors(unittest.TestCase):
         with mock.patch.dict(os.environ, {"PATH": str(other / "no-git-here")}):
             authors.start(other)
         self.assertFalse((other / ".studio").exists())
+
+    def test_records_nothing_where_no_chat_has_run(self):
+        # The viewer used on its own in a git folder: nothing written in it, nor in its git.
+        root, file = self.project(chat=False)
+        filleted = self.fillet(file, self.read(file))
+        self.assertEqual(filleted["authors"], {})
+        self.assertFalse((root / ".studio").exists())
+        exclude = root / ".git" / "info" / "exclude"
+        self.assertNotIn(b".studio", exclude.read_bytes() if exclude.exists() else b"")
+
+    def test_a_chat_starting_is_no_turn_of_the_agents(self):
+        root, file = self.project()
+        self.read(file)
+        # A line written outside Studio, then another chat's first run, whose checkpoint is taken before its agent writes.
+        self.write(root, CHAMFERED)
+        checkpoint(root, 0, scope="u")
+        self.assertEqual(self.read(file)["authors"], {})
+
+    def test_a_moved_script_keeps_whose_lines_they_were(self):
+        root, file = self.project()
+        filleted = self.fillet(file, self.read(file))
+        fillet = next(feature["text"] for feature in filleted["features"] if feature["kind"] == "Fillet")
+        # A turn that only moves the script into a folder: the block is still from before, the fillet still yours.
+        (root / "parts").mkdir()
+        (root / "block.py").rename(root / "parts" / "block.py")
+        checkpoint(root, 1)
+        self.assertEqual(made_by(self.read(str(root / "parts" / "block.step"))), {fillet: "you"})
+
+    def test_a_turn_ending_in_the_same_second_as_another_counts(self):
+        root, file = self.project()
+        self.read(file)
+        # Two chats' turns end in one second; the later one sorts first, by its ordinal, so the newest stays the other's.
+        second = f"@{int(time.time()) + 2} +0000"
+        checkpoint(root, 5, second, scope="a")
+        self.write(root, CHAMFERED)
+        running = self.read(file)
+        # The view's poll judges the part between the two.
+        self.assertEqual(self.read(file, running["files"])["authors"], {})
+        checkpoint(root, 1, second, scope="b")
+        again = self.read(file, running["files"])
+        self.assertTrue(again["unchanged"])
+        self.assertEqual(again["authors"], {key_of(running, AGENT_CHAMFER): "agent"})
+
+    def test_a_rename_keeps_who_made_it(self):
+        root, file = self.project()
+        self.read(file)
+        self.write(root, CHAMFERED)
+        checkpoint(root, 1)
+        state = self.read(file)
+        renamed = self.change(file, state, rename={"feature": key_of(state, AGENT_CHAMFER), "title": "Chamfer1", "name": "Lid edge # 2"})
+        self.assertEqual(made_by(renamed), {f"{AGENT_CHAMFER}  # Lid edge # 2": "agent"})
+
+    def test_a_project_holding_a_virtual_environment_is_recorded_without_it(self):
+        root, file = self.project()
+        for name in ("venv/pyvenv.cfg", "venv/lib/python3.13/site-packages/pkg/__init__.py", "venv/bin/activate_this.py",
+                     "node_modules/gyp/gyp.py", ".venv/lib/mod.py", "parts/sizes.py"):
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / name).write_text("WALL = 2\n", encoding="utf-8")
+        self.read(file)
+        start = json.loads((root / authors.LEDGER).read_text(encoding="utf-8").splitlines()[0])
+        self.assertEqual(sorted(start["baseline"]), ["block.py", "parts/sizes.py"])
+        # A project too big to record is found so once, not walked again on every trace.
+        big, _ = self.project()
+        with mock.patch.object(authors, "BASELINE_LIMIT", 8):
+            authors.start(big)
+            with mock.patch.object(authors.os, "walk", wraps=os.walk) as walked:
+                authors.start(big)
+        walked.assert_not_called()
+        self.assertFalse((big / authors.LEDGER).exists())
+
+    def test_a_git_exclude_file_in_utf16_leaves_the_part_readable(self):
+        root, file = self.project()
+        # A line appended as Windows PowerShell 5.1's `>>` appends one.
+        exclude = root / ".git" / "info" / "exclude"
+        exclude.parent.mkdir(exist_ok=True)
+        with exclude.open("ab") as handle:
+            handle.write("build/\r\n".encode("utf-16"))
+        kept = exclude.read_bytes()
+        for _ in range(2):
+            self.assertEqual(self.read(file)["authors"], {})
+        self.assertFalse((root / ".studio").exists())
+        self.assertEqual(exclude.read_bytes(), kept)
 
 
 if __name__ == "__main__":
