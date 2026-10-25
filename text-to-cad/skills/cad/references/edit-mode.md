@@ -1,18 +1,20 @@
 # Edit mode
 
 The CAD viewer edits a part by hand while its Python script stays the source. It runs the script,
-shows a design tree with the part's named sizes (Parameters) and its history (one feature per
-operation the script performs, numbered as a CAD tree numbers them: Extrude1, Fillet1), and draws
-the selected feature's dimensions on the model. When the engineer changes a value, the viewer
-rewrites that one number in the script, keeping how it was written, and builds again every part
-that uses the changed file.
+shows a Part Navigator with the part's named sizes (User Expressions) and its history (one feature
+per operation the script performs, numbered as NX numbers them: Sketch (1), Extrude (2), Edge Blend
+(5) for a fillet), and draws the selected feature's dimensions on the model. The script and the
+hand edit notes below keep the names the engine gives a feature (Fillet2, Cut-Extrude2). When the
+engineer changes a value, the viewer rewrites that one number in the script, keeping how it was
+written, and builds again every part that uses the changed file.
 
-Its ribbon also has modeling commands, as SolidWorks' Features tab sets them out: Extruded, Revolved,
-Swept and Lofted Boss/Base; Extruded, Revolved, Swept and Lofted Cut, and Hole; Fillet, Chamfer, Rib,
-Draft, Shell, Pattern and Mirror. Each acts on what the engineer selects (edges or
-faces on the model, a sketch or a feature in the history) and writes one line of build123d into
-the script, after the statement that makes the part's body, which then reads back as a new feature
-of the history.
+Its toolbar's Solid tab also has modeling commands, as NX names them: Extrude, Revolve, Sweep along
+Guide and Through Curves (each a boss or a cut, by its Boolean, Unite or Subtract), Hole and Rib;
+Edge Blend, Chamfer, Draft, Shell, Split Body and Delete Body; Pattern Feature, Mirror Feature and
+Datum Plane. The sections below call them by the names SolidWorks gives them. Each acts on what the
+engineer selects (edges or faces on the model, a sketch or a feature in the Part Navigator) and
+writes one line of build123d into the script, after the statement that makes the part's body, which
+then reads back as a new feature of the history.
 
 The engineer also sketches there, as in SolidWorks: Sketch on a plane or a flat face, draw lines,
 rectangles, circles, arcs (Centerpoint, 3 Point, and Tangent Arc, written as a centerpoint arc and
@@ -24,8 +26,8 @@ by hand" below.
 ## Write the script so it edits well
 
 - **Name the sizes that matter at the top of the file**, one per line, in the project's units:
-  `LENGTH = 2.80`, `WALL = .060`. They become the Parameters (with those the part's own script
-  names at its top, used or not; Add Parameter writes one there). Use plain names, not abbreviations
+  `LENGTH = 2.80`, `WALL = .060`. They become the User Expressions (with those the part's own
+  script names at its top, used or not; Add expression writes one there). Use plain names, not abbreviations
   (`TRAY_HEIGHT`, not `TH`).
 - **Put sizes several parts share in `sizes.py` beside the parts**, one per line with what it is
   for (`WALL = 2.0  # every outer wall`), and import them by name (`from sizes import WALL`). A
@@ -113,7 +115,7 @@ by hand" below.
   About a round face's axis or a straight edge picked on the model:
   `hub -= [hole1.rotate(<face>.axis_of_rotation, i * 360 / 6) for i in range(1, 6)]`
   (`Axis(<edge>)` for an edge).
-- **Extruded Boss/Base and Extruded Cut** make a solid of the sketch picked on the model or in the design tree:
+- **Extruded Boss/Base and Extruded Cut** make a solid of the sketch picked on the model or in the Part Navigator:
   `part += extrude(sketch2.face(), amount=5)`, or `part -= extrude(...)` for a cut (a negative
   amount goes the other way along the sketch's normal; Mid Plane is `both=True` with half the
   depth; a cut Through All is `amount=-part.bounding_box().diagonal`; Up To Next is
@@ -142,7 +144,7 @@ by hand" below.
   `part += sketch4.rib(2, part)`, `flip=True` for the other side of the line.
 - Sizes are written in the project's units, as the file writes them (`.03*INCH` in an inch part).
 - A line that does not run, or does not make the feature on what was selected, is not written.
-- **Delete** (the key, or a feature's menu in the design tree) takes a feature's lines out of the
+- **Delete** (the key, or a feature's menu in the Part Navigator) takes a feature's lines out of the
   script; the sketch it was made from stays. A line that changes the body in place goes whole
   (`part += ...`, `tray = bd.fillet(tray...)`); a boolean that starts a name keeps the name as the
   body it was made from (`tray = outer - cavity` becomes `tray = outer`, and `cavity`'s line goes);
@@ -157,16 +159,16 @@ by hand" below.
   as it was at that line (`outer = fillet(outer.faces().sort_by(Axis.Z)[-1].edges(), radius=2)`).
   A value left as it was keeps how it was written (`radius=WALL` stays `radius=WALL`). A line
   written in the commands' form opens this way even when you wrote it.
-- **An assembly places its parts; a part is modeled on its own.** In an assembly the design tree
+- **An assembly places its parts; a part is modeled on its own.** In an assembly the Part Navigator
   lists its parts (Daisy tray<1>), and Open Part (double-click, or the part's menu) opens the part's
-  own model in the view, where its features, sketches and commands are. The ribbon's modeling
+  own model in the view, where its features, sketches and commands are. The toolbar's modeling
   commands are off in an assembly, as in SolidWorks.
-- **Compare** (the ribbon's Inspect group, as SolidWorks' Compare Geometry) lists the versions of
+- **Compare** (the Inspect tab's Analyze group, as SolidWorks' Compare Geometry) lists the versions of
   the part edit mode read this session, newest first (each a change the agent or a hand edit made,
   named by the files that changed after it); one picked draws the material the part has gained
   since it in amber and what it has lost in red, with their volumes. It writes nothing; edit mode
   keeps the last 12 versions while the viewer runs.
-- **Make Drawing** (the ribbon's Drawing group, in a part) writes `<name>_drawing.py` beside the
+- **New Sheet** (the Drafting tab's Sheet group, in a part) writes `<name>_drawing.py` beside the
   part from the engineering drawing skill's template: it reads the part's STEP, puts top, front and
   right views in third angle and an isometric on an A3 sheet, each with its overall size, and is run
   at once to write `<name>_drawing.pdf` beside it. Its **Drawing** panel then sets the sheet as
@@ -182,7 +184,7 @@ by hand" below.
   a circle seen round gives `view.diameter(...)` (an arc `view.radius(...)`). Each change draws the
   PDF again, and the sheet has its own Undo and Redo. Notes, hole callouts and other views are the
   agent's, in the same script.
-- **Mate** (the ribbon's Assemble group) places an assembly's part by a face or an edge picked on
+- **Mate** (the Assemble tab's Assembly Constraints) places an assembly's part by a face or an edge picked on
   the part that stays and one on the part that moves to it, as SolidWorks' Standard Mates do. It
   adds a constraint from `cadgen.mates` to the moved part's `mate` call, on what was picked (found
   again by selector each run): `mate(pin_part, Coincident(<pin face>, <base face>),
@@ -193,22 +195,22 @@ by hand" below.
   face (`flip=True` the same way), Distance a gap apart (`Distance(a, b, 5)`), Concentric two round
   faces on one axis and two circular edges centre on centre, as a pin seats in a hole; Parallel,
   Perpendicular and Angle (`Angle(a, b, 30)`) line faces or edges up. Mates that cannot all hold
-  are refused, naming them. The design tree lists them under Mates (Coincident1 (base, pin)), and a
+  are refused, naming them. The Part Navigator lists them under Mates (Coincident1 (base, pin)), and a
   mate's Delete takes it out of its call.
 - **Rename** (a row's menu, or F2) names a feature as the engineer calls it: the name is the
-  comment at the end of the feature's line (`part -= ...  # Cable notch`), which the design tree
-  shows in place of Cut-Extrude2 and Edit Parameters keeps; a sketch's is its own
+  comment at the end of the feature's line (`part -= ...  # Cable notch`), which the Part Navigator
+  shows after the feature's number (Extrude (2) "Cable notch") and Edit Parameters keeps; a sketch's is its own
   (`Sketch("Cable notch", ...)`). A hole of a standard size is named by its callout until renamed.
   No two features share a name, and nothing is built.
-- **Appearance** (the ribbon's Display group, or the part's menu in the tree) colors the part with
+- **Appearance** (the Inspect tab's Display group, as Edit Object Display, or the part's menu in the Part Navigator) colors the part with
   the hex picked: written where its body takes its color, `tray.color = srgb("#B7A1D7")` (an alpha
   kept), or just before it is returned, with `from cadgen.color import srgb`; the part is built
   again, as its STEP carries the color.
-- **Mass Properties** (the ribbon's Inspect group, beside Measure and Section) weighs the part as
+- **Mass Properties** (the Inspect tab's Measure group, as Measure Bodies, or the part's menu in the Part Navigator) weighs the part as
   it is, at the rollback bar when it is up: its volume, surface area, center of mass (marked on
   the model) and overall size, worked out from its solids, and its mass in a material of cadgen's
   table, the project brief's own as it opens. It writes nothing.
-- **Draft Analysis** (Inspect group) shades the part by its draft against a direction of pull (an
+- **Draft Analysis** (the Inspect tab's Analyze group) shades the part by its draft against a direction of pull (an
   origin plane's normal, reversed or not): green where a face leans with the pull by at least the
   draft angle, red where it leans away, yellow where a wall stands too near the pull for a mold to
   release it, with each color's area. Use it before adding Draft. It writes nothing.
@@ -242,7 +244,7 @@ by hand" below.
       tray = outer  # Cut-Extrude suppressed
   ```
 
-  The design tree shows the feature greyed where its lines are, with its sketch under it. Leave
+  The Part Navigator shows the feature greyed where its lines are, with its sketch under it. Leave
   such a block as it is. If you must change a suppressed line, keep it commented and keep the count
   on the first line right, or Unsuppress cannot put it back. A feature a later line still uses is
   not suppressed, as with Delete.
