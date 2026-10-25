@@ -214,7 +214,7 @@ by hand" below.
   origin plane's normal, reversed or not): green where a face leans with the pull by at least the
   draft angle, red where it leans away, yellow where a wall stands too near the pull for a mold to
   release it, with each color's area. Use it before adding Draft. It writes nothing.
-- **The rollback bar** under the features (dragged up, or a feature's Make Current Feature) shows
+- **The rollback bar** under the features in the Part Navigator (dragged up, or a feature's Make Current Feature) shows
   the part as it was above the bar, the features below it greyed. While it is up, commands act on
   the body there and write their line right above the feature below the bar (a new sketch goes
   there too), so a feature can be put in early in the history. Nothing below the bar changes. Make
@@ -222,7 +222,7 @@ by hand" below.
 - **The timeline** along the bottom of the workspace lists the same features as icons, in the same
   order, each with the sketch it was made from just before it (a sketch nothing uses yet is an icon
   of its own). A click selects one and a double-click edits it (Edit Parameters, or Edit Sketch on
-  a sketch). The rollback bar is its marker, after the last feature the part still has: dragged
+  a sketch). The rollback bar's marker stands after the last feature the part still has: dragged
   back, it rolls the part back to there, as Make Current Feature does, a feature and its sketch
   going together. It is put away while the drawing's sheet is up.
 - **Command search** (S, anywhere in the workspace but a text field) is a box under the toolbar that

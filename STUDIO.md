@@ -335,13 +335,15 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   requirements, sketches, CAD or a whole folder (Choose files or
   folders picks either in the desktop app), an optional What it is line, the three steps it takes
   (add what you have, Studio reads it and fills in the Overview, you answer what's left) and Set
-  up project, always a new project. Switching keeps what was typed and attached. In both modes
-  the files attached (Attach, the drop area, or dropped on the box) go into the project's
+  up project, always a new project. Switching keeps what was typed and attached. In Start and Set
+  up the files attached (Attach, the drop area, or dropped on the box) go into the project's
   References (`brief/references/`), where the Overview lists them and every chat can read them,
   and the first message names them and asks the agent to read them all before anything else,
   then fill in the project's name, setup and README from them and ask only what they leave open
   (`startMessage` in `startProject.ts`). A project can start from files alone, named after the
-  first; in the web app, without paths to copy, they go with the first message instead. Then
+  first; in the web app, without paths to copy, they go with the first message instead. Ask's go
+  to its chat in no project and into no References: its first message names those on this
+  computer by their paths and sends the others with it (`askMessage` in `freeformChat.ts`). Then
   the starred projects and the last four worked on, with All projects to the Projects page
   (`ProjectsHome.tsx`: every project, a box to find one, the folders in no project), and New and
   Import beside them to add one, on both pages: New is the same New and dialog as a
@@ -479,7 +481,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   Quick Trim). The script and the agent's notes keep their own names. A purple dot marks what the
   agent made and a grey one what you made, on the Part Navigator's rows and under the timeline's
   icons; a feature from before Studio kept track has neither (`cadgen/edit/authors.py` records it
-  in the project's `.studio/authors.jsonl`, and only once a chat has run there). S finds any
+  in the project's `.studio/authors.jsonl`, and only once a chat has run there), and nor does any
+  in a repository with linked worktrees, whose checkouts' checkpoints share refs that do not say
+  which checkout made them. S finds any
   button of the toolbar by name, NX's or another tool's ("fillet" finds Edge Blend;
   `edit/CommandSearchBox.jsx`): it lists the viewer's commands only, ⌘K stays Studio's find, and
   Simple view leaves S to the viewer's strip. Simple view reads the part once, quietly,

@@ -1448,7 +1448,7 @@ Backspace, Delete or typing replaces it as it would selected text. Its chips are
 references or write files. Copy Prompt, Queue and Send
 include their data in the snapshot packet; only selection chips copy individual references. A written note keeps it open whatever
 is picked, even with nothing picked or annotated, until the X. The X clears everything:
-the note, the selection (as a press on the model's background does) and the annotations, so the
+the note, the selection (as a click on the model's background does) and the annotations, so the
 box goes; measurements are not Quick Edit's, and stay. A note that has gone (Copy Prompt, Queue, Send) clears the same way.
 Escape in an empty box is the viewer's Escape (clearing the selection, and so the box);
 in a box with a note it only hands the keyboard back to the model.
