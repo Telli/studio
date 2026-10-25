@@ -3344,9 +3344,10 @@ function StepSurfaceBody({ view, data }) {
   const barTree = editing && edit.bar?.tree ? edit.bar.tree : null;
   const barKind = edit.bar?.kind === "assembly" ? "assembly" : "part";
   useEffect(() => { setRollbackTree(barTree ? { tree: barTree, kind: barKind } : null); }, [barTree, barKind]);
-  // Which feature made each face on screen, as the engine says (`edit/faceChips.js`): the map of the body drawn (the bar's, else the
-  // part's), where the model on screen is the one it was read for: not while a new one loads, nor while the build feed has its STEP
-  // being built again or failed, nor where the faces on screen are not as many. A face's chip and the selection bar's Edit go by it.
+  // Which feature made each face on screen, as the engine says (`edit/faceChips.js`): the part's map, where the model on screen is the
+  // one it was read for: not while the rollback bar's body is drawn in its place, nor while a new one loads, nor while the build feed
+  // has its STEP being built again or failed, nor where the faces on screen are not as many. A face's chip and the selection bar's Edit
+  // go by it.
   const facesOnScreen = selectedSelectorRuntime?.faces?.length || 0;
   const feed = editingPreview.state;
   const rebuilding = editingBuildActive(feed) || (feed.state === "failed" && feed.superseded !== true);

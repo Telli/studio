@@ -74,10 +74,12 @@ test("uses no map while the model on screen may be another build than the one re
   assert.equal(shownFaces({ ...ON_SCREEN, state: { ...READ, faceCount: undefined } }), null);
 });
 
-test("uses the rollback bar's body's own map while that body is drawn in place of the part's", () => {
+test("uses no map while the rollback bar's body is drawn in place of the part's", () => {
+  // Picks on that body carry no chips, and a reference pasted then is numbered on the part's model, which neither map names
+  // rightly: the bar's numbers are its body's, and the part's are not what is on screen.
   const bar = { tree: "a1b2", faceFeatures: { "1": "row:base" }, faceCount: 6 };
-  assert.deepEqual(shownFaces({ ...ON_SCREEN, bar, faces: 6 }), { faceFeatures: bar.faceFeatures });
+  assert.equal(shownFaces({ ...ON_SCREEN, bar, faces: 6 }), null);
   assert.equal(shownFaces({ ...ON_SCREEN, bar, faces: 7 }), null);
-  // A bar with no body of its own drawn (one that could not be made) leaves the part's on screen.
+  // A bar with no body of its own drawn (one that could not be made) leaves the part's on screen, and its map.
   assert.deepEqual(shownFaces({ ...ON_SCREEN, bar: { before: "servo.py:27", error: "no body" } }), { faceFeatures: READ.faceFeatures });
 });

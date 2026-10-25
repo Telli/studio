@@ -48,19 +48,19 @@ export function faceChipLabel(reference, state, features) {
 }
 
 /**
- * The map for the faces on screen, `{ faceFeatures }` as the functions above take it, or null where none is known to be theirs. In the
- * workspace only (`editing`: Simple view keeps today's words), on a part (`assembly` has none): the rollback bar's body's own while
- * that body is drawn in place of the part's (`bar.tree`), else the part's (`state`). And only while the model on screen is the one
- * the engine read: none while a new one loads (`updating`), while its STEP is built again or failed to be, by the build feed
- * (`rebuilding`) or the edit service (`state.building`), or where the faces on screen (`faces`, how many) are not as many as the body
- * the map was read for has (`faceCount`): a model built from another script, which its numbers would misname.
+ * The part's map for the faces on screen, `{ faceFeatures }` as the functions above take it, or null where it is not known to be
+ * theirs. In the workspace only (`editing`: Simple view keeps today's words), on a part (`assembly` has none), and not while the
+ * rollback bar's body is drawn in place of the part's (`bar.tree`): picks on it carry no chips, and a reference pasted then is
+ * numbered on the part's model, which the bar's own map (its body's numbers) would misname. And only while the model on screen is
+ * the one the engine read: none while a new one loads (`updating`), while its STEP is built again or failed to be, by the build
+ * feed (`rebuilding`) or the edit service (`state.building`), or where the faces on screen (`faces`, how many) are not as many as
+ * the part read has (`faceCount`): a model built from another script, which its numbers would misname.
  */
 export function shownFaces({ editing, assembly, state, bar, updating, rebuilding, faces }) {
-  if (!editing || assembly || updating || rebuilding) return null;
+  if (!editing || assembly || bar?.tree || updating || rebuilding) return null;
   const building = state?.building;
   if (building?.scripts?.length && (building.error || building.done < building.scripts.length)) return null;
-  const read = bar?.tree ? bar : state;
-  const map = read?.faceFeatures;
-  if (!map || typeof map !== "object" || !Number.isSafeInteger(read.faceCount) || read.faceCount < 1 || read.faceCount !== faces) return null;
+  const map = state?.faceFeatures;
+  if (!map || typeof map !== "object" || !Number.isSafeInteger(state.faceCount) || state.faceCount < 1 || state.faceCount !== faces) return null;
   return { faceFeatures: map };
 }
