@@ -55,6 +55,16 @@ CHAMFERED = """
         part = chamfer(part.edges().group_by(Axis.Z)[-1], length=0.5)
         return part
 """
+# A part of a library the project keeps in a folder of its own.
+WIDGET = """
+    from build123d import Cylinder
+    from cadgen import step
+
+
+    @step
+    def widget():
+        return Cylinder(5, 12)
+"""
 BOX, BOX_HELD = "return Box(20, 10, 4)", "part = Box(20, 10, 4)"
 AGENT_CHAMFER = "part = chamfer(part.edges().group_by(Axis.Z)[-1], length=0.5)"
 # The block's top edges, as the viewer reads them.
@@ -281,22 +291,53 @@ class Authors(unittest.TestCase):
         self.assertEqual(made_by(renamed), {f"{AGENT_CHAMFER}  # Lid edge # 2": "agent"})
 
     def test_a_project_holding_a_virtual_environment_is_recorded_without_it(self):
-        root, file = self.project()
-        for name in ("venv/pyvenv.cfg", "venv/lib/python3.13/site-packages/pkg/__init__.py", "venv/bin/activate_this.py",
-                     "node_modules/gyp/gyp.py", ".venv/lib/mod.py", "parts/sizes.py"):
-            (root / name).parent.mkdir(parents=True, exist_ok=True)
-            (root / name).write_text("WALL = 2\n", encoding="utf-8")
-        self.read(file)
-        start = json.loads((root / authors.LEDGER).read_text(encoding="utf-8").splitlines()[0])
-        self.assertEqual(sorted(start["baseline"]), ["block.py", "parts/sizes.py"])
-        # A project too big to record is found so once, not walked again on every trace.
+        # Its baseline read from a chat's first checkpoint, or, where no chat's first run took one, from the folder.
+        for ordinal in (0, 1):
+            root, file = self.project(chat=False)
+            for name in ("venv/pyvenv.cfg", "venv/lib/python3.13/site-packages/pkg/__init__.py", "venv/bin/activate_this.py",
+                         "node_modules/gyp/gyp.py", ".venv/lib/mod.py", "parts/sizes.py"):
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / name).write_text("WALL = 2\n", encoding="utf-8")
+            checkpoint(root, ordinal)
+            self.read(file)
+            start = json.loads((root / authors.LEDGER).read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(sorted(start["baseline"]), ["block.py", "parts/sizes.py"], ordinal)
+        # A project too big to record is found so once, not read again on every trace.
         big, _ = self.project()
         with mock.patch.object(authors, "BASELINE_LIMIT", 8):
             authors.start(big)
-            with mock.patch.object(authors.os, "walk", wraps=os.walk) as walked:
+            with mock.patch.object(authors.versions, "_git", wraps=authors.versions._git) as ran:
                 authors.start(big)
-        walked.assert_not_called()
+        ran.assert_not_called()
         self.assertFalse((big / authors.LEDGER).exists())
+
+    def test_the_agents_first_turn_is_the_agents_whenever_the_part_is_first_read_since(self):
+        # Read before any chat; then a chat's first run, the agent writing, the part read while it does, and its turn ending.
+        root, file = self.project(chat=False)
+        self.read(file)
+        checkpoint(root, 0)
+        self.write(root, CHAMFERED)
+        running = self.read(file)
+        self.assertEqual(running["authors"], {})
+        checkpoint(root, 1)
+        self.assertEqual(self.read(file, running["files"])["authors"], {key_of(running, AGENT_CHAMFER): "agent"})
+        # First read only once that turn had ended.
+        other, other_file = self.project(chat=False)
+        now = int(time.time())
+        checkpoint(other, 0, f"@{now - 100} +0000")
+        self.write(other, CHAMFERED)
+        checkpoint(other, 1, f"@{now - 50} +0000")
+        self.assertEqual(made_by(self.read(other_file)), {AGENT_CHAMFER: "agent"})
+
+    def test_a_script_in_a_folder_recording_leaves_out_has_no_marks(self):
+        root, _ = self.project(chat=False)
+        (root / "vendor").mkdir()
+        (root / "vendor" / "widget.py").write_text(textwrap.dedent(WIDGET).lstrip(), encoding="utf-8")
+        checkpoint(root, 0)
+        widget = str(root / "vendor" / "widget.step")
+        self.read(widget)
+        checkpoint(root, 1)
+        self.assertEqual(self.read(widget)["authors"], {})
 
     def test_a_git_exclude_file_in_utf16_leaves_the_part_readable(self):
         root, file = self.project()

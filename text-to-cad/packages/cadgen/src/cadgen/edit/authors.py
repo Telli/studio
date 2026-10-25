@@ -5,11 +5,14 @@ A feature is told by the first line of its statement, as code: stripped, and wit
 its end, which is its name in the design tree (Rename writes it there), so a renamed feature is
 still the line it was.
 
-- It is nobody's when the project had that line, in any of its scripts, when recording began (its
-  baseline): a script moved since keeps its lines.
+- It is nobody's when the project had that line, in any of its scripts, before the agent's first
+  turn (its baseline): as the checkpoint a chat's first run takes found it (``.../ordinal/0``), or
+  as the project was when recording began where there is none. A script moved since keeps its
+  lines. A script recording leaves out (``_left_out``) has no baseline, so none of its features is
+  marked.
 - Else it is yours when a hand edit wrote that line: the edit service notes the lines each change
   made by hand writes (``note_hand_edit``, ``written``).
-- Else it is the agent's when a turn's checkpoint made since recording began has that line in that
+- Else it is the agent's when a turn's checkpoint made since the baseline has that line in that
   file. Studio (a T3 Code fork) ends every chat turn with a checkpoint, a commit kept under
   ``versions.CHECKPOINTS``. A chat's first run starts with one too (``.../ordinal/0``), taken
   before the agent writes anything, which is no turn of its.
@@ -19,8 +22,8 @@ still the line it was.
 An edit made outside Studio between two turns is counted with the next turn, as T3 Code's own turn
 diff counts it: that turn's checkpoint is the first record of the line. Known, and accepted.
 
-The record is ``LEDGER`` in the project, one JSON object a line, only ever added to: first when
-recording began with every project script's lines then (``start``), then one for each hand edit.
+The record is ``LEDGER`` in the project, one JSON object a line, only ever added to: first the
+baseline and when it was (``start``), then one for each hand edit.
 It lies beside ``versions.py``'s own scratch in ``.studio``, which git is told to leave out, so no
 checkpoint takes it. Recording begins only at the top of a git repository a Studio chat has run in
 (it holds a checkpoint): the viewer used on its own writes nothing in a project.
@@ -38,7 +41,7 @@ import os
 import re
 import tokenize
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from cadgen.edit import versions
 
@@ -55,7 +58,7 @@ _BLOBS_KEPT = 4096
 _HELD = re.compile(r"[A-Za-z_]\w*\s*=\s*(?P<value>.+)")
 
 # Each file's lines as last judged, by (project, file): the moment they were (the checkpoints listed
-# and the record's size), and the lines from before recording began, yours and those turns hold.
+# and the record's size), and the lines from before the agent's first turn, yours and those turns hold.
 _JUDGED: dict[tuple[str, str], tuple[tuple, tuple[frozenset, frozenset, frozenset]]] = {}
 # Each checkpoint copy of a file read, by (project, blob): its lines, as code.
 _BLOBS: dict[tuple[str, str], frozenset] = {}
@@ -166,18 +169,47 @@ def _turns(root: Path) -> tuple[list[dict], str]:
     return listed[1], listed[2]
 
 
-def _baseline(root: Path) -> dict[str, list[str]] | None:
-    """Each project script's lines as recording begins, by its path in the project: every ``.py``
-    outside the folders the edit service never scans for a project's scripts (``service._SKIP``:
-    dot folders, tmp, build, dist, vendor, node_modules...) and outside a virtual environment (a
-    folder holding ``pyvenv.cfg``). None when they are too big together to record."""
+def _skipped(name: str) -> bool:
+    """Whether a folder or a file is one the edit service never scans for a project's scripts
+    (``service._SKIP``: dot folders, tmp, build, dist, vendor, node_modules...)."""
     from cadgen.edit.service import _SKIP
 
+    return bool(_SKIP.match(name))
+
+
+def _left_out(root: Path, file: str) -> bool:
+    """Whether recording leaves a project file out of its baseline: it, or a folder it is in, is
+    one the edit service never scans (``_skipped``), or it is in a virtual environment (a folder
+    holding ``pyvenv.cfg``)."""
+    parts = PurePosixPath(file).parts
+    return any(_skipped(part) for part in parts) or any((root.joinpath(*parts[:depth]) / "pyvenv.cfg").is_file() for depth in range(1, len(parts)))
+
+
+def _cat(root: Path, blobs: list[str]) -> dict[str, bytes]:
+    """Each blob's bytes, read from git in one ``cat-file --batch``."""
+    if not blobs:
+        return {}
+    out = versions._git(root, "cat-file", "--batch", stdin=("\n".join(blobs) + "\n").encode("utf-8"))
+    found, at = {}, 0
+    for blob in blobs:
+        end = out.index(b"\n", at)
+        _name, kind, *size = out[at:end].decode("utf-8").split()
+        at = end + 1
+        if kind != "blob" or not size:
+            continue  # "missing"
+        found[blob] = out[at : at + int(size[0])]
+        at += int(size[0]) + 1
+    return found
+
+
+def _baseline(root: Path) -> dict[str, list[str]] | None:
+    """Each project script's lines as they are now, by its path in the project: every ``.py`` but
+    those recording leaves out (``_left_out``). None when they are too big together to record."""
     found: dict[str, list[str]] = {}
     total = 0
     for folder, folders, files in os.walk(root):
-        folders[:] = sorted(name for name in folders if not _SKIP.match(name) and not (Path(folder) / name / "pyvenv.cfg").exists())
-        for name in sorted(name for name in files if name.endswith(".py") and not _SKIP.match(name)):
+        folders[:] = sorted(name for name in folders if not _skipped(name) and not (Path(folder) / name / "pyvenv.cfg").exists())
+        for name in sorted(name for name in files if name.endswith(".py") and not _skipped(name)):
             path = Path(folder) / name
             try:
                 data = path.read_bytes()
@@ -193,14 +225,50 @@ def _baseline(root: Path) -> dict[str, list[str]] | None:
     return found
 
 
-def _begin(root: Path, ledger: Path) -> bool:
-    """The record's first line written (``start``): True once it is there, False when it cannot be."""
+def _committed_baseline(root: Path, commit: str) -> dict[str, list[str]] | None:
+    """Each project script's lines as ``commit`` holds them (a chat's first checkpoint, the project
+    before any agent turn), by its path: only the scripts it holds, but those recording leaves out,
+    the virtual environments it holds among them. None when they are too big together to record."""
+    listed = versions._git(root, "ls-tree", "-r", "-l", "-z", commit).decode("utf-8", "surrogateescape")
+    entries = []
+    for entry in filter(None, listed.split("\0")):
+        meta, _, path = entry.partition("\t")
+        _mode, kind, blob, size = meta.split()
+        entries.append((kind, blob, size, PurePosixPath(path)))
+    environments = {path.parent for _kind, _blob, _size, path in entries if path.name == "pyvenv.cfg" and path.parent != PurePosixPath(".")}
+    kept, total = [], 0
+    for kind, blob, size, path in entries:
+        if kind != "blob" or path.suffix != ".py" or any(_skipped(part) for part in path.parts) or not environments.isdisjoint(path.parents):
+            continue
+        total += int(size)
+        if total > BASELINE_LIMIT:
+            return None
+        kept.append((path.as_posix(), blob))
+    data = _cat(root, sorted({blob for _path, blob in kept}))
+    found: dict[str, list[str]] = {}
+    for path, blob in kept:
+        try:
+            found[path] = _lines(data[blob].decode("utf-8").splitlines())
+        except (KeyError, UnicodeDecodeError):
+            continue
+    return found
+
+
+def _begin(root: Path, ledger: Path, turns: list[dict]) -> bool:
+    """The record's first line written (``start``): True once it is there, False when it cannot be.
+    Its baseline is the project before the agent's first turn: as the earliest checkpoint a chat's
+    first run took holds it, dated then, so every turn since counts, even one that ended before the
+    part was first read; or, where no chat's first run took one, as the project is now."""
     partial = ledger.with_name(f".{ledger.name}.{os.getpid()}")
     try:
         # Git is told to leave `.studio` out before anything is written there.
         versions._leave_out_of_git(root)
-        began = _now()
-        baseline = _baseline(root)
+        first = next((turn for turn in turns if turn["ordinal"] == 0), None)
+        if first is not None:
+            began = datetime.fromtimestamp(first["time"], timezone.utc).isoformat(timespec="seconds")
+            baseline = _committed_baseline(root, first["commit"])
+        else:
+            began, baseline = _now(), _baseline(root)
         if baseline is None:
             return False
         ledger.parent.mkdir(parents=True, exist_ok=True)
@@ -220,14 +288,15 @@ def _begin(root: Path, ledger: Path) -> bool:
 
 def start(root: Path) -> None:
     """Begin recording who makes each feature of the project at ``root``: the record's first line,
-    the time and each project script's lines (``_baseline``). Once only, and only at the top of a
-    git repository a Studio chat has run in; anything in the way leaves the project unrecorded."""
+    its baseline and when that was (``_begin``). Once only, and only at the top of a git repository
+    a Studio chat has run in; anything in the way leaves the project unrecorded."""
     try:
         root = Path(root).resolve()
         ledger = root / LEDGER
-        if ledger.exists() or str(root) in _UNRECORDABLE or not _git_folder(root) or not _turns(root)[0]:
+        if ledger.exists() or str(root) in _UNRECORDABLE or not _git_folder(root):
             return
-        if not _begin(root, ledger):
+        turns = _turns(root)[0]
+        if turns and not _begin(root, ledger, turns):
             _UNRECORDABLE.add(str(root))
     except Exception:  # noqa: BLE001 - a nicety (the module's words): the part is read, unrecorded
         return
@@ -291,25 +360,14 @@ def _blob_lines(root: Path, blobs: list[str]) -> list[frozenset]:
     """Each blob's lines, as code: read from git once, those not read yet in one ``cat-file``."""
     if len(_BLOBS) > _BLOBS_KEPT:
         _BLOBS.clear()
-    unread = [blob for blob in blobs if (str(root), blob) not in _BLOBS]
-    if unread:
-        out = versions._git(root, "cat-file", "--batch", stdin=("\n".join(unread) + "\n").encode("utf-8"))
-        at = 0
-        for blob in unread:
-            end = out.index(b"\n", at)
-            _name, kind, *size = out[at:end].decode("utf-8").split()
-            at = end + 1
-            if kind != "blob" or not size:
-                continue  # "missing"
-            data = out[at : at + int(size[0])]
-            at += int(size[0]) + 1
-            _BLOBS[(str(root), blob)] = _codes(data.decode("utf-8", "replace").splitlines())
+    for blob, data in _cat(root, [blob for blob in blobs if (str(root), blob) not in _BLOBS]).items():
+        _BLOBS[(str(root), blob)] = _codes(data.decode("utf-8", "replace").splitlines())
     return [_BLOBS.get((str(root), blob), frozenset()) for blob in blobs]
 
 
 def _held(root: Path, file: str, turns: list[dict], began: float) -> frozenset:
-    """The lines of ``file`` that the turns' checkpoints made since recording began hold, as code:
-    each checkpoint's copy of the file read once, a chat's first (``ordinal/0``) left out."""
+    """The lines of ``file`` that the turns' checkpoints made since the baseline (``began``) hold,
+    as code: each checkpoint's copy of the file read once, a chat's first (``ordinal/0``) left out."""
     since = [turn for turn in turns if turn["time"] >= int(began) and turn["ordinal"] > 0]
     blobs = sorted({blob for blob in versions._blobs(root, [f"{turn['commit']}:{file}" for turn in since]) if blob})
     return frozenset().union(*_blob_lines(root, blobs)) if blobs else frozenset()
@@ -325,10 +383,16 @@ def _authors(root: Path, features: list[dict]) -> dict[str, str]:
     moment = (listed, size)
     record = None
     made: dict[str, str] = {}
+    outside: dict[str, bool] = {}
     for feature in features:
         file, text = _file(feature.get("file")), _code(feature.get("text") or "")
         # A suppressed feature's line is Studio's note of what it was (`deleting.py`), not a statement.
         if file is None or not text or not feature.get("key") or feature.get("suppressed"):
+            continue
+        # A file recording leaves out has no baseline to tell its lines from before by.
+        if file not in outside:
+            outside[file] = _left_out(root, file)
+        if outside[file]:
             continue
         judged = _JUDGED.get((str(root), file))
         if judged is None or judged[0] != moment:
