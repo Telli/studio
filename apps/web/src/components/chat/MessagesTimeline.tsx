@@ -233,6 +233,8 @@ import {
   type WorkGroupScrollAnchor,
 } from "./MessagesTimeline.logic";
 import { TurnDesignChanges } from "../workbench/TurnDesignChanges";
+import { splitSources } from "../workbench/references/answerSources";
+import { AnswerReferences, useShownReferences } from "../workbench/references/AnswerReferences";
 import {
   isEngineeringInterface,
   useEngineeringInterface,
@@ -2861,7 +2863,10 @@ function AttemptFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "at
 
 function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
-  const messageText = row.message.text || (row.message.streaming ? "" : "(empty response)");
+  const answerText = row.message.text || (row.message.streaming ? "" : "(empty response)");
+  // Where the References list shows, it stands in for the answer's Sources block.
+  const references = useShownReferences(row.references);
+  const messageText = references === null ? answerText : splitSources(answerText).body;
 
   return (
     <>
@@ -2895,6 +2900,7 @@ function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "mess
           resolvedTheme={ctx.resolvedTheme}
           onOpenTurnDiff={ctx.onOpenTurnDiff}
         />
+        <AnswerReferences references={references} />
         {row.showAssistantMeta ? (
           <AssistantMessageMeta
             className="mt-1.5"
