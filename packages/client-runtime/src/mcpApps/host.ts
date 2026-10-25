@@ -131,10 +131,13 @@ export interface McpAppHostOptions {
     | undefined;
   /**
    * Hears that Studio's CAD view has taken the place its host context asked it to show
-   * (`studio/focus`, from a reference under an answer), by the ask's number
-   * (`studio/notifications/focus-taken`). Absent, the app is not offered it.
+   * (`studio/focus`, from a reference under an answer), by the ask's number, and whether a
+   * feature of the part held the line (`found`; `studio/notifications/focus-taken`). Absent, the
+   * app is not offered it.
    */
-  readonly onFocusTaken?: ((nonce: number) => void) | undefined;
+  readonly onFocusTaken?:
+    | ((taken: { readonly nonce: number; readonly found: boolean }) => void)
+    | undefined;
   /** The app asked to be closed (`ui/notifications/request-teardown`). */
   readonly onRequestTeardown: () => void;
   readonly onSizeChanged: (size: { readonly width?: number; readonly height?: number }) => void;
@@ -452,8 +455,10 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
         return;
       }
       case "studio/notifications/focus-taken": {
-        const { nonce } = params;
-        if (typeof nonce === "number") options.onFocusTaken?.(nonce);
+        const { nonce, found } = params;
+        if (typeof nonce === "number" && typeof found === "boolean") {
+          options.onFocusTaken?.({ nonce, found });
+        }
         return;
       }
       default:

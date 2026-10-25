@@ -364,7 +364,7 @@ export function StartModule(props: {
       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border pt-3">
         <p className="text-xs text-muted-foreground">
           {props.byHand
-            ? "No part to edit by hand yet. Start one, or describe it in the chat."
+            ? "No part yet. Start a part by hand, or describe it in the chat."
             : "No parts yet. Describe the part in the chat and the agent drafts it, or start one by hand."}
         </p>
         {props.onStartPart === null ? null : (

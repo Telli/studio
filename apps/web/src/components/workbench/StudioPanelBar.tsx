@@ -173,9 +173,9 @@ export function StudioPanelBar(props: {
               Simple view
             </Toggle>
           </TooltipTrigger>
-          <TooltipPopup side="bottom">
-            {toggle === "held" ? "Finish or cancel the command first" : "Simple view"}
-          </TooltipPopup>
+          {toggle === "held" ? (
+            <TooltipPopup side="bottom">Finish or cancel the command first</TooltipPopup>
+          ) : null}
         </Tooltip>
       )}
       {importer === null ? null : (

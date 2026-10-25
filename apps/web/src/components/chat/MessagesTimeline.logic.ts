@@ -1945,6 +1945,7 @@ export function deriveMessagesTimelineRows(input: {
     const references =
       isEngineeringInterface() && showAssistantMeta && !timelineEntry.message.streaming
         ? turnReferences({
+            id: timelineEntry.message.id,
             answer: timelineEntry.message.text,
             runId: timelineEntry.message.runId,
             entries: input.timelineEntries,

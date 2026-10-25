@@ -1,5 +1,6 @@
 import { partLabel } from "../workbench/partNames";
 import { isEngineeringInterface } from "../workbench/studioInterface";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, PluginViewDocument, ThreadId } from "@t3tools/contracts";
 import {
   makeMcpAppHost,
@@ -42,6 +43,7 @@ import {
   useViewerFocus,
   type ViewerFocusPlace,
 } from "../workbench/references/viewerFocus";
+import { useOpenChatFile } from "../workbench/useOpenInWorkbench";
 
 /** What opens one plugin view: the tool whose result is the view, and where it runs. */
 
@@ -225,9 +227,15 @@ export function PluginViewFrame(props: {
 
   // Studio: the CAD views take Simple view's layout, or the full workspace's (`workbench/simpleView.ts`).
   const editLayout = viewerEditLayout(useSimpleView());
-  // Studio: where a reference opens this part's view (`workbench/references/viewerFocus.ts`).
+  // Studio: where a reference opens this part's view (`workbench/references/viewerFocus.ts`), and
+  // its script, where no feature of the part holds the cited line.
   const focus = useViewerFocus(props.focusPlace);
-  const live = { theme, size, props, request, editLayout, focus };
+  const openChatFile = useOpenChatFile(
+    props.focusPlace == null || target.threadId === null
+      ? null
+      : scopeThreadRef(target.environmentId, target.threadId),
+  );
+  const live = { theme, size, props, request, editLayout, focus, openChatFile };
   const latest = useRef(live);
   useEffect(() => {
     latest.current = live;
@@ -382,9 +390,13 @@ export function PluginViewFrame(props: {
       ...(props.focusPlace == null
         ? {}
         : {
-            onFocusTaken: (nonce: number) => {
-              const place = latest.current.props.focusPlace;
-              if (place) takeViewerFocus(place, nonce);
+            onFocusTaken: ({ nonce, found }: { nonce: number; found: boolean }) => {
+              const { focus: asked, props: current, openChatFile } = latest.current;
+              if (!current.focusPlace) return;
+              takeViewerFocus(current.focusPlace, nonce);
+              // No feature holds the line (a constant, a helper's line, a build that failed): the
+              // script opens there, as Simple view opens it, so the press is never lost.
+              if (!found && asked?.nonce === nonce) openChatFile(asked.path, asked.line);
             },
           }),
       downloadFile: async (files) => {

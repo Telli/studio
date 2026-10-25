@@ -13,8 +13,14 @@ export const normalPath = (path: string) =>
  * name a part: so a file opens in one tab, not two.
  */
 export function sameFile(a: string, b: string): boolean {
-  const left = normalPath(a);
-  const right = normalPath(b);
+  return sameNormalPath(normalPath(a), normalPath(b));
+}
+
+/**
+ * `sameFile` on paths already read by `normalPath`: equal, or one the other's tail at a folder's
+ * edge. Two such paths end in the same name, so a caller comparing many can look among those alone.
+ */
+export function sameNormalPath(left: string, right: string): boolean {
   return left === right || left.endsWith(`/${right}`) || right.endsWith(`/${left}`);
 }
 

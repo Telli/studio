@@ -6,7 +6,7 @@ import * as Predicate from "effect/Predicate";
 import { workEntryIndicatesToolSuccess, type TimelineEntry } from "~/session-logic";
 import { partLabel } from "../partNames";
 import { isProjectWork } from "../projectFiles";
-import { sameFile } from "../sameFile";
+import { normalPath, sameNormalPath } from "../sameFile";
 import { splitSources, type SourceTarget } from "./answerSources";
 
 /**
@@ -56,13 +56,19 @@ function addressKey(url: string): string {
 }
 
 /**
- * Whether two targets are one source: files by `sameFile` (the agent cites paths from its folder,
- * and Claude's Read gives them in full), pages by their address without the fragment.
+ * What a target is compared by, worked out once: a file by its path as `sameFile` reads it (the
+ * agent cites paths from its folder, and Claude's Read gives them in full), a page by its address
+ * without the fragment.
  */
-function sameTarget(a: SourceTarget, b: SourceTarget): boolean {
-  if (a.kind === "file") return b.kind === "file" && sameFile(a.path, b.path);
-  return a.kind === "url" && b.kind === "url" && addressKey(a.url) === addressKey(b.url);
-}
+const keyOf = (target: OpenedTarget) =>
+  target.kind === "file" ? normalPath(target.path) : addressKey(target.url);
+
+/** The name a file's path ends in: two paths `sameFile` matches end in the same one. */
+const nameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+
+/** Where an opening is looked up among those of its kind (`ChatScan.bySource`). */
+const bucketOf = (target: OpenedTarget, key: string) =>
+  target.kind === "file" ? `file:${nameOf(key)}` : `page:${key}`;
 
 // --- Codex reads files through the shell ----------------------------------------------------
 
@@ -301,14 +307,30 @@ interface ChatOpening {
   readonly at: string;
   /** Where its entry sits in the chat. */
   readonly position: number;
+  /** What it is compared by (`keyOf`). */
+  readonly key: string;
 }
 
 interface ChatScan {
   readonly openings: ReadonlyArray<ChatOpening>;
+  /**
+   * The openings a source may be, in the order of the chat (`bucketOf`): files by the name their
+   * path ends in, pages by their address, so a source is compared with a few, not every opening.
+   */
+  readonly bySource: ReadonlyMap<string, ReadonlyArray<ChatOpening>>;
+  /** Each run's openings, in the order of the chat. */
+  readonly byRun: ReadonlyMap<string, ReadonlyArray<ChatOpening>>;
   /** Where each run's first entry sits in the chat. */
   readonly firstEntryOfRun: ReadonlyMap<string, number>;
   /** The titles searches gave pages, by address. */
   readonly titles: ReadonlyMap<string, string>;
+}
+
+/** `value` added to the list `map` keeps under `key`. */
+function listUnder<V>(map: Map<string, V[]>, key: string, value: V): void {
+  const list = map.get(key);
+  if (list === undefined) map.set(key, [value]);
+  else list.push(value);
 }
 
 /**
@@ -339,6 +361,8 @@ function scanChat(entries: ReadonlyArray<TimelineEntry>): ChatScan {
   const known = scans.get(entries);
   if (known !== undefined) return known;
   const openings: ChatOpening[] = [];
+  const bySource = new Map<string, ChatOpening[]>();
+  const byRun = new Map<string, ChatOpening[]>();
   const firstEntryOfRun = new Map<string, number>();
   const titles = new Map<string, string>();
   for (const [position, entry] of entries.entries()) {
@@ -358,10 +382,14 @@ function scanChat(entries: ReadonlyArray<TimelineEntry>): ChatScan {
     // Asked last: most calls open nothing, and the work log's test reads their output.
     if (targets.length === 0 || !workEntryIndicatesToolSuccess(entry.entry)) continue;
     for (const target of targets) {
-      openings.push({ target, runId, at: entry.entry.createdAt, position });
+      const key = keyOf(target);
+      const opening = { target, runId, at: entry.entry.createdAt, position, key };
+      openings.push(opening);
+      listUnder(bySource, bucketOf(target, key), opening);
+      if (runId !== null) listUnder(byRun, runId, opening);
     }
   }
-  const scan = { openings, firstEntryOfRun, titles };
+  const scan = { openings, bySource, byRun, firstEntryOfRun, titles };
   scans.set(entries, scan);
   return scan;
 }
@@ -393,6 +421,15 @@ export function openedInChat(entries: ReadonlyArray<TimelineEntry>): ReadonlyArr
 
 // --- Marking a citation ---------------------------------------------------------------------
 
+/** The openings that are the source `target`, files by `sameFile`'s rule, pages by address. */
+function openingsOf(scan: ChatScan, target: OpenedTarget): ReadonlyArray<ChatOpening> {
+  const key = keyOf(target);
+  const candidates = scan.bySource.get(bucketOf(target, key)) ?? [];
+  return target.kind === "file"
+    ? candidates.filter((opening) => sameNormalPath(opening.key, key))
+    : candidates;
+}
+
 /**
  * A cited source is opened this turn when the run opened it, else earlier in this chat when an
  * entry before the run's first one did. What later runs opened does not count for it. A page the
@@ -407,8 +444,7 @@ function markSource(
   const { n, target } = source;
   if (target.kind === "own") return { n, target, opened: "own knowledge" };
   let opened: AnswerReference["opened"] = "not opened";
-  for (const opening of scan.openings) {
-    if (!sameTarget(opening.target, target)) continue;
+  for (const opening of openingsOf(scan, target)) {
     if (opening.runId === runId) {
       opened = "this turn";
       break;
@@ -436,11 +472,14 @@ function isWorkInFolder(path: string, root: string | null): boolean {
  */
 function thisTurnsOpenings(scan: ChatScan, runId: string, root: string | null): AnswerReference[] {
   const references: AnswerReference[] = [];
-  for (const opening of scan.openings) {
-    const { target } = opening;
-    if (opening.runId !== runId) continue;
+  // What is listed already, looked up as the openings are (`bucketOf`): a file once, however written.
+  const kept = new Map<string, string[]>();
+  for (const opening of scan.byRun.get(runId) ?? []) {
+    const { target, key } = opening;
     if (target.kind === "file" && !isWorkInFolder(target.path, root)) continue;
-    if (references.some((kept) => sameTarget(kept.target, target))) continue;
+    const bucket = bucketOf(target, key);
+    if (kept.get(bucket)?.some((other) => sameNormalPath(other, key))) continue;
+    listUnder(kept, bucket, key);
     const title = titleOf(scan, target);
     references.push({
       n: references.length + 1,
@@ -452,25 +491,49 @@ function thisTurnsOpenings(scan: ChatScan, runId: string, root: string | null): 
   return references;
 }
 
+interface KeptList {
+  readonly answer: string;
+  readonly runId: string;
+  readonly root: string | null;
+  readonly references: ReadonlyArray<AnswerReference>;
+}
+
+/** Each settled answer's list by its message's id, for the chat as read (`scanChat`). */
+const keptLists = new WeakMap<ChatScan, Map<string, KeptList>>();
+
 /**
  * The list under an answer: the sources it cites, each with when the agent opened it, or, for an
  * answer with no Sources block, what its turn opened in the thread's folder (`root`). An answer
- * with no run has no turn to say what was opened in, and gets none.
+ * with no run has no turn to say what was opened in, and gets none. Given its message's `id`, the
+ * list is kept for the chat as read, so a derive pass over the same entries makes none again: the
+ * array is shared, read it and do not change it.
  */
 export function turnReferences(input: {
+  id?: string;
   answer: string;
   runId: string | null;
   entries: ReadonlyArray<TimelineEntry>;
   root?: string | null;
-}): AnswerReference[] {
-  const { runId } = input;
+}): ReadonlyArray<AnswerReference> {
+  const { id, answer, runId } = input;
   if (runId === null) return [];
-  const { sources } = splitSources(input.answer);
+  const root = input.root ?? null;
   const scan = scanChat(input.entries);
-  if (sources.length === 0) return thisTurnsOpenings(scan, runId, input.root ?? null);
+  const lists = keptLists.get(scan) ?? new Map<string, KeptList>();
+  const kept = id === undefined ? undefined : lists.get(id);
+  if (kept?.answer === answer && kept.runId === runId && kept.root === root) return kept.references;
+  const { sources } = splitSources(answer);
   // A run the chat does not hold comes after everything it does.
   const before = scan.firstEntryOfRun.get(runId) ?? input.entries.length;
-  return sources.map((source) => markSource(scan, runId, before, source));
+  const references =
+    sources.length === 0
+      ? thisTurnsOpenings(scan, runId, root)
+      : sources.map((source) => markSource(scan, runId, before, source));
+  if (id !== undefined) {
+    lists.set(id, { answer, runId, root, references });
+    keptLists.set(scan, lists);
+  }
+  return references;
 }
 
 // --- Describing a row -----------------------------------------------------------------------

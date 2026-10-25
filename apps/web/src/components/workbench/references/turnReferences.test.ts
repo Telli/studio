@@ -610,6 +610,58 @@ describe("turnReferences", () => {
       turnReferences({ answer: "Sources:\n[1] docs/prd.md", runId: run2, entries })[0]?.opened,
     ).toBe("earlier in this chat");
   });
+
+  it("stays quick on a long chat, each answer's sources matched against a few openings, and keeps each list", () => {
+    // 200 turns, each reading two or three of 300 scripts: 500 openings. Each answer cites what its turn read, a script
+    // read in an earlier turn, a document nothing opened, and a page.
+    const chat = makeChat();
+    const items: OrchestrationV2TurnItem[] = [];
+    let opened = 0;
+    for (let turn = 0; turn < 200; turn += 1) {
+      const runId = RunId.make(`run-long-${turn}`);
+      items.push(chat.user(runId));
+      const read: string[] = [];
+      for (let at = 0; at < (turn % 2 === 0 ? 3 : 2); at += 1, opened += 1) {
+        read.push(`parts/part-${opened % 300}.py`);
+        items.push(chat.read(runId, `/work/rover-cad/${read.at(-1)}`, { offset: 1, limit: 10 }));
+      }
+      const cited = [...read, `parts/part-${(opened + 150) % 300}.py`, `docs/note-${turn}.md`];
+      const lines = [
+        ...cited.map((path, index) => `[${index + 1}] ${path}`),
+        `[6] https://example.com/${turn}`,
+      ];
+      items.push(chat.assistant(runId, ["It holds [1].", "", "Sources:", ...lines].join("\n")));
+    }
+    expect(opened).toBe(500);
+    const entries = timeline(items);
+    const answers = entries.flatMap((entry) =>
+      entry.kind === "message" && entry.message.role === "assistant" ? [entry.message] : [],
+    );
+    expect(answers).toHaveLength(200);
+    const listOf = (message: (typeof answers)[number]) =>
+      turnReferences({
+        id: message.id,
+        answer: message.text,
+        runId: message.runId,
+        entries,
+        root: ROOT,
+      });
+    // A derive pass of every settled answer, which the timeline makes as the chat changes, the chat read once. It took about
+    // 100 ms here while each source was compared with every opening, both paths normalized for each pair, and about 5 since.
+    const started = performance.now();
+    const lists = answers.map(listOf);
+    expect(performance.now() - started).toBeLessThan(50);
+    expect(lists[150]).toEqual([
+      { n: 1, target: file("parts/part-75.py"), opened: "this turn" },
+      { n: 2, target: file("parts/part-76.py"), opened: "this turn" },
+      { n: 3, target: file("parts/part-77.py"), opened: "this turn" },
+      { n: 4, target: file("parts/part-228.py"), opened: "earlier in this chat" },
+      { n: 5, target: file("docs/note-150.md"), opened: "not opened" },
+      { n: 6, target: page("https://example.com/150"), opened: "not opened" },
+    ]);
+    // The same chat asked again, as a derive pass over the same entries does: each list is the one kept, not made again.
+    expect(answers.map(listOf).every((list, index) => list === lists[index])).toBe(true);
+  });
 });
 
 describe("openedInChat", () => {
