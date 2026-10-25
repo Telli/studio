@@ -82,4 +82,21 @@ describe("studio projects", () => {
     expect(context).toContain('"Casting"');
     expect(context).toContain("wait\nfor a go before changing any part");
   });
+
+  it("tells the agent how to cite", () => {
+    const context = studioProjectContext(rover, "/work/rover-cad");
+    expect(context).toContain("## Sources\n\nWhen you answer a question about this project, mark");
+    expect(context).toContain(
+      "numbered in the order you first cite them. End the answer with a block that starts with a line reading exactly `Sources:`, one source a line:\n" +
+        "[1] path/to/file.py:12-18\n" +
+        "[2] docs/prd.md#The heading\n" +
+        "[3] https://example.com/page\n" +
+        "[4] own knowledge: what it is\n" +
+        "Cite only what you opened in this chat. A claim from your own knowledge, such as a standard you know but did not open, is cited as own knowledge. " +
+        "Studio shows the sources under your answer and marks any it cannot find among what you opened.\n",
+    );
+    // After the way of showing work, before the README's.
+    expect(context.indexOf("## Sources")).toBeGreaterThan(context.indexOf("## Show your work"));
+    expect(context.indexOf("## Sources")).toBeLessThan(context.indexOf("## The README"));
+  });
 });

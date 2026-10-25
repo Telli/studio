@@ -145,6 +145,16 @@ const SHOW_YOUR_WORK = [
   "- Call parts and documents by their names (the servo bracket, its drawing, the FEA report), not by file names. When you point to a file, write its path in code formatting (`parts/servo_bracket.step`): Studio shows it as the part it is, one click from opening it.",
 ].join("\n");
 
+/** How an answer cites what it rests on; Studio reads the closing block (`splitSources`). */
+const SOURCES = [
+  "When you answer a question about this project, mark each claim with the source it comes from: [1], [2], numbered in the order you first cite them. End the answer with a block that starts with a line reading exactly `Sources:`, one source a line:",
+  "[1] path/to/file.py:12-18",
+  "[2] docs/prd.md#The heading",
+  "[3] https://example.com/page",
+  "[4] own knowledge: what it is",
+  "Cite only what you opened in this chat. A claim from your own knowledge, such as a standard you know but did not open, is cited as own knowledge. Studio shows the sources under your answer and marks any it cannot find among what you opened.",
+].join("\n");
+
 const THE_README = [
   "Keep `README.md` at the root of this thread's folder: Studio shows it as the project's Overview. Write it for an engineer, in plain words:",
   "",
@@ -237,6 +247,7 @@ export function studioProjectContext(
     ...section("Notes", brief.notes),
     ...section("Sketches the person can edit", EDITABLE_SKETCHES),
     ...section("Show your work", SHOW_YOUR_WORK),
+    ...section("Sources", SOURCES),
     ...section("The README", THE_README),
     ...section("Starting a project", startingAProject(record)),
     ...section(
