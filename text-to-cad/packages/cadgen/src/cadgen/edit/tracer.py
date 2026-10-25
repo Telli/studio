@@ -398,6 +398,14 @@ def inspect_signature(fn):
     return inspect.signature(fn)
 
 
+def _brep_of(result):
+    """A step's result's B-rep as it is when made, kept apart from the shape: a later ``move`` or
+    ``locate`` changes the shape in place, and which feature made a face is read where it was made
+    (`face_features.py`). None for a result that is no shape."""
+    wrapped = getattr(result, "_wrapped", None) if isinstance(result, B.Shape) else None
+    return wrapped.Located(wrapped.Location()) if wrapped is not None else None
+
+
 def _record(op, label, fn, args, kwargs, result, extra=None):
     step = {
         "index": len(STEPS),
@@ -408,6 +416,7 @@ def _record(op, label, fn, args, kwargs, result, extra=None):
             (name, value) for name, value in _parameters(fn, args, kwargs) if name not in ("self",)
         ],
         "result": result,
+        "brep": _brep_of(result),
         **(extra or {}),
     }
     STEPS.append(step)
@@ -596,6 +605,7 @@ def _moved(self, other):
                 "frames": _project_frames(),
                 "args": list(other._studio_args),
                 "result": result,
+                "brep": _brep_of(result),
                 "from": origin,
             }
         )
@@ -1737,6 +1747,9 @@ def trace(request):
     row_of = {index: row["key"] for row in rows for index in row["steps"]}
     for dimension in dimensions:
         dimension["row"] = row_of.get(dimension["step"])
+    from cadgen.edit.face_features import face_count, face_features
+
+    made_faces = {} if components else face_features(shape, steps, row_of, features)
     # The sizes an engineer changes: named numbers the part used, units aside.
     used = {leaf for step in steps for _, value in step["args"] if isinstance(value, (TFloat, TInt)) for leaf in leaves(value._e)}
     params = [
@@ -1773,6 +1786,12 @@ def trace(request):
         "rows": [{**row, "inputs": [_clean(item) for item in row["inputs"]]} for row in rows],
         # The same history as a CAD tree reads it, and the part's extent for the origin's planes.
         "features": [] if components else features,
+        # Which feature made each face, by the face's number as the viewer's references name it ("12":
+        # the key of a feature above), the faces it knows only; and how many faces the part has, which a
+        # view checks the faces on screen against before naming one (`face_features.py`). An assembly
+        # has neither: `{}` and 0.
+        "faceFeatures": made_faces,
+        "faceCount": 0 if components else face_count(shape),
         "sketches": sketches,
         "components": [{"name": c["function"], "file": c["file"], "features": c["features"], "step": _component_step(c)} for c in components],
         # An assembly's mates, as its joints are labelled (`mates.py`), for the design tree's Mates.
@@ -3677,7 +3696,12 @@ def _bar(script, rel, line, reply):
         shape, body = commands.body_at(state["steps"], state["shape"], state["level"], ROOT, rel, line)
     except commands.CommandError as error:
         return {**where, "step": None, "error": str(error)}
-    return {**where, **_bar_tree(script, shape), "name": body.name}
+    from cadgen.edit.face_features import face_count, face_features
+
+    # Which feature above the bar made each face of the body there, numbered as its tree numbers them.
+    row_of = {index: row["key"] for row in state["rows"] for index in row["steps"]}
+    return {**where, **_bar_tree(script, shape), "name": body.name,
+            "faceFeatures": face_features(shape, state["steps"], row_of, reply.get("features") or []), "faceCount": face_count(shape)}
 
 
 def _bar_tree(script, shape):
