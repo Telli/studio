@@ -483,16 +483,18 @@ describe("makeMcpAppHost", () => {
     expect(capabilities(plain.sent)?.studioFocus).toBeUndefined();
   });
 
-  it("forwards the number of the focus the view took and whether a feature held its line, and nothing else", () => {
+  it("forwards the number of the focus the view took and whether a feature held its line, an older view's as found, and nothing else", () => {
     const taken: Array<{ nonce: number; found: boolean }> = [];
     const { host, sent } = setup({ onFocusTaken: (focus) => void taken.push(focus) });
     initialize(host);
     const answered = sent.length;
     for (const params of [
       { nonce: 3, found: true },
-      { nonce: 3 },
+      // A view older than `found`: its ask is let go, and nothing else opens.
+      { nonce: 5 },
       { nonce: "3", found: true },
       { nonce: 3, found: "no" },
+      { nonce: 3, found: null },
       {},
       { nonce: null, found: false },
       { nonce: 4, found: false, path: "parts/bracket.py" },
@@ -502,6 +504,7 @@ describe("makeMcpAppHost", () => {
     host.receive({ jsonrpc: "2.0", method: "studio/notifications/focus-taken" });
     expect(taken).toEqual([
       { nonce: 3, found: true },
+      { nonce: 5, found: true },
       { nonce: 4, found: false },
     ]);
     // A notification is never answered, taken or not.

@@ -172,35 +172,114 @@ it("puts Projection, Display and Preview, and the view catching up, in the toolb
 });
 
 it("moves the column beside an open dialog, so a tool's own row and its panels never hide under it", () => {
-  const view = shell({ ...WORKSPACE, leftDock: null, dialogOpen: false });
-  // No dialog and no Part Navigator: the column spans the view, an inset in, and centres what it holds.
+  const view = shell({ ...WORKSPACE, dialogOpen: false });
+  // No dialog: the column spans the view, an inset in, and centres what it holds.
   expect([column().style.left, column().className]).toEqual(['8px', expect.not.stringMatching(/\bleft-\[/)]);
   // A dialog beside the Part Navigator: the column is the room past the dialog, or past the dialog alone in a
   // view too narrow for the navigator.
   view.show({ ...WORKSPACE, dialogOpen: true });
   expect(column().style.left).toBe('');
   expect(column().className).toMatch(/\bleft-\[calc\(35rem\+8px\)\] @max-xl\/cad-viewport:left-\[calc\(18rem\+16px\)\]/);
-  view.show({ ...WORKSPACE, leftDock: null, dialogOpen: false });
+  view.show({ ...WORKSPACE, dialogOpen: false });
   expect(column().style.left).toBe('8px');
   // Simple view has no dialog's place to keep clear of.
   view.show({ dialogOpen: true });
   expect(column().style.left).toBe('8px');
 });
 
-it("keeps the column to the room past the Part Navigator, so the toolbar's rows never run under it", () => {
-  const view = shell({ ...WORKSPACE, dialogOpen: false });
-  // The Part Navigator up and no dialog: the column is the room past it (16rem, an inset in, and an inset past it), or
-  // the whole view, an inset in, where a view too narrow for the navigator hides it.
-  expect(column().style.left).toBe('');
-  expect(column().className).toMatch(/\bleft-\[calc\(16rem\+16px\)\] @max-xl\/cad-viewport:left-2(?:\s|$)/);
-  // Folded to its title, it is still there at the top-left.
-  fireEvent.click(within(dock('navigator')!).getByRole('button', { name: 'Part Navigator' }));
-  expect(column().className).toMatch(/\bleft-\[calc\(16rem\+16px\)\]/);
-  // A dialog beside it takes the room past both, as above.
-  view.show({ ...WORKSPACE, dialogOpen: true });
+// A toolbar that holds the strip's tools as buttons, as EditRibbon does: the Pencil taken up from it brings the drawing
+// tools' row under it, the column's one row.
+const WITH_TOOLS = Object.freeze({ ...WORKSPACE,
+  ribbon: (tools: { id: string, label: string, onSelect: () => void }[]) => <div role="toolbar" aria-label="Design">
+    {tools.map(tool => <button key={tool.id} type="button" onClick={tool.onSelect}>{tool.label}</button>)}</div> });
+const controls = () => document.querySelector<HTMLElement>('[data-cad-top-controls]')!;
+const topRightLeft = () => backdrop().style.getPropertyValue('--cad-top-right-left');
+
+/**
+ * A view laid out as the app lays it, for the top controls' measure: `view` px wide; the column an inset in from its
+ * sides; its controls as wide as their one row (`row`), centred in the column and moved by their own `left`; and the Part
+ * Navigator 16rem wide, an inset in, or no box at all where a view too narrow for it hides it (`navigator: false`).
+ */
+function layOut({ view, row, navigator = true }: { view: number, row: number, navigator?: boolean }) {
+  const box = (x: number, y: number, width: number, height: number) => DOMRect.fromRect({ x, y, width, height });
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    if (this.matches('[data-cad-dock="toolbar"]')) return box(0, 0, view, TOOLBAR_HEIGHT);
+    if (this.matches('[data-cad-scene-backdrop]')) return box(0, 0, view, 700);
+    if (this.matches('[data-cad-tool-groups]')) return box(8, TOOLBAR_HEIGHT + 8, view - 16, 500);
+    if (this.matches('[data-cad-dock="navigator"]')) return navigator ? box(8, TOOLBAR_HEIGHT + 8, 256, 400) : box(0, 0, 0, 0);
+    const top = this.closest<HTMLElement>('[data-cad-top-controls]');
+    if (top && (this === top || this.parentElement === top)) {
+      return box(8 + (view - 16 - row) / 2 + (parseFloat(top.style.left) || 0), TOOLBAR_HEIGHT + 8, row, 36);
+    }
+    return boxOf.call(this);
+  };
+}
+/** The frame's resize observers, called as a resize calls them (the controls taking a row, the view narrowed). */
+function resizing() {
+  const live = new Set<() => void>();
+  vi.stubGlobal('ResizeObserver', class {
+    callback: () => void;
+    constructor(callback: () => void) { this.callback = callback; live.add(callback); }
+    observe() {}
+    unobserve() {}
+    disconnect() { live.delete(this.callback); }
+  });
+  return () => act(() => { for (const callback of [...live]) callback(); });
+}
+/** The frame with the workspace up and the Pencil taken up from its toolbar, measured. */
+function drawing(resize: () => void, workspace: object = WITH_TOOLS) {
+  const view = shell(workspace);
+  fireEvent.click(screen.getByRole('button', { name: 'Pencil' }));
+  resize();
+  expect(controls().children.length).toBeGreaterThan(0);
+  return view;
+}
+
+it("leaves a row that clears the Part Navigator centred across the view, and Quick Edit's room as it was", () => {
+  const resize = resizing();
+  // Centred in a 1280px view, a 300px row starts at 490, well past the navigator's right edge and an inset (264 + 8).
+  layOut({ view: 1280, row: 300 });
+  const view = drawing(resize);
+  expect([controls().style.left, topRightLeft()]).toEqual(['', '798px']);
+  // The same as with no Part Navigator at all.
+  view.show({ ...WITH_TOOLS, leftDock: null });
+  resize();
+  expect([controls().style.left, topRightLeft()]).toEqual(['', '798px']);
+});
+
+it("moves a row that would run under the Part Navigator right by just the overlap, and no further than the column has room", () => {
+  const resize = resizing();
+  // Centred in a 700px view, a 300px row starts at 200: 72px short of the navigator's right edge and an inset.
+  layOut({ view: 700, row: 300 });
+  drawing(resize);
+  expect(controls().style.left).toBe('72px');
+  // Quick Edit's corner starts an inset past where the row now ends.
+  expect(topRightLeft()).toBe(`${200 + 72 + 300 + 8}px`);
+  // A row too wide to clear it goes as far as the column lets it: its right edge at the column's, (584 - 500) / 2 on.
+  layOut({ view: 600, row: 500 });
+  resize();
+  expect(controls().style.left).toBe('42px');
+});
+
+it("moves no row while the Part Navigator is folded, hidden by a narrow view, or has a dialog beside it", () => {
+  const resize = resizing();
+  layOut({ view: 700, row: 300 });
+  const view = drawing(resize);
+  expect(controls().style.left).toBe('72px');
+  // Folded to its title: the row is centred again, and the corner's room is the row's.
+  const fold = () => fireEvent.click(within(dock('navigator')!).getByRole('button', { name: 'Part Navigator' }));
+  fold();
+  resize();
+  expect([controls().style.left, topRightLeft()]).toEqual(['', `${200 + 300 + 8}px`]);
+  // Open again in a view too narrow for it, which hides it: it has no box of its own.
+  fold();
+  layOut({ view: 700, row: 300, navigator: false });
+  resize();
+  expect(controls().style.left).toBe('');
+  // A dialog beside it: the column is the room past both (above), and its rows are not moved within it.
+  layOut({ view: 700, row: 300 });
+  view.show({ ...WITH_TOOLS, dialogOpen: true });
+  resize();
+  expect(controls().style.left).toBe('');
   expect(column().className).toMatch(/\bleft-\[calc\(35rem\+8px\)\]/);
-  expect(column().className).not.toMatch(/16rem\+16px/);
-  // Simple view has no navigator to keep clear of.
-  view.show({});
-  expect([column().style.left, column().className]).toEqual(['8px', expect.not.stringMatching(/\bleft-\[/)]);
 });
