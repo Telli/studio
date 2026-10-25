@@ -282,8 +282,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   those lines in front); a document at its line or heading; a page as a link in the chat does. The
   part's view hears the ask in its host context (`studio/focus`: the script's path, a line and a
   number for each press, behind the `studioFocus` capability) and says it has taken it, however it
-  went (`studio/notifications/focus-taken`), so no ask outlives its view (`viewerFocus.ts`,
-  `edit/focus.js`).
+  went, and whether a feature held the line (`studio/notifications/focus-taken`, `{ nonce, found }`),
+  so no ask outlives its view (`viewerFocus.ts`, `edit/useHostFocus.js`). Where none did (a
+  constant, an import, a helper's line, a line moved since the part was read, a part whose build
+  failed), Studio opens the script at that line in front (`openInPanel`), as Simple view does, so a
+  press never does nothing (`PluginViewFrame.tsx`).
 - **Documents from templates.** New's Documents (and the Overview's Documents, the Document
   menu's From a template, and the quick find) start a document the agent writes into `docs/`: a
   PRD, the engineering requirements, an FMEA or a design review, each with its sections
@@ -324,8 +327,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **Home, the switcher and the chats.** In Engineering, Home is where you start and pick up where
   you left off, and Projects is every project (Amy, 2026-10-23: they showed the same, since
   Projects went to Home): a top bar with the mark and a search that opens the quick find, then a box for what to
-  make, in two modes on the part toolbar's segmented control, each named with its button's word.
-  Start, from an idea: Start sends what was typed to a new project (made, with a first chat that
+  make, in three modes, Start, Ask and Set up, each named with its button's word (`StudioHome.tsx`).
+  Ask is a question in no project (below). Start, from an idea: Start sends what was typed to a new project (made, with a first chat that
   sends it as its first message), or, with a project of yours chosen beside Attach
   (`ProjectPicker.tsx`, the project switcher's own control and list, `ProjectChoices.tsx`), to a
   new chat in that project. One line is enough. Set up, from files: a drop area for a PRD,
@@ -468,8 +471,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   each to suppress it, User Expressions folded above it, and the Datum Coordinate System (0) with
   its XY, XZ and YZ planes; a row's menu in NX's words (Edit Parameters, Edit Sketch, Suppress,
   Rename, Delete, Make Current Feature) and the viewer's warning on the feature a failed build
-  points at; a timeline along the bottom, Fusion's, of the features as icons with the sketch each
-  was made from just before it, whose rollback marker is Make Current Feature dragged
+  stopped in, told by the file, line and words the engine reports (the call into a helper, where the
+  helper raised), and nothing marked otherwise; a timeline along the bottom, Fusion's, of the features
+  as icons with the sketch each was made from just before it, whose rollback bar's marker is Make
+  Current Feature dragged
   (`edit/EditTimeline.jsx`); the sketch tools as NX names them (Finish Sketch, Rapid Dimension,
   Quick Trim). The script and the agent's notes keep their own names. A purple dot marks what the
   agent made and a grey one what you made, on the Part Navigator's rows and under the timeline's
@@ -487,7 +492,7 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   in the bar or the toolbar, opens Quick Edit, which the workspace shows only once asked (with
   nothing picked, on the part as a whole); Escape, a send, its X, the picks emptying or a command or
   sketch opening put it away (`selectionBarState.js`). A feature chosen goes to the agent as a
-  `text-range` reference to its line in its script, with a chip named as the Part Navigator names it
+  `text-range` reference to its statement in its script (all its lines, where the engine read the statement whole), with a chip named as the Part Navigator names it
   ("Hole (6)"), the chip's X letting go of the pick (`featureAsk.jsx`; the script's absolute path is the
   engine's `root` with the feature's `file`). A face's chip says the feature that made it, "Hole (6) ·
   face 12", where the engine does (`cadgen/edit/face_features.py`: the first feature with a face on
@@ -499,8 +504,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   It is there only where the host has a chat box to fill (`canAddToContext`: never in Jake's standalone viewer), and the toolbar's is
   dimmed, saying "Select a face, edge or feature first", until something is picked or drawn (ink alone is something to add). While a command, a sketch or a panel is open its
   picks are the model's selection (an Edge Blend's edges), which a delivery or a send would let go of, so the toolbar's Ask and Add to
-  context are both dimmed, saying "Finish or cancel the command first" (Simple view's switch says the same of the same hold), and the
-  bar is not shown. Quick Edit's X and a send let go of a feature chosen too, as a press on the background does. Annotate, the
+  context are both dimmed, saying "Finish or cancel the command first" (the words Simple view's switch uses), and the
+  bar is not shown. Quick Edit's X and a send let go of a feature chosen too, as a click on the background does (an orbit
+  drag to look at it keeps it). Annotate, the
   toolbar's third agent button, is the viewer's own Pencil with Shapes in its chevron's menu, each showing what it draws with (the
   bar's Annotate takes up the Pencil). Marks drawn on a face go to the agent as shapes in that face's own coordinates, in the part's
   units (`kit/tools/annotate/faceShapes.js`: a mark on one face alone, flat on it and all of it over the part; any other stays with the
@@ -548,18 +554,20 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   what its part allows (`studio/notifications/edit-state`, to a host offering `studioEditState`):
   a STEP with no part script has one layout, so no toggle shows, and a command, sketch or pick
   open, or a change saving, holds the toggle until it is finished or cancelled; a view that closes
-  or opens another file forgets it (`workbench/viewerEditState.ts`). The part tabs run along the
+  or opens another file forgets it (`workbench/viewerEditState.ts`). A viewer that never sends
+  `edit-state` (one older than its Studio) hides the switch, which is fine while Studio and its
+  viewer ship together. The part tabs run along the
   panel's bottom. The viewer takes the layout from its host context (`studio/editLayout`) and then
   shows no switch of its own; elsewhere its navbar keeps the switch, as Manual and AI. In the full
   workspace, what a command uses is plain: a sketch is
   picked on the model or in the Part Navigator and shaded in the selection blue with its name, an
   extrude is previewed in amber (a cut in red, starting into the part), and a command's dialog
   floats in a card of its own at the model view's top left, beside the Part Navigator, with OK,
-  Apply and Cancel at its foot. One generator draws every icon of the workspace, the toolbar's,
+  Apply and Cancel at its foot. One generator draws every CAD icon of the workspace, the toolbar's,
   the Part Navigator's, the timeline's and the sketch tools' (`packages/ui/scripts/nx-icons.py`,
   which writes `src/lib/nxIcons.generated.jsx`; a test fails when the committed module is not what
-  it writes), and
-  what edit mode is busy with (reading the part, rolling back, rebuilding) shows with a spinner and
+  it writes); chevrons, spinners, close, the amber warning and the sketch overlay's check and cross
+  stay lucide's. What edit mode is busy with (reading the part, rolling back, rebuilding) shows with a spinner and
   a line along the toolbar's foot. A rollback step moves the bar at once and, the files unchanged,
   does not run the part again. A hole goes where its face is clicked (a slanted face too), a
   sketch can go on a plane at an Offset distance, a linear pattern takes its direction (X, Y or

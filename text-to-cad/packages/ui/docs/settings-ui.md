@@ -1455,11 +1455,11 @@ in a box with a note it only hands the keyboard back to the model.
 
 Where the host leaves it to the person (`asked` on the shell: edit mode's workspace, `step/edit/`), the box does not
 follow what is picked or drawn. It opens when asked for (Ask, in the toolbar or in the bar beside a pick), on what is
-picked (a feature the person chose is its line in the part's script, a range of that file, with a chip of the Part
+picked (a feature the person chose is its statement in the part's script, all its lines where the engine read it whole, a range of that file, with a chip of the Part
 Navigator's name for it), or on the file as a whole with nothing picked, and the keyboard is in its note; until then it stays shut
 however much is picked or drawn, and a note already written keeps it open as ever. Escape, a send, the X and the picks being let go of put the ask away (the
 host's: `step/edit/selectionBarState.js`), and so does a command or a sketch opening. The X and a send let go of
-a feature chosen too, as a press on the model's background does.
+a feature chosen too, as a click on the model's background does (an orbit drag to look at it keeps it).
 
 **Add to context** (edit mode's selection bar, beside a pick, and the toolbar's Ask the agent group) puts the picks into the chat
 box without opening Quick Edit and without sending, to collect several faces, edges and features and write one message. It is Queue
@@ -1469,7 +1469,7 @@ handed over inside the press. It is offered only where the destination is a comp
 button. Ink counts as something to add: alone it goes as the snapshot's annotation and the marks on a face. The toolbar's is dimmed
 with nothing picked and nothing drawn, its reason "Select a face, edge or feature first", as the toolbar's dimmed
 buttons give theirs. While a command, a sketch or a panel is open, whose picks are that same selection, the toolbar's Ask and Add to
-context are both dimmed ("Finish or cancel the command first", as Simple view's switch says of the same hold) and the bar is not
+context are both dimmed ("Finish or cancel the command first", the words Simple view's switch uses) and the bar is not
 shown: letting the picks go after a delivery or a send would empty the command's. Once it has gone the picks and the ink are let go
 of (as a Queue lets go of the box's), so the next one starts fresh; a failure keeps them and is said in the viewport's card, in the
 words Quick Edit shows under its note (`deliveryFailure`).
