@@ -261,6 +261,23 @@ export interface CadEditRow {
   inputs: CadEditValue[];
 }
 
+/**
+ * One feature of the design tree (`cadgen/edit/tracer.py`): the rows of the history it stands for (`rows`, its own last),
+ * at the statement that makes it, from its first line (`line`, as `text` reads it) to its last (`end`, where the engine
+ * read the statement whole). The viewer reads the rest of it as it finds it (`step/edit/editMode.js`'s `featureTree`).
+ */
+export interface CadEditFeature {
+  key: string;
+  kind: string;
+  name: string | null;
+  file?: string;
+  line?: number;
+  end?: number;
+  text?: string;
+  rows?: string[];
+  [field: string]: unknown;
+}
+
 export interface CadEditState {
   ok: boolean;
   unchanged?: boolean;
@@ -284,6 +301,8 @@ export interface CadEditState {
   files?: Record<string, string>;
   params?: (CadEditValue & { id: string; name: string; text: string })[];
   rows?: CadEditRow[];
+  /** A part's design tree; an assembly's is each of its components'. */
+  features?: CadEditFeature[];
   /**
    * Which feature made each face (`cadgen/edit/face_features.py`): a face's number on the part, as its selector has it ("12" for
    * `f12`), → the key of the feature that made it. Only the faces the engine knows; `{}` for an assembly.

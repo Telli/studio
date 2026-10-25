@@ -6,6 +6,7 @@ import type { PluginAppSurface } from "~/rightPanelStore";
 import { TitleBlock } from "../workbench/TitleBlock";
 import { useOpenInWorkbench } from "../workbench/useOpenInWorkbench";
 import { pluginViewKey } from "../workbench/viewerEditState";
+import { viewerFocusPlace } from "../workbench/references/viewerFocus";
 import { PluginViewFrame } from "./PluginViewFrame";
 
 const isAbsolute = (path: string) => path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path);
@@ -74,6 +75,7 @@ export default function PluginViewPanel(props: {
         onAddContext={props.onAddContext}
         onOpenFile={openInWorkbench}
         editStateKey={pluginViewKey(threadRef, surface.id)}
+        focusPlace={viewerFocusPlace(threadRef, surface)}
       />
     </>
   );

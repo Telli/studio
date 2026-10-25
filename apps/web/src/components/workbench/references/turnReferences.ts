@@ -507,3 +507,12 @@ export function referenceLabel(reference: AnswerReference): { name: string; wher
       return { name: target.text === "" ? "Own knowledge" : target.text, where: null };
   }
 }
+
+/**
+ * A row's press as a screen reader names it: what it opens, where in it, and when the agent
+ * opened it, so "not opened" is heard as it is seen.
+ */
+export function referenceOpenLabel(reference: AnswerReference): string {
+  const { name, where } = referenceLabel(reference);
+  return `Open ${where === null ? name : `${name}, ${where}`}, ${reference.opened}`;
+}

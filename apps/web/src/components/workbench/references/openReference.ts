@@ -1,5 +1,6 @@
 import { isAbsolutePath, workspaceRelativeFilePath } from "@t3tools/shared/path";
 
+import { normalPath } from "../sameFile";
 import type { SourceTarget } from "./answerSources";
 import { useViewerFocusStore } from "./viewerFocus";
 
@@ -15,11 +16,16 @@ export type ReferenceOpening =
 const SCRIPT = /\.py$/i;
 const MODEL = /\.(?:step|stp)$/i;
 
-const slashed = (path: string) => path.replaceAll("\\", "/").replace(/^(?:\.\/)+/, "");
+/**
+ * What the app says of a link, and of a file, that would not open (`ThreadTerminalDrawer`,
+ * `ChatMarkdown`).
+ */
+const LINK_FAILED = "Unable to open link";
+const FILE_FAILED = "Unable to open file";
 
 /** A cited path in the thread's folder as it lists it: relative to it; any other path as written. */
 function inFolder(path: string, root: string | null): string {
-  if (!isAbsolutePath(path)) return slashed(path);
+  if (!isAbsolutePath(path)) return normalPath(path);
   const relative = workspaceRelativeFilePath(path, root);
   return relative === null || relative === "." ? path : relative;
 }
@@ -29,7 +35,7 @@ function partModel(script: string, files: ReadonlyArray<string>): string | null 
   if (!SCRIPT.test(script)) return null;
   const stem = script.replace(SCRIPT, "");
   return (
-    files.find((file) => MODEL.test(file) && slashed(file).replace(MODEL, "") === stem) ?? null
+    files.find((file) => MODEL.test(file) && normalPath(file).replace(MODEL, "") === stem) ?? null
   );
 }
 
@@ -78,36 +84,59 @@ export async function referenceOpening(
 
 /**
  * Opens a reference beside its chat (`threadKey`), where `referenceOpening` says: a file at its
- * line (`openFile`, as a chat's file link opens one: a model in the CAD view), a page as the
- * person's link setting has it (`openLink`), a part's model. In the workspace the part's view is
- * asked to select the feature at the cited line (`viewerFocus.ts`); Simple view shows no
- * features, so there the script opens at those lines in front, the part one tab away.
+ * line (`openFile`, as a chat's file link opens one, saying whether a plugin view shows it), a
+ * page as the person's link setting has it (`openLink`), a part's model. In the workspace the
+ * part's CAD view is asked to select the feature at the cited line (`viewerFocus.ts`), only where
+ * one shows the part: opened as a plain file it has no features to show. Simple view shows none
+ * either, so there the script opens at those lines in front, the part one tab away.
  */
-export function openReference(
+export async function openReference(
   opening: ReferenceOpening,
   beside: {
-    readonly openFile: (path: string, line?: number) => void;
-    readonly openLink: (url: string) => void;
+    readonly openFile: (path: string, line?: number) => boolean;
+    readonly openLink: (url: string) => Promise<void>;
     readonly threadKey: string;
     readonly simpleView: boolean;
   },
-): void {
+): Promise<void> {
   switch (opening.kind) {
     case "file":
       beside.openFile(opening.path, opening.line ?? undefined);
       return;
     case "link":
-      beside.openLink(opening.url);
+      await beside.openLink(opening.url);
       return;
-    case "part":
-      beside.openFile(opening.step);
+    case "part": {
+      const inView = beside.openFile(opening.step);
       if (beside.simpleView) {
         beside.openFile(opening.script, opening.line);
         return;
       }
+      if (!inView) return;
       useViewerFocusStore.getState().focus(beside.threadKey, opening.step, {
         path: opening.script,
         line: opening.line,
       });
+    }
+  }
+}
+
+/**
+ * A press on a reference: where it opens (`referenceOpening`), opened there (`openReference`). A
+ * press that fails says so as the app says it of a link or a file that would not open (`failed`,
+ * its words and why), and never leaves its failure unheard.
+ */
+export async function pressReference(
+  target: SourceTarget,
+  beside: Parameters<typeof referenceOpening>[1] &
+    Parameters<typeof openReference>[1] & {
+      readonly failed: (title: string, cause: unknown) => void;
+    },
+): Promise<void> {
+  try {
+    const opening = await referenceOpening(target, beside);
+    if (opening !== null) await openReference(opening, beside);
+  } catch (cause) {
+    beside.failed(target.kind === "url" ? LINK_FAILED : FILE_FAILED, cause);
   }
 }

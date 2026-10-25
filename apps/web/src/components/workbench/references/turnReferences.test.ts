@@ -16,6 +16,7 @@ import {
 import {
   openedInChat,
   referenceLabel,
+  referenceOpenLabel,
   turnReferences,
   type AnswerReference,
 } from "./turnReferences";
@@ -973,6 +974,21 @@ describe("referenceLabel", () => {
       name: "Own knowledge",
       where: null,
     });
+  });
+
+  it("names a row's press for a screen reader with what it opens, where in it, and when it was opened", () => {
+    expect(referenceOpenLabel(reference(file("parts/servo_bracket.step", [12, 18])))).toBe(
+      "Open Servo bracket, lines 12–18, this turn",
+    );
+    expect(
+      referenceOpenLabel({
+        ...reference(page("https://example.org/torx"), "Torx drive"),
+        opened: "not opened",
+      }),
+    ).toBe("Open Torx drive, example.org, not opened");
+    expect(
+      referenceOpenLabel({ ...reference(file("docs/prd.md")), opened: "earlier in this chat" }),
+    ).toBe("Open PRD, earlier in this chat");
   });
 });
 

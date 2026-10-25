@@ -1438,7 +1438,8 @@ def _with_text(features):
 def _editable(features, rows, steps, sketches, units):
     """Each feature a ribbon command writes, with what Edit Feature opens it with (``edit``): the
     command, its values in the part's units, what it keeps (its edges, faces, the feature it
-    copies) and, for one made from a sketch, the sketch and the line it revolves about."""
+    copies) and, for one made from a sketch, the sketch and the line it revolves about. Each
+    feature whose statement starts at its line keeps that statement's last line (``end``)."""
     from cadgen.edit import commands, sketching
 
     by_key = {row["key"]: row for row in rows}
@@ -1463,6 +1464,9 @@ def _editable(features, rows, steps, sketches, units):
         statement = commands._top_statement(function, row["line"]) if function is not None else None
         if statement is None or statement.lineno != row["line"]:
             continue
+        # The statement's last line, for a line anywhere in a statement written over several to be told
+        # as the feature's (a host opening the part at a line the agent cites, `step/edit/focus.js`).
+        feature["end"] = statement.end_lineno
         # A name given in the design tree: the comment at the end of the feature's line (a hole's
         # Hole Wizard callout reads as one too, as SolidWorks names a hole by its size).
         named = commands.trailing_comment(text, statement)

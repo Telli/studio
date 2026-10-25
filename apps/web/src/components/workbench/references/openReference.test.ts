@@ -1,11 +1,12 @@
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { EnvironmentId, ThreadId, type InstalledPlugin, type PluginView } from "@t3tools/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelStore";
+import { agentViewSurface, pluginAppSurface } from "../../plugins/pluginSurfaces";
 import { openInPanel } from "../useOpenInWorkbench";
 import type { SourceTarget } from "./answerSources";
-import { openReference, referenceOpening } from "./openReference";
+import { openReference, pressReference, referenceOpening } from "./openReference";
 import { useViewerFocusStore, viewerFocusOf, viewerFocusPlace } from "./viewerFocus";
 
 const ROOT = "/work/rover-cad";
@@ -136,6 +137,39 @@ const thread = scopeThreadRef(EnvironmentId.make("local"), ThreadId.make("thread
 const threadKey = scopedThreadKey(thread);
 const focusOn = (file: string) => viewerFocusOf(useViewerFocusStore.getState(), threadKey, file);
 
+// The CAD plugin as Studio lists it: the view that opens a model file, and the one the agent opens.
+const view = (tool: string, entrypoint: PluginView["entrypoints"][number]): PluginView => ({
+  server: "cad",
+  tool,
+  title: "CAD",
+  resourceUri: "ui://cad/app.html",
+  entrypoints: [entrypoint],
+});
+const CAD_FILE = view("cad_file", { type: "file", extensions: ["step", "stp"] });
+const CAD_OPEN = view("cad_open", { type: "thread" });
+const CAD: InstalledPlugin = {
+  id: "text-to-cad",
+  displayName: "text-to-cad",
+  description: "",
+  version: null,
+  publisher: null,
+  enabled: true,
+  marketplace: null,
+  commit: null,
+  skills: [],
+  servers: [],
+  views: [CAD_FILE, CAD_OPEN],
+  compatibility: { level: "works", label: "Works", notes: [] },
+  updateAvailable: false,
+  error: null,
+};
+const choice = (cadView: PluginView) => ({
+  pluginId: CAD.id,
+  pluginName: CAD.displayName,
+  view: cadView,
+});
+const BRACKET_VIEW = pluginAppSurface(choice(CAD_FILE), "parts/bracket.step");
+
 describe("the place a part's view is asked to show", () => {
   afterEach(() => useViewerFocusStore.setState({ byThread: {} }));
 
@@ -156,25 +190,22 @@ describe("the place a part's view is asked to show", () => {
     expect(useViewerFocusStore.getState().byThread).toEqual({});
   });
 
-  it("is found by the part's view however its file was named, and only beside its own chat", () => {
+  it("is found by the view of the tab that shows the part, however the tab names it, beside its own chat only", () => {
     useViewerFocusStore
       .getState()
       .focus(threadKey, "parts/bracket.step", { path: "parts/bracket.py", line: 12 });
     const asked = focusOn("parts/bracket.step");
-    const view = (fields: { file?: string; arguments?: Record<string, unknown> }) =>
-      viewerFocusPlace({
-        environmentId: thread.environmentId,
-        threadId: thread.threadId,
-        arguments: {},
-        ...fields,
-      });
-    // A tab opened on the file, in a new chat by its full path, or the agent's own view of it.
-    expect(view({ file: "parts/bracket.step" })).toEqual({ threadKey, file: "parts/bracket.step" });
-    expect(view({ file: "/work/rover-cad/parts/bracket.step" })).toEqual({
+    // The part's own tab, and the view the agent opened on it, which names the file in full.
+    const agents = agentViewSurface(
+      choice(CAD_OPEN),
+      { path: "/work/rover-cad/parts/bracket.step" },
+      "/work/rover-cad/parts/bracket.step",
+    );
+    expect(viewerFocusPlace(thread, BRACKET_VIEW)).toEqual({
       threadKey,
-      file: "/work/rover-cad/parts/bracket.step",
+      file: "parts/bracket.step",
     });
-    expect(view({ arguments: { path: "/work/rover-cad/parts/bracket.step" } })).toEqual({
+    expect(viewerFocusPlace(thread, agents)).toEqual({
       threadKey,
       file: "/work/rover-cad/parts/bracket.step",
     });
@@ -187,22 +218,25 @@ describe("the place a part's view is asked to show", () => {
     expect(
       viewerFocusOf(useViewerFocusStore.getState(), elsewhere, "parts/bracket.step"),
     ).toBeNull();
-    expect(view({})).toBeNull();
-    expect(
-      viewerFocusPlace({ ...thread, threadId: null, file: "parts/bracket.step", arguments: {} }),
-    ).toBeNull();
+    expect(viewerFocusPlace(thread, agentViewSurface(choice(CAD_OPEN), {}, null))).toBeNull();
   });
 });
 
 describe("openReference", () => {
   const tabs = () => selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, thread);
-  // Opened beside the chat as a chat's file link opens a file, with no plugins listed yet.
-  const press = (opening: Parameters<typeof openReference>[0], simpleView: boolean) =>
+  // Opened beside the chat as a chat's file link opens a file, with the plugins listed or not yet.
+  const press = (
+    opening: Parameters<typeof openReference>[0],
+    beside: {
+      readonly simpleView?: boolean;
+      readonly plugins?: ReadonlyArray<InstalledPlugin>;
+    } = {},
+  ) =>
     openReference(opening, {
-      openFile: (path, line) => openInPanel(undefined, thread, path, line),
-      openLink: () => {},
+      openFile: (path, line) => openInPanel(beside.plugins, thread, path, line),
+      openLink: async () => {},
       threadKey,
-      simpleView,
+      simpleView: beside.simpleView ?? false,
     });
   const bracket = {
     kind: "part",
@@ -210,6 +244,7 @@ describe("openReference", () => {
     script: "parts/bracket.py",
     line: 12,
   } as const;
+  const asked = { path: "parts/bracket.py", line: 12, nonce: expect.any(Number) };
 
   beforeEach(() => {
     useRightPanelStore.setState({
@@ -221,25 +256,96 @@ describe("openReference", () => {
   });
   afterEach(() => useViewerFocusStore.setState({ byThread: {} }));
 
-  it("opens a part in the workspace and asks its view for the feature at the cited line", () => {
-    press(bracket, false);
-    expect(tabs().surfaces.map((surface) => surface.id)).toEqual(["file:parts/bracket.step"]);
-    expect(tabs().activeSurfaceId).toBe("file:parts/bracket.step");
-    expect(focusOn("parts/bracket.step")).toEqual({
-      path: "parts/bracket.py",
-      line: 12,
-      nonce: expect.any(Number),
-    });
+  it("opens a part in its CAD view in the workspace, and asks the view for the feature at the cited line", async () => {
+    await press(bracket, { plugins: [CAD] });
+    expect(tabs().surfaces.map((surface) => surface.id)).toEqual([BRACKET_VIEW.id]);
+    expect(tabs().activeSurfaceId).toBe(BRACKET_VIEW.id);
+    expect(focusOn("parts/bracket.step")).toEqual(asked);
   });
 
-  it("opens a part in Simple view with its script at those lines in front, asking no feature", () => {
-    press(bracket, true);
+  it("asks the part's CAD view already open beside the chat, the plugins listed or not", async () => {
+    useRightPanelStore.getState().openPluginApp(thread, BRACKET_VIEW);
+    await press(bracket);
+    expect(tabs().surfaces.map((surface) => surface.id)).toEqual([BRACKET_VIEW.id]);
+    expect(focusOn("parts/bracket.step")).toEqual(asked);
+  });
+
+  it("asks nothing of a part that opens as a plain file, before the plugins are listed", async () => {
+    await press(bracket);
+    expect(tabs().surfaces.map((surface) => surface.id)).toEqual(["file:parts/bracket.step"]);
+    expect(useViewerFocusStore.getState().byThread).toEqual({});
+  });
+
+  it("opens a part in Simple view with its script at those lines in front, asking no feature", async () => {
+    await press(bracket, { simpleView: true, plugins: [CAD] });
     expect(tabs().surfaces.map((surface) => surface.id)).toEqual([
-      "file:parts/bracket.step",
+      BRACKET_VIEW.id,
       "file:parts/bracket.py",
     ]);
     expect(tabs().activeSurfaceId).toBe("file:parts/bracket.py");
     expect(tabs().surfaces[1]).toMatchObject({ relativePath: "parts/bracket.py", revealLine: 12 });
     expect(useViewerFocusStore.getState().byThread).toEqual({});
+  });
+});
+
+describe("pressReference", () => {
+  let failures: Array<[string, unknown]> = [];
+  const pressing = (
+    target: SourceTarget,
+    beside: Partial<Parameters<typeof pressReference>[1]> = {},
+  ) =>
+    pressReference(target, {
+      root: ROOT,
+      files: FILES,
+      read: async () => PRD,
+      openFile: () => false,
+      openLink: async () => {},
+      threadKey,
+      simpleView: false,
+      failed: (title, cause) => void failures.push([title, cause]),
+      ...beside,
+    });
+  beforeEach(() => {
+    failures = [];
+  });
+
+  it("says a page that would not open as the app says a link that fails", async () => {
+    const cause = new Error("No browser to open it in.");
+    await pressing(
+      { kind: "url", url: "https://example.com/m3" },
+      {
+        openLink: async () => {
+          throw cause;
+        },
+      },
+    );
+    expect(failures).toEqual([["Unable to open link", cause]]);
+  });
+
+  it("says a document or a part that would not open as the chat says a file that fails", async () => {
+    const cause = new Error("The panel is not there.");
+    const openFile = () => {
+      throw cause;
+    };
+    await pressing(file("docs/prd.md", null, "Mounting (M3)"), { openFile });
+    await pressing(file("parts/bracket.py", [12, 18]), { openFile });
+    expect(failures).toEqual([
+      ["Unable to open file", cause],
+      ["Unable to open file", cause],
+    ]);
+  });
+
+  it("opens a document it cannot read at its top, and own knowledge not at all, failing neither", async () => {
+    const opened: Array<[string, number | undefined]> = [];
+    const openFile = (path: string, line?: number) => {
+      opened.push([path, line]);
+      return false;
+    };
+    const read = async () => {
+      throw new Error("The folder is gone.");
+    };
+    await pressing(file("docs/prd.md", null, "Mounting (M3)"), { openFile, read });
+    await pressing({ kind: "own", text: "ISO 273 clearance holes" }, { openFile });
+    expect([opened, failures]).toEqual([[["docs/prd.md", undefined]], []]);
   });
 });

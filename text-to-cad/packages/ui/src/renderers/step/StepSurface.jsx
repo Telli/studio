@@ -161,8 +161,7 @@ import SketchesLayer from "./edit/SketchesLayer.jsx";
 import { NxIconSprite } from "../../lib/nxIcons.generated.jsx";
 import { WORKSPACE_SELECTION_COLOR, editLayoutState, useEditLayout } from "./edit/editLayout.js";
 import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
-import { focusHost } from "../../tab-store/focusHost.js";
-import { focusAnswer } from "./edit/focus.js";
+import { useHostFocus } from "./edit/useHostFocus.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
 import {
   ORIGIN_PLANES,
@@ -3342,21 +3341,9 @@ function StepSurfaceBody({ view, data }) {
   useEditShortcuts(edit, editing);
   const editNames = useMemo(() => featureNames(edit.state?.rows || EMPTY_LIST), [edit.state?.rows]);
   const editTree = useMemo(() => featureTree(edit.state), [edit.state]);
-  // A host that opens the part at a line of its script (Studio's References, `tab-store/focusHost.ts`): once the part is
-  // read, the feature whose statement holds the line is selected, as a press in the Part Navigator selects it, and the
-  // timeline follows (`edit/focus.js`). The ask is said taken however that went, nothing there or nothing read included,
-  // so the host never keeps it; each ask once. Not by the library's out-of-sight picture, which is not the part on screen.
-  const hostFocus = useSyncExternalStore(focusHost.subscribe, focusHost.get, focusHost.get);
-  const focusTaken = useRef(null);
-  const selectFeature = edit.select;
-  useEffect(() => {
-    if (!hostFocus || !reportsEditState || focusTaken.current === hostFocus.nonce) return;
-    const answer = focusAnswer(hostFocus, { layout: editLayout, status: edit.status, features: treeFeatures(editTree) });
-    if (!answer) return;
-    focusTaken.current = hostFocus.nonce;
-    if (answer.select) selectFeature(answer.select);
-    focusHost.take(hostFocus.nonce);
-  }, [hostFocus, reportsEditState, editLayout, edit.status, editTree, selectFeature]);
+  // A host that opens the part at a line of its script (Studio's References) has the feature there selected once the
+  // part is read (`edit/useHostFocus.js`); not by the library's out-of-sight picture, which is not the part on screen.
+  useHostFocus({ onScreen: reportsEditState, layout: editLayout, status: edit.status, tree: editTree, select: edit.select });
   // The rollback bar's body in place of the part's, while edit mode has the bar up.
   const barTree = editing && edit.bar?.tree ? edit.bar.tree : null;
   const barKind = edit.bar?.kind === "assembly" ? "assembly" : "part";

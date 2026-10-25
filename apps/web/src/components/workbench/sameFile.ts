@@ -1,6 +1,7 @@
 import type { RightPanelSurface } from "~/rightPanelStore";
 
-const normal = (path: string) =>
+/** A path as files are compared: `/` between folders, without a leading `./` or a trailing `/`. */
+export const normalPath = (path: string) =>
   path
     .replaceAll("\\", "/")
     .replace(/^(?:\.\/)+/, "")
@@ -12,8 +13,8 @@ const normal = (path: string) =>
  * name a part: so a file opens in one tab, not two.
  */
 export function sameFile(a: string, b: string): boolean {
-  const left = normal(a);
-  const right = normal(b);
+  const left = normalPath(a);
+  const right = normalPath(b);
   return left === right || left.endsWith(`/${right}`) || right.endsWith(`/${left}`);
 }
 

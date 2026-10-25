@@ -40,7 +40,7 @@ import { useViewerEditState, type ViewerEditState } from "../workbench/viewerEdi
 import {
   takeViewerFocus,
   useViewerFocus,
-  viewerFocusPlace,
+  type ViewerFocusPlace,
 } from "../workbench/references/viewerFocus";
 
 /** What opens one plugin view: the tool whose result is the view, and where it runs. */
@@ -116,6 +116,11 @@ export function PluginViewFrame(props: {
    * (`workbench/viewerEditState.ts`); without it the view is not asked.
    */
   readonly editStateKey?: string | undefined;
+  /**
+   * Where Studio's references ask this CAD view to show a part's feature (its chat and its tab's
+   * file, `workbench/references/viewerFocus.ts`); without it the view is asked nothing.
+   */
+  readonly focusPlace?: ViewerFocusPlace | null | undefined;
 }) {
   const { target } = props;
   const theme = useHtmlRenderTheme();
@@ -221,7 +226,7 @@ export function PluginViewFrame(props: {
   // Studio: the CAD views take Simple view's layout, or the full workspace's (`workbench/simpleView.ts`).
   const editLayout = viewerEditLayout(useSimpleView());
   // Studio: where a reference opens this part's view (`workbench/references/viewerFocus.ts`).
-  const focus = useViewerFocus(target);
+  const focus = useViewerFocus(props.focusPlace);
   const live = { theme, size, props, request, editLayout, focus };
   const latest = useRef(live);
   useEffect(() => {
@@ -241,6 +246,11 @@ export function PluginViewFrame(props: {
     const editKey = props.editStateKey;
     const forgetEditState = () => {
       if (editKey !== undefined) useViewerEditState.getState().remove(editKey);
+    };
+    // What a reference asked it to show goes with it too, so a view opened later is not asked it.
+    const forgetFocus = () => {
+      const { focus: asked, props: current } = latest.current;
+      if (asked !== null && current.focusPlace) takeViewerFocus(current.focusPlace, asked.nonce);
     };
     const hostContext = (): McpAppHostContext => {
       const current = latest.current;
@@ -369,10 +379,13 @@ export function PluginViewFrame(props: {
             onEditState: (state: ViewerEditState) =>
               useViewerEditState.getState().set(editKey, state),
           }),
-      ...(viewerFocusPlace(target) === null
+      ...(props.focusPlace == null
         ? {}
         : {
-            onFocusTaken: (nonce: number) => takeViewerFocus(latest.current.props.target, nonce),
+            onFocusTaken: (nonce: number) => {
+              const place = latest.current.props.focusPlace;
+              if (place) takeViewerFocus(place, nonce);
+            },
           }),
       downloadFile: async (files) => {
         await ask(`Save ${files.map((file) => file.name).join(", ")} from ${target.title}?`);
@@ -400,6 +413,7 @@ export function PluginViewFrame(props: {
       onRequestTeardown: () => {
         void host.teardown().then(() => {
           forgetEditState();
+          forgetFocus();
           setClosed(true);
         });
       },
@@ -423,6 +437,7 @@ export function PluginViewFrame(props: {
       void host.teardown();
       hostRef.current = null;
       forgetEditState();
+      forgetFocus();
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A new document needs a new host; the rest is read through `latest`.
   }, [frame, document_]);

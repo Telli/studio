@@ -13,13 +13,14 @@ import { sameFile, surfaceFile } from "./sameFile";
  * Opens a file beside a thread: a model, board or drawing in the plugin view that claims it (a
  * STEP in the CAD view, never as text), anything else as a document, at its line, and remembers
  * it for Home's Recent (`recentFiles.ts`). Takes a path in the thread's folder, or a full path.
+ * Says whether a plugin view shows it: the one open already, or the one the plugins list for it.
  */
 export function openInPanel(
   plugins: Parameters<typeof pluginFileHandlers>[0] | undefined,
   threadRef: ScopedThreadRef,
   path: string,
   line?: number,
-): void {
+): boolean {
   const panels = useRightPanelStore.getState();
   rememberRecentFile(threadRef, path);
   // A file already open, however its path was written (in the folder, in full, by the agent),
@@ -32,18 +33,20 @@ export function openInPanel(
   );
   if (open !== undefined && (open.kind !== "file" || line === undefined)) {
     panels.activateSurface(threadRef, open.id);
-    return;
+    return open.kind === "plugin-app";
   }
   const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
   if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
   else panels.openFile(threadRef, path, line);
+  return viewer !== undefined;
 }
 
 /**
  * Opens a file a chat link or file chip names: a model, board or drawing in
  * the plugin view that claims it (a STEP in the CAD view, never as text),
  * anything else in the file preview at its line. Takes a path in the thread's
- * folder, or a full path; without a thread it opens nothing.
+ * folder, or a full path; without a thread it opens nothing. Says whether a
+ * plugin view shows it (`openInPanel`).
  */
 export function useOpenChatFile(threadRef: ScopedThreadRef | null) {
   const plugins = useEnvironmentQuery(
@@ -52,9 +55,8 @@ export function useOpenChatFile(threadRef: ScopedThreadRef | null) {
       : pluginEnvironment.list({ environmentId: threadRef.environmentId, input: {} }),
   ).data?.plugins;
   return useCallback(
-    (path: string, line?: number) => {
-      if (threadRef !== null) openInPanel(plugins, threadRef, path, line);
-    },
+    (path: string, line?: number) =>
+      threadRef !== null && openInPanel(plugins, threadRef, path, line),
     [plugins, threadRef],
   );
 }

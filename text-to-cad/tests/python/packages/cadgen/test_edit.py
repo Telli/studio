@@ -232,6 +232,26 @@ TRAY = {
 }
 
 
+# A part whose fillet is one statement written over several lines, as an agent often writes one.
+SPREAD = {
+    "spread.py": """
+        from build123d import Axis, Box, Cylinder, Pos, fillet
+        from cadgen import step
+
+        @step
+        def spread():
+            base = Box(40, 20, 5)
+            base = fillet(
+                base.edges().filter_by(Axis.Z),
+                radius=2,
+            )
+
+            base -= Pos(10, 0) * Cylinder(1.6, 5)
+            return base
+    """,
+}
+
+
 class FeatureTree(unittest.TestCase):
     def test_the_history_reads_as_a_cad_tree_with_sketches_under_their_features(self):
         service = edit.EditService(build=False)
@@ -251,6 +271,21 @@ class FeatureTree(unittest.TestCase):
         (x0, y0, z0), (x1, y1, z1) = state["bounds"]
         self.assertAlmostEqual(x1 - x0, 70, places=3)
         self.assertAlmostEqual(z1 - z0, 12, places=3)
+
+    def test_each_feature_carries_the_last_line_of_its_statement(self):
+        service = edit.EditService(build=False)
+        self.addCleanup(service.close)
+        root = project(SPREAD)
+        self.addCleanup(shutil.rmtree, root, True)
+        state = service.state(str(root / "spread.step"))
+        self.assertTrue(state["ok"], state.get("error"))
+        lines = [line.strip() for line in (root / "spread.py").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual([lines[at - 1] for at in (7, 8, 11, 13)],
+                         ["base = Box(40, 20, 5)", "base = fillet(", ")", "base -= Pos(10, 0) * Cylinder(1.6, 5)"])
+        # The fillet is written over four lines: its statement ends at the bracket that closes it. A line
+        # anywhere in it is the fillet's, and the blank line after it is no feature's.
+        self.assertEqual([(f["kind"], f["line"], f["end"]) for f in state["features"]],
+                         [("Boss-Extrude", 7, 7), ("Fillet", 8, 11), ("Hole", 13, 13)])
 
 
 SKETCHED = {

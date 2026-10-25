@@ -8,6 +8,7 @@ import { cn } from "~/lib/utils";
 import { projectEnvironment } from "~/state/projects";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { toastManager } from "../../ui/toast";
+import { stackedThreadToast } from "../../ui/toastHelpers";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../../ui/tooltip";
 import { FileKindIcon } from "../FileKindIcon";
 import { useSimpleViewStore } from "../simpleView";
@@ -15,8 +16,8 @@ import { useEngineeringInterface } from "../studioInterface";
 import { useFolderPaths } from "../useFolderPaths";
 import { useOpenChatFile } from "../useOpenInWorkbench";
 import type { SourceTarget } from "./answerSources";
-import { openReference, referenceOpening } from "./openReference";
-import { referenceLabel, type AnswerReference } from "./turnReferences";
+import { pressReference } from "./openReference";
+import { referenceLabel, referenceOpenLabel, type AnswerReference } from "./turnReferences";
 
 /**
  * The References under an answer, in the engineering interface: what the answer cites, or what
@@ -27,10 +28,10 @@ import { referenceLabel, type AnswerReference } from "./turnReferences";
 
 const QUIET = "text-muted-foreground";
 const ROW = "flex min-w-0 items-center gap-2 py-0.5 text-xs";
-// The workspace's pale-blue hover (#eef4fc, dark #1d2a3a), from the one blue no app theme changes,
-// with nothing that moves; its band reaches past the text, which stays where it was.
+// Pressed as the chat's own chips are, the "Changed" line's (`TurnDesignChanges`); its band reaches
+// past the text, which stays where it was.
 const PRESSABLE =
-  "-mx-1 w-[calc(100%+0.5rem)] rounded-md px-1 text-left outline-none hover:bg-info/8 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset dark:hover:bg-info/20";
+  "-mx-1 w-[calc(100%+0.5rem)] rounded-md px-1 text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
 /** Where the list's chat is: its thread, the thread's environment and its folder. */
 interface ReferencesBeside {
@@ -53,9 +54,10 @@ export function useShownReferences(
 }
 
 /**
- * Opens a reference where it came from, beside the list's chat (`referenceOpening`,
- * `openReference`): a part by its model in the thread's folder, a section by reading its
- * document, a page as the person's link setting has it. Null beside no chat, where none opens.
+ * Opens a reference where it came from, beside the list's chat (`pressReference`): a part by its
+ * model in the thread's folder, a section by reading its document, a page as the person's link
+ * setting has it. A press that fails says so in the chat's toast. Null beside no chat, where none
+ * opens.
  */
 function useOpenReference({
   threadRef,
@@ -77,18 +79,22 @@ function useOpenReference({
         const result = await readFile({ environmentId, input: { cwd: root, relativePath } });
         return result._tag === "Success" ? result.value.contents : null;
       };
-      void referenceOpening(target, { root: root ?? null, files, read }).then((opening) => {
-        if (opening === null) return;
-        openReference(opening, {
-          openFile,
-          openLink: (url) =>
-            void openLink(url, { event: modifiers }).catch((error: unknown) => {
-              console.error(error);
-              toastManager.add({ type: "error", title: "Unable to open the page" });
+      void pressReference(target, {
+        root: root ?? null,
+        files,
+        read,
+        openFile,
+        openLink: (url) => openLink(url, { event: modifiers }),
+        threadKey: scopedThreadKey(threadRef),
+        simpleView: useSimpleViewStore.getState().on,
+        failed: (title, cause) =>
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title,
+              description: cause instanceof Error ? cause.message : "An error occurred.",
             }),
-          threadKey: scopedThreadKey(threadRef),
-          simpleView: useSimpleViewStore.getState().on,
-        });
+          ),
       });
     },
     [environmentId, files, openFile, openLink, readFile, root, threadRef],
@@ -139,7 +145,7 @@ function ReferenceRow(props: {
     ) : (
       <button
         type="button"
-        aria-label={`Open ${said}`}
+        aria-label={referenceOpenLabel(reference)}
         onClick={(event) => onOpen(reference.target, event)}
         className={cn(ROW, PRESSABLE)}
       >

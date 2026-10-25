@@ -12,22 +12,28 @@ function sameScript(a, b) {
   return Boolean(left && right) && (left === right || left.endsWith(`/${right}`) || right.endsWith(`/${left}`));
 }
 
+/** The lines a statement holds, `[first, last]`: to its `end` where the engine read it, else its first line alone. */
+const spanOf = ({ line, end }) => [line, Number.isSafeInteger(end) && end >= line ? end : line];
+
 /**
  * The feature whose statement holds a line of a script (`file`, as the host names it), among the Part Navigator's
  * features (`featureTree`'s, a part's or every part's of an assembly); null for none. A feature stands for the statements
- * its `lines` lists, each `{ file, line, text }` by its first line (a list, not a count or an end): its own, then the rows
- * folded into it, the profile it extrudes or a cut joined to it. The engine says no more of a statement than where it
- * starts, so a line no statement starts at holds none: a blank line, a comment, an import, the rest of a statement
- * written over several lines. Where two features stand for one statement (a join folded into both its tools), the
- * innermost is the one whose statements lie closest together.
+ * its `lines` lists, its own and the rows folded into it (the profile it extrudes, a cut joined to it), each from its
+ * first line to its last (`end`): a line anywhere in one finds the feature, and a blank line between statements, a
+ * comment or an import finds none. Of a statement whose end the engine did not say (a folded row's, an older engine's),
+ * only its first line is known. Where several statements hold the line, the innermost is taken: the smallest span.
  */
 export function featureAtLine(features, file, line) {
+  if (!Number.isSafeInteger(line)) return null;
   let found = null, span = Infinity;
   for (const feature of features || []) {
-    const lines = (feature.lines || []).filter(each => sameScript(each.file, file)).map(each => each.line);
-    if (!lines.includes(line)) continue;
-    const width = Math.max(...lines) - Math.min(...lines);
-    if (width < span) { found = feature; span = width; }
+    for (const each of feature.lines || []) {
+      if (!sameScript(each.file, file)) continue;
+      const [first, last] = spanOf(each);
+      if (line < first || line > last || last - first >= span) continue;
+      found = feature;
+      span = last - first;
+    }
   }
   return found;
 }

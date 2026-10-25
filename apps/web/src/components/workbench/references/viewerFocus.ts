@@ -1,8 +1,9 @@
-import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
+import type { ScopedThreadRef } from "@t3tools/contracts";
 import { create } from "zustand";
 
-import { sameFile } from "../sameFile";
+import type { RightPanelSurface } from "~/rightPanelStore";
+import { sameFile, surfaceFile } from "../sameFile";
 
 /**
  * The place a reference asks a part's CAD view to show (`openReference`): the line of the part's
@@ -66,41 +67,36 @@ export function viewerFocusOf(
   return asks.find(([step]) => sameFile(step, file))?.[1] ?? null;
 }
 
-/** A plugin view, as its frame is given it (`PluginViewTarget`). */
-interface ViewTarget {
-  readonly environmentId: EnvironmentId;
-  readonly threadId: ThreadId | null;
-  readonly file?: string | undefined;
-  readonly arguments: Record<string, unknown>;
+/** Where a view's asks are kept: the chat it is beside, and the file its tab shows. */
+export interface ViewerFocusPlace {
+  readonly threadKey: string;
+  readonly file: string;
 }
 
 /**
- * Where a view's asks are kept: its chat, and the file it shows, as its tab opened it or, for the
- * view the agent opened (`agentViewSurface`), as the agent's call named it. Null for a view beside
- * no chat or of no file, which is asked nothing.
+ * Where the view a panel tab shows keeps its asks: the tab's chat, and the file the tab shows,
+ * named as `openInPanel` finds a tab by it (`surfaceFile`): the file it opened on or, for the view
+ * the agent opened, the one the agent's call named. Null for a tab of no file, asked nothing.
  */
 export function viewerFocusPlace(
-  target: ViewTarget,
-): { readonly threadKey: string; readonly file: string } | null {
-  const named = target.arguments.path;
-  const file = target.file ?? (typeof named === "string" && named !== "" ? named : undefined);
-  if (target.threadId === null || file === undefined) return null;
-  return {
-    threadKey: scopedThreadKey(scopeThreadRef(target.environmentId, target.threadId)),
-    file,
-  };
+  threadRef: ScopedThreadRef,
+  surface: RightPanelSurface,
+): ViewerFocusPlace | null {
+  const file = surfaceFile(surface);
+  return file === null ? null : { threadKey: scopedThreadKey(threadRef), file };
 }
 
-/** What a view is asked to show now (`studio/focus`), or null. */
-export function useViewerFocus(target: ViewTarget): ViewerFocus | null {
-  const place = viewerFocusPlace(target);
+/** What a view is asked to show now (`studio/focus`), or null; a view with no place, nothing. */
+export function useViewerFocus(place: ViewerFocusPlace | null | undefined): ViewerFocus | null {
   return useViewerFocusStore((state) =>
-    place === null ? null : viewerFocusOf(state, place.threadKey, place.file),
+    place == null ? null : viewerFocusOf(state, place.threadKey, place.file),
   );
 }
 
-/** The view has taken the ask numbered `nonce` (`studio/notifications/focus-taken`). */
-export function takeViewerFocus(target: ViewTarget, nonce: number): void {
-  const place = viewerFocusPlace(target);
-  if (place !== null) useViewerFocusStore.getState().take(place.threadKey, place.file, nonce);
+/**
+ * The view has taken the ask numbered `nonce` (`studio/notifications/focus-taken`), or gone before
+ * it read its part: either way the ask goes, and an ask made since stands.
+ */
+export function takeViewerFocus(place: ViewerFocusPlace, nonce: number): void {
+  useViewerFocusStore.getState().take(place.threadKey, place.file, nonce);
 }
