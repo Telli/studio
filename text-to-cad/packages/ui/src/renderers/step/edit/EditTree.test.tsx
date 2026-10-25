@@ -212,9 +212,23 @@ it("leaves a feature that is current as it is", async () => {
   expect(screen.getByRole('menuitem', { name: 'Make Current Feature' }).getAttribute('aria-disabled')).toBe('true');
 });
 
-it("keeps the part's own menu above the tree", () => {
+it("keeps the part's own menu above the tree, its commands in the toolbar's words", () => {
   render(<EditTree edit={part() as never} tree={partTree()} />);
-  expect(menuOf('Bracket')).toEqual(['Appearance', 'Mass Properties']);
+  expect(menuOf('Bracket')).toEqual(['Edit Object Display', 'Measure Bodies']);
+});
+
+it("opens a sketch on a double-click, as its menu's Edit Sketch does, but not while a change is on its way", () => {
+  const lid = {
+    units: 'mm', name: 'lid', params: [], rows: [],
+    features: [{ key: 'lid.py:5', kind: 'Sketch', file: 'lid.py', line: 5, sketch: { name: 'Outline', plane: 'Top', file: 'lid.py', line: 5, status: 'Fully defined' } }],
+  };
+  for (const [state, opens] of [[{}, true], [{ saving: true }, false], [{ status: 'reading' }, false]] as const) {
+    const onEditSketch = vi.fn();
+    render(<EditTree edit={part({ state: lid, ...state }) as never} tree={featureTree(lid)} onEditSketch={onEditSketch} />);
+    fireEvent.doubleClick(row('Sketch (1) "Outline"'));
+    expect(onEditSketch.mock.calls.map(([sketch]) => sketch.title)).toEqual(opens ? ['Outline'] : []);
+    cleanup();
+  }
 });
 
 it("takes the selected feature out with the Delete key, as it did", () => {

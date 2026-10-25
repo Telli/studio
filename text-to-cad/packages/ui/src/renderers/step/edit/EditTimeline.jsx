@@ -25,7 +25,7 @@ const notesOf = icon => [icon.feature.suppressed ? "Suppressed" : "", AUTHOR_WOR
 const gapBefore = (items, slot) => items.slice(0, slot).reduce((x, item) => x + (item.sketch ? 2 * TILE + PAIR : TILE) + GAP, PAD - GAP);
 
 /**
- * The rollback marker, as the Part Navigator's bar is, laid along the timeline: dragged back to a gap
+ * The rollback bar's marker: the Part Navigator's bar laid along the timeline, dragged back to a gap
  * between items (or moved an item at a time with the arrow keys) to show the part as it was there.
  * `index` is the item it stands before (`count`: past the last). While dragged it follows the pointer
  * from gap to gap and `onPreview` says which gap it is in (null: the one it began in), which draws the
@@ -39,8 +39,8 @@ function RollbackMarker({ index, left, count, label, disabled, centersOf, onPrev
   useEffect(() => () => onPreview(null), [onPreview]);
   // Never above the first item: that would leave no part.
   const place = target => Math.max(1, Math.min(count, target));
-  return <TooltipHint content="Rollback marker: drag it back to see the part as it was there" side="top" disabled={disabled}>
-    <div role="slider" aria-label="Rollback marker" aria-orientation="horizontal" aria-valuemin={1} aria-valuemax={count}
+  return <TooltipHint content="Rollback bar's marker: drag it back to see the part as it was there" side="top" disabled={disabled}>
+    <div role="slider" aria-label="Rollback bar's marker" aria-orientation="horizontal" aria-valuemin={1} aria-valuemax={count}
       aria-valuenow={index} aria-valuetext={label} aria-disabled={disabled || undefined} tabIndex={disabled ? -1 : 0}
       data-cad-edit-rollback-marker=""
       className={cn("group/marker absolute bottom-2 left-0 top-1.5 z-10 flex touch-none justify-center focus-visible:outline-none",
@@ -112,9 +112,9 @@ function TimelineIcon({ icon, selected, out, onSelect, onOpen }) {
  * under it for who made it (the agent's purple, yours grey, none where it is not known: `edit.state.authors`;
  * a sketch carries its feature's). A click selects an icon, a sketch by the id the Part Navigator selects it
  * by, and a double-click edits it: Edit Parameters on a feature a command made (`edit.editFeature`), Edit
- * Sketch on a sketch (`onEditSketch`). The rollback marker stands after the last item the part still has,
- * and is dragged back to roll the part back to there, the same rollback as the Part Navigator's bar and
- * its Make Current Feature (`edit.rollTo`); a feature and its sketch go together, so it never stands
+ * Sketch on a sketch (`onEditSketch`). The rollback bar's marker stands after the last item the part still
+ * has, and is dragged back to roll the part back to there, the same rollback as the Part Navigator's bar
+ * and its Make Current Feature (`edit.rollTo`); a feature and its sketch go together, so it never stands
  * between them. What the marker leaves out, and what is suppressed, is greyed. It floats over the canvas
  * on the workspace's white card, an inset in from the frame's `bottomDock` (a dock with no height of its
  * own, kept clear of the cube), on the cube's line, and draws nothing for a part with no features or for

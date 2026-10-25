@@ -1,5 +1,5 @@
 /**
- * The timeline's rules, pure: what it lists, where its rollback marker stands and where a dragged one
+ * The timeline's rules, pure: what it lists, where the rollback bar's marker stands and where a dragged one
  * would go (`EditTimeline.jsx` draws it). It lists what the Part Navigator lists, in its order and
  * under its titles, so the two are one history seen twice and the marker is the same rollback as
  * the Part Navigator's bar and its Make Current Feature.

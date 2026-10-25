@@ -297,7 +297,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     <Row key={sketch.id} id={sketch.id} depth={depth} icon={muted ? greyed(<SketchIcon />) : <SketchIcon />} muted={muted}
       title={titleOf(sketch)} detail={sketch.plane && sketch.plane !== "Plane" ? `${nxPlane(sketch.plane)}${sketch.offset ? `, ${sketch.offset} ${edit.state?.units || ""}`.trimEnd() : ""}` : ""}
       slot={own ? partItems.findIndex(each => each.id === own.id) : null} author={author}
-      onActivate={() => onEditSketch(sketch)} warn={failure?.id === sketch.id ? failure.why : null}
+      onActivate={disabled ? null : () => onEditSketch(sketch)} warn={failure?.id === sketch.id ? failure.why : null}
       {...(sketch.constrained ? renamingOf(sketch.id, sketch.title, { sketch: { file: sketch.file, line: sketch.line }, title: sketch.title }) : {})}
       menu={menuOf(editItem(sketch), [...(sketch.constrained ? [renameItem(sketch.id)] : []), ...(own ? [deleteItem(sketch.id)] : [])], own ? currentItem(own) : [])}
       {...rowProps} />);
@@ -372,10 +372,10 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
       onClick={backTo.open} data-cad-edit-back="">
       <AssemblyIcon /><span className="truncate">{`Back to ${backTo.title}`}</span>
     </button> : null}
-    {/* The part's own menu: its Appearance and its Mass Properties. */}
+    {/* The part's own menu: its Edit Object Display and its Measure Bodies, in the toolbar's words. */}
     <Row id="" depth={0} role="none" icon={tree.assembly ? <AssemblyIcon /> : <PartIcon />} title={name} {...rowProps}
-      menu={tree.assembly ? null : [{ id: "appearance", label: "Appearance", disabled: busy, onSelect: () => edit.inspect("appearance") },
-        { id: "mass", label: "Mass Properties", disabled: busy, onSelect: () => edit.inspect("mass") }]} />
+      menu={tree.assembly ? null : [{ id: "appearance", label: "Edit Object Display", disabled: busy, onSelect: () => edit.inspect("appearance") },
+        { id: "mass", label: "Measure Bodies", disabled: busy, onSelect: () => edit.inspect("mass") }]} />
     {/* The part's named sizes, as NX's User Expressions holds them: folded, above the tree. */}
     <HeadFold depth={1} icon={<ParametersIcon />} title="User Expressions" expanded={open.has("expressions")} onToggle={toggle("expressions")} />
     {open.has("expressions") ? <div role="group" aria-label="User Expressions" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>

@@ -1,8 +1,8 @@
 /**
  * Whether the host lays out a part script's model itself. Studio's bar switches Simple view for
- * every view and sends the layout in its host context (`studio/editLayout`); the viewer then takes
- * that layout (`apps/mcp` `App.tsx`) and its navbar shows no switch of its own
- * (`step/StepSurface.jsx`). One per page, as a page is one view.
+ * every view and sends the layout in its host context (`studio/editLayout`); the app that hosts the
+ * viewer takes that layout, and its navbar shows no switch of its own (`step/StepSurface.jsx`). One
+ * per page, as a page is one view.
  *
  * The host's switch shows and holds as the navbar's would, so the part on screen reports what the
  * navbar's switch hangs on (`editState`): whether its file has a part script, the two layouts

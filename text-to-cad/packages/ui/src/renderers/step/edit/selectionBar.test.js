@@ -279,6 +279,20 @@ test("names a feature's statement as a range of its script: its whole line, in t
     "/work/bracket/bracket.py:15:1-16:1");
 });
 
+test("names a statement written over several lines as all of them, to the end the engine read", () => {
+  // A hole written over lines 17 to 20: the range runs to the start of the line after its last, so the agent has it whole.
+  const spread = featureTree({ ...BRACKET_STATE, features: BRACKET_STATE.features.map(feature => (feature.key === "h1" ? { ...feature, end: 20 } : feature)) });
+  const reference = featureReference({ root: "/work/bracket", pick: featurePick(spread, "h1"), label: "Hole (6)" });
+  assert.deepEqual(reference.target, { kind: "text-range", start: { line: 16, character: 0 }, end: { line: 20, character: 0 } });
+  assert.equal(formatPromptReference(reference), "/work/bracket/bracket.py:17:1-21:1");
+  // An end the engine did not read, or one before the line, keeps the line alone.
+  for (const end of [null, undefined, 16, 17.5, "20"]) {
+    const read = featureTree({ ...BRACKET_STATE, features: BRACKET_STATE.features.map(feature => (feature.key === "h1" ? { ...feature, end } : feature)) });
+    assert.equal(formatPromptReference(featureReference({ root: "/work/bracket", pick: featurePick(read, "h1"), label: "Hole (6)" })),
+      "/work/bracket/bracket.py:17:1-18:1", String(end));
+  }
+});
+
 test("makes no reference where it would have to guess: no project, no file or line, a path the prompt refuses", () => {
   const hole = featurePick(BRACKET, "h1");
   assert.equal(featureReference({ root: "", pick: hole, label: "Hole (6)" }), null);

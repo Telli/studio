@@ -15,19 +15,20 @@ test('takes what the host asks only as a path, a line from 1 and a number', () =
   }
 });
 
-test('tells its listeners once per ask, and its takers which ask was taken', () => {
+test('tells its listeners once per ask, and its takers which ask was taken and whether a feature held its line', () => {
   let heard = 0;
-  const taken: number[] = [];
+  const taken: unknown[] = [];
   const leave = focusHost.subscribe(() => { heard += 1; });
-  const leaveTaken = focusHost.subscribeTaken(nonce => { taken.push(nonce); });
+  const leaveTaken = focusHost.subscribeTaken(answer => { taken.push(answer); });
   focusHost.set({ path: 'parts/bracket.py', line: 12, nonce: 3 });
   focusHost.set({ path: 'parts/bracket.py', line: 12, nonce: 3 });
   focusHost.set({ path: 'parts/bracket.py', line: 12, nonce: 4 });
-  focusHost.take(4);
-  expect([heard, taken]).toEqual([2, [4]]);
+  focusHost.take(4, true);
+  focusHost.take(4, false);
+  expect([heard, taken]).toEqual([2, [{ nonce: 4, found: true }, { nonce: 4, found: false }]]);
   leave();
   leaveTaken();
   focusHost.set(null);
-  focusHost.take(5);
-  expect([heard, taken]).toEqual([2, [4]]);
+  focusHost.take(5, false);
+  expect([heard, taken.length]).toEqual([2, 2]);
 });

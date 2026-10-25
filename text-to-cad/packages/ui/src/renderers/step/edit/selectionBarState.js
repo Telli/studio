@@ -27,7 +27,7 @@ function useLatch(seen, gone) {
  * Whether the person has asked for Quick Edit in the workspace (`asked`): the answer to Ask, in the selection bar or the
  * toolbar, which Quick Edit waits for (`quickEditShown`). It is the workspace's, and a file's: Simple view
  * has none, and another file opening starts without. It goes with the picks it was asked about, when they are let go
- * of (a press on the background, a box's Clear), and when a command or a sketch opens (`held`: one is open); asked
+ * of (a click on the background, a box's Clear), and when a command or a sketch opens (`held`: one is open); asked
  * with nothing picked, which is Quick Edit on the part as a whole, it stays until something puts it away. Escape, a
  * send and the box's X put it away through `clear`.
  *
@@ -45,8 +45,8 @@ export function useAsked({ editing, picked, held, file }) {
  * Whether the person has chosen the feature selected in the Part Navigator (`chosen`): pressed its row there or on the
  * timeline, or picked its sketch on the model. Only a feature they chose is a pick for the selection bar; the one a command's
  * OK selects, the one left selected from before, is not, or the bar would stand over the part all the while it is
- * being worked on. It lasts until their next press on the model (`drop`), or a command or a sketch opens, or the
- * workspace or the file goes.
+ * being worked on. It lasts until their next click on the model's background (`drop`; an orbit drag to look at it, or a
+ * press that picks a face, keeps it), or a command or a sketch opens, or the workspace or the file goes.
  *
  * @param {{ editing: boolean, held: boolean, file: string }} state
  * @returns {{ chosen: boolean, choose: () => void, drop: () => void }}

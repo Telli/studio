@@ -38,7 +38,8 @@ const timeline = (patch: Record<string, unknown> = {}, onEditSketch = vi.fn()) =
 };
 const items = () => within(screen.getByRole('group', { name: 'Timeline' })).getAllByRole('button');
 const item = (name: string) => screen.getByRole('button', { name });
-const marker = () => screen.getByRole('slider', { name: 'Rollback marker' });
+// The Part Navigator's rollback bar, laid along the timeline: its marker, named as the bar's.
+const marker = () => screen.getByRole('slider', { name: "Rollback bar's marker" });
 /** Which icons are drawn as the part will not have them: those past the marker. */
 const rolledBackIcons = () => items().map(button => button.hasAttribute('data-rolled-back'));
 
@@ -174,6 +175,14 @@ it("stands the marker after the last item the part has, and greys what the rollb
   // Above the second extrude, which goes with the sketch it was made from; the marker's places are the features'.
   expect([marker().getAttribute('aria-valuenow'), marker().getAttribute('aria-valuetext'), marker().getAttribute('aria-valuemax')]).toEqual(['1', 'Above Extrude (4)', '5']);
   expect(rolledBackIcons()).toEqual([false, false, true, true, true, true, true]);
+});
+
+it("says on hover the marker is the rollback bar's, as the Part Navigator names the bar", () => {
+  vi.useFakeTimers();
+  timeline();
+  fireEvent.pointerMove(marker(), { pointerType: 'mouse' });
+  act(() => { vi.advanceTimersByTime(450); });
+  expect(screen.getByRole('tooltip').textContent).toBe("Rollback bar's marker: drag it back to see the part as it was there");
 });
 
 it("draws the marker in the gap before the first item the part leaves out, past every sketch drawn before the items ahead of it", () => {

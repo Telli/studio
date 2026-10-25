@@ -172,17 +172,35 @@ it("puts Projection, Display and Preview, and the view catching up, in the toolb
 });
 
 it("moves the column beside an open dialog, so a tool's own row and its panels never hide under it", () => {
-  const view = shell({ ...WORKSPACE, dialogOpen: false });
-  // No dialog: the column spans the view, an inset in, and centres what it holds.
+  const view = shell({ ...WORKSPACE, leftDock: null, dialogOpen: false });
+  // No dialog and no Part Navigator: the column spans the view, an inset in, and centres what it holds.
   expect([column().style.left, column().className]).toEqual(['8px', expect.not.stringMatching(/\bleft-\[/)]);
   // A dialog beside the Part Navigator: the column is the room past the dialog, or past the dialog alone in a
   // view too narrow for the navigator.
   view.show({ ...WORKSPACE, dialogOpen: true });
   expect(column().style.left).toBe('');
   expect(column().className).toMatch(/\bleft-\[calc\(35rem\+8px\)\] @max-xl\/cad-viewport:left-\[calc\(18rem\+16px\)\]/);
-  view.show({ ...WORKSPACE, dialogOpen: false });
+  view.show({ ...WORKSPACE, leftDock: null, dialogOpen: false });
   expect(column().style.left).toBe('8px');
   // Simple view has no dialog's place to keep clear of.
   view.show({ dialogOpen: true });
   expect(column().style.left).toBe('8px');
+});
+
+it("keeps the column to the room past the Part Navigator, so the toolbar's rows never run under it", () => {
+  const view = shell({ ...WORKSPACE, dialogOpen: false });
+  // The Part Navigator up and no dialog: the column is the room past it (16rem, an inset in, and an inset past it), or
+  // the whole view, an inset in, where a view too narrow for the navigator hides it.
+  expect(column().style.left).toBe('');
+  expect(column().className).toMatch(/\bleft-\[calc\(16rem\+16px\)\] @max-xl\/cad-viewport:left-2(?:\s|$)/);
+  // Folded to its title, it is still there at the top-left.
+  fireEvent.click(within(dock('navigator')!).getByRole('button', { name: 'Part Navigator' }));
+  expect(column().className).toMatch(/\bleft-\[calc\(16rem\+16px\)\]/);
+  // A dialog beside it takes the room past both, as above.
+  view.show({ ...WORKSPACE, dialogOpen: true });
+  expect(column().className).toMatch(/\bleft-\[calc\(35rem\+8px\)\]/);
+  expect(column().className).not.toMatch(/16rem\+16px/);
+  // Simple view has no navigator to keep clear of.
+  view.show({});
+  expect([column().style.left, column().className]).toEqual(['8px', expect.not.stringMatching(/\bleft-\[/)]);
 });

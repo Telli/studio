@@ -135,12 +135,13 @@ export default function App({ bridge, server, launch: initial, presentation = 't
     return editLayoutHost.subscribeEditState(send);
   }, [bridge]);
   // A host that opens a part at a line of its script (Studio's References, `studio/focus`) has the part on screen select
-  // the feature there (`focusHost`), and the host that asks to (`studioFocus`) hears when the view has taken it.
+  // the feature there (`focusHost`), and the host that asks to (`studioFocus`) hears when the view has taken it, and
+  // whether a feature held the line.
   const hostFocus = (context as Record<string, unknown>)['studio/focus'];
   useEffect(() => { focusHost.set(hostFocus); }, [hostFocus]);
   useEffect(() => {
     if (!bridge.hostCapabilities.studioFocus) return undefined;
-    return focusHost.subscribeTaken(nonce => bridge.notify('studio/notifications/focus-taken', { nonce }));
+    return focusHost.subscribeTaken(({ nonce, found }) => bridge.notify('studio/notifications/focus-taken', { nonce, found }));
   }, [bridge]);
   const colorScheme = preference === 'light' || preference === 'dark' ? preference : context.theme === 'dark' ? 'dark' : 'light';
   // After every host context too: the page's first theme is the host's (`main.tsx`), and a host

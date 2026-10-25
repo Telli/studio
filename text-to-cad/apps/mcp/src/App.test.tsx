@@ -292,26 +292,26 @@ it('a host that lays the workspace out hears what the part on screen allows as i
   }
 });
 
-it('a host that opens a part at a line of its script hands the part on screen the place, and hears when it is taken; a host that does not, nothing', () => {
+it('a host that opens a part at a line of its script hands the part on screen the place, and hears when it is taken and whether a feature was there; a host that does not, nothing', () => {
   const taken = (notify: ReturnType<typeof vi.fn>) => notify.mock.calls
     .filter(([method]) => method === 'studio/notifications/focus-taken').map(([, params]) => params);
   try {
     const studio = host({ displayMode: 'fullscreen', 'studio/focus': { path: 'parts/bracket.py', line: 12, nonce: 3 } }, { studioFocus: {} });
     const { unmount } = render(<App bridge={studio.bridge as any} server={studio.server as any} launch={home} />);
     expect(focusHost.get()).toEqual({ path: 'parts/bracket.py', line: 12, nonce: 3 });
-    // The STEP view takes it (`focusHost`), and the host lets it go.
-    act(() => focusHost.take(3));
-    expect(taken(studio.bridge.notify)).toEqual([{ nonce: 3 }]);
+    // The STEP view takes it (`focusHost`), no feature holding the line, for the host to open the script there; the host lets it go.
+    act(() => focusHost.take(3, false));
+    expect(taken(studio.bridge.notify)).toEqual([{ nonce: 3, found: false }]);
     act(() => studio.bridge.change({ 'studio/focus': null }));
     expect(focusHost.get()).toBeNull();
     // A view closed says nothing more.
     unmount();
-    act(() => focusHost.take(4));
+    act(() => focusHost.take(4, true));
     expect(taken(studio.bridge.notify)).toHaveLength(1);
 
     const plain = host({ displayMode: 'fullscreen' });
     render(<App bridge={plain.bridge as any} server={plain.server as any} launch={home} />);
-    act(() => focusHost.take(5));
+    act(() => focusHost.take(5, true));
     expect(taken(plain.bridge.notify)).toEqual([]);
   } finally {
     focusHost.set(null);

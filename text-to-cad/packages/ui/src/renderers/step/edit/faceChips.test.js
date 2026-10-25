@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { featureTree } from "./editMode.js";
-import { faceChipLabel, faceChipName, faceFeature, faceReference, shownFaces } from "./faceChips.js";
+import { faceChipName, faceFeature, faceReference, shownFaces } from "./faceChips.js";
 
 // A part as the engine reads it, numbered as the Part Navigator numbers it after the datum coordinate system (0): Sketch (1),
 // Extrude (2), Sketch (3), Extrude (4), Edge Blend (5), Hole (6).
@@ -16,33 +16,33 @@ const features = featureTree({
   ],
 }).features;
 const face12 = { target: { kind: "face", face: 12 } };
+// A chip's compact name in its pieces, as the chip says "Hole (6) · face 12": the feature where today's has the part.
+const hole12 = { name: "Hole (6)", kind: "face", number: "12" };
 
 test("names a face by the feature that made it, in the Part Navigator's words", () => {
-  assert.equal(faceChipLabel({ target: { kind: "face", face: 12 } }, { faceFeatures: { "12": "row:hole" } }, features), "Hole (6) · face 12");
-  assert.equal(faceChipLabel(face12, { faceFeatures: { "12": "row:base" } }, features), "Extrude (2) · face 12");
-  // A chip's compact name in its pieces: the feature where today's has the part.
-  assert.deepEqual(faceChipName(face12, { faceFeatures: { "12": "row:hole" } }, features), { name: "Hole (6)", kind: "face", number: "12" });
+  assert.deepEqual(faceChipName(face12, { faceFeatures: { "12": "row:hole" } }, features), hole12);
+  assert.deepEqual(faceChipName(face12, { faceFeatures: { "12": "row:base" } }, features), { name: "Extrude (2)", kind: "face", number: "12" });
 });
 
 test("keeps today's label for a face the engine does not say made it", () => {
-  assert.equal(faceChipLabel(face12, { faceFeatures: {} }, features), null);
-  assert.equal(faceChipLabel(face12, { faceFeatures: { "3": "row:hole" } }, features), null);
-  assert.equal(faceChipLabel(face12, {}, features), null);
-  assert.equal(faceChipLabel(face12, null, features), null);
+  assert.equal(faceChipName(face12, { faceFeatures: {} }, features), null);
+  assert.equal(faceChipName(face12, { faceFeatures: { "3": "row:hole" } }, features), null);
+  assert.equal(faceChipName(face12, {}, features), null);
+  assert.equal(faceChipName(face12, null, features), null);
   // A feature the Part Navigator does not list is no name for it.
-  assert.equal(faceChipLabel(face12, { faceFeatures: { "12": "row:gone" } }, features), null);
+  assert.equal(faceChipName(face12, { faceFeatures: { "12": "row:gone" } }, features), null);
   assert.equal(faceChipName(face12, { faceFeatures: { "12": "row:hole" } }, []), null);
 });
 
 test("reads the face from a reference to one face's selector, and names nothing else", () => {
   const state = { faceFeatures: { "12": "row:hole" } };
-  assert.equal(faceChipLabel(faceReference("o1.f12"), state, features), "Hole (6) · face 12");
-  assert.equal(faceChipLabel(faceReference("f12"), state, features), "Hole (6) · face 12");
+  assert.deepEqual(faceChipName(faceReference("o1.f12"), state, features), hole12);
+  assert.deepEqual(faceChipName(faceReference("f12"), state, features), hole12);
   assert.equal(faceFeature(faceReference("o1.f12"), state), "row:hole");
   // An edge of the same number, several faces, a whole part: none is a face the map names.
   for (const reference of [faceReference("o1.e12"), faceReference("o1"), { target: { kind: "cad-selector", selectors: ["o1.f12", "o1.f3"] } },
     { target: { kind: "whole-resource" } }, { target: { kind: "face", face: 0 } }, null]) {
-    assert.equal(faceChipLabel(reference, state, features), null, JSON.stringify(reference));
+    assert.equal(faceChipName(reference, state, features), null, JSON.stringify(reference));
   }
 });
 
@@ -75,9 +75,9 @@ test("uses no map while the model on screen may be another build than the one re
 });
 
 test("uses no map while the rollback bar's body is drawn in place of the part's", () => {
-  // Picks on that body carry no chips, and a reference pasted then is numbered on the part's model, which neither map names
-  // rightly: the bar's numbers are its body's, and the part's are not what is on screen.
-  const bar = { tree: "a1b2", faceFeatures: { "1": "row:base" }, faceCount: 6 };
+  // Picks on that body carry no chips, and a reference pasted then is numbered on the part's model: the part's map is not of
+  // what is on screen, and the bar has none of its own.
+  const bar = { before: "servo.py:27", item: "row:hole", tree: "a1b2" };
   assert.equal(shownFaces({ ...ON_SCREEN, bar, faces: 6 }), null);
   assert.equal(shownFaces({ ...ON_SCREEN, bar, faces: 7 }), null);
   // A bar with no body of its own drawn (one that could not be made) leaves the part's on screen, and its map.

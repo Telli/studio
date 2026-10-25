@@ -42,17 +42,11 @@ export function faceChipName(reference, state, features) {
   return label ? { name: label, kind: "face", number: String(faceNumber(reference)) } : null;
 }
 
-/** A face's chip in words: "Hole (6) · face 12"; null to keep today's label. */
-export function faceChipLabel(reference, state, features) {
-  const name = faceChipName(reference, state, features);
-  return name ? `${name.name} · ${name.kind} ${name.number}` : null;
-}
-
 /**
  * The part's map for the faces on screen, `{ faceFeatures }` as the functions above take it, or null where it is not known to be
  * theirs. In the workspace only (`editing`: Simple view keeps today's words), on a part (`assembly` has none), and not while the
  * rollback bar's body is drawn in place of the part's (`bar.tree`): picks on it carry no chips, and a reference pasted then is
- * numbered on the part's model, which the bar's own map (its body's numbers) would misname. And only while the model on screen is
+ * numbered on the part's model, not the body on screen, whose faces the engine does not map. And only while the model on screen is
  * the one the engine read: none while a new one loads (`updating`), while its STEP is built again or failed to be, by the build
  * feed (`rebuilding`) or the edit service (`state.building`), or where the faces on screen (`faces`, how many) are not as many as
  * the part read has (`faceCount`): a model built from another script, which its numbers would misname.

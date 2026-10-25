@@ -262,9 +262,10 @@ export interface CadEditRow {
 }
 
 /**
- * One feature of the design tree (`cadgen/edit/tracer.py`): the rows of the history it stands for (`rows`, its own last),
- * at the statement that makes it, from its first line (`line`, as `text` reads it) to its last (`end`, where the engine
- * read the statement whole). The viewer reads the rest of it as it finds it (`step/edit/editMode.js`'s `featureTree`).
+ * One feature of the design tree (`cadgen/edit/tracer.py`): the rows of the history it stands for (`rows`, in the history's
+ * order: the lines of a profile drawn for it, its own, then the rows folded into it), at the statement that makes it, from
+ * its first line (`line`, as `text` reads it) to its last (`end`, where the engine read the statement whole). The viewer
+ * reads the rest of it as it finds it (`step/edit/editMode.js`'s `featureTree`).
  */
 export interface CadEditFeature {
   key: string;

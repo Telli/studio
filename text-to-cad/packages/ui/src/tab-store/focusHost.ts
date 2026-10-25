@@ -1,10 +1,11 @@
 /**
  * The place in a part's script the host asks the part on screen to show (Studio's References, which
  * open a part at the line an answer cites, `studio/focus`): the script's path as the host names it, a
- * line of it, and the host's number for the ask (`nonce`), new with each. The viewer takes it from its
- * host context (`apps/mcp` `App.tsx`); the STEP view selects the feature whose statement holds the
- * line once the part is read, and says the ask is taken however it went (`take`), so the host lets it
- * go (`step/StepSurface.jsx`, `step/edit/focus.js`). One per page, as a page is one view.
+ * line of it, and the host's number for the ask (`nonce`), new with each. The app that hosts the
+ * viewer takes it from its host context; the STEP view selects the feature whose statement holds the
+ * line once the part is read, and says the ask is taken however it went, and whether a feature held
+ * the line (`take`), so the host lets it go and, where none did, opens the script there instead
+ * (`step/edit/useHostFocus.js`). One per page, as a page is one view.
  */
 export interface Focus {
   readonly path: string;
@@ -12,9 +13,15 @@ export interface Focus {
   readonly nonce: number;
 }
 
+/** An ask the part on screen has taken (`nonce`), and whether a feature of it held the line (`found`). */
+export interface FocusTaken {
+  readonly nonce: number;
+  readonly found: boolean;
+}
+
 let focus: Focus | null = null;
 const listeners = new Set<() => void>();
-const takers = new Set<(nonce: number) => void>();
+const takers = new Set<(taken: FocusTaken) => void>();
 
 /** An ask as the host's context says it: a path, a line from 1 and a number, or none. */
 function read(value: unknown): Focus | null {
@@ -44,11 +51,12 @@ export const focusHost = {
       listeners.delete(listener);
     };
   },
-  /** The part on screen has taken the ask numbered `nonce`: its feature selected, or nothing there to select. */
-  take(nonce: number): void {
-    for (const taker of takers) taker(nonce);
+  /** The part on screen has taken the ask numbered `nonce`: its feature selected (`found`), or nothing there to select. */
+  take(nonce: number, found: boolean): void {
+    const taken = Object.freeze({ nonce, found });
+    for (const taker of takers) taker(taken);
   },
-  subscribeTaken(taker: (nonce: number) => void): () => void {
+  subscribeTaken(taker: (taken: FocusTaken) => void): () => void {
     takers.add(taker);
     return () => {
       takers.delete(taker);

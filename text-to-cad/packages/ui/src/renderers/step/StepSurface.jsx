@@ -895,6 +895,9 @@ function StepSurfaceBody({ view, data }) {
   const keepFaceRef = useRef(false);
   // Edit mode's command whose box takes many (Fillet's edges, Shell's faces), set once it is read.
   const choosingManyRef = useRef(false);
+  // What a click on the model's background lets go of besides the selection: the feature chosen (`dropFeature`), set once
+  // it is made. A click, as the viewport tells one from a drag: an orbit to look at the feature chosen keeps it.
+  const backgroundClickRef = useRef(null);
   const topologyAtRef = useRef(null);
   const measureAtRef = useRef(null);
   const lodSelectedPartIdsRef = useRef(EMPTY_LIST);
@@ -2656,6 +2659,7 @@ function StepSurfaceBody({ view, data }) {
     if (!nextReferenceId) {
       if (multiSelect) return;
       clearAssemblySelection();
+      backgroundClickRef.current?.();
       return;
     }
     // Select picking no geometry, just its knobs, the ink or measurements: a press on the model is none of them.
@@ -3321,6 +3325,7 @@ function StepSurfaceBody({ view, data }) {
   const sketchOpen = Boolean(edit.sketch);
   const { chosen: featureChosen, choose: chooseFeature, drop: dropFeature } = useChosenFeature({ editing,
     held: commandOpen || sketchOpen, file: selectedKey });
+  backgroundClickRef.current = dropFeature;
   // The host's switch hears what the navbar's hangs on, and nothing once this part leaves the
   // screen. A picture drawn out of sight for the library (`compact`) is not the part on screen.
   const reportsEditState = !view.appearance?.compact;
@@ -3805,12 +3810,12 @@ function StepSurfaceBody({ view, data }) {
   // lights it (`measureSelection.js`); only while Select picks measurements.
   const { press: selectPress, hover: selectHover } = measureSelectHandlers(measure, () => runtimeRefRef.current?.current,
     clearAssemblySelection, { picks: selects(selectFilter, "measurement") });
-  // Everything picked goes: the parts and references, the measurements, and the feature chosen, as a press on the model's background lets
+  // Everything picked goes: the parts and references, the measurements, and the feature chosen, as a click on the model's background lets
   // go of them. Quick Edit's X and a send clear it too, and the box Ask opened goes with them.
   const clearSelected = () => { clearAssemblySelection(); measure.select([]); clearAsked(); dropFeature(); };
   // The marks drawn on a face go to the agent as shapes in its coordinates, in the part's units, in Simple view and the workspace
   // alike: Quick Edit's every way and Add to context. A face is named as its chip is (`nameReference`'s words: "Hole (6) · face 12" where
-  // the engine says which feature made it, as `faceChipLabel` words it, else "bracket · face 12"); a touch that is no face (an edge) has
+  // the engine says which feature made it, `faceChipName`'s pieces, else "bracket · face 12"); a touch that is no face (an edge) has
   // no name, so no mark is said to be on it.
   faceMarksRef.current = items => {
     const units = edit.state?.units || "mm";
@@ -3871,7 +3876,6 @@ function StepSurfaceBody({ view, data }) {
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
       disabled={layoutHeld} /> : null}
     onClearReferences={clearSelected} copySelection={copySelection} onSelectPress={selectPress} onSelectHover={selectHover}
-    onCanvasPointerDown={dropFeature}
     selectsAnnotations={selects(selectFilter, "annotation")} inkTouches={inkTouches}
     contextMenuItems={selectionToolActive
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}

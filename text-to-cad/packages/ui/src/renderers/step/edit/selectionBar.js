@@ -187,20 +187,22 @@ export function rowLabel(tree, id) {
 
 /**
  * The statement a feature (or sketch) chosen (`pick`, from `featurePick`) stands for in its script, as a prompt reference: a
- * `text-range` over its line, whole, in the script's absolute path (the feature's `file` is named from the project's top,
- * `root`, unless it lies outside it, when the engine names it in full), under the words the Part Navigator names it by
- * (`label`: "Hole (6)"). What Ask carries for a feature, as a face's selector is what it carries for a face; Add to context delivers the
- * same. Null where it cannot be told: no project, or no file or line, or a path the prompt does not take.
+ * `text-range` over its lines, whole, from its first to its last where the engine read the statement (`end`), else its first
+ * alone, in the script's absolute path (the feature's `file` is named from the project's top, `root`, unless it lies outside
+ * it, when the engine names it in full), under the words the Part Navigator names it by (`label`: "Hole (6)"). What Ask
+ * carries for a feature, as a face's selector is what it carries for a face; Add to context delivers the same. Null where it
+ * cannot be told: no project, or no file or line, or a path the prompt does not take.
  */
 export function featureReference({ root, pick, label }) {
   const source = pick?.sketch || pick?.feature;
   const file = slashed(source?.file), line = Number(source?.line);
   if (!file || !Number.isSafeInteger(line) || line < 1) return null;
+  const last = Number.isSafeInteger(source.end) && source.end >= line ? source.end : line;
   const path = /^(?:[A-Za-z]:)?\//.test(file) ? file : root ? `${slashed(root).replace(/\/+$/, "")}/${file}` : "";
   if (!path) return null;
   try {
     return validatePromptReference({ resource: { kind: "workspace-file", path },
-      target: { kind: "text-range", start: { line: line - 1, character: 0 }, end: { line, character: 0 } }, ...(label ? { label } : {}) });
+      target: { kind: "text-range", start: { line: line - 1, character: 0 }, end: { line: last, character: 0 } }, ...(label ? { label } : {}) });
   } catch {
     return null;
   }
