@@ -1776,6 +1776,11 @@ def trace(request):
     LAST.clear()
     LAST.update(script=str(script), root=ROOT, files=dict(FILES), features=[] if components else features,
                 components=[{"file": c["file"]} for c in components])
+    # Who made each feature, you or the agent, recorded from the first trace of a git project on.
+    from cadgen.edit import authors
+
+    authors.start(ROOT)
+    made_by = authors.feature_authors(ROOT, [f for c in components for f in c["features"]] if components else features)
     return {
         "ok": True,
         "script": str(script),
@@ -1794,6 +1799,8 @@ def trace(request):
         "faceCount": 0 if components else face_count(shape),
         "sketches": sketches,
         "components": [{"name": c["function"], "file": c["file"], "features": c["features"], "step": _component_step(c)} for c in components],
+        # Who made each feature, by its key: "you" or "agent", none where it is not known (`authors.py`).
+        "authors": made_by,
         # An assembly's mates, as its joints are labelled (`mates.py`), for the design tree's Mates.
         "mates": _mates_of(script, [c["function"] for c in components]) if components else [],
         "bounds": _bounds(shape) if isinstance(shape, B.Shape) else None,

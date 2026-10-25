@@ -8,7 +8,8 @@ part script that uses the changed file is built again, as the agent builds it, s
 viewer reading it, follow.
 
 The CAD kernel never loads into the server: the tracer and the builds are processes of their own
-(``test_module_boundaries``). This module only starts them and passes JSON.
+(``test_module_boundaries``). This module only starts them and passes JSON, and notes the lines each
+hand edit writes, for who made each feature (``authors.py``: git and a small record, no kernel).
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ import sys
 import threading
 import time
 from pathlib import Path
+
+from cadgen.edit import authors
 
 __all__ = ["EditService", "dependents", "project_root", "script_for", "shared_service"]
 
@@ -48,6 +51,10 @@ _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M
 _CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "preview", "mass", "draft_check", "interference", "parameter", "rename", "appearance", "mate", "compare", "splice",
                 "sketch", "remove",
                 "suppress", "bar", "bar_after")
+# Changes that write none of the engineer's own lines (`authors.py`): Undo puts lines back as they
+# were, whoever wrote them, and Redo writes again lines noted when first made (`splice`); Suppress
+# sets a feature's lines aside as comments, and Unsuppress puts them back as they were.
+_PUTS_BACK = ("splice", "suppress")
 
 
 def _no_window() -> dict:
@@ -190,6 +197,26 @@ def _hash_inside(root: Path, rel: str) -> str | None:
         return None
 
 
+def _line_inside(root: Path, rel, line) -> list[str]:
+    """A project file's line as it reads now, for a file inside the project only: none for any other."""
+    try:
+        path = (root / str(rel)).resolve()
+        path.relative_to(root.resolve())
+        return [path.read_text(encoding="utf-8").splitlines()[int(line) - 1]] if int(line) >= 1 else []
+    except (OSError, ValueError, IndexError, TypeError, UnicodeDecodeError):
+        return []
+
+
+def _judged(reply: dict) -> list[dict] | None:
+    """What who made a reply's features is judged by (`authors.py`): each one's key, file and first
+    line, an assembly's parts' too. None for a reply that does not read the part (a sketch solved on
+    its own, a drawing's sheet)."""
+    if not reply.get("ok") or "features" not in reply:
+        return None
+    features = reply["features"] or [feature for component in reply.get("components") or [] for feature in component.get("features") or []]
+    return [{key: feature.get(key) for key in ("key", "file", "text", "suppressed")} for feature in features]
+
+
 class _Tracer:
     """The warm tracer: one process, one request at a time."""
 
@@ -326,6 +353,9 @@ class EditService:
         self._builds = _Builds(self.python) if build else None
         # One change to a drawing's sheet at a time: each reads the script the last one wrote.
         self._sheet_lock = threading.Lock()
+        # Each part script's features as last read (`_judged`), for a read that finds its files as
+        # they were to say who made them as it is now: a turn's checkpoint made since, say.
+        self._read: dict[str, list[dict]] = {}
 
     def building(self) -> dict:
         return self._builds.snapshot() if self._builds else {"scripts": [], "done": 0, "error": None}
@@ -351,9 +381,13 @@ class EditService:
             return {"ok": False, "reason": "no-script", "error": "This model has no part script beside it."}
         root = project_root(script)
         if isinstance(files, dict) and files and all(_hash_inside(root, rel) == digest for rel, digest in files.items()):
-            return {"ok": True, "unchanged": True, "building": self.building()}
+            # The part reads as it did, but who made its features may have moved on: a turn ended.
+            read = self._read.get(str(script))
+            return {"ok": True, "unchanged": True, "building": self.building(),
+                    **({"authors": authors.feature_authors(root, read)} if read is not None else {})}
         reply = self._tracer.ask({"script": str(script), "root": str(root), "mesh": False, **_project_units(root),
                                   **({"bar": bar} if bar else {})})
+        self._keep_read(script, reply)
         drawing = _drawing_of(root, Path(file_ref)) if reply.get("ok") else None
         return {**reply, "root": str(root), "building": self.building(), **({"drawing": drawing} if drawing else {})}
 
@@ -372,9 +406,38 @@ class EditService:
         reply = self._tracer.ask({**request, "script": str(script), "root": str(root), "op": "edit", "mesh": False,
                                   **_project_units(root)})
         made = reply.get("change") if reply.get("ok") else None
+        if isinstance(made, dict):
+            self._note(root, request, made, reply)
+        self._keep_read(script, reply)
         if isinstance(made, dict) and made.get("build", True) and self._builds is not None:
             self._builds.start(dependents(root, made["file"]))
         return {**reply, "root": str(root), "building": self.building()}
+
+    def _keep_read(self, script: Path, reply: dict) -> None:
+        read = _judged(reply)
+        if read is not None:
+            self._read[str(script)] = read
+
+    @staticmethod
+    def _note(root: Path, request: dict, made: dict, reply: dict) -> None:
+        """Who made it (`authors.py`): the lines a change made by hand wrote noted as the engineer's,
+        from its Redo, and the reply's marks read again with them. A number typed on the model or in
+        a row has no Redo of its own: its line as it now reads. A size changed in User Expressions
+        (`literal`) is a named size's line, never a feature's, and Undo and Redo of a number send the
+        same request, so it notes nothing."""
+        if any(key in request for key in _PUTS_BACK):
+            return
+        redo = made.get("redo")
+        if isinstance(redo, dict) and isinstance(redo.get("hunks"), list):
+            rel, added = str(redo.get("file") or ""), authors.written(redo["hunks"])
+        elif ("dimension" in request or "input" in request) and made.get("from") != made.get("to"):
+            rel, added = str(made.get("file") or ""), _line_inside(root, made.get("file"), made.get("line"))
+        else:
+            return
+        authors.note_hand_edit(root, rel, added)
+        read = _judged(reply)
+        if added and read is not None:
+            reply["authors"] = authors.feature_authors(root, read)
 
     def drawing(self, root: Path, script: Path, step: Path, spec: dict) -> dict:
         """Make Drawing, and the Drawing panel's changes to its sheet (`drawings.py`): the drawing's
