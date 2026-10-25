@@ -1,7 +1,8 @@
 """Which feature made each face of a part (``cadgen.edit.face_features``): each reading of a part by
 the edit service says, for every face by the number the viewer's references give it (``f12``), the
-feature of the first traced step whose result has a face on the same surface (``faceFeatures``), and
-how many faces that body has (``faceCount``); the rollback bar's body says it for its own faces.
+feature of the first traced step whose result has a face on the same surface that also overlaps it,
+the very same B-rep face or one holding a point inside it (``faceFeatures``), and how many faces that
+body has (``faceCount``); the rollback bar's body says it for its own faces.
 
 They drive the edit service end to end, as the viewer's server does, on ``test_edit_commands.py``'s
 parts. The faces are numbered as the viewer numbers them (``faces_on_screen``): the part made by its
@@ -76,6 +77,24 @@ SLOTTED = {
             return plate
     """,
 }
+
+def walled(length: float, width: float, wall: float) -> dict[str, str]:
+    """An open tray with thin walls, as an enclosure is made: a block, and a cavity cut down into it
+    from above. Its rim is a narrow frame round the cavity."""
+    return {
+        "tray.py": f"""
+            from build123d import Box, Pos
+            from cadgen import step
+
+
+            @step
+            def tray():
+                body = Box({length}, {width}, 30)
+                body -= Pos(0, 0, 1) * Box({length - 2 * wall}, {width - 2 * wall}, 30)
+                return body
+        """,
+    }
+
 
 # PLATE's top edges as the viewer reads them, for an Edge Blend on them.
 HALF_LENGTH, HALF_WIDTH, TOP = 25.4, 12.7, 3.175
@@ -274,6 +293,24 @@ class FaceFeatures(parts.Commands):
         self.assertEqual(credited[str(at(8))], hole)
         (wall,) = [number for number, face in faces.items() if kind(face) == "cylinder"]
         self.assertEqual(credited[str(wall)], hole)
+
+    def test_a_thin_walled_trays_rim_is_the_extrudes(self):
+        from build123d import CenterOf
+
+        for length, width, wall in ((100, 60, 1), (80, 50, 2.5)):
+            with self.subTest(f"{length} x {width}, {wall} mm walls"):
+                root, file, state = self.open(walled(length, width, wall), "tray.step")
+                block, cavity = self.key(state, "Boss-Extrude"), self.key(state, "Cut-Extrude")
+                faces = faces_on_screen(root / "tray.py")
+                (rim,) = [number for number, face in faces.items()
+                          if kind(face) == "plane" and math.isclose(face.center(CenterOf.MASS).Z, 15)]
+                self.assertTrue(math.isclose(faces[rim].area, length * width - (length - 2 * wall) * (width - 2 * wall)))
+                self.assertEqual(state["faceFeatures"].get(str(rim)), block)
+                # Every face is known: the block's outside and its rim, the cavity's walls and floor.
+                inside = {number for number, face in faces.items()
+                          if abs(face.center(CenterOf.MASS).X) < length / 2 - wall / 2 and abs(face.center(CenterOf.MASS).Y) < width / 2 - wall / 2
+                          and face.center(CenterOf.MASS).Z > -15 + 1e-9 and number != rim}
+                self.assertEqual(state["faceFeatures"], {str(number): cavity if number in inside else block for number in faces})
 
     def test_a_body_placed_at_its_end_keeps_the_features_that_made_its_faces(self):
         for name, files in (("placed", PLACED), ("moved in place", MOVED)):

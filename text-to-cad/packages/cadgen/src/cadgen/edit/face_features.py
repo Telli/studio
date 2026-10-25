@@ -5,17 +5,24 @@ belongs to the first step whose result has a face on the same surface (the same 
 cylinder by its axis and radius, and so on: ``surface_key``) that also overlaps it. Where the overlap
 can be read off the B-rep it is: a face a boolean leaves untouched is the very same B-rep face
 (``IsSame``) in every result after the one that made it. Any other face, one a later feature cut,
-trimmed, split or merged, is tested by a point inside it, taken from its own UV interior (not its
-centroid, which a face with a hole or a bend can lie outside of), and goes to the first step with a
-face on its surface that holds that point (OCCT's face classifier, IN or ON, at the part's tolerance).
-Both tests are made in the order the steps made the faces, so a face is never given to a feature that
-only trimmed it. So a face a later hole cuts through is still the extrude's that made it; a tab's top,
-flush with an earlier tab's, is its own tab's; and the hole's wall, on a cylinder no step had before,
-the hole's. A face two features' faces merged into goes to the first whose face holds the point taken.
+trimmed, split or merged, is tested by a point inside it, taken from its own UV interior (OCCT's own
+point-in-face search, which a thin-walled tray's narrow rim has a point by too; not its centroid, which
+a face with a hole or a bend can lie outside of), and goes to the first step with a face on its surface
+that holds that point (OCCT's face classifier, IN or ON, at the part's tolerance). Both tests are made
+in the order the steps made the faces, so a face is never given to a feature that only trimmed it. So
+a face a later hole cuts through is still the extrude's that made it; a tab's top, flush with an
+earlier tab's, is its own tab's; and the hole's wall, on a cylinder no step had before, the hole's. A
+face two features' faces merged into goes to the first whose face holds the point taken.
 
-Nothing else is credited that is not known. A face on a free-form surface (a B-spline: a loft's sides)
-has no key; one that no step's result has a face overlapping has no maker; one with no point inside it
-to test (a sliver) is not tested: all are left out. So is every face of an assembly, or of a compound
+The rule has a blind spot it cannot see past: a later feature's face can go to an earlier feature
+whose face once covered that spot. A post standing in a pocket, its top flush with the rim, is the
+block's, because the block's own top held that point before the pocket took it away. Telling the two
+apart needs each face's lineage through the body, which the 0.7.x tracer does not keep; Jake's XBF
+engine (cadgen 0.8) records the credit per face.
+
+Where the rule finds no maker, the face is left out. A face on a free-form surface (a B-spline: a
+loft's sides) has no key; one that no step's result has a face overlapping has no maker; one with no
+point inside it to test (a sliver) is not tested. So is every face of an assembly, or of a compound
 the store draws as several parts, whose faces the viewer numbers part by part.
 
 Runs in the tracer's process only: it reads OCCT's B-rep.
@@ -26,6 +33,7 @@ from __future__ import annotations
 import math
 
 from OCP.Bnd import Bnd_Box
+from OCP.BOPTools import BOPTools_AlgoTools3D
 from OCP.BRep import BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.BRepBndLib import BRepBndLib
@@ -33,7 +41,8 @@ from OCP.BRepClass import BRepClass_FaceClassifier
 from OCP.BRepTools import BRepTools
 from OCP.BRepTopAdaptor import BRepTopAdaptor_FClass2d
 from OCP.GeomAbs import GeomAbs_Cone, GeomAbs_Cylinder, GeomAbs_Plane, GeomAbs_Sphere, GeomAbs_Torus
-from OCP.gp import gp_Pnt2d
+from OCP.gp import gp_Pnt, gp_Pnt2d
+from OCP.IntTools import IntTools_Context
 from OCP.TopAbs import TopAbs_FACE, TopAbs_IN, TopAbs_ON, TopAbs_SOLID
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopoDS import TopoDS, TopoDS_Shape
@@ -154,17 +163,26 @@ class _Faces:
         return key
 
 
-# A face's UV bounds sampled this many a side, centre first, for a point inside it.
+# A face's UV bounds sampled this many a side, centre first, for a point inside it where OCCT's own
+# search finds none.
 GRID = 7
 _SAMPLES = sorted((((column + .5) / GRID, (row + .5) / GRID) for column in range(GRID) for row in range(GRID)),
                   key=lambda sample: (sample[0] - .5) ** 2 + (sample[1] - .5) ** 2)
 
 
-def _inside(face: TopoDS_Shape):
-    """A point inside ``face``, from its own UV interior: of a grid over its UV bounds, the sample
-    nearest their centre that the face's classifier puts inside it with its four neighbours, else the
-    nearest inside it at all. None for a face it finds no point inside (a sliver)."""
+def _inside(face: TopoDS_Shape, context: IntTools_Context | None = None):
+    """A point inside ``face``, from its own UV interior. OCCT's own search first
+    (``BOPTools_AlgoTools3D.PointInFace``, which a narrow frame of a face, a thin-walled tray's rim,
+    has a point by too); where it finds none, a grid over the face's UV bounds: the sample nearest
+    their centre that the face's classifier puts inside it with its four neighbours, else the nearest
+    inside it at all. None for a face neither finds a point inside (a sliver)."""
     face = TopoDS.Face_s(face)
+    point, uv = gp_Pnt(), gp_Pnt2d()
+    try:
+        if BOPTools_AlgoTools3D.PointInFace_s(face, point, uv, context or IntTools_Context()) == 0:
+            return point
+    except Exception:  # noqa: BLE001 - a face OCCT's search fails on is sampled instead
+        pass
     u_min, u_max, v_min, v_max = BRepTools.UVBounds_s(face)
     classify = BRepTopAdaptor_FClass2d(face, BRep_Tool.Tolerance_s(face))
 
@@ -183,7 +201,7 @@ def _inside(face: TopoDS_Shape):
     return BRepAdaptor_Surface(face, False).Value(*shallow) if shallow else None
 
 
-def _maker(face: TopoDS_Shape, key: tuple, faces: _Faces, tolerance: float) -> int | None:
+def _maker(face: TopoDS_Shape, key: tuple, faces: _Faces, tolerance: float, context: IntTools_Context) -> int | None:
     """The first step whose result has a face on ``face``'s surface that overlaps it: that very face, as
     a boolean left it, or one holding a point inside it. None where none does, or no point can be taken."""
     point = None
@@ -191,7 +209,7 @@ def _maker(face: TopoDS_Shape, key: tuple, faces: _Faces, tolerance: float) -> i
         if other.IsSame(face):
             return step
         if point is None:
-            point = _inside(face)
+            point = _inside(face, context)
             if point is None:
                 return None
         if BRepClass_FaceClassifier(TopoDS.Face_s(other), point, tolerance).State() in (TopAbs_IN, TopAbs_ON):
@@ -258,11 +276,12 @@ def _credited(shape, steps, row_of, features) -> dict[str, str]:
             made_faces.key(explorer.Current(), step["index"])
             explorer.Next()
     faces = entity_map(body, "face")
+    context = IntTools_Context()
     credited = {}
     for number in range(1, faces.Extent() + 1):
         face = faces.FindKey(number)
         key = made_faces.key(face)
-        maker = _maker(face, key, made_faces, PRECISION * size) if key is not None else None
+        maker = _maker(face, key, made_faces, PRECISION * size, context) if key is not None else None
         feature = feature_of.get(row_of.get(maker)) if maker is not None else None
         if feature:
             credited[str(number)] = feature
