@@ -18,6 +18,7 @@ import tempfile
 import textwrap
 import time
 import unittest
+from datetime import datetime
 from pathlib import Path
 from unittest import mock
 
@@ -55,6 +56,21 @@ CHAMFERED = """
         part = chamfer(part.edges().group_by(Axis.Z)[-1], length=0.5)
         return part
 """
+# The chamfered block with a fillet put in by hand, then a hole a later turn drills.
+FILLETED = """
+    from build123d import Axis, Box, Cylinder, chamfer, fillet
+    from cadgen import step
+
+
+    @step
+    def block():
+        part = Box(20, 10, 4)
+        part = chamfer(part.edges().group_by(Axis.Z)[-1], length=0.5)
+        part = fillet(part.edges().group_by(Axis.Z)[0], radius=0.5)
+        return part
+"""
+DRILLED = FILLETED.replace("        return part", "        part -= Cylinder(1, 20)\n        return part")
+HOLE = "part -= Cylinder(1, 20)"
 # A part of a library the project keeps in a folder of its own.
 WIDGET = """
     from build123d import Cylinder
@@ -291,7 +307,7 @@ class Authors(unittest.TestCase):
         self.assertEqual(made_by(renamed), {f"{AGENT_CHAMFER}  # Lid edge # 2": "agent"})
 
     def test_a_project_holding_a_virtual_environment_is_recorded_without_it(self):
-        # Its baseline read from a chat's first checkpoint, or, where no chat's first run took one, from the folder.
+        # Its baseline read from the newest checkpoint: a chat's first run's, or a turn's end.
         for ordinal in (0, 1):
             root, file = self.project(chat=False)
             for name in ("venv/pyvenv.cfg", "venv/lib/python3.13/site-packages/pkg/__init__.py", "venv/bin/activate_this.py",
@@ -311,7 +327,7 @@ class Authors(unittest.TestCase):
         ran.assert_not_called()
         self.assertFalse((big / authors.LEDGER).exists())
 
-    def test_the_agents_first_turn_is_the_agents_whenever_the_part_is_first_read_since(self):
+    def test_the_turn_under_way_as_the_record_begins_is_the_agents_and_one_ended_before_is_nobodys(self):
         # Read before any chat; then a chat's first run, the agent writing, the part read while it does, and its turn ending.
         root, file = self.project(chat=False)
         self.read(file)
@@ -321,13 +337,31 @@ class Authors(unittest.TestCase):
         self.assertEqual(running["authors"], {})
         checkpoint(root, 1)
         self.assertEqual(self.read(file, running["files"])["authors"], {key_of(running, AGENT_CHAMFER): "agent"})
-        # First read only once that turn had ended.
+        # First read only once that turn had ended: the turn is in the record's baseline, and has no marks.
         other, other_file = self.project(chat=False)
-        now = int(time.time())
-        checkpoint(other, 0, f"@{now - 100} +0000")
+        checkpoint(other, 0)
         self.write(other, CHAMFERED)
-        checkpoint(other, 1, f"@{now - 50} +0000")
-        self.assertEqual(made_by(self.read(other_file)), {AGENT_CHAMFER: "agent"})
+        checkpoint(other, 1)
+        self.assertEqual(self.read(other_file)["authors"], {})
+
+    def test_a_projects_history_from_before_the_record_has_no_marks(self):
+        root, file = self.project(chat=False)
+        now = int(time.time())
+        checkpoint(root, 0, f"@{now - 300} +0000")
+        # A turn chamfers the block; a fillet is put in by hand, unrecorded as an older Studio left it; another turn ends.
+        self.write(root, CHAMFERED)
+        checkpoint(root, 1, f"@{now - 200} +0000")
+        self.write(root, FILLETED)
+        last = checkpoint(root, 2, f"@{now - 100} +0000")
+        # The record begins from the newest checkpoint, dated then: whatever the project holds then is nobody's.
+        self.assertEqual(self.read(file)["authors"], {})
+        start = json.loads((root / authors.LEDGER).read_text(encoding="utf-8").splitlines()[0])
+        self.assertEqual(start["checkpoint"], last)
+        self.assertEqual(datetime.fromisoformat(start["start"]).timestamp(), int(git(root, "show", "-s", "--format=%ct", last)))
+        # A turn after that drills a hole: only it is the agent's.
+        self.write(root, DRILLED)
+        checkpoint(root, 3)
+        self.assertEqual(made_by(self.read(file)), {HOLE: "agent"})
 
     def test_a_script_in_a_folder_recording_leaves_out_has_no_marks(self):
         root, _ = self.project(chat=False)

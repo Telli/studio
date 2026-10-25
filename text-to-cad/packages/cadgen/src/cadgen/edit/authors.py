@@ -1,32 +1,39 @@
 """Who made each feature of a part, you or the agent, as Studio records it from the time it began
 keeping track of the project.
 
+Studio (a T3 Code fork) checkpoints the project for every chat: a commit kept under
+``versions.CHECKPOINTS`` as a chat's first run starts (``.../ordinal/0``), before the agent writes
+anything, and another as each turn ends. Recording begins at the first trace of a part in a git
+repository that holds one; the viewer used on its own, in a project no chat has run in, writes
+nothing there. The record's baseline is the project as the newest checkpoint then holds it, of any
+chat: the snapshot T3 took at the start of the turn under way, a chat's first run's or the last
+turn's end.
+
 A feature is told by the first line of its statement, as code: stripped, and without the comment at
 its end, which is its name in the design tree (Rename writes it there), so a renamed feature is
 still the line it was.
 
-- It is nobody's when the project had that line, in any of its scripts, before the agent's first
-  turn (its baseline): as the checkpoint a chat's first run takes found it (``.../ordinal/0``), or
-  as the project was when recording began where there is none. A script moved since keeps its
-  lines. A script recording leaves out (``_left_out``) has no baseline, so none of its features is
-  marked.
+- It is nobody's when the baseline holds that line, in any of its scripts: whatever the project
+  held when the record began, whoever made it. A script moved since keeps its lines. A script
+  recording leaves out (``_left_out``) has no baseline, so none of its features is marked.
 - Else it is yours when a hand edit wrote that line: the edit service notes the lines each change
   made by hand writes (``note_hand_edit``, ``written``).
-- Else it is the agent's when a turn's checkpoint made since the baseline has that line in that
-  file. Studio (a T3 Code fork) ends every chat turn with a checkpoint, a commit kept under
-  ``versions.CHECKPOINTS``. A chat's first run starts with one too (``.../ordinal/0``), taken
-  before the agent writes anything, which is no turn of its.
+- Else it is the agent's when a turn's checkpoint made since the baseline holds that line in that
+  file: not the baseline's own checkpoint, and not a chat's first run's.
 - Else it is nobody's: a line no turn's checkpoint holds yet (the agent's turn still running) has
   no mark rather than a wrong one.
 
-An edit made outside Studio between two turns is counted with the next turn, as T3 Code's own turn
-diff counts it: that turn's checkpoint is the first record of the line. Known, and accepted.
+Known, and accepted:
+
+- A turn that ended before the record began has no marks. A part seen only in Simple view, which
+  reads no features, until after that turn is one: that turn's features are in the baseline.
+- An edit made outside Studio between two turns is counted with the next turn, as T3 Code's own
+  turn diff counts it: that turn's checkpoint is the first record of the line.
 
 The record is ``LEDGER`` in the project, one JSON object a line, only ever added to: first the
-baseline and when it was (``start``), then one for each hand edit.
-It lies beside ``versions.py``'s own scratch in ``.studio``, which git is told to leave out, so no
-checkpoint takes it. Recording begins only at the top of a git repository a Studio chat has run in
-(it holds a checkpoint): the viewer used on its own writes nothing in a project.
+baseline, its checkpoint and when that was (``start``), then one for each hand edit. It lies
+beside ``versions.py``'s own scratch in ``.studio``, which git is told to leave out, so no
+checkpoint takes it.
 
 Who made a feature is a nicety: git missing, a git command failing or a record cut short leaves the
 features with no marks, never a part that cannot be read.
@@ -58,7 +65,7 @@ _BLOBS_KEPT = 4096
 _HELD = re.compile(r"[A-Za-z_]\w*\s*=\s*(?P<value>.+)")
 
 # Each file's lines as last judged, by (project, file): the moment they were (the checkpoints listed
-# and the record's size), and the lines from before the agent's first turn, yours and those turns hold.
+# and the record's size), and the lines of the baseline, yours and those turns hold.
 _JUDGED: dict[tuple[str, str], tuple[tuple, tuple[frozenset, frozenset, frozenset]]] = {}
 # Each checkpoint copy of a file read, by (project, blob): its lines, as code.
 _BLOBS: dict[tuple[str, str], frozenset] = {}
@@ -202,33 +209,10 @@ def _cat(root: Path, blobs: list[str]) -> dict[str, bytes]:
     return found
 
 
-def _baseline(root: Path) -> dict[str, list[str]] | None:
-    """Each project script's lines as they are now, by its path in the project: every ``.py`` but
-    those recording leaves out (``_left_out``). None when they are too big together to record."""
-    found: dict[str, list[str]] = {}
-    total = 0
-    for folder, folders, files in os.walk(root):
-        folders[:] = sorted(name for name in folders if not _skipped(name) and not (Path(folder) / name / "pyvenv.cfg").exists())
-        for name in sorted(name for name in files if name.endswith(".py") and not _skipped(name)):
-            path = Path(folder) / name
-            try:
-                data = path.read_bytes()
-            except OSError:
-                continue
-            total += len(data)
-            if total > BASELINE_LIMIT:
-                return None
-            try:
-                found[path.relative_to(root).as_posix()] = _lines(data.decode("utf-8").splitlines())
-            except UnicodeDecodeError:
-                continue
-    return found
-
-
 def _committed_baseline(root: Path, commit: str) -> dict[str, list[str]] | None:
-    """Each project script's lines as ``commit`` holds them (a chat's first checkpoint, the project
-    before any agent turn), by its path: only the scripts it holds, but those recording leaves out,
-    the virtual environments it holds among them. None when they are too big together to record."""
+    """Each project script's lines as ``commit`` holds them (the newest checkpoint as the record
+    begins), by its path: only the scripts it holds, but those recording leaves out, the virtual
+    environments it holds among them. None when they are too big together to record."""
     listed = versions._git(root, "ls-tree", "-r", "-l", "-z", commit).decode("utf-8", "surrogateescape")
     entries = []
     for entry in filter(None, listed.split("\0")):
@@ -256,23 +240,22 @@ def _committed_baseline(root: Path, commit: str) -> dict[str, list[str]] | None:
 
 def _begin(root: Path, ledger: Path, turns: list[dict]) -> bool:
     """The record's first line written (``start``): True once it is there, False when it cannot be.
-    Its baseline is the project before the agent's first turn: as the earliest checkpoint a chat's
-    first run took holds it, dated then, so every turn since counts, even one that ended before the
-    part was first read; or, where no chat's first run took one, as the project is now."""
+    Its baseline is the project as the newest of ``turns`` (the project's checkpoints, oldest first)
+    holds it, of whatever chat: the snapshot T3 took at the start of the turn under way, a chat's
+    first run's or the last turn's end. The record is dated at that checkpoint and names it, as no
+    turn of the agent's: a turn that ended before has no marks."""
     partial = ledger.with_name(f".{ledger.name}.{os.getpid()}")
     try:
         # Git is told to leave `.studio` out before anything is written there.
         versions._leave_out_of_git(root)
-        first = next((turn for turn in turns if turn["ordinal"] == 0), None)
-        if first is not None:
-            began = datetime.fromtimestamp(first["time"], timezone.utc).isoformat(timespec="seconds")
-            baseline = _committed_baseline(root, first["commit"])
-        else:
-            began, baseline = _now(), _baseline(root)
+        newest = turns[-1]
+        baseline = _committed_baseline(root, newest["commit"])
         if baseline is None:
             return False
+        began = datetime.fromtimestamp(newest["time"], timezone.utc).isoformat(timespec="seconds")
         ledger.parent.mkdir(parents=True, exist_ok=True)
-        partial.write_text(json.dumps({"start": began, "baseline": baseline}) + "\n", encoding="utf-8")
+        record = {"start": began, "checkpoint": newest["commit"], "baseline": baseline}
+        partial.write_text(json.dumps(record) + "\n", encoding="utf-8")
         # Another viewer's tracer may have begun first: its record stands.
         if not ledger.exists():
             os.replace(partial, ledger)
@@ -288,8 +271,9 @@ def _begin(root: Path, ledger: Path, turns: list[dict]) -> bool:
 
 def start(root: Path) -> None:
     """Begin recording who makes each feature of the project at ``root``: the record's first line,
-    its baseline and when that was (``_begin``). Once only, and only at the top of a git repository
-    a Studio chat has run in; anything in the way leaves the project unrecorded."""
+    the project as its newest checkpoint holds it, dated at that checkpoint (``_begin``). Once only,
+    and only at the top of a git repository that holds a checkpoint, a chat having run in it; no
+    checkpoint, no record. Anything in the way leaves the project unrecorded."""
     try:
         root = Path(root).resolve()
         ledger = root / LEDGER
@@ -335,11 +319,11 @@ def note_hand_edit(root: Path, rel: str, added: list[str]) -> None:
         return
 
 
-def _read(ledger: Path) -> tuple[float, frozenset, frozenset] | None:
-    """The record: when it began (in seconds), the project's lines then and the lines hand edits
-    wrote, each as code (``_code``) and in whatever file, as a file moved since keeps its lines.
-    None when its first line is not a beginning."""
-    began, before, yours = None, frozenset(), set()
+def _read(ledger: Path) -> tuple[float, str | None, frozenset, frozenset] | None:
+    """The record: when its baseline was (in seconds), the checkpoint it was read from, the
+    baseline's lines and the lines hand edits wrote, each as code (``_code``) and in whatever file,
+    as a file moved since keeps its lines. None when its first line is not a beginning."""
+    began, checkpoint, before, yours = None, None, frozenset(), set()
     with ledger.open(encoding="utf-8") as text:
         for number, line in enumerate(text):
             try:
@@ -350,10 +334,11 @@ def _read(ledger: Path) -> tuple[float, frozenset, frozenset] | None:
                 if not isinstance(record, dict) or not isinstance(record.get("start"), str) or not isinstance(record.get("baseline"), dict):
                     return None
                 began = datetime.fromisoformat(record["start"]).timestamp()
+                checkpoint = record.get("checkpoint") if isinstance(record.get("checkpoint"), str) else None
                 before = _codes(line for lines in record["baseline"].values() if isinstance(lines, list) for line in lines)
             elif isinstance(record, dict) and record.get("by") == "you" and isinstance(record.get("lines"), list):
                 yours |= _codes(each for each in record["lines"] if isinstance(each, str))
-    return (began, before, frozenset(yours)) if began is not None else None
+    return (began, checkpoint, before, frozenset(yours)) if began is not None else None
 
 
 def _blob_lines(root: Path, blobs: list[str]) -> list[frozenset]:
@@ -365,10 +350,12 @@ def _blob_lines(root: Path, blobs: list[str]) -> list[frozenset]:
     return [_BLOBS.get((str(root), blob), frozenset()) for blob in blobs]
 
 
-def _held(root: Path, file: str, turns: list[dict], began: float) -> frozenset:
+def _held(root: Path, file: str, turns: list[dict], began: float, baseline: str | None) -> frozenset:
     """The lines of ``file`` that the turns' checkpoints made since the baseline (``began``) hold,
-    as code: each checkpoint's copy of the file read once, a chat's first (``ordinal/0``) left out."""
-    since = [turn for turn in turns if turn["time"] >= int(began) and turn["ordinal"] > 0]
+    as code: each checkpoint's copy of the file read once. The baseline's own checkpoint is no
+    turn, told by its commit (a turn's end it may be, whose second others share), nor is a chat's
+    first run's (``ordinal/0``)."""
+    since = [turn for turn in turns if turn["time"] >= int(began) and turn["ordinal"] > 0 and turn["commit"] != baseline]
     blobs = sorted({blob for blob in versions._blobs(root, [f"{turn['commit']}:{file}" for turn in since]) if blob})
     return frozenset().union(*_blob_lines(root, blobs)) if blobs else frozenset()
 
@@ -400,8 +387,8 @@ def _authors(root: Path, features: list[dict]) -> dict[str, str]:
                 record = _read(ledger)
                 if record is None:
                     return {}
-            began, before, yours = record
-            judged = _JUDGED[(str(root), file)] = (moment, (before, yours, _held(root, file, turns, began)))
+            began, checkpoint, before, yours = record
+            judged = _JUDGED[(str(root), file)] = (moment, (before, yours, _held(root, file, turns, began, checkpoint)))
         before, yours, held = judged[1]
         forms = _forms(text)
         if not before.isdisjoint(forms):
