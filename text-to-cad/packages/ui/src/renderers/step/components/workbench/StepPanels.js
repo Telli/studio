@@ -32,9 +32,11 @@ function useLatestActions(actions) {
  * named after its part as the tree names that part, with its key measurements for its card — a
  * part's or subassembly's size from the boxes of the parts it is made of. `onRemove(ids)` and
  * `onHover(target)` are the host's: what a chip's X drops and what resting on it lights.
+ * `nameFace(item)`: a face by the feature that made it, where the host knows it; a new one names
+ * the chips again (the faces' map changed).
  */
 export function useStepSelectionChips({ stepTreeRoot, selectedMeshData = null, geometryInspection = null, references = EMPTY,
-  onRemove = null, onHover = null, copyText = null }) {
+  onRemove = null, onHover = null, copyText = null, nameFace = null }) {
   const modelParts = geometryInspection?.parts || EMPTY;
   const partsSize = useCallback(ids => stepGeometryMeasurements({ partIds: ids }, EMPTY, modelParts).size, [modelParts]);
   const partNames = useMemo(() => {
@@ -45,7 +47,7 @@ export function useStepSelectionChips({ stepTreeRoot, selectedMeshData = null, g
   }, [stepTreeRoot]);
   const partName = useCallback(id => partNames.get(String(id || '')) || '', [partNames]);
   const remove = useLatestCallback(onRemove), hover = useLatestCallback(onHover);
-  return useStepReferenceChips({ references, meshData: selectedMeshData, partsSize, partName, onRemove: remove, onHover: hover, copyText });
+  return useStepReferenceChips({ references, meshData: selectedMeshData, partsSize, partName, onRemove: remove, onHover: hover, copyText, nameFace });
 }
 
 /**

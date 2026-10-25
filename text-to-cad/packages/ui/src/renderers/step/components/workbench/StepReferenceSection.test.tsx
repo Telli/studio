@@ -104,6 +104,28 @@ it('names the part of a single-part file with no name of its own after the file'
  expect(names()).toEqual(['o1.1 · face 3']);
 });
 
+it("names a face by the feature the engine says made it, in the Part Navigator's words; any other keeps its words",()=>{
+ const meshData={parts:[{id:'o1.1',occurrenceId:'o1.1',name:'bracket'}]};
+ const face=(ord:number,label?:string)=>({id:`o1.1.f${ord}`,normalizedSelector:`o1.1.f${ord}`,selectorType:'face',occurrenceId:'o1.1',label,
+   pickData:{surfaceType:'cylinder',area:94.25,params:{radius:3}}});
+ const edge={id:'o1.1.e12',normalizedSelector:'o1.1.e12',selectorType:'edge',occurrenceId:'o1.1',pickData:{curveType:'line',length:2}};
+ // What the host knows of the faces on screen: face 12 is the hole's. It is asked of faces alone.
+ const nameFace=(item:any)=>(String(item.normalizedSelector).endsWith('12') ? {name:'Hole (6)',kind:'face',number:'12'} : null);
+ let chips:any[]=[];
+ function Probe({references}:{references:any[]}){ chips=useStepReferenceChips({references,meshData,nameFace}); return null; }
+ const {rerender}=render(<Probe references={[face(12)]}/>);
+ expect(chips.map(chip=>[chip.label,chip.compact,chip.glyph])).toEqual([['Hole (6) · face 12',{name:'Hole (6)',kind:'face',number:'12'},'face']]);
+ rerender(<Probe references={[face(3)]}/>);
+ expect(chips.map(chip=>chip.label)).toEqual(['bracket · face 3']);
+ // A face named in its own right keeps its name; several faces stay one run on their part; an edge is its part's.
+ rerender(<Probe references={[face(12,'Mounting face')]}/>);
+ expect(chips.map(chip=>chip.label)).toEqual(['Mounting face']);
+ rerender(<Probe references={[face(12),face(3)]}/>);
+ expect(chips.map(chip=>chip.label)).toEqual(['bracket · 2 faces']);
+ rerender(<Probe references={[edge]}/>);
+ expect(chips.map(chip=>chip.label)).toEqual(['bracket · edge 12']);
+});
+
 it("a chip's X drops its picks, and resting on it lights them: a face by its reference, a run or a part by its node",()=>{
  const onRemove=vi.fn(), onHover=vi.fn();
  const edges=[1,2].map(i=>({id:`o1.e${i}`,selectorType:'edge',normalizedSelector:`o1.e${i}`,occurrenceId:'o1',pickData:{curveType:'line',length:i}}));

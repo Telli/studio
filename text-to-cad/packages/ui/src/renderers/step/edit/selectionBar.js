@@ -6,6 +6,7 @@
  */
 import { validatePromptReference } from "@text-to-cad/core/prompt";
 import { treeFeatures } from "./editMode.js";
+import { faceFeature, faceReference } from "./faceChips.js";
 import { navigatorLabel } from "./nx.js";
 
 /** How far the bar stands from what it is about (`GAP`), and from the view's edges and below the toolbar (`EDGE`), in px. */
@@ -75,6 +76,20 @@ export function featurePick(tree, selected) {
     return { kind: "feature", id: selected, feature, sketch, editable: !tree.assembly && opens };
   }
   return null;
+}
+
+/**
+ * The row of the Part Navigator that faces picked on the model are (`picks`, as the bar sees them, each with its `reference`), as
+ * `featurePick` gives a row: the one feature the engine says made every one of them, by the map for the faces on screen (`faces`,
+ * `faceChips.js`'s `shownFaces`), when it has something to open. Null for an edge among them, a face the engine does not know, faces
+ * of two features, or a feature with nothing to edit: those picks have no Edit.
+ */
+export function facePick(tree, picks, faces) {
+  if (!Array.isArray(picks) || !picks.length || !picks.every(pick => pick?.kind === "face")) return null;
+  const made = new Set(picks.map(pick => faceFeature(faceReference(pick.reference?.displaySelector || pick.reference?.normalizedSelector || pick.id), faces)));
+  const [id] = made;
+  const row = made.size === 1 && id ? featurePick(tree, id) : null;
+  return row?.editable ? row : null;
 }
 
 const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;

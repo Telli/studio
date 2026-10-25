@@ -140,11 +140,14 @@ function TopologyRunDetail({ members }) {
  * selection; `onHover(target)` lights them while the pointer rests on the chip (`{ referenceId }`
  * for one face or edge, `{ nodeId }` for a part, a subassembly or a run on one part), or nothing.
  * `copyText(ids)` is what a click on the chip copies, its references as Copy References writes
- * them; the card's ID is their selectors, without the file.
+ * them; the card's ID is their selectors, without the file. `nameFace(item)`: a face by the
+ * feature that made it, where the host knows it (`edit/faceChips.js`'s `faceChipName`: "Hole (6)",
+ * "face", "12"), its chip then "Hole (6) · face 12"; null leaves it named by its part.
  *
  * @returns {import("../../../kit/tools/quick-edit/ReferenceChips.jsx").ReferenceChip[]}
  */
-export function useStepReferenceChips({ references = [], meshData = null, partsSize = null, partName = null, onRemove = null, onHover = null, copyText = null }) {
+export function useStepReferenceChips({ references = [], meshData = null, partsSize = null, partName = null, onRemove = null, onHover = null, copyText = null,
+  nameFace = null }) {
   return useMemo(() => {
     const chips = [];
     const runs = new Map();
@@ -185,9 +188,12 @@ export function useStepReferenceChips({ references = [], meshData = null, partsS
       const ids = members.map(member => itemKey(member.item));
       if (members.length === 1) {
         const [{ item }] = members;
-        // Named in its own right, it shows that name; otherwise its part, glyph and number.
-        const compact = !parts.own && parts.number && parts.parent ? { name: parts.parent, kind: parts.kind, number: parts.number } : undefined;
-        return { key: chip.key, label: referenceName(item, meshData, partName), glyph: parts.kind, ...(compact ? { compact } : {}),
+        // Named in its own right, it shows that name; a face the host knows the feature of, that feature (`nameFace`); otherwise
+        // its part, glyph and number.
+        const made = !parts.own && item.selectorType === "face" ? nameFace?.(item) || null : null;
+        const compact = made || (!parts.own && parts.number && parts.parent ? { name: parts.parent, kind: parts.kind, number: parts.number } : undefined);
+        const label = made ? `${made.name} · ${made.kind} ${made.number}` : referenceName(item, meshData, partName);
+        return { key: chip.key, label, glyph: parts.kind, ...(compact ? { compact } : {}),
           card: <TopologyDetail reference={item}/>,
           onRemove: onRemove ? () => onRemove(ids) : undefined,
           onHover: onHover ? on => onHover(on ? { referenceId: ids[0] } : null) : undefined };
@@ -199,5 +205,5 @@ export function useStepReferenceChips({ references = [], meshData = null, partsS
         onRemove: onRemove ? () => onRemove(ids) : undefined,
         onHover: onHover ? on => onHover(on ? (parts.occurrence ? { nodeId: parts.occurrence } : { referenceId: ids[0] }) : null) : undefined };
     }
-  }, [references, meshData, partsSize, partName, onRemove, onHover, copyText]);
+  }, [references, meshData, partsSize, partName, onRemove, onHover, copyText, nameFace]);
 }

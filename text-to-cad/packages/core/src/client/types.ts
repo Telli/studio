@@ -277,11 +277,20 @@ export interface CadEditState {
    */
   failure?: { frames: { file: string; line: number; text: string }[] } | null;
   script?: string;
+  /** Where the part's project starts, as an absolute path: what `files` and each row's `file` are named from. */
+  root?: string;
   name?: string;
   units?: 'mm' | 'in';
   files?: Record<string, string>;
   params?: (CadEditValue & { id: string; name: string; text: string })[];
   rows?: CadEditRow[];
+  /**
+   * Which feature made each face (`cadgen/edit/face_features.py`): a face's number on the part, as its selector has it ("12" for
+   * `f12`), → the key of the feature that made it. Only the faces the engine knows; `{}` for an assembly.
+   */
+  faceFeatures?: Record<string, string>;
+  /** How many faces the part read has, for a view to check the faces on screen are that part's before naming one by `faceFeatures`. */
+  faceCount?: number;
   dimensions?: CadEditDimension[];
   choose?: { id: string; name: string; file: string; line: number }[];
   change?: { literal: string; name: string; file: string; line: number; from: string; to: string };

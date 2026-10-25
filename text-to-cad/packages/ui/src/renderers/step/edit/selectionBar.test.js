@@ -7,7 +7,7 @@ import { formatPromptMessage, formatPromptReference } from "@text-to-cad/core/pr
 import { createQuickEditContext } from "../../kit/tools/quick-edit/quickEditPrompt.js";
 import { featureTree } from "./editMode.js";
 import {
-  boundsCorners, featurePick, featureReference, pickedReferences, placeBar, projectRoot, quickEditShown, rowLabel, screenBox, selectionBarActions
+  boundsCorners, facePick, featurePick, featureReference, pickedReferences, placeBar, projectRoot, quickEditShown, rowLabel, screenBox, selectionBarActions
 } from "./selectionBar.js";
 
 // The workspace with Select in hand and nothing open: what the bar is offered under.
@@ -113,6 +113,30 @@ test("finds the row a selection in the Part Navigator or the timeline is", () =>
 
 test("finds no row in what is not a feature: the origin, a plane, nothing, a row the tree does not have", () => {
   for (const selected of [null, "", "origin", "plane:Top", "e9", "component:base.py"]) assert.equal(featurePick(PART, selected), null, String(selected));
+});
+
+// Faces picked on the model, as the bar sees them: each its reference, by the selector the view gives it.
+const picked = (...numbers) => numbers.map(number => ({ kind: "face", id: `o1.f${number}`,
+  reference: { id: `o1.f${number}`, selectorType: "face", normalizedSelector: `o1.f${number}`, displaySelector: `o1.f${number}` } }));
+// The engine's map for the faces on screen: faces 12 and 3 the extrude's, 4 the fillet's.
+const FACES = { faceFeatures: { "12": "e1", "3": "e1", "4": "b1" } };
+
+test("finds the row faces picked on the model are, where one feature made them all and it has something to edit", () => {
+  const pick = facePick(PART, picked(12, 3), FACES);
+  assert.deepEqual([pick.kind, pick.id, pick.editable, pick.sketch], ["feature", "e1", true, null]);
+  assert.equal(pick.feature, PART.features[0]);
+  // Its Edit is the feature's, as a row's is: the bar offers it when every pick is that feature's.
+  assert.deepEqual(ids(selectionBarActions({ ...WORKSPACE, picks: picked(12, 3), featureOf: () => pick.id })).at(-1), "edit");
+});
+
+test("finds no row for faces it cannot say one feature with something to edit made", () => {
+  // A face the engine does not know; faces of two features; an edge among them; a fillet no command made; no map at all.
+  assert.equal(facePick(PART, picked(12, 9), FACES), null);
+  assert.equal(facePick(PART, picked(12, 4), FACES), null);
+  assert.equal(facePick(PART, [...picked(12), edge], FACES), null);
+  assert.equal(facePick(PART, picked(4), FACES), null);
+  assert.equal(facePick(PART, picked(12), null), null);
+  assert.equal(facePick(PART, [], FACES), null);
 });
 
 test("an assembly's parts are opened to be edited, so none of its features is edited from here", () => {

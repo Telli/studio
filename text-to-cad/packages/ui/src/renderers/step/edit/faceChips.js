@@ -1,0 +1,66 @@
+/**
+ * Which feature made a face, as the engine says (`cadgen/edit/face_features.py`), for whatever names a face: its chip, in the Part
+ * Navigator's words ("Hole (6) · face 12" rather than today's "bracket · face 12"), and the selection bar's Edit on it, which opens
+ * that feature (`selectionBar.js`'s `facePick`). The engine's map (`faceFeatures`) is a face's number on the part → the key of the
+ * feature that made it, the id the design tree's rows go by, for the faces it knows only. Any other face keeps today's words, and none
+ * is named by a feature that did not make it: the map is used for the faces it was read for alone (`shownFaces`).
+ */
+import { parseCadRefSelector } from "@text-to-cad/core/lib/cadRefs.js";
+import { navigatorLabel } from "./nx.js";
+
+/** A reference to one face by its selector (`"o1.f12"`), as the functions here take one. */
+export const faceReference = selector => ({ target: { kind: "cad-selector", selectors: [String(selector ?? "")] } });
+
+/**
+ * The number on the part of the face a reference is to: `{ target: { kind: "face", face: 12 } }`, or one face's selector
+ * (`{ target: { kind: "cad-selector", selectors: ["o1.f12"] } }`). Null for an edge, several picks, or anything else.
+ */
+export function faceNumber(reference) {
+  const target = reference?.target;
+  if (target?.kind === "face") return Number.isSafeInteger(target.face) && target.face > 0 ? target.face : null;
+  if (target?.kind !== "cad-selector" || target.selectors?.length !== 1) return null;
+  const parsed = parseCadRefSelector(target.selectors[0]);
+  return parsed?.selectorType === "face" && Number.isSafeInteger(parsed.ordinal) && parsed.ordinal > 0 ? parsed.ordinal : null;
+}
+
+/** The key of the feature that made the face a reference is to, as the map in `state` (`faceFeatures`) says; null where it does not say. */
+export function faceFeature(reference, state) {
+  const number = faceNumber(reference);
+  const key = number === null ? undefined : state?.faceFeatures?.[String(number)];
+  return typeof key === "string" && key ? key : null;
+}
+
+/**
+ * A face's chip name in its pieces, as a chip's compact name has them (`{ name, kind, number }`): the feature that made it as the Part
+ * Navigator numbers it (`features`, the part's rows; "Hole (6)"), "face", and its number. Null where the feature is not known, or is
+ * no row the Part Navigator lists.
+ */
+export function faceChipName(reference, state, features) {
+  const id = faceFeature(reference, state);
+  const label = id ? navigatorLabel(features, id) : "";
+  return label ? { name: label, kind: "face", number: String(faceNumber(reference)) } : null;
+}
+
+/** A face's chip in words: "Hole (6) · face 12"; null to keep today's label. */
+export function faceChipLabel(reference, state, features) {
+  const name = faceChipName(reference, state, features);
+  return name ? `${name.name} · ${name.kind} ${name.number}` : null;
+}
+
+/**
+ * The map for the faces on screen, `{ faceFeatures }` as the functions above take it, or null where none is known to be theirs. In the
+ * workspace only (`editing`: Simple view keeps today's words), on a part (`assembly` has none): the rollback bar's body's own while
+ * that body is drawn in place of the part's (`bar.tree`), else the part's (`state`). And only while the model on screen is the one
+ * the engine read: none while a new one loads (`updating`), while its STEP is built again or failed to be, by the build feed
+ * (`rebuilding`) or the edit service (`state.building`), or where the faces on screen (`faces`, how many) are not as many as the body
+ * the map was read for has (`faceCount`): a model built from another script, which its numbers would misname.
+ */
+export function shownFaces({ editing, assembly, state, bar, updating, rebuilding, faces }) {
+  if (!editing || assembly || updating || rebuilding) return null;
+  const building = state?.building;
+  if (building?.scripts?.length && (building.error || building.done < building.scripts.length)) return null;
+  const read = bar?.tree ? bar : state;
+  const map = read?.faceFeatures;
+  if (!map || typeof map !== "object" || !Number.isSafeInteger(read.faceCount) || read.faceCount < 1 || read.faceCount !== faces) return null;
+  return { faceFeatures: map };
+}

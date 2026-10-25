@@ -147,7 +147,8 @@ import EditRibbon from "./edit/EditRibbon.jsx";
 import EditTimeline from "./edit/EditTimeline.jsx";
 import EditSelectionBar from "./edit/EditSelectionBar.jsx";
 import { featureAsk } from "./edit/featureAsk.jsx";
-import { boundsCorners, featurePick, pickedReferences, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
+import { boundsCorners, facePick, featurePick, pickedReferences, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
+import { faceChipName, faceReference, shownFaces } from "./edit/faceChips.js";
 import { chosenThrough, useAsked, useChosenFeature } from "./edit/selectionBarState.js";
 import { useAddToContext } from "./edit/useAddToContext.js";
 import { faceShapesOf, faceShapesText } from "../kit/tools/annotate/faceShapes.js";
@@ -1633,6 +1634,9 @@ function StepSurfaceBody({ view, data }) {
   const promptReferencesRef = useRef(() => EMPTY_LIST);
   // The ink drawn on a face, as shapes on it in the part's units, for what goes to the agent (`faceShapes.js`).
   const faceMarksRef = useRef(() => "");
+  // A face by the feature that made it (`edit/faceChips.js`'s `faceChipName`), where that is known of the faces on screen: set
+  // where edit mode's state is read, below, and asked when a reference is named.
+  const faceNameRef = useRef(() => null);
   const escapeRef = useRef(() => false);
   // Escape has something to do here whenever there is a selection to clear or a tool other than
   // Select in hand.
@@ -1937,10 +1941,13 @@ function StepSurfaceBody({ view, data }) {
   // A reference into this file as the view names it, for its pill in Quick Edit's note, its kind's
   // glyph first: a part or subassembly by its tree name (the solid's, "cam"), a face, an edge or a
   // solid compactly, by its part and its number ("◧ cam 3"), several of one kind on one part counted
-  // ("◧ cam ×4").
+  // ("◧ cam ×4"). A face the engine says a feature made goes by that feature instead, as the Part
+  // Navigator numbers it ("◧ Hole (6) 12": `faceNameRef`).
   // "" for one into another file, or one it has no name for.
   const nameReference = useCallback(reference => {
     if (reference?.resource?.path !== promptResource.path || reference.target?.kind !== "cad-selector") return "";
+    const made = faceNameRef.current(reference);
+    if (made) return made;
     const root = displayStepTreeRoot || stepTreeRoot;
     const KINDS = { f: "face", e: "edge", v: "vertex", s: "solid" };
     const named = reference.target.selectors.map(selector => {
@@ -3337,6 +3344,19 @@ function StepSurfaceBody({ view, data }) {
   const barTree = editing && edit.bar?.tree ? edit.bar.tree : null;
   const barKind = edit.bar?.kind === "assembly" ? "assembly" : "part";
   useEffect(() => { setRollbackTree(barTree ? { tree: barTree, kind: barKind } : null); }, [barTree, barKind]);
+  // Which feature made each face on screen, as the engine says (`edit/faceChips.js`): the map of the body drawn (the bar's, else the
+  // part's), where the model on screen is the one it was read for: not while a new one loads, nor while the build feed has its STEP
+  // being built again or failed, nor where the faces on screen are not as many. A face's chip and the selection bar's Edit go by it.
+  const facesOnScreen = selectedSelectorRuntime?.faces?.length || 0;
+  const feed = editingPreview.state;
+  const rebuilding = editingBuildActive(feed) || (feed.state === "failed" && feed.superseded !== true);
+  const faceState = useMemo(() => shownFaces({ editing, assembly: isAssemblyView, state: edit.state, bar: edit.bar,
+    updating: viewerLoading || stepUpdateInProgress, rebuilding, faces: facesOnScreen }),
+  [editing, isAssemblyView, edit.state, edit.bar, viewerLoading, stepUpdateInProgress, rebuilding, facesOnScreen]);
+  const partFeatures = editTree.assembly ? EMPTY_LIST : editTree.features;
+  faceNameRef.current = reference => faceChipName(reference, faceState, partFeatures);
+  const nameFace = useCallback(item => faceChipName(faceReference(item?.displaySelector || item?.normalizedSelector), faceState, partFeatures),
+    [faceState, partFeatures]);
   // A feature below the bar is not on the model: its dimensions are not drawn.
   const editDimensions = useMemo(() => (edit.status === "ready" && !edit.sketch && !rolledBack(editTree, edit.bar).has(edit.selected)
     ? selectionDimensions(edit.state, editTree, edit.selected) : EMPTY_LIST),
@@ -3664,7 +3684,7 @@ function StepSurfaceBody({ view, data }) {
   const referenceChips = useStepSelectionChips({ stepTreeRoot: displayStepTreeRoot, selectedMeshData: selectedDisplayMeshData,
     geometryInspection: { parts: !viewerLoading && !stepUpdateInProgress ? selectedMeshData?.parts || EMPTY_LIST : EMPTY_LIST },
     references: selectionActionVisible ? selectedReferenceItems : EMPTY_LIST, onRemove: removeFromSelection, onHover: hoverChip,
-    copyText: chipCopyText });
+    copyText: chipCopyText, nameFace });
   // A sketch is picked on the model as in the design tree, with Select in hand and nothing else
   // asking for a pick: the sketch an extrude takes (inside its outline too, while it waits for
   // one), or one to work on next. The part's extent is how far Through All goes in a preview.
@@ -3703,15 +3723,20 @@ function StepSurfaceBody({ view, data }) {
   const carried = useMemo(() => pickedReferences({ selectionActionVisible, selection: promptSelection, selectionChips: referenceChips, feature: featureCarried }),
     [selectionActionVisible, promptSelection, referenceChips, featureCarried]);
   const quickEditOpen = quickEditShown({ editing, asked, selectionActionVisible });
-  // Which feature made a face is not known yet, so a face has no Edit; a row is its own feature (`selectionBarActions`).
+  // A row is its own feature; faces picked on the model are the feature the engine says made them all, where it is known and has
+  // something to open (`facePick`), and then have its Edit as its row does (`selectionBarActions`). An edge, or a face not known, has none.
+  const rowChosen = barPicks.length === 1 && barPicks[0].kind === "feature" ? barPicks[0] : null;
+  const faceRow = useMemo(() => (modelPicks.length ? facePick(editTree, modelPicks, faceState) : null), [modelPicks, editTree, faceState]);
   const barActions = selectionToolActive && !previewing && !asked
-    ? selectionBarActions({ editing, picks: barPicks, commandOpen, sketching: sketchOpen, busy: edit.saving || edit.rolling }) : EMPTY_LIST;
-  const rowEdited = barPicks.length === 1 && barPicks[0].kind === "feature" ? barPicks[0] : null;
+    ? selectionBarActions({ editing, picks: barPicks, commandOpen, sketching: sketchOpen, busy: edit.saving || edit.rolling,
+      featureOf: faceRow ? pick => (pick.kind === "face" ? faceRow.id : null) : null }) : EMPTY_LIST;
+  const rowEdited = rowChosen || faceRow;
   // The bar beside a feature chosen is put away by Escape, the feature staying selected.
-  const featureBarShown = barActions.length > 0 && rowEdited !== null;
+  const featureBarShown = barActions.length > 0 && rowChosen !== null;
   // The Part Navigator and the timeline select a row when the person presses it, and that chooses its feature.
   const editWithRows = chosenThrough(edit, chooseFeature);
-  // Edit does what a double-click on the row does: the sketch opens in the Sketch tab, a feature its Edit Parameters.
+  // Edit does what a double-click on the row does: the sketch opens in the Sketch tab, a feature its Edit Parameters; on faces, the
+  // Edit Parameters of the feature that made them.
   const editRow = () => { if (rowEdited?.sketch) openTreeSketch(rowEdited.sketch); else if (rowEdited) edit.editFeature(rowEdited.feature); };
   // Annotate takes up the viewer's Pencil, as the strip's does.
   const pencil = tools.find(tool => tool.id === "pencil");
@@ -3779,8 +3804,9 @@ function StepSurfaceBody({ view, data }) {
   // go of them. Quick Edit's X and a send clear it too, and the box Ask opened goes with them.
   const clearSelected = () => { clearAssemblySelection(); measure.select([]); clearAsked(); dropFeature(); };
   // The marks drawn on a face go to the agent as shapes in its coordinates, in the part's units, in Simple view and the workspace
-  // alike: Quick Edit's every way and Add to context. A face is named as its chip is (`nameReference`'s words: "bracket · face 12");
-  // a touch that is no face (an edge) has no name, so no mark is said to be on it.
+  // alike: Quick Edit's every way and Add to context. A face is named as its chip is (`nameReference`'s words: "Hole (6) · face 12" where
+  // the engine says which feature made it, as `faceChipLabel` words it, else "bracket · face 12"); a touch that is no face (an edge) has
+  // no name, so no mark is said to be on it.
   faceMarksRef.current = items => {
     const units = edit.state?.units || "mm";
     const labelOf = ref => {
