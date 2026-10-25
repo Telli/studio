@@ -7,11 +7,7 @@ import {
   engineeringToolLabel,
 } from "../workbench/engineeringLabels";
 import { isEngineeringInterface } from "../workbench/studioInterface";
-import {
-  referencesEqual,
-  turnReferences,
-  type AnswerReference,
-} from "../workbench/references/turnReferences";
+import { turnReferences, type AnswerReference } from "../workbench/references/turnReferences";
 
 export { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { isLiveSubagentTurnItem } from "@t3tools/client-runtime/state/subagentRuntime";
@@ -1459,6 +1455,8 @@ export function deriveMessagesTimelineRows(input: {
   activeTurnStartedAt?: string | null;
   turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
   supportsConversationRollback: boolean;
+  /** The thread's folder, which the files an answer lists must lie in. */
+  workspaceRoot?: string | undefined;
   /** Task ids of subagents still working, used by the active tool indicator. */
   liveAgentTaskIds?: ReadonlySet<string> | undefined;
   /** Live bootstrap progress. Renders a stage card under the first user message. */
@@ -1941,14 +1939,16 @@ export function deriveMessagesTimelineRows(input: {
       terminalAssistantMessageIds.has(timelineEntry.message.id) &&
       !assistantResponseStillInProgress;
 
-    // The run's settled final answer lists what it cites. The list reads every entry of the chat,
-    // not the rows: a collapsed turn hides rows, not what the agent opened.
+    // The run's settled final answer lists what it cites, in the engineering interface. The list
+    // reads every entry of the chat, not the rows: a collapsed turn hides rows, not what the agent
+    // opened.
     const references =
-      showAssistantMeta && !timelineEntry.message.streaming
+      isEngineeringInterface() && showAssistantMeta && !timelineEntry.message.streaming
         ? turnReferences({
             answer: timelineEntry.message.text,
             runId: timelineEntry.message.runId,
             entries: input.timelineEntries,
+            root: input.workspaceRoot ?? null,
           })
         : [];
 
@@ -2419,7 +2419,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.showAssistantCopyButton === bm.showAssistantCopyButton &&
         a.assistantCopyStreaming === bm.assistantCopyStreaming &&
         a.assistantTurnDiffSummary === bm.assistantTurnDiffSummary &&
-        referencesEqual(a.references, bm.references) &&
+        Equal.equals(a.references, bm.references) &&
         a.revertTurnCount === bm.revertTurnCount
       );
     }

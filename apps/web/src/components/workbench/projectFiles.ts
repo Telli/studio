@@ -91,13 +91,29 @@ function named(path: string, name: string) {
   return { title: known?.name ?? name, kind: known?.kind ?? "File" };
 }
 
-/** The file as the project page shows it, or null when it is not the project's work. */
-export function classifyProjectFile(path: string): ProjectFile | null {
-  const normalized = path.replaceAll("\\", "/");
+/** A path in the project, with forward slashes and without a leading `./`, which is its folder. */
+const projectRelative = (path: string) => path.replaceAll("\\", "/").replace(/^(?:\.\/)+/, "");
+
+/**
+ * Whether a path, as the project's folder holds it, is the project's work and not tooling: not in
+ * a hidden folder (or `node_modules`, `dist`, `build`, `tmp`; a path that leaves the folder with
+ * `..` is in one), not a dot-file, and not the agent's instructions or the project's icon. A
+ * model's script is work, though `classifyProjectFile` files it nowhere.
+ */
+export function isProjectWork(path: string): boolean {
+  const normalized = projectRelative(path);
   const segments = normalized.split("/");
   const name = segments.at(-1) ?? normalized;
-  if (segments.slice(0, -1).some((segment) => HIDDEN_FOLDER.test(segment))) return null;
-  if (name.startsWith(".") || NOT_WORK.test(normalized)) return null;
+  if (segments.slice(0, -1).some((segment) => HIDDEN_FOLDER.test(segment))) return false;
+  return !name.startsWith(".") && !NOT_WORK.test(normalized);
+}
+
+/** The file as the project page shows it, or null when it is not the project's work. */
+export function classifyProjectFile(path: string): ProjectFile | null {
+  if (!isProjectWork(path)) return null;
+  const normalized = projectRelative(path);
+  const segments = normalized.split("/");
+  const name = segments.at(-1) ?? normalized;
   const folder = segments.slice(0, -1).join("/");
   // What the brief gathered is its own tab, whatever kind of file it is.
   if (/^brief\//i.test(normalized)) {

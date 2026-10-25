@@ -1,10 +1,15 @@
 import type { RightPanelSurface } from "~/rightPanelStore";
 
-const normal = (path: string) => path.replaceAll("\\", "/").replace(/\/+$/, "");
+const normal = (path: string) =>
+  path
+    .replaceAll("\\", "/")
+    .replace(/^(?:\.\/)+/, "")
+    .replace(/\/+$/, "");
 
 /**
- * Whether two paths name the same file, the one written in the thread's folder and the other in
- * full, as a chat link and the Overview each name a part: so a file opens in one tab, not two.
+ * Whether two paths name the same file, the one written in the thread's folder (`parts/tray.step`
+ * or `./parts/tray.step`) and the other in full, as a chat link, the Overview and a reference each
+ * name a part: so a file opens in one tab, not two.
  */
 export function sameFile(a: string, b: string): boolean {
   const left = normal(a);

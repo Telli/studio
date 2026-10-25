@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { classifyProjectFile, filePlaces, groupProjectFiles } from "./projectFiles";
+import { classifyProjectFile, filePlaces, groupProjectFiles, isProjectWork } from "./projectFiles";
 
 const demo = [
   "parts/STEP/l_bracket.step",
@@ -41,6 +41,37 @@ describe("project files", () => {
       ["Reference parts", ["MDBT50Q.step"]],
       ["References", ["project.md", "sketch.jpg"]],
     ]);
+  });
+
+  it("knows the project's own work from its tooling, whatever kind of file it is", () => {
+    const work = [
+      "parts/src/l_bracket.py",
+      "parts/STEP/l_bracket.step",
+      "docs/prd.md",
+      "README.md",
+      "notes.txt",
+      "./docs/prd.md",
+      "docs\\prd.md",
+    ];
+    const tooling = [
+      "AGENTS.md",
+      "docs/CLAUDE.md",
+      "assets/icon.svg",
+      ".gitignore",
+      ".claude/skills/cad/SKILL.md",
+      ".venv/lib/readme.md",
+      "node_modules/x/README.md",
+      "parts/__pycache__/l_bracket.cpython-312.pyc",
+      "build/out.step",
+      "dist/app.md",
+      "tmp/scratch.md",
+      "../outside/notes.md",
+      "./.git/config",
+    ];
+    expect(work.map(isProjectWork)).toEqual(work.map(() => true));
+    expect(tooling.map(isProjectWork)).toEqual(tooling.map(() => false));
+    // It is the rule that files a project: what it rejects is never filed.
+    expect(tooling.map((path) => classifyProjectFile(path))).toEqual(tooling.map(() => null));
   });
 
   it("names what each file is and what it is called", () => {

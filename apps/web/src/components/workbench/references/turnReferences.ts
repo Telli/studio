@@ -1,13 +1,18 @@
 import type { OrchestrationV2TurnItem } from "@t3tools/contracts";
+import { isAbsolutePath, workspaceRelativeFilePath } from "@t3tools/shared/path";
+import { classifyToolActivity, collectToolFilePaths } from "@t3tools/shared/toolActivity";
+import * as Predicate from "effect/Predicate";
 
-import type { TimelineEntry } from "~/session-logic";
-import { classifyProjectFile } from "../projectFiles";
+import { workEntryIndicatesToolSuccess, type TimelineEntry } from "~/session-logic";
+import { partLabel } from "../partNames";
+import { isProjectWork } from "../projectFiles";
+import { sameFile } from "../sameFile";
 import { splitSources, type SourceTarget } from "./answerSources";
 
 /**
  * The References under an answer: what it cites (`splitSources`), each source marked by whether
- * the agent opened it in this chat, from the tools the chat shows it using. An answer that cites
- * nothing lists what its turn opened instead.
+ * the agent opened it in this chat, from the tool calls the chat shows that completed. An answer
+ * that cites nothing lists what its turn opened instead.
  */
 
 /** What the agent opened in the chat: a file, with the lines it read when it read some, or a page. */
@@ -16,7 +21,7 @@ export type Opened = {
   /** The run it was opened in, and when. */
   runId: string | null;
   at: string;
-  /** A page's title, when the search that found it gave one. */
+  /** A page's title, when a search listed the page. */
   title?: string;
 };
 
@@ -25,7 +30,7 @@ export type AnswerReference = {
   readonly n: number;
   readonly target: SourceTarget;
   readonly opened: "this turn" | "earlier in this chat" | "not opened" | "own knowledge";
-  /** A web page's title, when something that opened it gave one. */
+  /** A web page's title, when a search listed it. */
   readonly title?: string;
 };
 
@@ -37,26 +42,6 @@ const fileTarget = (path: string, lines: [number, number] | null): OpenedTarget 
   lines,
   heading: null,
 });
-
-/**
- * A path as paths are compared: forward slashes, with no leading `./`, no doubled `/` and no
- * trailing `/`.
- */
-export function normalizePath(path: string): string {
-  return path
-    .replaceAll("\\", "/")
-    .replace(/\/{2,}/g, "/")
-    .replace(/^(?:\.\/)+/, "")
-    .replace(/\/$/, "");
-}
-
-/**
- * The agent cites paths relative to its folder, and Claude's Read gives absolute ones: two paths
- * are one file when they are equal, or one is the other under a folder.
- */
-function pathsMatch(a: string, b: string): boolean {
-  return a === b || a.endsWith(`/${b}`) || b.endsWith(`/${a}`);
-}
 
 /** An address as addresses are compared: parsed, so the host's case goes, and without its fragment. */
 function addressKey(url: string): string {
@@ -70,26 +55,34 @@ function addressKey(url: string): string {
   }
 }
 
-const sourceKey = (target: OpenedTarget) =>
-  target.kind === "file" ? normalizePath(target.path) : addressKey(target.url);
+/**
+ * Whether two targets are one source: files by `sameFile` (the agent cites paths from its folder,
+ * and Claude's Read gives them in full), pages by their address without the fragment.
+ */
+function sameTarget(a: SourceTarget, b: SourceTarget): boolean {
+  if (a.kind === "file") return b.kind === "file" && sameFile(a.path, b.path);
+  return a.kind === "url" && b.kind === "url" && addressKey(a.url) === addressKey(b.url);
+}
 
 // --- Codex reads files through the shell ----------------------------------------------------
 
-/** What makes a command more than one program reading one file, when it is not in quotes. */
-const SHELL_SYNTAX = /[|&;<>()$`*?[]/;
+/** What makes a command more than programs and their words, when it is not in quotes. */
+const SHELL_SYNTAX = /[&;<>()$`*?[]/;
 const SHELL_WRAPPER = /(?:^|\/)(?:bash|sh|zsh)$/;
 
 /**
- * A command's words, with their quotes taken off; null for a command that is more than words: a
- * pipe, a list, a redirect, an expansion, a glob, a second line or an unfinished quote.
+ * A command's words, quotes taken off, in the programs a pipe joins (one may be empty, which no
+ * read accepts); null for a command that is more than that: a list, a redirect, an expansion, a
+ * glob, a second line or an unfinished quote.
  */
-function shellWords(command: string): string[] | null {
-  const words: string[] = [];
+function shellPipeline(command: string): string[][] | null {
+  let program: string[] = [];
+  const pipeline = [program];
   let word = "";
   let started = false;
   let quote: string | null = null;
   const endWord = () => {
-    if (started) words.push(word);
+    if (started) program.push(word);
     word = "";
     started = false;
   };
@@ -116,6 +109,10 @@ function shellWords(command: string): string[] | null {
       started = true;
     } else if (char === "\n" || char === "\r") {
       return null;
+    } else if (char === "|") {
+      endWord();
+      program = [];
+      pipeline.push(program);
     } else if (/\s/.test(char)) {
       endWord();
     } else if (SHELL_SYNTAX.test(char)) {
@@ -127,23 +124,24 @@ function shellWords(command: string): string[] | null {
   }
   if (quote !== null) return null;
   endWord();
-  return words;
+  return pipeline;
 }
 
-/** The command's words, one shell layer unwrapped: `/bin/zsh -lc "cat a.md"` is `cat a.md`. */
-function commandWords(command: string): string[] | null {
-  const words = shellWords(command.trim());
-  if (words === null || words.length !== 3) return words;
-  const [shell = "", flag, script = ""] = words;
+/** The command's programs, one shell layer unwrapped: `/bin/zsh -lc "cat a.md"` is `cat a.md`. */
+function commandPipeline(command: string): string[][] | null {
+  const pipeline = shellPipeline(command.trim());
+  const [only, ...more] = pipeline ?? [];
+  if (only === undefined || more.length > 0 || only.length !== 3) return pipeline;
+  const [shell = "", flag, script = ""] = only;
   return SHELL_WRAPPER.test(shell) && (flag === "-c" || flag === "-lc")
-    ? shellWords(script.trim())
-    : words;
+    ? shellPipeline(script.trim())
+    : pipeline;
 }
 
-/** The options of each program that take the next word as their value. */
-const VALUE_OPTIONS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+/** The programs that print a file, each with the options that take the next word as their value. */
+const READERS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   ["cat", new Set<string>()],
-  ["nl", new Set(["-b", "-d", "-f", "-h", "-i", "-l", "-n", "-s", "-v", "-w"])],
+  ["nl", new Set<string>()],
   ["head", new Set(["-n", "-c"])],
   ["tail", new Set(["-n", "-c"])],
 ]);
@@ -151,6 +149,15 @@ const SED_RANGE = /^(\d+)(?:,(\d+))?p$/;
 const HEAD_COUNT = /^-n?(\d+)$/;
 
 type FileRead = { path: string; lines: [number, number] | null };
+
+/** The lines `sed -n` prints for `A,Bp` or `Ap`. */
+function sedLines(script: string): [number, number] | null {
+  const range = SED_RANGE.exec(script);
+  if (range === null) return null;
+  const from = Number(range[1]);
+  const to = Number(range[2] ?? range[1]);
+  return from >= 1 && from <= to ? [from, to] : null;
+}
 
 /** The first `count` lines, when it names some. */
 const firstLines = (count: string | undefined): [number, number] | null =>
@@ -166,25 +173,9 @@ function headLines(args: ReadonlyArray<string>): [number, number] | null {
   return null;
 }
 
-/** `sed -n 'A,Bp' FILE`, or `sed -n 'Ap' FILE`. */
-function readSed(args: ReadonlyArray<string>): FileRead | null {
-  const [flag, script = "", path = ""] = args;
-  const range = SED_RANGE.exec(script);
-  if (flag !== "-n" || args.length !== 3 || range === null) return null;
-  if (path === "" || path.startsWith("-")) return null;
-  const from = Number(range[1]);
-  const to = Number(range[2] ?? range[1]);
-  return from >= 1 && from <= to ? { path, lines: [from, to] } : null;
-}
-
-/**
- * A command that reads one file and does nothing else: `cat`, `nl`, `head` or `tail` with any
- * flags, or `sed -n` printing a range of lines. The lines are known for `head -n N` and `sed`.
- */
-function readCommand(command: string): FileRead | null {
-  const [program = "", ...args] = commandWords(command) ?? [];
-  if (program === "sed") return readSed(args);
-  const valued = VALUE_OPTIONS.get(program);
+/** The one file a reader prints: its only word that is not a flag or a flag's value. */
+function operand(program: string, args: ReadonlyArray<string>): string | null {
+  const valued = READERS.get(program);
   if (valued === undefined) return null;
   const files: string[] = [];
   for (let index = 0; index < args.length; index += 1) {
@@ -192,97 +183,111 @@ function readCommand(command: string): FileRead | null {
     if (valued.has(arg)) index += 1;
     else if (!arg.startsWith("-") || arg === "-") files.push(arg);
   }
-  const [path = "-"] = files;
-  if (files.length !== 1 || path === "-") return null;
-  return { path, lines: program === "head" ? headLines(args) : null };
+  const [path] = files;
+  return files.length === 1 && path !== undefined && path !== "-" ? path : null;
 }
 
-// --- What a tool item opened ----------------------------------------------------------------
+/** `sed -n 'A,Bp' FILE`. */
+function readSed(args: ReadonlyArray<string>): FileRead | null {
+  const [flag, script = "", path = ""] = args;
+  const lines = sedLines(script);
+  const named = path !== "" && !path.startsWith("-");
+  return flag === "-n" && args.length === 3 && lines !== null && named ? { path, lines } : null;
+}
 
-type ItemOpening = { target: OpenedTarget; title?: string };
+/**
+ * `cat FILE | sed -n 'A,Bp'` and `nl FLAGS FILE | sed -n 'A,Bp'`: how Codex quotes lines of a file
+ * with their numbers. It is the one pipe that reads.
+ */
+function readPiped(reader: ReadonlyArray<string>, printer: ReadonlyArray<string>): FileRead | null {
+  const [program = "", ...args] = reader;
+  const [sed, flag, script = ""] = printer;
+  const path = program === "cat" || program === "nl" ? operand(program, args) : null;
+  const lines = sed === "sed" && flag === "-n" && printer.length === 3 ? sedLines(script) : null;
+  return path === null || lines === null ? null : { path, lines };
+}
 
-const asRecord = (value: unknown): Record<string, unknown> | null =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+/**
+ * A command that reads one file and does nothing else: `cat`, `nl`, `head` or `tail` with any
+ * flags, `sed -n` printing a range of lines, or `cat`/`nl` piped to that `sed`. The lines are
+ * known for `head -n N` and `sed`.
+ */
+function readCommand(command: string): FileRead | null {
+  const [first = [], second, ...rest] = commandPipeline(command) ?? [];
+  if (second !== undefined) return rest.length === 0 ? readPiped(first, second) : null;
+  const [program = "", ...args] = first;
+  if (program === "sed") return readSed(args);
+  const path = operand(program, args);
+  return path === null ? null : { path, lines: program === "head" ? headLines(args) : null };
+}
 
-const nonBlank = (value: unknown): string | null =>
-  typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+// --- What a tool call opened ----------------------------------------------------------------
+
+/** The text-to-cad plugin's viewer tools that name a model, after any server or plugin prefix. */
+const CAD_VIEWER_OPENER = /cad_(?:open|show)$/;
+const HTTP_ADDRESS = /^https?:\/\//i;
 
 const isLineNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 1;
 
-/** Claude's Read gives `offset` and `limit` together for a part of a file. */
-function claudeReadLines(input: Record<string, unknown>): [number, number] | null {
+/** Claude's Read names its file `file_path`, and a part of it by `offset` and `limit` together. */
+function claudeReadLines(input: unknown): [number, number] | null {
+  if (!Predicate.isObject(input) || typeof input.file_path !== "string") return null;
   const { offset, limit } = input;
   return isLineNumber(offset) && isLineNumber(limit) ? [offset, offset + limit - 1] : null;
 }
 
 /**
- * Claude's `Read` names its file `file_path`. The adapters of the other providers report their
- * reads as a `Read` too, with the path under `path` or `filePath`; of those, only the path is known.
+ * The file a tool call read, as the work log counts a read (`classifyToolActivity`, the path
+ * `collectToolFilePaths` finds, an image it viewed), or the model the CAD viewer was given.
  */
-function readOpenings(input: Record<string, unknown>): ItemOpening[] {
-  const claudePath = nonBlank(input.file_path);
-  const path = claudePath ?? nonBlank(input.filePath) ?? nonBlank(input.path);
-  if (path === null) return [];
-  return [{ target: fileTarget(path, claudePath === null ? null : claudeReadLines(input)) }];
-}
-
-function toolOpenings(toolName: string | null, input: unknown): ItemOpening[] {
-  const args = asRecord(input);
-  if (args === null) return [];
-  if (toolName !== null && /^read$/i.test(toolName)) return readOpenings(args);
-  // The text-to-cad plugin's viewer tools, by their name after any server or plugin prefix.
-  if (toolName !== null && /cad_(?:open|show)$/.test(toolName)) {
-    const path = nonBlank(args.path);
-    return path === null ? [] : [{ target: fileTarget(path, null) }];
+function toolOpening(
+  item: Extract<OrchestrationV2TurnItem, { type: "dynamic_tool" }>,
+  viewedImagePath: string | undefined,
+): OpenedTarget | null {
+  const [path] = collectToolFilePaths({ input: item.input });
+  const reads =
+    viewedImagePath !== undefined ||
+    classifyToolActivity({
+      itemType: "dynamic_tool_call",
+      data: { toolName: item.toolName ?? undefined, input: item.input },
+    }) === "read";
+  if (reads) {
+    const file = viewedImagePath ?? path;
+    return file === undefined ? null : fileTarget(file, claudeReadLines(item.input));
   }
-  return [];
+  const opensModel = item.toolName !== null && CAD_VIEWER_OPENER.test(item.toolName);
+  return opensModel && path !== undefined ? fileTarget(path, null) : null;
 }
 
 /**
- * The pages a web search or fetch opened: each result with an address, and each pattern that is
- * one (Claude's WebFetch names its page there; Codex's patterns are otherwise search words).
+ * The pages a web search or fetch opened: its patterns that are addresses, which is the page
+ * Claude's WebFetch fetched. Its results are what a search listed, not what was opened, and
+ * Codex's other patterns are search words.
  */
-function pageOpenings(item: Extract<OrchestrationV2TurnItem, { type: "web_search" }>) {
-  const pages = new Map<string, ItemOpening>();
-  const add = (url: string, title: string | null) => {
-    const key = addressKey(url);
-    if (!pages.has(key)) {
-      pages.set(key, { target: { kind: "url", url }, ...(title === null ? {} : { title }) });
-    }
-  };
-  for (const result of item.results ?? []) {
-    if (result.url !== undefined) add(result.url, nonBlank(result.title));
-  }
-  for (const pattern of item.patterns ?? []) {
-    const address = pattern.trim();
-    if (/^https?:\/\//i.test(address)) add(address, null);
-  }
-  return [...pages.values()];
+function fetchedPages(item: Extract<OrchestrationV2TurnItem, { type: "web_search" }>) {
+  return (item.patterns ?? [])
+    .map((pattern) => pattern.trim())
+    .filter((pattern) => HTTP_ADDRESS.test(pattern))
+    .map((url): OpenedTarget => ({ kind: "url", url }));
 }
 
-/** What a turn item opened, when it ran: a call that failed or was stopped opened nothing. */
-function itemOpenings(item: OrchestrationV2TurnItem): ItemOpening[] {
-  if (item.status === "failed" || item.status === "cancelled" || item.status === "interrupted") {
-    return [];
-  }
+/** What a turn item opened. Whether the call completed is for the caller to ask. */
+function itemOpenings(item: OrchestrationV2TurnItem, viewedImagePath: string | undefined) {
   switch (item.type) {
-    case "dynamic_tool":
-      return toolOpenings(item.toolName, item.input);
+    case "dynamic_tool": {
+      const opened = toolOpening(item, viewedImagePath);
+      return opened === null ? [] : [opened];
+    }
     case "file_search":
-      return (item.results ?? []).map((result) => ({
-        target: fileTarget(
-          result.fileName,
-          result.line === undefined ? null : [result.line, result.line],
-        ),
-      }));
+      return (item.results ?? []).map((result) =>
+        fileTarget(result.fileName, result.line === undefined ? null : [result.line, result.line]),
+      );
     case "web_search":
-      return pageOpenings(item);
+      return fetchedPages(item);
     case "command_execution": {
       const read = readCommand(item.input);
-      return read === null ? [] : [{ target: fileTarget(read.path, read.lines) }];
+      return read === null ? [] : [fileTarget(read.path, read.lines)];
     }
     default:
       return [];
@@ -292,22 +297,26 @@ function itemOpenings(item: OrchestrationV2TurnItem): ItemOpening[] {
 // --- Reading the chat -----------------------------------------------------------------------
 
 interface ChatOpening {
-  readonly opened: Opened;
-  /** The normalized path or address it is compared by. */
-  readonly key: string;
+  readonly target: OpenedTarget;
+  readonly runId: string | null;
+  readonly at: string;
   /** Where its entry sits in the chat. */
   readonly position: number;
 }
 
 interface ChatScan {
-  readonly opened: ReadonlyArray<Opened>;
   readonly openings: ReadonlyArray<ChatOpening>;
-  readonly openingsByRun: ReadonlyMap<string, ReadonlyArray<ChatOpening>>;
   /** Where each run's first entry sits in the chat. */
   readonly firstEntryOfRun: ReadonlyMap<string, number>;
-  readonly size: number;
+  /** The titles searches gave pages, by address. */
+  readonly titles: ReadonlyMap<string, string>;
 }
 
+/**
+ * The run an entry belongs to. T3's own `timelineEntryRunId` is private to the timeline's logic,
+ * which imports this module, and it leaves a user's message out where this needs it: a prompt
+ * starts its run.
+ */
 function entryRunId(entry: TimelineEntry): string | null {
   switch (entry.kind) {
     case "message":
@@ -331,105 +340,113 @@ function scanChat(entries: ReadonlyArray<TimelineEntry>): ChatScan {
   const known = scans.get(entries);
   if (known !== undefined) return known;
   const openings: ChatOpening[] = [];
-  const openingsByRun = new Map<string, ChatOpening[]>();
   const firstEntryOfRun = new Map<string, number>();
+  const titles = new Map<string, string>();
   for (const [position, entry] of entries.entries()) {
     const runId = entryRunId(entry);
     if (runId !== null && !firstEntryOfRun.has(runId)) firstEntryOfRun.set(runId, position);
-    if (entry.kind !== "work" || entry.entry.structuredPayload === undefined) continue;
-    for (const { target, title } of itemOpenings(entry.entry.structuredPayload)) {
-      const opening: ChatOpening = {
-        opened: {
-          target,
-          runId,
-          at: entry.entry.createdAt,
-          ...(title === undefined ? {} : { title }),
-        },
-        key: sourceKey(target),
-        position,
-      };
-      openings.push(opening);
-      if (runId === null) continue;
-      const ofRun = openingsByRun.get(runId);
-      if (ofRun === undefined) openingsByRun.set(runId, [opening]);
-      else ofRun.push(opening);
+    if (entry.kind !== "work") continue;
+    const item = entry.entry.structuredPayload;
+    if (item === undefined) continue;
+    if (item.type === "web_search") {
+      for (const { url, title } of item.results ?? []) {
+        if (url !== undefined && title?.trim() && !titles.has(addressKey(url))) {
+          titles.set(addressKey(url), title.trim());
+        }
+      }
+    }
+    const targets = itemOpenings(item, entry.entry.viewedImagePath);
+    // Asked last: most calls open nothing, and the work log's test reads their output.
+    if (targets.length === 0 || !workEntryIndicatesToolSuccess(entry.entry)) continue;
+    for (const target of targets) {
+      openings.push({ target, runId, at: entry.entry.createdAt, position });
     }
   }
-  const scan = {
-    opened: openings.map((opening) => opening.opened),
-    openings,
-    openingsByRun,
-    firstEntryOfRun,
-    size: entries.length,
-  };
+  const scan = { openings, firstEntryOfRun, titles };
   scans.set(entries, scan);
   return scan;
 }
 
+const titleOf = (scan: ChatScan, target: SourceTarget) =>
+  target.kind === "url" ? scan.titles.get(addressKey(target.url)) : undefined;
+
+const openedLists = new WeakMap<ReadonlyArray<TimelineEntry>, ReadonlyArray<Opened>>();
+
 /**
- * What the agent opened in the chat, in the order it did: Claude's Read, the CAD viewer's
- * `cad_open` and `cad_show`, file searches, the pages of web searches, and the reads Codex makes
- * through the shell (`cat`, `nl`, `head`, `tail` or `sed -n` on one file, and nothing cleverer).
- * It reads the chat's tool items, which a collapsed turn still holds.
+ * What the agent opened in the chat, in the order it did: a Read, the CAD viewer's `cad_open` and
+ * `cad_show`, file searches, the pages it fetched, and the reads Codex makes through the shell
+ * (`cat`, `nl`, `head`, `tail` or `sed -n` on one file, or `cat`/`nl` piped to that `sed`). It
+ * reads the chat's tool calls, which a collapsed turn still holds, and only those that completed.
+ * The array is shared by every caller: read it, do not change it.
  */
 export function openedInChat(entries: ReadonlyArray<TimelineEntry>): ReadonlyArray<Opened> {
-  return scanChat(entries).opened;
+  const known = openedLists.get(entries);
+  if (known !== undefined) return known;
+  const scan = scanChat(entries);
+  const opened = scan.openings.map(({ target, runId, at }) => {
+    const title = titleOf(scan, target);
+    return { target, runId, at, ...(title === undefined ? {} : { title }) };
+  });
+  openedLists.set(entries, opened);
+  return opened;
 }
 
 // --- Marking a citation ---------------------------------------------------------------------
 
-function sameSource(opening: ChatOpening, cited: OpenedTarget, key: string): boolean {
-  if (opening.opened.target.kind !== cited.kind) return false;
-  return cited.kind === "file" ? pathsMatch(opening.key, key) : opening.key === key;
-}
-
 /**
  * A cited source is opened this turn when the run opened it, else earlier in this chat when an
- * entry before the run's first one did. What later runs opened does not count for it, and an
- * answer with no run has no this turn: what the chat opened is earlier.
+ * entry before the run's first one did. What later runs opened does not count for it. A page the
+ * agent did open takes the title a search gave it.
  */
 function markSource(
   scan: ChatScan,
-  runId: string | null,
+  runId: string,
   before: number,
   source: { n: number; target: SourceTarget },
 ): AnswerReference {
   const { n, target } = source;
   if (target.kind === "own") return { n, target, opened: "own knowledge" };
-  const key = sourceKey(target);
   let opened: AnswerReference["opened"] = "not opened";
-  let title: string | undefined;
   for (const opening of scan.openings) {
-    if (!sameSource(opening, target, key)) continue;
-    if (runId !== null && opening.opened.runId === runId) {
+    if (!sameTarget(opening.target, target)) continue;
+    if (opening.runId === runId) {
       opened = "this turn";
-    } else if (opening.position < before) {
-      if (opened === "not opened") opened = "earlier in this chat";
-    } else {
-      continue;
+      break;
     }
-    title ??= opening.opened.title;
+    if (opening.position < before) opened = "earlier in this chat";
   }
+  const title = opened === "not opened" ? undefined : titleOf(scan, target);
   return { n, target, opened, ...(title === undefined ? {} : { title }) };
 }
 
 /**
- * An answer that cites nothing: what its turn opened that is the project's work, once each, in the
- * order it was opened. The agent's own skill and tool docs, which live in hidden folders, are not.
+ * Whether a file the agent opened is the project's work: in the thread's folder (a relative path is
+ * there already, an absolute one must lie inside it) and not tooling in it. The agent's own skill
+ * and tool docs live outside the folder, or in its hidden folders.
  */
-function thisTurnsOpenings(scan: ChatScan, runId: string | null): AnswerReference[] {
+function isWorkInFolder(path: string, root: string | null): boolean {
+  const relative =
+    isAbsolutePath(path) || path.startsWith("~/") ? workspaceRelativeFilePath(path, root) : path;
+  return relative !== null && isProjectWork(relative);
+}
+
+/**
+ * An answer that cites nothing: what its turn opened that is the project's work, once each, in the
+ * order it was opened.
+ */
+function thisTurnsOpenings(scan: ChatScan, runId: string, root: string | null): AnswerReference[] {
   const references: AnswerReference[] = [];
-  const seen = new Set<string>();
-  const thisRun = runId === null ? undefined : scan.openingsByRun.get(runId);
-  for (const { opened, key } of thisRun ?? []) {
-    if (seen.has(key)) continue;
-    if (opened.target.kind === "file" && classifyProjectFile(key) === null) continue;
-    seen.add(key);
+  for (const opening of scan.openings) {
+    const { target } = opening;
+    if (opening.runId !== runId) continue;
+    if (target.kind === "file" && !isWorkInFolder(target.path, root)) continue;
+    if (references.some((kept) => sameTarget(kept.target, target))) continue;
+    const title = titleOf(scan, target);
     references.push({
       n: references.length + 1,
-      target: opened.target,
+      target,
       opened: "this turn",
-      ...(opened.title === undefined ? {} : { title: opened.title }),
+      ...(title === undefined ? {} : { title }),
     });
   }
   return references;
@@ -437,64 +454,26 @@ function thisTurnsOpenings(scan: ChatScan, runId: string | null): AnswerReferenc
 
 /**
  * The list under an answer: the sources it cites, each with when the agent opened it, or, for an
- * answer with no Sources block, what its turn opened.
+ * answer with no Sources block, what its turn opened in the thread's folder (`root`). An answer
+ * with no run has no turn to say what was opened in, and gets none.
  */
 export function turnReferences(input: {
   answer: string;
   runId: string | null;
   entries: ReadonlyArray<TimelineEntry>;
+  root?: string | null;
 }): AnswerReference[] {
   const { runId } = input;
+  if (runId === null) return [];
   const { sources } = splitSources(input.answer);
   const scan = scanChat(input.entries);
-  if (sources.length === 0) return thisTurnsOpenings(scan, runId);
+  if (sources.length === 0) return thisTurnsOpenings(scan, runId, input.root ?? null);
   // A run the chat does not hold comes after everything it does.
-  const before = (runId === null ? undefined : scan.firstEntryOfRun.get(runId)) ?? scan.size;
+  const before = scan.firstEntryOfRun.get(runId) ?? input.entries.length;
   return sources.map((source) => markSource(scan, runId, before, source));
 }
 
-// --- Comparing and describing the list ------------------------------------------------------
-
-const linesEqual = (a: [number, number] | null, b: [number, number] | null) =>
-  a === b || (a !== null && b !== null && a[0] === b[0] && a[1] === b[1]);
-
-function targetsEqual(a: SourceTarget, b: SourceTarget): boolean {
-  switch (a.kind) {
-    case "file":
-      return (
-        b.kind === "file" &&
-        a.path === b.path &&
-        a.heading === b.heading &&
-        linesEqual(a.lines, b.lines)
-      );
-    case "url":
-      return b.kind === "url" && a.url === b.url;
-    case "own":
-      return b.kind === "own" && a.text === b.text;
-  }
-}
-
-/**
- * Whether two lists say the same, for a row to keep what it has when the chat is read again:
- * every derive pass builds the list anew.
- */
-export function referencesEqual(
-  a: ReadonlyArray<AnswerReference> | undefined,
-  b: ReadonlyArray<AnswerReference> | undefined,
-): boolean {
-  if (a === b) return true;
-  if (a === undefined || b === undefined || a.length !== b.length) return false;
-  return a.every((item, index) => {
-    const other = b[index];
-    return (
-      other !== undefined &&
-      item.n === other.n &&
-      item.opened === other.opened &&
-      item.title === other.title &&
-      targetsEqual(item.target, other.target)
-    );
-  });
-}
+// --- Describing a row -----------------------------------------------------------------------
 
 const linesPhrase = ([from, to]: [number, number]) =>
   from === to ? `line ${from}` : `lines ${from}–${to}`;
@@ -508,20 +487,18 @@ function hostOf(url: string): string {
 }
 
 /**
- * A row's words: what it is called and where in it. A file is called what Studio calls it
- * elsewhere (a part by its name, else its file name) and sits at its lines or its heading; a page
- * is called by its title, else its host, and a titled page sits at its host.
+ * A row's words: what it is called and where in it. A file is called what the chat's file chips
+ * call it (`partLabel`) and sits at its lines or its heading; a page is called by its title, else
+ * its host, and a titled page sits at its host.
  */
 export function referenceLabel(reference: AnswerReference): { name: string; where: string | null } {
   const { target, title } = reference;
   switch (target.kind) {
-    case "file": {
-      const path = normalizePath(target.path);
+    case "file":
       return {
-        name: classifyProjectFile(path)?.title ?? (path.split("/").at(-1) || path),
+        name: partLabel(target.path),
         where: target.lines === null ? target.heading : linesPhrase(target.lines),
       };
-    }
     case "url": {
       const host = hostOf(target.url);
       return title === undefined ? { name: host, where: null } : { name: title, where: host };

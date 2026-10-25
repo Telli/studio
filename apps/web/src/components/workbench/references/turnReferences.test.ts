@@ -1,7 +1,14 @@
-import { MessageId, RunId } from "@t3tools/contracts";
-import { describe, expect, it } from "vite-plus/test";
+import {
+  MessageId,
+  RunId,
+  ThreadId,
+  TurnItemId,
+  type OrchestrationV2TurnItem,
+} from "@t3tools/contracts";
+import * as DateTime from "effect/DateTime";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import type { TimelineEntry } from "~/session-logic";
+import { deriveTimelineEntriesFromVisibleTurnItems, type TimelineEntry } from "~/session-logic";
 import {
   computeStableMessagesTimelineRows,
   deriveMessagesTimelineRows,
@@ -9,94 +16,170 @@ import {
 import {
   openedInChat,
   referenceLabel,
-  referencesEqual,
   turnReferences,
   type AnswerReference,
 } from "./turnReferences";
 
+// References show only in the engineering interface, which the timeline's logic asks about.
+const interfaceIs = vi.hoisted(() => ({ engineering: true }));
+vi.mock("../studioInterface", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../studioInterface")>()),
+  isEngineeringInterface: () => interfaceIs.engineering,
+}));
+afterEach(() => {
+  interfaceIs.engineering = true;
+});
+
 const run1 = RunId.make("run-1");
 const run2 = RunId.make("run-2");
 const run3 = RunId.make("run-3");
+const threadId = ThreadId.make("thread-1");
+const ROOT = "/work/rover-cad";
 
-/** A chat as the timeline holds it: each entry a second after the one before. */
+/**
+ * A chat's turn items as the server projects them, a second apart. `timeline` reads them as the
+ * web does, so the entries are the ones a thread has: a work entry's lifecycle status, its viewed
+ * image, its command.
+ */
 function makeChat() {
   let count = 0;
-  const stamp = () => {
+  const base = (runId: RunId | null) => {
     count += 1;
-    return new Date(Date.UTC(2026, 9, 24, 9, 0, count)).toISOString();
-  };
-  const message = (
-    role: "user" | "assistant",
-    runId: RunId | null,
-    text: string,
-    streaming = false,
-  ): TimelineEntry => {
-    const createdAt = stamp();
+    const at = DateTime.makeUnsafe(new Date(Date.UTC(2026, 9, 24, 9, 0, count)).toISOString());
     return {
-      id: `entry-${count}`,
-      kind: "message",
-      createdAt,
-      message: {
-        id: MessageId.make(`message-${count}`),
-        role,
-        text,
-        runId,
-        streaming,
-        createdAt,
-        updatedAt: createdAt,
-      },
-    };
-  };
-  const tool = (runId: RunId | null, item: Record<string, unknown>): TimelineEntry => {
-    const createdAt = stamp();
-    return {
-      id: `entry-${count}`,
-      kind: "work",
-      createdAt,
-      entry: {
-        id: `item-${count}`,
-        createdAt,
-        runId,
-        label: "Tool call",
-        tone: "tool",
-        structuredPayload: { status: "completed", ...item } as never,
-      },
+      id: TurnItemId.make(`item-${count}`),
+      threadId,
+      runId,
+      nodeId: null,
+      providerThreadId: null,
+      providerTurnId: null,
+      nativeItemRef: null,
+      parentItemId: null,
+      ordinal: count,
+      status: "completed" as const,
+      title: null,
+      startedAt: at,
+      completedAt: at,
+      updatedAt: at,
     };
   };
   return {
-    user: (runId: RunId | null, text = "A question") => message("user", runId, text),
-    assistant: (runId: RunId | null, text: string, streaming = false) =>
-      message("assistant", runId, text, streaming),
-    tool,
+    user: (runId: RunId | null, text = "A question"): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "user_message",
+      messageId: MessageId.make(`user-${count}`),
+      text,
+      attachments: [],
+      inputIntent: "turn_start",
+      createdBy: "user",
+      creationSource: "web",
+    }),
+    assistant: (runId: RunId | null, text: string, streaming = false): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "assistant_message",
+      messageId: MessageId.make(`assistant-${count}`),
+      text,
+      streaming,
+      ...(streaming ? { status: "running" as const, completedAt: null } : {}),
+    }),
+    /** Claude's Read. */
+    read: (
+      runId: RunId | null,
+      path: string,
+      range: { offset?: number; limit?: number } = {},
+    ): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "dynamic_tool",
+      toolName: "Read",
+      input: { file_path: path, ...range },
+    }),
+    /** Any other tool, as its provider names it. */
+    tool: (
+      runId: RunId | null,
+      toolName: string | null,
+      input: unknown,
+      extra: { viewedImagePath?: string } = {},
+    ): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "dynamic_tool",
+      toolName,
+      input,
+      ...extra,
+    }),
+    /** The text-to-cad plugin's viewer tools, as Claude names them. */
+    cad: (
+      runId: RunId | null,
+      tool: "cad_open" | "cad_show",
+      path: string,
+    ): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "dynamic_tool",
+      toolName: `mcp__t3-code__text-to-cad__${tool}`,
+      input: { path },
+    }),
+    /** Codex reads files through the shell. */
+    shell: (
+      runId: RunId | null,
+      command: string,
+      extra: { exitCode?: number; outputIndicatesFailure?: boolean } = {},
+    ): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "command_execution",
+      input: command,
+      ...extra,
+    }),
+    /** Claude's WebFetch: the page is the pattern, and the result its text. */
+    fetch: (runId: RunId | null, url: string): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "web_search",
+      patterns: [url],
+      results: [{ url, snippet: "The page's text" }],
+    }),
+    /** A web search: its patterns are search words, its results the hits. */
+    search: (
+      runId: RunId | null,
+      patterns: ReadonlyArray<string>,
+      results: ReadonlyArray<{ title?: string; url?: string }> = [],
+    ): OrchestrationV2TurnItem => ({ ...base(runId), type: "web_search", patterns, results }),
+    files: (
+      runId: RunId | null,
+      results: ReadonlyArray<{ fileName: string; line?: number }>,
+    ): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "file_search",
+      pattern: "bracket",
+      results,
+    }),
+    reasoning: (runId: RunId | null, text: string): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "reasoning",
+      text,
+      streaming: false,
+    }),
+    edit: (runId: RunId | null, fileName: string): OrchestrationV2TurnItem => ({
+      ...base(runId),
+      type: "file_change",
+      fileName,
+    }),
   };
 }
 
-// What each provider reports for a tool that opens something.
-const readFile = (path: string, range: { offset?: number; limit?: number } = {}) => ({
-  type: "dynamic_tool",
-  toolName: "Read",
-  input: { file_path: path, ...range },
-});
-const cadTool = (tool: "cad_open" | "cad_show", path: string) => ({
-  type: "dynamic_tool",
-  toolName: `mcp__t3-code__text-to-cad__${tool}`,
-  input: { path },
-});
-const shell = (command: string) => ({ type: "command_execution", input: command });
-const webFetch = (url: string) => ({
-  type: "web_search",
-  patterns: [url],
-  results: [{ url, snippet: "The page's text" }],
-});
-const webSearch = (
-  patterns: ReadonlyArray<string>,
-  results: ReadonlyArray<{ title?: string; url?: string }> = [],
-) => ({ type: "web_search", patterns, results });
-const fileSearch = (results: ReadonlyArray<{ fileName: string; line?: number }>) => ({
-  type: "file_search",
-  pattern: "bracket",
-  results,
-});
+const timeline = (items: ReadonlyArray<OrchestrationV2TurnItem>): TimelineEntry[] =>
+  deriveTimelineEntriesFromVisibleTurnItems({
+    visibleTurnItems: items.map((item, position) => ({
+      position,
+      visibility: "local",
+      sourceThreadId: threadId,
+      sourceItemId: item.id,
+      item,
+    })),
+    optimisticMessages: [],
+  });
+
+const withStatus = (
+  item: OrchestrationV2TurnItem,
+  status: OrchestrationV2TurnItem["status"],
+): OrchestrationV2TurnItem => ({ ...item, status });
 
 const file = (
   path: string,
@@ -108,13 +191,13 @@ const page = (url: string) => ({ kind: "url" as const, url });
 describe("turnReferences", () => {
   it("lists what the agent cited, each with when it was opened", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
-      chat.tool(run1, readFile("/work/rover-cad/docs/prd.md")),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
       chat.assistant(run1, "It is in the brief."),
       chat.user(run2),
-      chat.tool(run2, readFile("/work/rover-cad/parts/bracket.py", { offset: 12, limit: 7 })),
-    ];
+      chat.read(run2, "/work/rover-cad/parts/bracket.py", { offset: 12, limit: 7 }),
+    ]);
     const answer = [
       "The holes are 3.4 mm [1], sized for the M3 screws the brief names [2].",
       "",
@@ -130,13 +213,13 @@ describe("turnReferences", () => {
 
   it("marks a citation nothing opened", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
-      chat.tool(run1, readFile("/work/rover-cad/parts/bracket.py")),
+      chat.read(run1, "/work/rover-cad/parts/bracket.py"),
       // Ends in the cited name, but not at a folder boundary.
-      chat.tool(run1, readFile("/work/rover-cad/old-docs/prd.md")),
-      chat.tool(run1, webFetch("https://example.com/spec")),
-    ];
+      chat.read(run1, "/work/rover-cad/old-docs/prd.md"),
+      chat.fetch(run1, "https://example.com/spec"),
+    ]);
     const answer = [
       "Sources:",
       "[1] parts/other.py:3",
@@ -167,24 +250,31 @@ describe("turnReferences", () => {
 
   it("falls back to this turn's openings without a block", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
-      chat.tool(run1, readFile("/work/rover-cad/docs/earlier.md")),
+      chat.read(run1, "/work/rover-cad/docs/earlier.md"),
       chat.assistant(run1, "Done."),
       chat.user(run2),
-      chat.tool(run2, readFile("/work/rover-cad/docs/prd.md")),
-      // The agent's own skill and tool docs live in hidden folders.
-      chat.tool(run2, readFile("/Users/amy/.claude/skills/cad/SKILL.md")),
-      chat.tool(run2, cadTool("cad_show", "/work/rover-cad/parts/bracket.step")),
-      chat.tool(run2, readFile("/work/rover-cad/docs/prd.md", { offset: 5, limit: 4 })),
-      chat.tool(run2, webFetch("https://example.com/spec#section")),
-      chat.tool(
+      chat.read(run2, "/work/rover-cad/docs/prd.md"),
+      // The agent's own skill and tool docs are not in the project's folder.
+      chat.read(run2, "/Users/amy/.claude/skills/cad/SKILL.md"),
+      chat.cad(run2, "cad_show", "/work/rover-cad/parts/bracket.step"),
+      chat.read(run2, "/work/rover-cad/docs/prd.md", { offset: 5, limit: 4 }),
+      chat.fetch(run2, "https://example.com/spec#section"),
+      chat.search(
         run2,
-        webSearch(["torx screw drive"], [{ title: "Torx drive", url: "https://example.org/torx" }]),
+        ["torx screw drive"],
+        [
+          { title: "Torx drive", url: "https://example.org/torx" },
+          { title: "Another hit", url: "https://example.org/other" },
+        ],
       ),
-      chat.tool(run3, readFile("/work/rover-cad/docs/later.md")),
-    ];
-    expect(turnReferences({ answer: "The bracket is 3 mm thick.", runId: run2, entries })).toEqual([
+      chat.fetch(run2, "https://example.org/torx"),
+      chat.read(run3, "/work/rover-cad/docs/later.md"),
+    ]);
+    expect(
+      turnReferences({ answer: "The bracket is 3 mm thick.", runId: run2, entries, root: ROOT }),
+    ).toEqual([
       { n: 1, target: file("/work/rover-cad/docs/prd.md"), opened: "this turn" },
       { n: 2, target: file("/work/rover-cad/parts/bracket.step"), opened: "this turn" },
       { n: 3, target: page("https://example.com/spec#section"), opened: "this turn" },
@@ -199,37 +289,117 @@ describe("turnReferences", () => {
 
   it("lists nothing for an answer that cites nothing and whose turn opened nothing", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
-      chat.tool(run1, shell("python parts/bracket.py")),
+      chat.shell(run1, "python parts/bracket.py"),
       chat.assistant(run1, "Built."),
-    ];
-    expect(turnReferences({ answer: "Built.", runId: run1, entries })).toEqual([]);
+    ]);
+    expect(turnReferences({ answer: "Built.", runId: run1, entries, root: ROOT })).toEqual([]);
   });
 
   it("does not drop a cited source for being outside the project", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
-      chat.tool(run1, readFile("/Users/amy/.claude/skills/cad/SKILL.md")),
-    ];
-    const answer = "Sources:\n[1] /Users/amy/.claude/skills/cad/SKILL.md";
-    expect(turnReferences({ answer, runId: run1, entries })).toEqual([
-      {
-        n: 1,
-        target: file("/Users/amy/.claude/skills/cad/SKILL.md"),
-        opened: "this turn",
-      },
+      chat.read(run1, "/Users/amy/.claude/skills/cad/SKILL.md"),
     ]);
+    const answer = "Sources:\n[1] /Users/amy/.claude/skills/cad/SKILL.md";
+    expect(turnReferences({ answer, runId: run1, entries, root: ROOT })).toEqual([
+      { n: 1, target: file("/Users/amy/.claude/skills/cad/SKILL.md"), opened: "this turn" },
+    ]);
+  });
+
+  describe("without a block, the project's own work in the thread's folder", () => {
+    const listed = (items: ReadonlyArray<OrchestrationV2TurnItem>, root: string | null) =>
+      turnReferences({
+        answer: "Done.",
+        runId: run1,
+        entries: timeline(items),
+        root,
+      }).map((reference) => reference.target);
+
+    it("counts a Claude Read under a worktree, whatever hidden folder the worktree sits in", () => {
+      const chat = makeChat();
+      const worktree = "/Users/a/.t3/worktrees/x";
+      expect(
+        listed([chat.user(run1), chat.read(run1, `${worktree}/parts/bracket.py`)], worktree),
+      ).toEqual([file("/Users/a/.t3/worktrees/x/parts/bracket.py")]);
+    });
+
+    it("counts a Windows path in a Windows folder", () => {
+      const chat = makeChat();
+      expect(
+        listed(
+          [chat.user(run1), chat.read(run1, "C:\\work\\rover\\parts\\bracket.py")],
+          "C:\\work\\rover",
+        ),
+      ).toEqual([file("C:\\work\\rover\\parts\\bracket.py")]);
+    });
+
+    it("leaves out files outside the folder, and the folder's own tooling", () => {
+      const chat = makeChat();
+      expect(
+        listed(
+          [
+            chat.user(run1),
+            chat.read(run1, "/work/rover-cad/parts/bracket.py"),
+            chat.read(run1, "/work/rover-cad/AGENTS.md"),
+            chat.read(run1, "/work/rover-cad/.venv/lib/readme.md"),
+            chat.read(run1, "/work/rover-cad/node_modules/x/README.md"),
+            chat.read(run1, "/work/rover-cad-old/docs/prd.md"),
+            chat.read(run1, "/Users/a/notes/ideas.md"),
+            chat.read(run1, "/Users/a/.claude/skills/cad/SKILL.md"),
+            chat.shell(run1, "cat docs/prd.md"),
+            chat.shell(run1, "cat ./docs/spec.md"),
+            chat.shell(run1, "cat ../outside.md"),
+            chat.shell(run1, "cat .git/config"),
+            chat.shell(run1, "cat ~/notes/ideas.md"),
+          ],
+          ROOT,
+        ),
+      ).toEqual([
+        file("/work/rover-cad/parts/bracket.py"),
+        file("docs/prd.md"),
+        file("./docs/spec.md"),
+      ]);
+    });
+
+    it("needs the folder to place an absolute path, not a relative one", () => {
+      const chat = makeChat();
+      const items = [
+        chat.user(run1),
+        chat.read(run1, "/work/rover-cad/parts/bracket.py"),
+        chat.shell(run1, "cat docs/prd.md"),
+      ];
+      expect(listed(items, null)).toEqual([file("docs/prd.md")]);
+      expect(listed(items, ROOT)).toEqual([
+        file("/work/rover-cad/parts/bracket.py"),
+        file("docs/prd.md"),
+      ]);
+    });
+
+    it("lists a file opened twice, by a relative and an absolute path, once", () => {
+      const chat = makeChat();
+      expect(
+        listed(
+          [
+            chat.user(run1),
+            chat.shell(run1, "cat parts/bracket.py"),
+            chat.read(run1, "/work/rover-cad/parts/bracket.py"),
+          ],
+          ROOT,
+        ),
+      ).toEqual([file("parts/bracket.py")]);
+    });
   });
 
   it("matches a page by its address without the fragment", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
-      chat.tool(run1, webFetch("https://Example.com/spec#intro")),
-      chat.tool(run1, webFetch("https://example.com/other/")),
-    ];
+      chat.fetch(run1, "https://Example.com/spec#intro"),
+      chat.fetch(run1, "https://example.com/other/"),
+    ]);
     const answer = [
       "Sources:",
       "[1] https://example.com/spec#clearance",
@@ -248,7 +418,7 @@ describe("turnReferences", () => {
 
   it("compares an address that does not parse as written, without the fragment", () => {
     const chat = makeChat();
-    const entries = [chat.user(run1), chat.tool(run1, webFetch("http://[bad/page#one"))];
+    const entries = timeline([chat.user(run1), chat.fetch(run1, "http://[bad/page#one")]);
     const answer = "Sources:\n[1] http://[bad/page#two\n[2] http://[bad/other#one";
     expect(turnReferences({ answer, runId: run1, entries }).map((item) => item.opened)).toEqual([
       "this turn",
@@ -258,26 +428,26 @@ describe("turnReferences", () => {
 
   it("leaves out an answer's later runs", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
       chat.assistant(run1, "First."),
       chat.user(run2),
       chat.assistant(run2, "Second."),
       chat.user(run3),
-      chat.tool(run3, readFile("/work/rover-cad/docs/prd.md")),
-      chat.tool(run3, webFetch("https://example.com/spec")),
-    ];
+      chat.read(run3, "/work/rover-cad/docs/prd.md"),
+      chat.fetch(run3, "https://example.com/spec"),
+    ]);
     const answer = "Sources:\n[1] docs/prd.md\n[2] https://example.com/spec";
     expect(turnReferences({ answer, runId: run2, entries })).toEqual([
       { n: 1, target: file("docs/prd.md"), opened: "not opened" },
       { n: 2, target: page("https://example.com/spec"), opened: "not opened" },
     ]);
-    // The later run's own answer sees them as this turn's.
+    // Run 3's own answer sees them as this turn's.
     expect(turnReferences({ answer, runId: run3, entries }).map((item) => item.opened)).toEqual([
       "this turn",
       "this turn",
     ]);
-    // And the earlier run's openings are earlier for it.
+    // Run 1's answer does not see what run 3 opened either.
     expect(turnReferences({ answer: "Sources:\n[1] docs/prd.md", runId: run1, entries })).toEqual([
       { n: 1, target: file("docs/prd.md"), opened: "not opened" },
     ]);
@@ -285,12 +455,12 @@ describe("turnReferences", () => {
 
   it("matches a cited relative path to an absolute Read", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
-      chat.tool(run1, readFile("/work/rover-cad/parts/bracket.py")),
-      chat.tool(run1, readFile("C:\\work\\rover-cad\\docs\\prd.md")),
-      chat.tool(run1, shell("cat docs/notes.md")),
-    ];
+      chat.read(run1, "/work/rover-cad/parts/bracket.py"),
+      chat.read(run1, "C:\\work\\rover-cad\\docs\\prd.md"),
+      chat.shell(run1, "cat docs/notes.md"),
+    ]);
     const answer = [
       "Sources:",
       "[1] parts/bracket.py:12-18",
@@ -299,70 +469,95 @@ describe("turnReferences", () => {
       "[4] /work/rover-cad/docs/notes.md",
       "[5] bracket.py",
     ].join("\n");
-    expect(turnReferences({ answer, runId: run1, entries }).map((item) => item.opened)).toEqual([
-      "this turn",
-      "this turn",
-      "this turn",
-      // A Read that is relative, cited by its absolute path.
-      "this turn",
-      "this turn",
+    expect(turnReferences({ answer, runId: run1, entries })).toEqual([
+      // The relative citation, and the line range it carries, of the absolute Read.
+      { n: 1, target: file("parts/bracket.py", [12, 18]), opened: "this turn" },
+      // The same, written from the folder with ./.
+      { n: 2, target: file("./parts/bracket.py"), opened: "this turn" },
+      // A Windows Read, cited by its heading.
+      { n: 3, target: file("docs/prd.md", null, "Fits"), opened: "this turn" },
+      // A relative Read, cited by its absolute path.
+      { n: 4, target: file("/work/rover-cad/docs/notes.md"), opened: "this turn" },
+      // A bare file name ends a path at a folder.
+      { n: 5, target: file("bracket.py"), opened: "this turn" },
     ]);
   });
 
-  it("shows a cited page by the title a search gave it", () => {
-    const chat = makeChat();
-    const entries = [
-      chat.user(run1),
-      chat.tool(
-        run1,
-        webSearch(["torx"], [{ title: "Torx drive", url: "https://example.org/torx" }]),
-      ),
-      chat.tool(run1, webFetch("https://example.org/torx")),
+  describe("a web search", () => {
+    const hits = [
+      { title: "Torx drive", url: "https://EXAMPLE.org/torx" },
+      { title: "Another hit", url: "https://example.org/other" },
     ];
-    const answer = "Sources:\n[1] https://example.org/torx\n[2] https://example.org/other";
-    expect(turnReferences({ answer, runId: run1, entries })).toEqual([
-      {
-        n: 1,
-        target: page("https://example.org/torx"),
-        opened: "this turn",
-        title: "Torx drive",
-      },
-      { n: 2, target: page("https://example.org/other"), opened: "not opened" },
-    ]);
+
+    it("does not open the pages it lists, and gives a page the agent fetched its title", () => {
+      const chat = makeChat();
+      const entries = timeline([
+        chat.user(run1),
+        chat.search(run1, ["torx screw drive"], hits),
+        chat.fetch(run1, "https://example.org/torx#top"),
+      ]);
+      const answer = "Sources:\n[1] https://example.org/torx\n[2] https://example.org/other";
+      expect(turnReferences({ answer, runId: run1, entries })).toEqual([
+        {
+          n: 1,
+          target: page("https://example.org/torx"),
+          opened: "this turn",
+          title: "Torx drive",
+        },
+        // A hit the agent never fetched, with the title the search gave it left unsaid.
+        { n: 2, target: page("https://example.org/other"), opened: "not opened" },
+      ]);
+    });
+
+    it("lists only the pages fetched, not every hit, for an answer without a block", () => {
+      const chat = makeChat();
+      const entries = timeline([
+        chat.user(run1),
+        chat.search(run1, ["torx screw drive"], hits),
+        chat.search(run1, ["torx", "drive size"], [{ url: "https://example.org/third" }]),
+        chat.fetch(run1, "https://example.org/torx#top"),
+      ]);
+      expect(turnReferences({ answer: "Use a T10.", runId: run1, entries, root: ROOT })).toEqual([
+        {
+          n: 1,
+          target: page("https://example.org/torx#top"),
+          opened: "this turn",
+          title: "Torx drive",
+        },
+      ]);
+    });
   });
 
   it("prefers this turn to an earlier opening", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
-      chat.tool(run1, readFile("/work/rover-cad/docs/prd.md")),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
       chat.user(run2),
-      chat.tool(run2, readFile("/work/rover-cad/docs/prd.md")),
-    ];
+      chat.read(run2, "/work/rover-cad/docs/prd.md"),
+    ]);
     expect(
       turnReferences({ answer: "Sources:\n[1] docs/prd.md", runId: run2, entries })[0]?.opened,
     ).toBe("this turn");
   });
 
-  it("gives an answer with no run no this turn, and the whole chat as earlier", () => {
+  it("gives an answer with no run no list, whatever the chat opened later", () => {
     const chat = makeChat();
-    const entries = [
+    const answer = "It is in the brief.\n\nSources:\n[1] docs/prd.md\n[2] parts/a.py";
+    const entries = timeline([
       chat.user(null),
-      chat.tool(null, readFile("/work/rover-cad/docs/prd.md")),
-      chat.assistant(null, "Done."),
-    ];
-    expect(
-      turnReferences({ answer: "Sources:\n[1] docs/prd.md\n[2] parts/a.py", runId: null, entries }),
-    ).toEqual([
-      { n: 1, target: file("docs/prd.md"), opened: "earlier in this chat" },
-      { n: 2, target: file("parts/a.py"), opened: "not opened" },
+      chat.assistant(null, answer),
+      chat.read(null, "/work/rover-cad/docs/prd.md"),
+      chat.user(run2),
+      chat.read(run2, "/work/rover-cad/parts/a.py"),
     ]);
-    expect(turnReferences({ answer: "Done.", runId: null, entries })).toEqual([]);
+    expect(turnReferences({ answer, runId: null, entries, root: ROOT })).toEqual([]);
+    expect(turnReferences({ answer: "Done.", runId: null, entries, root: ROOT })).toEqual([]);
   });
 
   it("counts a run the chat does not hold yet as after everything it has", () => {
     const chat = makeChat();
-    const entries = [chat.user(run1), chat.tool(run1, readFile("/work/rover-cad/docs/prd.md"))];
+    const entries = timeline([chat.user(run1), chat.read(run1, "/work/rover-cad/docs/prd.md")]);
     expect(
       turnReferences({ answer: "Sources:\n[1] docs/prd.md", runId: run2, entries })[0]?.opened,
     ).toBe("earlier in this chat");
@@ -370,15 +565,23 @@ describe("turnReferences", () => {
 });
 
 describe("openedInChat", () => {
-  it("reads Claude's Read, and the lines its offset and limit give", () => {
+  const targets = (entries: ReadonlyArray<TimelineEntry>) =>
+    openedInChat(entries).map((opened) => opened.target);
+
+  it("reads a Read as the work log does, and the lines Claude's offset and limit give", () => {
     const chat = makeChat();
-    const entries = [
-      chat.tool(run1, readFile("/work/rover-cad/parts/a.py", { offset: 12, limit: 7 })),
-      chat.tool(run1, readFile("/work/rover-cad/parts/b.py", { offset: 12 })),
-      chat.tool(run1, readFile("/work/rover-cad/parts/c.py", { limit: 7 })),
-      chat.tool(run1, readFile("/work/rover-cad/parts/d.py")),
-      chat.tool(run1, readFile("/work/rover-cad/parts/e.py", { offset: 0, limit: 7 })),
-    ];
+    const entries = timeline([
+      // Claude's: the file as file_path, a part of it as offset and limit.
+      chat.read(run1, "/work/rover-cad/parts/a.py", { offset: 12, limit: 7 }),
+      chat.read(run1, "/work/rover-cad/parts/b.py", { offset: 12 }),
+      chat.read(run1, "/work/rover-cad/parts/c.py", { limit: 7 }),
+      chat.read(run1, "/work/rover-cad/parts/d.py"),
+      chat.read(run1, "/work/rover-cad/parts/e.py", { offset: 0, limit: 7 }),
+      // The other providers' adapters call their reads Read too, and name the file otherwise.
+      chat.tool(run1, "Read", { path: "/work/rover-cad/docs/f.md", offset: 2, limit: 3 }),
+      chat.tool(run1, "read", { filePath: "/work/rover-cad/docs/g.md" }),
+      chat.tool(run1, "read_file", { path: "/work/rover-cad/docs/h.md" }),
+    ]);
     expect(openedInChat(entries)).toEqual([
       {
         target: file("/work/rover-cad/parts/a.py", [12, 18]),
@@ -389,56 +592,61 @@ describe("openedInChat", () => {
       { target: file("/work/rover-cad/parts/c.py"), runId: run1, at: entries[2]!.createdAt },
       { target: file("/work/rover-cad/parts/d.py"), runId: run1, at: entries[3]!.createdAt },
       { target: file("/work/rover-cad/parts/e.py"), runId: run1, at: entries[4]!.createdAt },
+      { target: file("/work/rover-cad/docs/f.md"), runId: run1, at: entries[5]!.createdAt },
+      { target: file("/work/rover-cad/docs/g.md"), runId: run1, at: entries[6]!.createdAt },
+      { target: file("/work/rover-cad/docs/h.md"), runId: run1, at: entries[7]!.createdAt },
     ]);
   });
 
-  it("reads the Read other providers report, by whichever key holds the path", () => {
+  it("does not read a tool the work log does not call a read", () => {
     const chat = makeChat();
-    const entries = [
-      // The adapters for Cursor, Grok and other ACP agents call their reads `Read`.
-      chat.tool(run1, {
-        type: "dynamic_tool",
-        toolName: "Read",
-        input: { path: "/work/rover-cad/docs/a.md", offset: 2, limit: 3 },
-      }),
-      // OpenCode's `read`.
-      chat.tool(run1, {
-        type: "dynamic_tool",
-        toolName: "read",
-        input: { filePath: "/work/rover-cad/docs/b.md" },
-      }),
-      chat.tool(run1, { type: "dynamic_tool", toolName: "Read", input: { limit: 3 } }),
-      chat.tool(run1, { type: "dynamic_tool", toolName: "Reader", input: { path: "docs/c.md" } }),
-    ];
-    expect(openedInChat(entries).map((opened) => opened.target)).toEqual([
-      file("/work/rover-cad/docs/a.md"),
-      file("/work/rover-cad/docs/b.md"),
+    const entries = timeline([
+      chat.tool(run1, "Glob", { path: "/work/rover-cad", pattern: "*.step" }),
+      chat.tool(run1, "Grep", { path: "/work/rover-cad/docs", pattern: "M3" }),
+      chat.tool(run1, "Reader", { path: "/work/rover-cad/docs/a.md" }),
+      chat.tool(run1, "mcp__fs__read_file", { path: "/work/rover-cad/docs/b.md" }),
+      chat.tool(run1, "Read", { limit: 3 }),
+      chat.tool(run1, "Read", "docs/c.md"),
+      chat.tool(run1, "Read", { file_path: "  " }),
+      chat.tool(run1, null, { path: "docs/d.md" }),
+      chat.tool(run1, "Read", { summary: "Large tool input", truncated: true }),
+    ]);
+    expect(targets(entries)).toEqual([]);
+  });
+
+  it("reads an image the agent viewed, once", () => {
+    const chat = makeChat();
+    const entries = timeline([
+      chat.tool(run1, "view_image", {}, { viewedImagePath: "/work/rover-cad/assets/photo.png" }),
+      // Claude's Read of an image names it in the input and as the image viewed.
+      chat.tool(
+        run1,
+        "Read",
+        { file_path: "/work/rover-cad/assets/sketch.png" },
+        { viewedImagePath: "/work/rover-cad/assets/sketch.png" },
+      ),
+      // Not an image the work log can preview: not a viewed image.
+      chat.tool(run1, "view_image", {}, { viewedImagePath: "/work/rover-cad/notes.txt" }),
+    ]);
+    expect(targets(entries)).toEqual([
+      file("/work/rover-cad/assets/photo.png"),
+      file("/work/rover-cad/assets/sketch.png"),
     ]);
   });
 
   it("reads the CAD tools that show or open a model", () => {
     const chat = makeChat();
-    const entries = [
-      chat.tool(run1, cadTool("cad_open", "/work/rover-cad/parts/bracket.step")),
-      chat.tool(run1, cadTool("cad_show", "/work/rover-cad/parts/servo.step")),
-      chat.tool(run1, {
-        type: "dynamic_tool",
-        toolName: "text-to-cad.cad_show",
-        input: { path: "/work/rover-cad/parts/arm.step" },
-      }),
+    const entries = timeline([
+      chat.cad(run1, "cad_open", "/work/rover-cad/parts/bracket.step"),
+      chat.cad(run1, "cad_show", "/work/rover-cad/parts/servo.step"),
+      chat.tool(run1, "text-to-cad.cad_show", { path: "/work/rover-cad/parts/arm.step" }),
       // The other viewer tools show what is already open.
-      chat.tool(run1, {
-        type: "dynamic_tool",
-        toolName: "mcp__t3-code__text-to-cad__cad_screenshot",
-        input: { path: "/work/rover-cad/parts/other.step" },
+      chat.tool(run1, "mcp__t3-code__text-to-cad__cad_screenshot", {
+        path: "/work/rover-cad/parts/other.step",
       }),
-      chat.tool(run1, {
-        type: "dynamic_tool",
-        toolName: "Glob",
-        input: { path: "/work/rover-cad" },
-      }),
-    ];
-    expect(openedInChat(entries).map((opened) => opened.target)).toEqual([
+      chat.tool(run1, "mcp__t3-code__text-to-cad__cad_show", {}),
+    ]);
+    expect(targets(entries)).toEqual([
       file("/work/rover-cad/parts/bracket.step"),
       file("/work/rover-cad/parts/servo.step"),
       file("/work/rover-cad/parts/arm.step"),
@@ -447,50 +655,43 @@ describe("openedInChat", () => {
 
   it("reads each result of a file search, and its line", () => {
     const chat = makeChat();
-    const entries = [
-      chat.tool(
-        run1,
-        fileSearch([{ fileName: "docs/prd.md", line: 4 }, { fileName: "parts/a.py" }]),
-      ),
-    ];
-    expect(openedInChat(entries).map((opened) => opened.target)).toEqual([
-      file("docs/prd.md", [4, 4]),
-      file("parts/a.py"),
+    const entries = timeline([
+      chat.files(run1, [{ fileName: "docs/prd.md", line: 4 }, { fileName: "parts/a.py" }]),
     ]);
+    expect(targets(entries)).toEqual([file("docs/prd.md", [4, 4]), file("parts/a.py")]);
   });
 
-  it("reads the pages of a web search, and a pattern only when it is an address", () => {
+  it("reads a page the agent fetched, and none a search listed", () => {
     const chat = makeChat();
-    const entries = [
-      chat.tool(
+    const entries = timeline([
+      chat.search(
         run1,
-        webSearch(
-          ["torx screw drive"],
-          [{ title: "Torx drive", url: "https://example.org/torx" }, { title: "No address" }],
-        ),
+        ["torx screw drive"],
+        [{ title: "Torx drive", url: "https://example.org/torx" }, { title: "No address" }],
       ),
       // Codex's web_search carries search words, or a page it opened.
-      chat.tool(run1, webSearch(["torx", "https://example.org/codex#top"])),
-      chat.tool(run1, webFetch("https://example.org/fetched")),
-    ];
+      chat.search(run1, ["torx", "https://example.org/codex#top"]),
+      chat.fetch(run1, "https://example.org/fetched"),
+      chat.fetch(run1, "https://example.org/torx"),
+    ]);
     expect(openedInChat(entries)).toEqual([
+      { target: page("https://example.org/codex#top"), runId: run1, at: entries[1]!.createdAt },
+      { target: page("https://example.org/fetched"), runId: run1, at: entries[2]!.createdAt },
       {
         target: page("https://example.org/torx"),
         runId: run1,
-        at: entries[0]!.createdAt,
+        at: entries[3]!.createdAt,
         title: "Torx drive",
       },
-      { target: page("https://example.org/codex#top"), runId: run1, at: entries[1]!.createdAt },
-      { target: page("https://example.org/fetched"), runId: run1, at: entries[2]!.createdAt },
     ]);
   });
 
   it("reads a Codex sed read", () => {
     const chat = makeChat();
-    const entries = [
-      chat.tool(run1, shell("sed -n '12,18p' parts/bracket.py")),
-      chat.tool(run1, shell(`/bin/zsh -lc "sed -n '12,18p' parts/bracket.py"`)),
-    ];
+    const entries = timeline([
+      chat.shell(run1, "sed -n '12,18p' parts/bracket.py"),
+      chat.shell(run1, `/bin/zsh -lc "sed -n '12,18p' parts/bracket.py"`),
+    ]);
     expect(openedInChat(entries)).toEqual([
       { target: file("parts/bracket.py", [12, 18]), runId: run1, at: entries[0]!.createdAt },
       { target: file("parts/bracket.py", [12, 18]), runId: run1, at: entries[1]!.createdAt },
@@ -521,9 +722,25 @@ describe("openedInChat", () => {
     [`/usr/bin/bash -lc 'cat "docs/Design notes.md"'`, "docs/Design notes.md", null],
   ])("reads the Codex command %j as a read of %j, lines %j", (command, path, lines) => {
     const chat = makeChat();
-    const entry = chat.tool(run1, shell(command));
-    expect(openedInChat([entry])).toEqual([
-      { target: file(path, lines), runId: run1, at: entry.createdAt },
+    const entries = timeline([chat.shell(run1, command)]);
+    expect(openedInChat(entries)).toEqual([
+      { target: file(path, lines), runId: run1, at: entries[0]!.createdAt },
+    ]);
+  });
+
+  // `nl -ba FILE | sed -n 'A,Bp'` is how Codex quotes lines with their numbers.
+  it.each<[command: string, path: string, lines: [number, number]]>([
+    ["nl -ba parts/bracket.py | sed -n '12,18p'", "parts/bracket.py", [12, 18]],
+    ["nl -ba parts/bracket.py|sed -n '12,18p'", "parts/bracket.py", [12, 18]],
+    ["nl parts/bracket.py | sed -n 12,18p", "parts/bracket.py", [12, 18]],
+    ["cat docs/prd.md | sed -n '3p'", "docs/prd.md", [3, 3]],
+    [`cat -n "docs/Design notes.md" | sed -n "3,9p"`, "docs/Design notes.md", [3, 9]],
+    [`/bin/zsh -lc "nl -ba parts/bracket.py | sed -n '12,18p'"`, "parts/bracket.py", [12, 18]],
+  ])("reads the piped Codex command %j as a read of %j, lines %j", (command, path, lines) => {
+    const chat = makeChat();
+    const entries = timeline([chat.shell(run1, command)]);
+    expect(openedInChat(entries)).toEqual([
+      { target: file(path, lines), runId: run1, at: entries[0]!.createdAt },
     ]);
   });
 
@@ -548,6 +765,7 @@ describe("openedInChat", () => {
     "cat -",
     "cat",
     "head -n 5",
+    "nl -b a docs/prd.md",
     "sed -n '12,18p;20p' a.md",
     "sed -n '18,12p' a.md",
     "sed -n '0,5p' a.md",
@@ -555,7 +773,6 @@ describe("openedInChat", () => {
     "sed -i 's/a/b/' a.md",
     "sed 's/a/b/' a.md",
     "sed -n -e '12p' a.md",
-    "nl -ba docs/prd.md | sed -n '10,20p'",
     "rg bracket parts",
     "ls parts",
     "python parts/bracket.py",
@@ -564,46 +781,86 @@ describe("openedInChat", () => {
     `bash -lc "cat a.md; ls"`,
     `bash -lc 'cat "unterminated.md'`,
     "cat a.md\ncat b.md",
+    "cat\ndocs/prd.md",
     "",
   ])("does not read the command %j as a read", (command) => {
     const chat = makeChat();
-    expect(openedInChat([chat.tool(run1, shell(command))])).toEqual([]);
+    expect(openedInChat(timeline([chat.shell(run1, command)]))).toEqual([]);
   });
 
-  it.each(["failed", "cancelled", "interrupted"])("leaves out a call that %s", (status) => {
+  // One pipe is allowed, and only this shape of it.
+  it.each([
+    "cat a.md | sed -n '1,5p' | cat",
+    "nl a.md | sed -n '1,5p' | sed -n '2p'",
+    "head -n 5 a.md | sed -n '1,2p'",
+    "tail a.md | sed -n '1,2p'",
+    "echo x | sed -n '1,2p'",
+    "cat a.md b.md | sed -n '1,2p'",
+    "cat a.md | sed -n '1,2p' b.md",
+    "cat a.md | sed -n '2,1p'",
+    "cat a.md | sed -n '0,2p'",
+    "cat a.md | sed -n '1,2p;4p'",
+    "cat a.md | sed -n -e '1,2p'",
+    "cat a.md | sed -i 's/a/b/'",
+    "cat a.md | sed '1,2p'",
+    "sed -n '1,2p' a.md | cat",
+    "| sed -n '1,2p'",
+    "cat a.md |",
+    "cat a.md || sed -n '1,2p'",
+    "cat a.md | | sed -n '1,2p'",
+    "cat a.md | sed -n '1,2p' > b.md",
+    "cat a.md | cat | sed -n '1,2p'",
+  ])("does not read the piped command %j as a read", (command) => {
     const chat = makeChat();
-    const entries = [
-      chat.tool(run1, { ...readFile("/work/rover-cad/docs/prd.md"), status }),
-      chat.tool(run1, { ...cadTool("cad_show", "/work/rover-cad/parts/a.step"), status }),
-      chat.tool(run1, { ...shell("cat docs/notes.md"), status }),
-      chat.tool(run1, { ...webFetch("https://example.org/page"), status }),
-      chat.tool(run1, { ...fileSearch([{ fileName: "parts/a.py" }]), status }),
+    expect(openedInChat(timeline([chat.shell(run1, command)]))).toEqual([]);
+  });
+
+  it("counts only a call that completed without a failure flag", () => {
+    const chat = makeChat();
+    const failed = (item: OrchestrationV2TurnItem) => [
+      withStatus(item, "failed"),
+      withStatus(item, "cancelled"),
+      withStatus(item, "interrupted"),
+      withStatus(item, "running"),
+      withStatus(item, "pending"),
     ];
-    expect(openedInChat(entries)).toEqual([]);
+    const calls = [
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
+      chat.cad(run1, "cad_show", "/work/rover-cad/parts/a.step"),
+      chat.shell(run1, "cat docs/notes.md"),
+      chat.shell(run1, "nl -ba docs/notes.md | sed -n '1,5p'"),
+      chat.fetch(run1, "https://example.org/page"),
+      chat.files(run1, [{ fileName: "parts/a.py" }]),
+    ];
+    expect(openedInChat(timeline(calls.flatMap(failed)))).toEqual([]);
+    // A command that ran but failed says so in its exit code or its output.
+    expect(
+      openedInChat(
+        timeline([
+          chat.shell(run1, "sed -n '1,5p' missing.md", { exitCode: 2 }),
+          chat.shell(run1, "cat missing.md", { outputIndicatesFailure: true }),
+        ]),
+      ),
+    ).toEqual([]);
+    expect(targets(timeline(calls))).toHaveLength(6);
   });
 
   it("reads only what the agent's tools report, in the order of the chat", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1, "Read docs/nothing.md"),
-      chat.tool(run1, { type: "reasoning", text: "cat docs/thought.md" }),
-      chat.tool(run1, { type: "file_change", fileName: "docs/changed.md" }),
-      chat.tool(run1, { type: "dynamic_tool", toolName: "Read", input: "docs/odd.md" }),
-      chat.tool(run1, { type: "dynamic_tool", toolName: "Read", input: { file_path: "  " } }),
-      chat.tool(run1, { type: "dynamic_tool", toolName: null, input: { path: "docs/none.md" } }),
-      chat.tool(run1, readFile("docs/first.md")),
+      chat.reasoning(run1, "cat docs/thought.md"),
+      chat.edit(run1, "docs/changed.md"),
+      chat.read(run1, "docs/first.md"),
       chat.assistant(run1, "I read docs/second.md"),
-      chat.tool(run1, readFile("docs/second.md")),
-    ];
-    expect(openedInChat(entries).map((opened) => opened.target)).toEqual([
-      file("docs/first.md"),
-      file("docs/second.md"),
+      chat.read(run1, "docs/second.md"),
     ]);
+    expect(targets(entries)).toEqual([file("docs/first.md"), file("docs/second.md")]);
   });
 
   it("reads the chat once, however many answers ask", () => {
     const chat = makeChat();
-    const entries = [chat.user(run1), chat.tool(run1, readFile("/work/rover-cad/docs/prd.md"))];
+    const entries = timeline([chat.user(run1), chat.read(run1, "/work/rover-cad/docs/prd.md")]);
     expect(openedInChat(entries)).toBe(openedInChat(entries));
     expect(openedInChat([...entries])).not.toBe(openedInChat(entries));
     expect(openedInChat([...entries])).toEqual(openedInChat(entries));
@@ -618,7 +875,7 @@ describe("referenceLabel", () => {
     ...(title === undefined ? {} : { title }),
   });
 
-  it("names a file as Studio names it, and says where in it", () => {
+  it("names a file as the chat's file chips do, and says where in it", () => {
     expect(referenceLabel(reference(file("parts/servo_bracket.step", [12, 18])))).toEqual({
       name: "Servo bracket",
       where: "lines 12–18",
@@ -631,13 +888,13 @@ describe("referenceLabel", () => {
       name: "PRD",
       where: "Scope: what we make",
     });
-  });
-
-  it("names a file Studio files as nothing by its file name", () => {
     expect(referenceLabel(reference(file("parts/bracket.py", [3, 9])))).toEqual({
-      name: "bracket.py",
+      name: "Bracket source",
       where: "lines 3–9",
     });
+  });
+
+  it("names a file Studio has no name for by its file name", () => {
     expect(referenceLabel(reference(file("C:\\work\\rover\\notes.cfg")))).toEqual({
       name: "notes.cfg",
       where: null,
@@ -671,54 +928,16 @@ describe("referenceLabel", () => {
   });
 });
 
-describe("referencesEqual", () => {
-  const base: AnswerReference[] = [
-    { n: 1, target: file("parts/bracket.py", [12, 18]), opened: "this turn" },
-    { n: 2, target: file("docs/prd.md", null, "Fits"), opened: "earlier in this chat" },
-    { n: 3, target: page("https://example.org/torx"), opened: "this turn", title: "Torx drive" },
-    { n: 4, target: { kind: "own", text: "ISO 2768" }, opened: "own knowledge" },
-  ];
-  const copy = (): AnswerReference[] => structuredClone(base);
-
-  it("is true for the same list read twice", () => {
-    expect(referencesEqual(base, copy())).toBe(true);
-    expect(referencesEqual(base, base)).toBe(true);
-    expect(referencesEqual(undefined, undefined)).toBe(true);
-    expect(referencesEqual([], [])).toBe(true);
-  });
-
-  it("is false when a list, or any field of an item, differs", () => {
-    expect(referencesEqual(base, undefined)).toBe(false);
-    expect(referencesEqual(undefined, base)).toBe(false);
-    expect(referencesEqual(base, base.slice(0, 3))).toBe(false);
-    const edits: Array<(list: AnswerReference[]) => void> = [
-      (list) => (list[0] = { ...list[0]!, n: 9 }),
-      (list) => (list[0] = { ...list[0]!, opened: "not opened" }),
-      (list) => (list[0] = { ...list[0]!, target: file("parts/bracket.py", [12, 19]) }),
-      (list) => (list[0] = { ...list[0]!, target: file("parts/bracket.py") }),
-      (list) => (list[0] = { ...list[0]!, target: file("parts/other.py", [12, 18]) }),
-      (list) => (list[1] = { ...list[1]!, target: file("docs/prd.md", null, "Scope") }),
-      (list) => (list[1] = { ...list[1]!, target: file("docs/prd.md") }),
-      (list) => (list[2] = { ...list[2]!, target: page("https://example.org/other") }),
-      (list) => (list[2] = { n: 3, target: page("https://example.org/torx"), opened: "this turn" }),
-      (list) => (list[2] = { ...list[2]!, title: "Another title" }),
-      (list) => (list[3] = { ...list[3]!, target: { kind: "own", text: "ISO 273" } }),
-      (list) => (list[3] = { ...list[3]!, target: page("https://example.org/torx") }),
-    ];
-    for (const edit of edits) {
-      const changed = copy();
-      edit(changed);
-      expect(referencesEqual(base, changed)).toBe(false);
-    }
-  });
-});
-
 describe("the answer's row", () => {
-  const derive = (timelineEntries: ReadonlyArray<TimelineEntry>, isWorking = false) =>
+  const derive = (
+    timelineEntries: ReadonlyArray<TimelineEntry>,
+    options: { readonly working?: boolean; readonly root?: string | undefined } = {},
+  ) =>
     deriveMessagesTimelineRows({
       timelineEntries,
-      isWorking,
-      ...(isWorking ? { runningRunId: run1 } : {}),
+      isWorking: options.working ?? false,
+      ...(options.working ? { runningRunId: run1 } : {}),
+      workspaceRoot: "root" in options ? options.root : ROOT,
       turnDiffSummaries: [],
       supportsConversationRollback: false,
     });
@@ -726,20 +945,18 @@ describe("the answer's row", () => {
     rows.flatMap((row) => (row.kind === "message" ? [row] : []));
 
   const sources = "It is 3 mm [1].\n\nSources:\n[1] docs/prd.md#Fits";
-  const opening = (chat: ReturnType<typeof makeChat>, path = "/work/rover-cad/docs/prd.md") =>
-    chat.tool(run1, readFile(path));
 
   it("carries the references of the run's final answer, from every entry of the chat", () => {
     const chat = makeChat();
-    const entries = [
+    const entries = timeline([
       chat.user(run1),
-      opening(chat),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
       chat.assistant(run1, "Let me look at the brief."),
-      chat.tool(run1, shell("ls docs")),
+      chat.shell(run1, "ls docs"),
       chat.assistant(run1, sources),
       chat.user(run2),
       chat.assistant(run2, "Nothing to add."),
-    ];
+    ]);
     const rows = derive(entries);
     // The turn is folded: the read is not a row, but the list still has it.
     expect(rows.some((row) => row.kind === "turn-fold")).toBe(true);
@@ -751,16 +968,64 @@ describe("the answer's row", () => {
     ]);
   });
 
+  it("lists what a turn opened in the thread's folder, when its answer cites nothing", () => {
+    const chat = makeChat();
+    const entries = timeline([
+      chat.user(run1),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
+      chat.read(run1, "/Users/amy/.claude/skills/cad/SKILL.md"),
+      chat.assistant(run1, "It is 3 mm."),
+    ]);
+    const answer = (rows: ReturnType<typeof derive>) => messageRows(rows).at(-1);
+    expect(answer(derive(entries))?.references).toEqual([
+      { n: 1, target: file("/work/rover-cad/docs/prd.md"), opened: "this turn" },
+    ]);
+    // Without the thread's folder an absolute path cannot be placed in it.
+    expect(answer(derive(entries, { root: undefined }))?.references).toBeUndefined();
+  });
+
   it("carries none for an answer with nothing to list", () => {
     const chat = makeChat();
-    const rows = derive([chat.user(run1), chat.assistant(run1, "Hello.")]);
+    const rows = derive(timeline([chat.user(run1), chat.assistant(run1, "Hello.")]));
     expect(messageRows(rows).map((row) => row.references)).toEqual([undefined, undefined]);
+  });
+
+  it("carries none for an answer with no run, so its text stays as the agent wrote it", () => {
+    const chat = makeChat();
+    const entries = timeline([
+      chat.user(null),
+      chat.assistant(null, sources),
+      chat.read(null, "/work/rover-cad/docs/prd.md"),
+    ]);
+    expect(messageRows(derive(entries)).map((row) => row.references)).toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it("carries none in the code interface, which never shows the list", () => {
+    const chat = makeChat();
+    const entries = timeline([
+      chat.user(run1),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
+      chat.assistant(run1, sources),
+    ]);
+    expect(messageRows(derive(entries)).at(-1)?.references).toHaveLength(1);
+    interfaceIs.engineering = false;
+    expect(messageRows(derive(entries)).map((row) => row.references)).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 
   it("waits until the run's answer is final", () => {
     const chat = makeChat();
-    const entries = [chat.user(run1), opening(chat), chat.assistant(run1, sources)];
-    expect(messageRows(derive(entries, true)).map((row) => row.references)).toEqual([
+    const entries = timeline([
+      chat.user(run1),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
+      chat.assistant(run1, sources),
+    ]);
+    expect(messageRows(derive(entries, { working: true })).map((row) => row.references)).toEqual([
       undefined,
       undefined,
     ]);
@@ -769,16 +1034,42 @@ describe("the answer's row", () => {
 
   it("leaves a message that is still streaming alone", () => {
     const chat = makeChat();
-    const entries = [chat.user(run1), opening(chat), chat.assistant(run1, sources, true)];
+    const entries = timeline([
+      chat.user(run1),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
+      chat.assistant(run1, sources, true),
+    ]);
     expect(messageRows(derive(entries)).map((row) => row.references)).toEqual([
       undefined,
       undefined,
     ]);
   });
 
+  it("stays with the answer when tool calls follow its text", () => {
+    const chat = makeChat();
+    const entries = timeline([
+      chat.user(run1),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
+      chat.assistant(run1, sources),
+      // A call that failed after the text stays visible under it, with the message's footer.
+      withStatus(chat.shell(run1, "python parts/bracket.py"), "failed"),
+    ]);
+    const rows = derive(entries);
+    const answer = messageRows(rows).at(-1);
+    expect(answer?.showAssistantMeta).toBe(false);
+    expect(rows.some((row) => row.kind === "assistant-meta")).toBe(true);
+    expect(answer?.references).toEqual([
+      { n: 1, target: file("docs/prd.md", null, "Fits"), opened: "this turn" },
+    ]);
+  });
+
   it("is reused across derive passes when nothing changed", () => {
     const chat = makeChat();
-    const entries = [chat.user(run1), opening(chat), chat.assistant(run1, sources)];
+    const entries = timeline([
+      chat.user(run1),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
+      chat.assistant(run1, sources),
+    ]);
     const firstRows = derive(entries);
     const first = computeStableMessagesTimelineRows(firstRows, { byId: new Map(), result: [] });
     // The chat arrives as a new array of the same entries: the list is read again, as new objects.
@@ -795,15 +1086,19 @@ describe("the answer's row", () => {
 
   it("is replaced when the references change", () => {
     const chat = makeChat();
-    const user = chat.user(run1);
-    const stale = opening(chat, "/work/rover-cad/docs/other.md");
-    const read = opening(chat);
-    const answer = chat.assistant(run1, sources);
-    const first = computeStableMessagesTimelineRows(derive([user, stale, answer]), {
+    const entries = timeline([
+      chat.user(run1),
+      chat.read(run1, "/work/rover-cad/docs/other.md"),
+      chat.read(run1, "/work/rover-cad/docs/prd.md"),
+      chat.assistant(run1, sources),
+    ]);
+    const [user, stale, read, answer] = entries;
+    // The same prompt and answer, with the one file read or the other before it.
+    const first = computeStableMessagesTimelineRows(derive([user!, stale!, answer!]), {
       byId: new Map(),
       result: [],
     });
-    const second = computeStableMessagesTimelineRows(derive([user, read, answer]), first);
+    const second = computeStableMessagesTimelineRows(derive([user!, read!, answer!]), first);
     const before = messageRows(first.result).at(-1);
     const after = messageRows(second.result).at(-1);
     // Nothing else about the answer changed: only what it cites was opened.

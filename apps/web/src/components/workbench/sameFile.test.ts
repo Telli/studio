@@ -10,6 +10,15 @@ describe("same file", () => {
     expect(sameFile("parts/tray.step", "parts/tray.stl")).toBe(false);
   });
 
+  it("reads a leading ./ as the folder itself, and a Windows path as its slashes", () => {
+    expect(sameFile("./parts/tray.step", "/Users/a/studio-projects/clip/parts/tray.step")).toBe(
+      true,
+    );
+    expect(sameFile("./parts/tray.step", "parts/tray.step")).toBe(true);
+    expect(sameFile("parts\\tray.step", "C:\\work\\clip\\parts\\tray.step")).toBe(true);
+    expect(sameFile("./parts/tray.step", "parts/daisy_tray.step")).toBe(false);
+  });
+
   it("reads the file a tab shows, the agent's own views by their id", () => {
     expect(
       surfaceFile({

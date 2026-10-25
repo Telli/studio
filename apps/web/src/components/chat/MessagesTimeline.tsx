@@ -933,6 +933,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
         activeTurnStartedAt,
         turnDiffSummaries,
         supportsConversationRollback,
+        workspaceRoot,
         worktreeSetup,
       },
       previous?.threadKey === listIdentityKey && previous.workspaceRoot === workspaceRoot
