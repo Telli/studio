@@ -9,13 +9,22 @@ nothing there. The record's baseline is the project as the newest checkpoint the
 chat: the snapshot T3 took at the start of the turn under way, a chat's first run's or the last
 turn's end.
 
+A repository with worktrees linked to it (``git worktree``: T3 Code makes one for each chat run in a
+worktree of its own) keeps every checkout's checkpoints under the same refs, and nothing tells which
+are this checkout's, so the newest may be another's and its turns would mark this one's features.
+Such a repository is not recorded and its features have no marks, a record begun before it was
+linked too (``_linked``: any entry in git's ``worktrees`` folder, a stale one included; a repository
+git cannot read is taken as one). The cost: a project in a repository with T3 worktrees shows no
+dots. Telling the checkouts apart needs Studio's server to mark each checkpoint with the checkout it
+was made in.
+
 A feature is told by the first line of its statement, as code: stripped, and without the comment at
 its end, which is its name in the design tree (Rename writes it there), so a renamed feature is
 still the line it was.
 
-- It is nobody's when the baseline holds that line, in any of its scripts: whatever the project
-  held when the record began, whoever made it. A script moved since keeps its lines. A script
-  recording leaves out (``_left_out``) has no baseline, so none of its features is marked.
+- It is nobody's when the baseline holds that line, in any of its scripts: whatever the newest
+  checkpoint held when the record began, whoever made it. A script moved since keeps its lines. A
+  script recording leaves out (``_left_out``) has no baseline, so none of its features is marked.
 - Else it is yours when a hand edit wrote that line: the edit service notes the lines each change
   made by hand writes (``note_hand_edit``, ``written``).
 - Else it is the agent's when a turn's checkpoint made since the baseline holds that line in that
@@ -25,8 +34,9 @@ still the line it was.
 
 Known, and accepted:
 
-- A turn that ended before the record began has no marks. A part seen only in Simple view, which
-  reads no features, until after that turn is one: that turn's features are in the baseline.
+- A turn that ended before the record began has no marks: its features are in the baseline. The
+  record begins at a part's first read (the workspace's, or Simple view's one quiet read as a model
+  opens), so a project first opened after a turn ended has no marks for that turn.
 - An edit made outside Studio between two turns is counted with the next turn, as T3 Code's own
   turn diff counts it: that turn's checkpoint is the first record of the line.
 
@@ -139,6 +149,23 @@ def _git_folder(root: Path) -> bool:
         return False
     repository = _repository(root)
     return repository is not None and repository[0] == root
+
+
+def _linked(root: Path) -> bool:
+    """Whether the project's repository has worktrees linked to it (the module's words): an entry in
+    the ``worktrees`` folder of its common git folder, a stale one too, or a repository git cannot
+    read. Looked at on every call, git asked only once for its folder: a worktree may be added at any
+    time."""
+    repository = _repository(root)
+    if repository is None:
+        return True
+    try:
+        with os.scandir(repository[1] / "worktrees") as entries:
+            return any(entries)
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
 
 
 def _refs_stamp(root: Path) -> tuple:
@@ -272,12 +299,13 @@ def _begin(root: Path, ledger: Path, turns: list[dict]) -> bool:
 def start(root: Path) -> None:
     """Begin recording who makes each feature of the project at ``root``: the record's first line,
     the project as its newest checkpoint holds it, dated at that checkpoint (``_begin``). Once only,
-    and only at the top of a git repository that holds a checkpoint, a chat having run in it; no
-    checkpoint, no record. Anything in the way leaves the project unrecorded."""
+    and only at the top of a git repository that holds a checkpoint, a chat having run in it, and no
+    worktree linked to it (``_linked``); no checkpoint, no record. Anything in the way leaves the
+    project unrecorded."""
     try:
         root = Path(root).resolve()
         ledger = root / LEDGER
-        if ledger.exists() or str(root) in _UNRECORDABLE or not _git_folder(root):
+        if ledger.exists() or str(root) in _UNRECORDABLE or not _git_folder(root) or _linked(root):
             return
         turns = _turns(root)[0]
         if turns and not _begin(root, ledger, turns):
@@ -365,6 +393,9 @@ def _authors(root: Path, features: list[dict]) -> dict[str, str]:
     try:
         size = ledger.stat().st_size
     except OSError:
+        return {}
+    # A record begun before a worktree was linked marks nothing either: its newest checkpoints may be another checkout's.
+    if _linked(root):
         return {}
     turns, listed = _turns(root)
     moment = (listed, size)

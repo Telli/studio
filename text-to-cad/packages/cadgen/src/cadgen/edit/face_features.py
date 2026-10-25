@@ -239,13 +239,12 @@ def face_features(shape, steps: list[dict], row_of: dict[int, str], features: li
     step's whose result has a face on its surface that overlaps it (`_maker`), and that step's row is a
     feature's. A face whose maker is not known is left out: one with no key, one no step's face
     overlaps, one whose step is in no row or in the rows of more than one feature (a cut by several
-    tools at once), and every face of a body the store packages as several parts (an assembly gets
-    ``{}``).
+    tools at once), one OCCT cannot read (the others keep their makers), and every face of a body the
+    store packages as several parts (an assembly gets ``{}``).
 
     The body is read where its features made it: as the step that first made this B-rep kept it, so a
     body placed at its end (``Pos(...) * body``) or moved in place keeps its faces' makers. Only the
-    steps up to that one can have made its faces, so a rolled-back body's are credited to the features
-    above the rollback bar alone.
+    steps up to that one can have made its faces.
     """
     try:
         return _credited(shape, steps, row_of, features)
@@ -279,9 +278,12 @@ def _credited(shape, steps, row_of, features) -> dict[str, str]:
     context = IntTools_Context()
     credited = {}
     for number in range(1, faces.Extent() + 1):
-        face = faces.FindKey(number)
-        key = made_faces.key(face)
-        maker = _maker(face, key, made_faces, PRECISION * size, context) if key is not None else None
+        try:
+            face = faces.FindKey(number)
+            key = made_faces.key(face)
+            maker = _maker(face, key, made_faces, PRECISION * size, context) if key is not None else None
+        except Exception:  # noqa: BLE001 - a face OCCT cannot read has no maker known; the others keep theirs
+            continue
         feature = feature_of.get(row_of.get(maker)) if maker is not None else None
         if feature:
             credited[str(number)] = feature

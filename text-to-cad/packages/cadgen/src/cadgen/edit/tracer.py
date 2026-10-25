@@ -1439,7 +1439,8 @@ def _editable(features, rows, steps, sketches, units):
     """Each feature a ribbon command writes, with what Edit Feature opens it with (``edit``): the
     command, its values in the part's units, what it keeps (its edges, faces, the feature it
     copies) and, for one made from a sketch, the sketch and the line it revolves about. Each
-    feature whose statement starts at its line keeps that statement's last line (``end``)."""
+    feature whose statement starts at its line, a block's own inside it too, keeps that statement's
+    last line (``end``)."""
     from cadgen.edit import commands, sketching
 
     by_key = {row["key"]: row for row in rows}
@@ -1462,11 +1463,17 @@ def _editable(features, rows, steps, sketches, units):
                      and node.lineno <= row["line"] <= node.end_lineno]
         function = max(functions, key=lambda node: node.lineno, default=None)
         statement = commands._top_statement(function, row["line"]) if function is not None else None
-        if statement is None or statement.lineno != row["line"]:
+        if statement is None:
             continue
-        # The statement's last line, for a line anywhere in a statement written over several to be told
-        # as the feature's (a host opening the part at a line the agent cites, `step/edit/focus.js`).
-        feature["end"] = statement.end_lineno
+        # The last line of the statement that holds the feature's line, where that statement starts there (its
+        # own in a builder's `with` block or a `for` body, else the top one), for a line anywhere in a statement
+        # written over several to be told as the feature's (a host opening the part at a line the agent cites,
+        # `step/edit/focus.js`).
+        held = commands._innermost(statement, row["line"])
+        if held.lineno == row["line"]:
+            feature["end"] = held.end_lineno
+        if statement.lineno != row["line"]:
+            continue
         # A name given in the design tree: the comment at the end of the feature's line (a hole's
         # Hole Wizard callout reads as one too, as SolidWorks names a hole by its size).
         named = commands.trailing_comment(text, statement)
@@ -3707,12 +3714,8 @@ def _bar(script, rel, line, reply):
         shape, body = commands.body_at(state["steps"], state["shape"], state["level"], ROOT, rel, line)
     except commands.CommandError as error:
         return {**where, "step": None, "error": str(error)}
-    from cadgen.edit.face_features import face_count, face_features
-
-    # Which feature above the bar made each face of the body there, numbered as its tree numbers them.
-    row_of = {index: row["key"] for row in state["rows"] for index in row["steps"]}
-    return {**where, **_bar_tree(script, shape), "name": body.name,
-            "faceFeatures": face_features(shape, state["steps"], row_of, reply.get("features") or []), "faceCount": face_count(shape)}
+    # No face map: the viewer names no face on the bar's body (`step/edit/faceChips.js`'s `shownFaces`).
+    return {**where, **_bar_tree(script, shape), "name": body.name}
 
 
 def _bar_tree(script, shape):

@@ -252,6 +252,38 @@ SPREAD = {
 }
 
 
+# A part made in a builder's `with` block, its cut written over five lines; and holes drilled in a loop.
+BUILT = {
+    "built.py": """
+        from build123d import Box, BuildPart, Cylinder, Mode
+        from cadgen import step
+
+        @step
+        def built():
+            with BuildPart() as part:
+                Box(40, 20, 5)
+                Cylinder(
+                    3,
+                    5,
+                    mode=Mode.SUBTRACT,
+                )
+            return part.part
+    """,
+    "looped.py": """
+        from build123d import Box, Cylinder, Pos
+        from cadgen import step
+
+        @step
+        def looped():
+            base = Box(40, 20, 5)
+            for x in (-10, 10):
+                base -= Pos(x, 0) * Cylinder(
+                    1.6, 5)
+            return base
+    """,
+}
+
+
 class FeatureTree(unittest.TestCase):
     def test_the_history_reads_as_a_cad_tree_with_sketches_under_their_features(self):
         service = edit.EditService(build=False)
@@ -286,6 +318,20 @@ class FeatureTree(unittest.TestCase):
         # anywhere in it is the fillet's, and the blank line after it is no feature's.
         self.assertEqual([(f["kind"], f["line"], f["end"]) for f in state["features"]],
                          [("Boss-Extrude", 7, 7), ("Fillet", 8, 11), ("Hole", 13, 13)])
+
+    def test_a_feature_inside_a_block_carries_the_last_line_of_its_own_statement(self):
+        service = edit.EditService(build=False)
+        self.addCleanup(service.close)
+        root = project(BUILT)
+        self.addCleanup(shutil.rmtree, root, True)
+        # Inside a builder's `with` block, and in a `for` body: the statement that starts at the feature's line, not
+        # the block around it.
+        built = service.state(str(root / "built.step"))
+        self.assertTrue(built["ok"], built.get("error"))
+        self.assertEqual([(f["line"], f.get("end")) for f in built["features"]], [(8, 8), (9, 13)])
+        looped = service.state(str(root / "looped.step"))
+        self.assertTrue(looped["ok"], looped.get("error"))
+        self.assertEqual([(f["kind"], f["line"], f.get("end")) for f in looped["features"]], [("Boss-Extrude", 7, 7), ("Hole", 9, 10)])
 
 
 SKETCHED = {

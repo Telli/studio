@@ -2,12 +2,13 @@
 the edit service says, for every face by the number the viewer's references give it (``f12``), the
 feature of the first traced step whose result has a face on the same surface that also overlaps it,
 the very same B-rep face or one holding a point inside it (``faceFeatures``), and how many faces that
-body has (``faceCount``); the rollback bar's body says it for its own faces.
+body has (``faceCount``); the rollback bar's body, which the viewer names no face on, says neither.
 
 They drive the edit service end to end, as the viewer's server does, on ``test_edit_commands.py``'s
 parts. The faces are numbered as the viewer numbers them (``faces_on_screen``): the part made by its
 script as a build makes it, written as its build writes its STEP, and read back by its selectors as
-the viewer reads that STEP. The surface keys are read on build123d's own faces (``SurfaceKeys``).
+the viewer reads that STEP. The surface keys are read on build123d's own faces (``SurfaceKeys``), and
+the map itself on a body made here where OCCT is made to fail (``FaceMap``).
 """
 
 from __future__ import annotations
@@ -204,37 +205,21 @@ class FaceFeatures(parts.Commands):
         self.assertEqual([component["name"] for component in state["components"]], ["base", "pin"])
         self.assertEqual(state["faceFeatures"], {})
 
-    def test_credits_a_rolled_back_bodys_faces_only_to_features_above_the_bar(self):
+    def test_the_rollback_bars_body_has_no_map(self):
         from cadgen.store.lazy import materialize_model
 
         root, file, state = self.open(parts.PLATE, "plate.step")
-        plate, hole = self.key(state, "Boss-Extrude"), self.key(state, "Hole")
-        line = next(feature["line"] for feature in state["features"] if feature["kind"] == "Hole")
-        rolled = self.service.change({"file": file, "files": state["files"], "bar": {"before": f"plate.py:{line}"}})
+        hole = self.key(state, "Hole")
+        rolled = self.service.change({"file": file, "files": state["files"], "bar": {"item": hole}})
         self.assertTrue(rolled["ok"], rolled.get("error"))
         bar = rolled["bar"]
-        self.assertEqual(bar["item"], hole)
-        # The block before its hole, as the tree the viewer draws for the bar numbers its faces: six, each the block's.
-        body = faces_of(materialize_model(bar["tree"], label="plate"))
-        self.assertEqual({kind(face) for face in body.values()}, {"plane"})
-        self.assertEqual(bar["faceFeatures"], {str(number): plate for number in body})
-        self.assertEqual(bar["faceCount"], len(body))
-        # The part as a whole still has the hole's wall.
+        # The block before its hole, drawn in the part's place; the viewer names no face on it (`edit/faceChips.js`'s
+        # `shownFaces`), so the bar says no feature made any.
+        self.assertEqual({kind(face) for face in faces_of(materialize_model(bar["tree"], label="plate")).values()}, {"plane"})
+        self.assertNotIn("faceFeatures", bar)
+        self.assertNotIn("faceCount", bar)
+        # The part as a whole keeps its map, the hole's wall in it.
         self.assertIn(hole, state["faceFeatures"].values())
-
-    def test_a_bar_above_a_fillet_credits_the_hole_above_it_and_not_the_fillet(self):
-        from cadgen.store.lazy import materialize_model
-
-        root, file, state = self.open(parts.PLATE, "plate.step")
-        made = self.command(file, state, "fillet", PLATE_TOP_EDGES, {"radius": ".05"})
-        self.assertTrue(made["ok"], made.get("error"))
-        plate, hole, fillet = self.key(made, "Boss-Extrude"), self.key(made, "Hole"), self.key(made, "Fillet")
-        rolled = self.service.change({"file": file, "files": made["files"], "bar": {"item": fillet}})
-        self.assertTrue(rolled["ok"], rolled.get("error"))
-        body = faces_of(materialize_model(rolled["bar"]["tree"], label="plate"))
-        (wall,) = [number for number, face in body.items() if kind(face) == "cylinder"]
-        self.assertEqual(rolled["bar"]["faceFeatures"], {str(number): hole if number == wall else plate for number in body})
-        self.assertNotIn(fillet, rolled["bar"]["faceFeatures"].values())
 
     def tab_features(self, state: dict) -> tuple[str, str, str]:
         """The plate's, the first tab's and the second tab's features, in the order the script makes them."""
@@ -320,6 +305,30 @@ class FaceFeatures(parts.Commands):
                 faces = faces_on_screen(root / "plate.py")
                 (wall,) = [number for number, face in faces.items() if kind(face) == "cylinder"]
                 self.assertEqual(state["faceFeatures"], {str(number): hole if number == wall else plate for number in faces})
+
+
+class FaceMap(unittest.TestCase):
+    """``face_features`` itself, in the tracer's process: on a body and the steps that made it, made here."""
+
+    def test_a_face_occt_cannot_read_has_no_name_and_the_rest_keep_theirs(self):
+        from build123d import Box
+
+        from cadgen.edit import face_features as faces
+
+        box = Box(10, 20, 30)
+        steps, row_of, features = [{"index": 0, "result": box}], {0: "box.py:7"}, [{"key": "box.py:7"}]
+        self.assertEqual(faces.face_features(box, steps, row_of, features), {str(number): "box.py:7" for number in range(1, 7)})
+        # OCCT throws on the third face it is asked about, as it does on a face it cannot read.
+        maker, asked = faces._maker, []
+
+        def failing(face, *rest):
+            asked.append(face)
+            if len(asked) == 3:
+                raise RuntimeError("Standard_Failure")
+            return maker(face, *rest)
+
+        with mock.patch.object(faces, "_maker", failing):
+            self.assertEqual(faces.face_features(box, steps, row_of, features), {str(number): "box.py:7" for number in (1, 2, 4, 5, 6)})
 
 
 class SurfaceKeys(unittest.TestCase):

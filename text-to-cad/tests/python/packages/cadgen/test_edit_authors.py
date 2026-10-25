@@ -70,6 +70,8 @@ FILLETED = """
         return part
 """
 DRILLED = FILLETED.replace("        return part", "        part -= Cylinder(1, 20)\n        return part")
+# The block with its bottom edges rounded where CHAMFERED's top edges are chamfered: line 8 of its script is a fillet.
+ROUNDED = CHAMFERED.replace("chamfer", "fillet").replace("[-1], length=0.5", "[0], radius=0.5")
 HOLE = "part -= Cylinder(1, 20)"
 # A part of a library the project keeps in a folder of its own.
 WIDGET = """
@@ -297,6 +299,23 @@ class Authors(unittest.TestCase):
         self.assertTrue(again["unchanged"])
         self.assertEqual(again["authors"], {key_of(running, AGENT_CHAMFER): "agent"})
 
+    def test_a_view_of_another_version_is_never_given_this_ones_marks(self):
+        root, file = self.project()
+        # One view reads the block with its bottom edges rounded: line 8 of the script, the fillet, is nobody's.
+        self.write(root, ROUNDED)
+        rounded = self.read(file)
+        self.assertEqual(rounded["authors"], {})
+        # The agent's turn makes line 8 a chamfer instead, and a second view reads that.
+        self.write(root, CHAMFERED)
+        checkpoint(root, 1)
+        self.assertEqual(made_by(self.read(file)), {AGENT_CHAMFER: "agent"})
+        # The script put back as the first view read it: its poll finds its files as they were, and its fillet, keyed
+        # by the chamfer's line, is not marked the agent's.
+        self.write(root, ROUNDED)
+        again = self.read(file, rounded["files"])
+        self.assertTrue(again["unchanged"])
+        self.assertEqual(again.get("authors", {}), {})
+
     def test_a_rename_keeps_who_made_it(self):
         root, file = self.project()
         self.read(file)
@@ -372,6 +391,30 @@ class Authors(unittest.TestCase):
         self.read(widget)
         checkpoint(root, 1)
         self.assertEqual(self.read(widget)["authors"], {})
+
+    def test_a_repository_with_linked_worktrees_records_nothing_and_marks_nothing(self):
+        # The agent's turn marked, in a repository of one checkout.
+        root, file = self.project()
+        self.read(file)
+        self.write(root, CHAMFERED)
+        made = checkpoint(root, 1)
+        self.assertEqual(made_by(self.read(file)), {AGENT_CHAMFER: "agent"})
+        # A worktree linked to it, as T3 Code makes one for a chat: every checkout's checkpoints are under the same refs,
+        # so whose a turn was cannot be told. The record begun before marks nothing from then on, the poll included.
+        elsewhere = Path(tempfile.mkdtemp(prefix="cadgen-edit-authors-linked-")).resolve()
+        self.addCleanup(shutil.rmtree, elsewhere, True)
+        git(root, "worktree", "add", "--detach", str(elsewhere / "chat"), made)
+        state = self.read(file)
+        self.assertEqual(state["authors"], {})
+        self.assertEqual(self.read(file, state["files"]).get("authors"), {})
+        # A worktree taken away by hand leaves its entry until git prunes it: still none.
+        shutil.rmtree(elsewhere / "chat")
+        self.assertEqual(self.read(file)["authors"], {})
+        # Nor is a record begun in such a repository.
+        other, other_file = self.project()
+        git(other, "worktree", "add", "--detach", str(elsewhere / "other"), checkpoint(other, 1))
+        self.assertEqual(self.read(other_file)["authors"], {})
+        self.assertFalse((other / authors.LEDGER).exists())
 
     def test_a_git_exclude_file_in_utf16_leaves_the_part_readable(self):
         root, file = self.project()

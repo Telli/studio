@@ -208,6 +208,11 @@ def _line_inside(root: Path, rel, line) -> list[str]:
         return []
 
 
+def _files_key(files) -> tuple:
+    """The files a part was read from, by their hashes (a reply's ``files``, a page's poll), as one key."""
+    return tuple(sorted((str(rel), str(digest)) for rel, digest in files.items())) if isinstance(files, dict) else ()
+
+
 def _judged(reply: dict) -> list[dict] | None:
     """What who made a reply's features is judged by (`authors.py`): each one's key, file and first
     line, an assembly's parts' too. None for a reply that does not read the part (a sketch solved on
@@ -354,9 +359,11 @@ class EditService:
         self._builds = _Builds(self.python) if build else None
         # One change to a drawing's sheet at a time: each reads the script the last one wrote.
         self._sheet_lock = threading.Lock()
-        # Each part script's features as last read (`_judged`), for a read that finds its files as
-        # they were to say who made them as it is now: a turn's checkpoint made since, say.
-        self._read: dict[str, list[dict]] = {}
+        # Each part script's features as last read (`_judged`), with the files' hashes they were read
+        # from, for a read that finds those files as they were to say who made them as it is now: a
+        # turn's checkpoint made since, say. A page that read another version (the script put back
+        # since) is not told by this one's keys.
+        self._read: dict[str, tuple[tuple, list[dict]]] = {}
 
     def building(self) -> dict:
         return self._builds.snapshot() if self._builds else {"scripts": [], "done": 0, "error": None}
@@ -383,7 +390,8 @@ class EditService:
         root = project_root(script)
         if isinstance(files, dict) and files and all(_hash_inside(root, rel) == digest for rel, digest in files.items()):
             # The part reads as it did, but who made its features may have moved on: a turn ended.
-            read = self._read.get(str(script))
+            kept = self._read.get(str(script))
+            read = kept[1] if kept is not None and kept[0] == _files_key(files) else None
             return {"ok": True, "unchanged": True, "building": self.building(),
                     **({"authors": authors.feature_authors(root, read)} if read is not None else {})}
         reply = self._tracer.ask({"script": str(script), "root": str(root), "mesh": False, **_project_units(root),
@@ -417,7 +425,7 @@ class EditService:
     def _keep_read(self, script: Path, reply: dict) -> None:
         read = _judged(reply)
         if read is not None:
-            self._read[str(script)] = read
+            self._read[str(script)] = (_files_key(reply.get("files")), read)
 
     @staticmethod
     def _note(root: Path, request: dict, made: dict, reply: dict) -> None:
