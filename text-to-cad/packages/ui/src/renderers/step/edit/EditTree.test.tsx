@@ -1,11 +1,11 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import EditTree from '../../../../dist/renderers/step/edit/EditTree.js';
 import { featureTree } from '../../../../dist/renderers/step/edit/editMode.js';
 
 beforeEach(() => vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} }));
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 // A block filleted, the fillet renamed in the tree, and a sketch nothing uses yet.
 const STATE = {
@@ -147,6 +147,26 @@ it("words a sketch's menu as NX does", () => {
   // The sketch an extrude is made from goes with the extrude.
   render(<EditTree edit={{ ...part({ state: lid }), selected: 'sketch:lid.py:9' } as never} tree={featureTree(lid)} />);
   expect(menuOf('Sketch (2) "Rim"')).toEqual(['Edit Sketch', 'Rename']);
+});
+
+it("marks who made a feature with a dot at its row's right, said on hover, its sketch with its own, and one nobody is known to have made with none", () => {
+  vi.useFakeTimers();
+  const authored = { ...PART, authors: { 'bracket.py:8': 'agent', [FILLET]: 'you', [HOLE]: 'someone else' } };
+  // The extrude open, the sketch it was made from under it.
+  render(<EditTree edit={part({ state: authored, selected: 'sketch:bracket.py:8' }) as never} tree={featureTree(authored)} />);
+  const dot = (title: string) => row(title).querySelector('[data-cad-edit-tree-author]');
+  expect(['Sketch (1) "Outline"', 'Extrude (2)', 'Edge Blend (3)', 'Hole (4)'].map(title => dot(title)?.getAttribute('data-cad-edit-tree-author') ?? null))
+    .toEqual(['agent', 'agent', 'you', null]);
+  // At the row's right, past its variable's name, and named for a screen reader.
+  expect(row('Edge Blend (3)').lastElementChild?.contains(dot('Edge Blend (3)'))).toBe(true);
+  expect(within(row('Extrude (2)')).getByRole('img', { name: 'Made by the agent' })).toBeTruthy();
+  fireEvent.pointerMove(dot('Edge Blend (3)')!.parentElement!, { pointerType: 'mouse' });
+  act(() => { vi.advanceTimersByTime(450); });
+  expect(screen.getByRole('tooltip').textContent).toBe('Made by you');
+  cleanup();
+  // A part from before Studio kept track has none.
+  render(<EditTree edit={part() as never} tree={partTree()} />);
+  expect(document.querySelectorAll('[data-cad-edit-tree-author]').length).toBe(0);
 });
 
 it("makes a feature current", async () => {

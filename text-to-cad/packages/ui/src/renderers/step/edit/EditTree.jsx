@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { CircleAlert, LoaderCircle } from "lucide-react";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@text-to-cad/ui/primitives/context-menu";
+import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { TREE_INDENT_PX, TreeRowChevron, TreeRowSurface } from "@text-to-cad/ui/primitives/tree-row";
 import { FileSheetValueInput } from "../../kit/inspector/FileSheet.js";
+import { AUTHOR_DOT_CLASS, AUTHOR_WORDS, authorOf } from "./authors.js";
 import { ORIGIN_PLANES, barIndex, planeDetail, rolledBack, sizeName, treeFeatures } from "./editMode.js";
 import { AssemblyIcon, FeatureIcon, MateTreeIcon, OriginIcon, ParametersIcon, PartIcon, PlaneIcon, SketchIcon } from "./featureIcons.jsx";
 import { buildFailure, nxPlane, treeTitles } from "./nx.js";
@@ -35,12 +37,14 @@ function RenameInput({ value, onDone }) {
  * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch, Edit Parameters on a feature),
  * else opens or closes it; a right-click selects it and opens its menu (`menu`, in NX's words and order).
  * While `renaming`, its name is typed over (`onRename`, given the name or null). `warn`: why the
- * feature did not build, marked beside its name with the viewer's warning and said on hover. `role`:
- * "treeitem" for a row of the tree; a row above it (the part's name) has none.
+ * feature did not build, marked beside its name with the viewer's warning and said on hover. `author`:
+ * who made it (`authors.js`), its dot at the row's right, said on hover. `role`: "treeitem" for a row
+ * of the tree; a row above it (the part's name) has none.
  */
 function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, onActivate = null, selected, onSelect, onHover, muted = false, menu = null,
-  slot = null, renaming = null, onRename = null, check = null, warn = null, role = "treeitem" }) {
+  slot = null, renaming = null, onRename = null, check = null, warn = null, author = null, role = "treeitem" }) {
   const active = Boolean(id) && selected === id;
+  const detailed = Boolean(detail) && renaming === null;
   const row = <TreeRowSurface as="div" dense active={active} role={role} aria-selected={role === "treeitem" ? active : undefined}
     aria-expanded={expanded === null ? undefined : expanded} tabIndex={-1} title={warn ? `${BUILD_FAILED}: ${warn}` : undefined}
     className={`cursor-default select-none ${active ? ROW_SELECTED_CLASS : ROW_HOVER_CLASS}`} style={{ paddingLeft: 4 + depth * (TREE_INDENT_PX + 2) }}
@@ -61,7 +65,13 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
       : <span className={muted ? "truncate text-muted-foreground" : "truncate"}>{title}</span>}
     {/* The alert card's warning icon, amber as the card draws a warning. */}
     {warn && renaming === null ? <CircleAlert role="img" aria-label={BUILD_FAILED} className="size-3.5 shrink-0 text-amber-500" /> : null}
-    {detail && renaming === null ? <span className="ml-auto truncate pl-2 text-muted-foreground">{detail}</span> : null}
+    {detailed ? <span className="ml-auto truncate pl-2 text-muted-foreground">{detail}</span> : null}
+    {/* The timeline's 6px dot; the box around it takes no room of its own, so the pointer finds it more easily. */}
+    {author ? <TooltipHint content={AUTHOR_WORDS[author]} side="top">
+      <span className={`-m-1 flex shrink-0 p-1 ${detailed ? "" : "ml-auto"}`}>
+        <span role="img" aria-label={AUTHOR_WORDS[author]} data-cad-edit-tree-author={author} className={`size-1.5 rounded-full ${AUTHOR_DOT_CLASS[author]}`} />
+      </span>
+    </TooltipHint> : null}
   </TreeRowSurface>;
   if (!menu?.length) return row;
   return <ContextMenu>
@@ -203,17 +213,18 @@ export function ExpressionRows({ edit }) {
  * Edit mode's Part Navigator, as NX lists a part: its name, then User Expressions folded above the
  * tree (the named sizes, typed over to change), and the tree, which opens with the Datum Coordinate
  * System (0) and its planes and goes on with the features in the order the script makes them, numbered
- * as NX numbers them (`nx.js`): each with its icon, its own name, its variable's name at the right and
- * a box to suppress it, a solid's sketch under it, a sketch nothing uses yet on a row of its own. An
- * assembly lists its parts as components, each opening to its own features. Selecting a feature draws
- * its dimensions on the model and shows its inputs under the tree; selecting a plane draws it;
- * double-clicking a sketch edits it, and a feature a command made reopens that command's panel
- * (`edit.editFeature`). A row's menu is NX's: Edit Parameters, Edit Sketch, Suppress or Unsuppress
- * (`edit.suppress` sets a feature aside, greyed where it is), Rename, Delete (`edit.remove`, as the
- * key does) and Make Current Feature. That one puts the rollback bar just under the feature
- * (`edit.rollTo`), so the part shows as it was there, the features below it greyed and new ones going
- * in at the bar; the bar is dragged to the same effect. The feature a failed build stopped in wears the
- * viewer's warning (`buildFailure`).
+ * as NX numbers them (`nx.js`): each with its icon, its own name, its variable's name at the right, a
+ * dot past it for who made it (the agent's purple, yours grey, none where it is not known: `authors.js`;
+ * a sketch carries its feature's) and a box to suppress it, a solid's sketch under it, a sketch nothing
+ * uses yet on a row of its own. An assembly lists its parts as components, each opening to its own
+ * features. Selecting a feature draws its dimensions on the model and shows its inputs under the tree;
+ * selecting a plane draws it; double-clicking a sketch edits it, and a feature a command made reopens
+ * that command's panel (`edit.editFeature`). A row's menu is NX's: Edit Parameters, Edit Sketch,
+ * Suppress or Unsuppress (`edit.suppress` sets a feature aside, greyed where it is), Rename, Delete
+ * (`edit.remove`, as the key does) and Make Current Feature. That one puts the rollback bar just under
+ * the feature (`edit.rollTo`), so the part shows as it was there, the features below it greyed and new
+ * ones going in at the bar; the bar is dragged to the same effect. The feature a failed build stopped
+ * in wears the viewer's warning (`buildFailure`).
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode>,
  *   tree: ReturnType<typeof import("./editMode.js").featureTree>, onEditSketch?: (sketch: object) => void }} props
@@ -280,17 +291,20 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const renameItem = id => ({ id: "rename", label: "Rename", disabled: busy || tree.assembly, onSelect: () => edit.startRename(id) });
   const renamingOf = (id, title, target) => (edit.renaming === id && !busy && !tree.assembly
     ? { renaming: title, onRename: name => (name === null ? edit.stopRename() : void edit.rename(target, name)) } : {});
-  const sketchRow = (sketch, depth, own = null, muted = false) => (
+  // Who made a feature, its dot at its row's right; a sketch has no author of its own, and carries its feature's.
+  const authorAt = id => authorOf(edit.state?.authors, id);
+  const sketchRow = (sketch, depth, own = null, muted = false, author = null) => (
     <Row key={sketch.id} id={sketch.id} depth={depth} icon={muted ? greyed(<SketchIcon />) : <SketchIcon />} muted={muted}
       title={titleOf(sketch)} detail={sketch.plane && sketch.plane !== "Plane" ? `${nxPlane(sketch.plane)}${sketch.offset ? `, ${sketch.offset} ${edit.state?.units || ""}`.trimEnd() : ""}` : ""}
-      slot={own ? partItems.findIndex(each => each.id === own.id) : null}
+      slot={own ? partItems.findIndex(each => each.id === own.id) : null} author={author}
       onActivate={() => onEditSketch(sketch)} warn={failure?.id === sketch.id ? failure.why : null}
       {...(sketch.constrained ? renamingOf(sketch.id, sketch.title, { sketch: { file: sketch.file, line: sketch.line }, title: sketch.title }) : {})}
       menu={menuOf(editItem(sketch), [...(sketch.constrained ? [renameItem(sketch.id)] : []), ...(own ? [deleteItem(sketch.id)] : [])], own ? currentItem(own) : [])}
       {...rowProps} />);
   const featureRows = (feature, depth) => {
     const out = rolled.has(feature.id);
-    if (feature.kind === "Sketch") return [sketchRow(feature.sketch, depth, feature, out)];
+    const author = authorAt(feature.id);
+    if (feature.kind === "Sketch") return [sketchRow(feature.sketch, depth, feature, out, author)];
     const branch = Boolean(feature.sketch);
     const expanded = open.has(feature.id);
     const detail = feature.suppressed ? "Suppressed" : feature.kind === "Plane" ? planeDetail(feature, edit.state?.units || "")
@@ -305,10 +319,10 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
         expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null} slot={slot < 0 ? null : slot}
         onActivate={editable(feature) && !busy ? () => edit.editFeature(feature) : null}
         {...renamingOf(feature.id, feature.title, { feature: feature.id, title: feature.title })}
-        warn={failure?.id === feature.id ? failure.why : null}
+        warn={failure?.id === feature.id ? failure.why : null} author={author}
         menu={menuOf([...featureItem(feature), ...editItem(feature.sketch)], [suppressItem(feature), renameItem(feature.id), deleteItem(feature.id)], currentItem(feature))}
         {...rowProps} />,
-      branch && expanded ? sketchRow(feature.sketch, depth + 1, null, grey) : null,
+      branch && expanded ? sketchRow(feature.sketch, depth + 1, null, grey, author) : null,
     ];
   };
   const features = (list, depth) => list.flatMap(feature => featureRows(feature, depth));

@@ -183,7 +183,9 @@ export function useEditMode({ client, file, active, reading = true }) {
 
   const take = useCallback(reply => {
     if (reply.unchanged) {
-      setState(current => (current ? { ...current, building: reply.building } : current));
+      // The part reads as it did, but who made its features moves on as a turn of the agent's ends
+      // (`cadgen/edit/authors.py`): the read says it as it is now.
+      setState(current => (current ? { ...current, building: reply.building, ...("authors" in reply ? { authors: reply.authors } : {}) } : current));
       // The rollback bar moved alone: the part as it was read, and the bar where it went.
       if ("bar" in reply) setBar(reply.bar);
       return;

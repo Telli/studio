@@ -67,6 +67,26 @@ it('a part reads as its sizes and history, a change applies at once and the agen
   expect(result.current.canRedo).toBe(true);
 });
 
+it('a read that finds the part as it was takes who made its features as it is now', async () => {
+  vi.useFakeTimers();
+  try {
+    const viewer = server();
+    const { result } = renderHook(() => useEditMode({ client: viewer.client, file: FILE, resource: RESOURCE, active: true }),
+      { wrapper: hostWith(() => Promise.resolve()) });
+    await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    expect(result.current.status).toBe('ready');
+    const read = result.current.state;
+    // A turn of the agent's ended: the part reads as it did, and the feature the turn made is marked.
+    viewer.client.editState.mockResolvedValueOnce({ ok: true, unchanged: true, building: read.building, authors: { r1: 'agent' } });
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    expect(viewer.client.editState).toHaveBeenLastCalledWith(FILE, read.files);
+    expect(result.current.state.authors).toEqual({ r1: 'agent' });
+    expect(result.current.state.rows).toBe(read.rows);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it("a part whose script stops says where it stopped, for as long as that error stands", async () => {
   const stoppedAt = { frames: [{ file: 'plate.py', line: 9, text: 'plate = fillet(plate.edges(), radius=WALL)' }] };
   const trace = 'Traceback (most recent call last):\n  File "/project/parts/plate.py", line 9, in plate\nValueError: Failed creating a fillet';

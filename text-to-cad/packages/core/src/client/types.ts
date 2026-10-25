@@ -291,6 +291,12 @@ export interface CadEditState {
   faceFeatures?: Record<string, string>;
   /** How many faces the part read has, for a view to check the faces on screen are that part's before naming one by `faceFeatures`. */
   faceCount?: number;
+  /**
+   * Who made each feature (`cadgen/edit/authors.py`), by its key: "you" when a hand edit wrote the first line of its
+   * statement, "agent" when a turn's checkpoint holds it. A feature from before Studio kept track, or one a turn still
+   * running made, has no entry. An unchanged read says it again, as it moves on when a turn ends.
+   */
+  authors?: Record<string, 'you' | 'agent'>;
   dimensions?: CadEditDimension[];
   choose?: { id: string; name: string; file: string; line: number }[];
   change?: { literal: string; name: string; file: string; line: number; from: string; to: string };

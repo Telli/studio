@@ -4,6 +4,7 @@ import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { WORKSPACE_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { VIEWPORT_CUBE_BOTTOM } from "../../kit/shell/viewportLayout.js";
+import { AUTHOR_DOT_CLASS, AUTHOR_WORDS } from "./authors.js";
 import { FeatureIcon } from "./featureIcons.jsx";
 import { slotAtX, timelineItems } from "./timeline.js";
 
@@ -12,10 +13,6 @@ import { slotAtX, timelineItems } from "./timeline.js";
 // the padding at the ends. The marker's place is arithmetic on them, so no layout is read to draw it.
 const TILE = 1.75, GAP = 0.5, PAIR = 0.25, PAD = 0.5;
 const MEASURES = Object.freeze({ "--tl-tile": `${TILE}rem`, "--tl-gap": `${GAP}rem`, "--tl-pair": `${PAIR}rem`, "--tl-pad": `${PAD}rem` });
-// Who made an item, as its dot says and its tooltip words it: the agent's in purple, yours in grey. An item
-// nobody is known to have made has neither.
-const AUTHOR_WORDS = Object.freeze({ agent: "Made by the agent", you: "Made by you" });
-const AUTHOR_DOT_CLASS = Object.freeze({ agent: "bg-cad-agent", you: "bg-muted-foreground" });
 
 /** What an icon's tooltip adds under its title: that it is set aside, and who made it. */
 const notesOf = icon => [icon.feature.suppressed ? "Suppressed" : "", AUTHOR_WORDS[icon.author] || ""].filter(Boolean);

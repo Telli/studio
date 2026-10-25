@@ -5,10 +5,9 @@
  * the Part Navigator's bar and its Make Current Feature.
  */
 
+import { authorOf } from "./authors.js";
 import { barIndex, rolledBack } from "./editMode.js";
 import { treeTitles } from "./nx.js";
-
-const AUTHORS = Object.freeze(["agent", "you"]);
 
 /**
  * The timeline of a part (`featureTree`) with its rollback bar (`edit.bar`): one item for each feature
@@ -47,7 +46,7 @@ export function timelineItems(tree, bar, authors = {}) {
       kind: feature.kind,
       title: titles.get(feature.id) || feature.title,
       rolledBack: rolled.has(feature.id),
-      author: AUTHORS.includes(authors?.[feature.id]) ? authors[feature.id] : null,
+      author: authorOf(authors, feature.id),
       feature,
     };
     const made = feature.kind === "Sketch" ? null : feature.sketch;
