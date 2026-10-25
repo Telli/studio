@@ -1,6 +1,16 @@
+import type { StudioProject } from "@t3tools/contracts";
+import { EMPTY_STUDIO_BRIEF, studioProjectContext } from "@t3tools/shared/studioProjects";
 import { describe, expect, it } from "vite-plus/test";
 
 import { splitSources } from "./answerSources";
+
+const rover: StudioProject = {
+  name: "Rover arm",
+  template: "robot",
+  brief: EMPTY_STUDIO_BRIEF,
+  folders: ["/work/rover-cad"],
+  createdAt: "2026-10-14T00:00:00.000Z",
+};
 
 describe("splitSources", () => {
   it("reads the four kinds", () => {
@@ -263,16 +273,154 @@ describe("splitSources", () => {
     ]);
   });
 
-  it("reads a colon after the number as the footnote style", () => {
+  it("reads a colon after the number as the footnote style, with or without a space", () => {
     const answer = [
       "Sources:",
       "[1]: https://example.com/page",
       "- [2]: parts/bracket.py:12-18",
+      "[3]:https://example.com/spec",
     ].join("\n");
     expect(splitSources(answer).sources).toEqual([
       { n: 1, target: { kind: "url", url: "https://example.com/page" } },
       { n: 2, target: { kind: "file", path: "parts/bracket.py", lines: [12, 18], heading: null } },
+      { n: 3, target: { kind: "url", url: "https://example.com/spec" } },
     ]);
+  });
+
+  it("takes a # for a heading mark only when it follows the path directly", () => {
+    const answer = [
+      "Sources:",
+      "[1] docs/Design - Notes.md#Scope",
+      "[2] docs/fasteners.md:12 — #6-32 clearance hole",
+    ].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      {
+        n: 1,
+        target: { kind: "file", path: "docs/Design - Notes.md", lines: null, heading: "Scope" },
+      },
+      { n: 2, target: { kind: "file", path: "docs/fasteners.md", lines: [12, 12], heading: null } },
+    ]);
+  });
+
+  it("reads a line range written with an en or an em dash", () => {
+    const answer = ["Sources:", "[1] a.py:12–18", "[2] a.py:12—18"].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      { n: 1, target: { kind: "file", path: "a.py", lines: [12, 18], heading: null } },
+      { n: 2, target: { kind: "file", path: "a.py", lines: [12, 18], heading: null } },
+    ]);
+  });
+
+  it("cuts a note in parentheses, or after a colon, from a plain path", () => {
+    const answer = [
+      "Sources:",
+      "[1] a.py:12-18 (the hole)",
+      "[2] a.py (the hole)",
+      "[3] a.py:12-18: the hole",
+      "[4] a.py:12-18 (the hole - 3 mm)",
+      "[5] docs/Design notes (v2).md",
+      "[6] docs/Design notes (v2)",
+    ].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      { n: 1, target: { kind: "file", path: "a.py", lines: [12, 18], heading: null } },
+      { n: 2, target: { kind: "file", path: "a.py", lines: null, heading: null } },
+      { n: 3, target: { kind: "file", path: "a.py", lines: [12, 18], heading: null } },
+      { n: 4, target: { kind: "file", path: "a.py", lines: [12, 18], heading: null } },
+      {
+        n: 5,
+        target: { kind: "file", path: "docs/Design notes (v2).md", lines: null, heading: null },
+      },
+      {
+        n: 6,
+        target: { kind: "file", path: "docs/Design notes (v2)", lines: null, heading: null },
+      },
+    ]);
+  });
+
+  it("leaves a column after the line out of the path", () => {
+    expect(splitSources("Sources:\n[1] src/a.ts:42:7").sources).toEqual([
+      { n: 1, target: { kind: "file", path: "src/a.ts", lines: [42, 42], heading: null } },
+    ]);
+  });
+
+  it("reads a link followed by punctuation as the link", () => {
+    const answer = [
+      "Sources:",
+      "[1] [Torx](https://example.com/t).",
+      "[2] [Torx](https://example.com/t),",
+      "[3] [Torx](https://example.com/t);",
+    ].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      { n: 1, target: { kind: "url", url: "https://example.com/t" } },
+      { n: 2, target: { kind: "url", url: "https://example.com/t" } },
+      { n: 3, target: { kind: "url", url: "https://example.com/t" } },
+    ]);
+  });
+
+  it("drops one leading separator from own knowledge", () => {
+    const answer = [
+      "Sources:",
+      "[1] own knowledge — ISO 2768",
+      "[2] own knowledge – ISO 2768",
+      "[3] own knowledge - ISO 2768",
+      "[4] own knowledge: ISO 2768",
+    ].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      { n: 1, target: { kind: "own", text: "ISO 2768" } },
+      { n: 2, target: { kind: "own", text: "ISO 2768" } },
+      { n: 3, target: { kind: "own", text: "ISO 2768" } },
+      { n: 4, target: { kind: "own", text: "ISO 2768" } },
+    ]);
+  });
+
+  it("takes line 0 for no line", () => {
+    const answer = ["Sources:", "[1] a.py:0", "[2] a.py:0-5"].join("\n");
+    expect(splitSources(answer).sources).toEqual([
+      { n: 1, target: { kind: "file", path: "a.py", lines: null, heading: null } },
+      { n: 2, target: { kind: "file", path: "a.py", lines: null, heading: null } },
+    ]);
+  });
+
+  it.each(["---", "***", "___"])(
+    "drops a %s rule right before the Sources line, with the blank lines around it",
+    (rule) => {
+      expect(splitSources(`text\n\n${rule}\n\nSources:\n[1] a.py`)).toEqual({
+        body: "text",
+        sources: [{ n: 1, target: { kind: "file", path: "a.py", lines: null, heading: null } }],
+      });
+    },
+  );
+
+  it("keeps a rule that is not right before the Sources line", () => {
+    expect(splitSources("one\n\n---\n\ntwo\n\nSources:\n[1] a.py").body).toBe("one\n\n---\n\ntwo");
+  });
+
+  it("leaves an answer whole when a closed code fence at its end shows the format", () => {
+    const answer =
+      "To cite, end the answer like this:\n\n```text\nSources:\n[1] parts/bracket.py:12-18\n```";
+    expect(splitSources(answer)).toEqual({ body: answer, sources: [] });
+    expect(splitSources(`${answer}\n`)).toEqual({ body: `${answer}\n`, sources: [] });
+  });
+
+  it("reads the example lines the agent is given, so the instruction and the reader agree", () => {
+    const context = studioProjectContext(rover, "/work/rover-cad");
+    const example = context
+      .slice(context.indexOf("one source a line:") + "one source a line:".length)
+      .split("Cite only")[0]
+      ?.trim()
+      .split("\n");
+    expect(example).toHaveLength(4);
+    expect(splitSources(["Done.", "", "Sources:", ...(example ?? [])].join("\n"))).toEqual({
+      body: "Done.",
+      sources: [
+        { n: 1, target: { kind: "file", path: "path/to/file.py", lines: [12, 18], heading: null } },
+        {
+          n: 2,
+          target: { kind: "file", path: "docs/prd.md", lines: null, heading: "The heading" },
+        },
+        { n: 3, target: { kind: "url", url: "https://example.com/page" } },
+        { n: 4, target: { kind: "own", text: "what it is" } },
+      ],
+    });
   });
 
   it("reads a target in backticks, in angle brackets or as a link, whole", () => {
