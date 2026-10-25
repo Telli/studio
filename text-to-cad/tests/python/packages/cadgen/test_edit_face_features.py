@@ -41,6 +41,42 @@ FUNNEL = {
     """,
 }
 
+# A plate with two tabs on it, their tops flush with each other, as bosses of one height are; and the
+# same with a hole into the second tab's top, which leaves that face a new one, and the plate's top as
+# the tabs left it.
+TABS = {
+    "tabs.py": """
+        from build123d import Box, Pos
+        from cadgen import step
+
+
+        @step
+        def tabs():
+            plate = Box(100, 50, 10)
+            plate += Pos(-30, 0, 8.5) * Box(10, 10, 7)
+            plate += Pos(30, 0, 8.5) * Box(10, 10, 7)
+            return plate
+    """,
+}
+HOLED = {"tabs.py": TABS["tabs.py"].replace(
+    "            return plate", "            plate -= Pos(30, 0, 10) * Cylinder(2, 4)\n            return plate").replace(
+    "import Box, Pos", "import Box, Cylinder, Pos")}
+
+# A plate whose top a later slot splits in two.
+SLOTTED = {
+    "slotted.py": """
+        from build123d import Box, Pos
+        from cadgen import step
+
+
+        @step
+        def slotted():
+            plate = Box(100, 50, 10)
+            plate -= Pos(0, 0, 5) * Box(10, 60, 4)
+            return plate
+    """,
+}
+
 # PLATE's top edges as the viewer reads them, for an Edge Blend on them.
 HALF_LENGTH, HALF_WIDTH, TOP = 25.4, 12.7, 3.175
 PLATE_TOP_EDGES = [parts.edge("e1", (0, -HALF_WIDTH, TOP), 50.8), parts.edge("e2", (0, HALF_WIDTH, TOP), 50.8),
@@ -180,6 +216,64 @@ class FaceFeatures(parts.Commands):
         (wall,) = [number for number, face in body.items() if kind(face) == "cylinder"]
         self.assertEqual(rolled["bar"]["faceFeatures"], {str(number): hole if number == wall else plate for number in body})
         self.assertNotIn(fillet, rolled["bar"]["faceFeatures"].values())
+
+    def tab_features(self, state: dict) -> tuple[str, str, str]:
+        """The plate's, the first tab's and the second tab's features, in the order the script makes them."""
+        plate, first, second, *_ = [feature["key"] for feature in state["features"]]
+        return plate, first, second
+
+    def test_credits_flush_tabs_each_to_its_own_extrude(self):
+        from build123d import CenterOf
+
+        root, file, state = self.open(TABS, "tabs.step")
+        plate, first, second = self.tab_features(state)
+        faces = faces_on_screen(root / "tabs.py")
+
+        def maker(face):
+            # A tab's faces stand above the plate's top, at x = -30 or 30.
+            centre = face.center(CenterOf.MASS)
+            return plate if centre.Z <= 5 + 1e-9 else first if centre.X < 0 else second
+
+        tops = {round(face.center(CenterOf.MASS).X): number for number, face in faces.items()
+                if kind(face) == "plane" and math.isclose(face.center(CenterOf.MASS).Z, 12)}
+        self.assertEqual(state["faceFeatures"][str(tops[30])], second)
+        self.assertEqual(state["faceFeatures"][str(tops[-30])], first)
+        # Their sides are flush too, and the plate's top runs round both: every face is its own feature's.
+        self.assertEqual(state["faceFeatures"], {str(number): maker(face) for number, face in faces.items()})
+
+    def test_a_plates_top_split_by_a_later_slot_stays_the_plates(self):
+        from build123d import CenterOf
+
+        root, file, state = self.open(SLOTTED, "slotted.step")
+        plate = state["features"][0]["key"]
+        faces = faces_on_screen(root / "slotted.py")
+        halves = [number for number, face in faces.items() if kind(face) == "plane" and math.isclose(face.center(CenterOf.MASS).Z, 5)]
+        self.assertEqual(len(halves), 2)
+        self.assertEqual({state["faceFeatures"][str(number)] for number in halves}, {plate})
+
+    def test_a_hole_through_a_tabs_top_keeps_the_tabs_credit(self):
+        from build123d import CenterOf
+
+        root, file, state = self.open(HOLED, "tabs.step")
+        plate, first, second = self.tab_features(state)
+        hole = self.key(state, "Hole")
+        faces = faces_on_screen(root / "tabs.py")
+        credited = state["faceFeatures"]
+
+        def at(z, x=None):
+            return next(number for number, face in faces.items() if kind(face) == "plane"
+                        and math.isclose(face.center(CenterOf.MASS).Z, z, abs_tol=1e-9)
+                        and (x is None or math.isclose(face.center(CenterOf.MASS).X, x, abs_tol=1e-6)))
+
+        # The second tab's top, a new face round the hole, is still that tab's; the first's is the first's.
+        self.assertEqual(credited[str(at(12, 30))], second)
+        self.assertEqual(credited[str(at(12, -30))], first)
+        # The plate's top as the tabs left it, which the hole does not touch, is still the plate's.
+        self.assertEqual(credited[str(at(5))], plate)
+        # The hole's floor and wall are the hole's.
+        self.assertEqual(credited[str(at(8))], hole)
+        (wall,) = [number for number, face in faces.items() if kind(face) == "cylinder"]
+        self.assertEqual(credited[str(wall)], hole)
 
     def test_a_body_placed_at_its_end_keeps_the_features_that_made_its_faces(self):
         for name, files in (("placed", PLACED), ("moved in place", MOVED)):

@@ -1,19 +1,22 @@
 """Which feature made each face of a part, for the chips and the selection bar that name a face by it.
 
 Nothing on cadgen 0.7.x records it, but the tracer keeps the result of each step it traced. A face
-belongs to the first step whose result has a face on the same surface: the same plane, the same
-cylinder by its axis and radius, and so on (``surface_key``). So a face a later hole cuts through is
-still the extrude's that made it, and the hole's wall, on a cylinder no step had before, the hole's.
-
-The rule has one blind spot, and keeps to it as the design has it: where two steps' results each have
-a face on one surface, the first is credited, though the later may be what made the face (a tool
-made before the body it cuts, its cap flush with the body's top, takes the top). A part written the
-usual way makes its body before the tools it cuts.
+belongs to the first step whose result has a face on the same surface (the same plane, the same
+cylinder by its axis and radius, and so on: ``surface_key``) that also overlaps it. Where the overlap
+can be read off the B-rep it is: a face a boolean leaves untouched is the very same B-rep face
+(``IsSame``) in every result after the one that made it. Any other face, one a later feature cut,
+trimmed, split or merged, is tested by a point inside it, taken from its own UV interior (not its
+centroid, which a face with a hole or a bend can lie outside of), and goes to the first step with a
+face on its surface that holds that point (OCCT's face classifier, IN or ON, at the part's tolerance).
+Both tests are made in the order the steps made the faces, so a face is never given to a feature that
+only trimmed it. So a face a later hole cuts through is still the extrude's that made it; a tab's top,
+flush with an earlier tab's, is its own tab's; and the hole's wall, on a cylinder no step had before,
+the hole's. A face two features' faces merged into goes to the first whose face holds the point taken.
 
 Nothing else is credited that is not known. A face on a free-form surface (a B-spline: a loft's sides)
-has no key, and one that no step's result has a face for has no maker: both are left out. So is every
-face of an assembly, or of a compound the store draws as several parts, whose faces the viewer numbers
-part by part.
+has no key; one that no step's result has a face overlapping has no maker; one with no point inside it
+to test (a sliver) is not tested: all are left out. So is every face of an assembly, or of a compound
+the store draws as several parts, whose faces the viewer numbers part by part.
 
 Runs in the tracer's process only: it reads OCCT's B-rep.
 """
@@ -23,10 +26,15 @@ from __future__ import annotations
 import math
 
 from OCP.Bnd import Bnd_Box
+from OCP.BRep import BRep_Tool
 from OCP.BRepAdaptor import BRepAdaptor_Surface
 from OCP.BRepBndLib import BRepBndLib
+from OCP.BRepClass import BRepClass_FaceClassifier
+from OCP.BRepTools import BRepTools
+from OCP.BRepTopAdaptor import BRepTopAdaptor_FClass2d
 from OCP.GeomAbs import GeomAbs_Cone, GeomAbs_Cylinder, GeomAbs_Plane, GeomAbs_Sphere, GeomAbs_Torus
-from OCP.TopAbs import TopAbs_FACE, TopAbs_SOLID
+from OCP.gp import gp_Pnt2d
+from OCP.TopAbs import TopAbs_FACE, TopAbs_IN, TopAbs_ON, TopAbs_SOLID
 from OCP.TopExp import TopExp_Explorer
 from OCP.TopoDS import TopoDS, TopoDS_Shape
 
@@ -122,22 +130,73 @@ def _has(shape: TopoDS_Shape, kind) -> bool:
     return TopExp_Explorer(shape, kind).More()
 
 
-class _Keys:
-    """``surface_key`` of each face, read once: a face a boolean leaves as it was is the same B-rep in
-    every result after it (OCCT's hash and ``IsSame`` tell it; its orientation does not change its key)."""
+class _Faces:
+    """The faces of the steps' results, each read once: a face a boolean leaves as it was is the same
+    B-rep in every result after it (OCCT's hash and ``IsSame`` tell it; its orientation does not change
+    its surface). Each has its ``surface_key``, and each surface the faces on it, with the step that
+    first had each, in the order the steps made them (``on``)."""
 
     def __init__(self, size: float) -> None:
         self.size = size
         self.read: dict[int, list[tuple[TopoDS_Shape, tuple | None]]] = {}
+        self.on: dict[tuple, list[tuple[int, TopoDS_Shape]]] = {}
 
-    def __call__(self, face: TopoDS_Shape) -> tuple | None:
+    def key(self, face: TopoDS_Shape, step: int | None = None) -> tuple | None:
+        """``face``'s surface key; a face read for the first time in a step's result goes on its surface's list."""
         seen = self.read.setdefault(hash(face), [])
         for other, key in seen:
             if other.IsSame(face):
                 return key
         key = surface_key(face, self.size)
         seen.append((face, key))
+        if key is not None and step is not None:
+            self.on.setdefault(key, []).append((step, face))
         return key
+
+
+# A face's UV bounds sampled this many a side, centre first, for a point inside it.
+GRID = 7
+_SAMPLES = sorted((((column + .5) / GRID, (row + .5) / GRID) for column in range(GRID) for row in range(GRID)),
+                  key=lambda sample: (sample[0] - .5) ** 2 + (sample[1] - .5) ** 2)
+
+
+def _inside(face: TopoDS_Shape):
+    """A point inside ``face``, from its own UV interior: of a grid over its UV bounds, the sample
+    nearest their centre that the face's classifier puts inside it with its four neighbours, else the
+    nearest inside it at all. None for a face it finds no point inside (a sliver)."""
+    face = TopoDS.Face_s(face)
+    u_min, u_max, v_min, v_max = BRepTools.UVBounds_s(face)
+    classify = BRepTopAdaptor_FClass2d(face, BRep_Tool.Tolerance_s(face))
+
+    def inside(u: float, v: float) -> bool:
+        return classify.Perform(gp_Pnt2d(u, v)) == TopAbs_IN
+
+    du, dv = (u_max - u_min) / (2 * GRID), (v_max - v_min) / (2 * GRID)
+    shallow = None
+    for across, along in _SAMPLES:
+        u, v = u_min + across * (u_max - u_min), v_min + along * (v_max - v_min)
+        if not inside(u, v):
+            continue
+        if inside(u + du, v) and inside(u - du, v) and inside(u, v + dv) and inside(u, v - dv):
+            return BRepAdaptor_Surface(face, False).Value(u, v)
+        shallow = shallow or (u, v)
+    return BRepAdaptor_Surface(face, False).Value(*shallow) if shallow else None
+
+
+def _maker(face: TopoDS_Shape, key: tuple, faces: _Faces, tolerance: float) -> int | None:
+    """The first step whose result has a face on ``face``'s surface that overlaps it: that very face, as
+    a boolean left it, or one holding a point inside it. None where none does, or no point can be taken."""
+    point = None
+    for step, other in faces.on.get(key, ()):
+        if other.IsSame(face):
+            return step
+        if point is None:
+            point = _inside(face)
+            if point is None:
+                return None
+        if BRepClass_FaceClassifier(TopoDS.Face_s(other), point, tolerance).State() in (TopAbs_IN, TopAbs_ON):
+            return step
+    return None
 
 
 def _size(shape: TopoDS_Shape) -> float:
@@ -159,10 +218,11 @@ def face_features(shape, steps: list[dict], row_of: dict[int, str], features: li
 
     ``steps`` are the trace's steps, ``row_of`` the key of the row each step's index is in, and
     ``features`` the part's features, each the rows it stands for (``rows``). A face is the first
-    step's whose result has a face on its surface, and that step's row is a feature's. A face whose
-    maker is not known is left out: one with no key, one no step has, one whose step is in no row or in
-    the rows of more than one feature (a cut by several tools at once), and every face of a body the
-    store packages as several parts (an assembly gets ``{}``).
+    step's whose result has a face on its surface that overlaps it (`_maker`), and that step's row is a
+    feature's. A face whose maker is not known is left out: one with no key, one no step's face
+    overlaps, one whose step is in no row or in the rows of more than one feature (a cut by several
+    tools at once), and every face of a body the store packages as several parts (an assembly gets
+    ``{}``).
 
     The body is read where its features made it: as the step that first made this B-rep kept it, so a
     body placed at its end (``Pos(...) * body``) or moved in place keeps its faces' makers. Only the
@@ -185,8 +245,8 @@ def _credited(shape, steps, row_of, features) -> dict[str, str]:
     for feature in features or ():
         for row in {feature.get("key"), *(feature.get("rows") or ())} - {None}:
             feature_of[row] = feature["key"] if feature_of.get(row, feature["key"]) == feature["key"] else None
-    keyed = _Keys(_size(body))
-    first: dict[tuple, int] = {}
+    size = _size(body)
+    made_faces = _Faces(size)
     for step in steps:
         if step["index"] > last:
             break
@@ -195,15 +255,14 @@ def _credited(shape, steps, row_of, features) -> dict[str, str]:
             continue  # a sketch, a face or a plane makes no face of a solid itself; what makes a solid of it does
         explorer = TopExp_Explorer(brep, TopAbs_FACE)
         while explorer.More():
-            key = keyed(explorer.Current())
-            if key is not None:
-                first.setdefault(key, step["index"])
+            made_faces.key(explorer.Current(), step["index"])
             explorer.Next()
     faces = entity_map(body, "face")
     credited = {}
     for number in range(1, faces.Extent() + 1):
-        key = keyed(faces.FindKey(number))
-        maker = first.get(key) if key is not None else None
+        face = faces.FindKey(number)
+        key = made_faces.key(face)
+        maker = _maker(face, key, made_faces, PRECISION * size) if key is not None else None
         feature = feature_of.get(row_of.get(maker)) if maker is not None else None
         if feature:
             credited[str(number)] = feature
