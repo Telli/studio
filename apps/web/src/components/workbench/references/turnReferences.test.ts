@@ -141,6 +141,7 @@ function makeChat() {
       patterns: ReadonlyArray<string>,
       results: ReadonlyArray<{ title?: string; url?: string }> = [],
     ): OrchestrationV2TurnItem => ({ ...base(runId), type: "web_search", patterns, results }),
+    /** A file search: it lists the files that match, or for some agents the path it searched. */
     files: (
       runId: RunId | null,
       results: ReadonlyArray<{ fileName: string; line?: number }>,
@@ -236,6 +237,37 @@ describe("turnReferences", () => {
     ]);
   });
 
+  it("marks a file the agent only searched as not opened", () => {
+    const chat = makeChat();
+    const entries = timeline([
+      chat.user(run1),
+      chat.files(run1, [
+        { fileName: "docs/prd.md", line: 4 },
+        { fileName: "/work/rover-cad/parts/bracket.py" },
+      ]),
+      chat.assistant(run1, "Found them."),
+      chat.user(run2),
+      chat.read(run2, "/work/rover-cad/docs/spec.md"),
+    ]);
+    const answer = [
+      "Sources:",
+      "[1] docs/prd.md#Fits",
+      "[2] parts/bracket.py:12-18",
+      "[3] docs/spec.md",
+    ].join("\n");
+    // A search in the earlier turn listed the first two and nothing read them, so they are not
+    // "earlier in this chat" either.
+    expect(turnReferences({ answer, runId: run2, entries })).toEqual([
+      { n: 1, target: file("docs/prd.md", null, "Fits"), opened: "not opened" },
+      { n: 2, target: file("parts/bracket.py", [12, 18]), opened: "not opened" },
+      { n: 3, target: file("docs/spec.md"), opened: "this turn" },
+    ]);
+    // And in the turn that searched.
+    expect(
+      turnReferences({ answer: "Sources:\n[1] docs/prd.md", runId: run1, entries })[0]?.opened,
+    ).toBe("not opened");
+  });
+
   it("labels own knowledge", () => {
     const answer = "Sources:\n[1] own knowledge: ISO 2768 general tolerances\n[2] OWN KNOWLEDGE";
     expect(turnReferences({ answer, runId: run1, entries: [] })).toEqual([
@@ -284,6 +316,21 @@ describe("turnReferences", () => {
         opened: "this turn",
         title: "Torx drive",
       },
+    ]);
+  });
+
+  it("does not list the files a search turned up for an answer without a block", () => {
+    const chat = makeChat();
+    const entries = timeline([
+      chat.user(run1),
+      chat.files(run1, [
+        { fileName: "/work/rover-cad/docs/prd.md", line: 4 },
+        { fileName: "/work/rover-cad/parts/bracket.py" },
+      ]),
+      chat.read(run1, "/work/rover-cad/docs/spec.md"),
+    ]);
+    expect(turnReferences({ answer: "Done.", runId: run1, entries, root: ROOT })).toEqual([
+      { n: 1, target: file("/work/rover-cad/docs/spec.md"), opened: "this turn" },
     ]);
   });
 
@@ -653,12 +700,14 @@ describe("openedInChat", () => {
     ]);
   });
 
-  it("reads each result of a file search, and its line", () => {
+  it("does not read the files a file search listed", () => {
     const chat = makeChat();
     const entries = timeline([
+      // A search lists what matches (for the ACP agents, the path it searched): nothing was read.
       chat.files(run1, [{ fileName: "docs/prd.md", line: 4 }, { fileName: "parts/a.py" }]),
+      chat.files(run1, [{ fileName: "/work/rover-cad/parts" }]),
     ]);
-    expect(targets(entries)).toEqual([file("docs/prd.md", [4, 4]), file("parts/a.py")]);
+    expect(targets(entries)).toEqual([]);
   });
 
   it("reads a page the agent fetched, and none a search listed", () => {
@@ -830,7 +879,6 @@ describe("openedInChat", () => {
       chat.shell(run1, "cat docs/notes.md"),
       chat.shell(run1, "nl -ba docs/notes.md | sed -n '1,5p'"),
       chat.fetch(run1, "https://example.org/page"),
-      chat.files(run1, [{ fileName: "parts/a.py" }]),
     ];
     expect(openedInChat(timeline(calls.flatMap(failed)))).toEqual([]);
     // A command that ran but failed says so in its exit code or its output.
@@ -842,7 +890,7 @@ describe("openedInChat", () => {
         ]),
       ),
     ).toEqual([]);
-    expect(targets(timeline(calls))).toHaveLength(6);
+    expect(targets(timeline(calls))).toHaveLength(5);
   });
 
   it("reads only what the agent's tools report, in the order of the chat", () => {

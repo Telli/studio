@@ -272,17 +272,16 @@ function fetchedPages(item: Extract<OrchestrationV2TurnItem, { type: "web_search
     .map((url): OpenedTarget => ({ kind: "url", url }));
 }
 
-/** What a turn item opened. Whether the call completed is for the caller to ask. */
+/**
+ * What a turn item opened. Whether the call completed is for the caller to ask. A search, of files
+ * or of the web, lists what matches (for some agents only the path it searched): it opens nothing.
+ */
 function itemOpenings(item: OrchestrationV2TurnItem, viewedImagePath: string | undefined) {
   switch (item.type) {
     case "dynamic_tool": {
       const opened = toolOpening(item, viewedImagePath);
       return opened === null ? [] : [opened];
     }
-    case "file_search":
-      return (item.results ?? []).map((result) =>
-        fileTarget(result.fileName, result.line === undefined ? null : [result.line, result.line]),
-      );
     case "web_search":
       return fetchedPages(item);
     case "command_execution": {
@@ -374,10 +373,11 @@ const openedLists = new WeakMap<ReadonlyArray<TimelineEntry>, ReadonlyArray<Open
 
 /**
  * What the agent opened in the chat, in the order it did: a Read, the CAD viewer's `cad_open` and
- * `cad_show`, file searches, the pages it fetched, and the reads Codex makes through the shell
- * (`cat`, `nl`, `head`, `tail` or `sed -n` on one file, or `cat`/`nl` piped to that `sed`). It
- * reads the chat's tool calls, which a collapsed turn still holds, and only those that completed.
- * The array is shared by every caller: read it, do not change it.
+ * `cad_show`, the pages it fetched, and the reads Codex makes through the shell (`cat`, `nl`,
+ * `head`, `tail` or `sed -n` on one file, or `cat`/`nl` piped to that `sed`). A search lists files
+ * or pages and opens none of them. It reads the chat's tool calls, which a collapsed turn still
+ * holds, and only those that completed. The array is shared by every caller: read it, do not
+ * change it.
  */
 export function openedInChat(entries: ReadonlyArray<TimelineEntry>): ReadonlyArray<Opened> {
   const known = openedLists.get(entries);
