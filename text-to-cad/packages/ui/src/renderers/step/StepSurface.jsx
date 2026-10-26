@@ -147,7 +147,7 @@ import EditRibbon from "./edit/EditRibbon.jsx";
 import EditTimeline from "./edit/EditTimeline.jsx";
 import EditSelectionBar from "./edit/EditSelectionBar.jsx";
 import { featureAsk } from "./edit/featureAsk.jsx";
-import { boundsCorners, facePick, featurePick, pickedReferences, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
+import { boundsCorners, facePick, featurePick, pickedReferences, quickEditLetsGo, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
 import { faceChipName, faceReference, shownFaces } from "./edit/faceChips.js";
 import { chosenThrough, useAsked, useChosenFeature } from "./edit/selectionBarState.js";
 import { useAddToContext } from "./edit/useAddToContext.js";
@@ -3813,6 +3813,7 @@ function StepSurfaceBody({ view, data }) {
   // Everything picked goes: the parts and references, the measurements, and the feature chosen, as a click on the model's background lets
   // go of them. Quick Edit's X and a send clear it too, and the box Ask opened goes with them.
   const clearSelected = () => { clearAssemblySelection(); measure.select([]); clearAsked(); dropFeature(); };
+  const clearQuickEdit = () => { if (quickEditLetsGo({ held: commandOpen || sketchOpen }) === "box") clearAsked(); else clearSelected(); };
   // The marks drawn on a face go to the agent as shapes in its coordinates, in the part's units, in Simple view and the workspace
   // alike: Quick Edit's every way and Add to context. A face is named as its chip is (`nameReference`'s words: "Hole (6) · face 12" where
   // the engine says which feature made it, `faceChipName`'s pieces, else "bracket · face 12"); a touch that is no face (an edge) has
@@ -3875,7 +3876,7 @@ function StepSurfaceBody({ view, data }) {
     quickEditAsked={editing ? asked : null} nameReference={nameReference}
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
       disabled={layoutHeld} /> : null}
-    onClearReferences={clearSelected} copySelection={copySelection} onSelectPress={selectPress} onSelectHover={selectHover}
+    onClearReferences={clearQuickEdit} copySelection={copySelection} onSelectPress={selectPress} onSelectHover={selectHover}
     selectsAnnotations={selects(selectFilter, "annotation")} inkTouches={inkTouches}
     contextMenuItems={selectionToolActive
       ? press => viewportContextMenuItems(press, pickAtRef.current?.(press.clientX, press.clientY) || "") : null}

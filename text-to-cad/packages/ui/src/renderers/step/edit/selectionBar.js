@@ -220,3 +220,10 @@ export function pickedReferences({ selectionActionVisible, selection, selectionC
   if (!feature) return { references: model ? selection : NOTHING, chips: model ? selectionChips : NOTHING };
   return { references: [...(model ? selection : NOTHING), feature.reference], chips: [...(model ? selectionChips : NOTHING), feature.chip] };
 }
+
+/**
+ * What Quick Edit's X or a send lets go of: everything picked, as a press on the model's background does; but while a command
+ * or a sketch holds the selection (an Edge Blend's edges, `held`), the box alone, so a note written before it opened never
+ * empties the command's picks.
+ */
+export const quickEditLetsGo = ({ held }) => (held ? "box" : "selection");

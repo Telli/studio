@@ -421,6 +421,17 @@ it("opens for each ask made while the toolbar stands, once, and not for one made
   expect(search()).toBeTruthy();
 });
 
+it("shows the search in the tab row, as NX's Command Finder is, and opens the box from it as S does", async () => {
+  const user = userEvent.setup();
+  const hand = edit({ findAsked: 0 });
+  render(<EditRibbon tools={PART_TOOLS} edit={hand as never} />);
+  searchGone();
+  const finder = screen.getByRole('button', { name: /Search commands/ });
+  expect(finder.textContent).toContain('S');
+  await user.click(finder);
+  expect(foundNames()).toEqual(PART_NAMES);
+});
+
 it("lists only the tabs the toolbar has: Assemble for an assembly, Drawing and Edit Sheet for a part that has its sheet", () => {
   const withSheet = openSearch({ state: { units: 'mm', components: [], drawing: { sheets: 1 } } });
   expect(foundNames()).toEqual(expect.arrayContaining(['Drawing', 'Edit Sheet']));

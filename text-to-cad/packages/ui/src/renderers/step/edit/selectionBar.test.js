@@ -7,7 +7,7 @@ import { formatPromptMessage, formatPromptReference } from "@text-to-cad/core/pr
 import { createQuickEditContext } from "../../kit/tools/quick-edit/quickEditPrompt.js";
 import { featureTree } from "./editMode.js";
 import {
-  boundsCorners, facePick, featurePick, featureReference, pickedReferences, placeBar, projectRoot, quickEditShown, rowLabel, screenBox, selectionBarActions
+  boundsCorners, facePick, featurePick, featureReference, pickedReferences, placeBar, projectRoot, quickEditLetsGo, quickEditShown, rowLabel, screenBox, selectionBarActions
 } from "./selectionBar.js";
 
 // The workspace with Select in hand and nothing open: what the bar is offered under.
@@ -347,4 +347,10 @@ test("puts a feature's statement in the context Quick Edit would send, named for
   const face = createQuickEditContext({ resource: STEP, references: pickedReferences({ selectionActionVisible: true, selection: [FACE],
     selectionChips: [FACE_CHIP], feature: null }).references, text: "Round it." });
   assert.equal(formatPromptMessage(face), "Round it.\n\nFile: /work/bracket/bracket.step\nReferences:\n/work/bracket/bracket.step#o1.f12");
+});
+
+test("Quick Edit's X or a send lets go of everything picked, but only of the box while a command holds the picks", () => {
+  assert.equal(quickEditLetsGo({ held: false }), "selection");
+  // A note written, then Edge Blend opened and its edges picked: sending the note keeps the edges.
+  assert.equal(quickEditLetsGo({ held: true }), "box");
 });

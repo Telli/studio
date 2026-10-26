@@ -1,5 +1,5 @@
 import { partLabel } from "../workbench/partNames";
-import { isEngineeringInterface } from "../workbench/studioInterface";
+import { hasEngineeringSurfaces, isEngineeringInterface } from "../workbench/studioInterface";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, PluginViewDocument, ThreadId } from "@t3tools/contracts";
 import {
@@ -37,6 +37,7 @@ import {
   stagedPluginViewOrigin,
 } from "./pluginViewHost";
 import { useSimpleView, viewerEditLayout } from "../workbench/simpleView";
+import { sendsWithoutAsking } from "./sendWithoutAsking";
 import { useViewerEditState, type ViewerEditState } from "../workbench/viewerEditState";
 import {
   takeViewerFocus,
@@ -349,7 +350,14 @@ export function PluginViewFrame(props: {
       sendMessage: async (text) => {
         const send = latest.current.props.onSendMessage;
         if (send === undefined) throw new McpAppHostRefusal("Messages need a thread.");
-        await ask(`Send this message from ${latest.current.props.target.title}?\n${text}`);
+        const { target: current } = latest.current.props;
+        const atItsPress = sendsWithoutAsking({
+          studio: hasEngineeringSurfaces(),
+          pluginId: current.pluginId,
+          focused: document.activeElement === frameRef.current,
+          activated: navigator.userActivation?.isActive === true,
+        });
+        if (!atItsPress) await ask(`Send this message from ${current.title}?\n${text}`);
         await send(text);
       },
       updateModelContext: async (context) => {
