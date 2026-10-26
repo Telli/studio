@@ -24,6 +24,8 @@ export default function MassProperties({ edit }) {
   const units = edit.state?.units || "mm";
   const mass = edit.mass;
   const [picked, setPicked] = useState(null);
+  // The part's own material, as its script keeps it ("" for none: then the project's is weighed in).
+  const own = edit.state?.material || "";
   const key = picked ?? mass?.material ?? NONE;
   const material = (mass?.materials || []).find(each => each.key === key) || null;
   const rows = mass?.volume ? massRows(mass, units, material?.density || null) : [];
@@ -31,13 +33,19 @@ export default function MassProperties({ edit }) {
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopInspecting(); } }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <MassPropertiesIcon className="size-5 shrink-0" />
-      <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">Measure Bodies</h2>
+      <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">Mass Properties</h2>
     </div>
     <FileSheetSettingsSection title="Material" sectionId="mass-material">
       <FileSheetSelectRow label="Material" value={key} onValueChange={setPicked}
         options={[{ value: NONE, label: "None" }, ...(mass?.materials || []).map(each => ({ value: each.key, label: each.name }))]} />
       {material ? <FileSheetControlRow label="Density" value={`${material.density} g/cm³`} />
         : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Pick a material to weigh the part.</p>}
+      {/* Edit Material, as SolidWorks applies one: kept in the part (its script's MATERIAL), weighed in from then on. */}
+      {typeof edit.setMaterial === "function" && key !== (own || NONE) ? <div className="flex justify-end px-2 pb-1.5">
+        <button type="button" data-cad-apply-material="" disabled={edit.saving}
+          className="rounded-md border border-border px-2 py-0.5 text-tiny text-foreground hover:bg-accent disabled:opacity-40"
+          onClick={() => void edit.setMaterial(key === NONE ? "" : key)}>{key === NONE ? "Remove from Part" : "Apply to Part"}</button>
+      </div> : null}
     </FileSheetSettingsSection>
     <FileSheetSettingsSection title="Properties" sectionId="mass-properties">
       {mass?.status === "failed" ? <p className="px-2 pb-1 text-tiny leading-4 text-destructive" aria-live="polite">{mass.error}</p>

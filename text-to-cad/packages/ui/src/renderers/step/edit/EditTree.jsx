@@ -8,6 +8,7 @@ import { AUTHOR_DOT_CLASS, AUTHOR_WORDS, authorOf } from "./authors.js";
 import { ORIGIN_PLANES, barIndex, planeDetail, rolledBack, sizeName, treeFeatures } from "./editMode.js";
 import { AssemblyIcon, FeatureIcon, MateTreeIcon, OriginIcon, ParametersIcon, PartIcon, PlaneIcon, SketchIcon } from "./featureIcons.jsx";
 import { buildFailure, nxPlane, treeTitles } from "./nx.js";
+import { MassPropertiesIcon } from "./cadIcons.jsx";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 // A row under the pointer is the workspace's pale blue, the selected one its deeper blue.
@@ -382,7 +383,11 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
       <ExpressionRows edit={edit} />
     </div> : null}
     <div role="tree" aria-label="FeatureManager design tree" className="flex flex-col">
-      {/* The origin and its planes, as NX's datum coordinate system: feature 0, before the rest. */}
+      {/* The part's material, as SolidWorks' tree lists it above the planes: Edit Material opens Mass Properties' picker. */}
+      {!tree.assembly ? <Row id="material" depth={1} icon={<MassPropertiesIcon className="size-4" />}
+        title={edit.state?.materialName || "Material <not specified>"} onActivate={() => edit.inspect("mass")}
+        menu={[{ id: "edit-material", label: "Edit Material", disabled: busy, onSelect: () => edit.inspect("mass") }]} {...rowProps} /> : null}
+      {/* The Origin and its planes, before the features. */}
       <Row id="origin" depth={1} icon={<OriginIcon />} title="Origin" expanded={open.has("datum")} onToggle={toggle("datum")} {...rowProps} />
       {open.has("datum") ? ORIGIN_PLANES.map(plane => <Row key={plane} id={`plane:${plane}`} depth={2} icon={<PlaneIcon />} title={nxPlane(plane)} {...rowProps} />) : null}
       {tree.assembly && onOpenPart && tree.components.some(component => component.step)

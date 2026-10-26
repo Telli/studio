@@ -27,6 +27,7 @@ import {
   undoStep,
   parameterNote,
   sizesNote,
+  materialNote,
   pullOf,
   redrawJob
 } from "./editMode.js";
@@ -461,6 +462,13 @@ export function useEditMode({ client, file, active, reading = true }) {
    * together (`values`: each an input's `index` and the `text` typed), one change to undo. `said`:
    * the sizes as the agent's note words them.
    */
+  // Edit Material: the part's material written in its script (`MATERIAL`), "" to take it out; one change to undo.
+  const setMaterial = useCallback(async name => {
+    const reply = await send({ set_material: { name } }, { record: false, note: answer => materialNote(answer.change) });
+    if (reply?.ok && reply.change) setHistory(current => recordChange(current, { ...reply.change, title: "Material" }));
+    return reply;
+  }, [send]);
+
   const setSizes = useCallback(async (row, values, said = []) => {
     const reply = await send({ sizes: { row, values } }, { record: false,
       note: answer => sizesNote(answer.change, titleOf(answer, row), said) });
@@ -529,6 +537,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     const mated = move.change.kind === "mate";
     const parameter = move.change.kind === "parameter";
     const sized = move.change.kind === "sizes";
+    const materialed = move.change.kind === "material";
     const current = sketchRef.current;
     // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
     const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
@@ -540,7 +549,8 @@ export function useEditMode({ client, file, active, reading = true }) {
               : painted ? () => appearanceNote(move.change, { undo: !redo, redo })
                 : mated ? () => mateNote(move.change, { undo: !redo, redo })
                   : parameter ? () => parameterNote(move.change, { undo: !redo, redo })
-                    : sized ? () => sizesNote(move.change, move.change.title, [], { undo: !redo, redo }) : null });
+                    : sized ? () => sizesNote(move.change, move.change.title, [], { undo: !redo, redo })
+                      : materialed ? () => materialNote(move.change, { undo: !redo, redo }) : null });
     if (!reply?.ok) return;
     setHistory(move.next);
     if (current) {
@@ -834,7 +844,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     rolling: Boolean(bar?.pending),
     select: setSelected,
     hover: setHovered,
-    change, undo, redo, run, remove, suppress, editFeature, rollTo, setSizes,
+    change, undo, redo, run, remove, suppress, editFeature, rollTo, setSizes, setMaterial,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
     inspecting, mass, interference, addParameter, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, drawing, comparison, compare,
     sheetView, openSheet, closeSheet, sheetEdit, undoSheet, redoSheet,

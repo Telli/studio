@@ -1140,6 +1140,14 @@ export function mateNote(change, { undo = false, redo = false } = {}) {
 
 /** What the agent is told of a Rename: the feature or sketch, its name before and after, and where. */
 /** What the agent is told of a parameter added in edit mode, or taken back. */
+/** What Edit Material tells the agent: the part's material set, taken out, or its Undo and Redo. */
+export function materialNote(change, { undo = false, redo = false } = {}) {
+  const where = `(${change.file}, line ${change.line})`;
+  if (undo) return `In edit mode I took back changing the part's material ${where}.`;
+  return change.material ? `In edit mode I set the part's material to ${change.material}${redo ? " again" : ""} ${where}.`
+    : `In edit mode I took the part's material out${redo ? " again" : ""} ${where}.`;
+}
+
 /** What Edit Feature on a feature's sizes tells the agent (`said`: each size as typed), or its Undo and Redo. */
 export function sizesNote(change, title, said = [], { undo = false, redo = false } = {}) {
   const where = `(${change.file}, line ${change.line})`;

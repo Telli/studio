@@ -1891,6 +1891,9 @@ def trace(request):
         # view checks the faces on screen against before naming one (`face_features.py`). An assembly
         # has neither: `{}` and 0.
         "faceFeatures": made_faces,
+        # The part's own material (`part_material`), the design tree's Material row; "" for none.
+        "material": "" if components else part_material(script),
+        "materialName": "" if components else _material_name(part_material(script)),
         "faceCount": 0 if components else face_count(shape),
         "sketches": sketches,
         "components": [{"name": c["function"], "file": c["file"], "features": c["features"], "step": _component_step(c)} for c in components],
@@ -1972,7 +1975,7 @@ def _solve(expr, leaf, target):
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
 _CHANGES = ("command", "preview", "mass", "draft_check", "interference", "parameter", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
-            "input", "sizes", "preview_sizes")
+            "input", "sizes", "preview_sizes", "set_material")
 
 
 def edit(request):
@@ -2008,6 +2011,8 @@ def edit(request):
         return compare(request)
     if isinstance(request.get("sizes"), dict):
         return sizes_change(request)
+    if isinstance(request.get("set_material"), dict):
+        return material_change(request)
     if isinstance(request.get("preview_sizes"), dict):
         return sizes_preview(request)
     script = str(Path(request["script"]).resolve())
@@ -2342,9 +2347,38 @@ def preview(request):
         _put_back(kept)
 
 
+def part_material(script):
+    """The material a part's script gives it, as SolidWorks keeps a part's material in the part: a
+    top-level ``MATERIAL = "6061"``, or "" for none (`material_change` writes it)."""
+    try:
+        tree = ast.parse(_read(Path(script)))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return ""
+    for node in tree.body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id == "MATERIAL" and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)):
+            return node.value.value.strip()
+    return ""
+
+
+def _material_name(key):
+    """A material as the table names it ("PLA"), or as written where the table has no such material; "" for none."""
+    if not key:
+        return ""
+    from cadgen._internal.fea.materials import lookup_material
+
+    try:
+        return lookup_material(key).name
+    except ValueError:
+        return key
+
+
 def _material(request):
-    """The material the project's brief names: as Studio's record says it (``material``), else in a
-    ``project.json`` of the project's own folders."""
+    """The part's material: its script's own (`part_material`), else the project's brief's, as Studio's
+    record says it (``material``), else in a ``project.json`` of the project's own folders."""
+    own = part_material(request["script"]) if request.get("script") else ""
+    if own:
+        return own
     named = str(request.get("material") or "").strip()
     if named:
         return named
@@ -3112,6 +3146,58 @@ def sizes_preview(request):
     finally:
         UNSAVED.clear()
         _put_back(kept)
+
+
+def material_change(request):
+    """Edit Material, as SolidWorks sets a part's: ``set_material`` (``{"name": ...}``, a name the
+    materials table knows) written as the script's top-level ``MATERIAL``, replaced where it is or put
+    just above the part's first function; an empty name takes it out. One change to undo."""
+    from cadgen._internal.fea.materials import lookup_material
+    from cadgen.edit import commands
+
+    global ROOT
+    script = Path(request["script"]).resolve()
+    ROOT = Path(request.get("root") or script.parent).resolve()
+    if str(script) not in STATE:
+        traced = trace(request)
+        if not traced["ok"]:
+            return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    name = str((request["set_material"] or {}).get("name") or "").strip()
+    if name:
+        try:
+            lookup_material(name)
+        except ValueError:
+            return {"ok": False, "error": f"{name} is not a material Studio knows. Pick one from the list."}
+    old = _read(script)
+    tree = ast.parse(old)
+    lines = old.splitlines(keepends=True)
+    held = next((node for node in tree.body if isinstance(node, ast.Assign) and len(node.targets) == 1
+                 and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "MATERIAL"), None)
+    written = f"MATERIAL = {name!r}  # the part's material, as Edit Material sets it\n"
+    if held is not None:
+        lines[held.lineno - 1:held.end_lineno] = [written] if name else []
+        line = held.lineno
+    elif name:
+        first = next((node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))), None)
+        at = (min([first.lineno, *(d.lineno for d in first.decorator_list)]) - 1) if first is not None else len(lines)
+        lines[at:at] = [written, "\n"]
+        line = at + 1
+    else:
+        return {"ok": False, "error": "This part has no material to take out."}
+    new = "".join(lines)
+    _write(script, new)
+    after = trace(request)
+    if not after.get("ok"):
+        _write(script, old)
+        trace(request)
+        return {"ok": False, "error": "The part does not build with that material line, so nothing changed."}
+    rel = script.relative_to(ROOT).as_posix()
+    after["change"] = {"kind": "material", "material": name, "file": rel, "line": line, "build": False,
+                       "undo": {"file": rel, "hunks": commands.hunks(new, old)}, "redo": {"file": rel, "hunks": commands.hunks(old, new)}}
+    return after
 
 
 def splice(request):

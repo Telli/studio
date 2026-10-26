@@ -83,15 +83,21 @@ function menuOf(title: string) {
   return screen.getAllByRole('menuitem').map(item => item.textContent);
 }
 
-it("opens with the Origin", () => {
-  render(<EditTree edit={part() as never} tree={partTree()} />);
-  const rows = within(screen.getByRole('tree', { name: 'FeatureManager design tree' })).getAllByRole('treeitem');
+it("opens with the part's Material, then the Origin", () => {
+  const { rerender } = render(<EditTree edit={part() as never} tree={partTree()} />);
+  const rowsOf = () => within(screen.getByRole('tree', { name: 'FeatureManager design tree' })).getAllByRole('treeitem');
+  // As SolidWorks lists it: not specified until Edit Material sets it.
+  expect(rowsOf()[0].textContent).toBe('Material <not specified>');
+  const rows = rowsOf().slice(1);
   expect(rows[0].textContent).toBe('Origin');
   // Drawn with the generator's coordinate system icon, its planes hanging from it, open.
   expect(rows[0].querySelector('use')?.getAttribute('href')).toBe('#nx-csys');
   expect(rows.slice(1, 4).map(each => each.textContent)).toEqual(['Front Plane', 'Top Plane', 'Right Plane']);
   // The features follow, each kind numbered on its own, its variable name at the right.
   expect(rows.slice(4).map(each => each.textContent)).toEqual(['Boss-Extrude1Plate', 'Fillet1Plate', 'Hole1Plate']);
+  const named = part();
+  rerender(<EditTree edit={{ ...named, state: { ...named.state, materialName: 'PLA' } } as never} tree={partTree()} />);
+  expect(rowsOf()[0].textContent).toBe('PLA');
 });
 
 it("keeps Equations folded at the top", async () => {

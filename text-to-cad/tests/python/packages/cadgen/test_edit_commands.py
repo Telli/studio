@@ -2046,3 +2046,26 @@ class EditingSizes(Commands):
             "command": "fillet", "inputs": {"radius": "0.5"}, "selection": [], "replace": {"row": fillet["key"]}}})
         self.assertTrue(reply["ok"], reply.get("error"))
         self.assertIn("    body = bd.fillet(body.edges().filter_by(bd.Axis.Z), radius=0.5).clean()\n", (root / "cradle.py").read_text(encoding="utf-8"))
+
+
+class EditingMaterial(Commands):
+    """Edit Material, as SolidWorks keeps a part's material in the part: one line of its script, read by Mass Properties."""
+
+    def test_a_parts_material_is_written_in_its_script_weighs_it_and_undoes(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        self.assertEqual(state["material"], "")
+        before = (root / "block.py").read_text(encoding="utf-8")
+        made = self.service.change({"file": file, "files": state["files"], "set_material": {"name": "pla"}})
+        self.assertTrue(made["ok"], made.get("error"))
+        self.assertIn("MATERIAL = 'pla'", (root / "block.py").read_text(encoding="utf-8"))
+        self.assertEqual((made["material"], made["materialName"]), ("pla", "PLA"))
+        weighed = self.service.change({"file": file, "files": made["files"], "mass": {}})["mass"]
+        self.assertEqual(weighed["material"], "pla")
+        # Changed in place, refused for a name nobody knows, and undone to what it was.
+        again = self.service.change({"file": file, "files": made["files"], "set_material": {"name": "steel"}})
+        self.assertEqual((root / "block.py").read_text(encoding="utf-8").count("MATERIAL ="), 1)
+        refused = self.service.change({"file": file, "files": again["files"], "set_material": {"name": "unobtainium"}})
+        self.assertFalse(refused["ok"])
+        undone = self.service.change({"file": file, "files": again["files"], "splice": again["change"]["undo"]})
+        self.service.change({"file": file, "files": undone["files"], "splice": made["change"]["undo"]})
+        self.assertEqual((root / "block.py").read_text(encoding="utf-8"), before)
