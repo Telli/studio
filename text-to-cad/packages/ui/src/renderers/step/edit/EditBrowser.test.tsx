@@ -59,3 +59,17 @@ it("says whether it floats a card in the dialog's place, as the frame keeps the 
   expect(floated).toEqual({ nothing: [false, false], 'what went wrong': [true, true], 'an Inspect panel': [true, true],
     'the drawing, with no sheet yet': [false, false] });
 });
+
+it("asks Confirm Delete in the card, naming the child features, and deletes them all only on Delete All", () => {
+  const card = place();
+  const asked = edit({ error: '', confirming: { id: 'tray.py:7', title: 'Boss-Extrude1', children: [{ key: 'tray.py:8', title: 'Fillet1' }, { key: 'tray.py:9', title: 'Cut-Extrude1' }] },
+    confirmDelete: vi.fn(), dismissDelete: vi.fn() });
+  expect(floatsCard(asked)).toBe(true);
+  render(<EditBrowser edit={asked as never} names={[]} tree={featureTree(STATE)} card={card} />);
+  const dialog = within(card).getByRole('alertdialog', { name: 'Confirm Delete' });
+  expect(dialog.textContent).toContain('Boss-Extrude1 has child features: Fillet1, Cut-Extrude1. Delete them too?');
+  within(dialog).getByRole('button', { name: 'Cancel' }).click();
+  expect([asked.dismissDelete.mock.calls.length, asked.confirmDelete.mock.calls.length]).toEqual([1, 0]);
+  within(dialog).getByRole('button', { name: 'Delete All' }).click();
+  expect(asked.confirmDelete).toHaveBeenCalledTimes(1);
+});

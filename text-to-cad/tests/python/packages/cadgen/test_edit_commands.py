@@ -84,6 +84,26 @@ TRAY = {
 }
 
 
+# A plate with a post joined to it, the post's top rounded before the join, then a hole through
+# the plate: the fillet is the post's child feature.
+POSTED = {
+    "posted.py": """
+        from build123d import Axis, Box, Cylinder, Pos, fillet
+        from cadgen import step
+
+
+        @step
+        def posted():
+            plate = Box(40, 20, 4)
+            post = Pos(0, 0, 5) * Cylinder(4, 6)
+            post = fillet(post.edges().group_by(Axis.Z)[-1], radius=1)
+            plate = plate + post
+            plate -= Pos(12, 0, 0) * Cylinder(1, 10)
+            return plate
+    """,
+}
+
+
 # An assembly of two parts, each a model of its own beside its STEP, as a project lays them out.
 ASSEMBLY = {
     "parts/base.py": """
@@ -676,10 +696,36 @@ class Deleting(Commands):
         before = (root / "tray.py").read_bytes()
         refused = self.remove(file, state, "Boss-Extrude", "Boss-Extrude1")
         self.assertFalse(refused["ok"])
-        self.assertIn("Boss-Extrude1 makes outer, which line 8 still uses", refused["error"])
-        self.assertEqual(refused["dependents"], {"name": "outer", "lines": [8], "file": "tray.py"})
+        # Its child features reach the part's `return`, which no feature makes.
+        self.assertEqual(refused["error"], "Boss-Extrude1 and its child features make tray, which line 15 still uses. "
+                                           "Ask the agent to remove it.")
+        self.assertNotIn("children", refused)
         self.assertEqual((root / "tray.py").read_bytes(), before)
 
+
+
+    def test_confirm_delete_names_the_child_features_and_deletes_them_with_it(self):
+        root, file, state = self.open(POSTED, "posted.step")
+        script = root / "posted.py"
+        before = script.read_bytes()
+        asked = self.remove(file, state, "Boss-Extrude", "Boss-Extrude2", nth=1)
+        self.assertFalse(asked["ok"])
+        self.assertEqual([child["kind"] for child in asked["children"]], ["Fillet"])
+        self.assertEqual(script.read_bytes(), before)
+        key = [feature["key"] for feature in state["features"] if feature["kind"] == "Boss-Extrude"][1]
+        # Said of other children than it has (the tree changed since), it asks again.
+        stale = self.service.change({"file": file, "files": state["files"],
+                                     "remove": {"feature": key, "title": "Boss-Extrude2", "children": []}})
+        self.assertEqual(stale["children"], asked["children"])
+        reply = self.service.change({"file": file, "files": state["files"], "remove": {
+            "feature": key, "title": "Boss-Extrude2", "children": [{"key": asked["children"][0]["key"], "title": "Fillet1"}]}})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertNotIn("Cylinder(4, 6)", script.read_text(encoding="utf-8"))
+        self.assertEqual([feature["kind"] for feature in reply["features"]], ["Boss-Extrude", "Hole"])
+        self.assertEqual(reply["change"]["children"], ["Fillet1"])
+        undone = self.service.change({"file": file, "splice": reply["change"]["undo"], "files": reply["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertEqual(script.read_bytes(), before)
 
 
 class Suppressing(Commands):
@@ -743,8 +789,31 @@ class Suppressing(Commands):
         before = (root / "tray.py").read_bytes()
         refused = self.suppress(file, state, "Boss-Extrude", "Boss-Extrude1")
         self.assertFalse(refused["ok"])
-        self.assertIn("Boss-Extrude1 makes outer, which line 8 still uses. Suppress what uses it first", refused["error"])
+        self.assertIn("Boss-Extrude1 and its child features make tray, which line 15 still uses. Ask the agent to suppress it.", refused["error"])
         self.assertEqual((root / "tray.py").read_bytes(), before)
+
+    def test_suppress_sets_the_child_features_aside_with_it_and_unsuppress_puts_back_only_it(self):
+        root, file, state = self.open(POSTED, "posted.step")
+        script = root / "posted.py"
+        before = script.read_text(encoding="utf-8")
+        reply = self.suppress(file, state, "Boss-Extrude", "Boss-Extrude2", nth=1)
+        self.assertTrue(reply["ok"], reply.get("error"))
+        # The fillet is made between the post's lines, so its block is inside the post's.
+        self.assertEqual([(f["kind"], bool(f.get("suppressed"))) for f in reply["features"]],
+                         [("Boss-Extrude", False), ("Boss-Extrude", True), ("Hole", False)])
+        self.assertEqual(len(reply["change"]["children"]), 1)
+        # Unsuppress puts back the post; its fillet stays suppressed, as SolidWorks leaves it.
+        back = self.suppress(file, reply, "Boss-Extrude", "Boss-Extrude2", on=False, nth=1)
+        self.assertTrue(back["ok"], back.get("error"))
+        self.assertEqual([(f["kind"], bool(f.get("suppressed"))) for f in back["features"]],
+                         [("Boss-Extrude", False), ("Boss-Extrude", False), ("Fillet", True), ("Hole", False)])
+        whole = self.suppress(file, back, "Fillet", "Fillet1", on=False)
+        self.assertTrue(whole["ok"], whole.get("error"))
+        self.assertEqual(script.read_text(encoding="utf-8"), before)
+        again = self.suppress(file, whole, "Boss-Extrude", "Boss-Extrude2", nth=1)
+        undone = self.service.change({"file": file, "splice": again["change"]["undo"], "files": again["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertEqual(script.read_text(encoding="utf-8"), before)
 
     def test_a_new_feature_goes_after_a_suppressed_one_at_the_end(self):
         root, file, state = self.open(BLOCK, "block.step")

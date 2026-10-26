@@ -7,9 +7,11 @@ that starts a name of its own keeps the name, as the body it was made from (`tra
 becomes `tray = outer`), so the features after it still read. The sketch a feature was made from
 stays, as SolidWorks keeps an absorbed sketch; a sketch of its own goes with its lines.
 
-A line whose name a later line still uses is not taken out: the engineer is told which, and
-deletes that first. The tracer then runs the part again, and puts the script back if it no longer
-builds (`tracer.py`).
+A line whose name a later line still uses is not taken out: the tracer finds the features those
+lines make, its child features, and takes them out with it once the engineer confirms, as
+SolidWorks' Confirm Delete does (`tracer._children`). A boolean or an in-place change whose body
+goes with it then goes whole. The tracer runs the part again, and puts the script back if it no
+longer builds (`tracer.py`).
 
 Suppress takes the same lines out of the part, but keeps them in the script as comments under a
 line that says what they are, so Unsuppress puts them back exactly:
@@ -119,15 +121,20 @@ def _take(plan: _Plan, body: list, statement: ast.stmt, lines: set, title: str, 
         _remove(plan, body, statement, title, verb)
         return
     if isinstance(statement, ast.AugAssign) and isinstance(statement.target, ast.Name):
+        made = statement.target.id not in plan.gone
         _remove(plan, body, statement, title, verb)
-        plan.gone.discard(statement.target.id)  # the body it changed is still made before it
+        if made:
+            plan.gone.discard(statement.target.id)  # the body it changed is still made before it
         return
     if isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name):
         name, value = statement.targets[0].id, statement.value
         if name in _names(value):
-            # The name changed in place (`tray = bd.fillet(tray.edges(), ...)`): it reads as before.
+            # The name changed in place (`tray = bd.fillet(tray.edges(), ...)`): it reads as before,
+            # unless what made it goes too.
+            made = name not in plan.gone
             _remove(plan, body, statement, title, verb)
-            plan.gone.discard(name)
+            if made:
+                plan.gone.discard(name)
             return
         if isinstance(value, ast.BinOp) and isinstance(value.op, _BOOLEANS):
             # A boolean that starts a name keeps the name, as the body it was made from: a cut's
@@ -135,6 +142,10 @@ def _take(plan: _Plan, body: list, statement: ast.stmt, lines: set, title: str, 
             kept = value.left
             if not isinstance(value.op, ast.Sub) and _names(value.left) & plan.gone and not _names(value.right) & plan.gone:
                 kept = value.right
+            if _names(kept) & plan.gone:
+                # What it was made from goes too (its child features deleted with it): it goes whole.
+                _remove(plan, body, statement, title, verb)
+                return
             plan.edits.replace_node(value, ast.get_source_segment(text, kept) or "")
             plan.kept.append((statement, kept))
             dropped = value.right if kept is value.left else value.left
@@ -158,7 +169,10 @@ def _check_uses(plan: _Plan, scope: ast.AST, tree: ast.Module, title: str, verb:
     # Where each name is still made: the module's names and the function's arguments from the start.
     made: dict[str, list[int]] = {}
     if scope is not tree:
-        for name in _module_names(tree):
+        # A name the function assigns is its own throughout it, whatever the module calls so; one only
+        # the feature assigned would read the module's after it went, which is not what it read.
+        local = {node.id for node in ast.walk(scope) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)}
+        for name in _module_names(tree) - local:
             made.setdefault(name, []).append(0)
         for argument in [*scope.args.posonlyargs, *scope.args.args, *scope.args.kwonlyargs]:
             made.setdefault(argument.arg, []).append(0)
@@ -303,3 +317,4 @@ def delete_sketch(text: str, line: int, title: str, path: str = "<part>") -> tup
             _remove(plan, block.body, statement, title)
     _check_uses(plan, block.function or block.tree, block.tree, title)
     return plan.edits.apply(), block.first_line
+

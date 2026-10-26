@@ -1077,7 +1077,10 @@ const listWords = names => (names.length > 1 ? `${names.slice(0, -1).join(", ")}
 /** What Delete of a feature tells the agent, and what its Undo and Redo do. */
 export function deleteNote(change, { undo = false, redo = false } = {}) {
   const done = undo ? "put back" : redo ? "deleted again" : "deleted";
-  return `In edit mode I ${done} ${change.title} (${change.file}, line ${change.line}).`;
+  // Its child features, by the titles Confirm Delete named them with.
+  const children = change.children || [];
+  const with_ = children.length ? ` and its child feature${children.length > 1 ? "s" : ""} ${listWords(children)}` : "";
+  return `In edit mode I ${done} ${change.title}${with_} (${change.file}, line ${change.line}).`;
 }
 
 /**
@@ -1172,7 +1175,8 @@ export function renameNote(change, { undo = false, redo = false } = {}) {
 
 export function suppressNote(change, { undo = false, redo = false } = {}) {
   const on = undo ? !change.on : change.on;
-  const done = on ? `suppressed ${change.title}${redo ? " again" : ""}: its lines are comments now`
+  const children = change.children?.length && on ? ` with its child feature${change.children.length > 1 ? "s" : ""}` : "";
+  const done = on ? `suppressed ${change.title}${children}${redo ? " again" : ""}: its lines are comments now`
     : `unsuppressed ${change.title}${redo ? " again" : ""}: its lines are back`;
   return `In edit mode I ${done} (${change.file}, line ${change.line}).`;
 }

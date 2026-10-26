@@ -32,6 +32,7 @@ import {
   redrawJob
 } from "./editMode.js";
 import { countChange, sketchNote, TRANSFORM_TOOLS } from "./sketchMode.js";
+import { treeTitles } from "./nx.js";
 
 // How often the view asks whether the part's files changed (the agent's edits, another view's):
 // an unchanged answer is a hash comparison on the server, and the part is not run.
@@ -84,6 +85,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [stoppedAt, setStoppedAt] = useState(null);
   // The profile an error is about, when the agent can redraw it as a sketch.
   const [redraw, setRedraw] = useState(null);
+  // SolidWorks' Confirm Delete, open: the feature asked to go and its child features, which go with it on OK.
+  const [confirming, setConfirming] = useState(null);
   const [choice, setChoice] = useState(null);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -180,6 +183,7 @@ export function useEditMode({ client, file, active, reading = true }) {
   useEffect(() => {
     files.current = null;
     setState(null); setError(""); setChoice(null); setSelected(null); setHistory(emptyHistory()); setCommand(null); setEditing(null);
+    setConfirming(null);
     setPreview(null);
     previewWanted.current = null; previewAsked.current = ""; setFeaturePreview(null);
     setBar(null);
@@ -578,11 +582,31 @@ export function useEditMode({ client, file, active, reading = true }) {
     }
     const feature = features.find(each => each.id === id);
     if (!feature) return null;
+    setConfirming(null);
     const reply = await send({ remove: { feature: feature.id, title: feature.title } }, { note: answer => deleteNote(answer.change) });
     if (reply?.ok) setSelected(null);
+    // Child features, as SolidWorks' Confirm Delete lists them: asked before they go with it.
+    else if (reply?.children?.length) {
+      setError("");
+      const titles = treeTitles(tree);
+      setConfirming({ id: feature.id, title: titles.get(feature.id) || feature.title,
+        children: reply.children.map(child => ({ key: child.key,
+          title: titles.get(child.key) || features.find(each => each.id === child.key)?.title || child.kind })) });
+    }
     else if (reply?.dependents) setError(deleteRefusal(reply, tree, feature.title));
     return reply;
   }, [send]);
+
+  // Confirm Delete's OK: the feature and its child features deleted together, one change to undo.
+  const confirmDelete = useCallback(async () => {
+    const asked = confirming;
+    if (!asked) return null;
+    setConfirming(null);
+    const reply = await send({ remove: { feature: asked.id, title: asked.title, children: true } },
+      { note: answer => deleteNote(answer.change) });
+    if (reply?.ok) setSelected(null);
+    return reply;
+  }, [confirming, send]);
 
   /**
    * Suppress (`on`) or Unsuppress on a feature of the design tree, as SolidWorks' sets one aside:
@@ -844,8 +868,8 @@ export function useEditMode({ client, file, active, reading = true }) {
     rolling: Boolean(bar?.pending),
     select: setSelected,
     hover: setHovered,
-    change, undo, redo, run, remove, suppress, editFeature, rollTo, setSizes, setMaterial,
-    open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
+    change, undo, redo, run, remove, confirming, confirmDelete, dismissDelete: () => setConfirming(null), suppress, editFeature, rollTo, setSizes, setMaterial,
+    open: id => { setError(""); setConfirming(null); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
     inspecting, mass, interference, addParameter, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, drawing, comparison, compare,
     sheetView, openSheet, closeSheet, sheetEdit, undoSheet, redoSheet,
     startRename: id => { if (id) setRenaming(id); },

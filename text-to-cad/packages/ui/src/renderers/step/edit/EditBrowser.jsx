@@ -27,6 +27,7 @@ import ExpressionsPanel from "./ExpressionsPanel.jsx";
 import Appearance from "./Appearance.jsx";
 import EditSizes from "./EditSizes.jsx";
 import { formulaWords, restates, selectionDimensions, sizeName, treeFeatures } from "./editMode.js";
+import { ConfirmButtons } from "./ConfirmButtons.jsx";
 import { nxPlane, treeTitles } from "./nx.js";
 
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
@@ -38,7 +39,7 @@ const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
  * (`RendererShell`'s `dialogOpen`).
  */
 export function floatsCard(edit) {
-  return Boolean(edit.sketch || edit.picking || edit.command || edit.error
+  return Boolean(edit.sketch || edit.picking || edit.command || edit.error || edit.confirming
     || (edit.inspecting && (edit.inspecting !== "drawing" || edit.state?.drawing)));
 }
 
@@ -132,11 +133,20 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
     </span>
     <button type="button" aria-label="Dismiss" className={TOOL_PANEL_BUTTON_CLASS} onClick={edit.dismissError}><X className="size-3" aria-hidden="true" /></button>
   </div> : null;
+  // SolidWorks' Confirm Delete: the feature's child features named, deleted with it on Delete All.
+  const asked = edit.confirming;
+  const confirm = ruled => asked ? <div className={cn("flex flex-col gap-1.5 px-2 py-1.5 text-tiny", ruled && "border-b border-border")}
+    role="alertdialog" aria-label="Confirm Delete">
+    <span className="font-medium text-foreground">Confirm Delete</span>
+    <span className="text-muted-foreground">{`${asked.title} has child feature${asked.children.length > 1 ? "s" : ""}: `
+      + `${asked.children.map(child => child.title).join(", ")}. Delete ${asked.children.length > 1 ? "them" : "it"} too?`}</span>
+    <ConfirmButtons okLabel="Delete All" onOk={() => void edit.confirmDelete()} onCancel={edit.dismissDelete} busy={edit.saving} />
+  </div> : null;
   // The card, the workspace's white surface, scrolls in the viewer's one ScrollArea once its panel is taller than the view.
-  const floating = (panel || edit.error) && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(WORKSPACE_SURFACE_CLASS,
-    "pointer-events-auto max-h-full")}>{error(Boolean(panel))}{panel}</ScrollArea>, card) : null;
+  const floating = (panel || edit.error || asked) && card ? createPortal(<ScrollArea data-cad-command-card="" className={cn(WORKSPACE_SURFACE_CLASS,
+    "pointer-events-auto max-h-full")}>{confirm(Boolean(panel))}{error(Boolean(panel))}{panel}</ScrollArea>, card) : null;
   return <div className="flex h-full min-h-0 flex-col" data-cad-edit-browser="">
-    {floating || <>{error(true)}{panel}</>}
+    {floating || <>{confirm(true)}{error(true)}{panel}</>}
     <ScrollArea className="min-h-0 flex-1">
       <EditTree edit={edit} tree={tree} onEditSketch={onEditSketch} onOpenPart={onOpenPart} backTo={backTo} />
       {component && !edit.command && !edit.sketch ? <FileSheetSettingsSection title={component.title} sectionId="edit-component">

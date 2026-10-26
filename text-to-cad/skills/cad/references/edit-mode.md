@@ -155,9 +155,10 @@ by hand" below.
   script; the sketch it was made from stays. A line that changes the body in place goes whole
   (`part += ...`, `tray = bd.fillet(tray...)`); a boolean that starts a name keeps the name as the
   body it was made from (`tray = outer - cavity` becomes `tray = outer`, and `cavity`'s line goes);
-  a loop goes whole when every line in it is the feature's. A feature whose name a later line
-  still uses is not deleted: the engineer is told which feature uses it. A sketch of its own goes
-  with its lines.
+  a loop goes whole when every line in it is the feature's. A feature whose name later features
+  still use asks first, as SolidWorks' Confirm Delete: it names those child features and, on
+  Delete All, takes them out with it in one change. A line no feature makes that still uses it
+  (the `return`, a sketch) refuses it. A sketch of its own goes with its lines.
 - **Edit Feature** (a feature's menu, or a double-click on it) reopens the command that wrote the
   feature's line, with its values, and writes that same line again in its place. What the line
   acts on stays as written (its edges, faces, the feature it copies, its sketch) unless the
@@ -252,8 +253,9 @@ by hand" below.
 
   The design tree shows the feature greyed where its lines are, with its sketch under it. Leave
   such a block as it is. If you must change a suppressed line, keep it commented and keep the count
-  on the first line right, or Unsuppress cannot put it back. A feature a later line still uses is
-  not suppressed, as with Delete.
+  on the first line right, or Unsuppress cannot put it back. Its child features are suppressed
+  with it (one made between its lines ends inside its block); Unsuppress puts back only it, its
+  children staying suppressed, as SolidWorks leaves them.
 
 ## Sketches drawn by hand
 

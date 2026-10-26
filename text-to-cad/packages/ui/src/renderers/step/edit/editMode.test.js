@@ -143,6 +143,9 @@ test("a delete the server refuses names the features that use what it makes", ()
   const change = { kind: "delete", title: "Fillet1", file: "tray.py", line: 8 };
   assert.equal(deleteNote(change), "In edit mode I deleted Fillet1 (tray.py, line 8).");
   assert.equal(deleteNote(change, { undo: true }), "In edit mode I put back Fillet1 (tray.py, line 8).");
+  // Confirm Delete's child features, by the titles it named them with.
+  assert.equal(deleteNote({ ...change, title: "Boss-Extrude1", line: 7, children: ["Fillet1", "Cut-Extrude1"] }),
+    "In edit mode I deleted Boss-Extrude1 and its child features Fillet1 and Cut-Extrude1 (tray.py, line 7).");
 });
 
 test("the rollback bar greys what is below it, and sits past the last item when rolled forward", () => {

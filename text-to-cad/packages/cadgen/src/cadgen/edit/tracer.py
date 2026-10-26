@@ -2560,6 +2560,38 @@ def _feature_lines(feature, rel, title, verb):
     return lines
 
 
+def _children(text, feature, features, rel, title, path, verb="remove"):
+    """The features that use what ``feature`` makes, and those that use theirs, as SolidWorks'
+    Confirm Delete lists its child features: found by taking them out with it, on paper, until
+    nothing left uses what went. In the order the script makes them. A line still using it that no
+    feature edit mode takes out makes (a sketch, a feature set aside or in another file, the part's
+    `return`) refuses it: its own words when the feature has no children, else said of them all."""
+    from cadgen.edit import deleting
+
+    taken = []
+    lines = set(_feature_lines(feature, rel, title, verb))
+    while True:
+        try:
+            deleting._plan(text, sorted(lines), title, path, verb)
+            return sorted(taken, key=lambda each: int(each["line"]))
+        except deleting.DeleteError as error:
+            if not error.dependents:
+                raise
+            rows = {f"{rel}:{line}" for line in error.dependents["lines"]}
+            users = [each for each in features if each is not feature and each not in taken and each["kind"] != "Sketch"
+                     and not each.get("suppressed") and rows & set(each["rows"])]
+            if not users and not taken:
+                raise
+            if not users:
+                lines_said = error.dependents["lines"]
+                said = f"line {lines_said[0]}" if len(lines_said) == 1 else f"lines {', '.join(map(str, lines_said))}"
+                raise deleting.DeleteError(f"{title} and its child features make {error.dependents['name']}, which {said} "
+                                           f"still use{'s' if len(lines_said) == 1 else ''}. Ask the agent to {verb} it.") from None
+            for user in users:
+                lines |= set(_feature_lines(user, rel, title, verb))
+            taken += users
+
+
 def remove(request):
     """A feature of the design tree deleted, as SolidWorks' Delete takes one out (`deleting.py`):
     its lines taken out of the script, the sketch it was made from kept, or a sketch of its own
@@ -2586,13 +2618,25 @@ def remove(request):
     except ValueError:
         return {"ok": False, "error": f"{title} is not made in this project, so edit mode cannot delete it."}
     old = _read(path)
+    children = []
     try:
         if feature["kind"] == "Sketch":
             new, first = deleting.delete_sketch(old, int(feature["line"]), title, str(path))
         elif feature.get("suppressed"):
             new, first = deleting.delete_suppressed(old, int(feature["line"]), title)
         else:
-            new, first = deleting.delete(old, _feature_lines(feature, rel, title, "remove"), title, str(path))
+            # Its child features go with it once the engineer has said so, as SolidWorks' Confirm
+            # Delete takes them: `children` the ones the viewer asked about (`{key, title}`), and only
+            # while they are still the ones it has. Until then they are named, for the viewer to ask.
+            children = _children(old, feature, features, rel, title, str(path))
+            confirmed = spec.get("children") if isinstance(spec.get("children"), list) else []
+            if children and sorted(str((each or {}).get("key")) for each in confirmed) != sorted(each["key"] for each in children):
+                return {"ok": False, "error": f"{title} has {len(children)} child feature{'' if len(children) == 1 else 's'}.",
+                        "children": [{"key": each["key"], "kind": each["kind"]} for each in children]}
+            lines = _feature_lines(feature, rel, title, "remove")
+            for child in children:
+                lines += _feature_lines(child, rel, title, "remove")
+            new, first = deleting.delete(old, lines, title, str(path))
     except deleting.DeleteError as error:
         refusal = {"ok": False, "error": str(error)}
         if error.dependents:
@@ -2610,6 +2654,7 @@ def remove(request):
         "kind": "delete",
         "feature": key,
         "title": title,
+        "children": [str(each.get("title") or each.get("key")) for each in confirmed] if children else [],
         "file": rel,
         "line": first,
         "undo": {"file": rel, "hunks": commands.hunks(new, old)},
@@ -2649,9 +2694,21 @@ def suppress(request):
     except ValueError:
         return {"ok": False, "error": f"{title} is not made in this project, so edit mode cannot suppress it."}
     old = _read(path)
+    children = []
     try:
         if on:
-            new, first = deleting.suppress(old, _feature_lines(feature, rel, title, "suppress"), title, feature["kind"], str(path))
+            # Its child features are suppressed with it, as SolidWorks' Suppress sets them aside: the
+            # last first, each block's added lines moving the lines after it. A child made between
+            # the feature's own lines ends inside its block, and is suppressed again when it comes back.
+            children = _children(old, feature, features, rel, title, str(path), "suppress")
+            new = old
+            lines = _feature_lines(feature, rel, title, "suppress")
+            for child in reversed(children):
+                own = _feature_lines(child, rel, title, "suppress")
+                before = new.count("\n")
+                new, _ = deleting.suppress(new, own, title, child["kind"], str(path))
+                lines = [line + (new.count("\n") - before if line > max(own) else 0) for line in lines]
+            new, first = deleting.suppress(new, lines, title, feature["kind"], str(path))
         else:
             new, first = deleting.unsuppress(old, int(feature["line"]), title)
     except deleting.DeleteError as error:
@@ -2673,6 +2730,7 @@ def suppress(request):
         "on": on,
         "feature": key,
         "title": title,
+        "children": [child["key"] for child in children],
         "file": rel,
         "line": first,
         "undo": {"file": rel, "hunks": commands.hunks(new, old)},
