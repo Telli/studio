@@ -505,8 +505,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     onKeyDown={event => {
       if (event.key === "Escape") { event.stopPropagation(); edit.close(); return; }
       // Enter is OK, as in SolidWorks' PropertyManager; in a box it sets the value typed there first.
-      if (event.key === "Enter" && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement
-        || event.target instanceof HTMLSelectElement)) { event.preventDefault(); event.stopPropagation(); ok(); }
+      if (event.key === "Enter" && !["INPUT", "TEXTAREA", "SELECT"].includes(event.target?.tagName)) { event.preventDefault(); event.stopPropagation(); ok(); }
     }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <Icon className="size-5 shrink-0" aria-hidden="true" />

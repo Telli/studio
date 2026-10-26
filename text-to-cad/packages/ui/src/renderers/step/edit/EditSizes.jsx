@@ -65,8 +65,7 @@ export default function EditSizes({ edit }) {
     onKeyDown={event => {
       if (event.key === "Escape") { event.stopPropagation(); edit.close(); return; }
       // Enter is OK, as in SolidWorks' PropertyManager; in a box it sets the value typed there first.
-      if (event.key === "Enter" && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement
-        || event.target instanceof HTMLSelectElement)) { event.preventDefault(); event.stopPropagation(); void ok(); }
+      if (event.key === "Enter" && !["INPUT", "TEXTAREA", "SELECT"].includes(event.target?.tagName)) { event.preventDefault(); event.stopPropagation(); void ok(); }
     }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <FeatureIcon kind={editing.kind || "Extrude"} />
