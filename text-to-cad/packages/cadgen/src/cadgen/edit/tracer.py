@@ -3125,9 +3125,21 @@ def mate(request):
     state = STATE[str(script)]
     old = _read(script)
     spec = request["mate"]
+    if spec.get("list"):
+        # Insert Components' list: the project's parts it could insert.
+        return {**traced, "insertable": mates.parts_of(ROOT, script)}
     try:
         if spec.get("delete"):
             text, line, words = mates.delete(old, str(spec["delete"])), 1, f"took out {spec['delete']}"
+        elif spec.get("insert"):
+            part = (ROOT / str(spec["insert"])).resolve()
+            try:
+                part.relative_to(ROOT)
+            except ValueError:
+                return {"ok": False, "error": "That part is not in this project, so it cannot be inserted."}
+            if not part.is_file():
+                return {"ok": False, "error": f"{spec['insert']} is no longer in the project. Look again."}
+            text, line, words = mates.insert(old, script, part, ROOT)
         else:
             text, line, words = mates.change(old, state["shape"], spec, state["units"], [c["name"] for c in traced["components"]])
     except (mates.MateError, commands.CommandError) as error:
@@ -3139,7 +3151,7 @@ def mate(request):
         trace(request)
         return {"ok": False, "error": f"The assembly does not build with that mate, so nothing changed. {after.get('error') or ''}".strip()}
     rel = script.relative_to(ROOT).as_posix()
-    after["change"] = {"kind": "mate", "words": words, "file": rel, "line": line,
+    after["change"] = {"kind": "mate", "words": words, "file": rel, "line": line, **({"insert": str(spec["insert"])} if spec.get("insert") else {}),
                        "undo": {"file": rel, "hunks": commands.hunks(text, old)}, "redo": {"file": rel, "hunks": commands.hunks(old, text)}}
     return after
 

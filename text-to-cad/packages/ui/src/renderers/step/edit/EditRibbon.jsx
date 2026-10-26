@@ -14,7 +14,7 @@ import { ToolbarButton } from "@text-to-cad/ui/primitives/toolbar-button";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { AddContextIcon, AppearanceIcon, AskIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, InterferenceIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, ExpressionsIcon, MassPropertiesIcon, MateIcon, RedoIcon, SketchIcon, UndoIcon } from "./cadIcons.jsx";
+import { AddContextIcon, AppearanceIcon, AskIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, InterferenceIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, ExpressionsIcon, MassPropertiesIcon, InsertComponentIcon, MateIcon, RedoIcon, SketchIcon, UndoIcon } from "./cadIcons.jsx";
 import { EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_ENTITIES, SKETCH_FAMILIES, SKETCH_MODIFY, SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
@@ -496,7 +496,8 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     ],
     // Assemble: an assembly's parts placed by Assembly Constraints, and its exploded views.
     assemble: () => [
-      whole("Constraints", placing ? [panelItem("mate", "Mate", <MateIcon />, "mate", edit.status !== "ready" || edit.saving)] : []),
+      whole("Constraints", placing ? [panelItem("insert-components", "Insert Components", <InsertComponentIcon />, "insert", edit.status !== "ready" || edit.saving),
+        panelItem("mate", "Mate", <MateIcon />, "mate", edit.status !== "ready" || edit.saving)] : []),
       whole("Exploded View", viewerTool("exploded")),
     ],
     // Drafting: the part's drawing.

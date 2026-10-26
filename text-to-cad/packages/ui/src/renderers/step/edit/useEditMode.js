@@ -654,6 +654,16 @@ export function useEditMode({ client, file, active, reading = true }) {
   const paint = useCallback(color => send({ appearance: { color } }, { note: answer => appearanceNote(answer.change) }), [send]);
   // Mate, as SolidWorks' places an assembly's parts: a mate made from two picks, or taken out by its label.
   const mate = useCallback(spec => send({ mate: spec }, { note: answer => mateNote(answer.change) }), [send]);
+  // Insert Components' list: the project's part scripts the assembly could insert; nothing is written.
+  const insertable = useCallback(async () => {
+    if (!supported || !file) return [];
+    try {
+      const reply = await client.editChange({ mate: { list: true }, file, files: files.current || undefined });
+      return reply?.ok ? reply.insertable || [] : [];
+    } catch {
+      return [];
+    }
+  }, [client, file, supported]);
   // Compare, as SolidWorks' Compare Geometry: the versions of the part read this session, and with one
   // picked, the material the part has gained (amber) and lost (red) since it. Nothing is written.
   const compare = useCallback(async (version = null) => {
@@ -892,7 +902,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     hover: setHovered,
     change, undo, redo, run, remove, reorder, confirming, confirmDelete, dismissDelete: () => setConfirming(null), suppress, editFeature, rollTo, setSizes, setMaterial,
     open: id => { setError(""); setConfirming(null); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
-    inspecting, mass, interference, addParameter, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, drawing, comparison, compare,
+    inspecting, mass, interference, addParameter, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, insertable, drawing, comparison, compare,
     sheetView, openSheet, closeSheet, sheetEdit, undoSheet, redoSheet,
     startRename: id => { if (id) setRenaming(id); },
     stopRename: () => setRenaming(null),

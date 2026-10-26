@@ -34,7 +34,7 @@ export const COMMAND_WORDS = frozen({
 export const TOOLBAR_WORDS = frozen({
   mass: ["measure bodies", "weight", "volume"], interference: ["simple interference", "clash"], "normal-to": ["orient view", "look at"],
   appearance: ["edit object display", "color"], expressions: ["parameters", "expressions", "global variables"],
-  mate: ["assembly constraints", "constraint"], "make-drawing": ["new sheet", "new drawing"],
+  mate: ["assembly constraints", "constraint"], "insert-components": ["insert component", "add part", "add component"], "make-drawing": ["new sheet", "new drawing"],
   exit: ["finish sketch"], normal: ["orient view to sketch", "look at"], construction: ["convert to/from reference", "reference"],
   dimension: ["rapid dimension"], centerline: ["reference line"], convert: ["project curve"], offset: ["offset curve"],
   trim: ["quick trim"], extend: ["quick extend"], spline: ["studio spline"],
@@ -46,7 +46,7 @@ const SOLID_BUTTONS = Object.freeze({ sketch: "Sketch", measure: "Measure", clip
 const TAB_BUTTONS = Object.freeze([
   ["mass", "Mass Properties"], ["draft-analysis", "Draft Analysis"], ["interference", "Interference Detection"], ["compare", "Compare"],
   ["normal-to", "Normal To"], ["appearance", "Appearance"], ["expressions", "Equations"],
-  ["mate", "Mate"], ["exploded", "Exploded View"],
+  ["insert-components", "Insert Components"], ["mate", "Mate"], ["exploded", "Exploded View"],
   ["drawing", "Drawing"], ["edit-sheet", "Edit Sheet"], ["make-drawing", "Make Drawing"],
 ]);
 

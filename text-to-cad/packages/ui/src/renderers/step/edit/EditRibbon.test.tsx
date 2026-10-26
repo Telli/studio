@@ -212,7 +212,7 @@ it("gives every command of the old Analysis, View and Assemblies tabs a group", 
     Equations: ['Equations'],
   });
   await user.click(screen.getByRole('tab', { name: 'Assembly' }));
-  expect(layout()).toEqual({ Constraints: ['Mate'], 'Exploded View': ['Exploded View'] });
+  expect(layout()).toEqual({ Constraints: ['Insert Components', 'Mate'], 'Exploded View': ['Exploded View'] });
 });
 
 it("names each group's menu apart from a command of the same name, the group's word in its name", async () => {

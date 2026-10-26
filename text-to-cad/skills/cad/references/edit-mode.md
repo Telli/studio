@@ -197,6 +197,11 @@ by hand" below.
   a circle seen round gives `view.diameter(...)` (an arc `view.radius(...)`). Each change draws the
   PDF again, and the sheet has its own Undo and Redo. Notes, hole callouts and other views are the
   agent's, in the same script.
+- **Insert Components** (the Assembly tab, beside Mate) lists the project's part scripts and adds
+  the one picked: `from cap import cap` in the assembly's script (with a `sys.path.insert` for its
+  folder when no part is imported from there yet) and `cap()` at the end of the `children` it
+  returns, where the part is made, for mates to place. A part already in the assembly is not
+  inserted again (the design tree lists each part's model once); ask for another instance in code.
 - **Mate** (the Assemble tab's Mate) places an assembly's part by a face or an edge picked on
   the part that stays and one on the part that moves to it, as SolidWorks' Standard Mates do. It
   adds a constraint from `cadgen.mates` to the moved part's `mate` call, on what was picked (found

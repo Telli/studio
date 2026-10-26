@@ -1650,6 +1650,34 @@ class Mates(Commands):
     def box(self, file: str, files: dict) -> list:
         return [[round(value, 6) + 0 for value in corner] for corner in self.service.change({"file": file, "mass": {}, "files": files})["mass"]["box"]]
 
+    def test_insert_components_lists_the_project_parts_and_adds_one_where_it_is_made(self):
+        files = {**ASSEMBLY, "fixtures/cap.py": """
+            from build123d import Box
+            from cadgen import step
+
+
+            @step
+            def cap():
+                return Box(8, 8, 2)
+        """}
+        root, file, state = self.open(files, "assemblies/stack.step")
+        script = root / "assemblies" / "stack.py"
+        before = script.read_text(encoding="utf-8")
+        listed = self.service.change({"file": file, "files": state["files"], "mate": {"list": True}})
+        self.assertEqual(sorted(listed["insertable"]), ["fixtures/cap.py", "parts/base.py", "parts/pin.py"])
+        reply = self.mated(file, state["files"], {"insert": "fixtures/cap.py"})
+        text = script.read_text(encoding="utf-8")
+        self.assertIn('sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "fixtures"))\nfrom cap import cap\n', text)
+        self.assertIn("children=[base(), pin(), cap()]", text)
+        self.assertEqual([component["name"] for component in reply["components"]], ["base", "pin", "cap"])
+        self.assertEqual(reply["change"]["words"], "inserted cap")
+        # One already in it is not inserted again; the tree lists each part's model once.
+        again = self.service.change({"file": file, "files": reply["files"], "mate": {"insert": "parts/pin.py"}})
+        self.assertEqual(again["error"], "pin is in this assembly already. Ask the agent for another of it.")
+        undone = self.service.change({"file": file, "splice": reply["change"]["undo"], "files": reply["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertEqual(script.read_text(encoding="utf-8"), before)
+
     def test_coincident_then_concentric_seat_the_pin_over_the_hole_and_each_comes_out_on_its_own(self):
         root, file, state = self.open(MATING, "assemblies/stack.step")
         top = {"selector": "o1.1.f6", "type": "plane", "center": [-0.183218, 0, 2], "size": 200 - math.pi * 2.25}

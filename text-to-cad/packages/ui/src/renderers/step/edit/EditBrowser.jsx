@@ -21,6 +21,7 @@ import DraftAnalysis from "./DraftAnalysis.jsx";
 import InterferencePanel from "./InterferencePanel.jsx";
 import MassProperties from "./MassProperties.jsx";
 import MatePanel from "./MatePanel.jsx";
+import InsertComponents from "./InsertComponents.jsx";
 import DrawingPanel from "./DrawingPanel.jsx";
 import ComparePanel from "./ComparePanel.jsx";
 import ExpressionsPanel from "./ExpressionsPanel.jsx";
@@ -117,6 +118,8 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
         : edit.inspecting === "appearance" ? <Appearance edit={edit} />
           // Mate, from the ribbon's Assemble group: an assembly's part placed by two picks.
           : edit.inspecting === "mate" ? <MatePanel edit={edit} references={references} components={tree?.components || []} onDeselect={onDeselect} />
+            // Insert Components, from the same group: a part of the project added to the assembly.
+            : edit.inspecting === "insert" ? <InsertComponents edit={edit} />
             // The part's drawing, from the ribbon's Drawing group.
             : edit.inspecting === "drawing" && edit.state?.drawing ? <DrawingPanel edit={edit} />
               // Compare, from the ribbon's Inspect group.

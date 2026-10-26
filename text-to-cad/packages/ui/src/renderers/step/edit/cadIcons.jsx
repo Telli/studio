@@ -28,6 +28,8 @@ export const CompareIcon = generatedIcon("compare");
 export const AppearanceIcon = generatedIcon("appearance");
 /** Assembly Constraints: a part placed against another. */
 export const MateIcon = generatedIcon("assembly-constraints");
+/** Insert Components: a part of the project added to the assembly. */
+export const InsertComponentIcon = generatedIcon("part");
 /** A drawing (Drawing, and New Sheet). */
 export const DrawingIcon = generatedIcon("drawing");
 /** Edit Sheet: the drawing's sheet, dimensioned by hand. */

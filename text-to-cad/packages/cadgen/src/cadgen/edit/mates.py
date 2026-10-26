@@ -18,7 +18,9 @@ Delete takes it out of its call. Mates written as build123d joint pairs (``Rigid
 from __future__ import annotations
 
 import ast
+import os
 import re
+from pathlib import Path
 
 from cadgen.edit import commands
 
@@ -353,3 +355,80 @@ class _Lengths:
         if self.units == "in":
             return f"{commands._number(value, False)}*{self.unit}" if self.unit else commands._number(value * 25.4, False)
         return commands._number(value, False)
+
+
+def _step_function(text: str) -> str | None:
+    """The name of the function a part's script makes its part with (``@step``)."""
+    for node in ast.parse(text).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
+                (isinstance(each, ast.Name) and each.id == "step") or (isinstance(each, ast.Attribute) and each.attr == "step")
+                or (isinstance(each, ast.Call) and commands._call_name(each) == "step") for each in node.decorator_list):
+            return node.name
+    return None
+
+
+def parts_of(root, assembly) -> list[str]:
+    """The project's part scripts another assembly can insert: each with a ``@step`` function,
+    the assembly itself left out, as project-relative paths."""
+    from cadgen.edit.service import _python_files, is_part
+
+    return [path.relative_to(root).as_posix() for path in _python_files(root) if path != assembly and is_part(path)]
+
+
+def insert(text: str, assembly, part, root) -> tuple[str, int, str]:
+    """Insert Components, as SolidWorks' adds a part to an assembly: ``part``'s script imported in
+    the assembly's (its folder put on the import path when no part of it is already imported from
+    there) and its function's part added to the children the assembly returns, where it is made,
+    for its mates to place. A part already in it is not inserted again: the design tree lists each
+    part's model once."""
+    tree = ast.parse(text)
+    function, returned, listed = assembly_of(tree)
+    made = _step_function(part.read_text(encoding="utf-8"))
+    if made is None:
+        raise MateError(f"{part.name} makes no part (a function marked @step). Pick a part's script.")
+    module = part.stem
+    imports = [node for node in tree.body if isinstance(node, ast.ImportFrom) and not node.level]
+    found = next((node for node in imports if node.module == module), None)
+    lines = text.splitlines(keepends=True)
+    newline = "\r\n" if "\r\n" in text else "\n"
+    if lines and not lines[-1].endswith(("\n", "\r")):
+        lines[-1] += newline
+    names = {alias.asname or alias.name for node in imports for alias in node.names}
+    if found is not None and not any(alias.name == made for alias in found.names):
+        raise MateError(f"{module} is imported here already, for something else. Ask the agent to insert it.")
+    if found is None and made in names:
+        raise MateError(f"{made} is a name this assembly uses already. Ask the agent to insert {part.name}.")
+    # Where the assembly's parts are imported from: the folders their modules are in.
+    from cadgen.edit.service import _python_files
+
+    modules = {node.module for node in imports}
+    folders = {Path(assembly).parent} | {path.parent for path in _python_files(root) if path.stem in modules}
+    added = []
+    if found is None:
+        if part.parent not in folders:
+            relative = Path(os.path.relpath(part.parent, Path(assembly).parent)).as_posix()
+            # Each `..` a parent of the assembly's folder; then the folders down to the part's.
+            ups = len([piece for piece in relative.split("/") if piece == ".."])
+            down = [piece for piece in relative.split("/") if piece not in ("..", ".")]
+            base = "Path(__file__).resolve().parent" if ups == 0 else f"Path(__file__).resolve().parents[{ups}]"
+            where = " / ".join([base, *[f'"{piece}"' for piece in down]])
+            if not any(isinstance(node, ast.Import) and any(alias.name == "sys" for alias in node.names) for node in tree.body):
+                added.append("import sys")
+            if not any(isinstance(node, ast.ImportFrom) and node.module == "pathlib" and any(alias.name == "Path" for alias in node.names)
+                       for node in tree.body):
+                added.append("from pathlib import Path")
+            added.append(f"sys.path.insert(0, str({where}))")
+        added.append(f"from {module} import {made}")
+    if any(isinstance(node, ast.Call) and commands._call_name(node) == made for node in ast.walk(function)):
+        raise MateError(f"{made} is in this assembly already. Ask the agent for another of it.")
+    child = f"{made}()"
+    # The child goes last in the list, on the list's line or the line of its last element.
+    end = listed.elts[-1] if listed.elts else None
+    row, col = (end.end_lineno, end.end_col_offset) if end is not None else (listed.lineno, listed.col_offset + 1)
+    piece = f", {child}" if end is not None else child
+    lines[row - 1] = lines[row - 1][:col] + piece + lines[row - 1][col:]
+    if added:
+        last = max((node.end_lineno for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))
+                    or (isinstance(node, ast.Expr) and "sys.path" in ast.unparse(node))), default=0)
+        lines[last:last] = [each + newline for each in added]
+    return "".join(lines), row + len(added), f"inserted {made}"

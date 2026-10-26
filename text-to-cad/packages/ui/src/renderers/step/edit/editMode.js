@@ -1144,6 +1144,9 @@ export function drawingNote(change) {
 /** What the agent is told of a Mate: what it did, or the mate taken out, and where (`cadgen/edit/mates.py`). */
 export function mateNote(change, { undo = false, redo = false } = {}) {
   const where = `(${change.file}, line ${change.line})`;
+  // Insert Components: a part added to the assembly.
+  if (change.insert) return undo ? `In edit mode I took ${change.insert} back out of the assembly ${where}.`
+    : `In edit mode I ${redo ? "inserted again" : "inserted"} ${change.insert} into the assembly ${where}.`;
   if (undo) return `In edit mode I took back a mate of the assembly ${where}: ${change.words}.`;
   return `In edit mode I ${redo ? "made again" : "made"} a mate of the assembly ${where}: ${change.words}.`;
 }
