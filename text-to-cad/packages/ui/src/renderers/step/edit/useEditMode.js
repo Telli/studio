@@ -26,6 +26,7 @@ import {
   treeIds,
   undoStep,
   parameterNote,
+  sizesNote,
   pullOf,
   redrawJob
 } from "./editMode.js";
@@ -453,6 +454,23 @@ export function useEditMode({ client, file, active, reading = true }) {
   }, [send, dropPreview]);
 
   /**
+   * Edit Parameters on a feature no command writes (`EditSizes.jsx`): its row's sizes changed
+   * together (`values`: each an input's `index` and the `text` typed), one change to undo. `said`:
+   * the sizes as the agent's note words them.
+   */
+  const setSizes = useCallback(async (row, values, said = []) => {
+    const reply = await send({ sizes: { row, values } }, { record: false,
+      note: answer => sizesNote(answer.change, titleOf(answer, row), said) });
+    if (reply?.ok && reply.change) {
+      setHistory(current => recordChange(current, { ...reply.change, title: titleOf(reply, row) }));
+      setSelected(row);
+      setCommand(null);
+      setEditing(null);
+    }
+    return reply;
+  }, [send]);
+
+  /**
    * Edit Feature, as SolidWorks' reopens a feature's PropertyManager: the command that made it,
    * filled with its values. Its OK writes the feature's line again (`run`, with `replace`).
    */
@@ -466,7 +484,7 @@ export function useEditMode({ client, file, active, reading = true }) {
       || (ROLLS_BACK.has(feature.edit.command) && !feature.edit.first);
     const previousBar = barRef.current ? { before: barRef.current.before } : null;
     dropPreview();
-    setEditing({ ...feature.edit, id: feature.id, title: feature.title, sketch: feature.sketch, rolled, previousBar });
+    setEditing({ ...feature.edit, id: feature.id, title: feature.title, kind: feature.kind, sketch: feature.sketch, rolled, previousBar });
     setCommand(feature.edit.command);
     if (rolled) void send({ bar: { item: feature.id } }, { record: false, note: null });
   }, [send, dropPreview]);
@@ -506,6 +524,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     const painted = move.change.kind === "appearance";
     const mated = move.change.kind === "mate";
     const parameter = move.change.kind === "parameter";
+    const sized = move.change.kind === "sizes";
     const current = sketchRef.current;
     // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
     const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
@@ -516,7 +535,8 @@ export function useEditMode({ client, file, active, reading = true }) {
             : renamed ? () => renameNote(move.change, { undo: !redo, redo })
               : painted ? () => appearanceNote(move.change, { undo: !redo, redo })
                 : mated ? () => mateNote(move.change, { undo: !redo, redo })
-                  : parameter ? () => parameterNote(move.change, { undo: !redo, redo }) : null });
+                  : parameter ? () => parameterNote(move.change, { undo: !redo, redo })
+                    : sized ? () => sizesNote(move.change, move.change.title, [], { undo: !redo, redo }) : null });
     if (!reply?.ok) return;
     setHistory(move.next);
     if (current) {
@@ -810,7 +830,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     rolling: Boolean(bar?.pending),
     select: setSelected,
     hover: setHovered,
-    change, undo, redo, run, remove, suppress, editFeature, rollTo,
+    change, undo, redo, run, remove, suppress, editFeature, rollTo, setSizes,
     open: id => { setError(""); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
     inspecting, mass, interference, addParameter, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, drawing, comparison, compare,
     sheetView, openSheet, closeSheet, sheetEdit, undoSheet, redoSheet,

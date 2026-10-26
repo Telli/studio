@@ -1113,6 +1113,15 @@ export function mateNote(change, { undo = false, redo = false } = {}) {
 
 /** What the agent is told of a Rename: the feature or sketch, its name before and after, and where. */
 /** What the agent is told of a parameter added in edit mode, or taken back. */
+/** What Edit Parameters on a feature's sizes tells the agent (`said`: each size as typed), or its Undo and Redo. */
+export function sizesNote(change, title, said = [], { undo = false, redo = false } = {}) {
+  const where = `(${change.file}, line ${change.line})`;
+  const name = title || "a feature";
+  if (undo) return `In edit mode I took back changing the sizes of ${name} ${where}.`;
+  if (redo) return `In edit mode I changed the sizes of ${name} again ${where}.`;
+  return `In edit mode I changed ${name}${said.length ? ` to ${said.join(", ")}` : ""} ${where}.`;
+}
+
 export function parameterNote(change, { undo = false, redo = false } = {}) {
   const where = `(${change.file}, line ${change.line})`;
   if (undo) return `In edit mode I took back adding the parameter ${change.name} ${where}.`;

@@ -517,8 +517,8 @@ class EditingFeatures(Commands):
         edited = self.edit(file, state, fillet, {"radius": "2"})
         self.assertTrue(edited["ok"], edited.get("error"))
         self.assertIn("outer = fillet(outer.edges().filter_by(Axis.Z), radius=WALL)\n", script.read_text(encoding="utf-8"))
-        # A line no command writes opens nothing: the agent's own hole.
-        self.assertNotIn("edit", self.feature(state, "Hole"))
+        # A line no command writes opens Edit Parameters on its sizes: the agent's own hole.
+        self.assertEqual(self.feature(state, "Hole")["edit"]["command"], "sizes")
 
     def test_a_hole_keeps_its_face_and_moves_on_it(self):
         root, file, state = self.open(BLOCK, "block.step")
@@ -1903,3 +1903,97 @@ class ImportedBodies(Commands):
         self.assertEqual(self.service.change({"file": str(source), "adopt": {}})["part"], str(root / "bracket_part2.step"))
         # A part's own STEP is no import.
         self.assertFalse(self.service.change({"file": made["part"], "adopt": {}})["ok"])
+
+
+# A part as agents write one: Blocks and Cylinders placed with `Pos`, a size from `sizes.py`, a fillet
+# ending in `.clean()`, and a joiner made in a helper's file.
+PRIMITIVES = {
+    "sizes.py": """
+        POCKET = 10
+    """,
+    "geometry.py": """
+        from cadgen import build123d as bd
+
+
+        def joiner():
+            body = bd.Box(40, 18, 4)
+            for x in [-10, 10]:
+                body -= bd.Pos(x, 0, 0) * bd.Cylinder(2.2, 6)
+            return body
+    """,
+    "cradle.py": """
+        from cadgen import build123d as bd, step
+        from sizes import POCKET
+
+
+        @step(out="cradle.step")
+        def cradle():
+            body = bd.Box(40, 20, 10)
+            body += bd.Pos(10, 0, 8) * bd.Box(4, 4, 6)
+            body -= bd.Pos(0, 0, 5) * bd.Box(POCKET, 6, 6)
+            body = bd.fillet(body.edges().filter_by(bd.Axis.Z), radius=1).clean()
+            return body
+    """,
+    "joiner_part.py": """
+        from cadgen import step
+        from geometry import joiner
+
+
+        @step(out="joiner_part.step")
+        def joiner_part():
+            return joiner()
+    """,
+}
+
+
+class EditingSizes(Commands):
+    """Edit Parameters on what no command writes: its sizes typed at once, undone at once."""
+
+    def sizes(self, file, state, feature, values):
+        inputs = {each["label"]: index for index, each in enumerate(next(row for row in state["rows"] if row["key"] == feature["key"])["inputs"])}
+        return self.service.change({"file": file, "files": state["files"], "sizes": {
+            "row": feature["edit"]["row"], "values": [{"index": inputs[label], "text": text} for label, text in values.items()]}})
+
+    def test_a_placed_block_opens_its_sizes_and_place_and_takes_them_in_one_change(self):
+        root, file, state = self.open(PRIMITIVES, "cradle.step")
+        kinds = [(feature["kind"], feature["edit"]["command"]) for feature in state["features"]]
+        self.assertEqual(kinds, [("Boss-Extrude", "sizes"), ("Boss-Extrude", "sizes"), ("Cut-Extrude", "sizes"), ("Fillet", "fillet")])
+        boss = state["features"][1]
+        before = (root / "cradle.py").read_text(encoding="utf-8")
+        reply = self.sizes(file, state, boss, {"Length": "6", "X": "12"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("    body += bd.Pos(12, 0, 8) * bd.Box(6, 4, 6)\n", (root / "cradle.py").read_text(encoding="utf-8"))
+        self.assertEqual(reply["change"]["kind"], "sizes")
+        # One Undo puts both back.
+        undone = self.service.change({"file": file, "splice": reply["change"]["undo"], "files": reply["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertEqual((root / "cradle.py").read_text(encoding="utf-8"), before)
+
+    def test_a_size_named_in_another_file_changes_there_and_undoes_with_the_rest(self):
+        root, file, state = self.open(PRIMITIVES, "cradle.step")
+        pocket = state["features"][2]
+        reply = self.sizes(file, state, pocket, {"Length": "12", "Width": "8"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("POCKET = 12\n", (root / "sizes.py").read_text(encoding="utf-8"))
+        self.assertIn("bd.Box(POCKET, 8, 6)", (root / "cradle.py").read_text(encoding="utf-8"))
+        undone = self.service.change({"file": file, "splice": reply["change"]["undo"], "files": reply["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertIn("POCKET = 10\n", (root / "sizes.py").read_text(encoding="utf-8"))
+        self.assertIn("bd.Box(POCKET, 6, 6)", (root / "cradle.py").read_text(encoding="utf-8"))
+
+    def test_a_feature_made_in_a_helpers_file_is_edited_there(self):
+        root, file, state = self.open(PRIMITIVES, "joiner_part.step")
+        hole = next(feature for feature in state["features"] if feature["kind"] == "Hole")
+        self.assertEqual(hole["edit"]["command"], "sizes")
+        reply = self.sizes(file, state, hole, {"Diameter": "5"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("bd.Cylinder(2.5, 6)", (root / "geometry.py").read_text(encoding="utf-8"))
+
+    def test_a_fillet_ending_in_clean_reopens_and_keeps_it(self):
+        root, file, state = self.open(PRIMITIVES, "cradle.step")
+        fillet = state["features"][-1]
+        self.assertEqual(fillet["edit"]["values"], {"radius": "1"})
+        reply = self.service.change({"file": file, "files": state["files"], "command": {
+            "command": "fillet", "inputs": {"radius": "0.5"}, "selection": [], "replace": {"row": fillet["key"]}}})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("    body = bd.fillet(body.edges().filter_by(bd.Axis.Z), radius=0.5).clean()\n", (root / "cradle.py").read_text(encoding="utf-8"))

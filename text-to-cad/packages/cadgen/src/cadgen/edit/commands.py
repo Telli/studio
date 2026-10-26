@@ -1572,6 +1572,14 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         else:
             raise CommandError("A pattern is linear or circular.")
 
+    # A line that ended in `.clean()` keeps it, around the whole of what it makes.
+    if kept is not None and kept.parts.get("clean") and kept.operator == "=" and " = " in code:
+        head, made = code.split(" = ", 1)
+        try:
+            single = isinstance(ast.parse(made, mode="eval").body, ast.Call)
+        except SyntaxError:
+            single = False
+        code = f"{head} = {made}.clean()" if single else f"{head} = ({made}).clean()"
     if old is not None:
         source = body.lines[old.lineno - 1]
         # A name the feature was given in the design tree stays with its line; a hole's callout is
@@ -1797,6 +1805,22 @@ def _sketch_of(profile, made=("face", "faces", "thin")) -> str | None:
 
 
 def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> Feature | None:
+    """``statement`` read as the command that writes such a line (``_read_feature``); one that ends
+    in ``.clean()`` (``part = fillet(...).clean()``, as agents write them) is read through it, and
+    keeps it when written again (``parts["clean"]``)."""
+    value = getattr(statement, "value", None)
+    if (isinstance(statement, ast.Assign) and isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute)
+            and value.func.attr == "clean" and not value.args and not value.keywords):
+        inner = ast.Assign(targets=statement.targets, value=value.func.value, lineno=statement.lineno, col_offset=statement.col_offset,
+                           end_lineno=statement.end_lineno, end_col_offset=statement.end_col_offset)
+        feature = _read_feature(inner, text, numbers, units)
+        if feature is not None:
+            feature.parts["clean"] = True
+        return feature
+    return _read_feature(statement, text, numbers, units)
+
+
+def _read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> Feature | None:
     """``statement`` read as the command that writes such a line, or None for a line no command
     writes (the agent's own build123d). ``numbers`` are what the trace recorded for the line's
     operations: ``(operation, argument)`` to a size in millimetres, an angle in degrees, or a count."""

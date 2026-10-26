@@ -25,6 +25,7 @@ import DrawingPanel from "./DrawingPanel.jsx";
 import ComparePanel from "./ComparePanel.jsx";
 import ExpressionsPanel from "./ExpressionsPanel.jsx";
 import Appearance from "./Appearance.jsx";
+import EditSizes from "./EditSizes.jsx";
 import { formulaWords, restates, selectionDimensions, sizeName, treeFeatures } from "./editMode.js";
 import { nxPlane, treeTitles } from "./nx.js";
 
@@ -103,6 +104,7 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
   // a CAD tool's command dialog floats apart from its tree; here, above the tree, where the view
   // keeps no card for it.
   const panel = edit.sketch || edit.picking ? <SketchPanel edit={edit} onPlane={onPlane} references={references} />
+    : edit.command === "sizes" ? <EditSizes key={`sizes:${edit.editing?.id || ""}`} edit={edit} />
     : edit.command ? <EditCommand key={`${edit.command}:${edit.editing?.id || ""}`} edit={edit} names={names} references={references} tree={tree}
       onDeselect={onDeselect} />
       // Mass Properties, from the ribbon's Inspect group, in the same card.
