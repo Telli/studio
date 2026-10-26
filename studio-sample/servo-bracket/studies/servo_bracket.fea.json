@@ -1,0 +1,288 @@
+{
+  "generator": "cadgen fea",
+  "document": "parts/servo_bracket.step",
+  "occurrence": "#o1.1",
+  "study": {
+    "material": {
+      "name": "aluminium-5052-h32",
+      "E_MPa": 68258,
+      "nu": 0.33,
+      "yield_MPa": 179.3,
+      "density_t_per_mm3": 2.713e-09
+    },
+    "fixtures": [
+      {
+        "faces": [
+          "#o1.1.f13",
+          "#o1.1.f14"
+        ],
+        "type": "fixed"
+      },
+      {
+        "faces": [
+          "#o1.1.f5"
+        ],
+        "type": "roller"
+      }
+    ],
+    "loads": [
+      {
+        "faces": [
+          "#o1.1.f19",
+          "#o1.1.f28"
+        ],
+        "type": "force",
+        "vector_N": [
+          0,
+          0,
+          -14.194
+        ]
+      },
+      {
+        "faces": [
+          "#o1.1.f17",
+          "#o1.1.f18"
+        ],
+        "type": "force",
+        "vector_N": [
+          0,
+          0,
+          -5.806
+        ]
+      }
+    ],
+    "mesh": {
+      "refine": [
+        {
+          "center_mm": [
+            20.6,
+            12.4,
+            -1.0
+          ],
+          "radius_mm": 2.0,
+          "size_mm": 0.17
+        },
+        {
+          "center_mm": [
+            -20.6,
+            12.4,
+            -1.0
+          ],
+          "radius_mm": 2.0,
+          "size_mm": 0.17
+        }
+      ]
+    },
+    "margin": 2,
+    "view": {
+      "checks": [
+        {
+          "kind": "stress",
+          "label": "Strength, 20 N down at the horn through the servo's 4 screws"
+        }
+      ]
+    }
+  },
+  "material": {
+    "name": "Aluminium 5052 H32",
+    "E_MPa": 68258.0,
+    "nu": 0.33,
+    "yield_MPa": 179.3,
+    "density_t_per_mm3": 2.713e-09
+  },
+  "faces": {
+    "#o1.1.f13": {
+      "ref": "#o1.1.f13",
+      "ordinal": 13,
+      "area": 28.274333882306273,
+      "center": [
+        -26.000000000000146,
+        1.0,
+        -16.0
+      ]
+    },
+    "#o1.1.f14": {
+      "ref": "#o1.1.f14",
+      "ordinal": 14,
+      "area": 28.274333882306273,
+      "center": [
+        25.99999999999985,
+        1.0,
+        -16.0
+      ]
+    },
+    "#o1.1.f5": {
+      "ref": "#o1.1.f5",
+      "ordinal": 5,
+      "area": 1822.5685413235578,
+      "center": [
+        2.3314683517128287e-15,
+        -7.395570986446986e-32,
+        -17.47902474398984
+      ]
+    },
+    "#o1.1.f19": {
+      "ref": "#o1.1.f19",
+      "ordinal": 19,
+      "area": 15.707963267947932,
+      "center": [
+        23.72499999999992,
+        27.05,
+        -1.0
+      ]
+    },
+    "#o1.1.f28": {
+      "ref": "#o1.1.f28",
+      "ordinal": 28,
+      "area": 15.707963267947932,
+      "center": [
+        23.72499999999992,
+        17.55,
+        -1.0
+      ]
+    },
+    "#o1.1.f17": {
+      "ref": "#o1.1.f17",
+      "ordinal": 17,
+      "area": 15.707963267947932,
+      "center": [
+        -23.725000000000083,
+        27.05,
+        -1.0
+      ]
+    },
+    "#o1.1.f18": {
+      "ref": "#o1.1.f18",
+      "ordinal": 18,
+      "area": 15.707963267947932,
+      "center": [
+        -23.725000000000083,
+        17.55,
+        -1.0
+      ]
+    }
+  },
+  "summary": {
+    "max_von_mises_MPa": 48.9243,
+    "max_von_mises_gauss_MPa": 49.1324,
+    "max_von_mises_at_mm": [
+      20.74,
+      12.402,
+      0.0
+    ],
+    "yield_MPa": 179.3,
+    "max_displacement_mm": 0.140884,
+    "max_displacement_at_mm": [
+      29.0,
+      40.0,
+      0.0
+    ],
+    "applied_force_N": [
+      0.0,
+      0.0,
+      -20.0
+    ],
+    "reaction_force_N": [
+      0.0,
+      -0.0,
+      20.0
+    ],
+    "deformation_scale": 29.0,
+    "safety_factor": 3.664,
+    "checks": [
+      {
+        "kind": "stress",
+        "label": "Strength, 20 N down at the horn through the servo's 4 screws",
+        "value": 48.9243,
+        "limit": 179.3,
+        "unit": "MPa",
+        "ratio": 0.272926,
+        "close_at": 0.5,
+        "margin": 2.0,
+        "status": "passes",
+        "where": {
+          "ref": "#o1.1.f9",
+          "at": [
+            20.74,
+            12.402,
+            0.0
+          ]
+        }
+      }
+    ]
+  },
+  "fixtures": [
+    {
+      "faces": [
+        "#o1.1.f13",
+        "#o1.1.f14"
+      ],
+      "type": "fixed",
+      "reaction_N": [
+        -0.0,
+        -1.2115,
+        20.0
+      ]
+    },
+    {
+      "faces": [
+        "#o1.1.f5"
+      ],
+      "type": "roller",
+      "reaction_N": [
+        0.0,
+        1.2115,
+        0.0
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "attribute": "_VON_MISES",
+      "name": "von Mises stress",
+      "units": "MPa",
+      "min": 0.0,
+      "max": 48.9243,
+      "attribute_scale": 1.0
+    },
+    {
+      "attribute": "_DISPLACEMENT",
+      "name": "displacement",
+      "units": "mm",
+      "min": 0.0,
+      "max": 0.140884,
+      "attribute_scale": 1000.0
+    }
+  ],
+  "mesh": {
+    "elements": 51621,
+    "nodes": 78021,
+    "dofs": 234063,
+    "size_mm": 2.0494,
+    "order": 2,
+    "mesher": "netgen",
+    "solver": "amg+cg (72 iterations)"
+  },
+  "timings": {
+    "mesh_s": 2.059,
+    "mesh_to_fem_s": 1.045,
+    "assemble_s": 15.894,
+    "solve_s": 15.881,
+    "stress_s": 15.831
+  },
+  "warnings": [],
+  "findings": [],
+  "refined": null,
+  "files": {
+    "glb": "servo_bracket.fea.glb",
+    "vtu": null
+  },
+  "view": {
+    "checks": [
+      {
+        "kind": "stress",
+        "label": "Strength, 20 N down at the horn through the servo's 4 screws"
+      }
+    ]
+  }
+}

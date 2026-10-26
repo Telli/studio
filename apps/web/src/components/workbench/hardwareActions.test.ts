@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { type HardwareActionMenu, hardwareActions } from "./hardwareActions";
+import { HARDWARE_ACTIONS, type HardwareActionMenu, hardwareActions } from "./hardwareActions";
+import { entryOfAction } from "./library/libraryCatalog";
 
 const titled = (sections: HardwareActionMenu["sections"]) =>
   sections.map((section) => [section.title, section.actions.map((action) => action.label)]);
@@ -123,5 +124,35 @@ describe("hardware actions", () => {
     expect(evaluate?.sections[0]?.actions[0]?.prompt("parts/bracket.step")).toMatch(
       /^Check parts\/bracket\.step /,
     );
+  });
+
+  it("says what every job makes", () => {
+    // One line under the job's name in its menu: a sentence, at most 90 characters.
+    const unsaid = HARDWARE_ACTIONS.filter(
+      (action) => !/^\S.*\.$/.test(action.gets) || action.gets.length > 90,
+    );
+    expect(unsaid.map((action) => `${action.id}: ${action.gets}`)).toEqual([]);
+  });
+
+  it("says every outcome a check reports, in one shape", () => {
+    // dfam-check, dfm and pcb-dfm report a pass, a fail and a third outcome (need more info,
+    // review, unverified): each check's line, and the library's Manufacturing check, name all three.
+    const checks = HARDWARE_ACTIONS.filter((action) =>
+      ["dfam-check", "dfm", "pcb-dfm"].includes(action.skill ?? ""),
+    );
+    expect(checks).not.toEqual([]);
+    const unsaid = checks.filter(
+      (action) =>
+        !/^Findings for .+, each passing, to fix or to check, with the fix\.$/.test(action.gets),
+    );
+    expect(unsaid.map((action) => `${action.id}: ${action.gets}`)).toEqual([]);
+    expect(entryOfAction("cnc")?.gets).toBe(
+      "Findings, each passing, to fix or to check, with the fix.",
+    );
+  });
+
+  it("every job has its library entry", () => {
+    const unlisted = HARDWARE_ACTIONS.filter((action) => entryOfAction(action.id) === null);
+    expect(unlisted.map((action) => action.id)).toEqual([]);
   });
 });

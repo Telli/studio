@@ -56,6 +56,8 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
     `@@STUDIO_…@@` placeholders;
   - the plugin's page;
+  - the finished sample project (`studio-sample/`), which Try a sample project copies into a new
+    project (`T3CODE_SAMPLE_PROJECT`);
   - `studio.json`.
 - **The build.** T3 Code's desktop build takes the bundle through `T3CODE_DESKTOP_STUDIO_BUNDLE`
   (`scripts/lib/studio-app.ts`). That gives it Studio's name, id, icon and copyright, and a plain
@@ -414,9 +416,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   menu (`useBackup.ts`).
 - **Quick find.** In Engineering ⌘K finds a project, a part (with its picture), a document or a
   chat in any project (one in another project opens there; with nothing typed, the open
-  project's), or any job for the part on screen, with Home, New project, Take the tour, Settings and the interface switches
-  (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's command
-  palette.
+  project's), or any job for the part on screen, with Home, New project, Take the tour, the
+  Library (every document type and skill: what each makes and, where the sample project has one,
+  its example; `components/workbench/library/LibraryPage.tsx`), Settings and the interface
+  switches (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's
+  command palette.
 - **Getting around.** The top bar is a path, the project then the open chat, the project's name
   opening its Overview (`StudioWorkspaceBar.tsx`). The panel's tabs take Chrome's shortcuts:
   Ctrl+Tab and Ctrl+Shift+Tab go round them, Cmd+1 to 8 to one by its place and Cmd+9 to the last
@@ -439,8 +443,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   agent", as Settings does).
 - **Onboarding.** Setup speaks Studio's words and ends at signing in to Claude or Codex
   (`WelcomeWizard.tsx`; Home brings in files). A first Home says Welcome to Studio and offers a
-  sample project the agent builds in front of you (a servo bracket, its strength check, its
-  drawing and its PRD; `homeExamples.ts`). The first workspace opened gives a four-step tour,
+  sample project: in the desktop app, the finished servo bracket Studio ships, copied into a
+  project of your own and opened again on later tries (`useSampleProject.ts`); elsewhere one the
+  agent builds in front of you (the bracket, its strength check, its drawing and its PRD;
+  `homeExamples.ts`). The first workspace opened gives a four-step tour,
   once (`StudioTour.tsx`,
   `tourSteps.ts`): the project, its Overview, the tabs and the toolbar.
 - **Ask, in no project.** Home's box has Start, Ask and Set up. Ask is a question about anything
@@ -600,11 +606,13 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   simulations, fit, motion and mass; each way of making it (the project's own first: printing,
   CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
   export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.
-  Each menu keeps its everyday jobs and ends in More, which opens the quick find on all of its
-  jobs. Each needs its text-to-cad skill (`components/workbench/hardwareActions.ts`) and sends
-  the job, naming the part, to the chat, as New's Create does: each prompt asks for what it needs
-  (the loads, the machine), so nothing waits on a second press. The composer's / menu offers
-  Studio's own commands in plain words and the skills, not the agent's coding commands.
+  Each job says in a line what it makes. Each menu keeps its everyday jobs; when it has more, its
+  More opens the quick find on all of its jobs. Each menu ends in What each makes…, which opens
+  the library at that menu's document types. Each job needs its text-to-cad skill
+  (`components/workbench/hardwareActions.ts`) and sends the job, naming the part, to the chat, as
+  New's Create does: each prompt asks for what it needs (the loads, the machine), so nothing waits
+  on a second press. The composer's / menu offers Studio's own commands in plain words and the
+  skills, not the agent's coding commands.
 - **Three kinds, and work done on them.** What is designed is CAD, Electronics or Documents, and
   New offers those. FEA and CAM are not kinds of design but work done on one, for parts and boards
   alike, so what Evaluate, Manufacture and Document make (analysis, manufacturing files,

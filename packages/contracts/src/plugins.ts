@@ -124,6 +124,20 @@ export const PluginServerStatus = Schema.Struct({
 });
 export type PluginServerStatus = typeof PluginServerStatus.Type;
 
+/**
+ * What a skill says about itself, read from its own files: a display name, a
+ * one-line description and an ask that shows it off. A skill whose files say
+ * nothing has a null display name and ask, and an empty description.
+ */
+export const PluginSkillDetail = Schema.Struct({
+  /** The skill's name, as listed in the plugin's `skills`. */
+  name: Text(128),
+  displayName: NullableText(160),
+  description: Text(400),
+  defaultPrompt: NullableText(300),
+});
+export type PluginSkillDetail = typeof PluginSkillDetail.Type;
+
 export const InstalledPlugin = Schema.Struct({
   id: PluginId,
   displayName: Text(160),
@@ -135,6 +149,8 @@ export const InstalledPlugin = Schema.Struct({
   /** Commit the installed copy was cloned at, when it came from git. */
   commit: NullableText(64),
   skills: Schema.Array(Text(128)).check(Schema.isMaxLength(200)),
+  /** Each of `skills`, described by its own files, in the same order. */
+  skillDetails: Schema.optional(Schema.Array(PluginSkillDetail).check(Schema.isMaxLength(200))),
   servers: Schema.Array(PluginServerStatus).check(Schema.isMaxLength(32)),
   views: Schema.Array(PluginView).check(Schema.isMaxLength(64)),
   compatibility: PluginCompatibility,

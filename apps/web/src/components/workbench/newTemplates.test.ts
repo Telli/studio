@@ -1,12 +1,42 @@
+import type { InstalledPlugin } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { availableTemplates, fileStem, NEW_TEMPLATES, newWorkPrompt } from "./newTemplates";
+import { fileStem, NEW_TEMPLATES, newWorkPrompt, templateOffers } from "./newTemplates";
 
 const template = (id: string) => NEW_TEMPLATES.find((entry) => entry.id === id)!;
 
+/** An installed plugin listing these skills, as the plugin list sends it. */
+const plugin = (id: string, enabled: boolean, skills: ReadonlyArray<string>): InstalledPlugin => ({
+  id,
+  displayName: `The ${id} plugin`,
+  description: "",
+  version: null,
+  publisher: null,
+  enabled,
+  marketplace: null,
+  commit: null,
+  skills: [...skills],
+  servers: [],
+  views: [],
+  compatibility: { level: "works", label: "Works", notes: [] },
+  updateAvailable: false,
+  error: null,
+});
+
+/** text-to-cad, enabled and listing pcb, while only cad is among the skills that are on. */
+const textToCad = plugin("text-to-cad", true, ["cad", "engineering-drawing", "fea", "pcb"]);
+const offers = templateOffers(new Set(["cad"]), [textToCad]);
+const offerOf = (id: string) => offers.find((offer) => offer.template.id === id);
+
+/** The templates New offers on, with these skills on. */
+const onWith = (skills: ReadonlyArray<string>) =>
+  templateOffers(new Set(skills), [textToCad])
+    .filter((offer) => offer.availability.on)
+    .map((offer) => offer.template);
+
 describe("new templates", () => {
   it("offers only what the installed skills can do; documents need none", () => {
-    expect(availableTemplates(new Set(["cad"])).map((entry) => entry.id)).toEqual([
+    expect(onWith(["cad"]).map((entry) => entry.id)).toEqual([
       "part",
       "assembly",
       "sheet-metal",
@@ -17,9 +47,7 @@ describe("new templates", () => {
       "fmea",
       "design-review",
     ]);
-    expect(
-      availableTemplates(new Set(["fea", "cam", "pcb"])).map((entry) => entry.label),
-    ).toContain("Strength study");
+    expect(onWith(["fea", "cam", "pcb"]).map((entry) => entry.label)).toContain("Strength study");
   });
 
   it("names new work by a file name the agent can use", () => {
@@ -35,6 +63,38 @@ describe("new templates", () => {
         description: "80 mm wide, two M5 holes",
       }),
     ).toBe("Create a new part, parts/wall_bracket, in millimeters. 80 mm wide, two M5 holes.");
+  });
+
+  it("offers what is on and names what is off", () => {
+    expect(offerOf("board")?.availability).toEqual({
+      on: false,
+      skill: "pcb",
+      plugin: "text-to-cad",
+      installed: true,
+    });
+    expect(offerOf("part")?.availability).toEqual({ on: true });
+    expect(offerOf("prd")?.availability).toEqual({ on: true });
+  });
+
+  it("keeps the order New shows", () => {
+    expect(offers.map((offer) => offer.template.id).slice(0, 5)).toEqual([
+      "part",
+      "assembly",
+      "sheet-metal",
+      "drawing",
+      "board",
+    ]);
+  });
+
+  it("leaves out what no plugin ships", () => {
+    expect(offers.map((offer) => offer.template.id)).not.toContain("harness");
+    // Once a plugin lists its skill, it is named, off until that plugin is on.
+    const harnesses = plugin("harnesses", false, ["harness"]);
+    expect(
+      templateOffers(new Set(["cad"]), [textToCad, harnesses]).find(
+        (offer) => offer.template.id === "harness",
+      )?.availability,
+    ).toEqual({ on: false, skill: "harness", plugin: "harnesses", installed: true });
   });
 
   it("works from the chosen part for a study, a CAM job or a drawing", () => {

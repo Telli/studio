@@ -1,0 +1,151 @@
+<?xml version="1.0"?>
+<!--
+  model: servo_mount | consumers: Gazebo Harmonic (SDF 1.12), CAD Viewer | document: one model, no world
+  source: derived from servo_mount.urdf beside it: the same links, joint, limits, inertials, collision primitives and
+    link meshes. The URDF joint origin is the horn_joint pose relative_to base_link, and each child link's pose is
+    relative_to the joint that places it.
+  units: meters, kilograms, seconds, radians | frames: base_link at the model's origin, the frame of
+    assemblies/servo_mount.step: X along the bracket's bend, +Y out from the wall, +Z up
+  world: world_to_base, a fixed joint from world to base_link: the bracket is bolted to a wall by its flange
+  links: base_link (physical: the bracket, the MG996R's body, its four screws and the cable clip); horn_link
+    (physical: the horn adapter, on the servo's output axis at the top of the spline)
+  frames: tool0, attached to horn_link 4 mm up the axis at the adapter's top face: the URDF's frame-only link on a
+    fixed joint, written as a frame, as SDFormat's URDF conversion writes a fixed joint's child
+  joints: horn_joint, revolute about +Z (expressed in base_link), -1.0471975512 to 1.0471975512 rad, effort
+    0.9218 N m, velocity 5.5116 rad/s (the URDF's, from Tower Pro's MG996R page at 4.8 V). Positive turns the
+    adapter counter-clockwise seen from above.
+  meshes: meshes/base_link.stl and meshes/horn_link.stl, relative to this file: the URDF's link meshes exported as
+    STL by the same models (base_link.py, horn_link.py) in the same frames, since Gazebo's mesh loader (gz-common 5)
+    reads stl, dae, obj, gltf, glb and fbx but not the URDF's 3mf. Source units mm, scale 0.001. Colours: the
+    bracket's and the adapter's from their part models, one per link
+  inertials: the URDF's: OCCT volume properties of the STEP's parts at their densities (see servo_mount.urdf).
+    Confidence: estimated
+  plugins and sensors: none. Nothing drives horn_joint: add a joint controller for the target simulator to move it
+  assumptions:
+  - every assumption in servo_mount.urdf's ledger holds here
+  - the joint has no damping or friction: none is known for the MG996R
+  - checks: cadgen sdf validate only; gz is not installed here, so gz sdf's check and a Gazebo load were not run
+-->
+<sdf version="1.12">
+  <model name="servo_mount">
+    <joint name="world_to_base" type="fixed">
+      <parent>world</parent>
+      <child>base_link</child>
+    </joint>
+    <link name="base_link">
+      <pose relative_to="__model__">0 0 0 0 0 0</pose>
+      <inertial>
+        <!-- centre of mass in the link frame; an inertial pose takes no relative_to -->
+        <pose>0.0001536 0.0190969 -0.0080684 0 0 0</pose>
+        <mass>0.077920161</mass>
+        <inertia>
+          <ixx>1.63044115e-05</ixx>
+          <ixy>1.21675284e-07</ixy>
+          <ixz>1.07038435e-07</ixz>
+          <iyy>2.64375997e-05</iyy>
+          <iyz>-1.86843409e-06</iyz>
+          <izz>2.50760428e-05</izz>
+        </inertia>
+      </inertial>
+      <visual name="base_link_visual">
+        <pose relative_to="base_link">0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>meshes/base_link.stl</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+        <material>
+          <!-- the bracket's colour, #B9BFC6 (parts/servo_bracket.py) -->
+          <ambient>0.7255 0.749 0.7765 1</ambient>
+          <diffuse>0.7255 0.749 0.7765 1</diffuse>
+        </material>
+      </visual>
+      <collision name="shelf">
+        <pose relative_to="base_link">0 0.02 -0.001 0 0 0</pose>
+        <geometry>
+          <box><size>0.064 0.04 0.002</size></box>
+        </geometry>
+      </collision>
+      <collision name="flange">
+        <pose relative_to="base_link">0 0.001 -0.016 0 0 0</pose>
+        <geometry>
+          <box><size>0.064 0.002 0.032</size></box>
+        </geometry>
+      </collision>
+      <collision name="servo_case">
+        <pose relative_to="base_link">0 0.0223 -0.0083 0 0 0</pose>
+        <geometry>
+          <box><size>0.0409 0.02 0.037</size></box>
+        </geometry>
+      </collision>
+      <collision name="servo_tabs_and_screw_heads">
+        <pose relative_to="base_link">0 0.0223 0.00275 0 0 0</pose>
+        <geometry>
+          <box><size>0.054 0.02 0.0055</size></box>
+        </geometry>
+      </collision>
+      <collision name="cable_clip">
+        <pose relative_to="base_link">0.027 0.0058785 -0.026 0 0 0</pose>
+        <geometry>
+          <box><size>0.008 0.0077571 0.008</size></box>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="horn_joint" type="revolute">
+      <pose relative_to="base_link">0.00995 0.0223 0.0159 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>horn_link</child>
+      <axis>
+        <xyz expressed_in="base_link">0 0 1</xyz>
+        <limit>
+          <lower>-1.0471975512</lower>
+          <upper>1.0471975512</upper>
+          <effort>0.9218</effort>
+          <velocity>5.5116</velocity>
+        </limit>
+      </axis>
+    </joint>
+    <link name="horn_link">
+      <pose relative_to="horn_joint">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 -0.000017 0 0 0</pose>
+        <mass>0.008807385</mass>
+        <inertia>
+          <ixx>3.8287442e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>3.8287442e-07</iyy>
+          <iyz>0</iyz>
+          <izz>6.73180019e-07</izz>
+        </inertia>
+      </inertial>
+      <visual name="horn_link_visual">
+        <pose relative_to="horn_link">0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>meshes/horn_link.stl</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+        <material>
+          <!-- the adapter's colour, #8E99A6 (parts/horn_adapter.py) -->
+          <ambient>0.5569 0.6 0.651 1</ambient>
+          <diffuse>0.5569 0.6 0.651 1</diffuse>
+        </material>
+      </visual>
+      <collision name="horn_adapter">
+        <pose relative_to="horn_link">0 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.012</radius>
+            <length>0.008</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+    <frame name="tool0" attached_to="horn_link">
+      <pose relative_to="horn_link">0 0 0.004 0 0 0</pose>
+    </frame>
+  </model>
+</sdf>

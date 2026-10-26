@@ -1,0 +1,29 @@
+{
+  "material": {
+    "name": "aluminium-5052-h32",
+    "E_MPa": 68258,
+    "nu": 0.33,
+    "yield_MPa": 179.3,
+    "density_t_per_mm3": 2.713e-9
+  },
+  "fixtures": [
+    {"faces": ["#o1.1.f13", "#o1.1.f14"], "type": "fixed"},
+    {"faces": ["#o1.1.f5"], "type": "roller"}
+  ],
+  "loads": [
+    {"faces": ["#o1.1.f19", "#o1.1.f28"], "type": "force", "vector_N": [0, 0, -14.194]},
+    {"faces": ["#o1.1.f17", "#o1.1.f18"], "type": "force", "vector_N": [0, 0, -5.806]}
+  ],
+  "mesh": {
+    "refine": [
+      {"center_mm": [20.6, 12.4, -1.0], "radius_mm": 2.0, "size_mm": 0.17},
+      {"center_mm": [-20.6, 12.4, -1.0], "radius_mm": 2.0, "size_mm": 0.17}
+    ]
+  },
+  "margin": 2,
+  "view": {
+    "checks": [
+      {"kind": "stress", "label": "Strength, 20 N down at the horn through the servo's 4 screws"}
+    ]
+  }
+}

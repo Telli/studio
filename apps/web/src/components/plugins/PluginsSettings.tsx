@@ -31,6 +31,9 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group"
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
 import { RefreshIcon } from "../ui/refresh-icon";
 import { Switch } from "../ui/switch";
+import { librarySkills, skillName } from "../workbench/library/libraryCatalog";
+import { PluginSkills } from "../workbench/library/PluginSkills";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import { PluginViewFrame } from "./PluginViewFrame";
 
 /** Catalog rows rendered before "Show all"; search narrows the rest. */
@@ -148,11 +151,16 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
   const visibleEntries =
     entries === null || showAll ? entries : entries.slice(0, INITIAL_CATALOG_ROWS);
   const globalViews = useMemo(() => pluginViewsWithEntrypoint(plugins, "global"), [plugins]);
+  // Studio's engineering interface lists each plugin's skills under its row, named as the library
+  // names them (`PluginSkills`).
+  const engineering = useEngineeringInterface();
+  const skills = useMemo(() => (engineering ? librarySkills(plugins) : []), [engineering, plugins]);
 
   const installedRow = (plugin: InstalledPlugin) => {
     const busy = pending[plugin.id];
     const serverErrors = plugin.servers.filter((server) => server.state === "error");
     const views = globalViews.filter((choice) => choice.pluginId === plugin.id);
+    const pluginSkills = skills.filter((skill) => skill.pluginId === plugin.id);
     return (
       <SettingsRow
         key={plugin.id}
@@ -248,7 +256,15 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
             </Menu>
           </>
         }
-      />
+      >
+        {pluginSkills.length === 0 ? null : (
+          <PluginSkills
+            skills={pluginSkills}
+            skillLabel={(name) => skillName(name, skills)}
+            environmentId={environmentId}
+          />
+        )}
+      </SettingsRow>
     );
   };
 

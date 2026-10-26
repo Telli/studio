@@ -10,6 +10,10 @@ describe("studioNavSection", () => {
     expect(studioNavSection("/needs-you")).toBe("needs");
   });
 
+  it("places the Library, Studio's page that is no place on the rail", () => {
+    expect(studioNavSection("/library")).toBe("library");
+  });
+
   it("treats a thread, a draft and a new chat as the workspace", () => {
     expect(studioNavSection("/env-1/thread-9")).toBe("workspace");
     expect(studioNavSection("/draft/abc")).toBe("workspace");

@@ -1,0 +1,1199 @@
+{
+  "generator": "cadgen cam",
+  "ok": true,
+  "document": "../parts/horn_adapter.step",
+  "occurrence": "#o1.1",
+  "job": {
+    "machine": {
+      "kind": "mill",
+      "axes": 3,
+      "post": "linuxcnc",
+      "max_rpm": 10000,
+      "max_feed_mm_min": 2500,
+      "rapid_mm_min": 5000
+    },
+    "material": "aluminum-6061",
+    "stock": {
+      "type": "box",
+      "margin_mm": [
+        2,
+        2,
+        1,
+        5
+      ]
+    },
+    "setups": [
+      {
+        "id": "top",
+        "direction": "+Z",
+        "origin": "stock_top_center",
+        "fixture": {
+          "type": "vise",
+          "jaw_height_mm": 40,
+          "grip_mm": 4
+        }
+      },
+      {
+        "id": "bottom",
+        "direction": "-Z",
+        "origin": "stock_top_center",
+        "fixture": {
+          "type": "vise",
+          "jaw_height_mm": 40,
+          "grip_mm": 6
+        }
+      }
+    ],
+    "tools": [
+      {
+        "id": "T1",
+        "type": "flat_endmill",
+        "diameter_mm": 6,
+        "flutes": 3,
+        "flute_length_mm": 13,
+        "stickout_mm": 20,
+        "comment": "3FL carbide, aluminium"
+      },
+      {
+        "id": "T2",
+        "type": "flat_endmill",
+        "diameter_mm": 4,
+        "flutes": 2,
+        "flute_length_mm": 11,
+        "stickout_mm": 16,
+        "comment": "2FL carbide, aluminium"
+      },
+      {
+        "id": "T3",
+        "type": "spot_drill",
+        "diameter_mm": 6,
+        "tip_angle_deg": 90,
+        "material": "hss"
+      },
+      {
+        "id": "T4",
+        "type": "drill",
+        "diameter_mm": 2.5,
+        "flute_length_mm": 30,
+        "stickout_mm": 36,
+        "material": "hss",
+        "comment": "M3 tap drill"
+      },
+      {
+        "id": "T5",
+        "type": "drill",
+        "diameter_mm": 3.4,
+        "flute_length_mm": 39,
+        "stickout_mm": 45,
+        "material": "hss"
+      },
+      {
+        "id": "T6",
+        "type": "tap",
+        "diameter_mm": 3,
+        "pitch_mm": 0.5,
+        "flute_length_mm": 10,
+        "stickout_mm": 30,
+        "material": "hss",
+        "comment": "M3x0.5 spiral point, floating holder"
+      },
+      {
+        "id": "T7",
+        "type": "chamfer_mill",
+        "diameter_mm": 6,
+        "tip_angle_deg": 90,
+        "comment": "90 deg carbide"
+      }
+    ],
+    "operations": [
+      {
+        "op": "facing",
+        "setup": "top",
+        "tool": "T1",
+        "coolant": "flood"
+      },
+      {
+        "op": "contour_2d",
+        "setup": "top",
+        "tool": "T1",
+        "features": [
+          "#o1.1.f1"
+        ],
+        "stepdown_mm": 1.5,
+        "breakthrough_mm": 0.3,
+        "coolant": "flood"
+      },
+      {
+        "op": "bore",
+        "setup": "top",
+        "tool": "T2",
+        "features": [
+          "#o1.1.f10"
+        ],
+        "coolant": "flood"
+      },
+      {
+        "op": "spot_drill",
+        "setup": "top",
+        "tool": "T3",
+        "features": [
+          "#o1.1.f5",
+          "#o1.1.f6",
+          "#o1.1.f8",
+          "#o1.1.f9",
+          "#o1.1.f13"
+        ],
+        "coolant": "flood"
+      },
+      {
+        "op": "drill",
+        "setup": "top",
+        "tool": "T4",
+        "features": [
+          "#o1.1.f5",
+          "#o1.1.f6",
+          "#o1.1.f8",
+          "#o1.1.f9"
+        ],
+        "cycle": "peck",
+        "coolant": "flood"
+      },
+      {
+        "op": "drill",
+        "setup": "top",
+        "tool": "T5",
+        "features": [
+          "#o1.1.f13"
+        ],
+        "coolant": "flood"
+      },
+      {
+        "op": "tap",
+        "setup": "top",
+        "tool": "T6",
+        "features": [
+          "#o1.1.f5",
+          "#o1.1.f6",
+          "#o1.1.f8",
+          "#o1.1.f9"
+        ],
+        "rpm": 600,
+        "coolant": "flood"
+      },
+      {
+        "op": "chamfer_2d",
+        "setup": "top",
+        "tool": "T7",
+        "features": [
+          "#o1.1.f1"
+        ],
+        "coolant": "flood"
+      },
+      {
+        "op": "facing",
+        "setup": "bottom",
+        "tool": "T1",
+        "coolant": "flood"
+      }
+    ]
+  },
+  "machine": {
+    "kind": "mill",
+    "axes": 3,
+    "post": "linuxcnc",
+    "units": "mm",
+    "travel_mm": null,
+    "max_rpm": 10000.0,
+    "max_feed_mm_min": 2500.0,
+    "rapid_mm_min": 5000.0,
+    "rapid_assumed": false
+  },
+  "post": "linuxcnc",
+  "material": {
+    "name": "aluminum-6061",
+    "surface_m_min": null,
+    "chipload_mm": null,
+    "hardness_hb": null
+  },
+  "setups": [
+    {
+      "id": "top",
+      "direction": "+Z",
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "origin": "stock_top_center",
+      "origin_mm": [
+        0.0,
+        0.0,
+        9.0
+      ],
+      "rotation": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "quaternion": [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "stock_bounds_mm": [
+        [
+          -14.0,
+          -14.0,
+          -14.0
+        ],
+        [
+          14.0,
+          14.0,
+          0.0
+        ]
+      ],
+      "clearance_z": 10.0,
+      "retract_z": 3.0,
+      "fixture": {
+        "type": "vise",
+        "sizes": {
+          "floor_thickness_mm": 10.0,
+          "grip_mm": 4.0,
+          "jaw_height_mm": 40.0,
+          "jaw_thickness_mm": 20.0,
+          "jaw_width_mm": 150.0,
+          "jaws_above_stock_mm": 0.0,
+          "parallel_width_mm": 6.0,
+          "parallels_mm": 36.0
+        },
+        "assumed": [
+          "jaw_width_mm",
+          "jaw_thickness_mm",
+          "parallel_width_mm",
+          "floor_thickness_mm"
+        ],
+        "notes": [],
+        "node": "fixture:top"
+      },
+      "nc": "horn_adapter.top.nc"
+    },
+    {
+      "id": "bottom",
+      "direction": "-Z",
+      "axis": [
+        0.0,
+        0.0,
+        -1.0
+      ],
+      "origin": "stock_top_center",
+      "origin_mm": [
+        0.0,
+        0.0,
+        -5.0
+      ],
+      "rotation": [
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0
+        ]
+      ],
+      "quaternion": [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "stock_bounds_mm": [
+        [
+          -14.0,
+          -14.0,
+          -13.0
+        ],
+        [
+          14.0,
+          14.0,
+          0.0
+        ]
+      ],
+      "clearance_z": 10.0,
+      "retract_z": 3.0,
+      "fixture": {
+        "type": "vise",
+        "sizes": {
+          "floor_thickness_mm": 10.0,
+          "grip_mm": 6.0,
+          "jaw_height_mm": 40.0,
+          "jaw_thickness_mm": 20.0,
+          "jaw_width_mm": 150.0,
+          "jaws_above_stock_mm": 0.0,
+          "parallel_width_mm": 6.0,
+          "parallels_mm": 34.0
+        },
+        "assumed": [
+          "jaw_width_mm",
+          "jaw_thickness_mm",
+          "parallel_width_mm",
+          "floor_thickness_mm"
+        ],
+        "notes": [],
+        "node": "fixture:bottom"
+      },
+      "nc": "horn_adapter.bottom.nc"
+    }
+  ],
+  "tools": [
+    {
+      "id": "T1",
+      "number": 1,
+      "type": "flat_endmill",
+      "material": "carbide",
+      "diameter_mm": 6.0,
+      "flutes": 3,
+      "flute_length_mm": 13.0,
+      "stickout_mm": 20.0,
+      "comment": "3FL carbide, aluminium",
+      "length_mm": 20.0,
+      "uses": [
+        {
+          "operation": 0,
+          "rpm": 10000.0,
+          "feed_mm_min": 1200.0,
+          "plunge_mm_min": 360.0
+        },
+        {
+          "operation": 1,
+          "rpm": 10000.0,
+          "feed_mm_min": 1200.0,
+          "plunge_mm_min": 360.0
+        },
+        {
+          "operation": 8,
+          "rpm": 10000.0,
+          "feed_mm_min": 1200.0,
+          "plunge_mm_min": 360.0
+        }
+      ],
+      "node": "tool:T1"
+    },
+    {
+      "id": "T2",
+      "number": 2,
+      "type": "flat_endmill",
+      "material": "carbide",
+      "diameter_mm": 4.0,
+      "flutes": 2,
+      "flute_length_mm": 11.0,
+      "stickout_mm": 16.0,
+      "comment": "2FL carbide, aluminium",
+      "length_mm": 16.0,
+      "uses": [
+        {
+          "operation": 2,
+          "rpm": 10000.0,
+          "feed_mm_min": 600.0,
+          "plunge_mm_min": 180.0
+        }
+      ],
+      "node": "tool:T2"
+    },
+    {
+      "id": "T3",
+      "number": 3,
+      "type": "spot_drill",
+      "material": "hss",
+      "diameter_mm": 6.0,
+      "size": {
+        "tip_angle_deg": 90.0
+      },
+      "length_mm": 24.0,
+      "stickout_mm": 24.0,
+      "uses": [
+        {
+          "operation": 3,
+          "rpm": 4456.0,
+          "feed_mm_min": 534.7,
+          "plunge_mm_min": 534.7
+        }
+      ],
+      "node": "tool:T3"
+    },
+    {
+      "id": "T4",
+      "number": 4,
+      "type": "drill",
+      "material": "hss",
+      "diameter_mm": 2.5,
+      "flute_length_mm": 30.0,
+      "stickout_mm": 36.0,
+      "comment": "M3 tap drill",
+      "length_mm": 36.0,
+      "uses": [
+        {
+          "operation": 4,
+          "rpm": 10000.0,
+          "feed_mm_min": 622.5,
+          "plunge_mm_min": 622.5
+        }
+      ],
+      "node": "tool:T4"
+    },
+    {
+      "id": "T5",
+      "number": 5,
+      "type": "drill",
+      "material": "hss",
+      "diameter_mm": 3.4,
+      "flute_length_mm": 39.0,
+      "stickout_mm": 45.0,
+      "length_mm": 45.0,
+      "uses": [
+        {
+          "operation": 5,
+          "rpm": 7864.0,
+          "feed_mm_min": 637.0,
+          "plunge_mm_min": 637.0
+        }
+      ],
+      "node": "tool:T5"
+    },
+    {
+      "id": "T6",
+      "number": 6,
+      "type": "tap",
+      "material": "hss",
+      "diameter_mm": 3.0,
+      "flute_length_mm": 10.0,
+      "stickout_mm": 30.0,
+      "size": {
+        "pitch_mm": 0.5
+      },
+      "comment": "M3x0.5 spiral point, floating holder",
+      "length_mm": 30.0,
+      "uses": [
+        {
+          "operation": 6,
+          "rpm": 600.0,
+          "feed_mm_min": 300.0,
+          "plunge_mm_min": 300.0
+        }
+      ],
+      "node": "tool:T6"
+    },
+    {
+      "id": "T7",
+      "number": 7,
+      "type": "chamfer_mill",
+      "material": "carbide",
+      "diameter_mm": 6.0,
+      "size": {
+        "tip_angle_deg": 90.0
+      },
+      "comment": "90 deg carbide",
+      "length_mm": 24.0,
+      "stickout_mm": 24.0,
+      "uses": [
+        {
+          "operation": 7,
+          "rpm": 10000.0,
+          "feed_mm_min": 800.0,
+          "plunge_mm_min": 240.0
+        }
+      ],
+      "node": "tool:T7"
+    }
+  ],
+  "operations": [
+    {
+      "index": 0,
+      "op": "facing",
+      "word": "Face",
+      "setup": "top",
+      "tool": "T1",
+      "tools": [
+        "T1"
+      ],
+      "rpm": 10000.0,
+      "feed_mm_min": 1200.0,
+      "plunge_mm_min": 360.0,
+      "coolant": "flood",
+      "start_s": 0.0,
+      "time_s": 16.133,
+      "cut_length_mm": 313.2,
+      "rapid_length_mm": 20.0,
+      "moves": 18,
+      "node": "path:0:facing",
+      "stats": {
+        "floor_z": -1.0,
+        "levels": [
+          -1.0
+        ],
+        "rows": 8,
+        "stepover_mm": 3.6,
+        "pattern": "zigzag"
+      },
+      "lines": [
+        "faced to z -1 in 1 level(s), 8 rows 3.6 mm apart, zigzag"
+      ]
+    },
+    {
+      "index": 1,
+      "op": "contour_2d",
+      "word": "Profile",
+      "setup": "top",
+      "tool": "T1",
+      "tools": [
+        "T1"
+      ],
+      "rpm": 10000.0,
+      "feed_mm_min": 1200.0,
+      "plunge_mm_min": 360.0,
+      "coolant": "flood",
+      "start_s": 16.133,
+      "time_s": 35.548,
+      "cut_length_mm": 636.291,
+      "rapid_length_mm": 172.092,
+      "moves": 1410,
+      "node": "path:1:contour_2d",
+      "stats": {
+        "targets": [
+          {
+            "ref": "#o1.1.f1",
+            "side": "outside",
+            "floor_z": -9.3,
+            "depths": [
+              -2.383333,
+              -3.766667,
+              -5.15,
+              -6.533333,
+              -7.916667,
+              -9.3
+            ],
+            "finish_passes": 0,
+            "tab_top_z": null
+          }
+        ],
+        "passes": 6
+      },
+      "lines": [
+        "#o1.1.f1 outside: 6 level(s) to z -9.3"
+      ]
+    },
+    {
+      "index": 2,
+      "op": "bore",
+      "word": "Helical bore",
+      "setup": "top",
+      "tool": "T2",
+      "tools": [
+        "T2"
+      ],
+      "rpm": 10000.0,
+      "feed_mm_min": 600.0,
+      "plunge_mm_min": 180.0,
+      "coolant": "flood",
+      "start_s": 51.681,
+      "time_s": 15.202,
+      "cut_length_mm": 57.873,
+      "rapid_length_mm": 23.5,
+      "moves": 19,
+      "node": "path:2:bore",
+      "stats": {
+        "holes": [
+          {
+            "ref": "#o1.1.f10",
+            "target": "hole",
+            "diameter_mm": 6.5,
+            "pitch_mm": 0.4116,
+            "turns": 6.073858,
+            "floor_z": -3.5
+          }
+        ]
+      },
+      "lines": [
+        "#o1.1.f10: hole bored to 6.5 mm, 0.4116 mm per turn to z -3.5"
+      ]
+    },
+    {
+      "index": 3,
+      "op": "spot_drill",
+      "word": "Spot drill",
+      "setup": "top",
+      "tool": "T3",
+      "tools": [
+        "T3"
+      ],
+      "rpm": 4456.0,
+      "feed_mm_min": 534.7,
+      "plunge_mm_min": 534.7,
+      "coolant": "flood",
+      "start_s": 66.884,
+      "time_s": 4.701,
+      "cut_length_mm": 24.2,
+      "rapid_length_mm": 82.141,
+      "moves": 7,
+      "node": "path:3:spot_drill",
+      "stats": {
+        "cycle": "spot",
+        "r_z": 2.0,
+        "holes": [
+          {
+            "ref": "#o1.1.f13",
+            "x": 0.0,
+            "y": 0.0,
+            "z": -5.2,
+            "return_to": "r",
+            "spot_depth_mm": 1.7,
+            "spot_diameter_mm": 3.4
+          },
+          {
+            "ref": "#o1.1.f5",
+            "x": -0.0,
+            "y": -8.0,
+            "z": -2.25,
+            "return_to": "r",
+            "spot_depth_mm": 1.25,
+            "spot_diameter_mm": 2.5
+          },
+          {
+            "ref": "#o1.1.f6",
+            "x": -8.0,
+            "y": 0.0,
+            "z": -2.25,
+            "return_to": "r",
+            "spot_depth_mm": 1.25,
+            "spot_diameter_mm": 2.5
+          },
+          {
+            "ref": "#o1.1.f9",
+            "x": 0.0,
+            "y": 8.0,
+            "z": -2.25,
+            "return_to": "r",
+            "spot_depth_mm": 1.25,
+            "spot_diameter_mm": 2.5
+          },
+          {
+            "ref": "#o1.1.f8",
+            "x": 8.0,
+            "y": 0.0,
+            "z": -2.25,
+            "return_to": "r",
+            "spot_depth_mm": 1.25,
+            "spot_diameter_mm": 2.5
+          }
+        ],
+        "moves_at_r": 4,
+        "dwell_s": 0.2
+      },
+      "lines": [
+        "5 hole(s), spot cycle from R z 2, deepest tip z -5.2, 4 move(s) between holes at R"
+      ]
+    },
+    {
+      "index": 4,
+      "op": "drill",
+      "word": "Drill",
+      "setup": "top",
+      "tool": "T4",
+      "tools": [
+        "T4"
+      ],
+      "rpm": 10000.0,
+      "feed_mm_min": 622.5,
+      "plunge_mm_min": 622.5,
+      "coolant": "flood",
+      "start_s": 71.585,
+      "time_s": 10.571,
+      "cut_length_mm": 61.004,
+      "rapid_length_mm": 390.945,
+      "moves": 6,
+      "node": "path:4:drill",
+      "stats": {
+        "cycle": "peck",
+        "r_z": 2.0,
+        "holes": [
+          {
+            "ref": "#o1.1.f5",
+            "x": -0.0,
+            "y": -8.0,
+            "z": -10.751076,
+            "return_to": "r",
+            "through": true,
+            "full_diameter_z": -10.0
+          },
+          {
+            "ref": "#o1.1.f6",
+            "x": -8.0,
+            "y": 0.0,
+            "z": -10.751076,
+            "return_to": "r",
+            "through": true,
+            "full_diameter_z": -10.0
+          },
+          {
+            "ref": "#o1.1.f9",
+            "x": 0.0,
+            "y": 8.0,
+            "z": -10.751076,
+            "return_to": "r",
+            "through": true,
+            "full_diameter_z": -10.0
+          },
+          {
+            "ref": "#o1.1.f8",
+            "x": 8.0,
+            "y": 0.0,
+            "z": -10.751076,
+            "return_to": "r",
+            "through": true,
+            "full_diameter_z": -10.0
+          }
+        ],
+        "moves_at_r": 3,
+        "peck_mm": 2.5
+      },
+      "lines": [
+        "4 hole(s), peck cycle from R z 2, deepest tip z -10.7511, 3 move(s) between holes at R"
+      ]
+    },
+    {
+      "index": 5,
+      "op": "drill",
+      "word": "Drill",
+      "setup": "top",
+      "tool": "T5",
+      "tools": [
+        "T5"
+      ],
+      "rpm": 7864.0,
+      "feed_mm_min": 637.0,
+      "plunge_mm_min": 637.0,
+      "coolant": "flood",
+      "start_s": 82.156,
+      "time_s": 1.575,
+      "cut_length_mm": 13.021,
+      "rapid_length_mm": 29.021,
+      "moves": 3,
+      "node": "path:5:drill",
+      "stats": {
+        "cycle": "drill",
+        "r_z": 2.0,
+        "holes": [
+          {
+            "ref": "#o1.1.f13",
+            "x": 0.0,
+            "y": 0.0,
+            "z": -11.021463,
+            "return_to": "initial",
+            "through": true,
+            "full_diameter_z": -10.0
+          }
+        ],
+        "moves_at_r": 0
+      },
+      "lines": [
+        "1 hole(s), drill cycle from R z 2, deepest tip z -11.0215"
+      ]
+    },
+    {
+      "index": 6,
+      "op": "tap",
+      "word": "Tap",
+      "setup": "top",
+      "tool": "T6",
+      "tools": [
+        "T6"
+      ],
+      "rpm": 600.0,
+      "feed_mm_min": 300.0,
+      "plunge_mm_min": 300.0,
+      "coolant": "flood",
+      "start_s": 83.731,
+      "time_s": 19.799,
+      "cut_length_mm": 96.0,
+      "rapid_length_mm": 49.941,
+      "moves": 6,
+      "node": "path:6:tap",
+      "stats": {
+        "cycle": "tap",
+        "r_z": 2.0,
+        "holes": [
+          {
+            "ref": "#o1.1.f5",
+            "x": -0.0,
+            "y": -8.0,
+            "z": -10.0,
+            "return_to": "r",
+            "through": true,
+            "full_diameter_z": -10.0
+          },
+          {
+            "ref": "#o1.1.f6",
+            "x": -8.0,
+            "y": 0.0,
+            "z": -10.0,
+            "return_to": "r",
+            "through": true,
+            "full_diameter_z": -10.0
+          },
+          {
+            "ref": "#o1.1.f9",
+            "x": 0.0,
+            "y": 8.0,
+            "z": -10.0,
+            "return_to": "r",
+            "through": true,
+            "full_diameter_z": -10.0
+          },
+          {
+            "ref": "#o1.1.f8",
+            "x": 8.0,
+            "y": 0.0,
+            "z": -10.0,
+            "return_to": "r",
+            "through": true,
+            "full_diameter_z": -10.0
+          }
+        ],
+        "moves_at_r": 3
+      },
+      "lines": [
+        "4 hole(s), tap cycle from R z 2, deepest tip z -10, 3 move(s) between holes at R"
+      ]
+    },
+    {
+      "index": 7,
+      "op": "chamfer_2d",
+      "word": "Chamfer",
+      "setup": "top",
+      "tool": "T7",
+      "tools": [
+        "T7"
+      ],
+      "rpm": 10000.0,
+      "feed_mm_min": 800.0,
+      "plunge_mm_min": 240.0,
+      "coolant": "flood",
+      "start_s": 103.53,
+      "time_s": 11.998,
+      "cut_length_mm": 154.323,
+      "rapid_length_mm": 20.7,
+      "moves": 877,
+      "node": "path:7:chamfer_2d",
+      "stats": {
+        "edges": [
+          {
+            "ref": "#o1.1.f1",
+            "side": "outside",
+            "width_mm": 0.5,
+            "depth_mm": 0.5,
+            "top_z": -1.0,
+            "tip_z": -1.7,
+            "modelled": true
+          }
+        ],
+        "tip_offset_mm": 0.2
+      },
+      "lines": [
+        "#o1.1.f1 outside: 0.5 mm chamfer, 0.5 mm down the wall (as modelled)"
+      ]
+    },
+    {
+      "index": 8,
+      "op": "facing",
+      "word": "Face",
+      "setup": "bottom",
+      "tool": "T1",
+      "tools": [
+        "T1"
+      ],
+      "rpm": 10000.0,
+      "feed_mm_min": 1200.0,
+      "plunge_mm_min": 360.0,
+      "coolant": "flood",
+      "start_s": 115.528,
+      "time_s": 54.957,
+      "cut_length_mm": 932.533,
+      "rapid_length_mm": 253.467,
+      "moves": 98,
+      "node": "path:8:facing",
+      "stats": {
+        "floor_z": -5.0,
+        "levels": [
+          -1.666667,
+          -3.333333,
+          -5.0
+        ],
+        "rows": 8,
+        "stepover_mm": 3.6,
+        "pattern": "zigzag"
+      },
+      "lines": [
+        "faced to z -5 in 3 level(s), 8 rows 3.6 mm apart, zigzag"
+      ]
+    }
+  ],
+  "summary": {
+    "cycle_time_s": 170.485,
+    "cut_length_mm": 2288.445,
+    "rapid_length_mm": 1041.807,
+    "tool_changes": 7,
+    "operations": 9,
+    "setups": 2,
+    "programs": 2,
+    "post": "linuxcnc",
+    "rapid_mm_min": 5000.0
+  },
+  "findings": [
+    {
+      "check": "cam",
+      "severity": "warning",
+      "type": "rpm_clamped",
+      "summary": "operations[0] (facing), operations[1] (contour_2d) and operations[8] (facing): T1 is capped at the machine's 10,000 rpm; the tool and material call for 21,221 rpm, so the cut runs slower at the same chip load",
+      "description": "the feed is worked out from the slower spindle, so each tooth still takes the chip planned and only the cycle time grows; a larger tool, which needs fewer rpm, may suit this machine better",
+      "items": [
+        {
+          "text": "operations[0] (facing) T1",
+          "operation": 0,
+          "tool": "T1"
+        },
+        {
+          "text": "operations[1] (contour_2d) T1",
+          "operation": 1,
+          "tool": "T1"
+        },
+        {
+          "text": "operations[8] (facing) T1",
+          "operation": 8,
+          "tool": "T1"
+        }
+      ]
+    },
+    {
+      "check": "cam",
+      "severity": "warning",
+      "type": "rpm_clamped",
+      "summary": "operations[2] (bore): T2 is capped at the machine's 10,000 rpm; the tool and material call for 31,831 rpm, so the cut runs slower at the same chip load",
+      "description": "the feed is worked out from the slower spindle, so each tooth still takes the chip planned and only the cycle time grows; a larger tool, which needs fewer rpm, may suit this machine better",
+      "items": [
+        {
+          "text": "operations[2] (bore) T2",
+          "operation": 2,
+          "tool": "T2"
+        }
+      ]
+    },
+    {
+      "check": "cam",
+      "severity": "warning",
+      "type": "rpm_clamped",
+      "summary": "operations[4] (drill): T4 is capped at the machine's 10,000 rpm; the tool and material call for 10,695 rpm, so the cut runs slower at the same chip load",
+      "description": "the feed is worked out from the slower spindle, so each tooth still takes the chip planned and only the cycle time grows; a larger tool, which needs fewer rpm, may suit this machine better",
+      "items": [
+        {
+          "text": "operations[4] (drill) T4",
+          "operation": 4,
+          "tool": "T4"
+        }
+      ]
+    },
+    {
+      "check": "cam",
+      "severity": "warning",
+      "type": "rpm_clamped",
+      "summary": "operations[7] (chamfer_2d): T7 is capped at the machine's 10,000 rpm; the tool and material call for 21,221 rpm, so the cut runs slower at the same chip load",
+      "description": "the feed is worked out from the slower spindle, so each tooth still takes the chip planned and only the cycle time grows; a larger tool, which needs fewer rpm, may suit this machine better",
+      "items": [
+        {
+          "text": "operations[7] (chamfer_2d) T7",
+          "operation": 7,
+          "tool": "T7"
+        }
+      ]
+    },
+    {
+      "check": "cam",
+      "severity": "info",
+      "type": "assumed_fixture",
+      "summary": "Setup top's vise is modelled with sizes the job does not state: jaw_width_mm 150, jaw_thickness_mm 20, parallel_width_mm 6, floor_thickness_mm 10",
+      "description": "the fixture collision checks use these; state the real sizes in setups[0].fixture to check against them",
+      "items": [
+        {
+          "text": "setup top vise",
+          "setup": "top",
+          "assumed": [
+            "jaw_width_mm",
+            "jaw_thickness_mm",
+            "parallel_width_mm",
+            "floor_thickness_mm"
+          ]
+        }
+      ]
+    },
+    {
+      "check": "cam",
+      "severity": "info",
+      "type": "assumed_fixture",
+      "summary": "Setup bottom's vise is modelled with sizes the job does not state: jaw_width_mm 150, jaw_thickness_mm 20, parallel_width_mm 6, floor_thickness_mm 10",
+      "description": "the fixture collision checks use these; state the real sizes in setups[1].fixture to check against them",
+      "items": [
+        {
+          "text": "setup bottom vise",
+          "setup": "bottom",
+          "assumed": [
+            "jaw_width_mm",
+            "jaw_thickness_mm",
+            "parallel_width_mm",
+            "floor_thickness_mm"
+          ]
+        }
+      ]
+    },
+    {
+      "check": "cam",
+      "severity": "info",
+      "type": "cycle_time",
+      "summary": "Cycle time 2 min 50 s: the moves at their feeds and the rapids",
+      "description": "tool changes, spindle spin-up and setup changes are not in it",
+      "items": []
+    },
+    {
+      "check": "cam",
+      "severity": "info",
+      "type": "tool_changes",
+      "summary": "7 tool changes: T1 then T2 then T3 then T4 then T5 then T6 then T7 then T1",
+      "description": "each time the running order switches tool, across setups too; loading the first tool is not one",
+      "items": []
+    },
+    {
+      "check": "cam",
+      "severity": "info",
+      "type": "post",
+      "summary": "G-code for LinuxCNC (linuxcnc post)",
+      "description": "prove the program out on the machine before cutting: run it in the air or single block first",
+      "items": []
+    }
+  ],
+  "checks": [
+    {
+      "type": "gouge",
+      "status": "pass"
+    },
+    {
+      "type": "holder_collision",
+      "status": "pass"
+    },
+    {
+      "type": "fixture_collision",
+      "status": "pass"
+    },
+    {
+      "type": "unreachable",
+      "status": "pass"
+    },
+    {
+      "type": "tool_too_large",
+      "status": "pass"
+    },
+    {
+      "type": "tool_too_small",
+      "status": "pass"
+    },
+    {
+      "type": "too_deep",
+      "status": "pass"
+    },
+    {
+      "type": "over_travel",
+      "status": "pass"
+    },
+    {
+      "type": "no_post_support",
+      "status": "pass"
+    },
+    {
+      "type": "empty_operation",
+      "status": "pass"
+    },
+    {
+      "type": "corner_left",
+      "status": "pass"
+    },
+    {
+      "type": "rest_material",
+      "status": "pass"
+    },
+    {
+      "type": "rpm_clamped",
+      "status": "warning"
+    },
+    {
+      "type": "feed_clamped",
+      "status": "pass"
+    },
+    {
+      "type": "full_slot",
+      "status": "pass"
+    },
+    {
+      "type": "thin_wall",
+      "status": "pass"
+    },
+    {
+      "type": "long_stickout",
+      "status": "pass"
+    },
+    {
+      "type": "uncut_feature",
+      "status": "pass"
+    },
+    {
+      "type": "through_stock_bottom",
+      "status": "pass"
+    },
+    {
+      "type": "assumes_prepared_hole",
+      "status": "pass"
+    },
+    {
+      "type": "tap_bottoms",
+      "status": "pass"
+    },
+    {
+      "type": "unmodelled_earlier_cut",
+      "status": "pass"
+    }
+  ],
+  "warnings": [],
+  "files": {
+    "nc": [
+      "horn_adapter.top.nc",
+      "horn_adapter.bottom.nc"
+    ],
+    "glb": "horn_adapter.cam.glb"
+  }
+}

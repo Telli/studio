@@ -1,20 +1,22 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { PlusIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
 import { useDocumentTemplates } from "./documentTemplates";
-import { NewDialog, type NewJob, useNewDialogStore } from "./NewDialog";
-import { availableTemplates } from "./newTemplates";
+import { NewDialog, type NewJob } from "./NewDialog";
+import { type NewRequest, useNewDialogStore } from "./newDialogStore";
+import { templateOffers } from "./newTemplates";
 
 /**
  * New, as Google Drive's New is: a part, an assembly, a board, a harness or a document
  * (`NewDialog`). The same button and dialog in both places it is: first in a project's panel
  * toolbar, where Create hands the job to the open chat, and on Home, where it starts a new project
  * with the job as its first message. It also opens when asked from elsewhere
- * (`useNewDialogStore`: the Document menu's From a template).
+ * (`useNewDialogStore`: the Document menu's From a template, the library's Make one), on the
+ * template asked for: it takes the request, so the ask opens this New once and no other.
  */
 export function StudioNew(props: {
   readonly environmentId: EnvironmentId;
@@ -27,45 +29,59 @@ export function StudioNew(props: {
   const { environmentId } = props;
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
-  const templates = useMemo(
-    () =>
-      availableTemplates(
-        new Set((plugins ?? []).flatMap((plugin) => (plugin.enabled ? plugin.skills : []))),
-      ).filter((template) => template.source === "new"),
-    [plugins],
-  );
+  const offers = useMemo(() => {
+    const known = plugins ?? [];
+    const skills = new Set(known.flatMap((plugin) => (plugin.enabled ? plugin.skills : [])));
+    // Until the plugins are known, only what needs no skill, so nothing reads as not installed.
+    return templateOffers(skills, known).filter(
+      (offer) =>
+        offer.template.source === "new" && (plugins !== undefined || offer.availability.on),
+    );
+  }, [plugins]);
   const documents = useDocumentTemplates(environmentId);
-  const [opened, setOpened] = useState({ open: false, count: 0 });
-  const asked = useNewDialogStore((store) => store.request);
-  const takeAsked = useNewDialogStore((store) => store.take);
-  const discipline = asked?.discipline ?? null;
+  // Each open is a fresh dialog (`count`), on what was asked for, if anything.
+  const [opened, setOpened] = useState<{
+    readonly open: boolean;
+    readonly count: number;
+    readonly asked: NewRequest | null;
+  }>({ open: false, count: 0, asked: null });
+  const pending = useNewDialogStore((store) => store.request);
+  const take = useNewDialogStore((store) => store.take);
+  useEffect(() => {
+    if (pending === null) return;
+    const asked = take();
+    if (asked === null) return;
+    // oxlint-disable-next-line react/set-state-in-effect -- Takes the ask out of the store, so this New alone opens on it.
+    setOpened((current) => ({ open: true, count: current.count + 1, asked }));
+  }, [pending, take]);
+  const discipline = opened.asked?.discipline ?? null;
 
   return (
     <>
       <Button
         size="sm"
-        onClick={() => setOpened((current) => ({ open: true, count: current.count + 1 }))}
+        onClick={() =>
+          setOpened((current) => ({ open: true, count: current.count + 1, asked: null }))
+        }
       >
         <PlusIcon aria-hidden="true" />
         New
       </Button>
-      {opened.open || asked !== null ? (
+      {opened.open ? (
         <NewDialog
-          key={`${opened.count}:${asked === null ? "" : (discipline ?? "first")}`}
+          key={opened.count}
           open
           onOpenChange={(open) => {
-            if (open) return;
-            takeAsked();
-            setOpened((current) => ({ ...current, open: false }));
+            if (!open) setOpened((current) => ({ ...current, open: false }));
           }}
           environmentId={environmentId}
           cwd={props.cwd}
-          templates={templates}
+          offers={offers}
           fileTemplates={documents.templates}
           onAddTemplate={documents.add}
           onShowTemplates={documents.show}
           {...(discipline === null ? {} : { initialDiscipline: discipline })}
-          initialTemplateId={null}
+          initialTemplateId={opened.asked?.templateId ?? null}
           parts={[]}
           {...(props.newProject ? { newProject: true } : {})}
           onCreate={props.onCreate}

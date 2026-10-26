@@ -729,6 +729,12 @@ export const ServerConfig = Schema.Struct({
    */
   newProjectsRoot: Schema.optionalKey(TrimmedNonEmptyString),
   /**
+   * Folder of the finished sample project the app ships, which Try a sample
+   * project copies into a new project. Present only on servers started with
+   * one (`T3CODE_SAMPLE_PROJECT`).
+   */
+  sampleProject: Schema.optionalKey(TrimmedNonEmptyString),
+  /**
    * Palettes published by this environment's machine. Never sent in a config
    * snapshot: the theme stream emits the current set before any change, so a
    * snapshot carrying it too would hand every subscriber the same array twice

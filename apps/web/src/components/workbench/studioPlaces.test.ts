@@ -15,6 +15,10 @@ describe("railMark", () => {
     expect(railMark("/draft/abc")).toBe("projects");
   });
 
+  it("keeps the Library in Studio's shell, though no place on the rail is it", () => {
+    expect(railMark("/library")).toBe("library");
+  });
+
   it("marks Settings on its pages, and nothing on T3's other pages", () => {
     expect(railMark("/settings/general")).toBe("settings");
     expect(railMark("/usage")).toBeNull();

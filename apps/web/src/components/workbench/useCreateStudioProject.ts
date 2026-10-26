@@ -1,6 +1,6 @@
-import { scopeProjectRef } from "@t3tools/client-runtime/environment";
+import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
-import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
 import { EMPTY_STUDIO_BRIEF, type StudioProjectKind } from "@t3tools/shared/studioProjects";
 import { useCallback } from "react";
 
@@ -26,6 +26,8 @@ export interface NewStudioProject {
    * (Home's Start, which copies what was attached into the folder first).
    */
   readonly onFolder?: (folder: string) => void | Promise<void>;
+  /** What to put beside its new chat once it opens, as `useOpenProject` shows a part. */
+  readonly show?: (threadRef: ScopedThreadRef) => void;
 }
 
 /**
@@ -81,7 +83,8 @@ export function useCreateStudioProject(environmentId: EnvironmentId) {
       if (firstProjectId !== null) {
         const projectRef = scopeProjectRef(input.environmentId, firstProjectId);
         const project = await waitForProject(projectRef).catch(() => null);
-        if (project !== null) await handleNewThread(projectRef).catch(() => undefined);
+        const draft = project === null ? null : await handleNewThread(projectRef).catch(() => null);
+        if (draft !== null) input.show?.(scopeThreadRef(input.environmentId, draft.threadId));
       }
       return true;
     },

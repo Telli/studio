@@ -1,0 +1,8 @@
+{
+  "input": "assemblies/servo_mount.step",
+  "animation": { "clip": "range" },
+  "video": { "fps": 30 },
+  "outputs": [
+    { "path": "pictures/servo_mount_motion.mp4", "camera": { "direction": [1, 1, 1.6], "zoom": 1.5 }, "width": 1280, "height": 720 }
+  ]
+}

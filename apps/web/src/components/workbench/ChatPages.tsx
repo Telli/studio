@@ -16,8 +16,11 @@ import { useOpenChat } from "./useOpenChat";
 import { useProjectList } from "./useProjectList";
 import { chatLabel, workspaceTitle } from "./workspaceTitle";
 
-/** A page of Studio beside the rail, as the Projects page is laid out: its top bar, then a column. */
-function ChatPage(props: {
+/**
+ * A page of Studio beside the rail, as the Projects page is laid out: its top bar, then a column.
+ * Chats, Needs you and the Library (`LibraryPage`) are each one.
+ */
+export function ChatPage(props: {
   readonly title: string;
   readonly count: number;
   readonly lede?: string;
