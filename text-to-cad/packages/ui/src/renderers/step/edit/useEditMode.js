@@ -358,7 +358,7 @@ export function useEditMode({ client, file, active, reading = true }) {
         const wanted = previewWanted.current;
         let shown;
         try {
-          const reply = await wanted.client.editChange({ preview: wanted.request, ...wanted.bar, file: wanted.file, files: wanted.files });
+          const reply = await wanted.client.editChange({ [wanted.kind]: wanted.request, ...wanted.bar, file: wanted.file, files: wanted.files });
           const made = reply?.ok ? reply.preview || {} : { error: reply?.error || "The preview could not be made." };
           shown = made.error ? { status: "failed", added: null, removed: null, error: made.error }
             : { status: "ready", added: made.added || null, removed: made.removed || null, error: "" };
@@ -380,13 +380,13 @@ export function useEditMode({ client, file, active, reading = true }) {
    * it, as a CAD tool previews a feature before OK; null for none. Asked again only when the
    * request, the part's files (the agent's edit) or the rollback bar changed.
    */
-  const previewFeature = useCallback(request => {
+  const previewFeature = useCallback((request, kind = "preview") => {
     if (!request || !supported || !file) { dropPreview(); return; }
     const bar = barRef.current ? { bar: { before: barRef.current.before } } : {};
-    const key = JSON.stringify([request, files.current, bar]);
+    const key = JSON.stringify([kind, request, files.current, bar]);
     if (key === previewAsked.current) return;
     previewAsked.current = key;
-    previewWanted.current = { key, request, client, file, files: files.current || undefined, bar };
+    previewWanted.current = { key, kind, request, client, file, files: files.current || undefined, bar };
     setFeaturePreview(current => ({ key, status: "updating", added: current?.added ?? null, removed: current?.removed ?? null, error: "" }));
     void askPreview();
   }, [supported, client, file, dropPreview, askPreview]);
@@ -466,9 +466,10 @@ export function useEditMode({ client, file, active, reading = true }) {
       setSelected(row);
       setCommand(null);
       setEditing(null);
+      dropPreview();
     }
     return reply;
-  }, [send]);
+  }, [send, dropPreview]);
 
   /**
    * Edit Feature, as SolidWorks' reopens a feature's PropertyManager: the command that made it,
@@ -841,6 +842,8 @@ export function useEditMode({ client, file, active, reading = true }) {
     close: () => { setCommand(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); },
     preview, setPreview, facePoint, setFacePoint,
     featurePreview, previewFeature, previewOn, setPreviewOn,
+    // Edit Parameters' preview: the part with the sizes typed (`{ row, values }`), made without writing it.
+    previewSizes: spec => previewFeature(spec, "preview_sizes"),
     // In sketch mode, Undo takes back the session's own changes only.
     canUndo: (sketch ? changesSince(history, sketch.before) : history.done.length) > 0 && !saving,
     canRedo: history.undone.length > 0 && !saving,

@@ -1989,6 +1989,25 @@ class EditingSizes(Commands):
         self.assertTrue(undone["ok"], undone.get("error"))
         self.assertEqual((root / "cradle.py").read_text(encoding="utf-8"), before)
 
+    def test_edit_parameters_previews_what_its_sizes_add_and_writes_nothing(self):
+        root, file, state = self.open(PRIMITIVES, "cradle.step")
+        boss = state["features"][1]
+        before = (root / "cradle.py").read_bytes()
+        inputs = {each["label"]: index for index, each in enumerate(next(row for row in state["rows"] if row["key"] == boss["key"])["inputs"])}
+        reply = self.service.change({"file": file, "files": state["files"], "preview_sizes": {
+            "row": boss["edit"]["row"], "values": [{"index": inputs["Height"], "text": "10"}]}})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        # Taller by 4: material added on top, none taken away, and the file as it was.
+        self.assertIsNotNone(reply["preview"]["added"])
+        self.assertIsNone(reply["preview"]["removed"])
+        self.assertEqual((root / "cradle.py").read_bytes(), before)
+        # Opened with nothing typed: the boss as it is, and the first block all of the part.
+        for feature in state["features"][:2]:
+            shown = self.service.change({"file": file, "files": state["files"], "preview_sizes": {"row": feature["edit"]["row"], "values": []}})
+            self.assertIsNotNone(shown["preview"]["added"], feature["key"])
+        pocket = self.service.change({"file": file, "files": state["files"], "preview_sizes": {"row": state["features"][2]["edit"]["row"], "values": []}})
+        self.assertIsNotNone(pocket["preview"]["removed"])
+
     def test_a_size_named_in_another_file_changes_there_and_undoes_with_the_rest(self):
         root, file, state = self.open(PRIMITIVES, "cradle.step")
         pocket = state["features"][2]

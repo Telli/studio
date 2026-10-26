@@ -1953,7 +1953,7 @@ def _solve(expr, leaf, target):
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
 _CHANGES = ("command", "preview", "mass", "draft_check", "interference", "parameter", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
-            "input", "sizes")
+            "input", "sizes", "preview_sizes")
 
 
 def edit(request):
@@ -1989,6 +1989,8 @@ def edit(request):
         return compare(request)
     if isinstance(request.get("sizes"), dict):
         return sizes_change(request)
+    if isinstance(request.get("preview_sizes"), dict):
+        return sizes_preview(request)
     script = str(Path(request["script"]).resolve())
     if script not in STATE:
         traced = trace(request)
@@ -2945,6 +2947,74 @@ def mate(request):
     return after
 
 
+def _sized(request, spec):
+    """Edit Parameters' sizes (``spec``: a ``row`` and its ``values``) solved back to the numbers
+    behind them and written into their files' text: each file's path with its text before and
+    after, and the first line changed. Or why they cannot be."""
+    state = STATE[str(Path(request["script"]).resolve())]
+    row = next((row for row in state["rows"] if row["key"] == spec.get("row")), None)
+    if row is None:
+        return None, "That feature is no longer on the part. Look again."
+    writes = {}
+    for each in spec.get("values") or []:
+        index = int(each.get("index", -1))
+        dimension = row["inputs"][index] if 0 <= index < len(row["inputs"]) else None
+        if dimension is None:
+            return None, "That size is no longer on the part. Look again."
+        named = [leaf for leaf in dimension["leaves"] if LITERALS[leaf]["name"]]
+        candidates = named or dimension["leaves"]
+        if not candidates:
+            continue
+        leaf = candidates[-1]
+        try:
+            typed = parse_number(str(each.get("text") or ""))
+        except Exception:
+            return None, f"{dimension['label']} needs a number."
+        target = typed * 25.4 if state["units"] == "in" and dimension.get("length", True) else typed
+        try:
+            value = _solve(dimension["expr"], leaf, target)
+        except RuntimeError as error:
+            return None, f"{dimension['label']}: {error}"
+        literal = LITERALS[leaf]
+        text = literal_text(round(value, 6), literal["text"])
+        if leaf in writes and writes[leaf][1] != text:
+            return None, f"{dimension['label']} shares a number with another size here. Change one at a time."
+        writes[leaf] = (literal, text)
+    if not writes:
+        return None, "Nothing changed."
+    by_file = {}
+    for literal, text in writes.values():
+        by_file.setdefault(literal["path"], []).append((literal, text))
+    texts = {}
+    for path_text, changes in by_file.items():
+        path = Path(path_text)
+        if _changed_since(path, (request.get("files") or {}).get(changes[0][0]["file"])):
+            return None, f"{changes[0][0]['file']} changed since the editor read it. Look again and retry."
+        source = _read(path)
+        lines = source.splitlines(keepends=True)
+        # Last first along each line, so the columns of the numbers before it still hold.
+        for literal, text in sorted(changes, key=lambda item: (item[0]["line"], item[0]["col"]), reverse=True):
+            raw = lines[literal["line"] - 1].encode()
+            if raw[literal["col"]:literal["end"]].decode() != literal["text"]:
+                return None, f"{literal['file']} line {literal['line']} no longer reads {literal['text']}."
+            lines[literal["line"] - 1] = (raw[:literal["col"]] + text.encode() + raw[literal["end"]:]).decode()
+        texts[path_text] = (source, "".join(lines))
+    first = min(literal["line"] for literal, _ in by_file[next(iter(by_file))])
+    return (texts, first), None
+
+
+def _sizes_ready(request):
+    """The part traced as it is, ready for Edit Parameters' sizes: None, or the reply to give instead."""
+    global ROOT
+    script = str(Path(request["script"]).resolve())
+    ROOT = Path(request.get("root") or Path(script).parent).resolve()
+    if not _as_last_traced(Path(script), ROOT) or script not in STATE:
+        traced = trace(request)
+        if not traced["ok"]:
+            return traced
+    return _refused_change(request.get("files"))
+
+
 def sizes_change(request):
     """Edit Parameters on a feature no command writes (a Block or a Cylinder placed with ``Pos``, a
     hole cut as a cylinder, a feature made in a helper's file): several of its row's sizes typed at
@@ -2954,84 +3024,75 @@ def sizes_change(request):
     starts from stays; one of a named size moves that name."""
     from cadgen.edit import commands
 
-    global ROOT
-    script = str(Path(request["script"]).resolve())
-    ROOT = Path(request.get("root") or Path(script).parent).resolve()
-    if script not in STATE:
-        traced = trace(request)
-        if not traced["ok"]:
-            return traced
-    refused = _refused_change(request.get("files"))
+    refused = _sizes_ready(request)
     if refused:
         return refused
     spec = request["sizes"]
-    state = STATE[script]
-    row = next((row for row in state["rows"] if row["key"] == spec.get("row")), None)
-    if row is None:
-        return {"ok": False, "error": "That feature is no longer on the part. Look again."}
-    writes = {}
-    for each in spec.get("values") or []:
-        index = int(each.get("index", -1))
-        dimension = row["inputs"][index] if 0 <= index < len(row["inputs"]) else None
-        if dimension is None:
-            return {"ok": False, "error": "That size is no longer on the part. Look again."}
-        named = [leaf for leaf in dimension["leaves"] if LITERALS[leaf]["name"]]
-        candidates = named or dimension["leaves"]
-        if not candidates:
-            continue
-        leaf = candidates[-1]
-        try:
-            typed = parse_number(str(each.get("text") or ""))
-        except Exception:
-            return {"ok": False, "error": f"{dimension['label']} needs a number."}
-        target = typed * 25.4 if state["units"] == "in" and dimension.get("length", True) else typed
-        try:
-            value = _solve(dimension["expr"], leaf, target)
-        except RuntimeError as error:
-            return {"ok": False, "error": f"{dimension['label']}: {error}"}
-        literal = LITERALS[leaf]
-        text = literal_text(round(value, 6), literal["text"])
-        if leaf in writes and writes[leaf][1] != text:
-            return {"ok": False, "error": f"{dimension['label']} shares a number with another size here. Change one at a time."}
-        writes[leaf] = (literal, text)
-    if not writes:
-        return {"ok": False, "error": "Nothing changed."}
-    by_file = {}
-    for literal, text in writes.values():
-        by_file.setdefault(literal["path"], []).append((literal, text))
-    before = {}
-    for path_text, changes in by_file.items():
-        path = Path(path_text)
-        if _changed_since(path, (request.get("files") or {}).get(changes[0][0]["file"])):
-            return {"ok": False, "error": f"{changes[0][0]['file']} changed since the editor read it. Look again and retry."}
-        source = _read(path)
-        before[path_text] = source
-        lines = source.splitlines(keepends=True)
-        # Last first along each line, so the columns of the numbers before it still hold.
-        for literal, text in sorted(changes, key=lambda item: (item[0]["line"], item[0]["col"]), reverse=True):
-            raw = lines[literal["line"] - 1].encode()
-            if raw[literal["col"]:literal["end"]].decode() != literal["text"]:
-                return {"ok": False, "error": f"{literal['file']} line {literal['line']} no longer reads {literal['text']}."}
-            lines[literal["line"] - 1] = (raw[:literal["col"]] + text.encode() + raw[literal["end"]:]).decode()
-        _write(path, "".join(lines))
+    sized, why = _sized(request, spec)
+    if sized is None:
+        return {"ok": False, "error": why}
+    texts, first = sized
+    for path_text, (_, after) in texts.items():
+        _write(Path(path_text), after)
     traced = trace(request)
     if not traced.get("ok"):
-        for path_text, source in before.items():
-            _write(Path(path_text), source)
+        for path_text, (before, _) in texts.items():
+            _write(Path(path_text), before)
         trace(request)
         return {"ok": False, "error": f"The part does not build with those sizes, so nothing changed. {traced.get('error') or ''}".strip()}
-    files = [(Path(path_text).resolve().relative_to(ROOT).as_posix(), source, _read(Path(path_text))) for path_text, source in before.items()]
+    files = [(Path(path_text).resolve().relative_to(ROOT).as_posix(), before, after) for path_text, (before, after) in texts.items()]
     (rel, old, new), rest = files[0], files[1:]
-    first = min(literal["line"] for literal, _ in by_file[next(iter(before))])
 
-    def spliced(main, extra, forward):
+    def spliced(forward):
         a, b = (old, new) if forward else (new, old)
-        return {"file": main, "hunks": commands.hunks(a, b),
-                **({"more": [{"file": other, "hunks": commands.hunks(*((was, now) if forward else (now, was)))} for other, was, now in extra]} if extra else {})}
+        return {"file": rel, "hunks": commands.hunks(a, b),
+                **({"more": [{"file": other, "hunks": commands.hunks(*((was, now) if forward else (now, was)))} for other, was, now in rest]} if rest else {})}
 
-    traced["change"] = {"kind": "sizes", "file": rel, "line": first, "row": spec.get("row"),
-                        "undo": spliced(rel, rest, False), "redo": spliced(rel, rest, True)}
+    traced["change"] = {"kind": "sizes", "file": rel, "line": first, "row": spec.get("row"), "undo": spliced(False), "redo": spliced(True)}
     return traced
+
+
+def sizes_preview(request):
+    """Edit Parameters' preview: the part made with the sizes typed, in memory and never written, and
+    what that adds to it (amber) and takes from it (red), as a command's preview is drawn."""
+    refused = _sizes_ready(request)
+    if refused:
+        return refused
+    from cadgen.edit import commands
+
+    script = str(Path(request["script"]).resolve())
+    before = STATE[script]["shape"]
+    scale = before.bounding_box().diagonal or 1.0
+    spec = request["preview_sizes"]
+    if not spec.get("values"):
+        # Nothing typed yet: the feature as it is, what its line adds and takes away, as a CAD tool
+        # shows the feature it opens.
+        made = STATE[script]
+        row = next((row for row in made["rows"] if row["key"] == spec.get("row")), None)
+        if row is None:
+            return {"ok": True, "preview": {"error": "That feature is no longer on the part."}}
+        was = commands.shape_at(made["steps"], made["shape"], made["level"], row["file"], row["line"])
+        now = commands.shape_at(made["steps"], made["shape"], made["level"], row["file"], row["line"] + 1)
+        if now is None:
+            return {"ok": True, "preview": {"added": None, "removed": None, "error": None}}
+        if was is None:
+            # The part's first solid: all of it is the feature.
+            return {"ok": True, "preview": {"added": _drawn(now, max(0.005, scale * 0.001)), "removed": None, "error": None}}
+        return {"ok": True, "preview": _change_drawn(was, now, scale)}
+    sized, why = _sized(request, spec)
+    if sized is None:
+        return {"ok": True, "preview": {"error": why}}
+    kept = _kept_trace()
+    for path_text, (_, after) in sized[0].items():
+        UNSAVED[str(Path(path_text).resolve())] = after
+    try:
+        after = trace({**request, "mesh": False})
+        if not after.get("ok"):
+            return {"ok": True, "preview": {"error": "The part does not build with those sizes."}}
+        return {"ok": True, "preview": _change_drawn(before, STATE[script]["shape"], scale)}
+    finally:
+        UNSAVED.clear()
+        _put_back(kept)
 
 
 def splice(request):
@@ -3953,7 +4014,7 @@ def handle(request):
         if request.get("op") == "edit":
             reply = edit(request)
             # A preview, or Mass Properties, leaves the part, and so the rollback bar, as they were.
-            return reply if any(isinstance(request.get(key), dict) for key in ("preview", "mass", "draft_check", "interference")) else _with_bar(request, reply)
+            return reply if any(isinstance(request.get(key), dict) for key in ("preview", "preview_sizes", "mass", "draft_check", "interference")) else _with_bar(request, reply)
         return _with_bar(request, trace(request))
     except Exception as error:
         return {"ok": False, "error": str(error), "detail": traceback.format_exc(limit=4)}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { FILE_SHEET_STATUS_TEXT_CLASSES, FileSheetControlRow, FileSheetValueInput } from "../../kit/inspector/FileSheet.js";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
@@ -36,6 +36,22 @@ export default function EditSizes({ edit }) {
   const row = (edit.state?.rows || []).find(each => each.key === editing?.row) || null;
   const rows = sizeRows(row);
   const [values, setValues] = useState(() => Object.fromEntries(rows.map(each => [each.index, each.display])));
+  // The preview, as every command's: the part with the sizes typed, what it adds in amber and what it
+  // takes away in red, asked again as a size is typed over (`edit.previewSizes`).
+  const typed = rows.filter(each => String(values[each.index] ?? "").trim() !== each.display && String(values[each.index] ?? "").trim())
+    .map(each => ({ index: each.index, text: String(values[each.index]).trim() }));
+  // Nothing typed yet, the feature as it is.
+  const previewKey = row && edit.previewOn !== false ? JSON.stringify([row.key, typed]) : "";
+  const { previewSizes, previewFeature } = edit;
+  useEffect(() => {
+    if (typeof previewSizes !== "function") return undefined;
+    const timer = setTimeout(() => {
+      if (!previewKey) { previewFeature?.(null); return; }
+      const [key, values] = JSON.parse(previewKey);
+      previewSizes({ row: key, values });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [previewKey, previewSizes, previewFeature]);
   if (!editing || !row) return null;
   const title = editing.title || "Edit Parameters";
   const changed = rows.filter(each => String(values[each.index] ?? "").trim() !== each.display);
