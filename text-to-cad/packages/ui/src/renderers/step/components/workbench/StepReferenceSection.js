@@ -141,7 +141,7 @@ function TopologyRunDetail({ members }) {
  * for one face or edge, `{ nodeId }` for a part, a subassembly or a run on one part), or nothing.
  * `copyText(ids)` is what a click on the chip copies, its references as Copy References writes
  * them; the card's ID is their selectors, without the file. `nameFace(item)`: a face by the
- * feature that made it, where the host knows it (`edit/faceChips.js`'s `faceChipName`: "Hole (6)",
+ * feature that made it, where the host knows it (`edit/faceChips.js`'s `faceChipName`: "Hole2",
  * "face", "12"), its chip then "Hole (6) · face 12"; null leaves it named by its part.
  *
  * @returns {import("../../../kit/tools/quick-edit/ReferenceChips.jsx").ReferenceChip[]}

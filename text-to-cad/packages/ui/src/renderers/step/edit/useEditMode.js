@@ -457,7 +457,7 @@ export function useEditMode({ client, file, active, reading = true }) {
   }, [send, dropPreview]);
 
   /**
-   * Edit Parameters on a feature no command writes (`EditSizes.jsx`): its row's sizes changed
+   * Edit Feature on a feature no command writes (`EditSizes.jsx`): its row's sizes changed
    * together (`values`: each an input's `index` and the `text` typed), one change to undo. `said`:
    * the sizes as the agent's note words them.
    */
@@ -845,7 +845,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     close: () => { setCommand(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); },
     preview, setPreview, facePoint, setFacePoint, callout, setCallout,
     featurePreview, previewFeature, previewOn, setPreviewOn,
-    // Edit Parameters' preview: the part with the sizes typed (`{ row, values }`), made without writing it.
+    // Edit Feature' preview: the part with the sizes typed (`{ row, values }`), made without writing it.
     previewSizes: spec => previewFeature(spec, "preview_sizes"),
     // In sketch mode, Undo takes back the session's own changes only.
     canUndo: (sketch ? changesSince(history, sketch.before) : history.done.length) > 0 && !saving,

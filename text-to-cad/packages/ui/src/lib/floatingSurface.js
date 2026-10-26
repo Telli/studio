@@ -24,7 +24,7 @@
 export const DARK_PICTURE_ATTRIBUTE = "data-cad-dark-picture";
 /**
  * `WORKSPACE_SURFACE_CLASS`: the cards of the workspace (edit mode laid out for modeling by hand), up over the live
- * canvas for as long as it is: the Part Navigator, the open command's dialog and the timeline. White as the
+ * canvas for as long as it is: the design tree, the open command's dialog and the timeline. White as the
  * workspace's toolbar is (the background, opaque, in either theme), a 1px hairline and 6px corners (`rounded-sm`),
  * and no backdrop filter: a blur over the live canvas is computed again for every frame the canvas draws.
  */

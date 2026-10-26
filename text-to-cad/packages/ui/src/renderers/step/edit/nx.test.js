@@ -6,15 +6,15 @@ import { SOLID_GROUPS, booleanOf, buildFailure, navigatorLabel, navigatorTitles,
 
 const titles = options => workspaceTabs(options).map(tab => tab.title);
 
-test("lists Solid, Sketch and Inspect, and Assemble only in an assembly", () => {
-  assert.deepEqual(titles({ assembly: false, sketching: false, drawing: false }), ["Solid", "Sketch", "Inspect"]);
-  assert.deepEqual(titles({ assembly: true, sketching: false, drawing: false }), ["Solid", "Sketch", "Inspect", "Assemble"]);
+test("lists Features, Sketch and Evaluate, and Assembly only in an assembly", () => {
+  assert.deepEqual(titles({ assembly: false, sketching: false, drawing: false }), ["Features", "Sketch", "Evaluate"]);
+  assert.deepEqual(titles({ assembly: true, sketching: false, drawing: false }), ["Features", "Sketch", "Evaluate", "Assembly"]);
   assert.deepEqual(workspaceTabs({ assembly: true, sketching: false, drawing: false }).map(tab => tab.id), ["solid", "sketch", "inspect", "assemble"]);
 });
 
-test("keeps Drafting where the drawing's commands are, after the rest", () => {
-  assert.deepEqual(titles({ assembly: false, sketching: false, drawing: true }), ["Solid", "Sketch", "Inspect", "Drafting"]);
-  assert.deepEqual(titles({ assembly: true, sketching: false, drawing: true }), ["Solid", "Sketch", "Inspect", "Assemble", "Drafting"]);
+test("keeps Drawing where the drawing's commands are, after the rest", () => {
+  assert.deepEqual(titles({ assembly: false, sketching: false, drawing: true }), ["Features", "Sketch", "Evaluate", "Drawing"]);
+  assert.deepEqual(titles({ assembly: true, sketching: false, drawing: true }), ["Features", "Sketch", "Evaluate", "Assembly", "Drawing"]);
 });
 
 test("a sketch being edited has the Sketch tab alone, as the sketch task environment has", () => {
@@ -38,10 +38,9 @@ test("each group holds only what the toolbar can draw, and shows some of it as b
   }
 });
 
-// The demo's part, as the engine reads it from its script: two extrudes with their sketches, an Edge
-// Blend, a Hole and a Pattern Feature. The Part Navigator numbers it after the datum coordinate
-// system (0): Sketch (1), Extrude (2), Sketch (3), Extrude (4) "upright", Edge Blend (5), Hole (6),
-// Pattern Feature (7).
+// The demo's part, as the engine reads it from its script: two extrudes with their sketches, a
+// Fillet, a Hole and a Pattern. The design tree numbers each kind on its own: Sketch1, Boss-Extrude1,
+// Sketch2, Boss-Extrude2 (named "upright"), Fillet1, Hole1, Pattern1; a row's name stands in place of its label.
 const DEMO = featureTree({
   features: [
     { key: "servo.py:12", kind: "Boss-Extrude", name: "base", file: "servo.py", line: 12,
@@ -55,25 +54,25 @@ const DEMO = featureTree({
 }).features;
 const [BASE, WALL, BLEND, HOLE, PATTERN] = DEMO;
 
-test("numbers the Part Navigator's rows after the datum coordinate system, a feature's sketch just before it", () => {
+test("numbers the design tree's rows per kind, a feature's sketch just before it, a name standing in its label's place", () => {
   assert.deepEqual([...navigatorTitles(DEMO)], [
-    [BASE.sketch.id, 'Sketch (1) "SKETCH_000"'],
-    [BASE.id, "Extrude (2)"],
-    [WALL.sketch.id, 'Sketch (3) "SKETCH_001"'],
-    [WALL.id, 'Extrude (4) "upright"'],
-    [BLEND.id, "Edge Blend (5)"],
-    [HOLE.id, "Hole (6)"],
-    [PATTERN.id, "Pattern Feature (7)"],
+    [BASE.sketch.id, "SKETCH_000"],
+    [BASE.id, "Boss-Extrude1"],
+    [WALL.sketch.id, "SKETCH_001"],
+    [WALL.id, "upright"],
+    [BLEND.id, "Fillet1"],
+    [HOLE.id, "Hole1"],
+    [PATTERN.id, "Pattern1"],
   ]);
 });
 
-test("names a row as the Part Navigator does without the name it was given", () => {
-  assert.equal(navigatorLabel(DEMO, HOLE.id), "Hole (6)");
-  // The same number a title has, minus the quoted name.
-  assert.equal(navigatorLabel(DEMO, WALL.id), "Extrude (4)");
-  assert.equal(navigatorLabel(DEMO, WALL.sketch.id), "Sketch (3)");
-  assert.equal(navigatorLabel(DEMO, BLEND.id), "Edge Blend (5)");
-  // A row the Part Navigator does not list has no label, so a caller can keep its own words.
+test("names a row as the design tree numbers it without the name it was given", () => {
+  assert.equal(navigatorLabel(DEMO, HOLE.id), "Hole1");
+  // The numbered label a named row's name stands in for.
+  assert.equal(navigatorLabel(DEMO, WALL.id), "Boss-Extrude2");
+  assert.equal(navigatorLabel(DEMO, WALL.sketch.id), "Sketch2");
+  assert.equal(navigatorLabel(DEMO, BLEND.id), "Fillet1");
+  // A row the design tree does not list has no label, so a caller can keep its own words.
   assert.equal(navigatorLabel(DEMO, "servo.py:99"), "");
   assert.equal(navigatorLabel([], HOLE.id), "");
 });
@@ -85,9 +84,9 @@ test("a sketch that is a row of its own is numbered like the rest", () => {
       { key: "lid.py:9", kind: "Boss-Extrude", name: "lid", file: "lid.py", line: 9 },
     ],
   }).features;
-  assert.equal(navigatorLabel(features, features[0].id), "Sketch (1)");
-  assert.equal(navigatorTitles(features).get(features[0].id), 'Sketch (1) "Outline"');
-  assert.equal(navigatorLabel(features, features[1].id), "Extrude (2)");
+  assert.equal(navigatorLabel(features, features[0].id), "Sketch1");
+  assert.equal(navigatorTitles(features).get(features[0].id), "Outline");
+  assert.equal(navigatorLabel(features, features[1].id), "Boss-Extrude1");
 });
 
 // What a part's script stops with: the tracer's frame, the part's own line, build123d's, then the error.

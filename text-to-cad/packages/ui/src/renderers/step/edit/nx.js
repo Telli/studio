@@ -1,20 +1,21 @@
 /**
- * Edit mode in Siemens NX's words: the CAD program the people asking for it knew best ("really
- * similar to NX", 2026-10-23). Its commands as NX's ribbon names them, its features as NX's Part
- * Navigator lists them ("Extrude (2)", an Edge Blend where a fillet is), the toolbar's tabs and
- * groups (Fusion's arrangement), and Extrude's Boolean. What the screen says only: the script, and
- * the notes the agent reads with the person's next message, keep their own names.
+ * Edit mode in SolidWorks' words (Amy, 2026-10-26: "SolidWorks names", as the tools now behave as
+ * SolidWorks' do; NX's words, chosen 2026-10-23, are still found by the command search). Its commands
+ * as SolidWorks' CommandManager names them, its features as the FeatureManager design tree lists them
+ * (Boss-Extrude1, Fillet1), the toolbar's tabs (its groups keep Fusion's arrangement), and Extrude's
+ * Boss or Cut. What the screen says only: the script, and the notes the agent reads with the person's
+ * next message, keep their own names. The file and its exports keep the name they were made with.
  */
-import { PLANE_AXES, treeFeatures } from "./editMode.js";
+import { treeFeatures } from "./editMode.js";
 
-/** A modeling command as NX's ribbon names it. Extrude, Revolve, Sweep along Guide and Through
- * Curves also take material away, by their Boolean (`booleanOf`). */
+/** A modeling command as SolidWorks' CommandManager names it. A Boss/Base's dialog switches to its
+ * Cut, carrying what was typed (`booleanOf`). */
 export const NX_COMMANDS = Object.freeze({
-  extrude: "Extrude", cut: "Extrude", revolve: "Revolve", revolve_cut: "Revolve",
-  sweep: "Sweep along Guide", sweep_cut: "Sweep along Guide", loft: "Through Curves", loft_cut: "Through Curves",
-  hole: "Hole", fillet: "Edge Blend", chamfer: "Chamfer", rib: "Rib", draft: "Draft", shell: "Shell",
-  pattern: "Pattern Feature", mirror: "Mirror Feature", split: "Split Body", delete_body: "Delete Body", plane: "Datum Plane",
-  offset_face: "Offset Region", delete_face: "Delete Face",
+  extrude: "Extruded Boss/Base", cut: "Extruded Cut", revolve: "Revolved Boss/Base", revolve_cut: "Revolved Cut",
+  sweep: "Swept Boss/Base", sweep_cut: "Swept Cut", loft: "Lofted Boss/Base", loft_cut: "Lofted Cut",
+  hole: "Hole Wizard", fillet: "Fillet", chamfer: "Chamfer", rib: "Rib", draft: "Draft", shell: "Shell",
+  pattern: "Pattern", mirror: "Mirror", split: "Split", delete_body: "Delete/Keep Body", plane: "Plane",
+  offset_face: "Move Face", delete_face: "Delete Face",
 });
 export const nxCommand = command => NX_COMMANDS[command?.id] || command?.label || "";
 
@@ -23,8 +24,8 @@ const UNITES = Object.freeze({ extrude: "cut", revolve: "revolve_cut", sweep: "s
 const SUBTRACTS = Object.freeze(Object.fromEntries(Object.entries(UNITES).map(([unite, subtract]) => [subtract, unite])));
 
 /**
- * The Boolean of a command that has one, as NX's Extrude dialog sets it: `value` ("unite" or
- * "subtract") and `other`, the command doing the other one; null for a command without.
+ * The Boss or Cut of a command that has one, the switch in its dialog: `value` ("unite" for the Boss/Base,
+ * "subtract" for the Cut) and `other`, the command doing the other one; null for a command without.
  */
 export function booleanOf(id) {
   if (UNITES[id]) return { value: "unite", other: UNITES[id] };
@@ -33,7 +34,7 @@ export function booleanOf(id) {
 }
 
 /**
- * The Solid tab's groups, in Fusion's arrangement with NX's names. A group is its title, what it
+ * The Features tab's groups, in Fusion's arrangement. A group is its title, what it
  * holds (modeling commands by their `EDIT_COMMANDS` id, "sketch", or a tool of the viewer or the
  * agent: "measure", "clip", "references", "ask", "add-context", "annotate"), and how many of them
  * show as buttons (`shown`); the group's title is its menu, with every one. `end`: it stands at
@@ -42,8 +43,8 @@ export function booleanOf(id) {
  */
 export const SOLID_GROUPS = Object.freeze([
   { title: "Create", items: ["sketch", "extrude", "revolve", "sweep", "loft", "rib", "hole", "pattern", "mirror"], shown: 4 },
-  // Offset Region first, as Fusion's Modify leads with Press Pull: NX's Synchronous Modeling (Offset Region,
-  // Delete Face) edits faces where they are, an imported body's (no history) as well as any.
+  // Move Face first, as Fusion's Modify leads with Press Pull: Move Face and Delete Face edit faces where
+  // they are, an imported body's (no history) as well as any.
   { title: "Modify", items: ["offset_face", "fillet", "chamfer", "shell", "draft", "split", "delete_face", "delete_body"], shown: 4 },
   { title: "Construct", items: ["plane"], shown: 1 },
   { title: "Inspect", items: ["measure", "clip"], shown: 2 },
@@ -51,7 +52,8 @@ export const SOLID_GROUPS = Object.freeze([
   { title: "Ask the agent", items: ["ask", "add-context", "annotate"], shown: 3, end: true },
 ]);
 
-const TAB_TITLES = Object.freeze({ solid: "Solid", sketch: "Sketch", inspect: "Inspect", assemble: "Assemble", drafting: "Drafting" });
+// The tabs as SolidWorks' CommandManager names them.
+const TAB_TITLES = Object.freeze({ solid: "Features", sketch: "Sketch", inspect: "Evaluate", assemble: "Assembly", drafting: "Drawing" });
 
 /**
  * The toolbar's tabs, in order, each `{ id, title }`: Solid, Sketch and Inspect; Assemble for an
@@ -63,76 +65,69 @@ export function workspaceTabs({ assembly = false, sketching = false, drawing = f
   return ids.map(id => ({ id, title: TAB_TITLES[id] }));
 }
 
-// A feature's kind as the Part Navigator names it; a kind not here keeps its own.
+// A feature's kind as SolidWorks' design tree names it; a kind not here keeps the engine's (Boss-Extrude, Fillet).
 export const NX_KINDS = Object.freeze({
-  "Boss-Extrude": "Extrude", "Cut-Extrude": "Extrude", "Intersect-Extrude": "Extrude",
-  "Boss-Revolve": "Revolve", "Cut-Revolve": "Revolve", "Boss-Sweep": "Sweep along Guide", "Cut-Sweep": "Sweep along Guide",
-  "Boss-Loft": "Through Curves", "Cut-Loft": "Through Curves", Fillet: "Edge Blend", Pattern: "Pattern Feature",
-  Mirror: "Mirror Feature", Plane: "Datum Plane", "Move/Copy": "Move Object", Split: "Split Body",
-  // An imported STEP: one body with no history, as NX lists one.
-  Imported: "Body", "Offset Face": "Offset Region",
+  "Boss-Revolve": "Revolve", "Boss-Sweep": "Sweep", "Boss-Loft": "Loft", "Move/Copy": "Move/Copy Body",
+  // An imported STEP: one body with no history, as SolidWorks lists Imported1.
+  "Offset Face": "Move Face",
 });
 export const nxKind = kind => NX_KINDS[kind] || kind || "Feature";
 
-// The generator's icon (`lib/nxIcons.generated.jsx`) for each row the Part Navigator lists, by the name
-// it gives the row: a feature's kind, the datum coordinate system, a sketch; and, by what they are in
-// NX's words, the part or assembly it opens on, its Expressions, and an assembly's Constraints.
+// The generator's icon (`lib/nxIcons.generated.jsx`) for each row the design tree lists, by the name it
+// gives the row: a feature's kind, the Origin, a sketch, the part or assembly it opens on, its Equations,
+// and an assembly's Mates.
 const FEATURE_ICON_NAMES = Object.freeze({
-  Extrude: "extrude", Revolve: "revolve", "Sweep along Guide": "sweep", "Through Curves": "loft", Hole: "hole", Rib: "rib",
-  "Edge Blend": "blend", Chamfer: "chamfer", Draft: "draft", Shell: "shell", "Pattern Feature": "pattern",
-  "Mirror Feature": "mirror", "Split Body": "split", "Move Object": "move", "Datum Plane": "plane",
-  "Datum Coordinate System": "csys", Sketch: "sketch", Part: "part", Assembly: "assembly", Expressions: "expressions",
-  Constraints: "assembly-constraints", Body: "body", "Offset Region": "offset-face", "Delete Face": "delete-face",
+  "Boss-Extrude": "extrude", "Cut-Extrude": "extrude", "Intersect-Extrude": "extrude", Revolve: "revolve", "Cut-Revolve": "revolve",
+  Sweep: "sweep", "Cut-Sweep": "sweep", Loft: "loft", "Cut-Loft": "loft", Hole: "hole", Rib: "rib",
+  Fillet: "blend", Chamfer: "chamfer", Draft: "draft", Shell: "shell", Pattern: "pattern",
+  Mirror: "mirror", Split: "split", "Move/Copy Body": "move", Plane: "plane",
+  Origin: "csys", Sketch: "sketch", Part: "part", Assembly: "assembly", Equations: "expressions",
+  Mates: "assembly-constraints", Imported: "body", "Move Face": "offset-face", "Delete Face": "delete-face",
 });
 
 /**
- * The generator's icon for a row of the Part Navigator, by its kind as the engine names it ("Cut-Extrude")
- * or as NX does ("Extrude"): a Boolean changes no icon. A kind without one of its own reads as a solid feature.
+ * The generator's icon for a row of the design tree, by its kind as the engine names it ("Boss-Revolve") or as
+ * the tree does ("Revolve"): a Cut wears its Boss's icon. A kind without one of its own reads as a solid feature.
  */
 export const featureIconName = kind => FEATURE_ICON_NAMES[nxKind(kind)] || "extrude";
 
-/** An origin plane as NX's datum coordinate system names it: "XY Plane" for SolidWorks' Top. */
-export const nxPlane = name => (PLANE_AXES[name] ? `${PLANE_AXES[name]} Plane` : `${name} Plane`);
+/** An origin plane as SolidWorks names it: "Top Plane". */
+export const nxPlane = name => `${name} Plane`;
 
-// A part's rows as NX's Part Navigator numbers them, in the order they are made after the datum
-// coordinate system (0): a feature's sketch just before it ("Sketch (1)", then "Extrude (2)"). Row id
-// → its `label` and the `name` given in the tree, which a title shows after the label, in quotes.
+// A part's rows as SolidWorks' design tree numbers them: each kind counted on its own, in the order
+// they are made (Sketch1, Boss-Extrude1, Sketch2, Cut-Extrude1, Fillet1). Row id → its `label` and
+// the `name` given in the tree, which stands in its place, as a feature renamed in SolidWorks does.
 function numbered(features) {
   const rows = new Map();
-  let made = 0;
+  const counts = new Map();
+  const next = kind => { const count = (counts.get(kind) || 0) + 1; counts.set(kind, count); return `${kind}${count}`; };
   for (const feature of features || []) {
     if (feature.kind === "Sketch") {
-      made += 1;
-      rows.set(feature.id, { label: `Sketch (${made})`, name: feature.sketch?.title || feature.title });
+      rows.set(feature.id, { label: next("Sketch"), name: feature.sketch?.title || feature.title });
       continue;
     }
-    if (feature.sketch) {
-      made += 1;
-      rows.set(feature.sketch.id, { label: `Sketch (${made})`, name: feature.sketch.title });
-    }
-    made += 1;
-    rows.set(feature.id, { label: `${nxKind(feature.kind)} (${made})`, name: feature.named || "" });
+    if (feature.sketch) rows.set(feature.sketch.id, { label: next("Sketch"), name: feature.sketch.title });
+    rows.set(feature.id, { label: next(nxKind(feature.kind)), name: feature.named || "" });
   }
   return rows;
 }
 
 /**
- * A part's features titled as NX's Part Navigator lists them, in the order they are made after the
- * datum coordinate system (0): a feature's sketch just before it ("Sketch (1) "Sketch1"", then
- * "Extrude (2)"), a name given in the tree after the kind, in quotes. Row id → its title.
+ * A part's features titled as SolidWorks' design tree lists them: each kind numbered on its own
+ * (Sketch1, Boss-Extrude1, Fillet1), or the name given in the tree in its place. Row id → its title.
  */
 export function navigatorTitles(features) {
-  return new Map([...numbered(features)].map(([id, { label, name }]) => [id, name ? `${label} "${name}"` : label]));
+  return new Map([...numbered(features)].map(([id, { label, name }]) => [id, name || label]));
 }
 
 /**
- * A row as the Part Navigator numbers it, without the name given in the tree: "Hole (6)". Empty for a
- * row the Part Navigator does not list, so whoever names a feature (a face's chip, the timeline) can
+ * A row as the design tree numbers it, without the name given in the tree: "Hole2". Empty for a
+ * row the design tree does not list, so whoever names a feature (a face's chip, the timeline) can
  * keep its own words.
  */
 export const navigatorLabel = (features, id) => numbered(features).get(id)?.label ?? "";
 
-/** Every row's Part Navigator title in a design tree (`featureTree`): a part's, or each of an assembly's parts'. */
+/** Every row's title in a design tree (`featureTree`): a part's, or each of an assembly's parts'. */
 export function treeTitles(tree) {
   const lists = tree?.assembly ? (tree.components || []).map(component => component.features) : [tree?.features || []];
   return new Map(lists.flatMap(features => [...navigatorTitles(features)]));

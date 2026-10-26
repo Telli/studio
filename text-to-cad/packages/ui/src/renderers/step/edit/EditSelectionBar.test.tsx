@@ -47,7 +47,7 @@ afterEach(() => {
 function bar(props: Record<string, unknown> = {}, rig = viewport()) {
   const handlers = { onAsk: vi.fn(), onAddContext: vi.fn(), onAnnotate: vi.fn(), onEdit: vi.fn() };
   const element = (extra: Record<string, unknown>) => <EditSelectionBar viewport={rig.viewport} actions={ALL} anchorKey="face:o1.f12" anchor={() => PLATE}
-    editKind="Hole" editHint="Edit Parameters" {...handlers} {...props} {...extra} />;
+    editKind="Hole" editHint="Edit Feature" {...handlers} {...props} {...extra} />;
   const view = render(element({}));
   return { ...view, ...rig, ...handlers, show: (extra: Record<string, unknown>) => view.rerender(element(extra)) };
 }
@@ -96,7 +96,7 @@ it('draws Edit with the picked feature\'s own icon, naming what it opens, and ho
   wait();
   const edit = () => screen.getByRole('button', { name: 'Edit' });
   expect(edit().querySelector('use')!.getAttribute('href')).toBe('#nx-hole');
-  expect(edit().getAttribute('aria-description')).toBe('Edit Parameters');
+  expect(edit().getAttribute('aria-description')).toBe('Edit Feature');
   expect(edit().hasAttribute('disabled')).toBe(false);
   view.show({ actions: ALL.map(action => (action.id === 'edit' ? { ...action, enabled: false, reason: 'Wait for the change in progress to finish.' } : action)) });
   expect(edit().hasAttribute('disabled')).toBe(true);
@@ -141,7 +141,7 @@ it('goes below the pick where there is no room above it, and is nowhere when the
 
 /**
  * The canvas in its viewport box with the workspace over it, as the frame lays it out: a toolbar 32 px tall across the top,
- * and the Part Navigator at the left, 256 px wide from y = 40 to 300, 8 px in.
+ * and the design tree at the left, 256 px wide from y = 40 to 300, 8 px in.
  */
 function workspaceRig() {
   const rig = viewport();
@@ -161,7 +161,7 @@ function workspaceRig() {
 /** A pick as the model's points: the box from (x0, y0) to (x1, y1) of the model, which the screen shows from (300 + x0, 200 − y1) to (300 + x1, 200 − y0). */
 const quad = (x0: number, y0: number, x1: number, y1: number) => [[x0, y0, 0], [x1, y0, 0], [x0, y1, 0], [x1, y1, 0]];
 
-it('keeps clear of the Part Navigator: beside a pick it would be centred over, if centred it would run under the navigator', () => {
+it('keeps clear of the design tree: beside a pick it would be centred over, if centred it would run under the navigator', () => {
   const rig = workspaceRig();
   // The pick is on screen from (250, 140) to (310, 180): the navigator's edge, 264, runs through it.
   bar({ anchor: () => quad(-50, 20, 10, 60) }, rig);

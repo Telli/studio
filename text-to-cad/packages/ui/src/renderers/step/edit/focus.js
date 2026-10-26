@@ -1,6 +1,6 @@
 /**
  * Where the host's ask to show a line of a part's script lands (Studio's References open a part at the line an answer
- * cites, `tab-store/focusHost.ts`): the feature of the Part Navigator whose statement holds the line, and when the part on
+ * cites, `tab-store/focusHost.ts`): the feature of the design tree whose statement holds the line, and when the part on
  * screen can answer the ask.
  */
 
@@ -16,7 +16,7 @@ function sameScript(a, b) {
 const spanOf = ({ line, end }) => [line, Number.isSafeInteger(end) && end >= line ? end : line];
 
 /**
- * The feature whose statement holds a line of a script (`file`, as the host names it), among the Part Navigator's
+ * The feature whose statement holds a line of a script (`file`, as the host names it), among the design tree's
  * features (`featureTree`'s, a part's or every part's of an assembly); null for none. A feature stands for the statements
  * its `lines` lists, its own and the rows folded into it (the profile it extrudes, a cut joined to it), each from its
  * first line to its last (`end`): a line anywhere in one finds the feature, and a blank line between statements, a
@@ -43,7 +43,7 @@ const READING = new Set(["probing", "reading", "idle"]);
 
 /**
  * How the part on screen answers its host's ask (`focus`, `{ path, line }`), as edit mode stands (`useEditMode`'s
- * `status`, the layout it is shown in, the Part Navigator's `features`): null while the part is still being read, as the
+ * `status`, the layout it is shown in, the design tree's `features`): null while the part is still being read, as the
  * answer waits for it; else `{ select }`, the id of the feature whose statement holds the line (`featureAtLine`), or null
  * where none is to be selected. Laid out for the AI the view shows no features; a file with no part script (`none`) and
  * a part whose build failed (`error`) have none read. Every answer lets the ask go, so the host never keeps one.

@@ -14,7 +14,7 @@ export default function InterferencePanel({ edit }) {
   const units = edit.state?.units || "mm";
   const found = edit.interference;
   const rows = found?.pairs ? interferenceRows(found.pairs, units) : [];
-  return <div role="dialog" aria-label="Simple Interference" data-cad-interference="" className="flex shrink-0 flex-col"
+  return <div role="dialog" aria-label="Interference Detection" data-cad-interference="" className="flex shrink-0 flex-col"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopInspecting(); } }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <InterferenceIcon className="size-5 shrink-0" />

@@ -87,14 +87,14 @@ it("keeps the canvas's box when the workspace shows", async () => {
   expect([screen.queryByRole('toolbar', { name: 'Design' }), screen.queryByRole('toolbar', { name: 'Timeline' }), viewport.mounts]).toEqual([null, null, 1]);
 });
 
-it("floats the Part Navigator at the canvas's top left, folding to its title, and the dialog's place beside it", () => {
+it("floats the design tree at the canvas's top left, folding to its title, and the dialog's place beside it", () => {
   places.length = 0;
   shell(WORKSPACE);
   const navigator = dock('navigator')!;
   // White, as the toolbar is: opaque, and blurring nothing of the live canvas under it.
   expect(navigator.className.split(/\s+/)).toEqual(expect.arrayContaining(WORKSPACE_SURFACE_CLASS.split(' ')));
   expect(navigator.className).not.toMatch(/\bbackdrop-|bg-background\//);
-  const fold = within(navigator).getByRole('button', { name: 'Part Navigator' });
+  const fold = within(navigator).getByRole('button', { name: 'FeatureManager' });
   const tree = within(navigator).getByRole('tree', { name: 'Features' });
   expect(fold.getAttribute('aria-expanded')).toBe('true');
   // Folded to its title, what it holds is kept, unseen; unfolded, it is back as it was.
@@ -175,7 +175,7 @@ it("moves the column beside an open dialog, so a tool's own row and its panels n
   const view = shell({ ...WORKSPACE, dialogOpen: false });
   // No dialog: the column spans the view, an inset in, and centres what it holds.
   expect([column().style.left, column().className]).toEqual(['8px', expect.not.stringMatching(/\bleft-\[/)]);
-  // A dialog beside the Part Navigator: the column is the room past the dialog, or past the dialog alone in a
+  // A dialog beside the design tree: the column is the room past the dialog, or past the dialog alone in a
   // view too narrow for the navigator.
   view.show({ ...WORKSPACE, dialogOpen: true });
   expect(column().style.left).toBe('');
@@ -200,7 +200,7 @@ const shifted = () => [column().style.marginLeft, column().style.marginRight];
 /**
  * A view laid out as the app lays it, for the top controls' measure: `view` px wide; the column an inset in from its
  * sides, moved by its margins; its one row (`row` px wide) and the tool stack's panel (`panel`), each centred in it; and
- * the Part Navigator 16rem wide, an inset in, open or folded to its 28px title, or no box at all where a view too narrow
+ * the design tree 16rem wide, an inset in, open or folded to its 28px title, or no box at all where a view too narrow
  * for it hides it.
  */
 function layOut({ view, row = 0, panel = 0, navigator = 'open' }:
@@ -242,19 +242,19 @@ function drawing(resize: () => void, workspace: object = WITH_TOOLS) {
   return view;
 }
 
-it("leaves a row that clears the Part Navigator centred across the view, and Quick Edit's room as it was", () => {
+it("leaves a row that clears the design tree centred across the view, and Quick Edit's room as it was", () => {
   const resize = resizing();
   // Centred in a 1280px view, a 300px row starts at 490, well past the navigator's right edge and an inset (264 + 8).
   layOut({ view: 1280, row: 300 });
   const view = drawing(resize);
   expect([...shifted(), topRightLeft()]).toEqual(['', '', '798px']);
-  // The same as with no Part Navigator at all.
+  // The same as with no design tree at all.
   view.show({ ...WITH_TOOLS, leftDock: null });
   resize();
   expect([...shifted(), topRightLeft()]).toEqual(['', '', '798px']);
 });
 
-it("moves the column right by just the overlap of a row that would run under the Part Navigator, and no further than it has room", () => {
+it("moves the column right by just the overlap of a row that would run under the design tree, and no further than it has room", () => {
   const resize = resizing();
   // Centred in a 700px view, a 300px row starts at 200: 72px short of the navigator's right edge and an inset.
   layOut({ view: 700, row: 300 });
@@ -268,13 +268,13 @@ it("moves the column right by just the overlap of a row that would run under the
   expect(shifted()).toEqual(['42px', '-42px']);
 });
 
-it("moves the column past the Part Navigator folded to its title too, and not while a narrow view hides it or a dialog stands beside it", () => {
+it("moves the column past the design tree folded to its title too, and not while a narrow view hides it or a dialog stands beside it", () => {
   const resize = resizing();
   layOut({ view: 700, row: 300 });
   const view = drawing(resize);
   expect(shifted()).toEqual(['72px', '-72px']);
   // Folded, its title still stands at the rows' height, as wide: the row clears its right edge and an inset.
-  fireEvent.click(within(dock('navigator')!).getByRole('button', { name: 'Part Navigator' }));
+  fireEvent.click(within(dock('navigator')!).getByRole('button', { name: 'FeatureManager' }));
   layOut({ view: 700, row: 300, navigator: 'folded' });
   resize();
   expect([...shifted(), topRightLeft()]).toEqual(['72px', '-72px', `${200 + 72 + 300 + 8}px`]);
@@ -290,7 +290,7 @@ it("moves the column past the Part Navigator folded to its title too, and not wh
   expect(column().className).toMatch(/\bleft-\[calc\(35rem\+8px\)\]/);
 });
 
-it("moves the tool stack's panels with the rows, one shift for the column, so a panel never runs under the Part Navigator", () => {
+it("moves the tool stack's panels with the rows, one shift for the column, so a panel never runs under the design tree", () => {
   const resize = resizing();
   // A 400px panel alone, centred in a 700px view, starts at 150: 122px short of the navigator's edge and an inset.
   layOut({ view: 700, panel: 400 });

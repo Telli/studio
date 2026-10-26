@@ -280,7 +280,7 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   opened in the thread's folder. Each row opens what it names beside the chat
   (`references/openReference.ts`): a part's script, with a model of its name beside it, opens that
   part at the cited line, and in the workspace selects the feature whose statement holds the line,
-  in the Part Navigator and on the timeline (Simple view shows no features, so the script opens at
+  in the design tree and on the timeline (Simple view shows no features, so the script opens at
   those lines in front); a document at its line or heading; a page as a link in the chat does. The
   part's view hears the ask in its host context (`studio/focus`: the script's path, a line and a
   number for each press, behind the `studioFocus` capability) and says it has taken it, however it
@@ -466,43 +466,44 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   the server as its provider in launch arguments and the code as a sensitive variable. Stop using
   it puts it back on Studio's own setup. Trap: Codex shows no models from a plain OpenAI model
   list, so the server answers the model list from Codex's own catalog (`npm run catalog` there).
-- **The workspace reads like NX** (Amy, 2026-10-23: "really similar to NX", her team's CAD at
-  Apple), in NX's words over the SolidWorks-built machinery below (`edit/nx.js`), with a toolbar
-  laid out as Fusion's: tabs Solid, Sketch and Inspect (Assemble in an assembly, Drafting for the
-  part's sheet) with Undo and Redo at the tab row's left, Solid's groups Create, Modify,
+- **The workspace reads like SolidWorks** (Amy, 2026-10-26: "SolidWorks names", as the tools now
+  behave as SolidWorks' do; from 2026-10-23 it read in NX's words, "really similar to NX", which the
+  command search still finds), its words a display layer over the machinery (`edit/nx.js`), with a
+  toolbar laid out as Fusion's: tabs Features, Sketch and Evaluate (Assembly in an assembly, Drawing
+  for the part's sheet) with Undo and Redo at the tab row's left, Solid's groups Create, Modify,
   Construct, Inspect and Select, each showing its most-used commands as buttons and the whole
   group in its title's menu, and Ask the agent (Ask, Add to context, Annotate) at the row's right
   end; one Extrude
-  (and Revolve, Sweep along Guide, Through Curves) whose Boolean, Unite or Subtract, opens the
-  cut command with what was typed; dialogs with OK, Apply and Cancel at their foot; a Part
-  Navigator numbering features as NX does ("Extrude (2)", an Edge Blend for a fillet), a box on
-  each to suppress it, User Expressions folded above it, and the Datum Coordinate System (0) with
-  its XY, XZ and YZ planes; a row's menu in NX's words (Edit Parameters, Edit Sketch, Suppress,
-  Rename, Delete, Make Current Feature) and the viewer's warning on the feature a failed build
+  (and Revolve, Swept Boss/Base, Lofted Boss/Base) whose Boss/Base or Cut switch opens the cut
+  command with what was typed; dialogs with OK, Apply and Cancel at their foot (Enter is OK, Escape
+  in the view cancels); a design tree numbering features as SolidWorks does (Boss-Extrude1, Fillet1,
+  a renamed one by its name), a box on each to suppress it, Equations folded above it, and the
+  Origin with its Front, Top and Right Planes; a row's menu in SolidWorks' words (Edit Feature, Edit
+  Sketch, Suppress, Rename, Delete, Rollback, and Roll to End while rolled back) and the viewer's warning on the feature a failed build
   stopped in, told by the file, line and words the engine reports (the call into a helper, where the
   helper raised), and nothing marked otherwise; a timeline along the bottom, Fusion's, of the features
-  as icons with the sketch each was made from just before it, whose rollback bar's marker is Make
-  Current Feature dragged
-  (`edit/EditTimeline.jsx`); the sketch tools as NX names them (Finish Sketch, Rapid Dimension,
-  Quick Trim). The script and the agent's notes keep their own names. A purple dot marks what the
-  agent made and a grey one what you made, on the Part Navigator's rows and under the timeline's
+  as icons with the sketch each was made from just before it, whose rollback bar's marker is Rollback
+  dragged
+  (`edit/EditTimeline.jsx`); the sketch tools as SolidWorks names them (Exit Sketch, Smart Dimension,
+  Trim Entities). The script and the agent's notes keep their own names. A purple dot marks what the
+  agent made and a grey one what you made, on the design tree's rows and under the timeline's
   icons; a feature from before Studio kept track has neither (`cadgen/edit/authors.py` records it
   in the project's `.studio/authors.jsonl`, and only once a chat has run there), and nor does any
   in a repository with linked worktrees, whose checkouts' checkpoints share refs that do not say
   which checkout made them. S finds any
-  button of the toolbar by name, NX's or another tool's ("fillet" finds Edge Blend;
+  button of the toolbar by name, SolidWorks' or another tool's ("edge blend" finds Fillet;
   `edit/CommandSearchBox.jsx`): it lists the viewer's commands only, ⌘K stays Studio's find, and
   Simple view leaves S to the viewer's strip. Simple view reads the part once, quietly,
   after the model opens, so the full workspace opens on it at once (`useEditMode`). A pick in the
-  workspace (a face or an edge on the model, a feature the person pressed in the Part Navigator or
+  workspace (a face or an edge on the model, a feature the person pressed in the design tree or
   on the timeline, a sketch picked on the model) with no command open offers a small bar beside it
   (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Ask, Add to context, Annotate and Edit (Edit
-  Parameters, or Edit Sketch; a face has none until the engine says which feature made it). A feature a command's OK
+  Feature, or Edit Sketch; a face has none until the engine says which feature made it). A feature a command's OK
   selected is not a pick, or the bar would stand over the part all the while it is worked on. Ask,
   in the bar or the toolbar, opens Quick Edit, which the workspace shows only once asked (with
   nothing picked, on the part as a whole); Escape, a send, its X, the picks emptying or a command or
   sketch opening put it away (`selectionBarState.js`). A feature chosen goes to the agent as a
-  `text-range` reference to its statement in its script (all its lines, where the engine read the statement whole), with a chip named as the Part Navigator names it
+  `text-range` reference to its statement in its script (all its lines, where the engine read the statement whole), with a chip named as the design tree names it
   ("Hole (6)"), the chip's X letting go of the pick (`featureAsk.jsx`; the script's absolute path is the
   engine's `root` with the feature's `file`). A face's chip says the feature that made it, "Hole (6) ·
   face 12", where the engine does (`cadgen/edit/face_features.py`: the first feature with a face on
@@ -513,7 +514,7 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   there, so faces, edges and features can be collected and one message written; a failure keeps them and is said in the viewport's card.
   It is there only where the host has a chat box to fill (`canAddToContext`: never in Jake's standalone viewer), and the toolbar's is
   dimmed, saying "Select a face, edge or feature first", until something is picked or drawn (ink alone is something to add). While a command, a sketch or a panel is open its
-  picks are the model's selection (an Edge Blend's edges), which a delivery or a send would let go of, so the toolbar's Ask and Add to
+  picks are the model's selection (an Fillet's edges), which a delivery or a send would let go of, so the toolbar's Ask and Add to
   context are both dimmed, saying "Finish or cancel the command first" (the words Simple view's switch uses), and the
   bar is not shown. Quick Edit's X and a send let go of a feature chosen too, as a click on the background does (an orbit
   drag to look at it keeps it). Annotate, the
@@ -525,17 +526,17 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   it always was, but for those marks, which it carries too.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, the full
   workspace, and the script stays its source: text-to-cad's own viewer is laid out as a CAD tool,
-  with the toolbar across the top, the Part Navigator at the top left (the part's User
-  Expressions, its features numbered as NX numbers them, and the selected feature's inputs, each
+  with the toolbar across the top, the design tree at the top left (the part's Equations, its
+  features numbered as SolidWorks numbers them, and the selected feature's inputs, each
   with the formula behind it), the timeline along the bottom, and the feature's dimensions drawn
   on the model, each changed by a double-click. A
   change rewrites one number in the script, as it was written, and rebuilds every part that uses
   the file, so the model reloads as any rebuild does; a value made of several sizes asks which to
   change, and a file changed since it was read is refused. The toolbar's Create and Modify groups
-  (Hole, Pattern Feature, Mirror Feature; Edge Blend, Chamfer, Shell) open a dialog at the model
-  view's top left, beside the Part Navigator, as NX's do: what the command acts on (the edges or
-  faces selected on the model, Select turned to them as it opens; for Mirror Feature and Pattern
-  Feature, the feature picked in the Part Navigator, or the whole body), its inputs in the part's
+  (Hole, Pattern, Mirror; Fillet, Chamfer, Shell) open a dialog at the model
+  view's top left, beside the design tree, as SolidWorks' PropertyManager does: what the command acts on (the edges or
+  faces selected on the model, Select turned to them as it opens; for Mirror and Pattern,
+  the feature picked in the design tree, or the whole body), its inputs in the part's
   units, and OK, Apply and Cancel at its foot. OK writes one
   line of build123d after the statement that makes the part's body, its faces and edges written
   as build123d's own selectors by where they are, never their numbers (the top face's outer
@@ -543,10 +544,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   a new feature, selected, with its inputs to change like any other; a line that does not run,
   or picks something other than the selection, is not written. Undo takes a command's line back. The
   agent hears of each change with the next message (a Hand edit note queued in the composer),
-  never by a message of its own. Edit Parameters reopens a feature's dialog, Suppress sets one aside,
-  and the rollback bar (dragged, in the Part Navigator or along the timeline, or put under a
-  feature by Make Current Feature) shows the part as it was above a feature, new features going in
-  there. An assembly places its parts: double-click one in the Part Navigator (Open Part) and the part opens on
+  never by a message of its own. Edit Feature reopens a feature's dialog, Suppress sets one aside,
+  and the rollback bar (dragged, in the design tree or along the timeline, or put under a
+  feature by Rollback) shows the part as it was above a feature, new features going in
+  there. An assembly places its parts: double-click one in the design tree (Open Part) and the part opens on
   its own, in a tab of its own when the assembly is a project file's tab
   (`studio/open-file`, a plugin view's request to open a file beside the thread). The engine is `text-to-cad/packages/cadgen/src/cadgen/edit/` (a
   tracer that runs the script with every number remembering where it is written, in a process of
@@ -570,11 +571,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   panel's bottom. The viewer takes the layout from its host context (`studio/editLayout`) and then
   shows no switch of its own; elsewhere its navbar keeps the switch, as Manual and AI. In the full
   workspace, what a command uses is plain: a sketch is
-  picked on the model or in the Part Navigator and shaded in the selection blue with its name, an
+  picked on the model or in the design tree and shaded in the selection blue with its name, an
   extrude is previewed in amber (a cut in red, starting into the part), and a command's dialog
-  floats in a card of its own at the model view's top left, beside the Part Navigator, with OK,
+  floats in a card of its own at the model view's top left, beside the design tree, with OK,
   Apply and Cancel at its foot. One generator draws every CAD icon of the workspace, the toolbar's,
-  the Part Navigator's, the timeline's and the sketch tools' (`packages/ui/scripts/nx-icons.py`,
+  the design tree's, the timeline's and the sketch tools' (`packages/ui/scripts/nx-icons.py`,
   which writes `src/lib/nxIcons.generated.jsx`; a test fails when the committed module is not what
   it writes); chevrons, spinners, close, the amber warning and the sketch overlay's check and cross
   stay lucide's. What edit mode is busy with (reading the part, rolling back, rebuilding) shows with a spinner and

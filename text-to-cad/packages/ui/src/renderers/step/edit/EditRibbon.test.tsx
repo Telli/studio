@@ -40,12 +40,12 @@ it("opens a group's command from its menu", async () => {
   const onCommand = vi.fn();
   render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onCommand={onCommand} />);
   // Four of Create's nine commands show as buttons; the group's title is its menu, with all of them.
-  expect(commandsIn('Create')).toEqual(['Sketch', 'Extrude', 'Revolve', 'Sweep along Guide']);
+  expect(commandsIn('Create')).toEqual(['Sketch', 'Extruded Boss/Base', 'Revolved Boss/Base', 'Swept Boss/Base']);
   await user.click(menuButton(group('Create')));
   const menu = screen.getByRole('menu');
-  expect(within(menu).getAllByRole('menuitemcheckbox').map(item => item.textContent)).toEqual(['Sketch', 'Extrude', 'Revolve',
-    'Sweep along Guide', 'Through Curves', 'Rib', 'Hole', 'Pattern Feature', 'Mirror Feature']);
-  await user.click(within(menu).getByText('Through Curves'));
+  expect(within(menu).getAllByRole('menuitemcheckbox').map(item => item.textContent)).toEqual(['Sketch', 'Extruded Boss/Base', 'Revolved Boss/Base',
+    'Swept Boss/Base', 'Lofted Boss/Base', 'Rib', 'Hole Wizard', 'Pattern', 'Mirror']);
+  await user.click(within(menu).getByText('Lofted Boss/Base'));
   expect(onCommand).toHaveBeenCalledWith('loft');
   expect(screen.queryByRole('menu')).toBeNull();
 });
@@ -169,22 +169,22 @@ it("dims Ask and Add to context while a command is open, whose picks they would 
   expect(states()).toEqual([[false, null], [true, 'Select a face, edge or feature first']]);
 });
 
-it("heads the toolbar with Solid, Sketch and Inspect, Assemble only for an assembly, and Drafting where a part has its sheet", () => {
+it("heads the toolbar with Features, Sketch and Evaluate, Assembly only for an assembly, and Drawing where a part has its sheet", () => {
   const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
-  expect(tabNames()).toEqual(['Solid', 'Sketch', 'Inspect', 'Drafting']);
-  expect(frontTab()).toBe('Solid');
-  // An assembly places its parts, so its sheet is not offered; its Assemble tab is.
+  expect(tabNames()).toEqual(['Features', 'Sketch', 'Evaluate', 'Drawing']);
+  expect(frontTab()).toBe('Features');
+  // An assembly places its parts, so its sheet is not offered; its Assembly tab is.
   rerender(<EditRibbon tools={ASSEMBLY_TOOLS} edit={edit({ state: { units: 'mm', components: [{ id: 'base' }], drawing: null } }) as never} />);
-  expect(tabNames()).toEqual(['Solid', 'Sketch', 'Inspect', 'Assemble']);
+  expect(tabNames()).toEqual(['Features', 'Sketch', 'Evaluate', 'Assembly']);
 });
 
-it("groups the Solid tab's commands as the design does, each under NX's name", () => {
+it("groups the Features tab's commands as the design does, each under SolidWorks' name", () => {
   render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
   expect(layout()).toEqual({
-    Create: ['Sketch', 'Extrude', 'Revolve', 'Sweep along Guide'],
-    Modify: ['Offset Region', 'Edge Blend', 'Chamfer', 'Shell'],
-    Construct: ['Datum Plane'],
-    Inspect: ['Measure', 'Edit Section'],
+    Create: ['Sketch', 'Extruded Boss/Base', 'Revolved Boss/Base', 'Swept Boss/Base'],
+    Modify: ['Move Face', 'Fillet', 'Chamfer', 'Shell'],
+    Construct: ['Plane'],
+    Inspect: ['Measure', 'Section View'],
     Select: ['Select'],
     // The strip's Pencil, with Shapes in its menu.
     'Ask the agent': ['Annotate'],
@@ -194,31 +194,31 @@ it("groups the Solid tab's commands as the design does, each under NX's name", (
 it("gives every command of the old Analysis, View and Assemblies tabs a group", async () => {
   const user = userEvent.setup();
   const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onNormalTo={vi.fn()} />);
-  await user.click(screen.getByRole('tab', { name: 'Inspect' }));
+  await user.click(screen.getByRole('tab', { name: 'Evaluate' }));
   expect(layout()).toEqual({
-    Measure: ['Measure', 'Measure Bodies'],
-    Analyze: ['Draft Analysis', 'Simple Interference', 'Compare'],
-    Section: ['Edit Section'],
-    Display: ['Orient View', 'Edit Object Display'],
-    Expressions: ['Expressions'],
+    Measure: ['Measure', 'Mass Properties'],
+    Analyze: ['Draft Analysis', 'Interference Detection', 'Compare'],
+    Section: ['Section View'],
+    Display: ['Normal To', 'Appearance'],
+    Equations: ['Equations'],
   });
   // An assembly has no body of its own to analyze or color.
   rerender(<EditRibbon tools={ASSEMBLY_TOOLS} edit={edit({ state: { units: 'mm', components: [{ id: 'base' }], drawing: null } }) as never} onNormalTo={vi.fn()} />);
   expect(layout()).toEqual({
-    Measure: ['Measure', 'Measure Bodies'],
-    Analyze: ['Simple Interference'],
-    Section: ['Edit Section'],
-    Display: ['Orient View'],
-    Expressions: ['Expressions'],
+    Measure: ['Measure', 'Mass Properties'],
+    Analyze: ['Interference Detection'],
+    Section: ['Section View'],
+    Display: ['Normal To'],
+    Equations: ['Equations'],
   });
-  await user.click(screen.getByRole('tab', { name: 'Assemble' }));
-  expect(layout()).toEqual({ Constraints: ['Assembly Constraints'], 'Exploded Views': ['Exploded Views'] });
+  await user.click(screen.getByRole('tab', { name: 'Assembly' }));
+  expect(layout()).toEqual({ Constraints: ['Mate'], 'Exploded View': ['Exploded View'] });
 });
 
 it("names each group's menu apart from a command of the same name, the group's word in its name", async () => {
   const user = userEvent.setup();
   render(<EditRibbon tools={ASSEMBLY_TOOLS} edit={edit({ state: { units: 'mm', components: [{ id: 'base' }], drawing: null } }) as never} onAsk={vi.fn()} onNormalTo={vi.fn()} />);
-  // Select, Measure, Expressions and Exploded Views are a group and its one command (or a command and the group it is in),
+  // Select, Measure, Expressions and Exploded View are a group and its one command (or a command and the group it is in),
   // so a button called by that name is the command, and one call finds one.
   const menuOf = (title: string) => within(group(title)).getByRole('button', { name: `${title} commands` });
   const namesOnTab = () => screen.getAllByRole('button').map(button => button.getAttribute('aria-label') || '');
@@ -228,38 +228,38 @@ it("names each group's menu apart from a command of the same name, the group's w
     // The title is what the menu shows, and is in the name it is called by.
     expect([menuOf(title).getAttribute('aria-haspopup'), menuOf(title).textContent]).toEqual(['menu', title]);
   }
-  await user.click(screen.getByRole('tab', { name: 'Inspect' }));
+  await user.click(screen.getByRole('tab', { name: 'Evaluate' }));
   expect(screen.getAllByRole('button', { name: 'Measure' })).toHaveLength(1);
-  expect(screen.getAllByRole('button', { name: 'Expressions' })).toHaveLength(1);
-  for (const title of ['Measure', 'Analyze', 'Section', 'Display', 'Expressions']) expect(menuOf(title).textContent).toBe(title);
-  await user.click(screen.getByRole('tab', { name: 'Assemble' }));
-  expect(screen.getAllByRole('button', { name: 'Exploded Views' })).toHaveLength(1);
-  for (const title of ['Constraints', 'Exploded Views']) expect(menuOf(title).textContent).toBe(title);
+  expect(screen.getAllByRole('button', { name: 'Equations' })).toHaveLength(1);
+  for (const title of ['Measure', 'Analyze', 'Section', 'Display', 'Equations']) expect(menuOf(title).textContent).toBe(title);
+  await user.click(screen.getByRole('tab', { name: 'Assembly' }));
+  expect(screen.getAllByRole('button', { name: 'Exploded View' })).toHaveLength(1);
+  for (const title of ['Constraints', 'Exploded View']) expect(menuOf(title).textContent).toBe(title);
   // No two buttons of the toolbar are called alike.
   const names = namesOnTab().filter(Boolean);
   expect(new Set(names).size).toBe(names.length);
 });
 
-it("keeps the drawing's commands in Drafting", async () => {
+it("keeps the drawing's commands in the Drawing tab", async () => {
   const user = userEvent.setup();
   const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
-  await user.click(screen.getByRole('tab', { name: 'Drafting' }));
-  expect(layout()).toEqual({ Sheet: ['New Sheet'] });
+  await user.click(screen.getByRole('tab', { name: 'Drawing' }));
+  expect(layout()).toEqual({ Sheet: ['Make Drawing'] });
   rerender(<EditRibbon tools={PART_TOOLS} edit={edit({ state: { units: 'mm', components: [], drawing: { sheets: 1 } } }) as never} />);
   expect(layout()).toEqual({ Sheet: ['Drawing', 'Edit Sheet'] });
 });
 
-it("opens Expressions in the place the other Inspect panels open, and puts it away again", async () => {
+it("opens Expressions in the place the other Evaluate panels open, and puts it away again", async () => {
   const user = userEvent.setup();
   const hand = edit();
   const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={hand as never} />);
-  await user.click(screen.getByRole('tab', { name: 'Inspect' }));
-  await user.click(command('Expressions', 'Expressions'));
+  await user.click(screen.getByRole('tab', { name: 'Evaluate' }));
+  await user.click(command('Equations', 'Equations'));
   expect(hand.inspect).toHaveBeenCalledWith('expressions');
   const open = edit({ inspecting: 'expressions' });
   rerender(<EditRibbon tools={PART_TOOLS} edit={open as never} />);
-  expect(command('Expressions', 'Expressions').getAttribute('aria-pressed')).toBe('true');
-  await user.click(command('Expressions', 'Expressions'));
+  expect(command('Equations', 'Equations').getAttribute('aria-pressed')).toBe('true');
+  await user.click(command('Equations', 'Equations'));
   expect(open.stopInspecting).toHaveBeenCalled();
 });
 
@@ -289,29 +289,29 @@ it("holds the Sketch command alone in the Sketch tab while no sketch is open", a
   expect(layout()).toEqual({ 'Direct Sketch': ['Sketch'] });
   await user.click(command('Direct Sketch', 'Sketch'));
   expect(onSketch).toHaveBeenCalledTimes(1);
-  // Edit Sketch, with a sketch selected in the Part Navigator.
+  // Edit Sketch, with a sketch selected in the design tree.
   rerender(<EditRibbon tools={PART_TOOLS} edit={edit() as never} onSketch={onSketch} sketchLabel="Edit Sketch" />);
   expect(layout()).toEqual({ 'Direct Sketch': ['Edit Sketch'] });
 });
 
-it("brings the Sketch tab to the front while a sketch is open, and Finish Sketch returns to Solid", async () => {
+it("brings the Sketch tab to the front while a sketch is open, and Exit Sketch returns to Features", async () => {
   const user = userEvent.setup();
   const sketching = edit({ sketch: SKETCH });
   const { rerender } = render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
-  await user.click(screen.getByRole('tab', { name: 'Inspect' }));
-  expect(frontTab()).toBe('Inspect');
-  // The sketch task environment as it has been: its own tools, Finish Sketch first.
+  await user.click(screen.getByRole('tab', { name: 'Evaluate' }));
+  expect(frontTab()).toBe('Evaluate');
+  // The sketch task environment as it has been: its own tools, Exit Sketch first.
   rerender(<EditRibbon tools={PART_TOOLS} edit={sketching as never} />);
   expect(tabNames()).toEqual(['Sketch']);
   expect(frontTab()).toBe('Sketch');
   expect(Object.keys(layout())).toEqual(['Sketch', 'Curve', 'Edit Curve', 'Constraints', 'Feature']);
-  expect(commandsIn('Sketch')).toEqual(['Finish Sketch', 'Orient View to Sketch']);
-  await user.click(command('Sketch', 'Finish Sketch'));
+  expect(commandsIn('Sketch')).toEqual(['Exit Sketch', 'Normal To']);
+  await user.click(command('Sketch', 'Exit Sketch'));
   expect(sketching.exitSketch).toHaveBeenCalledTimes(1);
-  // It ends: Solid, not the tab it was opened from.
+  // It ends: Features, not the tab it was opened from.
   rerender(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
-  expect(tabNames()).toEqual(['Solid', 'Sketch', 'Inspect', 'Drafting']);
-  expect(frontTab()).toBe('Solid');
+  expect(tabNames()).toEqual(['Features', 'Sketch', 'Evaluate', 'Drawing']);
+  expect(frontTab()).toBe('Features');
 });
 
 /**
@@ -347,7 +347,7 @@ it("pins Ask the agent at the toolbar's right end, and still folds the groups in
     // right fold behind More, Ask the agent among them.
     expect(screen.getByRole('button', { name: 'More commands' })).toBeTruthy();
     expect(['Inspect', 'Select', 'Ask the agent'].map(title => labelled(title).getAttribute('aria-hidden'))).toEqual([null, 'true', 'true']);
-    expect(command('Create', 'Extrude').textContent).toBe('');
+    expect(command('Create', 'Extruded Boss/Base').textContent).toBe('');
   } finally {
     restore();
   }
@@ -387,19 +387,19 @@ function openSearch(patch: Record<string, unknown> = {}, props: Record<string, u
   ask();
   return { hand: hand as Hand, ask, ...view };
 }
-const PART_NAMES = ['Sketch', 'Extrude', 'Extrude Subtract', 'Revolve', 'Revolve Subtract', 'Sweep along Guide', 'Sweep along Guide Subtract',
-  'Through Curves', 'Through Curves Subtract', 'Rib', 'Hole', 'Pattern Feature', 'Mirror Feature', 'Offset Region', 'Edge Blend', 'Chamfer', 'Shell', 'Draft',
-  'Split Body', 'Delete Face', 'Delete Body', 'Datum Plane', 'Measure', 'Edit Section', 'Measure Bodies', 'Draft Analysis', 'Simple Interference', 'Compare',
-  'Orient View', 'Edit Object Display', 'Expressions', 'New Sheet'];
+const PART_NAMES = ['Sketch', 'Extruded Boss/Base', 'Extruded Cut', 'Revolved Boss/Base', 'Revolved Cut', 'Swept Boss/Base', 'Swept Cut',
+  'Lofted Boss/Base', 'Lofted Cut', 'Rib', 'Hole Wizard', 'Pattern', 'Mirror', 'Move Face', 'Fillet', 'Chamfer', 'Shell', 'Draft',
+  'Split', 'Delete Face', 'Delete/Keep Body', 'Plane', 'Measure', 'Section View', 'Mass Properties', 'Draft Analysis', 'Interference Detection', 'Compare',
+  'Normal To', 'Appearance', 'Equations', 'Make Drawing'];
 const ASSEMBLY = { units: 'mm', components: [{ id: 'base' }], drawing: null };
 
 it("opens the box when S asks, beside the toolbar and not in it, listing the commands of every tab and not the one in front", () => {
   const { hand } = openSearch();
   expect(foundNames()).toEqual(PART_NAMES);
-  // The toolbar clips what overflows it, so the box is its neighbour; the Solid tab is in front all the while.
+  // The toolbar clips what overflows it, so the box is its neighbour; the Features tab is in front all the while.
   expect(screen.getByRole('toolbar').contains(search())).toBe(false);
   expect(search().parentElement).toBe(screen.getByRole('toolbar').parentElement);
-  expect(frontTab()).toBe('Solid');
+  expect(frontTab()).toBe('Features');
   expect(hand.open).not.toHaveBeenCalled();
 });
 
@@ -421,7 +421,7 @@ it("opens for each ask made while the toolbar stands, once, and not for one made
   expect(search()).toBeTruthy();
 });
 
-it("shows the search in the tab row, as NX's Command Finder is, and opens the box from it as S does", async () => {
+it("shows the search in the tab row, as SolidWorks' Search Commands is, and opens the box from it as S does", async () => {
   const user = userEvent.setup();
   const hand = edit({ findAsked: 0 });
   render(<EditRibbon tools={PART_TOOLS} edit={hand as never} />);
@@ -432,15 +432,15 @@ it("shows the search in the tab row, as NX's Command Finder is, and opens the bo
   expect(foundNames()).toEqual(PART_NAMES);
 });
 
-it("lists only the tabs the toolbar has: Assemble for an assembly, Drawing and Edit Sheet for a part that has its sheet", () => {
+it("lists only the tabs the toolbar has: Assembly for an assembly, Drawing and Edit Sheet for a part that has its sheet", () => {
   const withSheet = openSearch({ state: { units: 'mm', components: [], drawing: { sheets: 1 } } });
   expect(foundNames()).toEqual(expect.arrayContaining(['Drawing', 'Edit Sheet']));
-  for (const name of ['New Sheet', 'Assembly Constraints', 'Exploded Views']) expect(foundNames()).not.toContain(name);
+  for (const name of ['Make Drawing', 'Mate', 'Exploded View']) expect(foundNames()).not.toContain(name);
   withSheet.unmount();
   openSearch({ state: ASSEMBLY }, { tools: ASSEMBLY_TOOLS });
-  expect(foundNames()).toEqual(expect.arrayContaining(['Assembly Constraints', 'Exploded Views', 'Simple Interference']));
+  expect(foundNames()).toEqual(expect.arrayContaining(['Mate', 'Exploded View', 'Interference Detection']));
   // An assembly has no body of its own to analyze or color, and no sheet.
-  for (const name of ['Draft Analysis', 'Compare', 'Edit Object Display', 'New Sheet', 'Edit Sheet']) expect(foundNames()).not.toContain(name);
+  for (const name of ['Draft Analysis', 'Compare', 'Appearance', 'Make Drawing', 'Edit Sheet']) expect(foundNames()).not.toContain(name);
 });
 
 it("runs a command through the toolbar's own onCommand, a fillet and a cut by the words other tools use", async () => {
@@ -458,7 +458,7 @@ it("runs a command through the toolbar's own onCommand, a fillet and a cut by th
   expect(second.hand.open).not.toHaveBeenCalled();
 });
 
-it("leaves the command open that is already open, and turns an open Extrude to its Subtract", async () => {
+it("leaves the command open that is already open, and turns an open Extruded Boss/Base to its Cut", async () => {
   const user = userEvent.setup();
   const onCommand = vi.fn();
   const open = openSearch({ command: 'extrude' }, { onCommand });
@@ -475,8 +475,9 @@ it("leaves the command open that is already open, and turns an open Extrude to i
 it("starts Sketch as the Sketch button does, and leaves one that waits for its plane waiting", async () => {
   const user = userEvent.setup();
   const onSketch = vi.fn();
+  // Found by another tool's word for it (Make Drawing is found by its name before it, so "draw" no longer leads to it).
   const first = openSearch({}, { onSketch });
-  await user.keyboard('draw{Enter}');
+  await user.keyboard('profile{Enter}');
   expect(onSketch).toHaveBeenCalledTimes(1);
   first.unmount();
   const waiting = openSearch({ picking: true }, { onSketch });
@@ -484,7 +485,7 @@ it("starts Sketch as the Sketch button does, and leaves one that waits for its p
   expect(onSketch).toHaveBeenCalledTimes(1);
   expect(waiting.hand.stopPicking).not.toHaveBeenCalled();
   waiting.unmount();
-  // On a sketch selected in the Part Navigator the button reads Edit Sketch, and so does the box.
+  // On a sketch selected in the design tree the button reads Edit Sketch, and so does the box.
   openSearch({}, { onSketch, sketchLabel: 'Edit Sketch' });
   await user.keyboard('edit sk');
   expect(foundNames()).toEqual(['Edit Sketch']);
@@ -492,10 +493,10 @@ it("starts Sketch as the Sketch button does, and leaves one that waits for its p
   expect(onSketch).toHaveBeenCalledTimes(2);
 });
 
-it("opens an Inspect panel as its button does, from any tab, and leaves one that is open", async () => {
+it("opens an Evaluate panel as its button does, from any tab, and leaves one that is open", async () => {
   const user = userEvent.setup();
   const first = openSearch();
-  expect(frontTab()).toBe('Solid');
+  expect(frontTab()).toBe('Features');
   await user.keyboard('draft analysis{Enter}');
   expect(first.hand.inspect).toHaveBeenCalledWith('draft');
   first.unmount();
@@ -528,27 +529,28 @@ it("lists a command the toolbar shows dimmed as dimmed, with the toolbar's reaso
   const onCommand = vi.fn();
   openSearch({ state: ASSEMBLY }, { onCommand, tools: ASSEMBLY_TOOLS, canOpenParts: true });
   await user.keyboard('extrude');
-  expect(foundRow('Extrude').getAttribute('aria-disabled')).toBe('true');
-  expect(within(search()).getByRole('status').textContent).toBe('An assembly places its parts. Double-click a part in the Part Navigator to open it and model it.');
+  expect(foundRow('Extruded Boss/Base').getAttribute('aria-disabled')).toBe('true');
+  expect(within(search()).getByRole('status').textContent).toBe('An assembly places its parts. Double-click a part in the design tree to open it and model it.');
   await user.keyboard('{Enter}');
   expect(onCommand).not.toHaveBeenCalled();
   expect(search()).toBeTruthy();
   // The same buttons are dimmed in the toolbar.
   await user.keyboard('{Escape}');
-  expect((command('Create', 'Extrude') as HTMLButtonElement).disabled).toBe(true);
+  expect((command('Create', 'Extruded Boss/Base') as HTMLButtonElement).disabled).toBe(true);
 });
 
-it("dims what the toolbar dims while a change is made, and Orient View until there is something to look at", async () => {
+it("dims what the toolbar dims while a change is made, and Normal To until there is something to look at", async () => {
   const user = userEvent.setup();
   const onNormalTo = vi.fn();
   const busy = openSearch({ saving: true });
   const dimmed = found().filter(row => row.getAttribute('aria-disabled') === 'true').map(row => row.textContent);
-  expect(dimmed).toEqual(expect.arrayContaining(['Sketch', 'Extrude', 'Hole', 'Datum Plane', 'New Sheet']));
+  expect(dimmed).toEqual(expect.arrayContaining(['Sketch', 'Extruded Boss/Base', 'Hole Wizard', 'Plane', 'Make Drawing']));
   expect(busy.hand.open).not.toHaveBeenCalled();
   busy.unmount();
   const nothing = openSearch({}, { onNormalTo: null });
+  // Found by NX's Orient View, now another tool's word for it.
   await user.keyboard('orient');
-  expect(foundRow('Orient View').getAttribute('aria-disabled')).toBe('true');
+  expect(foundRow('Normal To').getAttribute('aria-disabled')).toBe('true');
   expect(within(search()).getByRole('status').textContent).toMatch(/Select a flat face/);
   await user.keyboard('{Enter}');
   expect(onNormalTo).not.toHaveBeenCalled();
@@ -564,15 +566,15 @@ it("lists a sketch's own tools and the features made of it while a sketch is ope
   const exitSketch = vi.fn().mockResolvedValue({ ok: true });
   const first = openSearch({ sketch: SKETCH, exitSketch }, { onCommand });
   const names = foundNames();
-  expect(names.slice(0, 2)).toEqual(['Finish Sketch', 'Orient View to Sketch']);
-  expect(names).toEqual(expect.arrayContaining(['Line', 'Rectangle by 2 Points', 'Rectangle from Center', 'Circle by 3 Points', 'Tangent Arc',
-    'Slot from Center', 'Studio Spline', 'Rapid Dimension', 'Convert To/From Reference', 'Quick Trim', 'Copy Curve', 'Circular Pattern Curve']));
+  expect(names.slice(0, 2)).toEqual(['Exit Sketch', 'Normal To']);
+  expect(names).toEqual(expect.arrayContaining(['Line', 'Corner Rectangle', 'Center Rectangle', 'Perimeter Circle', 'Tangent Arc',
+    'Centerpoint Straight Slot', 'Spline', 'Smart Dimension', 'Construction Geometry', 'Trim Entities', 'Copy Entities', 'Circular Sketch Pattern']));
   // The features it is made into, but not what the sketch environment does not have.
-  expect(names).toEqual(expect.arrayContaining(['Extrude', 'Extrude Subtract', 'Revolve', 'Sweep along Guide', 'Through Curves', 'Rib']));
-  for (const name of ['Hole', 'Edge Blend', 'Datum Plane', 'Measure', 'Sketch', 'Draft Analysis', 'New Sheet', 'Mirror Feature']) expect(names).not.toContain(name);
+  expect(names).toEqual(expect.arrayContaining(['Extruded Boss/Base', 'Extruded Cut', 'Revolved Boss/Base', 'Swept Boss/Base', 'Lofted Boss/Base', 'Rib']));
+  for (const name of ['Hole Wizard', 'Fillet', 'Plane', 'Measure', 'Sketch', 'Draft Analysis', 'Make Drawing', 'Mirror']) expect(names).not.toContain(name);
   // Fillet is the sketch's own fillet here.
   await user.keyboard('fillet');
-  expect(foundNames()).toEqual(['Fillet']);
+  expect(foundNames()).toEqual(['Sketch Fillet']);
   await user.keyboard('{Enter}');
   expect(first.hand.setSketchTool).toHaveBeenCalledWith('fillet');
   expect(onCommand).not.toHaveBeenCalled();
@@ -596,7 +598,7 @@ it("leaves the sketch tool in hand in hand when its name is run, and finishes th
   expect(done.hand.exitSketch).toHaveBeenCalledTimes(1);
 });
 
-it("presses Convert To/From Reference whether it is on or off, as it is a switch", async () => {
+it("presses Construction Geometry whether it is on or off, as it is a switch", async () => {
   const user = userEvent.setup();
   const off = openSearch({ sketch: SKETCH });
   await user.keyboard('construction{Enter}');
@@ -642,8 +644,8 @@ it("never disagrees with the toolbar: it lists each command of every tab the too
     const has = await toolbarHas(user);
     hand.findAsked = 1;
     view.rerender(<EditRibbon tools={PART_TOOLS} edit={hand as never} {...shown} />);
-    // A cut is the Subtract of its command's Boolean: the toolbar has it in Extrude's dialog, not as a button.
-    const listed = new Set(foundNames().filter(text => !text.endsWith('Subtract')));
+    // A cut is the Cut of its Boss/Base's Boolean: the toolbar has it in Extruded Boss/Base's dialog, not as a button.
+    const listed = new Set(foundNames().filter(text => !text.endsWith(' Cut')));
     expect([name, [...listed].sort()]).toEqual([name, [...has].filter(each => !NOT_CAD.has(each)).sort()]);
     cleanup();
   }
@@ -655,11 +657,12 @@ it("never disagrees with the toolbar while a sketch is open: every tool of every
   const view = render(<EditRibbon tools={PART_TOOLS} edit={hand as never} />);
   const has = new Set(screen.getAllByRole('group').flatMap(group => commandButtons(group).map(button => button.getAttribute('aria-label') || '')));
   // A family's button is the tool last picked of it; its flyout has them all.
-  for (const flyout of ['Rectangle tools', 'Circle tools', 'Arc tools', 'Slot tools', 'Move Curve tools']) {
+  for (const flyout of ['Rectangle tools', 'Circle tools', 'Arc tools', 'Slot tools', 'Move Entities tools']) {
     (await menuOf(user, screen.getByRole('button', { name: flyout }))).forEach(name => has.add(name));
   }
   hand.findAsked = 1;
   view.rerender(<EditRibbon tools={PART_TOOLS} edit={hand as never} />);
-  const listed = new Set(foundNames().filter(text => !text.endsWith('Subtract')));
+  // The cuts are each Boss/Base's Boolean in its dialog, not buttons of the Feature group.
+  const listed = new Set(foundNames().filter(text => !text.endsWith(' Cut')));
   expect([...listed].sort()).toEqual([...has].sort());
 });

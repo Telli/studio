@@ -3,7 +3,7 @@
 `cadgen.sketch` draws a part's profiles the way a CAD tool's sketcher does: points, lines, arcs
 and circles on a plane, held by relations and dimensions, solved when the script runs. Use it
 for a profile an engineer will want to read and change as a sketch: a bracket's outline, a slot,
-a plate with holes. The CAD viewer's edit mode shows it under its feature in the Part Navigator
+a plate with holes. The CAD viewer's edit mode shows it under its feature in the design tree
 (Extrude (2), then Sketch (1) under it) with its dimensions as the feature's inputs, marked (-) while it is
 under defined, as SolidWorks marks it.
 

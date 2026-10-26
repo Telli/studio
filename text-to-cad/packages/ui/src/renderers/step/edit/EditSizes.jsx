@@ -24,7 +24,7 @@ export function sizeRows(row) {
 export const sharedFiles = (rows, file) => [...new Set(rows.flatMap(row => row.files))].filter(each => each && each !== file);
 
 /**
- * Edit Parameters on a feature no command writes, as a CAD tool opens any feature: a Block or a
+ * Edit Feature on a feature no command writes, as a CAD tool opens any feature: a Block or a
  * Cylinder placed with `Pos`, a hole cut as a cylinder, one made in a helper's file. Its row's sizes,
  * typed over, and OK writes those changed together, one change to undo (`edit.setSizes`). Where a
  * size is written in another file, it says so: changing it there changes every part that uses it.
@@ -53,7 +53,7 @@ export default function EditSizes({ edit }) {
     return () => clearTimeout(timer);
   }, [previewKey, previewSizes, previewFeature]);
   if (!editing || !row) return null;
-  const title = editing.title || "Edit Parameters";
+  const title = editing.title || "Edit Feature";
   const changed = rows.filter(each => String(values[each.index] ?? "").trim() !== each.display);
   const shared = sharedFiles(rows, row.file);
   const ok = async () => {

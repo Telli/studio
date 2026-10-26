@@ -126,7 +126,7 @@ it('a chosen feature goes with the workspace and with the file', () => {
   expect(view.result.current.chosen).toBe(false);
 });
 
-it('a row the Part Navigator or the timeline selects is chosen; clearing the selection chooses nothing', () => {
+it('a row the design tree or the timeline selects is chosen; clearing the selection chooses nothing', () => {
   const edit = { select: vi.fn(), selected: 'e1', status: 'ready' };
   const choose = vi.fn();
   const handed = chosenThrough(edit, choose);

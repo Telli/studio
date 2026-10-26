@@ -29,7 +29,7 @@ export default function Appearance({ edit }) {
     const reply = await edit.paint(color);
     if (reply?.ok) edit.stopInspecting();
   };
-  return <div role="dialog" aria-label="Edit Object Display" data-cad-appearance="" className="flex shrink-0 flex-col"
+  return <div role="dialog" aria-label="Appearance" data-cad-appearance="" className="flex shrink-0 flex-col"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopInspecting(); } }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <AppearanceIcon className="size-5 shrink-0" />

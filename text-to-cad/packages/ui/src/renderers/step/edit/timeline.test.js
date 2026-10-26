@@ -13,8 +13,8 @@ const sketched = (name, line) => ({ name, plane: "Top", file: "bracket.py", line
 
 // The sample bracket as the engine reads it (`tracer.py`): an extrude takes the sketch it was made from, and the
 // engine nests that sketch under the extrude (`sketch`), so a sketch is a feature of its own only while nothing
-// uses it. Two extrudes made from sketches, then an Edge Blend. The Part Navigator numbers them, a sketch just
-// before the extrude that takes it: Sketch (1), Extrude (2), Sketch (3), Extrude (4), Edge Blend (5).
+// uses it. Two extrudes made from sketches, then a Fillet. The design tree numbers each kind on its own, a sketch just
+// before the extrude that takes it: Sketch1, Boss-Extrude1, Sketch2, Boss-Extrude2 (named "upright"), Fillet1.
 const PART = featureTree({
   features: [
     { key: "e1", kind: "Boss-Extrude", name: "plate", file: "bracket.py", line: 8, sketch: sketched("SKETCH_000", 5) },
@@ -26,22 +26,22 @@ const IDS = ["e1", "e2", "b1"];
 // What the timeline draws, left to right: each feature's own sketch just before it.
 const iconsOf = items => items.flatMap(item => [item.sketch, item].filter(Boolean));
 
-test("lists items in the Part Navigator's order", () => {
+test("lists items in the design tree's order", () => {
   const { items } = timelineItems(PART, null);
-  // One item, and one place for the marker, for each feature the Part Navigator lists as a row of the part.
+  // One item, and one place for the marker, for each feature the design tree lists as a row of the part.
   assert.deepEqual(items.map(item => item.id), IDS);
   assert.deepEqual(items.map(item => item.kind), ["Boss-Extrude", "Boss-Extrude", "Fillet"]);
   items.forEach((item, index) => assert.equal(item.feature, PART.features[index]));
-  // Drawn, the sketch each extrude was made from stands just before it, and every icon has the title the Part Navigator
-  // numbers it under (its kind numbered after the datum coordinate system, a name given in the tree quoted).
+  // Drawn, the sketch each extrude was made from stands just before it, and every icon has the title the design tree
+  // numbers it under (its kind numbered on its own, or the name given in the tree in its place).
   assert.deepEqual(iconsOf(items).map(icon => icon.title),
-    ['Sketch (1) "SKETCH_000"', "Extrude (2)", 'Sketch (3) "SKETCH_001"', 'Extrude (4) "upright"', "Edge Blend (5)"]);
+    ["SKETCH_000", "Boss-Extrude1", "SKETCH_001", "upright", "Fillet1"]);
   assert.deepEqual(iconsOf(items).map(icon => icon.kind), ["Sketch", "Boss-Extrude", "Sketch", "Boss-Extrude", "Fillet"]);
 });
 
-test("draws the sketch a feature was made from just before it, under the id the Part Navigator selects it by", () => {
+test("draws the sketch a feature was made from just before it, under the id the design tree selects it by", () => {
   const [first, second, blend] = timelineItems(PART, null).items;
-  // The id a sketch picked on the model selects (`sketchTreeId`), and the Part Navigator's row for it carries.
+  // The id a sketch picked on the model selects (`sketchTreeId`), and the design tree's row for it carries.
   assert.equal(first.sketch.id, sketchTreeId(PART, { file: "bracket.py", line: 5 }));
   assert.equal(second.sketch.id, sketchTreeId(PART, { file: "bracket.py", line: 10 }));
   assert.equal(first.sketch.id, PART.features[0].sketch.id);
@@ -65,7 +65,7 @@ test("draws a sketch nothing uses yet once, as an item of its own", () => {
   // Its sketch is the item itself, not one more before it, and it is selected by its own id.
   assert.equal(items[1].sketch, null);
   assert.equal(items[1].id, sketchTreeId(loose, { file: "bracket.py", line: 12 }));
-  assert.deepEqual(iconsOf(items).map(icon => icon.title), ['Sketch (1) "SKETCH_000"', "Extrude (2)", 'Sketch (3) "SKETCH_001"']);
+  assert.deepEqual(iconsOf(items).map(icon => icon.title), ["SKETCH_000", "Boss-Extrude1", "SKETCH_001"]);
 });
 
 test("puts the marker after the last active item", () => {
@@ -76,11 +76,11 @@ test("puts the marker after the last active item", () => {
   assert.deepEqual(items.map(item => item.rolledBack), [false, true, true]);
   assert.deepEqual(items.map(item => item.sketch?.rolledBack ?? null), [false, true, null]);
   assert.deepEqual(timelineItems(PART, null).items.map(item => item.rolledBack), [false, false, false]);
-  // A bar over an item the tree no longer holds leaves the part whole, as the Part Navigator does.
+  // A bar over an item the tree no longer holds leaves the part whole, as the design tree does.
   assert.equal(timelineItems(PART, { item: "gone" }).marker, 3);
 });
 
-test("agrees with the Part Navigator's rollback bar wherever it is", () => {
+test("agrees with the design tree's rollback bar wherever it is", () => {
   for (const bar of [null, ...IDS.map(item => ({ item }))]) {
     const { items, marker } = timelineItems(PART, bar);
     assert.equal(marker, barIndex(PART, bar));
@@ -92,7 +92,7 @@ test("agrees with the Part Navigator's rollback bar wherever it is", () => {
   }
 });
 
-test("lists no items for an assembly, whose Part Navigator has no rollback bar", () => {
+test("lists no items for an assembly, whose design tree has no rollback bar", () => {
   const assembly = featureTree({ components: [{ file: "tray.py", name: "tray", features: [{ key: "t1", kind: "Boss-Extrude", file: "tray.py", line: 4 }] }] });
   assert.deepEqual(timelineItems(assembly, null), { items: [], marker: 0 });
   assert.deepEqual(timelineItems(null, null), { items: [], marker: 0 });
@@ -103,7 +103,7 @@ test("places a dragged marker between items", () => {
   assert.equal(slotAtX(25, [10, 30, 50]), 1);
   assert.equal(slotAtX(60, [10, 30, 50]), 3);
   assert.equal(slotAtX(5, [10, 30, 50]), 0);
-  // On a centre it has passed it, as the Part Navigator's bar goes below the row the pointer is past the middle of.
+  // On a centre it has passed it, as the design tree's bar goes below the row the pointer is past the middle of.
   assert.equal(slotAtX(30, [10, 30, 50]), 2);
   assert.equal(slotAtX(12, []), 0);
 });

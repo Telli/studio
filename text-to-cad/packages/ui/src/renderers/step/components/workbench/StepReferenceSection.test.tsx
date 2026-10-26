@@ -104,7 +104,7 @@ it('names the part of a single-part file with no name of its own after the file'
  expect(names()).toEqual(['o1.1 · face 3']);
 });
 
-it("names a face by the feature the engine says made it, in the Part Navigator's words; any other keeps its words",()=>{
+it("names a face by the feature the engine says made it, in the design tree's words; any other keeps its words",()=>{
  const meshData={parts:[{id:'o1.1',occurrenceId:'o1.1',name:'bracket'}]};
  const face=(ord:number,label?:string)=>({id:`o1.1.f${ord}`,normalizedSelector:`o1.1.f${ord}`,selectorType:'face',occurrenceId:'o1.1',label,
    pickData:{surfaceType:'cylinder',area:94.25,params:{radius:3}}});

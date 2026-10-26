@@ -1,6 +1,6 @@
 /**
  * The selection bar's rules, pure: what it offers beside a pick, when Quick Edit shows in the workspace, which
- * Part Navigator row a selection is, and where the bar stands (`EditSelectionBar.jsx` draws it; `StepSurface.jsx`
+ * design tree row a selection is, and where the bar stands (`EditSelectionBar.jsx` draws it; `StepSurface.jsx`
  * wires it). Picking a face, an edge or a feature with no command open offers a small bar beside it: Ask,
  * Add to context, Annotate and Edit.
  */
@@ -17,7 +17,7 @@ export const SELECTION_BAR_EDGE_PX = 8;
 const PICK_KINDS = Object.freeze(["face", "edge", "feature"]);
 const BUSY_WORDS = "Wait for the change in progress to finish.";
 
-// A row of the Part Navigator or the timeline is its own feature, if there is anything to edit in it.
+// A row of the design tree or the timeline is its own feature, if there is anything to edit in it.
 const ownFeature = pick => (pick.kind === "feature" && pick.editable !== false ? pick.id : null);
 const featureKey = feature => (feature && typeof feature === "object" ? feature.id : feature);
 
@@ -29,9 +29,9 @@ const featureKey = feature => (feature && typeof feature === "object" ? feature.
  *
  * `picks`: `{ kind: "face" | "edge" | "feature", id }` each; a feature's `editable: false` says it has nothing to
  * edit. `featureOf(pick)`: the feature that made a pick, its id (null: not known), which is how a face
- * comes to have an Edit once the engine says which feature made it; a row of the Part Navigator or the timeline
- * is its own. Edit is Edit Parameters, on the one feature every pick is the work of; `busy` holds it while a
- * change is on its way, as the Part Navigator holds a double-click.
+ * comes to have an Edit once the engine says which feature made it; a row of the design tree or the timeline
+ * is its own. Edit is Edit Feature, on the one feature every pick is the work of; `busy` holds it while a
+ * change is on its way, as the design tree holds a double-click.
  *
  * @param {{ editing: boolean, picks?: { kind: string, id: string, editable?: boolean }[], commandOpen?: boolean,
  *   sketching?: boolean, featureOf?: ((pick: object) => string | { id: string } | null) | null, busy?: boolean }} state
@@ -58,11 +58,11 @@ export function quickEditShown({ editing, asked, selectionActionVisible }) {
 }
 
 /**
- * The row of the Part Navigator (`featureTree`) that `selected`, the id the tree and the timeline select by, is, as the bar
+ * The row of the design tree (`featureTree`) that `selected`, the id the tree and the timeline select by, is, as the bar
  * sees a pick: `{ kind: "feature", id, feature, sketch, editable }`, or null for what is not a feature or a sketch (the
  * origin, a plane, a part of an assembly, nothing). `sketch` is the sketch a double-click on that row edits: a sketch of
  * its own, or the one a feature was made from when that sketch is what is selected. `editable`: there is something to
- * open, as a double-click on the row opens it: Edit Parameters on a feature a command made, Edit Sketch on a sketch
+ * open, as a double-click on the row opens it: Edit Feature on a feature a command made, Edit Sketch on a sketch
  * the script names. An assembly's parts are opened to be edited, so none of its features is.
  */
 export function featurePick(tree, selected) {
@@ -79,7 +79,7 @@ export function featurePick(tree, selected) {
 }
 
 /**
- * The row of the Part Navigator that faces picked on the model are (`picks`, as the bar sees them, each with its `reference`), as
+ * The row of the design tree that faces picked on the model are (`picks`, as the bar sees them, each with its `reference`), as
  * `featurePick` gives a row: the one feature the engine says made every one of them, by the map for the faces on screen (`faces`,
  * `faceChips.js`'s `shownFaces`), when it has something to open. Null for an edge among them, a face the engine does not know, faces
  * of two features, or a feature with nothing to edit: those picks have no Edit.
@@ -173,7 +173,7 @@ export function projectRoot(state) {
 }
 
 /**
- * A row as the Part Navigator numbers it without the name given in the tree ("Hole (6)"), in a part's tree or in whichever
+ * A row as the design tree numbers it without the name given in the tree ("Hole2"), in a part's tree or in whichever
  * part of an assembly has it; empty for a row it does not list.
  */
 export function rowLabel(tree, id) {
@@ -189,7 +189,7 @@ export function rowLabel(tree, id) {
  * The statement a feature (or sketch) chosen (`pick`, from `featurePick`) stands for in its script, as a prompt reference: a
  * `text-range` over its lines, whole, from its first to its last where the engine read the statement (`end`), else its first
  * alone, in the script's absolute path (the feature's `file` is named from the project's top, `root`, unless it lies outside
- * it, when the engine names it in full), under the words the Part Navigator names it by (`label`: "Hole (6)"). What Ask
+ * it, when the engine names it in full), under the words the design tree names it by (`label`: "Hole2"). What Ask
  * carries for a feature, as a face's selector is what it carries for a face; Add to context delivers the same. Null where it
  * cannot be told: no project, or no file or line, or a path the prompt does not take.
  */

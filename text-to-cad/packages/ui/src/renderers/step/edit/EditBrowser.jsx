@@ -32,7 +32,7 @@ import { nxPlane, treeTitles } from "./nx.js";
 const UNIT_MARKS = Object.freeze({ mm: "mm", in: "in" });
 
 /**
- * Whether the browser floats a card in the dialog's place beside the Part Navigator (`card`): the open
+ * Whether the browser floats a card in the dialog's place beside the design tree (`card`): the open
  * command's or sketch's panel, a panel the toolbar opened (Measure Bodies, Expressions...; the Drawing
  * once the part has its sheet), or what went wrong. The frame keeps the top column clear of it
  * (`RendererShell`'s `dialogOpen`).
@@ -52,7 +52,7 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
 }
 
 /**
- * Edit mode's browser, what the Part Navigator holds (the frame's card at the view's top-left): the
+ * Edit mode's browser, what the design tree holds (the frame's card at the view's top-left): the
  * design tree (`EditTree.jsx`: the part, its Parameters, the origin's planes, its features with their
  * sketches), and under it the selection's own values, as a PropertyManager shows them: a
  * feature's inputs, or a sketch's dimensions. Every value is typed over to change it; a change is
@@ -69,7 +69,7 @@ function ValueField({ value, unit, label, disabled, onCommit }) {
  *   opened on its own, to be modeled (SolidWorks' Open Part), and `backTo` ({ title, open }) the
  *   assembly a part was opened from; `onEditSketch`: a sketch's
  *   double-click in the tree; `onPlane`: an origin plane picked for a new sketch; `card`: the
- *   place beside the Part Navigator where the open command's panel floats;
+ *   place beside the design tree where the open command's panel floats;
  *   `onDeselect`: a face or edge the command's panel lists taken out of the selection (its id).
  */
 export default function EditBrowser({ edit, names, tree, references = [], onEditSketch = () => {}, onPlane = () => {}, onOpenPart = null,
@@ -84,7 +84,7 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
   // A part of an assembly, selected in the tree: an assembly places its parts, so a part is
   // modeled on its own, opened as SolidWorks' Open Part opens it.
   const component = tree.assembly ? tree.components.find(each => each.id === selected) || null : null;
-  // Its title as the Part Navigator has it ("Extrude (2)"), with what the script calls it.
+  // Its title as the design tree has it ("Boss-Extrude2"), with what the script calls it.
   const titles = treeTitles(tree);
   const title = !feature ? "" : sketchSelected
     ? `${titles.get(feature.sketch?.id) || feature.sketch?.title || "Sketch"}${feature.sketch?.plane && feature.sketch.plane !== "Plane" ? `, ${nxPlane(feature.sketch.plane)}` : ""}`
@@ -152,7 +152,7 @@ export default function EditBrowser({ edit, names, tree, references = [], onEdit
         {feature.kind === "Sketch" ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
           Double-click it to edit the sketch, or make a solid of it with an extrude or a revolve.</p>
           : feature.suppressed ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>
-            Suppressed: its lines are comments in the script. Tick its box in the Part Navigator to put it back.</p>
+            Suppressed: its lines are comments in the script. Tick its box in the design tree to put it back.</p>
           : inputs.length === 0 ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-2`}>Nothing to set here.</p>
           : inputs.map(input => <FileSheetControlRow key={input.key} label={input.label}
             trailing={<ValueField value={input.value} unit={input.unit} label={input.label} disabled={disabled}

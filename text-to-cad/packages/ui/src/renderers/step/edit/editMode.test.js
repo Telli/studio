@@ -533,7 +533,7 @@ test("a draft asks for its neutral plane, then its faces, and pulls the way the 
   assert.deepEqual(opened, { angle: "1", neutral: "", reverse: false });
   assert.equal(chooseLine(chooseSteps("draft", { values: opened })), "1 of 2: Select the neutral plane");
   assert.equal(chooseLine(chooseSteps("draft", { values: { ...opened, neutral: "Top" } })), "2 of 2: Select faces to draft");
-  assert.equal(commandBlocked("draft", [side], null, opened), "Select the neutral plane: a flat face on the model, or a plane in the Part Navigator.");
+  assert.equal(commandBlocked("draft", [side], null, opened), "Select the neutral plane: a flat face on the model, or a plane in the design tree.");
   assert.equal(commandBlocked("draft", [{ ...bottom, neutral: true }], null, { ...opened, neutral: "face" }), "Select the faces to draft.");
   // A neutral face goes apart from the faces it drafts; an origin plane by its name.
   assert.deepEqual(commandRequest("draft", { ...opened, neutral: "face", reverse: true }, [side, { ...bottom, neutral: true }], null),
@@ -638,7 +638,7 @@ test("a reference plane is offset from an origin plane picked in the tree, or fr
   const opened = commandDefaults("plane", "mm");
   assert.deepEqual(opened, { reference: "", distance: "5", flip: false, angle: "0", about: "x", end: "start" });
   assert.equal(chooseLine(chooseSteps("plane", { values: opened })), "1 of 1: Select a plane or a flat face to offset from");
-  assert.equal(commandBlocked("plane", [], null, opened), "Select a plane in the Part Navigator, or a flat face on the model.");
+  assert.equal(commandBlocked("plane", [], null, opened), "Select a plane in the design tree, or a flat face on the model.");
   assert.deepEqual(commandRequest("plane", { ...opened, reference: "Front" }, [], null),
     { command: "plane", selection: [], inputs: { reference: "Front", distance: "5", flip: false } });
   // A face picked is what it is offset from.

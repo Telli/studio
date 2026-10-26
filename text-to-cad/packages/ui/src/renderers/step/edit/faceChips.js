@@ -33,8 +33,8 @@ export function faceFeature(reference, state) {
 
 /**
  * A face's chip name in its pieces, as a chip's compact name has them (`{ name, kind, number }`): the feature that made it as the Part
- * Navigator numbers it (`features`, the part's rows; "Hole (6)"), "face", and its number. Null where the feature is not known, or is
- * no row the Part Navigator lists.
+ * Navigator numbers it (`features`, the part's rows; "Hole2"), "face", and its number. Null where the feature is not known, or is
+ * no row the design tree lists.
  */
 export function faceChipName(reference, state, features) {
   const id = faceFeature(reference, state);

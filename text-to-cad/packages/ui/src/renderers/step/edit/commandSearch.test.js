@@ -8,7 +8,7 @@ import { SKETCH_TOOLS } from "./sketchMode.js";
 
 const ids = (query, options) => findCommands(query, options).map(result => result.id);
 
-// The toolbar's order: the Solid tab's groups (a command's Subtract right after it), then what Inspect, Assemble and
+// The toolbar's order: the Solid tab's groups (a Boss/Base's Cut right after it), then what Inspect, Assemble and
 // Drafting add. Sketching, the sketch environment's tools come first, in its toolbar's order.
 const SOLID = ["sketch", "extrude", "cut", "revolve", "revolve_cut", "sweep", "sweep_cut", "loft", "loft_cut", "rib", "hole", "pattern", "mirror",
   "offset_face", "fillet", "chamfer", "shell", "draft", "split", "delete_face", "delete_body", "plane", "measure", "clip"];
@@ -19,20 +19,21 @@ const SKETCH = ["exit", "normal", "line", "rectangle", "center_rectangle", "thre
   "convert", "intersection", "offset", "mirror", "move_entities", "copy_entities", "rotate_entities", "scale_entities", "linear_pattern",
   "circular_pattern", "dimension", "construction"];
 
-test("finds Fillet by NX's name for it, Edge Blend, or by another tool's word for it", () => {
-  assert.deepEqual(findCommands("fillet")[0], { id: "fillet", label: "Edge Blend", detail: null });
+test("finds Fillet by SolidWorks' name for it, or by another tool's word for it, NX's Edge Blend too", () => {
+  assert.deepEqual(findCommands("fillet")[0], { id: "fillet", label: "Fillet", detail: null });
   assert.deepEqual(ids("round"), ["fillet"]);
   assert.deepEqual(ids("edge blend"), ["fillet"]);
 });
 
-test("finds a cut as Extrude with its Boolean set to Subtract", () => {
-  assert.deepEqual(findCommands("cut")[0], { id: "cut", label: "Extrude", detail: "Subtract" });
+test("finds a cut by its own name, Extruded Cut, with no Boolean beside it", () => {
+  assert.deepEqual(findCommands("cut")[0], { id: "cut", label: "Extruded Cut", detail: null });
   assert.equal(findCommands("pocket")[0].id, "cut");
-  assert.deepEqual(findCommands("pocket"), [{ id: "cut", label: "Extrude", detail: "Subtract" }]);
+  assert.deepEqual(findCommands("pocket"), [{ id: "cut", label: "Extruded Cut", detail: null }]);
 });
 
-test("finds a Datum Plane by its first word, and nothing by a word nothing has", () => {
-  assert.equal(findCommands("datum")[0].label, "Datum Plane");
+test("finds a Plane by NX's Datum Plane, and nothing by a word nothing has", () => {
+  assert.equal(findCommands("plane")[0].label, "Plane");
+  assert.equal(findCommands("datum")[0].label, "Plane");
   assert.deepEqual(findCommands("zzz"), []);
 });
 
@@ -43,13 +44,14 @@ test("finds Line only among a sketch's tools", () => {
 
 test("keeps the words another tool has for each command, as the design lists them", () => {
   assert.deepEqual(COMMAND_WORDS, {
-    fillet: ["fillet", "round", "blend"], chamfer: ["bevel"], extrude: ["boss", "pad", "pull"],
-    cut: ["cut", "pocket", "extruded cut"], revolve: ["lathe", "turn"], revolve_cut: ["groove"], loft: ["loft", "lofted"], sweep: ["swept"],
-    hole: ["drill", "tap", "thread"], pattern: ["array", "copy"], mirror: ["symmetry"], shell: ["hollow"], draft: ["taper"], rib: ["web"],
+    fillet: ["round", "edge blend"], chamfer: ["bevel"], extrude: ["extrude", "pad", "pull"],
+    cut: ["pocket", "extrude"], revolve: ["revolve", "lathe", "turn"], revolve_cut: ["groove", "revolve"], loft: ["loft", "through curves"],
+    sweep: ["sweep", "sweep along guide"], hole: ["drill", "tap", "thread"], pattern: ["array", "copy", "pattern feature"],
+    mirror: ["symmetry", "mirror feature"], shell: ["hollow"], draft: ["taper"], rib: ["web"],
     split: ["split body"], delete_body: ["remove body", "keep body"],
-    offset_face: ["press pull", "push pull", "offset face", "move face"], delete_face: ["remove face", "defeature"],
-    plane: ["datum", "work plane", "construction plane", "offset plane"], sketch: ["draw", "profile"], measure: ["distance"],
-    clip: ["section", "cross section", "section analysis"],
+    offset_face: ["press pull", "push pull", "offset face", "offset region"], delete_face: ["remove face", "defeature"],
+    plane: ["datum plane", "work plane", "construction plane", "offset plane"], sketch: ["draw", "profile"], measure: ["distance"],
+    clip: ["section", "cross section", "edit section"],
   });
 });
 
@@ -99,19 +101,19 @@ test("leaves out of the search what is not a CAD command: the filters of Select 
 test("lists a sketch's own tools first while it is open, then the rest", () => {
   const all = ids("", { sketching: true });
   assert.deepEqual(all.slice(0, SKETCH.length), SKETCH);
-  // Fillet, Chamfer and Mirror are the sketch's own while it is open: the sketch has no Edge Blend to find.
+  // Fillet, Chamfer and Mirror are the sketch's own while it is open: the sketch's own are Sketch Fillet, Sketch Chamfer and Mirror Entities.
   const shadowed = new Set(["fillet", "chamfer", "mirror"]);
   assert.deepEqual(all.slice(SKETCH.length), [...SOLID, ...OTHER_TABS].filter(id => !shadowed.has(id)));
   assert.equal(new Set(all).size, all.length);
 });
 
 test("finds Fillet, Chamfer and Mirror as the sketch's tools while a sketch is open, and as the modeling commands outside it", () => {
-  assert.deepEqual(findCommands("fillet", { sketching: true }), [{ id: "fillet", label: "Fillet", detail: null }]);
-  assert.deepEqual(findCommands("chamfer", { sketching: true }), [{ id: "chamfer", label: "Chamfer", detail: null }]);
-  assert.deepEqual(findCommands("mirror", { sketching: true }), [{ id: "mirror", label: "Mirror Curve", detail: null }]);
-  assert.deepEqual(findCommands("mirror"), [{ id: "mirror", label: "Mirror Feature", detail: null }]);
+  assert.deepEqual(findCommands("fillet", { sketching: true }), [{ id: "fillet", label: "Sketch Fillet", detail: null }]);
+  assert.deepEqual(findCommands("chamfer", { sketching: true }), [{ id: "chamfer", label: "Sketch Chamfer", detail: null }]);
+  assert.deepEqual(findCommands("mirror", { sketching: true }), [{ id: "mirror", label: "Mirror Entities", detail: null }]);
+  assert.deepEqual(findCommands("mirror"), [{ id: "mirror", label: "Mirror", detail: null }]);
   // A sketch's tool takes the other words for it too: a round is a fillet in a sketch as well.
-  assert.equal(findCommands("round", { sketching: true })[0].label, "Fillet");
+  assert.equal(findCommands("round", { sketching: true })[0].label, "Sketch Fillet");
 });
 
 test("still finds the modeling commands while a sketch is open, which the toolbar's Feature group makes of it", () => {
@@ -120,20 +122,22 @@ test("still finds the modeling commands while a sketch is open, which the toolba
   assert.deepEqual(ids("pocket", { sketching: true }), ["cut"]);
 });
 
-test("puts a command found by NX's name for it before one found by another tool's word", () => {
-  // Drawing is a name; Sketch has draw among its words.
-  assert.deepEqual(ids("draw").slice(0, 2), ["drawing", "sketch"]);
+test("puts a command found by SolidWorks' name for it before one found by another tool's word", () => {
+  // Drawing and Make Drawing are names; Sketch has draw among its words.
+  assert.deepEqual(ids("draw"), ["drawing", "make-drawing", "sketch"]);
   // Among the names, and among the words, the toolbar's order.
   assert.deepEqual(ids("boss"), ["extrude", "revolve", "sweep", "loft"]);
 });
 
-test("sets a Boolean beside the name it belongs to, and finds a cut by what a cut is called elsewhere", () => {
-  assert.deepEqual(findCommands("extrude"), [{ id: "extrude", label: "Extrude", detail: null }, { id: "cut", label: "Extrude", detail: "Subtract" }]);
-  assert.deepEqual(findCommands("subtract").map(result => [result.id, result.label, result.detail]), [
-    ["cut", "Extrude", "Subtract"], ["revolve_cut", "Revolve", "Subtract"], ["sweep_cut", "Sweep along Guide", "Subtract"],
-    ["loft_cut", "Through Curves", "Subtract"]]);
-  assert.deepEqual(ids("extrude subtract"), ["cut"]);
-  // What SolidWorks called them.
+test("lists a cut by its own name, no Boolean beside it, and finds it by what a cut is called elsewhere", () => {
+  assert.deepEqual(findCommands("extrude"), [{ id: "extrude", label: "Extruded Boss/Base", detail: null }, { id: "cut", label: "Extruded Cut", detail: null }]);
+  // No Subtract detail any more: a cut is its own command.
+  assert.deepEqual(findCommands("subtract"), []);
+  assert.deepEqual(ids("extruded cut"), ["cut"]);
+  // NX's names for them, now other tools' words.
+  assert.deepEqual(ids("revolve"), ["revolve", "revolve_cut"]);
+  assert.deepEqual(ids("through curves"), ["loft"]);
+  // What SolidWorks calls them.
   assert.deepEqual(ids("revolved cut"), ["revolve_cut"]);
   assert.deepEqual(ids("swept cut"), ["sweep_cut"]);
   assert.deepEqual(ids("lofted cut"), ["loft_cut"]);
@@ -148,7 +152,8 @@ test("reads a query word by word, each the start of a word of the name, in any c
   assert.deepEqual(ids("urve"), []);
   // The slash and the 3 of a name are words too.
   assert.deepEqual(ids("to from", { sketching: true }), ["construction"]);
-  assert.deepEqual(ids("3 points", { sketching: true }), ["three_point_rectangle", "perimeter_circle", "three_point_arc"]);
+  assert.deepEqual(ids("boss base"), ["extrude", "revolve", "sweep", "loft"]);
+  assert.deepEqual(ids("3 point", { sketching: true }), ["three_point_rectangle", "three_point_arc"]);
   // Nothing to read in a query of marks alone.
   assert.deepEqual(ids("/"), []);
   assert.deepEqual(ids(undefined), ids(""));
@@ -171,11 +176,12 @@ test("finds the sketch's own buttons by what SolidWorks calls them, and the plan
   assert.deepEqual(ids("construction"), ["plane"]);
   assert.deepEqual(ids("exit sketch", { sketching: true }), ["exit"]);
   assert.deepEqual(ids("centerline", { sketching: true }), ["centerline"]);
-  assert.deepEqual(ids("entities", { sketching: true }), ["trim", "convert", "offset"]);
+  assert.deepEqual(ids("entities", { sketching: true }), ["trim", "extend", "convert", "offset", "mirror", "move_entities", "copy_entities",
+    "rotate_entities", "scale_entities"]);
 });
 
 test("names a button as the toolbar names it now, where it varies", () => {
-  // Sketch reads Edit Sketch while a sketch is selected in the Part Navigator.
+  // Sketch reads Edit Sketch while a sketch is selected in the design tree.
   assert.deepEqual(ids("edit sketch"), []);
   assert.deepEqual(findCommands("edit sk", { labels: { sketch: "Edit Sketch" } }), [{ id: "sketch", label: "Edit Sketch", detail: null }]);
   assert.deepEqual(findCommands("", { labels: { sketch: "Edit Sketch" } })[0], { id: "sketch", label: "Edit Sketch", detail: null });

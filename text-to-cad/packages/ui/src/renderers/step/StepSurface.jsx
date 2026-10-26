@@ -3356,7 +3356,7 @@ function StepSurfaceBody({ view, data }) {
   choosingManyRef.current = editing && !edit.sketch && (Boolean(editCommand(edit.command)?.many) || edit.inspecting === "mate");
   // A pick the open command's panel lists, taken out by its X.
   const deselectReference = useCallback(id => setSelectedReferenceIds(current => current.filter(each => each !== id)), [setSelectedReferenceIds]);
-  // The place beside the Part Navigator, at the view's top-left, where an open command's or sketch's
+  // The place beside the design tree, at the view's top-left, where an open command's or sketch's
   // panel floats in a card of its own (`edit/EditBrowser.jsx`); the frame draws it (`dialogPlace`).
   const [commandCard, setCommandCard] = useState(null);
   useEditShortcuts(edit, editing);
@@ -3746,7 +3746,7 @@ function StepSurfaceBody({ view, data }) {
   // ---- the selection bar and Ask ---------------------------------------------------------------
   // In the workspace, picking a face, an edge or a feature with Select in hand and no command open offers a small bar beside
   // it (`edit/EditSelectionBar.jsx`): Ask, Add to context, Annotate and Edit. A face or an edge is the model's pick; a feature is a
-  // row the person pressed in the Part Navigator or the timeline, or a sketch they picked on the model. They are separate selections, and
+  // row the person pressed in the design tree or the timeline, or a sketch they picked on the model. They are separate selections, and
   // the bar is about the model's picks while there are any, else the feature chosen.
   const modelPicks = useMemo(() => (selectionActionVisible
     ? selectedReferences.filter(reference => reference?.selectorType === "face" || reference?.selectorType === "edge")
@@ -3775,7 +3775,7 @@ function StepSurfaceBody({ view, data }) {
   const rowEdited = rowChosen || faceRow;
   // The bar beside a feature chosen is put away by Escape, the feature staying selected.
   const featureBarShown = barActions.length > 0 && rowChosen !== null;
-  // The Part Navigator and the timeline select a row when the person presses it, and that chooses its feature.
+  // The design tree and the timeline select a row when the person presses it, and that chooses its feature.
   const editWithRows = chosenThrough(edit, chooseFeature);
   faceDoubleRef.current = (id, reference) => {
     if (!editing || edit.command || edit.sketch || reference?.selectorType !== "face") return false;
@@ -3785,8 +3785,8 @@ function StepSurfaceBody({ view, data }) {
     chooseFeature();
     return true;
   };
-  // Edit does what a double-click on the row does: the sketch opens in the Sketch tab, a feature its Edit Parameters; on faces, the
-  // Edit Parameters of the feature that made them.
+  // Edit does what a double-click on the row does: the sketch opens in the Sketch tab, a feature its Edit Feature; on faces, the
+  // Edit Feature of the feature that made them.
   const editRow = () => { if (rowEdited?.sketch) openTreeSketch(rowEdited.sketch); else if (rowEdited) edit.editFeature(rowEdited.feature); };
   // Annotate takes up the viewer's Pencil, as the strip's does.
   const pencil = tools.find(tool => tool.id === "pencil");
@@ -3941,7 +3941,7 @@ function StepSurfaceBody({ view, data }) {
         <StepSceneLayers viewport={viewport} stepScene={stepScene} policy={viewPolicyResolved} props={layerProps} api={layersApiRef} />
         {barActions.length ? <EditSelectionBar viewport={viewport} actions={barActions} anchor={barAnchor}
           anchorKey={barPicks.map(pick => `${pick.kind}:${pick.id}`).join(",")}
-          editKind={rowEdited?.sketch ? "Sketch" : rowEdited?.feature.kind} editHint={rowEdited?.sketch ? "Edit Sketch" : "Edit Parameters"}
+          editKind={rowEdited?.sketch ? "Sketch" : rowEdited?.feature.kind} editHint={rowEdited?.sketch ? "Edit Sketch" : "Edit Feature"}
           onAsk={ask} onAddContext={addContext.offered && addContext.picked ? addContext.add : undefined}
           onAnnotate={pencil && !pencil.disabled ? pencil.onSelect : undefined} onEdit={rowEdited ? editRow : undefined} /> : null}
         {sheetUp ? <SheetEditor edit={edit} colorScheme={resolvedColorSchemeMode} /> : null}

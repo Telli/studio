@@ -21,10 +21,10 @@ import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons
 import { SOLID_GROUPS, booleanOf, nxCommand, workspaceTabs } from "./nx.js";
 import CommandSearchBox from "./CommandSearchBox.jsx";
 
-// The viewer's tools the tabs place, by id, under NX's names (Clip is NX's Edit Section).
-const LABELS = Object.freeze({ clip: "Edit Section", references: "Select", exploded: "Exploded Views" });
-// A sketch tool family's button name, as NX's flyouts are named.
-const FAMILY_NAMES = Object.freeze({ rectangle: "Rectangle", circle: "Circle", arc: "Arc", slot: "Slot", move_entities: "Move Curve" });
+// The viewer's tools the tabs place, by id, under SolidWorks' names (Clip is its Section View).
+const LABELS = Object.freeze({ clip: "Section View", references: "Select", exploded: "Exploded View" });
+// A sketch tool family's button name, as SolidWorks' flyouts are named.
+const FAMILY_NAMES = Object.freeze({ rectangle: "Rectangle", circle: "Circle", arc: "Arc", slot: "Slot", move_entities: "Move Entities" });
 // Annotate's tools: the strip's two that draw, Pencil first, as a family's flyout holds its tools.
 const ANNOTATE_TOOLS = Object.freeze(["pencil", "shapes"]);
 // Each command a picture large enough to tell apart, as SolidWorks' CommandManager draws its own: every
@@ -307,7 +307,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   const placing = Boolean(edit.state?.components?.length);
   const modelingOff = commandsIdle || placing;
   const placingWords = !placing ? undefined : canOpenParts
-    ? "An assembly places its parts. Double-click a part in the Part Navigator to open it and model it."
+    ? "An assembly places its parts. Double-click a part in the design tree to open it and model it."
     : "An assembly places its parts. Ask the agent to change a part.";
   const commandIcon = id => { const Icon = COMMAND_ICONS[id]; return <Icon aria-hidden="true" />; };
   const toolItem = tool => ({ id: tool.id, label: LABELS[tool.id] || tool.label, icon: tool.icon, active: tool.active === true,
@@ -397,14 +397,14 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     const isSubtract = command => booleanOf(command.id)?.value === "subtract";
     const groups = [
       { title: "Sketch", items: [
-        { id: "exit", label: "Finish Sketch", icon: <ExitSketchIcon />, disabled: edit.saving, onClick: () => void edit.exitSketch() },
-        { id: "normal", label: "Orient View to Sketch", icon: <NormalToIcon />, onClick: edit.lookNormalTo },
+        { id: "exit", label: "Exit Sketch", icon: <ExitSketchIcon />, disabled: edit.saving, onClick: () => void edit.exitSketch() },
+        { id: "normal", label: "Normal To", icon: <NormalToIcon />, onClick: edit.lookNormalTo },
       ] },
       { title: "Curve", items: SKETCH_ENTITIES.map(id => familyItem(id)) },
       { title: "Edit Curve", items: SKETCH_MODIFY.map(id => familyItem(id)) },
       { title: "Constraints", items: [
         sketchItem(tool("dimension")),
-        { id: "construction", label: "Convert To/From Reference", hint: "Convert To/From Reference (X)", icon: <ConstructionIcon />,
+        { id: "construction", label: "Construction Geometry", hint: "Construction Geometry (X)", icon: <ConstructionIcon />,
           active: chosen.length ? allConstruction : edit.construction,
           disabled: !sketch.state || edit.saving,
           description: chosen.length ? "Makes the selected entities construction geometry, or no longer" : "Draws what comes next as construction geometry",
@@ -467,7 +467,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     panelItem("drawing", "Drawing", <DrawingIcon />, "drawing"),
     { id: "edit-sheet", label: "Edit Sheet", icon: <EditSheetIcon />, active: Boolean(edit.sheetView), disabled: edit.status !== "ready",
       onClick: () => (edit.sheetView ? edit.closeSheet() : void edit.openSheet(1)) }]
-    : [{ id: "make-drawing", label: "New Sheet", icon: <DrawingIcon />, disabled: edit.status !== "ready" || edit.saving,
+    : [{ id: "make-drawing", label: "Make Drawing", icon: <DrawingIcon />, disabled: edit.status !== "ready" || edit.saving,
       onClick: async () => { const reply = await edit.drawing({ make: true }); if (reply?.ok) edit.inspect("drawing"); } }];
   // An assembly: it places its parts (Assembly Constraints), or the view has parts to separate (Exploded Views).
   const tabs = workspaceTabs({ assembly: placing || byId.has("exploded"), drawing: drawing.length > 0 });
@@ -480,24 +480,24 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     sketch: () => [whole("Direct Sketch", [sketchCommand])],
     // Inspect: what measures and checks the part, how it is seen, and the part's named sizes.
     inspect: () => [
-      whole("Measure", [...viewerTool("measure"), panelItem("mass", "Measure Bodies", <MassPropertiesIcon />, "mass")]),
+      whole("Measure", [...viewerTool("measure"), panelItem("mass", "Mass Properties", <MassPropertiesIcon />, "mass")]),
       whole("Analyze", [
         ...(placing ? [] : [panelItem("draft-analysis", "Draft Analysis", <DraftAnalysisIcon />, "draft")]),
-        panelItem("interference", "Simple Interference", <InterferenceIcon />, "interference"),
+        panelItem("interference", "Interference Detection", <InterferenceIcon />, "interference"),
         ...(placing ? [] : [panelItem("compare", "Compare", <CompareIcon />, "compare")])]),
       whole("Section", viewerTool("clip")),
       whole("Display", [
-        { id: "normal-to", label: "Orient View", icon: <NormalToIcon />,
+        { id: "normal-to", label: "Normal To", icon: <NormalToIcon />,
           disabled: !onNormalTo, hint: "Orient View: look straight at the face or plane selected",
-          description: onNormalTo ? undefined : "Select a flat face, or a plane in the Part Navigator, to look straight at it.",
+          description: onNormalTo ? undefined : "Select a flat face, or a plane in the design tree, to look straight at it.",
           onClick: () => onNormalTo?.() },
-        ...(placing ? [] : [panelItem("appearance", "Edit Object Display", <AppearanceIcon />, "appearance")])]),
-      whole("Expressions", [panelItem("expressions", "Expressions", <ExpressionsIcon />, "expressions", false)]),
+        ...(placing ? [] : [panelItem("appearance", "Appearance", <AppearanceIcon />, "appearance")])]),
+      whole("Equations", [panelItem("expressions", "Equations", <ExpressionsIcon />, "expressions", false)]),
     ],
     // Assemble: an assembly's parts placed by Assembly Constraints, and its exploded views.
     assemble: () => [
-      whole("Constraints", placing ? [panelItem("mate", "Assembly Constraints", <MateIcon />, "mate", edit.status !== "ready" || edit.saving)] : []),
-      whole("Exploded Views", viewerTool("exploded")),
+      whole("Constraints", placing ? [panelItem("mate", "Mate", <MateIcon />, "mate", edit.status !== "ready" || edit.saving)] : []),
+      whole("Exploded View", viewerTool("exploded")),
     ],
     // Drafting: the part's drawing.
     drafting: () => [whole("Sheet", drawing)],

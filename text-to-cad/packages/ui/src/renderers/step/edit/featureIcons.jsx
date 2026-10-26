@@ -6,8 +6,8 @@ import { NxIcon } from "../../../lib/nxIcons.generated.jsx";
 export { featureIconName };
 
 /**
- * The Part Navigator's icons, the generator's (`lib/nxIcons.generated.jsx`), so a row reads before its
- * name does: each feature the ribbon's own picture of it, as NX's Part Navigator repeats its ribbon's
+ * The design tree's icons, the generator's (`lib/nxIcons.generated.jsx`), so a row reads before its
+ * name does: each feature the ribbon's own picture of it, as NX's design tree repeats its ribbon's
  * icons, and each row that is not a feature (the part or assembly, its Expressions, the datum
  * coordinate system and its planes, a sketch, an assembly's constraints) its own.
  */
@@ -19,10 +19,10 @@ export function FeatureIcon({ kind }) {
   return <NxIcon name={featureIconName(kind)} className={ICON_CLASS} />;
 }
 
-export const PlaneIcon = () => <FeatureIcon kind="Datum Plane" />;
-export const OriginIcon = () => <FeatureIcon kind="Datum Coordinate System" />;
+export const PlaneIcon = () => <FeatureIcon kind="Plane" />;
+export const OriginIcon = () => <FeatureIcon kind="Origin" />;
 export const SketchIcon = () => <FeatureIcon kind="Sketch" />;
 export const PartIcon = () => <FeatureIcon kind="Part" />;
 export const AssemblyIcon = () => <FeatureIcon kind="Assembly" />;
-export const MateTreeIcon = () => <FeatureIcon kind="Constraints" />;
-export const ParametersIcon = () => <FeatureIcon kind="Expressions" />;
+export const MateTreeIcon = () => <FeatureIcon kind="Mates" />;
+export const ParametersIcon = () => <FeatureIcon kind="Equations" />;

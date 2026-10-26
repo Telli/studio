@@ -27,7 +27,7 @@ export default function MassProperties({ edit }) {
   const key = picked ?? mass?.material ?? NONE;
   const material = (mass?.materials || []).find(each => each.key === key) || null;
   const rows = mass?.volume ? massRows(mass, units, material?.density || null) : [];
-  return <div role="dialog" aria-label="Measure Bodies" data-cad-mass-properties="" className="flex shrink-0 flex-col"
+  return <div role="dialog" aria-label="Mass Properties" data-cad-mass-properties="" className="flex shrink-0 flex-col"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopInspecting(); } }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <MassPropertiesIcon className="size-5 shrink-0" />

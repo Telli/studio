@@ -12,7 +12,7 @@ function edit(patch: Record<string, unknown> = {}) {
   return { status: 'ready', saving: false, state: STATE, selected: null, renaming: null, bar: null, sketch: null, command: null, picking: false,
     inspecting: null, error: 'The fillet could not be built.', redraw: null, dismissError: vi.fn(), select: vi.fn(), hover: vi.fn(), ...patch };
 }
-// The place beside the Part Navigator the frame gives the open command's dialog (`dialogPlace`).
+// The place beside the design tree the frame gives the open command's dialog (`dialogPlace`).
 function place() {
   const card = document.createElement('div');
   card.setAttribute('data-test-card', '');
@@ -20,7 +20,7 @@ function place() {
   return card;
 }
 
-it("says what went wrong in the card beside the Part Navigator, so the navigator folded to its title never hides it", () => {
+it("says what went wrong in the card beside the design tree, so the tree folded to its title never hides it", () => {
   const card = place();
   const { container } = render(<EditBrowser edit={edit() as never} names={[]} tree={featureTree(STATE)} card={card} />);
   const alert = screen.getByRole('alert');
@@ -33,7 +33,7 @@ it("says what went wrong in the card beside the Part Navigator, so the navigator
   // With a command's dialog open it heads the dialog, in the same card.
   render(<EditBrowser edit={edit({ inspecting: 'expressions', change: vi.fn(), addParameter: vi.fn(), stopInspecting: vi.fn() }) as never}
     names={[]} tree={featureTree(STATE)} card={card} />);
-  const dialog = within(card).getByRole('dialog', { name: 'Expressions' });
+  const dialog = within(card).getByRole('dialog', { name: 'Equations' });
   expect(Boolean(within(card).getByRole('alert').compareDocumentPosition(dialog) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   cleanup();
   // With no place to float in, it heads the tree, as it did.

@@ -46,7 +46,8 @@ it("a renamed feature shows its own name and the tree still counts it, and its n
 });
 
 // A bracket: a plate (an extrude a command made, from a sketch of its own), then a fillet and a hole the
-// commands made. Numbered as NX does: Sketch (1), Extrude (2), Edge Blend (3), Hole (4). The engine gives each
+// commands made. Numbered as SolidWorks does, each kind on its own: Outline (the sketch's name in its Sketch1's place),
+// Boss-Extrude1, Fillet1, Hole1. The engine gives each
 // feature its first line as written, and each row of the history its own. The hole is made by a helper the part calls.
 const SOURCE = {
   plate: 'plate = extrude(outline, amount=THICKNESS)',
@@ -82,56 +83,60 @@ function menuOf(title: string) {
   return screen.getAllByRole('menuitem').map(item => item.textContent);
 }
 
-it("opens with the Datum Coordinate System", () => {
+it("opens with the Origin", () => {
   render(<EditTree edit={part() as never} tree={partTree()} />);
-  const rows = within(screen.getByRole('tree', { name: 'Part Navigator' })).getAllByRole('treeitem');
-  expect(rows[0].textContent).toBe('Datum Coordinate System (0)');
+  const rows = within(screen.getByRole('tree', { name: 'FeatureManager design tree' })).getAllByRole('treeitem');
+  expect(rows[0].textContent).toBe('Origin');
   // Drawn with the generator's coordinate system icon, its planes hanging from it, open.
   expect(rows[0].querySelector('use')?.getAttribute('href')).toBe('#nx-csys');
-  expect(rows.slice(1, 4).map(each => each.textContent)).toEqual(['XZ Plane', 'XY Plane', 'YZ Plane']);
-  // The features follow, numbered after it: a feature's own name in quotes, its variable name at the right.
-  expect(rows.slice(4).map(each => each.textContent)).toEqual(['Extrude (2)Plate', 'Edge Blend (3)Plate', 'Hole (4)Plate']);
+  expect(rows.slice(1, 4).map(each => each.textContent)).toEqual(['Front Plane', 'Top Plane', 'Right Plane']);
+  // The features follow, each kind numbered on its own, its variable name at the right.
+  expect(rows.slice(4).map(each => each.textContent)).toEqual(['Boss-Extrude1Plate', 'Fillet1Plate', 'Hole1Plate']);
 });
 
-it("keeps User Expressions folded at the top", async () => {
+it("keeps Equations folded at the top", async () => {
   const user = userEvent.setup();
   const { container } = render(<EditTree edit={part() as never} tree={partTree()} />);
-  const fold = screen.getByRole('button', { name: 'User Expressions' });
+  const fold = screen.getByRole('button', { name: 'Equations' });
   // Above the tree, folded: the part's sizes are not listed until it is opened.
   expect(fold.getAttribute('aria-expanded')).toBe('false');
   expect(Boolean(fold.compareDocumentPosition(screen.getByRole('tree')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   expect(container.textContent).not.toMatch(/Tray width/);
   expect(screen.queryByRole('textbox', { name: 'Wall value' })).toBeNull();
-  // Opened, it lists the part's expressions, typed over in place as the Expressions dialog lists them; folded again, it puts them away.
+  // Opened, it lists the part's expressions, typed over in place as the Equations dialog lists them; folded again, it puts them away.
   await user.click(fold);
   expect(fold.getAttribute('aria-expanded')).toBe('true');
-  const list = screen.getByRole('group', { name: 'User Expressions' });
+  const list = screen.getByRole('group', { name: 'Equations' });
   expect(within(list).getByText('Tray width')).toBeTruthy();
   expect(within(list).getByRole('textbox', { name: 'Wall value' })).toBeTruthy();
   await user.click(fold);
-  expect(screen.queryByRole('group', { name: 'User Expressions' })).toBeNull();
+  expect(screen.queryByRole('group', { name: 'Equations' })).toBeNull();
 });
 
-it("words the row menu as NX does", () => {
+it("words the row menu as SolidWorks does", () => {
   // A feature a command made, with no sketch of its own.
   render(<EditTree edit={part() as never} tree={partTree()} />);
-  expect(menuOf('Edge Blend (3)')).toEqual(['Edit Parameters', 'Suppress', 'Rename', 'Delete', 'Make Current Feature']);
+  expect(menuOf('Fillet1')).toEqual(['Edit Feature', 'Suppress', 'Rename', 'Delete', 'Rollback']);
   cleanup();
   // With a sketch it edits, Edit Sketch follows.
   render(<EditTree edit={part() as never} tree={partTree()} />);
-  expect(menuOf('Extrude (2)')).toEqual(['Edit Parameters', 'Edit Sketch', 'Suppress', 'Rename', 'Delete', 'Make Current Feature']);
+  expect(menuOf('Boss-Extrude1')).toEqual(['Edit Feature', 'Edit Sketch', 'Suppress', 'Rename', 'Delete', 'Rollback']);
   cleanup();
-  // A feature no command made has no Edit Parameters.
+  // A feature no command made has no Edit Feature.
   render(<EditTree edit={edit() as never} tree={featureTree(STATE)} />);
-  expect(menuOf('Extrude (1)')).toEqual(['Suppress', 'Rename', 'Delete', 'Make Current Feature']);
+  expect(menuOf('Boss-Extrude1')).toEqual(['Suppress', 'Rename', 'Delete', 'Rollback']);
   cleanup();
   // A feature set aside is put back by Unsuppress.
   const aside = { ...PART, features: PART.features.map(feature => (feature.key === FILLET ? { ...feature, suppressed: true } : feature)) };
   render(<EditTree edit={part({ state: aside }) as never} tree={featureTree(aside)} />);
-  expect(menuOf('Edge Blend (3)')).toEqual(['Edit Parameters', 'Unsuppress', 'Rename', 'Delete', 'Make Current Feature']);
+  expect(menuOf('Fillet1')).toEqual(['Edit Feature', 'Unsuppress', 'Rename', 'Delete', 'Rollback']);
+  cleanup();
+  // While the rollback bar is up, Roll to End follows Rollback.
+  render(<EditTree edit={part({ bar: { item: FILLET, before: FILLET } }) as never} tree={partTree()} />);
+  expect(menuOf('Hole1')).toEqual(['Edit Feature', 'Suppress', 'Rename', 'Delete', 'Rollback', 'Roll to End']);
 });
 
-it("words a sketch's menu as NX does", () => {
+it("words a sketch's menu as SolidWorks does", () => {
   const lid = {
     units: 'mm', name: 'lid', params: [], rows: [],
     features: [
@@ -141,12 +146,12 @@ it("words a sketch's menu as NX does", () => {
   };
   // The sketch under the extrude is shown once the extrude is open (selecting it opens its owner).
   render(<EditTree edit={{ ...part({ state: lid }), selected: 'sketch:lid.py:9' } as never} tree={featureTree(lid)} />);
-  // A sketch of its own is deleted and can be made current; it is not suppressed on its own.
-  expect(menuOf('Sketch (1) "Outline"')).toEqual(['Edit Sketch', 'Rename', 'Delete', 'Make Current Feature']);
+  // A sketch of its own is deleted and can be rolled back to; it is not suppressed on its own.
+  expect(menuOf('Outline')).toEqual(['Edit Sketch', 'Rename', 'Delete', 'Rollback']);
   cleanup();
   // The sketch an extrude is made from goes with the extrude.
   render(<EditTree edit={{ ...part({ state: lid }), selected: 'sketch:lid.py:9' } as never} tree={featureTree(lid)} />);
-  expect(menuOf('Sketch (2) "Rim"')).toEqual(['Edit Sketch', 'Rename']);
+  expect(menuOf('Rim')).toEqual(['Edit Sketch', 'Rename']);
 });
 
 it("marks who made a feature with a dot at its row's right, said on hover, its sketch with its own, and one nobody is known to have made with none", () => {
@@ -155,12 +160,12 @@ it("marks who made a feature with a dot at its row's right, said on hover, its s
   // The extrude open, the sketch it was made from under it.
   render(<EditTree edit={part({ state: authored, selected: 'sketch:bracket.py:8' }) as never} tree={featureTree(authored)} />);
   const dot = (title: string) => row(title).querySelector('[data-cad-edit-tree-author]');
-  expect(['Sketch (1) "Outline"', 'Extrude (2)', 'Edge Blend (3)', 'Hole (4)'].map(title => dot(title)?.getAttribute('data-cad-edit-tree-author') ?? null))
+  expect(['Outline', 'Boss-Extrude1', 'Fillet1', 'Hole1'].map(title => dot(title)?.getAttribute('data-cad-edit-tree-author') ?? null))
     .toEqual(['agent', 'agent', 'you', null]);
   // At the row's right, past its variable's name, and named for a screen reader.
-  expect(row('Edge Blend (3)').lastElementChild?.contains(dot('Edge Blend (3)'))).toBe(true);
-  expect(within(row('Extrude (2)')).getByRole('img', { name: 'Made by the agent' })).toBeTruthy();
-  fireEvent.pointerMove(dot('Edge Blend (3)')!.parentElement!, { pointerType: 'mouse' });
+  expect(row('Fillet1').lastElementChild?.contains(dot('Fillet1'))).toBe(true);
+  expect(within(row('Boss-Extrude1')).getByRole('img', { name: 'Made by the agent' })).toBeTruthy();
+  fireEvent.pointerMove(dot('Fillet1')!.parentElement!, { pointerType: 'mouse' });
   act(() => { vi.advanceTimersByTime(450); });
   expect(screen.getByRole('tooltip').textContent).toBe('Made by you');
   cleanup();
@@ -169,52 +174,61 @@ it("marks who made a feature with a dot at its row's right, said on hover, its s
   expect(document.querySelectorAll('[data-cad-edit-tree-author]').length).toBe(0);
 });
 
-it("makes a feature current", async () => {
+it("rolls back to a feature, the bar just above it, and rolls to the end again", async () => {
   const user = userEvent.setup();
   const tree = partTree();
-  // On the second of the three features, the rollback bar goes above the third.
+  // On the second of the three features, the rollback bar goes just above it: it and the hole rolled back.
   const rolling = part();
   render(<EditTree edit={rolling as never} tree={tree} />);
-  fireEvent.contextMenu(row('Edge Blend (3)'));
-  await user.click(screen.getByRole('menuitem', { name: 'Make Current Feature' }));
-  expect(rolling.rollTo).toHaveBeenCalledWith(HOLE);
+  fireEvent.contextMenu(row('Fillet1'));
+  await user.click(screen.getByRole('menuitem', { name: 'Rollback' }));
+  expect(rolling.rollTo).toHaveBeenCalledWith(FILLET);
   cleanup();
-  // On the last, with the part rolled back above the fillet, the bar goes to the end.
+  // Nothing rolled back, there is no end to roll to.
+  render(<EditTree edit={part() as never} tree={tree} />);
+  expect(menuOf('Hole1')).not.toContain('Roll to End');
+  cleanup();
+  // With the part rolled back above the fillet, Roll to End puts the bar past the last feature.
   const back = part({ bar: { item: FILLET, before: FILLET } });
   render(<EditTree edit={back as never} tree={tree} />);
-  fireEvent.contextMenu(row('Hole (4)'));
-  await user.click(screen.getByRole('menuitem', { name: 'Make Current Feature' }));
+  fireEvent.contextMenu(row('Hole1'));
+  await user.click(screen.getByRole('menuitem', { name: 'Roll to End' }));
   expect(back.rollTo).toHaveBeenCalledTimes(1);
   expect(back.rollTo).toHaveBeenCalledWith(null);
   cleanup();
-  // It takes the place of Rollback and Roll to End.
+  // Rollback on a feature below the bar moves the bar down to just above it.
+  const further = part({ bar: { item: FILLET, before: FILLET } });
+  render(<EditTree edit={further as never} tree={tree} />);
+  fireEvent.contextMenu(row('Hole1'));
+  await user.click(screen.getByRole('menuitem', { name: 'Rollback' }));
+  expect(further.rollTo).toHaveBeenCalledWith(HOLE);
+  // The old Make Current Feature is gone.
+  cleanup();
   render(<EditTree edit={back as never} tree={tree} />);
-  const words = menuOf('Hole (4)');
-  expect(words).not.toContain('Rollback');
-  expect(words).not.toContain('Roll to End');
+  expect(menuOf('Hole1')).not.toContain('Make Current Feature');
 });
 
-it("leaves a feature that is current as it is", async () => {
+it("leaves the bar where it is when it already sits just above the feature", async () => {
   const user = userEvent.setup();
   const tree = partTree();
-  // Nothing rolled back: the last feature is current already.
-  const idle = part();
-  render(<EditTree edit={idle as never} tree={tree} />);
-  fireEvent.contextMenu(row('Hole (4)'));
-  const last = screen.getByRole('menuitem', { name: 'Make Current Feature' });
-  expect(last.getAttribute('aria-disabled')).toBe('true');
-  await user.click(last);
-  expect(idle.rollTo).not.toHaveBeenCalled();
+  // The bar just above the fillet: Rollback on the fillet has nowhere to go.
+  const rolled = part({ bar: { item: FILLET, before: FILLET } });
+  render(<EditTree edit={rolled as never} tree={tree} />);
+  fireEvent.contextMenu(row('Fillet1'));
+  const here = screen.getByRole('menuitem', { name: 'Rollback' });
+  expect(here.getAttribute('aria-disabled')).toBe('true');
+  await user.click(here);
+  expect(rolled.rollTo).not.toHaveBeenCalled();
   cleanup();
-  // The bar just under the fillet: it is the current one.
-  render(<EditTree edit={part({ bar: { item: HOLE, before: HOLE } }) as never} tree={tree} />);
-  fireEvent.contextMenu(row('Edge Blend (3)'));
-  expect(screen.getByRole('menuitem', { name: 'Make Current Feature' }).getAttribute('aria-disabled')).toBe('true');
+  // Nothing rolled back: Rollback is there on the last feature too.
+  render(<EditTree edit={part() as never} tree={tree} />);
+  fireEvent.contextMenu(row('Hole1'));
+  expect(screen.getByRole('menuitem', { name: 'Rollback' }).getAttribute('aria-disabled')).toBeNull();
 });
 
 it("keeps the part's own menu above the tree, its commands in the toolbar's words", () => {
   render(<EditTree edit={part() as never} tree={partTree()} />);
-  expect(menuOf('Bracket')).toEqual(['Edit Object Display', 'Measure Bodies']);
+  expect(menuOf('Bracket')).toEqual(['Appearance', 'Mass Properties']);
 });
 
 it("opens a sketch on a double-click, as its menu's Edit Sketch does, but not while a change is on its way", () => {
@@ -225,7 +239,7 @@ it("opens a sketch on a double-click, as its menu's Edit Sketch does, but not wh
   for (const [state, opens] of [[{}, true], [{ saving: true }, false], [{ status: 'reading' }, false]] as const) {
     const onEditSketch = vi.fn();
     render(<EditTree edit={part({ state: lid, ...state }) as never} tree={featureTree(lid)} onEditSketch={onEditSketch} />);
-    fireEvent.doubleClick(row('Sketch (1) "Outline"'));
+    fireEvent.doubleClick(row('Outline'));
     expect(onEditSketch.mock.calls.map(([sketch]) => sketch.title)).toEqual(opens ? ['Outline'] : []);
     cleanup();
   }
@@ -235,7 +249,7 @@ it("takes the selected feature out with the Delete key, as it did", () => {
   const selected = part({ selected: FILLET });
   const tree = partTree();
   render(<EditTree edit={selected as never} tree={tree} />);
-  fireEvent.keyDown(row('Edge Blend (3)'), { key: 'Delete' });
+  fireEvent.keyDown(row('Fillet1'), { key: 'Delete' });
   expect(selected.remove).toHaveBeenCalledWith(FILLET, tree);
 });
 
@@ -246,10 +260,10 @@ it("lists an assembly's parts and mates in the tree, under the same header", () 
       features: [{ key: 'parts/base.py:6', kind: 'Boss-Extrude', name: 'base', file: 'parts/base.py', line: 6 }] }],
   };
   render(<EditTree edit={part({ state: stack }) as never} tree={featureTree(stack)} onOpenPart={vi.fn()} />);
-  const rows = within(screen.getByRole('tree', { name: 'Part Navigator' })).getAllByRole('treeitem');
-  expect(rows.map(each => each.textContent)).toEqual(['Datum Coordinate System (0)', 'XZ Plane', 'XY Plane', 'YZ Plane', 'Base<1>', 'Mates', 'Coincident1 (base, pin)']);
+  const rows = within(screen.getByRole('tree', { name: 'FeatureManager design tree' })).getAllByRole('treeitem');
+  expect(rows.map(each => each.textContent)).toEqual(['Origin', 'Front Plane', 'Top Plane', 'Right Plane', 'Base<1>', 'Mates', 'Coincident1 (base, pin)']);
   expect(screen.getByText('Stack')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'User Expressions' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Equations' })).toBeTruthy();
   expect(menuOf('Base<1>')).toEqual(['Open Part']);
   cleanup();
   render(<EditTree edit={part({ state: stack }) as never} tree={featureTree(stack)} onOpenPart={vi.fn()} />);
@@ -289,21 +303,21 @@ const markedRows = () => screen.queryAllByRole('img', { name: 'Did not build' })
 it("marks the feature whose build failed with the viewer's warning, and says why on hover", () => {
   render(<EditTree edit={part({ error: failed(9), failure: stoppedAt(at(9, SOURCE.fillet)) }) as never} tree={partTree()} />);
   // The row the engine's file, line and words name, beside its title, in the alert card's amber.
-  const marked = row('Edge Blend (3)');
+  const marked = row('Fillet1');
   const mark = within(marked).getByRole('img', { name: 'Did not build' });
   expect(mark.getAttribute('class')).toMatch(/\btext-amber-500\b/);
   expect(marked.getAttribute('title')).toBe(`Did not build: ${WHY}`);
-  expect(marked.textContent).toBe('Edge Blend (3)Plate');
+  expect(marked.textContent).toBe('Fillet1Plate');
   // No other row says it.
   expect(markedRows()).toEqual([FILLET]);
-  expect(row('Hole (4)').getAttribute('title')).toBeNull();
+  expect(row('Hole1').getAttribute('title')).toBeNull();
 });
 
 it("marks the feature that called the helper an error was raised in", () => {
   // The helper's line makes no row; the part's call into it is the hole's, so that is the row.
   render(<EditTree edit={part({ error: failed(10, SOURCE.hole), failure: stoppedAt(IN_DRILL, at(10, SOURCE.hole)) }) as never} tree={partTree()} />);
   expect(markedRows()).toEqual([HOLE]);
-  expect(row('Hole (4)').getAttribute('title')).toBe(`Did not build: ${WHY}`);
+  expect(row('Hole1').getAttribute('title')).toBe(`Did not build: ${WHY}`);
 });
 
 it("marks nothing for a line that moved: the script has moved on from the tree", () => {

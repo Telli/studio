@@ -79,7 +79,7 @@ function PlanePicker({ edit, onPlane }) {
   return <div role="dialog" aria-label="Sketch" className="flex shrink-0 flex-col" data-cad-sketch-picker=""
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopPicking(); } }}>
     <Header title="Sketch" />
-    <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} py-2`}>Select a plane to sketch on: one of these, a plane in the Part Navigator, or a flat face of the model.</p>
+    <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} py-2`}>Select a plane to sketch on: one of these, a plane in the design tree, or a flat face of the model.</p>
     {/* An offset plane, as SolidWorks' Plane at an Offset distance: the one picked, moved along its normal. */}
     <SizeRow label="Offset distance" value={edit.planeOffset || "0"} unit={edit.state?.units || ""} disabled={edit.saving}
       onCommit={text => edit.setPlaneOffset(text === "0" ? "" : text)} />
@@ -179,7 +179,7 @@ export default function SketchPanel({ edit, onPlane, references = [] }) {
   const status = state?.status || "";
   const statusText = !state ? "Not solved" : status === "Under defined"
     ? `Under defined, ${state.dof} ${state.dof === 1 ? "way" : "ways"} it can still move` : status;
-  const finish = { onOk: () => void edit.exitSketch(), onCancel: () => void edit.cancelSketch(), okLabel: "Finish Sketch",
+  const finish = { onOk: () => void edit.exitSketch(), onCancel: () => void edit.cancelSketch(), okLabel: "Exit Sketch",
     cancelLabel: "Discard Changes", busy: disabled };
   return <div role="dialog" aria-label={sketch.name} className="flex shrink-0 flex-col" data-cad-sketch-panel=""
     onKeyDown={event => { if (event.key === "Escape" && edit.sketchTool) { event.stopPropagation(); edit.setSketchTool(null); } }}>

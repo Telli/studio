@@ -15,7 +15,7 @@ const AGENT_BUTTONS = Object.freeze({
   annotate: { label: "Annotate", Icon: AnnotateIcon },
 });
 // The cards the workspace floats over the view, which the bar keeps clear of: its toolbar (the top of the room the bar
-// has), the Part Navigator, the open command's card, the timeline, and Quick Edit's box.
+// has), the design tree, the open command's card, the timeline, and Quick Edit's box.
 const CARDS = '[data-cad-dock="toolbar"], [data-cad-dock="navigator"], [data-cad-command-card], [data-cad-edit-timeline], [data-quick-edit-box]';
 
 // What the bar is placed by: the picks' box on the screen, the room it has (the view inset from its edges, below the
@@ -74,7 +74,7 @@ function useFrame(viewport, anchorKey, anchorRef, active) {
  * about, in the part's own units; `anchorKey` changes with the picks. It shows once the double-click window since it
  * came has passed, so a second click of a double-click on the model is the model's, and it takes no press or double-click
  * of its own that the model could hear. Edit draws the picked feature's own icon (`editKind`) and names what it opens
- * (`editHint`: Edit Parameters, Edit Sketch).
+ * (`editHint`: Edit Feature, Edit Sketch).
  *
  * @param {{ viewport: { runtimeRef: object, hostRef?: object, viewerReadyTick?: number },
  *   actions: { id: string, enabled: boolean, reason?: string }[], anchor: () => number[][], anchorKey: string,

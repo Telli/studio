@@ -25,7 +25,7 @@ const notesOf = icon => [icon.feature.suppressed ? "Suppressed" : "", AUTHOR_WOR
 const gapBefore = (items, slot) => items.slice(0, slot).reduce((x, item) => x + (item.sketch ? 2 * TILE + PAIR : TILE) + GAP, PAD - GAP);
 
 /**
- * The rollback bar's marker: the Part Navigator's bar laid along the timeline, dragged back to a gap
+ * The rollback bar's marker: the design tree's bar laid along the timeline, dragged back to a gap
  * between items (or moved an item at a time with the arrow keys) to show the part as it was there.
  * `index` is the item it stands before (`count`: past the last). While dragged it follows the pointer
  * from gap to gap and `onPreview` says which gap it is in (null: the one it began in), which draws the
@@ -107,13 +107,13 @@ function TimelineIcon({ icon, selected, out, onSelect, onOpen }) {
 
 /**
  * Edit mode's timeline, as Fusion lays one along the bottom of its window: every feature of the part as
- * its icon, in the order the Part Navigator lists them (`timeline.js`; a sketch of its own among them), the
+ * its icon, in the order the design tree lists them (`timeline.js`; a sketch of its own among them), the
  * sketch a feature was made from as an icon just before it, each named by its title on hover, with a dot
  * under it for who made it (the agent's purple, yours grey, none where it is not known: `edit.state.authors`;
- * a sketch carries its feature's). A click selects an icon, a sketch by the id the Part Navigator selects it
- * by, and a double-click edits it: Edit Parameters on a feature a command made (`edit.editFeature`), Edit
+ * a sketch carries its feature's). A click selects an icon, a sketch by the id the design tree selects it
+ * by, and a double-click edits it: Edit Feature on a feature a command made (`edit.editFeature`), Edit
  * Sketch on a sketch (`onEditSketch`). The rollback bar's marker stands after the last item the part still
- * has, and is dragged back to roll the part back to there, the same rollback as the Part Navigator's bar
+ * has, and is dragged back to roll the part back to there, the same rollback as the design tree's bar
  * and its Make Current Feature (`edit.rollTo`); a feature and its sketch go together, so it never stands
  * between them. What the marker leaves out, and what is suppressed, is greyed. It floats over the canvas
  * on the workspace's white card, an inset in from the frame's `bottomDock` (a dock with no height of its
@@ -131,7 +131,7 @@ export default function EditTimeline({ edit, tree, onEditSketch = () => {} }) {
   const listRef = useRef(null);
   if (!items.length) return null;
   const disabled = edit.saving || edit.status !== "ready";
-  // As in the Part Navigator, nothing is edited or rolled back while a sketch is open or a change is on its way.
+  // As in the design tree, nothing is edited or rolled back while a sketch is open or a change is on its way.
   const busy = disabled || Boolean(edit.sketch);
   const slot = dragged ?? marker;
   // The marker steps over whole items, a feature with its sketch: it is their middles a pointer is read against.

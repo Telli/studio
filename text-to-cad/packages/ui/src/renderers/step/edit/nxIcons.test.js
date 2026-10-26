@@ -104,13 +104,13 @@ test("draws the toolbar's other buttons and their panels from the generator, eac
   assert.equal(drawnName(SmartDimensionIcon, "Smart Dimension"), SKETCH_TOOL_ICON_NAMES.dimension);
 });
 
-// What the Part Navigator lists: a feature by the kind the engine gives it (Boss-Extrude) or the
-// name NX does (Extrude), and the rows that are not features.
+// What the design tree lists: a feature by the kind the engine gives it (Boss-Revolve) or the
+// name SolidWorks' tree does (Revolve), and the rows that are not features.
 const KEPT_NAMES = ["Hole", "Chamfer", "Shell", "Draft", "Rib"];
-const ROWS = ["Sketch", "Datum Coordinate System", "Part", "Assembly", "Expressions", "Constraints"];
+const ROWS = ["Sketch", "Origin", "Part", "Assembly", "Equations", "Mates"];
 const NX_NAMES = [...new Set(Object.values(NX_KINDS)), ...KEPT_NAMES, ...ROWS];
 
-test("draws every Part Navigator row", () => {
+test("draws every design tree row", () => {
   for (const kind of [...NX_NAMES, ...Object.keys(NX_KINDS)]) {
     assert.ok(NX_ICON_NAMES.includes(featureIconName(kind)), `${kind} draws an icon the generator has`);
   }
@@ -118,7 +118,7 @@ test("draws every Part Navigator row", () => {
   for (const [kind, name] of Object.entries(NX_KINDS)) assert.equal(featureIconName(kind), featureIconName(name), kind);
   // Rows told apart wear different icons; a kind the tree has no picture for reads as a solid feature.
   assert.equal(new Set(NX_NAMES.map(featureIconName)).size, NX_NAMES.length);
-  assert.equal(featureIconName("Thicken"), featureIconName("Extrude"));
+  assert.equal(featureIconName("Thicken"), featureIconName("Boss-Extrude"));
 });
 
 test("keeps ids of its own", () => {

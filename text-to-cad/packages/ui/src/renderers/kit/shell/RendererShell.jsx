@@ -69,7 +69,7 @@ const SIDEBAR_POSITION_PHONE = Object.freeze({ top: INSET, left: INSET, bottom: 
 // toolbar's height, measured onto the viewport (`--cad-workspace-top`), is what the rest at the top keeps below.
 const WORKSPACE_TOP = "var(--cad-workspace-top, 0px)";
 const UNDER_TOOLBAR = `calc(${WORKSPACE_TOP} + ${INSET})`;
-// The Part Navigator and the dialog stop an inset above the cube's line, as the tool stack does, whichever
+// The design tree and the dialog stop an inset above the cube's line, as the tool stack does, whichever
 // bottom corner the cube is in.
 const NAVIGATOR_POSITION = Object.freeze({ top: UNDER_TOOLBAR, maxHeight: `calc(100% - ${WORKSPACE_TOP} - ${INSET} - ${VIEWPORT_STACK_BOTTOM})` });
 const DIALOG_PLACE_POSITION = Object.freeze({ top: UNDER_TOOLBAR, bottom: VIEWPORT_STACK_BOTTOM });
@@ -235,13 +235,13 @@ const DOUBLE_PRESS_MS = 600;
  *   laid out as a CAD tool lays out its window and floating over the canvas, so the canvas keeps its
  *   box, and the model its place, whether the workspace or Simple view's ai layout is up: the toolbar
  *   across the top (`ribbon`, given the strip's tools; the strip then keeps only the view's own
- *   controls, under the toolbar with its panels and Quick Edit); the Part Navigator, a card at the
+ *   controls, under the toolbar with its panels and Quick Edit); the design tree, a card at the
  *   top-left under it holding `leftDock`, which folds to its title and stands in for the file sidebar;
  *   beside it the place the open command's dialog mounts in (`dialogPlace`, a ref callback); and the
  *   timeline along the bottom up to the cube (`bottomDock`, drawing its own surface, as the toolbar
  *   does). It fades in as the layout turns to it and out as Simple view takes its place, in one
  *   transition; it is put away at once with the rest of the tools (loading, Preview, a compact view),
- *   and the Part Navigator in a view too narrow for it and the model. While the toolbar is up the
+ *   and the design tree in a view too narrow for it and the model. While the toolbar is up the
  *   view's own controls (Projection, Display, Preview) and the view catching up are its, not the
  *   strip's: `ribbon(tools, view)` is handed them (`view.controls`, small tiles for its tab row's right
  *   end, and `view.status`; null while it fades). `dialogOpen`: the dialog's place holds something,
@@ -442,13 +442,13 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
   const besideSidebarTile = mobile && !previewing && Boolean(sidebar || hasAnimation);
   // The workspace, over the canvas while the tools are up, and for its fade as Simple view takes its place.
   const workspace = useWorkspaceChrome(ribbon || leftDock || bottomDock || dialogPlace ? { ribbon, leftDock, bottomDock, dialogPlace } : null, editFrame);
-  // The Part Navigator folded to its title, as long as the frame is up.
+  // The design tree folded to its title, as long as the frame is up.
   const [navigatorFolded, setNavigatorFolded] = useState(false);
   // The toolbar's height, which the strip, its panels and Quick Edit keep below, and a renderer's own
   // layers over the top of the view (`--cad-workspace-top` on the viewport).
   const workspaceToolbar = useRef(null);
   const toolbarUp = Boolean(workspace && !workspace.leaving && workspace.chrome.ribbon);
-  // A dialog open beside the Part Navigator: the top column keeps to the room past it. No dialog, and the
+  // A dialog open beside the design tree: the top column keeps to the room past it. No dialog, and the
   // navigator up, folded or not: the column keeps clear of it (the top controls' measure).
   const besideDialog = Boolean(dialogOpen && workspace && !workspace.leaving && workspace.chrome.dialogPlace);
   const navigatorUp = Boolean(!besideDialog && workspace && !workspace.leaving && workspace.chrome.leftDock);
@@ -476,7 +476,7 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
     // column's gap, which would leave a wider gap over the sidebar than at its sides.
     const rowsOf = () => [...controls.children].map(row => row.getBoundingClientRect()).filter(box => box.height > 0);
     // The column, centred across the view, moved right only as far as what it holds (its rows, and the tool stack's
-    // panels under them) runs under the Part Navigator, folded or not, and an inset past it, and only as far as it has
+    // panels under them) runs under the design tree, folded or not, and an inset past it, and only as far as it has
     // room: one measure, one shift, by its margins, which the frame's style leaves alone. What clears the navigator
     // already stays put, and so does Quick Edit's room. A view too narrow for the navigator hides it, and nothing moves.
     const movePast = (column, past) => {
@@ -771,7 +771,7 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
               </ViewportTopRight>
 
               </PreviewChrome>
-              {/* The workspace, over the canvas: the toolbar across the top, the Part Navigator at the
+              {/* The workspace, over the canvas: the toolbar across the top, the design tree at the
                   top-left under it (folded, its title alone, what it holds kept), the open command's
                   dialog beside it, and the timeline along the bottom to the cube. The top-right stays
                   Quick Edit's and the bottom corner the cube's. Inert while it fades. */}
@@ -781,11 +781,11 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
                 {workspace.chrome.ribbon ? <div ref={workspaceToolbar} className="pointer-events-auto absolute inset-x-0 top-0" data-cad-dock="toolbar">
                   {workspace.chrome.ribbon(tools, toolbarView)}
                 </div> : null}
-                {workspace.chrome.leftDock ? <aside aria-label="Part Navigator" data-cad-dock="navigator" style={NAVIGATOR_POSITION}
+                {workspace.chrome.leftDock ? <aside aria-label="FeatureManager design tree" data-cad-dock="navigator" style={NAVIGATOR_POSITION}
                   className={cn(WORKSPACE_SURFACE_CLASS, "pointer-events-auto absolute left-2 flex w-64 flex-col overflow-hidden @max-xl/cad-viewport:hidden")}>
                   <button type="button" aria-expanded={!navigatorFolded} onClick={() => setNavigatorFolded(folded => !folded)}
                     className="flex h-7 shrink-0 items-center gap-1 px-2.5 text-left text-micro uppercase leading-3 tracking-wider text-muted-foreground hover:bg-cad-ws-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/45">
-                    <span className="min-w-0 flex-1 truncate">Part Navigator</span>
+                    <span className="min-w-0 flex-1 truncate">FeatureManager</span>
                     <ChevronDown className={cn("size-3 shrink-0", navigatorFolded && "-rotate-90")} aria-hidden="true" />
                   </button>
                   <div hidden={navigatorFolded} className="flex min-h-0 flex-initial flex-col border-t border-border">{workspace.chrome.leftDock}</div>

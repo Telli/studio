@@ -9,9 +9,9 @@ const command = { command: 'extrude', values: {}, keeps: '' };
 
 // The sample bracket as the engine reads it (`tracer.py`): an extrude takes the sketch it was made from, and the
 // engine nests that sketch under the extrude (`sketch`), so a sketch is a feature of its own only while nothing
-// uses it. Two extrudes a command made from sketches, then an Edge Blend written by hand, a Hole and a Pattern.
-// The Part Navigator numbers them, a sketch just before the extrude that takes it: Sketch (1), Extrude (2),
-// Sketch (3), Extrude (4), Edge Blend (5), Hole (6), Pattern Feature (7).
+// uses it. Two extrudes a command made from sketches, then a Fillet written by hand, a Hole and a Pattern.
+// The design tree numbers each kind on its own, a sketch just before the extrude that takes it (a sketch shows its
+// name in its label's place): SKETCH_000, Boss-Extrude1, SKETCH_001, Boss-Extrude2, Fillet1, Hole1, Pattern1.
 const STATE = {
   units: 'mm', name: 'bracket', params: [], rows: [],
   features: [
@@ -25,7 +25,7 @@ const STATE = {
 const TREE = featureTree(STATE);
 // What is drawn, left to right: the id each icon is selected by, and the title it is named by.
 const ICONS = ['sketch:e1', 'e1', 'sketch:e2', 'e2', 'b1', 'h1', 'p1'];
-const TITLES = ['Sketch (1) "SKETCH_000"', 'Extrude (2)', 'Sketch (3) "SKETCH_001"', 'Extrude (4)', 'Edge Blend (5)', 'Hole (6)', 'Pattern Feature (7)'];
+const TITLES = ['SKETCH_000', 'Boss-Extrude1', 'SKETCH_001', 'Boss-Extrude2', 'Fillet1', 'Hole1', 'Pattern1'];
 
 function edit(patch: Record<string, unknown> = {}) {
   return { status: 'ready', saving: false, state: STATE, selected: null, bar: null, sketch: null,
@@ -38,7 +38,7 @@ const timeline = (patch: Record<string, unknown> = {}, onEditSketch = vi.fn()) =
 };
 const items = () => within(screen.getByRole('group', { name: 'Timeline' })).getAllByRole('button');
 const item = (name: string) => screen.getByRole('button', { name });
-// The Part Navigator's rollback bar, laid along the timeline: its marker, named as the bar's.
+// The design tree's rollback bar, laid along the timeline: its marker, named as the bar's.
 const marker = () => screen.getByRole('slider', { name: "Rollback bar's marker" });
 /** Which icons are drawn as the part will not have them: those past the marker. */
 const rolledBackIcons = () => items().map(button => button.hasAttribute('data-rolled-back'));
@@ -75,7 +75,7 @@ function drag(xs: number[], { release = true } = {}) {
   if (release) fireEvent.pointerUp(marker(), { pointerId: 1, clientX: xs.at(-1) });
 }
 
-it("shows every item as its icon, in the Part Navigator's order, a feature's own sketch just before it", () => {
+it("shows every item as its icon, in the design tree's order, a feature's own sketch just before it", () => {
   timeline();
   expect(items().map(button => button.getAttribute('aria-label'))).toEqual(TITLES);
   expect(items().map(button => button.querySelector('use')?.getAttribute('href')))
@@ -90,27 +90,27 @@ it("keeps a feature and its sketch in one group, which is what the marker steps 
     .toEqual([[TITLES[0], TITLES[1]], [TITLES[2], TITLES[3]], [TITLES[4]], [TITLES[5]], [TITLES[6]]]);
 });
 
-it("selects on a click and edits on a double-click: Edit Parameters on a feature, Edit Sketch on a sketch", () => {
+it("selects on a click and edits on a double-click: Edit Feature on a feature, Edit Sketch on a sketch", () => {
   const { own, onEditSketch } = timeline();
-  fireEvent.click(item('Extrude (4)'));
+  fireEvent.click(item('Boss-Extrude2'));
   expect(own.select).toHaveBeenLastCalledWith('e2');
-  fireEvent.doubleClick(item('Extrude (4)'));
+  fireEvent.doubleClick(item('Boss-Extrude2'));
   expect(own.editFeature).toHaveBeenCalledTimes(1);
   expect(own.editFeature).toHaveBeenLastCalledWith(TREE.features[1]);
   expect(onEditSketch).not.toHaveBeenCalled();
-  // The sketch an extrude was made from opens as the Part Navigator's row for it does.
-  fireEvent.doubleClick(item('Sketch (3) "SKETCH_001"'));
+  // The sketch an extrude was made from opens as the design tree's row for it does.
+  fireEvent.doubleClick(item('SKETCH_001'));
   expect(onEditSketch).toHaveBeenCalledTimes(1);
   expect(onEditSketch).toHaveBeenLastCalledWith(TREE.features[1].sketch);
   expect(own.editFeature).toHaveBeenCalledTimes(1);
-  // A feature no command made has no Edit Parameters: a double-click does nothing, as in the Part Navigator.
-  fireEvent.doubleClick(item('Edge Blend (5)'));
+  // A feature no command made has no Edit Feature: a double-click does nothing, as in the design tree.
+  fireEvent.doubleClick(item('Fillet1'));
   expect([own.editFeature, onEditSketch].map(each => each.mock.calls.length)).toEqual([1, 1]);
 });
 
-it("selects a sketch an extrude was made from by the id the Part Navigator selects it by, and marks it selected", () => {
+it("selects a sketch an extrude was made from by the id the design tree selects it by, and marks it selected", () => {
   const { own } = timeline();
-  fireEvent.click(item('Sketch (3) "SKETCH_001"'));
+  fireEvent.click(item('SKETCH_001'));
   // The id a sketch picked on the model selects too (`sketchTreeId`).
   expect(own.select).toHaveBeenLastCalledWith(sketchTreeId(TREE, { file: 'bracket.py', line: 10 }));
   expect(own.select).toHaveBeenLastCalledWith('sketch:e2');
@@ -125,9 +125,9 @@ it("draws a sketch nothing uses yet once, as an item of its own", () => {
   const { own, onEditSketch } = timeline({ state: loose, selected: 's9' });
   expect(items().map(button => button.getAttribute('data-cad-timeline-item'))).toEqual(['sketch:e1', 'e1', 's9']);
   expect(items().map(button => button.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true']);
-  fireEvent.doubleClick(item('Sketch (3) "SKETCH_001"'));
+  fireEvent.doubleClick(item('SKETCH_001'));
   expect(onEditSketch).toHaveBeenLastCalledWith(featureTree(loose).features[1].sketch);
-  fireEvent.click(item('Sketch (3) "SKETCH_001"'));
+  fireEvent.click(item('SKETCH_001'));
   expect(own.select).toHaveBeenLastCalledWith(sketchTreeId(featureTree(loose), { file: 'bracket.py', line: 12 }));
 });
 
@@ -145,24 +145,24 @@ it("is the workspace's white card, and lights an item in its pale blue under the
   expect(card.className).not.toMatch(/\bbackdrop-|bg-background\//);
   // Jsdom has no pointer to rest on an item: the colours are the workspace's tokens, which are all it takes.
   const tile = (name: string) => item(name).firstElementChild!.className;
-  expect(tile('Extrude (2)')).toMatch(/\bbg-cad-ws-selected\b/);
-  expect(tile('Extrude (4)')).toMatch(/group-hover\/item:bg-cad-ws-hover/);
-  expect(tile('Sketch (1) "SKETCH_000"')).toMatch(/group-hover\/item:bg-cad-ws-hover/);
+  expect(tile('Boss-Extrude1')).toMatch(/\bbg-cad-ws-selected\b/);
+  expect(tile('Boss-Extrude2')).toMatch(/group-hover\/item:bg-cad-ws-hover/);
+  expect(tile('SKETCH_000')).toMatch(/group-hover\/item:bg-cad-ws-hover/);
 });
 
-it("edits nothing while the part is busy, as the Part Navigator's rows do not", () => {
+it("edits nothing while the part is busy, as the design tree's rows do not", () => {
   const { own, onEditSketch } = timeline({ saving: true });
-  fireEvent.doubleClick(item('Extrude (2)'));
-  fireEvent.doubleClick(item('Sketch (1) "SKETCH_000"'));
+  fireEvent.doubleClick(item('Boss-Extrude1'));
+  fireEvent.doubleClick(item('SKETCH_000'));
   expect([own.editFeature, onEditSketch].map(each => each.mock.calls.length)).toEqual([0, 0]);
-  fireEvent.click(item('Extrude (2)'));
+  fireEvent.click(item('Boss-Extrude1'));
   expect(own.select).toHaveBeenCalledWith('e1');
   cleanup();
-  // A sketch open takes Edit Parameters away, not the way into another sketch.
+  // A sketch open takes Edit Feature away, not the way into another sketch.
   const sketching = timeline({ sketch: { file: 'bracket.py', line: 5 } });
-  fireEvent.doubleClick(item('Extrude (2)'));
+  fireEvent.doubleClick(item('Boss-Extrude1'));
   expect(sketching.own.editFeature).not.toHaveBeenCalled();
-  fireEvent.doubleClick(item('Sketch (3) "SKETCH_001"'));
+  fireEvent.doubleClick(item('SKETCH_001'));
   expect(sketching.onEditSketch).toHaveBeenCalledTimes(1);
 });
 
@@ -173,11 +173,11 @@ it("stands the marker after the last item the part has, and greys what the rollb
   cleanup();
   timeline({ bar: { item: 'e2' } });
   // Above the second extrude, which goes with the sketch it was made from; the marker's places are the features'.
-  expect([marker().getAttribute('aria-valuenow'), marker().getAttribute('aria-valuetext'), marker().getAttribute('aria-valuemax')]).toEqual(['1', 'Above Extrude (4)', '5']);
+  expect([marker().getAttribute('aria-valuenow'), marker().getAttribute('aria-valuetext'), marker().getAttribute('aria-valuemax')]).toEqual(['1', 'Above Boss-Extrude2', '5']);
   expect(rolledBackIcons()).toEqual([false, false, true, true, true, true, true]);
 });
 
-it("says on hover the marker is the rollback bar's, as the Part Navigator names the bar", () => {
+it("says on hover the marker is the rollback bar's, as the design tree names the bar", () => {
   vi.useFakeTimers();
   timeline();
   fireEvent.pointerMove(marker(), { pointerType: 'mouse' });
@@ -227,12 +227,12 @@ it("says on hover what an item is, who made it and whether it is set aside", () 
   timeline({ state: aside });
   const hover = (node: Element) => { fireEvent.pointerMove(node, { pointerType: 'mouse' }); act(() => { vi.advanceTimersByTime(450); }); };
   const said = (name: string) => { hover(item(name)); const text = screen.getByRole('tooltip').textContent; fireEvent.pointerLeave(item(name)); return text; };
-  expect(said('Extrude (4)')).toBe('Extrude (4)Made by the agent');
-  expect(said('Sketch (3) "SKETCH_001"')).toBe('Sketch (3) "SKETCH_001"Made by the agent');
-  expect(said('Edge Blend (5)')).toBe('Edge Blend (5)Made by you');
-  expect(said('Sketch (1) "SKETCH_000"')).toBe('Sketch (1) "SKETCH_000"Suppressed');
+  expect(said('Boss-Extrude2')).toBe('Boss-Extrude2Made by the agent');
+  expect(said('SKETCH_001')).toBe('SKETCH_001Made by the agent');
+  expect(said('Fillet1')).toBe('Fillet1Made by you');
+  expect(said('SKETCH_000')).toBe('SKETCH_000Suppressed');
   // Nothing more to say of an item from before Studio kept track.
-  expect(said('Hole (6)')).toBe('Hole (6)');
+  expect(said('Hole1')).toBe('Hole1');
 });
 
 it("moves the marker under the pointer, and rolls the part back only when it is let go", () => {
@@ -352,7 +352,7 @@ it("has no marker where there is nothing to roll back to, and no timeline where 
   const empty = timeline({ state: { ...STATE, features: [] } });
   expect(empty.container.firstChild).toBeNull();
   cleanup();
-  // An assembly's Part Navigator has no bar, and its parts are opened to be modeled.
+  // An assembly's design tree has no bar, and its parts are opened to be modeled.
   const assembly = { ...STATE, features: undefined, components: [{ file: 'tray.py', name: 'tray', features: STATE.features }] };
   expect(timeline({ state: assembly }).container.firstChild).toBeNull();
 });

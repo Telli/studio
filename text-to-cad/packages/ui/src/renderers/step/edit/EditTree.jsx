@@ -34,7 +34,7 @@ function RenameInput({ value, onDone }) {
 }
 
 /** One row of the tree: its place (depth), its disclosure when it has rows under it, its icon and
- * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch, Edit Parameters on a feature),
+ * name. A double-click opens it (`onActivate`: Edit Sketch on a sketch, Edit Feature on a feature),
  * else opens or closes it; a right-click selects it and opens its menu (`menu`, in NX's words and order).
  * While `renaming`, its name is typed over (`onRename`, given the name or null). `warn`: why the
  * feature did not build, marked beside its name with the viewer's warning and said on hover. `author`:
@@ -134,7 +134,7 @@ function RollbackBar({ index, count, label, disabled, slotAt, onPreview, onMove 
 }
 
 /**
- * A fold above the tree, drawn as a row (its chevron, its icon, its name): the Part Navigator's User
+ * A fold above the tree, drawn as a row (its chevron, its icon, its name): the design tree's User
  * Expressions, which NX lists above the model's history. A button, as the tree's rows are not.
  */
 function HeadFold({ depth, icon, title, expanded, onToggle }) {
@@ -187,7 +187,7 @@ function AddParameter({ edit, disabled }) {
 
 /**
  * The part's expressions, as NX's Expressions lists them: each named size with its value typed over
- * in place (a change is one number in the part's script), then Add expression. The Part Navigator
+ * in place (a change is one number in the part's script), then Add expression. The design tree
  * lists them under its User Expressions, folded, and Expressions in the Inspect tab opens the same
  * list as a panel (`ExpressionsPanel.jsx`).
  */
@@ -210,16 +210,16 @@ export function ExpressionRows({ edit }) {
 }
 
 /**
- * Edit mode's Part Navigator, as NX lists a part: its name, then User Expressions folded above the
- * tree (the named sizes, typed over to change), and the tree, which opens with the Datum Coordinate
- * System (0) and its planes and goes on with the features in the order the script makes them, numbered
- * as NX numbers them (`nx.js`): each with its icon, its own name, its variable's name at the right, a
+ * Edit mode's design tree, as SolidWorks' FeatureManager lists a part: its name, then Equations folded
+ * above the tree (the named sizes, typed over to change), and the tree, which opens with the Origin and
+ * the Front, Top and Right Planes and goes on with the features in the order the script makes them,
+ * numbered as SolidWorks numbers them (`nx.js`): each with its icon, its own name, its variable's name at the right, a
  * dot past it for who made it (the agent's purple, yours grey, none where it is not known: `authors.js`;
  * a sketch carries its feature's) and a box to suppress it, a solid's sketch under it, a sketch nothing
  * uses yet on a row of its own. An assembly lists its parts as components, each opening to its own
  * features. Selecting a feature draws its dimensions on the model and shows its inputs under the tree;
  * selecting a plane draws it; double-clicking a sketch edits it, and a feature a command made reopens
- * that command's panel (`edit.editFeature`). A row's menu is NX's: Edit Parameters, Edit Sketch,
+ * that command's panel (`edit.editFeature`). A row's menu is NX's: Edit Feature, Edit Sketch,
  * Suppress or Unsuppress (`edit.suppress` sets a feature aside, greyed where it is), Rename, Delete
  * (`edit.remove`, as the key does) and Make Current Feature. That one puts the rollback bar just under
  * the feature (`edit.rollTo`), so the part shows as it was there, the features below it greyed and new
@@ -255,30 +255,30 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const name = sizeName(edit.state?.name || "") || "Part";
   // The feature a failed build stopped in, to be marked: the one with the line the engine says it stopped at, or with the call into the helper that did.
   const failure = buildFailure(tree, edit.error, edit.failure);
-  // A row's menu, in NX's words and order: Edit Parameters on a feature a command made, Edit Sketch
+  // A row's menu, in NX's words and order: Edit Feature on a feature a command made, Edit Sketch
   // where it has a sketch to edit, Suppress or Unsuppress, Rename, Delete (on a feature or a sketch of
   // its own: a feature's sketch goes with its feature), Make Current Feature.
   const busy = disabled || Boolean(edit.sketch);
-  // Edit Parameters works on a part's own body: in an assembly, a part is opened to edit its features.
+  // Edit Feature works on a part's own body: in an assembly, a part is opened to edit its features.
   const editable = feature => Boolean(feature.edit) && !tree.assembly;
-  const featureItem = feature => (editable(feature) ? [{ id: "edit-parameters", label: "Edit Parameters", disabled: busy, onSelect: () => edit.editFeature(feature) }] : []);
+  const featureItem = feature => (editable(feature) ? [{ id: "edit-parameters", label: "Edit Feature", disabled: busy, onSelect: () => edit.editFeature(feature) }] : []);
   const suppressItem = feature => ({ id: "suppress", label: feature.suppressed ? "Unsuppress" : "Suppress", disabled: busy,
     onSelect: () => void edit.suppress(feature.id, tree, !feature.suppressed) });
   // A suppressed feature, and the sketch under it, greyed; so are the features below the rollback bar.
   const greyed = icon => <span className="flex shrink-0 opacity-50">{icon}</span>;
   const rolled = rolledBack(tree, edit.bar);
   const partItems = tree.assembly ? [] : tree.features;
-  // Each row's title as NX's Part Navigator numbers it ("Extrude (2)"), a part's own or each of an assembly's.
+  // Each row's title as SolidWorks' design tree numbers it (Boss-Extrude2), a part's own or each of an assembly's.
   const titles = treeTitles(tree);
   const titleOf = row => titles.get(row.id) || row.title;
   const barAt = barIndex(tree, edit.bar);
-  // Make Current Feature: the rollback bar just under the feature, above the next one, or at the end
-  // past the last; nothing to do for the feature the bar is under already.
+  // SolidWorks' Rollback: the rollback bar just above the feature, it and what follows rolled back;
+  // and, while the bar is up, Roll to End, the bar past the last feature again.
   const currentItem = feature => {
     const index = partItems.findIndex(each => each.id === feature.id);
     if (index < 0) return [];
-    return [{ id: "make-current", label: "Make Current Feature", disabled: busy || barAt === index + 1,
-      onSelect: () => void edit.rollTo(partItems[index + 1]?.id ?? null) }];
+    return [{ id: "rollback", label: "Rollback", disabled: busy || barAt === index, onSelect: () => void edit.rollTo(feature.id) },
+      ...(barAt < partItems.length ? [{ id: "roll-to-end", label: "Roll to End", disabled: busy, onSelect: () => void edit.rollTo(null) }] : [])];
   };
   const editItem = sketch => (sketch?.constrained ? [{ id: "edit-sketch", label: "Edit Sketch", disabled, onSelect: () => onEditSketch(sketch) }] : []);
   const deleteItem = id => ({ id: "delete", label: "Delete", destructive: true, disabled: disabled || Boolean(edit.sketch),
@@ -374,16 +374,16 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
     </button> : null}
     {/* The part's own menu: its Edit Object Display and its Measure Bodies, in the toolbar's words. */}
     <Row id="" depth={0} role="none" icon={tree.assembly ? <AssemblyIcon /> : <PartIcon />} title={name} {...rowProps}
-      menu={tree.assembly ? null : [{ id: "appearance", label: "Edit Object Display", disabled: busy, onSelect: () => edit.inspect("appearance") },
-        { id: "mass", label: "Measure Bodies", disabled: busy, onSelect: () => edit.inspect("mass") }]} />
+      menu={tree.assembly ? null : [{ id: "appearance", label: "Appearance", disabled: busy, onSelect: () => edit.inspect("appearance") },
+        { id: "mass", label: "Mass Properties", disabled: busy, onSelect: () => edit.inspect("mass") }]} />
     {/* The part's named sizes, as NX's User Expressions holds them: folded, above the tree. */}
-    <HeadFold depth={1} icon={<ParametersIcon />} title="User Expressions" expanded={open.has("expressions")} onToggle={toggle("expressions")} />
-    {open.has("expressions") ? <div role="group" aria-label="User Expressions" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>
+    <HeadFold depth={1} icon={<ParametersIcon />} title="Equations" expanded={open.has("expressions")} onToggle={toggle("expressions")} />
+    {open.has("expressions") ? <div role="group" aria-label="Equations" className="flex flex-col pb-1" style={{ paddingLeft: 4 + 2 * (TREE_INDENT_PX + 2) }}>
       <ExpressionRows edit={edit} />
     </div> : null}
-    <div role="tree" aria-label="Part Navigator" className="flex flex-col">
+    <div role="tree" aria-label="FeatureManager design tree" className="flex flex-col">
       {/* The origin and its planes, as NX's datum coordinate system: feature 0, before the rest. */}
-      <Row id="origin" depth={1} icon={<OriginIcon />} title="Datum Coordinate System (0)" expanded={open.has("datum")} onToggle={toggle("datum")} {...rowProps} />
+      <Row id="origin" depth={1} icon={<OriginIcon />} title="Origin" expanded={open.has("datum")} onToggle={toggle("datum")} {...rowProps} />
       {open.has("datum") ? ORIGIN_PLANES.map(plane => <Row key={plane} id={`plane:${plane}`} depth={2} icon={<PlaneIcon />} title={nxPlane(plane)} {...rowProps} />) : null}
       {tree.assembly && onOpenPart && tree.components.some(component => component.step)
         ? <p className="px-2 py-1 text-tiny leading-4 text-muted-foreground">Double-click a part to open it and model it.</p> : null}

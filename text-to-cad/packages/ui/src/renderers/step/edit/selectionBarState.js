@@ -1,7 +1,7 @@
 /**
  * The state the selection bar and Quick Edit keep in the workspace (`StepSurface.jsx` wires it): whether the person has asked
  * for Quick Edit (`useAsked`), and whether they have chosen the feature that is selected (`useChosenFeature`, which
- * `chosenThrough` has the Part Navigator and the timeline set).
+ * `chosenThrough` has the design tree and the timeline set).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -42,7 +42,7 @@ export function useAsked({ editing, picked, held, file }) {
 }
 
 /**
- * Whether the person has chosen the feature selected in the Part Navigator (`chosen`): pressed its row there or on the
+ * Whether the person has chosen the feature selected in the design tree (`chosen`): pressed its row there or on the
  * timeline, or picked its sketch on the model. Only a feature they chose is a pick for the selection bar; the one a command's
  * OK selects, the one left selected from before, is not, or the bar would stand over the part all the while it is
  * being worked on. It lasts until their next click on the model's background (`drop`; an orbit drag to look at it, or a
@@ -57,7 +57,7 @@ export function useChosenFeature({ editing, held, file }) {
 }
 
 /**
- * The edit state as the Part Navigator and the timeline are handed it: selecting a row there is the person choosing its
+ * The edit state as the design tree and the timeline are handed it: selecting a row there is the person choosing its
  * feature (`choose`), and clearing the selection (no id) chooses nothing. All else is the edit state's own.
  */
 export const chosenThrough = (edit, choose) => ({ ...edit, select: id => { edit.select(id); if (id) choose(); } });

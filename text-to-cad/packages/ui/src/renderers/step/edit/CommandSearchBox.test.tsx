@@ -24,15 +24,18 @@ const box = (items: Item[], options: { sketching?: boolean; onClose?: () => void
 
 it('lists what the toolbar has, in its order, and narrows as the person types', async () => {
   const user = userEvent.setup();
-  const { input } = box([item('hole', 'Hole'), item('fillet', 'Edge Blend'), item('extrude', 'Extrude'), item('cut', 'Extrude')]);
-  // Every command with nothing typed, in the toolbar's order (Extrude and its Subtract, then Hole, then Edge Blend).
-  expect(names()).toEqual(['Extrude', 'Extrude Subtract', 'Hole', 'Edge Blend']);
+  const { input } = box([item('hole', 'Hole Wizard'), item('fillet', 'Fillet'), item('extrude', 'Extruded Boss/Base'), item('cut', 'Extruded Cut')]);
+  // Every command with nothing typed, in the toolbar's order (Extruded Boss/Base and its Cut, then Hole Wizard, then Fillet).
+  expect(names()).toEqual(['Extruded Boss/Base', 'Extruded Cut', 'Hole Wizard', 'Fillet']);
   await user.type(input, 'fillet');
-  // Edge Blend, which another tool calls a fillet.
-  expect(names()).toEqual(['Edge Blend']);
+  expect(names()).toEqual(['Fillet']);
+  await user.clear(input);
+  // Fillet, which another tool calls an edge blend.
+  await user.type(input, 'edge blend');
+  expect(names()).toEqual(['Fillet']);
   await user.clear(input);
   await user.type(input, 'cut');
-  expect(names()).toEqual(['Extrude Subtract']);
+  expect(names()).toEqual(['Extruded Cut']);
 });
 
 it('leaves out what the toolbar has no button for, so the two never disagree', async () => {
@@ -48,7 +51,7 @@ it('leaves out what the toolbar has no button for, so the two never disagree', a
 
 it("opens with the text field in hand, and Enter runs the first result and closes", async () => {
   const user = userEvent.setup();
-  const fillet = item('fillet', 'Edge Blend');
+  const fillet = item('fillet', 'Fillet');
   const { input, onClose } = box([item('hole', 'Hole'), fillet]);
   expect(document.activeElement).toBe(input);
   await user.type(input, 'ed');
@@ -60,12 +63,12 @@ it("opens with the text field in hand, and Enter runs the first result and close
 it('moves the choice with the arrow keys, round the ends, and Enter runs the one chosen', async () => {
   const user = userEvent.setup();
   const hole = item('hole', 'Hole');
-  const fillet = item('fillet', 'Edge Blend');
+  const fillet = item('fillet', 'Fillet');
   const shell = item('shell', 'Shell');
   const { input } = box([shell, fillet, hole]);
   const chosen = () => rows().findIndex(row => row.getAttribute('aria-selected') === 'true');
   // The toolbar's order, whatever order the buttons are handed over in.
-  expect(names()).toEqual(['Hole', 'Edge Blend', 'Shell']);
+  expect(names()).toEqual(['Hole', 'Fillet', 'Shell']);
   // The first is the choice as it opens; the field names the one chosen.
   expect(chosen()).toBe(0);
   expect(input.getAttribute('aria-activedescendant')).toBe(rows()[0].id);
@@ -158,14 +161,14 @@ it("lists a sketch's tools while a sketch is open", async () => {
 });
 
 it('draws each result with its picture and its name, in the workspace\'s white card, with the pale blue under the pointer', () => {
-  box([item('hole', 'Hole'), item('cut', 'Extrude')]);
+  box([item('hole', 'Hole Wizard'), item('cut', 'Extruded Cut')]);
   expect(screen.getByRole('dialog', { name: 'Command search' }).className.split(/\s+/)).toEqual(expect.arrayContaining(WORKSPACE_SURFACE_CLASS.split(' ')));
-  const [extrude, hole] = rows();
-  expect(within(hole).getByText('Hole')).toBeTruthy();
+  const [cut, hole] = rows();
+  expect(within(hole).getByText('Hole Wizard')).toBeTruthy();
   expect(hole.querySelector('[data-icon="hole"]')).not.toBeNull();
-  // Subtract is said after the name, quietly.
-  expect(extrude.textContent).toBe('Extrude Subtract');
-  expect(within(extrude).getByText('Subtract').className).toMatch(/text-muted-foreground/);
+  // A cut is its own command, said by its own name, with nothing after it.
+  expect(cut.textContent).toBe('Extruded Cut');
+  expect(cut.querySelector('.text-muted-foreground')).toBeNull();
   expect(hole.className).toMatch(/hover:bg-cad-ws-hover/);
   expect(rows()[0].className).toMatch(/bg-cad-ws-selected/);
   expect(rows()[1].className).not.toMatch(/(^|\s)bg-cad-ws-selected/);

@@ -55,7 +55,7 @@ export default function MatePanel({ edit, references, components = [], onDeselec
       ...(flip && FLIPS.has(type) ? { flip: true } : {}) });
     if (reply?.ok) edit.stopInspecting();
   };
-  return <div role="dialog" aria-label="Assembly Constraints" data-cad-mate="" className="flex shrink-0 flex-col"
+  return <div role="dialog" aria-label="Mate" data-cad-mate="" className="flex shrink-0 flex-col"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopInspecting(); } }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <MateIcon className="size-5 shrink-0" />

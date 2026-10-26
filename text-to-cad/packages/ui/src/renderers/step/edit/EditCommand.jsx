@@ -51,7 +51,8 @@ import { sketchGeometry } from "./sketchMode.js";
 const END = Object.freeze({ blind: "Value", through: "Through All", next: "Until Next", vertex: "Until Point", surface: "Until Selected",
   mid: "Symmetric Value" });
 // NX's Boolean, for the commands that add material or take the same shape away (`nx.js`).
-const BOOLEAN_OPTIONS = Object.freeze([{ value: "unite", label: "Unite" }, { value: "subtract", label: "Subtract" }]);
+// A Boss/Base or a Cut: the switch between them, carrying what was typed and picked.
+const BOOLEAN_OPTIONS = Object.freeze([{ value: "unite", label: "Boss/Base" }, { value: "subtract", label: "Cut" }]);
 // What a dialog switching its Boolean hands the dialog opening for the other command: the values
 // typed so far and the sketches picked, read as that one opens (`to`, its command).
 let carry = null;
@@ -525,7 +526,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     {drafting ? <FileSheetSettingsSection title="Neutral Plane" sectionId="edit-command-neutral">
       <SelectionBox items={values.neutral ? [{ key: "neutral", label: ORIGIN_PLANE_NAMES.has(values.neutral) ? `${values.neutral} Plane`
         : namedPlane(values.neutral)?.label || (neutralFace ? selectionLabel(neutralFace.item) : "Its face, as written") }] : []}
-        prompt="Select a flat face on the model, or a plane in the Part Navigator." onClear={clearNeutral} clearLabel="Clear" />
+        prompt="Select a flat face on the model, or a plane in the design tree." onClear={clearNeutral} clearLabel="Clear" />
       {neutralNote ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">{neutralNote}</p> : null}
       <FileSheetCheckboxRow label="Reverse direction" checked={Boolean(values.reverse)} disabled={disabled || !values.neutral}
         onCheckedChange={set("reverse")} />
@@ -561,7 +562,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
       {/* The sketch it takes, picked on the model or in the design tree and shaded there; a
           reopened feature keeps its own. */}
       <SelectionBox items={sketch ? [{ key: `${sketch.file}:${sketch.line}`, label: sketchLabel }] : []}
-        prompt="Select a sketch on the model or in the Part Navigator." clearLabel="Deselect"
+        prompt="Select a sketch on the model or in the design tree." clearLabel="Deselect"
         onClear={editing ? null : () => edit.select(null)} />
     </FileSheetSettingsSection> : null}
     {copies ? <FileSheetSettingsSection title={command.id === "mirror" ? "Mirror" : "Copies"} sectionId="edit-command-copies">

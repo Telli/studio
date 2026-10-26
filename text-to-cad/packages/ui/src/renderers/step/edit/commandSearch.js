@@ -3,8 +3,8 @@
  * Command Finder find one. Pure. It says what is listed and in what order (`CommandSearchBox.jsx` draws
  * it, and `EditRibbon.jsx` hands it the buttons the toolbar has, which it lists no more than).
  *
- * A command is found by the name the toolbar gives it (NX's: Edge Blend), then by the words other
- * tools have for it (fillet, round). A query is read word by word, in any case: each of its words
+ * A command is found by the name the toolbar gives it (SolidWorks': Fillet), then by the words other
+ * tools have for it (NX's edge blend, Fusion's press pull). A query is read word by word, in any case: each of its words
  * must begin a word of the name, or of one of those words, so "pat" finds Pattern Feature and
  * "ect" finds nothing. Commands found by their name come before those found by another tool's
  * word, each in the toolbar's order.
@@ -16,45 +16,45 @@ import { SKETCH_ENTITIES, SKETCH_FAMILIES, SKETCH_MODIFY, sketchTool } from "./s
 const frozen = words => Object.freeze(Object.fromEntries(Object.entries(words).map(([id, list]) => [id, Object.freeze(list)])));
 
 /**
- * The words other tools use for a command or tool of the Solid tab, by its id: SolidWorks' and Fusion's
- * for what NX names otherwise ("fillet" finds Edge Blend, "pocket" an Extrude with Subtract). What SolidWorks
- * called each modeling command (`EDIT_COMMANDS`' labels: Extruded Cut, Lofted Boss/Base) is found too.
+ * The words other tools use for a command or tool of the Features tab, by its id: NX's and Fusion's for
+ * what SolidWorks names otherwise ("edge blend" finds Fillet, "pocket" an Extruded Cut).
  */
 export const COMMAND_WORDS = frozen({
-  fillet: ["fillet", "round", "blend"], chamfer: ["bevel"], extrude: ["boss", "pad", "pull"],
-  cut: ["cut", "pocket", "extruded cut"], revolve: ["lathe", "turn"], revolve_cut: ["groove"], loft: ["loft", "lofted"], sweep: ["swept"],
-  hole: ["drill", "tap", "thread"], pattern: ["array", "copy"], mirror: ["symmetry"], shell: ["hollow"], draft: ["taper"], rib: ["web"],
+  fillet: ["round", "edge blend"], chamfer: ["bevel"], extrude: ["extrude", "pad", "pull"],
+  cut: ["pocket", "extrude"], revolve: ["revolve", "lathe", "turn"], revolve_cut: ["groove", "revolve"], loft: ["loft", "through curves"],
+  sweep: ["sweep", "sweep along guide"], hole: ["drill", "tap", "thread"], pattern: ["array", "copy", "pattern feature"],
+  mirror: ["symmetry", "mirror feature"], shell: ["hollow"], draft: ["taper"], rib: ["web"],
   split: ["split body"], delete_body: ["remove body", "keep body"],
-  offset_face: ["press pull", "push pull", "offset face", "move face"], delete_face: ["remove face", "defeature"],
-  plane: ["datum", "work plane", "construction plane", "offset plane"], sketch: ["draw", "profile"], measure: ["distance"],
-  clip: ["section", "cross section", "section analysis"],
+  offset_face: ["press pull", "push pull", "offset face", "offset region"], delete_face: ["remove face", "defeature"],
+  plane: ["datum plane", "work plane", "construction plane", "offset plane"], sketch: ["draw", "profile"], measure: ["distance"],
+  clip: ["section", "cross section", "edit section"],
 });
 
 /** The same for the toolbar's other buttons (Inspect, Assemble, Drafting, and the sketch's), by their ids. */
 export const TOOLBAR_WORDS = frozen({
-  mass: ["mass properties", "weight", "volume"], interference: ["interference detection", "clash"], "normal-to": ["normal to", "look at"],
-  appearance: ["appearance", "color"], expressions: ["parameters", "equations"], mate: ["mate"], "make-drawing": ["new drawing", "drawing"],
-  exit: ["exit sketch"], normal: ["normal to", "look at"], construction: ["construction geometry"], dimension: ["smart dimension"],
-  centerline: ["centerline"], convert: ["convert entities"], offset: ["offset entities"], trim: ["trim entities"],
+  mass: ["measure bodies", "weight", "volume"], interference: ["simple interference", "clash"], "normal-to": ["orient view", "look at"],
+  appearance: ["edit object display", "color"], expressions: ["parameters", "expressions", "global variables"],
+  mate: ["assembly constraints", "constraint"], "make-drawing": ["new sheet", "new drawing"],
+  exit: ["finish sketch"], normal: ["orient view to sketch", "look at"], construction: ["convert to/from reference", "reference"],
+  dimension: ["rapid dimension"], centerline: ["reference line"], convert: ["project curve"], offset: ["offset curve"],
+  trim: ["quick trim"], extend: ["quick extend"], spline: ["studio spline"],
 });
 
 // The Solid tab's buttons that are not modeling commands, and what each of the other tabs adds (the Inspect tab's, then Assemble's,
 // then Drafting's), in the toolbar's order, under the names `EditRibbon.jsx` gives them. Select and the agent's buttons are no CAD command.
-const SOLID_BUTTONS = Object.freeze({ sketch: "Sketch", measure: "Measure", clip: "Edit Section" });
+const SOLID_BUTTONS = Object.freeze({ sketch: "Sketch", measure: "Measure", clip: "Section View" });
 const TAB_BUTTONS = Object.freeze([
-  ["mass", "Measure Bodies"], ["draft-analysis", "Draft Analysis"], ["interference", "Simple Interference"], ["compare", "Compare"],
-  ["normal-to", "Orient View"], ["appearance", "Edit Object Display"], ["expressions", "Expressions"],
-  ["mate", "Assembly Constraints"], ["exploded", "Exploded Views"],
-  ["drawing", "Drawing"], ["edit-sheet", "Edit Sheet"], ["make-drawing", "New Sheet"],
+  ["mass", "Mass Properties"], ["draft-analysis", "Draft Analysis"], ["interference", "Interference Detection"], ["compare", "Compare"],
+  ["normal-to", "Normal To"], ["appearance", "Appearance"], ["expressions", "Equations"],
+  ["mate", "Mate"], ["exploded", "Exploded View"],
+  ["drawing", "Drawing"], ["edit-sheet", "Edit Sheet"], ["make-drawing", "Make Drawing"],
 ]);
 
-const capitalized = word => word.charAt(0).toUpperCase() + word.slice(1);
 const entry = (id, label, { detail = null, words = [] } = {}) => ({ id, label, detail, words: [...(COMMAND_WORDS[id] || []), ...words, ...(TOOLBAR_WORDS[id] || [])] });
 
-// A modeling command: its NX name, with its Boolean when it takes material away (NX sets it in the dialog of the command that adds).
+// A modeling command: its SolidWorks name (a Cut its own: Extruded Cut).
 function commandEntry(command) {
-  const boolean = booleanOf(command.id);
-  return entry(command.id, nxCommand(command), { detail: boolean?.value === "subtract" ? capitalized(boolean.value) : null, words: [command.label] });
+  return entry(command.id, nxCommand(command), { words: [command.label] });
 }
 
 // The Solid tab's buttons in its order, a command's Subtract just after it, then the other tabs' buttons.
@@ -74,12 +74,12 @@ function workspaceEntries() {
   return entries;
 }
 
-// A sketch's toolbar: Finish Sketch, the curves to draw and edit (a family's flyout after its first tool), Rapid Dimension and
-// Convert To/From Reference, as `EditRibbon.jsx` lays them out.
+// A sketch's toolbar: Exit Sketch, the curves to draw and edit (a family's flyout after its first tool), Smart Dimension and
+// Construction Geometry, as `EditRibbon.jsx` lays them out.
 function sketchEntries() {
   const tools = ids => ids.flatMap(id => SKETCH_FAMILIES[id] || [id]).map(id => entry(id, sketchTool(id).label));
-  return [entry("exit", "Finish Sketch"), entry("normal", "Orient View to Sketch"), ...tools(SKETCH_ENTITIES), ...tools(SKETCH_MODIFY),
-    ...tools(["dimension"]), entry("construction", "Convert To/From Reference")];
+  return [entry("exit", "Exit Sketch"), entry("normal", "Normal To"), ...tools(SKETCH_ENTITIES), ...tools(SKETCH_MODIFY),
+    ...tools(["dimension"]), entry("construction", "Construction Geometry")];
 }
 
 const WORKSPACE = Object.freeze(workspaceEntries());

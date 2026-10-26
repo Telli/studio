@@ -4,8 +4,8 @@ import test from "node:test";
 import { featureTree } from "./editMode.js";
 import { faceChipName, faceFeature, faceReference, shownFaces } from "./faceChips.js";
 
-// A part as the engine reads it, numbered as the Part Navigator numbers it after the datum coordinate system (0): Sketch (1),
-// Extrude (2), Sketch (3), Extrude (4), Edge Blend (5), Hole (6).
+// A part as the engine reads it, numbered as the design tree numbers it, each kind on its own: Sketch1,
+// Boss-Extrude1, Sketch2, Boss-Extrude2, Fillet1, Hole1.
 const sketched = (name, line) => ({ name, plane: "Top", file: "servo.py", line, status: "Fully defined" });
 const features = featureTree({
   features: [
@@ -16,12 +16,12 @@ const features = featureTree({
   ],
 }).features;
 const face12 = { target: { kind: "face", face: 12 } };
-// A chip's compact name in its pieces, as the chip says "Hole (6) · face 12": the feature where today's has the part.
-const hole12 = { name: "Hole (6)", kind: "face", number: "12" };
+// A chip's compact name in its pieces, as the chip says "Hole1 · face 12": the feature where today's has the part.
+const hole12 = { name: "Hole1", kind: "face", number: "12" };
 
-test("names a face by the feature that made it, in the Part Navigator's words", () => {
+test("names a face by the feature that made it, in the design tree's words", () => {
   assert.deepEqual(faceChipName(face12, { faceFeatures: { "12": "row:hole" } }, features), hole12);
-  assert.deepEqual(faceChipName(face12, { faceFeatures: { "12": "row:base" } }, features), { name: "Extrude (2)", kind: "face", number: "12" });
+  assert.deepEqual(faceChipName(face12, { faceFeatures: { "12": "row:base" } }, features), { name: "Boss-Extrude1", kind: "face", number: "12" });
 });
 
 test("keeps today's label for a face the engine does not say made it", () => {
@@ -29,7 +29,7 @@ test("keeps today's label for a face the engine does not say made it", () => {
   assert.equal(faceChipName(face12, { faceFeatures: { "3": "row:hole" } }, features), null);
   assert.equal(faceChipName(face12, {}, features), null);
   assert.equal(faceChipName(face12, null, features), null);
-  // A feature the Part Navigator does not list is no name for it.
+  // A feature the design tree does not list is no name for it.
   assert.equal(faceChipName(face12, { faceFeatures: { "12": "row:gone" } }, features), null);
   assert.equal(faceChipName(face12, { faceFeatures: { "12": "row:hole" } }, []), null);
 });

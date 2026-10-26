@@ -223,7 +223,7 @@ it('carries exactly what Ask carries: a face and a chosen feature, the reference
   act(() => view.result.current.add());
   const added = chat.delivered()[0];
   expect(parts(added)).toEqual([['file', 'reference'], ['reference-0', 'reference'], ['reference-1', 'reference']]);
-  expect(added.parts[2].reference).toMatchObject({ resource: { path: '/work/bracket/bracket.py' }, label: 'Hole (3)', target: { kind: 'text-range' } });
+  expect(added.parts[2].reference).toMatchObject({ resource: { path: '/work/bracket/bracket.py' }, label: 'Hole1', target: { kind: 'text-range' } });
   // Ask, then Send.
   const send = vi.fn(async () => ({ status: 'sent' as const, partIds: [] }));
   const askHost = testHost({ promptContext: { getSnapshot: () => composer, subscribe: () => () => {}, deliver: vi.fn(), send } as never });

@@ -5,9 +5,9 @@ import { focusAnswer } from "./focus.js";
 
 /**
  * Answers the host's ask to show a line of the part's script (Studio's References, `tab-store/focusHost.ts`), for the part
- * on screen (`StepSurface.jsx` hands it edit mode's `status`, the layout it is shown in, the Part Navigator's `tree` and
+ * on screen (`StepSurface.jsx` hands it edit mode's `status`, the layout it is shown in, the design tree's `tree` and
  * edit mode's `select`). Once the part is read, the feature whose statement holds the line is selected, as a press in the
- * Part Navigator selects it, and the timeline follows; the ask is said taken however that went (`focusAnswer`), nothing
+ * design tree selects it, and the timeline follows; the ask is said taken however that went (`focusAnswer`), nothing
  * there or nothing read included, so the host never keeps it, and whether a feature was found, so where none was (a
  * constant, an import, a helper's line, a build that failed) the host opens the script at the line instead and the press
  * is never lost. Each ask once. A part drawn out of sight (`onScreen` false: the library's picture) is not the part on
