@@ -156,6 +156,9 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
     let picks = [];
     // Where a line's chain began, so the chain ends when it closes on it.
     let chainStart = null;
+    // A, pressed while a line's chain goes on, as SolidWorks' A: its next piece a tangent arc, then lines again.
+    let arcNext = false;
+    const drawing = tool => (arcNext && (tool === "line" || tool === "centerline") && picks.length === 1 ? "tangent_arc" : tool);
     let pickedTool = null;
     let pointer = null; // { screen: [x, y], local: [u, v] }
     let hover = null;
@@ -410,7 +413,7 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
           path([placed[0], cursor]);
           for (const curve of transformedCurves(state, current.selection, transformOf(tool, [...placed, cursor]))) path(curvePoints(curve));
         }
-        const readout = previewStroke(tool, picks.map(ref => refAt(state, ref)), cursor, landing, path);
+        const readout = previewStroke(drawing(tool), picks.map(ref => refAt(state, ref)), cursor, landing, path);
         context.setLineDash([]);
         const screen = toScreen(cursor);
         if (screen) {
@@ -586,6 +589,28 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         return;
       }
       if (!picks.length && (tool === "line" || tool === "centerline")) chainStart = here;
+      // The tangent arc A asked for, from where the chain is, and the chain goes on from its end.
+      if (drawing(tool) === "tangent_arc" && tool !== "tangent_arc") {
+        arcNext = false;
+        const from = picks[0];
+        picks = [];
+        report();
+        const op = drawOp("tangent_arc", [from, ref], state, { construction: live.current.construction || tool === "centerline" });
+        if (!op) return;
+        const started = epoch;
+        const reply = await send(op);
+        if (reply?.ok && live.current.tool === tool && started === epoch) {
+          const made = reply.sketch?.state;
+          const arcs = (made?.curves || []).filter(curve => curve.kind === "arc");
+          const last = arcs[arcs.length - 1];
+          const ends = last ? [last.start, last.end].filter(Boolean) : [];
+          const end = ends.map(point => ({ point, at: refAt(made, { point }) }))
+            .sort((a, b) => Math.hypot(a.at[0] - here[0], a.at[1] - here[1]) - Math.hypot(b.at[0] - here[0], b.at[1] - here[1]))[0];
+          if (end) picks = [end];
+          report();
+        }
+        return;
+      }
       picks = [...picks, ref];
       report();
       if (picks.length < TOOL_CLICKS[tool]) return;
@@ -1003,8 +1028,17 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         typeStroke(current.tool, event.key);
         return;
       }
+      // A, while a line's chain goes on: its next piece a tangent arc (A again: a line after all).
+      if (event.key.toLowerCase() === "a" && (current.tool === "line" || current.tool === "centerline") && picks.length === 1
+        && !event.metaKey && !event.ctrlKey && !event.altKey && !busy) {
+        event.preventDefault();
+        arcNext = !arcNext;
+        version.current += 1;
+        return;
+      }
       if (event.key === "Escape") {
         epoch += 1;
+        arcNext = false;
         if (picks.length || pending) { picks = []; pending = null; turning = 0; lastAngle = null; report(); }
         else if (current.tool) current.edit.setSketchTool(null);
         else if (current.selection.length) current.edit.selectInSketch([]);

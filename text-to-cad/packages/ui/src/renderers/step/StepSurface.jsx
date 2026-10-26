@@ -1645,6 +1645,9 @@ function StepSurfaceBody({ view, data }) {
   // where edit mode's state is read, below, and asked when a reference is named.
   const faceNameRef = useRef(() => null);
   const escapeRef = useRef(() => false);
+  // A double-click on a face in the workspace, taken by the feature that made it where that is known (set
+  // below, where edit mode is read): true when it was.
+  const faceDoubleRef = useRef(() => false);
   // A modeling command's dialog open (edit mode's, set below where it is read): Escape cancels it, as
   // SolidWorks' Esc cancels the PropertyManager open.
   const [commandHeld, setCommandHeld] = useState(false);
@@ -2801,6 +2804,9 @@ function StepSurfaceBody({ view, data }) {
     const reference = effectiveActiveReferenceMap.get(referenceId);
     const topology = reference && isViewerTopologyReference(reference);
     if (topology && selectionFilter !== "parts") {
+      // In the workspace, a double-click on a face selects the feature that made it and shows its
+      // dimensions on the model, as SolidWorks' does; Normal To is Ctrl+8 there.
+      if (faceDoubleRef.current(referenceId, reference)) return;
       // A double-click turns the view square to the face or edge — CAD's "Normal To"
       // (`kit/camera/lookAt.js`) — and selects nothing: the selection is as its first click found it.
       const selectorRuntime = layersApiRef.current?.activeSelectorRuntime;
@@ -3771,6 +3777,14 @@ function StepSurfaceBody({ view, data }) {
   const featureBarShown = barActions.length > 0 && rowChosen !== null;
   // The Part Navigator and the timeline select a row when the person presses it, and that chooses its feature.
   const editWithRows = chosenThrough(edit, chooseFeature);
+  faceDoubleRef.current = (id, reference) => {
+    if (!editing || edit.command || edit.sketch || reference?.selectorType !== "face") return false;
+    const row = facePick(editTree, [{ kind: "face", id, reference }], faceState);
+    if (!row?.feature) return false;
+    edit.select(row.feature.id);
+    chooseFeature();
+    return true;
+  };
   // Edit does what a double-click on the row does: the sketch opens in the Sketch tab, a feature its Edit Parameters; on faces, the
   // Edit Parameters of the feature that made them.
   const editRow = () => { if (rowEdited?.sketch) openTreeSketch(rowEdited.sketch); else if (rowEdited) edit.editFeature(rowEdited.feature); };

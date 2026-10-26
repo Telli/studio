@@ -817,9 +817,28 @@ def evaluate(expr, override=None):
     return {"+": a + b, "-": a - b, "*": a * b, "/": a / b, "//": a // b, "**": a**b}[kind]
 
 
-def parse_number(text):
-    """A number as typed, plain arithmetic allowed (`2.8 + .2`, `3/4`); anything else is refused."""
-    tree = ast.parse(text.strip(), mode="eval")
+# A size typed with its unit (`1in`, `25.4 mm`, `2"`), as SolidWorks' boxes take one: millimetres per unit.
+_MM_PER = {"mm": 1.0, "cm": 10.0, "m": 1000.0, "in": 25.4, "inch": 25.4, '"': 25.4, "ft": 304.8}
+_WITH_UNIT = re.compile(r'(?<![\w.])(\d+\.?\d*|\.\d+)\s*(mm|cm|m|inch|in|ft|")(?![\w"])')
+
+
+def in_part_units(text, units):
+    """``text`` with each size typed with its unit made the number it is in the part's units
+    (``units``, mm or in): `1in` in a millimetre part is `(1 * 25.4)`."""
+    per_part = 25.4 if units == "in" else 1.0
+    return _WITH_UNIT.sub(lambda found: f"({found.group(1)} * {_MM_PER[found.group(2)]!r} / {per_part!r})", str(text))
+
+
+def _units_of(request):
+    """The units of the part a request is about: as its last trace read them, else as the request says."""
+    known = STATE.get(str(Path(request.get("script") or ".").resolve()))
+    return (known or {}).get("units") or request.get("units") or "mm"
+
+
+def parse_number(text, units=None):
+    """A number as typed, plain arithmetic allowed (`2.8 + .2`, `3/4`), a size with its unit made
+    the part's (``units``); anything else is refused."""
+    tree = ast.parse(in_part_units(text, units).strip(), mode="eval")
 
     def value(node):
         if isinstance(node, ast.Constant) and _numeric(node.value):
@@ -2032,7 +2051,7 @@ def edit(request):
                 ],
             }
         try:
-            typed = parse_number(request["text"])
+            typed = parse_number(request["text"], state["units"] if dimension.get("length", True) else None)
         except Exception:
             return {"ok": False, "error": f"{request['text']} is not a number."}
         is_length = dimension.get("length", True)
@@ -2133,7 +2152,7 @@ def _planned(request, spec):
     bar = _bar_place(request.get("bar"))
     try:
         return commands.plan(spec, steps=state["steps"], shape=state["shape"], level=state["level"],
-                             units=state["units"], literals=LITERALS, root=ROOT, parse=parse_number,
+                             units=state["units"], literals=LITERALS, root=ROOT, parse=lambda text: parse_number(text, state["units"]),
                              bar=bar[1] if bar and not spec.get("replace") else None), None
     except commands.CommandError as error:
         return None, str(error)
@@ -2967,7 +2986,7 @@ def _sized(request, spec):
             continue
         leaf = candidates[-1]
         try:
-            typed = parse_number(str(each.get("text") or ""))
+            typed = parse_number(str(each.get("text") or ""), state["units"] if dimension.get("length", True) else None)
         except Exception:
             return None, f"{dimension['label']} needs a number."
         target = typed * 25.4 if state["units"] == "in" and dimension.get("length", True) else typed
@@ -3376,7 +3395,7 @@ def _sketch_new(request, op):
     offset_code = None
     if str(op.get("offset") or "").strip():
         try:
-            offset = float(parse_number(str(op["offset"])))
+            offset = float(parse_number(str(op["offset"]), state["units"]))
         except Exception:  # noqa: BLE001 - said to the engineer: what the box takes
             return {"ok": False, "error": "Offset distance needs a number."}
         if offset:
@@ -3731,6 +3750,13 @@ def sketch_edit(request):
     ROOT = Path(request.get("root") or script.parent).resolve()
     spec = request["sketch"]
     op = spec.get("op") if isinstance(spec.get("op"), dict) else {}
+    # A size typed with its unit (`1in`) is written as the number it is in the part's units, as a sketch's sizes are.
+    for key in ("value", "text"):
+        if isinstance(op.get(key), str) and _WITH_UNIT.search(op[key]):
+            try:
+                op = {**op, key: _number_text(round(parse_number(op[key], _units_of(request)), 6))}
+            except Exception:  # noqa: BLE001 - left as typed, refused as the sketch refuses it
+                pass
     kind = op.get("kind")
     files = request.get("files") or {}
     if kind == "new":

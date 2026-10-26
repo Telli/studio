@@ -546,3 +546,18 @@ class TypedValues(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TypedUnits(unittest.TestCase):
+    """A size typed with its unit, as SolidWorks' boxes take one, is the number it is in the part's units."""
+
+    def test_a_size_typed_in_another_unit_is_the_parts(self):
+        from cadgen.edit import tracer
+
+        self.assertEqual(tracer.parse_number("1in", "mm"), 25.4)
+        self.assertEqual(tracer.parse_number("25.4mm", "in"), 1.0)
+        self.assertEqual(tracer.parse_number('2 + 1"', "mm"), 27.4)
+        self.assertEqual(tracer.parse_number("10cm", "mm"), 100.0)
+        self.assertEqual(tracer.parse_number("3"), 3.0)
+        with self.assertRaises(ValueError):
+            tracer.parse_number("WALL")
