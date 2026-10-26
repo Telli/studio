@@ -363,6 +363,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     ? extrudePreview(edit.command, values, { units, sketch, frame: sketchState?.frame || null, ending }) : null;
   const handled = extruded ? {
     ...extruded,
+    // What the boxes beside its arrows show, as the panel has it (`SketchesLayer`'s `ValueBox`).
+    text: String(values.depth ?? "").trim(), text2: String(values.depth2 ?? "").trim(),
     ...((extruded.end === "blind" || extruded.end === "mid") && !extruded.arrowOnly
       ? { onDepth: text => setValues(current => ({ ...current, depth: text })) } : {}),
     ...(extruded.end === "blind" || extruded.end === "through" ? { onReverse: () => setValues(current => ({ ...current, reverse: !current.reverse })) } : {}),
@@ -372,7 +374,7 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const local = !previewOn ? null
     : edit.command === "extrude" || edit.command === "cut" ? handled
       : revolving ? (axisLine && angle !== null && angle > 0 ? { kind, revolve: { a: axisLine.a, b: axisLine.b, angle: values.reverse ? -angle : angle },
-        file: sketch.file, line: sketch.line, label: `${String(values.angle).trim()}°`,
+        file: sketch.file, line: sketch.line, label: `${String(values.angle).trim()}°`, text: String(values.angle).trim(),
         // Its arrow a handle, as an extrude's: dragged round, it sets the Angle; clicked, it turns the other way.
         onAngle: text => setValues(current => ({ ...current, angle: text })),
         onReverse: () => setValues(current => ({ ...current, reverse: !current.reverse })) } : null)

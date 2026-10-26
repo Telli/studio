@@ -199,6 +199,10 @@ export const rolledBack = (tree, bar) => new Set((tree?.assembly ? [] : tree?.fe
 
 /** The commands Edit Feature rolls back for, so their edges or faces are picked again on the body before them. */
 export const REPICKS = Object.freeze(new Set(["fillet", "chamfer", "shell", "draft", "hole"]));
+// Edit Feature on an extrude or a revolve rolls the part back to just before it too, as SolidWorks
+// and Fusion do, so its preview is the feature itself rather than drawn over the solid it made.
+// Not the part's first solid (`edit.first`), which has nothing before it.
+export const ROLLS_BACK = Object.freeze(new Set(["extrude", "cut", "revolve", "revolve_cut"]));
 
 /** Every feature of a tree, an assembly's parts' too, in order. */
 export const treeFeatures = tree => (tree?.assembly ? tree.components.flatMap(component => component.features) : tree?.features || []);

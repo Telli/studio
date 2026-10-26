@@ -34,6 +34,49 @@ import {
 } from "./sketchPicking.js";
 
 const TAG_FONT_PX = 11;
+// The values the panel takes, each a box beside its arrow: an extrude's depths, a revolve's angle.
+const BOXES = Object.freeze(["depth", "depth2", "angle"]);
+const BOX_HEIGHT_PX = 22;
+const BOX_CLASS = "pointer-events-auto absolute left-0 top-0 z-20 flex items-center gap-1 whitespace-nowrap rounded-md border-2 bg-background px-1.5 text-xs tabular-nums text-foreground shadow-md";
+
+/** Which of the preview's values the panel takes, so each is typed in a box beside its arrow rather than tagged. */
+function boxedValues(shape) {
+  if (!shape) return new Set();
+  if (shape.revolve) return new Set(shape.onAngle ? ["angle"] : []);
+  return new Set([...(shape.onDepth && !shape.arrowOnly ? ["depth"] : []), ...(shape.onDepth2 && !shape.arrowOnly ? ["depth2"] : [])]);
+}
+
+/** The text a box shows: the depth or angle as the panel has it, or as far as its arrow is being dragged. */
+function boxText(which, shape, dragged) {
+  if (dragged && (which === "angle" ? dragged.degrees : dragged.which === which)) return String(dragged.text);
+  return String((which === "depth2" ? shape.text2 : shape.text) ?? "");
+}
+
+/**
+ * A value beside its arrow, typed over as Fusion's is: Enter or leaving it sets it in the panel,
+ * Escape puts it back. The layer places it and fills it while it is not being typed in.
+ */
+function ValueBox({ which, boxRef, onInput, onCommit }) {
+  const shown = useRef("");
+  const inputRef = useRef(null);
+  const commit = () => {
+    const text = inputRef.current?.value.trim() || "";
+    if (text && text !== shown.current) onCommit(which, text);
+  };
+  return <div ref={boxRef} className={BOX_CLASS} style={{ height: BOX_HEIGHT_PX, visibility: "hidden" }}
+    data-cad-value-box={which} onPointerDown={event => event.stopPropagation()}>
+    <input ref={node => { inputRef.current = node; onInput(node); }} inputMode="decimal" aria-label={which === "angle" ? "Angle" : which === "depth2" ? "Depth 2" : "Depth"}
+      className="w-14 bg-transparent text-right text-xs tabular-nums text-foreground outline-none"
+      onFocus={event => { shown.current = event.target.value; event.target.select(); }}
+      onBlur={commit}
+      onKeyDown={event => {
+        event.stopPropagation();
+        if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+        if (event.key === "Escape") { event.preventDefault(); event.currentTarget.value = shown.current; event.currentTarget.blur(); }
+      }} />
+    <span data-unit="" className="text-muted-foreground" />
+  </div>;
+}
 const TAG_HEIGHT_PX = 18;
 // How strongly the picked profile is shaded over the model.
 const PICKED_FILL_ALPHA = 0.22;
@@ -89,7 +132,7 @@ function sideFaces(near, far) {
  * a size's name, `shape.arrowOnly`) draws its arrow alone, from the sketch, the server's preview
  * of it drawn apart (`PreviewLayer.jsx`). `model` maps the part's millimetres to the view.
  */
-function drawPreview(context, view, shape, through, cad, at, model, font) {
+function drawPreview(context, view, shape, through, cad, at, model, font, boxed) {
   const loops = view.state?.loops || [];
   const frame = view.state?.frame;
   const unit = view.state?.unit || 1;
@@ -155,9 +198,10 @@ function drawPreview(context, view, shape, through, cad, at, model, font) {
     const way = screenDirection(model, framePoint(frame, unit, middle, offset), along, reach);
     if (!way) return;
     const place = drawArrow(context, way, stroke);
-    if (label) drawLabel(context, label, place, stroke, font);
+    // A depth the panel takes is a box to type in beside its arrow (`ValueBox`), as Fusion's is; any other a tag.
+    if (label && !boxed.has(which)) drawLabel(context, label, place, stroke, font);
     handles.push({ from: place.from, tip: place.tip, facing: place.facing, anchor: framePoint(frame, unit, middle, 0), along,
-      reached: offset * sign, which });
+      reached: offset * sign, which, place: label ? place : null });
   });
   return handles;
 }
@@ -173,7 +217,7 @@ const FULL_TURN_ARROW_DEGREES = 330;
  * plane mapping turned that far (`revolvedFrame`). Returns the arrow's head as a handle
  * (`handleAt`), with where it can turn to: its place on the screen at each whole degree (`reach`).
  */
-function drawRevolvePreview(context, view, shape, cad, at, font) {
+function drawRevolvePreview(context, view, shape, cad, at, font, boxed) {
   const loops = view.state?.loops || [];
   const total = shape.revolve.angle;
   if (!loops.length || !total) return [];
@@ -238,9 +282,10 @@ function drawRevolvePreview(context, view, shape, cad, at, font) {
     context.stroke();
     const [before, tip] = arc.slice(-2);
     const place = drawArrowHead(context, tip, [tip[0] - before[0], tip[1] - before[1]], stroke);
-    drawLabel(context, shape.label, place, stroke, font);
+    if (!boxed.has("angle")) drawLabel(context, shape.label, place, stroke, font);
     const sign = Math.sign(total);
-    handles.push({ from: before, tip, facing: 0, reach: () => Array.from({ length: 360 }, (_, step) => at(sign * (step + 1))?.toScreen(start) || null) });
+    handles.push({ from: before, tip, facing: 0, which: "angle", place,
+      reach: () => Array.from({ length: 360 }, (_, step) => at(sign * (step + 1))?.toScreen(start) || null) });
   }
   context.restore();
   return handles;
@@ -284,6 +329,9 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
   // The extrude's arrows as last painted, taken as handles; and the depth one is dragged to.
   const handlesRef = useRef([]);
   const draggedRef = useRef(null);
+  // Each value box and its input, placed and filled as the preview is painted.
+  const boxRefs = useRef({});
+  const inputRefs = useRef({});
 
   useEffect(() => {
     const host = viewport.hostRef?.current;
@@ -342,11 +390,12 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
             handlesRef.current = drawRevolvePreview(context, view, shape, cad, degrees => {
               const turned = revolvedFrame(frame, unit, a, b, degrees);
               return turned ? planeMapping(runtime, width, height, turned, unit) : null;
-            }, colors.font);
+            }, colors.font, boxedValues(shape));
           } else {
             const at = offset => planeMapping(runtime, width, height,
               { ...frame, origin: frame.origin.map((value, axis) => value + frame.z[axis] * offset) }, unit);
-            handlesRef.current = drawPreview(context, view, shape, extent, cad, at, modelMapping(runtime, width, height), colors.font);
+            handlesRef.current = drawPreview(context, view, shape, extent, cad, at, modelMapping(runtime, width, height), colors.font,
+              boxedValues(shape));
           }
         }
         if (picked) tag = { drawn: drawn[index], name: view.name || "Sketch" };
@@ -359,6 +408,22 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
         context.setLineDash([]);
       });
       if (tag) drawTag(context, tag.drawn, tag.name, cad, colors.font);
+      // Each value the panel takes in its box beside its arrow, filled unless it is being typed in.
+      const boxed = boxedValues(shape);
+      for (const which of BOXES) {
+        const box = boxRefs.current[which];
+        const input = inputRefs.current[which];
+        if (!box || !input) continue;
+        const handle = boxed.has(which) ? handlesRef.current.find(each => each.which === which && each.place) : null;
+        if (!handle) { box.style.visibility = "hidden"; continue; }
+        const { x, y, leftward } = handle.place;
+        box.style.transform = `translate(${leftward ? `calc(${x - 4}px - 100%)` : `${x + 4}px`}, ${y - BOX_HEIGHT_PX / 2}px)`;
+        box.style.borderColor = shape.kind === "cut" ? cad.cut : cad.solidEdge;
+        box.style.visibility = "visible";
+        if (document.activeElement !== input) input.value = boxText(which, shape, dragged);
+        const mark = box.querySelector("[data-unit]");
+        if (mark) mark.textContent = which === "angle" ? "°" : withUnit("", shape.units).trim();
+      }
     };
     frameId = requestAnimationFrame(paint);
     return () => cancelAnimationFrame(frameId);
@@ -522,5 +587,13 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
     };
   }, [viewport.hostRef, viewport.viewerReadyTick]);
 
-  return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-10 h-full w-full" aria-hidden="true" data-cad-sketches="" />;
+  const commitBox = (which, text) => {
+    const shape = live.current.preview;
+    (which === "angle" ? shape?.onAngle : which === "depth2" ? shape?.onDepth2 : shape?.onDepth)?.(text);
+  };
+  return <>
+    <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-10 h-full w-full" aria-hidden="true" data-cad-sketches="" />
+    {BOXES.map(which => <ValueBox key={which} which={which} onCommit={commitBox}
+      boxRef={node => { boxRefs.current[which] = node; }} onInput={node => { inputRefs.current[which] = node; }} />)}
+  </>;
 }

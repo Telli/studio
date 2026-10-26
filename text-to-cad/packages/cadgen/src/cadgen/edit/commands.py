@@ -1344,7 +1344,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         if inputs.get("reverse") in (True, "true", "1", 1):
             angle = -angle
         profile = kept.parts["profile"] if kept else f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
-        sign = "+=" if command == "revolve" else "-="
+        sign = "=" if kept is not None and kept.operator == "=" else "+=" if command == "revolve" else "-="
         code = f"{var} {sign} {names('revolve')}({profile}, axis={block.var}.axis({axis}), revolution_arc={same('angle', angle, writer.number(angle))})"
         at = max(at, block.last_line)
         shown = [("Angle", abs(angle), "deg")]
@@ -1380,7 +1380,11 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             profile = kept.parts["profile"]
         else:
             profile = f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
-        sign = "+=" if command == "extrude" else "-="
+        # The part's first solid has no body before it: written again with `=`, with nothing to go up to.
+        first_solid = kept is not None and kept.operator == "="
+        if first_solid and (up_to_next or up_to):
+            raise CommandError("The first extrude has no body before it to go up to. Pick Blind or Mid Plane.")
+        sign = "=" if first_solid else "+=" if command == "extrude" else "-="
         # Draft, as SolidWorks' Draft On/Off: the sides lean in by the angle (build123d's `taper`),
         # out with Draft outward. Not with Up To Next, whose length is the body's to say.
         drafted = inputs.get("draft") in (True, "true", "1", 1) and not up_to_next
@@ -1996,11 +2000,15 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                        value.func.value.id, {"sketch": value.func.value.id}, target, operator, codes)
     # Direction 2: two extrudes of one profile added, the second the other way.
     second = None
-    if (operator in ("+=", "-=") and isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add)
+    # The part's first solid, `part = extrude(...)` (or a revolve), is an extrude like any other:
+    # Extruded Boss/Base, as SolidWorks names it, written again with `=`.
+    solid_ops = ("+=", "-=", "=")
+    if (operator in solid_ops and isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add)
             and _call_name(value.left) == "extrude" and _call_name(value.right) == "extrude" and value.left.args and value.right.args
             and code(value.left.args[0]) == code(value.right.args[0])):
         value, second, name = value.left, value.right, "extrude"
-    if operator in ("+=", "-=") and name in ("extrude", "revolve") and value.args and _sketch_of(value.args[0]):
+    if (operator in solid_ops and name in ("extrude", "revolve") and value.args and _sketch_of(value.args[0])
+            and not (operator == "=" and _keyword_value(value, "target") is not None)):
         profile, sketch = value.args[0], _sketch_of(value.args[0])
         if name == "extrude":
             amount = number(("extrude", "amount")) or 0.0
@@ -2048,12 +2056,12 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
                     shown2 = taper2.operand if outward2 and isinstance(taper2, ast.UnaryOp) and isinstance(taper2.op, ast.USub) else taper2
                     held("taper2", shown2, abs(drafted2), _tight(shown2, text))
             parts = {"profile": code(profile), "sketch": sketch, **({"target": code(ending), "toward": "-" if amount < 0 else ""} if up_to else {})}
-            return Feature("extrude" if operator == "+=" else "cut", values, sketch, parts, target, operator, codes)
+            return Feature("cut" if operator == "-=" else "extrude", values, sketch, parts, target, operator, codes)
         axis = _keyword_value(value, "axis")
         line = code(axis.args[0]) if isinstance(axis, ast.Call) and _call_name(axis) == "axis" and axis.args else None
         if name == "revolve" and line:
             arc = number(("revolve", "revolution_arc")) or 0.0
             held("angle", _keyword_value(value, "revolution_arc"), arc)
-            return Feature("revolve" if operator == "+=" else "revolve_cut", {"angle": _number(abs(arc), False), "reverse": arc < 0},
+            return Feature("revolve_cut" if operator == "-=" else "revolve", {"angle": _number(abs(arc), False), "reverse": arc < 0},
                            sketch, {"profile": code(profile), "sketch": sketch, "axis": line}, target, operator, codes)
     return None

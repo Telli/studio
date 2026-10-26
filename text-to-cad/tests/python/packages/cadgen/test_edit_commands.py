@@ -1041,6 +1041,25 @@ TWO_WAY = {
 }
 
 
+# A part whose first solid is its sketch extruded, as an agent writes one: `part = extrude(...)`, its depth a named size.
+FIRST_SOLID = {
+    "puck.py": """
+        from build123d import extrude
+        from cadgen import step
+        from cadgen.sketch import Sketch
+
+        HEIGHT = 4
+
+        @step
+        def puck():
+            sketch1 = Sketch("Sketch1", plane="Top")
+            sketch1.rectangle((-5, -5), (5, 5))
+            part = extrude(sketch1.face(), amount=HEIGHT)
+            return part
+    """,
+}
+
+
 class TwoDirections(Commands):
     """Extrude's Direction 2: the sketch made a solid of the other way too, in one feature."""
 
@@ -1056,6 +1075,7 @@ class TwoDirections(Commands):
         self.assertIn("    part += extrude(sketch1.face(), amount=6) + extrude(sketch1.face(), amount=-14)\n", (root / "plate.py").read_text(encoding="utf-8"))
         boss = next(feature for feature in reply["features"] if feature["kind"] == "Boss-Extrude" and feature["sketch"].get("name") == "Sketch1")
         values = boss["edit"]["values"]
+        self.assertNotIn("first", boss["edit"])
         self.assertEqual({key: values.get(key) for key in ("end", "depth", "direction2", "end2", "depth2")},
                          {"end": "blind", "depth": "6", "direction2": True, "end2": "blind", "depth2": "14"})
         # One feature, not two of one: its depths on the model are Height and Height 2.
@@ -1073,6 +1093,24 @@ class TwoDirections(Commands):
         self.assertEqual((boss["edit"]["values"]["draft2"], boss["edit"]["values"]["draft_angle2"]), (True, "2"))
         self.extruded(file, drafted["files"], "extrude", {**boss["edit"]["values"], "direction2": False}, boss["key"])
         self.assertIn("    part += extrude(sketch1.face(), amount=6)\n", (root / "plate.py").read_text(encoding="utf-8"))
+
+    def test_the_parts_first_extrude_reopens_and_is_written_again_with_its_own_assignment(self):
+        root, file, state = self.open(FIRST_SOLID, "puck.step")
+        boss = next(feature for feature in state["features"] if feature["kind"] == "Boss-Extrude")
+        self.assertEqual({key: boss["edit"]["values"].get(key) for key in ("end", "depth", "reverse")}, {"end": "blind", "depth": "4", "reverse": False})
+        # The part's first solid: the viewer does not roll back past it while it is edited.
+        self.assertTrue(boss["edit"]["first"])
+        # Left as it was, its depth stays the size's name; a new depth is written with `=`, as the line was.
+        again = self.extruded(file, state["files"], "extrude", {**boss["edit"]["values"], "draft": True, "draft_angle": "3"}, boss["key"])
+        self.assertIn("    part = extrude(sketch1.face(), amount=HEIGHT, taper=3)\n", (root / "puck.py").read_text(encoding="utf-8"))
+        boss = next(feature for feature in again["features"] if feature["kind"] == "Boss-Extrude")
+        deeper = self.extruded(file, again["files"], "extrude", {**boss["edit"]["values"], "draft": False, "depth": "7"}, boss["key"])
+        self.assertIn("    part = extrude(sketch1.face(), amount=7)\n", (root / "puck.py").read_text(encoding="utf-8"))
+        # Nothing comes before it to go up to.
+        refused = self.service.change({"file": file, "files": deeper["files"], "command": {
+            "command": "extrude", "sketch": sketch("Sketch1", 9, "puck.py"), "inputs": {"end": "next"}, "replace": {"row": boss["key"]}}})
+        self.assertFalse(refused["ok"])
+        self.assertIn("no body before it", refused["error"])
 
     def test_up_to_a_face_below_goes_down_to_it_and_direction_2_goes_up(self):
         root, file, state = self.open(TWO_WAY, "plate.step")

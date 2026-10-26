@@ -1483,6 +1483,9 @@ def _editable(features, rows, steps, sketches, units):
         if read is None:
             continue
         edit = {"command": read.command, "values": read.values, "keeps": read.keeps}
+        if read.operator == "=" and read.command in ("extrude", "revolve"):
+            # The part's first solid: nothing comes before it to roll back to.
+            edit["first"] = True
         if read.command == "hole":
             # The axes a hole moves along on its face, as its panel offers them: the two square to
             # the face's normal, which the placed tool's own axis is.

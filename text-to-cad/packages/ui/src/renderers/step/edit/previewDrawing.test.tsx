@@ -85,22 +85,24 @@ it("an extrude's arrow dragged along its line sets the depth it reaches, and cli
     loops: [[[-5, -5], [5, -5], [5, 5], [-5, 5]]], curves: [] } };
   const onDepth = vi.fn();
   const onReverse = vi.fn();
-  const extrude = { kind: 'boss', end: 'blind', file: 'a.py', line: 4, taper: 0, depth: 10, reverse: false, units: 'mm', label: '10 mm', onDepth, onReverse };
-  render(<SketchesLayer viewport={view} sketches={[sketch]} selected={sketch} preview={extrude} through={50} />);
-  await waitFor(() => expect(texts).toContain('10 mm'));
+  const extrude = { kind: 'boss', end: 'blind', file: 'a.py', line: 4, taper: 0, depth: 10, reverse: false, units: 'mm', label: '10 mm', text: '10',
+    onDepth, onReverse };
+  const { container } = render(<SketchesLayer viewport={view} sketches={[sketch]} selected={sketch} preview={extrude} through={50} />);
+  // Its depth is in the box beside its arrow.
+  const box = container.querySelector<HTMLInputElement>('[data-cad-value-box="depth"] input')!;
+  await waitFor(() => expect(box.value).toBe('10'));
   // Taken where its arrow starts, at the extrude's end 10 up, and dragged to 20 up.
   host.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, ...pixel(10) }));
   window.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, ...pixel(20) }));
-  // While dragged, the extrude is drawn at the depth reached, its tag with it.
-  await waitFor(() => expect(texts.some(text => /^(19\.\d+|20(\.\d+)?) mm$/.test(text))).toBe(true));
+  // While dragged, the extrude is drawn at the depth reached, its box with it.
+  await waitFor(() => expect(box.value).toMatch(/^(19\.\d+|20(\.\d+)?)$/));
   window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, ...pixel(20) }));
   expect(onDepth).toHaveBeenCalledTimes(1);
   expect(Math.abs(Number(onDepth.mock.calls[0][0]) - 20)).toBeLessThan(0.5);
   expect(onReverse).not.toHaveBeenCalled();
   // Drawn at its panel's depth again once let go (this panel kept it); then pressed and let go
   // where it is: a click, which reverses it.
-  const released = texts.length;
-  await waitFor(() => expect(texts.slice(released)).toContain('10 mm'));
+  await waitFor(() => expect(box.value).toBe('10'));
   host.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, ...pixel(10) }));
   window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, ...pixel(10) }));
   expect(onReverse).toHaveBeenCalledTimes(1);
@@ -123,19 +125,45 @@ it("a revolve's arrow dragged round its axis sets the angle it reaches, and clic
   };
   const onAngle = vi.fn();
   const onReverse = vi.fn();
-  render(<SketchesLayer viewport={view} sketches={[sketch]} selected={null} through={50}
-    preview={{ kind: 'boss', revolve: { a, b, angle: 90 }, file: 'a.py', line: 4, label: '90°', onAngle, onReverse }} />);
-  await waitFor(() => expect(texts).toContain('90°'));
+  const { container } = render(<SketchesLayer viewport={view} sketches={[sketch]} selected={null} through={50}
+    preview={{ kind: 'boss', revolve: { a, b, angle: 90 }, file: 'a.py', line: 4, label: '90°', text: '90', onAngle, onReverse }} />);
+  const box = container.querySelector<HTMLInputElement>('[data-cad-value-box="angle"] input')!;
+  await waitFor(() => expect(box.value).toBe('90'));
   // Taken at its head, a quarter turn round, and dragged to half a turn: drawn and tagged there as it goes.
   host.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, ...pixel(90) }));
   window.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, ...pixel(180) }));
-  await waitFor(() => expect(texts).toContain('180°'));
+  await waitFor(() => expect(box.value).toBe('180'));
   window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, ...pixel(180) }));
   expect(onAngle).toHaveBeenCalledWith('180');
   // Drawn at its panel's angle again once let go; then pressed and let go where it is: a click, which reverses it.
-  const released = texts.length;
-  await waitFor(() => expect(texts.slice(released)).toContain('90°'));
+  await waitFor(() => expect(box.value).toBe('90'));
   host.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, ...pixel(90) }));
   window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, ...pixel(90) }));
   expect(onReverse).toHaveBeenCalledTimes(1);
+});
+
+it("a depth the panel takes is a box beside its arrow, typed over as Fusion's is", async () => {
+  const view = viewport();
+  const sketch = { file: 'a.py', line: 4, name: 'Sketch1', state: { frame: { origin: [0, 0, 0], x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }, unit: 1,
+    loops: [[[-5, -5], [5, -5], [5, 5], [-5, 5]]], curves: [] } };
+  const onDepth = vi.fn();
+  const extrude = { kind: 'boss', end: 'blind', file: 'a.py', line: 4, taper: 0, depth: 10, reverse: false, label: '10 mm', units: 'mm',
+    text: '10', onDepth };
+  const { container } = render(<SketchesLayer viewport={view} sketches={[sketch]} selected={sketch} preview={extrude} through={50} />);
+  const box = container.querySelector<HTMLElement>('[data-cad-value-box="depth"]')!;
+  await waitFor(() => expect(box.style.visibility).toBe('visible'));
+  // Not tagged on the canvas as well.
+  expect(texts).not.toContain('10 mm');
+  const input = box.querySelector('input')!;
+  expect(input.value).toBe('10');
+  expect(box.textContent).toContain('mm');
+  input.focus();
+  input.value = '14';
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await waitFor(() => expect(onDepth).toHaveBeenCalledWith('14'));
+  // Escape puts it back, setting nothing.
+  input.focus();
+  input.value = '99';
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  expect(onDepth).toHaveBeenCalledTimes(1);
 });

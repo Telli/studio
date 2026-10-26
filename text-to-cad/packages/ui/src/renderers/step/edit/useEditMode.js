@@ -13,6 +13,7 @@ import {
   featureNames,
   featureTree,
   REPICKS,
+  ROLLS_BACK,
   recordChange,
   redoStep,
   sketchTreeId,
@@ -457,7 +458,8 @@ export function useEditMode({ client, file, active, reading = true }) {
     setSelected(feature.id);
     // A fillet's edges, a shell's or a hole's faces, are picked again on the body before the
     // feature, as SolidWorks rolls back to a feature it edits.
-    const rolled = REPICKS.has(feature.edit.command) && Boolean(editCommand(feature.edit.command)?.picks);
+    const rolled = (REPICKS.has(feature.edit.command) && Boolean(editCommand(feature.edit.command)?.picks))
+      || (ROLLS_BACK.has(feature.edit.command) && !feature.edit.first);
     const previousBar = barRef.current ? { before: barRef.current.before } : null;
     dropPreview();
     setEditing({ ...feature.edit, id: feature.id, title: feature.title, sketch: feature.sketch, rolled, previousBar });
