@@ -494,6 +494,28 @@ function exactMeasurementFromPicks(pickA, pickB) {
  * this thing" before any second pick is made.
  */
 export function entityMeasurementFromPick(pick) {
+  const made = exactEntityFromPick(pick);
+  return pick?.displayUnit === "in" ? entityInInches(made) : made;
+}
+
+/**
+ * A single pick's reading in millimetres read in inches, as an inch part shows it: its place,
+ * lengths and radii, and its area. Its normal and what it is stay as they are.
+ */
+export function entityInInches(entity) {
+  if (!entity || entity.unit !== "mm") return entity;
+  const converted = { ...entity, unit: "in" };
+  for (const key of ["length", "radius", "diameter", "majorRadius", "minorRadius"]) {
+    if (typeof entity[key] === "number") converted[key] = entity[key] / 25.4;
+  }
+  for (const key of ["point", "center"]) {
+    if (isFinitePoint(entity[key])) converted[key] = entity[key].map(value => value / 25.4);
+  }
+  if (typeof entity.area === "number") converted.area = entity.area / 25.4 ** 2;
+  return converted;
+}
+
+function exactEntityFromPick(pick) {
   if (pick?.snapKind === "vertex" && isFinitePoint(pick.point)) {
     // Where it is in the model's own coordinates, not where the viewer drew the re-centred model.
     const offset = isFinitePoint(pick.offset) ? pick.offset : [0, 0, 0];
@@ -632,8 +654,9 @@ export function formatEntityMeasurement(entity, { precision = 2 } = {}) {
   if (!entity) {
     return "";
   }
-  const digits = roundedPrecision(precision);
   const unit = entity.unit || "mm";
+  // An inch reads to one more place, as a two-pick measurement does.
+  const digits = roundedPrecision(precision) + (unit === "in" ? 1 : 0);
   if (Array.isArray(entity.point)) {
     // A vertex: where it is, as a position reads (no unit after each axis).
     return `${entity.point.map((value, axis) => `${"XYZ"[axis]} ${(Math.abs(value) < 0.5 * 10 ** -digits ? 0 : value).toFixed(digits)}`).join("  ")} ${unit}`;

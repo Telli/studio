@@ -611,3 +611,12 @@ test("an inch part's measurement reads in inches, a place finer, drawn where it 
   const approximate = { unit: "mm", approximate: true, euclidean: 25.4 };
   assert.equal(inInches(approximate), approximate);
 });
+
+test("an inch part's single pick reads in inches too: a vertex's place, a face's area", async () => {
+  const { entityMeasurementFromPick, formatEntityMeasurement } = await import("./measurement.js");
+  const vertex = { snapKind: "vertex", point: [25.4, 50.8, 0] };
+  assert.equal(formatEntityMeasurement(entityMeasurementFromPick(vertex)), "X 25.40  Y 50.80  Z 0.00 mm");
+  assert.equal(formatEntityMeasurement(entityMeasurementFromPick({ ...vertex, displayUnit: "in" })), "X 1.000  Y 2.000  Z 0.000 in");
+  const face = { snapKind: "face", reference: { pickData: { selectorType: "face", surfaceType: "plane", area: 645.16 } }, displayUnit: "in" };
+  assert.equal(formatEntityMeasurement(entityMeasurementFromPick(face)).split("  ")[0], "A 1.000 in²");
+});
