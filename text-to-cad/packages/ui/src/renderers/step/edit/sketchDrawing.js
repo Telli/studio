@@ -4,7 +4,7 @@
  * and the colors a CAD tool gives a sketch, read from the viewer's own text color so a dark
  * viewer draws a defined sketch light.
  */
-import { arcSweep } from "./sketchMode.js";
+import { arcSweep, sketchGeometry } from "./sketchMode.js";
 
 /**
  * Whether a viewer's text color is light, so the viewer is dark. The theme writes it as oklch (its
@@ -478,3 +478,33 @@ export function arrowHead(context, tip, from, size) {
 
 /** Whether two label boxes ({x, y, w, h}) cover each other. */
 export const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+/**
+ * What a selection box takes of a sketch, as SolidWorks' does: dragged left to right (a window) each
+ * curve wholly inside it, right to left (a crossing) each it touches too, by its drawn points on the
+ * screen (`toScreen`, the sketch's place to the view's pixels). The curves' ids.
+ */
+// Whether the segment a-b passes through the box (its sides `left`..`right`, `top`..`bottom`).
+function crosses(a, b, left, top, right, bottom) {
+  if (!a || !b) return false;
+  const corners = [[left, top], [right, top], [right, bottom], [left, bottom]];
+  const side = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+  return corners.some((corner, index) => {
+    const next = corners[(index + 1) % 4];
+    return side(a, b, corner) !== side(a, b, next) && side(corner, next, a) !== side(corner, next, b);
+  });
+}
+
+export function boxSelect(state, from, to, toScreen) {
+  const [left, right] = [Math.min(from[0], to[0]), Math.max(from[0], to[0])];
+  const [top, bottom] = [Math.min(from[1], to[1]), Math.max(from[1], to[1])];
+  const crossing = to[0] < from[0];
+  const inside = point => Boolean(point) && point[0] >= left && point[0] <= right && point[1] >= top && point[1] <= bottom;
+  return sketchGeometry(state).curves.filter(curve => !curve.derived).filter(curve => {
+    const drawn = curvePoints(curve).map(point => toScreen(point));
+    if (!crossing) return drawn.length > 0 && drawn.every(inside);
+    // A crossing takes a curve any piece of which passes through it, its ends outside or not.
+    return drawn.some(inside) || drawn.slice(1).some((point, index) => crosses(drawn[index], point, left, top, right, bottom));
+  }).map(curve => curve.id);
+}
+

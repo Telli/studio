@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { transitionCameraToViewPreset } from "../../kit/camera/runtimeCamera.js";
 import { requestSceneFrame } from "../../kit/viewport/sceneFrames.js";
-import { arrowHead, circlePoints, colorsFor, curvePoints, drawGlyph, GLYPH_PX, overlaps, planeMapping, strokePath } from "./sketchDrawing.js";
+import { arrowHead, boxSelect, circlePoints, colorsFor, curvePoints, drawGlyph, GLYPH_PX, overlaps, planeMapping, strokePath } from "./sketchDrawing.js";
 import {
   alignTo,
   chainOf,
@@ -158,6 +158,9 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
     let chainStart = null;
     // A, pressed while a line's chain goes on, as SolidWorks' A: its next piece a tangent arc, then lines again.
     let arcNext = false;
+    // A box dragged across empty space, as SolidWorks selects: left to right a window (what is wholly in
+    // it), right to left a crossing (what it touches too). `{ from, to, add, pointerId, controls, ... }`.
+    let boxing = null;
     const drawing = tool => (arcNext && (tool === "line" || tool === "centerline") && picks.length === 1 ? "tangent_arc" : tool);
     let pickedTool = null;
     let pointer = null; // { screen: [x, y], local: [u, v] }
@@ -391,6 +394,21 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         context.setLineDash([]);
       }
 
+      // The selection box being dragged: a window drawn solid, a crossing dashed.
+      if (boxing) {
+        const [x0, y0] = boxing.from;
+        const [x1, y1] = boxing.to;
+        context.save();
+        context.strokeStyle = colors.selected || colors.preview;
+        context.fillStyle = colors.selected || colors.preview;
+        context.lineWidth = 1;
+        context.setLineDash(x1 < x0 ? [5, 3] : []);
+        context.globalAlpha = 0.12;
+        context.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+        context.globalAlpha = 1;
+        context.strokeRect(Math.min(x0, x1) + 0.5, Math.min(y0, y1) + 0.5, Math.abs(x1 - x0), Math.abs(y1 - y0));
+        context.restore();
+      }
       // The stroke under way, and where it lands.
       const tool = current.tool;
       if (tool && tool !== "dimension" && !MODIFY_TOOLS.includes(tool) && !MODEL_TOOLS.includes(tool) && pointer?.local) {
@@ -862,10 +880,17 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         version.current += 1;
         return;
       }
-      // No tool: select, and drag what can move.
+      // No tool: select, and drag what can move. A press on empty space starts a selection box, as
+      // SolidWorks' does (Shift, Ctrl or Cmd keep what is selected and add to it); the camera turns with
+      // the right or middle button.
       if (!hit) {
-        if (current.selection.length && !extend) current.edit.selectInSketch([]);
-        return; // the camera's
+        event.preventDefault();
+        event.stopPropagation();
+        const controls = viewport.runtimeRef?.current?.controls;
+        boxing = { from: screen, to: screen, add: extend, pointerId: event.pointerId, controls, controlsWereEnabled: controls?.enabled !== false };
+        if (controls) controls.enabled = false;
+        try { host.setPointerCapture(event.pointerId); } catch { /* a pointer already gone */ }
+        return;
       }
       event.preventDefault();
       event.stopPropagation();
@@ -888,6 +913,13 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       const place = mapping?.toLocal(screen) || null;
       pointer = place ? { screen, local: place } : null;
       const current = live.current;
+      if (boxing && event.pointerId === boxing.pointerId) {
+        event.preventDefault();
+        event.stopPropagation();
+        boxing.to = screen;
+        version.current += 1;
+        return;
+      }
       if (drag && event.pointerId === drag.pointerId && place) {
         event.preventDefault();
         event.stopPropagation();
@@ -930,6 +962,22 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
     };
 
     const handlePointerUp = event => {
+      if (boxing && event.pointerId === boxing.pointerId) {
+        event.stopPropagation();
+        const done = boxing;
+        boxing = null;
+        if (done.controls) done.controls.enabled = done.controlsWereEnabled;
+        try { host.releasePointerCapture(done.pointerId); } catch { /* released already */ }
+        version.current += 1;
+        const current = live.current;
+        const moved = Math.hypot(done.to[0] - done.from[0], done.to[1] - done.from[1]) > DRAG_PX;
+        // A click on empty space: what was selected is let go, unless a modifier keeps it.
+        if (!moved) { if (!done.add && current.selection.length) current.edit.selectInSketch([]); return; }
+        const taken = boxed(current.sketch?.state, done.from, done.to);
+        const next = done.add ? [...new Set([...current.selection, ...taken])] : taken;
+        current.edit.selectInSketch(next);
+        return;
+      }
       if (!drag || event.pointerId !== drag.pointerId) return;
       event.stopPropagation();
       const done = drag;
@@ -945,6 +993,8 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       solved = null;
       void send(op).finally(() => { settling = null; version.current += 1; });
     };
+
+    const boxed = (state, from, to) => (state && mapping ? boxSelect(state, from, to, mapping.toScreen) : []);
 
     // A drag solved as it goes, the way a CAD tool's sketcher follows the pointer: one solve asked
     // at a time, the newest place asked again once it answers, nothing written until the drag ends.
