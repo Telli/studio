@@ -17,3 +17,11 @@ test('legacy circular edges keep radius without inventing a sweep; noncircular s
  assert.equal(row(referenceMeasurements(face('c','cylinder',{radius:4})).rows,'Diameter Ø'),8);
  assert.deepEqual(referenceMeasurements(edge('a','line',{},null)).rows,[]);
 });
+
+test("an inch part's face and edge readings are in inches", () => {
+  const hole = { selectorType: "face", pickData: { surfaceType: "cylinder", params: { radius: 12.7 }, area: 645.16 } };
+  const rows = Object.fromEntries(referenceMeasurements(hole, "in").rows.map(([label, value, unit]) => [label, [Number(value.toFixed(6)), unit]]));
+  assert.deepEqual(rows["Diameter Ø"], [1, "in"]);
+  assert.deepEqual(rows.Area, [1, "in²"]);
+  assert.deepEqual(referenceMeasurements(hole).rows[0], ["Diameter Ø", 25.4, "mm"]);
+});

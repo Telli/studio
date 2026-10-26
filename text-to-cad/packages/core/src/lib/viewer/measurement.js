@@ -413,7 +413,31 @@ export function measurePointFromReference({
  * `euclidean` and `delta` are always those of the two points picked; `ends` are the points the reading
  * is drawn between. Picks on a mesh (`units`) are two points on its surface and approximate.
  */
+/**
+ * A measurement between two picks (`exactMeasurementFromPicks`), read in the part's units where the
+ * picks say them (`displayUnit`, "in" for an inch part, as its sketches and dimensions read): an
+ * exact reading in millimetres becomes inches, the places it is drawn between kept as they are.
+ */
 export function measurementFromPicks(pickA, pickB) {
+  const made = exactMeasurementFromPicks(pickA, pickB);
+  const unit = pickA?.displayUnit || pickB?.displayUnit || "";
+  return unit === "in" ? inInches(made) : made;
+}
+
+const LENGTH_KEYS = Object.freeze(["euclidean", "perpendicular", "centerDistance", "minDistance"]);
+
+/** A measurement in millimetres read in inches: its lengths and its delta, nothing it is drawn by. */
+export function inInches(measurement) {
+  if (!measurement || measurement.unit !== "mm" || measurement.approximate === true) return measurement;
+  const converted = { ...measurement, unit: "in" };
+  for (const key of LENGTH_KEYS) {
+    if (typeof measurement[key] === "number") converted[key] = measurement[key] / 25.4;
+  }
+  if (Array.isArray(measurement.delta)) converted.delta = measurement.delta.map(value => value / 25.4);
+  return converted;
+}
+
+function exactMeasurementFromPicks(pickA, pickB) {
   const pointA = isFinitePoint(pickA?.point) ? pickA.point : null;
   const pointB = isFinitePoint(pickB?.point) ? pickB.point : null;
   if (!pointA || !pointB) {
@@ -572,7 +596,9 @@ export function formatMeasurement(measurement, { precision = 2 } = {}) {
     const unit = measurement.unit || "";
     return `≈ ${value.toFixed(APPROXIMATE_DECIMALS[unit] ?? 2)}${unit ? ` ${unit}` : ""}`;
   }
-  return `${value.toFixed(roundedPrecision(precision))} ${measurement.unit || "mm"}`;
+  // An inch reading one place finer than a millimetre one, as an inch drawing's dimensions are.
+  const places = roundedPrecision(precision) + (measurement.unit === "in" ? 1 : 0);
+  return `${value.toFixed(places)} ${measurement.unit || "mm"}`;
 }
 
 // How many decimals an approximate reading keeps, by its unit: about a tenth of a millimetre.

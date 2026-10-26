@@ -596,3 +596,18 @@ test("classifyMeasurePick accepts a precomputed edge fit and derives one otherwi
     null
   );
 });
+
+test("an inch part's measurement reads in inches, a place finer, drawn where it was", async () => {
+  const { formatMeasurement, inInches, measurementFromPicks } = await import("./measurement.js");
+  const a = { point: [0, 0, 0] };
+  const b = { point: [25.4, 0, 0] };
+  const metric = measurementFromPicks(a, b);
+  assert.equal(formatMeasurement(metric), "25.40 mm");
+  const inch = measurementFromPicks({ ...a, displayUnit: "in" }, { ...b, displayUnit: "in" });
+  assert.equal(inch.unit, "in");
+  assert.equal(formatMeasurement(inch), "1.000 in");
+  assert.deepEqual(inch.delta, [1, 0, 0]);
+  // A mesh's approximate reading is in whatever its file measures in, never made inches here.
+  const approximate = { unit: "mm", approximate: true, euclidean: 25.4 };
+  assert.equal(inInches(approximate), approximate);
+});

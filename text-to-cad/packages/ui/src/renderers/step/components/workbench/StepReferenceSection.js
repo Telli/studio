@@ -41,8 +41,8 @@ function MeasurementRows({rows}) {
 // A face's or an edge's own measurements: its area, its length, the radii of a round one, an
 // arc's sweep. Where it is (its centre, its normal), what kind it is and whose it is are the
 // heading's and the view's to say.
-function TopologyDetail({ reference }) {
-  return <MeasurementRows rows={referenceMeasurements(reference).rows} />;
+function TopologyDetail({ reference, units }) {
+  return <MeasurementRows rows={referenceMeasurements(reference, units).rows} />;
 }
 
 // A component's or a subassembly's: how many parts, its overall size and its volume.
@@ -121,9 +121,9 @@ const PLURAL_KINDS = Object.freeze({ face: "faces", edge: "edges", solid: "solid
 
 // A run of faces or edges on one part, one row each: its number (or its own name) and its first
 // measurement, an area or a length.
-function TopologyRunDetail({ members }) {
+function TopologyRunDetail({ members, units }) {
   return members.map(({ item, label }) => {
-    const [, value, unit] = referenceMeasurements(item).rows[0] || [];
+    const [, value, unit] = referenceMeasurements(item, units).rows[0] || [];
     return <InfoRow key={itemKey(item)} label={label}>
       <MonoValue>{value === undefined ? "—" : `${formatNumber(value)} ${unit}`}</MonoValue>
     </InfoRow>;
@@ -147,7 +147,7 @@ function TopologyRunDetail({ members }) {
  * @returns {import("../../../kit/tools/quick-edit/ReferenceChips.jsx").ReferenceChip[]}
  */
 export function useStepReferenceChips({ references = [], meshData = null, partsSize = null, partName = null, onRemove = null, onHover = null, copyText = null,
-  nameFace = null }) {
+  nameFace = null, units = 'mm' }) {
   return useMemo(() => {
     const chips = [];
     const runs = new Map();
@@ -194,16 +194,16 @@ export function useStepReferenceChips({ references = [], meshData = null, partsS
         const compact = made || (!parts.own && parts.number && parts.parent ? { name: parts.parent, kind: parts.kind, number: parts.number } : undefined);
         const label = made ? `${made.name} · ${made.kind} ${made.number}` : referenceName(item, meshData, partName);
         return { key: chip.key, label, glyph: parts.kind, ...(compact ? { compact } : {}),
-          card: <TopologyDetail reference={item}/>,
+          card: <TopologyDetail reference={item} units={units}/>,
           onRemove: onRemove ? () => onRemove(ids) : undefined,
           onHover: onHover ? on => onHover(on ? { referenceId: ids[0] } : null) : undefined };
       }
       const kinds = PLURAL_KINDS[parts.kind] || `${parts.kind}s`;
       return { key: chip.key, label: [parts.parent, `${members.length} ${kinds}`].filter(Boolean).join(" · "),
         compact: { name: parts.parent, kind: parts.kind, count: members.length },
-        card: <TopologyRunDetail members={members}/>,
+        card: <TopologyRunDetail members={members} units={units}/>,
         onRemove: onRemove ? () => onRemove(ids) : undefined,
         onHover: onHover ? on => onHover(on ? (parts.occurrence ? { nodeId: parts.occurrence } : { referenceId: ids[0] }) : null) : undefined };
     }
-  }, [references, meshData, partsSize, partName, onRemove, onHover, copyText, nameFace]);
+  }, [references, meshData, partsSize, partName, onRemove, onHover, copyText, nameFace, units]);
 }

@@ -1520,7 +1520,9 @@ function StepSurfaceBody({ view, data }) {
     Boolean(selectedMeshData) &&
     !stepInteractionBlocked &&
     !viewerLoading;
-  const measure = useMeasureSession({ fileKey: selectedKey, revision: selectedEntry?.hash, picking: measureModeActive });
+  // The units the part reads in (edit mode's, set below where it is read): Measure reads in them, as SolidWorks' does.
+  const [partUnits, setPartUnits] = useState("");
+  const measure = useMeasureSession({ fileKey: selectedKey, revision: selectedEntry?.hash, picking: measureModeActive, displayUnit: partUnits });
   const measureMeasurements = measure.measurements;
 
   const filteredViewerReferences = useMemo(() => filterSelectionReferences(viewerPickableReferences, selectFilter),
@@ -3333,6 +3335,8 @@ function StepSurfaceBody({ view, data }) {
   const layoutHosted = useSyncExternalStore(editLayoutHost.subscribe, editLayoutHost.get, editLayoutHost.get);
   const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading, reading: editLayout === "manual" });
   const commandOpenNow = Boolean(edit.command && !edit.sketch);
+  const unitsNow = edit.state?.units || "";
+  useEffect(() => { setPartUnits(unitsNow); }, [unitsNow]);
   useEffect(() => { setCommandHeld(commandOpenNow); }, [commandOpenNow]);
   // Laid out for editing only once the server says the file has a part script, and only by hand; a
   // command, sketch or pick open, or a change being saved, holds the switch (`layoutHeld`).
@@ -3729,7 +3733,7 @@ function StepSurfaceBody({ view, data }) {
   const referenceChips = useStepSelectionChips({ stepTreeRoot: displayStepTreeRoot, selectedMeshData: selectedDisplayMeshData,
     geometryInspection: { parts: !viewerLoading && !stepUpdateInProgress ? selectedMeshData?.parts || EMPTY_LIST : EMPTY_LIST },
     references: selectionActionVisible ? selectedReferenceItems : EMPTY_LIST, onRemove: removeFromSelection, onHover: hoverChip,
-    copyText: chipCopyText, nameFace });
+    copyText: chipCopyText, nameFace, units: edit.state?.units || "mm" });
   // A sketch is picked on the model as in the design tree, with Select in hand and nothing else
   // asking for a pick: the sketch an extrude takes (inside its outline too, while it waits for
   // one), or one to work on next. The part's extent is how far Through All goes in a preview.

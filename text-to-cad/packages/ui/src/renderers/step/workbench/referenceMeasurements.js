@@ -7,8 +7,12 @@ const valueOf = (ref,key) => {
   return value !== null && value >= 0 ? value : null;
 };
 
-/** Analytic radii and parameter spans; never infer an arc angle from tessellated length. */
-export function referenceMeasurements(ref) {
+/**
+ * Analytic radii and parameter spans; never infer an arc angle from tessellated length. Its rows read
+ * in the part's units (`units`, "in" for an inch part: lengths, areas and volumes made inches); the
+ * values it returns stay in millimetres.
+ */
+export function referenceMeasurements(ref, units = 'mm') {
   const pick=ref.pickData || {}, params=pick.params || {}, type=ref.selectorType;
   const kind=pick.curveType || pick.surfaceType || summary(ref)?.[1] || '';
   const circular=type==='edge' && ['circle','arc'].includes(kind);
@@ -28,5 +32,10 @@ export function referenceMeasurements(ref) {
     if(positive(params.majorRadius)) rows.push(['Major radius',Number(params.majorRadius),'mm']);
     if(positive(params.minorRadius)) rows.push(['Tube radius',Number(params.minorRadius),'mm']);
   }
-  return {kind:arc ? 'arc' : kind,rows,length,area,radius,circular};
+  const inch = units === 'in';
+  const shown = inch ? rows.map(([label, value, unit]) => {
+    const power = unit === 'mm' ? 1 : unit === 'mm²' ? 2 : unit === 'mm³' ? 3 : 0;
+    return power ? [label, value / 25.4 ** power, unit.replace('mm', 'in')] : [label, value, unit];
+  }) : rows;
+  return {kind:arc ? 'arc' : kind,rows:shown,length,area,radius,circular};
 }

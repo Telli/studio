@@ -27,10 +27,14 @@ const NO_MEASUREMENTS = Object.freeze([]);
  * shell is made, so ⌘Z and ⇧⌘Z walk measurements and ink alike. A new file or revision takes the
  * steps out with the measurements.
  *
- * @param {{ fileKey: string, revision: string, picking: boolean }} options  `picking`: the tool
- *   is in hand and can pick now.
+ * @param {{ fileKey: string, revision: string, picking: boolean, displayUnit?: string }} options  `picking`: the tool
+ *   is in hand and can pick now; `displayUnit`: the units the part reads in ("in" for an inch part).
  */
-export function useMeasureSession({ fileKey, revision, picking }) {
+export function useMeasureSession({ fileKey, revision, picking, displayUnit = "" }) {
+  // Each pick says the units the part reads in, so the reading is in them (`measurementFromPicks`).
+  const unitRef = useRef(displayUnit);
+  unitRef.current = displayUnit;
+  const said = useCallback(pick => (pick && unitRef.current ? { ...pick, displayUnit: unitRef.current } : pick), []);
   const [state, setState] = useState(null);
   const [activeId, setActiveId] = useState("");
   // The state as last set, so a change and the step it makes are one synchronous act.
@@ -49,10 +53,10 @@ export function useMeasureSession({ fileKey, revision, picking }) {
     const restore = list => () => set(current => (list.length || current?.draft ? { draft: current?.draft || null, hover: current?.hover || null, measurements: list } : null));
     history.current.record({ source: "measure", undo: restore(before), redo: restore(after) });
   }, [set]);
-  const onPick = useCallback((pick) => { step(set((current) => applyMeasureRulerPick(current, pick))); }, [set, step]);
+  const onPick = useCallback((pick) => { step(set((current) => applyMeasureRulerPick(current, said(pick)))); }, [set, step, said]);
   const onHoverPoint = useCallback((hover) => {
-    set((current) => applyMeasureRulerHover(current, hover));
-  }, [set]);
+    set((current) => applyMeasureRulerHover(current, said(hover)));
+  }, [set, said]);
   const onDelete = useCallback((id) => { step(set((current) => applyMeasureRulerDelete(current, id))); }, [set, step]);
   const cancelDraft = useCallback(() => set((current) => cancelMeasureRulerDraft(current)), [set]);
   const clear = useCallback(() => { step(set(null)); setActiveId(""); }, [set, step]);

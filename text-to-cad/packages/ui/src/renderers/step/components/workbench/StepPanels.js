@@ -36,7 +36,7 @@ function useLatestActions(actions) {
  * the chips again (the faces' map changed).
  */
 export function useStepSelectionChips({ stepTreeRoot, selectedMeshData = null, geometryInspection = null, references = EMPTY,
-  onRemove = null, onHover = null, copyText = null, nameFace = null }) {
+  onRemove = null, onHover = null, copyText = null, nameFace = null, units = 'mm' }) {
   const modelParts = geometryInspection?.parts || EMPTY;
   const partsSize = useCallback(ids => stepGeometryMeasurements({ partIds: ids }, EMPTY, modelParts).size, [modelParts]);
   const partNames = useMemo(() => {
@@ -47,7 +47,7 @@ export function useStepSelectionChips({ stepTreeRoot, selectedMeshData = null, g
   }, [stepTreeRoot]);
   const partName = useCallback(id => partNames.get(String(id || '')) || '', [partNames]);
   const remove = useLatestCallback(onRemove), hover = useLatestCallback(onHover);
-  return useStepReferenceChips({ references, meshData: selectedMeshData, partsSize, partName, onRemove: remove, onHover: hover, copyText, nameFace });
+  return useStepReferenceChips({ references, meshData: selectedMeshData, partsSize, partName, onRemove: remove, onHover: hover, copyText, nameFace, units });
 }
 
 /**
