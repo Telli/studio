@@ -148,7 +148,7 @@ import EditTimeline from "./edit/EditTimeline.jsx";
 import EditSelectionBar from "./edit/EditSelectionBar.jsx";
 import { featureAsk } from "./edit/featureAsk.jsx";
 import { boundsCorners, facePick, featurePick, pickedReferences, quickEditLetsGo, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
-import { faceChipName, faceReference, shownFaces } from "./edit/faceChips.js";
+import { faceChipName, faceNumber, faceReference, shownFaces } from "./edit/faceChips.js";
 import { chosenThrough, useAsked, useChosenFeature } from "./edit/selectionBarState.js";
 import { useAddToContext } from "./edit/useAddToContext.js";
 import { faceShapesOf, faceShapesText } from "../kit/tools/annotate/faceShapes.js";
@@ -3726,6 +3726,25 @@ function StepSurfaceBody({ view, data }) {
     const partIds = ids.filter(id => selectedPartIds.includes(id));
     return copyTextLines(selectionCopyPayload(copyContext, { referenceIds, partIds }).lines, fileRefPrefix).join("\n");
   }, [copyContext, fileRefPrefix, selectedReferenceIds, selectedPartIds]);
+  // A feature's row in the design tree under the pointer lights the faces it made, as SolidWorks'
+  // FeatureManager does: the faces the engine credits it with (`faceFeatures`), found among the
+  // model's references by their number, each on a line of the hovered reference.
+  const treeHoverFaces = useMemo(() => {
+    const map = faceState?.faceFeatures;
+    if (!editing || !map || typeof edit.hovered !== "string" || !edit.hovered || edit.sketch) return "";
+    const numbers = new Set(Object.entries(map).filter(([, key]) => key === edit.hovered).map(([number]) => Number(number)));
+    if (!numbers.size) return "";
+    const runtime = layersApiRef.current?.activeSelectorRuntime;
+    const references = Array.isArray(runtime?.references) ? runtime.references
+      : runtime?.referenceMap instanceof Map ? [...runtime.referenceMap.values()] : [];
+    return references.filter(reference => numbers.has(faceNumber(faceReference(reference?.displaySelector))))
+      .map(reference => reference.id).join("\n");
+  }, [editing, faceState, edit.hovered, edit.sketch]);
+  const litFromTree = useRef("");
+  useEffect(() => {
+    if (treeHoverFaces) { litFromTree.current = treeHoverFaces; setHoveredModelReferenceId(treeHoverFaces); }
+    else if (litFromTree.current) { litFromTree.current = ""; setHoveredModelReferenceId(""); }
+  }, [treeHoverFaces, setHoveredModelReferenceId]);
   const hoverChip = useCallback(target => {
     setHoveredModelReferenceId(target?.referenceId || "");
     setHoveredListPartId(target?.nodeId || "");

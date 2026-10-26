@@ -330,10 +330,12 @@ export function useStepHighlights(layers) {
       hoverOpacity: measureModeActive ? Math.max(0.08, highlightEdgeOpacity * 0.35) : highlightEdgeOpacity,
       lineWidth: getHighlightEdgeThickness(displayEdgeSettings, viewerTheme)
     };
-    const normalizedHoveredReferenceId = String(hoveredReferenceId || "").trim();
+    // One reference, or several on lines of their own: a feature's faces, lit while its row in the
+    // design tree is under the pointer.
+    const hoveredReferenceIds = String(hoveredReferenceId || "").split("\n").map(id => id.trim()).filter(Boolean);
     const hoveredIds = new Set();
-    if (normalizedHoveredReferenceId) {
-      for (const referenceId of expandHighlightReferenceIds([normalizedHoveredReferenceId], pickableReferenceMap, activeSelectorRuntime)) {
+    if (hoveredReferenceIds.length) {
+      for (const referenceId of expandHighlightReferenceIds(hoveredReferenceIds, pickableReferenceMap, activeSelectorRuntime)) {
         const topologyReference = highlightableReference(referenceId, pickableReferenceMap, activeSelectorRuntime);
         if (!topologyReference) continue;
         hoveredIds.add(referenceId);
