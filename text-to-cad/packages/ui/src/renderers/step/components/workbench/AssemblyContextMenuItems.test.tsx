@@ -72,3 +72,12 @@ it("opens a lone part's model menu with the part menu's reference group", () => 
   // An assembly's empty space names no part, so it has no reference group.
   expect(labels(modelMenuEntries({ ...menu, copyText: '' }, { actions: { onCopyReference } }))[0]).toBe('Show all');
 });
+
+it("opens a face's menu with what its feature offers, as SolidWorks' does, then the reference group after a rule", () => {
+  const onEdit = vi.fn();
+  const entries = assemblyPartMenuEntries({ copyText: "@cad[a.step#f1]", showIsolate: false, showHideOther: false, showVisibility: false,
+    featureItems: [{ id: "edit-feature", label: "Edit Feature", onSelect: onEdit }, { id: "normal-to", label: "Normal To", onSelect: () => {} }] }, {});
+  expect(entries.slice(0, 3).map(item => [item.id, item.separatorBefore])).toEqual([["edit-feature", false], ["normal-to", false], ["copy-reference", true]]);
+  entries[0].onSelect();
+  expect(onEdit).toHaveBeenCalled();
+});

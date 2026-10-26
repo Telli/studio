@@ -54,7 +54,10 @@ function referenceEntries(menu, { disabled = false, actions = {} } = {}) {
 export function assemblyPartMenuEntries(menu, { disabled = false, actions = {} } = {}) {
   const run = (action) => () => action?.(menu);
   const off = (flag) => disabled || flag === true;
-  const entries = referenceEntries(menu, { disabled, actions });
+  // What the workspace offers first for a face it knows the feature of, as SolidWorks' menu opens with
+  // Edit Feature and Edit Sketch (`menu.featureItems`: `{ id, label, disabled, onSelect }`).
+  const featured = (menu.featureItems || []).map((item) => entry(item.id, item.label, off(item.disabled), item.onSelect));
+  const entries = [...featured, ...referenceEntries(menu, { disabled, actions }).map((item, index) => (index === 0 && featured.length ? { ...item, separatorBefore: true } : item))];
   entries.push(entry("select", menu.selected === true ? "Deselect" : "Select", off(menu.selectDisabled), run(actions.onSelect), true));
   if (menu.showIsolate !== false) {
     entries.push(entry("isolate", menu.focused === true ? "Exit isolate" : "Isolate", off(menu.isolateDisabled), run(actions.onIsolate)));

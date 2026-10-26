@@ -1648,6 +1648,8 @@ function StepSurfaceBody({ view, data }) {
   // A double-click on a face in the workspace, taken by the feature that made it where that is known (set
   // below, where edit mode is read): true when it was.
   const faceDoubleRef = useRef(() => false);
+  // A right-click on a face in the workspace: what its feature offers first (set below, where edit mode is read).
+  const faceMenuRef = useRef(() => []);
   // A modeling command's dialog open (edit mode's, set below where it is read): Escape cancels it, as
   // SolidWorks' Esc cancels the PropertyManager open.
   const [commandHeld, setCommandHeld] = useState(false);
@@ -2913,7 +2915,8 @@ function StepSurfaceBody({ view, data }) {
         ...topologyReferenceMenu(
           [pickedPartId],
           topologyReference?.label || topologyReference?.displayName || pickedPartId
-        )
+        ),
+        featureItems: faceMenuRef.current(pickedPartId, topologyReference)
       });
       return;
     }
@@ -3777,6 +3780,26 @@ function StepSurfaceBody({ view, data }) {
   const featureBarShown = barActions.length > 0 && rowChosen !== null;
   // The design tree and the timeline select a row when the person presses it, and that chooses its feature.
   const editWithRows = chosenThrough(edit, chooseFeature);
+  // SolidWorks' menu on a face: Edit Feature and Edit Sketch of the feature that made it, Normal To a flat
+  // one, and Appearance.
+  faceMenuRef.current = (id, reference) => {
+    if (!editing || edit.sketch || reference?.selectorType !== "face") return [];
+    const row = facePick(editTree, [{ kind: "face", id, reference }], faceState);
+    const busy = edit.saving || edit.rolling || Boolean(edit.command);
+    const items = [];
+    if (row?.feature?.edit) items.push({ id: "edit-feature", label: "Edit Feature", disabled: busy, onSelect: () => edit.editFeature(row.feature) });
+    const sketch = row?.feature?.sketch;
+    if (sketch?.constrained) items.push({ id: "edit-sketch", label: "Edit Sketch", disabled: busy, onSelect: () => openTreeSketch(sketch) });
+    if (reference?.pickData?.surfaceType === "plane") {
+      items.push({ id: "normal-to", label: "Normal To", onSelect: () => {
+        const selectorRuntime = layersApiRef.current?.activeSelectorRuntime;
+        const subject = lookSubjectForReference(runtimeRefRef.current?.current, selectorRuntime, selectorReferenceForId(selectorRuntime, id) || reference);
+        if (subject) viewerRef.current?.lookAt?.(subject);
+      } });
+    }
+    if (!isAssemblyView) items.push({ id: "appearance", label: "Appearance", disabled: busy, onSelect: () => edit.inspect("appearance") });
+    return items;
+  };
   faceDoubleRef.current = (id, reference) => {
     if (!editing || edit.command || edit.sketch || reference?.selectorType !== "face") return false;
     const row = facePick(editTree, [{ kind: "face", id, reference }], faceState);
