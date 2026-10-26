@@ -18,7 +18,9 @@ import {
   patternOp,
   patternSettings,
   hitTest,
+  INFER_DEGREES,
   inferLine,
+  inferenceLines,
   polygonCorners,
   polygonSides,
   relationGlyphs,
@@ -440,4 +442,23 @@ test("the sketch toolbar places every sketch tool once: its curve and edit group
   assert.deepEqual([...placed, "dimension"].sort(), SKETCH_TOOLS.map(tool => tool.id).sort());
   // A family is a button by its first tool.
   for (const [id, tools] of Object.entries(SKETCH_FAMILIES)) assert.equal(tools[0], id);
+});
+
+test("a line drawn near square to or along another of the sketch's is put there and kept so, as SolidWorks infers it", () => {
+  // A slanted line from the origin to (10, 10); a new one from (10, 10) heading nearly square to it.
+  const state = { points: [{ id: "Origin", x: 0, y: 0, fixed: true }, { id: "P1", x: 0, y: 0 }, { id: "P2", x: 10, y: 10 }],
+    curves: [{ id: "Line1", kind: "line", start: "P1", end: "P2" }], relations: [], dimensions: [] };
+  const lines = inferenceLines(state, { point: "P2" });
+  assert.deepEqual(lines.map(line => line.id), ["Line1"]);
+  const square = inferLine([10, 10], [20.2, 0.1], INFER_DEGREES, lines);
+  assert.equal(square.relation, "perpendicular");
+  assert.equal(square.to, "Line1");
+  assert.ok(Math.abs((square.end[0] - 10) + (square.end[1] - 10)) < 1e-9, "square to the slant");
+  const along = inferLine([10, 10], [20, 20.3], INFER_DEGREES, lines);
+  assert.deepEqual([along.relation, along.to], ["parallel", "Line1"]);
+  // Level still wins, and a line at no particular angle keeps its place.
+  assert.equal(inferLine([10, 10], [30, 10.4], INFER_DEGREES, lines).relation, "horizontal");
+  assert.equal(inferLine([10, 10], [30, 3], INFER_DEGREES, lines).relation, null);
+  // What it sends: the relation to that line.
+  assert.deepEqual(drawOp("line", [{ point: "P2" }, { at: [20.2, 0.1] }], state).relations, [{ kind: "perpendicular", to: "Line1" }]);
 });

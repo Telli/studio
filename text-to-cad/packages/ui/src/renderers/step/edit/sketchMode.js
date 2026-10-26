@@ -394,14 +394,40 @@ export function typedDimensions(typed, before, after) {
   }).filter(Boolean);
 }
 
-/** A line's end drawn within a few degrees of level or plumb, put on it, with the relation that keeps it so. */
-export function inferLine(start, end, degrees = INFER_DEGREES) {
+/**
+ * A line's end drawn within a few degrees of level or plumb, put on it, with the relation that keeps it
+ * so; else, as SolidWorks infers them, within a few degrees of square to or along one of the sketch's
+ * lines (`lines`: `{ id, a, b }`, the one the line starts from first), put there, with its
+ * perpendicular or parallel relation to that line (`to`).
+ */
+export function inferLine(start, end, degrees = INFER_DEGREES, lines = []) {
   const d = sub(end, start);
   if (!d[0] && !d[1]) return { end, relation: null };
   const slope = Math.tan((degrees * Math.PI) / 180);
   if (Math.abs(d[1]) <= slope * Math.abs(d[0])) return { end: [end[0], start[1]], relation: "horizontal" };
   if (Math.abs(d[0]) <= slope * Math.abs(d[1])) return { end: [start[0], end[1]], relation: "vertical" };
+  const length = Math.hypot(d[0], d[1]);
+  const near = Math.sin((degrees * Math.PI) / 180);
+  for (const line of lines) {
+    const run = sub(line.b, line.a);
+    if (!Math.hypot(run[0], run[1])) continue;
+    const along = unit(run);
+    // A line level or plumb itself is the horizontal or vertical one just tried.
+    if (Math.abs(along[0]) < 1e-9 || Math.abs(along[1]) < 1e-9) continue;
+    const across = [-along[1], along[0]];
+    const parallel = (d[0] * along[0] + d[1] * along[1]) / length;
+    const square = (d[0] * across[0] + d[1] * across[1]) / length;
+    if (Math.abs(parallel) <= near) return { end: add(start, scale(across, Math.sign(square) * length)), relation: "perpendicular", to: line.id };
+    if (Math.abs(square) <= near) return { end: add(start, scale(along, Math.sign(parallel) * length)), relation: "parallel", to: line.id };
+  }
   return { end, relation: null };
+}
+
+/** The sketch's lines as `inferLine` takes them: each `{ id, a, b }`, those that start or end at `from` (a point ref) first. */
+export function inferenceLines(state, from = null) {
+  const lines = sketchGeometry(state).curves.filter(curve => curve.kind === "line" && !curve.derived && curve.a && curve.b);
+  const touches = curve => Boolean(from?.point) && (curve.start === from.point || curve.end === from.point);
+  return [...lines.filter(touches), ...lines.filter(curve => !touches(curve))].map(curve => ({ id: curve.id, a: curve.a, b: curve.b }));
 }
 
 /** Where a point ref is: an existing point's place, or the place clicked. */
@@ -497,10 +523,11 @@ export function drawOp(tool, picks, state, { construction = false, clockwise = f
     case "line":
     case "centerline": {
       const start = refAt(state, first);
-      const inferred = second.point || second.on ? { end: refAt(state, second), relation: null } : inferLine(start, second.at);
+      const inferred = second.point || second.on ? { end: refAt(state, second), relation: null }
+        : inferLine(start, second.at, INFER_DEGREES, inferenceLines(state, first));
       const end = second.point || second.on ? plain(second) : { at: inferred.end };
       return { kind: "draw", entity: tool, start: plain(first), end, ...built,
-        relations: inferred.relation ? [{ kind: inferred.relation }] : [] };
+        relations: inferred.relation ? [{ kind: inferred.relation, ...(inferred.to ? { to: inferred.to } : {}) }] : [] };
     }
     case "rectangle":
       return { kind: "draw", entity: "rectangle", corner: plain(first), opposite: plain(second), ...built };

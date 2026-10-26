@@ -13,7 +13,9 @@ import {
   extendPiece,
   formatValue,
   hitTest,
+  INFER_DEGREES,
   inferLine,
+  inferenceLines,
   MODEL_TOOLS,
   MODIFY_TOOLS,
   newCurves,
@@ -443,7 +445,8 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
             context.stroke();
           }
           if (readout) {
-            const text = readout.relation ? `${readout.text}  ${readout.relation === "horizontal" ? "H" : "V"}` : readout.text;
+            const mark = { horizontal: "H", vertical: "V", parallel: "∥", perpendicular: "⊥" }[readout.relation];
+            const text = mark ? `${readout.text}  ${mark}` : readout.text;
             context.textAlign = "left";
             context.fillStyle = colors.label;
             const w = context.measureText(text).width + 8;
@@ -480,7 +483,8 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         return null;
       }
       if (tool === "line" || tool === "centerline") {
-        const inferred = landing.point || landing.on ? { end: cursor, relation: null } : inferLine(first, cursor);
+        const inferred = landing.point || landing.on ? { end: cursor, relation: null }
+          : inferLine(first, cursor, INFER_DEGREES, inferenceLines(live.current.sketch?.state, picks[0]));
         path([first, inferred.end]);
         return { text: fmt(Math.hypot(inferred.end[0] - first[0], inferred.end[1] - first[1])), relation: inferred.relation };
       }
