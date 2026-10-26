@@ -679,6 +679,15 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         <NumberRow label="Instances" value={values.count} disabled={disabled} onChange={set("count")} />
       </> : null}
     </FileSheetSettingsSection>}
+    {/* Direction 2, as SolidWorks' Linear Pattern lays out a grid: along the other of X and Y. */}
+    {command.id === "pattern" && values.type === "linear" && (values.direction === "X" || values.direction === "Y")
+      ? <FileSheetSettingsSection title="Direction 2" sectionId="edit-command-pattern-direction2"
+        enabled={Boolean(values.direction2)} onEnabledChange={set("direction2")}>
+        <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Along {values.direction === "X" ? "Y" : "X"}</p>
+        <NumberRow label="Spacing" value={values.spacing2} unit={units} disabled={disabled} onChange={set("spacing2")} />
+        <FileSheetCheckboxRow label="Reverse direction" checked={Boolean(values.reverse2)} disabled={disabled} onCheckedChange={set("reverse2")} />
+        <NumberRow label="Instances" value={values.count2} disabled={disabled} onChange={set("count2")} />
+      </FileSheetSettingsSection> : null}
     {/* Direction 2, as SolidWorks' extrude goes both ways from its sketch: switched on, the other way
         Blind (or Through All for a cut), with its own draft. Not at Mid Plane, which goes both ways
         already. */}

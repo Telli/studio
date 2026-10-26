@@ -548,6 +548,26 @@ class EditingFeatures(Commands):
                       "align=(bd.Align.CENTER, bd.Align.MIN)).locations[1:]]\n", text)
         self.assertEqual(text.count("hole1 :="), 1)
 
+    def test_a_pattern_in_two_directions_lays_out_a_grid_and_reopens_with_both(self):
+        root, file, state = self.open(PLATE, "plate.step")
+        feature = {"row": next(row for row in state["rows"] if row["kind"] == "Hole")["key"], "name": "Hole1"}
+        made = self.command(file, state, "pattern", (), {"type": "linear", "direction": "X", "spacing": ".4", "count": "3",
+                                                         "direction2": True, "spacing2": "-(.2)", "count2": "2"}, feature)
+        self.assertTrue(made["ok"], made.get("error"))
+        text = (root / "plate.py").read_text(encoding="utf-8")
+        self.assertIn("plate -= [loc * hole1 for loc in bd.GridLocations(.4*INCH, -.2*INCH, 3, 2, "
+                      "align=(bd.Align.MIN, bd.Align.MIN)).locations[1:]]\n", text)
+        self.assertEqual(made["change"]["what"], "3 along X by 2 along Y")
+        pattern = self.feature(made, "Pattern")
+        self.assertEqual(pattern["edit"]["values"], {"type": "linear", "direction": "X", "spacing": "0.4", "reverse": False, "count": "3",
+                                                     "direction2": True, "spacing2": "0.2", "reverse2": True, "count2": "2"})
+        # Five more holes than the one: a grid of six.
+        self.assertEqual(sum(1 for face in made["rows"] if face["kind"] == "Pattern"), 1)
+        refused = self.command(file, made, "pattern", (), {"type": "linear", "direction": "Z", "spacing": "1", "count": "2",
+                                                           "direction2": True, "spacing2": "1", "count2": "2"}, feature)
+        self.assertFalse(refused["ok"])
+        self.assertIn("other of them", refused["error"])
+
     def test_a_pattern_up_z_places_each_copy_and_reads_back(self):
         root, file, state = self.open(PLATE, "plate.step")
         feature = {"row": next(row for row in state["rows"] if row["kind"] == "Hole")["key"], "name": "Hole1"}

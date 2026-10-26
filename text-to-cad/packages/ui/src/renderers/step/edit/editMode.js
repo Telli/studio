@@ -681,7 +681,8 @@ export function commandDefaults(id, units) {
     case "mirror": return { plane: "YZ" };
     case "split": return { plane: "YZ", keep: "both" };
     case "delete_body": return { mode: "delete" };
-    case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false };
+    case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false,
+      direction2: false, spacing2: size.spacing, count2: "2", reverse2: false };
     case "extrude":
     case "cut": return { end: "blind", depth: size.depth, reverse: false, draft: false, draft_angle: size.draft, outward: false,
       thin: false, thin_thickness: size.thickness, thin_side: "inside", direction2: false, end2: "blind", depth2: size.depth, draft2: false,
@@ -897,6 +898,11 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       if (values.type === "linear") {
         const spacing = String(values.spacing ?? "").trim();
         Object.assign(inputs, { direction: values.direction, spacing: values.reverse ? `-(${spacing})` : spacing });
+        // Direction 2: a grid, along the other of X and Y.
+        if (values.direction2 && (values.direction === "X" || values.direction === "Y")) {
+          const spacing2 = String(values.spacing2 ?? "").trim();
+          Object.assign(inputs, { direction2: true, spacing2: values.reverse2 ? `-(${spacing2})` : spacing2, count2: values.count2 });
+        }
       }
       // A circular pattern's axis, picked on the model; Edit Feature keeps its own unless one is.
       const axis = values.type === "circular" ? patternAxis(items) : null;

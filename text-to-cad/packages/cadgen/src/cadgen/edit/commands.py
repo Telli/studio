@@ -1555,7 +1555,19 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                 raise CommandError("Spacing needs to be more or less than 0.")
             direction = str(inputs.get("direction") or "X").upper()
             spaced = same("spacing", spacing, writer.length(spacing))
-            if direction == "X":
+            # Direction 2, as SolidWorks' Linear Pattern lays out a grid: along the other of X and Y.
+            second = inputs.get("direction2") in (True, "true", "1", 1)
+            if second and direction not in ("X", "Y"):
+                raise CommandError("Direction 2 goes with a pattern along X or Y, the other of them.")
+            if second:
+                spacing2 = _value(inputs, "spacing2", "Spacing 2", parse, positive=False)
+                if spacing2 == 0:
+                    raise CommandError("Spacing 2 needs to be more or less than 0.")
+                count2 = _value(inputs, "count2", "Instances 2", parse, integer=True, minimum=2)
+                spaced2, counted2 = same("spacing2", spacing2, writer.length(spacing2)), same("count2", count2, str(count2))
+                sx, sy, nx, ny = (spaced, spaced2, counted_code, counted2) if direction == "X" else (spaced2, spaced, counted2, counted_code)
+                locations = f"{names('GridLocations')}({sx}, {sy}, {nx}, {ny}, align=({align}.MIN, {align}.MIN))"
+            elif direction == "X":
                 locations = f"{names('GridLocations')}({spaced}, 0, {counted_code}, 1, align=({align}.MIN, {align}.CENTER))"
             elif direction == "Y":
                 locations = f"{names('GridLocations')}(0, {spaced}, 1, {counted_code}, align=({align}.CENTER, {align}.MIN))"
@@ -1569,6 +1581,9 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
                 code = f"{var} {sign} [loc * {tool} for loc in {locations}.locations[1:]]"
             shown = [("Spacing", spacing, units_word), ("Instances", count, "")]
             what = f"{count} along {direction}"
+            if second:
+                shown += [("Spacing 2", spacing2, units_word), ("Instances 2", count2, "")]
+                what = f"{count} along {direction} by {count2} along {'Y' if direction == 'X' else 'X'}"
         else:
             raise CommandError("A pattern is linear or circular.")
 
@@ -2040,6 +2055,17 @@ def _read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> 
         if _call_name(made) == "PolarLocations":
             values = {"type": "circular", "count": str(int(number(("PolarLocations", "count")) or 0))}
             held("count", made.args[1] if len(made.args) > 1 else None, number(("PolarLocations", "count")))
+        elif _call_name(made) == "GridLocations" and number(("GridLocations", "x_count")) not in (None, 1) and number(("GridLocations", "y_count")) not in (None, 1):
+            # A grid: Direction 1 along X, Direction 2 along Y.
+            spacing, spacing2 = (number(("GridLocations", key)) or 0.0 for key in ("x_spacing", "y_spacing"))
+            count, count2 = (int(number(("GridLocations", key)) or 0) for key in ("x_count", "y_count"))
+            values = {"type": "linear", "direction": "X", "spacing": size(abs(spacing)), "reverse": spacing < 0, "count": str(count),
+                      "direction2": True, "spacing2": size(abs(spacing2)), "reverse2": spacing2 < 0, "count2": str(count2)}
+            if len(made.args) >= 4:
+                held("spacing", made.args[0], typed(spacing))
+                held("spacing2", made.args[1], typed(spacing2))
+                held("count", made.args[2], count)
+                held("count2", made.args[3], count2)
         elif _call_name(made) == "GridLocations":
             along_y = number(("GridLocations", "y_count")) not in (None, 1)
             spacing = number(("GridLocations", "y_spacing" if along_y else "x_spacing")) or 0.0
