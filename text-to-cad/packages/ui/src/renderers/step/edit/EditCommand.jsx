@@ -394,6 +394,24 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
               // A sweep's or a loft's sketches, shaded as picked while the server previews what they make.
               : takes && picked.some(Boolean) ? { mark: "picked", sketches: picked.filter(Boolean).map(each => ({ file: each.file, line: each.line })) }
                 : null;
+  // The size SolidWorks puts on the model beside what the command acts on, typed over there as in
+  // the dialog: a fillet's radius by its first edge, a chamfer's distance, a shell's thickness, a face's
+  // offset, a draft's angle; a plane's offset where the plane will be.
+  const calledOut = { fillet: ["radius", "Radius", units], chamfer: ["distance", "Distance", units], shell: ["thickness", "Thickness", units],
+    offset_face: ["distance", "Distance", units], draft: ["angle", "Angle", "°"], plane: ["distance", "Distance", units] }[edit.command] || null;
+  // A draft's neutral face is held apart from its picks, so its first pick is a face it drafts.
+  const firstPick = (drafting ? references.find(each => each?.selectorType === "face") : references[0])?.pickData?.center
+    || (planing && local?.center) || null;
+  const calloutKey = calledOut && previewOn && firstPick && !(planing && planeKind !== "offset")
+    ? JSON.stringify([calledOut, Array.from(firstPick, Number), String(values[calledOut[0]] ?? "")]) : "";
+  const { setCallout } = edit;
+  useEffect(() => {
+    if (typeof setCallout !== "function") return undefined;
+    if (!calloutKey) { setCallout(null); return undefined; }
+    const [[key, label, unit], at, text] = JSON.parse(calloutKey);
+    setCallout({ at, label, unit, text, onCommit: typed => setValues(current => ({ ...current, [key]: typed })) });
+    return () => setCallout(null);
+  }, [calloutKey, setCallout]);
   // An extrude's or a revolve's solid swept here is not asked of the server.
   // Not for a sketch with no closed outline (an open one, not Thin): nothing would be swept, so the server previews it.
   const sweeps = Boolean(local && !local.arrowOnly && !local.mark && sketchState?.loops?.length);

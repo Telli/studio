@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, expect, it, vi } from 'vitest';
 import EditCommand from '../../../../dist/renderers/step/edit/EditCommand.js';
@@ -296,4 +296,14 @@ it("a reference plane clicked in the design tree is a draft's neutral plane, by 
     pull: [0, 0, -1] }));
   await user.click(screen.getByRole('button', { name: 'OK' }));
   expect(draft.run).toHaveBeenCalledWith({ command: 'draft', selection: [SIDE_ITEM], inputs: { angle: '1', neutral: 'named:plane1', reverse: true } });
+});
+
+it("puts a fillet's radius on the model by its first edge, typed over there as in the dialog, as SolidWorks' callout is", () => {
+  const fillet = { ...edit('fillet'), setCallout: vi.fn() };
+  const EDGE = { id: 'ref-e1', selectorType: 'edge', displaySelector: 'e1', pickData: { center: [0, -5, 2] } };
+  render(<EditCommand edit={fillet as never} names={NAMES} references={[EDGE]} />);
+  const callout = fillet.setCallout.mock.calls.at(-1)[0];
+  expect({ at: callout.at, label: callout.label, text: callout.text }).toEqual({ at: [0, -5, 2], label: 'Radius', text: '1' });
+  act(() => callout.onCommit('2'));
+  expect(screen.getByRole('textbox', { name: 'Radius' }) as HTMLInputElement).toHaveProperty('value', '2');
 });

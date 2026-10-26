@@ -159,6 +159,7 @@ import SketchOverlay from "./edit/SketchOverlay.jsx";
 import SheetEditor from "./edit/SheetEditor.jsx";
 import SketchesLayer from "./edit/SketchesLayer.jsx";
 import ImportedBody from "./edit/ImportedBody.jsx";
+import ValueCallout from "./edit/ValueCallout.jsx";
 import { NxIconSprite } from "../../lib/nxIcons.generated.jsx";
 import { WORKSPACE_SELECTION_COLOR, editLayoutState, useEditLayout } from "./edit/editLayout.js";
 import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
@@ -3930,6 +3931,7 @@ function StepSurfaceBody({ view, data }) {
           onAsk={ask} onAddContext={addContext.offered && addContext.picked ? addContext.add : undefined}
           onAnnotate={pencil && !pencil.disabled ? pencil.onSelect : undefined} onEdit={rowEdited ? editRow : undefined} /> : null}
         {sheetUp ? <SheetEditor edit={edit} colorScheme={resolvedColorSchemeMode} /> : null}
+        {editing && !sheetUp && edit.command && edit.callout ? <ValueCallout viewport={viewport} callout={edit.callout} /> : null}
         {/* A STEP brought in, with no part script: made a part to edit beside it, and opened. */}
         {edit.status === "none" && edit.imported && openFile ? <ImportedBody imported={edit.imported} onAdopt={edit.adopt} onOpen={openFile} /> : null}
         {editing && !sheetUp ? <EditDimensions viewport={viewport} dimensions={editDimensions} units={edit.state?.units || ""}

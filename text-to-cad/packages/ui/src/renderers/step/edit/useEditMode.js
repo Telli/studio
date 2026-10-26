@@ -117,6 +117,8 @@ export function useEditMode({ client, file, active, reading = true }) {
   // A press of Normal To: the view turns to look straight at the sketch again.
   const [normalTo, setNormalTo] = useState(0);
   const [standardView, setStandardView] = useState(null);
+  // The open command's size on the model, beside what it acts on (`ValueCallout.jsx`), as its dialog sets it.
+  const [callout, setCallout] = useState(null);
   // A press of S: the toolbar opens its command search. A count, so each ask is heard once by the toolbar standing, and an
   // ask made while none stood (a load, Preview) is not heard by the one that comes.
   const [findAsked, setFindAsked] = useState(0);
@@ -841,7 +843,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     inspect: what => { setCommand(null); endEditing(); setPicking(false); setPreview(null); dropPreview(); setInspecting(what); },
     stopInspecting: () => setInspecting(null),
     close: () => { setCommand(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); },
-    preview, setPreview, facePoint, setFacePoint,
+    preview, setPreview, facePoint, setFacePoint, callout, setCallout,
     featurePreview, previewFeature, previewOn, setPreviewOn,
     // Edit Parameters' preview: the part with the sizes typed (`{ row, values }`), made without writing it.
     previewSizes: spec => previewFeature(spec, "preview_sizes"),
