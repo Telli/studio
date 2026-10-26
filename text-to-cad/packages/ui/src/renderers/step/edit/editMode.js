@@ -199,10 +199,11 @@ export const rolledBack = (tree, bar) => new Set((tree?.assembly ? [] : tree?.fe
 
 /** The commands Edit Feature rolls back for, so their edges or faces are picked again on the body before them. */
 export const REPICKS = Object.freeze(new Set(["fillet", "chamfer", "shell", "draft", "hole", "offset_face", "delete_face"]));
-// Edit Feature on an extrude or a revolve rolls the part back to just before it too, as SolidWorks
-// and Fusion do, so its preview is the feature itself rather than drawn over the solid it made.
+// Edit Feature on any other feature rolls the part back to just before it too, as SolidWorks' every
+// PropertyManager does, so its preview is the feature itself rather than drawn over what it made.
 // Not the part's first solid (`edit.first`), which has nothing before it.
-export const ROLLS_BACK = Object.freeze(new Set(["extrude", "cut", "revolve", "revolve_cut"]));
+export const ROLLS_BACK = Object.freeze(new Set(["extrude", "cut", "revolve", "revolve_cut", "sweep", "sweep_cut", "loft", "loft_cut",
+  "rib", "pattern", "mirror", "split", "delete_body", "plane"]));
 
 /** Every feature of a tree, an assembly's parts' too, in order. */
 export const treeFeatures = tree => (tree?.assembly ? tree.components.flatMap(component => component.features) : tree?.features || []);
@@ -520,6 +521,25 @@ function turnedAbout(v, axis, degrees) {
  * `center` and `normal`), or one of the origin's planes by the axes it holds ("YZ"). Null for the
  * face a reopened mirror keeps, which the panel has no place for.
  */
+/**
+ * SolidWorks' standard views as this viewer's axes have them (Z up, the front looking along +Y): where
+ * the camera looks from (`direction`) and which way is up, as the view cube's faces and corners turn it.
+ */
+export const STANDARD_VIEWS = Object.freeze({
+  front: { direction: [0, -1, 0], up: [0, 0, 1] }, back: { direction: [0, 1, 0], up: [0, 0, 1] },
+  left: { direction: [-1, 0, 0], up: [0, 0, 1] }, right: { direction: [1, 0, 0], up: [0, 0, 1] },
+  top: { direction: [0, 0, 1], up: [0, 1, 0] }, bottom: { direction: [0, 0, -1], up: [0, 1, 0] },
+  isometric: { direction: [1, -1, 1], up: [0, 0, 1] },
+});
+
+/** A Mid Plane drawn where it will be: midway between its two faces, square to the first (`pickData`s with `center` and `normal`). */
+export function midPlanePreview(picks) {
+  const [a, b] = picks || [];
+  if (!a?.center || !a?.normal || !b?.center) return null;
+  const center = [0, 1, 2].map(axis => (Number(a.center[axis]) + Number(b.center[axis])) / 2);
+  return { mark: "plane", center, normal: Array.from(a.normal, Number), at: center, along: [0, 0, 0], label: "" };
+}
+
 export function mirrorPreview(values, face = null) {
   if (face?.center && face?.normal) return { mark: "mirror", center: Array.from(face.center, Number), normal: Array.from(face.normal, Number) };
   return MIRROR_PLANES[values.plane] ? { mark: "mirror", plane: values.plane } : null;
@@ -669,7 +689,8 @@ export function commandDefaults(id, units) {
       // Hole Wizard's: a screw of the part's standard, its size and fit filling the sizes, which stay the engineer's to type over.
       const standard = defaultStandard(units);
       const sized = { type: "simple", standard, size: defaultSize(standard), fit: "normal" };
-      return { ...sized, diameter: size.diameter, depth: size.depth, through: true, x: "0", y: "0", z: "0", more: [],
+      // Blind by default, as SolidWorks' Hole Wizard opens.
+      return { ...sized, diameter: size.diameter, depth: size.depth, through: false, x: "0", y: "0", z: "0", more: [],
         cbore_diameter: size.cbore, cbore_depth: size.cboreDepth, csk_diameter: size.csk, csk_angle: size.cskAngle, ...holeFill(sized, units) };
     }
     case "shell": return { thickness: size.thickness };

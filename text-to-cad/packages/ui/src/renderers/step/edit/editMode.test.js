@@ -44,7 +44,9 @@ import {
   draftReversed,
   holePreview,
   mirrorOutline,
+  midPlanePreview,
   mirrorPreview,
+  STANDARD_VIEWS,
   patternArrow,
   patternPreview,
   plainNumber,
@@ -231,7 +233,7 @@ test("a command sends what it acts on, its inputs as typed, and the feature it c
     { command: "fillet", selection: items, inputs: { radius: ".03" } });
   // A hole takes the face alone, through all unless a depth is set, moved only where it is told; an
   // inch part's opens as a #4-40 screw's clearance hole, and says so.
-  const hole = commandRequest("hole", { ...commandDefaults("hole", "in"), y: ".2" }, items);
+  const hole = commandRequest("hole", { ...commandDefaults("hole", "in"), through: true, y: ".2" }, items);
   assert.deepEqual([hole.selection, hole.inputs],
     [[items[1]], { diameter: ".1285", depth: "", y: ".2", callout: "#4-40 clearance hole, normal fit" }]);
   assert.equal(commandRequest("hole", { ...commandDefaults("hole", "mm"), through: false }, items).inputs.depth, "5");
@@ -750,3 +752,14 @@ test("a profile made from build123d's shapes says what it is and how to make it 
   assert.equal(redrawJob({ title: "Sketch2", file: null, line: null }),
     "Redraw Sketch2 as an editable sketch with cadgen.sketch, keeping its shape and sizes, so I can edit it by hand.");
 });
+
+test("a Mid Plane is drawn midway between its two faces, square to the first, and the standard views look as SolidWorks' do", () => {
+  const mid = midPlanePreview([{ center: [0, 0, 10], normal: [0, 0, 1] }, { center: [0, 0, -4], normal: [0, 0, -1] }]);
+  assert.deepEqual([mid.mark, mid.center, mid.normal], ["plane", [0, 0, 3], [0, 0, 1]]);
+  assert.equal(midPlanePreview([{ center: [0, 0, 1], normal: [0, 0, 1] }]), null);
+  // Z up, the front looking along +Y; Isometric from the front, right and top.
+  assert.deepEqual(STANDARD_VIEWS.front.direction, [0, -1, 0]);
+  assert.deepEqual(STANDARD_VIEWS.isometric.direction, [1, -1, 1]);
+  assert.deepEqual(Object.keys(STANDARD_VIEWS), ["front", "back", "left", "right", "top", "bottom", "isometric"]);
+});
+

@@ -1368,6 +1368,16 @@ class Planes(Commands):
         self.assertTrue(split["ok"], split.get("error"))
         script = root / "block.py"
         self.assertIn("part = split(part, bisect_by=Plane.YZ, keep=Keep.BOTH)\n", script.read_text(encoding="utf-8"))
+        # Edit Feature reopens it, as SolidWorks' Split does, and keeps one side instead.
+        found = lambda reply: next(feature for feature in reply["features"] if feature["kind"] == "Split")  # noqa: E731
+        reopen = lambda reply, inputs: self.service.change({"file": file, "files": reply["files"], "command": {  # noqa: E731
+            "command": "split", "inputs": inputs, "replace": {"row": found(reply)["key"]}}})
+        self.assertEqual(found(split)["edit"]["values"], {"plane": "YZ", "keep": "both"})
+        kept = reopen(split, {"plane": "XZ", "keep": "top"})
+        self.assertTrue(kept["ok"], kept.get("error"))
+        self.assertIn("part = split(part, bisect_by=Plane.XZ, keep=Keep.TOP)\n", script.read_text(encoding="utf-8"))
+        split = reopen(kept, {"plane": "YZ", "keep": "both"})
+        self.assertTrue(split["ok"], split.get("error"))
         # One body alone is refused: there is nothing to delete it from.
         alone = self.open(BLOCK, "block.step")
         refused = self.command(alone[1], alone[2], "delete_body", [face("f6", (10, 0, 0), 40)])

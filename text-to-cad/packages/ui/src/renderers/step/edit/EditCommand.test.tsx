@@ -90,11 +90,11 @@ it('each command that goes somewhere previews the way it goes: an extrude its de
   expect(extrude.setPreview).toHaveBeenLastCalledWith({ kind: 'boss', end: 'blind', file: 'block.py', line: 9, taper: 0, depth: 5, reverse: false,
     units: 'mm', label: '5 mm', text: '5', text2: '5', onDepth: expect.any(Function), onReverse: expect.any(Function) });
   cleanup();
-  // A hole goes into the face picked, through all as it opens.
+  // A hole goes into the face picked, Blind as SolidWorks' Hole Wizard opens it.
   const hole = edit('hole');
   const FACE = { id: 'ref-f1', selectorType: 'face', displaySelector: 'f1', pickData: { surfaceType: 'plane', center: [0, 0, 2], normal: [0, 0, 1], area: 200 } };
   render(<EditCommand edit={hole as never} names={NAMES} references={[FACE]} />);
-  expect(hole.setPreview).toHaveBeenLastCalledWith({ mark: 'hole', at: [0, 0, 2], into: [0, 0, -1], label: 'Through All' });
+  expect(hole.setPreview).toHaveBeenLastCalledWith({ mark: 'hole', at: [0, 0, 2], into: [0, 0, -1], label: '5 mm' });
   cleanup();
   const mirror = edit('mirror');
   render(<EditCommand edit={mirror as never} names={NAMES} references={[]} />);
@@ -193,13 +193,13 @@ it("a hole opens as Hole Wizard's M3 clearance hole, and a size typed over is th
   expect(screen.getByRole('combobox', { name: 'Size' }).textContent).toBe('M3');
   expect((screen.getByRole('textbox', { name: 'Diameter' }) as HTMLInputElement).value).toBe('3.4');
   await user.click(screen.getByRole('button', { name: 'OK' }));
-  expect(hole.run).toHaveBeenLastCalledWith({ command: 'hole', selection, inputs: { diameter: '3.4', depth: '', callout: 'M3 clearance hole, normal fit' } });
+  expect(hole.run).toHaveBeenLastCalledWith({ command: 'hole', selection, inputs: { diameter: '3.4', depth: '5', callout: 'M3 clearance hole, normal fit' } });
   const diameter = screen.getByRole('textbox', { name: 'Diameter' });
   await user.clear(diameter);
   await user.type(diameter, '3.3{Enter}');
   expect(screen.getByRole('combobox', { name: 'Size' }).textContent).toBe('Custom');
   await user.click(screen.getByRole('button', { name: 'OK' }));
-  expect(hole.run).toHaveBeenLastCalledWith({ command: 'hole', selection, inputs: { diameter: '3.3', depth: '' } });
+  expect(hole.run).toHaveBeenLastCalledWith({ command: 'hole', selection, inputs: { diameter: '3.3', depth: '5' } });
 });
 
 it("each click on a hole's face after the first adds a hole there, listed with an X to take it out", async () => {

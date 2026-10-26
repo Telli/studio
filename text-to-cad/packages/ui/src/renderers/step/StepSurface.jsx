@@ -181,7 +181,8 @@ import {
   sizeName,
   sketchTreeId,
   sketchView,
-  treeSketch
+  treeSketch,
+  STANDARD_VIEWS
 } from "./edit/editMode.js";
 import { useEditMode } from "./edit/useEditMode.js";
 import { useEditShortcuts } from "./edit/useEditShortcuts.js";
@@ -1643,10 +1644,13 @@ function StepSurfaceBody({ view, data }) {
   // where edit mode's state is read, below, and asked when a reference is named.
   const faceNameRef = useRef(() => null);
   const escapeRef = useRef(() => false);
-  // Escape has something to do here whenever there is a selection to clear or a tool other than
-  // Select in hand.
+  // A modeling command's dialog open (edit mode's, set below where it is read): Escape cancels it, as
+  // SolidWorks' Esc cancels the PropertyManager open.
+  const [commandHeld, setCommandHeld] = useState(false);
+  // Escape has something to do here whenever there is a selection to clear, a tool other than
+  // Select in hand, or a command open.
   const escapeActive = selectedPartIds.length > 0 || selectedReferenceIds.length > 0 || focusedAssemblyNodeIds.length > 0
-    || tabToolMode !== TAB_TOOL_MODE.REFERENCES || measure.selected.length > 0;
+    || tabToolMode !== TAB_TOOL_MODE.REFERENCES || measure.selected.length > 0 || commandHeld;
 
 
   // ---- the shell --------------------------------------------------------------------------
@@ -3190,6 +3194,8 @@ function StepSurfaceBody({ view, data }) {
   escapeRef.current = () => {
     if (asked) { clearAsked(); return true; }
     if (featureBarShown) { dropFeature(); return true; }
+    // A command's dialog open: cancelled, and what it picked let go with it.
+    if (edit.command && !edit.sketch) { edit.close(); clearAssemblySelection(); return true; }
     // Escape cancels the measurement in progress and leaves the tool armed, the way it does in a CAD
     // measure tool. Only once there is nothing to cancel does it leave the tool.
     if (!previewing && tabToolMode === TAB_TOOL_MODE.MEASURE && measure.drafting) { measure.cancelDraft(); return true; }
@@ -3316,6 +3322,8 @@ function StepSurfaceBody({ view, data }) {
   // A host that switches the layout itself (Studio's Simple view) leaves the navbar without the switch.
   const layoutHosted = useSyncExternalStore(editLayoutHost.subscribe, editLayoutHost.get, editLayoutHost.get);
   const edit = useEditMode({ client, file: selectedEntry?.file || "", active: !viewerLoading, reading: editLayout === "manual" });
+  const commandOpenNow = Boolean(edit.command && !edit.sketch);
+  useEffect(() => { setCommandHeld(commandOpenNow); }, [commandOpenNow]);
   // Laid out for editing only once the server says the file has a part script, and only by hand; a
   // command, sketch or pick open, or a change being saved, holds the switch (`layoutHeld`).
   const { editable, busy: layoutHeld } = editLayoutState(edit);
@@ -3386,7 +3394,7 @@ function StepSurfaceBody({ view, data }) {
     });
     // Mirror's plane, while its panel is open: the one it mirrors about; a draft's neutral plane; a new reference plane.
     const mark = edit.preview?.mark;
-    const mirrored = (edit.command === "mirror" && mark === "mirror") || (edit.command === "draft" && mark === "draft")
+    const mirrored = ((edit.command === "mirror" || edit.command === "split") && mark === "mirror") || (edit.command === "draft" && mark === "draft")
       || (edit.command === "plane" && mark === "plane") ? mirrorOutline(edit.preview, edit.state?.bounds) : null;
     return mirrored ? [...planes, { points: mirrored, strong: true }] : planes;
   }, [edit.selected, edit.hovered, edit.picking, edit.sketch, edit.state?.bounds, edit.command, edit.preview, editTree]);
@@ -3419,6 +3427,22 @@ function StepSurfaceBody({ view, data }) {
     // Once per Normal To asked.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit.normalTo]);
+  // A standard view asked from the keyboard (Ctrl+1 to Ctrl+7), turned to as the view cube turns to its faces.
+  useEffect(() => {
+    const view = STANDARD_VIEWS[edit.standardView?.name];
+    const runtime = runtimeRefRef.current?.current;
+    if (!view || !runtime?.THREE || !runtime.modelGroup) return;
+    const { THREE, modelGroup } = runtime;
+    modelGroup.updateMatrixWorld();
+    const origin = new THREE.Vector3(0, 0, 0).applyMatrix4(modelGroup.matrixWorld);
+    const toward = axis => new THREE.Vector3(...axis).applyMatrix4(modelGroup.matrixWorld).sub(origin).normalize().toArray();
+    if (transitionCameraToViewPreset(runtime, { direction: toward(view.direction), up: toward(view.up) })) {
+      runtime.userMovedCamera = true;
+      requestSceneFrame(runtime, false);
+    }
+    // Once per view asked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [edit.standardView?.tick]);
   // Mass Properties' center of mass, marked on the model while its card is open.
   const massCenter = edit.mass?.center;
   const massMark = useMemo(() => (massCenter ? { mark: "center", at: massCenter } : null), [massCenter]);
@@ -3908,7 +3932,9 @@ function StepSurfaceBody({ view, data }) {
         {sheetUp ? <SheetEditor edit={edit} colorScheme={resolvedColorSchemeMode} /> : null}
         {/* A STEP brought in, with no part script: made a part to edit beside it, and opened. */}
         {edit.status === "none" && edit.imported && openFile ? <ImportedBody imported={edit.imported} onAdopt={edit.adopt} onOpen={openFile} /> : null}
-        {editing && !sheetUp ? <EditDimensions viewport={viewport} dimensions={editDimensions} units={edit.state?.units || ""} disabled={edit.saving}
+        {editing && !sheetUp ? <EditDimensions viewport={viewport} dimensions={editDimensions} units={edit.state?.units || ""}
+          // Held while a command's dialog is open, as its sizes are the dialog's, which Cancel puts back.
+          disabled={edit.saving || Boolean(edit.command)}
           planes={editPlanes} origin={editOrigin}
           choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
           onChoose={edit.choose} onDismissChoice={edit.dismissChoice} /> : null}

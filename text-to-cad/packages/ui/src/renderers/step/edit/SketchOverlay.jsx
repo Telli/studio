@@ -154,6 +154,8 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
     let colors = colorsFor(host);
     // The stroke under way: its tool's clicks so far, and where the pointer is.
     let picks = [];
+    // Where a line's chain began, so the chain ends when it closes on it.
+    let chainStart = null;
     let pickedTool = null;
     let pointer = null; // { screen: [x, y], local: [u, v] }
     let hover = null;
@@ -575,6 +577,15 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         report();
         return;
       }
+      // A click on the point the stroke is already at makes nothing: a line's chain ends there, as a
+      // double-click or a click on the last point ends SolidWorks' (never a line of no length).
+      const last = picks.length ? refAt(state, picks[picks.length - 1]) : null;
+      const here = refAt(state, ref);
+      if (last && here && Math.hypot(here[0] - last[0], here[1] - last[1]) <= SNAP_PX / (mapping?.perUnit || 1)) {
+        if (tool === "line" || tool === "centerline") { picks = []; chainStart = null; report(); }
+        return;
+      }
+      if (!picks.length && (tool === "line" || tool === "centerline")) chainStart = here;
       picks = [...picks, ref];
       report();
       if (picks.length < TOOL_CLICKS[tool]) return;
@@ -605,7 +616,11 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       if (chain && reply?.ok && live.current.tool === tool && started === epoch) {
         const lines = (reply.sketch?.state?.curves || []).filter(curve => curve.kind === "line");
         const last = lines[lines.length - 1];
-        if (last) picks = [{ point: last.end, at: refAt(reply.sketch.state, { point: last.end }) }];
+        const end = last ? refAt(reply.sketch.state, { point: last.end }) : null;
+        // A chain closed on where it started ends there, as SolidWorks' does; else it goes on from its end.
+        const closed = end && chainStart && Math.hypot(end[0] - chainStart[0], end[1] - chainStart[1]) <= SNAP_PX / (mapping?.perUnit || 1);
+        if (last && !closed) picks = [{ point: last.end, at: end }];
+        else chainStart = null;
         report();
       }
     };
@@ -925,6 +940,17 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
 
     const handleDoubleClick = event => {
       const current = live.current;
+      // A double-click ends a line's chain where it is, as SolidWorks' does: its first press placed
+      // the last point, and a chain still on its way to going on from there is let go (`epoch`).
+      if ((current.tool === "line" || current.tool === "centerline") && (picks.length || busy)) {
+        event.preventDefault();
+        event.stopPropagation();
+        epoch += 1;
+        picks = [];
+        chainStart = null;
+        report();
+        return;
+      }
       // A double-click ends a spline at its place: its second press placed it twice, so once is taken off.
       if (current.tool === "spline" && picks.length >= 2) {
         event.preventDefault();

@@ -62,7 +62,12 @@ export default function EditSizes({ edit }) {
       changed.map(each => `${each.label.toLowerCase()} ${withUnit(String(values[each.index]).trim(), each.unit)}`));
   };
   return <div role="dialog" aria-label={title} data-cad-edit-command="sizes" className="flex shrink-0 flex-col"
-    onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.close(); } }}>
+    onKeyDown={event => {
+      if (event.key === "Escape") { event.stopPropagation(); edit.close(); return; }
+      // Enter is OK, as in SolidWorks' PropertyManager; in a box it sets the value typed there first.
+      if (event.key === "Enter" && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement
+        || event.target instanceof HTMLSelectElement)) { event.preventDefault(); event.stopPropagation(); void ok(); }
+    }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <FeatureIcon kind={editing.kind || "Extrude"} />
       <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">{title}</h2>

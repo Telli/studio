@@ -1286,6 +1286,9 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             if selections.topology["face"].describe(numbers[0])["type"] != "plane":
                 raise CommandError("A body is split by a flat face's plane. Select a flat one, or pick a plane.")
             plane_code, plane_words = f"{names('Plane')}({face})", "a face's plane"
+        elif kept is not None and str(inputs.get("plane") or "") == "face":
+            # Edit Feature, its face kept as written.
+            plane_code, plane_words = kept.parts["plane"], "a face's plane"
         elif str(inputs.get("plane") or "").startswith("named:"):
             plane_code = plane_words = reference_plane(str(inputs["plane"]))
         else:
@@ -1888,6 +1891,14 @@ def _read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> 
             values.update(type="angle", angle=_number(number(("chamfer", "angle")), False))
         return Feature("chamfer", values, counted_items(("chamfer", "objects"), "edge"),
                        {"edges": code(value.args[0])}, target, operator, codes)
+    if operator == "=" and name == "split" and value.args:
+        # Split Body: by an origin plane, a reference plane by its name, or a face's plane; keeping both sides or one.
+        bisect, kept_side = _keyword_value(value, "bisect_by"), _keyword_value(value, "keep")
+        plane = (bisect.attr if isinstance(bisect, ast.Attribute) and bisect.attr in PLANES
+                 else f"named:{bisect.id}" if isinstance(bisect, ast.Name) else "face")
+        keep = kept_side.attr.lower() if isinstance(kept_side, ast.Attribute) and kept_side.attr in ("BOTH", "TOP", "BOTTOM") else "both"
+        return Feature("split", {"plane": plane, "keep": keep}, "a face's plane" if plane == "face" else plane.partition(":")[2] or f"the {plane} plane",
+                       {"plane": code(bisect) if bisect is not None else ""}, target, operator, codes)
     if operator == "=" and name in ("offset_faces", "delete_faces") and len(value.args) >= 2:
         command = "offset_face" if name == "offset_faces" else "delete_face"
         values = {}

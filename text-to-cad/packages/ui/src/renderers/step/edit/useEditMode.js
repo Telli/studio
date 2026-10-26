@@ -116,6 +116,7 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [sketchStep, setSketchStep] = useState(0);
   // A press of Normal To: the view turns to look straight at the sketch again.
   const [normalTo, setNormalTo] = useState(0);
+  const [standardView, setStandardView] = useState(null);
   // A press of S: the toolbar opens its command search. A count, so each ask is heard once by the toolbar standing, and an
   // ask made while none stood (a load, Preview) is not heard by the one that comes.
   const [findAsked, setFindAsked] = useState(0);
@@ -867,6 +868,8 @@ export function useEditMode({ client, file, active, reading = true }) {
     planeOffset, setPlaneOffset,
     stopPicking: () => setPicking(false),
     lookNormalTo: () => setNormalTo(tick => tick + 1),
+    // SolidWorks' standard views, Ctrl+1 to Ctrl+7 (`STANDARD_VIEWS`): the one asked, once per ask.
+    standardView, lookStandard: name => setStandardView(current => ({ name, tick: (current?.tick || 0) + 1 })),
     findAsked, findCommand: () => setFindAsked(count => count + 1),
     startSketch, openSketch, sketchOp, sketchDrag, exitSketch, cancelSketch,
   };

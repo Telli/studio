@@ -1201,7 +1201,8 @@ export function useStepPicking({
       const referenceId = pointerDownReferenceId || pickActivationReference(event.clientX, event.clientY, event.pointerType || "");
       // The press point goes with the activation, so a pick that has to wait (a part whose faces
       // are still loading) can be asked again at the same place.
-      activation.tap(clickCount, referenceId || "", { multiSelect: !!event.shiftKey, ...press },
+      // Shift, Ctrl or Cmd adds to the selection, as Ctrl does in SolidWorks.
+      activation.tap(clickCount, referenceId || "", { multiSelect: !!(event.shiftKey || event.ctrlKey || event.metaKey), ...press },
         { wait: !!deferActivationRef.current });
     }
 
@@ -1224,7 +1225,7 @@ export function useStepPicking({
         return;
       }
       const referenceId = pickActivationReference(event.clientX, event.clientY, event.pointerType || "");
-      onDoubleActivateReferenceRef.current?.(referenceId || "", { multiSelect: !!event.shiftKey, activated });
+      onDoubleActivateReferenceRef.current?.(referenceId || "", { multiSelect: !!(event.shiftKey || event.ctrlKey || event.metaKey), activated });
     }
 
     function handleContextMenu(event) {

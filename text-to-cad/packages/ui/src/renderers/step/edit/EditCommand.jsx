@@ -27,6 +27,7 @@ import {
   extrudePreview,
   faceOffsetAxes,
   holePreview,
+  midPlanePreview,
   mirrorPreview,
   REPICKS,
   partSide,
@@ -381,16 +382,21 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         : edit.command === "pattern" ? patternPreview(values, units)
           : edit.command === "hole" ? holePreview(values, units, editing && !repicked ? null : facePick)
             : edit.command === "mirror" ? mirrorPreview(values, editing || !faces.length ? planeAt(namedPlane(values.plane)) : facePick)
+            // Split's plane, where it cuts the body, as SolidWorks draws its trim tool.
+            : edit.command === "split" ? mirrorPreview(values, editing || !faces.length ? planeAt(namedPlane(values.plane)) : facePick)
               // A draft's neutral plane, and its direction of pull.
               : drafting ? draftPreview(values, neutralFace?.pick || planeAt(namedPlane(values.neutral)), edit.state?.bounds)
                 // A reference plane where it would be, and the way it is offset.
                 : planing && planeKind === "offset" ? planePreview(values, (editing && !repicked ? null : facePick) || planeAt(namedPlane(values.reference)),
                   edit.state?.bounds, units)
+                // A Mid Plane, midway between its two faces, where it will be.
+                : planing && planeKind === "mid" ? midPlanePreview(references.filter(each => each?.selectorType === "face").map(each => each.pickData))
               // A sweep's or a loft's sketches, shaded as picked while the server previews what they make.
               : takes && picked.some(Boolean) ? { mark: "picked", sketches: picked.filter(Boolean).map(each => ({ file: each.file, line: each.line })) }
                 : null;
   // An extrude's or a revolve's solid swept here is not asked of the server.
-  const sweeps = Boolean(local && !local.arrowOnly && !local.mark);
+  // Not for a sketch with no closed outline (an open one, not Thin): nothing would be swept, so the server previews it.
+  const sweeps = Boolean(local && !local.arrowOnly && !local.mark && sketchState?.loops?.length);
   const localKey = local ? JSON.stringify(local) : "";
   const localRef = useRef(local);
   localRef.current = local;
@@ -400,7 +406,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   }, [localKey, setPreview]);
   // Any other preview is the server's: what OK would send, made without writing it once the panel
   // has what it needs, and made again as the part changes under it or the rollback bar moves.
-  const wanted = command && previewOn && !disabled && !blocked && !sweeps
+  // A plane's preview is its outline, drawn here; the server's would only say it changes nothing on the body.
+  const wanted = command && previewOn && !disabled && !blocked && !sweeps && !planing
     ? commandRequest(command.id, values, acted, feature, sketch, editing, picked) : null;
   const wantedRef = useRef(wanted);
   wantedRef.current = wanted;
@@ -476,7 +483,12 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   const sketchItem = (each, prefix = "") => ({ key: `${each.file}:${each.line}`, label: `${prefix}${each.title}` });
 
   return <div role="dialog" aria-label={title} data-cad-edit-command={command.id} className="flex shrink-0 flex-col"
-    onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.close(); } }}>
+    onKeyDown={event => {
+      if (event.key === "Escape") { event.stopPropagation(); edit.close(); return; }
+      // Enter is OK, as in SolidWorks' PropertyManager; in a box it sets the value typed there first.
+      if (event.key === "Enter" && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement
+        || event.target instanceof HTMLSelectElement)) { event.preventDefault(); event.stopPropagation(); ok(); }
+    }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
       <Icon className="size-5 shrink-0" aria-hidden="true" />
       <h2 className="min-w-0 flex-1 truncate text-xs font-normal leading-4 text-foreground">{title}</h2>
@@ -723,7 +735,8 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         : shown?.status === "updating" ? <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">Updating the preview</p>
           : shown?.status === "failed" ? <p className="px-2 pb-1 text-tiny leading-4 text-destructive" aria-live="polite">{shown.error}</p>
             : shown?.status === "ready" ? (shown.added || shown.removed ? <PreviewKey added={Boolean(shown.added)} removed={Boolean(shown.removed)} />
-              : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>It changes nothing on the body.</p>)
+              : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>{command.id === "split" && values.keep === "both"
+                ? "It splits the body in two, along the plane drawn." : "It changes nothing on the body."}</p>)
               : null}
     </FileSheetSettingsSection>
     {/* Why OK waits, where the list does not already say: two faces for one hole. */}

@@ -15,6 +15,9 @@ import { isEditableTarget } from "../../kit/viewport/dom.js";
  * @param {ReturnType<typeof import("./useEditMode.js").useEditMode>} edit
  * @param {boolean} active edit mode is up for this file.
  */
+// SolidWorks' standard view keys, Ctrl (Cmd) with a digit, by the view each turns to (`STANDARD_VIEWS` in `editMode.js`).
+const STANDARD_VIEW_KEYS = Object.freeze({ 1: "front", 2: "back", 3: "left", 4: "right", 5: "top", 6: "bottom", 7: "isometric" });
+
 export function useEditShortcuts(edit, active) {
   const viewerElement = useContext(ViewerElementContext);
   const latest = useRef(edit);
@@ -51,6 +54,15 @@ export function useEditShortcuts(edit, active) {
       }
       if (!(event.metaKey || event.ctrlKey)) return;
       const key = event.key.toLowerCase();
+      // Cmd+1 to Cmd+7 (Ctrl+1 to Ctrl+7), SolidWorks' standard views: Front, Back, Left, Right, Top, Bottom, Isometric.
+      if (STANDARD_VIEW_KEYS[key] && !event.shiftKey) {
+        const target = event.target;
+        if (!(target instanceof Node && element.contains(target)) && !(pointerInside && (target === document.body || target === document.documentElement))) return;
+        if (isEditableTarget(target)) return;
+        event.preventDefault();
+        latest.current.lookStandard?.(STANDARD_VIEW_KEYS[key]);
+        return;
+      }
       // Cmd+8 (Ctrl+8), Normal To, as SolidWorks takes it: the sketch's plane, or the face or plane selected.
       if (key === "8" && !event.shiftKey) {
         const target = event.target;

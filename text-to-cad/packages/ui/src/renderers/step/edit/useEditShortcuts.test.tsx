@@ -124,3 +124,18 @@ it("S is not taken while the drawing's sheet is up, which takes its own keys", (
   expect(press(button, { key: 's' })).toBe(true);
   expect(findCommand).not.toHaveBeenCalled();
 });
+
+it("Ctrl+1 to Ctrl+7 turn to SolidWorks' standard views, from inside the viewer, a text field keeping its keys", () => {
+  const element = document.createElement('div');
+  element.innerHTML = '<button type="button">Fillet</button><input aria-label="Width value" />';
+  document.body.append(element);
+  const lookStandard = vi.fn();
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    <ViewerElementContext.Provider value={{ current: element }}>{children}</ViewerElementContext.Provider>;
+  renderHook(() => useEditShortcuts({ canUndo: false, canRedo: false, lookStandard } as never, true), { wrapper });
+  const button = element.querySelector('button')!;
+  ['1', '2', '3', '4', '5', '6', '7'].forEach(key => press(button, { key, ctrlKey: true }));
+  expect(lookStandard.mock.calls.map(([name]) => name)).toEqual(['front', 'back', 'left', 'right', 'top', 'bottom', 'isometric']);
+  press(element.querySelector('input')!, { key: '1', metaKey: true });
+  expect(lookStandard).toHaveBeenCalledTimes(7);
+});
