@@ -611,6 +611,11 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
         </> : null}
       </> : null}
       {command.id === "shell" ? <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} /> : null}
+      {/* Offset Region: how far the faces move, outward unless reversed. */}
+      {command.id === "offset_face" ? <>
+        <NumberRow label="Distance" value={values.distance} unit={units} disabled={disabled} onChange={set("distance")} />
+        <FileSheetCheckboxRow label="Reverse direction" checked={Boolean(values.reverse)} disabled={disabled} onCheckedChange={set("reverse")} />
+      </> : null}
       {drafting ? <NumberRow label="Draft angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} /> : null}
       {command.id === "hole" ? <>
         <FileSheetSelectRow label="Hole type" value={values.type || "simple"} options={HOLE_TYPES} onValueChange={sized("type")} />

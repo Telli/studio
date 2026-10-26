@@ -47,6 +47,13 @@ by hand" below.
 - **Profiles as `Rectangle`, `RectangleRounded`, `Box` or `Cylinder`, placed with `Pos(...)`**, get
   dimensions drawn on the model. Other shapes still show their sizes in the history.
 - A unit constant (`INCH = 25.4`) is fine: lengths show in the project's units.
+- **Bring a STEP in as its own line**, `part = read_step(Path(__file__).parent / "bracket.step")`,
+  and model on that name. It is one feature, the imported body (NX's Body, SolidWorks' Imported1),
+  with no history under it, as other CAD tools hold one. Change its faces with direct editing
+  (`from cadgen.direct import offset_faces, delete_faces`): `part = offset_faces(part, <faces>,
+  distance=2)` moves faces along their normals (negative pushes in), `part = delete_faces(part,
+  <faces>)` takes a hole, round or boss out and heals the solid. Edit mode writes and reopens both
+  (Offset Region, Delete Face) on any body.
 - **Keep a project's scripts inside its folder**: the folder of its git repository, or the one its
   Studio project lists. Edit mode reads only those files, so an assembly placing parts from a
   folder outside it shows nothing, and says so.

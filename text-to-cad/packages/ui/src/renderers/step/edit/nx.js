@@ -14,6 +14,7 @@ export const NX_COMMANDS = Object.freeze({
   sweep: "Sweep along Guide", sweep_cut: "Sweep along Guide", loft: "Through Curves", loft_cut: "Through Curves",
   hole: "Hole", fillet: "Edge Blend", chamfer: "Chamfer", rib: "Rib", draft: "Draft", shell: "Shell",
   pattern: "Pattern Feature", mirror: "Mirror Feature", split: "Split Body", delete_body: "Delete Body", plane: "Datum Plane",
+  offset_face: "Offset Region", delete_face: "Delete Face",
 });
 export const nxCommand = command => NX_COMMANDS[command?.id] || command?.label || "";
 
@@ -41,7 +42,9 @@ export function booleanOf(id) {
  */
 export const SOLID_GROUPS = Object.freeze([
   { title: "Create", items: ["sketch", "extrude", "revolve", "sweep", "loft", "rib", "hole", "pattern", "mirror"], shown: 4 },
-  { title: "Modify", items: ["fillet", "chamfer", "shell", "draft", "split", "delete_body"], shown: 3 },
+  // Offset Region first, as Fusion's Modify leads with Press Pull: NX's Synchronous Modeling (Offset Region,
+  // Delete Face) edits faces where they are, an imported body's (no history) as well as any.
+  { title: "Modify", items: ["offset_face", "fillet", "chamfer", "shell", "draft", "split", "delete_face", "delete_body"], shown: 4 },
   { title: "Construct", items: ["plane"], shown: 1 },
   { title: "Inspect", items: ["measure", "clip"], shown: 2 },
   { title: "Select", items: ["references"], shown: 1 },
@@ -66,6 +69,8 @@ export const NX_KINDS = Object.freeze({
   "Boss-Revolve": "Revolve", "Cut-Revolve": "Revolve", "Boss-Sweep": "Sweep along Guide", "Cut-Sweep": "Sweep along Guide",
   "Boss-Loft": "Through Curves", "Cut-Loft": "Through Curves", Fillet: "Edge Blend", Pattern: "Pattern Feature",
   Mirror: "Mirror Feature", Plane: "Datum Plane", "Move/Copy": "Move Object", Split: "Split Body",
+  // An imported STEP: one body with no history, as NX lists one.
+  Imported: "Body", "Offset Face": "Offset Region",
 });
 export const nxKind = kind => NX_KINDS[kind] || kind || "Feature";
 
@@ -77,7 +82,7 @@ const FEATURE_ICON_NAMES = Object.freeze({
   "Edge Blend": "blend", Chamfer: "chamfer", Draft: "draft", Shell: "shell", "Pattern Feature": "pattern",
   "Mirror Feature": "mirror", "Split Body": "split", "Move Object": "move", "Datum Plane": "plane",
   "Datum Coordinate System": "csys", Sketch: "sketch", Part: "part", Assembly: "assembly", Expressions: "expressions",
-  Constraints: "assembly-constraints",
+  Constraints: "assembly-constraints", Body: "body", "Offset Region": "offset-face", "Delete Face": "delete-face",
 });
 
 /**

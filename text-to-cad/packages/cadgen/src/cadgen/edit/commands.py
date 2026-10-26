@@ -696,16 +696,19 @@ def splice(text: str, changes: list[dict]) -> str:
 # The commands.
 
 COMMANDS = ("fillet", "chamfer", "hole", "shell", "draft", "mirror", "pattern", "extrude", "cut", "revolve", "revolve_cut", "sweep",
-            "sweep_cut", "loft", "loft_cut", "rib", "plane", "split", "delete_body")
+            "sweep_cut", "loft", "loft_cut", "rib", "plane", "split", "delete_body", "offset_face", "delete_face")
 FEATURE_WORDS = {"fillet": "Fillet", "chamfer": "Chamfer", "hole": "Hole", "shell": "Shell", "draft": "Draft", "mirror": "Mirror",
                  "pattern": "Pattern", "extrude": "Boss-Extrude", "cut": "Cut-Extrude", "revolve": "Boss-Revolve", "revolve_cut": "Cut-Revolve",
                  "sweep": "Boss-Sweep", "sweep_cut": "Cut-Sweep", "loft": "Boss-Loft", "loft_cut": "Cut-Loft", "rib": "Rib", "plane": "Plane",
-                 "split": "Split", "delete_body": "Delete/Keep Body"}
+                 "split": "Split", "delete_body": "Delete/Keep Body", "offset_face": "Offset Face", "delete_face": "Delete Face"}
 # The operation each command's line records in the tracer.
 RECORDS = {"fillet": ("fillet",), "chamfer": ("chamfer",), "hole": ("cut",), "shell": ("offset",), "draft": ("draft",),
            "mirror": ("mirror",), "pattern": ("GridLocations", "PolarLocations"), "extrude": ("extrude",), "cut": ("extrude",),
            "revolve": ("revolve",), "revolve_cut": ("revolve",), "sweep": ("sweep",), "sweep_cut": ("sweep",), "loft": ("loft",),
-           "loft_cut": ("loft",), "rib": ("rib",), "plane": ("plane",), "split": ("split",), "delete_body": ("cut", "add")}
+           "loft_cut": ("loft",), "rib": ("rib",), "plane": ("plane",), "split": ("split",), "delete_body": ("cut", "add"),
+           "offset_face": ("offset_faces",), "delete_face": ("delete_faces",)}
+# Direct editing's functions, which a line reaches by `from cadgen.direct import ...` (`_direct_imports`).
+DIRECT = {"offset_face": "offset_faces", "delete_face": "delete_faces"}
 # The origin's planes as the design tree names them, and as build123d does.
 ORIGIN_PLANES = {"Top": "XY", "Front": "XZ", "Right": "YZ"}
 # The faces a draft tilts, as OCCT's draft takes them.
@@ -938,7 +941,7 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     if replacing:
         old, kept = _feature_line(body, replacing, command, units, steps, level)
         var, returned = kept.target, []
-        if (selection or neutral) and command in ("fillet", "chamfer", "hole", "shell", "draft", "extrude", "cut"):
+        if (selection or neutral) and command in ("fillet", "chamfer", "hole", "shell", "draft", "extrude", "cut", "offset_face", "delete_face"):
             # Picked again, as a CAD tool rolls back to the feature: on the body as it was before it.
             picked_on, before = body_at(steps, shape, level, root, body.rel, old.lineno)
             picked_var = before.name
@@ -1151,6 +1154,21 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             if not _CALLOUT.match(callout):
                 raise CommandError("That hole's size could not be written beside it. Pick its size again.")
             code = f"{code}  # {callout}"
+    elif command in DIRECT:
+        # Direct editing, as NX's Synchronous Modeling: the faces picked offset along their normals
+        # (Offset Region, outward unless reversed) or taken out and the solid healed (Delete Face).
+        numbers, faces = ([], fixed.parts["faces"]) if fixed else chosen("face")
+        if command == "offset_face":
+            distance = _value(inputs, "distance", "Distance", parse)
+            sign = "-" if inputs.get("reverse") in (True, "true", "1", 1) else ""
+            amount = same("distance", (-1 if sign else 1) * distance, f"{sign}{writer.length(distance)}")
+            code = f"{var} = {DIRECT[command]}({var}, {faces}, distance={amount})"
+            shown = [("Distance", distance, units_word)]
+        else:
+            code = f"{var} = {DIRECT[command]}({var}, {faces})"
+            shown = []
+        selected = None if fixed else {"argument": "faces", "items": [selections.topology["face"].describe(n) for n in numbers]}
+        what = fixed.keeps if fixed else counted(len(numbers), "face")
     elif command == "shell":
         numbers, faces = ([], fixed.parts["openings"]) if fixed else chosen("face")
         thickness = _value(inputs, "thickness", "Thickness", parse)
@@ -1562,12 +1580,12 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         if named and "  # " not in code and not _SIZED.match(named):
             code = f"{code}  # {named}"
         edits.swap(old.lineno, old.end_lineno, [f"{source[:len(source) - len(source.lstrip())]}{code}"])
-        added_lines = _imports(edits, body, module, named_import, names)
+        added_lines = _imports(edits, body, module, named_import, names) + _direct_imports(edits, body, command)
         new = edits.apply()
         line = old.lineno + added_lines
     else:
         edits.after(at, [f"{body.indent}{code}", *returned])
-        added_lines = _imports(edits, body, module, named_import, names)
+        added_lines = _imports(edits, body, module, named_import, names) + _direct_imports(edits, body, command)
         new = edits.apply()
         line = at + 1 + added_lines
     return Plan(command=command, path=body.path, rel=body.rel, old=body.text, new=new, line=line, code=code,
@@ -1676,6 +1694,24 @@ def _imports(edits: Edits, body: Body, module: str | None, named_import: ast.Imp
         last = named_import.names[-1]
         edits.put(last.end_lineno, last.end_col_offset, "".join(f", {name}" for name in missing))
     return 0
+
+
+def _direct_imports(edits: Edits, body: Body, command: str) -> int:
+    """Brings a direct editing function into the file (``from cadgen.direct import offset_faces``),
+    added to such a line the file has. Returns the lines added above the command's line."""
+    name = DIRECT.get(command)
+    if name is None:
+        return 0
+    existing = next((node for node in body.tree.body if isinstance(node, ast.ImportFrom) and node.module == "cadgen.direct"), None)
+    if existing is not None:
+        if name in {alias.asname or alias.name for alias in existing.names}:
+            return 0
+        last = existing.names[-1]
+        edits.put(last.end_lineno, last.end_col_offset, f", {name}")
+        return 0
+    last = max((node.end_lineno for node in body.tree.body if isinstance(node, (ast.Import, ast.ImportFrom))), default=0)
+    edits.after(last, [f"from cadgen.direct import {name}"])
+    return 1
 
 
 def offset_axes(normal) -> tuple[str, ...]:
@@ -1813,6 +1849,17 @@ def read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> F
             values.update(type="angle", angle=_number(number(("chamfer", "angle")), False))
         return Feature("chamfer", values, counted_items(("chamfer", "objects"), "edge"),
                        {"edges": code(value.args[0])}, target, operator, codes)
+    if operator == "=" and name in ("offset_faces", "delete_faces") and len(value.args) >= 2:
+        command = "offset_face" if name == "offset_faces" else "delete_face"
+        values = {}
+        if command == "offset_face":
+            moved = number(("offset_faces", "distance"))
+            written = _keyword_value(value, "distance") or (value.args[2] if len(value.args) > 2 else None)
+            reverse = moved is not None and moved < 0
+            # Kept as written, its sign with it: a distance left as it was is written as it was.
+            held("distance", written, typed(moved) if moved is not None else None)
+            values = {"distance": size(abs(moved) if moved is not None else None), "reverse": reverse}
+        return Feature(command, values, counted_items((name, "faces"), "face"), {"faces": code(value.args[1])}, target, operator, codes)
     if operator == "=" and name == "offset" and _keyword_value(value, "openings") is not None:
         amount = number(("offset", "amount"))
         written = _keyword_value(value, "amount")

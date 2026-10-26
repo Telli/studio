@@ -198,7 +198,7 @@ export function barIndex(tree, bar) {
 export const rolledBack = (tree, bar) => new Set((tree?.assembly ? [] : tree?.features || []).slice(barIndex(tree, bar)).map(feature => feature.id));
 
 /** The commands Edit Feature rolls back for, so their edges or faces are picked again on the body before them. */
-export const REPICKS = Object.freeze(new Set(["fillet", "chamfer", "shell", "draft", "hole"]));
+export const REPICKS = Object.freeze(new Set(["fillet", "chamfer", "shell", "draft", "hole", "offset_face", "delete_face"]));
 // Edit Feature on an extrude or a revolve rolls the part back to just before it too, as SolidWorks
 // and Fusion do, so its preview is the feature itself rather than drawn over the solid it made.
 // Not the part's first solid (`edit.first`), which has nothing before it.
@@ -642,6 +642,9 @@ export const EDIT_COMMANDS = Object.freeze([
   { id: "rib", label: "Rib", group: "Modify", picks: null, sketch: true, prompt: "Select a sketch of the rib's line on the model or in the Part Navigator." },
   { id: "draft", label: "Draft", group: "Modify", picks: "faces", many: true, prompt: "Click the faces to draft. Click one again to take it out." },
   { id: "shell", label: "Shell", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
+  // Direct editing, as NX's Synchronous Modeling: faces changed where they are, on any body, an imported one (no history) included.
+  { id: "offset_face", label: "Offset Face", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
+  { id: "delete_face", label: "Delete Face", group: "Modify", picks: "faces", many: true, prompt: "Click faces on the model to add them. Click one again to take it out." },
   { id: "pattern", label: "Pattern", group: "Modify", picks: null, prompt: "" },
   { id: "mirror", label: "Mirror", group: "Modify", picks: "faces", prompt: "Select a flat face to mirror about, or pick a plane." },
   { id: "split", label: "Split", group: "Modify", picks: "faces", prompt: "Pick the plane to split the body with, or select a flat face on the model." },
@@ -670,6 +673,7 @@ export function commandDefaults(id, units) {
         cbore_diameter: size.cbore, cbore_depth: size.cboreDepth, csk_diameter: size.csk, csk_angle: size.cskAngle, ...holeFill(sized, units) };
     }
     case "shell": return { thickness: size.thickness };
+    case "offset_face": return { distance: size.distance, reverse: false };
     // A draft's neutral plane is picked: an origin plane's name, or "face" for a face of the part.
     case "draft": return { angle: size.draft, neutral: "", reverse: false };
     // A plane's first reference is picked: an origin plane's name, or a face of the part.
@@ -869,6 +873,7 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       if (values.type === "angle") Object.assign(inputs, { type: "angle", angle: values.angle, ...(values.flip ? { flip: true } : {}) });
       break;
     case "shell": inputs.thickness = values.thickness; break;
+    case "offset_face": Object.assign(inputs, { distance: values.distance, reverse: Boolean(values.reverse) }); break;
     case "hole":
       Object.assign(inputs, { diameter: values.diameter, depth: values.through ? "" : values.depth });
       for (const axis of ["x", "y", "z"]) if (String(values[axis] ?? "").trim() && Number(values[axis]) !== 0) inputs[axis] = values[axis];
@@ -964,6 +969,8 @@ export function commandBlocked(id, items, sketch = null, values = {}, editing = 
   if (id === "fillet" || id === "chamfer") return items.length ? "" : "Select edges on the model.";
   if (id === "hole") return faces.length === 1 ? "" : faces.length ? "Select one face." : "Select a flat face on the model.";
   if (id === "shell") return faces.length ? "" : "Select the faces to open.";
+  if (id === "offset_face") return faces.length ? "" : "Select the faces to offset.";
+  if (id === "delete_face") return faces.length ? "" : "Select the faces to delete.";
   if (id === "mirror") return faces.length > 1 ? "Select one face, or none to pick a plane." : "";
   if (id === "split") return faces.length > 1 ? "Select one face, or none to pick a plane." : "";
   if (id === "delete_body") return faces.length === 1 ? "" : faces.length ? "Select one face of the body." : "Click a face of the body.";
@@ -995,6 +1002,8 @@ export function chooseSteps(id, { listed = [], sketch = null, values = {}, endin
     case "fillet": return [{ input: "edges to round", done: listed.length > 0 || kept }];
     case "chamfer": return [{ input: "edges to bevel", done: listed.length > 0 || kept }];
     case "shell": return [{ input: "faces to open", done: listed.length > 0 || kept }];
+    case "offset_face": return [{ input: "faces to offset", done: listed.length > 0 || kept }];
+    case "delete_face": return [{ input: "faces to delete", done: listed.length > 0 || kept }];
     // As SolidWorks' Draft walks through its boxes: the neutral plane, then the faces it tilts.
     case "draft": return [{ input: "the neutral plane", done: Boolean(values.neutral) }, { input: "faces to draft", done: listed.length > 0 || kept }];
     case "plane": return [{ input: "a plane or a flat face to offset from", done: Boolean(values.reference) || listed.length > 0 || kept }];

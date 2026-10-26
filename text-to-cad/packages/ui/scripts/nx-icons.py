@@ -536,6 +536,34 @@ def delete():
     return ic
 
 
+def body():
+    """A body with no history, as an imported STEP is: the body's grey, no feature on it."""
+    ic = Icon("body")
+    ic.box(0, 0, 0, 12, 12, 9, BODY)
+    return ic
+
+
+def offset_face():
+    """NX's Offset Region: a body with no history (grey), its top face offset up (the feature's
+    amber) and the way it moves."""
+    ic = Icon("offset-face")
+    ic.box(0, 0, 0, 11, 11, 6, BODY)
+    ic.box(0, 0, 6, 11, 11, 9, FEAT)
+    start = ic.P(5.5, 5.5, 9)
+    ic.arrow(start, (start[0], start[1] - 8))
+    return ic
+
+
+def delete_face():
+    """Delete Face: a body with no history, one face picked (amber) and Delete's mark on it."""
+    ic = Icon("delete-face")
+    ic.box(0, 0, 0, 11, 11, 8, BODY)
+    ic.face([(11, 0, 8), (11, 11, 8), (11, 11, 0), (11, 0, 0)], FEAT["right"])
+    ic.outline(ic.proj([(11, 0, 8), (11, 11, 8), (11, 11, 0), (11, 0, 0)]), FEAT["edge"])
+    delete_badge(ic, 7.5, 7)
+    return ic
+
+
 def ask():
     ic = Icon("ask")
     bubble = (
@@ -1304,7 +1332,7 @@ def shapes():
 GROUPS = (
     ("Approved", "The modeling commands and the Part Navigator's features, as Amy approved them; the check is a status mark.", (
         sketch, extrude, revolve, hole, lambda: rounded("blend"), lambda: rounded("chamfer"), shell, draft, rib,
-        pattern, mirror, datum_plane, csys, sweep, loft, split, delete, ask,
+        pattern, mirror, datum_plane, csys, sweep, loft, split, delete, body, offset_face, delete_face, ask,
     )),
     ("The agent's tools", "Beside Ask, in the agent's purple: Add to context; Annotate (the Pencil) with its pen, "
      "highlighter and eraser; Shapes, and each shape it draws.", (

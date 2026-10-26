@@ -1769,3 +1769,137 @@ def _tuple(point) -> str:
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# A part made on a STEP brought in, as another CAD tool imports one: its script reads it, and models on it.
+IMPORTED = {
+    "lid.py": """
+        from pathlib import Path
+
+        from cadgen import read_step, step
+
+
+        @step(out="lid.step")
+        def lid():
+            part = read_step(Path(__file__).parent / "imported" / "bracket.step")
+            return part
+    """,
+}
+
+
+def _bracket():
+    """The imported bracket: a 40 x 20 x 10 block, its upright corners rounded 3, a 6 mm hole through it at x 5."""
+    import build123d as bd
+
+    return bd.fillet(bd.Box(40, 20, 10).edges().filter_by(bd.Axis.Z), radius=3) - bd.Pos(5, 0, 0) * bd.Cylinder(3, 20)
+
+
+def _picked(shape, face) -> dict:
+    """A face as the viewer reads it: its kind, centre and area."""
+    import build123d as bd
+
+    center = face.center(bd.CenterOf.MASS)
+    number = next(n for n, each in enumerate(shape.faces(), 1) if each.is_same(face))
+    return {"selector": f"f{number}", "type": face.geom_type.name.lower(), "center": [center.X, center.Y, center.Z], "size": face.area}
+
+
+class ImportedBodies(Commands):
+    """An imported STEP, as SolidWorks, Fusion and NX hold one: one body with no history, modeled on by
+    later features and edited directly (Offset Region, Delete Face)."""
+
+    def open_imported(self):
+        import build123d as bd
+
+        root = project(IMPORTED)
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / "imported").mkdir()
+        bd.export_step(_bracket(), str(root / "imported" / "bracket.step"))
+        file = str(root / "lid.step")
+        state = self.service.state(file)
+        self.assertTrue(state["ok"], state.get("error"))
+        return root, file, state
+
+    def mass(self, file: str, files: dict) -> float:
+        return self.service.change({"file": file, "mass": {}, "files": files})["mass"]["volume"]
+
+    def test_an_imported_step_is_one_row_named_by_its_file_with_nothing_to_open(self):
+        _, _, state = self.open_imported()
+        self.assertEqual([(feature["kind"], feature.get("named"), feature.get("edit")) for feature in state["features"]],
+                         [("Imported", "bracket.step", None)])
+
+    def test_features_go_on_an_imported_body_as_on_any_other(self):
+        import build123d as bd
+
+        root, file, state = self.open_imported()
+        bracket = _bracket()
+        top = bracket.faces().sort_by(bd.Axis.Z)[-1]
+        reply = self.command(file, state, "hole", [_picked(bracket, top)], {"diameter": "2", "depth": "3", "x": "-10"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertEqual([feature["kind"] for feature in reply["features"]], ["Imported", "Hole"])
+        self.assertEqual(reply["features"][-1]["edit"]["command"], "hole")
+
+    def test_offset_region_pulls_a_face_out_and_reopens_with_its_distance(self):
+        import build123d as bd
+
+        root, file, state = self.open_imported()
+        bracket = _bracket()
+        top = bracket.faces().sort_by(bd.Axis.Z)[-1]
+        before = self.mass(file, state["files"])
+        reply = self.command(file, state, "offset_face", [_picked(bracket, top)], {"distance": "2"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        text = (root / "lid.py").read_text(encoding="utf-8")
+        self.assertIn("from cadgen.direct import offset_faces\n", text)
+        # The file reached no build123d before: the selector's names come in through `bd`.
+        self.assertIn("    part = offset_faces(part, part.faces().group_by(bd.Axis.Z)[-1], distance=2)\n", text)
+        # 10 tall made 12: a fifth more.
+        self.assertAlmostEqual(self.mass(file, reply["files"]), before * 1.2, places=3)
+        offset = reply["features"][-1]
+        self.assertEqual((offset["kind"], offset["edit"]["command"]), ("Offset Face", "offset_face"))
+        self.assertEqual({key: offset["edit"]["values"][key] for key in ("distance", "reverse")}, {"distance": "2", "reverse": False})
+        # Reopened and reversed: pushed in 1 instead.
+        again = self.service.change({"file": file, "files": reply["files"], "command": {
+            "command": "offset_face", "inputs": {"distance": "1", "reverse": True}, "selection": [], "replace": {"row": offset["key"]}}})
+        self.assertTrue(again["ok"], again.get("error"))
+        self.assertIn("distance=-1)\n", (root / "lid.py").read_text(encoding="utf-8"))
+        self.assertAlmostEqual(self.mass(file, again["files"]), before * 0.9, places=3)
+
+    def test_delete_face_takes_the_hole_out_and_a_push_the_kernel_cannot_make_is_refused(self):
+        import build123d as bd
+
+        root, file, state = self.open_imported()
+        bracket = _bracket()
+        hole = bracket.faces().filter_by(bd.GeomType.CYLINDER).sort_by(bd.SortBy.AREA)[-1]
+        reply = self.command(file, state, "delete_face", [_picked(bracket, hole)])
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("    part = delete_faces(part, ", (root / "lid.py").read_text(encoding="utf-8"))
+        self.assertAlmostEqual(self.mass(file, reply["files"]), bracket.volume + math.pi * 9 * 10, places=2)
+        self.assertEqual(reply["features"][-1]["kind"], "Delete Face")
+        # The rounded end pushed in deeper than its rounds: no valid solid, so nothing is written.
+        before = (root / "lid.py").read_bytes()
+        end = bracket.faces().sort_by(bd.Axis.X)[-1]
+        refused = self.command(file, reply, "offset_face", [_picked(bracket, end)], {"distance": "4", "reverse": True})
+        self.assertFalse(refused["ok"])
+        self.assertEqual((root / "lid.py").read_bytes(), before)
+
+    def test_a_step_with_no_script_is_made_a_part_beside_it_and_the_step_brought_in_is_kept(self):
+        import build123d as bd
+
+        root = project({}).resolve()
+        self.addCleanup(shutil.rmtree, root, True)
+        source = root / "bracket.step"
+        bd.export_step(_bracket(), str(source))
+        before = source.read_bytes()
+        self.assertEqual(self.service.editable(str(source)), {"ok": True, "editable": False, "importable": True})
+        made = self.service.change({"file": str(source), "adopt": {}})
+        self.assertTrue(made["ok"], made.get("error"))
+        self.assertEqual(made["part"], str(root / "bracket_part.step"))
+        # The part opens on the imported body, one row with nothing under it, and the STEP brought in is as it was.
+        state = self.service.state(made["part"])
+        self.assertTrue(state["ok"], state.get("error"))
+        self.assertEqual([(feature["kind"], feature.get("named")) for feature in state["features"]], [("Imported", "bracket.step")])
+        self.assertEqual(source.read_bytes(), before)
+        # Opened again, the STEP names the part made of it; made a part again, it is another one.
+        self.assertEqual(self.service.editable(str(source))["part"], str(root / "bracket_part.step"))
+        self.assertEqual(self.service.change({"file": str(source), "adopt": {}})["part"], str(root / "bracket_part2.step"))
+        # A part's own STEP is no import.
+        self.assertFalse(self.service.change({"file": made["part"], "adopt": {}})["ok"])

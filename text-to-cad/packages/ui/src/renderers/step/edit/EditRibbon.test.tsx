@@ -182,7 +182,7 @@ it("groups the Solid tab's commands as the design does, each under NX's name", (
   render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
   expect(layout()).toEqual({
     Create: ['Sketch', 'Extrude', 'Revolve', 'Sweep along Guide'],
-    Modify: ['Edge Blend', 'Chamfer', 'Shell'],
+    Modify: ['Offset Region', 'Edge Blend', 'Chamfer', 'Shell'],
     Construct: ['Datum Plane'],
     Inspect: ['Measure', 'Edit Section'],
     Select: ['Select'],
@@ -388,8 +388,8 @@ function openSearch(patch: Record<string, unknown> = {}, props: Record<string, u
   return { hand: hand as Hand, ask, ...view };
 }
 const PART_NAMES = ['Sketch', 'Extrude', 'Extrude Subtract', 'Revolve', 'Revolve Subtract', 'Sweep along Guide', 'Sweep along Guide Subtract',
-  'Through Curves', 'Through Curves Subtract', 'Rib', 'Hole', 'Pattern Feature', 'Mirror Feature', 'Edge Blend', 'Chamfer', 'Shell', 'Draft',
-  'Split Body', 'Delete Body', 'Datum Plane', 'Measure', 'Edit Section', 'Measure Bodies', 'Draft Analysis', 'Simple Interference', 'Compare',
+  'Through Curves', 'Through Curves Subtract', 'Rib', 'Hole', 'Pattern Feature', 'Mirror Feature', 'Offset Region', 'Edge Blend', 'Chamfer', 'Shell', 'Draft',
+  'Split Body', 'Delete Face', 'Delete Body', 'Datum Plane', 'Measure', 'Edit Section', 'Measure Bodies', 'Draft Analysis', 'Simple Interference', 'Compare',
   'Orient View', 'Edit Object Display', 'Expressions', 'New Sheet'];
 const ASSEMBLY = { units: 'mm', components: [{ id: 'base' }], drawing: null };
 

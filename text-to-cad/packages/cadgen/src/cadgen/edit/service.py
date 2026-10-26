@@ -15,10 +15,12 @@ hand edit writes, for who made each feature (``authors.py``: git and a small rec
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import os
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -80,6 +82,23 @@ def script_for(file_ref: str) -> Path | None:
     if path.suffix.lower() != ".py" or not path.is_absolute():
         return None
     return path.resolve() if path.is_file() and is_part(path) else None
+
+
+def imported_step(file_ref: str) -> Path | None:
+    """A STEP brought in rather than built: a ``.step`` or ``.stp`` file with no part script beside it."""
+    if not file_ref:
+        return None
+    path = Path(str(file_ref).split("#", 1)[0]).expanduser()
+    if path.suffix.lower() not in (".step", ".stp") or not path.is_absolute() or not path.is_file():
+        return None
+    return path.resolve() if script_for(str(path)) is None else None
+
+
+def _adopted_names(source: Path):
+    """The scripts a STEP brought in is made a part by, in the order they are taken: ``bracket_part.py``, then ``bracket_part2.py``..."""
+    yield source.with_name(f"{source.stem}_part.py")
+    for n in itertools.count(2):
+        yield source.with_name(f"{source.stem}_part{n}.py")
 
 
 def _studio_projects() -> list[tuple[Path, dict]]:
@@ -377,8 +396,47 @@ class EditService:
 
     def editable(self, file_ref: str) -> dict:
         """Whether a viewer file has a part script beside it to edit: answered at once, so a view
-        that cannot be edited never changes its layout for edit mode while the part is read."""
-        return {"ok": True, "editable": script_for(file_ref) is not None}
+        that cannot be edited never changes its layout for edit mode while the part is read. A STEP
+        with none is one brought in (``importable``): it can be made a part to model on (``adopt``),
+        and the part made of it before is named (``part``)."""
+        if script_for(file_ref) is not None:
+            return {"ok": True, "editable": True}
+        source = imported_step(file_ref)
+        if source is None:
+            return {"ok": True, "editable": False}
+        # The first part made of it, where there is one: the names are taken in order, so none taken means none made.
+        first = next(_adopted_names(source))
+        made = first if first.is_file() else None
+        return {"ok": True, "editable": False, "importable": True,
+                **({"part": str(made.with_suffix(".step"))} if made is not None else {})}
+
+    def adopt(self, file_ref: str) -> dict:
+        """A STEP brought in made a part to model on, as SolidWorks makes a part of a STEP it opens:
+        a script beside it (``<name>_part.py``) that reads it as one body with no history, and
+        writes its own STEP, so the file brought in is never written over. The part's STEP is the
+        imported one copied until the script first builds. ``part``: that STEP, to open."""
+        source = imported_step(file_ref)
+        if source is None:
+            return {"ok": False, "error": "Only a STEP with no part script can be made a part."}
+        script = next(candidate for candidate in _adopted_names(source) if not candidate.exists())
+        name = script.stem
+        function = re.sub(r"\W", "_", name)
+        function = function if function[:1].isalpha() or function[:1] == "_" else f"part_{function}"
+        script.write_text(
+            f'''"""{source.stem}, brought in from {source.name}: one body with no history, modeled on here."""
+
+from pathlib import Path
+
+from cadgen import read_step, step
+
+
+@step(out="{name}.step")
+def {function}():
+    part = read_step(Path(__file__).parent / {source.name!r})
+    return part
+''', encoding="utf-8")
+        shutil.copyfile(source, script.with_suffix(".step"))
+        return {"ok": True, "part": str(script.with_suffix(".step")), "script": str(script)}
 
     def state(self, file_ref: str, files: dict | None = None, bar: dict | None = None) -> dict:
         """The part as a design: its history, named sizes and dimensions. ``files`` is the hashes a
@@ -402,7 +460,9 @@ class EditService:
 
     def change(self, payload: dict) -> dict:
         """One number changed in the part's source, or a command's line written, then the parts
-        that use the changed file built again."""
+        that use the changed file built again. ``adopt``: a STEP brought in made a part (``adopt``)."""
+        if isinstance(payload.get("adopt"), dict):
+            return self.adopt(str(payload.get("file") or ""))
         script = script_for(payload.get("file") or "")
         if script is None:
             return {"ok": False, "error": "This model has no part script to change."}

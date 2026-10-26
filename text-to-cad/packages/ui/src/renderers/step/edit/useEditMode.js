@@ -75,6 +75,9 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [status, setStatus] = useState(supported && file ? "probing" : "none");
   const [state, setState] = useState(null);
   const [error, setError] = useState("");
+  // A STEP brought in, with no part script (`status` none): it can be made a part to edit, as
+  // SolidWorks makes a part of a STEP it opens. `{ part }`: the part made of it before, if any.
+  const [imported, setImported] = useState(null);
   // Where the script stopped, when the error is a part that did not build.
   const [stoppedAt, setStoppedAt] = useState(null);
   // The profile an error is about, when the agent can redraw it as a sketch.
@@ -177,6 +180,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     setBar(null);
     setSketch(null); setSketchTool(null); setSketchSelection([]); setPicking(false);
     setSheetView(null);
+    setImported(null);
     probed.current = "";
     inflight.current = null;
     setStatus(supported && file ? "probing" : "none");
@@ -255,7 +259,7 @@ export function useEditMode({ client, file, active, reading = true }) {
           const reply = await client.editState(file, null, { probe: true });
           if (stopped) return;
           probed.current = file;
-          if (!reply?.editable) { setStatus("none"); return; }
+          if (!reply?.editable) { setImported(reply?.importable ? { part: reply.part || null } : null); setStatus("none"); return; }
           setStatus(current => (current === "probing" ? (reading ? "reading" : "idle") : current));
         } catch {
           if (!stopped) setStatus("none");
@@ -793,8 +797,15 @@ export function useEditMode({ client, file, active, reading = true }) {
     setSketch(null); setSketchTool(null); setSketchSelection([]);
   }, [send]);
 
+  // The STEP brought in made a part beside it (`cadgen/edit/service.py` `adopt`); the reply names its STEP, to open.
+  const adopt = useCallback(async () => {
+    if (!supported || !file) return null;
+    const reply = await client.editChange({ file, adopt: {} });
+    return reply?.ok ? reply : null;
+  }, [client, file, supported]);
+
   return {
-    status, state, error, choice, saving, selected, hovered, command, editing, bar,
+    status, state, error, choice, saving, selected, hovered, command, editing, bar, imported, adopt,
     // The bar moved in the tree, the body there still on its way.
     rolling: Boolean(bar?.pending),
     select: setSelected,

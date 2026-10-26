@@ -309,3 +309,18 @@ it('S asks the toolbar for its command search by counting, so each ask is heard 
   act(() => result.current.findCommand());
   expect(result.current.findAsked).toBe(2);
 });
+
+it("a STEP brought in with no part script is offered as a part to edit, made beside it and named to open", async () => {
+  const imported = '/project/vendor/pico.step';
+  const client = {
+    editState: vi.fn(async () => ({ ok: true, editable: false, importable: true })),
+    editChange: vi.fn(async () => ({ ok: true, part: '/project/vendor/pico_part.step' })),
+  };
+  const { result } = renderHook(() => useEditMode({ client, file: imported, active: true }), { wrapper: hostWith(() => {}) });
+  await waitFor(() => expect(result.current.status).toBe('none'));
+  expect(result.current.imported).toEqual({ part: null });
+  let made: unknown;
+  await act(async () => { made = await result.current.adopt(); });
+  expect(client.editChange).toHaveBeenCalledWith({ file: imported, adopt: {} });
+  expect(made).toEqual({ ok: true, part: '/project/vendor/pico_part.step' });
+});

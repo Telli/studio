@@ -516,6 +516,49 @@ def _wrap_plane_offset():
 _wrap_plane_offset()
 
 
+def _wrap_import():
+    """A STEP brought in (``read_step``) is one row of the history, as SolidWorks, Fusion and NX list
+    an imported body: a solid with no features of its own, which later lines model on."""
+    from cadgen import step_scene
+
+    original = step_scene.read_step
+
+    @functools.wraps(original)
+    def read_step(step_path, *, label=None):
+        result = original(step_path, label=label)
+        if RECORDING and _called_from_project():
+            _record("import", "Imported", original, (step_path,), {}, result, {"source": Path(str(step_path)).name})
+        return result
+
+    step_scene.read_step = read_step
+
+
+_wrap_import()
+
+
+def _wrap_direct():
+    """Direct editing (``cadgen.direct``): Offset Region and Delete Face, each a row of the history,
+    that changes the body it is given, as a fillet does."""
+    from cadgen import direct
+
+    for name in ("offset_faces", "delete_faces"):
+        original = getattr(direct, name)
+
+        def wrapper(*args, __original=original, __name=name, **kwargs):
+            result = __original(*args, **kwargs)
+            if RECORDING and _called_from_project():
+                body = _origin(args[0]) if args else None
+                _record(__name, __name, __original, args, kwargs, result, {"from": body})
+                if body is not None:
+                    result._studio_origin = body
+            return result
+
+        setattr(direct, name, functools.wraps(original)(wrapper))
+
+
+_wrap_direct()
+
+
 def _wrap_boolean(cls, method, op, label):
     original = cls.__dict__.get(method)
     if original is None:
@@ -1113,6 +1156,13 @@ def _row_kind(steps, code=""):
     if ops and all(op == "plane" for op in ops):
         return "Plane"
     ops = [op for op in ops if op != "plane"] or ops
+    # A STEP brought in, placed or not: the imported body, with no history of its own.
+    if ops and ops[0] == "import" and set(ops) <= {"import", "move", "locate"}:
+        return "Imported"
+    if "offset_faces" in ops:
+        return "Offset Face"
+    if "delete_faces" in ops:
+        return "Delete Face"
     if PATTERNS & set(ops) or _COPIES.search(code or ""):
         return "Pattern"
     if "mirror" in ops:
@@ -1479,6 +1529,9 @@ def _editable(features, rows, steps, sketches, units):
         named = commands.trailing_comment(text, statement)
         if named:
             feature["named"] = named
+        elif feature.get("kind") == "Imported":
+            # An imported body is named by the file it came from, as SolidWorks' Imported1 says its source.
+            feature["named"] = next((steps[index].get("source") for index in row["steps"] if steps[index].get("source")), "")
         read = commands.read_feature(statement, text, commands.recorded_numbers([steps[index] for index in row["steps"]]), units)
         if read is None:
             continue

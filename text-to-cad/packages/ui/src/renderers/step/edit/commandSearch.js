@@ -25,6 +25,7 @@ export const COMMAND_WORDS = frozen({
   cut: ["cut", "pocket", "extruded cut"], revolve: ["lathe", "turn"], revolve_cut: ["groove"], loft: ["loft", "lofted"], sweep: ["swept"],
   hole: ["drill", "tap", "thread"], pattern: ["array", "copy"], mirror: ["symmetry"], shell: ["hollow"], draft: ["taper"], rib: ["web"],
   split: ["split body"], delete_body: ["remove body", "keep body"],
+  offset_face: ["press pull", "push pull", "offset face", "move face"], delete_face: ["remove face", "defeature"],
   plane: ["datum", "work plane", "construction plane", "offset plane"], sketch: ["draw", "profile"], measure: ["distance"],
   clip: ["section", "cross section", "section analysis"],
 });

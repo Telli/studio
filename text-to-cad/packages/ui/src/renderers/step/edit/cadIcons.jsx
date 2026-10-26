@@ -52,6 +52,7 @@ export const COMMAND_ICON_NAMES = Object.freeze({
   extrude: "extrude", cut: "extrude", revolve: "revolve", revolve_cut: "revolve", sweep: "sweep", sweep_cut: "sweep",
   loft: "loft", loft_cut: "loft", rib: "rib", hole: "hole", pattern: "pattern", mirror: "mirror", fillet: "blend",
   chamfer: "chamfer", shell: "shell", draft: "draft", plane: "plane", split: "split", delete_body: "delete",
+  offset_face: "offset-face", delete_face: "delete-face",
 });
 
 /** Each command's mark, in the ribbon and on its panel. */

@@ -11,7 +11,7 @@ const ids = (query, options) => findCommands(query, options).map(result => resul
 // The toolbar's order: the Solid tab's groups (a command's Subtract right after it), then what Inspect, Assemble and
 // Drafting add. Sketching, the sketch environment's tools come first, in its toolbar's order.
 const SOLID = ["sketch", "extrude", "cut", "revolve", "revolve_cut", "sweep", "sweep_cut", "loft", "loft_cut", "rib", "hole", "pattern", "mirror",
-  "fillet", "chamfer", "shell", "draft", "split", "delete_body", "plane", "measure", "clip"];
+  "offset_face", "fillet", "chamfer", "shell", "draft", "split", "delete_face", "delete_body", "plane", "measure", "clip"];
 const OTHER_TABS = ["mass", "draft-analysis", "interference", "compare", "normal-to", "appearance", "expressions", "mate", "exploded",
   "drawing", "edit-sheet", "make-drawing"];
 const SKETCH = ["exit", "normal", "line", "rectangle", "center_rectangle", "three_point_rectangle", "circle", "perimeter_circle", "arc",
@@ -47,6 +47,7 @@ test("keeps the words another tool has for each command, as the design lists the
     cut: ["cut", "pocket", "extruded cut"], revolve: ["lathe", "turn"], revolve_cut: ["groove"], loft: ["loft", "lofted"], sweep: ["swept"],
     hole: ["drill", "tap", "thread"], pattern: ["array", "copy"], mirror: ["symmetry"], shell: ["hollow"], draft: ["taper"], rib: ["web"],
     split: ["split body"], delete_body: ["remove body", "keep body"],
+    offset_face: ["press pull", "push pull", "offset face", "move face"], delete_face: ["remove face", "defeature"],
     plane: ["datum", "work plane", "construction plane", "offset plane"], sketch: ["draw", "profile"], measure: ["distance"],
     clip: ["section", "cross section", "section analysis"],
   });
