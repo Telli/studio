@@ -27,7 +27,7 @@ export const SKETCH_TOOLS = Object.freeze([
   { id: "dimension", label: "Smart Dimension", prompts: ["Pick a line, a circle, or two items to dimension. An edge of the model comes in dashed to dimension to.", "Pick a second item or a model edge, or click to place the dimension.", "Click to place the dimension."] },
   { id: "fillet", label: "Sketch Fillet", prompts: ["Click a corner to round, or the first of two lines that meet.", "Click the second line."] },
   { id: "chamfer", label: "Sketch Chamfer", prompts: ["Click a corner to cut, or the first of two lines that meet.", "Click the second line."] },
-  { id: "trim", label: "Trim Entities", prompts: ["Click the part of a curve to cut away. It is cut back to the curves that cross it; a curve nothing crosses is deleted."] },
+  { id: "trim", label: "Trim Entities", prompts: ["Click the part of a curve to cut away, or drag across curves to cut each where you cross it. It is cut back to the curves that cross it; a curve nothing crosses is deleted."] },
   { id: "extend", label: "Extend Entities", prompts: ["Click a line or an arc near the end to run on. It goes on to the first curve it meets."] },
   { id: "offset", label: "Offset Entities", prompts: ["Click a line, an arc or a circle to offset it, and the chain it is part of."] },
   { id: "mirror", label: "Mirror Entities", prompts: ["Click the entities to mirror.", "Click more of them, or the centerline to mirror about."] },
@@ -794,9 +794,15 @@ export function sketchCenter(state) {
  * goes, set `gap` away from what it measures. It goes on the side away from the shape unless
  * `side` says (1 or -1: above or below a horizontal one, right or left of a vertical one, along a
  * line's left-hand normal or against it), and `level` steps it further out, so dimensions stacked
- * on one side do not cover each other.
+ * on one side do not cover each other. `at`: where it was dragged to, as SolidWorks lets a placed
+ * dimension be moved: its value there, a linear one's dimension line moved out to it.
  */
-export function dimensionLayout(state, dimension, gap, { side = 0, level = 0 } = {}) {
+export function dimensionLayout(state, dimension, gap, { side = 0, level = 0, at: to = null } = {}) {
+  const laid = layoutOf(state, dimension, gap, { side, level, to });
+  return laid && to && !laid.placed ? { ...laid, anchor: to } : laid;
+}
+
+function layoutOf(state, dimension, gap, { side, level, to }) {
   const { points, curves } = sketchGeometry(state);
   const curve = id => curves.find(each => each.id === id);
   const place = id => (points.has(id) ? at(points.get(id)) : curve(id)?.c);
@@ -805,11 +811,16 @@ export function dimensionLayout(state, dimension, gap, { side = 0, level = 0 } =
   const aligned = (p, q) => {
     const d = unit(sub(q, p));
     const left = [-d[1], d[0]];
-    const n = side ? scale(left, side) : dot(sub(scale(add(p, q), 0.5), middle), left) < 0 ? scale(left, -1) : left;
-    const p1 = add(p, scale(n, out));
-    const q1 = add(q, scale(n, out));
+    // Dragged: on the side it went, its dimension line out where its value is, its value along it there.
+    const across = to ? dot(sub(to, p), left) : 0;
+    const n = to ? scale(left, across < 0 ? -1 : 1)
+      : side ? scale(left, side) : dot(sub(scale(add(p, q), 0.5), middle), left) < 0 ? scale(left, -1) : left;
+    const far = to ? Math.max(gap * 0.3, Math.abs(across) - gap * 0.45) : out;
+    const p1 = add(p, scale(n, far));
+    const q1 = add(q, scale(n, far));
+    const along = to ? scale(d, dot(sub(to, scale(add(p, q), 0.5)), d)) : [0, 0];
     return { lines: [[p, add(p1, scale(n, gap * 0.25))], [q, add(q1, scale(n, gap * 0.25))]], dimension: [p1, q1],
-      anchor: add(scale(add(p1, q1), 0.5), scale(n, gap * 0.45)) };
+      anchor: add(add(scale(add(p1, q1), 0.5), scale(n, gap * 0.45)), along), placed: Boolean(to) };
   };
   const [a, b] = dimension.refs;
   switch (dimension.kind) {
@@ -839,13 +850,15 @@ export function dimensionLayout(state, dimension, gap, { side = 0, level = 0 } =
       const q = place(b);
       if (!p || !q) return null;
       const axis = dimension.kind === "horizontal_distance" ? 1 : 0;
-      const outward = side || ((p[axis] + q[axis]) / 2 >= middle[axis] ? 1 : -1);
-      const level_ = (outward > 0 ? Math.max(p[axis], q[axis]) : Math.min(p[axis], q[axis])) + outward * out;
+      const outward = to ? (to[axis] >= (p[axis] + q[axis]) / 2 ? 1 : -1) : side || ((p[axis] + q[axis]) / 2 >= middle[axis] ? 1 : -1);
+      const level_ = to ? to[axis] - outward * gap * 0.45
+        : (outward > 0 ? Math.max(p[axis], q[axis]) : Math.min(p[axis], q[axis])) + outward * out;
       const put = (point, value) => (axis === 1 ? [point[0], value] : [value, point[1]]);
       const p1 = put(p, level_);
       const q1 = put(q, level_);
+      const middle_ = scale(add(p1, q1), 0.5);
       return { lines: [[p, put(p, level_ + outward * gap * 0.25)], [q, put(q, level_ + outward * gap * 0.25)]], dimension: [p1, q1],
-        anchor: put(scale(add(p1, q1), 0.5), level_ + outward * gap * 0.45) };
+        anchor: put(to ? (axis === 1 ? [to[0], 0] : [0, to[1]]) : middle_, level_ + outward * gap * 0.45), placed: Boolean(to) };
     }
     case "distance": {
       const lineB = curve(b)?.kind === "line" ? curve(b) : null;

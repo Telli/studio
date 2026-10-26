@@ -132,6 +132,12 @@ test("a dimension is drawn off the side away from the shape, its value beyond", 
   assert.equal(formatValue(8, "mm", "diameter"), "Ø8");
   assert.equal(formatValue(1.25, "in", "length"), "1.25");
   assert.equal(formatValue(89.99, "mm", "angle"), "90°");
+  // Dragged, as SolidWorks moves a placed dimension: its line out where its value went, on that side.
+  const dragged = dimensionLayout(STATE, STATE.dimensions[0], 4, { at: [30, 12] });
+  assert.deepEqual(dragged.dimension.map(([, y]) => Math.round(y * 100) / 100), [10.2, 10.2]);
+  assert.deepEqual(dragged.anchor.map(value => Math.round(value * 100) / 100), [30, 12]);
+  // One that is not linear keeps its lines; its value goes where it was dragged.
+  assert.deepEqual(dimensionLayout(STATE, { id: "D2", kind: "diameter", refs: ["Circle1"] }, 4, { at: [-9, 3] }).anchor, [-9, 3]);
 });
 
 test("what is under the pointer: a point before the curves it joins", () => {

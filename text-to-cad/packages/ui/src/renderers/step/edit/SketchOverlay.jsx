@@ -172,6 +172,11 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
     let lastAngle = null;
     let pending = null; // Smart Dimension: { picks, dimension, refs, value, placing }
     let drag = null;
+    // Power Trim, as SolidWorks': Trim's press dragged across curves, each cut back where the pointer
+    // crossed it, one after another as the sketch answers. `{ pointerId, path, last, chain, controls, ... }`.
+    let sweeping = null;
+    // A placed dimension's value dragged to another place, as SolidWorks moves one: `{ id, screen, pointerId, moved, ... }`.
+    let placing = null;
     // A drag's latest live solve (`solveLive`), and the sketch shown between letting go and the written move's answer.
     let solved = null;
     let settling = null;
@@ -320,15 +325,19 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       context.textBaseline = "middle";
       context.textAlign = "center";
       const gap = GAP_PX / perUnit;
-      const drawDimension = (dimension, color, value, side) => {
+      // `placement`: the side it was put on (1 or -1), or where it was dragged to ({ side, at }).
+      const drawDimension = (dimension, color, value, placement) => {
         let layout = null;
         let rect = null;
-        const shown = formatValue(value, current.units, dimension.kind);
-        const text = dimension.driven ? `(${shown})` : shown;
+        const said = formatValue(value, current.units, dimension.kind);
+        const text = dimension.driven ? `(${said})` : said;
         const w = context.measureText(text).width + 8;
         const h = 15;
-        for (let level = 0; level < LEVELS; level += 1) {
-          layout = dimensionLayout(shown, dimension, gap, { side, level });
+        const side = typeof placement === "number" ? placement : placement?.side || 0;
+        const to = typeof placement === "object" ? placement?.at || null : null;
+        // A dragged one stays where it was put; the others step out until they cover none.
+        for (let level = 0; level < (to ? 1 : LEVELS); level += 1) {
+          layout = dimensionLayout(shown, dimension, gap, { side, level, at: to });
           const anchor = layout && toScreen(layout.anchor);
           if (!anchor) return null;
           rect = { x: anchor[0] - w / 2, y: anchor[1] - h / 2, w, h };
@@ -367,6 +376,12 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         drawDimension(made, colors.hover, pending.value, pointer?.local ? placedSide(state, made, pointer.local) : 0);
       }
 
+      // Power Trim's trail, where the pointer has swept.
+      if (sweeping?.path.length > 1) {
+        context.strokeStyle = colors.quiet;
+        context.lineWidth = 1.5;
+        path(sweeping.path);
+      }
       // Trim: the piece the pointer is over, as it would be cut away; Extend: the line's run on.
       if ((current.tool === "trim" || current.tool === "extend") && hover && pointer?.local) {
         const piece = current.tool === "trim" ? trimPiece(shown, hover, pointer.local) : extendPiece(shown, hover, pointer.local);
@@ -825,7 +840,14 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         event.stopPropagation();
         if (busy) return;
         syncTool();
-        void useTool(tool, hitTest(current.sketch.state, place, HIT_PX / (mapping?.perUnit || 1)), place);
+        const hit = hitTest(current.sketch.state, place, HIT_PX / (mapping?.perUnit || 1));
+        if (tool === "trim") {
+          const controls = viewport.runtimeRef?.current?.controls;
+          sweeping = { pointerId: event.pointerId, path: [place], last: hit, chain: useTool(tool, hit, place), controls,
+            controlsWereEnabled: controls?.enabled !== false };
+          if (controls) controls.enabled = false;
+          try { host.setPointerCapture(event.pointerId); } catch { /* a pointer already gone */ }
+        } else void useTool(tool, hit, place);
         version.current += 1;
         return;
       }
@@ -902,6 +924,12 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
       const next = extend ? (selection.includes(hit) ? selection.filter(id => id !== hit) : [...selection, hit])
         : selection.includes(hit) ? selection : [hit];
       current.edit.selectInSketch(next);
+      if (label && !label.glyph && !extend) {
+        const controls = viewport.runtimeRef?.current?.controls;
+        placing = { id: label.id, screen, pointerId: event.pointerId, moved: false, controls, controlsWereEnabled: controls?.enabled !== false };
+        if (controls) controls.enabled = false;
+        try { host.setPointerCapture(event.pointerId); } catch { /* a pointer already gone */ }
+      }
       if (!label && !extend) {
         const controls = viewport.runtimeRef?.current?.controls;
         drag = { id: hit, from: place, to: place, screen, moved: false, pointerId: event.pointerId, controls, controlsWereEnabled: controls?.enabled !== false,
@@ -922,6 +950,34 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         event.stopPropagation();
         boxing.to = screen;
         version.current += 1;
+        return;
+      }
+      if (sweeping && event.pointerId === sweeping.pointerId && place) {
+        event.preventDefault();
+        event.stopPropagation();
+        sweeping.path.push(place);
+        // A curve crossed: cut back there once the cuts before it are made, found again on the sketch as it then is.
+        const hit = current.sketch?.state ? hitTest(current.sketch.state, place, HIT_PX / (mapping?.perUnit || 1)) : null;
+        if (hit && hit !== sweeping.last) {
+          sweeping.chain = Promise.resolve(sweeping.chain).then(() => {
+            const state = live.current.sketch?.state;
+            const now = state ? hitTest(state, place, HIT_PX / (mapping?.perUnit || 1)) : null;
+            return now ? useTool("trim", now, place) : null;
+          });
+        }
+        sweeping.last = hit;
+        version.current += 1;
+        return;
+      }
+      if (placing && event.pointerId === placing.pointerId && place) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (Math.hypot(screen[0] - placing.screen[0], screen[1] - placing.screen[1]) > DRAG_PX) placing.moved = true;
+        const dimension = (current.sketch?.state?.dimensions || []).find(each => each.id === placing.id);
+        if (placing.moved && dimension) {
+          placements.current.set(dimension.id, { side: placedSide(current.sketch.state, dimension, place), at: place });
+          version.current += 1;
+        }
         return;
       }
       if (drag && event.pointerId === drag.pointerId && place) {
@@ -980,6 +1036,23 @@ export default function SketchOverlay({ viewport, edit, units, modelEdgeAt = nul
         const taken = boxed(current.sketch?.state, done.from, done.to);
         const next = done.add ? [...new Set([...current.selection, ...taken])] : taken;
         current.edit.selectInSketch(next);
+        return;
+      }
+      if (sweeping && event.pointerId === sweeping.pointerId) {
+        event.stopPropagation();
+        const done = sweeping;
+        sweeping = null;
+        if (done.controls) done.controls.enabled = done.controlsWereEnabled;
+        try { host.releasePointerCapture(done.pointerId); } catch { /* released already */ }
+        version.current += 1;
+        return;
+      }
+      if (placing && event.pointerId === placing.pointerId) {
+        event.stopPropagation();
+        const done = placing;
+        placing = null;
+        if (done.controls) done.controls.enabled = done.controlsWereEnabled;
+        try { host.releasePointerCapture(done.pointerId); } catch { /* released already */ }
         return;
       }
       if (!drag || event.pointerId !== drag.pointerId) return;
