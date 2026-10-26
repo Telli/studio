@@ -318,3 +318,85 @@ def delete_sketch(text: str, line: int, title: str, path: str = "<part>") -> tup
     _check_uses(plan, block.function or block.tree, block.tree, title)
     return plan.edits.apply(), block.first_line
 
+
+
+def _changed(statement: ast.stmt) -> set:
+    """The names a statement changes in place: `x += 1`, `x = x + 1`, `x = fillet(x.edges(), 1)`."""
+    if isinstance(statement, _COMPOUND):
+        return set().union(*(_changed(each) for each in _simple(statement)))
+    if isinstance(statement, ast.AugAssign) and isinstance(statement.target, ast.Name):
+        return {statement.target.id}
+    if isinstance(statement, ast.Assign):
+        return set().union(*(_names(target, ast.Store) for target in statement.targets)) & _names(statement.value)
+    return set()
+
+
+def _reads(statement: ast.stmt) -> set:
+    """The names a statement reads, `x += 1`'s x among them."""
+    return _names(statement) | {node.target.id for node in ast.walk(statement)
+                                if isinstance(node, ast.AugAssign) and isinstance(node.target, ast.Name)}
+
+
+def _made(statement: ast.stmt) -> set:
+    """The names a statement makes new: those it assigns that it does not change in place."""
+    if isinstance(statement, _COMPOUND):
+        return set().union(*(_made(each) for each in _simple(statement)))
+    return _names(statement, ast.Store) - _changed(statement)
+
+
+def move(text: str, lines: list[int], title: str, to: int | None, path: str = "<part>") -> tuple[str, int]:
+    """``text`` with the feature made on ``lines`` moved, as SolidWorks' design tree reorders a
+    feature dragged to another place: its statements cut and written again just above line ``to``
+    (None: at the end, before the part is returned), and the line it now starts on. Refused when it
+    would come before a line that makes a name it reads, or after one that reads a name it makes."""
+    if not lines:
+        raise DeleteError(f"{title} is not made on a line of the script. Ask the agent to move it.")
+    tree = ast.parse(text, path)
+    function = _function_at(tree, min(lines))
+    body = function.body if function is not None else tree.body
+    at = lambda line: next((index for index, statement in enumerate(body) if statement.lineno <= line <= statement.end_lineno), None)
+    found = {at(line) for line in lines}
+    if None in found:
+        raise DeleteError(f"{title} is not made in the function that makes the part. Ask the agent to move it.")
+    moving = sorted(found)
+    for index in moving:
+        statement = body[index]
+        if any(other is not statement and other.lineno <= statement.end_lineno and statement.lineno <= other.end_lineno for other in body):
+            raise DeleteError(f"{title} shares its line with another statement. Ask the agent to move it.")
+    if to is None:
+        # The end: before the part is returned.
+        to = body[-1].lineno if isinstance(body[-1], ast.Return) else body[-1].end_lineno + 1
+    # The statements from `to` on: where it goes among them.
+    place = next((index for index, statement in enumerate(body) if statement.lineno >= to), len(body))
+    if moving[0] <= place <= moving[-1] + 1:
+        if moving == list(range(moving[0], moving[-1] + 1)):
+            raise DeleteError(f"{title} is there already.")
+        raise DeleteError(f"{title} is made on lines with others between them. Ask the agent to move it.")
+    statements = [body[index] for index in moving]
+    jumped = body[place:moving[0]] if place < moving[0] else body[moving[-1] + 1:place]
+    # Moved past a line, it may not come before what makes a name it reads, nor after what reads a
+    # name it makes; and a body one of them changes in place the other may only change in place too
+    # (a hole and a fillet on the part swap; a fillet on the post does not go past the post's join).
+    first, then = (statements, jumped) if place < moving[0] else (jumped, statements)
+    for early in first:
+        for late in then:
+            made = sorted(_made(late) & _reads(early))
+            if made:
+                line = (late if late in jumped else early).lineno
+                raise DeleteError(f"{title} {'uses' if early in statements else 'makes'} {made[0]}, which line {line} "
+                                  f"{'makes' if early in statements else 'uses'}. It cannot go {'above' if early in statements else 'below'} that line.")
+    for mine in statements:
+        for other in jumped:
+            shared = sorted((_changed(mine) & (_reads(other) - _changed(other))) | (_changed(other) & (_reads(mine) - _changed(mine))))
+            if shared:
+                raise DeleteError(f"{title} and line {other.lineno} both use {shared[0]}, and one changes it, so they cannot change places.")
+    source = text.splitlines(keepends=True)
+    newline = _newline(text)
+    if source and not source[-1].endswith(("\n", "\r")):
+        source[-1] += newline
+    block = [line for statement in statements for line in source[statement.lineno - 1:statement.end_lineno]]
+    spans = {line for statement in statements for line in range(statement.lineno, statement.end_lineno + 1)}
+    kept = [(number, line) for number, line in enumerate(source, 1) if number not in spans]
+    head = [line for number, line in kept if number < to]
+    tail = [line for number, line in kept if number >= to]
+    return "".join(head + block + tail), len(head) + 1

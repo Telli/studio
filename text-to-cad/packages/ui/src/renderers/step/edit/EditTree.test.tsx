@@ -367,3 +367,24 @@ it("marks nothing for an error that points at no feature", () => {
     cleanup();
   }
 });
+
+it("reorders a feature dragged to another place, as SolidWorks' tree does, and a click is still a click", () => {
+  const editing = { ...edit(), reorder: vi.fn() };
+  const tree = featureTree(STATE);
+  render(<EditTree edit={editing as never} tree={tree} />);
+  const row = document.querySelector<HTMLElement>('[data-cad-edit-tree-row="block.py:7"]')!;
+  // Rows sit 20px apart from the top, so a drop at 65px is above the fourth item.
+  document.querySelectorAll<HTMLElement>('[data-cad-edit-bar-slot]').forEach(slot => {
+    const top = 20 * Number(slot.getAttribute('data-cad-edit-bar-slot'));
+    slot.getBoundingClientRect = () => ({ top, height: 20, bottom: top + 20, left: 0, right: 100, width: 100, x: 0, y: top, toJSON: () => ({}) });
+  });
+  fireEvent.pointerDown(row, { button: 0, clientY: 30 });
+  fireEvent.pointerUp(row, { clientY: 31 });
+  expect(editing.reorder).not.toHaveBeenCalled();
+  fireEvent.pointerDown(row, { button: 0, clientY: 30 });
+  fireEvent.pointerMove(row, { clientY: 65 });
+  expect(document.querySelector('[data-cad-edit-drop]')).not.toBeNull();
+  fireEvent.pointerUp(row, { clientY: 65 });
+  expect(editing.reorder).toHaveBeenCalledWith('block.py:7', 3, tree);
+  expect(document.querySelector('[data-cad-edit-drop]')).toBeNull();
+});

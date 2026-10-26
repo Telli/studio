@@ -53,7 +53,7 @@ _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M
 # is built.
 _CHANGE_KEYS = ("literal", "dimension", "input", "leaf", "text", "files", "command", "preview", "mass", "draft_check", "interference", "parameter", "rename", "appearance", "mate", "compare", "splice", "sizes", "preview_sizes", "set_material",
                 "sketch", "remove",
-                "suppress", "bar", "bar_after")
+                "suppress", "reorder", "bar", "bar_after")
 # Changes that write none of the engineer's own lines (`authors.py`): Undo puts lines back as they
 # were, whoever wrote them, and Redo writes again lines noted when first made (`splice`); Suppress
 # sets a feature's lines aside as comments, and Unsuppress puts them back as they were.

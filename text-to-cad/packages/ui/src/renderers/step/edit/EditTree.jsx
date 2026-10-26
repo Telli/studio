@@ -43,7 +43,7 @@ function RenameInput({ value, onDone }) {
  * of the tree; a row above it (the part's name) has none.
  */
 function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = null, onActivate = null, selected, onSelect, onHover, muted = false, menu = null,
-  slot = null, renaming = null, onRename = null, check = null, warn = null, author = null, role = "treeitem" }) {
+  slot = null, renaming = null, onRename = null, check = null, warn = null, author = null, role = "treeitem", drag = null }) {
   const active = Boolean(id) && selected === id;
   const detailed = Boolean(detail) && renaming === null;
   const row = <TreeRowSurface as="div" dense active={active} role={role} aria-selected={role === "treeitem" ? active : undefined}
@@ -53,7 +53,7 @@ function Row({ id, depth, icon, title, detail = "", expanded = null, onToggle = 
     onClick={() => { if (id) onSelect(id); else onToggle?.(); }}
     onContextMenu={() => { if (id && menu?.length) onSelect(id); }}
     onDoubleClick={() => (onActivate ? onActivate() : onToggle?.())}
-    onPointerEnter={() => onHover(id || null)} onPointerLeave={() => onHover(null)}>
+    onPointerEnter={() => onHover(id || null)} onPointerLeave={() => onHover(null)} {...(drag || {})}>
     <span className="flex w-3 shrink-0 justify-center" onClick={event => { if (onToggle) { event.stopPropagation(); onToggle(); } }}>
       <TreeRowChevron expanded={Boolean(expanded)} branch={expanded !== null} />
     </span>
@@ -251,6 +251,10 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const treeRef = useRef(null);
   // Where the rollback bar is being dragged to, while it is.
   const [dragged, setDragged] = useState(null);
+  // A feature dragged to another place, as SolidWorks' tree reorders one: the place it would go,
+  // while it is (`moving`), and the drag itself, begun once the pointer has gone 4px.
+  const [moving, setMoving] = useState(null);
+  const reordering = useRef(null);
   const disabled = edit.saving || edit.status !== "ready";
   const rowProps = { selected: edit.selected, onSelect: edit.select, onHover: edit.hover };
   const name = sizeName(edit.state?.name || "") || "Part";
@@ -297,11 +301,33 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const sketchRow = (sketch, depth, own = null, muted = false, author = null) => (
     <Row key={sketch.id} id={sketch.id} depth={depth} icon={muted ? greyed(<SketchIcon />) : <SketchIcon />} muted={muted}
       title={titleOf(sketch)} detail={sketch.plane && sketch.plane !== "Plane" ? `${nxPlane(sketch.plane)}${sketch.offset ? `, ${sketch.offset} ${edit.state?.units || ""}`.trimEnd() : ""}` : ""}
-      slot={own ? partItems.findIndex(each => each.id === own.id) : null} author={author}
+      slot={own ? partItems.findIndex(each => each.id === own.id) : null} author={author} drag={own ? dragOf(own.id) : null}
       onActivate={disabled ? null : () => onEditSketch(sketch)} warn={failure?.id === sketch.id ? failure.why : null}
       {...(sketch.constrained ? renamingOf(sketch.id, sketch.title, { sketch: { file: sketch.file, line: sketch.line }, title: sketch.title }) : {})}
       menu={menuOf(editItem(sketch), [...(sketch.constrained ? [renameItem(sketch.id)] : []), ...(own ? [deleteItem(sketch.id)] : [])], own ? currentItem(own) : [])}
       {...rowProps} />);
+  const dragOf = id => (busy || tree.assembly ? null : {
+    onPointerDown: event => {
+      if (event.button !== 0 || (event.target instanceof Element && event.target.closest("input, button"))) return;
+      reordering.current = { id, y: event.clientY, at: null };
+    },
+    onPointerMove: event => {
+      const drag = reordering.current;
+      if (drag?.id !== id || (drag.at === null && Math.abs(event.clientY - drag.y) < 4)) return;
+      if (drag.at === null) event.currentTarget.setPointerCapture?.(event.pointerId);
+      const at = slotAt(event.clientY);
+      if (at !== drag.at) { drag.at = at; setMoving(at); }
+    },
+    onPointerUp: event => {
+      const drag = reordering.current;
+      reordering.current = null;
+      if (drag?.at === null || drag?.id !== id) return;
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      setMoving(null);
+      void edit.reorder(id, drag.at, tree);
+    },
+    onPointerCancel: () => { reordering.current = null; setMoving(null); },
+  });
   const featureRows = (feature, depth) => {
     const out = rolled.has(feature.id);
     const author = authorAt(feature.id);
@@ -320,7 +346,7 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
         expanded={branch ? expanded : null} onToggle={branch ? toggle(feature.id) : null} slot={slot < 0 ? null : slot}
         onActivate={editable(feature) && !busy ? () => edit.editFeature(feature) : null}
         {...renamingOf(feature.id, feature.title, { feature: feature.id, title: feature.title })}
-        warn={failure?.id === feature.id ? failure.why : null} author={author}
+        warn={failure?.id === feature.id ? failure.why : null} author={author} drag={feature.suppressed ? null : dragOf(feature.id)}
         menu={menuOf([...featureItem(feature), ...editItem(feature.sketch)], [suppressItem(feature), renameItem(feature.id), deleteItem(feature.id)], currentItem(feature))}
         {...rowProps} />,
       branch && expanded ? sketchRow(feature.sketch, depth + 1, null, grey, author) : null,
@@ -342,10 +368,15 @@ export default function EditTree({ edit, tree, onEditSketch = () => {}, onOpenPa
   const preview = <div key="rollback-preview" aria-hidden="true" className="relative h-0 shrink-0">
     <span className="absolute inset-x-2 -top-px h-0.5 rounded-full bg-info/60" />
   </div>;
+  // Where a dragged feature would go, drawn as the bar's preview is, in the selection's color.
+  const dropLine = <div key="reorder-preview" aria-hidden="true" className="relative h-0 shrink-0" data-cad-edit-drop="">
+    <span className="absolute inset-x-2 -top-px h-0.5 rounded-full bg-primary" />
+  </div>;
   // The part's features, the rollback bar among them where it is.
   const partRows = () => {
     const groups = partItems.map(feature => featureRows(feature, 1));
-    const marks = [[barAt, bar], ...(dragged !== null && dragged !== barAt ? [[dragged, preview]] : [])];
+    const marks = [[barAt, bar], ...(dragged !== null && dragged !== barAt ? [[dragged, preview]] : []),
+      ...(moving !== null ? [[moving, dropLine]] : [])];
     return groups.flatMap((group, index) => [...marks.filter(([at]) => at === index).map(([, mark]) => mark), ...group])
       .concat(marks.filter(([at]) => at >= groups.length).map(([, mark]) => mark));
   };

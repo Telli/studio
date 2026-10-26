@@ -1096,6 +1096,13 @@ export function deleteRefusal(reply, tree, title, verb = "Delete") {
   return `${title} is used by ${listWords(users)}. ${verb} ${users.length > 1 ? "them" : "it"} first, or ask the agent.`;
 }
 
+/** What a feature dragged to another place in the design tree tells the agent, and its Undo and Redo. */
+export function reorderNote(change, { undo = false, redo = false } = {}) {
+  const where = `(${change.file}, line ${change.line})`;
+  if (undo) return `In edit mode I put ${change.title} back where it was in the design tree ${where}.`;
+  return `In edit mode I moved ${change.title}${change.place ? ` ${change.place}` : ""}${redo ? " again" : ""} in the design tree ${where}.`;
+}
+
 /** What Suppress or Unsuppress of a feature tells the agent, and what its Undo and Redo do. */
 /** A reference plane's offset, as the design tree says it beside its name: "Top Plane, 10 mm", "Face, -4 mm". */
 export function planeDetail(feature, units) {

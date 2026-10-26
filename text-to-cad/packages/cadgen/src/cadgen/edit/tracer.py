@@ -1974,7 +1974,7 @@ def _solve(expr, leaf, target):
 
 # What a change request may change; one with none of them only moves the rollback bar. A preview
 # changes nothing, but is not a move of the bar either.
-_CHANGES = ("command", "preview", "mass", "draft_check", "interference", "parameter", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "literal", "dimension",
+_CHANGES = ("command", "preview", "mass", "draft_check", "interference", "parameter", "rename", "appearance", "mate", "compare", "splice", "sketch", "remove", "suppress", "reorder", "literal", "dimension",
             "input", "sizes", "preview_sizes", "set_material")
 
 
@@ -1999,6 +1999,8 @@ def edit(request):
         return remove(request)
     if isinstance(request.get("suppress"), dict):
         return suppress(request)
+    if isinstance(request.get("reorder"), dict):
+        return reorder(request)
     if isinstance(request.get("rename"), dict):
         return rename(request)
     if isinstance(request.get("parameter"), dict):
@@ -2655,6 +2657,90 @@ def remove(request):
         "feature": key,
         "title": title,
         "children": [str(each.get("title") or each.get("key")) for each in confirmed] if children else [],
+        "file": rel,
+        "line": first,
+        "undo": {"file": rel, "hunks": commands.hunks(new, old)},
+        "redo": {"file": rel, "hunks": commands.hunks(old, new)},
+    }
+    return after
+
+
+def _sketch_lines(feature, rel, path, text):
+    """The lines of the sketch a feature was made from, when it is the feature's alone and in its file."""
+    from cadgen.edit import deleting, sketching
+
+    sketch = feature.get("sketch") or {}
+    if feature["kind"] == "Sketch" or sketch.get("file") != rel or not sketch.get("line"):
+        return []
+    try:
+        block = sketching.find_block(text, int(sketch["line"]), path)
+    except sketching.SketchEditError:
+        return []
+    return [line for index, statement in enumerate(block.statements) if index == 0 or block.var in deleting._names(statement)
+            for line in range(statement.lineno, statement.end_lineno + 1)]
+
+
+def reorder(request):
+    """A feature dragged to another place in the design tree, as SolidWorks reorders one: its lines
+    (with the sketch it was made from) moved in the script to just above the feature it is dropped
+    on (`before`; none: the end), when what it reads is still made before it and what reads it after
+    (`deleting.move`); then the part traced again, and the script put back if it no longer builds."""
+    from cadgen.edit import commands, deleting
+
+    traced = trace(request)
+    if not traced["ok"]:
+        return traced
+    refused = _refused_change(request.get("files"))
+    if refused:
+        return refused
+    spec = request["reorder"]
+    key = str(spec.get("feature") or "")
+    title = str(spec.get("title") or "That feature")
+    features = traced["features"] or [feature for component in traced["components"] for feature in component["features"]]
+    feature = next((feature for feature in features if feature["key"] == key), None)
+    if feature is None:
+        return {"ok": False, "error": f"{title} is no longer in the design tree. Look again."}
+    if feature.get("suppressed"):
+        return {"ok": False, "error": f"{title} is suppressed. Unsuppress it to move it."}
+    before = spec.get("before")
+    target = next((each for each in features if each["key"] == before), None) if before else None
+    if before and target is None:
+        return {"ok": False, "error": "The feature it was dropped on is no longer in the design tree. Look again."}
+    rel = str(feature.get("file") or "")
+    if target is not None and str(target.get("file") or "") != rel:
+        return {"ok": False, "error": f"{title} is made in another file than where it was dropped. Ask the agent to move it."}
+    path = (ROOT / rel).resolve()
+    try:
+        path.relative_to(ROOT)
+    except ValueError:
+        return {"ok": False, "error": f"{title} is not made in this project, so edit mode cannot move it."}
+    old = _read(path)
+    try:
+        if feature["kind"] == "Sketch":
+            lines = _sketch_lines({"kind": "", "sketch": feature["sketch"]}, rel, str(path), old)
+        else:
+            lines = _feature_lines(feature, rel, title, "move") + _sketch_lines(feature, rel, str(path), old)
+        to = None
+        if target is not None:
+            rows = [int(row.rpartition(":")[2]) for row in target["rows"] if row.rpartition(":")[0] == rel]
+            to = min(rows + _sketch_lines(target, rel, str(path), old) + [int(target["line"])])
+        new, first = deleting.move(old, lines, title, to, str(path))
+    except deleting.DeleteError as error:
+        return {"ok": False, "error": str(error)}
+    except SyntaxError:
+        return {"ok": False, "error": f"{rel} does not parse, so edit mode cannot move {title}."}
+    _write(path, new)
+    after = trace(request)
+    if not after.get("ok"):
+        _write(path, old)
+        trace(request)
+        return {"ok": False, "error": f"The part does not build with {title} there, so nothing changed."}
+    after["change"] = {
+        "kind": "reorder",
+        "feature": key,
+        "title": title,
+        # Where it went, as the viewer said it ("above Boss-Extrude2", "to the end").
+        "place": str(spec.get("place") or ""),
         "file": rel,
         "line": first,
         "undo": {"file": rel, "hunks": commands.hunks(new, old)},

@@ -159,6 +159,11 @@ by hand" below.
   still use asks first, as SolidWorks' Confirm Delete: it names those child features and, on
   Delete All, takes them out with it in one change. A line no feature makes that still uses it
   (the `return`, a sketch) refuses it. A sketch of its own goes with its lines.
+- **Reorder**: a feature dragged to another place in the design tree moves its lines (with the
+  sketch it was made from, when that sketch is its alone) to just above the feature it is dropped
+  on. It does not go above a line that makes a name it reads, below one that reads a name it makes,
+  or past a line that reads a body one of them changes in place (a hole and a fillet on the part
+  swap; a fillet on the post does not go past the post's join).
 - **Edit Feature** (a feature's menu, or a double-click on it) reopens the command that wrote the
   feature's line, with its values, and writes that same line again in its place. What the line
   acts on stays as written (its edges, faces, the feature it copies, its sketch) unless the

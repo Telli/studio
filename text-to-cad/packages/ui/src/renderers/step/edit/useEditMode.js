@@ -8,6 +8,7 @@ import {
   commandUndoNote,
   deleteNote,
   deleteRefusal,
+  reorderNote,
   emptyHistory,
   editCommand,
   featureNames,
@@ -542,6 +543,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     const parameter = move.change.kind === "parameter";
     const sized = move.change.kind === "sizes";
     const materialed = move.change.kind === "material";
+    const reordered = move.change.kind === "reorder";
     const current = sketchRef.current;
     // In sketch mode a stroke's Undo answers with the sketch, solved again from its lines.
     const request = current && move.request.splice ? { ...move.request, sketch: sketchTarget(current) } : move.request;
@@ -554,7 +556,8 @@ export function useEditMode({ client, file, active, reading = true }) {
                 : mated ? () => mateNote(move.change, { undo: !redo, redo })
                   : parameter ? () => parameterNote(move.change, { undo: !redo, redo })
                     : sized ? () => sizesNote(move.change, move.change.title, [], { undo: !redo, redo })
-                      : materialed ? () => materialNote(move.change, { undo: !redo, redo }) : null });
+                      : materialed ? () => materialNote(move.change, { undo: !redo, redo })
+                        : reordered ? () => reorderNote(move.change, { undo: !redo, redo }) : null });
     if (!reply?.ok) return;
     setHistory(move.next);
     if (current) {
@@ -594,6 +597,25 @@ export function useEditMode({ client, file, active, reading = true }) {
           title: titles.get(child.key) || features.find(each => each.id === child.key)?.title || child.kind })) });
     }
     else if (reply?.dependents) setError(deleteRefusal(reply, tree, feature.title));
+    return reply;
+  }, [send]);
+
+  /**
+   * A feature dragged to another place in the design tree, as SolidWorks reorders one: dropped
+   * above the feature at `index` of the part's (past the last: the end). Its lines move in the
+   * script, with the sketch it was made from; it stays selected.
+   */
+  const reorder = useCallback(async (id, index, tree) => {
+    const items = tree?.features || [];
+    const from = items.findIndex(each => each.id === id);
+    if (from < 0 || index === from || index === from + 1) return null;
+    const feature = items[from];
+    const target = index < items.length ? items[index] : null;
+    const titles = treeTitles(tree);
+    const name = item => titles.get(item.id) || item.title;
+    const reply = await send({ reorder: { feature: id, title: name(feature), before: target?.id ?? null,
+      place: target ? `above ${name(target)}` : "to the end" } }, { note: answer => reorderNote(answer.change) });
+    if (reply?.ok) setSelected(treeFeatures(featureTree(reply)).find(each => each.title === feature.title)?.id ?? null);
     return reply;
   }, [send]);
 
@@ -868,7 +890,7 @@ export function useEditMode({ client, file, active, reading = true }) {
     rolling: Boolean(bar?.pending),
     select: setSelected,
     hover: setHovered,
-    change, undo, redo, run, remove, confirming, confirmDelete, dismissDelete: () => setConfirming(null), suppress, editFeature, rollTo, setSizes, setMaterial,
+    change, undo, redo, run, remove, reorder, confirming, confirmDelete, dismissDelete: () => setConfirming(null), suppress, editFeature, rollTo, setSizes, setMaterial,
     open: id => { setError(""); setConfirming(null); setPicking(false); setInspecting(null); endEditing(); setPreview(null); dropPreview(); setFacePoint(null); setCommand(id); },
     inspecting, mass, interference, addParameter, draftCheck, draftSettings, setDraftSettings: patch => setDraftSettings(current => ({ ...current, ...patch })), renaming, rename, paint, mate, drawing, comparison, compare,
     sheetView, openSheet, closeSheet, sheetEdit, undoSheet, redoSheet,

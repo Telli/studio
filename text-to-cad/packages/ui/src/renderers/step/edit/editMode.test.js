@@ -23,6 +23,7 @@ import {
   commandUndoNote,
   defaultRow,
   deleteNote,
+  reorderNote,
   deleteRefusal,
   editingValues,
   planeDetail,
@@ -146,6 +147,9 @@ test("a delete the server refuses names the features that use what it makes", ()
   // Confirm Delete's child features, by the titles it named them with.
   assert.equal(deleteNote({ ...change, title: "Boss-Extrude1", line: 7, children: ["Fillet1", "Cut-Extrude1"] }),
     "In edit mode I deleted Boss-Extrude1 and its child features Fillet1 and Cut-Extrude1 (tray.py, line 7).");
+  const moved = { kind: "reorder", title: "Hole1", place: "above Boss-Extrude2", file: "tray.py", line: 11 };
+  assert.equal(reorderNote(moved), "In edit mode I moved Hole1 above Boss-Extrude2 in the design tree (tray.py, line 11).");
+  assert.equal(reorderNote(moved, { undo: true }), "In edit mode I put Hole1 back where it was in the design tree (tray.py, line 11).");
 });
 
 test("the rollback bar greys what is below it, and sits past the last item when rolled forward", () => {

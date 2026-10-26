@@ -728,6 +728,37 @@ class Deleting(Commands):
         self.assertEqual(script.read_bytes(), before)
 
 
+    def reorder(self, state: dict, kind: str, title: str, before: tuple | None, nth: int = 0) -> dict:
+        keys = lambda name: [feature["key"] for feature in state["features"] if feature["kind"] == name]
+        spec = {"feature": keys(kind)[nth], "title": title, "before": keys(before[0])[before[1]] if before else None}
+        return self.service.change({"file": state["file"], "reorder": spec, "files": state["files"]})
+
+    def test_a_feature_dragged_above_another_moves_its_lines_and_undo_puts_them_back(self):
+        root, file, state = self.open(POSTED, "posted.step")
+        state["file"] = file
+        script = root / "posted.py"
+        before = script.read_bytes()
+        reply = self.reorder(state, "Hole", "Hole1", ("Boss-Extrude", 1))
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertEqual([feature["kind"] for feature in reply["features"]], ["Boss-Extrude", "Hole", "Boss-Extrude", "Fillet"])
+        self.assertIn("    plate = Box(40, 20, 4)\n    plate -= Pos(12, 0, 0) * Cylinder(1, 10)\n    post =", script.read_text(encoding="utf-8"))
+        self.assertEqual((reply["change"]["kind"], reply["change"]["line"]), ("reorder", 8))
+        undone = self.service.change({"file": file, "splice": reply["change"]["undo"], "files": reply["files"]})
+        self.assertTrue(undone["ok"], undone.get("error"))
+        self.assertEqual(script.read_bytes(), before)
+
+    def test_a_feature_is_not_moved_past_a_line_that_uses_what_it_changes(self):
+        root, file, state = self.open(TRAY, "tray.step")
+        state["file"] = file
+        before = (root / "tray.py").read_bytes()
+        refused = self.reorder(state, "Fillet", "Fillet1", None)
+        self.assertFalse(refused["ok"])
+        self.assertEqual(refused["error"], "Fillet1 and line 10 both use outer, and one changes it, so they cannot change places.")
+        above = self.reorder(state, "Hole", "Hole1", ("Cut-Extrude", 0))
+        self.assertEqual(above["error"], "Hole1 uses tray, which line 10 makes. It cannot go above that line.")
+        self.assertEqual((root / "tray.py").read_bytes(), before)
+
+
 class Suppressing(Commands):
     """Suppress and Unsuppress on a feature of the design tree (``cadgen.edit.deleting``)."""
 
