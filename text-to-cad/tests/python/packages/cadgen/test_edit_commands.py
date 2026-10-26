@@ -340,6 +340,15 @@ class BlockCommands(Commands):
         shell = reply["rows"][-1]
         self.assertEqual((shell["kind"], [(each["label"], each["display"]) for each in shell["inputs"]]), ("Shell", [("Thickness", "1")]))
 
+    def test_shell_outward_grows_the_wall_outside_and_reopens_so(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        reply = self.command(file, state, "shell", BLOCK_TOP, {"thickness": "1", "outward": True})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("part = offset(part, amount=1, openings=part.faces().group_by(Axis.Z)[-1])",
+                      (root / "block.py").read_text(encoding="utf-8"))
+        feature = next(f for f in reply["features"] if f["kind"] == "Shell")
+        self.assertEqual(feature["edit"]["values"], {"thickness": "1", "outward": True})
+
 
 # A block with its top back edge chamfered: a face slanted at 45 degrees, its normal along (0, 1, 1).
 WEDGE = {
@@ -382,6 +391,16 @@ RIM = face("f3", (0, 0, 5), 208 + 4 * math.pi)
 
 
 class RimHoles(Commands):
+    def test_mass_properties_give_the_moments_of_inertia_about_the_center_of_mass(self):
+        root, file, state = self.open(BLOCK, "block.step")
+        mass = self.service.change({"file": file, "mass": {}, "files": state["files"]})["mass"]
+        # A 20 x 10 x 4 block, per unit density: Lxx = V(10² + 4²)/12, Lyy = V(20² + 4²)/12, Lzz = V(20² + 10²)/12.
+        volume = 20 * 10 * 4
+        self.assertEqual([round(mass["inertia"][axis][axis], 3) for axis in range(3)],
+                         [round(volume * (100 + 16) / 12, 3), round(volume * (400 + 16) / 12, 3), round(volume * (400 + 100) / 12, 3)])
+        self.assertEqual([round(value, 3) for value in mass["principal"]["moments"]], sorted(round(mass["inertia"][axis][axis], 3) for axis in range(3)))
+        self.assertEqual([[abs(round(part, 6)) for part in axis] for axis in mass["principal"]["axes"]], [[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+
     def test_a_hole_in_a_rim_goes_where_the_rim_is_clicked(self):
         root, file, state = self.open(TRAY, "tray.step")
         script = root / "tray.py"
@@ -639,9 +658,16 @@ class EditingFeatures(Commands):
         text = (root / "hub.py").read_text(encoding="utf-8")
         self.assertRegex(text, r"\n    hub -= \[hole1\.rotate\(Axis\(hub\.edges\(\)[^\n]*\), i \* 360 / 4\) for i in range\(1, 4\)\]\n")
         self.assertTrue(any(line.startswith("from build123d import") and "Axis" in line for line in text.splitlines()))
+        # Its Angle, the instances spread from the first to the last over it, reversed: and it reopens so.
+        spread = self.edit(file, about, self.feature(about, "Pattern"), {"type": "circular", "count": "4", "angle": "90", "reverse": True})
+        self.assertTrue(spread["ok"], spread.get("error"))
+        self.assertIn(", i * -90 / (4 - 1)) for i in range(1, 4)]", (root / "hub.py").read_text(encoding="utf-8"))
+        self.assertEqual({key: self.feature(spread, "Pattern")["edit"]["values"].get(key) for key in ("angle", "reverse")},
+                         {"angle": "90", "reverse": True})
+        self.assertEqual(spread["change"]["what"], "4 around a straight edge, over 90 degrees")
         # The boss's top: flat, so no axis to turn about.
         flat = {"selector": "f99", "type": "plane", "center": [5.0, 5.0, 6.0], "size": 50.265482}
-        refused = self.command(file, about, "pattern", [flat], {"type": "circular", "count": "4"}, feature)
+        refused = self.command(file, spread, "pattern", [flat], {"type": "circular", "count": "4"}, feature)
         self.assertFalse(refused["ok"])
         self.assertIn("round face's axis or a straight edge", refused["error"])
 

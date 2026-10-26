@@ -7,7 +7,7 @@ import {
 } from "../../kit/inspector/FileSheet.js";
 import { MassPropertiesIcon } from "./cadIcons.jsx";
 import { ConfirmButtons } from "./ConfirmButtons.jsx";
-import { massRows } from "./editMode.js";
+import { inertiaRows, massRows } from "./editMode.js";
 
 const NONE = "none";
 
@@ -15,7 +15,8 @@ const NONE = "none";
  * Mass Properties, as SolidWorks' Evaluate tab shows them in a dialog of their own: the material
  * the part is weighed in (the project's own as it opens, or any of the table's picked), and what
  * the server worked out of the part as it is (`edit.mass`): its mass in that material, volume,
- * surface area, center of mass (marked on the model) and overall size, in the part's units. Close,
+ * surface area, center of mass (marked on the model), overall size and, with a material, its
+ * moments of inertia, in the part's units. Close,
  * or Escape, puts it away.
  *
  * @param {{ edit: ReturnType<typeof import("./useEditMode.js").useEditMode> }} props
@@ -29,6 +30,7 @@ export default function MassProperties({ edit }) {
   const key = picked ?? mass?.material ?? NONE;
   const material = (mass?.materials || []).find(each => each.key === key) || null;
   const rows = mass?.volume ? massRows(mass, units, material?.density || null) : [];
+  const inertia = mass?.volume ? inertiaRows(mass, units, material?.density || null) : [];
   return <div role="dialog" aria-label="Mass Properties" data-cad-mass-properties="" className="flex shrink-0 flex-col"
     onKeyDown={event => { if (event.key === "Escape") { event.stopPropagation(); edit.stopInspecting(); } }}>
     <div className="flex items-center gap-1.5 border-b border-border px-2 py-1.5">
@@ -52,6 +54,10 @@ export default function MassProperties({ edit }) {
         : rows.length ? rows.map(row => <FileSheetControlRow key={row.label} label={row.label} value={row.value} />)
           : <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`} aria-live="polite">Working out the mass properties</p>}
     </FileSheetSettingsSection>
+    {/* Moments of inertia, about the center of mass: they need the material's density. */}
+    {inertia.length ? <FileSheetSettingsSection title="Moments of Inertia" sectionId="mass-inertia">
+      {inertia.map(row => <FileSheetControlRow key={row.label} label={row.label} value={row.value} />)}
+    </FileSheetSettingsSection> : null}
     <ConfirmButtons className="border-t border-border px-2 py-2" onCancel={edit.stopInspecting} cancelLabel="Close" />
   </div>;
 }

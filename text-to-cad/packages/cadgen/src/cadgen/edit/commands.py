@@ -1172,7 +1172,9 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
     elif command == "shell":
         numbers, faces = ([], fixed.parts["openings"]) if fixed else chosen("face")
         thickness = _value(inputs, "thickness", "Thickness", parse)
-        code = f"{var} = {names('offset')}({var}, amount=-{same('thickness', thickness, writer.length(thickness))}, openings={faces})"
+        # Shell outward, as SolidWorks' has it: the wall grown outside the body, not into it.
+        outward = inputs.get("outward") in (True, "true", "1", 1)
+        code = f"{var} = {names('offset')}({var}, amount={'' if outward else '-'}{same('thickness', thickness, writer.length(thickness))}, openings={faces})"
         shown = [("Thickness", thickness, units_word)]
         selected = None if fixed else {"argument": "openings", "items": [selections.topology["face"].describe(n) for n in numbers]}
         what = fixed.keeps if fixed else f"{counted(len(numbers), 'face')} open"
@@ -1360,15 +1362,25 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
         if not axis:
             raise CommandError("Pick the line to revolve about: a centerline of the sketch.")
         angle = _value(inputs, "angle", "Angle", parse)
-        if angle > 360:
-            raise CommandError("An angle is at most 360 degrees.")
-        if inputs.get("reverse") in (True, "true", "1", 1):
-            angle = -angle
+        # Mid Plane turns it half each way from the sketch; Direction 2 a second angle back the
+        # other way. Either starts the profile turned back first, as build123d revolves one way.
+        mid = str(inputs.get("end") or "blind").lower() == "mid"
+        back = angle / 2 if mid else _value(inputs, "angle2", "Direction 2 angle", parse) if inputs.get("direction2") in (True, "true", "1", 1) else 0.0
+        if angle + (0 if mid else back) > 360:
+            raise CommandError("An angle is at most 360 degrees, both directions together.")
+        reverse = inputs.get("reverse") in (True, "true", "1", 1)
+        turn = (angle if mid else angle + back) * (-1 if reverse else 1)
         profile = kept.parts["profile"] if kept else f"{block.var}.face()" if int(drawn.get("regions") or 1) == 1 else f"{block.var}.faces()"
+        if back and profile.endswith(".faces()"):
+            raise CommandError("Mid Plane and Direction 2 revolve one region of the sketch. Pick one, or revolve it one way.")
+        axis_code = f"{block.var}.axis({axis})"
+        start = -back if not reverse else back
+        turned = f"{profile}.rotate({axis_code}, {writer.number(start)})" if back else profile
         sign = "=" if kept is not None and kept.operator == "=" else "+=" if command == "revolve" else "-="
-        code = f"{var} {sign} {names('revolve')}({profile}, axis={block.var}.axis({axis}), revolution_arc={same('angle', angle, writer.number(angle))})"
+        arc = same("angle", turn, writer.number(turn)) if not back else writer.number(turn)
+        code = f"{var} {sign} {names('revolve')}({turned}, axis={axis_code}, revolution_arc={arc})"
         at = max(at, block.last_line)
-        shown = [("Angle", abs(angle), "deg")]
+        shown = [("Angle", abs(angle), "deg"), *([("Direction 2", back, "deg")] if back and not mid else [])]
         what = f"from {drawn.get('name') or 'the sketch'}, about {drawn.get('axis') or 'its centerline'}"
     elif command in ("extrude", "cut"):
         # A sketch made a solid of, as Extruded Boss/Base and Extruded Cut make one: from its
@@ -1544,14 +1556,27 @@ def plan(spec: dict, *, steps: list[dict], shape, level: int, units: str, litera
             axis = _pattern_axis(selection, selections, scale, names)
             if axis is None and kept and kept.parts.get("axis"):
                 axis = (kept.parts["axis"], _axis_words(kept.parts["axis"]))
+            # Its Angle, as SolidWorks' Equal spacing spreads the instances over it: all the way round
+            # (360, the last a step short of the first), or from the first to the last; Reverse
+            # direction turns it the other way.
+            angle = _value(inputs, "angle", "Angle", parse) if str(inputs.get("angle") or "").strip() else 360.0
+            if not 0 < angle <= 360:
+                raise CommandError("A circular pattern's angle is more than 0 and at most 360 degrees.")
+            full = abs(angle - 360) < 1e-9
+            turn = -angle if inputs.get("reverse") in (True, "true", "1", 1) else angle
+            spread = writer.number(turn)
             if axis is not None:
-                code = f"{var} {sign} [{tool}.rotate({axis[0]}, i * 360 / {counted_code}) for i in range(1, {counted_code})]"
+                over = counted_code if full else f"({counted_code} - 1)"
+                code = f"{var} {sign} [{tool}.rotate({axis[0]}, i * {spread} / {over}) for i in range(1, {counted_code})]"
                 records = ("join", "cut")
                 what = f"{count} around {axis[1]}"
             else:
-                code = f"{var} {sign} [loc * {tool} for loc in {names('PolarLocations')}(0, {counted_code}).locations[1:]]"
+                ranged = "" if full and turn > 0 else f", angular_range={spread}" + ("" if full else ", endpoint=True")
+                code = f"{var} {sign} [loc * {tool} for loc in {names('PolarLocations')}(0, {counted_code}{ranged}).locations[1:]]"
                 what = f"{count} around the Z axis"
-            shown = [("Instances", count, "")]
+            if not full:
+                what += f", over {writer.number(angle)} degrees"
+            shown = [("Instances", count, ""), *([("Angle", angle, "deg")] if not full else [])]
         elif kind == "linear":
             spacing = _value(inputs, "spacing", "Spacing", parse, positive=False)
             if spacing == 0:
@@ -1795,6 +1820,16 @@ def _tight(node, text: str) -> str:
     return written if one_term else f"({written})"
 
 
+def _literal_number(node) -> float | None:
+    """A number written as one (`45`, `-22.5`), or None."""
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.USub, ast.UAdd)):
+        inner = _literal_number(node.operand)
+        return None if inner is None else -inner if isinstance(node.op, ast.USub) else inner
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        return float(node.value)
+    return None
+
+
 def _call_name(node) -> str | None:
     """The name a call is made by: ``fillet`` for ``bd.fillet(...)`` and for ``fillet(...)``."""
     if not isinstance(node, ast.Call):
@@ -1815,7 +1850,10 @@ def _through_all(node) -> bool:
 
 def _sketch_of(profile, made=("face", "faces", "thin")) -> str | None:
     """The sketch a profile is taken from, by its name: ``sketch2`` of ``sketch2.face()`` (or of
-    its thin wall, ``sketch2.thin(...)``; of its path, ``sketch2.path()``, with ``made``)."""
+    its thin wall, ``sketch2.thin(...)``; of its path, ``sketch2.path()``, with ``made``), turned or not
+    (``sketch2.face().rotate(...)``, a revolve's Mid Plane)."""
+    if isinstance(profile, ast.Call) and isinstance(profile.func, ast.Attribute) and profile.func.attr == "rotate":
+        return _sketch_of(profile.func.value, made)
     if (isinstance(profile, ast.Call) and isinstance(profile.func, ast.Attribute) and profile.func.attr in made
             and isinstance(profile.func.value, ast.Name)):
         return profile.func.value.id
@@ -1915,7 +1953,11 @@ def _read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> 
         written = _keyword_value(value, "amount")
         if isinstance(written, ast.UnaryOp) and isinstance(written.op, ast.USub) and amount is not None:
             held("thickness", written.operand, typed(-amount), _tight(written.operand, text))
-        return Feature("shell", {"thickness": size(-amount if amount is not None else None)}, f"{counted_items(('offset', 'openings'), 'face')} open",
+        outward = amount is not None and amount > 0
+        if outward:
+            held("thickness", written, typed(amount), _tight(written, text))
+        return Feature("shell", {"thickness": size(abs(amount) if amount is not None else None), **({"outward": True} if outward else {})},
+                       f"{counted_items(('offset', 'openings'), 'face')} open",
                        {"openings": code(_keyword_value(value, "openings"))}, target, operator, codes)
     # Hole Wizard's Positions: the same hole at each place listed, `[Pos(*at) * Plane(<face>) * <hole> for at in (...)]`.
     places = None
@@ -2047,7 +2089,12 @@ def _read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> 
         if isinstance(elt, ast.Call) and isinstance(elt.func, ast.Attribute) and elt.func.attr == "rotate" and len(elt.args) == 2:
             tool, axis = code(elt.func.value), code(elt.args[0])
             held("count", last, count)
-            return Feature("pattern", {"type": "circular", "count": str(count or 0), "axis": _axis_words(axis)},
+            # `i * 360 / n` all the way round; `i * 90 / (n - 1)` over its Angle; a negative one reversed.
+            step = elt.args[1]
+            spread = (_literal_number(step.left.right) if isinstance(step, ast.BinOp) and isinstance(step.op, ast.Div)
+                      and isinstance(step.left, ast.BinOp) and isinstance(step.left.op, ast.Mult) else None)
+            turned = {"angle": _number(abs(spread), False), "reverse": spread < 0} if spread not in (None, 360.0) else {}
+            return Feature("pattern", {"type": "circular", "count": str(count or 0), "axis": _axis_words(axis), **turned},
                            "Whole body" if tool == target else tool, {"tool": tool, "axis": axis}, target, operator, codes)
         if isinstance(elt, ast.BinOp) and isinstance(elt.op, ast.Mult) and _call_name(elt.left) == "Pos" and len(elt.left.args) == 3:
             spacing = number(("move", "z")) or 0.0
@@ -2065,6 +2112,9 @@ def _read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> 
         tool = code(value.elt.right)
         if _call_name(made) == "PolarLocations":
             values = {"type": "circular", "count": str(int(number(("PolarLocations", "count")) or 0))}
+            ranged = number(("PolarLocations", "angular_range"))
+            if ranged not in (None, 360.0):
+                values.update(angle=_number(abs(ranged), False), reverse=ranged < 0)
             held("count", made.args[1] if len(made.args) > 1 else None, number(("PolarLocations", "count")))
         elif _call_name(made) == "GridLocations" and number(("GridLocations", "x_count")) not in (None, 1) and number(("GridLocations", "y_count")) not in (None, 1):
             # A grid: Direction 1 along X, Direction 2 along Y.
@@ -2169,7 +2219,23 @@ def _read_feature(statement: ast.stmt, text: str, numbers: dict, units: str) -> 
         line = code(axis.args[0]) if isinstance(axis, ast.Call) and _call_name(axis) == "axis" and axis.args else None
         if name == "revolve" and line:
             arc = number(("revolve", "revolution_arc")) or 0.0
-            held("angle", _keyword_value(value, "revolution_arc"), arc)
-            return Feature("revolve_cut" if operator == "-=" else "revolve", {"angle": _number(abs(arc), False), "reverse": arc < 0},
+            # A profile turned back first (`sketch.face().rotate(axis, -45)`): Mid Plane when it is
+            # turned back half the way, else Direction 2's angle.
+            turned_from = None
+            if (isinstance(profile, ast.Call) and isinstance(profile.func, ast.Attribute) and profile.func.attr == "rotate"
+                    and len(profile.args) == 2 and code(profile.args[0]) == code(axis)):
+                start = _literal_number(profile.args[1])
+                if start is not None:
+                    turned_from, profile = start, profile.func.value
+            values = {"angle": _number(abs(arc), False), "reverse": arc < 0}
+            if turned_from:
+                back = -turned_from if arc >= 0 else turned_from
+                if abs(back * 2 - abs(arc)) < 1e-9:
+                    values["end"] = "mid"
+                else:
+                    values.update(angle=_number(abs(arc) - back, False), direction2=True, angle2=_number(back, False))
+            else:
+                held("angle", _keyword_value(value, "revolution_arc"), arc)
+            return Feature("revolve_cut" if operator == "-=" else "revolve", values,
                            sketch, {"profile": code(profile), "sketch": sketch, "axis": line}, target, operator, codes)
     return None

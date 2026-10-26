@@ -88,7 +88,7 @@ by hand" below.
   (Flip direction swaps them), Angle distance `length=1, angle=30`. build123d measures an angle
   chamfer's length along each edge's first face; flipped, the distance runs along the other, written
   `length=1 * bd.tan(bd.radians(30)), length2=1`, which reopens as Angle distance, flipped.
-- **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`.
+- **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`; Shell outward is a positive amount.
 - **Split** cuts the body into bodies by an origin or reference plane, or a flat face's plane:
   `part = split(part, bisect_by=Plane.YZ, keep=Keep.BOTH)` (`Keep.TOP`/`Keep.BOTTOM` keeps one side).
   **Delete/Keep Body** then takes a body out by a face picked on it:
@@ -121,7 +121,9 @@ by hand" below.
   placed by its own `Pos`: `plate -= [bd.Pos(0, 0, .3*INCH * i) * hole1 for i in range(1, 3)]`.
   About a round face's axis or a straight edge picked on the model:
   `hub -= [hole1.rotate(<face>.axis_of_rotation, i * 360 / 6) for i in range(1, 6)]`
-  (`Axis(<edge>)` for an edge).
+  (`Axis(<edge>)` for an edge). An Angle short of 360 spreads them from the first to the last:
+  `i * 90 / (4 - 1)`, or `PolarLocations(0, 4, angular_range=90, endpoint=True)`; a negative angle
+  is Reverse direction.
 - **Extruded Boss/Base and Extruded Cut** make a solid of the sketch picked on the model or in the design tree:
   `part += extrude(sketch2.face(), amount=5)`, or `part -= extrude(...)` for a cut (a negative
   amount goes the other way along the sketch's normal; Mid Plane is `both=True` with half the
@@ -138,7 +140,9 @@ by hand" below.
 - **Revolved Boss/Base and Revolved Cut** turn the selected sketch about one of its lines (its
   centerline, usually): `part += revolve(sketch2.face(), axis=sketch2.axis(line1),
   revolution_arc=360)`, or `part -= revolve(...)` for a cut; Reverse direction is a negative
-  angle.
+  angle. Mid Plane and Direction 2 turn the profile back first and revolve the whole angle:
+  `revolve(sketch2.face().rotate(sketch2.axis(line1), -45), axis=sketch2.axis(line1),
+  revolution_arc=90)` is 90° Mid Plane; a turn back other than half is Direction 2's angle.
 - **Thin Feature** (an extrude's option) makes the outline a wall rather than filling it:
   `part += extrude(sketch2.thin(1.5), amount=20)`, `side="outside"` or `side="mid"` for the wall
   outside the outline or astride it.

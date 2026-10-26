@@ -214,15 +214,18 @@ const FULL_TURN_ARROW_DEGREES = 330;
  * the profile again at steps around its axis and its corners' paths between them, in amber for
  * material added and red for a cut; the axis, a centerline; and an arrow turning the way it turns,
  * just outside the profile, tagged with its angle (`shape.label`). `at(degrees)` is the profile's
- * plane mapping turned that far (`revolvedFrame`). Returns the arrow's head as a handle
+ * plane mapping turned that far (`revolvedFrame`); `shape.revolve.from`, where it starts, for Mid Plane and Direction 2. Returns the arrow's head as a handle
  * (`handleAt`), with where it can turn to: its place on the screen at each whole degree (`reach`).
  */
 function drawRevolvePreview(context, view, shape, cad, at, font, boxed) {
   const loops = view.state?.loops || [];
   const total = shape.revolve.angle;
+  // Mid Plane and Direction 2 start it back the other way from the sketch (`from`, in degrees).
+  const from = shape.revolve.from || 0;
+  const turned = degrees => at(from + degrees);
   if (!loops.length || !total) return [];
   const fine = Math.max(4, Math.ceil(Math.abs(total) / 10));
-  const mappings = Array.from({ length: fine + 1 }, (_, step) => at((total * step) / fine));
+  const mappings = Array.from({ length: fine + 1 }, (_, step) => turned((total * step) / fine));
   if (!mappings.every(Boolean)) return [];
   const fill = shape.kind === "cut" ? cad.cut : cad.solid;
   const stroke = shape.kind === "cut" ? cad.cut : cad.solidEdge;
@@ -273,7 +276,7 @@ function drawRevolvePreview(context, view, shape, cad, at, font, boxed) {
   // The way it turns: an arrow around the axis, just outside the profile, as far as it turns.
   const start = turnArrowStart(loops, a, b);
   const shown = Math.sign(total) * Math.min(Math.abs(total), FULL_TURN_ARROW_DEGREES);
-  const arc = start ? Array.from({ length: fine + 1 }, (_, step) => at((shown * step) / fine)?.toScreen(start) || null) : [];
+  const arc = start ? Array.from({ length: fine + 1 }, (_, step) => turned((shown * step) / fine)?.toScreen(start) || null) : [];
   const handles = [];
   if (arc.length > 1 && arc.every(Boolean)) {
     context.lineWidth = 2;
@@ -285,7 +288,7 @@ function drawRevolvePreview(context, view, shape, cad, at, font, boxed) {
     if (!boxed.has("angle")) drawLabel(context, shape.label, place, stroke, font);
     const sign = Math.sign(total);
     handles.push({ from: before, tip, facing: 0, which: "angle", place,
-      reach: () => Array.from({ length: 360 }, (_, step) => at(sign * (step + 1))?.toScreen(start) || null) });
+      reach: () => Array.from({ length: 360 }, (_, step) => turned(sign * (step + 1))?.toScreen(start) || null) });
   }
   context.restore();
   return handles;

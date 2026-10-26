@@ -791,6 +791,24 @@ class SketchMode(unittest.TestCase):
         self.assertTrue(edited["ok"], edited.get("error"))
         self.assertIn("part += revolve(sketch1.face(), axis=sketch1.axis(line5), revolution_arc=-90)\n", self.source())
         self.assertEqual(self.source().count("revolve("), 1)
+        # Mid Plane, as SolidWorks' Revolve Type: half each way, the profile turned back first; and it reopens so.
+        feature = next(f for f in edited["features"] if f["kind"] == "Boss-Revolve")
+        mid = self.service.change({"file": self.file, "files": edited["files"], "command": {
+            "command": "revolve", "sketch": {**feature["edit"]["sketch"], "axis": "Line5"}, "inputs": {"angle": "90", "end": "mid"},
+            "replace": {"row": feature["key"]}}})
+        self.assertTrue(mid["ok"], mid.get("error"))
+        self.assertIn("part += revolve(sketch1.face().rotate(sketch1.axis(line5), -45), axis=sketch1.axis(line5), revolution_arc=90)\n",
+                      self.source())
+        feature = next(f for f in mid["features"] if f["kind"] == "Boss-Revolve")
+        self.assertEqual(feature["edit"]["values"], {"angle": "90", "reverse": False, "end": "mid", "axis": "Line5"})
+        # Direction 2: its own angle back the other way.
+        both = self.service.change({"file": self.file, "files": mid["files"], "command": {
+            "command": "revolve", "sketch": {**feature["edit"]["sketch"], "axis": "Line5"},
+            "inputs": {"angle": "90", "direction2": True, "angle2": "30"}, "replace": {"row": feature["key"]}}})
+        self.assertTrue(both["ok"], both.get("error"))
+        self.assertIn("revolve(sketch1.face().rotate(sketch1.axis(line5), -30), axis=sketch1.axis(line5), revolution_arc=120)", self.source())
+        feature = next(f for f in both["features"] if f["kind"] == "Boss-Revolve")
+        self.assertEqual(feature["edit"]["values"], {"angle": "90", "reverse": False, "direction2": True, "angle2": "30", "axis": "Line5"})
 
     def test_an_inch_part_sketches_in_inches(self):
         root = project("""

@@ -592,6 +592,26 @@ export function massRows(mass, units, density = null) {
   return rows;
 }
 
+/**
+ * The part's moments of inertia, as SolidWorks' Mass Properties lists them once it has a material:
+ * Lxx, Lyy and Lzz about the center of mass along the part's axes, then the principal moments
+ * Px <= Py <= Pz with the axis each is about. In g·mm², or lb·in² in an inch part. None without a
+ * density, or when the server gave no moments.
+ */
+export function inertiaRows(mass, units, density = null) {
+  if (!density || !mass?.inertia || !mass?.principal) return [];
+  const inch = units === "in";
+  // The server's per unit density (mm^5), times g/mm^3; in an inch part, pounds and square inches.
+  const scale = (density / 1000) * (inch ? 1 / 453.59237 / 25.4 ** 2 : 1);
+  const word = inch ? "lb·in²" : "g·mm²";
+  const said = value => `${Number((value * scale).toPrecision(5)).toLocaleString("en-US", { maximumFractionDigits: 6 })} ${word}`;
+  const axis = vector => `(${vector.map(part => Number(part.toFixed(3)) + 0).join(", ")})`;
+  return [
+    ...["xx", "yy", "zz"].map((name, index) => ({ label: `L${name}`, value: said(mass.inertia[index][index]) })),
+    ...["x", "y", "z"].map((name, index) => ({ label: `P${name}`, value: `${said(mass.principal.moments[index])} about ${axis(mass.principal.axes[index])}` })),
+  ];
+}
+
 /** The feature edit mode opens on: the first that draws dimensions (the part's base), else the first. */
 export function defaultRow(state) {
   const drawn = new Set((state?.dimensions || []).map(dimension => dimension.row));
@@ -693,7 +713,7 @@ export function commandDefaults(id, units) {
       return { ...sized, diameter: size.diameter, depth: size.depth, through: false, x: "0", y: "0", z: "0", more: [],
         cbore_diameter: size.cbore, cbore_depth: size.cboreDepth, csk_diameter: size.csk, csk_angle: size.cskAngle, ...holeFill(sized, units) };
     }
-    case "shell": return { thickness: size.thickness };
+    case "shell": return { thickness: size.thickness, outward: false };
     case "offset_face": return { distance: size.distance, reverse: false };
     // A draft's neutral plane is picked: an origin plane's name, or "face" for a face of the part.
     case "draft": return { angle: size.draft, neutral: "", reverse: false };
@@ -703,14 +723,14 @@ export function commandDefaults(id, units) {
     case "split": return { plane: "YZ", keep: "both" };
     case "delete_body": return { mode: "delete" };
     case "pattern": return { type: "linear", direction: "X", spacing: size.spacing, count: "3", reverse: false,
-      direction2: false, spacing2: size.spacing, count2: "2", reverse2: false };
+      direction2: false, spacing2: size.spacing, count2: "2", reverse2: false, angle: "360" };
     case "extrude":
     case "cut": return { end: "blind", depth: size.depth, reverse: false, draft: false, draft_angle: size.draft, outward: false,
       thin: false, thin_thickness: size.thickness, thin_side: "inside", direction2: false, end2: "blind", depth2: size.depth, draft2: false,
       draft_angle2: size.draft, outward2: false };
     case "rib": return { thickness: size.thickness, flip: false };
     case "revolve":
-    case "revolve_cut": return { axis: "", angle: "360", reverse: false };
+    case "revolve_cut": return { axis: "", angle: "360", reverse: false, end: "blind", direction2: false, angle2: "30" };
     default: return {};
   }
 }
@@ -862,7 +882,8 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
   }
   if (id === "revolve" || id === "revolve_cut") {
     return { command: id, sketch: sketch ? { file: sketch.file, line: sketch.line, name: sketch.title, axis: values.axis } : null,
-      inputs: { angle: values.angle, reverse: Boolean(values.reverse) }, ...replace };
+      inputs: { angle: values.angle, ...(values.end === "mid" ? { end: "mid" } : { reverse: Boolean(values.reverse),
+        ...(values.direction2 ? { direction2: true, angle2: values.angle2 } : {}) }) }, ...replace };
   }
   if (id === "plane") {
     // Mid Plane between two faces, or Normal to Curve at an edge, as what is picked says (Edit Feature keeps its own).
@@ -894,7 +915,7 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
       if (values.type === "distances") Object.assign(inputs, { type: "distances", distance2: values.distance2, flip: Boolean(values.flip) });
       if (values.type === "angle") Object.assign(inputs, { type: "angle", angle: values.angle, ...(values.flip ? { flip: true } : {}) });
       break;
-    case "shell": inputs.thickness = values.thickness; break;
+    case "shell": inputs.thickness = values.thickness; if (values.outward) inputs.outward = true; break;
     case "offset_face": Object.assign(inputs, { distance: values.distance, reverse: Boolean(values.reverse) }); break;
     case "hole":
       Object.assign(inputs, { diameter: values.diameter, depth: values.through ? "" : values.depth });
@@ -924,6 +945,11 @@ export function commandRequest(id, values, items, feature, sketch = null, editin
           const spacing2 = String(values.spacing2 ?? "").trim();
           Object.assign(inputs, { direction2: true, spacing2: values.reverse2 ? `-(${spacing2})` : spacing2, count2: values.count2 });
         }
+      }
+      // A circular pattern's Angle, its instances spread over it, and which way round.
+      const spread = String(values.angle ?? "").trim();
+      if (values.type === "circular" && ((spread && Number(spread) !== 360) || values.reverse)) {
+        Object.assign(inputs, { angle: spread || "360", ...(values.reverse ? { reverse: true } : {}) });
       }
       // A circular pattern's axis, picked on the model; Edit Feature keeps its own unless one is.
       const axis = values.type === "circular" ? patternAxis(items) : null;
@@ -1043,6 +1069,17 @@ export function chooseSteps(id, { listed = [], sketch = null, values = {}, endin
 export function chooseLine(steps) {
   const at = steps.findIndex(step => !step.done);
   return at < 0 ? null : `${at + 1} of ${steps.length}: Select ${steps[at].input}`;
+}
+
+/**
+ * How a revolve's preview turns, in degrees: `angle` from `from`. Mid Plane starts half its angle
+ * back; Direction 2 its second angle back; Reverse turns both the other way.
+ */
+export function revolveSweep(values, angle) {
+  if (values.end === "mid") return { from: -angle / 2, angle };
+  const back = values.direction2 ? Math.max(0, Number(values.angle2) || 0) : 0;
+  const sign = values.reverse ? -1 : 1;
+  return { from: -sign * back, angle: sign * (angle + back) };
 }
 
 /** The lines of a sketch a revolve can turn about, its centerlines first, as the panel lists them. */

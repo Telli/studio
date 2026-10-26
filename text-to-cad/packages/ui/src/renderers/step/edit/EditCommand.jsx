@@ -35,6 +35,7 @@ import {
   patternPreview,
   plainNumber,
   revolveAxes,
+  revolveSweep,
   sameValues,
   selectionItems,
   selectionLabel,
@@ -47,9 +48,9 @@ import { ConfirmButtons } from "./ConfirmButtons.jsx";
 import { booleanOf, nxCommand } from "./nx.js";
 import { sketchGeometry } from "./sketchMode.js";
 // An extrude's end conditions, as SolidWorks' Direction 1 names them and in its order; a cut can go through all.
-// The end conditions as NX's Limits name them.
-const END = Object.freeze({ blind: "Value", through: "Through All", next: "Until Next", vertex: "Until Point", surface: "Until Selected",
-  mid: "Symmetric Value" });
+// The end conditions as SolidWorks names them.
+const END = Object.freeze({ blind: "Blind", through: "Through All", next: "Up To Next", vertex: "Up To Vertex", surface: "Up To Surface",
+  mid: "Mid Plane" });
 // NX's Boolean, for the commands that add material or take the same shape away (`nx.js`).
 // A Boss/Base or a Cut: the switch between them, carrying what was typed and picked.
 const BOOLEAN_OPTIONS = Object.freeze([{ value: "unite", label: "Boss/Base" }, { value: "subtract", label: "Cut" }]);
@@ -59,6 +60,8 @@ let carry = null;
 const ends = values => Object.freeze(values.map(value => ({ value, label: END[value] })));
 const BOSS_ENDS = ends(["blind", "next", "vertex", "surface", "mid"]);
 const CUT_ENDS = ends(["blind", "through", "next", "vertex", "surface", "mid"]);
+// A revolve's Revolve Type: one way, or half each way.
+const REVOLVE_ENDS = ends(["blind", "mid"]);
 // Direction 2's: Blind, and Through All for a cut.
 const BOSS_ENDS2 = ends(["blind"]);
 const CUT_ENDS2 = ends(["blind", "through"]);
@@ -375,10 +378,12 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
   } : null;
   const local = !previewOn ? null
     : edit.command === "extrude" || edit.command === "cut" ? handled
-      : revolving ? (axisLine && angle !== null && angle > 0 ? { kind, revolve: { a: axisLine.a, b: axisLine.b, angle: values.reverse ? -angle : angle },
+      : revolving ? (axisLine && angle !== null && angle > 0 ? { kind, revolve: { a: axisLine.a, b: axisLine.b, ...revolveSweep(values, angle) },
         file: sketch.file, line: sketch.line, label: `${String(values.angle).trim()}°`, text: String(values.angle).trim(),
         // Its arrow a handle, as an extrude's: dragged round, it sets the Angle; clicked, it turns the other way.
-        onAngle: text => setValues(current => ({ ...current, angle: text })),
+        // Dragged, the arrow is the whole turn; with Direction 2 its own angle is what is left of it.
+        onAngle: text => setValues(current => ({ ...current, angle: current.end !== "mid" && current.direction2
+          ? String(Math.max(1, Number(text) - (Number(current.angle2) || 0))) : text })),
         onReverse: () => setValues(current => ({ ...current, reverse: !current.reverse })) } : null)
         : edit.command === "pattern" ? patternPreview(values, units)
           : edit.command === "hole" ? holePreview(values, units, editing && !repicked ? null : facePick)
@@ -592,8 +597,10 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     </FileSheetSettingsSection> : null}
     {takes || planing ? null : <FileSheetSettingsSection title={revolving || extruding ? "Direction 1" : "Parameters"} sectionId="edit-command-parameters">
       {revolving ? <>
+        <FileSheetSelectRow label="Revolve Type" value={values.end || "blind"} options={REVOLVE_ENDS} onValueChange={set("end")} />
         <NumberRow label="Angle" value={values.angle} unit="deg" disabled={disabled} onChange={set("angle")} />
-        <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />
+        {values.end === "mid" ? null
+          : <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />}
       </> : extruding ? <>
         <FileSheetSelectRow label="End condition" value={values.end} options={command.id === "cut" ? CUT_ENDS : BOSS_ENDS} onValueChange={set("end")} />
         {upTo ? <>
@@ -640,7 +647,10 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
           <FileSheetCheckboxRow label="Flip direction" checked={Boolean(values.flip)} disabled={disabled} onCheckedChange={set("flip")} />
         </> : null}
       </> : null}
-      {command.id === "shell" ? <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} /> : null}
+      {command.id === "shell" ? <>
+        <NumberRow label="Thickness" value={values.thickness} unit={units} disabled={disabled} onChange={set("thickness")} />
+        <FileSheetCheckboxRow label="Shell outward" checked={Boolean(values.outward)} disabled={disabled} onCheckedChange={set("outward")} />
+      </> : null}
       {/* Offset Region: how far the faces move, outward unless reversed. */}
       {command.id === "offset_face" ? <>
         <NumberRow label="Distance" value={values.distance} unit={units} disabled={disabled} onChange={set("distance")} />
@@ -698,13 +708,16 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
           <NumberRow label="Spacing" value={values.spacing} unit={units} disabled={disabled} onChange={set("spacing")} />
           <FileSheetCheckboxRow label="Reverse direction" checked={values.reverse} disabled={disabled} onCheckedChange={set("reverse")} />
         </> : <>
-          {/* The axis it turns about, spaced evenly all the way round: a round face or a straight
-              edge picked on the model, else the Z axis through the origin. */}
+          {/* The axis it turns about: a round face or a straight edge picked on the model, else the
+              Z axis through the origin. */}
           <p className={`${FILE_SHEET_STATUS_TEXT_CLASSES} pb-1`}>Axis</p>
           {turnsAbout ? <SelectionBox items={[{ key: turnsAbout.selector, label: `${selectionLabel(turnsAbout)}, ${turnsAbout.type === "line" ? "straight edge" : "round face"}` }]} prompt="" />
             : editing?.values?.axis ? <KeptList text={`${editing.values.axis.charAt(0).toUpperCase()}${editing.values.axis.slice(1)}`}
               hint="Pick a round face or a straight edge on the model to turn about it instead." />
               : <SelectionBox items={[]} prompt="The Z axis through the origin. Pick a round face or a straight edge on the model to turn about it instead." />}
+          {/* Equal spacing over its Angle: all the way round at 360, else from the first to the last. */}
+          <NumberRow label="Angle" value={values.angle || "360"} unit="deg" disabled={disabled} onChange={set("angle")} />
+          <FileSheetCheckboxRow label="Reverse direction" checked={Boolean(values.reverse)} disabled={disabled} onCheckedChange={set("reverse")} />
         </>}
         <NumberRow label="Instances" value={values.count} disabled={disabled} onChange={set("count")} />
       </> : null}
@@ -721,6 +734,11 @@ export default function EditCommand({ edit, names, references, tree = null, onDe
     {/* Direction 2, as SolidWorks' extrude goes both ways from its sketch: switched on, the other way
         Blind (or Through All for a cut), with its own draft. Not at Mid Plane, which goes both ways
         already. */}
+    {/* A revolve's Direction 2: a second angle turned the other way from the sketch. */}
+    {revolving && values.end !== "mid" ? <FileSheetSettingsSection title="Direction 2" sectionId="edit-command-revolve-direction2"
+      enabled={Boolean(values.direction2)} onEnabledChange={set("direction2")}>
+      <NumberRow label="Angle" value={values.angle2} unit="deg" disabled={disabled} onChange={set("angle2")} />
+    </FileSheetSettingsSection> : null}
     {extruding && values.end !== "mid" ? <FileSheetSettingsSection title="Direction 2" sectionId="edit-command-direction2"
       enabled={Boolean(values.direction2)} onEnabledChange={set("direction2")}>
       <FileSheetSelectRow label="End condition" value={values.end2 || "blind"} options={command.id === "cut" ? CUT_ENDS2 : BOSS_ENDS2}

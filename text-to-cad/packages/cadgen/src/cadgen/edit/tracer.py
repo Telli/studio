@@ -2431,12 +2431,34 @@ def mass_properties(request):
         "volume": volume,
         "area": sum(face.area for face in shape.faces()),
         "center": center,
+        **_inertia(solids),
         "box": [[box.min.X, box.min.Y, box.min.Z], [box.max.X, box.max.Y, box.max.Z]],
         "solids": len(solids),
         "material": next((key for key, value in MATERIALS.items() if value is own), None),
         "materials": [{"key": key, "name": value.name, "density": round(value.density * 1e9, 6)}
                       for key, value in sorted(MATERIALS.items(), key=lambda item: item[1].name)],
     }}
+
+
+def _inertia(solids):
+    """The solids' moments of inertia, as SolidWorks' Mass Properties lists them, per unit density
+    (mm^5: times the density in g/mm^3 they are g*mm^2): about the center of mass along the part's
+    axes (``inertia``, Lxx to Lzz, the products off the diagonal), and its principal moments
+    smallest first with their axes (``principal``)."""
+    from OCP.BRepGProp import BRepGProp
+    from OCP.GProp import GProp_GProps
+
+    props = GProp_GProps()
+    try:
+        BRepGProp.VolumeProperties_s(B.Compound(solids).wrapped, props)
+        matrix = props.MatrixOfInertia()
+        principal = props.PrincipalProperties()
+    except Exception:  # noqa: BLE001 - a body OCCT cannot integrate gives no moments
+        return {}
+    axes = [principal.FirstAxisOfInertia(), principal.SecondAxisOfInertia(), principal.ThirdAxisOfInertia()]
+    pairs = sorted(zip(principal.Moments(), ([axis.X(), axis.Y(), axis.Z()] for axis in axes)), key=lambda pair: pair[0])
+    return {"inertia": [[matrix.Value(row, column) for column in (1, 2, 3)] for row in (1, 2, 3)],
+            "principal": {"moments": [moment for moment, _ in pairs], "axes": [axis for _, axis in pairs]}}
 
 
 # More than this many triangles a Draft Analysis coarsens its mesh to stay under.

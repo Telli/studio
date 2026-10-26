@@ -24,6 +24,8 @@ import {
   defaultRow,
   deleteNote,
   reorderNote,
+  revolveSweep,
+  inertiaRows,
   deleteRefusal,
   editingValues,
   planeDetail,
@@ -450,6 +452,9 @@ test("a circular pattern turns about the round face or straight edge picked last
   assert.deepEqual(commandRequest("pattern", { type: "circular", count: "6" }, [flat, round], feature),
     { command: "pattern", selection: [round], inputs: { type: "circular", count: "6" }, feature });
   assert.deepEqual(commandRequest("pattern", { type: "circular", count: "6" }, [], feature).selection, []);
+  // Its Angle and Reverse direction, sent once they are not all the way round one way.
+  assert.deepEqual(commandRequest("pattern", { type: "circular", count: "4", angle: "90", reverse: true }, [round], feature).inputs,
+    { type: "circular", count: "4", angle: "90", reverse: true });
   // Edit Feature keeps its axis unless another is picked.
   const editing = { id: "a.py:9", command: "pattern" };
   assert.deepEqual(commandRequest("pattern", { type: "circular", count: "8" }, [], null, null, editing),
@@ -770,3 +775,22 @@ test("a Mid Plane is drawn midway between its two faces, square to the first, an
   assert.deepEqual(Object.keys(STANDARD_VIEWS), ["front", "back", "left", "right", "top", "bottom", "isometric"]);
 });
 
+
+test("a revolve's preview turns from where Mid Plane and Direction 2 start it", () => {
+  assert.deepEqual(revolveSweep({ end: "blind" }, 90), { from: -0, angle: 90 });
+  assert.deepEqual(revolveSweep({ end: "mid" }, 90), { from: -45, angle: 90 });
+  assert.deepEqual(revolveSweep({ end: "blind", direction2: true, angle2: "30" }, 90), { from: -30, angle: 120 });
+  assert.deepEqual(revolveSweep({ end: "blind", direction2: true, angle2: "30", reverse: true }, 90), { from: 30, angle: -120 });
+});
+
+test("Mass Properties lists the moments of inertia once a material gives the density", () => {
+  // A 10 x 20 x 30 box: per unit density Lxx = V(b² + c²)/12 = 650000 mm^5, and so on.
+  const mass = { volume: 6000, inertia: [[650000, 0, 0], [0, 500000, 0], [0, 0, 250000]],
+    principal: { moments: [250000, 500000, 650000], axes: [[0, 0, 1], [0, 1, 0], [1, 0, 0]] } };
+  assert.deepEqual(inertiaRows(mass, "mm"), []);
+  const rows = inertiaRows(mass, "mm", 1);
+  assert.deepEqual(rows.map(row => row.label), ["Lxx", "Lyy", "Lzz", "Px", "Py", "Pz"]);
+  assert.equal(rows[0].value, "650 g·mm²");
+  assert.equal(rows[3].value, "250 g·mm² about (0, 0, 1)");
+  assert.match(inertiaRows(mass, "in", 1)[0].value, / lb·in²$/);
+});
