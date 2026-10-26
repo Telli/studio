@@ -23,7 +23,7 @@ import re
 from cadgen.edit import commands
 
 TYPES = {"coincident": "Coincident", "concentric": "Concentric", "distance": "Distance", "parallel": "Parallel",
-         "perpendicular": "Perpendicular", "angle": "Angle"}
+         "perpendicular": "Perpendicular", "angle": "Angle", "tangent": "Tangent", "lock": "Lock"}
 _NAMES = set(TYPES.values())
 # The labels of mates written as joint pairs.
 _LABEL = re.compile(r"^(coincident|concentric|distance)(\d+)$")
@@ -241,7 +241,7 @@ def change(text: str, assembly, spec: dict, units: str, components: list[str]) -
     try:
         # The mate made of what was picked, as the script will make it: it says what it cannot take.
         made = getattr(engine, TYPES[kind])(moving_item, fixed_item, *[values[0] * unit] if kind == "distance" else values,
-                                            **({"flip": True} if flip and kind not in ("perpendicular", "angle") else {}))
+                                            **({"flip": True} if flip and kind not in ("perpendicular", "angle", "lock") else {}))
     except engine.MateError as error:
         raise MateError(str(error)) from None
     del made
@@ -272,7 +272,7 @@ def change(text: str, assembly, spec: dict, units: str, components: list[str]) -
         written.append(_Lengths(tree, units).length(values[0]))
     elif kind == "angle":
         written.append(commands._number(values[0], False))
-    if flip and kind not in ("perpendicular", "angle"):
+    if flip and kind not in ("perpendicular", "angle", "lock"):
         written.append("flip=True")
     constraint = f"{TYPES[kind]}({', '.join(written)})"
     calls = _mate_calls(function)
@@ -311,7 +311,8 @@ def change(text: str, assembly, spec: dict, units: str, components: list[str]) -
     holder = components[first] if first < len(components) else "a part"
     words = {"coincident": "on", "concentric": "on one axis with", "distance": f"{commands._number(values[0], False) if values else ''} "
              f"{units or 'mm'} from", "parallel": "parallel to", "perpendicular": "square to",
-             "angle": f"at {commands._number(values[0], False) if values else ''} degrees to"}[kind]
+             "angle": f"at {commands._number(values[0], False) if values else ''} degrees to", "tangent": "tangent to",
+             "lock": "locked to"}[kind]
     return made_text, at, f"{name}: {mover} {words} {holder}"
 
 

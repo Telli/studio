@@ -2069,3 +2069,30 @@ class EditingMaterial(Commands):
         undone = self.service.change({"file": file, "files": again["files"], "splice": again["change"]["undo"]})
         self.service.change({"file": file, "files": undone["files"], "splice": made["change"]["undo"]})
         self.assertEqual((root / "block.py").read_text(encoding="utf-8"), before)
+
+
+class TangentAndLock(unittest.TestCase):
+    """SolidWorks' Tangent and Lock mates, as the solver holds them."""
+
+    def test_a_cylinder_rolls_onto_a_face_and_a_locked_part_stays_put(self):
+        import build123d as bd
+        from cadgen.mates import Lock, Tangent, mate
+
+        floor = bd.Box(40, 40, 4)  # top at z 2
+        roller = bd.Pos(3, 1, 20) * bd.Rot(0, 90, 0) * bd.Cylinder(5, 10)  # axis along X, radius 5
+        side = roller.faces().filter_by(bd.GeomType.CYLINDER)[0]
+        mate(roller, Tangent(side, floor.faces().sort_by(bd.Axis.Z)[-1]))
+        # Its axis 5 above the floor's top, still along X: it sits on the floor.
+        self.assertAlmostEqual(roller.bounding_box().min.Z, 2, places=5)
+        self.assertAlmostEqual(roller.bounding_box().size.X, 10, places=5)
+        # Two cylinders side by side: their axes the two radii apart.
+        other = bd.Pos(0, 30, 0) * bd.Cylinder(3, 8)
+        post = bd.Pos(0, 0, 0) * bd.Cylinder(2, 8)
+        mate(post, Tangent(post.faces().filter_by(bd.GeomType.CYLINDER)[0], other.faces().filter_by(bd.GeomType.CYLINDER)[0]))
+        gap = (post.bounding_box().center() - other.bounding_box().center())
+        self.assertAlmostEqual(math.hypot(gap.X, gap.Y), 5, places=5)
+        # Locked, a part is held where its script puts it whatever its other mates say.
+        held = bd.Pos(7, 7, 7) * bd.Box(2, 2, 2)
+        before = held.bounding_box().center()
+        mate(held, Lock(held.faces()[0], floor.faces()[0]))
+        self.assertAlmostEqual((held.bounding_box().center() - before).length, 0, places=6)

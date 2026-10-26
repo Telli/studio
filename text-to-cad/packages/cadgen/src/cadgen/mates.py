@@ -1,7 +1,8 @@
 """Mates, as SolidWorks' Mate places a part of an assembly.
 
 A mate holds a face, an edge or a vertex of the part that moves against one of a part it is mated
-to: ``Coincident``, ``Concentric``, ``Distance``, ``Parallel``, ``Perpendicular`` and ``Angle``.
+to: ``Coincident``, ``Concentric``, ``Distance``, ``Parallel``, ``Perpendicular``, ``Angle``,
+``Tangent`` and ``Lock``.
 ``mate`` solves a part's mates together each time the assembly runs and moves the part the least
 it can for all of them to hold, so what they leave free (where along a face it sits, how it is
 turned about an axis) stays where the part was, and the part follows the parts it is mated to as
@@ -30,7 +31,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-__all__ = ["Angle", "Coincident", "Concentric", "Distance", "MateError", "Parallel", "Perpendicular", "mate"]
+__all__ = ["Angle", "Coincident", "Concentric", "Distance", "Lock", "MateError", "Parallel", "Perpendicular", "Tangent", "mate"]
 
 
 class MateError(ValueError):
@@ -45,6 +46,8 @@ class _Place:
     kind: str
     point: np.ndarray
     way: np.ndarray | None = None
+    # A round face's radius, for Tangent.
+    radius: float | None = None
 
 
 def _vector(value) -> np.ndarray:
@@ -65,7 +68,8 @@ def _place(item) -> _Place:
             return _Place("plane", _vector(plane.origin), _unit(plane.z_dir))
         if item.geom_type in (B.GeomType.CYLINDER, B.GeomType.CONE):
             axis = item.axis_of_rotation
-            return _Place("axis", _vector(axis.position), _unit(axis.direction))
+            radius = float(item.radius) if item.geom_type == B.GeomType.CYLINDER else None
+            return _Place("axis", _vector(axis.position), _unit(axis.direction), radius)
     elif isinstance(item, B.Edge):
         if item.geom_type == B.GeomType.CIRCLE:
             return _Place("circle", _vector(item.arc_center), _unit(item.normal()))
@@ -248,6 +252,43 @@ class Angle(_Mate):
 
     def residuals(self, point, way):
         return [float(way @ self.fixed.way) - math.cos(math.radians(self.degrees))]
+
+
+class Tangent(_Mate):
+    """A round face against a flat one, or two round faces side by side, touching along a line, as
+    SolidWorks' Tangent mate: a cylinder's axis its radius from the face and parallel to it (``flip``:
+    on the face's other side); two cylinders' axes parallel, their radii apart."""
+
+    label = "Tangent"
+
+    def check(self):
+        m, f = self.moving, self.fixed
+        round_ = lambda place: place.kind == "axis" and place.radius is not None  # noqa: E731
+        if not ((round_(m) and (f.kind == "plane" or round_(f))) or (m.kind == "plane" and round_(f))):
+            self._refuse("takes a round face and a flat one, or two round faces.")
+
+    def residuals(self, point, way):
+        m, f = self.moving, self.fixed
+        side = -1.0 if self.flip else 1.0
+        if m.kind == "axis" and f.kind == "plane":
+            return [float(way @ f.way), float((point - f.point) @ f.way) - side * m.radius]
+        if m.kind == "plane" and f.kind == "axis":
+            return [float(way @ f.way), float((f.point - point) @ way) + side * f.radius]
+        return _parallel(way, f.way) + [float(np.linalg.norm(np.cross(point - f.point, f.way))) - (m.radius + f.radius)]
+
+
+class Lock(_Mate):
+    """A part held where it stands against another, as SolidWorks' Lock mate: not moved or turned
+    from where its script puts it, whatever its other mates would do."""
+
+    label = "Lock"
+
+    def check(self):
+        if self.moving.way is None:
+            self._refuse("takes a face or an edge of the part to hold.")
+
+    def residuals(self, point, way):
+        return list(point - self.moving.point) + list(way - self.moving.way)
 
 
 def _turn(vector: np.ndarray) -> np.ndarray:

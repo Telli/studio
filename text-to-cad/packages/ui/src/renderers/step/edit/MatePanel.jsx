@@ -15,9 +15,9 @@ import { selectionItems, selectionLabel } from "./editMode.js";
 // SolidWorks' Standard Mates this places a part by.
 const MATE_TYPES = Object.freeze([{ value: "coincident", label: "Coincident" }, { value: "concentric", label: "Concentric" },
   { value: "distance", label: "Distance" }, { value: "parallel", label: "Parallel" }, { value: "perpendicular", label: "Perpendicular" },
-  { value: "angle", label: "Angle" }]);
-// The mates that line their picks up one way or the other, which Flip alignment turns.
-const FLIPS = new Set(["coincident", "concentric", "distance", "parallel"]);
+  { value: "angle", label: "Angle" }, { value: "tangent", label: "Tangent" }, { value: "lock", label: "Lock" }]);
+// The mates that line their picks up one way or the other, which Flip alignment turns (Tangent: which side it touches).
+const FLIPS = new Set(["coincident", "concentric", "distance", "parallel", "tangent"]);
 
 /** Which of the assembly's parts a pick is on, by its occurrence (`o1.2.f3`: the second part). */
 const partOf = (item, components) => {
@@ -29,7 +29,8 @@ const partOf = (item, components) => {
  * Mate, as SolidWorks' Mate places an assembly's parts: a face, an edge or a vertex picked on the
  * part that stays, then one on the part that moves to it; Coincident puts two flat faces face to
  * face, Distance a gap apart, Concentric two round faces or circular edges on one axis (two circular
- * edges centre on centre), Parallel, Perpendicular and Angle line them up. OK adds it to the moved
+ * edges centre on centre), Parallel, Perpendicular and Angle line them up, Tangent sets a round face against a flat
+ * or a round one, and Lock holds the part where it stands. OK adds it to the moved
  * part's mates in the assembly (`edit.mate`), solved together with its others; what they leave free
  * stays where the part was.
  *
