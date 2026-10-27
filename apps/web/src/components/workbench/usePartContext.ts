@@ -12,6 +12,7 @@ import {
   readMaterials,
   readModified,
   readTunnelJson,
+  sharedLoad,
   type ShownView,
 } from "./partContext";
 import { useShownView } from "./shownModels";
@@ -25,6 +26,9 @@ interface FileFacts {
   readonly materials: ReadonlyArray<string> | null;
   readonly modified: number | null;
 }
+
+/** The routes' reads under way, by thread and revision (`sharedLoad`). */
+const FACTS_IN_FLIGHT = new Map<string, Promise<readonly [unknown, unknown]>>();
 
 const factsKey = (shown: ShownView) =>
   [shown.pluginId, shown.server, shown.path, shown.revision].join("\n");
@@ -62,10 +66,16 @@ export function usePartContext(threadRef: ScopedThreadRef): {
         ? readTunnelJson(result.value.result).catch(() => null)
         : null;
     };
-    void Promise.all([
-      route(`/__cad/catalog?file=${encodeURIComponent(shown.path)}`),
-      route("/__cad/recents"),
-    ]).then(([catalog, recents]) => {
+    // Every caller showing this revision shares one read of the routes (`sharedLoad`).
+    void sharedLoad(
+      FACTS_IN_FLIGHT,
+      [threadRef.environmentId, threadRef.threadId, key].join("\n"),
+      () =>
+        Promise.all([
+          route(`/__cad/catalog?file=${encodeURIComponent(shown.path)}`),
+          route("/__cad/recents"),
+        ]),
+    ).then(([catalog, recents]) => {
       if (cancelled) return;
       const entry = readCatalogEntry(catalog);
       setFacts({

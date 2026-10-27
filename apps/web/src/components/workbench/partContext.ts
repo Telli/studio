@@ -195,3 +195,21 @@ export async function readTunnelJson(result: unknown): Promise<unknown> {
       : new TextDecoder().decode(bytes);
   return JSON.parse(text) as unknown;
 }
+
+/**
+ * One load per key while it runs: a caller asking for a key already loading gets that load's
+ * promise, and once it settles the next caller loads afresh. The panel bar, the Toolbox, the
+ * composer's strip and a document's title block each read the part in front (`usePartContext`),
+ * and so its facts are read once per revision.
+ */
+export function sharedLoad<T>(
+  inFlight: Map<string, Promise<T>>,
+  key: string,
+  load: () => Promise<T>,
+): Promise<T> {
+  const running = inFlight.get(key);
+  if (running !== undefined) return running;
+  const started = load().finally(() => inFlight.delete(key));
+  inFlight.set(key, started);
+  return started;
+}

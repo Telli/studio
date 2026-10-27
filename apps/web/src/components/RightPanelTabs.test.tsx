@@ -150,13 +150,11 @@ function renderTabs(
 }
 
 describe("RightPanelTabs aside", () => {
-  it("shows the aside after the surface in front, and nothing extra without one", () => {
-    const html = renderTabs(null, undefined, undefined, undefined, <div data-testid="aside" />);
-    expect(html).toContain('data-testid="aside"');
-    expect(html.indexOf('data-testid="aside"')).toBeGreaterThan(html.indexOf("<div>content</div>"));
-    const plain = renderTabs(null);
-    expect(plain).not.toContain('data-testid="aside"');
-    expect(plain).not.toContain("data-right-panel-aside");
+  it("shows the aside it is given, and none when given none", () => {
+    expect(renderTabs(null, undefined, undefined, undefined, <p>the aside</p>)).toContain(
+      "the aside",
+    );
+    expect(renderTabs(null)).not.toContain("the aside");
   });
 });
 

@@ -7,6 +7,7 @@ import {
   readModified,
   readTunnelJson,
   readViewSync,
+  sharedLoad,
 } from "./partContext";
 
 const tunnel = async (value: unknown, gzip = false) => {
@@ -174,5 +175,38 @@ describe("readTunnelJson", () => {
     expect(
       await readTunnelJson({ structuredContent: { status: 404, headers: {}, body: "" } }),
     ).toBeNull();
+  });
+});
+
+describe("sharedLoad", () => {
+  it("runs one load for callers asking while it runs, and a fresh one after it settles", async () => {
+    const inFlight = new Map<string, Promise<number>>();
+    let loads = 0;
+    let finish: (value: number) => void = () => undefined;
+    const load = () => {
+      loads += 1;
+      return new Promise<number>((resolve) => {
+        finish = resolve;
+      });
+    };
+    const first = sharedLoad(inFlight, "bracket.step\n3", load);
+    const second = sharedLoad(inFlight, "bracket.step\n3", load);
+    expect(loads).toBe(1);
+    finish(7);
+    expect(await Promise.all([first, second])).toEqual([7, 7]);
+    const later = sharedLoad(inFlight, "bracket.step\n3", () => Promise.resolve(8));
+    expect(await later).toBe(8);
+  });
+
+  it("loads each key on its own", () => {
+    const inFlight = new Map<string, Promise<string>>();
+    let loads = 0;
+    const load = () => {
+      loads += 1;
+      return new Promise<string>(() => undefined);
+    };
+    void sharedLoad(inFlight, "a", load);
+    void sharedLoad(inFlight, "b", load);
+    expect(loads).toBe(2);
   });
 });
