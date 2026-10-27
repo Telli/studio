@@ -221,6 +221,14 @@ with Source beside the pinned Project tab for the explorer. Code shows T3 Code's
 are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choice for
 `brand/theme.css`.
 
+Settings in Engineering leave out what a programmer sets (`CODE_SETTINGS_ROWS` in
+`components/workbench/engineeringSettings.ts`): the code font, agent update checks, response
+streaming, the rich text composer, the send shortcut, follow-up behaviour, glass opacity and
+contrast, a project's Workspace and Checkouts. Hiding changes nothing stored: each keeps its value
+and default, and Engineering with code and Code show them all (Settings, Appearance, Interface is
+the way there). Plugins and Diagnostics sit together under one Advanced group in the settings
+sidebar (`ADVANCED_SETTINGS_SECTIONS`, `studioInterface.ts`); their own settings URLs are unchanged.
+
 - **The project's overview.** The Project tab (Overview, in Engineering) opens on it: the
   project's README in its folder first, what it is and its decisions
   (`- <what was decided> (<YYYY-MM-DD>, asked)`, or `by hand`; a decision written date first reads

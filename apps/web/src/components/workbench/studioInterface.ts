@@ -70,6 +70,19 @@ export const CODE_SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
   "/settings/archived",
 ]);
 
+/**
+ * The settings pages the engineering interface gathers under one Advanced group in its sidebar,
+ * in the order they are listed. Their own URLs are unchanged. To add another page to Advanced,
+ * add its path here.
+ */
+export const ADVANCED_SETTINGS_SECTIONS: ReadonlyArray<string> = [
+  "/settings/plugins",
+  "/settings/diagnostics",
+];
+
+/** The name of the engineering interface's group of ADVANCED_SETTINGS_SECTIONS. */
+export const ADVANCED_SETTINGS_LABEL = "Advanced";
+
 const ENGINEERING_SETTINGS_LABELS: Readonly<Record<string, string>> = {
   "/settings/providers": "AI agents",
 };
@@ -77,6 +90,20 @@ const ENGINEERING_SETTINGS_LABELS: Readonly<Record<string, string>> = {
 /** A settings section's name in the given interface: engineering calls Providers "AI agents". */
 export function settingsSectionLabel(path: string, label: string, engineering: boolean): string {
   return (engineering ? ENGINEERING_SETTINGS_LABELS[path] : undefined) ?? label;
+}
+
+/**
+ * What a settings search result names as its place: in the engineering interface a page under
+ * Advanced says "Advanced", else the section's own name.
+ */
+export function settingsSearchSectionLabel(
+  path: string,
+  label: string,
+  engineering: boolean,
+): string {
+  return engineering && ADVANCED_SETTINGS_SECTIONS.includes(path)
+    ? ADVANCED_SETTINGS_LABEL
+    : settingsSectionLabel(path, label, engineering);
 }
 
 export const STUDIO_INTERFACE_AVAILABLE = WORKBENCH_LAYOUT && HARDWARE_FOCUS;

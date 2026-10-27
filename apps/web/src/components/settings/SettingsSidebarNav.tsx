@@ -52,10 +52,12 @@ import {
 import { useAvailableSettingsSearchItems } from "./useAvailableSettingsSearchItems";
 import { validateSettingsScopeSearch } from "./settingsScope";
 import {
-  CODE_SETTINGS_SECTIONS,
+  ADVANCED_SETTINGS_LABEL,
+  settingsSearchSectionLabel,
   settingsSectionLabel,
   useEngineeringInterface,
 } from "../workbench/studioInterface";
+import { settingsNavGroups } from "../workbench/engineeringSettings";
 
 const SnapShotIcon = createLucideIcon("snap-shot", [
   [
@@ -103,13 +105,11 @@ const SETTINGS_NAV_ITEMS: ReadonlyArray<{
   label: string;
   to: SettingsPath;
   icon: ComponentType<{ className?: string }>;
-}> = (Object.keys(SETTINGS_SECTION_LABELS) as SettingsPath[])
-  .filter((to) => to !== "/settings/diagnostics")
-  .map((to) => ({
-    to,
-    label: SETTINGS_SECTION_LABELS[to],
-    icon: SETTINGS_SECTION_ICONS[to],
-  }));
+}> = (Object.keys(SETTINGS_SECTION_LABELS) as SettingsPath[]).map((to) => ({
+  to,
+  label: SETTINGS_SECTION_LABELS[to],
+  icon: SETTINGS_SECTION_ICONS[to],
+}));
 
 function SettingsSectionIcon({ to }: { to: SettingsPath }) {
   const Icon = SETTINGS_SECTION_ICONS[to];
@@ -122,10 +122,11 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const currentSearch = useLocation({ select: (location) => location.search });
   const scopeSearch = useMemo(() => validateSettingsScopeSearch(currentSearch), [currentSearch]);
   const engineering = useEngineeringInterface();
-  const navItems = SETTINGS_NAV_ITEMS.filter(
-    (item) =>
-      (item.to !== "/settings/projects" || isSettingsOverviewVisible(scopeSearch)) &&
-      !(engineering && CODE_SETTINGS_SECTIONS.has(item.to)),
+  const { main: navItems, advanced: advancedItems } = settingsNavGroups(
+    SETTINGS_NAV_ITEMS.filter(
+      (item) => item.to !== "/settings/projects" || isSettingsOverviewVisible(scopeSearch),
+    ),
+    engineering,
   );
   const { isMobile, setOpenMobile, open, setOpen } = useSidebar();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -257,6 +258,21 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     },
     [activeResultIndex, clearSearch, handleSearchResultClick, isSearching, results],
   );
+  const renderNavItem = (item: (typeof SETTINGS_NAV_ITEMS)[number]) => {
+    const Icon = item.icon;
+    const isGeneralDetailPage =
+      item.to === "/settings/general" && pathname === "/settings/open-source-licenses";
+    const isActive =
+      isGeneralDetailPage || pathname === item.to || pathname.startsWith(`${item.to}/`);
+    return (
+      <SidebarMenuItem key={item.to}>
+        <SidebarMenuButton isActive={isActive} onClick={() => handleSectionClick(item.to)}>
+          <Icon />
+          <span className="truncate">{settingsSectionLabel(item.to, item.label, engineering)}</span>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  };
   return (
     <>
       <SidebarContent className="overflow-x-hidden">
@@ -338,7 +354,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                           {item.title}
                         </span>
                         <span className="block truncate text-2xs text-sidebar-muted-foreground/75">
-                          {settingsSectionLabel(
+                          {settingsSearchSectionLabel(
                             item.to,
                             SETTINGS_SECTION_LABELS[item.to],
                             engineering,
@@ -351,29 +367,18 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
               </SidebarMenu>
             ) : (
               <SidebarMenu>
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  const isGeneralDetailPage =
-                    item.to === "/settings/general" &&
-                    pathname === "/settings/open-source-licenses";
-                  const isActive =
-                    isGeneralDetailPage ||
-                    pathname === item.to ||
-                    pathname.startsWith(`${item.to}/`);
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton
-                        isActive={isActive}
-                        onClick={() => handleSectionClick(item.to)}
-                      >
-                        <Icon />
-                        <span className="truncate">
-                          {settingsSectionLabel(item.to, item.label, engineering)}
-                        </span>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
+                {navItems.map(renderNavItem)}
+                {advancedItems.length > 0 ? (
+                  <SidebarMenuItem>
+                    <div className="flex h-8 items-center gap-2 px-2 text-sm font-medium text-sidebar-muted-foreground">
+                      <Settings2Icon className="size-4 shrink-0" />
+                      <span className="truncate">{ADVANCED_SETTINGS_LABEL}</span>
+                    </div>
+                    <SidebarMenu className="ml-4 border-l border-sidebar-border pl-2">
+                      {advancedItems.map(renderNavItem)}
+                    </SidebarMenu>
+                  </SidebarMenuItem>
+                ) : null}
               </SidebarMenu>
             )}
           </div>

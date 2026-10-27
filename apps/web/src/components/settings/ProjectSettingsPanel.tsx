@@ -541,7 +541,8 @@ function ProjectDetail({
         <ProjectDefaultsSettings category="project" />
         {/* A project's scripts and `t3.json` are coding tools (`CODE_SETTINGS_ROWS`). */}
         {engineering ? null : <ProjectActionsSettings />}
-        {hasMultipleCheckouts ? checkoutChoices : null}
+        {/* Checkouts are a code-interface idea: each is a folder on a machine. */}
+        {hasMultipleCheckouts && !engineering ? checkoutChoices : null}
         {/* Studio takes a project out from its menus (Move to Trash), its files kept; this
             one removed only the folder's entry and left the project's tile behind. */}
         {engineering ? null : (

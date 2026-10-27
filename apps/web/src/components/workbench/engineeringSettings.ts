@@ -1,6 +1,10 @@
 import { APP_BASE_NAME } from "../../branding";
 import type { SettingsSearchItem, SettingsSearchItemId } from "../settings/settingsSearch";
-import { CODE_SETTINGS_SECTIONS, settingsSectionLabel } from "./studioInterface";
+import {
+  ADVANCED_SETTINGS_SECTIONS,
+  CODE_SETTINGS_SECTIONS,
+  settingsSectionLabel,
+} from "./studioInterface";
 
 /**
  * Settings rows as the engineering interface shows them. A row is named by its
@@ -52,6 +56,18 @@ export const CODE_SETTINGS_ROWS: ReadonlySet<string> = new Set<SettingsSearchIte
   "archive-confirmation",
   "delete-confirmation",
   "add-project-starts-in",
+  // Programmer settings. Each keeps its stored value and default; the code interfaces still show
+  // them, and the Interface switch (Settings, Appearance) is the way there.
+  "code-font",
+  "provider-update-checks",
+  "response-streaming",
+  "composer-rich-text",
+  "send-shortcut",
+  "follow-up-behavior",
+  "setting-glass-opacity",
+  "setting-appearance-contrast",
+  // Diagnostics is listed under Advanced, not as a row on General.
+  "diagnostics",
 ]);
 
 interface SettingCopy {
@@ -64,15 +80,6 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
   SettingsSearchItemId,
   SettingCopy
 >([
-  ["response-streaming", { description: "How a reply appears while the agent works." }],
-  ["composer-rich-text", { description: "Show formatting such as bold and lists as you type." }],
-  [
-    "provider-update-checks",
-    {
-      title: "Agent update checks",
-      description: "Check the installed AI agents for newer versions.",
-    },
-  ],
   [
     "continue-threads-after-server-update",
     {
@@ -84,11 +91,9 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
     "text-generation-model",
     { title: "Model for short text", description: "Names chats and writes other short text." },
   ],
-  ["diagnostics", { description: "Inspect processes, resource use, and logs." }],
   ["thread-notifications", { title: "Chat notifications" }],
   // T3's policy is T3's; the row keeps the fact, without its link (`SettingsPanels.tsx`).
   ["privacy-policy", { title: "Privacy", description: `${APP_BASE_NAME} sends no usage data.` }],
-  ["code-font", { title: "Monospace font", description: "Code blocks and file previews." }],
 ]);
 
 /** A row's own words in the engineering interface, or null where the row keeps its own. */
@@ -104,7 +109,15 @@ export function engineeringSettingsSearchItems(
   items: ReadonlyArray<SettingsSearchItem>,
 ): SettingsSearchItem[] {
   return items
-    .filter((item) => !CODE_SETTINGS_SECTIONS.has(item.to) && !CODE_SETTINGS_ROWS.has(item.id))
+    .map((item) =>
+      // The Diagnostics row is not on General here; its search result opens the page under Advanced.
+      item.id === "diagnostics" ? { ...item, to: "/settings/diagnostics" as const } : item,
+    )
+    .filter(
+      (item) =>
+        !CODE_SETTINGS_SECTIONS.has(item.to) &&
+        (item.id === "diagnostics" || !CODE_SETTINGS_ROWS.has(item.id)),
+    )
     .map((item) => {
       const title =
         item.id === "providers"
@@ -112,4 +125,27 @@ export function engineeringSettingsSearchItems(
           : ENGINEERING_SETTINGS_COPY.get(item.id)?.title;
       return title === undefined ? item : { ...item, title };
     });
+}
+
+/**
+ * The settings sidebar's entries in each interface. The engineering interface lists the
+ * sections it keeps, with Plugins and Diagnostics together under one Advanced group (in
+ * `ADVANCED_SETTINGS_SECTIONS` order); the code interfaces list every section as before, and
+ * Diagnostics stays a link on General there rather than a section of its own.
+ */
+export function settingsNavGroups<Entry extends { readonly to: string }>(
+  entries: ReadonlyArray<Entry>,
+  engineering: boolean,
+): { readonly main: Entry[]; readonly advanced: Entry[] } {
+  if (!engineering) {
+    return { main: entries.filter((entry) => entry.to !== "/settings/diagnostics"), advanced: [] };
+  }
+  const advanced = ADVANCED_SETTINGS_SECTIONS.flatMap((to) =>
+    entries.filter((entry) => entry.to === to),
+  );
+  const main = entries.filter(
+    (entry) =>
+      !CODE_SETTINGS_SECTIONS.has(entry.to) && !ADVANCED_SETTINGS_SECTIONS.includes(entry.to),
+  );
+  return { main, advanced };
 }
