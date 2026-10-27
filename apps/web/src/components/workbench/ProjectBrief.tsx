@@ -30,7 +30,7 @@ import {
   setupRequest,
 } from "./briefFolder";
 import { MaterialPicker } from "./MaterialPicker";
-import { handToChat } from "./NewDialog";
+import { handToChat } from "./handToChat";
 import {
   useSaveStudioProject,
   useStudioProjectAt,

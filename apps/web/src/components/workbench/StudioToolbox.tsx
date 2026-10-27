@@ -27,7 +27,7 @@ import type { HardwareAction, HardwareActionGroup } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
 import { LibraryCard } from "./library/LibraryCard";
 import { LIBRARY_DOCUMENTS } from "./library/libraryCatalog";
-import { handToChat } from "./NewDialog";
+import { handToChat } from "./handToChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePartInFront } from "./StudioPanelBar";
 import {
@@ -63,7 +63,8 @@ const jobsNote = (count: number) => (count === 1 ? "1 job" : `${count} jobs`);
  * part's jobs (`usePartJobs`) as Evaluate, Manufacture and Document (`toolboxGroups`). It opens on
  * the three groups, each a card with its Library picture and how many jobs it has; a press slides
  * in that group's sections, the everyday ones open and the rest folded to open in place. A job
- * press writes it into the chat for the part in front (`handToChat`), as the panel bar's menus do.
+ * press sends it in the chat for the part in front, or adds it after a draft being written there
+ * for the person to send (`handToChat`).
  * It folds to an edge of the groups' icons, as chosen on this device, and on a narrow panel starts
  * folded so the model keeps the room.
  */

@@ -7,7 +7,7 @@ import type { ComposerHandleRef } from "~/composerHandleContext";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { toastManager } from "../ui/toast";
-import { handToChat } from "./NewDialog";
+import { handToChat } from "./handToChat";
 import { HeadingLink, OverviewModule } from "./OverviewModules";
 import { humanName } from "./partNames";
 import {

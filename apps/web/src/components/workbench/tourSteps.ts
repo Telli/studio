@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
 /**
- * Studio's tour, four steps the first time a workspace opens (`StudioTour`): the project, its
- * Overview, the tabs and the toolbar, each pointed at where it is on screen.
+ * Studio's tour, five steps the first time a workspace opens (`StudioTour`): the project, its
+ * Overview, the tabs, the toolbar and the Toolbox, each pointed at where it is on screen.
  */
 export interface TourStep {
   /** The element pointed at: `[data-tour="…"]`, or another selector. */
@@ -29,8 +29,14 @@ export const TOUR_STEPS: ReadonlyArray<TourStep> = [
   },
   {
     target: "[data-studio-toolbar]",
-    title: "New, and what to do with a part",
-    body: "New starts a part, a board or a document. The AI | CAD switch chooses between asking the agent and modeling the part yourself. With a part open, its Toolbox has Evaluate, Manufacture and Document.",
+    title: "New, and AI or CAD",
+    body: "New starts a part, a board or a document. With a part open, the AI | CAD switch chooses between asking the agent and modeling the part yourself.",
+  },
+  {
+    // Open or folded to its icons, the Toolbox carries this.
+    target: "[data-studio-toolbox]",
+    title: "What to do with a part",
+    body: "The Toolbox has the part's jobs: Evaluate, Manufacture and Document. A press starts one in the chat. Fold it to its icons to give the model more room.",
   },
 ];
 

@@ -13,7 +13,7 @@ import { leadPartOf } from "./leadPart";
 import { ModeSwitch } from "./ModeSwitch";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePanelTabShortcuts } from "./panelTabShortcuts";
-import { handToChat } from "./NewDialog";
+import { handToChat } from "./handToChat";
 import { surfaceFile } from "./sameFile";
 import { modeOf, setSimpleView, simpleOf, simpleViewToggle, useSimpleView } from "./simpleView";
 import { StudioNew } from "./StudioNew";
@@ -99,8 +99,8 @@ export function usePartInFront(
 
 /**
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
- * can be done: Simple view where the viewer in front has two layouts (`simpleView.ts`, the
- * person's choice, which every CAD view takes from its host context); and Import and New, always
+ * can be done: the AI | CAD switch where the viewer in front has two layouts (`ModeSwitch` over
+ * `simpleView.ts`, the person's choice, which every CAD view takes from its host context); and Import and New, always
  * there, at the row's right end (`StudioNew`), where Home has them. A part's jobs are in the
  * Toolbox (`StudioToolbox`). ⌘K's jobs are for the part last on screen, else the lead part.
  */
@@ -114,7 +114,7 @@ export function StudioPanelBar(props: {
   const { folder, threadRef } = props;
   const lead = useLeadPart(threadRef, folder, props.mutationId);
   usePanelTabShortcuts(threadRef);
-  // Simple view, by what the CAD view in front says of its part (`viewerEditState.ts`): shown
+  // The AI | CAD switch, by what the CAD view in front says of its part (`viewerEditState.ts`): shown
   // where it has two layouts, held while a command or sketch is open in it.
   const frontView = useRightPanelStore((store) => {
     const surface = selectActiveRightPanelSurface(store.byThreadKey, threadRef);
@@ -124,7 +124,7 @@ export function StudioPanelBar(props: {
   const toggle = useViewerEditState((store) =>
     simpleViewToggle(frontView === null ? undefined : store.byView[frontView]),
   );
-  // The part in front has its jobs on the row; over the Overview or a document, there are none.
+  // The part in front, for ⌘K; over the Overview or a document, there is none.
   const { shown, process } = usePartInFront(threadRef, folder);
   const studio = useStudioProjectAt(threadRef.environmentId, folder);
   // ⌘K's part: the one the viewer shows, else the project's lead part.

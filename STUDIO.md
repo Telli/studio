@@ -289,8 +289,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   constant, an import, a helper's line, a line moved since the part was read, a part whose build
   failed), Studio opens the script at that line in front (`openInPanel`), as AI mode does, so a
   press never does nothing (`PluginViewFrame.tsx`).
-- **Documents from templates.** New's Documents (and the Overview's Documents, the Document
-  menu's From a template, and the quick find) start a document the agent writes into `docs/`: a
+- **Documents from templates.** New offers them under Documents (as do the Overview's Documents
+  and the quick find); each starts a document the agent writes into `docs/`: a
   PRD, the engineering requirements, an FMEA or a design review, each with its sections
   (`newTemplates.ts` `DOCUMENT_TEMPLATES`; general to any engineering, so a team's own formats,
   such as a client's PRD or an xRD, come in as templates), or one of the person's own templates, any
@@ -446,9 +446,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   sample project: in the desktop app, the finished servo bracket Studio ships, copied into a
   project of your own and opened again on later tries (`useSampleProject.ts`); elsewhere one the
   agent builds in front of you (the bracket, its strength check, its drawing and its PRD;
-  `homeExamples.ts`). The first workspace opened gives a four-step tour,
+  `homeExamples.ts`). The first workspace opened gives a five-step tour,
   once (`StudioTour.tsx`,
-  `tourSteps.ts`): the project, its Overview, the tabs and the toolbar.
+  `tourSteps.ts`): the project, its Overview, the tabs, the toolbar and the Toolbox.
 - **Ask, in no project.** Home's box has Start, Ask and Set up. Ask is a question about anything
   (a part made last week, a file, how something was done) with no project to choose or make, as
   Claude Code is asked from wherever it runs (Amy, 2026-10-23): a chat in the folder that holds
@@ -615,8 +615,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   (`components/workbench/kinds.ts`), in a color of its own: blue CAD (the one blue), violet
   electronics, magenta documents and drawings, cyan analysis, steel grey manufacturing. Never
   red, amber or green, which say how a check went.
-- **Start from a part.** A new thread lists the project's CAD files (a mesh exported beside its
-  STEP counts once); picking one offers the same three menus for it.
+- **Start from a part.** A new thread offers jobs for the project's most recently used parts,
+  boards and studies, a check and then a way to make each, from the same jobs the Toolbox has;
+  a pick goes into the composer to edit before sending (`starterJobs.ts`).
 - **A checkout's working copy.** `TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs the checkout's own
   cadgen instead of the release, so branch work (FEA, CAM, KiCad) reaches Studio: the launcher
   builds the development plugin with the checkout's `scripts/install/dev_install.py`

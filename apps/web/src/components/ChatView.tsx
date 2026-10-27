@@ -620,7 +620,6 @@ import { useProjectTabs } from "./workbench/projectTabs";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { StudioPanelBar } from "./workbench/StudioPanelBar";
 import { StudioToolbox } from "./workbench/StudioToolbox";
-import { HARDWARE_FOCUS } from "./workbench/hardwareActions";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
 import { useProjectViewStore } from "./workbench/projectView";
@@ -12201,17 +12200,19 @@ export default function ChatView(props: ChatViewProps) {
                     mutationId={workspaceMutationId}
                   />
                 ),
-                ...(HARDWARE_FOCUS
-                  ? {
-                      aside: (
-                        <StudioToolbox
-                          folder={activeProject?.workspaceRoot ?? null}
-                          composerRef={composerRef}
-                          threadRef={activeThreadRef}
-                        />
-                      ),
-                    }
-                  : {}),
+              }
+            : {})}
+          // The Toolbox is the one place for a part's jobs, so it shows wherever the
+          // engineering surfaces do, with the code tools out too.
+          {...(engineeringSurfaces
+            ? {
+                aside: (
+                  <StudioToolbox
+                    folder={activeProject?.workspaceRoot ?? null}
+                    composerRef={composerRef}
+                    threadRef={activeThreadRef}
+                  />
+                ),
               }
             : {})}
           open={rightPanelOpen}
@@ -12266,7 +12267,7 @@ export default function ChatView(props: ChatViewProps) {
         >
           <RightPanelTabs
             mode="sheet"
-            // A narrow window's panel keeps Studio's toolbar too: New, and the part's jobs.
+            // A narrow window's panel keeps Studio's toolbar too: New and the AI | CAD switch.
             {...(engineeringInterface
               ? {
                   toolbar: (
@@ -12277,18 +12278,18 @@ export default function ChatView(props: ChatViewProps) {
                       mutationId={workspaceMutationId}
                     />
                   ),
-                  // Folded to its edge on a panel this narrow, until opened (`toolbox.ts`).
-                  ...(HARDWARE_FOCUS
-                    ? {
-                        aside: (
-                          <StudioToolbox
-                            folder={activeProject?.workspaceRoot ?? null}
-                            composerRef={composerRef}
-                            threadRef={activeThreadRef}
-                          />
-                        ),
-                      }
-                    : {}),
+                }
+              : {})}
+            // Folded to its edge on a panel this narrow, until opened (`toolbox.ts`).
+            {...(engineeringSurfaces
+              ? {
+                  aside: (
+                    <StudioToolbox
+                      folder={activeProject?.workspaceRoot ?? null}
+                      composerRef={composerRef}
+                      threadRef={activeThreadRef}
+                    />
+                  ),
                 }
               : {})}
             open={rightPanelOpen}

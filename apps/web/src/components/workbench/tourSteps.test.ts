@@ -6,8 +6,9 @@ const card = { width: 320, height: 160 };
 const window = { width: 1200, height: 800 };
 
 describe("tour", () => {
-  it("has four steps, each pointing somewhere", () => {
-    expect(TOUR_STEPS).toHaveLength(4);
+  it("has five steps, each pointing somewhere, the last at the Toolbox", () => {
+    expect(TOUR_STEPS).toHaveLength(5);
+    expect(TOUR_STEPS.at(-1)?.target).toBe("[data-studio-toolbox]");
     expect(TOUR_STEPS.every((step) => step.target !== "" && !step.body.includes("—"))).toBe(true);
   });
 

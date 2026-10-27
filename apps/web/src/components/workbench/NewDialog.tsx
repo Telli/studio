@@ -4,7 +4,6 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { FilePlusIcon, FolderOpenIcon } from "lucide-react";
 import { lazy, type ReactNode, Suspense, useId, useMemo, useState } from "react";
 
-import type { ComposerHandleRef } from "~/composerHandleContext";
 import { cn } from "~/lib/utils";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
@@ -71,14 +70,6 @@ export interface NewJob {
   readonly units: "mm" | "in";
   /** The job for the agent (`newWorkPrompt`). */
   readonly prompt: string;
-}
-
-/** Hands New's job to a chat: written into its composer, which sends it once it holds it. */
-export function handToChat(composerRef: ComposerHandleRef, prompt: string): void {
-  const composer = composerRef.current;
-  if (composer === null) return;
-  composer.insertTextAtEnd(prompt, { ensureLeadingBoundary: true });
-  requestAnimationFrame(() => composer.submit());
 }
 
 /** How the panel names what follows: a field's label, or What it covers over its list. */

@@ -27,7 +27,7 @@ import { FileKindIcon } from "./FileKindIcon";
 import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
 import { CHAT_ICON, KIND_ICONS, KIND_TINTS, MENU_ICONS } from "./kinds";
 import { libraryHref } from "./library/librarySearch";
-import { handToChat } from "./NewDialog";
+import { handToChat } from "./handToChat";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenedThreads } from "./openedThreads";
 import { useOpenWorkspaceStore } from "./openWorkspace";
