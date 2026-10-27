@@ -1,0 +1,13 @@
+{
+  "process": "sheet_metal",
+  "material": {
+    "name": "crs-1008",
+    "E_MPa": 199948,
+    "nu": 0.30,
+    "yield_MPa": 317.2,
+    "uts_MPa": 386,
+    "elongation_percent": 20
+  },
+  "thickness_mm": 1.8796,
+  "tolerance_deg": 1
+}

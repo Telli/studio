@@ -11,7 +11,7 @@ import { studioProjectsEnvironment } from "~/state/studioProjects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { toastManager } from "../../ui/toast";
-import { copyName, listExamples, sampleFile } from "../examples/examples";
+import { copyBrief, copyName, listExamples, sampleFile } from "../examples/examples";
 import { plainError } from "../importIntoProject";
 import { readStudioImport } from "../studioImportBridge";
 import { useCreateStudioProject } from "../useCreateStudioProject";
@@ -142,8 +142,7 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
             name,
             kind: PART_KIND,
             units: "mm",
-            material: "",
-            purpose: sample.purpose,
+            ...copyBrief(sample),
             folders: [],
             // A copy that fails throws out of `create` before it says the project was made or
             // opens its chat, and the catch below says so, once.

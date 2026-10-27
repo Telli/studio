@@ -1,0 +1,418 @@
+{
+  "generator": "cadgen fea",
+  "document": "parts/phone_stand.step",
+  "occurrence": "#o1.1",
+  "analysis": "printing",
+  "study": {
+    "process": "printing",
+    "technology": "fdm",
+    "polymer": "pla",
+    "build_direction": [
+      1,
+      0,
+      0
+    ],
+    "bands": 12,
+    "release_from_plate": true,
+    "layer_thickness_mm": 0.2
+  },
+  "faces": {},
+  "summary": {
+    "technology": "fdm",
+    "material": "PLA",
+    "build_direction": [
+      1.0,
+      0.0,
+      0.0
+    ],
+    "bands": 12,
+    "band_mm": 6.666667,
+    "height_mm": 80.0,
+    "layer_thickness_mm": 0.2,
+    "inherent_strain": {
+      "in_plane": -0.00238,
+      "build": 0.0,
+      "basis": "\u03b1 (T_set - T_chamber), set at its glass transition"
+    },
+    "yield_MPa": 60,
+    "max_von_mises_MPa": 97.0337,
+    "von_mises_p99_MPa": 28.9384,
+    "max_von_mises_at_mm": [
+      -40.0,
+      0.152,
+      1.235
+    ],
+    "released": true,
+    "max_distortion_mm": 0.322221,
+    "max_distortion_at_mm": [
+      -6.0,
+      139.414,
+      0.586
+    ],
+    "warp_mm": 0.316923,
+    "warp_at_mm": [
+      -40.0,
+      0.152,
+      1.235
+    ],
+    "released_max_von_mises_MPa": 18.7679,
+    "tolerance_mm": 0.4,
+    "tolerance_source": "ISO 2768-2 K for 140 mm",
+    "recoater_rise_mm": null,
+    "recoater_rise_at_mm": null,
+    "plate_pull_MPa": 23.8218,
+    "plate_pull_at_mm": [
+      -40.0,
+      0.819,
+      1.5
+    ],
+    "starts_in_air": 0,
+    "hand_check": {
+      "plate_MPa": 13.015625,
+      "first_band_MPa": 10.294066
+    },
+    "frames": 13,
+    "checks": [],
+    "chamber_temperature_C": 25.0
+  },
+  "fields": [
+    {
+      "attribute": "_VON_MISES",
+      "name": "residual stress (von Mises)",
+      "units": "MPa",
+      "min": 0.0,
+      "max": 97.0337,
+      "attribute_scale": 1.0,
+      "field": "von_mises",
+      "per_frame": true
+    },
+    {
+      "attribute": "_DISPLACEMENT",
+      "name": "distortion",
+      "units": "mm",
+      "min": 0.0,
+      "max": 0.341471,
+      "attribute_scale": 1000.0,
+      "field": "displacement",
+      "per_frame": true
+    },
+    {
+      "attribute": "_PRINTED",
+      "name": "printed so far",
+      "units": "",
+      "min": 0.0,
+      "max": 1.0,
+      "attribute_scale": 1.0,
+      "field": "printed",
+      "per_frame": true
+    }
+  ],
+  "mesh": {
+    "elements": 22911,
+    "nodes": 42550,
+    "dofs": 42550,
+    "size_mm": 4.811,
+    "order": 2,
+    "mesher": "netgen",
+    "solver": "amg+cg (55 iterations)"
+  },
+  "timings": {
+    "mesh_s": 2.077,
+    "assemble_s": 0.003,
+    "solve_s": 75.389,
+    "post_s": 0.012,
+    "mesh_to_fem_s": 0.587
+  },
+  "warnings": [],
+  "findings": [
+    {
+      "check": "printing",
+      "severity": "info",
+      "type": "warp",
+      "summary": "Off the plate its bottom stays flat to 0.317 mm, within the 0.4 mm tolerance (ISO 2768-2 K for its 140 mm)",
+      "description": "the bottom face's flatness once the plate lets go, its rigid tilt taken out",
+      "items": [
+        {
+          "text": "lifts most here",
+          "ref": null,
+          "at": [
+            -40.0,
+            0.152,
+            1.235
+          ]
+        }
+      ],
+      "measured": {
+        "value": 0.316923,
+        "limit": 0.4,
+        "units": "mm",
+        "pass_when": "below",
+        "quantity": "bottom out of flat"
+      }
+    },
+    {
+      "check": "printing",
+      "severity": "info",
+      "type": "release_distortion",
+      "summary": "Off the plate it distorts 0.322 mm at most, within the 0.4 mm tolerance (ISO 2768-2 K for its 140 mm)",
+      "description": "the largest distance any point moved from the CAD, the part's rigid motion taken out",
+      "items": [
+        {
+          "text": "distorts most here",
+          "ref": null,
+          "at": [
+            -6.0,
+            139.414,
+            0.586
+          ]
+        }
+      ],
+      "measured": {
+        "value": 0.322221,
+        "limit": 0.4,
+        "units": "mm",
+        "pass_when": "below",
+        "quantity": "distortion"
+      }
+    },
+    {
+      "check": "printing",
+      "severity": "info",
+      "type": "residual_stress",
+      "summary": "As printed the residual stress stays under PLA's 60 MPa yield (28.94 MPa at the 99th percentile)",
+      "description": "von Mises as printed: 28.94 MPa at the 99th percentile, 97.03 MPa at the peak (a corner against the plate is singular); the plate pulls hardest, 23.8 MPa, at [-40.0, 0.819, 1.5] mm",
+      "items": [
+        {
+          "text": "the peak residual stress",
+          "ref": null,
+          "at": [
+            -40.0,
+            0.152,
+            1.235
+          ]
+        }
+      ],
+      "measured": {
+        "value": 28.9384,
+        "limit": 60,
+        "units": "MPa",
+        "pass_when": "below",
+        "quantity": "residual stress (99th percentile)"
+      }
+    },
+    {
+      "check": "printing",
+      "severity": "info",
+      "type": "bed_adhesion",
+      "summary": "The bed must hold its bottom down with up to 23.8 MPa at [-40.0, 0.819, 1.5] mm; give bed_adhesion_MPa to judge it against the bed",
+      "description": "the plate's pull on the part's bottom at the end of the print, per area, averaged within 9.6 mm of where it pulls hardest (at a sharp corner itself it is singular)",
+      "items": [
+        {
+          "text": "the plate pulls hardest here",
+          "ref": null,
+          "at": [
+            -40.0,
+            0.819,
+            1.5
+          ]
+        }
+      ]
+    },
+    {
+      "check": "printing",
+      "severity": "info",
+      "type": "hand_check",
+      "summary": "Hand check: a band fully held on the plate carries E \u03b5 / (1 - \u03bd) = 13 MPa; the first band's middle reads 10.3 MPa (0.79\u00d7)",
+      "description": "von Mises of an equal-biaxial stress is the stress itself; a wall thinner than a band is held along its length only and reads down to (1 - \u03bd) of it",
+      "items": [],
+      "measured": {
+        "value": 1.2644,
+        "limit": 2.0,
+        "units": "\u00d7",
+        "pass_when": "below",
+        "quantity": "first band against a band fully held"
+      }
+    }
+  ],
+  "verdict": {
+    "status": "ready",
+    "headline": "Ready to print \u00b7 0.32 mm warp off the plate",
+    "errors": 0,
+    "warnings": 0,
+    "passed": 4
+  },
+  "refined": null,
+  "files": {
+    "glb": "phone_stand.printing.glb",
+    "vtu": null
+  },
+  "curves": {
+    "max_distortion_mm": {
+      "x": [
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+        7.0,
+        8.0,
+        9.0,
+        10.0,
+        11.0,
+        12.0,
+        13.0
+      ],
+      "x_unit": "band",
+      "y": [
+        0.028902,
+        0.060672,
+        0.093305,
+        0.127583,
+        0.163042,
+        0.186574,
+        0.206872,
+        0.22852,
+        0.244278,
+        0.26558,
+        0.284452,
+        0.304118,
+        0.341471
+      ],
+      "y_unit": "mm"
+    }
+  },
+  "series": {
+    "kind": "time",
+    "unit": "",
+    "default": 12,
+    "frames": [
+      {
+        "value": 1.0,
+        "label": "Band 1/12 \u00b7 6.67 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES",
+          "displacement": "_DISPLACEMENT",
+          "printed": "_PRINTED"
+        }
+      },
+      {
+        "value": 2.0,
+        "label": "Band 2/12 \u00b7 13.3 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F1",
+          "displacement": "_DISPLACEMENT_F1",
+          "printed": "_PRINTED_F1"
+        }
+      },
+      {
+        "value": 3.0,
+        "label": "Band 3/12 \u00b7 20 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F2",
+          "displacement": "_DISPLACEMENT_F2",
+          "printed": "_PRINTED_F2"
+        }
+      },
+      {
+        "value": 4.0,
+        "label": "Band 4/12 \u00b7 26.7 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F3",
+          "displacement": "_DISPLACEMENT_F3",
+          "printed": "_PRINTED_F3"
+        }
+      },
+      {
+        "value": 5.0,
+        "label": "Band 5/12 \u00b7 33.3 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F4",
+          "displacement": "_DISPLACEMENT_F4",
+          "printed": "_PRINTED_F4"
+        }
+      },
+      {
+        "value": 6.0,
+        "label": "Band 6/12 \u00b7 40 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F5",
+          "displacement": "_DISPLACEMENT_F5",
+          "printed": "_PRINTED_F5"
+        }
+      },
+      {
+        "value": 7.0,
+        "label": "Band 7/12 \u00b7 46.7 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F6",
+          "displacement": "_DISPLACEMENT_F6",
+          "printed": "_PRINTED_F6"
+        }
+      },
+      {
+        "value": 8.0,
+        "label": "Band 8/12 \u00b7 53.3 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F7",
+          "displacement": "_DISPLACEMENT_F7",
+          "printed": "_PRINTED_F7"
+        }
+      },
+      {
+        "value": 9.0,
+        "label": "Band 9/12 \u00b7 60 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F8",
+          "displacement": "_DISPLACEMENT_F8",
+          "printed": "_PRINTED_F8"
+        }
+      },
+      {
+        "value": 10.0,
+        "label": "Band 10/12 \u00b7 66.7 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F9",
+          "displacement": "_DISPLACEMENT_F9",
+          "printed": "_PRINTED_F9"
+        }
+      },
+      {
+        "value": 11.0,
+        "label": "Band 11/12 \u00b7 73.3 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F10",
+          "displacement": "_DISPLACEMENT_F10",
+          "printed": "_PRINTED_F10"
+        }
+      },
+      {
+        "value": 12.0,
+        "label": "Band 12/12 \u00b7 80 mm",
+        "attributes": {
+          "von_mises": "_VON_MISES_F11",
+          "displacement": "_DISPLACEMENT_F11",
+          "printed": "_PRINTED_F11"
+        }
+      },
+      {
+        "value": 13.0,
+        "label": "Off the plate",
+        "attributes": {
+          "von_mises": "_VON_MISES_F12",
+          "displacement": "_DISPLACEMENT_F12",
+          "printed": "_PRINTED_F12"
+        }
+      }
+    ]
+  },
+  "limits": [
+    "Layers are lumped into height bands, each carrying one inherent strain for the whole part: the scan pattern, the heat that builds up and the plate's temperature are in that number, not computed; a metal's is an estimate until it is calibrated for the machine.",
+    "Linear elastic: where the stress passes yield the real part yields and holds about yield, so a stress past yield is an upper bound and the distortion beside it an estimate.",
+    "The plate is rigid and supports are not modelled (a region that starts in mid-air is held where it starts, as a support would hold it); a real plate bends under the part's pull, which adds to its curl once it is cut off.",
+    "A recoater rise is a band's, of many layers, not one layer's: a rise past a layer is a risk to confirm, not a crash.",
+    "SLS shrinks nothing in the build (its bed is held above crystallisation); the warp of the cake's uneven cooling afterwards is not simulated."
+  ],
+  "estimate": false,
+  "upstream": {}
+}

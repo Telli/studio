@@ -44,8 +44,11 @@ const NOT_MADE = [
   "doc:print",
   "skill:text-to-cad/bambu-labs",
   "skill:text-to-cad/gcode",
+  "skill:text-to-cad/kernels",
+  "skill:text-to-cad/manufacturing-sim",
   "skill:text-to-cad/pcb",
   "skill:text-to-cad/pcb-dfm",
+  "skill:text-to-cad/work-instructions",
 ];
 
 const EXAMPLES: Readonly<Record<string, { example: string; picture: string } | null>> =
@@ -293,7 +296,7 @@ describe("library catalog", () => {
 
   it("asks something of the sample for each of text-to-cad's skills", () => {
     const skills = librarySkills([textToCad(true, "Use this skill.")]);
-    expect(skills).toHaveLength(16);
+    expect(skills).toHaveLength(19);
     expect(
       skills.filter((skill) => skill.tryAsking === null || skill.tryAsking === "Use this skill."),
     ).toEqual([]);
@@ -330,7 +333,7 @@ describe("library catalog", () => {
   });
 
   it("has a real example for every entry", () => {
-    expect(TEXT_TO_CAD_SKILLS).toHaveLength(16);
+    expect(TEXT_TO_CAD_SKILLS).toHaveLength(19);
     const entries = [...LIBRARY_DOCUMENTS, ...librarySkills([textToCad(true)])];
     expect(Object.keys(EXAMPLES).toSorted()).toEqual(entries.map((entry) => entry.id).toSorted());
     expect(entries.filter((entry) => entry.example === null).map((entry) => entry.id)).toEqual(

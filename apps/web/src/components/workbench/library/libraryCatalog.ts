@@ -355,6 +355,8 @@ const TRY_ASKING: Readonly<Record<string, string>> = {
   "engineering-drawing": "Make a drawing of the bracket for the shop.",
   fea: "Will it hold 20 N at the horn?",
   gcode: "Slice the cable clip in PETG, 0.2 mm layers.",
+  kernels: "Rebuild the bracket on another CAD kernel and compare it.",
+  "manufacturing-sim": "Will the bracket spring back when it is bent?",
   pcb: "A board to power two servos from USB-C.",
   "pcb-dfm": "Is this board ready to order?",
   sdf: "Make an SDF of the servo mount for Gazebo.",
@@ -362,6 +364,7 @@ const TRY_ASKING: Readonly<Record<string, string>> = {
   srdf: "Make a MoveIt SRDF for the servo mount.",
   "step-parts": "Add four M3 × 8 socket head screws.",
   urdf: "Make the URDF for the servo mount.",
+  "work-instructions": "Write the work instructions for building the servo mount.",
 };
 
 /**
@@ -378,6 +381,8 @@ const TEXT_TO_CAD_NAMES: Readonly<Record<string, string>> = {
   "engineering-drawing": "Engineering Drawing",
   fea: "FEA",
   gcode: "G-code",
+  kernels: "CAD Kernels",
+  "manufacturing-sim": "Manufacturing Sim",
   pcb: "PCB",
   "pcb-dfm": "PCB DFM Review",
   sdf: "SDF",
@@ -385,6 +390,7 @@ const TEXT_TO_CAD_NAMES: Readonly<Record<string, string>> = {
   srdf: "SRDF",
   "step-parts": "STEP Parts",
   urdf: "URDF",
+  "work-instructions": "Work Instructions",
 };
 
 /**

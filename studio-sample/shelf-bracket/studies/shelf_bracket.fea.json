@@ -1,0 +1,325 @@
+{
+  "generator": "cadgen fea",
+  "document": "parts/shelf_bracket.step",
+  "occurrence": "#o1.1",
+  "study": {
+    "material": {
+      "name": "steel-g90-galvanised",
+      "E_MPa": 199948,
+      "nu": 0.3,
+      "yield_MPa": 317.2,
+      "density_t_per_mm3": 7.849e-09
+    },
+    "fixtures": [
+      {
+        "faces": [
+          "#o1.1.f13",
+          "#o1.1.f14"
+        ],
+        "type": "fixed"
+      }
+    ],
+    "loads": [
+      {
+        "faces": [
+          "#o1.1.f24"
+        ],
+        "type": "force",
+        "vector_N": [
+          0,
+          0,
+          -147.1
+        ]
+      }
+    ],
+    "margin": 2,
+    "view": {
+      "checks": [
+        {
+          "kind": "stress",
+          "label": "Strength, 15 kg on the shelf flange, wall holes held"
+        },
+        {
+          "kind": "displacement",
+          "limit_mm": 1.0,
+          "faces": [
+            "#o1.1.f19"
+          ],
+          "label": "Tip sag"
+        }
+      ]
+    },
+    "mesh": {
+      "refine": [
+        {
+          "center_mm": [
+            14,
+            0.94,
+            -25
+          ],
+          "radius_mm": 8,
+          "size_mm": 0.6
+        },
+        {
+          "center_mm": [
+            14,
+            0.94,
+            -125
+          ],
+          "radius_mm": 8,
+          "size_mm": 0.6
+        },
+        {
+          "center_mm": [
+            0.94,
+            6.0,
+            -6.0
+          ],
+          "radius_mm": 4,
+          "size_mm": 0.3
+        }
+      ]
+    }
+  },
+  "material": {
+    "name": "Steel G90 galvanised",
+    "E_MPa": 199948.0,
+    "nu": 0.3,
+    "yield_MPa": 317.2,
+    "density_t_per_mm3": 7.849e-09
+  },
+  "faces": {
+    "#o1.1.f13": {
+      "ref": "#o1.1.f13",
+      "ordinal": 13,
+      "area": 32.4771565342827,
+      "center": [
+        14.000000000000181,
+        0.9398,
+        -25.0
+      ]
+    },
+    "#o1.1.f14": {
+      "ref": "#o1.1.f14",
+      "ordinal": 14,
+      "area": 32.4771565342827,
+      "center": [
+        14.000000000000181,
+        0.9398,
+        -125.0
+      ]
+    },
+    "#o1.1.f24": {
+      "ref": "#o1.1.f24",
+      "ordinal": 24,
+      "area": 3687.3231413235567,
+      "center": [
+        14.231399231194846,
+        93.53019268596611,
+        -2.465190328815662e-32
+      ]
+    },
+    "#o1.1.f19": {
+      "ref": "#o1.1.f19",
+      "ordinal": 19,
+      "area": 86.73691175062729,
+      "center": [
+        5.749015880367647,
+        180.0,
+        -8.367575216474979
+      ]
+    }
+  },
+  "summary": {
+    "max_von_mises_MPa": 220.4961,
+    "max_von_mises_gauss_MPa": 243.235,
+    "max_von_mises_at_mm": [
+      11.259,
+      1.88,
+      -24.777
+    ],
+    "yield_MPa": 317.2,
+    "max_displacement_mm": 0.916901,
+    "max_displacement_at_mm": [
+      24.174,
+      179.067,
+      0.0
+    ],
+    "applied_force_N": [
+      0.0,
+      0.0,
+      -147.1
+    ],
+    "reaction_force_N": [
+      -0.0,
+      0.0,
+      147.1
+    ],
+    "deformation_scale": 13.0,
+    "safety_factor": 1.438,
+    "checks": [
+      {
+        "kind": "stress",
+        "label": "Strength, 15 kg on the shelf flange, wall holes held",
+        "value": 220.4961,
+        "limit": 317.2,
+        "unit": "MPa",
+        "ratio": 0.69541,
+        "close_at": 0.5,
+        "margin": 2.0,
+        "status": "close",
+        "where": {
+          "ref": "#o1.1.f13",
+          "at": [
+            11.259,
+            1.88,
+            -24.777
+          ]
+        }
+      },
+      {
+        "kind": "displacement",
+        "label": "Tip sag",
+        "value": 0.910374,
+        "limit": 1.0,
+        "unit": "mm",
+        "ratio": 0.910374,
+        "close_at": 0.9,
+        "status": "close",
+        "where": {
+          "ref": "#o1.1.f19",
+          "at": [
+            22.0,
+            180.0,
+            0.0
+          ]
+        },
+        "faces": [
+          "#o1.1.f19"
+        ]
+      }
+    ]
+  },
+  "fixtures": [
+    {
+      "faces": [
+        "#o1.1.f13",
+        "#o1.1.f14"
+      ],
+      "type": "fixed",
+      "reaction_N": [
+        -0.0,
+        0.0,
+        147.1
+      ]
+    }
+  ],
+  "fields": [
+    {
+      "attribute": "_VON_MISES",
+      "name": "von Mises stress",
+      "units": "MPa",
+      "min": 0.0,
+      "max": 220.4961,
+      "attribute_scale": 1.0
+    },
+    {
+      "attribute": "_DISPLACEMENT",
+      "name": "displacement",
+      "units": "mm",
+      "min": 0.0,
+      "max": 0.916901,
+      "attribute_scale": 1000.0
+    }
+  ],
+  "mesh": {
+    "elements": 51383,
+    "nodes": 86303,
+    "dofs": 258909,
+    "size_mm": 4.9412,
+    "order": 2,
+    "mesher": "netgen",
+    "solver": "superlu (after amg)"
+  },
+  "timings": {
+    "mesh_s": 2.772,
+    "mesh_to_fem_s": 1.289,
+    "assemble_s": 14.375,
+    "solve_s": 86.425,
+    "stress_s": 6.044
+  },
+  "warnings": [
+    "the multigrid solve did not converge in 3 attempts; falling back to the direct solver (slower). Check that the fixtures hold the part."
+  ],
+  "findings": [
+    {
+      "check": "fea",
+      "severity": "warning",
+      "type": "low_margin",
+      "summary": "It holds, but only 1.4\u00d7 the load: under the 2\u00d7 margin (the peak sits at the fixed face)",
+      "description": "safety factor 1.4, margin 2",
+      "items": [
+        {
+          "text": "the peak stress",
+          "ref": "#o1.1.f13",
+          "at": [
+            11.259,
+            1.88,
+            -24.777
+          ]
+        }
+      ]
+    },
+    {
+      "check": "fea",
+      "severity": "warning",
+      "type": "peak_at_fixture",
+      "summary": "Check the stress a little away from the fixed face before redesigning: the model exaggerates peaks where a part is held",
+      "description": "nodal peak 220 MPa, Gauss-point peak 243 MPa",
+      "items": [
+        {
+          "text": "the peak stress",
+          "ref": "#o1.1.f13",
+          "at": [
+            11.259,
+            1.88,
+            -24.777
+          ]
+        }
+      ]
+    }
+  ],
+  "verdict": {
+    "status": "ready",
+    "headline": "Ready",
+    "errors": 0,
+    "warnings": 2,
+    "passed": 0
+  },
+  "refined": {
+    "from_size_mm": 5.8909,
+    "from_max_von_mises_MPa": 221.31,
+    "size_mm": 4.9412,
+    "max_von_mises_MPa": 220.4961
+  },
+  "files": {
+    "glb": "shelf_bracket.fea.glb",
+    "vtu": null
+  },
+  "view": {
+    "checks": [
+      {
+        "kind": "stress",
+        "label": "Strength, 15 kg on the shelf flange, wall holes held"
+      },
+      {
+        "kind": "displacement",
+        "limit_mm": 1.0,
+        "faces": [
+          "#o1.1.f19"
+        ],
+        "label": "Tip sag"
+      }
+    ]
+  }
+}

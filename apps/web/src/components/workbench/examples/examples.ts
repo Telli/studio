@@ -22,6 +22,18 @@ export function copyName(name: string, existing: ReadonlyArray<string>): string 
 }
 
 /**
+ * What a copy's brief starts with, from its example: its purpose and material, and its process
+ * when the example says one (else the kind's stands).
+ */
+export function copyBrief(sample: StudioSample) {
+  return {
+    purpose: sample.purpose,
+    material: sample.material ?? "",
+    ...(sample.process === undefined ? {} : { process: sample.process }),
+  };
+}
+
+/**
  * A file of an example, as its `studio-sample.json` or a link names it, written with "/": null for
  * one outside the example's folder (an absolute path, a drive, or a ".." step), which nothing
  * opens.

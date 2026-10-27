@@ -127,6 +127,8 @@
     "picture": "studies/servo_bracket.fea.glb"
   },
   "skill:text-to-cad/gcode": null,
+  "skill:text-to-cad/kernels": null,
+  "skill:text-to-cad/manufacturing-sim": null,
   "skill:text-to-cad/pcb": null,
   "skill:text-to-cad/pcb-dfm": null,
   "skill:text-to-cad/sdf": {
@@ -148,5 +150,6 @@
   "skill:text-to-cad/urdf": {
     "example": "robots/servo_mount.urdf",
     "picture": "robots/servo_mount.urdf"
-  }
+  },
+  "skill:text-to-cad/work-instructions": null
 }

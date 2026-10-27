@@ -1,9 +1,9 @@
 /**
  * StudioSamples - the finished sample projects Studio ships. A samples folder
  * (`T3CODE_SAMPLES_DIR`) holds one folder per sample, each with a
- * `studio-sample.json` that names it, says what it is and what it shows, and
- * points at its card picture and the file Examples opens first. The server
- * lists them in `ServerConfig.samples`.
+ * `studio-sample.json` that names it, says what it is, how it is made and from
+ * what, and what it shows, and points at its card picture and the file Examples
+ * opens first. The server lists them in `ServerConfig.samples`.
  *
  * @module StudioSamples
  */
@@ -22,6 +22,8 @@ const StudioSampleFile = Schema.Struct({
   version: Schema.Number,
   name: StudioSample.fields.name,
   purpose: StudioSample.fields.purpose,
+  process: StudioSample.fields.process,
+  material: StudioSample.fields.material,
   shows: StudioSample.fields.shows,
   picture: StudioSample.fields.picture,
   open: StudioSample.fields.open,
@@ -48,6 +50,8 @@ export const readSamples = (dir: string) =>
           id: file.sample,
           name: file.name,
           purpose: file.purpose,
+          ...(file.process === undefined ? {} : { process: file.process }),
+          ...(file.material === undefined ? {} : { material: file.material }),
           shows: file.shows,
           picture: file.picture,
           open: file.open,

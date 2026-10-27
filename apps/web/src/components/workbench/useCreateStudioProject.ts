@@ -1,7 +1,7 @@
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
-import { EMPTY_STUDIO_BRIEF, type StudioProjectKind } from "@t3tools/shared/studioProjects";
+import type { StudioProjectKind } from "@t3tools/shared/studioProjects";
 import { useCallback } from "react";
 
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
@@ -9,6 +9,7 @@ import { waitForProject } from "~/state/entities";
 import { projectEnvironment } from "~/state/projects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { toastManager } from "../ui/toast";
+import { newProjectBrief } from "./newProjectBrief";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
 import { useSaveStudioProject } from "./useStudioProjects";
 
@@ -19,6 +20,8 @@ export interface NewStudioProject {
   readonly units: "mm" | "in";
   readonly material: string;
   readonly purpose: string;
+  /** How it is made, when known (a copy of an example); the kind's own process otherwise. */
+  readonly process?: string;
   /** Folders the project starts with; none makes a new folder named after it. */
   readonly folders: ReadonlyArray<string>;
   /**
@@ -65,13 +68,7 @@ export function useCreateStudioProject(environmentId: EnvironmentId) {
       const id = await save(null, {
         name,
         template: input.kind.id,
-        brief: {
-          ...EMPTY_STUDIO_BRIEF,
-          units: input.units,
-          material: input.material.trim(),
-          process: input.kind.process,
-          purpose: input.purpose.trim(),
-        },
+        brief: newProjectBrief(input),
         folders,
         createdAt: new Date().toISOString(),
       });

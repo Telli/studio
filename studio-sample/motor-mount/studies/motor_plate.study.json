@@ -1,0 +1,16 @@
+{
+  "material": "aluminum-6061-t6",
+  "fixtures": [
+    {"faces": ["#o1.1.f22", "#o1.1.f23", "#o1.1.f24", "#o1.1.f25", "#o1.1.f28", "#o1.1.f29", "#o1.1.f30", "#o1.1.f31"], "type": "fixed"}
+  ],
+  "loads": [
+    {"faces": ["#o1.1.f27", "#o1.1.f21", "#o1.1.f26", "#o1.1.f32", "#o1.1.f33"], "type": "force", "vector_N": [-50, 0, 0]}
+  ],
+  "mesh": {"size_mm": 1.5},
+  "margin": 2,
+  "view": {
+    "checks": [
+      {"kind": "stress", "label": "Strength, 50 N of belt tension on the motor, along the belt"}
+    ]
+  }
+}

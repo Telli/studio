@@ -1,0 +1,51 @@
+{
+  "file": "parts/phone_stand_print.stl",
+  "scale": {
+    "bbox_diagonal_mm": 192.4374,
+    "units_suspect": false,
+    "note": "bbox consistent with millimetre units"
+  },
+  "orientations": {
+    "angle_limit_used_deg": 45.0,
+    "pct_denominator": "total surface area",
+    "candidates": [
+      {
+        "orientation": "current_plus_z",
+        "support_area_mm2": 86.7,
+        "support_area_pct": 0.2,
+        "build_height_mm": 80.0
+      },
+      {
+        "orientation": "flip_180_x",
+        "support_area_mm2": 119.33,
+        "support_area_pct": 0.3,
+        "build_height_mm": 80.0
+      },
+      {
+        "orientation": "rot_plus_90_x",
+        "support_area_mm2": 9308.52,
+        "support_area_pct": 19.8,
+        "build_height_mm": 140.0
+      },
+      {
+        "orientation": "rot_minus_90_x",
+        "support_area_mm2": 9427.11,
+        "support_area_pct": 20.0,
+        "build_height_mm": 140.0
+      },
+      {
+        "orientation": "rot_plus_90_y",
+        "support_area_mm2": 1366.49,
+        "support_area_pct": 2.9,
+        "build_height_mm": 105.03
+      },
+      {
+        "orientation": "rot_minus_90_y",
+        "support_area_mm2": 12095.77,
+        "support_area_pct": 25.7,
+        "build_height_mm": 105.03
+      }
+    ]
+  },
+  "partial": false
+}

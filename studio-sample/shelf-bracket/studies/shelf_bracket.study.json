@@ -1,0 +1,79 @@
+{
+  "material": {
+    "name": "steel-g90-galvanised",
+    "E_MPa": 199948,
+    "nu": 0.3,
+    "yield_MPa": 317.2,
+    "density_t_per_mm3": 7.849e-09
+  },
+  "fixtures": [
+    {
+      "faces": [
+        "#o1.1.f13",
+        "#o1.1.f14"
+      ],
+      "type": "fixed"
+    }
+  ],
+  "loads": [
+    {
+      "faces": [
+        "#o1.1.f24"
+      ],
+      "type": "force",
+      "vector_N": [
+        0,
+        0,
+        -147.1
+      ]
+    }
+  ],
+  "margin": 2,
+  "view": {
+    "checks": [
+      {
+        "kind": "stress",
+        "label": "Strength, 15 kg on the shelf flange, wall holes held"
+      },
+      {
+        "kind": "displacement",
+        "limit_mm": 1.0,
+        "faces": [
+          "#o1.1.f19"
+        ],
+        "label": "Tip sag"
+      }
+    ]
+  },
+  "mesh": {
+    "refine": [
+      {
+        "center_mm": [
+          14,
+          0.94,
+          -25
+        ],
+        "radius_mm": 8,
+        "size_mm": 0.6
+      },
+      {
+        "center_mm": [
+          14,
+          0.94,
+          -125
+        ],
+        "radius_mm": 8,
+        "size_mm": 0.6
+      },
+      {
+        "center_mm": [
+          0.94,
+          6.0,
+          -6.0
+        ],
+        "radius_mm": 4,
+        "size_mm": 0.3
+      }
+    ]
+  }
+}

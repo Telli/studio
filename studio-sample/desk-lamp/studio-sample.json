@@ -1,0 +1,16 @@
+{
+  "sample": "desk-lamp",
+  "version": 1,
+  "name": "Desk lamp",
+  "purpose": "A small desk lamp printed in PETG, an example project to learn Studio with. A round base with a 499 g steel weight bonded underneath stands on the desk; one arm turns on a hinge at the base, and a head holding a Ø40 mm LED module turns on a hinge at the arm's end. Each hinge is an M5 × 30 socket head screw and a nylon insert locknut (both from step.parts) through two cheeks that clamp the arm, so it holds where it is set. The fit check finds nothing colliding at rest; the arm tilts clear from 10 to 191 degrees up from the desk and the head 46 degrees down to 175 up, and at the worst pose the lamp's balance point is 26.2 mm inside its base's edge.",
+  "process": "3D printing (FDM)",
+  "material": "PETG (base, arm and head), mild steel weight",
+  "shows": [
+    "3D print",
+    "Assembly",
+    "Drawing",
+    "Instructions"
+  ],
+  "picture": "pictures/desk-lamp.png",
+  "open": "assemblies/desk_lamp.step"
+}

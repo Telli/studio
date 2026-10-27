@@ -682,6 +682,10 @@ export const StudioSample = Schema.Struct({
   name: TrimmedNonEmptyString,
   /** What the sample is, in a sentence, as its copy's Purpose starts. */
   purpose: Schema.String,
+  /** How it is made, in a few words, as its copy's brief says it ("CNC machining"). */
+  process: Schema.optionalKey(Schema.String),
+  /** What it is made of, as its copy's brief says it ("Aluminium 6061-T6, 10 mm plate"). */
+  material: Schema.optionalKey(Schema.String),
   /** The kinds of work it shows, such as "Sheet metal" or "CNC". */
   shows: Schema.Array(Schema.String),
   /** The picture its card shows. */

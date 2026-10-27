@@ -1,0 +1,24 @@
+{"jobs": [
+  {
+    "input": "assemblies/desk_lamp.step",
+    "outputs": [
+      { "path": "pictures/desk_lamp_front.png", "camera": { "direction": [0, -1, 0] } },
+      { "path": "pictures/desk_lamp_back.png", "camera": { "direction": [0, 1, 0] } },
+      { "path": "pictures/desk_lamp_left.png", "camera": "left" },
+      { "path": "pictures/desk_lamp_right.png", "camera": "right" },
+      { "path": "pictures/desk_lamp_top.png", "camera": "top" },
+      { "path": "pictures/desk_lamp_bottom.png", "camera": "bottom" },
+      { "path": "pictures/desk_lamp_angle.png", "camera": { "direction": [1, -1, 0.8] } }
+    ],
+    "output": { "sizeProfile": "simple" }
+  },
+  {
+    "input": "assemblies/desk_lamp.step",
+    "display": { "exploded": { "enabled": true, "amount": 1.0 } },
+    "outputs": [
+      { "path": "pictures/desk_lamp_exploded.png", "camera": { "direction": [1, -1, 0.8] } },
+      { "path": "pictures/desk_lamp_exploded_side.png", "camera": { "direction": [0.25, -1, 0.3] } }
+    ],
+    "output": { "sizeProfile": "simple" }
+  }
+]}

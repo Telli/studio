@@ -1,7 +1,10 @@
 import type { StudioSample } from "@t3tools/contracts";
+import { STUDIO_PROJECT_KINDS } from "@t3tools/shared/studioProjects";
 import { describe, expect, it } from "vite-plus/test";
 
-import { copyName, listExamples, sampleFile, validateExampleSearch } from "./examples";
+import { newProjectBrief } from "../newProjectBrief";
+
+import { copyBrief, copyName, listExamples, sampleFile, validateExampleSearch } from "./examples";
 
 const sample = (id: string, name: string, open = "parts/part.step"): StudioSample => ({
   id,
@@ -88,5 +91,30 @@ describe("validateExampleSearch", () => {
     expect(validateExampleSearch({ file: "../../.ssh/id_rsa" })).toEqual({});
     expect(validateExampleSearch({ file: 3 })).toEqual({});
     expect(validateExampleSearch({})).toEqual({});
+  });
+});
+
+describe("copyBrief", () => {
+  const part = STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!;
+  const briefOf = (example: StudioSample) =>
+    newProjectBrief({ kind: part, units: "mm", ...copyBrief(example) });
+
+  it("makes a copy's brief carry the example's process, material and purpose", () => {
+    const brief = briefOf({
+      ...sample("motor-mount", "Motor mount plate"),
+      process: "CNC machining",
+      material: "Aluminium 6061-T6, 10 mm plate",
+    });
+    expect(brief).toMatchObject({
+      process: "CNC machining",
+      material: "Aluminium 6061-T6, 10 mm plate",
+      purpose: "Motor mount plate, an example.",
+    });
+  });
+
+  it("leaves the material empty and the kind's process when the example names none", () => {
+    const brief = briefOf(sample("old", "Old example"));
+    expect(brief.material).toBe("");
+    expect(brief.process).toBe(part.process);
   });
 });

@@ -1,0 +1,17 @@
+{
+  "sample": "motor-mount",
+  "version": 1,
+  "name": "Motor mount plate",
+  "purpose": "A plate milled from 6061-T6 aluminium that mounts a NEMA 17 stepper motor to a frame: a sample project to learn Studio with. The motor sits under the plate, its 22 mm pilot in the plate's bore and its shaft up through it to a belt pulley, held by four M3 screws on its 31 mm square whose heads sit flush in a pocket on top. Two M5 screws through slots at the plate's ends fix it to the frame, and the slots give 10 mm of travel to tension the belt. It is 110 x 56 x 6 mm and weighs 76.3 g. It holds 50 N of belt tension with a safety factor of 501, and it is machined on a 3-axis mill in two setups, in 14 minutes by its CAM program.",
+  "process": "CNC machining",
+  "material": "Aluminium 6061-T6, 10 mm plate",
+  "shows": [
+    "CNC",
+    "G-code",
+    "Stress test",
+    "Drawing",
+    "Assembly"
+  ],
+  "picture": "pictures/motor-mount.png",
+  "open": "assemblies/motor_mount.step"
+}
