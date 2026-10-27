@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
+  readSimpleView,
   setSimpleView,
   modeOf,
   simpleOf,
@@ -32,16 +33,23 @@ describe("Simple view", () => {
     useSimpleViewStore.setState({ on: false });
   });
 
-  it("shows the full workspace the first time", async () => {
+  it("opens in AI the first time, where no choice was ever kept, and a kept CAD stays CAD", async () => {
     vi.stubGlobal("localStorage", storage());
+    expect(readSimpleView()).toBe(true);
+    expect(await restart()).toBe(true);
+    expect(viewerEditLayout(true)).toBe("ai");
+    // A choice of CAD kept before AI became home is the person's: it stays.
+    vi.stubGlobal("localStorage", storage(new Map([[KEY, "0"]])));
+    expect(readSimpleView()).toBe(false);
     expect(await restart()).toBe(false);
-    expect(viewerEditLayout(false)).toBe("manual");
-    // A project left in Ask before Simple view came is not carried over: the full workspace still.
+    vi.stubGlobal("localStorage", storage(new Map([[KEY, "1"]])));
+    expect(readSimpleView()).toBe(true);
+    // A project's mode from before Simple view came says nothing of it: AI still.
     vi.stubGlobal(
       "localStorage",
-      storage(new Map([["studio:workspace-modes", JSON.stringify({ "/p/clip": "ask" })]])),
+      storage(new Map([["studio:workspace-modes", JSON.stringify({ "/p/clip": "manual" })]])),
     );
-    expect(await restart()).toBe(false);
+    expect(await restart()).toBe(true);
   });
 
   it("remembers the choice across projects", async () => {
@@ -66,11 +74,14 @@ describe("Simple view", () => {
       throw new Error("Storage is off");
     };
     vi.stubGlobal("localStorage", { getItem: blocked, setItem: blocked });
-    expect(await restart()).toBe(false);
+    // Nothing can have been kept: AI, as the first time.
+    expect(await restart()).toBe(true);
     const { setSimpleView: set, useSimpleViewStore: store } = await import("./simpleView");
     expect(() => set(true)).not.toThrow();
     // The choice holds for the session.
     expect(store.getState().on).toBe(true);
+    set(false);
+    expect(store.getState().on).toBe(false);
   });
 
   it("shows the toggle only where there are two layouts", () => {

@@ -4,12 +4,15 @@ import type { ViewerEditState } from "./viewerEditState";
 
 const STORAGE_KEY = "studio:simple-view";
 
-/** The choice as storage keeps it; off when nothing is kept or storage is off. */
-function readSimpleView(): boolean {
+/**
+ * The choice as storage keeps it: AI (on) where none was ever kept, or storage is off, as AI is
+ * home; a kept CAD ("0") stays CAD.
+ */
+export function readSimpleView(): boolean {
   try {
-    return globalThis.localStorage?.getItem(STORAGE_KEY) === "1";
+    return globalThis.localStorage?.getItem(STORAGE_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -17,8 +20,9 @@ function readSimpleView(): boolean {
  * The AI | CAD choice, kept as Simple view: on is AI, the CAD viewer's ai layout, text-to-cad's view
  * exactly as it ships; off is CAD, the full workspace, its manual layout (`modeOf`, `simpleOf`).
  * Studio's bar's switch sets it (`ModeSwitch.tsx`, `StudioPanelBar.tsx`) and every
- * CAD view takes it from its host context (`PluginViewFrame.tsx`, `studio/editLayout`). One choice
- * for the person across projects, kept on this device; the full workspace the first time.
+ * CAD view takes it from its host context (`PluginViewFrame.tsx`, `studio/editLayout`); a double-click
+ * in the view asks for it too (`studio/request/edit-layout`). One choice for the person across
+ * projects, kept on this device; AI the first time.
  */
 export const useSimpleViewStore = create<{ readonly on: boolean }>()(() => ({
   on: readSimpleView(),

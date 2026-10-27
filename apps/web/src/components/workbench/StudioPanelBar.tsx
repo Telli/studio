@@ -101,7 +101,8 @@ export function usePartInFront(
 /**
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
  * can be done: the AI | CAD switch where the viewer in front has two layouts (`ModeSwitch` over
- * `simpleView.ts`, the person's choice, which every CAD view takes from its host context); and Import and New, always
+ * `simpleView.ts`, the person's choice, which every CAD view takes from its host context), with Back to AI before it
+ * in CAD; and Import and New, always
  * there, at the row's right end (`StudioNew`), where Home has them. A part's jobs are in the
  * Toolbox (`StudioToolbox`). ⌘K's jobs are for the part last on screen, else the lead part.
  */
@@ -167,15 +168,31 @@ export function StudioPanelBar(props: {
       {/* The AI | CAD switch, Import and New close the row, at its right; Home's Your projects ends in Import and New too. */}
       <div className="flex-1" />
       {toggle === "hidden" ? null : (
-        <ModeSwitch
-          mode={modeOf(simpleView)}
-          held={toggle === "held"}
-          onChange={(mode) => {
-            // As the store has it at the press: a command opened since holds the layout.
-            if (frontViewBusy(useViewerEditState.getState().byView, frontView)) return;
-            setSimpleView(simpleOf(mode));
-          }}
-        />
+        <>
+          {/* In CAD, the way home: AI is where a part starts, and double-clicking empty space in the view goes there too. */}
+          {simpleView ? null : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={toggle === "held"}
+              onClick={() => {
+                if (frontViewBusy(useViewerEditState.getState().byView, frontView)) return;
+                setSimpleView(true);
+              }}
+            >
+              Back to AI
+            </Button>
+          )}
+          <ModeSwitch
+            mode={modeOf(simpleView)}
+            held={toggle === "held"}
+            onChange={(mode) => {
+              // As the store has it at the press: a command opened since holds the layout.
+              if (frontViewBusy(useViewerEditState.getState().byView, frontView)) return;
+              setSimpleView(simpleOf(mode));
+            }}
+          />
+        </>
       )}
       {importer === null ? null : (
         <Button

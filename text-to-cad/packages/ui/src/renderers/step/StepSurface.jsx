@@ -160,7 +160,7 @@ import SketchesLayer from "./edit/SketchesLayer.jsx";
 import ImportedBody from "./edit/ImportedBody.jsx";
 import ValueCallout from "./edit/ValueCallout.jsx";
 import { NxIconSprite } from "../../lib/nxIcons.generated.jsx";
-import { WORKSPACE_SELECTION_COLOR, cadChosen, editLayoutState, useEditLayout } from "./edit/editLayout.js";
+import { WORKSPACE_SELECTION_COLOR, cadChosen, doubleClickLayout, editLayoutState, useEditLayout } from "./edit/editLayout.js";
 import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
 import { useHostFocus } from "./edit/useHostFocus.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
@@ -337,6 +337,9 @@ function StepSurfaceBody({ view, data }) {
   const [pendingTopologyPick, setPendingTopologyPick] = useState(null);
   // Measure's press on an assembly part whose faces and edges were not loaded: pressed again there once they are.
   const [pendingMeasurePick, setPendingMeasurePick] = useState(null);
+  // A face double-clicked laid out for the AI, the host asked for the CAD layout: `{ id, reference, file, reached }`, whose
+  // feature is selected once the workspace has read the part (`faceDoubleRef`, below).
+  const pendingFaceRef = useRef(null);
   const [selectedPartIds, setSelectedPartIds, selectedPartIdsRef] = useSyncedState([]);
   const [selectedRenderPartIdByAssemblyPartId, setSelectedRenderPartIdByAssemblyPartId, selectedRenderPartIdByAssemblyPartIdRef] = useSyncedState({});
   const [expandedStepTreeNodeIds, setExpandedStepTreeNodeIds] = useState([]);
@@ -1646,9 +1649,12 @@ function StepSurfaceBody({ view, data }) {
   // where edit mode's state is read, below, and asked when a reference is named.
   const faceNameRef = useRef(() => null);
   const escapeRef = useRef(() => false);
-  // A double-click on a face in the workspace, taken by the feature that made it where that is known (set
-  // below, where edit mode is read): true when it was.
+  // A double-click on a face in the workspace, taken by the feature that made it where that is known, or laid out for the
+  // AI, by the host's CAD layout with that feature to follow (set below, where edit mode is read): true when it was.
   const faceDoubleRef = useRef(() => false);
+  // A double-click on empty space, taken by the host's AI layout where the workspace has nothing open (set below): true
+  // when it was.
+  const emptyDoubleRef = useRef(() => false);
   // A right-click on a face in the workspace: what its feature offers first (set below, where edit mode is read).
   const faceMenuRef = useRef(() => []);
   // A modeling command's dialog open (edit mode's, set below where it is read): Escape cancels it, as
@@ -2665,8 +2671,9 @@ function StepSurfaceBody({ view, data }) {
       renderPartIdByAssemblyPartId: selectedRenderPartIdByAssemblyPartIdRef.current,
       referenceIds: selectedReferenceIdsRef.current
     };
-    // Every press settles a pick still waiting for its part's faces: the newest one wins.
+    // Every press settles a pick still waiting for its part's faces, and a face waiting for the workspace: the newest one wins.
     setPendingTopologyPick(null);
+    pendingFaceRef.current = null;
     const nextReferenceId = String(referenceId || "").trim();
     if (!nextReferenceId) {
       if (multiSelect) return;
@@ -2801,7 +2808,7 @@ function StepSurfaceBody({ view, data }) {
     if (stepInteractionBlocked) return;
     if (activated) restoreSelectionBeforeActivation();
     if (!referenceId) {
-      handleExitIsolate();
+      if (!emptyDoubleRef.current()) handleExitIsolate();
       return;
     }
     const reference = effectiveActiveReferenceMap.get(referenceId);
@@ -3829,7 +3836,8 @@ function StepSurfaceBody({ view, data }) {
     if (!isAssemblyView) items.push({ id: "appearance", label: "Appearance", disabled: busy, onSelect: () => edit.inspect("appearance") });
     return items;
   };
-  faceDoubleRef.current = (id, reference) => {
+  // The feature that made a face selected and chosen, its dimensions on the model, as SolidWorks' double-click does.
+  const selectFaceFeature = (id, reference) => {
     if (!editing || edit.command || edit.sketch || reference?.selectorType !== "face") return false;
     const row = facePick(editTree, [{ kind: "face", id, reference }], faceState);
     if (!row?.feature) return false;
@@ -3837,6 +3845,38 @@ function StepSurfaceBody({ view, data }) {
     chooseFeature();
     return true;
   };
+  // In Studio, a part laid out for the AI steps into the workspace on the face double-clicked, and the workspace goes back
+  // to the AI on a double-click on empty space with nothing open (`doubleClickLayout`); a host that takes no ask
+  // (`editLayoutHost.request` false), a plain STEP and Jake's own viewer keep their double-click.
+  const nothingOpen = !commandOpen && !sketchOpen && !layoutHeld && tabToolMode === TAB_TOOL_MODE.REFERENCES
+    && !isolatedAssemblyNodeIds.length;
+  const layoutAsked = target => doubleClickLayout({ layout: editLayout, hosted: layoutHosted, editable,
+    assembly: isAssemblyView, target, open: !nothingOpen });
+  faceDoubleRef.current = (id, reference) => {
+    if (reference?.selectorType === "face" && layoutAsked("face") === "manual" && editLayoutHost.request("manual")) {
+      pendingFaceRef.current = { id, reference, file: selectedKey, reached: false };
+      return true;
+    }
+    return selectFaceFeature(id, reference);
+  };
+  emptyDoubleRef.current = () => layoutAsked("empty") === "ai" && editLayoutHost.request("ai");
+  // The face waits for the workspace to read the part and map its faces, then has its feature selected, once. Another
+  // file, the AI's layout again once CAD's came, or a part that reads to nothing (no part script after all, a build that
+  // failed) lets it go; so does the next press (`handleModelReferenceActivate`).
+  useEffect(() => {
+    const pending = pendingFaceRef.current;
+    if (!pending) return;
+    if (editLayout === "manual") pending.reached = true;
+    if (pending.file !== selectedKey || (pending.reached && editLayout !== "manual") || edit.status === "none" || edit.status === "error") {
+      pendingFaceRef.current = null;
+      return;
+    }
+    if (!editing || edit.status !== "ready" || !faceState) return;
+    pendingFaceRef.current = null;
+    selectFaceFeature(pending.id, pending.reference);
+    // Once per face handed over, on the render that can take it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editLayout, selectedKey, editing, edit.status, faceState]);
   // Edit does what a double-click on the row does: the sketch opens in the Sketch tab, a feature its Edit Feature; on faces, the
   // Edit Feature of the feature that made them.
   const editRow = () => { if (rowEdited?.sketch) openTreeSketch(rowEdited.sketch); else if (rowEdited) edit.editFeature(rowEdited.feature); };

@@ -130,6 +130,13 @@ export interface McpAppHostOptions {
     | ((state: { readonly editable: boolean; readonly busy: boolean }) => void)
     | undefined;
   /**
+   * Switches Studio's AI | CAD layout at the CAD view's ask (`studio/request/edit-layout`): a
+   * double-click on a face of a part laid out for the AI asks for `manual`, one on empty space in
+   * CAD for `ai`. The layout reaches the view in its host context as ever. Absent, the app is not
+   * offered it and keeps its own double-click.
+   */
+  readonly requestEditLayout?: ((layout: "manual" | "ai") => Promise<void>) | undefined;
+  /**
    * Hears that Studio's CAD view has taken the place its host context asked it to show
    * (`studio/focus`, from a reference under an answer), by the ask's number, and whether a
    * feature of the part held the line (`found`; `studio/notifications/focus-taken`). A view
@@ -276,6 +283,7 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
             downloadFile: {},
             ...(options.openFile === undefined ? {} : { openFiles: {} }),
             ...(options.onEditState === undefined ? {} : { studioEditState: {} }),
+            ...(options.requestEditLayout === undefined ? {} : { studioEditLayout: {} }),
             ...(options.onFocusTaken === undefined ? {} : { studioFocus: {} }),
             sandbox: {
               ...(options.app.csp === undefined ? {} : { csp: options.app.csp }),
@@ -417,6 +425,20 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
           return;
         }
         answer(id, () => open(path).then(() => ({})));
+        return;
+      }
+      case "studio/request/edit-layout": {
+        const layout = params.layout;
+        const switchLayout = options.requestEditLayout;
+        if (switchLayout === undefined) {
+          fail(id, -32601, `Method not found: ${method}`);
+          return;
+        }
+        if (layout !== "manual" && layout !== "ai") {
+          fail(id, -32602, "studio/request/edit-layout needs a layout, manual or ai.");
+          return;
+        }
+        answer(id, () => switchLayout(layout).then(() => ({})));
         return;
       }
       default:

@@ -292,6 +292,23 @@ it('a host that lays the workspace out hears what the part on screen allows as i
   }
 });
 
+it('a host that switches the layout at the view\'s ask hears it as studio/request/edit-layout, until the view goes; a host that does not is never asked', () => {
+  const asked = (request: ReturnType<typeof vi.fn>) => request.mock.calls
+    .filter(([method]) => method === 'studio/request/edit-layout').map(([, params]) => params);
+  const studio = host({ displayMode: 'fullscreen', 'studio/editLayout': 'ai' }, { studioEditLayout: {} });
+  const { unmount } = render(<App bridge={studio.bridge as any} server={studio.server as any} launch={home} />);
+  expect(editLayoutHost.request('manual')).toBe(true);
+  expect(asked(studio.bridge.request)).toEqual([{ layout: 'manual' }]);
+  unmount();
+  expect(editLayoutHost.request('ai')).toBe(false);
+
+  const plain = host({ displayMode: 'fullscreen', 'studio/editLayout': 'ai' });
+  render(<App bridge={plain.bridge as any} server={plain.server as any} launch={home} />);
+  expect(editLayoutHost.request('manual')).toBe(false);
+  expect(asked(plain.bridge.request)).toEqual([]);
+  editLayoutHost.set(false);
+});
+
 it('a host that opens a part at a line of its script hands the part on screen the place, and hears when it is taken and whether a feature was there; a host that does not, nothing', () => {
   const taken = (notify: ReturnType<typeof vi.fn>) => notify.mock.calls
     .filter(([method]) => method === 'studio/notifications/focus-taken').map(([, params]) => params);

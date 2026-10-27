@@ -36,9 +36,13 @@ import {
   stagedPluginViewHtml,
   stagedPluginViewOrigin,
 } from "./pluginViewHost";
-import { useSimpleView, viewerEditLayout } from "../workbench/simpleView";
+import { setSimpleView, useSimpleView, viewerEditLayout } from "../workbench/simpleView";
 import { sendsWithoutAsking } from "./sendWithoutAsking";
-import { useViewerEditState, type ViewerEditState } from "../workbench/viewerEditState";
+import {
+  frontViewBusy,
+  useViewerEditState,
+  type ViewerEditState,
+} from "../workbench/viewerEditState";
 import {
   takeViewerFocus,
   useViewerFocus,
@@ -394,6 +398,14 @@ export function PluginViewFrame(props: {
         : {
             onEditState: (state: ViewerEditState) =>
               useViewerEditState.getState().set(editKey, state),
+            // A double-click in the view steps into CAD on a face, or back to AI on empty space
+            // (`text-to-cad/.../edit/editLayout.js`): the bar's switch, pressed from the view.
+            requestEditLayout: async (layout: "manual" | "ai") => {
+              if (frontViewBusy(useViewerEditState.getState().byView, editKey)) {
+                throw new McpAppHostRefusal("Finish or cancel the command first");
+              }
+              setSimpleView(layout === "ai");
+            },
           }),
       ...(props.focusPlace == null
         ? {}

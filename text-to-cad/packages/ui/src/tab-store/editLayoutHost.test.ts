@@ -47,3 +47,16 @@ test('tells what the part allows once per change, apart from who lays it out, an
   editLayoutHost.reportEditState(null);
   expect(heard).toBe(2);
 });
+
+test('a page asks its host for a layout only where the host takes the ask, and says whether it did', () => {
+  expect(editLayoutHost.request('manual')).toBe(false);
+  const asked: string[] = [];
+  const leave = editLayoutHost.setRequester(layout => { asked.push(layout); });
+  expect(editLayoutHost.request('manual')).toBe(true);
+  expect(editLayoutHost.request('ai')).toBe(true);
+  expect(asked).toEqual(['manual', 'ai']);
+  // The page's host gone: nothing is asked.
+  leave();
+  expect(editLayoutHost.request('ai')).toBe(false);
+  expect(asked).toEqual(['manual', 'ai']);
+});

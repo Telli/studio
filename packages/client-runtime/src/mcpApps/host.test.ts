@@ -415,6 +415,46 @@ describe("makeMcpAppHost", () => {
     expect(plain.sent.find((m) => m.id === 3)?.error).toMatchObject({ code: -32601 });
   });
 
+  it("switches the layout at the view's ask only where the host can, and refuses any other layout", async () => {
+    const layouts: Array<"manual" | "ai"> = [];
+    const { host, sent } = setup({
+      requestEditLayout: async (layout) => void layouts.push(layout),
+    });
+    initialize(host);
+    const capabilities = (
+      sent[0]?.result as { hostCapabilities: Record<string, unknown> } | undefined
+    )?.hostCapabilities;
+    expect(capabilities?.studioEditLayout).toEqual({});
+    const ask = (id: number, params: Record<string, unknown>) =>
+      host.receive({ jsonrpc: "2.0", id, method: "studio/request/edit-layout", params });
+    ask(1, { layout: "manual" });
+    ask(2, { layout: "ai" });
+    ask(3, { layout: "sketch" });
+    ask(4, {});
+    await flush();
+    expect(layouts).toEqual(["manual", "ai"]);
+    expect(sent.find((m) => m.id === 1)?.result).toEqual({});
+    expect(sent.find((m) => m.id === 2)?.result).toEqual({});
+    expect(sent.find((m) => m.id === 3)?.error).toMatchObject({ code: -32602 });
+    expect(sent.find((m) => m.id === 4)?.error).toMatchObject({ code: -32602 });
+
+    // A host that lays nothing out offers nothing, and refuses the method: the view keeps its Normal To.
+    const plain = setup();
+    initialize(plain.host);
+    const plainCapabilities = (
+      plain.sent[0]?.result as { hostCapabilities: Record<string, unknown> } | undefined
+    )?.hostCapabilities;
+    expect(plainCapabilities?.studioEditLayout).toBeUndefined();
+    plain.host.receive({
+      jsonrpc: "2.0",
+      id: 5,
+      method: "studio/request/edit-layout",
+      params: { layout: "manual" },
+    });
+    await flush();
+    expect(plain.sent.find((m) => m.id === 5)?.error).toMatchObject({ code: -32601 });
+  });
+
   it("forwards the viewer's edit state", () => {
     const states: Array<{ editable: boolean; busy: boolean }> = [];
     const { host } = setup({ onEditState: (state) => void states.push(state) });

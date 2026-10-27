@@ -42,6 +42,22 @@ export function cadChosen(layout, edit) {
 }
 
 /**
+ * What a double-click on the model asks of a host that lays the workspace out (Studio's AI | CAD switch,
+ * `tab-store/editLayoutHost.ts`): `manual` for a face of a part laid out for the AI, to step into the CAD workspace with
+ * the feature that made the face selected; `ai` for empty space in the workspace with nothing open in it (`open`: a
+ * command, sketch, pick, sheet or tool, or something isolated), to go back. Null where the double-click does what it
+ * always has: Normal To on a face, a feature selected in the workspace. A STEP with no part script (`editable` false), an
+ * assembly's faces, and a viewer no host lays out (Jake's own, which keeps its layout) ask nothing.
+ * @param {{ layout: string, hosted: boolean, editable: boolean, assembly: boolean, target: "face" | "empty" | "other", open: boolean }} press
+ * @returns {"manual" | "ai" | null}
+ */
+export function doubleClickLayout({ layout, hosted, editable, assembly, target, open }) {
+  if (!hosted || !editable) return null;
+  if (layout === "ai") return target === "face" && !assembly ? "manual" : null;
+  return target === "empty" && !open ? "ai" : null;
+}
+
+/**
  * The layout and the way to change it, from the shell's services: `preferences` (the tab's
  * settings) and `onPreferenceChange` (its writer).
  * @param {{ preferences?: { editLayout?: string } | null, onPreferenceChange?: (patch: object) => void }} services
