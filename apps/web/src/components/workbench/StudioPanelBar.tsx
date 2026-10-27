@@ -9,16 +9,15 @@ import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelS
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
-import { Toggle } from "../ui/toggle";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useImportIntoProject } from "./importIntoProject";
 import { leadPartOf } from "./leadPart";
+import { ModeSwitch } from "./ModeSwitch";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePanelTabShortcuts } from "./panelTabShortcuts";
 import { PartActions } from "./PartActions";
 import { handToChat } from "./NewDialog";
 import { surfaceFile } from "./sameFile";
-import { setSimpleView, simpleViewToggle, useSimpleView } from "./simpleView";
+import { modeOf, setSimpleView, simpleOf, simpleViewToggle, useSimpleView } from "./simpleView";
 import { StudioNew } from "./StudioNew";
 import { StudioTour } from "./StudioTour";
 import { partName } from "./partNames";
@@ -153,30 +152,18 @@ export function StudioPanelBar(props: {
           inTopBar
         />
       )}
-      {/* Simple view, Import and New close the row, at its right; Home's Your projects ends in Import and New too. */}
+      {/* The AI | CAD switch, Import and New close the row, at its right; Home's Your projects ends in Import and New too. */}
       <div className="flex-1" />
       {toggle === "hidden" ? null : (
-        <Tooltip>
-          {/* Hovered through a span: a held toggle takes no pointer of its own, and says why. */}
-          <TooltipTrigger render={<span className="flex shrink-0" />}>
-            <Toggle
-              variant="outline"
-              size="sm"
-              pressed={simpleView}
-              disabled={toggle === "held"}
-              onPressedChange={(on) => {
-                // As the store has it at the press: a command opened since holds the layout.
-                if (frontViewBusy(useViewerEditState.getState().byView, frontView)) return;
-                setSimpleView(on);
-              }}
-            >
-              Simple view
-            </Toggle>
-          </TooltipTrigger>
-          {toggle === "held" ? (
-            <TooltipPopup side="bottom">Finish or cancel the command first</TooltipPopup>
-          ) : null}
-        </Tooltip>
+        <ModeSwitch
+          mode={modeOf(simpleView)}
+          held={toggle === "held"}
+          onChange={(mode) => {
+            // As the store has it at the press: a command opened since holds the layout.
+            if (frontViewBusy(useViewerEditState.getState().byView, frontView)) return;
+            setSimpleView(simpleOf(mode));
+          }}
+        />
       )}
       {importer === null ? null : (
         <Button

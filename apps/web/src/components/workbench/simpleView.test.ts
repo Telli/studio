@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   setSimpleView,
+  modeOf,
+  simpleOf,
   simpleViewToggle,
   useSimpleViewStore,
   viewerEditLayout,
@@ -79,5 +81,14 @@ describe("Simple view", () => {
     expect(simpleViewToggle({ editable: true, busy: false })).toBe("shown");
     // A command or sketch open holds it until it is finished or cancelled.
     expect(simpleViewToggle({ editable: true, busy: true })).toBe("held");
+  });
+});
+
+describe("the AI | CAD switch", () => {
+  it("reads the Simple view choice as AI, and the full workspace as CAD", () => {
+    expect(modeOf(true)).toBe("ai");
+    expect(modeOf(false)).toBe("cad");
+    expect(simpleOf("ai")).toBe(true);
+    expect(simpleOf("cad")).toBe(false);
   });
 });

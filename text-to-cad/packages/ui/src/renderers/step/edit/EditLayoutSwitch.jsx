@@ -2,12 +2,12 @@ import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 
 const OPTIONS = Object.freeze([
-  { value: "manual", label: "Manual", hint: "Model the part yourself: sketches, features and their sizes" },
   { value: "ai", label: "AI", hint: "Select on the model and ask the agent to change it" },
+  { value: "manual", label: "CAD", hint: "Model the part yourself: sketches, features and their sizes" },
 ]);
 
 /**
- * The navbar's switch between the two ways to change a part (`editLayout.js`): Manual, edit mode
+ * The navbar's switch between the two ways to change a part (`editLayout.js`): CAD, edit mode
  * laid out as a CAD tool, and AI, the viewer as it is, where a selection goes to the agent. Held
  * while a command or a sketch is open: it is finished or cancelled first.
  *

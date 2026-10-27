@@ -14,8 +14,9 @@ function readSimpleView(): boolean {
 }
 
 /**
- * Simple view: the CAD viewer's ai layout, text-to-cad's view exactly as it ships; off, the full
- * workspace, its manual layout. Studio's bar turns it on and off (`StudioPanelBar.tsx`) and every
+ * The AI | CAD choice, kept as Simple view: on is AI, the CAD viewer's ai layout, text-to-cad's view
+ * exactly as it ships; off is CAD, the full workspace, its manual layout (`modeOf`, `simpleOf`).
+ * Studio's bar's switch sets it (`ModeSwitch.tsx`, `StudioPanelBar.tsx`) and every
  * CAD view takes it from its host context (`PluginViewFrame.tsx`, `studio/editLayout`). One choice
  * for the person across projects, kept on this device; the full workspace the first time.
  */
@@ -41,8 +42,18 @@ export function viewerEditLayout(simple: boolean): "ai" | "manual" {
   return simple ? "ai" : "manual";
 }
 
+/** The switch's name for the choice: Simple view on is AI, off is CAD. */
+export function modeOf(simple: boolean): "ai" | "cad" {
+  return simple ? "ai" : "cad";
+}
+
+/** The stored choice for a mode of the switch; the other way of `modeOf`. */
+export function simpleOf(mode: "ai" | "cad"): boolean {
+  return mode === "ai";
+}
+
 /**
- * Simple view's toggle for the view in front, by what it says of its part: hidden where the viewer
+ * The AI | CAD switch's state for the view in front, by what it says of its part: hidden where the viewer
  * has one layout (a STEP with no part script, a board, the home) or the view has said nothing, held
  * while a command or sketch is open in it.
  */
