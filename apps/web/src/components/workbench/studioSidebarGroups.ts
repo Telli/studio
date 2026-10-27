@@ -5,9 +5,10 @@ import { useMemo } from "react";
 import type { SidebarProjectSnapshot } from "~/sidebarProjectGrouping";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { useEngineeringSurfaces } from "./studioInterface";
-import { trashOnlyFolders } from "./trash/trash";
-import { useTrashedProjects } from "./trash/useTrash";
+import { useTrashHiddenFolderKeys } from "./trash/useTrash";
 import { useStudioProjects } from "./useStudioProjects";
+
+const NO_PROJECTS: Readonly<Record<string, StudioProject>> = {};
 
 /**
  * The sidebar's folders gathered into Studio projects: every folder of a
@@ -62,8 +63,8 @@ export function mergeStudioProjectGroups(
 }
 
 /**
- * The sidebar's groups, gathered into Studio projects while the engineering surfaces are on, the
- * folders only projects in Trash hold left out.
+ * The sidebar's groups, gathered into Studio projects while the engineering surfaces are on; the
+ * folders only projects in Trash hold are left out in every interface.
  */
 export function useStudioSidebarGroups(
   groups: ReadonlyArray<SidebarProjectSnapshot>,
@@ -71,12 +72,12 @@ export function useStudioSidebarGroups(
   const engineering = useEngineeringSurfaces();
   const environmentId = usePrimaryEnvironmentId();
   const projects = useStudioProjects(engineering ? environmentId : null);
-  const trashed = useTrashedProjects(engineering ? environmentId : null);
+  const hidden = useTrashHiddenFolderKeys();
   return useMemo(() => {
-    if (!engineering || environmentId === null) return groups;
-    const hidden = trashOnlyFolders(trashed, projects);
-    return Object.keys(projects).length > 0 || hidden.size > 0
-      ? mergeStudioProjectGroups(groups, projects, environmentId, hidden)
+    if (environmentId === null) return groups;
+    const shownProjects = engineering ? projects : NO_PROJECTS;
+    return Object.keys(shownProjects).length > 0 || hidden.size > 0
+      ? mergeStudioProjectGroups(groups, shownProjects, environmentId, hidden)
       : groups;
-  }, [engineering, environmentId, groups, projects, trashed]);
+  }, [engineering, environmentId, groups, projects, hidden]);
 }

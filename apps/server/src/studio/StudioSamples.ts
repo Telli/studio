@@ -2,8 +2,8 @@
  * StudioSamples - the finished sample projects Studio ships. A samples folder
  * (`T3CODE_SAMPLES_DIR`) holds one folder per sample, each with a
  * `studio-sample.json` that names it, says what it is, how it is made and from
- * what, and what it shows, and points at its card picture and the file Examples
- * opens first. The server lists them in `ServerConfig.samples`.
+ * what, and what it shows, and points at its card picture and the file a copy
+ * opens on. The server lists them in `ServerConfig.samples`.
  *
  * @module StudioSamples
  */

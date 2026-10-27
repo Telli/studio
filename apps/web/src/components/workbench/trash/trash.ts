@@ -19,6 +19,41 @@ export function trashOnlyFolders(trashed: Trashed, projects: Projects): Readonly
 }
 
 /**
+ * T3's own lists (the command palette) without the folders in `hidden` (`trashOnlyFolders`) on
+ * `environmentId`, and without their threads. Folders on other environments are never hidden.
+ * With nothing hidden, the lists come back as given.
+ */
+export function withoutTrashedFolders<
+  P extends { readonly id: string; readonly environmentId: string; readonly workspaceRoot: string },
+  T extends { readonly environmentId: string; readonly projectId: string },
+>(
+  projects: ReadonlyArray<P>,
+  threads: ReadonlyArray<T>,
+  hidden: ReadonlySet<string>,
+  environmentId: string | null,
+): { readonly projects: ReadonlyArray<P>; readonly threads: ReadonlyArray<T> } {
+  if (hidden.size === 0 || environmentId === null) return { projects, threads };
+  const gone = new Set(
+    projects
+      .filter(
+        (project) =>
+          project.environmentId === environmentId &&
+          hidden.has(studioFolderKey(project.workspaceRoot)),
+      )
+      .map((project) => project.id),
+  );
+  if (gone.size === 0) return { projects, threads };
+  return {
+    projects: projects.filter(
+      (project) => project.environmentId !== environmentId || !gone.has(project.id),
+    ),
+    threads: threads.filter(
+      (thread) => thread.environmentId !== environmentId || !gone.has(thread.projectId),
+    ),
+  };
+}
+
+/**
  * The folders and chats Studio lists once Trash has projects in it (`useProjectList`): a folder
  * that only projects in Trash hold goes (`trashOnlyFolders`), with its chats, so a trashed project
  * leaves Home, Projects (its folder is not offered as one in no project), Chats, the sidebar and

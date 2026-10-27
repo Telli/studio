@@ -2,7 +2,14 @@ import type { StudioProject, StudioTrashedProject } from "@t3tools/contracts";
 import { EMPTY_STUDIO_BRIEF } from "@t3tools/shared/studioProjects";
 import { describe, expect, it } from "vite-plus/test";
 
-import { deleteForever, hiddenByTrash, inTrashOrder, trashWithUndo } from "./trash";
+import {
+  deleteForever,
+  hiddenByTrash,
+  inTrashOrder,
+  trashOnlyFolders,
+  trashWithUndo,
+  withoutTrashedFolders,
+} from "./trash";
 
 const project = (name: string, folders: ReadonlyArray<string>): StudioProject => ({
   name,
@@ -187,5 +194,36 @@ describe("deleteForever", () => {
     });
     expect(done).toBe(false);
     expect(Object.keys(studio.state.trashed)).toEqual(["stand"]);
+  });
+});
+
+describe("withoutTrashedFolders", () => {
+  const palette = [
+    { id: "p-stand", environmentId: "local", workspaceRoot: "/work/phone-stand" },
+    { id: "p-lamp", environmentId: "local", workspaceRoot: "/work/desk-lamp/" },
+    { id: "p-lamp", environmentId: "remote", workspaceRoot: "/work/desk-lamp" },
+  ];
+  const threads = [
+    { environmentId: "local", projectId: "p-stand" },
+    { environmentId: "local", projectId: "p-lamp" },
+    { environmentId: "remote", projectId: "p-lamp" },
+  ];
+  const hidden = trashOnlyFolders({ lamp: trashed("Desk lamp", ["/work/desk-lamp"]) }, {});
+
+  it("drops the trashed folders and their threads on that environment only", () => {
+    const shown = withoutTrashedFolders(palette, threads, hidden, "local");
+    expect(shown.projects.map((p) => `${p.environmentId}:${p.id}`)).toEqual([
+      "local:p-stand",
+      "remote:p-lamp",
+    ]);
+    expect(shown.threads.map((t) => `${t.environmentId}:${t.projectId}`)).toEqual([
+      "local:p-stand",
+      "remote:p-lamp",
+    ]);
+  });
+
+  it("returns the lists as given when nothing is hidden or no environment is known", () => {
+    expect(withoutTrashedFolders(palette, threads, new Set(), "local").projects).toBe(palette);
+    expect(withoutTrashedFolders(palette, threads, hidden, null).threads).toBe(threads);
   });
 });

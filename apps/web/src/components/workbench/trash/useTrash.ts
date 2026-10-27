@@ -9,9 +9,11 @@ import { studioProjectsEnvironment } from "~/state/studioProjects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useOrchestrationCommand } from "~/state/use-orchestration-command";
 import { toastManager } from "../../ui/toast";
+import { usePrimaryEnvironmentId } from "~/state/environments";
+import { STUDIO_INTERFACE_AVAILABLE } from "../studioInterface";
 import { useEnvironmentFolders } from "../useProjectFolders";
-import { useStudioProjectsList } from "../useStudioProjects";
-import { deleteForever, trashWithUndo } from "./trash";
+import { useStudioProjects, useStudioProjectsList } from "../useStudioProjects";
+import { deleteForever, trashOnlyFolders, trashWithUndo } from "./trash";
 
 const NONE: Readonly<Record<string, StudioTrashedProject>> = {};
 
@@ -20,6 +22,19 @@ export function useTrashedProjects(
   environmentId: EnvironmentId | null,
 ): Readonly<Record<string, StudioTrashedProject>> {
   return useStudioProjectsList(environmentId).data?.trashed ?? NONE;
+}
+
+/**
+ * The folders (as keys) that only projects in Trash hold on the primary environment, which every
+ * list of folders and chats leaves out: Studio's pages, the sidebar and the command palette, in
+ * every interface wherever Studio's interface is available. Empty elsewhere.
+ */
+export function useTrashHiddenFolderKeys(): ReadonlySet<string> {
+  const environmentId = usePrimaryEnvironmentId();
+  const readEnvironmentId = STUDIO_INTERFACE_AVAILABLE ? environmentId : null;
+  const projects = useStudioProjects(readEnvironmentId);
+  const trashed = useTrashedProjects(readEnvironmentId);
+  return useMemo(() => trashOnlyFolders(trashed, projects), [trashed, projects]);
 }
 
 /**
@@ -58,6 +73,7 @@ export function useTrash(environmentId: EnvironmentId) {
           const toastId = toastManager.add({
             type: "success",
             title,
+            description: "Its chats that are running keep going.",
             actionProps: {
               children: "Undo",
               onClick: () => {

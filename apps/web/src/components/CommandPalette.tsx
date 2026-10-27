@@ -121,6 +121,8 @@ import { readLocalApi } from "../localApi";
 import { desktopLocalBackendId } from "../connection/desktopLocal";
 import { filesystemEnvironment, useFilesystemReadAccess } from "../state/filesystem";
 import { projectEnvironment } from "../state/projects";
+import { withoutTrashedFolders } from "./workbench/trash/trash";
+import { useTrashHiddenFolderKeys } from "./workbench/trash/useTrash";
 import { useEnvironmentQuery } from "../state/query";
 import { serverEnvironment } from "../state/server";
 import { threadEnvironment } from "../state/threads";
@@ -667,7 +669,7 @@ function OpenCommandPaletteDialog(props: {
     strict: false,
     select: (params) => resolveThreadRouteTarget(params),
   });
-  const projects = useProjects();
+  const allProjects = useProjects();
   const referenceThreadRef =
     pathname === "/pull-requests"
       ? environments.some(
@@ -715,7 +717,13 @@ function OpenCommandPaletteDialog(props: {
     }
   }, [activeThreadReferenceCopyTarget]);
   const projectOrder = useUiStateStore((store) => store.projectOrder);
-  const threads = useThreadShells();
+  const allThreads = useThreadShells();
+  // Folders only projects in Trash hold, with their threads, stay out of the palette.
+  const trashHiddenFolders = useTrashHiddenFolderKeys();
+  const { projects, threads } = useMemo(
+    () => withoutTrashedFolders(allProjects, allThreads, trashHiddenFolders, primaryEnvironmentId),
+    [allProjects, allThreads, trashHiddenFolders, primaryEnvironmentId],
+  );
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const {
     theme,

@@ -52,6 +52,7 @@ describe("sampleFile", () => {
     expect(sampleFile("/etc/passwd")).toBeNull();
     expect(sampleFile("\\\\server\\share\\x")).toBeNull();
     expect(sampleFile("C:\\Users\\x.step")).toBeNull();
+    expect(sampleFile("C:foo")).toBeNull();
     expect(sampleFile("")).toBeNull();
     expect(sampleFile("parts/")).toBeNull();
   });

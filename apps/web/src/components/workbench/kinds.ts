@@ -110,7 +110,7 @@ export function fileIconKey(kind: string): ProjectGroup | "Setup" {
 /** A project's chats, beside the kinds of file it holds (the Overview's list of everything). */
 export const CHAT_ICON: LucideIcon = MessageSquareIcon;
 
-/** Studio's examples, on the rail and in ⌘K. */
+/** Studio's examples, in the Library's Examples section. */
 export const EXAMPLES_ICON: LucideIcon = ShapesIcon;
 
 /**

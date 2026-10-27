@@ -24,24 +24,23 @@ points at another checkout). The development plugin is built with `text-to-cad/.
 since a Mac's own python3 can be too old for cadgen. A change to the viewer needs its packages
 built (`npm run build:packages` in `text-to-cad/`) before Studio starts.
 
-**The Mac app.** `scripts/build-studio-app.sh [version]` builds `release/Studio-<version>-arm64.dmg`,
-which needs nothing else on an Apple silicon Mac. Its first screen installs Claude Code and signs
-in, so the person needs only their own Claude subscription. Building it needs Rust 1.95 or newer
-for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one installed beside an older default)
-and about 7 GB free; the download is about 400 MB and the app 1.2 GB (from 0.1.4; 600 MB and
-1.9 GB while the CAD tools went in twice). The disk image step
-reserves its whole temporary image (about 2.3 GB) at once, so it fails with "No space left" while
-gigabytes still show free. `build/studio-bundle` is read only to stage it: deleting it once the
-build logs "Installing staged production dependencies" gives that step 1.5 GB. The build runs
-`vp run build:desktop` in the checkout, which rewrites the `dist-electron` and server `dist` files
-a running `vpr studio:desktop` watches, so that copy restarts once. Its scratch folders, the
-desktop build's stage among them, are in `build/tmp`, not the system's temp folder, which macOS
-empties every night at 3:35 of files no one has opened in three days: a build running then lost
-the bundle's empty files and made an update zip short of the app's signature (2026-10-22). Publish a version
-as a release of the public `amywork777/studio-download` (it holds only the download, never code)
-with the asset named `Studio-arm64.dmg`, as the script prints. The website, the guide page and
-that repository's README link to `releases/latest/download/Studio-arm64.dmg`, so a new version
-changes no link.
+**The Mac app.** `scripts/build-studio-app.sh [version]` builds
+`release/Studio-<version>-arm64.dmg`, which needs nothing else on an Apple silicon Mac. Its first
+screen installs Claude Code and signs in, so the person needs only their own Claude subscription.
+Building it needs Rust 1.95 or newer for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one
+installed beside an older default) and about 7 GB free; the download is about 400 MB and the app 1.2
+GB (from 0.1.4; 600 MB and 1.9 GB while the CAD tools went in twice). The disk image step reserves
+its whole temporary image (about 2.3 GB) at once, so it fails with "No space left" while gigabytes
+still show free. `build/studio-bundle` is read only to stage it: deleting it once the build logs
+"Installing staged production dependencies" gives that step 1.5 GB. The build runs `vp run
+build:desktop` in the checkout, which rewrites the `dist-electron` and server `dist` files a running
+`vpr studio:desktop` watches, so that copy restarts once. Its scratch folders, the desktop build's
+stage among them, are in `build/tmp`, not the system's temp folder, which macOS empties every night
+at 3:35 of files no one has opened in three days: a build running then lost the bundle's empty files
+and made an update zip short of the app's signature (2026-10-22). Publish a version as a release of
+the public `amywork777/studio-download` (it holds only the download, never code) with the asset
+named `Studio-arm64.dmg`, as the script prints. The website, the guide page and that repository's
+README link to `releases/latest/download/Studio-arm64.dmg`, so a new version changes no link.
 
 **The website**, https://studio-for-mac.vercel.app, is one static page in `~/code/studio-site`, on
 Amy's personal Vercel (`amy-zhous-projects-45e75853`); `vercel deploy --prod` there redeploys it.
@@ -56,21 +55,20 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
     `@@STUDIO_…@@` placeholders;
   - the plugin's page;
-  - the examples, finished projects (`studio-sample/<id>/`), which Examples shows and Make a copy
-    to edit copies into a new project (`T3CODE_SAMPLES_DIR`);
+  - the examples, finished projects (`studio-sample/<id>/`), which the Library's Examples section
+    shows and Make a copy to edit copies into a new project (`T3CODE_SAMPLES_DIR`);
   - `studio.json`.
 - **The build.** T3 Code's desktop build takes the bundle through `T3CODE_DESKTOP_STUDIO_BUNDLE`
   (`scripts/lib/studio-app.ts`). That gives it Studio's name, id, icon and copyright, and a plain
   DMG with no link schemes. The bundle goes in as a resource of its own and is kept out of
-  `app.asar`, as T3 Code keeps its other staged resources: up to Mac 0.1.3 it was packed in both,
-  so the app carried the CAD tools' Python twice. The name is also the `productName` in the app's package.json, which
-  Electron starts the app under, so the app keeps its saved secrets in its own keychain item,
-  "Studio Safe Storage". Under T3 Code's `t3code` it asked for T3 Code's item, and macOS wants the
-  login password for that. Its package name, `text-to-cad-studio`, names the updater's download
-  folder; under `t3code` the two apps' updaters shared one and emptied each other's downloads.
-  By default it is signed ad hoc, without the hardened runtime, and has
-  no update feed: macOS installs no update to an app signed ad hoc, so a new version is a new
-  download.
+  `app.asar`, as T3 Code keeps its other staged resources: up to Mac 0.1.3 it was packed in both, so
+  the app carried the CAD tools' Python twice. The name is also the `productName` in the app's
+  package.json, which Electron starts the app under, so the app keeps its saved secrets in its own
+  keychain item, "Studio Safe Storage". Under T3 Code's `t3code` it asked for T3 Code's item, and
+  macOS wants the login password for that. Its package name, `text-to-cad-studio`, names the
+  updater's download folder; under `t3code` the two apps' updaters shared one and emptied each
+  other's downloads. By default it is signed ad hoc, without the hardened runtime, and has no update
+  feed: macOS installs no update to an app signed ad hoc, so a new version is a new download.
 - **Signed, it updates itself** (`STUDIO_SIGN=1`). The build signs with the Developer ID
   Application certificate in this Mac's keychain, under the hardened runtime with Studio's
   entitlements (`scripts/studio-app.entitlements.plist`: Electron and Playwright's Node compile
@@ -154,10 +152,10 @@ vpr studio            # server and web
 vpr studio:desktop    # the Electron app
 ```
 
-`scripts/studio.ts` reads the checkout as a plugin marketplace and turns its `text-to-cad`
-plugin on at first start, brands the app from `brand/`, and keeps state in `~/.text-to-cad-studio` (never in
-T3 Code's `~/.t3`). `TEXT_TO_CAD_ROOT` points at another checkout; `TEXT_TO_CAD_STUDIO_HOME`
-moves the state.
+`scripts/studio.ts` reads the checkout as a plugin marketplace and turns its `text-to-cad` plugin on
+at first start, brands the app from `brand/`, and keeps state in `~/.text-to-cad-studio` (never in
+T3 Code's `~/.t3`). `TEXT_TO_CAD_ROOT` points at another checkout; `TEXT_TO_CAD_STUDIO_HOME` moves
+the state.
 
 ## What it adds to T3 Code
 
@@ -167,7 +165,8 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
   opens as a tab beside the thread with the call's arguments.
 - **Follow the files.** When a run's file edit writes a file a view claims (a `.step`) and no view
   of that plugin is open, the file opens in one. Models a shell command builds arrive through the
-  agent's own `cad_open` or `cad_show`. Open views refresh themselves, and a panel choice made during the run wins.
+  agent's own `cad_open` or `cad_show`. Open views refresh themselves, and a panel choice made
+  during the run wins.
 - **Bundled plugins.** `T3CODE_PLUGIN_MARKETPLACE` and `T3CODE_DEFAULT_PLUGINS`
   (`apps/server/src/plugins/BundledPlugins.ts`); a plugin the user uninstalls stays uninstalled.
 - **A workbench, not a chat with a CAD tab.** `brand.json` `"layout": "workbench"` makes the right
@@ -245,42 +244,40 @@ Engineering also has no pull requests or usage page: `/pull-requests` and `/usag
 replaced history entry), and the usage shortcut does nothing. The code interfaces keep all of these
 as they were.
 
-- **The project's overview.** The Project tab (Overview, in Engineering) opens on it: the
-  project's README in its folder first, what it is and its decisions
-  (`- <what was decided> (<YYYY-MM-DD>, asked)`, or `by hand`; a decision written date first reads
-  too), then every other section the README has as written, its links opening what they name. The
-  agent is told to keep it, and on a new project's first turn to name the project, set its setup
-  and write the README before anything else. Below it, modules: the lead part large (or, with no
-  part yet, Start a part by hand), the open issues its
-  checks found (each with the fix the check suggests, and Propose a fix, which asks the agent to
-  propose and wait), then, in Engineering, everything in the project in one place the way Google
-  Drive shows a folder (`components/workbench/ProjectEverything.tsx`): every kind of file
+- **The project's overview.** The Project tab (Overview, in Engineering) opens on it: the project's
+  README in its folder first, what it is and its decisions (`- <what was decided> (<YYYY-MM-DD>,
+asked)`, or `by hand`; a decision written date first reads too), then every other section the
+  README has as written, its links opening what they name. The agent is told to keep it, and on a
+  new project's first turn to name the project, set its setup and write the README before anything
+  else. Below it, modules: the lead part large (or, with no part yet, Start a part by hand), the
+  open issues its checks found (each with the fix the check suggests, and Propose a fix, which asks
+  the agent to propose and wait), then, in Engineering, everything in the project in one place the
+  way Google Drive shows a folder (`components/workbench/ProjectEverything.tsx`): every kind of file
   together (its chats are down the left), each marked by its kind's icon in its kind's color
   (`KIND_TINTS`), filtered by type (CAD, Electronics, Analysis, Manufacturing, Documents,
-  References), as a list (name, kind, how a part's checks went or where a file is) or as cards
-  with pictures (a part's with its checks, drawing and manufacturing files); then the parts' versions, the project's
-  folders and the brief's links. The sidebar's Overview opens it across the window, as a Drive
-  folder opens; opening a chat or a file from it brings the chat back with the file beside it.
-  With code tools on, the page keeps a module per kind (CAD, Electronics, then Documents and each
-  other kind of file) and its Files, References and Threads tabs. In Engineering its New starts
-  new designs only. A module shows once it
-  has something in it, folds away (remembered on this computer), and is read again whenever the
-  thread's agent changes files. Checks
-  are the results text-to-cad writes beside the parts, `<name>.fea.json` (or a named study's
+  References), as a list (name, kind, how a part's checks went or where a file is) or as cards with
+  pictures (a part's with its checks, drawing and manufacturing files); then the parts' versions,
+  the project's folders and the brief's links. The sidebar's Overview opens it across the window, as
+  a Drive folder opens; opening a chat or a file from it brings the chat back with the file beside
+  it. With code tools on, the page keeps a module per kind (CAD, Electronics, then Documents and
+  each other kind of file) and its Files, References and Threads tabs. In Engineering its New starts
+  new designs only. A module shows once it has something in it, folds away (remembered on this
+  computer), and is read again whenever the thread's agent changes files. Checks are the results
+  text-to-cad writes beside the parts, `<name>.fea.json` (or a named study's
   `FEA/<name>.<study>.json`) and `<stem>.<process>.result.json`
   (`components/workbench/checkResults.ts`), named as an engineer says them (Strength, Vibration,
   Casting), a study that passes saying its safety factor; a drawing is the engineering drawing's
   `<part>_drawing.pdf`. Each opens with a click.
 - **Import.** Studio scans the folders picked on this computer (Documents, Desktop and Downloads to
-  start) for CAD models, drawings, parts lists, datasheets, photos and notes, and proposes a
-  project for each folder that holds models or drawings, imported where it is: Studio only reads
-  them. Loose files are placed in a project (copied into its folder) or left out; copies and older
-  versions are listed and stay put. Import is on Home (files or a folder, or a scan), takes files
-  dropped anywhere on Home, and offers the CAD files new in the scanned folders
-  since the last scan; a project deleted forever from Trash is offered again. Inside a project, Import
-  beside New, or files dropped on its Overview, copy what is picked into the project's folder,
-  never over a file there (`importIntoProject.ts`). The desktop app reads and copies (`apps/desktop/src/studio/`); what makes a
-  project is decided in the web (`components/workbench/importPlan.ts`).
+  start) for CAD models, drawings, parts lists, datasheets, photos and notes, and proposes a project
+  for each folder that holds models or drawings, imported where it is: Studio only reads them. Loose
+  files are placed in a project (copied into its folder) or left out; copies and older versions are
+  listed and stay put. Import is on Home (files or a folder, or a scan), takes files dropped
+  anywhere on Home, and offers the CAD files new in the scanned folders since the last scan; a
+  project deleted forever from Trash is offered again. Inside a project, Import beside New, or files
+  dropped on its Overview, copy what is picked into the project's folder, never over a file there
+  (`importIntoProject.ts`). The desktop app reads and copies (`apps/desktop/src/studio/`); what
+  makes a project is decided in the web (`components/workbench/importPlan.ts`).
 - **No usage data.** T3 Code's analytics are off and keyless in this build
   (`apps/server/src/telemetry/AnalyticsService.ts`), so nothing about its use goes to T3.
 - **Design history.** A turn that changed files ends with one line of what it changed in the
@@ -298,21 +295,21 @@ as they were.
   reads the block back and takes it out of the text where the list shows. What counts as opened is
   read from the chat's tool items, not its rows, so a collapsed turn counts, and only from a call
   that completed: a Read as the work log counts one (any provider's, by `path`, `filePath` or
-  `file_path`), the CAD viewer's `cad_open` and `cad_show`, a page the agent fetched, and what
-  Codex reads through the shell (`cat`, `nl`, `head`, `tail` or `sed -n` on one file). A search's
-  hits and Codex's inline views are not opened. An answer that cites nothing lists what its turn
-  opened in the thread's folder. Each row opens what it names beside the chat
-  (`references/openReference.ts`): a part's script, with a model of its name beside it, opens that
-  part at the cited line, and in the workspace selects the feature whose statement holds the line,
-  in the design tree and on the timeline (AI mode shows no features, so the script opens at
-  those lines in front); a document at its line or heading; a page as a link in the chat does. The
-  part's view hears the ask in its host context (`studio/focus`: the script's path, a line and a
-  number for each press, behind the `studioFocus` capability) and says it has taken it, however it
-  went, and whether a feature held the line (`studio/notifications/focus-taken`, `{ nonce, found }`),
-  so no ask outlives its view (`viewerFocus.ts`, `edit/useHostFocus.js`). Where none did (a
-  constant, an import, a helper's line, a line moved since the part was read, a part whose build
-  failed), Studio opens the script at that line in front (`openInPanel`), as AI mode does, so a
-  press never does nothing (`PluginViewFrame.tsx`).
+  `file_path`), the CAD viewer's `cad_open` and `cad_show`, a page the agent fetched, and what Codex
+  reads through the shell (`cat`, `nl`, `head`, `tail` or `sed -n` on one file). A search's hits and
+  Codex's inline views are not opened. An answer that cites nothing lists what its turn opened in
+  the thread's folder. Each row opens what it names beside the chat (`references/openReference.ts`):
+  a part's script, with a model of its name beside it, opens that part at the cited line, and in the
+  workspace selects the feature whose statement holds the line, in the design tree and on the
+  timeline (AI mode shows no features, so the script opens at those lines in front); a document at
+  its line or heading; a page as a link in the chat does. The part's view hears the ask in its host
+  context (`studio/focus`: the script's path, a line and a number for each press, behind the
+  `studioFocus` capability) and says it has taken it, however it went, and whether a feature held
+  the line (`studio/notifications/focus-taken`, `{ nonce, found }`), so no ask outlives its view
+  (`viewerFocus.ts`, `edit/useHostFocus.js`). Where none did (a constant, an import, a helper's
+  line, a line moved since the part was read, a part whose build failed), Studio opens the script at
+  that line in front (`openInPanel`), as AI mode does, so a press never does nothing
+  (`PluginViewFrame.tsx`).
 - **Documents from templates.** New offers them under Documents (as do the Overview's Documents
   and the quick find); each starts a document the agent writes into `docs/`: a
   PRD, the engineering requirements, an FMEA or a design review, each with its sections
@@ -322,19 +319,19 @@ as they were.
   agent follows section by section (`documentTemplates.ts`; Add a template copies one in). The
   agent fills each section from the project and writes what is not known as an open question.
 - **Sizes** (Amy, 2026-10-22: "Variables > pushing and pulling hundreds of features"). The
-  Overview's Sizes is every named size in the project's scripts in one table, as a CAD tool's
-  global variables (`ProjectSizes.tsx`): the shared ones first, with the parts that use them, then
-  each part's own. Shared sizes live in `sizes.py` beside the parts, which import them by name
-  (`from sizes import WALL`); a script's imports resolve from its own folder, so that is where the
-  file goes, the folder holding most of the parts (`text-to-cad/skills/cad/references/edit-mode.md`
-  tells the agent). A number changes where it is written, a click away, and every part that
-  imports its file builds again; a formula (`2 * WALL`) changes where its sizes are. Add shared
-  size appends one, and Use it in parts asks the agent to put it to work; the agent is told of
-  each change in a hidden note, as of a restore. A project with several folders shows each
-  folder's sizes under its name, since each folder's imports are its own, and Add shared size
-  writes in the first folder with sizes, saying which. The CAD service reads the sizes from the source
-  without running anything (`cadgen/edit/sizes.py`, `/__cad/sizes`), so a CAD service started
-  before them needs a restart to show them.
+  Overview's Sizes is every named size in the project's scripts in one table, as a CAD tool's global
+  variables (`ProjectSizes.tsx`): the shared ones first, with the parts that use them, then each
+  part's own. Shared sizes live in `sizes.py` beside the parts, which import them by name (`from
+sizes import WALL`); a script's imports resolve from its own folder, so that is where the file
+  goes, the folder holding most of the parts (`text-to-cad/skills/cad/references/edit-mode.md` tells
+  the agent). A number changes where it is written, a click away, and every part that imports its
+  file builds again; a formula (`2 * WALL`) changes where its sizes are. Add shared size appends
+  one, and Use it in parts asks the agent to put it to work; the agent is told of each change in a
+  hidden note, as of a restore. A project with several folders shows each folder's sizes under its
+  name, since each folder's imports are its own, and Add shared size writes in the first folder with
+  sizes, saying which. The CAD service reads the sizes from the source without running anything
+  (`cadgen/edit/sizes.py`, `/__cad/sizes`), so a CAD service started before them needs a restart to
+  show them.
 - **Versions and What changed.** Every chat turn's checkpoint is a version. The Overview's
   Versions lists a part's versions, newest first, each with when and which chat made it (and Now,
   for a hand edit since the last turn), and shows what changed between the one picked and the one
@@ -351,92 +348,91 @@ as they were.
   it (a commit under `refs/studio/kept/`, made with an index of its own, listed as what you had
   before restoring), and the agent hears of it with the next message, as a hand edit's note.
 - **Home, the switcher and the chats.** In Engineering, Home is where you start and pick up where
-  you left off, and Projects is every project (Amy, 2026-10-23: they showed the same, since
-  Projects went to Home): a top bar with the mark and a search that opens the quick find, then a box for what to
-  make: the Start box, the AI's way in (`StudioHome.tsx`). Start sends what was typed to a new project (made, with a first chat that
-  sends it as its first message), or, with a project of yours chosen beside Attach
-  (`ProjectPicker.tsx`, the project switcher's own control and list, `ProjectChoices.tsx`), to a
-  new chat in that project. One line is enough. Files can come with the words or alone (a PRD,
-  requirements, sketches, CAD or a whole folder: Attach, or dropped on the box) and Start then
-  makes a new project from them, or, with a project chosen beside Attach, opens a new chat in
-  that project with them. They go into the project's
-  References (`brief/references/`), where the Overview lists them and every chat can read them,
-  and the first message names them and asks the agent to read them all before anything else,
-  then fill in the project's name, setup and README from them and ask only what they leave open
-  (`startMessage` in `startProject.ts`). A project can start from files alone, named after the
-  first; in the web app, without paths to copy, they go with the first message instead. There is
-  no Ask mode and no Set up mode (Amy, 2026-10-26: one Start box); a question goes in the box or in
-  a chat. Then
-  the starred projects and the last four worked on, with All projects to the Projects page
-  (`ProjectsHome.tsx`: every project, a box to find one, the folders in no project), and New and
-  Import beside them to add one, on both pages: New is the same New and dialog as a
-  project's toolbar (`StudioNew.tsx`), where Create makes a new project and hands the job to its
-  first chat, the kind of project its work needs (an assembly a product, a board or harness a
-  circuit board, a robot description a robot, the rest a mechanical part: `projectKindFor`). There
-  is one New: ⌘K's and the project switcher's New project open it, and Make a project on a folder
-  in no project makes a mechanical part project of it at once, its brief filled in later. New's Part is New part, with no agent turn (`useNewPart.ts`, `newPart.ts`): on Home a
-  project named "Untitled part" (then "Untitled part 2", past Trash's names too) with a starter
-  part, `parts/part.py`, one block sketched from three named sizes as the cad skill writes its
-  smallest part, and the STEP that script builds (`workbench/starter/part.step`), opened beside
-  its new chat in CAD mode; in a project the same starter by the name given, the next name free
-  in its folder. Start a part by hand is the same. A starter that can't be written leaves the
-  project made, open on its Overview, and says so. Any change in CAD mode builds the part again
-  from its script. Every project is pictured by
-  its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in one
-  column so the box and the tiles line up. A picture that came back empty (the CAD plugin still
+  you left off, and Projects is every project (Amy, 2026-10-23: they showed the same, since Projects
+  went to Home): a top bar with the mark and a search that opens the quick find, then a box for what
+  to make: the Start box, the AI's way in (`StudioHome.tsx`). Start sends what was typed to a new
+  project (made, with a first chat that sends it as its first message), or, with a project of yours
+  chosen beside Attach (`ProjectPicker.tsx`, the project switcher's own control and list,
+  `ProjectChoices.tsx`), to a new chat in that project. One line is enough. Files can come with the
+  words or alone (a PRD, requirements, sketches, CAD or a whole folder: Attach, or dropped on the
+  box) and Start then makes a new project from them, or, with a project chosen beside Attach, opens
+  a new chat in that project with them. They go into the project's References (`brief/references/`),
+  where the Overview lists them and every chat can read them, and the first message names them and
+  asks the agent to read them all before anything else, then fill in the project's name, setup and
+  README from them and ask only what they leave open (`startMessage` in `startProject.ts`). A
+  project can start from files alone, named after the first; in the web app, without paths to copy,
+  they go with the first message instead. There is no Ask mode and no Set up mode (Amy, 2026-10-26:
+  one Start box); a question goes in the box or in a chat. Then the starred projects and the last
+  four worked on, with All projects to the Projects page (`ProjectsHome.tsx`: every project, a box
+  to find one, the folders in no project), and New and Import beside them to add one (on the
+  Projects page Import shows only in Engineering): New is the same New and dialog as a project's
+  toolbar (`StudioNew.tsx`), where Create makes a new project and hands the job to its first chat,
+  the kind of project its work needs (an assembly a product, a board or harness a circuit board, a
+  robot description a robot, the rest a mechanical part: `projectKindFor`). There is one New: ⌘K's
+  and the project switcher's New project open it, and Make a project on a folder in no project makes
+  a mechanical part project of it at once, its brief filled in later. New's Part is New part, with
+  no agent turn (`useNewPart.ts`, `newPart.ts`): on Home a project named "Untitled part" (then
+  "Untitled part 2", past Trash's names too) with a starter part, `parts/part.py`, one block
+  sketched from three named sizes as the cad skill writes its smallest part, and the STEP that
+  script builds (`workbench/starter/part.step`), opened beside its new chat in CAD mode; in a
+  project the same starter by the name given, the next name free in its folder. Start a part by hand
+  is the same. A starter that can't be written leaves the project made, open on its Overview, and
+  says so. Any change in CAD mode builds the part again from its script. Every project is pictured
+  by its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in
+  one column so the box and the tiles line up. A picture that came back empty (the CAD plugin still
   starting) is asked for again (`usePictures.ts`). A project with a chat waiting on the person (a
-  question, an approval) comes first, says Needs you (on Home, in the switcher's list and in
-  Cmd+K), and opens on that chat; Home lists no chats of its own. A tile's right-click, or the …
-  on its hover, is the project's menu, the switcher's own actions in its words
-  (`ProjectMenu.tsx`). A project opens in the thread last
-  open in it on this device (else the one last worked on, else a new one), with its Overview
-  across the window (`useOpenProject.ts`). Projects are
-  listed as a recents list orders them, the one opened last on this device first (or worked on, if
-  that came later), and the starred ones (kept on this computer) apart at the top of Home and the
-  switcher. The sidebar is a rail of places down the far left, as Slack's (Amy, 2026-10-22,
-  `StudioRail.tsx`): Home, Chats (with how many chats wait on you), Projects and Library, and Trash and Settings at its foot, each icon labelled and each opening its own page, as Claude's and ChatGPT's
-  open Chats and Projects (Amy: "each one should open its own page"): Chats, every chat with a box
-  to find one and an All | Needs you switch (`ChatPages.tsx`, `allChats.ts`), Needs you being the chats
-  waiting on your answer or approval in any project, kept in the URL (`/chats?filter=needs-you`,
-  where the old `/needs-you` lands); Projects, the Projects page; Library, the examples, document
-  types and skills in one place. The rail marks the page that shows, and
-  Projects inside a project (`studioPlaces.ts`). Beside the rail the column says where you are
-  (`StudioSidebar.tsx`): on Studio's pages the recent chats, each with its project's name; inside
-  a project, the project; on Settings, its sections (T3's settings list inside Studio's frame,
-  `StudioSidebarFrame`), so the rail stays there too. Folding it (the panel button beside the window's controls, or its
-  shortcut) keeps the rail (`collapsible="icon"`). Inside a project the column has All projects to
-  go back, then at its top the project's name, a control on one line with its picture that switches projects
+  question, an approval) comes first, says Needs you (on Home, in the switcher's list and in Cmd+K),
+  and opens on that chat; Home lists no chats of its own. A tile's right-click, or the … on its
+  hover, is the project's menu, the switcher's own actions in its words (`ProjectMenu.tsx`). A
+  project opens in the thread last open in it on this device (else the one last worked on, else a
+  new one), with its Overview across the window (`useOpenProject.ts`). Projects are listed as a
+  recents list orders them, the one opened last on this device first (or worked on, if that came
+  later), and the starred ones (kept on this computer) apart at the top of Home and the switcher.
+  The sidebar is a rail of places down the far left, as Slack's (Amy, 2026-10-22, `StudioRail.tsx`):
+  Home, Chats (with how many chats wait on you), Projects and Library, and Trash and Settings at its
+  foot, each icon labelled and each opening its own page, as Claude's and ChatGPT's open Chats and
+  Projects (Amy: "each one should open its own page"): Chats, every chat with a box to find one and
+  an All | Needs you switch (`ChatPages.tsx`, `allChats.ts`), Needs you being the chats waiting on
+  your answer or approval in any project, kept in the URL (`/chats?filter=needs-you`, where the old
+  `/needs-you` lands); Projects, the Projects page; Library, the examples, document types and skills
+  in one place. The rail marks the page that shows, and Projects inside a project
+  (`studioPlaces.ts`). Beside the rail the column says where you are (`StudioSidebar.tsx`): on
+  Studio's pages the recent chats, each with its project's name; inside a project, the project; on
+  Settings, its sections (T3's settings list inside Studio's frame, `StudioSidebarFrame`), so the
+  rail stays there too. Folding it (the panel button beside the window's controls, or its shortcut)
+  keeps the rail (`collapsible="icon"`). Inside a project the column has All projects to go back,
+  then at its top the project's name, a control on one line with its picture that switches projects
   (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on Home), whose
-  top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop
-  app, Version history once it has a part, Back up, Show in Finder, and Move to Trash; T3's Remove project in Settings is
-  hidden in Engineering), then its Overview, New chat, and its chats, newest first, which fold
-  away under their heading as an Overview module folds (`chatScope.ts`). Like Claude's and
-  Codex's sidebars, the panel button is a plain dark icon and the rows and their icons read dark,
-  with the lists' labels quiet (`brand/theme.css`). T3 Code drew the button white for its stage
-  artwork, which a fork's mark replaces, so on Studio's light sidebar it nearly vanished. The
+  top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop app,
+  Version history once it has a part, Back up, Show in Finder, and Move to Trash; T3's Remove
+  project in Settings is hidden in Engineering), then its Overview, New chat, and its chats, newest
+  first, which fold away under their heading as an Overview module folds (`chatScope.ts`). Like
+  Claude's and Codex's sidebars, the panel button is a plain dark icon and the rows and their icons
+  read dark, with the lists' labels quiet (`brand/theme.css`). T3 Code drew the button white for its
+  stage artwork, which a fork's mark replaces, so on Studio's light sidebar it nearly vanished. The
   footer's Home icon is only in T3 Code's sidebar beside code tools, and its Settings only outside
-  Studio's rail. Opening a chat from another project opens that project. What the project holds is on its
-  Overview. The top bar names the open chat; with
-  the sidebar folded (T3 Code's toggle or its shortcut) it leads with the mark and the project's
-  switcher. The panel's tabs are what was opened lately in the project, along its top as a
-  browser's are (`brand/theme.css`), and the same beside each of the folder's chats, as a Chrome
-  window's (`projectTabs.ts`): the Overview pinned first as its icon, then each file with its kind's
-  colored icon (`FileKindIcon.tsx`) at its left and its close at its right, as Chrome's are, the
-  one in front joined to the toolbar under them. There is no + (New is the one way to add), a
-  panel with every tab closed shows the Overview, and a tab's menu has no Copy path in Engineering (the code interfaces keep it). The
-  toolbar is one line of what can be done (`StudioPanelBar.tsx`): the AI | CAD switch, where the
-  viewer in front has two layouts, then Import and New, always there, at its right end, as Home
-  has them (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow window's panel
-  sheet keeps it. Whatever
-  writes into the chat (the Toolbox, Cmd+K, the viewer's Add to chat, the Overview) brings the
-  chat back from a panel filling the window, as does a question or approval the agent waits on
-  and a notification's Open chat (`useShowWaitingChat`), except a hand edit's note, which goes in quietly
-  and leaves the keyboard in the view (`viewContext.ts`). Engineering with code keeps T3 Code's
-  thread sidebar, with the projects listed in it.
+  Studio's rail. Opening a chat from another project opens that project. What the project holds is
+  on its Overview. The top bar names the open chat; with the sidebar folded (T3 Code's toggle or its
+  shortcut) it leads with the mark and the project's switcher. The panel's tabs are what was opened
+  lately in the project, along its top as a browser's are (`brand/theme.css`), and the same beside
+  each of the folder's chats, as a Chrome window's (`projectTabs.ts`): the Overview pinned first as
+  its icon, then each file with its kind's colored icon (`FileKindIcon.tsx`) at its left and its
+  close at its right, as Chrome's are, the one in front joined to the toolbar under them. There is
+  no + (New is the one way to add), a panel with every tab closed shows the Overview, and a tab's
+  menu has no Copy path in Engineering (the code interfaces keep it). The toolbar is one line of
+  what can be done (`StudioPanelBar.tsx`): the AI | CAD switch, where the viewer in front has two
+  layouts, with Back to AI beside it while CAD is showing, then Import and New, always there, at its
+  right end, as Home has them (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow
+  window's panel sheet keeps it. Whatever writes into the chat (the Toolbox, Cmd+K, the viewer's Add
+  to chat, the Overview) brings the chat back from a panel filling the window, as does a question or
+  approval the agent waits on and a notification's Open chat (`useShowWaitingChat`), except a hand
+  edit's note, which goes in quietly and leaves the keyboard in the view (`viewContext.ts`).
+  Engineering with code keeps T3 Code's thread sidebar, with the projects listed in it.
 - **Trash.** Move to Trash, in a project's menus (its tile's and the switcher's), is the one way
   to take a project out: its record moves to `<projects folder>/.trash/<id>/project.json` with
   when, and a toast says so with Undo. `studioProjects.list` returns `trashed` beside `projects`,
-  so every client hides it the same way: the project, its folders' chats and the folders
+  so every client hides it the same way (T3 Code's command palette and thread sidebar too, in every
+  interface, through `useTrashHiddenFolderKeys`): the project, its folders' chats and the folders
   themselves (not offered as in no project, nor to import) leave Home, Projects, Chats, the
   sidebar and ⌘K (`hiddenByTrash` in `components/workbench/trash/trash.ts`), and every project in
   Trash counts as none, so Home shows its start page. Trash, at the foot of the rail, lists them
@@ -456,13 +452,13 @@ as they were.
   Source control), never the GitHub tool's commands; a finished backup's toast opens it, on
   GitHub or in Finder. Where and when are remembered on this computer and shown under the
   menu (`useBackup.ts`).
-- **Quick find.** In Engineering ⌘K finds a project, a part (with its picture), a document or a
-  chat in any project (one in another project opens there; with nothing typed, the open
-  project's), or any job for the part on screen, with Home, New project, Take the tour,
-  the Library (the examples, every document type and skill: what each makes and, where the sample project has one,
-  its example; `components/workbench/library/LibraryPage.tsx`), Settings and the interface
-  switches (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's
-  command palette.
+- **Quick find.** In Engineering ⌘K finds a project, a part (with its picture), a document or a chat
+  in any project (one in another project opens there; with nothing typed, the open project's), or
+  any job for the part on screen, with Home, New project, Take the tour, the Library (the examples,
+  every document type and skill: what each makes and, where the servo bracket example has one, its
+  example; `components/workbench/library/LibraryPage.tsx`), Settings and Trash
+  (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's command
+  palette.
 - **Getting around.** The top bar is a path, the project then the open chat, the project's name
   opening its Overview (`StudioWorkspaceBar.tsx`). The panel's tabs take Chrome's shortcuts:
   Ctrl+Tab and Ctrl+Shift+Tab go round them, Cmd+1 to 8 to one by its place and Cmd+9 to the last
@@ -484,18 +480,18 @@ as they were.
   already exist (Home's New is the toolbar's; Home is "Home" everywhere; the chat says "AI
   agent", as Settings does).
 - **Onboarding.** Setup speaks Studio's words and ends at signing in to Claude or Codex
-  (`WelcomeWizard.tsx`; Home brings in files). With no projects, Home asks Where would you like
-  to start?, with two big buttons, New part and Import a STEP (which opens the one Import menu:
-  Files or a folder, Scan this computer), the Start box right under them, then the examples'
-  cards (`StartChoices.tsx`, `homeLayout` in `homeStart.ts`). With projects, the examples sit in a Get started strip under Starred and Recent, folded
-  away and kept so on this device if you like (`studio:get-started-folded`).
-  The Library, on the rail, opens on Examples: every example Studio ships, each on a page of its own
-  (`/library/examples/<id>`; the old `/examples` addresses redirect), view only:
-  its picture (bundled in `library/pictures/examples/`), What it is from its README, what it
-  shows, and Make a copy to edit, which makes a new project of yours ("Phone stand", then "Phone
-  stand 2") and opens it, so the example never changes (`components/workbench/examples/`). The
-  Library's and New's See the example open the servo bracket's page. The first workspace opened gives a five-step tour,
-  once (`StudioTour.tsx`,
+  (`WelcomeWizard.tsx`; Home brings in files). With no projects, Home asks Where would you like to
+  start?, with two big buttons, New part and Import a STEP (which opens the one Import menu: Files
+  or a folder, Scan this computer), the Start box right under them, then the examples' cards
+  (`StartChoices.tsx`, `homeLayout` in `homeStart.ts`). With projects, the examples sit in a Get
+  started strip under Starred and Recent, folded away and kept so on this device if you like
+  (`studio:get-started-folded`). The Library, on the rail, opens on Examples: every example Studio
+  ships, each on a page of its own (`/library/examples/<id>`; the old `/examples` addresses
+  redirect), view only: its picture (bundled in `library/pictures/examples/`), What it is from its
+  README, what it shows, and Make a copy to edit, which makes a new project of yours ("Phone stand",
+  then "Phone stand 2") and opens it, so the example never changes
+  (`components/workbench/examples/`). The Library's and New's See the example open the servo
+  bracket's page. The first workspace opened gives a five-step tour, once (`StudioTour.tsx`,
   `tourSteps.ts`): the project, its Overview, the tabs, the toolbar and the Toolbox.
 - **Chats in no project.** Home's Ask, which made them, is gone (Amy, 2026-10-26: one Start
   box). The chats it made stay: they run in the folder that holds the Studio projects, registered
@@ -522,117 +518,116 @@ as they were.
   command search still finds), its words a display layer over the machinery (`edit/nx.js`), with a
   toolbar laid out as Fusion's: tabs Features, Sketch and Evaluate (Assembly in an assembly, Drawing
   for the part's sheet) with Undo and Redo at the tab row's left, Solid's groups Create, Modify,
-  Construct, Inspect and Select, each showing its most-used commands as buttons and the whole
-  group in its title's menu; one Extrude
-  (and Revolve, Swept Boss/Base, Lofted Boss/Base) whose Boss/Base or Cut switch opens the cut
-  command with what was typed; dialogs with OK, Apply and Cancel at their foot (Enter is OK, Escape
-  in the view cancels); a design tree numbering features as SolidWorks does (Boss-Extrude1, Fillet1,
-  a renamed one by its name), a box on each to suppress it, Equations folded above it, and the
-  Origin with its Front, Top and Right Planes; a row's menu in SolidWorks' words (Edit Feature, Edit
-  Sketch, Suppress, Rename, Delete, Rollback, and Roll to End while rolled back) and the viewer's warning on the feature a failed build
-  stopped in, told by the file, line and words the engine reports (the call into a helper, where the
-  helper raised), and nothing marked otherwise; a timeline along the bottom, Fusion's, of the features
-  as icons with the sketch each was made from just before it, whose rollback bar's marker is Rollback
-  dragged
-  (`edit/EditTimeline.jsx`); the sketch tools as SolidWorks names them (Exit Sketch, Smart Dimension,
-  Trim Entities). The script and the agent's notes keep their own names. A purple dot marks what the
-  agent made and a grey one what you made, on the design tree's rows and under the timeline's
-  icons; a feature from before Studio kept track has neither (`cadgen/edit/authors.py` records it
-  in the project's `.studio/authors.jsonl`, and only once a chat has run there), and nor does any
-  in a repository with linked worktrees, whose checkouts' checkpoints share refs that do not say
-  which checkout made them. S finds any
-  button of the toolbar by name, SolidWorks' or another tool's ("edge blend" finds Fillet;
-  `edit/CommandSearchBox.jsx`): it lists the viewer's commands only, ⌘K stays Studio's find, and
-  AI mode leaves S to the viewer's strip. CAD mode reads the part once, quietly,
-  after the model opens, so the full workspace opens on it at once (`useEditMode`). A pick in the
-  workspace (a face or an edge on the model, a feature the person pressed in the design tree or
-  on the timeline, a sketch picked on the model) with no command open offers a small bar beside it
-  (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Edit only (Edit Feature, or Edit Sketch; a face
-  has none until the engine says which feature made it). A feature a command's OK selected is not a
-  pick, or the bar would stand over the part all the while it is worked on. CAD mode has no Quick
-  Edit box and nothing in it sends to the agent: picks go to the agent only in AI mode, through
-  Quick Edit, as Jake's viewer does. A feature chosen there goes as a `text-range` reference to its
-  statement in its script (all its lines, where the engine read the statement whole), with a chip
-  named as the design tree names it ("Hole (6)"), the chip's X letting go of the pick
-  (`featureAsk.jsx`; the script's absolute path is the engine's `root` with the feature's `file`).
-  A face's chip says the feature that made it, "Hole (6) · face 12", where the engine does
-  (`cadgen/edit/face_features.py`: the first feature with a face on the same surface that overlaps
-  it; `edit/faceChips.js`), on a part, while the model on screen is the one the engine read; any
-  other face keeps its label. Marks drawn on a face go to the agent as shapes in that face's own
-  coordinates, in the part's units (`kit/tools/annotate/faceShapes.js`: a mark on one face alone,
-  flat on it and all of it over the part; any other stays with the picture and the faces it
-  touches; a shape said as what it is on the face, so a rectangle drawn on a face slanted to the
+  Construct, Inspect and Select, each showing its most-used commands as buttons and the whole group
+  in its title's menu; one Extrude (and Revolve, Swept Boss/Base, Lofted Boss/Base) whose Boss/Base
+  or Cut switch opens the cut command with what was typed; dialogs with OK, Apply and Cancel at
+  their foot (Enter is OK, Escape in the view cancels); a design tree numbering features as
+  SolidWorks does (Boss-Extrude1, Fillet1, a renamed one by its name), a box on each to suppress it,
+  Equations folded above it, and the Origin with its Front, Top and Right Planes; a row's menu in
+  SolidWorks' words (Edit Feature, Edit Sketch, Suppress, Rename, Delete, Rollback, and Roll to End
+  while rolled back) and the viewer's warning on the feature a failed build stopped in, told by the
+  file, line and words the engine reports (the call into a helper, where the helper raised), and
+  nothing marked otherwise; a timeline along the bottom, Fusion's, of the features as icons with the
+  sketch each was made from just before it, whose rollback bar's marker is Rollback dragged
+  (`edit/EditTimeline.jsx`); the sketch tools as SolidWorks names them (Exit Sketch, Smart
+  Dimension, Trim Entities). The script and the agent's notes keep their own names. A purple dot
+  marks what the agent made and a grey one what you made, on the design tree's rows and under the
+  timeline's icons; a feature from before Studio kept track has neither (`cadgen/edit/authors.py`
+  records it in the project's `.studio/authors.jsonl`, and only once a chat has run there), and nor
+  does any in a repository with linked worktrees, whose checkouts' checkpoints share refs that do
+  not say which checkout made them. S finds any button of the toolbar by name, SolidWorks' or
+  another tool's ("edge blend" finds Fillet; `edit/CommandSearchBox.jsx`): it lists the viewer's
+  commands only, ⌘K stays Studio's find, and AI mode leaves S to the viewer's strip. CAD mode reads
+  the part once, quietly, after the model opens, so the full workspace opens on it at once
+  (`useEditMode`). A pick in the workspace (a face or an edge on the model, a feature the person
+  pressed in the design tree or on the timeline, a sketch picked on the model) with no command open
+  offers a small bar beside it (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Edit only (Edit
+  Feature, or Edit Sketch; a face has none until the engine says which feature made it). A feature a
+  command's OK selected is not a pick, or the bar would stand over the part all the while it is
+  worked on. CAD mode has no Quick Edit box and nothing in it sends to the agent: picks go to the
+  agent only in AI mode, through Quick Edit, as Jake's viewer does. A feature chosen there goes as a
+  `text-range` reference to its statement in its script (all its lines, where the engine read the
+  statement whole), with a chip named as the design tree names it ("Hole (6)"), the chip's X letting
+  go of the pick (`featureAsk.jsx`; the script's absolute path is the engine's `root` with the
+  feature's `file`). A face's chip says the feature that made it, "Hole (6) · face 12", where the
+  engine does (`cadgen/edit/face_features.py`: the first feature with a face on the same surface
+  that overlaps it; `edit/faceChips.js`), on a part, while the model on screen is the one the engine
+  read; any other face keeps its label. Marks drawn on a face go to the agent as shapes in that
+  face's own coordinates, in the part's units (`kit/tools/annotate/faceShapes.js`: a mark on one
+  face alone, flat on it and all of it over the part; any other stays with the picture and the faces
+  it touches; a shape said as what it is on the face, so a rectangle drawn on a face slanted to the
   view is the polygon of its four corners there), as a text part after the references, in every way
   Quick Edit goes.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, the full
   workspace, and the script stays its source: text-to-cad's own viewer is laid out as a CAD tool,
   with the toolbar across the top, the design tree at the top left (the part's Equations, its
-  features numbered as SolidWorks numbers them, and the selected feature's inputs, each
-  with the formula behind it), the timeline along the bottom, and the feature's dimensions drawn
-  on the model, each changed by a double-click. A
-  change rewrites one number in the script, as it was written, and rebuilds every part that uses
-  the file, so the model reloads as any rebuild does; a value made of several sizes asks which to
-  change, and a file changed since it was read is refused. The toolbar's Create and Modify groups
-  (Hole, Pattern, Mirror; Fillet, Chamfer, Shell) open a dialog at the model
-  view's top left, beside the design tree, as SolidWorks' PropertyManager does: what the command acts on (the edges or
-  faces selected on the model, Select turned to them as it opens; for Mirror and Pattern,
-  the feature picked in the design tree, or the whole body), its inputs in the part's
-  units, and OK, Apply and Cancel at its foot. OK writes one
-  line of build123d after the statement that makes the part's body, its faces and edges written
-  as build123d's own selectors by where they are, never their numbers (the top face's outer
-  edges: `tray.faces().sort_by(bd.Axis.Z)[-1].outer_wire().edges()`), and the line reads back as
-  a new feature, selected, with its inputs to change like any other; a line that does not run,
-  or picks something other than the selection, is not written. Undo takes a command's line back. The
-  agent hears of each change with the next message (a Hand edit note queued in the composer),
-  never by a message of its own. Edit Feature reopens a feature's dialog, Suppress sets one aside,
-  and the rollback bar (dragged, in the design tree or along the timeline, or put under a
-  feature by Rollback) shows the part as it was above a feature, new features going in
-  there. An assembly places its parts: double-click one in the design tree (Open Part) and the part opens on
-  its own, in a tab of its own when the assembly is a project file's tab
-  (`studio/open-file`, a plugin view's request to open a file beside the thread). The engine is `text-to-cad/packages/cadgen/src/cadgen/edit/` (a
-  tracer that runs the script with every number remembering where it is written, in a process of
-  its own, behind the viewer's `/__cad/edit/*` routes, and `commands.py`, which matches a
-  selection to the part by its geometry and writes a command's line); the frame is
-  `text-to-cad/packages/ui/src/renderers/step/edit/`. The CAD skill's `references/edit-mode.md`
-  tells the agent how to write parts that edit well.
-- **The AI | CAD switch.** Studio's bar chooses it where the CAD viewer in front has two layouts.
-  AI is the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection goes to
-  the agent through Quick Edit; CAD is the full workspace (edit mode). One choice for the person,
-  across projects, kept on this device (`studio:simple-view`), the full workspace the first time
-  (`workbench/simpleView.ts`); New part and Start a part by hand turn it off. The workspace floats over the
-  canvas, so the switch is one 150 ms fade (none with reduced motion) and the model keeps its box
-  and its place. The viewer says
-  what its part allows (`studio/notifications/edit-state`, to a host offering `studioEditState`):
-  a STEP with no part script has one layout, so no toggle shows, and a command, sketch or pick
-  open, or a change saving, holds the toggle until it is finished or cancelled; a view that closes
-  or opens another file forgets it (`workbench/viewerEditState.ts`). A viewer that never sends
-  `edit-state` (one older than its Studio) hides the switch, which is fine while Studio and its
-  viewer ship together. The part tabs run along the
-  panel's bottom. The viewer takes the layout from its host context (`studio/editLayout`) and then
-  shows no switch of its own; elsewhere its navbar keeps the switch, as Manual and AI. In the full
-  workspace, what a command uses is plain: a sketch is
-  picked on the model or in the design tree and shaded in the selection blue with its name, an
-  extrude is previewed in amber (a cut in red, starting into the part), and a command's dialog
-  floats in a card of its own at the model view's top left, beside the design tree, with OK,
-  Apply and Cancel at its foot. One generator draws every CAD icon of the workspace, the toolbar's,
-  the design tree's, the timeline's and the sketch tools' (`packages/ui/scripts/nx-icons.py`,
-  which writes `src/lib/nxIcons.generated.jsx`; a test fails when the committed module is not what
-  it writes); chevrons, spinners, close, the amber warning and the sketch overlay's check and cross
-  stay lucide's. What edit mode is busy with (reading the part, rolling back, rebuilding) shows with a spinner and
-  a line along the toolbar's foot. A rollback step moves the bar at once and, the files unchanged,
-  does not run the part again. A hole goes where its face is clicked (a slanted face too), a
-  sketch can go on a plane at an Offset distance, a linear pattern takes its direction (X, Y or
-  Z) from an edge picked on the model and a circular one its axis from a round face or a straight
+  features numbered as SolidWorks numbers them, and the selected feature's inputs, each with the
+  formula behind it), the timeline along the bottom, and the feature's dimensions drawn on the
+  model, each changed by a double-click. A change rewrites one number in the script, as it was
+  written, and rebuilds every part that uses the file, so the model reloads as any rebuild does; a
+  value made of several sizes asks which to change, and a file changed since it was read is refused.
+  The toolbar's Create and Modify groups (Hole, Pattern, Mirror; Fillet, Chamfer, Shell) open a
+  dialog at the model view's top left, beside the design tree, as SolidWorks' PropertyManager does:
+  what the command acts on (the edges or faces selected on the model, Select turned to them as it
+  opens; for Mirror and Pattern, the feature picked in the design tree, or the whole body), its
+  inputs in the part's units, and OK, Apply and Cancel at its foot. OK writes one line of build123d
+  after the statement that makes the part's body, its faces and edges written as build123d's own
+  selectors by where they are, never their numbers (the top face's outer edges:
+  `tray.faces().sort_by(bd.Axis.Z)[-1].outer_wire().edges()`), and the line reads back as a new
+  feature, selected, with its inputs to change like any other; a line that does not run, or picks
+  something other than the selection, is not written. Undo takes a command's line back. The agent
+  hears of each change with the next message (a Hand edit note queued in the composer), never by a
+  message of its own. Edit Feature reopens a feature's dialog, Suppress sets one aside, and the
+  rollback bar (dragged, in the design tree or along the timeline, or put under a feature by
+  Rollback) shows the part as it was above a feature, new features going in there. An assembly
+  places its parts: double-click one in the design tree (Open Part) and the part opens on its own,
+  in a tab of its own when the assembly is a project file's tab (`studio/open-file`, a plugin view's
+  request to open a file beside the thread). The engine is
+  `text-to-cad/packages/cadgen/src/cadgen/edit/` (a tracer that runs the script with every number
+  remembering where it is written, in a process of its own, behind the viewer's `/__cad/edit/*`
+  routes, and `commands.py`, which matches a selection to the part by its geometry and writes a
+  command's line); the frame is `text-to-cad/packages/ui/src/renderers/step/edit/`. The CAD skill's
+  `references/edit-mode.md` tells the agent how to write parts that edit well.
+- **The AI | CAD switch.** Studio's bar chooses it where the CAD viewer in front has two layouts. AI
+  is the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection goes to the
+  agent through Quick Edit; CAD is the full workspace (edit mode). One choice for the person, across
+  projects, kept on this device (`studio:simple-view`), AI where none was stored
+  (`workbench/simpleView.ts`); New part and Start a part by hand turn it off. The workspace floats
+  over the canvas, so the switch is one 150 ms fade (none with reduced motion) and the model keeps
+  its box and its place. The viewer says what its part allows (`studio/notifications/edit-state`, to
+  a host offering `studioEditState`): a STEP with no part script has one layout, so no toggle shows,
+  and a command, sketch or pick open, or a change saving, holds the toggle until it is finished or
+  cancelled; a view that closes or opens another file forgets it (`workbench/viewerEditState.ts`). A
+  viewer that never sends `edit-state` (one older than its Studio) hides the switch, which is fine
+  while Studio and its viewer ship together. The part tabs run along the panel's bottom. The viewer
+  takes the layout from its host context (`studio/editLayout`) and then shows no switch of its own;
+  elsewhere its navbar keeps the switch, as Manual and AI. The viewer asks for a layout too, with
+  `studio/request/edit-layout`, to a host offering `studioEditLayout` (`doubleClickLayout`): in AI a
+  double-click on a face steps into CAD on its feature, a plain STEP with no part script or an
+  assembly keeps Normal To, and in CAD a double-click on empty space with nothing open goes back to
+  AI. In the full workspace, what a command uses is plain: a sketch is picked on the model or in the
+  design tree and shaded in the selection blue with its name, an extrude is previewed in amber (a
+  cut in red, starting into the part), and a command's dialog floats in a card of its own at the
+  model view's top left, beside the design tree, with OK, Apply and Cancel at its foot. One
+  generator draws every CAD icon of the workspace, the toolbar's, the design tree's, the timeline's
+  and the sketch tools' (`packages/ui/scripts/nx-icons.py`, which writes
+  `src/lib/nxIcons.generated.jsx`; a test fails when the committed module is not what it writes);
+  chevrons, spinners, close, the amber warning and the sketch overlay's check and cross stay
+  lucide's. What edit mode is busy with (reading the part, rolling back, rebuilding) shows with a
+  spinner and a line along the toolbar's foot. A rollback step moves the bar at once and, the files
+  unchanged, does not run the part again. A hole goes where its face is clicked (a slanted face
+  too), a sketch can go on a plane at an Offset distance, a linear pattern takes its direction (X, Y
+  or Z) from an edge picked on the model and a circular one its axis from a round face or a straight
   edge, an extrude can end Up To Surface or Up To Vertex, and a revolve and a drafted extrude are
-  previewed as they will be made. In a sketch, Convert Entities brings the model's edges in, held
-  On Edge so they follow the part as it changes.
+  previewed as they will be made. In a sketch, Convert Entities brings the model's edges in, held On
+  Edge so they follow the part as it changes.
 - **SolidCraft, on request.** `STUDIO_SOLIDCRAFT=1`, with SolidCraft (a parametric CAD engine,
   Apache-2.0) in Applications, adds `studio-plugins/solidcraft`: its engine headless per thread
-  behind an editor page of its own, for `.solidcraft` designs (the overview lists a design and its STEP as
-  one part). `STUDIO_SOLIDCRAFT_APP=1` bridges it to the SolidCraft app instead. Bundled plugins
-  come from several marketplace folders (`T3CODE_PLUGIN_MARKETPLACE`, separated as PATH is), and
-  one whose folder changed is updated at the next start, so its tools and views are listed again;
-  one the app stops offering is uninstalled, and offered again if it is offered again.
+  behind an editor page of its own, for `.solidcraft` designs (the overview lists a design and its
+  STEP as one part). `STUDIO_SOLIDCRAFT_APP=1` bridges it to the SolidCraft app instead. Bundled
+  plugins come from several marketplace folders (`T3CODE_PLUGIN_MARKETPLACE`, separated as PATH is),
+  and one whose folder changed is updated at the next start, so its tools and views are listed
+  again; one the app stops offering is uninstalled, and offered again if it is offered again.
 - **Setup, as a CAD tool shows it.** Under the project's name, its units, material (from a library
   of common grades, or any name typed), process and quantity. Picking a value sends the request
   to the chat ("Change the project's material to PETG."); the agent changes the project's
@@ -690,9 +685,9 @@ and commit `apps/studio`. What Studio changes against T3 Code is the compare vie
 upstream commit the branch sits on to `amy/hardware`.
 
 Rebases stay clean because the branch adds files rather than editing T3's: an edit to an upstream
-file is a seam of a line or a few (`scripts/fork-diff.sh amy/hardware` on `main` lists them). Keep it that
-way: new behaviour goes in new files, and a T3 string or style is changed through `brand/`, not
-in place.
+file is a seam of a line or a few (`scripts/fork-diff.sh amy/hardware` on `main` lists them). Keep
+it that way: new behaviour goes in new files, and a T3 string or style is changed through `brand/`,
+not in place.
 
 ## Who the engineering interface is for (Amy, 2026-10-15)
 

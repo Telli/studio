@@ -13,20 +13,16 @@ function storage(values = new Map<string, string>()) {
 
 describe("Home's layout", () => {
   it("starts someone with no projects on Where would you like to start?", () => {
-    expect(homeLayout({ loaded: true, projects: 0, trashedOnly: false })).toBe("start");
+    expect(homeLayout({ loaded: true, projects: 0 })).toBe("start");
   });
 
   it("shows the projects of someone who has some", () => {
-    expect(homeLayout({ loaded: true, projects: 3, trashedOnly: false })).toBe("projects");
-  });
-
-  it("counts every project in Trash as none", () => {
-    expect(homeLayout({ loaded: true, projects: 2, trashedOnly: true })).toBe("start");
+    expect(homeLayout({ loaded: true, projects: 3 })).toBe("projects");
   });
 
   it("keeps the start page away until the list arrives", () => {
     // Someone with projects would otherwise see the start page flash first.
-    expect(homeLayout({ loaded: false, projects: 0, trashedOnly: false })).toBe("projects");
+    expect(homeLayout({ loaded: false, projects: 0 })).toBe("projects");
   });
 });
 

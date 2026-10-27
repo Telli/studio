@@ -38,7 +38,7 @@ export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const navigate = useNavigate();
   const { cards } = useProjectList(props.environmentId);
-  const waiting = needsYou(cards).length;
+  const waiting = new Set(needsYou(cards).map(({ thread }) => thread.id)).size;
   const mark = railMark(pathname);
   const go = (to: RailPage) => {
     if (isMobile) setOpenMobile(false);

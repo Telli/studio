@@ -57,7 +57,7 @@ export const CODE_SETTINGS_ROWS: ReadonlySet<string> = new Set<SettingsSearchIte
   "delete-confirmation",
   "add-project-starts-in",
   // Programmer settings. Each keeps its stored value and default; the code interfaces still show
-  // them, and the Interface switch (Settings, Appearance) is the way there.
+  // them, and the Interface switch (Settings, Advanced, Interface) is the way there.
   "code-font",
   "terminal-font",
   "provider-update-checks",

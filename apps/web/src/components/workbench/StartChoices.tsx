@@ -5,6 +5,7 @@ import { type ComponentProps, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import { ExampleCard } from "./examples/ExampleCard";
+import { NEEDS_DESKTOP_APP } from "./examples/examples";
 import { readGetStartedFolded, writeGetStartedFolded } from "./homeStart";
 import { ImportMenu } from "./ImportMenu";
 import { KIND_ICONS, KIND_TINTS } from "./kinds";
@@ -71,7 +72,7 @@ export function StartChoices(props: {
     <StartChoice
       icon={DownloadIcon}
       label="Import a STEP"
-      note={props.importActions === null ? "Needs the desktop app." : "Or drop files here."}
+      note={props.importActions === null ? NEEDS_DESKTOP_APP : "Or drop files here."}
       disabled={props.importActions === null}
     />
   );
@@ -118,8 +119,8 @@ function ExampleTiles(props: { readonly examples: ReadonlyArray<StudioSample> })
 export function StartExamples(props: { readonly examples: ReadonlyArray<StudioSample> }) {
   if (props.examples.length === 0) return null;
   return (
-    <section aria-label="Start from an example" className="flex min-w-0 flex-col gap-3">
-      <h2 className={MODULE_HEADING}>Start from an example</h2>
+    <section aria-label="Get started" className="flex min-w-0 flex-col gap-3">
+      <h2 className={MODULE_HEADING}>Get started</h2>
       <ExampleTiles examples={props.examples} />
     </section>
   );

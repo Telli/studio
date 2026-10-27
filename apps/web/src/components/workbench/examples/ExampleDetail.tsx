@@ -12,6 +12,7 @@ import { useExample, useExamples } from "../library/useSampleProject";
 import { MODULE_HEADING } from "../OverviewModules";
 import { readmeInline, readmeSections } from "../projectReadme";
 import { ExamplePicture } from "./ExampleCard";
+import { NEEDS_DESKTOP_APP } from "./examples";
 
 /**
  * An example's page (`/library/examples/$id`), view only: its picture, What it is (its README's, read from
@@ -50,7 +51,7 @@ function ExampleContent(props: {
   if (!loaded) return null;
   if (example === null) {
     return (
-      <ChatPage title="Examples">
+      <ChatPage title="Library">
         <p className="text-sm text-muted-foreground">
           Studio has no example by that name.{" "}
           <Link
@@ -91,9 +92,7 @@ function ExampleContent(props: {
             {copying ? "Copying…" : "Make a copy to edit"}
           </Button>
           <span className="text-xs text-muted-foreground">
-            {example.canCopy
-              ? `Makes ${example.copyName}`
-              : "Copying examples needs the desktop app"}
+            {example.canCopy ? `Makes ${example.copyName}` : NEEDS_DESKTOP_APP}
           </span>
         </div>
       }

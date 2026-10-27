@@ -91,9 +91,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { list, cards } = useProjectList(environmentId);
   // Until the list arrives nothing shows under the box, and the start page waits (`homeLayout`).
   const loaded = list !== undefined;
-  // Projects in Trash are not in the list: every project trashed counts as none.
-  const trashedOnly = cards.length === 0 && Object.keys(list?.trashed ?? {}).length > 0;
-  const layout = homeLayout({ loaded, projects: cards.length, trashedOnly });
+  const layout = homeLayout({ loaded, projects: cards.length });
   const { examples } = useExamples(environmentId);
   // One start at a time, from the box or from New.
   const { busy, start } = useStartOnce(environmentId);

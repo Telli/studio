@@ -35,6 +35,9 @@ export function copyBrief(sample: StudioSample) {
   };
 }
 
+/** What a button or card that only the desktop app can do says beside it. */
+export const NEEDS_DESKTOP_APP = "Needs the desktop app.";
+
 /**
  * A file of an example, as its `studio-sample.json` or a link names it, written with "/": null for
  * one outside the example's folder (an absolute path, a drive, or a ".." step), which nothing
@@ -42,7 +45,7 @@ export function copyBrief(sample: StudioSample) {
  */
 export function sampleFile(path: string): string | null {
   const segments = path.replaceAll("\\", "/").split("/");
-  if (segments[0] === "" || /^[a-z]:$/i.test(segments[0] ?? "")) return null;
+  if (segments[0] === "" || /^[a-z]:/i.test(segments[0] ?? "")) return null;
   const kept = segments.filter((segment) => segment !== ".");
   if (kept.length === 0 || kept.some((segment) => segment === ".." || segment === "")) return null;
   return kept.join("/");

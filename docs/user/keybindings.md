@@ -21,9 +21,6 @@ send shortcut. Click the send button to use the configured follow-up behavior.
 When an active turn has queued messages, `mod+Shift+Enter` sends the first as a
 steer. Change it under **Queue: Send First Queued Message as Steer** in Keybindings.
 
-In Studio's engineering interface the composer has no model or effort picker, so `mod+shift+m`
-and `mod+shift+e` do nothing there; the model is under **Settings, AI agents**.
-
 Use `mod+shift+m` to choose a model and `mod+shift+h` to choose a host.
 To step a new thread to the next machine instead of opening the menu, bind
 **Composer: Cycle Host** in Keybindings. It has no default shortcut.
@@ -31,6 +28,9 @@ Use `mod+shift+e` for effort, `mod+shift+a` for access mode, `mod+shift+x` for t
 workspace, and `mod+shift+g` for the Git branch. The workspace menu includes the
 current checkout, a new worktree, and the previous worktree when available.
 Use `mod+shift+l` to reuse the previous worktree directly.
+
+In Studio's engineering interface the composer has no model or effort picker, so `mod+shift+m`
+and `mod+shift+e` do nothing there; the model is under **Settings, AI agents**.
 
 In the model picker, press Left in an empty search field or Shift+Tab to reach
 the provider list. Use Up/Down to move and Enter to choose. Right returns to

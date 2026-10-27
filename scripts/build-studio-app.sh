@@ -134,7 +134,7 @@ cat >"$BUNDLE/studio.json" <<'JSON'
 JSON
 
 # The finished sample projects (`T3CODE_SAMPLES_DIR` points here), which Examples copies into new projects.
-step "Copying the sample project"
+step "Copying the examples"
 cp -R "$ROOT/studio-sample" "$BUNDLE/sample"
 
 step "Building the app"

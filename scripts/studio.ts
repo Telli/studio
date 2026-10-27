@@ -8,8 +8,8 @@
  * - reads the checkout as a plugin marketplace and installs and enables its
  *   `text-to-cad` plugin on first start (apps/server/src/plugins/BundledPlugins.ts);
  * - names and brands the app from `brand/` (text-to-cad's mark, icons and accent);
- * - offers the finished sample projects (`studio-sample/`) to Try a sample project and Examples,
- *   which copy them in the desktop app (`T3CODE_SAMPLES_DIR`);
+ * - offers the finished sample projects (`studio-sample/`) to Make a copy to edit from the
+ *   Library's Examples section, which copies them in the desktop app (`T3CODE_SAMPLES_DIR`);
  * - keeps its state in `~/.text-to-cad-studio`, never in T3 Code's own home.
  *
  * - edits parts by hand in text-to-cad's own viewer (its edit mode, `cadgen/edit`);

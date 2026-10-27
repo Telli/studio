@@ -690,7 +690,7 @@ export const StudioSample = Schema.Struct({
   shows: Schema.Array(Schema.String),
   /** The picture its card shows. */
   picture: TrimmedNonEmptyString,
-  /** The file Examples opens first. */
+  /** The file a copy opens on. */
   open: TrimmedNonEmptyString,
   path: TrimmedNonEmptyString,
 });
@@ -754,7 +754,7 @@ export const ServerConfig = Schema.Struct({
   newProjectsRoot: Schema.optionalKey(TrimmedNonEmptyString),
   /**
    * The finished sample projects the app ships, in name order, which the
-   * Examples page lists and Make a copy to edit copies into new projects.
+   * Library's Examples section lists and Make a copy to edit copies into new projects.
    * Absent on servers started without a samples folder
    * (`T3CODE_SAMPLES_DIR`).
    */
