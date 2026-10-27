@@ -2,7 +2,7 @@
   "sample": "shelf-bracket",
   "version": 1,
   "name": "Shelf bracket",
-  "purpose": "A wall shelf bracket bent from 14 gauge G90 galvanised steel, SendCutSend's G90-074 (0.074 in, 1.88 mm): an example project to learn Studio with. A tapering web stands on edge as the bracket's gusset. A flange bent off its top carries the shelf, held down by two wood screws from below, and a flange bent off its back fixes it to the wall with two screws. A pair holds a 200 mm deep shelf with up to 15 kg on it; with all 15 kg on one bracket, its strength study leaves a safety factor of 2.36 in the bracket itself. It is laser cut and bent by SendCutSend from its STEP, which passes their preflight.",
+  "purpose": "A wall shelf bracket bent from steel sheet.",
   "process": "Sheet metal",
   "material": "G90 galvanised steel, 0.074 in (1.88 mm), SendCutSend G90-074",
   "shows": [
