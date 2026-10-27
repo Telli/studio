@@ -289,3 +289,117 @@ it.effect("still saves a project when git cannot commit it", () =>
     { gitIdentity: false },
   ),
 );
+
+it.effect("moves a project to Trash and lists it there, with when, until it is restored", () =>
+  withStudio((home) =>
+    Effect.gen(function* () {
+      const studio = yield* StudioProjects.StudioProjects;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const project = roverArm(home, path);
+      const saved = yield* studio.save({ id: null, project });
+      const folder = path.join(saved.folder, saved.id);
+
+      const trashed = yield* studio.trash(saved.id);
+
+      assert.equal(trashed.id, saved.id);
+      assert.deepEqual(trashed.projects, {});
+      assert.deepEqual(Object.keys(trashed.trashed), [saved.id]);
+      const { trashedAt, ...inTrash } = trashed.trashed[saved.id]!;
+      assert.deepEqual(inTrash, project);
+      assert.isFalse(Number.isNaN(Date.parse(trashedAt)));
+      assert.isTrue(
+        yield* fileSystem.exists(path.join(saved.folder, ".trash", saved.id, "project.json")),
+      );
+      assert.isFalse(yield* fileSystem.exists(path.join(folder, "project.json")));
+      assert.deepEqual({ ...(yield* studio.list), id: saved.id }, trashed);
+
+      const restored = yield* studio.restore(saved.id);
+
+      // Back under the same id, whole, and out of Trash.
+      assert.deepEqual(restored.projects, { [saved.id]: project });
+      assert.deepEqual(restored.trashed, {});
+      assert.isFalse(yield* fileSystem.exists(path.join(saved.folder, ".trash", saved.id)));
+      if (!restored.git) return;
+      assert.equal(
+        yield* git(folder, ["log", "--format=%s"]),
+        "Restore Rover arm\nMove Rover arm to Trash\nAdd Rover arm",
+      );
+      assert.equal(yield* git(folder, ["status", "--porcelain"]), "");
+    }),
+  ),
+);
+
+it.effect("trashes and restores a project whose folder is not a repository", () =>
+  withStudio((home) =>
+    Effect.gen(function* () {
+      const studio = yield* StudioProjects.StudioProjects;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      // Written by hand, as a projects folder made before git (or without it) holds them.
+      const folder = path.join(home, "studio-projects", "bench");
+      yield* fileSystem.makeDirectory(folder, { recursive: true });
+      yield* fileSystem.writeFileString(
+        path.join(folder, "project.json"),
+        JSON.stringify({
+          studio: 1,
+          name: "Bench",
+          template: null,
+          brief: EMPTY_STUDIO_BRIEF,
+          folders: [],
+          createdAt: "2026-10-14T00:00:00.000Z",
+        }),
+      );
+
+      assert.deepEqual(Object.keys((yield* studio.trash("bench")).trashed), ["bench"]);
+      const restored = yield* studio.restore("bench");
+      assert.deepEqual(Object.keys(restored.projects), ["bench"]);
+      assert.equal(restored.projects.bench?.name, "Bench");
+    }),
+  ),
+);
+
+it.effect("deletes a trashed project's record forever, leaving its work folder", () =>
+  withStudio((home) =>
+    Effect.gen(function* () {
+      const studio = yield* StudioProjects.StudioProjects;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const project = roverArm(home, path);
+      const work = project.folders[0]!;
+      yield* fileSystem.makeDirectory(work, { recursive: true });
+      yield* fileSystem.writeFileString(path.join(work, "arm.step"), "ISO-10303-21;");
+      const saved = yield* studio.save({ id: null, project });
+      yield* studio.trash(saved.id);
+
+      const purged = yield* studio.purge(saved.id);
+
+      assert.equal(purged.id, saved.id);
+      assert.deepEqual(purged.projects, {});
+      assert.deepEqual(purged.trashed, {});
+      assert.isFalse(yield* fileSystem.exists(path.join(saved.folder, ".trash", saved.id)));
+      assert.equal(yield* fileSystem.readFileString(path.join(work, "arm.step")), "ISO-10303-21;");
+      // A project that is not in Trash is never purged.
+      const live = yield* studio.save({ id: null, project: { ...project, name: "Bench" } });
+      const refused = yield* studio.purge(live.id).pipe(Effect.flip);
+      assert.equal(refused.failure, "invalid-id");
+      assert.deepEqual(Object.keys((yield* studio.list).projects), [live.id]);
+    }),
+  ),
+);
+
+it.effect("refuses to trash or restore what is not there", () =>
+  withStudio((home) =>
+    Effect.gen(function* () {
+      const studio = yield* StudioProjects.StudioProjects;
+      const path = yield* Path.Path;
+      assert.equal((yield* studio.trash("nothing").pipe(Effect.flip)).failure, "invalid-id");
+      assert.equal((yield* studio.restore("nothing").pipe(Effect.flip)).failure, "invalid-id");
+      assert.equal((yield* studio.trash("../escape").pipe(Effect.flip)).failure, "invalid-id");
+      const saved = yield* studio.save({ id: null, project: roverArm(home, path) });
+      // Not in Trash: restoring it changes nothing.
+      assert.equal((yield* studio.restore(saved.id).pipe(Effect.flip)).failure, "invalid-id");
+      assert.deepEqual(Object.keys((yield* studio.list).projects), [saved.id]);
+    }),
+  ),
+);

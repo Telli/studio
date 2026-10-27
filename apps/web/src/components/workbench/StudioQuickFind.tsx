@@ -3,7 +3,14 @@ import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
-import { CompassIcon, HomeIcon, LibraryBigIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import {
+  CompassIcon,
+  HomeIcon,
+  LibraryBigIcon,
+  PlusIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { useComposerHandleContext } from "~/composerHandleContext";
@@ -407,6 +414,13 @@ function QuickFindBody(props: {
       run: go(() => void navigate({ to: "/examples" })),
     },
     {
+      value: "go:trash",
+      icon: <Trash2Icon className={ICON} />,
+      title: "Trash",
+      terms: "trash deleted removed restore delete forever bin",
+      run: go(() => void navigate({ to: "/trash" })),
+    },
+    {
       value: "go:library",
       icon: <LibraryBigIcon className={ICON} />,
       title: "Library",
@@ -541,8 +555,8 @@ function QuickFindBody(props: {
 /**
  * ⌘K in the engineering interface, in place of T3 Code's command palette: one box that finds a
  * project, a part in any project, or any job for the part on screen, the long tail the menus leave
- * out as well (`quickFind.ts`), with Home, New project, Examples, the Library, Settings and the
- * other interfaces. Outside a project it opens on what was opened lately (Recent). Picking a job writes
+ * out as well (`quickFind.ts`), with Home, New project, Examples, Trash, the Library, Settings and
+ * the other interfaces. Outside a project it opens on what was opened lately (Recent). Picking a job writes
  * it into the chat's composer, as the Toolbox does (`StudioToolbox`); picking a part opens it, in its project if that is another.
  */
 export function StudioQuickFind(props: {

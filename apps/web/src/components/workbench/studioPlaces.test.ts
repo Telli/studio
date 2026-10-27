@@ -10,6 +10,7 @@ describe("railMark", () => {
     expect(railMark("/needs-you")).toBe("needs");
     expect(railMark("/examples")).toBe("examples");
     expect(railMark("/examples/phone-stand")).toBe("examples");
+    expect(railMark("/trash")).toBe("trash");
   });
 
   it("marks Projects inside a project's workspace", () => {

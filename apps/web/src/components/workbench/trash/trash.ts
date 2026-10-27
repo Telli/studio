@@ -1,0 +1,95 @@
+import type { StudioProject, StudioTrashedProject } from "@t3tools/contracts";
+import { studioFolderKey } from "@t3tools/shared/studioProjects";
+
+type Projects = Readonly<Record<string, StudioProject>>;
+type Trashed = Readonly<Record<string, StudioTrashedProject>>;
+
+/** Every folder the projects hold, as keys (`studioFolderKey`). */
+const heldBy = (projects: ReadonlyArray<StudioProject>) =>
+  new Set(projects.flatMap((project) => project.folders.map(studioFolderKey)));
+
+/**
+ * The folders and chats Studio lists once Trash has projects in it (`useProjectList`): a folder
+ * that only projects in Trash hold goes, with its chats, so a trashed project leaves Home,
+ * Projects (its folder is not offered as one in no project), Chats, the sidebar and ⌘K. A folder a
+ * project not in Trash holds too stays. With nothing hidden, the lists come back as given.
+ */
+export function hiddenByTrash<
+  F extends { readonly id: string; readonly workspaceRoot: string },
+  C extends { readonly projectId: string },
+>(
+  folders: ReadonlyArray<F>,
+  chats: ReadonlyArray<C>,
+  trashed: Trashed,
+  projects: Projects,
+): { readonly folders: ReadonlyArray<F>; readonly chats: ReadonlyArray<C> } {
+  const live = heldBy(Object.values(projects));
+  const gone = [...heldBy(Object.values(trashed))].filter((key) => !live.has(key));
+  if (gone.length === 0) return { folders, chats };
+  const hidden = new Set(gone);
+  const hiddenIds = new Set(
+    folders
+      .filter((folder) => hidden.has(studioFolderKey(folder.workspaceRoot)))
+      .map((folder) => folder.id),
+  );
+  if (hiddenIds.size === 0) return { folders, chats };
+  return {
+    folders: folders.filter((folder) => !hiddenIds.has(folder.id)),
+    chats: chats.filter((chat) => !hiddenIds.has(chat.projectId)),
+  };
+}
+
+/** Trash's projects with their ids, the last moved there first, as the Trash page lists them. */
+export function inTrashOrder(
+  trashed: Trashed,
+): Array<StudioTrashedProject & { readonly id: string }> {
+  return Object.entries(trashed)
+    .map(([id, project]) => ({ ...project, id }))
+    .toSorted((a, b) => b.trashedAt.localeCompare(a.trashedAt));
+}
+
+/**
+ * Move to Trash, as a project's menus offer it: moves the project and says "Moved <name> to
+ * Trash" (`say`), whose Undo restores it under the same id, its chats listed again. Resolves to
+ * whether it moved; a move that fails says nothing here (the command reports it).
+ */
+export async function trashWithUndo(input: {
+  readonly id: string;
+  readonly name: string;
+  readonly trash: (id: string) => Promise<boolean>;
+  readonly restore: (id: string) => Promise<boolean>;
+  readonly say: (toast: { readonly title: string; readonly undo: () => Promise<boolean> }) => void;
+}): Promise<boolean> {
+  if (!(await input.trash(input.id))) return false;
+  input.say({ title: `Moved ${input.name} to Trash`, undo: () => input.restore(input.id) });
+  return true;
+}
+
+/**
+ * Delete forever, from Trash: deletes each of the project's folders' records with their chats
+ * (`deleteFolder`, T3's project delete), then the project's record in Trash (`purge`). The files on
+ * disk stay. A folder another project holds, in Trash or not, is left with its chats, and one the
+ * environment no longer knows is passed over, so its record still goes. When a folder cannot be
+ * deleted the record stays, to try again. Resolves to whether it is gone.
+ */
+export async function deleteForever<F extends { readonly workspaceRoot: string }>(input: {
+  readonly id: string;
+  readonly projects: Projects;
+  readonly trashed: Trashed;
+  readonly knownFolders: ReadonlyArray<F>;
+  readonly deleteFolder: (folder: F) => Promise<boolean>;
+  readonly purge: (id: string) => Promise<boolean>;
+}): Promise<boolean> {
+  const project = input.trashed[input.id];
+  if (project === undefined) return false;
+  const others = heldBy([
+    ...Object.values(input.projects),
+    ...Object.entries(input.trashed).flatMap(([id, other]) => (id === input.id ? [] : [other])),
+  ]);
+  const own = new Set(project.folders.map(studioFolderKey).filter((key) => !others.has(key)));
+  for (const folder of input.knownFolders) {
+    if (!own.has(studioFolderKey(folder.workspaceRoot))) continue;
+    if (!(await input.deleteFolder(folder))) return false;
+  }
+  return input.purge(input.id);
+}

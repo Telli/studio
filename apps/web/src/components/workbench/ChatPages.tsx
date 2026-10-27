@@ -18,7 +18,8 @@ import { chatLabel, workspaceTitle } from "./workspaceTitle";
 
 /**
  * A page of Studio beside the rail, as the Projects page is laid out: its top bar, then a column.
- * Chats, Needs you, the Library (`LibraryPage`), Examples and each example's page are each one.
+ * Chats, Needs you, the Library (`LibraryPage`), Examples and each example's page, and Trash
+ * (`TrashPage`) are each one.
  */
 export function ChatPage(props: {
   readonly title: string;

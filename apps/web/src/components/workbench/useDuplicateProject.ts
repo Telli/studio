@@ -11,6 +11,7 @@ import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { toastManager } from "../ui/toast";
 import { copyName as freeName } from "./examples/examples";
 import { readStudioImport } from "./studioImportBridge";
+import { useTrashedProjects } from "./trash/useTrash";
 import { useSaveStudioProject } from "./useStudioProjects";
 
 /** A folder's own things that are no project's work: hidden folders, caches and scratch (`projectFiles`). */
@@ -48,13 +49,18 @@ export function useDuplicateProject(environmentId: EnvironmentId) {
   const read = useAtomQueryRunner(projectEnvironment.readFile, { reportFailure: false });
   const write = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
   const save = useSaveStudioProject(environmentId);
+  const trashed = useTrashedProjects(environmentId);
   const handleNewThread = useNewThreadHandler();
   const bridge = readStudioImport();
   const duplicate = useCallback(
     async (project: StudioProject, taken: ReadonlyArray<string>): Promise<boolean> => {
       const source = project.folders[0];
       if (bridge === null || source === undefined) return false;
-      const name = copyName(project.name, taken);
+      // Trash's names are taken too, so a restore never makes two of one name.
+      const name = copyName(project.name, [
+        ...taken,
+        ...Object.values(trashed).map((each) => each.name),
+      ]);
       // Copying takes a moment: it says so at once, then becomes what came of it.
       const toastId = toastManager.add({
         type: "loading",
@@ -123,7 +129,7 @@ export function useDuplicateProject(environmentId: EnvironmentId) {
       if (ready !== null) await handleNewThread(projectRef).catch(() => undefined);
       return true;
     },
-    [bridge, createNew, environmentId, handleNewThread, list, read, save, write],
+    [bridge, createNew, environmentId, handleNewThread, list, read, save, trashed, write],
   );
   return bridge === null ? null : duplicate;
 }

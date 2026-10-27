@@ -38,6 +38,13 @@ export const StudioProject = Schema.Struct({
 });
 export type StudioProject = typeof StudioProject.Type;
 
+/** A project in Trash: kept whole until it is restored or deleted forever, with when it went. */
+export const StudioTrashedProject = Schema.Struct({
+  ...StudioProject.fields,
+  trashedAt: Schema.String,
+});
+export type StudioTrashedProject = typeof StudioTrashedProject.Type;
+
 /**
  * Where Studio keeps its projects: one folder per project (`<root>/<id>/`)
  * holding its `project.json` and a README, and each folder its own git
@@ -53,6 +60,8 @@ export const StudioProjectsListResult = Schema.Struct({
   /** Whether git is available, so each project is its own repository that Studio commits to. */
   git: Schema.Boolean,
   projects: Schema.Record(TrimmedNonEmptyString, StudioProject),
+  /** The projects in Trash (`<root>/.trash/<id>/`) by id: out of every list until restored. */
+  trashed: Schema.Record(TrimmedNonEmptyString, StudioTrashedProject),
 });
 export type StudioProjectsListResult = typeof StudioProjectsListResult.Type;
 
@@ -71,11 +80,24 @@ export const StudioProjectsSaveResult = Schema.Struct({
 });
 export type StudioProjectsSaveResult = typeof StudioProjectsSaveResult.Type;
 
+/**
+ * Trash, by id: `trash` moves a project there, `restore` brings it back under the same id, and
+ * `purge` deletes its record there forever. None of them touches the project's work folders.
+ */
+export const StudioProjectsTrashInput = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  action: Schema.Literals(["trash", "restore", "purge"]),
+});
+export type StudioProjectsTrashInput = typeof StudioProjectsTrashInput.Type;
+
 /** Reading the projects folder, or writing or removing a project, failed. */
 export class StudioProjectsError extends Schema.TaggedError<StudioProjectsError>()(
   "StudioProjectsError",
   {
-    /** `invalid-id`: the id is not one folder name, or a removal named no project. */
+    /**
+     * `invalid-id`: the id is not one folder name, or a removal, trash or purge named no project
+     * there (a restore: none in Trash, or one already under that id).
+     */
     failure: Schema.Literals(["read", "write", "remove", "invalid-id"]),
     /** The projects folder. */
     folder: Schema.String,

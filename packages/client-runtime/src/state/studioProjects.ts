@@ -19,7 +19,7 @@ const studioProjectsRevision = Atom.family((environmentId: EnvironmentId) =>
 
 /**
  * An environment's Studio projects (one folder and repository each on that
- * machine) and the save that writes, renames or removes one. Each client
+ * machine), the save that writes, renames or removes one, and Trash. Each client
  * binds them to its own connection runtime.
  */
 export function createStudioProjectsEnvironmentAtoms<R, E>(
@@ -36,6 +36,17 @@ export function createStudioProjectsEnvironmentAtoms<R, E>(
     save: createEnvironmentRpcCommand(runtime, {
       label: "environment-command:studio-projects:save",
       tag: WS_METHODS.studioProjectsSave,
+      scheduler: createAtomCommandScheduler(),
+      concurrency: { mode: "serial", key: ({ environmentId }) => environmentId },
+      onSettled: ({ environmentId }, registry) =>
+        Effect.sync(() =>
+          registry.update(studioProjectsRevision(environmentId), (value) => value + 1),
+        ),
+    }),
+    /** Moves a project to Trash, restores it, or deletes its record there forever; in turn with saves. */
+    trash: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:studio-projects:trash",
+      tag: WS_METHODS.studioProjectsTrash,
       scheduler: createAtomCommandScheduler(),
       concurrency: { mode: "serial", key: ({ environmentId }) => environmentId },
       onSettled: ({ environmentId }, registry) =>

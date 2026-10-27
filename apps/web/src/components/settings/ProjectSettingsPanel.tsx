@@ -542,7 +542,7 @@ function ProjectDetail({
         {/* A project's scripts and `t3.json` are coding tools (`CODE_SETTINGS_ROWS`). */}
         {engineering ? null : <ProjectActionsSettings />}
         {hasMultipleCheckouts ? checkoutChoices : null}
-        {/* Studio removes a project from its switcher (Remove from Studio), its files kept; this
+        {/* Studio takes a project out from its menus (Move to Trash), its files kept; this
             one removed only the folder's entry and left the project's tile behind. */}
         {engineering ? null : (
           <SettingsSection title="Danger">

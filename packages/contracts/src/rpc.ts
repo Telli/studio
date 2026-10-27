@@ -390,6 +390,7 @@ import {
   StudioProjectsListResult,
   StudioProjectsSaveInput,
   StudioProjectsSaveResult,
+  StudioProjectsTrashInput,
 } from "./studioProjects.ts";
 
 export const WS_METHODS = {
@@ -520,6 +521,7 @@ export const WS_METHODS = {
   pluginsModelPictures: "plugins.modelPictures",
   studioProjectsList: "studioProjects.list",
   studioProjectsSave: "studioProjects.save",
+  studioProjectsTrash: "studioProjects.trash",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
   serverPrepareAcpRegistryAgent: "server.prepareAcpRegistryAgent",
   serverUninstallAcpRegistryManagedBinary: "server.uninstallAcpRegistryManagedBinary",
@@ -882,6 +884,12 @@ const WsStudioProjectsListRpc = Rpc.make(WS_METHODS.studioProjectsList, {
 
 const WsStudioProjectsSaveRpc = Rpc.make(WS_METHODS.studioProjectsSave, {
   payload: StudioProjectsSaveInput,
+  success: StudioProjectsSaveResult,
+  error: StudioProjectsError,
+});
+
+const WsStudioProjectsTrashRpc = Rpc.make(WS_METHODS.studioProjectsTrash, {
+  payload: StudioProjectsTrashInput,
   success: StudioProjectsSaveResult,
   error: StudioProjectsError,
 });
@@ -2020,6 +2028,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsPluginsModelPicturesRpc,
   WsStudioProjectsListRpc,
   WsStudioProjectsSaveRpc,
+  WsStudioProjectsTrashRpc,
   WsServerSearchAcpRegistryRpc,
   WsServerPrepareAcpRegistryAgentRpc,
   WsServerUninstallAcpRegistryManagedBinaryRpc,

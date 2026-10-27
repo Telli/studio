@@ -5,7 +5,9 @@
  * its `project.json` and a README Studio writes. Where git is available each
  * project folder is its own repository and every save is a commit, so pushing
  * that repository shares that project. Git is best-effort: a save never fails
- * over it.
+ * over it. Trash is `<root>/.trash/<id>/project.json`: a trashed project's
+ * file moves there (with when) and back on restore; its folder and history
+ * stay where they are, so the id stays its own.
  *
  * @module StudioProjects
  */
@@ -15,6 +17,7 @@ import {
   type StudioProjectsListResult,
   type StudioProjectsSaveInput,
   type StudioProjectsSaveResult,
+  type StudioTrashedProject,
 } from "@t3tools/contracts";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import { writeFileStringAtomically } from "@t3tools/shared/atomicWrite";
@@ -22,6 +25,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import { newProjectFolderName } from "@t3tools/shared/path";
 import { fromJsonStringPretty, fromLenientJson } from "@t3tools/shared/schemaJson";
 import * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -35,6 +39,7 @@ import * as ProcessRunner from "../processRunner.ts";
 
 const PROJECT_FILE = "project.json";
 const README_FILE = "README.md";
+const TRASH_FOLDER = ".trash";
 const MAX_ID_LENGTH = 60;
 
 /**
@@ -54,9 +59,17 @@ const StudioProjectFile = Schema.Struct({
 });
 type StudioProjectFile = typeof StudioProjectFile.Type;
 
+/** A project's file as Trash holds it: the file whole, with when it went to Trash. */
+const TrashedProjectFile = Schema.Struct({
+  ...StudioProjectFile.fields,
+  trashedAt: Schema.String,
+});
+
 // Lenient on read, since people edit these by hand; 2-space JSON on write.
 const decodeProjectFile = Schema.decodeEffect(fromLenientJson(StudioProjectFile));
 const encodeProjectFile = Schema.encodeEffect(fromJsonStringPretty(StudioProjectFile));
+const decodeTrashedFile = Schema.decodeEffect(fromLenientJson(TrashedProjectFile));
+const encodeTrashedFile = Schema.encodeEffect(fromJsonStringPretty(TrashedProjectFile));
 
 export class StudioProjects extends Context.Service<
   StudioProjects,
@@ -76,6 +89,21 @@ export class StudioProjects extends Context.Service<
     readonly save: (
       input: StudioProjectsSaveInput,
     ) => Effect.Effect<StudioProjectsSaveResult, StudioProjectsError>;
+    /**
+     * Moves a project to Trash: its file goes to `<root>/.trash/<id>/` with when, and leaves the
+     * project's folder (committed there as a removal). Fails `invalid-id` for no such project.
+     */
+    readonly trash: (id: string) => Effect.Effect<StudioProjectsSaveResult, StudioProjectsError>;
+    /**
+     * Brings a project back from Trash under the same id, as it was. Fails `invalid-id` when it is
+     * not in Trash, or a project already has that id.
+     */
+    readonly restore: (id: string) => Effect.Effect<StudioProjectsSaveResult, StudioProjectsError>;
+    /**
+     * Deletes a project's record in Trash forever. Only Trash's record: its folders on disk, and
+     * its own folder's history, stay. Fails `invalid-id` when it is not in Trash.
+     */
+    readonly purge: (id: string) => Effect.Effect<StudioProjectsSaveResult, StudioProjectsError>;
   }
 >()("t3/studio/StudioProjects") {}
 
@@ -224,24 +252,35 @@ const make = Effect.gen(function* () {
       }),
     );
 
-  /** A project folder's file; None when it has none, or (logged) when it is not a project. */
-  const readProjectFile = (id: string) => {
-    const file = path.join(root, id, PROJECT_FILE);
-    return readText(file).pipe(
+  const trashFolder = path.join(root, TRASH_FOLDER);
+
+  /** A file decoded; None when it does not exist, or (logged) when it is not a project. */
+  const readDecoded = <A>(
+    file: string,
+    decode: (raw: string) => Effect.Effect<A, Schema.SchemaError>,
+  ) =>
+    readText(file).pipe(
       Effect.flatMap(
         Option.match({
-          onNone: () => Effect.succeed(Option.none<StudioProjectFile>()),
-          onSome: (raw) => decodeProjectFile(raw).pipe(Effect.asSome),
+          onNone: () => Effect.succeed(Option.none<A>()),
+          onSome: (raw) => decode(raw).pipe(Effect.asSome),
         }),
       ),
       Effect.catch((cause) =>
         Effect.logWarning("Skipping a Studio project whose project.json is not a project.", {
           file,
           cause,
-        }).pipe(Effect.as(Option.none<StudioProjectFile>())),
+        }).pipe(Effect.as(Option.none<A>())),
       ),
     );
-  };
+
+  /** A project folder's file; None when it has none, or (logged) when it is not a project. */
+  const readProjectFile = (id: string) =>
+    readDecoded(path.join(root, id, PROJECT_FILE), decodeProjectFile);
+
+  /** A trashed project's file, the same way. */
+  const readTrashedFile = (id: string) =>
+    readDecoded(path.join(trashFolder, id, PROJECT_FILE), decodeTrashedFile);
 
   /** Folders under the home directory as `~/...`, with forward slashes. */
   const collapseHome = (folder: string) => {
@@ -277,30 +316,52 @@ const make = Effect.gen(function* () {
       Effect.orElseSucceed(() => false),
     );
 
-  const list: StudioProjects["Service"]["list"] = Effect.gen(function* () {
-    const names = yield* fileSystem.readDirectory(root).pipe(
+  /** The project ids in a folder of project folders, sorted; none when it is missing. */
+  const projectIdsIn = (folder: string) =>
+    fileSystem.readDirectory(folder).pipe(
       Effect.catchTags({
         PlatformError: (cause) =>
           cause.reason._tag === "NotFound"
             ? Effect.succeed<ReadonlyArray<string>>([])
             : Effect.fail(new StudioProjectsError({ failure: "read", folder: root, cause })),
       }),
+      Effect.map((names) => [...names].filter(isProjectId).sort()),
     );
-    const found = yield* Effect.forEach(
-      [...names].filter(isProjectId).sort(),
-      (id) =>
-        isDirectory(path.join(root, id)).pipe(
-          Effect.flatMap((directory) =>
-            directory ? readProjectFile(id) : Effect.succeed(Option.none<StudioProjectFile>()),
-          ),
-          Effect.map(Option.map((file) => [id, toProject(file)] as const)),
+
+  /** Each folder's file in `folder` that is a project, by id. */
+  const readAll = <A>(folder: string, read: (id: string) => Effect.Effect<Option.Option<A>>) =>
+    projectIdsIn(folder).pipe(
+      Effect.flatMap((ids) =>
+        Effect.forEach(
+          ids,
+          (id) =>
+            isDirectory(path.join(folder, id)).pipe(
+              Effect.flatMap((directory) =>
+                directory ? read(id) : Effect.succeed(Option.none<A>()),
+              ),
+              Effect.map(Option.map((file) => [id, file] as const)),
+            ),
+          { concurrency: 8 },
         ),
-      { concurrency: 8 },
+      ),
+      Effect.map((found) => found.flatMap(Option.toArray)),
     );
+
+  const list: StudioProjects["Service"]["list"] = Effect.gen(function* () {
+    const [found, inTrash] = yield* Effect.all([
+      readAll(root, readProjectFile),
+      readAll(trashFolder, readTrashedFile),
+    ]);
     return {
       folder: root,
       git: yield* gitAvailable,
-      projects: Object.fromEntries(found.flatMap(Option.toArray)),
+      projects: Object.fromEntries(found.map(([id, file]) => [id, toProject(file)])),
+      trashed: Object.fromEntries(
+        inTrash.map(([id, { trashedAt, ...file }]): [string, StudioTrashedProject] => [
+          id,
+          { ...toProject(file), trashedAt },
+        ]),
+      ),
     };
   }).pipe(Effect.withSpan("StudioProjects.list"));
 
@@ -399,6 +460,110 @@ const make = Effect.gen(function* () {
     yield* commit(folder, [PROJECT_FILE], `Remove ${name}`);
   });
 
+  /** Writes a file whole, its folder made first. */
+  const writeWhole = (filePath: string, contents: string) =>
+    fileSystem
+      .makeDirectory(path.dirname(filePath), { recursive: true })
+      .pipe(
+        Effect.andThen(
+          writeFileStringAtomically({ filePath, contents }).pipe(
+            Effect.provideService(FileSystem.FileSystem, fileSystem),
+            Effect.provideService(Path.Path, path),
+          ),
+        ),
+      );
+
+  /** A file's removal; false when it was not there. */
+  const removeFile = (filePath: string) =>
+    fileSystem.remove(filePath).pipe(
+      Effect.as(true),
+      Effect.catchTags({
+        PlatformError: (cause) =>
+          cause.reason._tag === "NotFound" ? Effect.succeed(false) : Effect.fail(cause),
+      }),
+    );
+
+  /** Trash's record of a project gone, and its folder there once empty. */
+  const removeTrashed = (id: string) =>
+    removeFile(path.join(trashFolder, id, PROJECT_FILE)).pipe(
+      // Anything else someone put there stays, and so does the folder holding it.
+      Effect.tap(() => {
+        const folder = path.join(trashFolder, id);
+        return fileSystem.readDirectory(folder).pipe(
+          Effect.flatMap((left) =>
+            left.length === 0 ? fileSystem.remove(folder, { recursive: true }) : Effect.void,
+          ),
+          Effect.ignore,
+        );
+      }),
+    );
+
+  const moveToTrash = Effect.fnUntraced(function* (id: string) {
+    const failed = (cause: unknown) =>
+      new StudioProjectsError({ failure: "write", folder: root, id, cause });
+    const file = yield* readProjectFile(id);
+    if (Option.isNone(file)) {
+      return yield* new StudioProjectsError({ failure: "invalid-id", folder: root, id });
+    }
+    const trashedAt = DateTime.formatIso(yield* DateTime.now);
+    const json = yield* encodeTrashedFile({ ...file.value, trashedAt }).pipe(
+      Effect.mapError(failed),
+    );
+    yield* writeWhole(path.join(trashFolder, id, PROJECT_FILE), `${json}\n`).pipe(
+      Effect.mapError(failed),
+    );
+    // Never in both places: when the project's own file cannot go, neither does it go to Trash.
+    yield* removeFile(path.join(root, id, PROJECT_FILE)).pipe(
+      Effect.catch((cause) =>
+        removeTrashed(id).pipe(Effect.ignore, Effect.andThen(Effect.fail(failed(cause)))),
+      ),
+    );
+    yield* commit(path.join(root, id), [PROJECT_FILE], `Move ${file.value.name} to Trash`);
+  });
+
+  const restoreFromTrash = Effect.fnUntraced(function* (id: string) {
+    const failed = (cause: unknown) =>
+      new StudioProjectsError({ failure: "write", folder: root, id, cause });
+    const trashed = yield* readTrashedFile(id);
+    const projectPath = path.join(root, id, PROJECT_FILE);
+    const taken = yield* fileSystem.exists(projectPath).pipe(Effect.mapError(failed));
+    if (Option.isNone(trashed) || taken) {
+      return yield* new StudioProjectsError({ failure: "invalid-id", folder: root, id });
+    }
+    const { trashedAt: _trashedAt, ...file } = trashed.value;
+    const json = yield* encodeProjectFile(file).pipe(Effect.mapError(failed));
+    yield* writeWhole(projectPath, `${json}\n`).pipe(Effect.mapError(failed));
+    yield* removeTrashed(id).pipe(Effect.mapError(failed));
+    yield* commit(path.join(root, id), [PROJECT_FILE], `Restore ${file.name}`);
+  });
+
+  const purgeFromTrash = Effect.fnUntraced(function* (id: string) {
+    const removed = yield* removeTrashed(id).pipe(
+      Effect.mapError(
+        (cause) => new StudioProjectsError({ failure: "remove", folder: root, id, cause }),
+      ),
+    );
+    if (!removed) {
+      return yield* new StudioProjectsError({ failure: "invalid-id", folder: root, id });
+    }
+  });
+
+  /** One Trash step on a project by id, one at a time with saves, then the list as it is now. */
+  const inTrash =
+    (name: string, step: (id: string) => Effect.Effect<void, StudioProjectsError>) =>
+    (id: string) =>
+      saveLock
+        .withPermits(1)(
+          Effect.gen(function* () {
+            if (!isProjectId(id)) {
+              return yield* new StudioProjectsError({ failure: "invalid-id", folder: root, id });
+            }
+            yield* step(id);
+            return { ...(yield* list), id };
+          }),
+        )
+        .pipe(Effect.withSpan(`StudioProjects.${name}`));
+
   const save: StudioProjects["Service"]["save"] = (input) =>
     saveLock
       .withPermits(1)(
@@ -419,7 +584,13 @@ const make = Effect.gen(function* () {
       )
       .pipe(Effect.withSpan("StudioProjects.save"));
 
-  return StudioProjects.of({ list, save });
+  return StudioProjects.of({
+    list,
+    save,
+    trash: inTrash("trash", moveToTrash),
+    restore: inTrash("restore", restoreFromTrash),
+    purge: inTrash("purge", purgeFromTrash),
+  });
 });
 
 export const layer = Layer.effect(StudioProjects, make);

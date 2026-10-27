@@ -188,7 +188,12 @@ const layerWithStudioProject = RuntimePolicy.layerFromProjectStore.pipe(
   Layer.provide(layerProjects),
   Layer.provide(
     Layer.mock(StudioProjects.StudioProjects)({
-      list: Effect.succeed({ folder: "/studio", git: true, projects: { rig: studioProject } }),
+      list: Effect.succeed({
+        folder: "/studio",
+        git: true,
+        projects: { rig: studioProject },
+        trashed: {},
+      }),
     }),
   ),
 );

@@ -6,15 +6,6 @@ import { readLocalApi } from "~/localApi";
 import { serverEnvironment } from "~/state/server";
 import { shellEnvironment } from "~/state/shell";
 import { useAtomCommand } from "~/state/use-atom-command";
-import {
-  AlertDialog,
-  AlertDialogClose,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogPopup,
-  AlertDialogTitle,
-} from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -29,6 +20,7 @@ import { Input } from "../ui/input";
 import { BackupDialog } from "./BackupDialog";
 import type { ListedProject } from "./projectList";
 import { useStarredStore } from "./starredProjects";
+import { useTrash } from "./trash/useTrash";
 import { useLastBackup } from "./useBackup";
 import { useDuplicateProject } from "./useDuplicateProject";
 import { useSaveStudioProject } from "./useStudioProjects";
@@ -36,34 +28,6 @@ import { useSaveStudioProject } from "./useStudioProjects";
 /** The file manager's name where the project's folder opens: Finder on a Mac. */
 export const folderLabel = (os: string | undefined) =>
   os === "darwin" ? "Show in Finder" : os === "win32" ? "Show in File Explorer" : "Show in Files";
-
-/** Remove from Studio's question, wherever it is asked: out of Studio, not off the disk. */
-export function RemoveFromStudioDialog(props: {
-  /** The project being removed; null while nothing is. */
-  readonly name: string | null;
-  readonly onCancel: () => void;
-  readonly onRemove: () => void;
-}) {
-  return (
-    <AlertDialog open={props.name !== null} onOpenChange={(open) => !open && props.onCancel()}>
-      <AlertDialogPopup>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Remove {props.name ?? "this project"} from Studio</AlertDialogTitle>
-          <AlertDialogDescription>
-            Its files stay in its folder on this Mac, untouched, and you can import it again any
-            time.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
-          <Button variant="destructive" onClick={props.onRemove}>
-            Remove
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogPopup>
-    </AlertDialog>
-  );
-}
 
 /** Rename, as Google Drive asks it: the name in a box, Enter or Rename to keep it. */
 function RenameDialog(props: {
@@ -126,13 +90,13 @@ function BackupFor(props: {
   );
 }
 
-type Choice = "open" | "rename" | "duplicate" | "backup" | "folder" | "star" | "remove";
+type Choice = "open" | "rename" | "duplicate" | "backup" | "folder" | "star" | "trash";
 
 /**
  * A project's menu where it shows as a tile (Home), as Google Drive's is on a file: a right-click,
  * or the "…" on its hover. The same actions in the same words as the project switcher's own menu
- * (`ProjectSwitcher`): Open, Rename…, Duplicate, Back up…, Show in Finder, Star, and Remove from
- * Studio…, which asks first. `dialogs` goes once beside the tiles.
+ * (`ProjectSwitcher`): Open, Rename…, Duplicate, Back up…, Show in Finder, Star, and Move to
+ * Trash, which says so with Undo (`useTrash`). `dialogs` goes once beside the tiles.
  */
 export function useProjectMenu(props: {
   readonly environmentId: EnvironmentId;
@@ -144,13 +108,13 @@ export function useProjectMenu(props: {
 } {
   const { environmentId, cards, onOpen } = props;
   const save = useSaveStudioProject(environmentId);
+  const { trashProject } = useTrash(environmentId);
   const duplicate = useDuplicateProject(environmentId);
   const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, { reportFailure: true });
   const starred = useStarredStore((store) => store.starred);
   const toggleStar = useStarredStore((store) => store.toggle);
   const [renaming, setRenaming] = useState<ListedProject | null>(null);
-  const [removing, setRemoving] = useState<ListedProject | null>(null);
   const [backingUp, setBackingUp] = useState<ListedProject | null>(null);
   const canShowFolder = serverConfig?.availableEditors.includes("file-manager") === true;
 
@@ -169,7 +133,7 @@ export function useProjectMenu(props: {
             ? [{ id: "folder" as const, label: folderLabel(serverConfig?.environment.platform.os) }]
             : []),
           { id: "star", label: starred.includes(card.id) ? "Unstar" : "Star" },
-          { id: "remove", label: "Remove from Studio…", destructive: true, separatorBefore: true },
+          { id: "trash", label: "Move to Trash", separatorBefore: true },
         ],
         position,
       )
@@ -185,7 +149,7 @@ export function useProjectMenu(props: {
         else if (choice === "folder" && folder !== undefined) {
           void openInEditor({ environmentId, input: { cwd: folder, editor: "file-manager" } });
         } else if (choice === "star") toggleStar(card.id);
-        else if (choice === "remove") setRemoving(card);
+        else if (choice === "trash") void trashProject(card.id, card.project.name);
       });
   };
 
@@ -194,20 +158,10 @@ export function useProjectMenu(props: {
     const name = typed.trim();
     if (name !== "" && name !== card.project.name) void save(card.id, { ...card.project, name });
   };
-  const remove = () => {
-    const card = removing;
-    setRemoving(null);
-    if (card !== null) void save(card.id, null);
-  };
 
   const dialogs = (
     <>
       <RenameDialog card={renaming} onClose={() => setRenaming(null)} onRename={rename} />
-      <RemoveFromStudioDialog
-        name={removing?.project.name ?? null}
-        onCancel={() => setRemoving(null)}
-        onRemove={remove}
-      />
       {backingUp === null ? null : (
         <BackupFor
           environmentId={environmentId}

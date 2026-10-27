@@ -37,6 +37,7 @@ import { partLabel } from "./partNames";
 import { usePictures } from "./usePictures";
 import { readStudioImport, rememberScan } from "./studioImportBridge";
 import { useImportProjects } from "./useImportProjects";
+import { useTrashedProjects } from "./trash/useTrash";
 import { useStudioProjects } from "./useStudioProjects";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
@@ -116,14 +117,18 @@ function ImportDialog(props: {
   const { environmentId, start, onClose } = props;
   const bridge = readStudioImport();
   const studioProjects = useStudioProjects(environmentId);
-  // Studio's projects' folders, not every folder the server knows: one removed from Studio
-  // (Remove from Studio) keeps its folder known, and is offered here again.
+  const trashed = useTrashedProjects(environmentId);
+  // Studio's projects' folders, in Trash too (Restore brings one back), not every folder the
+  // server knows: one whose project was deleted forever keeps its folder known, and is offered
+  // here again.
   const known = useMemo(
     () =>
       new Set(
-        Object.values(studioProjects).flatMap((project) => project.folders.map(studioFolderKey)),
+        [...Object.values(studioProjects), ...Object.values(trashed)].flatMap((project) =>
+          project.folders.map(studioFolderKey),
+        ),
       ),
-    [studioProjects],
+    [studioProjects, trashed],
   );
   const runImport = useImportProjects(environmentId);
   const [step, setStep] = useState<"scan" | "found" | "sort">(

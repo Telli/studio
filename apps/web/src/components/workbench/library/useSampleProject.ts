@@ -17,6 +17,7 @@ import { readStudioImport } from "../studioImportBridge";
 import { useCreateStudioProject } from "../useCreateStudioProject";
 import { copiedEntries } from "../useDuplicateProject";
 import { openInPanel } from "../useOpenInWorkbench";
+import { useTrashedProjects } from "../trash/useTrash";
 import { useStudioProjects } from "../useStudioProjects";
 import { copySample, inTurn } from "./sampleProject";
 
@@ -41,7 +42,8 @@ export function useExamples(environmentId: EnvironmentId | null) {
 
 /**
  * An example the server ships, by its id, and Make a copy to edit: `copy` makes a new project
- * named `copyName` (the example's name, or the next one free: "Phone stand 2"), copies the
+ * named `copyName` (the example's name, or the next one free among your projects and Trash's:
+ * "Phone stand 2"), copies the
  * example's files into its folder (the desktop app copies them, `studioImport`), and opens it on
  * the example's main file, or on `file` of it (the Library's See the example), beside its new
  * chat. It resolves to whether the copy was made. Copies are made one at a time per environment,
@@ -56,6 +58,7 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
   const onThisComputer = usePrimaryEnvironmentId() === environmentId;
   const canCopy = bridge !== null && onThisComputer;
   const projects = useStudioProjects(environmentId);
+  const trashed = useTrashedProjects(environmentId);
   const listStudioProjects = useAtomQueryRunner(studioProjectsEnvironment.list, {
     reportFailure: false,
     refresh: true,
@@ -83,10 +86,11 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
           // Read now, not from the last render: a copy may have been made a moment ago.
           const known = await listStudioProjects({ environmentId, input: {} });
           if (known._tag !== "Success") return failed("Studio's projects could not be read.");
-          const name = copyName(
-            sample.name,
-            Object.values(known.value.projects).map((project) => project.name),
-          );
+          // Trash's names are taken too, so a restore never makes two of one name.
+          const name = copyName(sample.name, [
+            ...Object.values(known.value.projects).map((project) => project.name),
+            ...Object.values(known.value.trashed).map((project) => project.name),
+          ]);
           const listed = await list({
             environmentId,
             input: { cwd: sample.path, directoryPath: "" },
@@ -169,9 +173,9 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
         ? null
         : copyName(
             sample.name,
-            Object.values(projects).map((project) => project.name),
+            [...Object.values(projects), ...Object.values(trashed)].map((project) => project.name),
           ),
-    [projects, sample],
+    [projects, sample, trashed],
   );
   return useMemo(
     () =>

@@ -35,13 +35,14 @@ import {
 import type { ListedProject } from "./projectList";
 import { StarButton } from "./StarButton";
 import { BackupDialog } from "./BackupDialog";
-import { folderLabel, RemoveFromStudioDialog } from "./ProjectMenu";
+import { folderLabel } from "./ProjectMenu";
 import { backupPlaceLabel, useLastBackup } from "./useBackup";
 import { useDuplicateProject } from "./useDuplicateProject";
 import { useOpenProject } from "./useOpenProject";
 import { useOpenShortcut } from "./useOpenShortcut";
 import { useProjectHasDesign } from "./useProjectCover";
 import { useProjectList } from "./useProjectList";
+import { useTrash } from "./trash/useTrash";
 import { useSaveStudioProject } from "./useStudioProjects";
 import { useVersionRequestStore } from "./useVersions";
 
@@ -54,7 +55,8 @@ const actionClass =
  * (its picture, its name, the up-and-down chevrons every switcher has), opened by a click or
  * Cmd+O. Its top is the open project's own menu: Rename, Duplicate (a copy with its own folder,
  * `useDuplicateProject`), Version history (the Overview's Versions), Back up (into a folder the
- * person chooses once, `useBackup`), Show in Finder and its star. Below, the other projects to
+ * person chooses once, `useBackup`), Show in Finder, Move to Trash (with Undo, `useTrash`) and its
+ * star. Below, the other projects to
  * switch to: the starred ones, then the rest, the one opened last first, each with when (and its
  * star on hover), and a box to find one by name; then New project and Home.
  * Picking one opens it where it was left (`useOpenProject`).
@@ -91,13 +93,12 @@ export function ProjectSwitcher(props: {
   // Versions are kept of parts: a project with none yet has no history to show.
   const hasDesign = useProjectHasDesign(environmentId, current?.project ?? null);
   const [backingUp, setBackingUp] = useState(false);
-  const [removing, setRemoving] = useState(false);
-  // Out of Studio, not off the disk: its folder and files stay, to be imported again any time.
-  const remove = () => {
+  const { trashProject } = useTrash(environmentId);
+  // To Trash, with Undo on its toast; Home, since the project is no longer to be seen.
+  const moveToTrash = () => {
     if (current === null) return;
-    setRemoving(false);
-    void save(current.id, null).then((id) => {
-      if (id !== null) void navigate({ to: "/" });
+    void trashProject(current.id, current.project.name).then((moved) => {
+      if (moved) void navigate({ to: "/" });
     });
   };
   // The open project is at the top, with its own menu; the list is the others, to switch to.
@@ -264,9 +265,9 @@ export function ProjectSwitcher(props: {
                 </button>
               ) : null}
               {current === null ? null : (
-                <button type="button" className={actionClass} onClick={go(() => setRemoving(true))}>
+                <button type="button" className={actionClass} onClick={go(moveToTrash)}>
                   <Trash2Icon aria-hidden="true" />
-                  Remove from Studio…
+                  Move to Trash
                 </button>
               )}
             </div>
@@ -306,11 +307,6 @@ export function ProjectSwitcher(props: {
           </div>
         </PopoverPopup>
       </Popover>
-      <RemoveFromStudioDialog
-        name={removing && current !== null ? current.project.name : null}
-        onCancel={() => setRemoving(false)}
-        onRemove={remove}
-      />
       {current === null ? null : (
         <BackupDialog
           open={backingUp}

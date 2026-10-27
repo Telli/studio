@@ -1,7 +1,7 @@
 /**
  * Which part of Studio a route shows, for the rail and the top bar that replace T3's sidebar in the
- * engineering interface. Home, Chats, Projects, Examples (with each example's page) and Needs you
- * are Studio's pages, each a place on the rail (`StudioRail`); the Library is Studio's page too,
+ * engineering interface. Home, Chats, Projects, Examples (with each example's page), Needs you and
+ * Trash are Studio's pages, each a place on the rail (`StudioRail`); the Library is Studio's page too,
  * reached from New, the Toolbox, ⌘K and Settings rather than from the rail; and a thread or draft
  * is a project's workspace. Every
  * other page (settings, usage, pairing) keeps T3's own, though Settings keeps the rail beside its
@@ -13,6 +13,7 @@ export type StudioNavSection =
   | "projects"
   | "needs"
   | "examples"
+  | "trash"
   | "library"
   | "workspace"
   | "other";
@@ -34,6 +35,7 @@ export function studioNavSection(pathname: string): StudioNavSection {
   if (segments.length === 1 && first === "chats") return "chats";
   if (segments.length === 1 && first === "needs-you") return "needs";
   if (segments.length === 1 && first === "library") return "library";
+  if (segments.length === 1 && first === "trash") return "trash";
   // `/examples` and an example's page, `/examples/$id`, which the thread route would take.
   if (first === "examples" && segments.length <= 2) return "examples";
   if (first === "projects" && segments.length === 1) return "projects";

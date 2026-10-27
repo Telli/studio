@@ -253,7 +253,7 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   them. Loose files are placed in a project (copied into its folder) or left out; copies and older
   versions are listed and stay put. Import is on Home (files or a folder, or a scan), takes files
   dropped anywhere on Home, and offers the CAD files new in the scanned folders
-  since the last scan; a project removed from Studio is offered again. Inside a project, Import
+  since the last scan; a project deleted forever from Trash is offered again. Inside a project, Import
   beside New, or files dropped on its Overview, copy what is picked into the project's folder,
   never over a file there (`importIntoProject.ts`). The desktop app reads and copies (`apps/desktop/src/studio/`); what makes a
   project is decided in the web (`components/workbench/importPlan.ts`).
@@ -363,8 +363,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   listed as a recents list orders them, the one opened last on this device first (or worked on, if
   that came later), and the starred ones (kept on this computer) apart at the top of Home and the
   switcher. The sidebar is a rail of places down the far left, as Slack's (Amy, 2026-10-22,
-  `StudioRail.tsx`): Home, Chats, Projects and Needs you (with how many chats wait on you), and
-  Settings at its foot, each icon labelled and each opening its own page, as Claude's and ChatGPT's
+  `StudioRail.tsx`): Home, Chats, Projects, Examples and Needs you (with how many chats wait on
+  you), and Trash and Settings at its foot, each icon labelled and each opening its own page, as Claude's and ChatGPT's
   open Chats and Projects (Amy: "each one should open its own page"): Chats, every chat with a box
   to find one (`ChatPages.tsx`, `allChats.ts`); Projects, the Projects page; Needs you, the chats
   waiting on your answer or approval in any project. The rail marks the page that shows, and
@@ -376,8 +376,7 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   go back, then at its top the project's name, a control on one line with its picture that switches projects
   (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on Home), whose
   top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop
-  app, Version history once it has a part, Back up, Show in Finder, and Remove from Studio, which
-  asks first and keeps the folder's files to import again; T3's Remove project in Settings is
+  app, Version history once it has a part, Back up, Show in Finder, and Move to Trash; T3's Remove project in Settings is
   hidden in Engineering), then its Overview, New chat, and its chats, newest first, which fold
   away under their heading as an Overview module folds (`chatScope.ts`). Like Claude's and
   Codex's sidebars, the panel button is a plain dark icon and the rows and their icons read dark,
@@ -402,6 +401,17 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   and a notification's Open chat (`useShowWaitingChat`), except a hand edit's note, which goes in quietly
   and leaves the keyboard in the view (`viewContext.ts`). Engineering with code keeps T3 Code's
   thread sidebar, with the projects listed in it.
+- **Trash.** Move to Trash, in a project's menus (its tile's and the switcher's), is the one way
+  to take a project out: its record moves to `<projects folder>/.trash/<id>/project.json` with
+  when, and a toast says so with Undo. `studioProjects.list` returns `trashed` beside `projects`,
+  so every client hides it the same way: the project, its folders' chats and the folders
+  themselves (not offered as in no project, nor to import) leave Home, Projects, Chats, the
+  sidebar and ⌘K (`hiddenByTrash` in `components/workbench/trash/trash.ts`), and every project in
+  Trash counts as none, so Home shows its start page. Trash, at the foot of the rail, lists them
+  with Restore (back under the same id) and Delete forever, which asks first, deletes its folders'
+  T3 projects with their chats (a folder another project holds is kept) and then the record.
+  Studio never deletes files on disk: the work folders stay, and so does the project's own
+  folder and history in the projects folder, so its id is never reused.
 - **Back up.** A project is already a folder on the Mac with its versions in it; the project's
   menu backs it up somewhere else (`components/workbench/BackupDialog.tsx`). GitHub: a private
   repository Studio makes for it with T3 Code's own publish, then each backup committed and

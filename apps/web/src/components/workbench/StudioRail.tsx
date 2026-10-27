@@ -1,6 +1,13 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import { BellIcon, FolderIcon, HomeIcon, type LucideIcon, SettingsIcon } from "lucide-react";
+import {
+  BellIcon,
+  FolderIcon,
+  HomeIcon,
+  type LucideIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react";
 
 import { cn } from "~/lib/utils";
 import { useDesktopUpdateState } from "~/state/desktopUpdate";
@@ -16,13 +23,13 @@ import { useProjectList } from "./useProjectList";
 export const STUDIO_RAIL_WIDTH = 72;
 
 /** Where each place's page is. */
-type RailPage = "/" | "/chats" | "/projects" | "/examples" | "/needs-you" | "/settings";
+type RailPage = "/" | "/chats" | "/projects" | "/examples" | "/needs-you" | "/trash" | "/settings";
 
 /**
  * The places down the far left of Studio, as Slack's rail, each opening its own page as Claude's
  * and ChatGPT's sidebars open Chats and Projects: Home, Chats (every chat), Projects, Examples (the
  * finished projects Studio ships), Needs you (the chats waiting on the person, with how many), and
- * Settings at the foot. The one that shows
+ * at the foot Trash (projects moved there, to restore or delete forever) and Settings. The one that shows
  * is marked; inside a project, Projects is. The rail stays when the list beside it folds, and then
  * carries the update button above Settings while an update waits (`RailUpdate`).
  */
@@ -71,6 +78,12 @@ export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
         onClick={() => go("/needs-you")}
       />
       <div className="flex-1" />
+      <RailItem
+        icon={Trash2Icon}
+        label="Trash"
+        marked={mark === "trash"}
+        onClick={() => go("/trash")}
+      />
       {open || isMobile ? null : <RailUpdate />}
       <RailItem
         icon={SettingsIcon}

@@ -15,6 +15,10 @@ describe("studioNavSection", () => {
     expect(studioNavSection("/examples/phone-stand")).toBe("examples");
   });
 
+  it("places Trash", () => {
+    expect(studioNavSection("/trash")).toBe("trash");
+  });
+
   it("places the Library, Studio's page that is no place on the rail", () => {
     expect(studioNavSection("/library")).toBe("library");
   });
