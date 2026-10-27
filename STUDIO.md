@@ -280,14 +280,14 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   opened in the thread's folder. Each row opens what it names beside the chat
   (`references/openReference.ts`): a part's script, with a model of its name beside it, opens that
   part at the cited line, and in the workspace selects the feature whose statement holds the line,
-  in the design tree and on the timeline (Simple view shows no features, so the script opens at
+  in the design tree and on the timeline (AI mode shows no features, so the script opens at
   those lines in front); a document at its line or heading; a page as a link in the chat does. The
   part's view hears the ask in its host context (`studio/focus`: the script's path, a line and a
   number for each press, behind the `studioFocus` capability) and says it has taken it, however it
   went, and whether a feature held the line (`studio/notifications/focus-taken`, `{ nonce, found }`),
   so no ask outlives its view (`viewerFocus.ts`, `edit/useHostFocus.js`). Where none did (a
   constant, an import, a helper's line, a line moved since the part was read, a part whose build
-  failed), Studio opens the script at that line in front (`openInPanel`), as Simple view does, so a
+  failed), Studio opens the script at that line in front (`openInPanel`), as AI mode does, so a
   press never does nothing (`PluginViewFrame.tsx`).
 - **Documents from templates.** New's Documents (and the Overview's Documents, the Document
   menu's From a template, and the quick find) start a document the agent writes into `docs/`: a
@@ -393,9 +393,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   colored icon (`FileKindIcon.tsx`) at its left and its close at its right, as Chrome's are, the
   one in front joined to the toolbar under them. There is no + (New is the one way to add), a
   panel with every tab closed shows the Overview, and a tab's menu has no Copy path. The
-  toolbar is one line of what can be done (`StudioPanelBar.tsx`): the AI | CAD switch, Simple view
-  where the viewer in front has two layouts; and Import and New, always there, at its right end, as Home has them (`StudioNew.tsx`, which hosts
-  New's dialog in Engineering); a narrow window's panel sheet keeps it. Whatever
+  toolbar is one line of what can be done (`StudioPanelBar.tsx`): the AI | CAD switch, where the
+  viewer in front has two layouts, then Import and New, always there, at its right end, as Home
+  has them (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow window's panel
+  sheet keeps it. Whatever
   writes into the chat (the Toolbox, Cmd+K, the viewer's Add to chat, the Overview) brings the
   chat back from a panel filling the window, as does a question or approval the agent waits on
   and a notification's Open chat (`useShowWaitingChat`), except a hand edit's note, which goes in quietly
@@ -471,8 +472,7 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   toolbar laid out as Fusion's: tabs Features, Sketch and Evaluate (Assembly in an assembly, Drawing
   for the part's sheet) with Undo and Redo at the tab row's left, Solid's groups Create, Modify,
   Construct, Inspect and Select, each showing its most-used commands as buttons and the whole
-  group in its title's menu, and Ask the agent (Ask, Add to context, Annotate) at the row's right
-  end; one Extrude
+  group in its title's menu; one Extrude
   (and Revolve, Swept Boss/Base, Lofted Boss/Base) whose Boss/Base or Cut switch opens the cut
   command with what was typed; dialogs with OK, Apply and Cancel at their foot (Enter is OK, Escape
   in the view cancels); a design tree numbering features as SolidWorks does (Boss-Extrude1, Fillet1,
@@ -492,37 +492,27 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   which checkout made them. S finds any
   button of the toolbar by name, SolidWorks' or another tool's ("edge blend" finds Fillet;
   `edit/CommandSearchBox.jsx`): it lists the viewer's commands only, ⌘K stays Studio's find, and
-  Simple view leaves S to the viewer's strip. Simple view reads the part once, quietly,
+  AI mode leaves S to the viewer's strip. CAD mode reads the part once, quietly,
   after the model opens, so the full workspace opens on it at once (`useEditMode`). A pick in the
   workspace (a face or an edge on the model, a feature the person pressed in the design tree or
   on the timeline, a sketch picked on the model) with no command open offers a small bar beside it
-  (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Ask, Add to context, Annotate and Edit (Edit
-  Feature, or Edit Sketch; a face has none until the engine says which feature made it). A feature a command's OK
-  selected is not a pick, or the bar would stand over the part all the while it is worked on. Ask,
-  in the bar or the toolbar, opens Quick Edit, which the workspace shows only once asked (with
-  nothing picked, on the part as a whole); Escape, a send, its X, the picks emptying or a command or
-  sketch opening put it away (`selectionBarState.js`). A feature chosen goes to the agent as a
-  `text-range` reference to its statement in its script (all its lines, where the engine read the statement whole), with a chip named as the design tree names it
-  ("Hole (6)"), the chip's X letting go of the pick (`featureAsk.jsx`; the script's absolute path is the
-  engine's `root` with the feature's `file`). A face's chip says the feature that made it, "Hole (6) ·
-  face 12", where the engine does (`cadgen/edit/face_features.py`: the first feature with a face on
-  the same surface that overlaps it; `edit/faceChips.js`), in the workspace only, on a part, while the
-  model on screen is the one the engine read; any other face keeps its label. Add to context, in the bar or the toolbar's Ask the agent group, is Quick Edit's
-  Queue without the note (`useAddToContext.js`, `addToContext` in `quickEditPrompt.js`): it puts the same references Ask carries,
-  the marks on a face and the snapshot a Queue would attach, into the chat box without sending, and lets go of the picks (and the ink) once they are
-  there, so faces, edges and features can be collected and one message written; a failure keeps them and is said in the viewport's card.
-  It is there only where the host has a chat box to fill (`canAddToContext`: never in Jake's standalone viewer), and the toolbar's is
-  dimmed, saying "Select a face, edge or feature first", until something is picked or drawn (ink alone is something to add). While a command, a sketch or a panel is open its
-  picks are the model's selection (an Fillet's edges), which a delivery or a send would let go of, so the toolbar's Ask and Add to
-  context are both dimmed, saying "Finish or cancel the command first" (the words Simple view's switch uses), and the
-  bar is not shown. Quick Edit's X and a send let go of a feature chosen too, as a click on the background does (an orbit
-  drag to look at it keeps it). Annotate, the
-  toolbar's third agent button, is the viewer's own Pencil with Shapes in its chevron's menu, each showing what it draws with (the
-  bar's Annotate takes up the Pencil). Marks drawn on a face go to the agent as shapes in that face's own coordinates, in the part's
-  units (`kit/tools/annotate/faceShapes.js`: a mark on one face alone, flat on it and all of it over the part; any other stays with the
-  picture and the faces it touches; a shape said as what it is on the face, so a rectangle drawn on a face slanted to the view is the
-  polygon of its four corners there), as a text part after the references, in every way Quick Edit goes and in Add to context. Simple view's Quick Edit is as
-  it always was, but for those marks, which it carries too.
+  (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Edit only (Edit Feature, or Edit Sketch; a face
+  has none until the engine says which feature made it). A feature a command's OK selected is not a
+  pick, or the bar would stand over the part all the while it is worked on. CAD mode has no Quick
+  Edit box and nothing in it sends to the agent: picks go to the agent only in AI mode, through
+  Quick Edit, as Jake's viewer does. A feature chosen there goes as a `text-range` reference to its
+  statement in its script (all its lines, where the engine read the statement whole), with a chip
+  named as the design tree names it ("Hole (6)"), the chip's X letting go of the pick
+  (`featureAsk.jsx`; the script's absolute path is the engine's `root` with the feature's `file`).
+  A face's chip says the feature that made it, "Hole (6) · face 12", where the engine does
+  (`cadgen/edit/face_features.py`: the first feature with a face on the same surface that overlaps
+  it; `edit/faceChips.js`), on a part, while the model on screen is the one the engine read; any
+  other face keeps its label. Marks drawn on a face go to the agent as shapes in that face's own
+  coordinates, in the part's units (`kit/tools/annotate/faceShapes.js`: a mark on one face alone,
+  flat on it and all of it over the part; any other stays with the picture and the faces it
+  touches; a shape said as what it is on the face, so a rectangle drawn on a face slanted to the
+  view is the polygon of its four corners there), as a text part after the references, in every way
+  Quick Edit goes.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, the full
   workspace, and the script stays its source: text-to-cad's own viewer is laid out as a CAD tool,
   with the toolbar across the top, the design tree at the top left (the part's Equations, its
@@ -554,9 +544,9 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   selection to the part by its geometry and writes a command's line); the frame is
   `text-to-cad/packages/ui/src/renderers/step/edit/`. The CAD skill's `references/edit-mode.md`
   tells the agent how to write parts that edit well.
-- **Simple view.** Studio's bar turns it on and off where the CAD viewer in front has two layouts.
-  On, the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection goes to
-  the agent through Quick Edit; off, the full workspace (edit mode). One choice for the person,
+- **The AI | CAD switch.** Studio's bar chooses it where the CAD viewer in front has two layouts.
+  AI is the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection goes to
+  the agent through Quick Edit; CAD is the full workspace (edit mode). One choice for the person,
   across projects, kept on this device (`studio:simple-view`), the full workspace the first time
   (`workbench/simpleView.ts`); Start a part by hand turns it off. The workspace floats over the
   canvas, so the switch is one 150 ms fade (none with reduced motion) and the model keeps its box
@@ -602,9 +592,7 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **Point, then ask.** What the viewer adds to the chat (Quick Edit's references, a picture of the
   view) lands in the composer, to read and edit before it goes. The viewer is then told the
   context was taken, so the next addition carries only what is new.
-- **The Toolbox, and the AI | CAD switch.** The switch in the workspace's top bar chooses between
-  asking the agent (AI) and modeling the part yourself (CAD, where the agent's Ask and Add to context
-  are not offered). The Toolbox, down the right of the workspace in both, is the one place for what
+- **The Toolbox.** Down the right of the workspace, in AI and in CAD, it is the one place for what
   a part can have done to it: Evaluate, Manufacture and Document, each a card with a picture and
   how many jobs the part has in it; a press opens the group's jobs (`StudioToolbox.tsx`). It folds
   to its icons, and starts folded in a narrow panel. The jobs the part's kind takes:
@@ -623,7 +611,7 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   alike, so what Evaluate, Manufacture and Document make (analysis, manufacturing files,
   drawings) belongs to the part it was made from, as a CAD system keeps a study or a toolpath with
   its part. Each kind has one icon wherever it shows: the sidebar, New, the Overview's modules and
-  badges, the top bar's menus, the quick find and the chat's change chips
+  badges, the Toolbox, the quick find and the chat's change chips
   (`components/workbench/kinds.ts`), in a color of its own: blue CAD (the one blue), violet
   electronics, magenta documents and drawings, cyan analysis, steel grey manufacturing. Never
   red, amber or green, which say how a check went.
