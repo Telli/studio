@@ -1,10 +1,12 @@
 import type { EnvironmentId, StudioProject } from "@t3tools/contracts";
-import { studioProjectAt } from "@t3tools/shared/studioProjects";
+import { studioFolderKey, studioProjectAt } from "@t3tools/shared/studioProjects";
 import { useMemo } from "react";
 
 import type { SidebarProjectSnapshot } from "~/sidebarProjectGrouping";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { useEngineeringSurfaces } from "./studioInterface";
+import { trashOnlyFolders } from "./trash/trash";
+import { useTrashedProjects } from "./trash/useTrash";
 import { useStudioProjects } from "./useStudioProjects";
 
 /**
@@ -12,12 +14,15 @@ import { useStudioProjects } from "./useStudioProjects";
  * project becomes one entry named for the project, holding all their
  * threads, where its first folder stood. Folders in no project, and folders
  * on other environments, stay as they are. The entry keeps its first
- * folder's key, so its order, folding and settings stay that folder's.
+ * folder's key, so its order, folding and settings stay that folder's. A
+ * folder in `hidden` (one only projects in Trash hold, `trashOnlyFolders`)
+ * is left out, with its threads.
  */
 export function mergeStudioProjectGroups(
   groups: ReadonlyArray<SidebarProjectSnapshot>,
   projects: Readonly<Record<string, StudioProject>>,
   environmentId: EnvironmentId,
+  hidden: ReadonlySet<string> = new Set(),
 ): SidebarProjectSnapshot[] {
   const merged: SidebarProjectSnapshot[] = [];
   const indexById = new Map<string, number>();
@@ -25,6 +30,7 @@ export function mergeStudioProjectGroups(
     const member = group.isScratch
       ? undefined
       : group.memberProjects.find((project) => project.environmentId === environmentId);
+    if (member !== undefined && hidden.has(studioFolderKey(member.workspaceRoot))) continue;
     const match = member === undefined ? null : studioProjectAt(projects, member.workspaceRoot);
     if (match === null) {
       merged.push(group);
@@ -55,18 +61,22 @@ export function mergeStudioProjectGroups(
   return merged;
 }
 
-/** The sidebar's groups, gathered into Studio projects while the engineering surfaces are on. */
+/**
+ * The sidebar's groups, gathered into Studio projects while the engineering surfaces are on, the
+ * folders only projects in Trash hold left out.
+ */
 export function useStudioSidebarGroups(
   groups: ReadonlyArray<SidebarProjectSnapshot>,
 ): ReadonlyArray<SidebarProjectSnapshot> {
   const engineering = useEngineeringSurfaces();
   const environmentId = usePrimaryEnvironmentId();
   const projects = useStudioProjects(engineering ? environmentId : null);
-  return useMemo(
-    () =>
-      engineering && environmentId !== null && Object.keys(projects).length > 0
-        ? mergeStudioProjectGroups(groups, projects, environmentId)
-        : groups,
-    [engineering, environmentId, groups, projects],
-  );
+  const trashed = useTrashedProjects(engineering ? environmentId : null);
+  return useMemo(() => {
+    if (!engineering || environmentId === null) return groups;
+    const hidden = trashOnlyFolders(trashed, projects);
+    return Object.keys(projects).length > 0 || hidden.size > 0
+      ? mergeStudioProjectGroups(groups, projects, environmentId, hidden)
+      : groups;
+  }, [engineering, environmentId, groups, projects, trashed]);
 }

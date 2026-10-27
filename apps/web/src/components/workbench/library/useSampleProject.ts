@@ -89,7 +89,7 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
           // Trash's names are taken too, so a restore never makes two of one name.
           const name = copyName(sample.name, [
             ...Object.values(known.value.projects).map((project) => project.name),
-            ...Object.values(known.value.trashed).map((project) => project.name),
+            ...Object.values(known.value.trashed ?? {}).map((project) => project.name),
           ]);
           const listed = await list({
             environmentId,

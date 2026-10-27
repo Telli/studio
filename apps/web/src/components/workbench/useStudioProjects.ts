@@ -40,15 +40,16 @@ export function useStudioProjectAt(
 }
 
 /**
- * Saves a project whole (a null id makes a new one, named from the project)
- * or removes it with null, then rereads the list. Resolves to the project's
- * id, or null when the save failed (which it reports itself).
+ * Saves a project whole (a null id makes a new one, named from the project),
+ * then rereads the list. Resolves to the project's id, or null when the save
+ * failed (which it reports itself). A project is taken out with Move to Trash
+ * (`useTrash`).
  */
 export function useSaveStudioProject(environmentId: EnvironmentId) {
   const save = useAtomCommand(studioProjectsEnvironment.save, { reportFailure: true });
   const { refresh } = useStudioProjectsList(environmentId);
   return useCallback(
-    async (id: string | null, project: StudioProject | null): Promise<string | null> => {
+    async (id: string | null, project: StudioProject): Promise<string | null> => {
       const result = await save({ environmentId, input: { id, project } });
       if (result._tag !== "Success") return null;
       refresh();

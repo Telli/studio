@@ -226,24 +226,47 @@ it.effect("lists what it saved, with folders under home written as ~ and read ba
   ),
 );
 
-it.effect("removes a project's file but keeps its folder and history", () =>
+it.effect("refuses a save to a project in Trash, which stays there whole", () =>
   withStudio((home) =>
     Effect.gen(function* () {
       const studio = yield* StudioProjects.StudioProjects;
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      const saved = yield* studio.save({ id: null, project: roverArm(home, path) });
-      const folder = path.join(saved.folder, saved.id);
+      const project = roverArm(home, path);
+      const saved = yield* studio.save({ id: null, project });
+      yield* studio.trash(saved.id);
 
-      const removed = yield* studio.save({ id: saved.id, project: null });
+      // As a second window's rename, sent after the move, would.
+      const refused = yield* studio
+        .save({ id: saved.id, project: { ...project, name: "Rover arm v2" } })
+        .pipe(Effect.flip);
 
-      assert.equal(removed.id, saved.id);
-      assert.deepEqual(removed.projects, {});
-      assert.isFalse(yield* fileSystem.exists(path.join(folder, "project.json")));
-      assert.isTrue(yield* fileSystem.exists(path.join(folder, "README.md")));
-      if (!removed.git) return;
-      assert.equal(yield* git(folder, ["log", "--format=%s"]), "Remove Rover arm\nAdd Rover arm");
-      assert.equal(yield* git(folder, ["status", "--porcelain"]), "");
+      assert.equal(refused.failure, "in-trash");
+      assert.isFalse(yield* fileSystem.exists(path.join(saved.folder, saved.id, "project.json")));
+      const listed = yield* studio.list;
+      assert.deepEqual(listed.projects, {});
+      assert.equal(listed.trashed?.[saved.id]?.name, "Rover arm");
+    }),
+  ),
+);
+
+it.effect("never gives a new project the id of one in Trash", () =>
+  withStudio((home) =>
+    Effect.gen(function* () {
+      const studio = yield* StudioProjects.StudioProjects;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const project = roverArm(home, path);
+      const saved = yield* studio.save({ id: null, project });
+      yield* studio.trash(saved.id);
+      // Its own folder deleted by hand: only Trash still holds the id.
+      yield* fileSystem.remove(path.join(saved.folder, saved.id), { recursive: true });
+
+      const fresh = yield* studio.save({ id: null, project });
+
+      assert.equal(fresh.id, "rover-arm-2");
+      const restored = yield* studio.restore(saved.id);
+      assert.deepEqual(Object.keys(restored.projects).sort(), ["rover-arm", "rover-arm-2"]);
     }),
   ),
 );
@@ -304,8 +327,8 @@ it.effect("moves a project to Trash and lists it there, with when, until it is r
 
       assert.equal(trashed.id, saved.id);
       assert.deepEqual(trashed.projects, {});
-      assert.deepEqual(Object.keys(trashed.trashed), [saved.id]);
-      const { trashedAt, ...inTrash } = trashed.trashed[saved.id]!;
+      assert.deepEqual(Object.keys(trashed.trashed ?? {}), [saved.id]);
+      const { trashedAt, ...inTrash } = trashed.trashed?.[saved.id] ?? { trashedAt: "" };
       assert.deepEqual(inTrash, project);
       assert.isFalse(Number.isNaN(Date.parse(trashedAt)));
       assert.isTrue(
@@ -351,7 +374,7 @@ it.effect("trashes and restores a project whose folder is not a repository", () 
         }),
       );
 
-      assert.deepEqual(Object.keys((yield* studio.trash("bench")).trashed), ["bench"]);
+      assert.deepEqual(Object.keys((yield* studio.trash("bench")).trashed ?? {}), ["bench"]);
       const restored = yield* studio.restore("bench");
       assert.deepEqual(Object.keys(restored.projects), ["bench"]);
       assert.equal(restored.projects.bench?.name, "Bench");

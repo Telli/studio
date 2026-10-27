@@ -10,6 +10,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { buildSidebarProjectSnapshots } from "~/sidebarProjectGrouping";
 import type { Project } from "~/types";
 import { mergeStudioProjectGroups } from "./studioSidebarGroups";
+import { trashOnlyFolders } from "./trash/trash";
 
 const environmentId = EnvironmentId.make("env-primary");
 
@@ -62,6 +63,25 @@ describe("mergeStudioProjectGroups", () => {
       "rover-firmware",
     ]);
     expect(project.groupedProjectCount).toBe(2);
+  });
+
+  it("leaves out the folders only projects in Trash hold, keeping one a live project shares", () => {
+    const groups = buildSidebarProjectSnapshots({
+      projects: [folder("bench-psu"), folder("rover-cad"), folder("rover-firmware")],
+      settings: { sidebarProjectGroupingMode: "separate", sidebarProjectGroupingOverrides: {} },
+      primaryEnvironmentId: environmentId,
+      resolveEnvironmentLabel: () => null,
+    });
+    const bench: StudioProject = { ...rover, name: "Bench", folders: ["/work/rover-firmware"] };
+    const hidden = trashOnlyFolders(
+      { rover: { ...rover, trashedAt: "2026-10-26T00:00:00.000Z" } },
+      { bench },
+    );
+
+    const merged = mergeStudioProjectGroups(groups, { bench }, environmentId, hidden);
+
+    // rover-cad goes with the trashed Rover arm; rover-firmware is Bench's as well, so it stays.
+    expect(merged.map((group) => group.displayName)).toEqual(["bench-psu", "Bench"]);
   });
 
   it("leaves the sidebar alone when no folder is in a project", () => {

@@ -60,22 +60,25 @@ export const StudioProjectsListResult = Schema.Struct({
   /** Whether git is available, so each project is its own repository that Studio commits to. */
   git: Schema.Boolean,
   projects: Schema.Record(TrimmedNonEmptyString, StudioProject),
-  /** The projects in Trash (`<root>/.trash/<id>/`) by id: out of every list until restored. */
-  trashed: Schema.Record(TrimmedNonEmptyString, StudioTrashedProject),
+  /**
+   * The projects in Trash (`<root>/.trash/<id>/`) by id: out of every list until restored. Absent
+   * from a server older than Trash, which has none.
+   */
+  trashed: Schema.optionalKey(Schema.Record(TrimmedNonEmptyString, StudioTrashedProject)),
 });
 export type StudioProjectsListResult = typeof StudioProjectsListResult.Type;
 
 export const StudioProjectsSaveInput = Schema.Struct({
   /** The project's id (its file name); null for a new project, which gets one from its name. */
   id: Schema.NullOr(TrimmedNonEmptyString),
-  /** The project whole; null removes it. */
-  project: Schema.NullOr(StudioProject),
+  /** The project whole. A project is taken out through Trash (`StudioProjectsTrashInput`). */
+  project: StudioProject,
 });
 export type StudioProjectsSaveInput = typeof StudioProjectsSaveInput.Type;
 
 export const StudioProjectsSaveResult = Schema.Struct({
   ...StudioProjectsListResult.fields,
-  /** The id saved or removed. */
+  /** The id saved, or moved to or from Trash. */
   id: TrimmedNonEmptyString,
 });
 export type StudioProjectsSaveResult = typeof StudioProjectsSaveResult.Type;
@@ -95,10 +98,11 @@ export class StudioProjectsError extends Schema.TaggedError<StudioProjectsError>
   "StudioProjectsError",
   {
     /**
-     * `invalid-id`: the id is not one folder name, or a removal, trash or purge named no project
-     * there (a restore: none in Trash, or one already under that id).
+     * `invalid-id`: the id is not one folder name, or a trash or purge named no project there (a
+     * restore: none in Trash, or one already under that id). `in-trash`: a save named a project
+     * in Trash. `remove`: Trash's record could not be deleted.
      */
-    failure: Schema.Literals(["read", "write", "remove", "invalid-id"]),
+    failure: Schema.Literals(["read", "write", "remove", "invalid-id", "in-trash"]),
     /** The projects folder. */
     folder: Schema.String,
     id: Schema.optional(Schema.String),
@@ -112,9 +116,11 @@ export class StudioProjectsError extends Schema.TaggedError<StudioProjectsError>
       case "write":
         return `Could not save the project "${this.id ?? ""}" in ${this.folder}.`;
       case "remove":
-        return `Could not remove the project "${this.id ?? ""}" in ${this.folder}.`;
+        return `Could not delete the project "${this.id ?? ""}" from Trash in ${this.folder}.`;
       case "invalid-id":
         return "That project id is not a folder name Studio can use.";
+      case "in-trash":
+        return `The project "${this.id ?? ""}" is in Trash. Restore it to change it.`;
     }
   }
 }

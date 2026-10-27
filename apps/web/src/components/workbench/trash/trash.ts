@@ -9,10 +9,20 @@ const heldBy = (projects: ReadonlyArray<StudioProject>) =>
   new Set(projects.flatMap((project) => project.folders.map(studioFolderKey)));
 
 /**
+ * The folders only projects in Trash hold, as keys (`studioFolderKey`): what every list of folders
+ * leaves out, with their chats, while those projects are in Trash. A folder a project not in Trash
+ * holds too is not one. Both `hiddenByTrash` and the thread sidebar (`useStudioSidebarGroups`) go by it.
+ */
+export function trashOnlyFolders(trashed: Trashed, projects: Projects): ReadonlySet<string> {
+  const live = heldBy(Object.values(projects));
+  return new Set([...heldBy(Object.values(trashed))].filter((key) => !live.has(key)));
+}
+
+/**
  * The folders and chats Studio lists once Trash has projects in it (`useProjectList`): a folder
- * that only projects in Trash hold goes, with its chats, so a trashed project leaves Home,
- * Projects (its folder is not offered as one in no project), Chats, the sidebar and ⌘K. A folder a
- * project not in Trash holds too stays. With nothing hidden, the lists come back as given.
+ * that only projects in Trash hold goes (`trashOnlyFolders`), with its chats, so a trashed project
+ * leaves Home, Projects (its folder is not offered as one in no project), Chats, the sidebar and
+ * ⌘K. With nothing hidden, the lists come back as given.
  */
 export function hiddenByTrash<
   F extends { readonly id: string; readonly workspaceRoot: string },
@@ -23,10 +33,8 @@ export function hiddenByTrash<
   trashed: Trashed,
   projects: Projects,
 ): { readonly folders: ReadonlyArray<F>; readonly chats: ReadonlyArray<C> } {
-  const live = heldBy(Object.values(projects));
-  const gone = [...heldBy(Object.values(trashed))].filter((key) => !live.has(key));
-  if (gone.length === 0) return { folders, chats };
-  const hidden = new Set(gone);
+  const hidden = trashOnlyFolders(trashed, projects);
+  if (hidden.size === 0) return { folders, chats };
   const hiddenIds = new Set(
     folders
       .filter((folder) => hidden.has(studioFolderKey(folder.workspaceRoot)))
