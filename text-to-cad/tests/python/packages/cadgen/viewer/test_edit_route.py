@@ -54,7 +54,9 @@ class EditRoutesTest(unittest.TestCase):
         script = self.tmp / "plate.py"
         script.write_text("from cadgen import model\n\n@model\ndef plate():\n    raise SystemExit('never run')\n", encoding="utf-8")
         status, body = self.post("/__cad/edit/state", {"file": str(self.tmp / "plate.step"), "probe": True})
-        self.assertEqual((status, body), (200, {"ok": True, "editable": True}))
+        from cadgen.engine.ids import model_id
+
+        self.assertEqual((status, body), (200, {"ok": True, "editable": True, "document": model_id(script, "plate")}))
         _, none = self.post("/__cad/edit/state", {"file": str(self.tmp / "imported.step"), "probe": True})
         self.assertEqual(none, {"ok": True, "editable": False})
 

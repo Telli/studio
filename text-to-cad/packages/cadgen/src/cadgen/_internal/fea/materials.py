@@ -7,7 +7,8 @@ mass = density x volume in mm^3 is in tonnes; x1000 for kg); W/(m K) for conduct
 for specific heat, the units people write them in (an analysis converts them into the mm-N-s-tonne system it solves in).
 
 A value the table does not know is ``None``, and :data:`NONE_REASONS` says why;
-an analysis that needs it asks for it by name (:func:`requires`). Stdlib only.
+an analysis that needs it asks for it by name (:func:`requires`). Stdlib only, but for a name the table does not
+have: that is looked up in the engine's materials catalogue (``cadgen.engine.materials``, no kernel), as a part sets one.
 """
 
 from __future__ import annotations
@@ -386,11 +387,68 @@ def _key(name: str) -> str:
     return name.strip().lower().replace("_", "-").replace(" ", "-")
 
 
+def _catalogued(name: str) -> Any:
+    """The engine's catalogue entry (``cadgen.engine.materials``, no kernel) a name spells -- its
+    attribute (``aluminium_6061``), its name or an alias -- or None."""
+    from cadgen.engine import materials as catalogue
+
+    for spelling in dict.fromkeys((name, name.replace("-", " "))):
+        try:
+            return catalogue(spelling)
+        except LookupError:
+            continue
+    return None
+
+
+_FROM_CATALOGUE: dict[int, str] = {}
+
+
+def _table_key_of(entry: Any) -> str | None:
+    """This table's key for an entry of the engine's catalogue that names the same material: the
+    entry each table key, its spaced form or its name spells there (``steel`` is ``steel_1018``)."""
+    if not _FROM_CATALOGUE:
+        for key, material in MATERIALS.items():
+            for spelling in (key, material.name):
+                found = _catalogued(spelling)
+                if found is not None:
+                    _FROM_CATALOGUE.setdefault(id(found), key)
+                    break
+    return _FROM_CATALOGUE.get(id(entry))
+
+
+def _from_catalogue(entry: Any) -> Material:
+    """A material of the engine's catalogue as this table's: the table's own entry where it has the
+    same material, else made from the catalogue's numbers (``material_from_spec``: E, Poisson's ratio
+    and yield in SI, converted; its other values where it gives them). One the catalogue gives too
+    little for is refused naming what it lacks: nothing is guessed."""
+    key = _table_key_of(entry)
+    if key is not None:
+        return MATERIALS[key]
+    lacking = [said for field, said in (("young_modulus", "Young's modulus"), ("poisson_ratio", "Poisson's ratio"),
+                                        ("yield_strength", "yield strength")) if getattr(entry, field) is None]
+    if lacking:
+        raise ValueError(f"the catalogue gives {entry.name} no {', '.join(lacking)}; give the study an object with "
+                         "E_MPa, nu and yield_MPa for it")
+    spec = {"E_MPa": entry.young_modulus / 1e6, "nu": entry.poisson_ratio, "yield_MPa": entry.yield_strength / 1e6,
+            "density_t_per_mm3": entry.density * 1e-12}
+    for field, key_, scale in (("ultimate_strength", "uts_MPa", 1e-6), ("thermal_conductivity", "conductivity_W_mK", 1.0),
+                               ("thermal_expansion", "expansion_per_K", 1.0), ("specific_heat", "specific_heat_J_kgK", 1.0)):
+        if getattr(entry, field) is not None:
+            spec[key_] = getattr(entry, field) * scale
+    return replace(material_from_spec(spec), name=entry.name)
+
+
 def lookup_material(name: str) -> Material:
-    """The table entry for ``name`` (case-insensitive, common aliases), or a ValueError that lists what is available."""
+    """The table entry for ``name`` (case-insensitive, common aliases), or a material of the engine's
+    catalogue (``part.material = materials.steel_4140``: ``_from_catalogue``), or a ValueError that lists
+    what is available."""
     key = _key(name)
     key = _ALIASES.get(key, key)
     material = MATERIALS.get(key) or PIEZO_MATERIALS.get(_PIEZO_ALIASES.get(key, key))
+    if material is None and isinstance(name, str):
+        entry = _catalogued(name.strip())
+        if entry is not None:
+            return _from_catalogue(entry)
     if material is None:
         raise ValueError(
             f"unknown material {name!r}; one of {', '.join(sorted(MATERIALS))} (piezo ceramics: "

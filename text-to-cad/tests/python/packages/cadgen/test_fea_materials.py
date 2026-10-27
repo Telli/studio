@@ -216,5 +216,43 @@ class Requires(unittest.TestCase):
         self.assertLessEqual(set(TABLE_PROPERTIES), set(MATERIAL_PROPERTIES))
 
 
+class CatalogueMaterials(unittest.TestCase):
+    """A part's material is the engine's catalogue's (``part.material = materials.<entry>``, what CAD
+    mode's Edit Material writes); the table reads it too, so a study takes the part's material."""
+
+    def test_every_material_edit_mode_names_resolves_or_is_refused_by_what_it_lacks(self):
+        from cadgen.edit.service import catalogue_key
+        from cadgen.engine import materials as catalogue
+
+        # The table's own materials, as edit mode names them (catalogue_key), resolve to the table's entries.
+        for key, material in MATERIALS.items():
+            named = catalogue_key(key)
+            self.assertIsNotNone(named, key)
+            self.assertIs(lookup_material(named), material, key)
+        for named in ("steel_1018", "brass_c360", "titanium_grade5"):
+            self.assertIn(lookup_material(named), MATERIALS.values())
+        # Every other entry is made from the catalogue's numbers where it gives E, Poisson's ratio and yield,
+        # and refused naming what it does not give: nothing is guessed.
+        tabled = {catalogue_key(key) for key in MATERIALS}
+        for key, entry in catalogue.CATALOGUE.items():
+            given = None not in (entry.young_modulus, entry.poisson_ratio, entry.yield_strength)
+            if key in tabled:
+                self.assertIn(lookup_material(key), MATERIALS.values())
+                continue
+            if not given:
+                with self.assertRaisesRegex(ValueError, f"the catalogue gives {re.escape(entry.name)} no "):
+                    lookup_material(key)
+                continue
+            found = lookup_material(key)
+            if found in MATERIALS.values():
+                continue
+            self.assertEqual(found.name, entry.name)
+            self.assertAlmostEqual(found.E, entry.young_modulus / 1e6)
+            self.assertAlmostEqual(found.yield_strength, entry.yield_strength / 1e6)
+            self.assertAlmostEqual(found.density, entry.density * 1e-12)
+        self.assertEqual(lookup_material("steel_4140").name, "Steel 4140")
+        self.assertEqual(material_from_spec({"name": "steel_4140", "yield_MPa": 500}).yield_strength, 500)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -519,6 +519,10 @@ def _wrap_plane_offset():
 _wrap_plane_offset()
 
 
+# What a part says when a file it reads (``read_step``, ``read_xbf``) is gone: moved, renamed, deleted.
+GONE = "the STEP this part reads is gone: "
+
+
 def _wrap_import():
     """A file brought in (``read_step``, ``read_xbf``) is one row of the history, as SolidWorks, Fusion
     and NX list an imported body: a solid with no features of its own, which later lines model on.
@@ -531,6 +535,8 @@ def _wrap_import():
         original = getattr(_declarations, name)
 
         def read(path, __reader=reader, __original=original):
+            if not Path(path).is_file():
+                raise FileNotFoundError(f"{GONE}{path}")
             result = __reader(path)
             if RECORDING and _called_from_project():
                 _record("import", "Imported", __original, (path,), {}, result, {"source": Path(str(path)).name})
@@ -1833,6 +1839,8 @@ def trace(request):
             finally:
                 RECORDING = False
     except Exception as error:
+        if isinstance(error, FileNotFoundError) and str(error).startswith(GONE):
+            return {"ok": False, "error": str(error), "failure": _stopped_at(error)}
         return {"ok": False, "error": traceback.format_exc(limit=6), "failure": _stopped_at(error)}
     finally:
         sys.path.remove(str(script.parent))
@@ -2389,32 +2397,10 @@ def preview(request):
 
 
 def catalogue_key(given):
-    """A material as the engine's catalogue names it (``cadgen.engine.materials``): its attribute
-    (``aluminium_6061``), from a ``Material`` of it, its name, its attribute or any alias the
-    catalogue knows (``"6061"``, ``"aluminum-6061-t6"``); None for one it does not have."""
-    from cadgen.engine import materials as catalogue
+    """A material as the engine's catalogue names it (``service.catalogue_key``)."""
+    from cadgen.edit.service import catalogue_key as named
 
-    if isinstance(given, catalogue.Material):
-        found = next((key for key, entry in catalogue.CATALOGUE.items() if entry is given), None)
-        return found or catalogue_key(given.name)
-    text = str(given or "").strip()
-    if not text:
-        return None
-    spellings = [text, text.replace("-", " ")]
-    # 0.7 Studio named a part's material by its FEA table's key (``aluminum-6061-t6``): that entry's name.
-    from cadgen._internal.fea.materials import lookup_material
-
-    try:
-        spellings.append(lookup_material(text).name)
-    except ValueError:
-        pass
-    for spelling in spellings:
-        try:
-            entry = catalogue(spelling)
-        except LookupError:
-            continue
-        return next((key for key, value in catalogue.CATALOGUE.items() if value is entry), None)
-    return None
+    return named(given)
 
 
 def _material_line(function, var):
@@ -2520,9 +2506,21 @@ def mass_properties(request):
         "solids": len(solids),
         "material": own,
         # Each with its density in g/cm^3 (the catalogue's is kg/m^3).
-        "materials": [{"key": key, "name": value.name, "density": round(value.density / 1000, 6)}
+        # ``fea``: whether the Toolbox's analyses have the numbers to use it (``fea.materials.lookup_material``).
+        "materials": [{"key": key, "name": value.name, "density": round(value.density / 1000, 6), "fea": _for_fea(key)}
                       for key, value in sorted(catalogue.CATALOGUE.items(), key=lambda item: item[1].name)],
     }}
+
+
+def _for_fea(key):
+    """Whether an analysis can use catalogue material ``key``: the catalogue gives its stiffness and strength."""
+    from cadgen._internal.fea.materials import lookup_material
+
+    try:
+        lookup_material(key)
+    except ValueError:
+        return False
+    return True
 
 
 def _inertia(solids):
@@ -4403,11 +4401,13 @@ def _bar_document(script, shape):
     """The body at a bar handed to the engine as a document of its own (``model(shape, name=)``, by
     the engine's ``api.hand_over``, which it calls: this module runs as ``__main__``, where the
     call would say so on the stdout the replies go to), in the engine of this process's environment,
-    the one the service runs in; so the viewer opens it by its id, and picks its faces and edges, as
-    it does the part's. The only request this process makes of the engine: a trace asks it nothing."""
+    the one the service runs in, never starting one (``service.never_start_engine``: with none
+    running, the bar says so); so the viewer opens it by its id, and picks its faces and edges, as it
+    does the part's. The only request this process makes of the engine: a trace asks it nothing."""
     handed = _engine_api.hand_over(shape, _bar_name(script))
     assembly = bool(tuple(getattr(shape, "children", ()) or ()))
-    return {"document": {"id": handed.id, "url": handed.url, "name": handed.name}, "kind": "assembly" if assembly else "part"}
+    # By its id alone: the url the engine gives carries a day's link token, which no reply hands on.
+    return {"document": {"id": handed.id, "name": handed.name}, "kind": "assembly" if assembly else "part"}
 
 
 def _with_bar(request, reply):
@@ -4504,7 +4504,8 @@ def face_feature(request):
     if found is not None:
         answer.update(feature=found[0], component=found[1], source="made_by")
     else:
-        number = re.search(r"(\d+)\s*$", str(face if not isinstance(face, bool) else ""))
+        # A face's number: ``12``, ``plate/face 12``, ``#o1.f12``; never an element's name (``f:plate.part.1``).
+        number = re.search(r"(?:^|face\s*|[/.#]f)(\d+)$", str(face if not isinstance(face, bool) else "").strip())
         key = state["faceFeatures"].get(number.group(1)) if number else None
         if key:
             answer.update(feature=key, source="geometric")
@@ -4527,22 +4528,14 @@ def handle(request):
         return {"ok": False, "error": str(error), "detail": traceback.format_exc(limit=4)}
 
 
-def _end_with(parent):
-    """This process ended once the one that started it is gone (the edit service's, in the engine's
-    daemon): an orphan tracer holds a kernel and its memory for nothing."""
-    import threading
-
-    def watch():
-        while os.getppid() == parent:
-            time.sleep(1)
-        os._exit(0)
-
-    threading.Thread(target=watch, daemon=True).start()
-
-
 def main():
     if "--serve" in sys.argv:
-        _end_with(os.getppid())
+        from cadgen.edit.service import end_with_parent, never_start_engine
+
+        end_with_parent()
+        # The one request this process makes of the engine (the bar's body) reaches the engine that runs:
+        # it never starts one.
+        never_start_engine()
         for line in sys.stdin:
             if not line.strip():
                 continue

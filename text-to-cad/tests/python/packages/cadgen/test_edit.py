@@ -21,8 +21,8 @@ from cadgen.edit import service as edit
 
 
 def setUpModule():
-    """An engine of this file's own (its folders, and a free port), which every process the edit
-    service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
+    """An engine of this file's own (its folders, and a free port), started, which every process the
+    edit service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
     from unittest import mock
 
     from tests.python.support import engine_daemon
@@ -31,6 +31,11 @@ def setUpModule():
     patch = mock.patch.dict(os.environ, {"CADGEN_ENGINE_PORT": "0"})
     patch.start()
     unittest.addModuleCleanup(patch.stop)
+    # Running, as the engine's daemon the service is part of runs: the service's children never start one.
+    from cadgen.engine import client
+
+    with client.connect():
+        pass
 
 PLATE = {
     "sizes.py": """
@@ -596,6 +601,28 @@ MODELS = {
         def rig():
             return bd.Compound(children=[plate().shape, post().shape], label="rig")
     """,
+    "stepped.py": """
+        import build123d as bd
+        from cadgen import step
+
+
+        @step(out="stepped.step")
+        def stepped():
+            part = bd.Box(30, 20, 6)
+            part -= bd.Cylinder(4, 6)
+            return part
+    """,
+    "tinted.py": """
+        import build123d as bd
+        from cadgen import model
+
+
+        @model
+        def tinted():
+            part = bd.Box(10, 10, 10)
+            part.color = "#11223344"
+            return part
+    """,
     "broken.py": """
         import build123d as bd
         from cadgen import model
@@ -639,6 +666,11 @@ class ModelsOfTheEngine(unittest.TestCase):
         cls.addClassCleanup(shutil.rmtree, cls.root, True)
         cls.service = edit.EditService()
         cls.addClassCleanup(cls.service.close)
+        # The engine the service's builds reach, as the engine's daemon the service runs in is: they never start one.
+        from cadgen.engine import api
+
+        built = api.build_script(cls.root / "plate.py")
+        assert built.ok, built.models
 
     def test_a_model_is_its_engine_id_and_reads_as_a_tree(self):
         from cadgen.engine.ids import model_id
@@ -710,21 +742,110 @@ class ModelsOfTheEngine(unittest.TestCase):
         document = rolled["bar"]["document"]
         self.assertAlmostEqual(api.inspect(document["id"], query="summary")["summary"]["volume"], 40 * 30 * 5, places=3)
 
+    def wait_built(self, service, deadline_seconds=edit.BUILD_TIMEOUT):
+        """The service's last batch of builds, once it is done."""
+        deadline = time.monotonic() + deadline_seconds
+        while service.building()["done"] < len(service.building()["scripts"]) and time.monotonic() < deadline:
+            time.sleep(0.1)
+        return service.building()
+
     def test_a_file_names_no_model_so_its_faces_fall_back_to_the_geometric_map(self):
+        from cadgen.engine import api
+
+        # A part that writes its STEP (@step(out=)), the STEP on disk: opened as that file, a face is the trace's map's.
+        script = self.root / "stepped.py"
+        self.assertTrue(api.build_script(script).ok)
+        self.assertTrue((self.root / "stepped.step").is_file())
+        state = self.service.state(str(self.root / "stepped.step"))
+        self.assertTrue(state["ok"], state.get("error"))
+        boss, hole = [feature["key"] for feature in state["features"]]
+        found = [self.service.face_feature({"file": str(self.root / "stepped.step"), "face": face})["faceFeature"]
+                 for face in range(1, state["faceCount"] + 1)]
+        self.assertEqual({(each["source"], each["madeBy"]) for each in found}, {("geometric", None)})
+        self.assertEqual({each["feature"] for each in found}, {boss, hole})
+        # An element's name is no face number; a face's ref is.
+        named = self.service.face_feature({"file": str(self.root / "stepped.step"), "face": "f:stepped.part.1"})["faceFeature"]
+        self.assertEqual((named["feature"], named["source"]), (None, None))
+        self.assertEqual(self.service.face_feature({"file": str(self.root / "stepped.step"), "face": "stepped/face 1"})
+                         ["faceFeature"]["feature"], found[0]["feature"])
+        # A STEP brought in with no script names no feature.
+        self.assertEqual(self.service.face_feature({"file": str(self.root / "missing.step"), "face": 1})["reason"], "no-script")
+
+    def test_a_face_is_stale_while_its_part_builds_or_its_files_moved_on(self):
+        state = self.service.state(str(self.root / "plate.py"))
+        moved = dict(state["files"], **{"plate.py": "0" * 16})
+        stale = self.service.face_feature({"file": str(self.root / "plate.py"), "face": 1, "files": moved})["faceFeature"]
+        self.assertEqual((stale["stale"], stale["feature"], stale["source"]), (True, None, None))
+        fresh = self.service.face_feature({"file": str(self.root / "plate.py"), "face": 1, "files": state["files"]})["faceFeature"]
+        self.assertNotIn("stale", fresh)
+        # A build of it queued or running (one that never ends, by the python it is started with).
+        folder = Path(tempfile.mkdtemp(prefix="edit-slow-"))
+        self.addCleanup(shutil.rmtree, folder, True)
+        python = folder / "python"
+        python.write_text("#!/bin/sh\nexec sleep 600\n", encoding="utf-8")
+        python.chmod(0o755)
+        building = edit.EditService(str(python))
+        self.addCleanup(building.close)
+        status = building.rebuild(self.root, "plate.py")
+        self.assertEqual(status["documents"][status["scripts"].index("plate.py")], edit.document_of(self.root / "plate.py"))
+        self.assertTrue(building.face_feature({"file": str(self.root / "plate.py"), "face": 1})["faceFeature"]["stale"])
+
+    def test_the_bar_and_a_build_never_start_an_engine(self):
+        engine = Path(tempfile.mkdtemp(prefix="eng-none-", dir="/tmp"))
+        self.addCleanup(shutil.rmtree, engine, True)
+        environment = mock.patch.dict(os.environ, {"CADGEN_ENGINE_DIR": str(engine)})
+        environment.start()
+        self.addCleanup(environment.stop)
+        service = edit.EditService()
+        self.addCleanup(service.close)
+        hole = line_reading(self.root / "plate.py", "Cylinder")
+        rolled = service.change({"file": str(self.root / "plate.py"), "bar": {"before": f"plate.py:{hole}"}})
+        self.assertTrue(rolled["ok"], rolled.get("error"))
+        self.assertEqual((rolled["bar"]["step"], rolled["bar"]["error"]), (None, edit.NO_ENGINE))
+        service.rebuild(self.root, "post.py")
+        status = self.wait_built(service)
+        self.assertTrue(status["error"].endswith(f".py: {edit.NO_ENGINE}"), status["error"])
+        self.assertEqual([path.name for path in engine.iterdir() if path.suffix in (".door", ".port", ".lock")], [])
+
+    def test_an_adopted_step_moved_away_says_so(self):
         import build123d as bd
 
-        root = project({"bracket.step": ""}, git=True)
+        root = project({}, git=True)
         self.addCleanup(shutil.rmtree, root, True)
-        bd.export_step(bd.Box(20, 20, 4) - bd.Cylinder(3, 4), str(root / "bracket.step"))
-        self.assertEqual(self.service.face_feature({"file": str(root / "bracket.step"), "face": 1})["reason"], "no-script")
-        adopted = self.service.change({"file": str(root / "bracket.step"), "adopt": {}})
+        source = root / "vendor.step"
+        bd.export_step(bd.Box(20, 20, 4), str(source))
+        adopted = self.service.change({"file": str(source), "adopt": {}})
         self.assertTrue(adopted["ok"], adopted.get("error"))
-        self.assertEqual(adopted["part"], edit.document_of(Path(adopted["script"])))
-        # Its script's own STEP, opened as a file: no made_by, so the trace's map answers.
-        state = self.service.state(adopted["script"])
-        (imported,) = [feature["key"] for feature in state["features"]]
-        found = self.service.face_feature({"file": str(Path(adopted["script"]).with_suffix(".step")), "face": 3})["faceFeature"]
-        self.assertEqual((found["feature"], found["source"], found["madeBy"]), (imported, "geometric", None))
+        self.assertIsNone(self.wait_built(self.service)["error"])
+        self.assertEqual(self.service.editable(str(source))["partBuilt"], True)
+        source.rename(root / "elsewhere.step")
+        read = self.service.state(adopted["script"])
+        self.assertFalse(read["ok"])
+        gone = f"the STEP this part reads is gone: {os.path.realpath(source)}"
+        self.assertEqual(read["error"], gone)
+        self.service.rebuild(root, Path(adopted["script"]).name)
+        self.assertIn(gone, self.wait_built(self.service)["error"])
+
+    def test_a_color_with_alpha_keeps_it_through_the_engine(self):
+        from cadgen.engine import api
+        from cadgen.engine.document import read_xbf_shape
+
+        script = self.root / "tinted.py"
+        state = self.service.state(str(script))
+        painted = self.service.change({"file": str(script), "files": state["files"], "appearance": {"color": "#B7A1D7"}})
+        self.assertTrue(painted["ok"], painted.get("error"))
+        self.assertIn('    part.color = "#B7A1D744"\n', script.read_text(encoding="utf-8"))
+        self.assertTrue(api.build_script(script).ok)
+        out = Path(tempfile.mkdtemp(prefix="tinted-")) / "tinted.xbf"
+        self.addCleanup(shutil.rmtree, out.parent, True)
+        api.export(edit.document_of(script), out)
+        held = read_xbf_shape(out)
+        part = next(iter(getattr(held, "leaves", None) or [held])) if getattr(held, "children", None) else held
+        while getattr(part, "children", None):
+            part = part.children[0]
+        red, green, blue, alpha = tuple(part.color)
+        self.assertEqual("#" + "".join(f"{round(channel * 255):02X}" for channel in (red, green, blue)), "#B7A1D7")
+        self.assertEqual(round(alpha * 255), 0x44)
 
     def test_a_build_that_fails_says_why_in_the_state(self):
         building = self.service.rebuild(self.root, "broken.py")

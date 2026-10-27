@@ -24,8 +24,8 @@ from tests.python.packages.cadgen import test_edit_commands as parts
 
 
 def setUpModule():
-    """An engine of this file's own (its folders, and a free port), which every process the edit
-    service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
+    """An engine of this file's own (its folders, and a free port), started, which every process the
+    edit service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
     from unittest import mock
 
     from tests.python.support import engine_daemon
@@ -34,6 +34,11 @@ def setUpModule():
     patch = mock.patch.dict(os.environ, {"CADGEN_ENGINE_PORT": "0"})
     patch.start()
     unittest.addModuleCleanup(patch.stop)
+    # Running, as the engine's daemon the service is part of runs: the service's children never start one.
+    from cadgen.engine import client
+
+    with client.connect():
+        pass
 
 # PLATE placed at its end, as a part returned as ``Pos(...) * body`` is, and moved in place there.
 PLACED = {"plate.py": parts.PLATE["plate.py"].replace("return plate", "return bd.Pos(0, 0, 10) * plate")}

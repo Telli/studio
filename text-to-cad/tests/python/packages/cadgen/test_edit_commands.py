@@ -24,8 +24,8 @@ from cadgen.edit import service as edit
 
 
 def setUpModule():
-    """An engine of this file's own (its folders, and a free port), which every process the edit
-    service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
+    """An engine of this file's own (its folders, and a free port), started, which every process the
+    edit service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
     from unittest import mock
 
     from tests.python.support import engine_daemon
@@ -34,6 +34,11 @@ def setUpModule():
     patch = mock.patch.dict(os.environ, {"CADGEN_ENGINE_PORT": "0"})
     patch.start()
     unittest.addModuleCleanup(patch.stop)
+    # Running, as the engine's daemon the service is part of runs: the service's children never start one.
+    from cadgen.engine import client
+
+    with client.connect():
+        pass
 
 # A 20 x 10 x 4 block centred on the origin, returned outright, its sizes named in another file
 # and build123d imported by name.
@@ -1040,7 +1045,7 @@ class MassProperties(Commands):
         self.assertEqual(mass["box"], [[-10, -5, -2], [10, 5, 2]])
         # The project's material, and each the table has with its density in g/cm^3.
         self.assertEqual(mass["material"], "petg")
-        self.assertIn({"key": "aluminium_6061", "name": "Aluminum 6061-T6", "density": 2.7}, mass["materials"])
+        self.assertIn({"key": "aluminium_6061", "name": "Aluminum 6061-T6", "density": 2.7, "fea": True}, mass["materials"])
 
     def test_at_the_rollback_bar_it_is_the_part_as_it_is_there(self):
         root, file, state = self.open(TRAY, "tray.step")
@@ -2264,7 +2269,9 @@ class EditingMaterial(Commands):
         self.assertEqual((made["material"], made["materialName"]), ("pla", "PLA"))
         weighed = self.service.change({"file": file, "files": made["files"], "mass": {}})["mass"]
         self.assertEqual(weighed["material"], "pla")
-        self.assertIn({"key": "aluminium_6061", "name": "Aluminum 6061-T6", "density": 2.7}, weighed["materials"])
+        self.assertIn({"key": "aluminium_6061", "name": "Aluminum 6061-T6", "density": 2.7, "fea": True}, weighed["materials"])
+        # One the catalogue gives no stiffness for weighs the part, and says the Toolbox's analyses cannot use it.
+        self.assertFalse(next(each for each in weighed["materials"] if each["key"] == "plywood_birch")["fea"])
         # Changed in place, refused for a name nobody knows, and undone to what it was.
         again = self.service.change({"file": file, "files": made["files"], "set_material": {"name": "6061"}})
         self.assertTrue(again["ok"], again.get("error"))
