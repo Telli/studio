@@ -77,6 +77,9 @@ _COMMANDS: dict[str, tuple[str, str]] = {
     # beside the result GLB the viewer draws.
     "cam features": ("cadgen.cli.cam_features", "list the faces, holes and floors a CAM job can name"),
     "cam plan": ("cadgen.cli.cam_plan", "plan toolpaths, simulate, check and post G-code"),
+    # Manufacturing. `check` simulates the part being made by the process its study names
+    # (casting, molding, ...) on fea's solvers, and writes the result GLB beside the part.
+    "manufacturing check": ("cadgen.cli.manufacturing_check", "simulate a manufacturing process on a part and check it"),
     # Generic / services
     "doctor": ("cadgen.cli.doctor", "print installed cadgen and verify a skill's pin"),
     # The store. `store why <model>` is the debugging surface STORE.md describes.

@@ -410,6 +410,15 @@ src/cadgen/
                          #   setup, a result GLB and a JSON sidecar out;
                          #   never contacts a machine; mechanism in
                          #   _internal/cam/
+  manufacturing.py       # `check`: a part through a manufacturing process
+                         #   (casting, molding, ...) on fea's pipeline, its
+                         #   findings a CI check's; mechanism in
+                         #   _internal/manufacturing/
+  authoring.py           # @step/@dxf/@stl/@glb/@threemf decorators; a call
+                         #   builds at top level and composes (a lazy child)
+                         #   inside a body; a model's outputs are what they
+                         #   declare — a mesh decorator alone is a model that
+                         #   writes no STEP
   pcb.py                 # @pcb, a board script's decorator, and the pcb
                          #   verbs (drc, snapshot). A call starts KiCad's
                          #   headless API server (kicad-cli api-server, the
@@ -509,7 +518,8 @@ Verbs by format: `step` compile · build · snapshot;
 `stl`/`3mf`/`glb` build · snapshot; `dxf` snapshot; `urdf`/`sdf`
 validate · snapshot; `srdf` validate; `pcb` drc · snapshot; `fea` faces · solve (a linear static
 study of a STEP part, with the `fea` extra); `cam` features · plan (a part and a job in, a
-`.cam.glb` and G-code out). `cadgen snapshot` routes any suffix.
+`.cam.glb` and G-code out); `manufacturing` check (a process on a STEP part, with the `fea`
+extra). `cadgen snapshot` routes any suffix.
 `cadgen store|daemon|doctor` are status commands, `cadgen viewer
 [stop]` the CAD Viewer's launcher, and `cadgen mcp`
 the server an agent host starts — all deliberately outside the mirror pattern. `cadgen step compile` is internal tooling: skills never

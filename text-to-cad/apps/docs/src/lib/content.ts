@@ -224,6 +224,12 @@ export const skillGroups = [
       "Plans toolpaths and posts G-code for CNC mills, lathes, laser, plasma, waterjet and wire EDM, with a simulated cut, checks and cycle time.",
   },
   {
+    name: "Manufacturing Sim",
+    path: "skills/manufacturing-sim",
+    summary:
+      "Checks a part through its process as CI checks code: simulates casting, injection moulding, quench hardening, 3D printing, machining and welding, estimates sheet metal bending, and gives each problem's fix; labelled hand estimates for reflow and forming.",
+  },
+  {
     name: "G-code",
     path: "skills/gcode",
     summary:

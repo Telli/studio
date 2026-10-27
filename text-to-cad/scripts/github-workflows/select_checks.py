@@ -280,13 +280,16 @@ RULES: tuple[Rule, ...] = (
     Rule(VIEWER_CODE, _viewer_change, final=True),
     Rule(MCP_CODE, _mcp_change, final=True),
     Rule(("packages/cadgen/**", "scripts/bundle/**"), CADGEN_CONSUMERS),
-    # The stress solver's own tests need the optional cadgen[fea] stack, which no other job
-    # installs: it, its commands, the result types it returns, the extra's pins and its skill.
+    # The solvers' own tests need the optional cadgen[fea] stack, which no other job installs:
+    # fea and the manufacturing checks that run on its pipeline, their commands, the result types
+    # they return, the extra's pins, the skills whose tables their suites hold to the registries
+    # (fea, manufacturing-sim), and the checklist their results end on.
     Rule((
-        f"{CADGEN_SRC}/_internal/fea/**", f"{CADGEN_SRC}/fea.py", f"{CADGEN_SRC}/cli/fea_*",
-        f"{CADGEN_SRC}/_internal/step_open.py",   # how the solver opens a STEP and picks its part
-        f"{CADGEN_SRC}/results.py", "packages/cadgen/pyproject.toml", "skills/fea/**",
-        f"{CADGEN_SUITE}/test_fea*.py",
+        f"{CADGEN_SRC}/_internal/fea/**", f"{CADGEN_SRC}/_internal/manufacturing/**",
+        f"{CADGEN_SRC}/_internal/checklist.py", f"{CADGEN_SRC}/_internal/step_open.py", f"{CADGEN_SRC}/fea.py", f"{CADGEN_SRC}/manufacturing.py",
+        f"{CADGEN_SRC}/cli/fea_*", f"{CADGEN_SRC}/cli/manufacturing_*", f"{CADGEN_SRC}/results.py",
+        "packages/cadgen/pyproject.toml", "skills/fea/**", "skills/manufacturing-sim/**",
+        f"{CADGEN_SUITE}/test_fea*.py", f"{CADGEN_SUITE}/manufacturing/**",
     ), select(flags=["fea"])),
     # CAM needs no extra: its code is cadgen's, and runs the cadgen suite above. Its skill is read
     # by the protocol suite, which holds the skill's tables and links to the operation registry.

@@ -52,6 +52,7 @@ PUBLIC_SURFACE: dict[str, tuple[str, ...]] = {
     "cadgen.fea": ("faces", "parts", "solve"),
     # The same shape: a part and a job go in, a result GLB and G-code come out.
     "cadgen.cam": ("features", "plan"),
+    "cadgen.manufacturing": ("check",),
 }
 
 # The format namespaces that are ALSO their declaration decorator. The robot
@@ -75,6 +76,7 @@ MIRRORS: dict[str, tuple[str, str]] = {
     "cam features": ("cadgen.cam", "features"),
     "cam plan": ("cadgen.cam", "plan"),
     "pcb drc": ("cadgen.pcb", "drc"),
+    "manufacturing check": ("cadgen.manufacturing", "check"),
     # Snapshot was the schema's LAST adapter. Its rich options are typed
     # `str | dict | None` — one string CLI-side, a real dict library-side — so
     # there is nothing left to declare: the structural check below is the whole
