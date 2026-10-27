@@ -199,10 +199,10 @@ class LaminateTheory(unittest.TestCase):
 
 def _block_volume(directory: Path, size=(10.0, 10.0, 20.0), h=4.0):
     from cadgen._internal.fea.mesh import mesh_occurrence
-    from cadgen.step_scene import read_scene
+    from cadgen._internal.step_open import open_scene
 
     step = box_step(directory, "block", size, "corner")
-    volume = mesh_occurrence(next(iter(read_scene(step).leaves())), max_h=h)
+    volume = mesh_occurrence(next(iter(open_scene(step).leaves())), max_h=h)
 
     def face(axis: int, level: float) -> int:
         return next(o for o, fp in volume.faces.items() if abs(fp.center[axis] - level) < 1e-6

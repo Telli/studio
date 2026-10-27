@@ -238,11 +238,11 @@ class OnTheEngine(unittest.TestCase):
     def setUpClass(cls):
         from cadgen._internal.fea.femspace import FemSpace
         from cadgen._internal.fea.mesh import mesh_occurrence
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
         step = box_step(class_directory(cls), "beam", (LENGTH, SIDE, SIDE), "x")
         cls.fixed = ends(step)[0]
-        cls.volume = mesh_occurrence(next(iter(read_scene(step).leaves())), max_h=2.0)
+        cls.volume = mesh_occurrence(next(iter(open_scene(step).leaves())), max_h=2.0)
         cls.space = FemSpace.build(cls.volume)
 
     def _solve(self, study: dict, solver: str = "direct", modes: int | None = None):

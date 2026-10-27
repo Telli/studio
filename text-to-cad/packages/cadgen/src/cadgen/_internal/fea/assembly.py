@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from cadgen.step_scene import StepScene
+    from cadgen._internal.step_open import Scene
 
 __all__ = ["Contact", "Glued", "Overlap", "Part", "detect_contacts", "detect_overlaps", "display_names", "glue", "interferences", "list_parts", "part_centre", "part_faces", "part_gap"]
 
@@ -118,7 +118,7 @@ def gprops(shape, kind: str = "Surface"):
     return props
 
 
-def list_parts(scene: "StepScene") -> list[Part]:
+def list_parts(scene: "Scene") -> list[Part]:
     """Every leaf occurrence of the scene, in scene order."""
     parts = []
     for leaf in scene.leaves():

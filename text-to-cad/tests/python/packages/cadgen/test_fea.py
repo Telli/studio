@@ -826,14 +826,14 @@ class SmallFeatures(unittest.TestCase):
         from build123d import Box, export_step, fillet
 
         from cadgen._internal.fea.mesh import mesh_occurrence
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
         tmp = class_directory(cls)
         plain, rounded = Box(60, 40, 10), fillet(Box(60, 40, 10).edges(), 0.3)
         meshes = []
         for name, shape in (("plain", plain), ("rounded", rounded)):
             export_step(shape, str(tmp / f"{name}.step"))
-            occurrence = next(iter(read_scene(tmp / f"{name}.step").leaves()))
+            occurrence = next(iter(open_scene(tmp / f"{name}.step").leaves()))
             meshes.append(mesh_occurrence(occurrence, max_h=15.0))
         cls.plain, cls.rounded = meshes
 
@@ -938,11 +938,11 @@ class FinerAtCurves(unittest.TestCase):
         from build123d import Box, export_step, fillet
 
         from cadgen._internal.fea.mesh import mesh_occurrence
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
         step = class_directory(cls) / "rounded.step"
         export_step(fillet(Box(30, 20, 6).edges(), 0.5), str(step))
-        occurrence = next(iter(read_scene(step).leaves()))
+        occurrence = next(iter(open_scene(step).leaves()))
         cls.first = len(mesh_occurrence(occurrence, max_h=8.0).tets)
         cls.halved = len(mesh_occurrence(occurrence, max_h=4.0).tets)
         cls.refined = len(mesh_occurrence(occurrence, max_h=4.0, refine=2.0).tets)

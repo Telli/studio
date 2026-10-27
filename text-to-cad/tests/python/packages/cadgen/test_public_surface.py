@@ -57,6 +57,8 @@ MIRRORS: dict[str, tuple[str, str]] = {
     "cam features": ("cadgen.cam", "features"),
     "cam plan": ("cadgen.cam", "plan"),
     "pcb drc": ("cadgen.pcb", "drc"),
+    # A board's picture: generated from its verb, which says no board picture is drawn on 0.8 yet.
+    "pcb snapshot": ("cadgen.pcb", "snapshot"),
     "manufacturing check": ("cadgen.manufacturing", "check"),
 }
 

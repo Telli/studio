@@ -28,7 +28,7 @@ from pathlib import Path
 from cadgen._internal.atomic_replace import replace_atomic
 from cadgen._internal.cam.checks.base import finding
 from cadgen._internal.cam.job_errors import CamJobError, PlanError, PostRefusal
-from cadgen.cli_logging import CliLogger
+from cadgen._internal.cli_log import CliLogger
 from cadgen.results import CamFeaturesResult, CamPlanResult, _assumed_value
 
 __all__ = ["headline", "list_features", "parse_operations", "plan_job", "plan_setups"]

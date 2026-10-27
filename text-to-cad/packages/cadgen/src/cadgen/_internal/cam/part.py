@@ -1,4 +1,4 @@
-"""The part a job machines, read once: exact faces through ``read_scene``, one tessellation, or a DXF's profiles.
+"""The part a job machines, read once: exact faces through ``step_open``, one tessellation, or a DXF's profiles.
 
 :func:`read_part` returns a :class:`Part`:
 
@@ -36,7 +36,7 @@ ANGULAR_DEFLECTION = 0.15
 
 
 def resolve_one(scene, ref: str):
-    """The one selection ``ref`` names. ``StepScene.resolve`` reads a reference line, one selection per ref in it
+    """The one selection ``ref`` names. ``Scene.resolve`` reads a reference line, one selection per ref in it
     (``#o1.f1,o1.f2``); a job names one ref per entry, so a line of several raises as an unresolved one does."""
     selections = scene.resolve(ref)
     if len(selections) != 1:
@@ -140,7 +140,10 @@ class Part:
 
 def read_part(document: Path, *, occurrence: str | None = None, deflection_mm: float | None = None,
               sheet_thickness_mm: float | None = None) -> Part:
-    """Read a STEP occurrence (or a DXF) and tessellate it once."""
+    """Read a part occurrence (of a STEP or xbf, or of a document id) or a DXF, and tessellate it once."""
+    from cadgen._internal.step_open import DOCUMENT_SUFFIXES, open_scene
+    from cadgen.engine.ids import is_id
+
     document = Path(document)
     if document.suffix.lower() in DXF_SUFFIXES:
         if not document.is_file():
@@ -148,22 +151,20 @@ def read_part(document: Path, *, occurrence: str | None = None, deflection_mm: f
         # A plan always names the sheet's thickness (run.py refuses a DXF job without one); read for its profiles
         # alone (``cam features``) the drawing stays flat, at z = 0.
         return _read_dxf(document, thickness=float(sheet_thickness_mm) if sheet_thickness_mm is not None else 0.0)
-    from cadgen._internal.doors import STEP_SUFFIXES, document_target
-    from cadgen.step_scene import read_scene
-
-    try:
-        path = document_target(document, suffixes=(*STEP_SUFFIXES, *DXF_SUFFIXES))
-    except FileNotFoundError:
-        raise CamJobError(f"no STEP at {document}") from None
-    except (ValueError, OSError) as exc:
-        raise CamJobError(str(exc)) from None
-    if not path.is_file():
+    held = is_id(str(document))
+    path = document if held else document.expanduser().resolve()
+    if not held and path.suffix.lower() not in DOCUMENT_SUFFIXES:
+        raise CamJobError(f"{path.name} is not a part CAM reads: a .step, .stp or .xbf, a .dxf, or a model's "
+                          "document id")
+    if not held and not path.is_file():
         raise CamJobError(f"no STEP at {path}")
     try:
-        scene = read_scene(path)
+        scene = open_scene(path)
     except (RuntimeError, ValueError, OSError) as exc:
-        # An empty, truncated or non-STEP file: the reader's first line says why.
+        # An empty, truncated or non-STEP file, or an id the engine holds no document for: the first line says why.
         why = (str(exc).strip().splitlines() or [type(exc).__name__])[0]
+        if held:
+            raise CamJobError(f"document {path} cannot be read ({why[:200]}); run its model again") from None
         raise CamJobError(f"{path.name} is not a STEP that can be read ({why[:200]}); export it again from the CAD "
                           "tool") from None
     leaves = list(scene.leaves())

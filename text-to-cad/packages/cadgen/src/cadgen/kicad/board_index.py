@@ -46,7 +46,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Iterable, Mapping, Sequence
 
-from cadgen.cad_ref_syntax import ref_prefix_names
+from cadgen._internal.cad_ref_syntax import ref_prefix_names
 from cadgen.kicad import sexpr
 from cadgen.kicad.geometry import (
     XY, arc_points, area, bezier_points, box, format_xy, hull, inside, polygon_distance, polyline_distance, rotate,

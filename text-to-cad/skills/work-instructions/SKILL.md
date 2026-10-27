@@ -115,8 +115,8 @@ browser; later runs reuse both.
    inspection with no source, or a part no step installs. Ask them together,
    in one message, and rerun with the answers.
 7. **Read the PDF.** Check each figure shows what its step does (the parts the
-   step installs are filled blue over line art; a surface it names is
-   purple). Each figure is framed on its step's parts (`frame="assembly"` shows
+   step installs are outlined blue over line art; a surface it names is
+   outlined purple). Each figure is framed on its step's parts (`frame="assembly"` shows
    the whole assembly instead); a bond line or machined face hidden from the
    default camera needs that step's own `camera=`, or mark it in the step
    that prepares it, before what covers it goes on. Check the order reads as
@@ -155,8 +155,8 @@ there, and a `Format` renames or replaces what the user's own template shows:
   times. A `controlled` inspection is a hold point: its last sign-off cell is
   shaded and says HOLD. From `production` up a close-out row ends the table.
 - **Figures:** the assembly after the step in hidden-line art, whatever
-  colours the STEP carries: the step's parts filled blue, named surfaces
-  purple, parts installed earlier in outline, later parts left out. Each is
+  colours the STEP carries: the step's parts outlined blue, named surfaces
+  outlined purple, parts installed earlier in black outline, later parts left out. Each is
   framed on the step's parts with room for what they go onto.
 - PDF bytes that are a function of the content: no creation date is stamped.
 

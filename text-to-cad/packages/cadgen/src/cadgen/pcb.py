@@ -78,14 +78,22 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable
 
-from cadgen._internal.snapshot_door import plot_snapshot_verb
 from cadgen.kicad.cli import Finding, issues
 from cadgen.results import ValidationResult
 
 __all__ = ["drc", "snapshot"]
 
-#: ``cadgen pcb snapshot``'s verb: a board drawn as the viewer draws it.
-snapshot = plot_snapshot_verb("pcb")
+
+def snapshot(target: Path, out: Path | None = None) -> ValidationResult:
+    """Draw a KiCad board to an image. Not on this engine yet: cadgen 0.8 draws no board picture, and
+    this says so (the board still opens in the CAD Viewer).
+
+    target: the .kicad_pcb board.
+    out: the .png it would write.
+    """
+    raise RuntimeError(f"no board picture on this engine yet: cadgen 0.8 draws no picture of {Path(target).name}; "
+                       "open it in the CAD Viewer to see it")
+
 
 # The client's per-request timeout. A library load can stall the server for a
 # moment and a save is one request; the build never waits on anything else.
@@ -131,7 +139,7 @@ class BoardBuild:
     seconds: float
 
     def report(self) -> str:
-        from cadgen._internal.doors import display_path
+        from cadgen.xml_common import display_path
 
         checked = f"DRC {_count(self.drc.errors, 'error')} {_count(self.drc.warnings, 'warning')}, " if self.drc else ""
         return (
@@ -244,7 +252,7 @@ def signature(board: Path) -> tuple[str | None, str]:
 
 
 def _build(function: Callable[[Any], Any], target: Path) -> BoardBuild:
-    from cadgen._internal.doors import display_path
+    from cadgen.xml_common import display_path
     from cadgen.kicad.cli import run_drc
     from cadgen.kicad.install import find_kicad_cli
     from cadgen.kipy.board import Board

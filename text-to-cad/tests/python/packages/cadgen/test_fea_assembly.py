@@ -88,9 +88,9 @@ def _face_at(scene, part_ref: str, z: float) -> str:
 
 
 def _scene(step: Path):
-    from cadgen.step_scene import read_scene
+    from cadgen._internal.step_open import open_scene
 
-    scene = read_scene(step)
+    scene = open_scene(step)
     return scene, _refs(scene)
 
 
@@ -114,9 +114,9 @@ class DetectContactsTest(unittest.TestCase):
 
     def _parts(self, **kwargs):
         from cadgen._internal.fea.assembly import list_parts
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
-        return list_parts(read_scene(_write_assembly(self.tmp, **kwargs)))
+        return list_parts(open_scene(_write_assembly(self.tmp, **kwargs)))
 
     def _contacts(self, **kwargs):
         from cadgen._internal.fea.assembly import detect_contacts
@@ -209,10 +209,10 @@ class DetectContactsTest(unittest.TestCase):
 
     def test_a_row_of_parts_is_checked_only_between_neighbours(self):
         from cadgen._internal.fea.assembly import detect_contacts, list_parts
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
         path = _export(self.tmp / "row.step", *(_box(f"box{n}", (10 * n, 0, 0), (10, 10, 10)) for n in range(12)))
-        parts = list_parts(read_scene(path))
+        parts = list_parts(open_scene(path))
         said = []
         contacts = detect_contacts(parts, TOLERANCE, log=said.append)
         self.assertEqual(len(contacts), 11)
@@ -228,9 +228,9 @@ class MeshAssemblyTest(unittest.TestCase):
     def _glued(self, lift: float = 0.0):
         from cadgen._internal.fea.assembly import detect_contacts, list_parts
         from cadgen._internal.fea.mesh import mesh_assembly
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
-        scene = read_scene(_write_assembly(self.tmp, lift=lift, name=f"lift{lift}"))
+        scene = open_scene(_write_assembly(self.tmp, lift=lift, name=f"lift{lift}"))
         parts = list_parts(scene)
         contacts = detect_contacts(parts, TOLERANCE)
         refs = [part.ref for part in parts]
@@ -424,12 +424,12 @@ class DuplicateNamesTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
         cls.tmp = class_directory(cls)
         cls.step = _export(cls.tmp / "bars.step", _box("base", (0, 0, 0), (40, 20, 10)),
                            *(_box("bar", (x, 5, 10), (10, 10, 30)) for x in (2, 26)))
-        cls.scene = read_scene(cls.step)
+        cls.scene = open_scene(cls.step)
         cls.base, cls.first, cls.second = [leaf.ref for leaf in cls.scene.leaves()]
 
     def study(self, **extra) -> dict:
@@ -865,9 +865,9 @@ class SolveAssemblyTest(unittest.TestCase):
     def test_parts_the_glue_would_fuse_are_named_in_a_study_error(self):
         from cadgen._internal.fea.assembly import Contact, list_parts
         from cadgen._internal.fea.mesh import mesh_assembly
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
-        scene = read_scene(_write_assembly(self.tmp, corner_block=0.25, name="corner-forced"))
+        scene = open_scene(_write_assembly(self.tmp, corner_block=0.25, name="corner-forced"))
         refs = _refs_of(list_parts(scene))
         # Bonded by hand, as the old 2 V / A estimate did: gluing fuses the corner into one solid.
         forced = Contact(a=refs["block"], b=refs["base"], area_mm2=0.19, gap_mm=0.0, interference_mm=0.083)

@@ -288,6 +288,10 @@ RULES: tuple[Rule, ...] = (
     Rule((
         f"{CADGEN_SRC}/_internal/fea/**", f"{CADGEN_SRC}/_internal/manufacturing/**",
         f"{CADGEN_SRC}/_internal/checklist.py", f"{CADGEN_SRC}/_internal/step_open.py", f"{CADGEN_SRC}/fea.py", f"{CADGEN_SRC}/manufacturing.py",
+        # What the scene adapter and the solver read a part and say progress with (Studio's).
+        f"{CADGEN_SRC}/_internal/entity_ordinals.py", f"{CADGEN_SRC}/_internal/cad_ref_syntax.py",
+        f"{CADGEN_SRC}/_internal/kernel_messages.py", f"{CADGEN_SRC}/_internal/cli_log.py",
+        f"{CADGEN_SUITE}/test_step_open.py",
         f"{CADGEN_SRC}/cli/fea_*", f"{CADGEN_SRC}/cli/manufacturing_*", f"{CADGEN_SRC}/results.py",
         "packages/cadgen/pyproject.toml", "skills/fea/**", "skills/manufacturing-sim/**",
         f"{CADGEN_SUITE}/test_fea*.py", f"{CADGEN_SUITE}/manufacturing/**",

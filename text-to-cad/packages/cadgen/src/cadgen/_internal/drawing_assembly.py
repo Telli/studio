@@ -240,8 +240,9 @@ class PartsList:
 
 
 def parts_list(source) -> PartsList:
-    """The parts list of an assembly: a scene from ``cadgen.read_scene(path)``, or
-    a live build123d assembly (a ``Compound`` built with ``children=``)."""
+    """The parts list of an assembly: a build123d assembly (a ``Compound`` built with ``children=``),
+    such as an assembly model's ``.shape`` (``rig().shape``) or ``cadgen.read_step(path)``, or a
+    scene (``cadgen._internal.step_open.open_scene``)."""
     from build123d import Compound, Location
 
     if hasattr(source, "leaves") and hasattr(source, "roots"):
@@ -253,8 +254,9 @@ def parts_list(source) -> PartsList:
         assembly = source
     else:
         raise TypeError(
-            "parts_list() reads an assembly: a scene from cadgen.read_scene(path), or a build123d Compound "
-            "made with children=[...]. A single part has no parts list; draw it with Sheet.three_views()."
+            "parts_list() reads an assembly: its model's shape (rig().shape), cadgen.read_step(path), or a "
+            "build123d Compound made with children=[...]. A single part has no parts list; draw it with "
+            "Sheet.three_views()."
         )
     if not leaves:
         raise ValueError("parts_list(): the assembly holds no parts")

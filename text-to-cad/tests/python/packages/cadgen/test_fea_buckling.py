@@ -133,9 +133,9 @@ class EulerColumn(unittest.TestCase):
         from cadgen._internal.fea.femspace import FemSpace
         from cadgen._internal.fea.fit import FitPlan
         from cadgen._internal.fea.mesh import mesh_occurrence
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
-        volume = mesh_occurrence(next(iter(read_scene(self.step).leaves())), max_h=2.0)
+        volume = mesh_occurrence(next(iter(open_scene(self.step).leaves())), max_h=2.0)
         space = FemSpace.build(volume)
         ordinal_of = {ref: int(ref.rsplit("f", 1)[1]) for ref in (self.fixed, self.top)}
         analysis = get_analysis("buckling")

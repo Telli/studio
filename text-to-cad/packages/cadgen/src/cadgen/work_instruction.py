@@ -775,9 +775,9 @@ class Instruction:
     @property
     def scene(self):
         if self._scene is None:
-            from cadgen.step_scene import read_scene
+            from cadgen._internal.step_open import open_scene
 
-            self._scene = read_scene(self.step_path)
+            self._scene = open_scene(self.step_path)
             if len(list(self._scene.leaves())) < 2:
                 raise TypeError(f"{self.step_path.name} is a single part: work instructions are for an assembly; "
                                 "instructions for machining or processing one detail part are not supported yet")

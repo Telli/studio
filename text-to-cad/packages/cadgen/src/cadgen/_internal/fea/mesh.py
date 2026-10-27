@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     import numpy as np
 
     from cadgen._internal.fea.assembly import Contact
-    from cadgen.step_scene import Occurrence, StepScene
+    from cadgen._internal.step_open import Occurrence, Scene
 
 __all__ = ["FaceFingerprint", "VolumeMesh", "default_mesh_size", "face_area_center", "mesh_assembly", "mesh_occurrence", "occurrence_fingerprints", "require_fea_stack", "small_feature_mm"]
 
@@ -277,7 +277,7 @@ def _netgen(shape, name: str, prints: list[FaceFingerprint], diagonal: float, h:
     import netgen.meshing as ngmesh
     import netgen.occ as ngocc
 
-    from cadgen._internal.step_scene_loader import kernel_messages_on_stderr
+    from cadgen._internal.kernel_messages import kernel_messages_on_stderr
 
     with tempfile.TemporaryDirectory(prefix="cadgen-fea-") as tmp:
         brep = Path(tmp) / name
@@ -430,7 +430,7 @@ def check_domains(nodes, tets, domain, parts) -> None:
             raise RuntimeError(f"the mesh's volume {index} lies outside part {part.ref}; the mesher's volumes do not follow the parts")
 
 
-def mesh_assembly(scene: "StepScene", part_refs: list[str], bonded: "list[Contact]", tolerance_mm: float,
+def mesh_assembly(scene: "Scene", part_refs: list[str], bonded: "list[Contact]", tolerance_mm: float,
                   max_h: float | None = None, log=None, refine: float = 1.0, order: int = 2,
                   size_field: dict | None = None) -> VolumeMesh:
     """Mesh the parts ``part_refs`` as one conforming mesh, bonded parts sharing nodes.

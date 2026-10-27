@@ -33,7 +33,7 @@ __all__ = ["faces", "parts", "solve"]
 def faces(target: Path, *, occurrence: str | None = None, verbose: bool = False) -> FeaFacesResult:
     """List one part's faces: selector, area, centre, surface type and a hint.
 
-    target: the STEP/STP document.
+    target: the part's document: a .step, .stp or .xbf, or a model's document id.
     occurrence: which part occurrence to list (``#o1``) when the document is an
         assembly. Omitted, the document must hold one part.
     verbose: show progress on stderr.
@@ -46,7 +46,7 @@ def faces(target: Path, *, occurrence: str | None = None, verbose: bool = False)
 def parts(target: Path, *, contact_tolerance_mm: float = 0.1, verbose: bool = False) -> FeaPartsResult:
     """List an assembly's parts and the pairs that touch, before writing a study.
 
-    target: the STEP/STP document.
+    target: the part's document: a .step, .stp or .xbf, or a model's document id.
     contact_tolerance_mm: faces this close (or closer) count as touching and are
         bonded by default; a pair a little farther apart is listed as not connected.
     verbose: show progress on stderr.
@@ -68,9 +68,10 @@ def solve(
 ) -> FeaResult:
     """Run one study (static unless it names another analysis) and write its result GLB and JSON sidecar.
 
-    target: the STEP/STP document holding the part.
+    target: the part's document: a .step, .stp or .xbf, or a model's document id.
     out: the result .glb path. Omitted, writes ``<document>.fea.glb`` beside the
-        document; the sidecar is the same name with ``.json``.
+        document (a document id's ``<model>.fea.glb`` in the working directory);
+        the sidecar is the same name with ``.json``.
     study: the study: a JSON file path, inline JSON, or (library callers) a
         dict. It names the analysis (default ``static``), the material, the
         fixed faces and the loads (static: forces, pressures, gravity and

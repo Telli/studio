@@ -26,8 +26,7 @@ _FIXTURE: dict[str, Path] = {}
 
 def setUpModule() -> None:
     """One assembly and one store for every test here: its scene compiles once."""
-    from build123d import Box, Compound, Pos
-    from cadgen.step_export import export_build123d_step_file
+    from build123d import Box, Compound, Pos, export_step
 
     temporary = generated_cad_directory(prefix="work-instruction-")
     unittest.addModuleCleanup(temporary.cleanup)
@@ -47,7 +46,7 @@ def setUpModule() -> None:
         pin.label = "pin"
         pins.append(pin)
     step = root / "assembly.step"
-    export_build123d_step_file(Compound(children=[base, bracket, *pins], label="assembly"), step)
+    export_step(Compound(children=[base, bracket, *pins], label="assembly"), str(step))
     _FIXTURE.update(root=root, step=step)
 
 
@@ -164,12 +163,11 @@ class VocabularyTests(_Assembly):
                 make()
 
     def test_a_single_part_is_not_an_assembly(self) -> None:
-        from build123d import Box
-        from cadgen.step_export import export_build123d_step_file
+        from build123d import Box, export_step
         from cadgen.work_instruction import Instruction
 
         single = self.root / "single.step"
-        export_build123d_step_file(Box(1, 1, 1), single)
+        export_step(Box(1, 1, 1), str(single))
         with self.assertRaisesRegex(TypeError, "single part"):
             Instruction(single, title="T", number="N", revision="A", pictures=False)
 
@@ -449,8 +447,7 @@ class SubassemblyTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        from build123d import Box, Compound, Pos
-        from cadgen.step_export import export_build123d_step_file
+        from build123d import Box, Compound, Pos, export_step
 
         base = Box(100, 60, 10)
         base.label = "base_plate"
@@ -465,7 +462,7 @@ class SubassemblyTests(unittest.TestCase):
             pins.append(pin)
         wheel = Compound(children=[hub, rim], label="wheel")
         cls.step = _FIXTURE["root"] / "nested.step"
-        export_build123d_step_file(Compound(children=[base, wheel, *pins], label="nested"), cls.step)
+        export_step(Compound(children=[base, wheel, *pins], label="nested"), str(cls.step))
 
     def test_units_and_kinds(self) -> None:
         from cadgen._internal.work_instruction_pages import parts

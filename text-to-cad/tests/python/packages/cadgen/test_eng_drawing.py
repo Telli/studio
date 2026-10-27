@@ -1528,7 +1528,7 @@ class AssemblyEdgeTests(unittest.TestCase):
         from unittest import mock
 
         import cadgen._internal.drawing_render as render
-        from cadgen.drawing_checks import validate_drawing_document
+        from cadgen.engine.export.dxf import validate_drawing_document
         from cadgen.eng_drawing import Sheet
 
         real = render._edge_polyline
@@ -2240,11 +2240,10 @@ class AssemblyDrawingTests(unittest.TestCase):
         import os
         from unittest import mock
 
-        from build123d import Box, Compound, Cylinder, Location
+        from build123d import Box, Compound, Cylinder, Location, export_step
 
-        import cadgen
+        from cadgen._internal.step_open import open_scene
         from cadgen.eng_drawing import parts_list
-        from cadgen.step_export import export_build123d_step_file
 
         with temporary_directory(prefix="tmp-cad-eng-drawing-") as tmp:
             with mock.patch.dict(os.environ, {"CADGEN_CACHE_DIR": str(Path(tmp) / "store"), "CADGEN_DAEMON": "0"}):
@@ -2261,8 +2260,8 @@ class AssemblyDrawingTests(unittest.TestCase):
                 steel, brass = Box(5, 5, 5).moved(Location((0, 30, 0))), Box(5, 5, 5).moved(Location((20, 30, 0)))
                 steel.label, brass.label = "spacer_steel", "spacer_brass"
                 path = Path(tmp) / "fixture.step"
-                export_build123d_step_file(Compound(children=[plate, *placed, steel, brass], label="fixture"), path)
-                parts = parts_list(cadgen.read_scene(path))
+                export_step(Compound(children=[plate, *placed, steel, brass], label="fixture"), str(path))
+                parts = parts_list(open_scene(path))
         self.assertEqual([(i.description, i.quantity) for i in parts],
                          [("PLATE", 1), ("PIN", 3), ("SPACER STEEL", 1), ("SPACER BRASS", 1)])
         self.assertEqual(parts[2].refs, ("#o1.2", "#o1.3", "#o1.4"))

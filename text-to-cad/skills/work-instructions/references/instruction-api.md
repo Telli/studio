@@ -228,8 +228,8 @@ under EQUIPMENT with ID and calibration-due blanks.
 One snapshot packet renders every step's figure in one browser. Each shows the
 assembly as it stands after the step, as hidden-line art (black edges,
 whatever colours the STEP carries): parts a later step installs are left out,
-parts installed earlier are outlines, the step's own parts are filled blue,
-and named surfaces are filled purple. Every figure shares one camera fitted to
+parts installed earlier are black outlines, the step's own parts are outlined
+blue, and named surfaces are outlined purple. Every figure shares one camera fitted to
 the whole assembly, so a part sits in the same place in each.
 
 ## What the run prints

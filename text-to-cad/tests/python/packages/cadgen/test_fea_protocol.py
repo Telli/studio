@@ -452,12 +452,12 @@ class MeshOptions(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
         cls.directory = class_directory(cls)
         cls.step = _cantilever(cls.directory)
         cls.fixed, cls.loaded = ends(cls.step)
-        cls.occurrence = next(iter(read_scene(cls.step).leaves()))
+        cls.occurrence = next(iter(open_scene(cls.step).leaves()))
 
     def test_linear_elements_mesh_solve_and_write(self):
         import numpy as np

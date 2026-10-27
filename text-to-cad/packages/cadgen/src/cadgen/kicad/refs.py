@@ -1,7 +1,7 @@
 """Board references: how a person and an agent name what is on a KiCad board.
 
 A reference is a token, ``<file>#<selector>[,<selector>...]``, exactly as a STEP
-reference is (:mod:`cadgen.cad_ref_syntax`: the file half optional, JSON-quoted
+reference is (:mod:`cadgen._internal.cad_ref_syntax`: the file half optional, JSON-quoted
 when its path needs it). The selector language is chosen by the file's suffix:
 ``.kicad_pcb`` speaks this one.
 
@@ -39,7 +39,7 @@ from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import PurePath
 
-from cadgen.cad_ref_syntax import QUOTED_PREFIX_RE, split_cad_ref
+from cadgen._internal.cad_ref_syntax import QUOTED_PREFIX_RE, split_cad_ref
 
 __all__ = [
     "BoardSelector",
@@ -268,7 +268,7 @@ def parse_board_token(text: str) -> BoardToken | None:
     """A reference token, ``<file>#<selector>[,<selector>...]``: its file (``""`` when it names
     none) and its selectors in the order written; ``None`` when it is not one.
 
-    The file half is split off as a STEP token's is (:func:`cadgen.cad_ref_syntax.split_cad_ref`).
+    The file half is split off as a STEP token's is (:func:`cadgen._internal.cad_ref_syntax.split_cad_ref`).
     Its selectors hold whitespace only inside a quoted net name (``#net:"/Power Stage/VLOC"``), as
     its file half does inside quotes, and every one of them must parse.
     """

@@ -114,7 +114,7 @@ def _stack(directory: Path, *, cap: bool = False) -> tuple[Path, dict[str, str],
     """base 10 x 10 x 20 at the origin, top 10 x 10 x 10 on it, and (``cap``) a 10 x 10 x 5 cap on top."""
     from build123d import Align, Box, Compound, Pos, export_step
 
-    from cadgen.step_scene import read_scene
+    from cadgen._internal.step_open import open_scene
 
     base = Box(10, 10, 20, align=Align.MIN)
     base.label = "base"
@@ -127,7 +127,7 @@ def _stack(directory: Path, *, cap: bool = False) -> tuple[Path, dict[str, str],
         children.append(lid)
     step = directory / ("capped.step" if cap else "stack.step")
     export_step(Compound(children=children), str(step))
-    scene = read_scene(step)
+    scene = open_scene(step)
     return step, {leaf.label: leaf.ref for leaf in scene.leaves()}, scene
 
 
@@ -289,7 +289,7 @@ class Hertz(unittest.TestCase):
     def test_the_contact_radius_and_peak_pressure_are_hertz_s(self):
         from build123d import Align, Box, Compound, Pos, Sphere, export_step
 
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
         R, height = self.R, 6.0
         with tempfile.TemporaryDirectory() as name:
@@ -299,7 +299,7 @@ class Hertz(unittest.TestCase):
             block.label = "block"
             step = Path(name) / "hertz.step"
             export_step(Compound(children=[ball, block]), str(step))
-            scene = read_scene(step)
+            scene = open_scene(step)
             refs = {leaf.label: leaf.ref for leaf in scene.leaves()}
             planes = [_face(scene, refs[part], axis, 0.0) for part in ("ball", "block") for axis in (0, 1)]
             study = {

@@ -197,7 +197,7 @@ def _joint(directory: Path, width: float | None):
     """Two plates with a 6.6 mm hole, 6 mm thick, stacked: round as wide as the head (``width`` None) or square."""
     from build123d import Align, Box, Compound, Cylinder, Pos, export_step
 
-    from cadgen.step_scene import read_scene
+    from cadgen._internal.step_open import open_scene
 
     base = (Align.CENTER, Align.CENTER, Align.MIN)
 
@@ -209,7 +209,7 @@ def _joint(directory: Path, width: float | None):
     top.label, bottom.label = "plate", "bracket"
     step = directory / "joint.step"
     export_step(Compound(children=[top, bottom]), str(step))
-    scene = read_scene(step)
+    scene = open_scene(step)
     return step, {leaf.label: leaf.ref for leaf in scene.leaves()}, scene
 
 
@@ -379,7 +379,7 @@ class LapJoint(unittest.TestCase):
     def setUpClass(cls):
         from build123d import Align, Box, Compound, Cylinder, Pos, export_step
 
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
         directory = class_directory(cls)
         low = (Align.MIN, Align.CENTER, Align.MIN)
@@ -388,7 +388,7 @@ class LapJoint(unittest.TestCase):
         strap.label, link.label = "base_strap", "link"
         cls.step = directory / "lap_joint.step"
         export_step(Compound(children=[strap, link]), str(cls.step))
-        scene = read_scene(cls.step)
+        scene = open_scene(cls.step)
         refs = {leaf.label: leaf.ref for leaf in scene.leaves()}
         wall = 2 * math.pi * 4.5 * 6
         cls.holes = [_face(scene, refs["link"], 2, 9.0, wall), _face(scene, refs["base_strap"], 2, 3.0, wall)]

@@ -236,9 +236,9 @@ class Cantilever(unittest.TestCase):
         self.assertTrue(0.6 < ratio < 1.0, ratio)
 
     def test_linear_elements_measure_their_accuracy_where_a_quadratic_pass_fits(self):
-        from cadgen.step_scene import read_scene
+        from cadgen._internal.step_open import open_scene
 
-        occurrence = next(iter(read_scene(self.step).leaves()))
+        occurrence = next(iter(open_scene(self.step).leaves()))
         shape = occurrence.shape()
         geometry = fit.geometry_of(shape.wrapped, occurrence.ref)
 

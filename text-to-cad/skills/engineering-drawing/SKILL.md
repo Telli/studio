@@ -235,7 +235,7 @@ keys every part to a parts list with a balloon, and one sheet per distinct part.
 
 ```python
 # in the @eng_drawing function; from cadgen.eng_drawing import assembly_sheets, parts_list
-parts = parts_list(cadgen.read_scene(Path(__file__).parent / "../STEP/rig.step"))
+parts = parts_list(rig().shape)                    # from rig import rig: the assembly's model
 parts.merge("eye:upper", "eye:lower")              # one part the model names twice
 parts.set("base_plate", material="AL 6061-T6", spec="AMS 4027")   # only what the person states
 parts.add("LOCTITE 243", spec="MIL-S-46163 TYPE II")             # not modelled: QTY AR

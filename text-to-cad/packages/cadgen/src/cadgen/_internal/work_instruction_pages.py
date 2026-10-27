@@ -86,15 +86,19 @@ def picture_plan(wi) -> list[Picture]:
     return plan
 
 
-def _area(mark_id: str, shape, color: str, opacity: float, tolerance: float) -> dict:
-    vertices, triangles = shape.tessellate(tolerance, 0.3)
-    if not triangles:
-        raise ValueError(f"{mark_id}: nothing to draw -- the shape tessellated to no triangles")
-    return {
-        "id": mark_id, "kind": "area", "color": color, "opacity": opacity,
-        "points": [round(c, 4) for v in vertices for c in (v.X, v.Y, v.Z)],
-        "triangles": [i for tri in triangles for i in tri], "outline": 3,
-    }
+def _outline(mark_id: str, shape, color: str, width: float) -> list[dict]:
+    """A shape marked over the picture by its edges, in ``color``: one ink stroke per edge, a line its two
+    ends and a curve 24 spans. The 0.8 snapshot draws ink in 3D as lines, drawn where the model does not
+    hide them, so a new part or a marked surface stands out by its outline."""
+    marks = []
+    for at, edge in enumerate(shape.edges(), 1):
+        spans = 1 if edge.geom_type.name == "LINE" else 24
+        points = [c for point in edge.positions([i / spans for i in range(spans + 1)]) for c in
+                  (round(point.X, 4), round(point.Y, 4), round(point.Z, 4))]
+        marks.append({"id": f"{mark_id}-{at}", "kind": "stroke", "color": color, "width": width, "points": points})
+    if not marks:
+        raise ValueError(f"{mark_id}: nothing to draw -- the shape has no edges")
+    return marks
 
 
 def _extent(wi) -> tuple[list[float], float]:
@@ -125,34 +129,34 @@ def render_pictures(wi, folder: Path) -> dict[int, Path]:
     plan = picture_plan(wi)
     if not plan:
         return {}
-    from cadgen import step as step_door
+    from cadgen.engine.api import snapshot
 
     leaves = {leaf.ref: leaf for leaf in wi.leaves()}
     centre, diagonal = _extent(wi)
-    tolerance = max(diagonal * 0.002, 0.01)
     jobs, out = [], {}
     for picture in plan:
         target, half = centre, 0.5 * diagonal
         if picture.frame == "step" and picture.focus:
             target, half = _fit_step(leaves, picture, diagonal)
         camera = {"preset": picture.camera, "target": target, "orthographicHalfHeight": round(half, 4)}
-        marks = [_area(f"step{picture.step}-{ref}", leaves[ref].shape(), NEW_PART, 0.6, tolerance)
-                 for ref in picture.tint]
-        marks += [_area(f"step{picture.step}-{ref}", wi.scene.resolve(ref)[0].shape(), SURFACE, 0.75, tolerance)
-                  for ref in picture.surfaces]
+        marks = [mark for ref in picture.tint
+                 for mark in _outline(f"step{picture.step}-{ref}", leaves[ref].shape(), NEW_PART, 6)]
+        marks += [mark for ref in picture.surfaces
+                  for mark in _outline(f"step{picture.step}-{ref}", wi.scene.resolve(ref)[0].shape(), SURFACE, 8)]
         path = folder / f"step-{picture.step}.png"
-        job = {"input": str(wi.step_path), "mode": "view", "display": "hidden-line",
+        job = {"input": str(wi.step_path), "display": {"mode": "hidden-line"},
                "output": {"tightFrame": False, "transparent": True},
                "outputs": [{"path": str(path), "camera": camera}]}
         if marks:
             job["annotation"] = {"units": "mm", "marks": marks}
         if picture.hide:
-            job["selection"] = {"hide": list(picture.hide)}
+            job["selection"] = {"hide": [leaves[ref].path for ref in picture.hide]}
         jobs.append(job)
         out[picture.step] = path
     packet = folder / "pictures.json"
     packet.write_text(json.dumps({"jobs": jobs}), encoding="utf-8")
-    step_door.snapshot(job=packet, width=PICTURE_PX[0], height=PICTURE_PX[1])
+    # Drawn in this process by the engine's own renderer: a work instruction needs no engine running.
+    snapshot(job=packet, width=PICTURE_PX[0], height=PICTURE_PX[1], daemon=False, progress=False)
     missing = [str(path) for path in out.values() if not path.is_file()]
     if missing:
         raise RuntimeError(f"the snapshot wrote no picture at {', '.join(missing)}")

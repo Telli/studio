@@ -10,19 +10,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from cadgen._internal.fea.checks import quoted
+from cadgen._internal.cli_log import CliLogger
 from cadgen._internal.step_open import open_scene, pick_occurrence, resolve_one
-from cadgen.cli_logging import CliLogger
 from cadgen.results import FeaFace, FeaFacesResult, FeaPair, FeaPart, FeaPartsResult, FeaResult
 
 if TYPE_CHECKING:
-    from cadgen.step_scene import Occurrence, Selection, StepScene
+    from cadgen._internal.step_open import Occurrence, Scene, Selection
 
 __all__ = ["list_assembly_parts", "list_faces", "progress_log", "solve_study"]
 
 _AXES = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}
 
 
-def _resolve_faces(scene: "StepScene", refs: "tuple[str, ...]") -> tuple[dict[str, "Selection"], set[str]]:
+def _resolve_faces(scene: "Scene", refs: "tuple[str, ...]") -> tuple[dict[str, "Selection"], set[str]]:
     """Each face ref resolved, and the occurrences they belong to."""
     resolved: dict[str, Selection] = {}
     owners: set[str] = set()
@@ -35,7 +35,7 @@ def _resolve_faces(scene: "StepScene", refs: "tuple[str, ...]") -> tuple[dict[st
     return resolved, owners
 
 
-def _single_occurrence(scene: "StepScene", owners: set[str], chosen: str | None = None) -> "Occurrence":
+def _single_occurrence(scene: "Scene", owners: set[str], chosen: str | None = None) -> "Occurrence":
     """The one leaf occurrence every face ref belongs to. A study that names no face (a free-free modal study) solves
     ``chosen`` (``--occurrence``), else the document's only part."""
     if len(owners) > 1:
@@ -184,7 +184,7 @@ def find_part(parts: list, names: list[str], key: str, where: str) -> int:
     return named[0]
 
 
-def _plan_assembly(scene: "StepScene", parsed, logger: CliLogger) -> _Plan:
+def _plan_assembly(scene: "Scene", parsed, logger: CliLogger) -> _Plan:
     from cadgen._internal.fea.assembly import display_names, joined_groups, list_parts
 
     logger.info("reading the parts")
@@ -446,7 +446,12 @@ def _mesh_assembly(mesh_assembly, scene, plan: _Plan, parsed, resolved, ordinal_
 
 
 def _document_ref(document: Path, glb_path: Path) -> str:
-    """The STEP relative to the GLB's folder; absolute when they share no root (another Windows drive)."""
+    """The document relative to the GLB's folder; absolute when they share no root (another Windows drive); a
+    document id as it is."""
+    from cadgen.engine.ids import is_id
+
+    if is_id(str(document)):
+        return str(document)
     try:
         return Path(os.path.relpath(document.resolve(), glb_path.resolve().parent)).as_posix()
     except ValueError:
@@ -591,17 +596,18 @@ def _solve_study(document: Path, out: Path | None, study, occurrence: str | None
     static = parsed.analysis == _STATIC
     logger = CliLogger("fea", verbose=verbose)
     progress = progress_log(logger)
-    glb_path = Path(out) if out is not None else document.with_name(f"{document.stem}.fea.glb")
-    if glb_path.suffix.lower() != ".glb":
+    if out is not None and Path(out).suffix.lower() != ".glb":
         raise ValueError(f"OUT names the result GLB and must end in .glb: {out}")
-    sidecar_path = Path(sidecar) if sidecar is not None else glb_path.with_suffix(".json")
-    vtu_path = glb_path.with_suffix(".vtu") if vtu else None
 
     from cadgen._internal.fea import checks
     from cadgen._internal.fea.mesh import default_mesh_size, mesh_assembly, mesh_occurrence, require_fea_stack, small_feature_mm
 
     require_fea_stack()
     scene = open_scene(document)
+    # A file's result goes beside it; a document id has no folder, so its result goes in the working directory.
+    glb_path = Path(out) if out is not None else document.with_name(f"{scene.stem}.fea.glb")
+    sidecar_path = Path(sidecar) if sidecar is not None else glb_path.with_suffix(".json")
+    vtu_path = glb_path.with_suffix(".vtu") if vtu else None
     resolved, owners = _resolve_faces(scene, tuple(dict.fromkeys((*parsed.face_refs, *parsed.check_faces))))
     # A document of several parts is an assembly, whichever faces the study names; one part's study keeps the one-part path.
     plan = None
@@ -667,7 +673,7 @@ def _solve_study(document: Path, out: Path | None, study, occurrence: str | None
         return SolveContext(
             volume=volume, materials=materials, ordinal_of=ordinal_of, space=space, log=progress,
             automatic=automatic, upstream={}, budget=budget, plan=fit_plan,
-            study=parsed, assembly=plan, part_name=document.stem, geometry=geometry, meshed_plan=meshed,
+            study=parsed, assembly=plan, part_name=scene.stem, geometry=geometry, meshed_plan=meshed,
         )
 
     def ladder(ctx, *, tail: bool) -> list:
@@ -847,7 +853,7 @@ def _solve_study(document: Path, out: Path | None, study, occurrence: str | None
     # The field the surface is coloured by: the first scalar field, else the first field's magnitude (a mode shape).
     primary = next((spec for spec in analysis.fields if spec.components == 1), analysis.fields[0])
     extras = {
-        "name": analysis.extras_name(document.stem),
+        "name": analysis.extras_name(scene.stem),
         "generator": "cadgen fea",
         # Where the STEP is from the GLB's own folder, so a viewer can find it.
         "document": _document_ref(document, glb_path),

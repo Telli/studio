@@ -41,8 +41,7 @@ class DocumentedTemplateTests(unittest.TestCase):
         self.assertIn("references/instruction-api.md#template", SKILL.read_text(encoding="utf-8"))
 
     def test_the_template_runs_and_leaves_its_placeholders_open(self) -> None:
-        from build123d import Box, Compound, Pos
-        from cadgen.step_export import export_build123d_step_file
+        from build123d import Box, Compound, Pos, export_step
 
         temporary = generated_cad_directory(prefix="wi-template-")
         self.addCleanup(temporary.cleanup)
@@ -56,8 +55,7 @@ class DocumentedTemplateTests(unittest.TestCase):
             part.label = label
             parts.append(part)
         (root / "STEP").mkdir()
-        export_build123d_step_file(Compound(children=parts, label="bracket_assembly"),
-                                   root / "STEP/bracket_assembly.step")
+        export_step(Compound(children=parts, label="bracket_assembly"), str(root / "STEP/bracket_assembly.step"))
         (root / "src").mkdir()
         script = root / "src/bracket_assembly_wi.py"
         script.write_text(_template(), encoding="utf-8")

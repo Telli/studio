@@ -33,7 +33,7 @@ __all__ = ["features", "plan"]
 def features(target: Path, *, occurrence: str | None = None, direction: str | None = None) -> CamFeaturesResult:
     """List what a CAM job can name on a part: faces with their selectors and a machining reading, holes, floors.
 
-    target: the STEP/STP document holding the part, or a DXF of flat profiles.
+    target: the part's document: a .step, .stp or .xbf, or a model's document id, or a DXF of flat profiles.
     occurrence: which part occurrence to read (``#o1.2``) when the document is an
         assembly. Omitted, the document must hold one part.
     direction: list only what a tool coming from this side can work (``+Z``, ``-Z``,
@@ -49,7 +49,7 @@ def plan(target: Path, *, job: str | dict | None = None, occurrence: str | None 
          out_dir: Path | None = None, verbose: bool = False) -> CamPlanResult:
     """Plan a CAM job on a part: toolpaths, a simulated cut, checks, and G-code per setup.
 
-    target: the STEP/STP document holding the part, or a DXF of flat profiles.
+    target: the part's document: a .step, .stp or .xbf, or a model's document id, or a DXF of flat profiles.
     job: the job: a JSON file path, inline JSON, or (library callers) a dict. It
         names the machine (kind and post), the material, the stock, the tools and
         the setups, each with its operations; see the cam skill for the schema.
@@ -59,7 +59,8 @@ def plan(target: Path, *, job: str | dict | None = None, occurrence: str | None 
     post: write the G-code for this post instead of the job's ``machine.post``
         (``haas``): the same job for another controller, without editing it.
     out_dir: where the result GLB and the posted files go. Omitted, they go beside
-        the document, as ``<stem>.cam.glb`` and ``<stem>.<setup>.<ext>``.
+        the document, as ``<stem>.cam.glb`` and ``<stem>.<setup>.<ext>`` (a document
+        id's in the working directory, named by the id).
     verbose: show every progress line and the timings on stderr.
     """
     from cadgen._internal.cam.run import plan_job

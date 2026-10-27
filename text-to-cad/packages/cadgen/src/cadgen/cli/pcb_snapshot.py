@@ -3,13 +3,8 @@
 A GENERATED CLI over :func:`cadgen.pcb.snapshot`. There is no parser here on
 purpose: everything the command accepts is derived from the verb function's
 signature by :mod:`cadgen._internal.cli_from_function`, so a flag cannot drift
-from a parameter (design/format-doors.md). Which input kinds the door accepts
-is declared once, beside the verb, in
-:data:`cadgen._internal.snapshot_door.DOOR_KINDS`.
-
-A plot is not a scene, so this door binds the drawing's narrow shape
-(:func:`cadgen._internal.snapshot_door.plot_snapshot_verb`): where, how big,
-and light or dark around the sheets.
+from a parameter (design/format-doors.md). On cadgen 0.8 it draws no picture
+yet and says so.
 """
 
 from __future__ import annotations

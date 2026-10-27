@@ -29,13 +29,13 @@ def check(target: Path, *, study: str | dict | None = None, occurrence: str | No
           mesh_size: float | None = None, fail_on: str | None = None, verbose: bool = False) -> ManufacturingCheckResult:
     """Check how a part fares while it is made: simulate its process, judge it, and write the result GLB and sidecar.
 
-    target: the STEP/STP document holding the part.
+    target: the part's document: a .step, .stp or .xbf, or a model's document id.
     study: the study: a JSON file path, inline JSON, or (library callers) a dict. Its "process" names what is checked
         (casting, molding, heat_treatment, machining, printing, welding or sheet_metal), and the rest is that process's
         own keys (an alloy and its mould, a resin, a steel and its quenchant, the cut, the printer, the welds, the
         sheet); see the manufacturing-sim skill for each. Face refs are the ones ``cadgen fea faces`` prints. Writes
-        ``<stem>.<process>.glb`` and its sidecar ``<stem>.<process>.result.json`` beside the document, replacing an
-        earlier check's.
+        ``<stem>.<process>.glb`` and its sidecar ``<stem>.<process>.result.json`` beside the document (a document id's
+        in the working directory, named by the id), replacing an earlier check's.
     occurrence: check only this part occurrence (``#o1.2``) when the document holds several parts; a process checks
         one part.
     mesh_size: target element size in mm, overriding the study's mesh.size_mm. Omitted, the study's, else one

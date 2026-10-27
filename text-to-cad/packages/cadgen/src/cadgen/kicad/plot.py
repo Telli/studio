@@ -591,16 +591,25 @@ def payload_bytes(payload: dict) -> bytes:
 
 
 def plot_payload_bytes(path: Path) -> bytes:
-    """The payload as JSON bytes, from the store when these bytes were plotted before."""
-    from cadgen.store import drawings
+    """The payload as JSON bytes, from cadgen's cache folder when these bytes were plotted before:
+    ``plots/<digest>.json``, keyed by the board's and its project's bytes and this plot's scheme. Best
+    effort: a cache that cannot be read or written costs a plot, never an answer."""
+    from cadgen._internal.atomic_replace import write_bytes_atomic
+    from cadgen.viewer.recents import cache_dir
 
     path = _checked(Path(path))
     data, project = _read(path)
-    digest = hashlib.sha256(data + b"\0" + project).hexdigest()
-    key = drawings.drawing_input_key(digest, scheme=f"kicad-plot:{PLOT_SCHEMA_VERSION}.{_REVISION}")
-    cached = drawings.read(key)
-    if cached is not None:
-        return cached
+    scheme = f"kicad-plot:{PLOT_SCHEMA_VERSION}.{_REVISION}".encode()
+    digest = hashlib.sha256(scheme + b"\0" + data + b"\0" + project).hexdigest()
+    cached = cache_dir() / "plots" / f"{digest}.json"
+    try:
+        return cached.read_bytes()
+    except OSError:
+        pass
     encoded = payload_bytes(_build(path, _tree(path, data)))
-    drawings.write(key, encoded)
+    try:
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        write_bytes_atomic(cached, encoded)
+    except OSError:
+        pass
     return encoded

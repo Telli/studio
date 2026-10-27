@@ -57,9 +57,9 @@ def crowded_step(directory):
 
 def edges(step, test) -> list[str]:
     """The part's edge refs whose (bounding box min, max, length) pass ``test``, in ordinal order."""
-    from cadgen.step_scene import read_scene
+    from cadgen._internal.step_open import open_scene
 
-    leaf = next(iter(read_scene(step).leaves()))
+    leaf = next(iter(open_scene(step).leaves()))
     out = []
     for selection in leaf.entities("edge"):
         shape = selection.shape()
