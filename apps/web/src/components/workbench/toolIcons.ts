@@ -1,0 +1,206 @@
+import {
+  ActivityIcon,
+  AnvilIcon,
+  ArrowDownToLineIcon,
+  Axis3dIcon,
+  BoltIcon,
+  CameraIcon,
+  ChartColumnIcon,
+  ChartSplineIcon,
+  ChevronsDownUpIcon,
+  CircuitBoardIcon,
+  ClipboardCheckIcon,
+  ClipboardListIcon,
+  CrosshairIcon,
+  DrillIcon,
+  DropletIcon,
+  DumbbellIcon,
+  ExpandIcon,
+  FanIcon,
+  FeatherIcon,
+  FileBoxIcon,
+  FlameIcon,
+  FoldHorizontalIcon,
+  FoldVerticalIcon,
+  GlobeIcon,
+  HammerIcon,
+  HourglassIcon,
+  Layers2Icon,
+  LayersIcon,
+  ListOrderedIcon,
+  type LucideIcon,
+  MagnetIcon,
+  MicrochipIcon,
+  Move3dIcon,
+  NotebookPenIcon,
+  PencilRulerIcon,
+  PrinterIcon,
+  PyramidIcon,
+  RepeatIcon,
+  RocketIcon,
+  Rotate3dIcon,
+  RouteIcon,
+  RulerIcon,
+  ScanLineIcon,
+  ScissorsIcon,
+  ShoppingCartIcon,
+  SnowflakeIcon,
+  SplineIcon,
+  SplitIcon,
+  SpoolIcon,
+  SprayCanIcon,
+  SyringeIcon,
+  ThermometerIcon,
+  TimerIcon,
+  TornadoIcon,
+  TruckIcon,
+  UnfoldVerticalIcon,
+  VideoIcon,
+  Volume2Icon,
+  WaypointsIcon,
+  WavesIcon,
+  WeightIcon,
+  WindArrowDownIcon,
+  WindIcon,
+  ZapIcon,
+} from "lucide-react";
+
+import type { HardwareAction } from "./hardwareActions";
+import { DISCIPLINE_ICONS, KIND_ICONS, MENU_ICONS } from "./kinds";
+
+/**
+ * Each job's own picture on its Toolbox tile, by job id (`HARDWARE_ACTIONS`), so the tiles in a
+ * section read as different tools. A job's picture says the one thing it is about (a weight for
+ * mass, a spool for FDM, a folded and an unfolded sheet for a sheet metal check and its flat
+ * pattern); the same idea keeps the same picture across sections (a timer for anything "over
+ * time", a truck for an order, a route for a toolpath). The robot face is the AI agent's, so the
+ * robot descriptions take Robotics' joints.
+ */
+const JOB_ICONS: Partial<Record<string, LucideIcon>> = {
+  // Evaluate: Simulation
+  strength: DumbbellIcon,
+  vibration: ActivityIcon,
+  drop: ArrowDownToLineIcon,
+  topology: FeatherIcon,
+  // Fit, motion and mass
+  fit: RulerIcon,
+  motion: Rotate3dIcon,
+  mass: WeightIcon,
+  // Results
+  "fea-results": ChartColumnIcon,
+  "cam-results": RouteIcon,
+  // Strength and durability
+  buckling: ChevronsDownUpIcon,
+  fatigue: RepeatIcon,
+  nonlinear: SplineIcon,
+  creep: HourglassIcon,
+  fracture: SplitIcon,
+  bolt: BoltIcon,
+  contact: FoldHorizontalIcon,
+  composite: LayersIcon,
+  // Vibration, shock and sound
+  harmonic: ChartSplineIcon,
+  "random-vibration": ActivityIcon,
+  shock: HammerIcon,
+  impact: ArrowDownToLineIcon,
+  transient: TimerIcon,
+  rotor: FanIcon,
+  acoustic: Volume2Icon,
+  // Heat
+  thermal: ThermometerIcon,
+  "thermal-transient": TimerIcon,
+  "thermal-stress": FlameIcon,
+  "conjugate-heat": SnowflakeIcon,
+  // Flow
+  cfd: WindIcon,
+  "cfd-turbulent": TornadoIcon,
+  "cfd-compressible": RocketIcon,
+  fsi: WindArrowDownIcon,
+  multiphase: WavesIcon,
+  // Electrical
+  electromagnetic: MagnetIcon,
+  piezo: ZapIcon,
+  // Manufacture: printing, one picture per way of printing
+  fdm: SpoolIcon,
+  slice: LayersIcon,
+  bambu: PrinterIcon,
+  resin: DropletIcon,
+  sls: ScanLineIcon,
+  mjf: SprayCanIcon,
+  "metal-print": AnvilIcon,
+  // CNC machining
+  cnc: DrillIcon,
+  toolpaths: RouteIcon,
+  // Sheet metal
+  "sheet-metal": FoldVerticalIcon,
+  "flat-pattern": UnfoldVerticalIcon,
+  "sendcutsend-sheet": TruckIcon,
+  // Laser and waterjet cutting
+  dxf: ScissorsIcon,
+  sendcutsend: TruckIcon,
+  // Injection molding
+  molding: SyringeIcon,
+  // Circuit board
+  "board-fab": KIND_ICONS.Electronics,
+  "board-assembly": MicrochipIcon,
+  route: WaypointsIcon,
+  gerbers: Layers2Icon,
+  placement: CrosshairIcon,
+  // Buy and export
+  "standard-parts": ShoppingCartIcon,
+  "export-step": FileBoxIcon,
+  "export-mesh": PyramidIcon,
+  // Document
+  drawing: KIND_ICONS.Drawings,
+  "parts-list": ClipboardListIcon,
+  instructions: ListOrderedIcon,
+  exploded: ExpandIcon,
+  pictures: CameraIcon,
+  "motion-video": VideoIcon,
+  "test-plan": ClipboardCheckIcon,
+  "write-up": NotebookPenIcon,
+  urdf: DISCIPLINE_ICONS.Robotics,
+  sdf: GlobeIcon,
+  srdf: Move3dIcon,
+};
+
+/** A section's picture (`ACTION_SECTIONS`), for a job of it that has none of its own yet. */
+const SECTION_ICONS: Partial<Record<string, LucideIcon>> = {
+  simulation: DumbbellIcon,
+  "fit-mass": RulerIcon,
+  results: ChartColumnIcon,
+  strength: DumbbellIcon,
+  vibration: ActivityIcon,
+  heat: ThermometerIcon,
+  flow: WindIcon,
+  electrical: ZapIcon,
+  fdm: SpoolIcon,
+  resin: DropletIcon,
+  powder: ScanLineIcon,
+  "metal-print": AnvilIcon,
+  cnc: DrillIcon,
+  sheet: FoldVerticalIcon,
+  cutting: ScissorsIcon,
+  molding: SyringeIcon,
+  board: CircuitBoardIcon,
+  buy: ShoppingCartIcon,
+  export: FileBoxIcon,
+  drawings: PencilRulerIcon,
+  building: ListOrderedIcon,
+  pictures: CameraIcon,
+  reports: ClipboardCheckIcon,
+  robot: Axis3dIcon,
+};
+
+/**
+ * A job's picture on its Toolbox tile: its own, else its section's, else its group's (the top
+ * bar menu's icon).
+ */
+export function toolIcon(action: HardwareAction): LucideIcon {
+  return JOB_ICONS[action.id] ?? SECTION_ICONS[action.section] ?? MENU_ICONS[action.group];
+}
+
+/** Whether a section (`ACTION_SECTIONS` id) has a picture of its own for its jobs to fall back on. */
+export function hasSectionIcon(section: string): boolean {
+  return SECTION_ICONS[section] !== undefined;
+}

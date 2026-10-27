@@ -5,11 +5,13 @@ import {
   ChevronRightIcon,
   PanelRightCloseIcon,
   PanelRightOpenIcon,
+  type LucideIcon,
 } from "lucide-react";
 import {
   lazy,
   type RefObject,
   Suspense,
+  useId,
   useLayoutEffect,
   useMemo,
   useReducer,
@@ -23,11 +25,13 @@ import type { ComposerHandleRef } from "~/composerHandleContext";
 import { observeResize } from "~/lib/observeResize";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { HardwareAction, HardwareActionGroup } from "./hardwareActions";
-import { MENU_ICONS } from "./kinds";
+import { MENU_ICONS, MENU_TINTS } from "./kinds";
 import { LibraryCard } from "./library/LibraryCard";
 import { LIBRARY_DOCUMENTS } from "./library/libraryCatalog";
 import { handToChat } from "./handToChat";
+import { toolIcon } from "./toolIcons";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePartInFront } from "./StudioPanelBar";
 import {
@@ -62,9 +66,9 @@ const jobsNote = (count: number) => (count === 1 ? "1 job" : `${count} jobs`);
  * The Toolbox, down the right of the workspace panel beside the part, the same in AI and CAD: the
  * part's jobs (`usePartJobs`) as Evaluate, Manufacture and Document (`toolboxGroups`). It opens on
  * the three groups, each a card with its Library picture and how many jobs it has; a press slides
- * in that group's sections, the everyday ones open and the rest folded to open in place. A job
- * press sends it in the chat for the part in front, or adds it after a draft being written there
- * for the person to send (`handToChat`).
+ * in that group's sections, each a grid of tool tiles, the everyday ones open and the rest folded
+ * to open in place. A tile press sends its job in the chat for the part in front, or adds it after
+ * a draft being written there for the person to send (`handToChat`).
  * It folds to an edge of the groups' icons, as chosen on this device, and on a narrow panel starts
  * folded so the model keeps the room.
  */
@@ -235,7 +239,6 @@ export function StudioToolbox(props: {
             {openGroup.sections.map((section) => (
               <SectionJobs
                 key={section.title}
-                group={openGroup.group}
                 section={section}
                 disabled={composerRef === null}
                 onRun={run}
@@ -332,15 +335,13 @@ function GroupCard({
   );
 }
 
-/** A section's title over its jobs; a folded one opens in place. */
+/** A section's title over its jobs as tool tiles, two to a row; a folded one opens in place. */
 function SectionJobs(props: {
-  readonly group: HardwareActionGroup;
   readonly section: ToolboxSection;
   /** No chat to write the job into. */
   readonly disabled: boolean;
   readonly onRun: (action: HardwareAction) => void;
 }) {
-  const Icon = MENU_ICONS[props.group];
   return (
     <Collapsible defaultOpen={!props.section.folded}>
       <CollapsibleTrigger className="group flex h-7 w-full items-center gap-1 rounded-md px-2 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
@@ -351,25 +352,64 @@ function SectionJobs(props: {
         />
       </CollapsibleTrigger>
       <CollapsiblePanel>
-        <div className="flex flex-col pb-1">
+        <div className="grid grid-cols-2 gap-1.5 px-1 pb-2">
           {props.section.actions.map((action) => (
-            <Button
+            <ToolTile
               key={action.id}
-              variant="ghost"
-              size="sm-multiline"
-              className="w-full justify-start"
+              action={action}
+              icon={toolIcon(action)}
               disabled={props.disabled}
-              onClick={() => props.onRun(action)}
-            >
-              <Icon aria-hidden="true" className="mt-0.5 self-start" />
-              <span className="flex min-w-0 flex-1 flex-col text-left">
-                <span>{action.label}</span>
-                <span className="text-xs font-normal text-muted-foreground">{action.gets}</span>
-              </span>
-            </Button>
+              onRun={() => props.onRun(action)}
+            />
           ))}
         </div>
       </CollapsiblePanel>
     </Collapsible>
+  );
+}
+
+/**
+ * A job as a tool to pick up: a square raised tile, its own picture (`toolIcon`) large in its
+ * group's color over its name. What it makes shows on hover and is the tile's description for
+ * readers. A press sends the job (`onRun`).
+ */
+function ToolTile(props: {
+  readonly action: HardwareAction;
+  /** Its picture (`toolIcon`). */
+  readonly icon: LucideIcon;
+  readonly disabled: boolean;
+  readonly onRun: () => void;
+}) {
+  const { action, icon: Icon } = props;
+  const tint = MENU_TINTS[action.group];
+  const describedBy = useId();
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            disabled={props.disabled}
+            onClick={props.onRun}
+            aria-describedby={describedBy}
+            className="flex aspect-square min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg border border-border bg-background p-2 text-center shadow-xs outline-none transition-[border-color,background-color,box-shadow,scale] duration-150 dark:bg-input/32 enabled:hover:border-foreground/25 enabled:hover:bg-accent/50 dark:enabled:hover:bg-input/64 enabled:active:scale-97 enabled:active:bg-accent enabled:active:shadow-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:opacity-64 motion-reduce:transition-none motion-reduce:enabled:active:scale-100"
+          />
+        }
+      >
+        <span
+          aria-hidden="true"
+          className={`flex size-11 shrink-0 items-center justify-center rounded-md bg-current/10 dark:bg-current/15 ${tint}`}
+        >
+          <Icon className="size-7" strokeWidth={1.75} />
+        </span>
+        <span className="line-clamp-2 text-xs leading-tight font-medium text-foreground">
+          {action.label}
+        </span>
+        <span id={describedBy} hidden>
+          {action.gets}
+        </span>
+      </TooltipTrigger>
+      <TooltipPopup side="left">{action.gets}</TooltipPopup>
+    </Tooltip>
   );
 }

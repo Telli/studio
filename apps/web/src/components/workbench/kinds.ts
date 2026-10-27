@@ -129,6 +129,16 @@ export const KIND_TINTS: Readonly<Record<ProjectGroup | "Chats", string>> = {
   References: "text-slate-500 dark:text-slate-400",
 };
 
+/**
+ * The top bar's menus' color, the kind their jobs make (as `MENU_ICONS`): the Toolbox tints each
+ * job's tile with its group's.
+ */
+export const MENU_TINTS: Readonly<Record<HardwareActionGroup, string>> = {
+  Evaluate: KIND_TINTS.Analysis,
+  Manufacture: KIND_TINTS.Manufacturing,
+  Document: KIND_TINTS.Documents,
+};
+
 /** A New template's icon color: its kind's, as the Overview and ⌘K color that kind. */
 export function templateTint(template: NewTemplate): string {
   if (template.file !== undefined || template.discipline === "Documents")
