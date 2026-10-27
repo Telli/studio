@@ -126,6 +126,8 @@ interface RightPanelTabsProps {
   layoutControls?: ReactNode;
   /** A row under the tabs for what can be done to the surface in front (Studio's toolbar). */
   toolbar?: ReactNode;
+  /** A column beside the surface in front, under the toolbar (Studio's Toolbox), at most half the width. */
+  aside?: ReactNode;
   surfaces: readonly RightPanelSurface[];
   /** Fallback environment for surfaces that do not carry their own. */
   environmentId: EnvironmentId | null;
@@ -1591,28 +1593,35 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           {props.toolbar}
         </div>
       )}
-      <div className="flex min-h-0 flex-1 flex-col" data-right-panel-surface-content>
-        {props.activeSurfaceId === null ? (
-          <RightPanelEmptyState
-            onAddBrowser={props.onAddBrowser}
-            onAddBrowserInProfile={props.onAddBrowserInProfile}
-            browserProfiles={browserProfiles}
-            onAddTerminal={props.onAddTerminal}
-            onAddDiff={props.onAddDiff}
-            onAddFiles={props.onAddFiles}
-            onAddPullRequest={props.onAddPullRequest}
-            onAddPullRequests={props.onAddPullRequests}
-            onAddDevice={props.onAddDevice}
-            browserAvailable={props.browserAvailable}
-            terminalAvailable={props.terminalAvailable}
-            diffAvailable={props.diffAvailable}
-            filesAvailable={props.filesAvailable}
-            pullRequestAvailable={props.pullRequestAvailable}
-            pullRequestsAvailable={props.pullRequestsAvailable}
-            deviceAvailable={props.deviceAvailable}
-          />
-        ) : (
-          props.children
+      <div className="flex min-h-0 flex-1" data-right-panel-body>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-right-panel-surface-content>
+          {props.activeSurfaceId === null ? (
+            <RightPanelEmptyState
+              onAddBrowser={props.onAddBrowser}
+              onAddBrowserInProfile={props.onAddBrowserInProfile}
+              browserProfiles={browserProfiles}
+              onAddTerminal={props.onAddTerminal}
+              onAddDiff={props.onAddDiff}
+              onAddFiles={props.onAddFiles}
+              onAddPullRequest={props.onAddPullRequest}
+              onAddPullRequests={props.onAddPullRequests}
+              onAddDevice={props.onAddDevice}
+              browserAvailable={props.browserAvailable}
+              terminalAvailable={props.terminalAvailable}
+              diffAvailable={props.diffAvailable}
+              filesAvailable={props.filesAvailable}
+              pullRequestAvailable={props.pullRequestAvailable}
+              pullRequestsAvailable={props.pullRequestsAvailable}
+              deviceAvailable={props.deviceAvailable}
+            />
+          ) : (
+            props.children
+          )}
+        </div>
+        {props.aside === undefined ? null : (
+          <div className="flex min-h-0 max-w-1/2 shrink-0" data-right-panel-aside>
+            {props.aside}
+          </div>
         )}
       </div>
     </PreviewPanelShell>

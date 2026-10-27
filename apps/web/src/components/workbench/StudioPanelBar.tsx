@@ -59,6 +59,47 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
 }
 
 /**
+ * The part in front of the workspace panel, as the CAD viewer shows it (it may have moved on from
+ * the file it opened), else as the view the agent opened names it; null over the Overview, a
+ * document, or anything that is not a CAD view. With it, how the project's parts are made, from
+ * its setup, which Manufacture leads with. The panel bar and the Toolbox show its jobs.
+ */
+export function usePartInFront(
+  threadRef: ScopedThreadRef,
+  folder: string | null,
+): {
+  readonly part: { readonly path: string; readonly kind: string } | null;
+  readonly process: string | undefined;
+  /** What the viewer in front says of its part (`usePartContext`), when it has said. */
+  readonly shown: ReturnType<typeof usePartContext>;
+} {
+  const frontKind = useRightPanelStore(
+    (store) => selectActiveRightPanelSurface(store.byThreadKey, threadRef)?.kind ?? null,
+  );
+  // A view the agent opened names its file only in its id (`surfaceFile`).
+  const frontFile = useRightPanelStore((store) => {
+    const surface = selectActiveRightPanelSurface(store.byThreadKey, threadRef);
+    return surface?.kind === "plugin-app" ? surfaceFile(surface) : null;
+  });
+  const shown = usePartContext(threadRef);
+  const process = useStudioProjectAt(threadRef.environmentId, folder)?.project.brief.process;
+  const shownPath = shown?.part.path ?? null;
+  const shownKind = shown?.part.kind ?? null;
+  const part = useMemo(
+    () =>
+      frontKind !== "plugin-app"
+        ? null
+        : shownPath !== null && shownKind !== null
+          ? { path: shownPath, kind: shownKind }
+          : frontFile === null
+            ? null
+            : { path: frontFile, kind: partName(frontFile)?.kind ?? "Part" },
+    [frontFile, frontKind, shownKind, shownPath],
+  );
+  return { part, process, shown };
+}
+
+/**
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
  * can be done: over a part in the CAD viewer, the part's jobs (Evaluate, Manufacture, with the
  * files to export, and Document), led by the project's way of making it; Simple view where the
@@ -76,16 +117,6 @@ export function StudioPanelBar(props: {
   const { folder, threadRef } = props;
   const lead = useLeadPart(threadRef, folder, props.mutationId);
   usePanelTabShortcuts(threadRef);
-  // What is in front decides the row: over the Overview, the project's New; over a part, its jobs
-  // and Simple view; over a document, nothing.
-  const frontKind = useRightPanelStore(
-    (store) => selectActiveRightPanelSurface(store.byThreadKey, threadRef)?.kind ?? null,
-  );
-  // A view the agent opened names its file only in its id (`surfaceFile`).
-  const frontFile = useRightPanelStore((store) => {
-    const surface = selectActiveRightPanelSurface(store.byThreadKey, threadRef);
-    return surface?.kind === "plugin-app" ? surfaceFile(surface) : null;
-  });
   // Simple view, by what the CAD view in front says of its part (`viewerEditState.ts`): shown
   // where it has two layouts, held while a command or sketch is open in it.
   const frontView = useRightPanelStore((store) => {
@@ -96,26 +127,18 @@ export function StudioPanelBar(props: {
   const toggle = useViewerEditState((store) =>
     simpleViewToggle(frontView === null ? undefined : store.byView[frontView]),
   );
-  const shown = usePartContext(threadRef);
+  // The part in front has its jobs on the row; over the Overview or a document, there are none.
+  const { part: inFront, shown, process } = usePartInFront(threadRef, folder);
   const studio = useStudioProjectAt(threadRef.environmentId, folder);
+  // ⌘K's part: the one the viewer shows, else the project's lead part.
   const subject =
     shown !== null
       ? { path: shown.part.path, kind: shown.part.kind }
       : lead === null
         ? null
         : { path: lead.file.path, kind: lead.file.kind };
-  const process = studio?.project.brief.process;
   // Import beside New, as on Home: files brought into this project's folder.
   const importer = useImportIntoProject(folder, studio?.project.name ?? "the project");
-  // The part in front, as the viewer shows it (it may have moved on from the file it opened).
-  const inFront =
-    frontKind !== "plugin-app"
-      ? null
-      : shown !== null
-        ? { path: shown.part.path, kind: shown.part.kind }
-        : frontFile === null
-          ? null
-          : { path: frontFile, kind: partName(frontFile)?.kind ?? "Part" };
 
   // ⌘K finds jobs for the same part, from over everything (`StudioQuickFind`).
   const setWorkspace = useOpenWorkspaceStore((store) => store.setWorkspace);

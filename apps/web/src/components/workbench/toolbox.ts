@@ -67,3 +67,38 @@ export function writeToolboxFolded(folded: boolean): void {
     // Storage is full or off: the choice holds until the window closes.
   }
 }
+
+/** A group's jobs, its folded sections' too. */
+export function jobCount(group: ToolboxGroup): number {
+  return group.sections.reduce((count, section) => count + section.actions.length, 0);
+}
+
+/** What the Toolbox shows: its groups, or one group's sections and jobs. */
+export interface ToolboxView {
+  readonly open: HardwareActionGroup | null;
+}
+
+export type ToolboxEvent =
+  | { readonly type: "open"; readonly group: HardwareActionGroup }
+  | { readonly type: "back" }
+  | { readonly type: "part-changed" };
+
+/** A group press opens it; back, or another part coming in front, returns to the groups. */
+export function toolboxView(_state: ToolboxView, event: ToolboxEvent): ToolboxView {
+  return { open: event.type === "open" ? event.group : null };
+}
+
+/**
+ * Whether the Toolbox shows as its edge. On a wide panel, as the person left it on this device; on
+ * a narrow one (`TOOLBOX_NARROW_REM`) folded, so the model keeps the room, until opened there.
+ */
+export function toolboxFolded(input: {
+  readonly chosen: boolean;
+  readonly narrow: boolean;
+  readonly openedNarrow: boolean;
+}): boolean {
+  return input.narrow ? !input.openedNarrow : input.chosen;
+}
+
+/** Under this width the workspace panel is narrow, and the Toolbox starts folded. */
+export const TOOLBOX_NARROW_REM = 40;

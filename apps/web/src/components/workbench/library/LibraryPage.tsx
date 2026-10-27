@@ -37,6 +37,7 @@ import {
   showsUpAs,
   skillName,
 } from "./libraryCatalog";
+import { LibraryCard } from "./LibraryCard";
 import { LibraryPicture } from "./LibraryPicture";
 import {
   filterLibrary,
@@ -205,9 +206,14 @@ function LibraryContent(props: {
                   {group.entries.map((entry) => (
                     <LibraryCard
                       key={entry.id}
-                      entry={entry}
+                      picture={
+                        <LibraryPicture
+                          entry={entry}
+                          environmentId={environmentId}
+                          className="border-b border-border"
+                        />
+                      }
                       name={entryName(entry, skillLabel)}
-                      environmentId={environmentId}
                       note={offNote(entry)}
                       onOpen={() => openEntry(entry.id)}
                     />
@@ -237,39 +243,6 @@ function LibraryContent(props: {
         )}
       </Dialog>
     </ChatPage>
-  );
-}
-
-/** An entry as a card, as Home's project tiles are: its picture over its name. A press opens it. */
-function LibraryCard(props: {
-  readonly entry: LibraryEntry;
-  readonly name: string;
-  readonly environmentId: EnvironmentId;
-  /** Why it can't be made now, under its name; null when it can. */
-  readonly note: string | null;
-  readonly onOpen: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={props.onOpen}
-      className="flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-    >
-      {/* Its name says what it is; a page's words in the picture would be read out as the name. */}
-      <span aria-hidden="true" className="flex flex-col">
-        <LibraryPicture
-          entry={props.entry}
-          environmentId={props.environmentId}
-          className="border-b border-border"
-        />
-      </span>
-      <span className="flex min-w-0 flex-col gap-0.5 px-3 py-2">
-        <span className="truncate text-sm font-medium text-foreground">{props.name}</span>
-        {props.note === null ? null : (
-          <span className="truncate text-xs text-muted-foreground">{props.note}</span>
-        )}
-      </span>
-    </button>
   );
 }
 

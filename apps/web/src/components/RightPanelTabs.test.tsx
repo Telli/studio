@@ -1,5 +1,6 @@
 import { EnvironmentId, type ThreadPullRequestLink } from "@t3tools/contracts";
 import type { DesktopPreviewFavicon, PreviewSessionSnapshot } from "@t3tools/contracts";
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { describe, expect, it } from "vite-plus/test";
@@ -95,10 +96,12 @@ function renderTabs(
   second?: DesktopPreviewFavicon,
   audio?: { audible?: boolean; audioMuted?: boolean },
   previewRuntimeTabId: ((tabId: string) => string) | null = (tabId) => `runtime:${tabId}`,
+  aside?: ReactNode,
 ) {
   return renderToStaticMarkup(
     <RightPanelTabs
       mode="inline"
+      {...(aside === undefined ? {} : { aside })}
       keybindings={DEFAULT_RESOLVED_KEYBINDINGS}
       getShortcutContext={() => ({
         terminalFocus: false,
@@ -145,6 +148,17 @@ function renderTabs(
     </RightPanelTabs>,
   );
 }
+
+describe("RightPanelTabs aside", () => {
+  it("shows the aside after the surface in front, and nothing extra without one", () => {
+    const html = renderTabs(null, undefined, undefined, undefined, <div data-testid="aside" />);
+    expect(html).toContain('data-testid="aside"');
+    expect(html.indexOf('data-testid="aside"')).toBeGreaterThan(html.indexOf("<div>content</div>"));
+    const plain = renderTabs(null);
+    expect(plain).not.toContain('data-testid="aside"');
+    expect(plain).not.toContain("data-right-panel-aside");
+  });
+});
 
 describe("RightPanelTabs preview favicon", () => {
   it("prefers a live capture and never asks Google about a private hostname", () => {

@@ -619,6 +619,8 @@ import { frontTab, useShowWaitingChat } from "./workbench/overviewPanel";
 import { useProjectTabs } from "./workbench/projectTabs";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { StudioPanelBar } from "./workbench/StudioPanelBar";
+import { StudioToolbox } from "./workbench/StudioToolbox";
+import { HARDWARE_FOCUS } from "./workbench/hardwareActions";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
 import { useProjectViewStore } from "./workbench/projectView";
@@ -12202,6 +12204,17 @@ export default function ChatView(props: ChatViewProps) {
                     mutationId={workspaceMutationId}
                   />
                 ),
+                ...(HARDWARE_FOCUS
+                  ? {
+                      aside: (
+                        <StudioToolbox
+                          folder={activeProject?.workspaceRoot ?? null}
+                          composerRef={composerRef}
+                          threadRef={activeThreadRef}
+                        />
+                      ),
+                    }
+                  : {}),
               }
             : {})}
           open={rightPanelOpen}
@@ -12267,6 +12280,18 @@ export default function ChatView(props: ChatViewProps) {
                       mutationId={workspaceMutationId}
                     />
                   ),
+                  // Folded to its edge on a panel this narrow, until opened (`toolbox.ts`).
+                  ...(HARDWARE_FOCUS
+                    ? {
+                        aside: (
+                          <StudioToolbox
+                            folder={activeProject?.workspaceRoot ?? null}
+                            composerRef={composerRef}
+                            threadRef={activeThreadRef}
+                          />
+                        ),
+                      }
+                    : {}),
                 }
               : {})}
             open={rightPanelOpen}
