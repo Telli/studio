@@ -9,7 +9,8 @@ afterEach(cleanup);
 
 const ROWS = [{ key: 'block.py:6', kind: 'Box', inputs: [] }, { key: 'block.py:7', kind: 'Hole', inputs: [] }];
 const NAMES = [{ key: 'block.py:6', kind: 'Box', title: 'Box1', name: '' }, { key: 'block.py:7', kind: 'Hole', title: 'Hole1', name: '' }];
-const EDGE = { id: 'ref-e3', selectorType: 'edge', displaySelector: 'e3', pickData: { curveType: 'line', center: [0, 5, 2], length: 20 } };
+// Picked on an engine document: named by the engine's ref, as the xbf viewer names a pick (`selectors.js`).
+const EDGE = { id: 'ref-e3', selectorType: 'edge', displaySelector: 'block/edge 3', pickData: { curveType: 'line', center: [0, 5, 2], length: 20 } };
 
 function edit(command: string, selected = 'block.py:6') {
   return { command, selected, status: 'ready', saving: false, state: { units: 'mm', rows: ROWS }, run: vi.fn(), close: vi.fn(),
@@ -34,7 +35,7 @@ it('a fillet waits for edges, then OK writes it with the radius typed', async ()
   await user.click(screen.getByRole('button', { name: 'OK' }));
   expect(fillet.run).toHaveBeenCalledWith({
     command: 'fillet', inputs: { radius: '2.5' },
-    selection: [{ selector: 'e3', type: 'line', center: [0, 5, 2], size: 20 }],
+    selection: [{ selector: 'block/edge 3', type: 'line', center: [0, 5, 2], size: 20 }],
   });
 });
 
@@ -57,7 +58,7 @@ it('Choose lists each pick with an X to take it out, and Preview asks for what O
   const onDeselect = vi.fn();
   const { rerender } = render(<EditCommand edit={fillet as never} names={NAMES} references={[EDGE]} onDeselect={onDeselect} />);
   expect(screen.getByText('Review the preview, then press OK.')).toBeTruthy();
-  const request = { command: 'fillet', inputs: { radius: '1' }, selection: [{ selector: 'e3', type: 'line', center: [0, 5, 2], size: 20 }] };
+  const request = { command: 'fillet', inputs: { radius: '1' }, selection: [{ selector: 'block/edge 3', type: 'line', center: [0, 5, 2], size: 20 }] };
   await waitFor(() => expect(fillet.previewFeature).toHaveBeenLastCalledWith(request));
   await user.click(screen.getByRole('button', { name: 'Remove Edge 3' }));
   expect(onDeselect).toHaveBeenCalledWith('ref-e3');

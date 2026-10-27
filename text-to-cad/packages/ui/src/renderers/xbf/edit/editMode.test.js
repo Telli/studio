@@ -234,6 +234,10 @@ test("a selection is each face and edge by its selector, with what the viewer re
     { selector: "f1", type: "plane", center: [0, 0, 2], size: 200 },
   ]);
   assert.deepEqual(items.map(selectionLabel), ["Edge 3", "Face 1"]);
+  // The xbf viewer's picks, by the engine's refs: the same items, labelled the same.
+  const engine = selectionItems([{ ...EDGE, displaySelector: "plate/edge 3" }, { ...FACE, displaySelector: "plate/face 1" }]);
+  assert.deepEqual(engine.map(item => item.selector), ["plate/edge 3", "plate/face 1"]);
+  assert.deepEqual(engine.map(selectionLabel), ["Edge 3", "Face 1"]);
 });
 
 test("a command sends what it acts on, its inputs as typed, and the feature it copies", () => {
@@ -737,6 +741,13 @@ test("a Plane's picks say which it is: two faces a Mid Plane, an edge Normal to 
   assert.equal(mid.selection.length, 2);
   const normal = commandRequest("plane", { ...commandDefaults("plane", "mm"), end: "end" }, [edge], null);
   assert.deepEqual(normal.inputs, { mode: "normal", end: "end" });
+  // Picks named as the xbf viewer names them, by the engine's refs: the same planes.
+  const plateFace = n => ({ selector: `plate/face ${n}`, type: "plane" });
+  assert.equal(planeMode([plateFace(1), plateFace(2)]), "mid");
+  assert.equal(planeMode([{ selector: "plate/edge 3", type: "line" }]), "normal");
+  assert.equal(planeMode([plateFace(1)]), "offset");
+  const engineMid = commandRequest("plane", commandDefaults("plane", "mm"), [plateFace(1), plateFace(2)], null);
+  assert.deepEqual([engineMid.inputs, engineMid.selection.map(item => item.selector)], [{ mode: "mid" }, ["plate/face 1", "plate/face 2"]]);
 });
 
 test("Draft Analysis pulls along an origin plane's normal, reversed when asked, and says each class's area", () => {

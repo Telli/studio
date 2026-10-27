@@ -252,8 +252,17 @@ class BlockCommands(Commands):
         from cadgen.edit import commands
 
         self.assertEqual([commands.selector_ordinal(each) for each in
-                          ("block/face 12", "face 12", "hand/finger.2/edge 3", "f12", "o1.2.e3", "block", "f:block.box1.2")],
-                         [("face", 12), ("face", 12), ("edge", 3), ("face", 12), ("edge", 3), (None, None), (None, None)])
+                          ("block/face 12", "face 12", "hand/finger.2/edge 3", "f12", "o1.2.e3", "block", "f:block.box1.2", "surf12", "f0")],
+                         [("face", 12), ("face", 12), ("edge", 3), ("face", 12), ("edge", 3), (None, None), (None, None), (None, None),
+                          (None, None)])
+        # A mate's pick says which part it is on by its owner's label, as the viewer names it, or by 0.7's place.
+        from types import SimpleNamespace
+
+        from cadgen.edit import mates
+
+        children = [SimpleNamespace(label="base"), SimpleNamespace(label="pin"), SimpleNamespace(label="pin")]
+        self.assertEqual([mates._occurrence(each, children) for each in ("pin/face 3", "pin.2/face 3", "base/edge 1", "o1.2.f3", "lid/face 1", "face 3")],
+                         [1, 2, 0, 1, None, None])
         root, file, state = self.open(BLOCK, "block.step")
         reply = self.command(file, state, "chamfer", [{"selector": f"block/edge {n}"} for n in range(1, 13)], {"distance": "0.5"})
         self.assertTrue(reply["ok"], reply.get("error"))

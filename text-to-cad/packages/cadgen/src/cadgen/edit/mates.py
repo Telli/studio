@@ -49,10 +49,25 @@ def assembly_of(tree: ast.Module):
     raise MateError("Mates place the parts an assembly returns as Compound(children=[...]). Ask the agent to write it that way.")
 
 
-def _occurrence(selector) -> int | None:
-    """Which part of the assembly a selector names (``o1.2.f3``: the second), from 0."""
-    match = re.match(r"^o\d+\.(\d+)\.", str(selector or ""))
-    return int(match.group(1)) - 1 if match else None
+def _occurrence(selector, children=()) -> int | None:
+    """Which part of the assembly a selector names, from 0: the part its owner is labelled as
+    (``pin/face 3``: the child labelled ``pin``; ``pin.2/face 3`` the second of them), as the viewer
+    names a pick, or its place in 0.7's spelling (``o1.2.f3``: the second)."""
+    text = str(selector or "")
+    match = re.match(r"^o\d+\.(\d+)\.", text)
+    if match:
+        return int(match.group(1)) - 1
+    owned = re.match(r"^(.+)/(?:face|edge)\s*\d+$", text)
+    if not owned:
+        return None
+    segment = owned.group(1).split("/")[-1]
+    numbered = re.match(r"^(.*)\.([1-9]\d*)$", segment)
+    label, nth = (numbered.group(1), int(numbered.group(2))) if numbered else (segment, 1)
+    label = label.strip('"')
+    found = [index for index, child in enumerate(children) if getattr(child, "label", None) == label]
+    if not found and numbered:
+        found, nth = [index for index, child in enumerate(children) if getattr(child, "label", None) == segment], 1
+    return found[nth - 1] if len(found) >= nth else None
 
 
 def _picked(children: list, item: dict, scale: float) -> tuple[int, str, int]:
@@ -70,7 +85,7 @@ def _picked(children: list, item: dict, scale: float) -> tuple[int, str, int]:
                 break
     if not found:
         raise MateError("A pick is not on the assembly as it is now. Wait for it to update, then pick it again.")
-    hint = _occurrence(item.get("selector"))
+    hint = _occurrence(item.get("selector"), children)
     index, number = next((each for each in found if each[0] == hint), found[0])
     return index, kind, number
 

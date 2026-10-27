@@ -35,6 +35,7 @@ import XbfModelTree from "./XbfModelTree.jsx";
 import XbfPositionSection, { useXbfPose, writeXbfPosition, xbfPoseGiven, xbfPositionRows } from "./XbfPositionSection.jsx";
 import { MeasureIcon, SelectIcon, SelectModeMenu, XBF_MEASURE_MODES, XBF_SELECT_DEFAULT, xbfSelectModes } from "./XbfSelectionModes.jsx";
 import { ToolIcon } from "./edit/cadIcons.jsx";
+import { WORKSPACE_SELECTION_COLOR } from "./edit/editLayout.js";
 import { useXbfCadMode } from "./edit/useXbfCadMode.jsx";
 import { useXbfElementFacts, useXbfSelectionChips, xbfCopyText, xbfNodeRefs } from "./xbfChips.jsx";
 import { xbfJointHandles } from "./xbfJointHandles.js";
@@ -384,16 +385,6 @@ function XbfSurface({ view, data }) {
   } : null, [loaded.document, loaded.revision, host.environment.compact, view.file.path, view.file.name, planar, pmiGdt, pmiNotes, pmiViews]);
   useExportView(exportView);
 
-  // What is lit: the parts and the faces and edges picked and under the pointer, and a PMI picked's
-  // features with them (the one under the pointer, its first).
-  const pmiLit = pmi.highlight;
-  useEffect(() => {
-    if (!scene) return;
-    scene.setHighlight({ hovered: hover.parts, selected: leavesOf(selectedNodeIds) });
-    scene.setElementHighlight({ hovered: hover.element || pmiLit.hovered,
-      selected: pmiLit.selected.length ? [...new Set([...selectedElementIds, ...pmiLit.selected])] : selectedElementIds });
-    requestFrame();
-  }, [scene, hover, selectedNodeIds, selectedElementIds, leavesOf, requestFrame, pmiLit]);
 
   // The edges the display mode draws, as the view resolved them; Preview's scene draws none.
   const edges = shell.frame.resolvedScene?.view?.edges || null;
@@ -636,6 +627,20 @@ function XbfSurface({ view, data }) {
   // A pick under Explode or Clip takes Select up, as a STEP's does; while CAD mode's sketch is edited the presses are its.
   const picking = !previewing && Boolean(scene) && toolMode === XBF_TOOL.SELECT && cad.modelPicks;
   useEffect(() => { if (!picking) setHover(NO_HOVER); }, [picking]);
+  // What is lit: the parts and the faces and edges picked and under the pointer, a PMI picked's
+  // features with them (the one under the pointer, its first), and in CAD mode the faces of the
+  // design tree's row under the pointer (`litFaces`), in the workspace's own colour.
+  const pmiLit = pmi.highlight;
+  const cadLit = cad.litFaces;
+  useEffect(() => {
+    if (!scene) return;
+    scene.setHighlight({ hovered: hover.parts, selected: leavesOf(selectedNodeIds) });
+    const extra = [...pmiLit.selected, ...cadLit];
+    scene.setElementHighlight({ hovered: hover.element || pmiLit.hovered,
+      selected: extra.length ? [...new Set([...selectedElementIds, ...extra])] : selectedElementIds });
+    requestFrame();
+  }, [scene, hover, selectedNodeIds, selectedElementIds, leavesOf, requestFrame, pmiLit, cadLit]);
+  useEffect(() => { scene?.setHighlightColor(cad.editing ? WORKSPACE_SELECTION_COLOR : null); requestFrame(); }, [scene, cad.editing, requestFrame]);
   promptReferencesRef.current = previewing ? NO_REFERENCES : references;
   // What a node or an element copies: its reference, the file's path with it.
   const singleChip = useCallback(ids => xbfCopyText({ scene, tree, resource, ids }), [scene, tree, resource]);

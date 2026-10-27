@@ -42,7 +42,8 @@ class CommandError(Exception):
 # ---------------------------------------------------------------------------------------------
 # The selection, matched to the part as its script makes it now.
 
-_ORDINAL = re.compile(r"([fe])(\d+)$")
+# 0.7's spelling: the occurrence (``o1``, its second part ``o1.2``), then ``f`` or ``e`` and the number.
+_ORDINAL = re.compile(r"^(?:o\d+(?:\.\d+)*\.)?([fe])([1-9]\d*)$")
 # The engine's ref by number, as the viewer names a pick (``plate/face 12``, ``face 12``: ``cadgen.engine.refs``).
 _ENGINE_ORDINAL = re.compile(r"(?:^|/)(face|edge)\s*([1-9]\d*)$")
 _KIND_WORDS = {"face": ("face", "faces"), "edge": ("edge", "edges")}
@@ -55,7 +56,7 @@ def selector_ordinal(selector) -> tuple[str | None, int | None]:
     engine = _ENGINE_ORDINAL.search(text)
     if engine:
         return engine.group(1), int(engine.group(2))
-    match = _ORDINAL.search(text)
+    match = _ORDINAL.match(text)
     if not match:
         return None, None
     return ("face" if match.group(1) == "f" else "edge"), int(match.group(2))

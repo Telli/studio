@@ -31,6 +31,18 @@ import { useHostFocus } from "./useHostFocus.js";
 const EMPTY = Object.freeze([]);
 
 /**
+ * Where a click on a face or an edge puts a hole or ends an extrude (`edit.setFacePoint`): the point clicked, and the
+ * face's centre and normal the panel measures it from. The centre is the engine's where it has measured the face, else
+ * the middle of what the scene holds of it, so the first click on a face not yet picked keeps its place.
+ */
+export function facePoint({ scene, tree, hit, facts = null }) {
+  const reference = xbfEditReference({ scene, tree, id: hit.id, facts });
+  const box = reference?.pickData.center ? null : scene?.selectionBounds?.([hit.id]) || null;
+  const center = reference?.pickData.center || (box ? box.min.map((value, axis) => (value + box.max[axis]) / 2) : null);
+  return { id: hit.id, point: hit.point, center, normal: reference?.pickData.normal || null };
+}
+
+/**
  * How CAD mode lays a document out (`editLayout.js`), from the edit service: whether its part has a
  * script CAD mode edits (`editable`, the probe's answer, so a plain STEP with no script never mounts
  * it), the layout the tab keeps (`layout`, the AI's or CAD's), and so whether the workspace is up
@@ -117,10 +129,12 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
   const building = edit.state?.building;
   const built = !building?.scripts?.length || (!building.error && building.done >= building.scripts.length);
   const facesShown = editing && !assembly && edit.status === "ready" && !edit.bar?.document && !updating && built;
-  // The trace's own map of the faces, the geometric one, as each is known before the engine is asked of it (`shownFaces`;
-  // the files the page read stand in for the count of faces, which the service checks).
+  // The trace's own map of the faces, the geometric one, as each is known before the engine is asked of it (`shownFaces`):
+  // only while the part on screen has as many faces as the part the service read, so a model built from another script is
+  // never named by its numbers.
+  const facesOnScreen = scene && !assembly ? scene.faceCount(0) : 0;
   const traced = useMemo(() => shownFaces({ editing: facesShown, assembly, state: edit.state, bar: edit.bar, updating, rebuilding: false,
-    faces: edit.state?.faceCount }), [facesShown, assembly, edit.state, edit.bar, updating]);
+    faces: facesOnScreen }), [facesShown, assembly, edit.state, edit.bar, updating, facesOnScreen]);
   const faceNumbers = useMemo(() => [...new Set(references.filter(reference => reference.selectorType === "face")
     .map(reference => faceNumber(faceReference(reference.displaySelector))).filter(Boolean))], [references]);
   const { faces: answered, featureOf } = useFaceFeatures({ client: document.client, file, shown: facesShown,
@@ -133,6 +147,14 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
     Object.assign(map, answered?.faceFeatures || {});
     return { faceFeatures: map };
   }, [facesShown, traced, answered, faceNumbers]);
+  // A row of the design tree under the pointer lights the faces it made, as SolidWorks' FeatureManager does: the faces the
+  // map credits it with, on the part (`i0`), lit as picked ones are.
+  const litFaces = useMemo(() => {
+    const map = faces?.faceFeatures;
+    if (!map || edit.sketch || typeof edit.hovered !== "string" || !edit.hovered) return EMPTY;
+    const lit = Object.entries(map).filter(([, key]) => key === edit.hovered).map(([number]) => `i0/face/${number}`);
+    return lit.length ? lit : EMPTY;
+  }, [faces, edit.sketch, edit.hovered]);
   /** Quick Edit's chips, a face's named by the feature that made it, as the design tree numbers it ("Hole1 · face 12"). */
   const nameChips = useCallback(chips => (faces ? chips.map((chip) => {
     const number = Number(chip.compact?.number);
@@ -218,8 +240,7 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
     if (!editing) return { multiSelect, skip: false };
     if (!hit) { if (!multiSelect) dropFeature(); return { multiSelect: multiSelect || many, skip: false }; }
     if (pointed && (hit.kind === "face" || hit.kind === "edge") && hit.point) {
-      const reference = xbfEditReference({ scene, tree, id: hit.id, facts: facts.get(hit.id) || null });
-      edit.setFacePoint({ id: hit.id, point: hit.point, center: reference?.pickData.center || null, normal: reference?.pickData.normal || null });
+      edit.setFacePoint(facePoint({ scene, tree, hit, facts: facts.get(hit.id) || null }));
       // Hole adds a hole at each click on its face: a click on the face already picked keeps it.
       if (edit.command === "hole" && selectedElementIds.length === 1 && selectedElementIds[0] === hit.id) return { multiSelect, skip: true };
     }
@@ -411,7 +432,7 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
   </> : null);
 
   return {
-    edit, editing, cad, editable, frame, overlay, references, faces, nameChips, drawingTools, quickEdit,
+    edit, editing, cad, editable, frame, overlay, references, faces, litFaces, nameChips, drawingTools, quickEdit,
     beforePick, modelPicks, doubleClickFace, faceMenu, escape, escapeActive: editing && (featureBarShown || commandHeld),
     // The units the part reads in, which Measure reads in too, as SolidWorks' does.
     units: editing ? edit.state?.units || "" : ""

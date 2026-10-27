@@ -31,11 +31,15 @@ export function useFaceFeatures({ client, file, shown, version, files = null, nu
   const asked = useRef(new Map());
   const filesRef = useRef(files);
   filesRef.current = files;
+  // The reading now: a reply to a reading gone by (a version that moved on while it was asked) is let go.
+  const keyRef = useRef(key);
+  keyRef.current = key;
   const ask = useCallback((number) => {
     const pending = asked.current.get(`${key}|${number}`);
     if (pending) return pending;
     const promise = Promise.resolve(client.editFace({ file, face: number, files: filesRef.current || null }))
       .then(reply => {
+        if (keyRef.current !== key) return null;
         const found = reply?.ok ? reply.faceFeature : null;
         // A stale answer is no answer: the face is asked again once the part reads anew.
         if (!found || found.stale) { asked.current.delete(`${key}|${number}`); return null; }
