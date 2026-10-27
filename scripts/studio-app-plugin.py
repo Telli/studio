@@ -2,11 +2,12 @@
 """text-to-cad's plugin for the Studio app: a checkout's skills and CAD server, laid out as the
 marketplace the packaged app carries (scripts/build-studio-app.sh).
 
-The app's own Python runs the server and the skills' commands, but the app can live anywhere, so
-its path is not known when the app is built. Every place that names it holds @@STUDIO_PYTHON@@,
-with @@STUDIO_PAGE@@ for the server's page; the app fills them in on each start
-(apps/desktop/src/studio/studioAppBundle.ts). cadgen's mesh and DXF builders need no Node of the
-Mac's: cadgen runs them on the one Playwright ships in that Python.
+The app's own Python runs the server, but the app can live anywhere, so its path is not known when
+the app is built. Every place that names it holds @@STUDIO_PYTHON@@, with @@STUDIO_PAGE@@ for the
+server's page and @@STUDIO_BIN@@ for the folder of Studio's `cadgen` command; the app fills them
+in on each start (apps/desktop/src/studio/studioAppBundle.ts), and registers that Python's cadgen,
+the release's version, in Studio's own cadgen state there. The skills run it as cadgen 0.8's
+skills run any installation: `cadgen +<VERSION>`, through that command.
 The layout is the development plugin's (scripts/studio-dev-plugin.py), through the same
 scripts/install/dev_install.py functions; its channel is "dev", as Studio's own is, which keeps
 cadgen's update notices and telemetry off.
@@ -22,6 +23,7 @@ from pathlib import Path
 
 PYTHON = "@@STUDIO_PYTHON@@"
 PAGE = "@@STUDIO_PAGE@@"
+BIN = "@@STUDIO_BIN@@"
 
 
 def main(argv: list[str]) -> int:
@@ -33,7 +35,7 @@ def main(argv: list[str]) -> int:
     sys.path.insert(0, str(checkout / "scripts" / "install"))
     import dev_install
 
-    # The development plugin's fix for skills that name an extra (FEA's cadgen[fea]==<VERSION>).
+    # The development plugin's fix for launches `rewrites=` does not reach (FEA's cadgen[fea]==<VERSION>).
     spec = importlib.util.spec_from_file_location(
         "studio_dev_plugin", Path(__file__).resolve().parent / "studio-dev-plugin.py"
     )
@@ -48,10 +50,11 @@ def main(argv: list[str]) -> int:
         "env": {"CADGEN_INSTALL_CHANNEL": "dev", "CADGEN_MCP_APP_DIR": PAGE},
         "startup_timeout_sec": dev_install.CODEX_STARTUP_SECONDS,
     }
-    commands = {"cadgen": f"{PYTHON} -m cadgen.cli", "python": PYTHON}
+    # The skills' one-time `cadgen doctor` is the app's Python, and `~/.local/bin/cadgen` Studio's own.
+    rewrites = {**dev_install.skill_rewrites(version, version, python=PYTHON), "~/.local/bin": BIN}
     plugin = out / "plugins" / name
-    dev_install.assemble("codex", plugin, version, server, root=checkout, commands=commands)
-    dev_plugin.point_extras_at_checkout(dev_install, plugin, commands)
+    dev_install.assemble("codex", plugin, version, server, root=checkout, rewrites=rewrites)
+    dev_plugin.point_launches_at(dev_install, plugin, version)
     dev_install.write_json(out / ".claude-plugin" / "marketplace.json", {
         "name": "studio-app",
         "owner": {"name": "Studio"},

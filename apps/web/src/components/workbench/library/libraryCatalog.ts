@@ -90,7 +90,7 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     what: "One solid, made to change by its dimensions.",
     give: "What it is for, and any sizes you already know.",
     asks: "The material and how it will be made.",
-    gets: "A STEP file and the script that makes it, in parts/.",
+    gets: "The model script that makes it, in parts/, and a STEP of it when you ask.",
   }),
   doc({
     id: "doc:assembly",
@@ -100,7 +100,7 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     what: "Parts placed together with mates, using the project's parts where they fit.",
     give: "The parts, and how they go together.",
     asks: null,
-    gets: "A STEP of the whole assembly and the script that places its parts by their mates, in assemblies/.",
+    gets: "The model script that places its parts by their mates, in assemblies/, and a STEP of the whole when you ask.",
   }),
   doc({
     id: "doc:sheet-metal",
@@ -131,6 +131,16 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     give: "The part.",
     asks: "Its tolerances, when the project's requirements don't give them.",
     gets: "A PDF sheet of views with measured dimensions, hole callouts and notes, and a title block naming the material.",
+  }),
+  doc({
+    id: "doc:pmi",
+    name: "3D PMI (MBD)",
+    templates: [],
+    actions: ["pmi"],
+    what: "Datums, tolerances and notes on the model itself: a model-based definition a shop's CAM and inspection read.",
+    give: "The part or assembly.",
+    asks: "Its tolerances and how it is located, when the project's requirements don't give them.",
+    gets: "Datums, dimensions with tolerances, geometric tolerances and notes on the model, in an AP242 STEP with its PMI.",
   }),
   doc({
     id: "doc:simulation",

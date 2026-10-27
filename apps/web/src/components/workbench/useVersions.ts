@@ -30,15 +30,70 @@ export function useCadService(
   environmentId: EnvironmentId,
   threadId: ThreadId | null,
 ): CadPost | null {
-  const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
-    ?.plugins;
+  return useCadPost(environmentId, threadId === null ? null : { threadId });
+}
+
+/**
+ * Studio's CAD service as the environment's own CAD server asks it, for work that belongs to no
+ * thread yet: a new chat is a draft the server has no record of, and New part builds its part
+ * before anything is sent there. Null while the plugins load, or when none opens STEP files.
+ */
+export function useEnvironmentCadService(environmentId: EnvironmentId | null): CadPost | null {
+  return useCadPost(environmentId, environmentId === null ? null : ENVIRONMENT_SCOPE);
+}
+
+const ENVIRONMENT_SCOPE = { threadId: null } as const;
+
+/** A GET of Studio's CAD service's route `url`, answered with its JSON (null when it could not be asked). */
+export type CadGet = (url: string) => Promise<unknown>;
+
+/** A read of Studio's CAD service's routes as the environment's own CAD server asks it (`useEnvironmentCadService`). */
+export function useEnvironmentCadGet(environmentId: EnvironmentId | null): CadGet | null {
+  const plugins = useEnvironmentQuery(
+    environmentId === null ? null : pluginEnvironment.list({ environmentId, input: {} }),
+  ).data?.plugins;
   const request = useAtomCommand(pluginEnvironment.request, { reportFailure: false });
   const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, "part.step")[0];
   const pluginId = viewer?.pluginId ?? null;
   const server = viewer?.view.server ?? null;
+  const get = useCallback<CadGet>(
+    async (url) => {
+      if (environmentId === null || pluginId === null || server === null) return null;
+      const result = await request({
+        environmentId,
+        input: {
+          threadId: null,
+          pluginId,
+          server,
+          method: "tools/call",
+          params: { name: "cad_http", arguments: { method: "GET", url } },
+        },
+      });
+      return result._tag === "Success"
+        ? readTunnelJson(result.value.result).catch(() => null)
+        : null;
+    },
+    [environmentId, pluginId, request, server],
+  );
+  return environmentId === null || pluginId === null || server === null ? null : get;
+}
+
+function useCadPost(
+  environmentId: EnvironmentId | null,
+  scope: { readonly threadId: ThreadId | null } | null,
+): CadPost | null {
+  const plugins = useEnvironmentQuery(
+    environmentId === null ? null : pluginEnvironment.list({ environmentId, input: {} }),
+  ).data?.plugins;
+  const request = useAtomCommand(pluginEnvironment.request, { reportFailure: false });
+  const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, "part.step")[0];
+  const pluginId = viewer?.pluginId ?? null;
+  const server = viewer?.view.server ?? null;
+  const threadId = scope?.threadId ?? null;
+  const asked = scope !== null;
   const post = useCallback<CadPost>(
     async (path, body) => {
-      if (pluginId === null || server === null || threadId === null) return null;
+      if (environmentId === null || pluginId === null || server === null || !asked) return null;
       const result = await request({
         environmentId,
         input: {
@@ -61,9 +116,9 @@ export function useCadService(
         ? readTunnelJson(result.value.result).catch(() => null)
         : null;
     },
-    [environmentId, pluginId, request, server, threadId],
+    [asked, environmentId, pluginId, request, server, threadId],
   );
-  return pluginId === null || server === null || threadId === null ? null : post;
+  return pluginId === null || server === null || !asked ? null : post;
 }
 
 const failure = (reply: unknown) =>

@@ -255,8 +255,10 @@ export type PluginRequestResult = typeof PluginRequestResult.Type;
 export const PluginModelPicturesInput = Schema.Struct({
   /** The project's workspace root. */
   cwd: Text(4096),
-  /** Workspace-relative files to picture. */
+  /** Workspace-relative files to picture, and cadgen models by their document id. */
   paths: Schema.Array(Text(1024)).check(Schema.isMaxLength(64)),
+  /** Each model's build (its Recents `updated`), by document id: what its picture is cached by. */
+  versions: Schema.optional(Schema.Record(Text(64), Text(64))),
 });
 export type PluginModelPicturesInput = typeof PluginModelPicturesInput.Type;
 

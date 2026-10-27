@@ -234,6 +234,7 @@ class RecentStore:
 
     def list(self) -> list[Recent]:
         """Pinned first, then by last activity (``Recent.activity``), newest first; at most ``LIMIT``."""
+        from cadgen.edit.service import is_bar  # Studio: CAD mode's rollback bar's body is no model of the person's
         from cadgen.engine import registry as registering
         from cadgen.engine.models import Models
 
@@ -245,7 +246,7 @@ class RecentStore:
             if record.get("kind") == "file" and record.get("opened"):
                 path = str(registering.home(self.registry, record))
                 entries.append(Recent(path=path, opened=float(record["opened"]), updated=_mtime(path), **common))
-            elif record.get("kind") in ("model", "shape"):
+            elif record.get("kind") in ("model", "shape") and not is_bar(record):
                 program = registering.program(self.registry, record)
                 entries.append(Recent(path=record["id"], kind=record["kind"], name=record.get("name") or record.get("entry"),
                                       namespace=record.get("namespace") or record.get("root"),

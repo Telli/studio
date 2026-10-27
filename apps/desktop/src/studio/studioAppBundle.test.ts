@@ -6,6 +6,7 @@ import * as NodePath from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import { applyStudioAppBundle, writeFilledCopy } from "./studioAppBundle.ts";
+import { STUDIO_DEV_ENGINE_PORT, STUDIO_ENGINE_PORT, studioEngineEnv } from "./studioEngine.ts";
 
 const made: string[] = [];
 const tempDir = (prefix = "studio-app-bundle-") => {
@@ -49,10 +50,35 @@ function resources(prefix?: string): string {
   );
   write(
     NodePath.join(bundle, "marketplace", "plugins", "text-to-cad", "skills", "cad", "SKILL.md"),
-    "Run `@@STUDIO_PYTHON@@ -m cadgen.cli step snapshot part.step`.\n",
+    "Run `@@STUDIO_PYTHON@@ -m cadgen.cli snapshot part.step part.png`.\n",
   );
   return dir;
 }
+
+describe("studioEngineEnv", () => {
+  it("gives Studio's cadgen its own folders under its home, and a port of its own", () => {
+    const homes = ["/Users/a/.text-to-cad-studio", "/Users/a/.text-to-cad-studio-dev"];
+    const release = studioEngineEnv(homes[0]!, { dev: false });
+    const dev = studioEngineEnv(homes[1]!, { dev: true });
+    for (const [env, home] of [
+      [release, homes[0]!],
+      [dev, homes[1]!],
+    ] as const) {
+      const folders = [env.CADGEN_STATE_DIR, env.CADGEN_CACHE_DIR, env.CADGEN_ENGINE_DIR];
+      expect(new Set(folders).size).toBe(3);
+      for (const folder of [...folders, env.CADGEN_LAUNCHER_DIR]) {
+        expect(folder.startsWith(`${home}/`)).toBe(true);
+      }
+    }
+    // Never a user's cadgen's 3245, nor a port it rolls to from there (64 past it); a checkout's
+    // Studio never shares the app's.
+    for (const port of [Number(release.CADGEN_ENGINE_PORT), Number(dev.CADGEN_ENGINE_PORT)]) {
+      expect(port < 3245 || port > 3245 + 64).toBe(true);
+    }
+    expect(dev.CADGEN_ENGINE_PORT).toBe(String(STUDIO_DEV_ENGINE_PORT));
+    expect(release.CADGEN_ENGINE_PORT).not.toBe(dev.CADGEN_ENGINE_PORT);
+  });
+});
 
 describe("applyStudioAppBundle", () => {
   it("points the app at its own home, name, profile and CAD plugin", () => {
@@ -70,13 +96,21 @@ describe("applyStudioAppBundle", () => {
       T3CODE_DEFAULT_PLUGINS: "text-to-cad",
       T3CODE_PLUGIN_MARKETPLACE: marketplace,
     });
-    // cadgen finds its builders' Node itself: Playwright's, in the bundled Python.
-    expect(env).not.toHaveProperty("CADGEN_NODE");
+    // Its cadgen keeps its state, cache, engine and port apart from a user's own cadgen.
+    const cadgen = NodePath.join(studioHome, "cadgen");
+    expect(env).toMatchObject({
+      CADGEN_STATE_DIR: NodePath.join(cadgen, "state"),
+      CADGEN_CACHE_DIR: NodePath.join(cadgen, "cache"),
+      CADGEN_ENGINE_DIR: NodePath.join(cadgen, "engine"),
+      CADGEN_ENGINE_PORT: String(STUDIO_ENGINE_PORT),
+      CADGEN_LAUNCHER_DIR: NodePath.join(studioHome, "bin"),
+    });
+    expect(env.PATH).toBe(NodePath.join(studioHome, "bin"));
     const skill = NodeFS.readFileSync(
       NodePath.join(marketplace, "plugins", "text-to-cad", "skills", "cad", "SKILL.md"),
       "utf8",
     );
-    expect(skill).toBe(`Run \`${python} -m cadgen.cli step snapshot part.step\`.\n`);
+    expect(skill).toBe(`Run \`${python} -m cadgen.cli snapshot part.step part.png\`.\n`);
     const config = JSON.parse(
       NodeFS.readFileSync(
         NodePath.join(marketplace, "plugins", "text-to-cad", "codex.mcp.json"),
@@ -101,7 +135,7 @@ describe("applyStudioAppBundle", () => {
     );
     const python = NodePath.join(res, "studio", "python", "python.exe");
     expect(NodeFS.readFileSync(NodePath.join(plugin, "skills", "cad", "SKILL.md"), "utf8")).toBe(
-      `Run \`"${python}" -m cadgen.cli step snapshot part.step\`.\n`,
+      `Run \`"${python}" -m cadgen.cli snapshot part.step part.png\`.\n`,
     );
     const config = JSON.parse(NodeFS.readFileSync(NodePath.join(plugin, "codex.mcp.json"), "utf8"));
     expect(config.mcpServers.cad.command).toBe(python);

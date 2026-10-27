@@ -188,18 +188,22 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
 
 /**
  * A project's parts as its overview lists them: its models and boards, each
- * part once. A mesh exported beside its STEP folds into the STEP, and a STEP
+ * part once. A STEP or mesh exported beside a cadgen 0.8 model folds into the model,
+ * a mesh exported beside its STEP folds into the STEP, and a STEP
  * exported beside its SolidCraft design folds into the design, which opens in
  * the part editor and is pictured by its STEP.
  */
 export function overviewParts(files: ReadonlyArray<ProjectFile>): ProjectFile[] {
   const parts = files.filter((file) => file.group === "CAD" || file.group === "Electronics");
   const key = (file: ProjectFile) => `${file.folder}/${stemOf(file.name)}`;
+  // A cadgen 0.8 model is the part; a STEP of its name beside it is that model exported.
+  const modelled = new Set(parts.filter((file) => file.document !== undefined).map(key));
   const steps = new Map(
     parts.filter((file) => file.kind === "Part").map((file) => [key(file), file]),
   );
   const designs = new Set(parts.filter((file) => file.kind === "Design").map(key));
   return parts.flatMap((file) => {
+    if (file.document === undefined && modelled.has(key(file))) return [];
     if (file.kind === "Mesh" && steps.has(key(file))) return [];
     if (file.kind === "Part" && designs.has(key(file))) return [];
     if (file.kind === "Design") {
@@ -218,6 +222,8 @@ export function resultsFor(part: ProjectFile, results: ReadonlyArray<CheckResult
   const name = part.name.toLowerCase();
   const stem = stemOf(part.name);
   return results.filter((result) => {
+    // A result of cadgen 0.8 names a model's document by its id.
+    if (part.document !== undefined && result.part === part.document) return true;
     const named = result.part.toLowerCase();
     if (part.kind === "Design") return stemOf(named) === stem;
     return named === name || (!named.includes(".") && named === stem);

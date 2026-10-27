@@ -137,6 +137,9 @@ describe('a result\'s findings', () => {
     expect(resultSourcePath('/work/results/bracket.glb', '/parts/bracket.step')).toBe('/parts/bracket.step');
     expect(resultSourcePath('/work/results/bracket.glb', '')).toBe('');
     expect(resultSourcePath('FEA/x.glb', '../part.step')).toBe('part.step');
+    // cadgen 0.8 solves a model by its document id: the id is the source, wherever the GLB is.
+    const id = '0b9c3c1e-5d0a-5f8e-9a43-2f1d6c7b8a90';
+    expect(resultSourcePath('/work/FEA/plate.fea.glb', id)).toBe(id);
   });
 });
 

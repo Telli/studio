@@ -1,3 +1,4 @@
+import { isDocumentId } from "@t3tools/client-runtime/state/pluginFollow";
 import type { PluginViewChoice } from "@t3tools/client-runtime/state/plugins";
 
 import type { PluginAppSurface } from "~/rightPanelStore";
@@ -27,8 +28,9 @@ export function pluginAppSurface(choice: PluginViewChoice, file?: string): Plugi
 
 /**
  * The tab for a view an agent opened through its tool (`cad_open`): the view
- * reruns the call with the agent's latest arguments, one tab per path it names
- * and one for calls that name none.
+ * reruns the call with the agent's latest arguments, one tab per source it names
+ * (a file's path, or a model's document id, titled as the view is until it
+ * syncs its model's name) and one for calls that name none.
  */
 export function agentViewSurface(
   choice: PluginViewChoice,
@@ -43,7 +45,7 @@ export function agentViewSurface(
     pluginId: choice.pluginId,
     server: view.server,
     tool: view.tool,
-    title: path === null ? view.title : fileName(path),
+    title: path === null || isDocumentId(path) ? view.title : fileName(path),
     resourceUri: view.resourceUri,
     arguments: args,
   };

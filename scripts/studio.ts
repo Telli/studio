@@ -16,6 +16,9 @@
  *   Studio's own plugins (`studio-plugins/`) are offered beside it: SolidCraft,
  *   only with STUDIO_SOLIDCRAFT=1 (STUDIO_SOLIDCRAFT_APP=1 bridges it to the app);
  *
+ * Its cadgen keeps its own state, cache, engine and port in that home (`studioEngineEnv`), with
+ * its `cadgen` command first on the agents' PATH, so a cadgen of the user's own never meets it.
+ *
  * TEXT_TO_CAD_ROOT points at another checkout; TEXT_TO_CAD_STUDIO_HOME moves the state.
  * TEXT_TO_CAD_DEV=1 runs the checkout's working copy instead of the released cadgen: its
  * development plugin (scripts/studio-dev-plugin.py), with state of its own in
@@ -26,6 +29,7 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
+import { studioEngineEnv, studioPath } from "../apps/desktop/src/studio/studioEngine.ts";
 import { buildEditorPage } from "./editor-pages.ts";
 
 const appRoot = NodePath.dirname(import.meta.dirname);
@@ -45,6 +49,17 @@ if (mode !== "dev" && mode !== "dev:desktop") {
   process.exit(1);
 }
 const dev = process.env.TEXT_TO_CAD_DEV?.trim() === "1";
+const home =
+  process.env.TEXT_TO_CAD_STUDIO_HOME?.trim() ||
+  NodePath.join(NodeOS.homedir(), dev ? ".text-to-cad-studio-dev" : ".text-to-cad-studio");
+// Studio's own cadgen state, engine and `cadgen` command: the dev plugin registers its
+// installation there, and the app and its agents run on it.
+const engineEnv = studioEngineEnv(home, { dev });
+const cadgenEnv = {
+  ...process.env,
+  ...engineEnv,
+  PATH: studioPath(engineEnv.CADGEN_LAUNCHER_DIR, process.env.PATH),
+};
 // The checkout's development plugin: its skills and server on its .venv, its page built fresh.
 let marketplace = checkout;
 if (dev) {
@@ -57,6 +72,7 @@ if (dev) {
     [NodePath.join(appRoot, "scripts", "studio-dev-plugin.py"), checkout],
     {
       cwd: appRoot,
+      env: cadgenEnv,
       stdio: ["ignore", "pipe", "inherit"],
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
@@ -66,9 +82,6 @@ if (dev) {
   if (built.status !== 0 || folder === "") process.exit(built.status || 1);
   marketplace = folder;
 }
-const home =
-  process.env.TEXT_TO_CAD_STUDIO_HOME?.trim() ||
-  NodePath.join(NodeOS.homedir(), dev ? ".text-to-cad-studio-dev" : ".text-to-cad-studio");
 
 // Studio's own plugins (studio-plugins/), copied fresh each start with this computer's paths
 // written into their MCP configs, so nothing in the repository names a path on one computer.
@@ -147,7 +160,7 @@ const run = NodeChildProcess.spawnSync(
     cwd: appRoot,
     stdio: "inherit",
     env: {
-      ...process.env,
+      ...cadgenEnv,
       T3CODE_PLUGIN_MARKETPLACE: markets.join(NodePath.delimiter),
       T3CODE_DEFAULT_PLUGINS: defaults.join(","),
       VITE_APP_BASE_NAME: brand.name,

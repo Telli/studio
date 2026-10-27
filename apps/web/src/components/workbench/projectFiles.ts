@@ -48,6 +48,14 @@ export interface ProjectFile {
   readonly kind: string;
   /** The file that pictures it, when it is not itself pictured: a SolidCraft design's STEP. */
   readonly picture?: string;
+  /**
+   * A cadgen 0.8 model's document id (`projectModels.ts`): its `path` is then that id, which opens
+   * and pictures it, and `script` the part script that makes it, relative to its folder.
+   */
+  readonly document?: string;
+  readonly script?: string;
+  /** A model's last build, which its picture is cached by. */
+  readonly version?: string;
 }
 
 /** A manufacturing check's result model, `<stem>.<process>.glb` (`checkResults.ts`). */

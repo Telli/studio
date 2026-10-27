@@ -37,7 +37,11 @@ export function projectStarters(
   };
   // A check for each recent file, then a way to make the most recent one.
   const jobs = subjects.map((file) => {
-    const { name, kind } = describePart(file.path, null);
+    // A cadgen 0.8 model is listed by its document id, with the name the engine gives it.
+    const { name, kind } =
+      file.document === undefined
+        ? describePart(file.path, null)
+        : { name: file.title, kind: file.kind };
     // Every job for the part, its ways of making it included, in menu order; starters start jobs,
     // so a write-up (no skill of its own) comes after the work.
     const all = hardwareActions(kind, skills)

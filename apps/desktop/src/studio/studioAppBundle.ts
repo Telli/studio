@@ -4,6 +4,8 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
+import { studioEngineEnv, studioPath } from "./studioEngine.ts";
+
 /**
  * The Studio app (`scripts/build-studio-app.sh`) carries a bundle in its resources
  * (`Contents/Resources/studio` on a Mac, `resources\studio` on Windows):
@@ -19,9 +21,12 @@ import * as NodePath from "node:path";
  *   `T3CODE_DEFAULT_PLUGINS`).
  * - The finished sample projects, where the bundle has them (`T3CODE_SAMPLES_DIR`), which an
  *   example's Make a copy to edit copies into a new project.
- *
- * The computer needs no Node of its own: with none on PATH, cadgen runs its mesh and DXF builders on
- * the Node Playwright ships inside the bundled Python, finding it itself, on a Mac or on Windows.
+ * - The CAD tools' own cadgen state, cache, engine and port under the home (`studioEngineEnv`),
+ *   with their `cadgen` command first on PATH, so the agents Studio runs use Studio's cadgen 0.8
+ *   engine and a user's own cadgen never meets it. The bundled installation is registered there
+ *   and that command written on each start (cadgen's `installations.startup`, as its CAD server
+ *   does when it starts), in the background, so a skill's `cadgen +<version>` works before any
+ *   CAD view has opened.
  *
  * Anything already set in the environment wins, so a test can point the app elsewhere. Without a
  * bundle (T3 Code, or Studio run from a checkout) it does nothing.
@@ -52,6 +57,10 @@ export function applyStudioAppBundle(input: {
   setDefault(env, "VITE_APP_BASE_NAME", settings.name);
   setDefault(env, "T3CODE_DESKTOP_PROFILE", settings.profile);
   setDefault(env, "T3CODE_DEFAULT_PLUGINS", settings.plugins.join(","));
+  for (const [name, value] of Object.entries(studioEngineEnv(home, { dev: false }))) {
+    setDefault(env, name, value);
+  }
+  env.PATH = studioPath(env.CADGEN_LAUNCHER_DIR!, env.PATH);
   const samples = NodePath.join(bundle, "sample");
   if (NodeFS.existsSync(samples)) setDefault(env, "T3CODE_SAMPLES_DIR", samples);
   try {
@@ -61,8 +70,10 @@ export function applyStudioAppBundle(input: {
     writeFilledCopy(NodePath.join(bundle, "marketplace"), marketplace, {
       "@@STUDIO_PYTHON@@": forPlugin(python),
       "@@STUDIO_PAGE@@": forPlugin(NodePath.join(bundle, "page")),
+      "@@STUDIO_BIN@@": forPlugin(env.CADGEN_LAUNCHER_DIR!),
     });
     setDefault(env, "T3CODE_PLUGIN_MARKETPLACE", marketplace);
+    registerBundledCadgen(python, env);
   } catch (error) {
     // Studio still opens; it just has no CAD tools this time, and says why in its log.
     // @effect-diagnostics-next-line globalConsole:off - Runs before any Effect logger exists.
@@ -75,6 +86,21 @@ interface StudioSettings {
   readonly home: string;
   readonly profile: string;
   readonly plugins: ReadonlyArray<string>;
+}
+
+/**
+ * Registers the bundled cadgen in Studio's own cadgen state and writes its `cadgen` command, by
+ * the bundled Python, in the background: a registration never holds up the app or fails it.
+ */
+function registerBundledCadgen(python: string, env: Record<string, string | undefined>): void {
+  if (!NodeFS.existsSync(python)) return;
+  const child = NodeChildProcess.spawn(
+    python,
+    ["-c", "from cadgen._internal import installations; installations.startup()"],
+    { env: { ...env }, stdio: "ignore", detached: true },
+  );
+  child.on("error", () => undefined);
+  child.unref();
 }
 
 function readSettings(file: string): StudioSettings | null {

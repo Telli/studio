@@ -480,6 +480,16 @@ if failed:
     raise SystemExit(1)
 """
 
+# The name CAD mode's rollback bar hands its body to the engine by (``tracer._bar_name``): a shape
+# document of the engine's that is no part of a project, so Recents leaves it out (``is_bar``).
+BAR_NAME = re.compile(r" at the rollback bar [0-9a-f]{8}\Z")
+
+
+def is_bar(record: dict) -> bool:
+    """Whether a registry record is a rollback bar's body: a shape handed over by its bar's name."""
+    return record.get("kind") == "shape" and bool(BAR_NAME.search(str(record.get("name") or "")))
+
+
 NO_ENGINE = "the engine is not running"
 
 
@@ -627,25 +637,29 @@ class EditService:
         and the part made of it before is named (``part``)."""
         script = script_for(file_ref)
         if script is not None:
-            return {"ok": True, "editable": True, "document": document_of(script)}
+            document = document_of(script)
+            return {"ok": True, "editable": True, "document": document, **self._built(script, document)}
         source = imported_step(file_ref)
         if source is None:
             return {"ok": True, "editable": False}
         # The first part made of it, where there is one: the names are taken in order, so none taken means none made.
-        # ``partBuilt``: whether the engine holds its document yet (a build that failed, or is still running, leaves
-        # none to open: an id never built is not built by opening it); ``partBuilding``: whether a build of it is
-        # queued or running, so a page waits for it rather than saying it could not be made; ``partError``: why its
-        # last build failed, where the builds' last batch says so, so the page says it rather than making another.
         first = next(_adopted_names(source))
         made = document_of(first) if first.is_file() else None
         if made is None:
             return {"ok": True, "editable": False, "importable": True}
-        building = self._builds is not None and self._builds.pending(first)
-        built = _model_home(made) is not None and not building
+        return {"ok": True, "editable": False, "importable": True, "part": made, **self._built(first, made)}
+
+    def _built(self, script: Path, document: str | None) -> dict:
+        """Whether a part's document can be opened yet. ``partBuilt``: whether the engine holds it (a
+        build that failed, or is still running, leaves none to open: an id never built is not built by
+        opening it); ``partBuilding``: whether a build of it is queued or running, so a page waits for
+        it rather than saying it could not be made; ``partError``: why its last build failed, where the
+        builds' last batch says so, so the page says it rather than building it again."""
+        building = self._builds is not None and self._builds.pending(script)
+        built = document is not None and _model_home(document) is not None and not building
         status = self.building()
-        failed = status["error"] if not built and not building and first.name in status["scripts"] else None
-        return {"ok": True, "editable": False, "importable": True, "part": made, "partBuilt": built, "partBuilding": building,
-                **({"partError": failed} if failed else {})}
+        failed = status["error"] if not built and not building and script.name in status["scripts"] else None
+        return {"partBuilt": built, "partBuilding": building, **({"partError": failed} if failed else {})}
 
     def adopt(self, file_ref: str) -> dict:
         """A STEP brought in made a part to model on, as SolidWorks makes a part of a STEP it opens:
@@ -701,13 +715,18 @@ def {function}():
 
     def change(self, payload: dict) -> dict:
         """One number changed in the part's source, or a command's line written, then the parts
-        that use the changed file built again. ``adopt``: a STEP brought in made a part (``adopt``)."""
+        that use the changed file built again. ``adopt``: a STEP brought in made a part (``adopt``).
+        ``build``, alone: the part built as it is, changing nothing -- Studio's New part, whose script
+        is written and then built before its document is opened (``editable`` says when it is)."""
         if isinstance(payload.get("adopt"), dict):
             return self.adopt(str(payload.get("file") or ""))
         script = script_for(payload.get("file") or "")
         if script is None:
             return {"ok": False, "error": "This model has no part script to change."}
         root = project_root(script)
+        if payload.get("build") is True and not any(key in payload for key in _CHANGE_KEYS):
+            return {"ok": True, "document": document_of(script), "root": str(root),
+                    "building": self.rebuild(root, _relative(root, script))}
         if isinstance(payload.get("drawing"), dict):
             return {**self.drawing(root, script, _drawn(payload["file"], script), payload["drawing"]), "root": str(root), "building": self.building()}
         if isinstance(payload.get("sheet"), dict):

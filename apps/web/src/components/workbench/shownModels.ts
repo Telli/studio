@@ -20,8 +20,7 @@ const sameView = (a: ShownView | undefined, b: ShownView) =>
   a.pluginId === b.pluginId &&
   a.server === b.server &&
   a.path === b.path &&
-  a.revision === b.revision &&
-  JSON.stringify(a.preview) === JSON.stringify(b.preview);
+  a.revision === b.revision;
 
 export function noteViewCall(call: PluginViewCall) {
   if (call.threadId === null) return;

@@ -41,6 +41,8 @@ const ownName = (skill: string) =>
 /** The sample's outputs that could not be made, so their entries show no example. */
 const NOT_MADE = [
   "doc:board",
+  // 3D PMI's example is the motor mount's, once it carries PMI (the plan's Task 7).
+  "doc:pmi",
   "doc:print",
   "skill:text-to-cad/bambu-labs",
   "skill:text-to-cad/gcode",

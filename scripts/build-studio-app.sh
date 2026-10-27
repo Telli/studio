@@ -88,7 +88,9 @@ rm -rf "$TMPDIR"
 mkdir -p "$TMPDIR"
 
 step "Building the CAD tools' runtime and page"
-(cd "$CAD" && scripts/bundle/bundle.sh && npm run build:mcp)
+# text-to-cad's own packages first, as its lockfile names them: a checkout copied from another (or
+# one made before cadgen 0.8, whose viewer added sonner and gltf-validator) lacks some.
+(cd "$CAD" && npm ci --no-audit --no-fund && scripts/bundle/bundle.sh && npm run build:mcp)
 
 step "Making the CAD tools' own Python"
 rm -rf "$BUNDLE"

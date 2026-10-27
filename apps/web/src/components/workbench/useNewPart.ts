@@ -12,24 +12,23 @@ import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { toastManager } from "../ui/toast";
 import { plainError } from "./importIntoProject";
 import {
+  buildPart,
+  type BuiltPart,
   freePartStem,
   makeNewPart,
   PART_FOLDER,
   partStem,
   starterScript,
-  starterStepAs,
 } from "./newPart";
 import { showOverview } from "./overviewPanel";
 import { setSimpleView } from "./simpleView";
 import { useCreateStudioProject } from "./useCreateStudioProject";
 import { useOneAtATime } from "./useOneAtATime";
-import { openInPanel } from "./useOpenInWorkbench";
+import { openDocumentInPanel } from "./useOpenInWorkbench";
+import { useEnvironmentCadService } from "./useVersions";
 
 /** What a new part's project is, for its brief: a part. */
 const PART_KIND = STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!;
-
-/** The STEP the starter builds, loaded the first time a part is made: it is 17 KB of text. */
-const loadStarterStep = () => import("./starter/part.step?raw").then((module) => module.default);
 
 /** Each environment's New part under way: a second press while it is made does nothing more. */
 const newPartsUnderWay = new Map<string, Promise<void>>();
@@ -39,51 +38,59 @@ const addedPartsUnderWay = new Map<string, Promise<void>>();
 const failedToast = (title: string, error: unknown) =>
   toastManager.add({ type: "error", title, description: plainError(error) });
 
+/** A path inside a folder, absolute as the folder is (Windows takes the forward slash too). */
+const inside = (folder: string, path: string) => `${folder.replace(/[\\/]+$/, "")}/${path}`;
+
 /**
- * Writes a part's starter into a folder (`starterScript`, and the STEP it builds) and opens it
- * beside the chat in CAD mode, the full workspace, as the Overview's file list opens a part. A
- * write that fails throws, naming the file.
+ * Writes a part's starter (`starterScript`) into a folder and answers its script's absolute path;
+ * builds it through Studio's CAD service (`buildPart`, the environment's server: a new chat is
+ * still a draft); and opens its document beside the chat in CAD mode, the full workspace, as the
+ * Overview's file list opens a part. A write that fails throws, naming the file.
  */
-function useWriteStarter(environmentId: EnvironmentId | null) {
+function useStarterSteps(environmentId: EnvironmentId | null) {
   const write = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
   const plugins = useEnvironmentQuery(
     environmentId === null ? null : pluginEnvironment.list({ environmentId, input: {} }),
   ).data?.plugins;
+  const service = useEnvironmentCadService(environmentId);
   const writeStarter = useCallback(
     async (input: { readonly cwd: string; readonly folder: string; readonly stem: string }) => {
-      if (environmentId === null) return;
-      const step = await loadStarterStep();
-      const files = [
-        { path: `${input.folder}/${input.stem}.py`, contents: starterScript(input.stem) },
-        { path: `${input.folder}/${input.stem}.step`, contents: starterStepAs(step, input.stem) },
-      ];
-      for (const file of files) {
-        const written = await write({
-          environmentId,
-          input: { cwd: input.cwd, relativePath: file.path, contents: file.contents },
-        });
-        if (written._tag !== "Success") throw new Error(`${file.path} could not be written.`);
-      }
+      const path = `${input.folder}/${input.stem}.py`;
+      if (environmentId === null) throw new Error(`${path} could not be written.`);
+      const written = await write({
+        environmentId,
+        input: { cwd: input.cwd, relativePath: path, contents: starterScript(input.stem) },
+      });
+      if (written._tag !== "Success") throw new Error(`${path} could not be written.`);
+      return inside(input.cwd, path);
     },
     [environmentId, write],
   );
+  const build = useCallback(
+    async (script: string): Promise<BuiltPart> =>
+      service === null
+        ? { error: "Studio's CAD tools are not on yet: open the part once they are." }
+        : buildPart({ post: service, script }),
+    [service],
+  );
   const open = useCallback(
-    (threadRef: ScopedThreadRef, path: string) => {
+    (threadRef: ScopedThreadRef, id: string) => {
       setSimpleView(false);
       useRightPanelStore.getState().setMaximized(threadRef, false);
-      openInPanel(plugins, threadRef, path);
+      openDocumentInPanel(plugins, threadRef, id);
     },
     [plugins],
   );
-  return { writeStarter, open };
+  return { writeStarter, build, open };
 }
 
 /**
  * Home's New part, and New's Part on Home and the Projects page: a project named "Untitled part"
  * (`untitledName`, past every name of yours and Trash's) with the starter part in
- * `parts/part.py`, opened beside its new chat in CAD mode (`makeNewPart`). No dialog and no agent
- * turn; renaming is Rename on the project. `create` resolves once it is open, or has said why it
- * could not be made; `busy` while it is under way, when another press does nothing more.
+ * `parts/part.py`, built, then opened beside its new chat in CAD mode (`makeNewPart`). No dialog
+ * and no agent turn; renaming is Rename on the project. `create` resolves once it is open, or has
+ * said why it could not be made or built; `busy` while it is under way, its build too, when
+ * another press does nothing more.
  */
 export function useNewPart(environmentId: EnvironmentId): {
   readonly create: () => Promise<void>;
@@ -94,7 +101,7 @@ export function useNewPart(environmentId: EnvironmentId): {
     reportFailure: false,
     refresh: true,
   });
-  const { writeStarter, open } = useWriteStarter(environmentId);
+  const { writeStarter, build, open } = useStarterSteps(environmentId);
   const { run, busy } = useOneAtATime(newPartsUnderWay);
   const create = useCallback(
     () =>
@@ -123,12 +130,13 @@ export function useNewPart(environmentId: EnvironmentId): {
               show,
             }),
           writeStarter: (folder) => writeStarter({ cwd: folder, folder: PART_FOLDER, stem }),
-          openPart: (ref) => open(ref, `${PART_FOLDER}/${stem}.step`),
+          build: (_ref, script) => build(script),
+          openPart: open,
           openProject: showOverview,
           failed: failedToast,
         });
       }),
-    [environmentId, listStudioProjects, make, open, run, writeStarter],
+    [build, environmentId, listStudioProjects, make, open, run, writeStarter],
   );
   return useMemo(() => ({ create, busy: busy.has(environmentId) }), [busy, create, environmentId]);
 }
@@ -136,8 +144,9 @@ export function useNewPart(environmentId: EnvironmentId): {
 /**
  * New part in an open project: New's Part there, and the Overview's Start a part by hand. It
  * writes the starter as `<folder>/<name>.py` (`partStem`; `parts/part.py` from Start a part by
- * hand), the next name free beside what the folder holds so no file is written over, and opens it
- * beside the chat in CAD mode. Null without a chat or a folder.
+ * hand), the next name free beside what the folder holds so no file is written over, builds it,
+ * and opens it beside the chat in CAD mode; a build that fails says why, and the script stays for
+ * the agent or CAD mode to mend. Null without a chat or a folder.
  */
 export function useAddPart(
   threadRef: ScopedThreadRef | null,
@@ -148,7 +157,7 @@ export function useAddPart(
     reportFailure: false,
     refresh: true,
   });
-  const { writeStarter, open } = useWriteStarter(environmentId);
+  const { writeStarter, build, open } = useStarterSteps(environmentId);
   const { run } = useOneAtATime(addedPartsUnderWay);
   return useMemo(() => {
     if (threadRef === null || cwd === null) return null;
@@ -168,12 +177,13 @@ export function useAddPart(
       return run(`${environmentId}\n${cwd}\n${folder}`, async () => {
         try {
           const stem = freePartStem(partStem(input.name), await filesIn(folder));
-          await writeStarter({ cwd, folder, stem });
-          open(threadRef, `${folder}/${stem}.step`);
+          const built = await build(await writeStarter({ cwd, folder, stem }));
+          if ("id" in built) open(threadRef, built.id);
+          else failedToast(`Made ${stem}.py, but it did not build`, new Error(built.error));
         } catch (error) {
           failedToast("Could not make the part", error);
         }
       });
     };
-  }, [cwd, list, open, run, threadRef, writeStarter]);
+  }, [build, cwd, list, open, run, threadRef, writeStarter]);
 }

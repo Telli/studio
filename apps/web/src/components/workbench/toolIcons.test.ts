@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { ACTION_SECTIONS, HARDWARE_ACTIONS, type HardwareAction } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
-import { hasSectionIcon, JOB_ICON_IDS, toolIcon } from "./toolIcons";
+import { hasSectionIcon, JOB_ICON_IDS, JOB_TINT_IDS, toolIcon, toolTint } from "./toolIcons";
 
 /**
  * Jobs in one section that may share a picture, as `[section, first job, second job]`, each with
@@ -27,6 +27,19 @@ describe("toolIcon", () => {
       (action) => toolIcon(action) === MENU_ICONS[action.group],
     );
     expect(generic.map((action) => action.id)).toEqual([]);
+  });
+
+  it("gives 3D PMI a color of its own, and no job a status color", () => {
+    const pmi = HARDWARE_ACTIONS.find((action) => action.id === "pmi")!;
+    const drawing = HARDWARE_ACTIONS.find((action) => action.id === "drawing")!;
+    expect(toolTint(pmi)).not.toBe(toolTint(drawing));
+    const ids = new Set(HARDWARE_ACTIONS.map((action) => action.id));
+    expect(JOB_TINT_IDS.filter((id) => !ids.has(id))).toEqual([]);
+    // Red, amber and green say a check failed, needs you or passed: never a tool's color.
+    const status = HARDWARE_ACTIONS.filter((action) =>
+      /\b(?:text-)(?:red|rose|amber|orange|yellow|green|emerald|lime)-/.test(toolTint(action)),
+    );
+    expect(status.map((action) => action.id)).toEqual([]);
   });
 
   it("keys every picture of its own to a real job", () => {

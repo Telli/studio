@@ -1,4 +1,5 @@
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
+import { isDocumentId } from "@t3tools/client-runtime/state/pluginFollow";
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { studioFolderKey, studioFolderName } from "@t3tools/shared/studioProjects";
@@ -538,8 +539,9 @@ export function ProjectPage(props: {
   };
 
   // A file in another of the project's folders is reached by its full path.
+  // A cadgen 0.8 model is reached by its document id, whichever folder holds its script.
   const threadPath = (root: string, relativePath: string) =>
-    studioFolderKey(root) === studioFolderKey(cwd)
+    isDocumentId(relativePath) || studioFolderKey(root) === studioFolderKey(cwd)
       ? relativePath
       : `${studioFolderKey(root)}/${relativePath}`;
   const open = useOpenInWorkbench(threadRef);

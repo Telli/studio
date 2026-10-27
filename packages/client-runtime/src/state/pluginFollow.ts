@@ -9,7 +9,8 @@ import { type PluginViewChoice, pluginFileHandlers } from "./plugins.ts";
 /**
  * A plugin view a settled turn item asks to show beside its thread:
  * - `agent`: the agent called a view's tool itself (text-to-cad's `cad_open`),
- *   so the view opens with the call's arguments, as Codex opens its tab.
+ *   so the view opens with the call's arguments, as Codex opens its tab. A
+ *   cadgen 0.8 model is named by its document id: its run writes no file.
  * - `file`: a file edit wrote a file an enabled view claims (a `.step`), so
  *   the view follows the agent's work.
  */
@@ -18,13 +19,25 @@ export type PluginFollowTarget =
       readonly kind: "agent";
       readonly choice: PluginViewChoice;
       readonly arguments: Record<string, unknown>;
-      /** The `path` argument, when the call names one. */
-      readonly path: string | null;
+      /**
+       * What the call shows, when it names it: cadgen 0.8's `source`, a model's document id or a
+       * file's path (`isDocumentId` tells which), else 0.7's `path`.
+       */
+      readonly source: string | null;
     }
   | { readonly kind: "file"; readonly choice: PluginViewChoice; readonly path: string };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * Whether a view's source is a cadgen document id (a model's, which running its script prints) rather
+ * than a file's path: a lower-case canonical UUID, the engine's one spelling of an id.
+ */
+export const isDocumentId = (source: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(source);
+
+const named = (value: unknown) => (typeof value === "string" && value.length > 0 ? value : null);
 
 /**
  * True when a provider's tool name is T3's MCP name for this tool. Claude
@@ -52,7 +65,7 @@ export function agentOpenedView(
         kind: "agent",
         choice: { pluginId: plugin.id, pluginName: plugin.displayName, view },
         arguments: args,
-        path: typeof args.path === "string" && args.path.length > 0 ? args.path : null,
+        source: named(args.source) ?? named(args.path),
       };
     }
   }

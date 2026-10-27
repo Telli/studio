@@ -4,7 +4,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { noteViewCall, shownView } from "./shownModels";
 
 const ref = { environmentId: "env-1" as EnvironmentId, threadId: ThreadId.make("thread-A") };
-const sync = (model: string, revision: string, state?: string) => ({
+const sync = (model: string, revision: string) => ({
   ...ref,
   pluginId: "text-to-cad",
   server: "cad",
@@ -14,7 +14,6 @@ const sync = (model: string, revision: string, state?: string) => ({
     structuredContent: {
       events: [],
       catalog: { revision },
-      ...(state === undefined ? {} : { previews: [{ file: model, state }] }),
     },
   },
 });
@@ -28,8 +27,12 @@ describe("shown models", () => {
     noteViewCall(sync("/work/bracket.step", "1"));
     expect(shownView(ref)).toBe(first);
 
-    noteViewCall(sync("/work/bracket.step", "1", "running"));
-    expect(shownView(ref)?.preview).toMatchObject({ state: "running" });
+    // A model is shown by its document id, and its rebuild moves the catalog's revision.
+    const model = "0b9c3c1e-5d0a-5f8e-9a43-2f1d6c7b8a90";
+    noteViewCall(sync(model, "m1"));
+    expect(shownView(ref)).toMatchObject({ path: model, revision: "m1" });
+    noteViewCall(sync(model, "m2"));
+    expect(shownView(ref)).toMatchObject({ path: model, revision: "m2" });
     noteViewCall(sync("/work/plate.step", "4"));
     expect(shownView(ref)).toMatchObject({ path: "/work/plate.step", revision: "4" });
   });

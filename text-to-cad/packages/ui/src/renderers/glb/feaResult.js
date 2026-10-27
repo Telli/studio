@@ -621,12 +621,14 @@ function readStudy(raw) {
 }
 
 /**
- * The absolute path of the STEP a result was solved from. The file records its name (`document`),
- * which is the GLB's own folder's; an absolute one is kept. "" when it names nothing.
+ * The absolute path of the STEP a result was solved from, or the cadgen 0.8 model's document id it
+ * was solved from, as it is. The file records it (`document`): a STEP's name is the GLB's own
+ * folder's; an absolute one is kept. "" when it names nothing.
  */
 export function resultSourcePath(glbPath, document) {
   const named = String(document || "").trim();
   if (!named) return "";
+  if (DOCUMENT_ID.test(named)) return named;
   const absolute = /^(?:[A-Za-z]:)?[\\/]/.test(named);
   const parts = absolute ? named.split("/") : [...String(glbPath || "").split("/").slice(0, -1), ...named.split("/")];
   const out = [];
@@ -636,6 +638,9 @@ export function resultSourcePath(glbPath, document) {
   }
   return out.join("/");
 }
+
+// A cadgen document id: a lower-case canonical UUID (`cadgen.engine.ids.is_id`).
+const DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** A finding's `ref` as a selector in the prompt grammar: the token's leading "#" is not part of it. */
 export const findingSelector = (ref) => String(ref).replace(/^#/, "");

@@ -1,0 +1,54 @@
+/**
+ * text-to-cad's app capability (its MCP server's page protocol 9). The CAD server's `cad_http`
+ * reaches the viewer's routes (`/__cad/catalog`, `/__cad/recents`, edit mode's, versions', sizes')
+ * only with the capability its tool results deliver in `_meta`, UI-only: an agent calling
+ * `cad_http` reaches its telemetry route and nothing else. A CAD view reads it from its launch and
+ * sends it itself. Studio's own UI asks the same routes with no view in front (a part's facts, a
+ * project's sizes and versions, New part's first build), so the service asks them with the
+ * capability of that scope's server, read from a launch the server answered, as a view would.
+ * Agents' calls (`callAgentTool`) never carry it.
+ */
+import { isRecord } from "@t3tools/plugins";
+
+/** Where a tool result carries the capability: `_meta`, which a host never shows the model. */
+export const CAPABILITY_META = "dev.texttocad/httpToken";
+/** The header a `cad_http` call carries it in. */
+export const CAPABILITY_HEADER = "x-cadgen-app";
+/** The route tool the capability is for. */
+export const HTTP_TOOL = "cad_http";
+/** The app-only tool whose launch delivers one with nothing shown: the CAD home's. */
+export const LAUNCH_TOOL = "cad_home";
+
+/** The capability a tool result delivers, or null. */
+export function readCapability(result: unknown): string | null {
+  const meta = isRecord(result) ? result._meta : undefined;
+  const token = isRecord(meta) ? meta[CAPABILITY_META] : undefined;
+  return typeof token === "string" && token !== "" ? token : null;
+}
+
+/** Whether a request is a `cad_http` call that carries no capability of its own. */
+export function wantsCapability(method: string, params: unknown): boolean {
+  if (method !== "tools/call" || !isRecord(params) || params.name !== HTTP_TOOL) return false;
+  const args = isRecord(params.arguments) ? params.arguments : {};
+  const headers = isRecord(args.headers) ? args.headers : {};
+  return !Object.keys(headers).some((name) => name.toLowerCase() === CAPABILITY_HEADER);
+}
+
+/** The `cad_http` call's params, carrying `token`. */
+export function withCapability(params: Record<string, unknown>, token: string) {
+  const args = isRecord(params.arguments) ? params.arguments : {};
+  const headers = isRecord(args.headers) ? args.headers : {};
+  return { ...params, arguments: { ...args, headers: { ...headers, [CAPABILITY_HEADER]: token } } };
+}
+
+/**
+ * Whether a `cad_http` reply refused the capability it carried: the server that delivered it has
+ * restarted since (an idle thread's server is closed, and a new one has a capability of its own).
+ */
+export function refusedCapability(result: unknown): boolean {
+  if (!isRecord(result) || result.isError !== true || !Array.isArray(result.content)) return false;
+  return result.content.some(
+    (part) =>
+      isRecord(part) && typeof part.text === "string" && /before CAD restarted/.test(part.text),
+  );
+}

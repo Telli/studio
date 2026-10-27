@@ -22,6 +22,10 @@ const BATCH = 24;
 const RETRY_MS = 20_000;
 const TRIES = 3;
 
+/** A picture's place in the cache: a model's names its build, so a new build is a new picture. */
+const pictureKey = (path: string, versions: Readonly<Record<string, string>> | undefined) =>
+  versions?.[path] === undefined ? path : `${path}\n${versions[path]}`;
+
 const wantsPicture = (key: string, now: number) => {
   const cached = pictureCache.get(key);
   return cached === undefined || (cached.picture === null && now - cached.at >= RETRY_MS);
@@ -30,14 +34,19 @@ const wantsPicture = (key: string, now: number) => {
 /**
  * Pictures of the project's models, boards and drawings, rendered on the
  * server by the CAD plugin (`plugins.modelPictures`, cached there by file
- * size and time), a batch at a time, the first files first.
+ * size and time, a cadgen 0.8 model's by its build), a batch at a time, the
+ * first files first. A model is asked for by its document id, with its build
+ * (`versions`): a new build is a new picture.
  */
 export function usePictures(input: {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly paths: ReadonlyArray<string>;
+  /** Each model's build, by its document id among `paths`. */
+  readonly versions?: Readonly<Record<string, string>>;
 }): ReadonlyMap<string, string> {
   const { environmentId, cwd } = input;
+  const versions = JSON.stringify(input.versions ?? {});
   const render = useAtomCommand(pluginEnvironment.modelPictures, { reportFailure: false });
   const [, setRevision] = useState(0);
   const [tries, setTries] = useState(0);
@@ -47,16 +56,25 @@ export function usePictures(input: {
     if (wanted === "") return;
     let cancelled = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
+    const known: Record<string, string> = JSON.parse(versions);
     const missing = wanted
       .split("\n")
-      .filter((path) => wantsPicture(`${cwd}\n${path}`, Date.now()));
+      .filter((path) => wantsPicture(`${cwd}\n${pictureKey(path, known)}`, Date.now()));
     void (async () => {
       let unpictured = false;
       for (let start = 0; start < missing.length; start += BATCH) {
         if (cancelled) return;
+        const batch = missing.slice(start, start + BATCH);
+        const batchVersions = Object.fromEntries(
+          batch.flatMap((path) => (known[path] === undefined ? [] : [[path, known[path]!]])),
+        );
         const result = await render({
           environmentId,
-          input: { cwd, paths: missing.slice(start, start + BATCH) },
+          input: {
+            cwd,
+            paths: batch,
+            ...(Object.keys(batchVersions).length === 0 ? {} : { versions: batchVersions }),
+          },
         });
         if (result._tag !== "Success") {
           unpictured = true;
@@ -64,7 +82,7 @@ export function usePictures(input: {
         }
         for (const picture of result.value.pictures) {
           if (picture.png === null) unpictured = true;
-          pictureCache.set(`${cwd}\n${picture.path}`, {
+          pictureCache.set(`${cwd}\n${pictureKey(picture.path, known)}`, {
             picture: picture.png === null ? null : `data:image/png;base64,${picture.png}`,
             at: Date.now(),
           });
@@ -79,11 +97,11 @@ export function usePictures(input: {
       cancelled = true;
       if (retry !== undefined) clearTimeout(retry);
     };
-  }, [render, environmentId, cwd, wanted, tries]);
+  }, [render, environmentId, cwd, wanted, versions, tries]);
 
   const pictures = new Map<string, string>();
   for (const path of input.paths) {
-    const picture = pictureCache.get(`${cwd}\n${path}`)?.picture;
+    const picture = pictureCache.get(`${cwd}\n${pictureKey(path, input.versions)}`)?.picture;
     if (picture) pictures.set(path, picture);
   }
   return pictures;

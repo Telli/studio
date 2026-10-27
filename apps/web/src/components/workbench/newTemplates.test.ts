@@ -62,7 +62,31 @@ describe("new templates", () => {
         part: null,
         description: "80 mm wide, two M5 holes",
       }),
-    ).toBe("Create a new part, parts/wall_bracket, in millimeters. 80 mm wide, two M5 holes.");
+    ).toBe(
+      "Create a new part as a cadgen model in parts/wall_bracket.py, in millimeters. 80 mm wide, two M5 holes.",
+    );
+    // An assembly is a model too; a board is KiCad's, not a model.
+    const assembly = newWorkPrompt({
+      template: template("assembly"),
+      name: "Arm",
+      folder: "assemblies",
+      units: "in",
+      part: null,
+      description: "",
+    });
+    expect(assembly).toBe(
+      "Create a new assembly as a cadgen model in assemblies/arm.py, in inches, using the project's parts where they fit.",
+    );
+    expect(
+      newWorkPrompt({
+        template: template("board"),
+        name: "Driver",
+        folder: "electronics",
+        units: "mm",
+        part: null,
+        description: "",
+      }),
+    ).toBe("Create a new KiCad board, electronics/driver, with its schematic.");
   });
 
   it("offers what is on and names what is off", () => {

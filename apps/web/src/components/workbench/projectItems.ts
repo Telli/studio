@@ -1,6 +1,7 @@
 import { overviewParts } from "./checkResults";
 import { partLabel } from "./partNames";
 import { classifyProjectFile, type ProjectFile, type ProjectGroup } from "./projectFiles";
+import { type ProjectModel, withModels } from "./projectModels";
 
 /**
  * The types the Overview's list of a project's files filters by, as Google Drive filters a folder
@@ -50,6 +51,7 @@ export interface FileItem {
 
 /** A row's words: kinds the file's folder decides ("Result", "Toolpath") are said after its name. */
 function labelOf(file: ProjectFile): string {
+  if (file.document !== undefined) return file.title;
   return file.kind === "Result" || file.kind === "Toolpath"
     ? `${file.title} ${file.kind.toLowerCase()}`
     : partLabel(file.path);
@@ -64,18 +66,26 @@ const showRank = (path: string) => {
 
 /**
  * Every file of the project's folders, each thing once, in type then name order: a part as the
- * Overview counts it (a mesh beside its STEP folded in), a result, job or drawing whose files share
- * a folder and a name as the file that shows it. The README is the Overview's own, so not listed.
+ * Overview counts it (a mesh beside its STEP folded in, a cadgen 0.8 model by its document id), a
+ * result, job or drawing whose files share a folder and a name as the file that shows it. The
+ * README is the Overview's own, so not listed.
  */
 export function projectFileItems(
-  folders: ReadonlyArray<{ readonly root: string; readonly paths: ReadonlyArray<string> | null }>,
+  folders: ReadonlyArray<{
+    readonly root: string;
+    readonly paths: ReadonlyArray<string> | null;
+    readonly models?: ReadonlyArray<ProjectModel>;
+  }>,
 ): FileItem[] {
   const items: FileItem[] = [];
   for (const folder of folders) {
-    const files = (folder.paths ?? [])
-      .map(classifyProjectFile)
-      .filter((file): file is ProjectFile => file !== null)
-      .filter((file) => !/^readme\.md$/i.test(file.path));
+    const files = withModels(
+      (folder.paths ?? [])
+        .map(classifyProjectFile)
+        .filter((file): file is ProjectFile => file !== null)
+        .filter((file) => !/^readme\.md$/i.test(file.path)),
+      folder.models,
+    );
     for (const file of overviewParts(files)) {
       items.push({ root: folder.root, file, label: labelOf(file) });
     }

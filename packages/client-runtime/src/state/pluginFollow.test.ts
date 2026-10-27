@@ -1,7 +1,12 @@
 import { describe, expect, it } from "@effect/vitest";
 import type { InstalledPlugin, OrchestrationV2TurnItem, PluginView } from "@t3tools/contracts";
 
-import { agentOpenedView, pluginFollowTarget, workspaceRelativePath } from "./pluginFollow.ts";
+import {
+  agentOpenedView,
+  isDocumentId,
+  pluginFollowTarget,
+  workspaceRelativePath,
+} from "./pluginFollow.ts";
 
 const openView: PluginView = {
   server: "cad",
@@ -47,11 +52,25 @@ describe("agentOpenedView", () => {
       "t3-code.text-to-cad__cad_open",
       "text-to-cad__cad_open",
     ]) {
-      const target = agentOpenedView([plugin()], toolName, { path: "/work/part.step" });
+      const target = agentOpenedView([plugin()], toolName, { source: "/work/part.step" });
       expect(target?.choice.view.tool).toBe("cad_open");
-      expect(target?.path).toBe("/work/part.step");
-      expect(target?.arguments).toEqual({ path: "/work/part.step" });
+      expect(target?.source).toBe("/work/part.step");
+      expect(target?.arguments).toEqual({ source: "/work/part.step" });
     }
+  });
+
+  it("tracks a model the agent opened by its document id", () => {
+    const id = "0b9c3c1e-5d0a-5f8e-9a43-2f1d6c7b8a90";
+    const target = agentOpenedView([plugin()], "text-to-cad__cad_open", { source: id });
+    expect(target?.source).toBe(id);
+    expect(target?.arguments).toEqual({ source: id });
+    expect(isDocumentId(id)).toBe(true);
+    expect(isDocumentId("/work/part.step")).toBe(false);
+  });
+
+  it("reads cadgen 0.7's path where a call names no source", () => {
+    const target = agentOpenedView([plugin()], "text-to-cad__cad_open", { path: "/w/a.step" });
+    expect(target?.source).toBe("/w/a.step");
   });
 
   it("ignores other tools, lookalike names and disabled plugins", () => {
@@ -70,10 +89,10 @@ describe("pluginFollowTarget", () => {
       item({
         type: "dynamic_tool",
         toolName: "mcp__t3-code__text-to-cad__cad_open",
-        input: { path: "/w/a.step" },
+        input: { source: "/w/a.step" },
       }),
     );
-    expect(target).toMatchObject({ kind: "agent", path: "/w/a.step" });
+    expect(target).toMatchObject({ kind: "agent", source: "/w/a.step" });
   });
 
   it("follows the last written file a view claims", () => {

@@ -30,6 +30,8 @@ const tools = [
   { name: "sync", description: "View state", inputSchema: { type: "object" }, _meta: { ui: { resourceUri: "ui://demo/view", visibility: ["app"] } } },
   { name: "plain", description: "Echo", inputSchema: { type: "object", properties: { text: { type: "string" } } } },
 ];
+// cadgen's app capability: each home launch delivers a new one, and cad_http refuses the first.
+let homes = 0;
 readline.createInterface({ input: process.stdin }).on("line", (line) => {
   const message = JSON.parse(line);
   if (message.id === undefined) return;
@@ -41,6 +43,10 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
         instructions: JSON.stringify({ ext: message.params.capabilities.extensions ?? null, cwd: process.cwd(), root: process.env.PLUGIN_ROOT }) });
     case "tools/list": return reply({ tools });
     case "tools/call":
+      if (message.params.name === "cad_home")
+        return reply({ content: [], _meta: { "dev.texttocad/httpToken": "token-" + ++homes } });
+      if (message.params.name === "cad_http" && message.params.arguments.headers?.["x-cadgen-app"] === "token-1")
+        return reply({ isError: true, content: [{ type: "text", text: "This CAD view was opened before CAD restarted: close it and open CAD again." }] });
       return reply({ content: [{ type: "text", text: JSON.stringify({ name: message.params.name, arguments: message.params.arguments, meta: message.params._meta ?? null }) }] });
     case "resources/read":
       return reply({ contents: [{ uri: message.params.uri, mimeType: "text/html;profile=mcp-app", text: "<p>demo view</p>",
@@ -299,6 +305,59 @@ describe("plugins", () => {
 
           yield* plugins.uninstall("demo");
           assert.deepEqual((yield* plugins.list).plugins, []);
+        }).pipe(
+          Effect.provide(
+            layerFor(
+              [{ type: "folder", path: files.market }],
+              NodePath.join(files.dir, "t3"),
+              files.work,
+            ),
+          ),
+          Effect.ensuring(
+            Effect.sync(() => NodeFS.rmSync(files.dir, { recursive: true, force: true })),
+          ),
+        );
+      },
+    );
+
+    it.effect(
+      "asks the viewer's routes for Studio's own UI with the server's app capability",
+      () => {
+        const files = fixture();
+        return Effect.gen(function* () {
+          const plugins = yield* PluginService.PluginService;
+          yield* plugins.install("local-market/demo");
+          const route = (headers: Record<string, string>) =>
+            plugins
+              .request({
+                threadId,
+                pluginId: "demo",
+                server: "main",
+                method: "tools/call",
+                params: {
+                  name: "cad_http",
+                  arguments: { method: "GET", url: "/__cad/recents", headers },
+                },
+              })
+              .pipe(
+                Effect.map(
+                  (reply) =>
+                    JSON.parse(
+                      (reply.result as { content: Array<{ text: string }> }).content[0]!.text,
+                    ).arguments.headers,
+                ),
+              );
+          // The first capability the home launch gave was refused as stale: the next one is asked
+          // for, and kept for the requests after.
+          assert.deepEqual(yield* route({}), { "x-cadgen-app": "token-2" });
+          assert.deepEqual(yield* route({ accept: "application/json" }), {
+            accept: "application/json",
+            "x-cadgen-app": "token-2",
+          });
+          // A view's own request carries its own, untouched.
+          assert.deepEqual(yield* route({ "x-cadgen-app": "the view's" }), {
+            "x-cadgen-app": "the view's",
+          });
         }).pipe(
           Effect.provide(
             layerFor(

@@ -4,9 +4,8 @@ import { useId } from "react";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { HardwareAction } from "./hardwareActions";
-import { MENU_TINTS } from "./kinds";
 import type { ToolboxSection } from "./toolbox";
-import { toolIcon } from "./toolIcons";
+import { toolIcon, toolTint } from "./toolIcons";
 
 /** A section's title over its jobs as tool tiles, two to a row; a folded one opens in place. */
 export function SectionJobs(props: {
@@ -43,7 +42,7 @@ export function SectionJobs(props: {
 
 /**
  * A job as a tool to pick up: a square raised tile, its own picture (`toolIcon`) large in its
- * group's color over its name. What it makes shows on hover and is the tile's description for
+ * color (`toolTint`) over its name. What it makes shows on hover and is the tile's description for
  * readers. A press sends the job (`onRun`).
  */
 function ToolTile(props: {
@@ -54,7 +53,7 @@ function ToolTile(props: {
   readonly onRun: () => void;
 }) {
   const { action, icon: Icon } = props;
-  const tint = MENU_TINTS[action.group];
+  const tint = toolTint(action);
   const describedBy = useId();
   return (
     <Tooltip>

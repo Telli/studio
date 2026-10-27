@@ -44,6 +44,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as ServerConfig from "../config.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
+import * as AppCapability from "./appCapability.ts";
 import * as PluginFiles from "./pluginFiles.ts";
 import * as ModelPictures from "./modelPictures.ts";
 import * as PluginHost from "./PluginHost.ts";
@@ -139,6 +140,7 @@ const make = Effect.gen(function* () {
             launch,
             cwd: input.cwd,
             paths: input.paths,
+            versions: input.versions,
             cacheDir: path.join(config.stateDir, "plugins", "pictures"),
           }),
         catch: (cause) =>
@@ -185,6 +187,57 @@ const make = Effect.gen(function* () {
       : workspaceOf(threadId, file).pipe(Effect.map((root) => [root]));
 
   const scopeOf = (threadId: ThreadId | null) => threadId ?? PluginHost.ENVIRONMENT_SCOPE;
+
+  // Each scope's CAD server's app capability (`appCapability.ts`), by scope, plugin and server: the
+  // last a launch it answered delivered.
+  const capabilities = new Map<string, string>();
+  const capabilityKey = (threadId: ThreadId | null, pluginId: string, server: string) =>
+    [scopeOf(threadId), pluginId, server].join("\u0000");
+  const remember = (key: string, result: unknown) => {
+    const token = AppCapability.readCapability(result);
+    if (token !== null) capabilities.set(key, token);
+    return token;
+  };
+
+  /**
+   * A request of a view's server. A `cad_http` call that carries no capability (Studio's own UI
+   * reading the viewer's routes) carries its scope's, asked of the server's home launch when none
+   * is known, and asked again once when the server refuses it as one from before it restarted.
+   */
+  const request = (input: PluginRequestInput) =>
+    Effect.gen(function* () {
+      const roots = yield* rootsOf(input.threadId);
+      const call = (method: PluginHost.ForwardedMethod, params: unknown) =>
+        host.request({
+          scope: scopeOf(input.threadId),
+          pluginId: input.pluginId,
+          server: input.server,
+          method,
+          params,
+          roots,
+        });
+      if (!AppCapability.wantsCapability(input.method, input.params) || !isRecord(input.params)) {
+        return { result: yield* call(input.method, input.params) };
+      }
+      const params = input.params;
+      const key = capabilityKey(input.threadId, input.pluginId, input.server);
+      const launch = call("tools/call", { name: AppCapability.LAUNCH_TOOL, arguments: {} }).pipe(
+        Effect.map((result) => remember(key, result)),
+        Effect.orElseSucceed(() => null),
+      );
+      const token = capabilities.get(key) ?? (yield* launch);
+      if (token === null) return { result: yield* call("tools/call", params) };
+      const result = yield* call("tools/call", AppCapability.withCapability(params, token));
+      if (!AppCapability.refusedCapability(result)) return { result };
+      capabilities.delete(key);
+      const fresh = yield* launch;
+      return {
+        result:
+          fresh === null
+            ? result
+            : yield* call("tools/call", AppCapability.withCapability(params, fresh)),
+      };
+    });
 
   /** List the plugin's tools in the background, waiting a little for a quick server. */
   const relist = (pluginId: string) =>
@@ -244,6 +297,9 @@ const make = Effect.gen(function* () {
       arguments: toolInput,
       ...(meta === undefined ? {} : { _meta: meta }),
     });
+    // The launch's `_meta` goes to the view whole (its capability among it), and is remembered for
+    // Studio's own reads of the same server.
+    remember(capabilityKey(input.threadId, input.pluginId, input.server), toolResult);
     const resource = yield* call("resources/read", { uri: view.resourceUri });
     const contents =
       isRecord(resource) && Array.isArray(resource.contents) ? resource.contents : [];
@@ -338,20 +394,7 @@ const make = Effect.gen(function* () {
           ),
         ),
     openView,
-    request: (input) =>
-      rootsOf(input.threadId).pipe(
-        Effect.flatMap((roots) =>
-          host.request({
-            scope: scopeOf(input.threadId),
-            pluginId: input.pluginId,
-            server: input.server,
-            method: input.method,
-            params: input.params,
-            roots,
-          }),
-        ),
-        Effect.map((result) => ({ result })),
-      ),
+    request,
     modelPictures,
     agentTools,
     callAgentTool,

@@ -3,11 +3,12 @@
  * Pictures of a project's models for Studio's project page: every part,
  * assembly, board, drawing and mesh, not only the ones a viewer has opened.
  * text-to-cad renders them itself: its CAD server is `cadgen mcp`, and the
- * same launcher with `snapshot` instead of `mcp` renders any file it opens
- * (STEP, meshes, DXF, KiCad boards and schematics, harnesses, robots) to a PNG,
- * a whole batch in one run. So a release runs the release's cadgen and a
- * development checkout its own. Pictures are cached by the file's size and
- * time, so a page renders only what changed.
+ * same launcher with `snapshot` instead of `mcp` renders any document or file
+ * it opens (a model by its document id, STEP, xbf, meshes, DXF, harnesses,
+ * robots) to a PNG, a whole batch in one run. So a release runs the release's
+ * cadgen and a development checkout its own. Pictures are cached by the
+ * file's size and time, or by a model's build, so a page renders only what
+ * changed. KiCad boards have no picture on cadgen 0.8 yet.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
@@ -23,8 +24,10 @@ const HEIGHT = 360;
 const RUN_MS = 4 * 60_000;
 
 /** The files cadgen renders, by ending. */
-const RENDERABLE =
-  /\.(?:step|stp|stl|3mf|glb|dxf|kicad_pcb|kicad_sch|urdf|srdf|sdf)$|\.harness\.ya?ml$/i;
+const RENDERABLE = /\.(?:step|stp|xbf|stl|3mf|glb|dxf|urdf|srdf|sdf)$|\.harness\.ya?ml$/i;
+
+/** A cadgen document id: a model's, which its script's run prints (cadgen's `ids.is_id`). */
+const DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export interface SnapshotLaunch {
   readonly command: string;
@@ -69,13 +72,16 @@ export function snapshotLaunch(
 
 export const isRenderable = (path: string) => RENDERABLE.test(path);
 
-/** Where a file's picture is cached: named by the file and its size and time, so an edit is a new picture. */
+/** Where a picture is cached: named by what it shows, so an edit or a build is a new picture. */
+const cached = (cacheDir: string, key: string) =>
+  NodePath.join(
+    cacheDir,
+    `${NodeCrypto.createHash("sha256").update(key).digest("hex").slice(0, 32)}.png`,
+  );
+
+/** A file's picture: by the file and its size and time. */
 export function pictureFile(cacheDir: string, absolute: string, stat: NodeFS.Stats): string {
-  const key = NodeCrypto.createHash("sha256")
-    .update(`${absolute}\n${stat.size}\n${stat.mtimeMs}`)
-    .digest("hex")
-    .slice(0, 32);
-  return NodePath.join(cacheDir, `${key}.png`);
+  return cached(cacheDir, `${absolute}\n${stat.size}\n${stat.mtimeMs}`);
 }
 
 function run(launch: SnapshotLaunch, jobFile: string): Promise<void> {
@@ -106,18 +112,26 @@ function run(launch: SnapshotLaunch, jobFile: string): Promise<void> {
 // One render at a time per project: a page that asks again while one runs waits for it.
 const running = new Map<string, Promise<unknown>>();
 
-/**
- * The pictures of `paths` (workspace-relative) under `cwd`, as base64 PNGs,
- * null for a file that is gone or would not render. Cached ones come back at
- * once; the rest render in one batch, and a batch that fails renders one by
- * one, so one broken file costs only its own picture.
- */
-export async function renderModelPictures(input: {
+interface PicturesInput {
   readonly launch: SnapshotLaunch;
   readonly cwd: string;
+  /** Workspace-relative files, and models by their document id. */
   readonly paths: ReadonlyArray<string>;
+  /** Each model's build (its Recents `updated`), by id: what its picture is cached by. */
+  readonly versions?: Readonly<Record<string, string>> | undefined;
   readonly cacheDir: string;
-}): Promise<Array<{ readonly path: string; readonly png: string | null }>> {
+}
+
+/**
+ * The pictures of `paths` under `cwd`, as base64 PNGs, null for a file that
+ * is gone or would not render, and for a model whose build is not named.
+ * Cached ones come back at once; the rest render in one batch, and a batch
+ * that fails renders one by one, so one broken file costs only its own
+ * picture.
+ */
+export async function renderModelPictures(
+  input: PicturesInput,
+): Promise<Array<{ readonly path: string; readonly png: string | null }>> {
   const previous = running.get(input.cwd) ?? Promise.resolve();
   const turn = previous.catch(() => undefined).then(() => render(input));
   running.set(input.cwd, turn);
@@ -128,15 +142,19 @@ export async function renderModelPictures(input: {
   }
 }
 
-async function render(input: {
-  readonly launch: SnapshotLaunch;
-  readonly cwd: string;
-  readonly paths: ReadonlyArray<string>;
-  readonly cacheDir: string;
-}) {
+async function render(input: PicturesInput) {
   NodeFS.mkdirSync(input.cacheDir, { recursive: true });
   const root = NodePath.resolve(input.cwd);
   const files = input.paths.map((path) => {
+    if (DOCUMENT_ID.test(path)) {
+      // The engine draws a model from the document it holds; its build names the picture.
+      const version = input.versions?.[path];
+      return {
+        path,
+        absolute: path,
+        picture: version === undefined ? null : cached(input.cacheDir, `${path}\n${version}`),
+      };
+    }
     const absolute = NodePath.resolve(root, path);
     // Workspace files only.
     if (!absolute.startsWith(`${root}${NodePath.sep}`) || !isRenderable(path)) {

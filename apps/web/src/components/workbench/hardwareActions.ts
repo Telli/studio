@@ -95,7 +95,7 @@ export interface HardwareAction {
   readonly label: string;
   /**
    * What you get: what its skill makes, one line under the label in its menu, in the voice of its
-   * library entry's "You get" (`libraryCatalog.ts`). A sentence of at most 90 characters.
+   * library entry's "You get" (`libraryCatalog.ts`). A sentence of at most 100 characters.
    */
   readonly gets: string;
   /** The text-to-cad skill the job runs on; null for one any agent can do. */
@@ -740,6 +740,19 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     prompt: (file) =>
       `Make an engineering drawing of ${file} with its key dimensions and tolerances.`,
     short: (name) => `Draw ${name}`,
+  },
+  {
+    id: "pmi",
+    group: "Document",
+    section: "drawings",
+    label: "3D PMI",
+    gets: "Datums, tolerances and notes on the model itself (model-based definition), exported as AP242 STEP.",
+    skill: "cad",
+    kinds: SOLID,
+    checks: false,
+    prompt: (file) =>
+      `Add 3D PMI to ${file} as the cad skill's references/pmi.md says: datums on the faces it is located by, the sizes and positions that matter as tolerances, and a general profile note. Then export it as AP242 STEP with its PMI.`,
+    short: (name) => `3D PMI for ${name}`,
   },
   {
     id: "parts-list",

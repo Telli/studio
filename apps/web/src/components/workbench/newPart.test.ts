@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import starterStep from "./starter/part.step?raw";
 import {
+  type BuiltPart,
+  buildPart,
   freePartStem,
   makeNewPart,
   partStem,
   starterScript,
-  starterStepAs,
   UNTITLED_PART,
   untitledName,
 } from "./newPart";
@@ -31,6 +31,7 @@ describe("a new part's file", () => {
     expect(partStem("Shelf bracket")).toBe("shelf_bracket");
     expect(partStem("2nd bracket")).toBe("part_2nd_bracket");
     expect(partStem("step")).toBe("part_step");
+    expect(partStem("model")).toBe("part_model");
     expect(partStem("class")).toBe("part_class");
     expect(partStem("  ")).toBe("part");
   });
@@ -54,9 +55,11 @@ describe("a new part's file", () => {
 describe("the starter part", () => {
   const script = starterScript("part");
 
-  it("is a part script: cadgen's step decorator on one function, run when the script is", () => {
-    expect(script).toContain("from cadgen import step");
-    expect(script).toMatch(/^@step\ndef part\(\):$/m);
+  it("is a cadgen 0.8 model: build123d itself, the model decorator on one function, run when the script is", () => {
+    expect(script).toContain("import build123d as bd");
+    expect(script).toContain("from cadgen import model");
+    expect(script).not.toContain("from cadgen import build123d");
+    expect(script).toMatch(/^@model\ndef part\(\):$/m);
     expect(script).toMatch(/^if __name__ == "__main__":\n {4}part\(\)$/m);
   });
 
@@ -65,7 +68,7 @@ describe("the starter part", () => {
       (match) => match[1],
     );
     expect(sizes).toEqual(["LENGTH", "WIDTH", "HEIGHT"]);
-    expect(script.indexOf("HEIGHT =")).toBeLessThan(script.indexOf("@step"));
+    expect(script.indexOf("HEIGHT =")).toBeLessThan(script.indexOf("@model"));
     expect(script).toContain('Sketch("Sketch1", plane="Top")');
     expect(script).toContain("sketch1.rectangle(sketch1.origin, (LENGTH, WIDTH))");
     expect(script).toContain("bd.extrude(sketch1.face(), amount=HEIGHT)");
@@ -77,36 +80,75 @@ describe("the starter part", () => {
     expect(named).toContain('body.label = "shelf_bracket"');
     expect(named).toMatch(/^ {4}shelf_bracket\(\)$/m);
   });
+});
 
-  it("comes with the STEP its script builds: the block of its sizes, corner to corner", () => {
-    // Change the script's sizes or sketch and this fails until the STEP is built again
-    // (`starterScript`'s comment says how).
-    const size = (name: string) => {
-      const match = new RegExp(`^${name} = (\\d+(?:\\.\\d+)?)$`, "m").exec(script);
-      return Number(match?.[1]);
+describe("a new part's first build", () => {
+  const id = "0b9c3c1e-5d0a-5f8e-9a43-2f1d6c7b8a90";
+  /** Studio's CAD service as a list of replies, in order, recording what it was asked. */
+  function service(replies: ReadonlyArray<unknown>) {
+    const asked: Array<{ path: string; body: unknown }> = [];
+    let next = 0;
+    const post = async (path: string, body: unknown) => {
+      asked.push({ path, body });
+      return replies[next++] ?? null;
     };
-    // A number as the STEP writes it: 40 is "40.", 12.5 is "12.5".
-    const written = (value: number) => (Number.isInteger(value) ? `${value}.` : `${value}`);
-    const corner = [size("LENGTH"), size("WIDTH"), size("HEIGHT")].map(written).join(",");
-    expect(corner).toBe("40.,20.,10.");
-    expect(starterStep).toContain(`CARTESIAN_POINT('',(${corner}));`);
-    expect(starterStep).toContain("CARTESIAN_POINT('',(0.,0.,0.));");
+    return { asked, post };
+  }
+  const run = (post: (path: string, body: unknown) => Promise<unknown>) =>
+    buildPart({ post, script: "/p/parts/part.py", wait: async () => {} });
+
+  it("asks for the build, then answers the document's id once it is built", async () => {
+    const cad = service([
+      { ok: true, document: id, building: {} },
+      { ok: true, editable: true, document: id, partBuilt: false, partBuilding: true },
+      { ok: true, editable: true, document: id, partBuilt: true, partBuilding: false },
+    ]);
+    expect(await run(cad.post)).toEqual<BuiltPart>({ id });
+    expect(cad.asked).toEqual([
+      { path: "/__cad/edit/change", body: { file: "/p/parts/part.py", build: true } },
+      { path: "/__cad/edit/state", body: { file: "/p/parts/part.py", probe: true } },
+      { path: "/__cad/edit/state", body: { file: "/p/parts/part.py", probe: true } },
+    ]);
   });
 
-  it("comes with the STEP its script builds, named for its file as a build names it", () => {
-    expect(starterStepAs(starterStep, "part")).toBe(starterStep);
-    const named = starterStepAs(starterStep, "shelf_bracket");
-    expect(named).toContain("FILE_NAME('shelf_bracket',");
-    expect(named).toContain("PRODUCT('shelf_bracket','shelf_bracket',");
-    expect(named).not.toContain("PRODUCT('part'");
-    // The category every part has stays as a build writes it.
-    expect(named).toContain("PRODUCT_RELATED_PRODUCT_CATEGORY('part',");
+  it("answers a failed build's own error, and never an id to open", async () => {
+    const cad = service([
+      { ok: true, document: id },
+      {
+        ok: true,
+        document: id,
+        partBuilt: false,
+        partBuilding: false,
+        partError: "part.py: NameError: name 'LENGHT' is not defined",
+      },
+    ]);
+    expect(await run(cad.post)).toEqual({
+      error: "part.py: NameError: name 'LENGHT' is not defined",
+    });
+  });
+
+  it("says so when the service can't be asked, or the build ended with no model", async () => {
+    expect(await run(service([null]).post)).toEqual({
+      error: "Studio's CAD service did not answer.",
+    });
+    expect(
+      await run(service([{ ok: false, error: "This model has no part script to change." }]).post),
+    ).toEqual({ error: "This model has no part script to change." });
+    expect(
+      await run(service([{ ok: true }, { ok: true, partBuilt: false, partBuilding: false }]).post),
+    ).toEqual({ error: "The part's build ended with no model." });
   });
 });
 
 describe("New part, step by step", () => {
+  const id = "0b9c3c1e-5d0a-5f8e-9a43-2f1d6c7b8a90";
+  const written = async (folder: string) => `${folder}/parts/part.py`;
   /** New part's steps, recording what was opened and said; `write` is the starter's write. */
-  function run(write: (folder: string) => Promise<void>, names: ReadonlyArray<string> = []) {
+  function run(
+    write: (folder: string) => Promise<string>,
+    names: ReadonlyArray<string> = [],
+    built: BuiltPart = { id },
+  ) {
     const seen: string[] = [];
     const done = makeNewPart<string>({
       names: async () => names,
@@ -117,29 +159,43 @@ describe("New part, step by step", () => {
         return true;
       },
       writeStarter: write,
-      openPart: (ref) => seen.push(`part beside ${ref}`),
+      build: async (ref, script) => {
+        seen.push(`built ${script} for ${ref}`);
+        return built;
+      },
+      openPart: (ref, part) => seen.push(`${part} beside ${ref}`),
       openProject: (ref) => seen.push(`overview beside ${ref}`),
       failed: (title, error) => seen.push(`${title}: ${(error as Error).message}`),
     });
     return done.then(() => seen);
   }
 
-  it("makes the project past the names taken and opens its part", async () => {
-    expect(await run(async () => {}, ["Untitled part"])).toEqual([
+  it("makes the project past the names taken, builds its part, and opens it by its id", async () => {
+    expect(await run(written, ["Untitled part"])).toEqual([
       "made Untitled part 2",
-      "part beside chat",
+      "built /projects/untitled-part/parts/part.py for chat",
+      `${id} beside chat`,
+    ]);
+  });
+
+  it("opens the project and says the build's error when its part doesn't build", async () => {
+    expect(await run(written, [], { error: "part.py: the build failed" })).toEqual([
+      "made Untitled part",
+      "built /projects/untitled-part/parts/part.py for chat",
+      "overview beside chat",
+      "Made Untitled part, but its part did not build: part.py: the build failed",
     ]);
   });
 
   it("keeps the project when its starter can't be written, opens it, and says so", async () => {
     expect(
       await run(async () => {
-        throw new Error("parts/part.step could not be written.");
+        throw new Error("parts/part.py could not be written.");
       }),
     ).toEqual([
       "made Untitled part",
       "overview beside chat",
-      "Made Untitled part, but its starter part could not be written: parts/part.step could not be written.",
+      "Made Untitled part, but its starter part could not be written: parts/part.py could not be written.",
     ]);
   });
 
@@ -153,7 +209,8 @@ describe("New part, step by step", () => {
         seen.push("made");
         return true;
       },
-      writeStarter: async () => {},
+      writeStarter: written,
+      build: async () => ({ id }),
       openPart: () => {},
       openProject: () => {},
       failed: (title, error) => seen.push(`${title}: ${(error as Error).message}`),

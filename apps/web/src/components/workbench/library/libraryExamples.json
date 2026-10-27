@@ -33,6 +33,7 @@
     "picture": "cam/horn_adapter.cam.glb"
   },
   "doc:print": null,
+  "doc:pmi": null,
   "doc:cut-file": {
     "example": "cut/servo_bracket_cut.dxf",
     "picture": "cut/servo_bracket_cut.dxf"

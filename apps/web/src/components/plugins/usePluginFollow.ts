@@ -91,7 +91,7 @@ export function usePluginFollow(input: {
       const target = pluginFollowTarget(plugins, item);
       if (target === null) continue;
       if (target.kind === "agent") {
-        agentSurface = agentViewSurface(target.choice, target.arguments, target.path);
+        agentSurface = agentViewSurface(target.choice, target.arguments, target.source);
         continue;
       }
       if (!followFiles) continue;

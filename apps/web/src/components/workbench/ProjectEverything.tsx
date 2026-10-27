@@ -11,6 +11,7 @@ import { KIND_ICONS, KIND_TINTS } from "./kinds";
 import { CARD_GRID, FileCard, MODULE_HEADING, ShowAll } from "./OverviewModules";
 import { type FolderPart, PartFooter } from "./PartBadges";
 import type { ProjectGroup } from "./projectFiles";
+import { pictureVersions, type ProjectModel } from "./projectModels";
 import {
   type FileItem,
   ITEM_TYPES,
@@ -70,6 +71,7 @@ function FileCards(props: {
     paths: props.items
       .filter((item) => !isPhoto(item.file.path))
       .map((item) => item.file.picture ?? item.file.path),
+    versions: pictureVersions(props.items.map((item) => item.file)),
   });
   return props.items.map((item) => {
     const part = props.parts.get(fullPath(item));
@@ -109,6 +111,7 @@ function ListRows(props: {
     paths: props.items
       .filter((item) => !isPhoto(item.file.path))
       .map((item) => item.file.picture ?? item.file.path),
+    versions: pictureVersions(props.items.map((item) => item.file)),
   });
   return props.items.map((file) => {
     const part = props.parts.get(fullPath(file));
@@ -167,6 +170,7 @@ export function ProjectEverything(props: {
   readonly folders: ReadonlyArray<{
     readonly root: string;
     readonly paths: ReadonlyArray<string> | null;
+    readonly models?: ReadonlyArray<ProjectModel>;
   }>;
   /** The project's parts and boards with their checks, by full path. */
   readonly parts: ReadonlyMap<string, FolderPart>;

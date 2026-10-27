@@ -21,10 +21,10 @@ const server = (args: string[]) => ({
 describe("model pictures", () => {
   it("renders with the plugin's own cadgen: its CAD server's launcher, snapshot for mcp", () => {
     const release = snapshotLaunch(
-      { root: "/plugin", servers: { cad: server(["--from", "cadgen==0.7.21", "cadgen", "mcp"]) } },
+      { root: "/plugin", servers: { cad: server(["--from", "cadgen==0.8.0", "cadgen", "mcp"]) } },
       { PATH: "/usr/bin" },
     );
-    expect(release?.args).toEqual(["--from", "cadgen==0.7.21", "cadgen", "snapshot"]);
+    expect(release?.args).toEqual(["--from", "cadgen==0.8.0", "cadgen", "snapshot"]);
     expect(release?.env).toMatchObject({
       PATH: "/usr/bin",
       CADGEN_INSTALL_CHANNEL: "agent-plugins",
@@ -78,5 +78,50 @@ describe("model pictures", () => {
     expect(NodeFS.readFileSync(runs, "utf8").trim().split("\n")).toEqual(["2", "1", "1"]);
     await renderModelPictures({ ...input, paths: ["parts/bracket.step"] });
     expect(NodeFS.readFileSync(runs, "utf8").trim().split("\n")).toHaveLength(3);
+  });
+
+  it("pictures a model by its document id, cached by its build, and an .xbf by its path", async () => {
+    const dir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "pictures-"));
+    const project = NodePath.join(dir, "project");
+    NodeFS.mkdirSync(NodePath.join(project, "XBF"), { recursive: true });
+    NodeFS.writeFileSync(NodePath.join(project, "XBF", "plate.xbf"), "xbf");
+    const inputs = NodePath.join(dir, "inputs.txt");
+    // Stands in for `cadgen snapshot --job`, saying what each job drew.
+    const renderer = NodePath.join(dir, "renderer.mjs");
+    NodeFS.writeFileSync(
+      renderer,
+      `import fs from "node:fs";
+       const jobs = JSON.parse(fs.readFileSync(process.argv[process.argv.indexOf("--job") + 1], "utf8"));
+       for (const job of jobs) {
+         fs.appendFileSync(${JSON.stringify(inputs)}, job.input + "\\n");
+         fs.writeFileSync(job.outputs[0].path, "PNG");
+       }`,
+    );
+    const id = "0b9c3c1e-5d0a-5f8e-9a43-2f1d6c7b8a90";
+    const input = {
+      launch: { command: process.execPath, args: [renderer], env: {}, cwd: dir },
+      cwd: project,
+      paths: [id, "XBF/plate.xbf"],
+      versions: { [id]: "1761555600.5" },
+      cacheDir: NodePath.join(dir, "cache"),
+    };
+    const png = Buffer.from("PNG").toString("base64");
+    expect(await renderModelPictures(input)).toEqual([
+      { path: id, png },
+      { path: "XBF/plate.xbf", png },
+    ]);
+    expect(NodeFS.readFileSync(inputs, "utf8").trim().split("\n")).toEqual([
+      id,
+      NodePath.join(project, "XBF", "plate.xbf"),
+    ]);
+    // The same build answers from the cache; a new build is drawn again.
+    await renderModelPictures({ ...input, paths: [id] });
+    expect(NodeFS.readFileSync(inputs, "utf8").trim().split("\n")).toHaveLength(2);
+    await renderModelPictures({ ...input, paths: [id], versions: { [id]: "1761555700.1" } });
+    expect(NodeFS.readFileSync(inputs, "utf8").trim().split("\n")).toHaveLength(3);
+    // An id with no build named has no picture to keep: nothing is drawn for it.
+    expect(await renderModelPictures({ ...input, paths: [id], versions: {} })).toEqual([
+      { path: id, png: null },
+    ]);
   });
 });

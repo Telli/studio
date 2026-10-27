@@ -59,7 +59,7 @@ const NOTHING_FOUND = (root: string): ScannedRoot => ({ root, files: [] });
 /** The Import dialog, wherever it was asked for (`importDialogStore.ts`). */
 
 /** The models the server can picture, by their endings (as `modelPictures.ts` renders them). */
-const PICTURED = /\.(?:step|stp|stl|3mf|glb|dxf|kicad_pcb)$/i;
+const PICTURED = /\.(?:step|stp|xbf|stl|3mf|glb|dxf)$/i;
 
 /**
  * A found project's picture, as its tile on Home will show it: its first model, rendered where it

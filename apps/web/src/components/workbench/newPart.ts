@@ -1,12 +1,14 @@
 /**
- * New part, made with no agent and no questions (`useNewPart.ts`): a part script that sketches one
- * block from three named sizes, the cad skill's smallest part, so CAD mode opens on something to
- * edit, and the STEP that script builds, so the part shows at once. Its first change in CAD mode
- * builds it again from the script, as every part is built.
+ * New part, made with no agent and no questions (`useNewPart.ts`): a cadgen 0.8 model script that
+ * sketches one block from three named sizes, the cad skill's smallest part, so CAD mode opens on
+ * something to edit. The engine never builds a model because a view opened it, so the script is
+ * written, built by Studio's CAD service (edit mode's builds), and its document opened by its id
+ * once that build is done. Every change in CAD mode builds it again from the script.
  */
 
 import { copyName } from "./examples/examples";
 import { fileStem } from "./newTemplates";
+import type { CadPost } from "./useVersions";
 
 /** What a new part's project is called until it is renamed: "Untitled part", "Untitled part 2". */
 export const UNTITLED_PART = "Untitled part";
@@ -23,7 +25,7 @@ export function untitledName(existing: ReadonlyArray<string>): string {
 }
 
 /** Names a part's script can't take: the names it imports, and a module it would hide. */
-const TAKEN_BY_SCRIPT = new Set(["bd", "step", "cadgen", "build123d", "sizes"]);
+const TAKEN_BY_SCRIPT = new Set(["bd", "model", "step", "cadgen", "build123d", "sizes"]);
 /**
  * Modules a part's build imports by name: a script runs with its folder first on the path, so a
  * part named `platform` or `copy` would stand in for Python's own and break its build. Python's
@@ -91,19 +93,17 @@ export function freePartStem(stem: string, taken: ReadonlyArray<string>): string
 
 /**
  * The starter part's script, as the servo bracket's parts are written: what it is, its sizes named
- * at the top, and one sketch on the Top plane, fully defined from them, extruded. `stem` names its
- * function and its label, as the script's file is named. The STEP beside it (`starter/part.step`)
- * is what this script builds: change the script and build that again with Studio's cadgen, from a
- * folder holding `parts/part.py` written from `starterScript("part")`:
- * `text-to-cad/.venv/bin/python parts/part.py`, then copy `parts/part.step` over the bundled one
- * (`newPart.test.ts` checks the block's sizes match).
+ * at the top, and one sketch on the Top plane, fully defined from them, extruded, in a cadgen 0.8
+ * model (`@model`), which the engine builds when the script runs. `stem` names its function and its
+ * label, as the script's file is named; the function's name and the script's path are its document
+ * id.
  */
 export function starterScript(stem: string): string {
   return `"""A new part: one block, sketched on the Top plane and extruded. Change its sizes here or in CAD
 mode, and add its features there. Origin: a corner of its underside, +Z up."""
 
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 LENGTH = 40.0
@@ -111,7 +111,7 @@ WIDTH = 20.0
 HEIGHT = 10.0
 
 
-@step
+@model
 def ${stem}():
     sketch1 = Sketch("Sketch1", plane="Top")
     line1, line2, line3, line4 = sketch1.rectangle(sketch1.origin, (LENGTH, WIDTH))
@@ -127,23 +127,61 @@ if __name__ == "__main__":
 `;
 }
 
+/** A part's first build: its document's id to open, or why there is none. */
+export type BuiltPart = { readonly id: string } | { readonly error: string };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** How long a first build may take: the CAD service's own limit on one build, and a little more. */
+export const PART_BUILD_MS = 330_000;
+const PART_BUILD_POLL_MS = 500;
+
 /**
- * The STEP the starter builds (`starter/part.step`, built by cadgen from `starterScript("part")`)
- * as the script named `stem` builds it: the file and the part carry its name where a build of that
- * script writes it (a build wraps a long name's header line; STEP reads the same either way).
+ * Builds a part's script (`script`, absolute) through Studio's CAD service, edit mode's builds
+ * (`cadgen/edit/service.py`, `change` with `build`), and waits until its document is built
+ * (`partBuilt`) or its build failed (`partError`, in the build's own words). `wait` is the pause
+ * between asks.
  */
-export function starterStepAs(step: string, stem: string): string {
-  return step
-    .replace("FILE_NAME('part',", `FILE_NAME('${stem}',`)
-    .replace("PRODUCT('part','part',", `PRODUCT('${stem}','${stem}',`);
+export async function buildPart(input: {
+  readonly post: CadPost;
+  readonly script: string;
+  readonly wait?: (ms: number) => Promise<void>;
+  readonly now?: () => number;
+}): Promise<BuiltPart> {
+  const wait = input.wait ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const now = input.now ?? Date.now;
+  const said = (reply: unknown, otherwise: string) =>
+    isRecord(reply) && typeof reply.error === "string" && reply.error !== ""
+      ? reply.error
+      : otherwise;
+  const asked = await input.post("/__cad/edit/change", { file: input.script, build: true });
+  if (!isRecord(asked) || asked.ok !== true) {
+    return { error: said(asked, "Studio's CAD service did not answer.") };
+  }
+  const deadline = now() + PART_BUILD_MS;
+  for (;;) {
+    const probe = await input.post("/__cad/edit/state", { file: input.script, probe: true });
+    if (!isRecord(probe) || probe.ok !== true) {
+      return { error: said(probe, "Studio's CAD service did not answer.") };
+    }
+    if (typeof probe.partError === "string") return { error: probe.partError };
+    if (probe.partBuilt === true && typeof probe.document === "string") {
+      return { id: probe.document };
+    }
+    if (probe.partBuilding !== true) return { error: "The part's build ended with no model." };
+    if (now() >= deadline) return { error: "The part took too long to build." };
+    await wait(PART_BUILD_POLL_MS);
+  }
 }
 
 /**
  * New part's steps in order (`useNewPart`): name the project past every name taken, make it, write
- * the starter into its folder, then open the part beside its new chat. A starter that can't be
- * written leaves the project made, as it is: its chat opens on its Overview, where Start a part by
- * hand tries again, and `failed` says it was made and why its part was not. Anything that stops
- * the project being made says so (`create` says its own failures).
+ * the starter into its folder, build it, then open the part beside its new chat by its document id.
+ * A starter that can't be written, or doesn't build, leaves the project made, as it is: its chat
+ * opens on its Overview, where Start a part by hand tries again, and `failed` says it was made and
+ * why its part was not (a build's own error). Anything that stops the project being made says so
+ * (`create` says its own failures). It resolves once the part is open, or has said why not.
  */
 export async function makeNewPart<Ref>(steps: {
   /** Every project's name, and Trash's. */
@@ -153,9 +191,11 @@ export async function makeNewPart<Ref>(steps: {
     readonly onFolder: (folder: string) => Promise<void>;
     readonly show: (ref: Ref) => void;
   }) => Promise<boolean>;
-  readonly writeStarter: (folder: string) => Promise<void>;
-  /** Opens the part in CAD mode beside the chat. */
-  readonly openPart: (ref: Ref) => void;
+  /** Writes the starter into the project's folder, and answers its script's absolute path. */
+  readonly writeStarter: (folder: string) => Promise<string>;
+  readonly build: (ref: Ref, script: string) => Promise<BuiltPart>;
+  /** Opens the part's document in CAD mode beside the chat. */
+  readonly openPart: (ref: Ref, id: string) => void;
   /** Opens the project's Overview beside the chat. */
   readonly openProject: (ref: Ref) => void;
   readonly failed: (title: string, error: unknown) => void;
@@ -167,26 +207,44 @@ export async function makeNewPart<Ref>(steps: {
     steps.failed("Could not make the part", error);
     return;
   }
-  // Set by the folder's step, read once the project is made.
-  const starter: { failed: boolean; error: unknown } = { failed: false, error: null };
+  // Set by the folder's step and the chat's, read once the project is made.
+  const starter: { script: string | null; error: unknown; chat: { readonly ref: Ref } | null } = {
+    script: null,
+    error: null,
+    chat: null,
+  };
   try {
     await steps.create({
       name,
       onFolder: async (folder) => {
         try {
-          await steps.writeStarter(folder);
+          starter.script = await steps.writeStarter(folder);
         } catch (error) {
-          starter.failed = true;
           starter.error = error;
         }
       },
-      show: (ref) => (starter.failed ? steps.openProject(ref) : steps.openPart(ref)),
+      show: (ref) => {
+        starter.chat = { ref };
+      },
     });
   } catch (error) {
     steps.failed("Could not make the part", error);
     return;
   }
-  if (starter.failed) {
-    steps.failed(`Made ${name}, but its starter part could not be written`, starter.error);
+  const opened = starter.chat;
+  if (starter.script === null) {
+    if (opened !== null) steps.openProject(opened.ref);
+    if (starter.error !== null) {
+      steps.failed(`Made ${name}, but its starter part could not be written`, starter.error);
+    }
+    return;
   }
+  if (opened === null) return;
+  const built = await steps.build(opened.ref, starter.script);
+  if ("id" in built) {
+    steps.openPart(opened.ref, built.id);
+    return;
+  }
+  steps.openProject(opened.ref);
+  steps.failed(`Made ${name}, but its part did not build`, new Error(built.error));
 }

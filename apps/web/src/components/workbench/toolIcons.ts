@@ -50,6 +50,7 @@ import {
   SpoolIcon,
   SprayCanIcon,
   SyringeIcon,
+  TargetIcon,
   ThermometerIcon,
   TimerIcon,
   TornadoIcon,
@@ -66,7 +67,7 @@ import {
 } from "lucide-react";
 
 import type { HardwareAction } from "./hardwareActions";
-import { DISCIPLINE_ICONS, KIND_ICONS, MENU_ICONS } from "./kinds";
+import { DISCIPLINE_ICONS, KIND_ICONS, MENU_ICONS, MENU_TINTS } from "./kinds";
 
 /**
  * Each job's own picture on its Toolbox tile, by job id (`HARDWARE_ACTIONS`), so the tiles in a
@@ -152,6 +153,8 @@ const JOB_ICONS: Partial<Record<string, LucideIcon>> = {
   "export-mesh": PyramidIcon,
   // Document
   drawing: KIND_ICONS.Drawings,
+  // Datums and the tolerances located from them.
+  pmi: TargetIcon,
   "parts-list": ClipboardListIcon,
   instructions: ListOrderedIcon,
   exploded: ExpandIcon,
@@ -202,6 +205,23 @@ const SECTION_ICONS: Partial<Record<string, LucideIcon>> = {
 export function toolIcon(action: HardwareAction): LucideIcon {
   return JOB_ICONS[action.id] ?? SECTION_ICONS[action.section] ?? MENU_ICONS[action.group];
 }
+
+/**
+ * The jobs whose tile has a color of its own, by job id: 3D PMI's indigo, so the model-based
+ * definition reads apart from the drawing beside it (the Document group's magenta). Never red,
+ * amber or green, which say a check failed, needs you or passed (`KIND_TINTS`).
+ */
+const JOB_TINTS: Partial<Record<string, string>> = {
+  pmi: "text-indigo-600 dark:text-indigo-400",
+};
+
+/** A job's color on its Toolbox tile: its own, else its group's (`MENU_TINTS`). */
+export function toolTint(action: HardwareAction): string {
+  return JOB_TINTS[action.id] ?? MENU_TINTS[action.group];
+}
+
+/** The jobs with a color of their own, by id: the test holds each to a real job and an allowed hue. */
+export const JOB_TINT_IDS: ReadonlyArray<string> = Object.keys(JOB_TINTS);
 
 /** Whether a section (`ACTION_SECTIONS` id) has a picture of its own for its jobs to fall back on. */
 export function hasSectionIcon(section: string): boolean {

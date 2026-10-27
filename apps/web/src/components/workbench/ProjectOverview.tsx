@@ -28,6 +28,7 @@ import {
 import { KIND_ICONS } from "./kinds";
 import { humanName, partName } from "./partNames";
 import { leadPartOf } from "./leadPart";
+import { pictureVersions, withModels } from "./projectModels";
 import { type FolderPart, MadeBadges, PartFooter, PartIcon } from "./PartBadges";
 import {
   CARD_GRID,
@@ -56,6 +57,7 @@ import { ProjectThreads } from "./ProjectThreads";
 import { useEngineeringInterface } from "./studioInterface";
 import { usePictures } from "./usePictures";
 import { useProjectChecks } from "./useProjectChecks";
+import { useProjectModels } from "./useProjectModels";
 import { projectChats } from "./workspaceTitle";
 
 const STATUS_ORDER: Record<CheckStatus | "none", number> = {
@@ -98,6 +100,7 @@ function LeadPart(props: {
     environmentId: props.environmentId,
     cwd: part.root,
     paths: [part.file.picture ?? part.file.path],
+    versions: pictureVersions([part.file]),
   });
   const picture = pictures.get(part.file.picture ?? part.file.path);
   const status = worstStatus(part.results);
@@ -291,17 +294,30 @@ export function ProjectOverview(props: {
   /** Opens New on Documents (PRD, requirements, FMEA, your own templates); null where it cannot. */
   readonly onNewDocument: (() => void) | null;
 }) {
-  const folders = useProjectChecks({
+  const folderChecks = useProjectChecks({
     environmentId: props.environmentId,
     folders: props.folders,
     mutationId: props.mutationId,
   });
+  // Each folder's cadgen 0.8 models, among its parts by their document ids.
+  const models = useProjectModels({
+    environmentId: props.environmentId,
+    folders: props.folders,
+    mutationId: props.mutationId,
+  });
+  const folders = useMemo(
+    () => folderChecks.map((folder) => ({ ...folder, models: models.get(folder.root) ?? [] })),
+    [folderChecks, models],
+  );
 
   const { byFolder, issues, checked, reading } = useMemo(() => {
     const byFolder = folders.map((folder) => {
-      const files = (folder.paths ?? [])
-        .map(classifyProjectFile)
-        .filter((file): file is ProjectFile => file !== null);
+      const files = withModels(
+        (folder.paths ?? [])
+          .map(classifyProjectFile)
+          .filter((file): file is ProjectFile => file !== null),
+        folder.models,
+      );
       const designs = overviewParts(files);
       const made = manufacturingFor(designs, files);
       const parts = designs

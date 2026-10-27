@@ -741,6 +741,12 @@ class ModelsOfTheEngine(unittest.TestCase):
         self.assertTrue(rolled["ok"], rolled.get("error"))
         document = rolled["bar"]["document"]
         self.assertAlmostEqual(api.inspect(document["id"], query="summary")["summary"]["volume"], 40 * 30 * 5, places=3)
+        # It is the bar's, not the person's: Recents (the CAD home, Studio's lists) leaves it out.
+        from cadgen.viewer.recents import RecentStore
+
+        listed = [entry.path for entry in RecentStore().list()]
+        self.assertIn(ident, listed)
+        self.assertNotIn(document["id"], listed)
 
     def wait_built(self, service, deadline_seconds=edit.BUILD_TIMEOUT):
         """The service's last batch of builds, once it is done."""
@@ -748,6 +754,28 @@ class ModelsOfTheEngine(unittest.TestCase):
         while service.building()["done"] < len(service.building()["scripts"]) and time.monotonic() < deadline:
             time.sleep(0.1)
         return service.building()
+
+    def test_a_new_part_is_built_by_asking_and_says_when_it_is_built_or_why_not(self):
+        # Studio's New part: its script written, then built (`build`), and opened by its id once built.
+        root = project({"parts/fresh.py": MODELS["post.py"].replace("post", "fresh"), "parts/broken.py": MODELS["broken.py"]})
+        self.addCleanup(shutil.rmtree, root, True)
+        fresh = root / "parts" / "fresh.py"
+        probe = self.service.editable(str(fresh))
+        self.assertEqual((probe["document"], probe["partBuilt"], probe["partBuilding"]), (edit.document_of(fresh), False, False))
+        asked = self.service.change({"file": str(fresh), "build": True})
+        self.assertTrue(asked["ok"], asked.get("error"))
+        self.assertEqual(asked["document"], edit.document_of(fresh))
+        self.assertIsNone(self.wait_built(self.service)["error"])
+        built = self.service.editable(str(fresh))
+        self.assertEqual((built["partBuilt"], built["partBuilding"]), (True, False))
+        self.assertNotIn("partError", built)
+        # One whose build fails says why, and is not built: nothing to open, nothing to wait for.
+        broken = root / "parts" / "broken.py"
+        self.assertTrue(self.service.change({"file": str(broken), "build": True})["ok"])
+        self.wait_built(self.service)
+        probe = self.service.editable(str(broken))
+        self.assertEqual((probe["partBuilt"], probe["partBuilding"]), (False, False))
+        self.assertIn("the wall is thicker than the part", probe["partError"])
 
     def test_a_file_names_no_model_so_its_faces_fall_back_to_the_geometric_map(self):
         from cadgen.engine import api
