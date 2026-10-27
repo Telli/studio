@@ -10,7 +10,7 @@ const lazy = start => {
 
 /**
  * A paste into the note, line by line: each line that is a reference and nothing else — a file's
- * absolute path and the ids in it, `/models/base.step#o1.f2`, as Copy References and a chip's click
+ * absolute path and the ids in it, `/models/base.step#f:base.make_box1.2`, as Copy References and a chip's click
  * write one — is that reference (into any file); a paste that is the annotation as its chip copies
  * it (its annotation JSON, whole) is `[{ annotation }]`; every other line stays text. A reference
  * within a sentence is the sentence's. A line that is what one of the box's chips copied (`copied`:
@@ -52,10 +52,11 @@ export const quickEditSelection = references => references.filter(reference => r
  *   files?: Promise<{ snapshot?: string, inline?: string }> | null,
  *   read?: (path: string) => Promise<Blob>, marks?: string }} quickEdit
  */
-export function createQuickEditContext({ resource, references = [], text, views = [], files = null, read = null, marks = "" }) {
+export function createQuickEditContext({ resource, references = [], text, views = [], files = null, read = null, marks = "", viewUnavailable = "" }) {
   const note = String(text || "").trim();
   const parts = [
     ...(note ? [textPart(note, "text")] : []),
+    ...(viewUnavailable ? [textPart(`View replay unavailable: ${viewUnavailable}`, "view-unavailable")] : []),
     referencePart({ resource: { ...resource }, target: { kind: "whole-resource" } }, "file"),
     ...quickEditSelection(references).map((reference, index) => referencePart({ ...reference, resource: { ...reference.resource } }, `reference-${index}`)),
     ...(marks ? [textPart(marks, "marks")] : []),
@@ -65,8 +66,8 @@ export function createQuickEditContext({ resource, references = [], text, views 
     const made = pick => { const path = files.then(pick); path.catch(() => {}); return path; };
     const path = made(result => result.snapshot || "");
     const inlineText = made(result => typeof result.inline === "string"
-      ? `Snapshot JSON (cadgen snapshot --job):\n\`\`\`json\n${result.inline}\n\`\`\`` : null);
-    parts.push({ id: "snapshot", kind: "attachment", label: "Snapshot (cadgen snapshot --job)",
+      ? `Snapshot JSON (cadgen snapshot --annotation):\n\`\`\`json\n${result.inline}\n\`\`\`` : null);
+    parts.push({ id: "snapshot", kind: "attachment", label: "Snapshot (cadgen snapshot --annotation)",
       name: `${name}.snapshot.json`, mimeType: "application/json", path, inlineText,
       content: lazy(() => files.then(result => typeof result.inline === "string"
         ? new Blob([result.inline], { type: "application/json" }) : read(result.snapshot))), about: ["file"] });
@@ -93,18 +94,20 @@ export async function copiedQuickEdit(context) {
  *   marks?(): string } | null | undefined} prompt
  */
 export function promptAttachments(prompt) {
-  const views = prompt?.views() ?? [];
+  // A view the renderer cannot replay is said in words instead of being drawn.
+  const viewUnavailable = prompt?.unavailable?.() || "";
+  const views = viewUnavailable ? [] : prompt?.views() ?? [];
   const files = views.length ? prompt.files(views) : null;
   void files?.catch(() => {});
-  return { views, files, read: prompt?.read, marks: prompt?.marks?.() || "" };
+  return { views, files, read: prompt?.read, marks: prompt?.marks?.() || "", viewUnavailable };
 }
 
 /**
- * Why a delivery did not go, in the words Quick Edit shows under its note: the host's own, else "The prompt did not go."; empty once
- * it went. Only a failed or cancelled receipt is a failure.
+ * Why a delivery did not go, in the words Quick Edit shows under its note: the host's own, else `unsent` (the view's words for
+ * "The prompt did not go."); empty once it went. Only a failed or cancelled receipt is a failure.
  */
-export const deliveryFailure = result => (result && (result.status === "failed" || result.status === "cancelled")
-  ? result.message || "The prompt did not go." : "");
+export const deliveryFailure = (result, unsent = "The prompt did not go.") => (result && (result.status === "failed" || result.status === "cancelled")
+  ? result.message || unsent : "");
 
 /**
  * Whether the host has a chat box to fill: the prompt destination (`usePromptDestination()`) is a composer that can take context for

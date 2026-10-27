@@ -491,10 +491,12 @@ function exactMeasurementFromPicks(pickA, pickB) {
  * What a single selected entity is worth on its own — length, area, radius —
  * taken from the exact values the topology computed rather than from the
  * tessellation. This is the half of a CAD measure tool that answers "how big is
- * this thing" before any second pick is made.
+ * this thing" before any second pick is made. A face's area is cadgen's exact measure of it, which
+ * the view asks for when the face is pointed at: `faceArea` is its state, and `{state: "ready",
+ * area}` reports it.
  */
-export function entityMeasurementFromPick(pick) {
-  const made = exactEntityFromPick(pick);
+export function entityMeasurementFromPick(pick, { faceArea = null } = {}) {
+  const made = exactEntityFromPick(pick, { faceArea });
   return pick?.displayUnit === "in" ? entityInInches(made) : made;
 }
 
@@ -515,7 +517,7 @@ export function entityInInches(entity) {
   return converted;
 }
 
-function exactEntityFromPick(pick) {
+function exactEntityFromPick(pick, { faceArea = null } = {}) {
   if (pick?.snapKind === "vertex" && isFinitePoint(pick.point)) {
     // Where it is in the model's own coordinates, not where the viewer drew the re-centred model.
     const offset = isFinitePoint(pick.offset) ? pick.offset : [0, 0, 0];
@@ -549,7 +551,7 @@ function exactEntityFromPick(pick) {
     return compactEntity({
       selectorType: "face",
       typeLabel: surfaceType || "face",
-      area: finiteNumber(pickData.area),
+      area: faceArea?.state === "ready" ? finiteNumber(faceArea.area) : null,
       radius,
       diameter: radius === null ? null : radius * 2,
       center: isFinitePoint(params.center) ? params.center.slice(0, 3) : null,

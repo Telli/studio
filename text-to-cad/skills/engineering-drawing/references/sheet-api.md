@@ -7,17 +7,14 @@ from cadgen.eng_drawing import eng_drawing, Sheet, Frame, geometry_notes
 ## Template
 
 ```python
-from pathlib import Path
-
-import cadgen
 from cadgen.eng_drawing import Sheet, eng_drawing
-# The facts the dimensions reference come from the model, not from this file.
-from enclosure import FLOOR, HOLES, L, H, W
+# The part, and the facts the dimensions reference, come from the model, not from this file.
+from enclosure import FLOOR, HOLES, L, H, W, enclosure
 
 
 @eng_drawing(out="../PDF/enclosure_drawing.pdf")
 def enclosure_drawing():
-    part = cadgen.read_step(Path(__file__).parent / "../STEP/enclosure.step")
+    part = enclosure().shape    # the model, built by the engine (a replay when it holds it)
     sheet = Sheet("A3", title="ENCLOSURE", part_number="ENC-001", material="ABS",
                   revision="A", general_tolerance="ISO 2768-m",
                   notes=["BREAK SHARP EDGES."])
@@ -40,12 +37,12 @@ hidden lines cannot (here a keyway's depth) and draws a detail of what is too
 small to dimension at 1:1:
 
 ```python
-from shaft import CHAMFER, KEY_DEPTH, KEY_END, KEY_START, KEY_WIDTH, LENGTH, STEP_DIAMETER, STEP_LENGTH
+from shaft import CHAMFER, KEY_DEPTH, KEY_END, KEY_START, KEY_WIDTH, LENGTH, STEP_DIAMETER, STEP_LENGTH, shaft
 
 
 @eng_drawing(out="../PDF/shaft_drawing.pdf")
 def shaft_drawing():
-    part = cadgen.read_step(Path(__file__).parent / "../STEP/shaft.step")   # axis along X
+    part = shaft().shape    # axis along X
     sheet = Sheet("A3", title="SHAFT", part_number="SH-001", general_tolerance="ISO 2768-m")
     top, front, right, iso = sheet.three_views(part, iso=True)
     middle, r = (KEY_START + KEY_END) / 2, STEP_DIAMETER / 2

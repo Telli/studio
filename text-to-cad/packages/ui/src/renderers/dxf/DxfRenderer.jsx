@@ -24,6 +24,7 @@ import { createDrawingScene, drawingHandleOf, drawingReferenceId, drawingUnits, 
 import { drawingAnnotationDocument, drawingAnnotationSurface } from "./drawingAnnotation.js";
 import LayersSection from "./LayersSection.jsx";
 import { DXF_DECLINED_LIVE_COMMANDS, DXF_NO_CAMERA, DXF_NO_DISPLAY, DXF_TOOL, DXF_TOOL_MODES } from "./tools.js";
+import { useI18n } from "@text-to-cad/ui/i18n";
 
 /**
  * A `.dxf` is drawn as a drawing: on a canvas, head on, in the pens it declares. No 3D, no fold
@@ -36,7 +37,7 @@ import { DXF_DECLINED_LIVE_COMMANDS, DXF_NO_CAMERA, DXF_NO_DISPLAY, DXF_TOOL, DX
  * pinch zooms, a double-click fits; Annotate, which draws on the sheet; and Measure, between points
  * snapped to its ends, centres and lines, in the unit the drawing declares (bare drawing units when
  * it declares none). What is picked and drawn is Quick Edit's (what is measured, Measure's row's), whose views are the window
- * on screen as a plan-view camera, which `cadgen dxf snapshot --job` draws again. A drawing with
+ * on screen as a plan-view camera, which `cadgen snapshot --annotation PACKET --camera authored` draws again. A drawing with
  * layers and blocks to read has a Layers section in the file sidebar (`layersSectionShown`). The
  * chrome is every flat view's (`kit/shell/FlatViewFrame.jsx`, `useFlatView.js`) — the strip at the
  * top centre, the tool's row under it, the sidebar at the top-left, Quick Edit at the top-right —
@@ -55,6 +56,7 @@ const PICK_PX = 6;
 const pickPx = pointerType => (pointerType === "touch" ? TOUCH_HIT_PX : PICK_PX);
 
 function DxfSurface({ view, data }) {
+  const { t } = useI18n();
   const mobile = useViewerMobile();
   const workspace = useWorkspaceDocument({ view, data });
   const file = workspace.entry?.file || view.file.path;
@@ -115,8 +117,8 @@ function DxfSurface({ view, data }) {
   const paintRef = useRef(() => {});
   const requestPaint = useCallback(() => paintRef.current(), []);
   const scene = useMemo(() => (drawing ? createDrawingScene(drawing, {
-    onHighlight: ink => { highlightRef.current = ink; }, unit: units.declared ? units.unit : ""
-  }) : null), [drawing, units]);
+    onHighlight: ink => { highlightRef.current = ink; }, unit: units.declared ? units.unit : "", t
+  }) : null), [drawing, units, t]);
   const selection = useSceneSelection({ scene, requestRender: requestPaint });
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
@@ -258,15 +260,15 @@ function DxfSurface({ view, data }) {
   const alert = useMemo(() => {
     if (workspace.catalogError && !shown) {
       return {
-        severity: "error", kind: "status", title: "Couldn’t open the drawing",
-        message: "The viewer couldn’t retrieve this file’s information.",
-        recovery: "Try again. If this continues, check that the viewer is running.",
+        severity: "error", kind: "status", title: t("alert.openDrawingFailed"),
+        message: t("alert.catalogFailed"),
+        recovery: t("alert.catalogRecovery"),
         details: String(workspace.catalogError), reload: true
       };
     }
-    const failed = drawingLoadAlert(workspace.modelKey || file, payload.error);
-    return failed && shown ? { ...failed, blocking: false, message: `${failed.message} The existing drawing remains visible.` } : failed;
-  }, [workspace.catalogError, workspace.modelKey, file, payload.error, shown]);
+    const failed = drawingLoadAlert(workspace.modelKey || file, payload.error, t);
+    return failed && shown ? { ...failed, blocking: false, message: t("alert.drawingStillShown", { message: failed.message }) } : failed;
+  }, [workspace.catalogError, workspace.modelKey, file, payload.error, shown, t]);
   const empty = shown && !drawing.bounds;
   // Settled is this revision's drawing painted: a capture waits out an update.
   const ready = shown && !payload.loading && !payload.updating && !alert;
@@ -303,7 +305,7 @@ function DxfSurface({ view, data }) {
   };
   const handover = useFlatHandover({
     view, data, workspace, file, shown, ready, alert, tools, selection, references, chips, nameReference,
-    capture, currentView, annotationDocument, runtime, live: DXF_LIVE, captureFailed: "Couldn’t capture the drawing", fit
+    capture, currentView, annotationDocument, runtime, live: DXF_LIVE, captureFailed: t("alert.captureDrawingFailed"), fit
   });
 
   // ---- the frame ---------------------------------------------------------------
@@ -326,7 +328,7 @@ function DxfSurface({ view, data }) {
       sidebar={layered ? <LayersSection drawing={drawing} hiddenLayers={hiddenLayers} onToggleLayer={toggleLayer} selection={selection} /> : null}
       toolStack={handover.toolStack} onToolStackChange={handover.changeToolStack} notice={view.notice} quickEdit={handover.quickEdit}
       alert={alert} cardAlert={handover.cardAlert} alertDismissal={handover.alertDismissal} shown={shown} onReload={view.reload}>
-      <canvas ref={canvasRef} aria-label={`Drawing: ${view.file.name}`} role="img" data-drawing-tool={toolMode}
+      <canvas ref={canvasRef} aria-label={t("drawing.canvas", { name: view.file.name })} role="img" data-drawing-tool={toolMode}
         className={cn("absolute inset-0 block touch-none select-none", cursor)} />
       {/* Measure's layer, over the drawing and under the tools: the pointer stays the drawing's. */}
       <canvas ref={measureCanvasRef} className="pointer-events-none absolute inset-0 z-[1] h-full w-full" aria-hidden="true" data-scene-measure="" />
@@ -334,7 +336,7 @@ function DxfSurface({ view, data }) {
       {empty ? (
         <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground"
           data-drawing-empty>
-          This drawing has no geometry in its modelspace, so there is nothing to show.
+          {t("drawing.empty")}
         </p>
       ) : null}
     </FlatViewFrame>

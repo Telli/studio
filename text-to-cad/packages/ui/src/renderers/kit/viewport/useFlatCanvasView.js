@@ -127,7 +127,10 @@ export function useFlatCanvasView({ content, bounds, restored = null, colorSchem
     const box = boundsRef.current;
     const { width, height } = sizeRef.current;
     if (!box || width <= 0 || height <= 0) return;
-    const fitted = fitTransform(box, width, height);
+    // The view frames clear of its tool strip, which the view measures as `--cad-tools-bottom`.
+    const frame = containerRef.current?.closest?.("[data-slot=cad-file-view]");
+    const strip = frame ? Number.parseFloat(getComputedStyle(frame).getPropertyValue("--cad-tools-bottom")) : 0;
+    const fitted = fitTransform(box, width, height, { top: Number.isFinite(strip) ? strip : 0 });
     fitScaleRef.current = fitted.scale;
     if (force || !movedRef.current) {
       movedRef.current = false;

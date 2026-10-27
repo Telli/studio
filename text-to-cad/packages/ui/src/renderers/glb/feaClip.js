@@ -1,4 +1,9 @@
-import { axisIndex, clipAmount, clipAxisPosition, normalizeStepClipSettings, pointVisibleByClipPlane } from "@text-to-cad/core/lib/viewer/clipPlane.js";
+import { axisIndex, clipAmount, clipAxisPosition, normalizeStepClipSettings } from "@text-to-cad/core/lib/viewer/clipPlane.js";
+
+// Whether a point is on the kept side of a cut, a hair of tolerance on the plane itself (0.7's
+// `pointVisibleByClipPlane`, which left core with the STEP renderer).
+const keptByPlane = (plane, point, epsilon = 1e-5) => !plane || !point || typeof plane.distanceToPoint !== "function"
+  || plane.distanceToPoint(point) >= -epsilon;
 
 /**
  * An FEA result's section cut: the view's Clip (`clip` in its resolved Display settings) as one
@@ -75,7 +80,7 @@ export function createFeaClip(THREE, mesh, root) {
     keeps(at, object) {
       if (!active) return true;
       object.updateWorldMatrix(true, false);
-      return pointVisibleByClipPlane(toWorld(), point.fromArray(at).applyMatrix4(object.matrixWorld));
+      return keptByPlane(toWorld(), point.fromArray(at).applyMatrix4(object.matrixWorld));
     },
     dispose() {
       mesh.onBeforeRender = own;

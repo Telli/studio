@@ -4,6 +4,7 @@ import { MousePointer2 } from "lucide-react";
 import { clamp, finiteOr } from "@text-to-cad/core/common/numbers.js";
 import { buildCadRefToken } from "@text-to-cad/core/lib/cadRefs.js";
 import { EDGELESS_VIEW_FEATURES, scenePartCount, viewFeaturesForKind } from "@text-to-cad/core/common/viewSettings.js";
+import { useExportView } from "../../export/context.js";
 import RendererShell from "../kit/shell/RendererShell.jsx";
 import { readFileView } from "../kit/shell/fileView.js";
 import { usePreviewState, useRendererShell } from "../kit/shell/useRendererShell.js";
@@ -24,6 +25,7 @@ import { useGlbAnimation } from "./useGlbAnimation.js";
 import { useGlbScene } from "./useGlbScene.js";
 import { createResultPreview, markResultView } from "./resultPreview.js";
 import { TOOL_SHORTCUTS } from "../kit/tools/toolShortcuts.js";
+import { useI18n } from "@text-to-cad/ui/i18n";
 
 const NO_CHOICE = Object.freeze({ field: null, scale: null, loadScale: null, threshold: null, preset: null, markers: null, mode: null, frame: null, sigma: null,
   motion: null });
@@ -79,6 +81,7 @@ const CLIP_OFF = Object.freeze({ clip: { enabled: false, axis: "x", invert: fals
 
 function GlbSurface({ view, data }) {
   const host = useViewerHost();
+  const { t } = useI18n();
   const document = useWorkspaceDocument({ view, data });
   const loaded = useGlbScene({ entry: document.entry, resources: document.client.resources });
   // A result waits for its viewer as the file loading, so it is framed once, as the viewer draws it: an FEA result's
@@ -88,8 +91,8 @@ function GlbSurface({ view, data }) {
   const pending = feaPending || camPending;
   const scene = pending ? null : loaded.scene;
   const loadAlert = useMemo(() => workspaceLoadAlert({
-    catalogError: document.catalogError, error: loaded.error, modelKey: document.modelKey, hasScene: Boolean(scene)
-  }), [document.catalogError, loaded.error, document.modelKey, scene]);
+    catalogError: document.catalogError, error: loaded.error, modelKey: document.modelKey, hasScene: Boolean(scene), t
+  }), [document.catalogError, loaded.error, document.modelKey, scene, t]);
 
   // An FEA result (cadgen fea solve) carries its fields and true displacement in the file; what is
   // shown of it is chosen in Study's What you see, with the controls the study's view names (`feaControls`;
@@ -389,6 +392,12 @@ function GlbSurface({ view, data }) {
   const previewAnimation = useGlbAnimation(previewScene?.document || null,
     result ? requestPreviewFrame : () => shell.frame.previewViewRef.current?.requestRender?.(), result ? ownClips : undefined);
   const previewView = useMemo(() => ({ scene: previewScene, animation: previewAnimation }), [previewScene, previewAnimation]);
+  // Export converts the file shown to the other two mesh kinds: its path names it and the bytes on
+  // screen (their catalog hash) are its revision; the server refuses a file that has changed since.
+  const exportView = useMemo(() => scene && loaded.revision && document.modelKey && !host.environment.compact ? {
+    doc: document.modelKey, revision: loaded.revision, file: view.file.path, name: view.file.name
+  } : null, [scene, loaded.revision, document.modelKey, host.environment.compact, view.file.path, view.file.name]);
+  useExportView(exportView);
   const sceneTools = useSceneTools({ shell, scene, features: plainFeatures, state: sceneState, measurable: true, clearParts: selection.clear });
   const plainSelectActive = !previewing && Boolean(scene) && shell.toolMode === GLB_TOOL.SELECT;
   const nodes = useSceneReferences({ scene, selection, resource: shell.frame.resource });
@@ -685,7 +694,7 @@ function GlbSurface({ view, data }) {
 
   // Select is an FEA result's one tool, with Study (and an assembly's Parts) its panels; a GLB that is not a result has none.
   const selectActive = Boolean(fea) && !shell.previewing && shell.toolMode === GLB_TOOL.SELECT;
-  const tools = fea ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON }),
+  const tools = fea ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: t("tool.select"), shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON }),
     // A press opens its panel neutral (an edit cuts); a press while it is up, as its X, removes the cut.
     shell.tools.own({ id: GLB_TOOL.CLIP, label: "Clip", icon: fv.CLIP_ICON, active: clipShown,
       onSelect: () => {
@@ -794,7 +803,7 @@ function GlbSurface({ view, data }) {
     return <RendererShell shell={shell} tools={tools} toolPanels={toolPanels} sidebar={sidebar} sidebarStartsOpen={fv.OPEN_SECTION}
       previewView={resultPreviewView} viewportOverlay={overlay} references={references} onClearReferences={clearChoice} copySelection={copySelection} />;
   }
-  const strip = [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON }), ...sceneTools.tools];
+  const strip = [shell.tools.own({ id: GLB_TOOL.SELECT, label: t("tool.select"), shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON }), ...sceneTools.tools];
   // A CAM result's Job is a section of the file sidebar, there whatever tool is in hand; none is open as the file opens.
   return <RendererShell shell={shell} tools={strip} subToolbar={sceneTools.subToolbar} previewView={previewView}
     sidebar={camChrome?.sidebar ?? null}

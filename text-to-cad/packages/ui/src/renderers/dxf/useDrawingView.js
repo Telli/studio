@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { clearSurface, drawDrawing, fitTransform } from "@text-to-cad/core/lib/drawing2d/index.js";
 import { useFlatCanvasView } from "../kit/viewport/useFlatCanvasView.js";
-import { readDrawingThemeColors } from "./themeColors.js";
+import { DRAWING_THEME_FALLBACK, readDrawingThemeColors } from "./themeColors.js";
 
 const NO_LAYERS = new Set();
 
@@ -60,8 +60,11 @@ export function useDrawingView({ drawing, restored = null, colorScheme = "light"
   useEffect(() => { requestPaint(); }, [hiddenLayers, requestPaint]);
 
   /**
-   * The drawing on its own, for a library card: fitted whole to `width` × `height`, in the theme's
-   * pens on its background, painted on a canvas of its own — the pane's view is left as it is.
+   * The drawing on its own, for a library card: fitted whole to `width` × `height`, painted on a
+   * canvas of its own — the pane's view is left as it is. Like a 3D card's picture it has no
+   * background (the card's picture area shows through), and its pen is the light theme's whatever
+   * the theme it was taken in: one picture serves both themes, and a dark card inverts it
+   * (`.cad-library-thumbnail[data-drawing]`).
    */
   const thumbnail = useCallback(({ width, height }) => new Promise((resolve, reject) => {
     const drawable = drawingRef.current;
@@ -71,9 +74,9 @@ export function useDrawingView({ drawing, restored = null, colorScheme = "light"
     canvas.height = Math.max(1, Math.round(height));
     const context = canvas.getContext("2d");
     if (!context) { reject(new Error("The browser cannot draw the drawing's picture.")); return; }
-    const { background, foreground } = readDrawingThemeColors(containerRef.current, schemeRef.current);
-    clearSurface(context, { width: canvas.width, height: canvas.height, background });
-    drawDrawing(context, drawable, { transform: fitTransform(drawable.bounds, canvas.width, canvas.height), foreground });
+    clearSurface(context, { width: canvas.width, height: canvas.height });
+    drawDrawing(context, drawable, { transform: fitTransform(drawable.bounds, canvas.width, canvas.height),
+      foreground: DRAWING_THEME_FALLBACK.light.foreground });
     canvas.toBlob((blob) => {
       if (blob) resolve(blob);
       else reject(new Error("The browser could not encode this drawing as a PNG."));

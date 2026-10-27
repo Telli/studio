@@ -7,8 +7,8 @@ import { normalizeToolStack } from '../renderers/kit/tools/toolStackLayout.js';
  *   { version, settings, files }
  *
  * `settings` is tab-wide — the tool stack's layout, the appearance, how the home lays out its
- * library, and edit mode's layout and where each part it opened came from — and replaces every
- * global preference.
+ * library, the folder the explorer was last in, and edit mode's layout and where each part it
+ * opened came from — and replaces every global preference.
  * `files` is the view of the file on screen (`kit/shell/fileView.js`: its camera, its Display
  * settings, its playback, its renderer's own slices) under `[absolute file path, renderer id]`,
  * and nothing else: a write puts a file last and drops any other (`TAB_FILE_LIMIT`), and a host
@@ -42,6 +42,8 @@ export interface TabSettings {
   appearance: Appearance;
   /** The home's library: its models as a grid of cards (the default) or a list. */
   library: { layout: LibraryLayout };
+  /** The folder the name menu's Files was last in, this tab: where a model's Files starts; null, none yet. */
+  explorer: { folder: string | null };
   /** Edit mode's layout for a part script (`step/edit/editLayout.js`): Manual (the default) or AI. */
   editLayout: EditLayout;
   /** Where Open Part came from (`step/edit/openedFrom.js`), by the part's absolute path, oldest first. */
@@ -67,6 +69,11 @@ function normalizeLibrary(value: unknown): TabSettings['library'] {
   return { layout: LIBRARY_LAYOUTS.includes(layout as LibraryLayout) ? (layout as LibraryLayout) : 'grid' };
 }
 
+function normalizeExplorer(value: unknown): TabSettings['explorer'] {
+  const folder = plainObject(value) ? value.folder : undefined;
+  return { folder: typeof folder === 'string' && folder ? folder : null };
+}
+
 // Each part's way back: an assembly's file (not the part's own) and its title; the latest `OPENED_FROM_LIMIT`.
 function normalizeOpenedFrom(value: unknown): TabSettings['openedFrom'] {
   const kept: TabSettings['openedFrom'] = {};
@@ -86,6 +93,7 @@ export function normalizeTabSettings(value: unknown): TabSettings {
     toolStack: normalizeToolStack(record.toolStack) as ToolStackLayout,
     appearance: normalizeAppearance(record.appearance),
     library: normalizeLibrary(record.library),
+    explorer: normalizeExplorer(record.explorer),
     editLayout: EDIT_LAYOUTS.includes(record.editLayout as EditLayout) ? (record.editLayout as EditLayout) : 'manual',
     openedFrom: normalizeOpenedFrom(record.openedFrom),
   };

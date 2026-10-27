@@ -7,7 +7,9 @@ export const RENDER_FORMAT = Object.freeze({
   KICAD_PCB: "kicad_pcb",
   URDF: "urdf",
   SRDF: "srdf",
-  SDF: "sdf"
+  SDF: "sdf",
+  // A cadgen engine document (`cadgen.engine`): served by the engine, drawn by its own renderer.
+  XBF: "xbf"
 });
 
 export const MESH_RENDER_FORMATS = Object.freeze([
@@ -23,30 +25,6 @@ export const PLOT_RENDER_FORMATS = Object.freeze([RENDER_FORMAT.KICAD_PCB]);
 
 export function normalizeFormat(value) {
   return String(value || "").trim().toLowerCase();
-}
-
-export function normalizeRenderFormat(value, { defaultFormat = RENDER_FORMAT.STEP } = {}) {
-  const normalized = normalizeFormat(value || defaultFormat);
-  if (normalized === "stp") {
-    return RENDER_FORMAT.STEP;
-  }
-  if (normalized === "gltf") {
-    return RENDER_FORMAT.GLB;
-  }
-  if (
-    normalized === RENDER_FORMAT.STEP ||
-    normalized === RENDER_FORMAT.STL ||
-    normalized === RENDER_FORMAT.THREE_MF ||
-    normalized === RENDER_FORMAT.GLB ||
-    normalized === RENDER_FORMAT.DXF ||
-    normalized === RENDER_FORMAT.KICAD_PCB ||
-    normalized === RENDER_FORMAT.URDF ||
-    normalized === RENDER_FORMAT.SRDF ||
-    normalized === RENDER_FORMAT.SDF
-  ) {
-    return normalized;
-  }
-  return defaultFormat;
 }
 
 export function entryKind(entry) {
@@ -157,16 +135,4 @@ export function renderFormatFromExtension(extension) {
 
 export function renderFormatFromPath(value, options = {}) {
   return renderFormatFromExtension(fileExtensionFromPath(value, options));
-}
-
-/**
- * Does this path name a file the CAD Viewer renders?
- *
- * The one authority on that question for the two apps that ask it. The shared
- * entry menu (`apps/web/src/client/shell/entry-menu.js`) offers `Copy
- * reference` only for a file a selector can point into, and "which formats
- * are CAD" must not become a list either app keeps of its own.
- */
-export function isCadFile(value, options = {}) {
-  return renderFormatFromPath(value, options) !== "";
 }

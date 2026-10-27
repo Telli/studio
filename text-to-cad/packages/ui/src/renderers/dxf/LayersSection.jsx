@@ -10,7 +10,9 @@ import { cn } from "@text-to-cad/ui/utils";
 import { LAYER_GLYPH_COLUMN_CLASS, LAYER_ROW_INSET_PX, LayerSwatch } from "../kit/inspector/layerRows.jsx";
 import { openUntilChoice } from "../kit/inspector/treeExpansion.js";
 import ToolPanel from "../kit/tools/ToolPanel.jsx";
+import { useControlUsage } from "../../usage/controls.js";
 import { drawingReferenceId, layerRows } from "./drawingReferences.js";
+import { useI18n } from "@text-to-cad/ui/i18n";
 
 // The room the eye takes at a row's right end: the row's `--row-actions`.
 const ROW_ACTIONS_WIDTH = "1.5rem";
@@ -19,11 +21,13 @@ const INSERT_INSET_PX = LAYER_ROW_INSET_PX + TREE_INDENT_PX;
 
 /** A layer's Hide/Reveal eye, as a tree row's is: over the row's right end, on hover, kept while hidden. */
 function LayerEye({ name, hidden, onToggle }) {
-  const action = hidden ? "Reveal" : "Hide";
+  const usage = useControlUsage();
+  const { t } = useI18n();
+  const action = hidden ? t("tree.reveal") : t("tree.hide");
   return <div data-row-actions="" className={treeRowActionsClass(hidden)}>
     <TooltipHint content={action}>
-      <Button type="button" variant="ghost" size="icon-xs" aria-label={`${action} layer ${name}`} aria-pressed={hidden} className="h-5 w-4 text-muted-foreground"
-        data-layer-visibility={name} onClick={event => { event.stopPropagation(); onToggle(name); }}>
+      <Button type="button" variant="ghost" size="icon-xs" aria-label={t(hidden ? "layers.revealNamed" : "layers.hideNamed", { name })} aria-pressed={hidden} className="h-5 w-4 text-muted-foreground"
+        data-layer-visibility={name} onClick={event => { event.stopPropagation(); usage.used("layer_visibility"); onToggle(name); }}>
         {hidden ? <EyeOff className="size-3" aria-hidden="true" /> : <Eye className="size-3" aria-hidden="true" />}
       </Button>
     </TooltipHint>
@@ -44,6 +48,7 @@ function LayerEye({ name, hidden, onToggle }) {
  *   selection: ReturnType<typeof import("../kit/tools/select/useSceneSelection.js").useSceneSelection> }} props
  */
 export default function LayersSection({ drawing, hiddenLayers, onToggleLayer, selection }) {
+  const { t } = useI18n();
   const rows = useMemo(() => layerRows(drawing), [drawing]);
   // The layers are the drawing's, so they open as every tree's nodes do (`kit/inspector/treeExpansion.js`):
   // a layer with one block reference on it opens on it, one with several stays folded behind its
@@ -61,13 +66,13 @@ export default function LayersSection({ drawing, hiddenLayers, onToggleLayer, se
     if (!next.delete(name)) next.add(name);
     return next;
   });
-  return <ToolPanel id="layers" title="Layers" label="Layers" fit="tree" resizable collapsible={false} icon={Layers}>
-    <ul className="px-1 py-1 text-tiny" aria-label="Drawing layers" data-drawing-layers="">
+  return <ToolPanel id="layers" title={t("layers.title")} label={t("layers.title")} fit="tree" resizable collapsible={false} icon={Layers}>
+    <ul className="px-1 py-1 text-tiny" aria-label={t("layers.label")} data-drawing-layers="">
       {rows.map(row => {
         const hidden = hiddenLayers.has(row.name), open = row.inserts.length > 0 && shown.has(row.name);
         return <li key={row.name} className="min-w-0">
           <TreeRowSurface dense className="group/row gap-0 pr-0" style={{ paddingLeft: LAYER_ROW_INSET_PX, "--row-actions": ROW_ACTIONS_WIDTH }} data-layer-row={row.name}>
-            {row.inserts.length ? <button type="button" aria-label={`${open ? "Collapse" : "Expand"} ${row.name}`} aria-expanded={open}
+            {row.inserts.length ? <button type="button" aria-label={t(open ? "tree.collapse" : "tree.expand", { name: row.name })} aria-expanded={open}
               className={cn(LAYER_GLYPH_COLUMN_CLASS, "rounded focus-visible:ring-2 focus-visible:ring-ring")} onClick={() => toggle(row.name)} data-layer-glyph="chevron">
               <TreeRowChevron expanded={open} />
             </button> : <LayerSwatch color={row.color} />}
@@ -87,10 +92,10 @@ export default function LayersSection({ drawing, hiddenLayers, onToggleLayer, se
                 <span className={LAYER_GLYPH_COLUMN_CLASS} aria-hidden="true">
                   <Box className={TREE_ROW_DENSE_ICON_CLASS} strokeWidth={TREE_GLYPH_STROKE} />
                 </span>
-                <button type="button" aria-label={`Select block ${insert.block || insert.handle}`} aria-pressed={chosen.has(id)} data-insert-row={insert.handle}
+                <button type="button" aria-label={t("layers.selectBlock", { name: insert.block || insert.handle })} aria-pressed={chosen.has(id)} data-insert-row={insert.handle}
                   onClick={event => selection.select(id, { multiSelect: event.shiftKey || event.metaKey || event.ctrlKey })}
                   className="flex h-full min-w-0 flex-1 items-center gap-1.5 rounded pl-1 pr-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <TreeRowLabel className="max-w-full shrink-0">{insert.block || "Block"}</TreeRowLabel>
+                  <TreeRowLabel className="max-w-full shrink-0">{insert.block || t("layers.block")}</TreeRowLabel>
                   <TreeRowLabel className="flex-1 text-micro text-muted-foreground">{insert.handle}</TreeRowLabel>
                 </button>
               </TreeRowSurface>
