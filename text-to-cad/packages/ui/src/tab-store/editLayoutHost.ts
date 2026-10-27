@@ -28,7 +28,7 @@ let hosted = false;
 const listeners = new Set<() => void>();
 let editState: EditState = NONE;
 const editListeners = new Set<() => void>();
-let requester: ((layout: EditLayout) => void) | null = null;
+let requester: ((layout: EditLayout) => unknown) | null = null;
 
 export const editLayoutHost = {
   get: (): boolean => hosted,
@@ -58,17 +58,23 @@ export const editLayoutHost = {
       editListeners.delete(listener);
     };
   },
-  /** How to ask the host for a layout, while it takes the ask; the returned function takes it back. */
-  setRequester(next: (layout: EditLayout) => void): () => void {
+  /**
+   * How to ask the host for a layout, while it takes the ask: the host's answer, a promise that
+   * fails where it refuses. The returned function takes it back.
+   */
+  setRequester(next: (layout: EditLayout) => unknown): () => void {
     requester = next;
     return () => {
       if (requester === next) requester = null;
     };
   },
-  /** Asks the host for a layout: true when a host that takes the ask was asked, false where none does. */
-  request(layout: EditLayout): boolean {
+  /**
+   * Asks the host for a layout: true when a host that takes the ask was asked, false where none
+   * does. `refused` hears that the host said no (a command open in it) or could not be reached.
+   */
+  request(layout: EditLayout, { refused }: { readonly refused?: () => void } = {}): boolean {
     if (requester === null) return false;
-    requester(layout);
+    Promise.resolve(requester(layout)).catch(() => refused?.());
     return true;
   },
 };

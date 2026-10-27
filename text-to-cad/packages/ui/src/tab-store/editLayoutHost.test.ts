@@ -60,3 +60,19 @@ test('a page asks its host for a layout only where the host takes the ask, and s
   expect(editLayoutHost.request('ai')).toBe(false);
   expect(asked).toEqual(['manual', 'ai']);
 });
+
+test('a page hears when its host refuses the layout it asked for, and only then', async () => {
+  const refused: string[] = [];
+  let answer: Promise<unknown> = Promise.resolve({});
+  const leave = editLayoutHost.setRequester(() => answer);
+  expect(editLayoutHost.request('manual', { refused: () => { refused.push('taken'); } })).toBe(true);
+  answer = Promise.reject(new Error('Finish or cancel the command first'));
+  expect(editLayoutHost.request('manual', { refused: () => { refused.push('refused'); } })).toBe(true);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(refused).toEqual(['refused']);
+  // Asked without a way to hear back, a refusal is dropped quietly.
+  answer = Promise.reject(new Error('Busy'));
+  expect(editLayoutHost.request('ai')).toBe(true);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  leave();
+});

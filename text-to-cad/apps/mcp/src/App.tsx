@@ -138,7 +138,7 @@ export default function App({ bridge, server, launch: initial, presentation = 't
   // for the AI steps into CAD, one on empty space in CAD goes back. The layout comes back in the host context, above.
   useEffect(() => {
     if (!bridge.hostCapabilities.studioEditLayout) return undefined;
-    return editLayoutHost.setRequester(layout => void bridge.request('studio/request/edit-layout', { layout }).catch(() => {}));
+    return editLayoutHost.setRequester(layout => bridge.request('studio/request/edit-layout', { layout }));
   }, [bridge]);
   // A host that opens a part at a line of its script (Studio's References, `studio/focus`) has the part on screen select
   // the feature there (`focusHost`), and the host that asks to (`studioFocus`) hears when the view has taken it, and

@@ -160,7 +160,7 @@ import SketchesLayer from "./edit/SketchesLayer.jsx";
 import ImportedBody from "./edit/ImportedBody.jsx";
 import ValueCallout from "./edit/ValueCallout.jsx";
 import { NxIconSprite } from "../../lib/nxIcons.generated.jsx";
-import { WORKSPACE_SELECTION_COLOR, cadChosen, doubleClickLayout, editLayoutState, useEditLayout } from "./edit/editLayout.js";
+import { WORKSPACE_SELECTION_COLOR, cadChosen, doubleClickLayout, editLayoutState, pendingFaceStep, useEditLayout } from "./edit/editLayout.js";
 import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
 import { useHostFocus } from "./edit/useHostFocus.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
@@ -3848,32 +3848,33 @@ function StepSurfaceBody({ view, data }) {
   // In Studio, a part laid out for the AI steps into the workspace on the face double-clicked, and the workspace goes back
   // to the AI on a double-click on empty space with nothing open (`doubleClickLayout`); a host that takes no ask
   // (`editLayoutHost.request` false), a plain STEP and Jake's own viewer keep their double-click.
-  const nothingOpen = !commandOpen && !sketchOpen && !layoutHeld && tabToolMode === TAB_TOOL_MODE.REFERENCES
-    && !isolatedAssemblyNodeIds.length;
+  const nothingOpen = !commandOpen && !sketchOpen && !layoutHeld && !isolatedAssemblyNodeIds.length;
   const layoutAsked = target => doubleClickLayout({ layout: editLayout, hosted: layoutHosted, editable,
-    assembly: isAssemblyView, target, open: !nothingOpen });
+    assembly: isAssemblyView, target, selecting: tabToolMode === TAB_TOOL_MODE.REFERENCES, open: !nothingOpen });
   faceDoubleRef.current = (id, reference) => {
-    if (reference?.selectorType === "face" && layoutAsked("face") === "manual" && editLayoutHost.request("manual")) {
-      pendingFaceRef.current = { id, reference, file: selectedKey, reached: false };
+    if (reference?.selectorType !== "face" || layoutAsked("face") !== "manual") return selectFaceFeature(id, reference);
+    const pending = { id, reference, file: selectedKey, reached: false };
+    // A host that says no (a command open in it) leaves the face behind, if it is still the one waiting.
+    const refused = () => { if (pendingFaceRef.current === pending) pendingFaceRef.current = null; };
+    if (editLayoutHost.request("manual", { refused })) {
+      pendingFaceRef.current = pending;
       return true;
     }
     return selectFaceFeature(id, reference);
   };
   emptyDoubleRef.current = () => layoutAsked("empty") === "ai" && editLayoutHost.request("ai");
-  // The face waits for the workspace to read the part and map its faces, then has its feature selected, once. Another
-  // file, the AI's layout again once CAD's came, or a part that reads to nothing (no part script after all, a build that
-  // failed) lets it go; so does the next press (`handleModelReferenceActivate`).
+  // The face waits for CAD's layout and the part read, then has its feature selected, once (`pendingFaceStep`); the next
+  // press lets it go too (`handleModelReferenceActivate`).
   useEffect(() => {
     const pending = pendingFaceRef.current;
     if (!pending) return;
-    if (editLayout === "manual") pending.reached = true;
-    if (pending.file !== selectedKey || (pending.reached && editLayout !== "manual") || edit.status === "none" || edit.status === "error") {
-      pendingFaceRef.current = null;
-      return;
-    }
-    if (!editing || edit.status !== "ready" || !faceState) return;
+    const { step, reached } = pendingFaceStep(pending, { layout: editLayout, file: selectedKey, status: edit.status,
+      editing, faces: Boolean(faceState) });
+    // Kept on the face itself, which a refusal knows it by.
+    pending.reached = reached;
+    if (step === "wait") return;
     pendingFaceRef.current = null;
-    selectFaceFeature(pending.id, pending.reference);
+    if (step === "select") selectFaceFeature(pending.id, pending.reference);
     // Once per face handed over, on the render that can take it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editLayout, selectedKey, editing, edit.status, faceState]);

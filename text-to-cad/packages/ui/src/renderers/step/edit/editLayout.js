@@ -43,18 +43,37 @@ export function cadChosen(layout, edit) {
 
 /**
  * What a double-click on the model asks of a host that lays the workspace out (Studio's AI | CAD switch,
- * `tab-store/editLayoutHost.ts`): `manual` for a face of a part laid out for the AI, to step into the CAD workspace with
- * the feature that made the face selected; `ai` for empty space in the workspace with nothing open in it (`open`: a
- * command, sketch, pick, sheet or tool, or something isolated), to go back. Null where the double-click does what it
- * always has: Normal To on a face, a feature selected in the workspace. A STEP with no part script (`editable` false), an
- * assembly's faces, and a viewer no host lays out (Jake's own, which keeps its layout) ask nothing.
- * @param {{ layout: string, hosted: boolean, editable: boolean, assembly: boolean, target: "face" | "empty" | "other", open: boolean }} press
+ * `tab-store/editLayoutHost.ts`), with the Select tool in hand (`selecting`; Measure's, Explode's or Clip's double-click is
+ * theirs): `manual` for a face of a part laid out for the AI, to step into the CAD workspace with the feature that made
+ * the face selected (`pendingFaceStep`); `ai` for empty space in the workspace with nothing open in it (`open`: a command,
+ * sketch, pick or sheet, or something isolated), to go back. Null where the double-click does what it always has: Normal
+ * To on a face, a feature selected in the workspace. A STEP with no part script (`editable` false), an assembly's faces,
+ * and a viewer no host lays out (Jake's own, which keeps its layout) ask nothing.
+ * @param {{ layout: string, hosted: boolean, editable: boolean, assembly: boolean, target: "face" | "empty" | "other", selecting: boolean, open: boolean }} press
  * @returns {"manual" | "ai" | null}
  */
-export function doubleClickLayout({ layout, hosted, editable, assembly, target, open }) {
-  if (!hosted || !editable) return null;
+export function doubleClickLayout({ layout, hosted, editable, assembly, target, selecting, open }) {
+  if (!hosted || !editable || !selecting) return null;
   if (layout === "ai") return target === "face" && !assembly ? "manual" : null;
   return target === "empty" && !open ? "ai" : null;
+}
+
+/**
+ * What becomes of a face double-clicked laid out for the AI, the host asked for CAD (`doubleClickLayout`), as the part on
+ * screen stands now: `select` its feature once the workspace has read the part and mapped its faces (`faces`), `wait`
+ * while CAD's layout comes and the part is read, or `drop` it. It goes on another file, on a part that reads to nothing
+ * (no part script after all, a build that failed), on the AI's layout again once CAD's came (`reached`, which the caller
+ * keeps with the face), and after one try at a part read whose faces are not mapped, so it is never selected long after.
+ * @param {{ file: string, reached: boolean }} face
+ * @param {{ layout: string, file: string, status: string, editing: boolean, faces: boolean }} part
+ * @returns {{ step: "select" | "wait" | "drop", reached: boolean }}
+ */
+export function pendingFaceStep(face, { layout, file, status, editing, faces }) {
+  const reached = face.reached || layout === "manual";
+  const gone = face.file !== file || (reached && layout !== "manual") || status === "none" || status === "error";
+  if (gone) return { step: "drop", reached };
+  if (!editing || status !== "ready") return { step: "wait", reached };
+  return { step: faces ? "select" : "drop", reached };
 }
 
 /**
