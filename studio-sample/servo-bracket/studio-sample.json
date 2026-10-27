@@ -1,1 +1,9 @@
-{ "sample": "servo-bracket", "version": 1 }
+{
+  "sample": "servo-bracket",
+  "version": 1,
+  "name": "Servo bracket",
+  "purpose": "A mounting bracket for an MG996R servo, bent from 2 mm 5052-H32 aluminium sheet: a sample project to learn Studio with.",
+  "shows": ["Sheet metal", "Stress test", "CNC", "3D print", "Drawing", "Robot"],
+  "picture": "pictures/servo_mount_angle.png",
+  "open": "parts/servo_bracket.step"
+}

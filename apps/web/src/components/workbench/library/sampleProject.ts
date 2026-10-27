@@ -6,6 +6,9 @@
 
 import type { StudioProject } from "@t3tools/contracts";
 
+/** The id of the sample Try a sample project opens, among the samples the server lists. */
+export const SAMPLE_ID = "servo-bracket";
+
 /** The sample's copy's name in Studio, the first thing `findSample` looks for. */
 export const SAMPLE_NAME = "Servo bracket (sample)";
 

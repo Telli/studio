@@ -197,6 +197,7 @@ import { parseBase64DataUrl } from "./imageMime.ts";
 import { deletePendingAttachment, issueAttachmentUploadUrl } from "./assets/AttachmentUpload.ts";
 import * as PortScanner from "./preview/PortScanner.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
+import * as StudioSamples from "./studio/StudioSamples.ts";
 import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
 import { readWorkflowScript } from "./orchestration-v2/workflowScriptQuery.ts";
 import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
@@ -1713,12 +1714,13 @@ const layerWsRpc = (
           const environment = yield* serverEnvironment.getDescriptor;
           const auth = yield* serverAuth.getDescriptor();
           const scratchWorkspaceRoot = yield* managedFolders.scratchRoot;
-          // The finished sample project an app built on T3 ships (Studio's servo bracket).
-          const sampleProject = yield* Config.String("T3CODE_SAMPLE_PROJECT").pipe(
+          // The finished sample projects an app built on T3 ships (Studio's examples).
+          const samplesDir = yield* Config.String("T3CODE_SAMPLES_DIR").pipe(
             Config.withDefault(""),
             Config.map((folder) => folder.trim()),
             Effect.orElseSucceed(() => ""),
           );
+          const samples = samplesDir === "" ? [] : yield* StudioSamples.readSamples(samplesDir);
           const editorConfig = yield* resolveEditorConfig(
             yield* resolveAvailableEditorsForConfig(externalLauncher.resolveAvailableEditors()),
             resolveFileManagerRevealKindForConfig(externalLauncher.resolveFileManagerRevealKind()),
@@ -1764,7 +1766,7 @@ const layerWsRpc = (
               onSome: (root) => ({ scratchWorkspaceRoot: root }),
             }),
             newProjectsRoot: managedFolders.namedProjectsRoot,
-            ...(sampleProject === "" ? {} : { sampleProject }),
+            ...(samples.length === 0 ? {} : { samples }),
           };
         });
 

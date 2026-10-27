@@ -57,7 +57,7 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
     `@@STUDIO_…@@` placeholders;
   - the plugin's page;
   - the finished sample project (`studio-sample/`), which Try a sample project copies into a new
-    project (`T3CODE_SAMPLE_PROJECT`);
+    project (`T3CODE_SAMPLES_DIR`);
   - `studio.json`.
 - **The build.** T3 Code's desktop build takes the bundle through `T3CODE_DESKTOP_STUDIO_BUNDLE`
   (`scripts/lib/studio-app.ts`). That gives it Studio's name, id, icon and copyright, and a plain

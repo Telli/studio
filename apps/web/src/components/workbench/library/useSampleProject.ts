@@ -23,6 +23,7 @@ import {
   copySample,
   findSample,
   inTurn,
+  SAMPLE_ID,
   SAMPLE_MARKER,
   SAMPLE_NAME,
   SAMPLE_PURPOSE,
@@ -39,17 +40,21 @@ const SAMPLE_KIND = {
 const underWay = new Map<string, Promise<unknown>>();
 
 /**
- * The finished sample project the server names in its config (`sampleProject`), opened in Studio:
+ * The finished sample project the server names in its config (`samples`), opened in Studio:
  * the copy made before (`findSample`), else a new project named `SAMPLE_NAME` holding a copy of
  * the sample's top-level files and folders, which the desktop app makes (`studioImport`). `open`
  * opens the project as its tile does, or, given a file in the sample (`parts/servo_bracket.step`),
  * that file beside its chat, and resolves to whether it opened. Null where nothing can be copied
  * (the web app, T3 Code, an environment on another computer, a server started without
- * `T3CODE_SAMPLE_PROJECT`): there Try a sample project starts the prompt in which the agent
+ * `T3CODE_SAMPLES_DIR`): there Try a sample project starts the prompt in which the agent
  * builds it, and See the example is not offered.
  */
 export function useSampleProject(environmentId: EnvironmentId) {
-  const sample = useServerConfigs().get(environmentId)?.sampleProject ?? null;
+  // Until Examples lists every sample, Try a sample project opens the servo bracket.
+  const sample =
+    useServerConfigs()
+      .get(environmentId)
+      ?.samples?.find((entry) => entry.id === SAMPLE_ID)?.path ?? null;
   const bridge = readStudioImport();
   // The desktop app copies on this computer, so only into the environment it runs.
   const onThisComputer = usePrimaryEnvironmentId() === environmentId;

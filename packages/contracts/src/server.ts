@@ -672,6 +672,26 @@ export const ServerDirectEndpoint = Schema.Struct({
 });
 export type ServerDirectEndpoint = typeof ServerDirectEndpoint.Type;
 
+/**
+ * One finished sample project the app ships, as its `studio-sample.json`
+ * describes it. `picture` and `open` are paths inside the sample's folder;
+ * `path` is that folder on the server's disk.
+ */
+export const StudioSample = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  name: TrimmedNonEmptyString,
+  /** What the sample is, in a sentence, as its copy's Purpose starts. */
+  purpose: Schema.String,
+  /** The kinds of work it shows, such as "Sheet metal" or "CNC". */
+  shows: Schema.Array(Schema.String),
+  /** The picture its card shows. */
+  picture: TrimmedNonEmptyString,
+  /** The file Examples opens first. */
+  open: TrimmedNonEmptyString,
+  path: TrimmedNonEmptyString,
+});
+export type StudioSample = typeof StudioSample.Type;
+
 export const ServerConfig = Schema.Struct({
   environment: ExecutionEnvironmentDescriptor,
   auth: ServerAuthDescriptor,
@@ -729,11 +749,12 @@ export const ServerConfig = Schema.Struct({
    */
   newProjectsRoot: Schema.optionalKey(TrimmedNonEmptyString),
   /**
-   * Folder of the finished sample project the app ships, which Try a sample
-   * project copies into a new project. Present only on servers started with
-   * one (`T3CODE_SAMPLE_PROJECT`).
+   * The finished sample projects the app ships, in name order, which the
+   * Examples page lists and Make a copy to edit copies into new projects.
+   * Absent on servers started without a samples folder
+   * (`T3CODE_SAMPLES_DIR`).
    */
-  sampleProject: Schema.optionalKey(TrimmedNonEmptyString),
+  samples: Schema.optionalKey(Schema.Array(StudioSample)),
   /**
    * Palettes published by this environment's machine. Never sent in a config
    * snapshot: the theme stream emits the current set before any change, so a

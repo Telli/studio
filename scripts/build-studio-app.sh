@@ -133,7 +133,7 @@ cat >"$BUNDLE/studio.json" <<'JSON'
 }
 JSON
 
-# The finished servo bracket, which Try a sample project copies into a new project.
+# The finished sample projects (`T3CODE_SAMPLES_DIR` points here), which Examples copies into new projects.
 step "Copying the sample project"
 cp -R "$ROOT/studio-sample" "$BUNDLE/sample"
 
