@@ -14,7 +14,7 @@ import { readmeInline, readmeSections } from "../projectReadme";
 import { ExamplePicture } from "./ExampleCard";
 
 /**
- * An example's page (`/examples/$id`), view only: its picture, What it is (its README's, read from
+ * An example's page (`/library/examples/$id`), view only: its picture, What it is (its README's, read from
  * the server), what it shows, and one button, Make a copy to edit, which makes a project of your
  * own from it and opens it (`useExample`), on `file` where a link named one (the Library's See the
  * example). The example itself never changes. Where nothing can be copied, the button says why.
@@ -54,10 +54,10 @@ function ExampleContent(props: {
         <p className="text-sm text-muted-foreground">
           Studio has no example by that name.{" "}
           <Link
-            to="/examples"
+            to="/library"
             className="text-foreground underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground"
           >
-            See the examples
+            See the library
           </Link>
         </p>
       </ChatPage>

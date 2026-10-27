@@ -26,7 +26,7 @@ export function ExamplePicture(props: { readonly sampleId: string; readonly clas
 
 /**
  * An example as a card, as the Library's entries are: its picture, its name and what it shows. A
- * press opens its page (`/examples/$id`). The Examples page and Home list these.
+ * press opens its page (`/library/examples/$id`). The Library and Home list these.
  */
 export function ExampleCard(props: { readonly sample: StudioSample; readonly onOpen: () => void }) {
   return (

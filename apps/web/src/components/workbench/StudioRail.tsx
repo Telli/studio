@@ -1,9 +1,9 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
-  BellIcon,
   FolderIcon,
   HomeIcon,
+  LibraryBigIcon,
   type LucideIcon,
   SettingsIcon,
   Trash2Icon,
@@ -14,7 +14,7 @@ import { useDesktopUpdateState } from "~/state/desktopUpdate";
 import { resolveDesktopUpdateButtonAction } from "../desktopUpdate.logic";
 import { SidebarUpdatePill } from "../sidebar/SidebarUpdatePill";
 import { useSidebar } from "../ui/sidebar";
-import { CHAT_ICON, EXAMPLES_ICON } from "./kinds";
+import { CHAT_ICON } from "./kinds";
 import { needsYou } from "./recentActivity";
 import { railMark } from "./studioPlaces";
 import { useProjectList } from "./useProjectList";
@@ -23,13 +23,13 @@ import { useProjectList } from "./useProjectList";
 export const STUDIO_RAIL_WIDTH = 72;
 
 /** Where each place's page is. */
-type RailPage = "/" | "/chats" | "/projects" | "/examples" | "/needs-you" | "/trash" | "/settings";
+type RailPage = "/" | "/chats" | "/projects" | "/library" | "/trash" | "/settings";
 
 /**
  * The places down the far left of Studio, as Slack's rail, each opening its own page as Claude's
- * and ChatGPT's sidebars open Chats and Projects: Home, Chats (every chat), Projects, Examples (the
- * finished projects Studio ships), Needs you (the chats waiting on the person, with how many), and
- * at the foot Trash (projects moved there, to restore or delete forever) and Settings. The one that shows
+ * and ChatGPT's sidebars open Chats and Projects: Home, Chats (every chat, with how many wait on
+ * the person; Needs you is its filter), Projects, Library (the examples Studio ships, with its
+ * document types and skills), and at the foot Trash (projects moved there, to restore or delete forever) and Settings. The one that shows
  * is marked; inside a project, Projects is. The rail stays when the list beside it folds, and then
  * carries the update button above Settings while an update waits (`RailUpdate`).
  */
@@ -55,6 +55,7 @@ export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
       <RailItem
         icon={CHAT_ICON}
         label="Chats"
+        count={waiting}
         marked={mark === "chats"}
         onClick={() => go("/chats")}
       />
@@ -65,17 +66,10 @@ export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
         onClick={() => go("/projects")}
       />
       <RailItem
-        icon={EXAMPLES_ICON}
-        label="Examples"
-        marked={mark === "examples"}
-        onClick={() => go("/examples")}
-      />
-      <RailItem
-        icon={BellIcon}
-        label="Needs you"
-        count={waiting}
-        marked={mark === "needs"}
-        onClick={() => go("/needs-you")}
+        icon={LibraryBigIcon}
+        label="Library"
+        marked={mark === "library"}
+        onClick={() => go("/library")}
       />
       <div className="flex-1" />
       <RailItem

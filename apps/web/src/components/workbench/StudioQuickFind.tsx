@@ -32,7 +32,7 @@ import { chatStanding } from "./chatStanding";
 import { useDocumentTemplates } from "./documentTemplates";
 import { FileKindIcon } from "./FileKindIcon";
 import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
-import { CHAT_ICON, EXAMPLES_ICON, KIND_ICONS, KIND_TINTS, MENU_ICONS } from "./kinds";
+import { CHAT_ICON, KIND_ICONS, KIND_TINTS, MENU_ICONS } from "./kinds";
 import { libraryHref } from "./library/librarySearch";
 import { handToChat } from "./handToChat";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
@@ -409,13 +409,6 @@ function QuickFindBody(props: {
           },
         ]),
     {
-      value: "go:examples",
-      icon: <EXAMPLES_ICON className={ICON} />,
-      title: "Examples",
-      terms: "examples sample finished projects copy learn",
-      run: go(() => void navigate({ to: "/examples" })),
-    },
-    {
       value: "go:trash",
       icon: <Trash2Icon className={ICON} />,
       title: "Trash",
@@ -426,7 +419,8 @@ function QuickFindBody(props: {
       value: "go:library",
       icon: <LibraryBigIcon className={ICON} />,
       title: "Library",
-      terms: "library examples document types skills templates what can studio make",
+      terms:
+        "library examples sample finished projects copy learn document types skills templates what can studio make",
       // From a project, the library's Make one comes back to it, where its New is.
       run: go(
         () =>
@@ -557,7 +551,7 @@ function QuickFindBody(props: {
 /**
  * ⌘K in the engineering interface, in place of T3 Code's command palette: one box that finds a
  * project, a part in any project, or any job for the part on screen, the long tail the menus leave
- * out as well (`quickFind.ts`), with Home, New project, Examples, Trash, the Library, Settings and
+ * out as well (`quickFind.ts`), with Home, New project, Trash, the Library (examples and all), Settings and
  * the other interfaces. Outside a project it opens on what was opened lately (Recent). Picking a job writes
  * it into the chat's composer, as the Toolbox does (`StudioToolbox`); picking a part opens it, in its project if that is another.
  */

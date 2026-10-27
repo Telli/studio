@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { NeedsYouPage } from "../components/workbench/ChatPages";
-
-/** Studio's Needs you page: the chats waiting on the person (`components/workbench/ChatPages.tsx`). */
+/** Needs you is a filter on Chats now; the old address lands there, so links and history still work. */
 export const Route = createFileRoute("/_chat/needs-you")({
-  component: NeedsYouPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/chats", search: { filter: "needs-you" }, replace: true });
+  },
 });

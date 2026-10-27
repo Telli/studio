@@ -4,7 +4,7 @@ import { Button } from "../../ui/button";
 
 /**
  * See the example, as New and the library both offer it: opens the page of the example the file is
- * in (`/examples/$id`), view only, where Make a copy to edit makes a project of your own from it
+ * in (`/library/examples/$id`), view only, where Make a copy to edit makes a project of your own from it
  * and opens it on that file.
  */
 export function SeeTheExample(props: {
@@ -23,7 +23,11 @@ export function SeeTheExample(props: {
         variant="outline"
         size={props.size}
         render={
-          <Link to="/examples/$id" params={{ id: props.sampleId }} search={{ file: props.file }} />
+          <Link
+            to="/library/examples/$id"
+            params={{ id: props.sampleId }}
+            search={{ file: props.file }}
+          />
         }
         onClick={props.onOpened}
       >

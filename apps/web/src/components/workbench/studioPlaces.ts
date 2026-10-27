@@ -2,19 +2,11 @@ import { studioNavSection } from "./studioNav";
 
 /**
  * The places on Studio's rail (`StudioRail`), each a page of its own, as Claude's and ChatGPT's
- * sidebars open Chats and Projects: Home, every chat, the projects, the examples Studio ships, what
- * is waiting on the person, Trash, and Settings. The Library is Studio's page as well, so it keeps
- * Studio's shell, but no place on the rail is it: on it, the rail marks nothing.
+ * sidebars open Chats and Projects: Home, every chat (and which wait on the person, its Needs you
+ * filter), the projects, the Library (the examples Studio ships, its document types and skills),
+ * Trash, and Settings.
  */
-export type StudioRailMark =
-  | "home"
-  | "chats"
-  | "projects"
-  | "examples"
-  | "needs"
-  | "trash"
-  | "library"
-  | "settings";
+export type StudioRailMark = "home" | "chats" | "projects" | "trash" | "library" | "settings";
 
 /**
  * What the rail marks: the page that shows, a project's workspace being inside Projects. Null on

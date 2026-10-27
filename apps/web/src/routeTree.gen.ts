@@ -44,6 +44,7 @@ import { Route as ChatExamplesIndexRouteImport } from './routes/_chat.examples.i
 import { Route as ChatExamplesIdRouteImport } from './routes/_chat.examples.$id'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
 import { Route as ChatEnvironmentIdThreadIdRouteImport } from './routes/_chat.$environmentId.$threadId'
+import { Route as ChatLibraryExamplesIdRouteImport } from './routes/_chat.library_.examples.$id'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -221,6 +222,11 @@ const ChatEnvironmentIdThreadIdRoute =
     path: '/$environmentId/$threadId',
     getParentRoute: () => ChatRoute,
   } as any)
+const ChatLibraryExamplesIdRoute = ChatLibraryExamplesIdRouteImport.update({
+  id: '/library_/examples/$id',
+  path: '/library/examples/$id',
+  getParentRoute: () => ChatRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
@@ -257,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
   '/examples/$id': typeof ChatExamplesIdRoute
   '/examples/': typeof ChatExamplesIndexRoute
+  '/library/examples/$id': typeof ChatLibraryExamplesIdRoute
 }
 export interface FileRoutesByTo {
   '/connect': typeof ConnectRoute
@@ -293,6 +300,7 @@ export interface FileRoutesByTo {
   '/draft/$draftId': typeof ChatDraftDraftIdRoute
   '/examples/$id': typeof ChatExamplesIdRoute
   '/examples': typeof ChatExamplesIndexRoute
+  '/library/examples/$id': typeof ChatLibraryExamplesIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -331,6 +339,7 @@ export interface FileRoutesById {
   '/_chat/draft/$draftId': typeof ChatDraftDraftIdRoute
   '/_chat/examples/$id': typeof ChatExamplesIdRoute
   '/_chat/examples/': typeof ChatExamplesIndexRoute
+  '/_chat/library_/examples/$id': typeof ChatLibraryExamplesIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -369,6 +378,7 @@ export interface FileRouteTypes {
     | '/draft/$draftId'
     | '/examples/$id'
     | '/examples/'
+    | '/library/examples/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/connect'
@@ -405,6 +415,7 @@ export interface FileRouteTypes {
     | '/draft/$draftId'
     | '/examples/$id'
     | '/examples'
+    | '/library/examples/$id'
   id:
     | '__root__'
     | '/_chat'
@@ -442,6 +453,7 @@ export interface FileRouteTypes {
     | '/_chat/draft/$draftId'
     | '/_chat/examples/$id'
     | '/_chat/examples/'
+    | '/_chat/library_/examples/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -702,6 +714,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatEnvironmentIdThreadIdRouteImport
       parentRoute: typeof ChatRoute
     }
+    '/_chat/library_/examples/$id': {
+      id: '/_chat/library_/examples/$id'
+      path: '/library/examples/$id'
+      fullPath: '/library/examples/$id'
+      preLoaderRoute: typeof ChatLibraryExamplesIdRouteImport
+      parentRoute: typeof ChatRoute
+    }
   }
 }
 
@@ -718,6 +737,7 @@ interface ChatRouteChildren {
   ChatDraftDraftIdRoute: typeof ChatDraftDraftIdRoute
   ChatExamplesIdRoute: typeof ChatExamplesIdRoute
   ChatExamplesIndexRoute: typeof ChatExamplesIndexRoute
+  ChatLibraryExamplesIdRoute: typeof ChatLibraryExamplesIdRoute
 }
 
 const ChatRouteChildren: ChatRouteChildren = {
@@ -733,6 +753,7 @@ const ChatRouteChildren: ChatRouteChildren = {
   ChatDraftDraftIdRoute: ChatDraftDraftIdRoute,
   ChatExamplesIdRoute: ChatExamplesIdRoute,
   ChatExamplesIndexRoute: ChatExamplesIndexRoute,
+  ChatLibraryExamplesIdRoute: ChatLibraryExamplesIdRoute,
 }
 
 const ChatRouteWithChildren = ChatRoute._addFileChildren(ChatRouteChildren)

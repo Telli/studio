@@ -28,7 +28,7 @@ const PART_KIND = STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!;
 const underWay = new Map<string, Promise<unknown>>();
 
 /**
- * The examples an environment's server ships (`samples`), as the Examples page lists them
+ * The examples an environment's server ships (`samples`), as the Library lists them
  * (`listExamples`); `loaded` is false until its config is known. None where the server was
  * started without `T3CODE_SAMPLES_DIR` (the web app's own server, T3 Code).
  */

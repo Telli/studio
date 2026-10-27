@@ -205,7 +205,7 @@ function ProjectPanel(props: {
 
 /**
  * The column beside the rail says where the person is: inside a project, that project
- * (`ProjectPanel`); on Studio's pages (Home, Chats, Projects, Needs you), the recent chats.
+ * (`ProjectPanel`); on Studio's pages (Home, Chats, Projects), the recent chats.
  */
 function StudioList(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;

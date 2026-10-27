@@ -370,11 +370,12 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   listed as a recents list orders them, the one opened last on this device first (or worked on, if
   that came later), and the starred ones (kept on this computer) apart at the top of Home and the
   switcher. The sidebar is a rail of places down the far left, as Slack's (Amy, 2026-10-22,
-  `StudioRail.tsx`): Home, Chats, Projects, Examples and Needs you (with how many chats wait on
-  you), and Trash and Settings at its foot, each icon labelled and each opening its own page, as Claude's and ChatGPT's
+  `StudioRail.tsx`): Home, Chats (with how many chats wait on you), Projects and Library, and Trash and Settings at its foot, each icon labelled and each opening its own page, as Claude's and ChatGPT's
   open Chats and Projects (Amy: "each one should open its own page"): Chats, every chat with a box
-  to find one (`ChatPages.tsx`, `allChats.ts`); Projects, the Projects page; Needs you, the chats
-  waiting on your answer or approval in any project. The rail marks the page that shows, and
+  to find one and an All | Needs you switch (`ChatPages.tsx`, `allChats.ts`), Needs you being the chats
+  waiting on your answer or approval in any project, kept in the URL (`/chats?filter=needs-you`,
+  where the old `/needs-you` lands); Projects, the Projects page; Library, the examples, document
+  types and skills in one place. The rail marks the page that shows, and
   Projects inside a project (`studioPlaces.ts`). Beside the rail the column says where you are
   (`StudioSidebar.tsx`): on Studio's pages the recent chats, each with its project's name; inside
   a project, the project; on Settings, its sections (T3's settings list inside Studio's frame,
@@ -433,8 +434,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   menu (`useBackup.ts`).
 - **Quick find.** In Engineering ⌘K finds a project, a part (with its picture), a document or a
   chat in any project (one in another project opens there; with nothing typed, the open
-  project's), or any job for the part on screen, with Home, New project, Take the tour, Examples,
-  the Library (every document type and skill: what each makes and, where the sample project has one,
+  project's), or any job for the part on screen, with Home, New project, Take the tour,
+  the Library (the examples, every document type and skill: what each makes and, where the sample project has one,
   its example; `components/workbench/library/LibraryPage.tsx`), Settings and the interface
   switches (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's
   command palette.
@@ -464,7 +465,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   Files or a folder, Scan this computer), the Start box right under them, then the examples'
   cards (`StartChoices.tsx`, `homeLayout` in `homeStart.ts`). With projects, the examples sit in a Get started strip under Starred and Recent, folded
   away and kept so on this device if you like (`studio:get-started-folded`).
-  Examples, on the rail, shows every example Studio ships, each on a page of its own, view only:
+  The Library, on the rail, opens on Examples: every example Studio ships, each on a page of its own
+  (`/library/examples/<id>`; the old `/examples` addresses redirect), view only:
   its picture (bundled in `library/pictures/examples/`), What it is from its README, what it
   shows, and Make a copy to edit, which makes a new project of yours ("Phone stand", then "Phone
   stand 2") and opens it, so the example never changes (`components/workbench/examples/`). The

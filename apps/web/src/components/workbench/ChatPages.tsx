@@ -1,5 +1,6 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId } from "@t3tools/contracts";
+import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { useNowMinute } from "~/hooks/useNowMinute";
@@ -7,19 +8,20 @@ import { cn } from "~/lib/utils";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { Input } from "../ui/input";
 import { SidebarInset } from "../ui/sidebar";
+import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { findChats, useAllChats } from "./allChats";
 import { chatStanding } from "./chatStanding";
+import type { ChatsSearch } from "./chatsSearch";
 import { CHAT_ICON } from "./kinds";
 import { needsYou } from "./recentActivity";
 import { StudioTopBar } from "./StudioTopBar";
 import { useOpenChat } from "./useOpenChat";
 import { useProjectList } from "./useProjectList";
-import { chatLabel, workspaceTitle } from "./workspaceTitle";
+import { chatLabel } from "./workspaceTitle";
 
 /**
  * A page of Studio beside the rail, as the Projects page is laid out: its top bar, then a column.
- * Chats, Needs you, the Library (`LibraryPage`), Examples and each example's page, and Trash
- * (`TrashPage`) are each one.
+ * Chats, the Library (`LibraryPage`) and each example's page, and Trash (`TrashPage`) are each one.
  */
 export function ChatPage(props: {
   readonly title: string;
@@ -107,14 +109,30 @@ function ChatList(props: {
   );
 }
 
-function ChatsPageContent(props: { readonly environmentId: EnvironmentId }) {
+function ChatsPageContent(props: {
+  readonly environmentId: EnvironmentId;
+  readonly search: ChatsSearch;
+}) {
+  const navigate = useNavigate();
   const everyChat = useAllChats(props.environmentId);
+  const { cards } = useProjectList(props.environmentId);
   const [query, setQuery] = useState("");
-  const shown = findChats(everyChat.chats, everyChat.projectOf, query);
+  const filter = props.search.filter;
+  // Who is waiting on the person is `needsYou`'s call, as the rail's count and Home's tiles make it.
+  const waitingIds = useMemo(
+    () => new Set(needsYou(cards).map(({ thread }) => thread.id)),
+    [cards],
+  );
+  const waiting = useMemo(
+    () => everyChat.chats.filter((chat) => waitingIds.has(chat.id)),
+    [everyChat.chats, waitingIds],
+  );
+  const listed = filter === "needs-you" ? waiting : everyChat.chats;
+  const shown = findChats(listed, everyChat.projectOf, query);
   return (
     <ChatPage
       title="Chats"
-      count={everyChat.chats.length}
+      count={listed.length}
       search={
         <Input
           type="search"
@@ -126,13 +144,31 @@ function ChatsPageContent(props: { readonly environmentId: EnvironmentId }) {
         />
       }
     >
+      <ToggleGroup
+        aria-label="Show"
+        value={[filter ?? "all"]}
+        onValueChange={(next) => {
+          const value = next[0];
+          if (value === "all" || value === "needs-you") {
+            void navigate({
+              to: "/chats",
+              search: { filter: value === "all" ? undefined : value },
+            });
+          }
+        }}
+      >
+        <Toggle value="all">All</Toggle>
+        <Toggle value="needs-you">Needs you</Toggle>
+      </ToggleGroup>
       <ChatList
         chats={shown}
         projectOf={everyChat.projectOf}
         empty={
-          everyChat.chats.length === 0
-            ? "No chats yet. A project's first chat starts with it."
-            : "No chat matches that."
+          filter === "needs-you" && waiting.length === 0
+            ? "Nothing is waiting on you. When a chat asks a question or needs an approval, it shows here."
+            : everyChat.chats.length === 0
+              ? "No chats yet. A project's first chat starts with it."
+              : "No chat matches that."
         }
       />
     </ChatPage>
@@ -141,46 +177,12 @@ function ChatsPageContent(props: { readonly environmentId: EnvironmentId }) {
 
 /**
  * Studio's Chats page (the rail's Chats): every chat in every project, the newest first, each with
- * its project's name and how it stands, and a box to find one by its name or its project's.
+ * its project's name and how it stands, and a box to find one by its name or its project's. The
+ * Needs you filter, kept in the URL, keeps the chats waiting on your answer or approval.
  */
-export function ChatsPage() {
+export function ChatsPage(props: { readonly search: ChatsSearch }) {
   const environmentId = usePrimaryEnvironmentId();
-  return environmentId === null ? null : <ChatsPageContent environmentId={environmentId} />;
-}
-
-function NeedsYouPageContent(props: { readonly environmentId: EnvironmentId }) {
-  const { cards } = useProjectList(props.environmentId);
-  const waiting = useMemo(() => {
-    const projectOf = new Map<string, string>();
-    const chats = needsYou(cards).map(({ card, thread }) => {
-      projectOf.set(
-        thread.id,
-        workspaceTitle(card.project.name, card.folder?.workspaceRoot ?? null),
-      );
-      return thread;
-    });
-    return { chats, projectOf };
-  }, [cards]);
-  return (
-    <ChatPage
-      title="Needs you"
-      count={waiting.chats.length}
-      lede="The chats waiting on your answer or your approval, in every project."
-    >
-      <ChatList
-        chats={waiting.chats}
-        projectOf={waiting.projectOf}
-        empty="Nothing is waiting on you. When a chat asks a question or needs an approval, it shows here."
-      />
-    </ChatPage>
+  return environmentId === null ? null : (
+    <ChatsPageContent environmentId={environmentId} search={props.search} />
   );
-}
-
-/**
- * Studio's Needs you page (the rail's Needs you, with how many): the chats waiting on the person,
- * a question or an approval, in any project, the newest first. Opening one goes to it.
- */
-export function NeedsYouPage() {
-  const environmentId = usePrimaryEnvironmentId();
-  return environmentId === null ? null : <NeedsYouPageContent environmentId={environmentId} />;
 }

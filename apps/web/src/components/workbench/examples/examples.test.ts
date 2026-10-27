@@ -4,7 +4,14 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { newProjectBrief } from "../newProjectBrief";
 
-import { copyBrief, copyName, listExamples, sampleFile, validateExampleSearch } from "./examples";
+import {
+  copyBrief,
+  copyName,
+  findExamples,
+  listExamples,
+  sampleFile,
+  validateExampleSearch,
+} from "./examples";
 
 const sample = (id: string, name: string, open = "parts/part.step"): StudioSample => ({
   id,
@@ -116,5 +123,19 @@ describe("copyBrief", () => {
     const brief = briefOf(sample("old", "Old example"));
     expect(brief.material).toBe("");
     expect(brief.process).toBe(part.process);
+  });
+});
+
+describe("findExamples", () => {
+  const examples = [sample("stand", "Phone stand"), sample("lamp", "Desk lamp")];
+
+  it("narrows the Library's examples by name and by what they show", () => {
+    expect(findExamples(examples, "lamp").map((entry) => entry.id)).toEqual(["lamp"]);
+    expect(findExamples(examples, "drawing")).toHaveLength(2);
+  });
+
+  it("keeps every example for an empty search, and none for a stranger", () => {
+    expect(findExamples(examples, "")).toHaveLength(2);
+    expect(findExamples(examples, "turbine")).toEqual([]);
   });
 });

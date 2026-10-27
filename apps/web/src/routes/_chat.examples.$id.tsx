@@ -1,19 +1,16 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { ExampleDetail } from "../components/workbench/examples/ExampleDetail";
 import { validateExampleSearch } from "../components/workbench/examples/examples";
 
-/**
- * An example's page, view only, with Make a copy to edit, and in the URL the file its copy opens on
- * (`components/workbench/examples/ExampleDetail.tsx`).
- */
+/** An example's page lives under the Library now; the old address lands there, with its file. */
 export const Route = createFileRoute("/_chat/examples/$id")({
   validateSearch: validateExampleSearch,
-  component: ExampleRouteView,
+  beforeLoad: ({ params, search }) => {
+    throw redirect({
+      to: "/library/examples/$id",
+      params: { id: params.id },
+      search: search.file === undefined ? {} : { file: search.file },
+      replace: true,
+    });
+  },
 });
-
-function ExampleRouteView() {
-  const { id } = Route.useParams();
-  const { file } = Route.useSearch();
-  return <ExampleDetail key={id} sampleId={id} file={file} />;
-}

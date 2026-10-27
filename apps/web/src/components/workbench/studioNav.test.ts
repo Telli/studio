@@ -3,23 +3,21 @@ import { describe, expect, it } from "vite-plus/test";
 import { studioNavSection } from "./studioNav";
 
 describe("studioNavSection", () => {
-  it("places Studio's pages: Home, Chats, Projects and Needs you", () => {
+  it("places Studio's pages: Home, Chats and Projects", () => {
     expect(studioNavSection("/")).toBe("home");
     expect(studioNavSection("/chats")).toBe("chats");
     expect(studioNavSection("/projects")).toBe("projects");
-    expect(studioNavSection("/needs-you")).toBe("needs");
   });
 
-  it("places Examples and each example's page, never as a thread", () => {
-    expect(studioNavSection("/examples")).toBe("examples");
-    expect(studioNavSection("/examples/phone-stand")).toBe("examples");
+  it("places each example's page under the Library, never as a thread", () => {
+    expect(studioNavSection("/library/examples/phone-stand")).toBe("library");
   });
 
   it("places Trash", () => {
     expect(studioNavSection("/trash")).toBe("trash");
   });
 
-  it("places the Library, Studio's page that is no place on the rail", () => {
+  it("places the Library", () => {
     expect(studioNavSection("/library")).toBe("library");
   });
 

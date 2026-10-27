@@ -98,7 +98,7 @@ export function StartChoices(props: {
   );
 }
 
-/** The examples as cards in Home's grid, each opening its page (`/examples/$id`). */
+/** The examples as cards in Home's grid, each opening its page (`/library/examples/$id`). */
 function ExampleTiles(props: { readonly examples: ReadonlyArray<StudioSample> }) {
   const navigate = useNavigate();
   return (
@@ -107,7 +107,7 @@ function ExampleTiles(props: { readonly examples: ReadonlyArray<StudioSample> })
         <ExampleCard
           key={sample.id}
           sample={sample}
-          onOpen={() => void navigate({ to: "/examples/$id", params: { id: sample.id } })}
+          onOpen={() => void navigate({ to: "/library/examples/$id", params: { id: sample.id } })}
         />
       ))}
     </div>
@@ -127,7 +127,7 @@ export function StartExamples(props: { readonly examples: ReadonlyArray<StudioSa
 
 /**
  * Home's Get started strip, under Starred and Recent once there are projects: a row of the
- * examples, with All examples (the Examples page). It folds away as an Overview module does, and
+ * examples, with All examples (the Library). It folds away as an Overview module does, and
  * the fold is kept on this device (`readGetStartedFolded`).
  */
 export function GetStarted(props: { readonly examples: ReadonlyArray<StudioSample> }) {
@@ -143,7 +143,7 @@ export function GetStarted(props: { readonly examples: ReadonlyArray<StudioSampl
         writeGetStartedFolded(!folded);
       }}
       action={
-        <HeadingLink label="All examples" onClick={() => void navigate({ to: "/examples" })} />
+        <HeadingLink label="All examples" onClick={() => void navigate({ to: "/library" })} />
       }
     >
       <div className="pt-3">

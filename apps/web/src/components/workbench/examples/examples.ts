@@ -1,11 +1,13 @@
 /**
  * Studio's examples: the finished projects it ships (`studio-sample/<id>/`), which the server lists
- * in its config (`samples`). The Examples page shows them, each one's page shows it view only, and
+ * in its config (`samples`). The Library shows them first, each one's page shows it view only, and
  * Make a copy to edit copies it into a new project of yours (`useExample`), so the example never
  * changes.
  */
 
 import type { StudioSample } from "@t3tools/contracts";
+
+import { holdsWords } from "../quickFind";
 
 /**
  * A new project's name, past the names already taken: the name itself, then "<name> 2" and on, so
@@ -47,7 +49,7 @@ export function sampleFile(path: string): string | null {
 }
 
 /**
- * The examples as the Examples page lists them, by name: one per id, the first kept, each opening
+ * The examples as the Library lists them, by name: one per id, the first kept, each opening
  * on its main file inside its folder; one whose main file is outside it is left out.
  */
 export function listExamples(samples: ReadonlyArray<StudioSample> | undefined): StudioSample[] {
@@ -68,4 +70,9 @@ export interface ExampleSearch {
 export function validateExampleSearch(search: Record<string, unknown>): ExampleSearch {
   const file = typeof search.file === "string" ? sampleFile(search.file) : null;
   return file === null ? {} : { file };
+}
+
+/** The examples whose name or what they show holds every word typed; all of them for none. */
+export function findExamples(examples: ReadonlyArray<StudioSample>, query: string): StudioSample[] {
+  return examples.filter((sample) => holdsWords([sample.name, ...sample.shows].join("\n"), query));
 }

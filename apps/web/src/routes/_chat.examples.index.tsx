@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { ExamplesPage } from "../components/workbench/examples/ExamplesPage";
-
-/** Studio's Examples, the finished projects it ships (`components/workbench/examples/`). */
+/** Examples are the top of the Library now; the old address lands there, so links and history still work. */
 export const Route = createFileRoute("/_chat/examples/")({
-  component: ExamplesPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/library", replace: true });
+  },
 });

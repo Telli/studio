@@ -19,6 +19,8 @@ import {
 } from "../../ui/dialog";
 import { Input } from "../../ui/input";
 import { ChatPage } from "../ChatPages";
+import { findExamples } from "../examples/examples";
+import { ExamplesModule } from "../examples/ExamplesModule";
 import { useDocumentTemplates } from "../documentTemplates";
 import { MENU_ICONS } from "../kinds";
 import { useNewDialogStore } from "../newDialogStore";
@@ -49,7 +51,7 @@ import {
 import { NeedsSkill, PluginsLink } from "./NeedsSkill";
 import { SAMPLE_ID } from "./sampleProject";
 import { SeeTheExample } from "./SeeTheExample";
-import { useExample } from "./useSampleProject";
+import { useExample, useExamples } from "./useSampleProject";
 
 /** Each group of document types by its place's icon: New's, then each part menu's (`kinds.ts`). */
 const GROUP_ICONS: Readonly<Record<LibraryGroup, LucideIcon>> = { New: PlusIcon, ...MENU_ICONS };
@@ -69,7 +71,8 @@ interface Group {
 }
 
 /**
- * Studio's Library (`/library`): every document type Studio makes, grouped where it is found (New,
+ * Studio's Library (`/library`, the one place on the rail for what Studio ships): the examples
+ * first (`ExamplesModule`), then every document type Studio makes, grouped where it is found (New,
  * then the part menus Evaluate, Manufacture and Document), then every installed plugin's skills,
  * each a card with a picture of its real example (`LibraryPicture`) and its name. A card opens its
  * detail, kept in the URL (`entry`) so Back closes it; `group` scrolls to its group. Reached from
@@ -94,8 +97,10 @@ function LibraryContent(props: {
   const ownTemplates = useDocumentTemplates(environmentId).templates;
   // The example the library's examples are in, where the server ships it.
   const sample = useExample(environmentId, SAMPLE_ID);
+  const examples = useExamples(environmentId).examples;
   const [query, setQuery] = useState("");
   const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
+  const shownExamples = findExamples(examples, query);
 
   const documents = useMemo(
     () => [...LIBRARY_DOCUMENTS, ...ownTemplateEntries(ownTemplates)],
@@ -191,41 +196,41 @@ function LibraryContent(props: {
         />
       }
     >
-      {groups.length === 0 ? (
+      {groups.length === 0 && shownExamples.length === 0 ? (
         <p className="py-6 text-sm text-muted-foreground">Nothing in the library matches that.</p>
-      ) : (
-        <div className="@container flex min-w-0 flex-col gap-8">
-          {groups.map((group) => (
-            <div key={group.key} id={groupAnchor(group.key)} className="scroll-mt-6">
-              <OverviewModule
-                title={group.title}
-                icon={group.icon}
-                count={group.entries.length}
-                folded={folded.has(group.key)}
-                onFold={() => fold(group.key)}
-              >
-                <div className={cn(CARD_GRID, "pt-3")}>
-                  {group.entries.map((entry) => (
-                    <LibraryCard
-                      key={entry.id}
-                      picture={
-                        <LibraryPicture
-                          entry={entry}
-                          environmentId={environmentId}
-                          className="border-b border-border"
-                        />
-                      }
-                      name={entryName(entry, skillLabel)}
-                      note={offNote(entry)}
-                      onOpen={() => openEntry(entry.id)}
-                    />
-                  ))}
-                </div>
-              </OverviewModule>
-            </div>
-          ))}
-        </div>
-      )}
+      ) : null}
+      <div className="@container flex min-w-0 flex-col gap-8">
+        <ExamplesModule examples={shownExamples} />
+        {groups.map((group) => (
+          <div key={group.key} id={groupAnchor(group.key)} className="scroll-mt-6">
+            <OverviewModule
+              title={group.title}
+              icon={group.icon}
+              count={group.entries.length}
+              folded={folded.has(group.key)}
+              onFold={() => fold(group.key)}
+            >
+              <div className={cn(CARD_GRID, "pt-3")}>
+                {group.entries.map((entry) => (
+                  <LibraryCard
+                    key={entry.id}
+                    picture={
+                      <LibraryPicture
+                        entry={entry}
+                        environmentId={environmentId}
+                        className="border-b border-border"
+                      />
+                    }
+                    name={entryName(entry, skillLabel)}
+                    note={offNote(entry)}
+                    onOpen={() => openEntry(entry.id)}
+                  />
+                ))}
+              </div>
+            </OverviewModule>
+          </div>
+        ))}
+      </div>
       <Dialog
         open={selected !== null}
         onOpenChange={(open) => {
