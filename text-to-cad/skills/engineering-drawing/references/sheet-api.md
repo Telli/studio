@@ -90,7 +90,15 @@ script. Both are checked when the module is imported. There is no CLI verb: a
   refused. A field left empty prints as an empty,
   captioned cell. Nothing is stamped from the clock. The drawing function's
   name prints small under the title, so a print leads back to its script.
-- `units`: `"mm"`, the unit every value is measured in; anything else is refused.
+- `units`: `"mm"` (default) or `"in"`, the units the sheet prints and its title
+  block names; anything else is refused. The part is always measured in
+  millimetres, and so are the points and sizes you pass. A sheet in inches prints
+  what it measures in inches, to three places without a leading zero (`2.800`,
+  `.060`), so a part designed in inches reads its own sizes. Tolerances (`tol=`),
+  `limits=` and typed values (`text=`) are yours, in the sheet's units: give an
+  inch sheet `tol=0.005`. Positions on the sheet (`at=`, `offset=`) stay sheet
+  millimetres either way, and `geometry_notes(part, units="in")` spells its notes
+  in inches.
 - `projection`: `"THIRD ANGLE"` or `"FIRST ANGLE"`. It sets the arrangement
   `three_views` makes and the projection symbol the title block draws.
 - `general_tolerance="ISO 2768-m"`: a note, "TOLERANCES PER ISO 2768-m UNLESS
@@ -113,14 +121,17 @@ script. Both are checked when the module is imported. There is no CLI verb: a
   carries `ITEM 4 (QTY 2) OF RIG` there.
 - `ink`: `"mono"` (default) or `"color"` (per-layer colours, for review).
 
-### `sheet.three_views(shape, gap=None, iso=False, views=("top", "front", "right"))`
+### `sheet.three_views(shape, gap=None, iso=False, views=("top", "front", "right"), offset=(0, 0), iso_offset=(0, 0))`
 
 Returns `(top, front, right)`, or four views with `iso=True`. `views` names the
 principal views to draw, returned in that order: a turned or symmetric part
 draws only the ones that differ, and the run says when two drawn views are the
 same picture. When the sheet
 renders, the views are laid out again with each gap sized to the dimensions and
-callouts the facing views carry; `gap=` fixes it instead. The isometric takes
+callouts the facing views carry; `gap=` fixes it instead. `offset` moves the
+top, front and right views together from where the arrangement puts them,
+`iso_offset` the isometric, in sheet millimetres (what dragging them on the
+sheet in edit mode writes). The isometric takes
 the larger free region at the sheet's scale or the largest standard scale that
 fits; its label states its scale when that differs from the sheet's. A label or
 scale you set on it yourself is kept.

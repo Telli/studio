@@ -24,7 +24,7 @@ from pathlib import Path
 # The line a drawn sheet comes back on: `cadgen.eng_drawing.SHEET_MARK`, which this process cannot import.
 SHEET_MARK = "cadgen-sheet "
 # The calls that put a dimension or an annotation on a view: what a pick on the sheet takes off.
-DIMENSION_CALLS = ("dim", "hole", "diameter", "radius", "angle", "note", "overall")
+DIMENSION_CALLS = ("dim", "hole", "slot", "holes", "diameter", "radius", "angle", "note", "flag", "frame", "overall")
 # The title block's fields the panel edits, in the order a Sheet is written with them.
 FIELDS = ("title", "part_number", "material", "revision", "author")
 SIZES = ("A4", "A3", "A2", "A1", "A0")
@@ -480,7 +480,8 @@ def _round_one(text: str, tree: ast.Module, edit: dict) -> tuple[str, str]:
     if not (radius > 0 and math.isfinite(radius) and math.isfinite(angle)):
         raise DrawingError("A circle's size is more than zero.")
     verb = "radius" if edit.get("kind") == "radius" else "diameter"
-    written = [_tuple(centre), _number(radius)]
+    # The size picks the circle among any others on that centre, and the drawing checks it against the part.
+    written = [_tuple(centre), f"size={_number(radius if verb == 'radius' else 2 * radius)}"]
     if abs(angle - 45.0) > 0.5:
         written.append(f"angle={_number(round(angle))}")
     name = view.get("name") or ""

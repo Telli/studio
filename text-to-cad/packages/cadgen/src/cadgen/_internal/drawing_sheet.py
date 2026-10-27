@@ -213,7 +213,7 @@ def _fits_at(sheet: Sheet, placed: Sequence[tuple], candidate: float, frame, gro
 
     A standard arrangement is laid out again, because the views move when they
     shrink; ``groups`` carries each one's (views by name, shape, size, gap, iso,
-    room, names).
+    room, names), and each view keeps the offset its author moved it by.
     A hand-placed view keeps its ``at=``, which is what would happen, and only
     its box shrinks about that point.
     """
@@ -221,7 +221,8 @@ def _fits_at(sheet: Sheet, placed: Sequence[tuple], candidate: float, frame, gro
     for by_name, _shape, size, gap, iso, room, names in groups:
         for name, at, own, _label in _arrange_three_views(sheet, size, gap, candidate, iso, room, names=names)[0]:
             if name in by_name:
-                moved[id(by_name[name])] = (at, own or candidate)
+                shift = by_name[name]._offset
+                moved[id(by_name[name])] = ((at[0] + shift[0], at[1] + shift[1]), own or candidate)
     for view, _proj, bounds, _cx, _cy, _box in placed:
         at, scale = moved.get(id(view), (view.at, view.scale or candidate))
         half_w = (bounds[1] - bounds[0]) * scale / 2

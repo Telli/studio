@@ -109,15 +109,37 @@ _MIN_TEXT_MM = 1.6
 #: refused with the first of these that fits rather than an arbitrary ratio.
 _STANDARD_SCALES = (50.0, 20.0, 10.0, 5.0, 2.0, 1.0, 1 / 2, 1 / 2.5, 1 / 5, 1 / 10, 1 / 20, 1 / 50, 1 / 100,
                     1 / 200, 1 / 500, 1 / 1000)
-#: The only unit a sheet prints. Every value on it is measured off the model, whose
-#: unit is the millimetre; a title block reading IN over millimetre values is a
-#: drawing that is wrong by 25.4 everywhere and looks right.
-UNITS = ("mm",)
+#: How many millimetres one of a sheet's units is. Every value on a sheet is measured
+#: off the model, whose unit is the millimetre, and printed in the sheet's own units:
+#: a title block reading IN over millimetre values is a drawing that is wrong by 25.4
+#: everywhere and looks right.
+UNITS = {"mm": 1.0, "in": 25.4}
+#: The spellings of a sheet's units it takes, and the unit each one is.
+_UNIT_NAMES = {"mm": "mm", "millimeter": "mm", "millimeters": "mm", "millimetre": "mm", "millimetres": "mm",
+               "in": "in", "inch": "in", "inches": "in"}
 
 
 def _fmt(value: float) -> str:
     text = f"{value:.2f}".rstrip("0").rstrip(".")
     return text or "0"
+
+
+def _inches(value: float, places: int = 3) -> str:
+    """A value in inches as an inch drawing prints it: to ``places``, trailing zeros
+    kept and the leading zero dropped (``2.800``, ``.060``). A half rounds away from
+    zero, as CAD tools round by default, so a 1/16 radius reads ``R.063`` and 5/16 reads
+    ``.313`` as a length and as a radius alike."""
+    from decimal import ROUND_HALF_UP, Decimal
+
+    # Nine places first, so a conversion's float noise (0.06249999999999999) is not what rounds.
+    exact = Decimal(f"{value:.9f}").quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP)
+    text = f"{exact:.{places}f}"
+    return text.replace("0.", ".", 1) if text.startswith(("0.", "-0.")) else text
+
+
+def _length(mm: float, units: str = "mm") -> str:
+    """A length of the part (millimetres) as a sheet in ``units`` prints it."""
+    return _fmt(mm) if units == "mm" else _inches(mm / UNITS[units])
 
 
 #: The most decimal places a stated tolerance or limit prints to. A value is printed
@@ -138,6 +160,12 @@ def _places(*values: float) -> int:
 def _exact(value: float) -> str:
     """A stated value as given, to its own decimal places."""
     return f"{value:.{_places(value)}f}"
+
+
+def _stated_places(units: str, *values: float) -> int:
+    """The places stated values print to on a sheet in ``units``: their own, and on an
+    inch sheet at least the three every inch value prints to."""
+    return _places(*values) if units == "mm" else max(3, _places(*values))
 
 
 def _p3(p) -> tuple[float, float, float]:
@@ -172,7 +200,7 @@ def _look(view) -> tuple[float, float, float]:
 
 # --- text and symbols -----------------------------------------------------------------
 
-def _dimstyle(doc, text_height: float):
+def _dimstyle(doc, text_height: float, units: str = "mm"):
     style = doc.dimstyles.get("Standard")
     style.dxf.dimtxt = text_height
     style.dxf.dimasz = text_height * 0.85
@@ -180,10 +208,14 @@ def _dimstyle(doc, text_height: float):
     style.dxf.dimexe = 2.0
     style.dxf.dimgap = 1.0
     style.dxf.dimtad = 1
-    style.dxf.dimdec = 2
-    style.dxf.dimzin = 8
+    # Millimetres to two places, trailing zeros dropped; inches to three, trailing zeros
+    # kept and the leading zero dropped (2.800, .060), as inch drawings are dimensioned.
+    style.dxf.dimdec = 3 if units == "in" else 2
+    style.dxf.dimzin = 4 if units == "in" else 8
     style.dxf.dimdsep = ord(".")
-    style.dxf.dimtdec = 2
+    style.dxf.dimtdec = 3 if units == "in" else 2
+    if units == "in":
+        style.dxf.dimtzin = 4
     style.dxf.dimblk = "_CLOSEDFILLED"
     return "Standard"
 
