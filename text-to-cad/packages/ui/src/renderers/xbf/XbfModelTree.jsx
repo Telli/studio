@@ -156,7 +156,7 @@ function XbfModelTree({ tree: presented, active, disabled, mode='all', selectedI
     const visit=nodes=>{for(const node of nodes){if(node.kind === 'part')continue;ids.add(node.id);visit(node.children || EMPTY);}};
     visit(tree);
     return ids;
-  },[tree,implicitRoots]);
+  },[locked,tree]);
   const foldedRows=useMemo(()=>{
     const rows=[];
     const visit=nodes=>{for(const node of nodes){
@@ -206,6 +206,8 @@ function XbfModelTree({ tree: presented, active, disabled, mode='all', selectedI
     if(!active || reveal.current.complete || !paths.length)return;
     const target=paths.at(-1).at(-1);
     const missing=paths.flatMap(path=>path.slice(0,-1)).filter(node=>!expanded.has(node.id));
+    // A locked tree does not open for a pick: what the mode shows is what there is to scroll to.
+    if(missing.length && locked){reveal.current.complete=true;return;}
     if(missing.length){
       const local=[];
       for(const node of new Map(missing.map(node=>[node.id,node])).values()){
@@ -218,7 +220,7 @@ function XbfModelTree({ tree: presented, active, disabled, mode='all', selectedI
     if(searching)return;
     const row=rowElements.current.get(target.id);
     if(row){revealRow(row);reveal.current.complete=true;}
-  },[active,revealKey,paths,expanded,partControls.onToggleTreeNode,searching]);
+  },[active,revealKey,paths,expanded,locked,partControls.onToggleTreeNode,searching]);
 
   // The rows' callbacks never change; each reads the tree as it is when pressed.
   const choose=useCallback((node,event)=>{
@@ -259,7 +261,7 @@ function XbfModelTree({ tree: presented, active, disabled, mode='all', selectedI
   const actionsOf=node=>node.selectionId ? rowActionsLayout(node,partControls) : null;
   const renderTreeRow=at=>{
     const row=rows[at],on=highlighted.has(row.node.id),actions=actionsOf(row.node);
-    return <MemoModelingRow node={row.node} depth={row.depth} open={row.open} branch={row.branch} disabled={disabled}
+    return <MemoModelingRow node={row.node} depth={row.depth} open={row.open} branch={row.branch} disabled={disabled} locked={locked}
       actionsShown={Boolean(actions?.shown)} actionsWidth={actions?.width}
       selected={on} joinAbove={on && at > 0 && highlighted.has(rows[at-1].node.id)} joinBelow={on && at < rows.length-1 && highlighted.has(rows[at+1].node.id)}
       hiddenByOwner={row.hiddenByOwner} unavailable={row.unavailable} partControls={rowControls} toggle={toggle} choose={choose}/>;

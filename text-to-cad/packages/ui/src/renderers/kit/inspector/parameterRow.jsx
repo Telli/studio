@@ -2,15 +2,18 @@ import { cn } from "@text-to-cad/ui/utils";
 import { Button } from "@text-to-cad/ui/primitives/button";
 import { Slider } from "@text-to-cad/ui/primitives/slider";
 import {
+  FILE_SHEET_COMPACT_BUTTON_CLASSES,
   FILE_SHEET_PRECISION_SLIDER_CLASSES,
+  FileSheetButtonRow,
+  FileSheetCheckboxRow,
   FileSheetColorPicker,
   FileSheetControlRow,
   FileSheetFieldGrid,
+  FileSheetSelectRow,
   FileSheetSliderField,
   FileSheetValueInput,
   parseFileSheetNumberInput
 } from "./FileSheet.js";
-import { FILE_SHEET_COMPACT_BUTTON_CLASSES, FileSheetButtonRow, FileSheetCheckboxRow, FileSheetSelectRow } from "./fileSheetRows.jsx";
 import { formatControlNumber, resolveParameterNumberControlStep, unitSuffix } from "./parameterNumbers.js";
 
 const defaultValueText = (value, parameter) => `${formatControlNumber(value)}${unitSuffix(parameter.unit)}`;

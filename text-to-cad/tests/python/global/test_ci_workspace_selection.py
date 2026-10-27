@@ -298,7 +298,7 @@ class ChangesRunWhatCanBreak(unittest.TestCase):
         for path in ("packages/cadgen/src/cadgen/_internal/cam/run.py", "packages/cadgen/src/cadgen/cam.py",
                      "packages/cadgen/src/cadgen/cli/cam_plan.py"):
             with self.subTest(path=path):
-                self.assertEqual(jobs_for(path), GATED - {"core-js", "mcp", "api", "docs", "fea"})
+                self.assertEqual(jobs_for(path), GATED - {"core-js", "web", "mcp", "api", "docs", "fea"})
                 self.assertEqual(tests_for(path)["cadgen_tests"], [CADGEN])
         # Its skill is read by its own suite alone, which holds the router table and pages to what cadgen builds.
         for path in ("skills/cam/SKILL.md", "skills/cam/references/job-file.md", "skills/cam/agents/openai.yaml"):

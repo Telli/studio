@@ -9,8 +9,22 @@ import { ModeGlyph, ToolModeIcon, modeGlyphIcon } from "../kit/tools/select/mode
 // Select's button, Measure's and Select's menu, which read on an engine document as the STEP
 // renderer's did. The glyphs are the kit's (`kit/tools/select/modeGlyphs.jsx`).
 
-// Each mode's row drawn by the icon generator, as the strip's button shows the mode chosen (`ToolIcon`).
-const modeIcon = (tool, mode) => <ToolIcon id={tool} mode={mode} className="size-3.5" />;
+const lucideIcon = Icon => <Icon className="size-3.5" strokeWidth={2} aria-hidden="true" />;
+
+/** The Select tool's button icon: the pointer, badged with what it picks alone (`mode`), none for All. */
+export function SelectIcon({ mode = "all", ...props }) {
+  return <ToolModeIcon tool="select" mode={mode} {...props} />;
+}
+
+// What each of Measure's modes is badged with: a vertex the point in a ring, an edge or a face the cube's.
+const MEASURE_BADGES = Object.freeze({ vertex: "points", edge: "edges", face: "faces" });
+
+/** The Measure tool's button icon: the ruler, badged with what it picks alone (`mode`), none for All. */
+export function MeasureIcon({ mode = "all", ...props }) {
+  return <ToolModeIcon tool="measure" mode={MEASURE_BADGES[mode] || mode} {...props} />;
+}
+
+const glyphIcon = modeGlyphIcon;
 // The overlays All picks too, beside the model's geometry: the annotations and measurements,
 // drawn over the model, so a click on one is never mistaken for the face under it.
 const SELECT_OVERLAYS = Object.freeze(['annotation', 'measurement']);
@@ -31,9 +45,6 @@ export function xbfSelectModes({ assembly, posable }) {
     ...(posable ? [{ id: 'position', label: 'Position', key: 'pick.position', kinds: ['position'], icon: lucideIcon(PositionIcon) }] : []),
   ];
 }
-
-/** Measure's modes on a part (`MEASURE_MODES`), each row drawn as the strip's Measure shows it. */
-export const STEP_MEASURE_MODES = Object.freeze(MEASURE_MODES.map(mode => ({ ...mode, icon: modeIcon('measure', mode.id) })));
 
 /**
  * An engine document's Select menu, a STEP's (`kit/tools/select/SelectFilterMenu.jsx`): its modes

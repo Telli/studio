@@ -399,21 +399,6 @@ export function measurePointFromReference({
 }
 
 /**
- * The reading of two picks, in the order a CAD measure tool reports it: what the two ENTITIES make
- * (`measureEntities.js`), not what the two points picked on them do. `kind` says which it is:
- *
- * - `normal`: the perpendicular distance (`perpendicular`) — parallel planes, a vertex to a plane or an
- *   edge, parallel edges;
- * - `centers`: the centre-to-centre distance (`centerDistance`) of two circles or cylinders;
- * - `angle`: the angle (`angleDeg`, the acute one) of two planes, or two edges that are not parallel,
- *   with the shortest distance between them (`minDistance`);
- * - `min`: the shortest distance between the two (`minDistance`); `distance`: that of two points;
- * - `points`: the pair has no reading of its own, and the distance is the one between the points picked.
- *
- * `euclidean` and `delta` are always those of the two points picked; `ends` are the points the reading
- * is drawn between. Picks on a mesh (`units`) are two points on its surface and approximate.
- */
-/**
  * A measurement between two picks (`exactMeasurementFromPicks`), read in the part's units where the
  * picks say them (`displayUnit`, "in" for an inch part, as its sketches and dimensions read): an
  * exact reading in millimetres becomes inches, the places it is drawn between kept as they are.
@@ -437,6 +422,21 @@ export function inInches(measurement) {
   return converted;
 }
 
+/**
+ * The reading of two picks, in the order a CAD measure tool reports it: what the two ENTITIES make
+ * (`measureEntities.js`), not what the two points picked on them do. `kind` says which it is:
+ *
+ * - `normal`: the perpendicular distance (`perpendicular`) — parallel planes, a vertex to a plane or an
+ *   edge, parallel edges;
+ * - `centers`: the centre-to-centre distance (`centerDistance`) of two circles or cylinders;
+ * - `angle`: the angle (`angleDeg`, the acute one) of two planes, or two edges that are not parallel,
+ *   with the shortest distance between them (`minDistance`);
+ * - `min`: the shortest distance between the two (`minDistance`); `distance`: that of two points;
+ * - `points`: the pair has no reading of its own, and the distance is the one between the points picked.
+ *
+ * `euclidean` and `delta` are always those of the two points picked; `ends` are the points the reading
+ * is drawn between. Picks on a mesh (`units`) are two points on its surface and approximate.
+ */
 function exactMeasurementFromPicks(pickA, pickB) {
   const pointA = isFinitePoint(pickA?.point) ? pickA.point : null;
   const pointB = isFinitePoint(pickB?.point) ? pickB.point : null;

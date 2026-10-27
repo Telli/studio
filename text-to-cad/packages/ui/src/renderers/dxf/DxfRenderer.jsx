@@ -315,7 +315,7 @@ function DxfSurface({ view, data }) {
   const compact = Boolean(view.appearance?.compact);
   const chromeHidden = payload.loading || failed;
   const layered = layersSectionShown(drawing);
-  const { strip, row } = flatViewTools(tools, { colorScheme, shown });
+  const { strip, row } = flatViewTools(tools, { colorScheme, shown, t });
 
   // The 3D views' cursors under Select: the arrow, pressed or dragging too, and the pointing hand
   // over what a press would pick. Measure keeps its crosshair (Annotate's layer has its own).

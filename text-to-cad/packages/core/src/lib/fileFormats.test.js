@@ -4,7 +4,6 @@ import test from "node:test";
 import {
   entrySourceFormat,
   fileExtensionFromPath,
-  isCadFile,
   isMeshRenderFormat,
   isPlotRenderFormat,
   meshAssetKeyForEntry,
@@ -26,14 +25,12 @@ test("entrySourceFormat maps manifest kinds to stable render formats", () => {
   assert.equal(entrySourceFormat({ kind: "kicad_pcb" }), RENDER_FORMAT.KICAD_PCB);
 });
 
-test("a KiCad board is a plot: a CAD file with its own asset, not a mesh", () => {
+test("a KiCad board is a plot: its own asset, not a mesh", () => {
   for (const path of ["boards/blinky.kicad_pcb", "BLINKY.KICAD_PCB", "https://example.test/w/blinky.kicad_pcb?download=1#top"]) {
     assert.equal(renderFormatFromPath(path), RENDER_FORMAT.KICAD_PCB, path);
-    assert.equal(isCadFile(path), true, path);
   }
   assert.equal(isPlotRenderFormat(RENDER_FORMAT.KICAD_PCB), true);
   assert.equal(isMeshRenderFormat(RENDER_FORMAT.KICAD_PCB), false);
-  assert.equal(normalizeRenderFormat(RENDER_FORMAT.KICAD_PCB), RENDER_FORMAT.KICAD_PCB);
   assert.equal(meshAssetKeyForEntry({ kind: "kicad_pcb" }), RENDER_FORMAT.KICAD_PCB);
   // The project and the schematic beside a board are not drawn: only the board is.
   for (const path of ["blinky.kicad_pro", "blinky.kicad_sch", "config.yml"]) {

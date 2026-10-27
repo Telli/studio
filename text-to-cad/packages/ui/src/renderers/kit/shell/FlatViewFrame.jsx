@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef } from "react";
 import { MousePointer2 } from "lucide-react";
 import { cn } from "@text-to-cad/ui/utils";
-import { AnnotationToolbar, DRAWING_TOOLS, annotationToolIcon, drawingToolVariant } from "../../../annotation/toolbar.jsx";
+import { AnnotationToolbar, DRAWING_TOOLS, annotationToolIcon, drawingToolLabel, drawingToolVariant } from "../../../annotation/toolbar.jsx";
+import { english } from "../../../i18n/core.js";
 import ViewerAlertCard from "../status/ViewerAlertCard.jsx";
 import ViewerLoadingOverlay from "../status/ViewerLoadingOverlay.js";
 import { ViewUpdateStatus } from "../status/ViewUpdateStatus.jsx";
@@ -42,24 +43,25 @@ const SIDEBAR_POSITION_PHONE = Object.freeze({ top: INSET, left: INSET, bottom: 
 /**
  * A flat view's strip, Select, Pencil, Shapes and Measure, each with its key, and the row of the tool
  * in hand under it: the drawing tools', or Measure's readings while there are any. `selectMenu`:
- * Select's filter, the chevron after its button, where the view offers one.
+ * Select's filter, the chevron after its button, where the view offers one. `t`: the view's words
+ * (`useI18n`), English where none is given.
  *
  * @param {ReturnType<typeof import("./useFlatView.js").useFlatTools>} tools
- * @param {{ colorScheme: "light" | "dark", shown: boolean, selectMenu?: import("react").ReactNode }} options
+ * @param {{ colorScheme: "light" | "dark", shown: boolean, selectMenu?: import("react").ReactNode, t?: (key: string, values?: object) => string }} options
  */
-export function flatViewTools(tools, { colorScheme, shown, selectMenu = null }) {
+export function flatViewTools(tools, { colorScheme, shown, selectMenu = null, t = english }) {
   const { toolMode, selectTool, annotation, annotating, measuring, measure, toolKeys } = tools;
   const stripTool = (id, label, icon, extra = {}) => ({ id, label, icon, active: toolMode === id, disabled: !shown, onSelect: () => selectTool(id), ...extra });
   const strip = [
-    stripTool(FLAT_TOOL.SELECT, "Select", SELECT_ICON, { shortcut: TOOL_SHORTCUTS.select, ...(selectMenu ? { menu: selectMenu } : {}) }),
+    stripTool(FLAT_TOOL.SELECT, t("tool.select"), SELECT_ICON, { shortcut: TOOL_SHORTCUTS.select, ...(selectMenu ? { menu: selectMenu } : {}) }),
     // Pencil and Shapes: plain buttons, each the tool last chosen in it, its tooltip that tool and its key; the tools are the row's.
-    ...DRAWING_TOOLS.map(({ id, label, entries }) => {
+    ...DRAWING_TOOLS.map(({ id }) => {
       const variant = drawingToolVariant(id, annotation);
       const Icon = annotationToolIcon(variant);
-      return stripTool(id, label, <Icon className="size-3" strokeWidth={2} aria-hidden="true" />,
-        { tooltip: entries.find(entry => entry.id === variant)?.label ?? label, shortcut: DRAWING_SHORTCUTS[variant] });
+      return stripTool(id, drawingToolLabel(id, t), <Icon className="size-3" strokeWidth={2} aria-hidden="true" />,
+        { tooltip: drawingToolLabel(variant, t), shortcut: DRAWING_SHORTCUTS[variant] });
     }),
-    stripTool(FLAT_TOOL.MEASURE, "Measure", MEASURE_ICON, { shortcut: TOOL_SHORTCUTS.measure })
+    stripTool(FLAT_TOOL.MEASURE, t("tool.measure"), MEASURE_ICON, { shortcut: TOOL_SHORTCUTS.measure })
   ];
   toolKeys.current = strip;
   // The drawing tools' row under the strip, and Measure's (its measurements, while there are any); Select has none.
