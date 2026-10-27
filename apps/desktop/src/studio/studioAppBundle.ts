@@ -17,8 +17,8 @@ import * as NodePath from "node:path";
  * - The CAD plugin, copied into the home with this copy of the app's paths filled in (the app can
  *   live anywhere), then offered and turned on (`T3CODE_PLUGIN_MARKETPLACE`,
  *   `T3CODE_DEFAULT_PLUGINS`).
- * - The finished sample projects, where the bundle has them (`T3CODE_SAMPLES_DIR`), which Try a
- *   sample project copies into a new project.
+ * - The finished sample projects, where the bundle has them (`T3CODE_SAMPLES_DIR`), which an
+ *   example's Make a copy to edit copies into a new project.
  *
  * The computer needs no Node of its own: with none on PATH, cadgen runs its mesh and DXF builders on
  * the Node Playwright ships inside the bundled Python, finding it itself, on a Mac or on Windows.

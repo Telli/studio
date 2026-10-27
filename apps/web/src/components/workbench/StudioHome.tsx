@@ -2,7 +2,16 @@ import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { FolderInputIcon, PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+import { flushSync } from "react-dom";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { useNowMinute } from "~/hooks/useNowMinute";
@@ -20,13 +29,15 @@ import type { ListedProject } from "./projectList";
 import { ENGINEERING_COMPOSER_PLACEHOLDER } from "./studioInterface";
 import { splitStarred, useStarredStore } from "./starredProjects";
 import { ImportDialogHost } from "./ImportDialog";
-import { SAMPLE_PROJECT } from "./homeExamples";
+import { homeLayout } from "./homeStart";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
+import { useNewDialogStore } from "./newDialogStore";
 import { NewFilesNotice } from "./NewFilesNotice";
 import { HeadingLink } from "./OverviewModules";
 import { waitingFirst } from "./ProjectChoices";
 import { ProjectPicker } from "./ProjectPicker";
+import { GetStarted, StartChoices, StartExamples, TILE_GRID } from "./StartChoices";
 import { nameOfPath, type StartAttachment } from "./startProject";
 import { droppedPath, readStudioImport } from "./studioImportBridge";
 import { StudioNew } from "./StudioNew";
@@ -37,19 +48,13 @@ import { useProjectList } from "./useProjectList";
 import { useProjectTiles } from "./useProjectTiles";
 import { type ProjectStart, useStartOnce } from "./useStartProject";
 import { useAskAnything } from "./freeformChat";
-import { SAMPLE_ID } from "./library/sampleProject";
-import { useExample } from "./library/useSampleProject";
+import { useExamples } from "./library/useSampleProject";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 /** A group within Your projects, in the project switcher's words: Starred, then Recent. */
 const GROUP_LABEL = "text-xs font-medium text-muted-foreground";
-/** A first visit's offer: what it is beside the one button that does it. */
-const OFFER =
-  "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-dashed border-border px-4 py-3";
 /** How many of the projects not starred Home shows, the last worked on: one row on a wide window. */
 const HOME_RECENT = 4;
-/** Project tiles, four across on a wide window, as many as fit on a narrow one. */
-const TILE_GRID = "grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4";
 
 /** Opens the quick find (`StudioQuickFind`): the top bar's search, and Cmd+O on Home. */
 const openFind = () => openCommandPalette();
@@ -74,16 +79,19 @@ function FindButton() {
 }
 
 /**
- * Studio's Home, the way a CAD tool's welcome starts: what to make, and where you left off. Its
- * box takes what to make: Start sends it to a new project (made, with a first chat that sends it),
- * or, with a project of yours chosen beside Attach, to a new chat in that project. Below are your
- * starred projects and the last few you worked on (`HOME_RECENT`), as pictures of their parts,
- * each opening where it was left; All projects goes to the Projects page, which has every one
- * (`ProjectsHome`). New and Import beside them add a project: New the same New and dialog as a
- * project's toolbar (a part, a board or a document, in a new project), Import from files. A project
- * with a chat waiting on the person (a question, an approval) comes first, says so, and opens on
- * that chat. Search finds a project, a part or a chat (`StudioQuickFind`). One column, so the box
- * and the tiles line up.
+ * Studio's Home, the way a CAD tool's welcome starts: what to make, and where you left off. With no
+ * projects (`homeLayout`) it asks Where would you like to start?, with three ways in (New part,
+ * Import a STEP, Describe it to the AI; `StartChoices`), Home's box under them, and the examples
+ * Studio ships to make a copy of. With projects it is Welcome back: the box, then your starred
+ * projects and the last few you worked on (`HOME_RECENT`), as pictures of their parts, each opening
+ * where it was left, and the examples in a Get started strip under them that folds away. All
+ * projects goes to the Projects page, which has every one (`ProjectsHome`). The box takes what to
+ * make: Start sends it to a new project (made, with a first chat that sends it), or, with a project
+ * of yours chosen beside Attach, to a new chat in that project. New and Import beside the tiles add
+ * a project: New the same New and dialog as a project's toolbar (a part, a board or a document, in
+ * a new project), Import from files. A project with a chat waiting on the person (a question, an
+ * approval) comes first, says so, and opens on that chat. Search finds a project, a part or a chat
+ * (`StudioQuickFind`). One column, so the box and the tiles line up.
  */
 export function StudioHome() {
   const environmentId = usePrimaryEnvironmentId();
@@ -93,13 +101,16 @@ export function StudioHome() {
 function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
   const { list, cards } = useProjectList(environmentId);
-  // Until the list arrives Home is neither a first visit nor a return, so nothing first-run shows.
+  // Until the list arrives nothing shows under the box, and the start page waits (`homeLayout`).
   const loaded = list !== undefined;
-  const firstTime = loaded && cards.length === 0;
+  // Trash (to come) gives whether every project is in it; until then none is.
+  const layout = homeLayout({ loaded, projects: cards.length, trashedOnly: false });
+  const { examples } = useExamples(environmentId);
   // One start at a time, from the box or from New.
   const { busy, start } = useStartOnce(environmentId);
   const importActions = useImportActions();
   const navigate = useNavigate();
+  const startBox = useRef<StartBox>(null);
   useNowMinute();
   useOpenShortcut(openFind);
   const { tile, dialogs } = useProjectTiles(environmentId, cards);
@@ -113,6 +124,16 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const allProjects = (
     <HeadingLink label="All projects" onClick={() => void navigate({ to: "/projects" })} />
   );
+  // Home's New, and New part's: Create starts a new project with the job as its first message.
+  const newProject = (hideButton: boolean) => (
+    <StudioNew
+      environmentId={environmentId}
+      cwd=""
+      newProject
+      hideButton={hideButton}
+      onCreate={(job) => start({ kind: "new", job })}
+    />
+  );
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -125,73 +146,55 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
             <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-8">
               <div className="flex flex-col gap-6">
                 <h1 className="text-2xl font-semibold text-foreground">
-                  {firstTime ? "Welcome to Studio" : "Welcome back"}
+                  {layout === "start" ? "Where would you like to start?" : "Welcome back"}
                 </h1>
                 <NewFilesNotice environmentId={environmentId} />
+                {layout === "start" ? (
+                  <StartChoices
+                    // New, on its Part, until New part makes one with no dialog.
+                    onNewPart={() => useNewDialogStore.getState().ask("CAD", "part")}
+                    onImport={importActions === null ? null : () => void importActions.pick()}
+                    onScan={importActions?.scan ?? null}
+                    onDescribe={() => startBox.current?.describe()}
+                  />
+                ) : null}
                 <StartProject
+                  ref={startBox}
                   environmentId={environmentId}
                   cards={cards}
-                  firstTime={firstTime}
                   busy={busy}
                   start={start}
                 />
               </div>
-              {loaded ? (
-                <section aria-label="Your projects" className="flex min-w-0 flex-col gap-3">
-                  {/* New and Import add a project: from a part, board or document, or from files. */}
-                  <div className="flex items-center gap-2">
-                    <h2 className={SECTION_LABEL}>Your projects</h2>
-                    <div className="flex-1" />
-                    {importActions === null || firstTime ? null : (
-                      <ImportMenu actions={importActions} />
+              {!loaded ? null : layout === "start" ? (
+                <>
+                  <StartExamples examples={examples} />
+                  {newProject(true)}
+                </>
+              ) : (
+                <>
+                  <section aria-label="Your projects" className="flex min-w-0 flex-col gap-3">
+                    {/* New and Import add a project: from a part, board or document, or from files. */}
+                    <div className="flex items-center gap-2">
+                      <h2 className={SECTION_LABEL}>Your projects</h2>
+                      <div className="flex-1" />
+                      {importActions === null ? null : <ImportMenu actions={importActions} />}
+                      {newProject(false)}
+                    </div>
+                    {starred.length === 0 ? null : (
+                      <TileGroup label="Starred" action={recent.length === 0 ? allProjects : null}>
+                        {starred.map(tile)}
+                      </TileGroup>
                     )}
-                    <StudioNew
-                      environmentId={environmentId}
-                      cwd=""
-                      newProject
-                      onCreate={(job) => start({ kind: "new", job })}
-                    />
-                  </div>
-                  {firstTime ? (
-                    importActions === null ? (
-                      <p className="py-8 text-sm text-muted-foreground">
-                        No projects yet. Describe one above, or use New.
-                      </p>
-                    ) : (
-                      <div className={OFFER}>
-                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                          <span className="text-sm font-medium text-foreground">
-                            Import what you already have
-                          </span>
-                          <span className="text-sm text-muted-foreground">
-                            Studio scans the folders you pick for CAD models, drawings and parts
-                            lists, and groups them into projects. Your files stay where they are.
-                          </span>
-                        </span>
-                        <Button size="sm" variant="outline" onClick={importActions.scan}>
-                          Scan this computer
-                        </Button>
-                      </div>
-                    )
-                  ) : (
-                    <>
-                      {starred.length === 0 ? null : (
-                        <TileGroup
-                          label="Starred"
-                          action={recent.length === 0 ? allProjects : null}
-                        >
-                          {starred.map(tile)}
-                        </TileGroup>
-                      )}
-                      {recent.length === 0 ? null : (
-                        <TileGroup label="Recent" action={allProjects}>
-                          {recent.map(tile)}
-                        </TileGroup>
-                      )}
-                    </>
-                  )}
-                </section>
-              ) : null}
+                    {recent.length === 0 ? null : (
+                      <TileGroup label="Recent" action={allProjects}>
+                        {recent.map(tile)}
+                      </TileGroup>
+                    )}
+                  </section>
+                  <GetStarted examples={examples} />
+                </>
+              )}
             </div>
           </div>
         </ImportDropZone>
@@ -271,6 +274,12 @@ function AttachedList(props: {
   );
 }
 
+/** What Home's page asks of its box: Describe it to the AI puts the typing there. */
+interface StartBox {
+  /** Starts describing: Start's mode, the box focused. */
+  readonly describe: () => void;
+}
+
 /**
  * Home's box, in three modes, each named with its button's word, as a sign-in form's Sign in and
  * Sign up. Ask: a question about anything, in a
@@ -279,18 +288,21 @@ function AttachedList(props: {
  * beside Attach (`ProjectPicker`), the box then reading as a project's chat box does. Set up, from
  * files: drop or choose what you already have (a PRD, requirements, sketches, CAD, a whole
  * folder), say what it is if you like, and Set up project makes a new project from it. Either way, files go into the project's References and
- * the agent reads them first (`startMessage`). With no projects yet it offers the sample project.
+ * the agent reads them first (`startMessage`). The start page's Describe it to the AI starts
+ * describing here (`StartBox`).
  */
-function StartProject(props: {
+function StartProject({
+  ref,
+  ...props
+}: {
+  readonly ref?: Ref<StartBox>;
   readonly environmentId: EnvironmentId;
   readonly cards: ReadonlyArray<ListedProject>;
-  /** No projects yet: the sample project is offered, and there is nothing to choose. */
-  readonly firstTime: boolean;
   /** A start is under way (from here or from New). */
   readonly busy: boolean;
   readonly start: (work: ProjectStart) => Promise<void>;
 }) {
-  const { environmentId, firstTime, busy } = props;
+  const { environmentId, busy } = props;
   const [mode, setMode] = useState<StartMode>("idea");
   const settingUp = mode === "files";
   const [chosenId, setChosenId] = useState<string | null>(null);
@@ -320,6 +332,17 @@ function StartProject(props: {
   useEffect(() => {
     if (hash === "start") describe.current?.focus();
   }, [hash]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      describe: () => {
+        // Set up has no place to type: Start's box is there to focus once this renders.
+        flushSync(() => setMode("idea"));
+        describe.current?.focus();
+      },
+    }),
+    [],
+  );
   const run = props.start;
   const asking = mode === "ask";
   const askAnything = useAskAnything(environmentId);
@@ -482,7 +505,7 @@ function StartProject(props: {
                 <PaperclipIcon />
                 Attach
               </Button>
-              {asking || firstTime || props.cards.length === 0 ? null : (
+              {asking || props.cards.length === 0 ? null : (
                 <ProjectPicker
                   environmentId={environmentId}
                   cards={props.cards}
@@ -508,51 +531,6 @@ function StartProject(props: {
           </Button>
         </div>
       </div>
-      {firstTime ? <SampleOffer environmentId={environmentId} busy={busy} start={run} /> : null}
     </section>
-  );
-}
-
-/**
- * A first visit's sample project: where the desktop app can copy it, the finished one Studio
- * ships, copied into a project of your own (`useExample`); elsewhere the prompt in which the
- * agent builds it.
- */
-function SampleOffer(props: {
-  readonly environmentId: EnvironmentId;
-  /** A start is under way (from Home's box or from New). */
-  readonly busy: boolean;
-  readonly start: (work: ProjectStart) => Promise<void>;
-}) {
-  const example = useExample(props.environmentId, SAMPLE_ID);
-  const sample = example?.canCopy === true ? example : null;
-  const [opening, setOpening] = useState(false);
-  const open = () => {
-    if (sample === null) {
-      void props.start({
-        kind: "described",
-        description: SAMPLE_PROJECT.description,
-        attachments: [],
-        project: null,
-      });
-      return;
-    }
-    setOpening(true);
-    void sample.copy().finally(() => setOpening(false));
-  };
-  return (
-    <div className={OFFER}>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-sm font-medium text-foreground">A sample project</span>
-        <span className="text-sm text-muted-foreground">
-          {sample === null
-            ? "The agent builds a servo bracket, checks its strength, draws it and writes its PRD, so each part of Studio has something in it."
-            : "A finished servo bracket project: the part, its drawing, its strength study, its PRD, and an example of almost everything else Studio makes."}
-        </span>
-      </span>
-      <Button size="sm" variant="outline" disabled={props.busy || opening} onClick={open}>
-        {SAMPLE_PROJECT.label}
-      </Button>
-    </div>
   );
 }

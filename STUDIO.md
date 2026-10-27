@@ -442,10 +442,11 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   already exist (Home's New is the toolbar's; Home is "Home" everywhere; the chat says "AI
   agent", as Settings does).
 - **Onboarding.** Setup speaks Studio's words and ends at signing in to Claude or Codex
-  (`WelcomeWizard.tsx`; Home brings in files). A first Home says Welcome to Studio and offers a
-  sample project: in the desktop app, the finished servo bracket Studio ships, copied into a
-  project of your own (`useExample` in `useSampleProject.ts`); elsewhere one the agent builds in
-  front of you (the bracket, its strength check, its drawing and its PRD; `homeExamples.ts`).
+  (`WelcomeWizard.tsx`; Home brings in files). With no projects, Home asks Where would you like
+  to start?, with three ways in: New part, Import a STEP (Import's picker; Scan this computer
+  under them) and Describe it to the AI (Home's box, under them, focused), then the examples'
+  cards (`StartChoices.tsx`, `homeLayout` in `homeStart.ts`). With projects, the examples sit in a Get started strip under Starred and Recent, folded
+  away and kept so on this device if you like (`studio:get-started-folded`).
   Examples, on the rail, shows every example Studio ships, each on a page of its own, view only:
   its picture (bundled in `library/pictures/examples/`), What it is from its README, what it
   shows, and Make a copy to edit, which makes a new project of yours ("Phone stand", then "Phone

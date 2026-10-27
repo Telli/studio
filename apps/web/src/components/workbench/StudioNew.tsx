@@ -24,6 +24,8 @@ export function StudioNew(props: {
   readonly cwd: string;
   /** On Home: Create makes a new project. */
   readonly newProject?: boolean;
+  /** No New button: it opens only when asked (`useNewDialogStore`), as Home's New part asks. */
+  readonly hideButton?: boolean;
   readonly onCreate: (job: NewJob) => void;
 }) {
   const { environmentId } = props;
@@ -58,15 +60,17 @@ export function StudioNew(props: {
 
   return (
     <>
-      <Button
-        size="sm"
-        onClick={() =>
-          setOpened((current) => ({ open: true, count: current.count + 1, asked: null }))
-        }
-      >
-        <PlusIcon aria-hidden="true" />
-        New
-      </Button>
+      {props.hideButton ? null : (
+        <Button
+          size="sm"
+          onClick={() =>
+            setOpened((current) => ({ open: true, count: current.count + 1, asked: null }))
+          }
+        >
+          <PlusIcon aria-hidden="true" />
+          New
+        </Button>
+      )}
       {opened.open ? (
         <NewDialog
           key={opened.count}

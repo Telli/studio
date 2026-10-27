@@ -4,7 +4,7 @@
  * second copy is named past the first.
  */
 
-/** The example Home's Try a sample project copies and the Library's examples are in. */
+/** The servo bracket: the example the Library's examples are in. */
 export const SAMPLE_ID = "servo-bracket";
 
 /** The file at the top of an example that says what it is; a copy is a project, so it stays out. */
