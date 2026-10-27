@@ -532,7 +532,7 @@ class CadApp:
             try:
                 if pathname == "/__cad/exports" or pathname.startswith("/__cad/exports/"):
                     return self.exports.handle(request, response)
-                if pathname in ("/__cad/edit/state", "/__cad/edit/change"):
+                if pathname in ("/__cad/edit/state", "/__cad/edit/change", "/__cad/edit/face"):
                     self._handle_edit(request, response, pathname)
                 elif pathname in ("/__cad/versions", "/__cad/versions/compare", "/__cad/versions/restore"):
                     self._handle_versions(request, response, pathname)
@@ -781,8 +781,8 @@ class CadApp:
     # --- routes ----------------------------------------------------------
 
     def _handle_edit(self, request, response, pathname):
-        """Edit mode (``cadgen/edit``): the part script read as a design (``state``), and one
-        number of it changed (``change``). The work is the edit service's processes, never this
+        """Edit mode (``cadgen/edit``): the part script read as a design (``state``), one
+        number of it changed (``change``), and the feature that made a face (``face``). The work is the edit service's processes, never this
         one's. Its failures are answered, not reported as crashes: nothing about edit mode goes
         into analytics."""
         # A command names its faces and edges with the geometry the viewer read of each.
@@ -801,6 +801,9 @@ class CadApp:
                 result = service.editable(str(payload.get("file") or ""))
             elif pathname.endswith("/state"):
                 result = service.state(str(payload.get("file") or ""), payload.get("files"), payload.get("bar"))
+            elif pathname.endswith("/face"):
+                # The feature that made a face the viewer picked: from the engine's ``made_by``, or the trace's map.
+                result = service.face_feature(payload)
             else:
                 result = service.change(payload)
         except Exception as error:  # noqa: BLE001

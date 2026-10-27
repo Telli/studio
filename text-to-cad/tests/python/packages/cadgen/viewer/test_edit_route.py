@@ -52,11 +52,16 @@ class EditRoutesTest(unittest.TestCase):
 
     def test_a_probe_says_whether_there_is_a_part_script_without_running_it(self) -> None:
         script = self.tmp / "plate.py"
-        script.write_text("from cadgen import step\n\n@step\ndef plate():\n    raise SystemExit('never run')\n", encoding="utf-8")
+        script.write_text("from cadgen import model\n\n@model\ndef plate():\n    raise SystemExit('never run')\n", encoding="utf-8")
         status, body = self.post("/__cad/edit/state", {"file": str(self.tmp / "plate.step"), "probe": True})
         self.assertEqual((status, body), (200, {"ok": True, "editable": True}))
         _, none = self.post("/__cad/edit/state", {"file": str(self.tmp / "imported.step"), "probe": True})
         self.assertEqual(none, {"ok": True, "editable": False})
+
+    def test_a_face_of_a_model_without_a_part_script_names_no_feature(self) -> None:
+        status, body = self.post("/__cad/edit/face", {"file": str(self.tmp / "imported.step"), "face": 3})
+        self.assertEqual(status, 200)
+        self.assertEqual((body["ok"], body["reason"]), (False, "no-script"))
 
     def test_a_bad_request_is_an_answer_not_a_crash(self) -> None:
         status, body = self.post("/__cad/edit/change", ["not", "an", "object"])

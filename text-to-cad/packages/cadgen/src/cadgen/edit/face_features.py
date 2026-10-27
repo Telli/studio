@@ -1,6 +1,10 @@
-"""Which feature made each face of a part, for the chips and the selection bar that name a face by it.
+"""Which feature made each face of a part, by its geometry: the fallback for a face no model names.
 
-Nothing on cadgen 0.7.x records it, but the tracer keeps the result of each step it traced. A face
+A model's document says exactly what made each face (the engine's ``made_by``: the feature, and the
+function, file and line of its call), and edit mode answers from that (``tracer.face_feature``). A
+file names no model -- an imported STEP, or a part's STEP or xbf opened as a file -- and a document
+served cold has no worker to ask, so this map, from the trace alone, answers for them. The tracer
+keeps the result of each step it traced. A face
 belongs to the first step whose result has a face on the same surface (the same plane, the same
 cylinder by its axis and radius, and so on: ``surface_key``) that also overlaps it. Where the overlap
 can be read off the B-rep it is: a face a boolean leaves untouched is the very same B-rep face
@@ -17,13 +21,13 @@ face two features' faces merged into goes to the first whose face holds the poin
 The rule has a blind spot it cannot see past: a later feature's face can go to an earlier feature
 whose face once covered that spot. A post standing in a pocket, its top flush with the rim, is the
 block's, because the block's own top held that point before the pocket took it away. Telling the two
-apart needs each face's lineage through the body, which the 0.7.x tracer does not keep; Jake's XBF
-engine (cadgen 0.8) records the credit per face.
+apart needs each face's lineage through the body, which the tracer does not keep; the engine's
+``made_by`` does, which is why it answers first.
 
 Where the rule finds no maker, the face is left out. A face on a free-form surface (a B-spline: a
 loft's sides) has no key; one that no step's result has a face overlapping has no maker; one with no
-point inside it to test (a sliver) is not tested. So is every face of an assembly, or of a compound
-the store draws as several parts, whose faces the viewer numbers part by part.
+point inside it to test (a sliver) is not tested. So is every face of an assembly (a compound with
+children, which the engine's document makes several parts of), whose faces are numbered part by part.
 
 Runs in the tracer's process only: it reads OCCT's B-rep.
 """
@@ -224,10 +228,12 @@ def _size(shape: TopoDS_Shape) -> float:
 
 
 def _several(shape) -> bool:
-    """Whether the store packages ``shape`` as several parts (`cadgen.store.build`), each numbered on its own."""
-    from cadgen.store.build import compound_has_children
-
-    return compound_has_children(shape)
+    """Whether the engine's document makes several parts of ``shape``: a compound placing children
+    (``document.collect``), each numbered on its own. A compound of solids with no children is one part."""
+    try:
+        return bool(tuple(getattr(shape, "children", ()) or ()))
+    except TypeError:
+        return False
 
 
 def face_features(shape, steps: list[dict], row_of: dict[int, str], features: list[dict]) -> dict[str, str]:
@@ -240,7 +246,7 @@ def face_features(shape, steps: list[dict], row_of: dict[int, str], features: li
     feature's. A face whose maker is not known is left out: one with no key, one no step's face
     overlaps, one whose step is in no row or in the rows of more than one feature (a cut by several
     tools at once), one OCCT cannot read (the others keep their makers), and every face of a body the
-    store packages as several parts (an assembly gets ``{}``).
+    engine's document makes several parts of (an assembly gets ``{}``).
 
     The body is read where its features made it: as the step that first made this B-rep kept it, so a
     body placed at its end (``Pos(...) * body``) or moved in place keeps its faces' makers. Only the

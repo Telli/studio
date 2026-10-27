@@ -25,6 +25,19 @@ from unittest import mock
 from cadgen.edit import authors
 from cadgen.edit import service as edit
 
+
+def setUpModule():
+    """An engine of this file's own (its folders, and a free port), which every process the edit
+    service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
+    from unittest import mock
+
+    from tests.python.support import engine_daemon
+
+    engine_daemon.isolate(unittest.addModuleCleanup)
+    patch = mock.patch.dict(os.environ, {"CADGEN_ENGINE_PORT": "0"})
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
+
 GIT_ENV = {
     "GIT_AUTHOR_NAME": "T3 Code",
     "GIT_AUTHOR_EMAIL": "t3@example.com",
@@ -37,20 +50,20 @@ LONG_AGO = "@1700000000 +0000"
 # A block the agent made before Studio kept track, its body returned outright.
 BLOCK = """
     from build123d import Box
-    from cadgen import step
+    from cadgen import model
 
 
-    @step
+    @model
     def block():
         return Box(20, 10, 4)
 """
 # The same block after a turn of the agent's: its top edges chamfered.
 CHAMFERED = """
     from build123d import Axis, Box, chamfer
-    from cadgen import step
+    from cadgen import model
 
 
-    @step
+    @model
     def block():
         part = Box(20, 10, 4)
         part = chamfer(part.edges().group_by(Axis.Z)[-1], length=0.5)
@@ -59,10 +72,10 @@ CHAMFERED = """
 # The chamfered block with a fillet put in by hand, then a hole a later turn drills.
 FILLETED = """
     from build123d import Axis, Box, Cylinder, chamfer, fillet
-    from cadgen import step
+    from cadgen import model
 
 
-    @step
+    @model
     def block():
         part = Box(20, 10, 4)
         part = chamfer(part.edges().group_by(Axis.Z)[-1], length=0.5)
@@ -76,10 +89,10 @@ HOLE = "part -= Cylinder(1, 20)"
 # A part of a library the project keeps in a folder of its own.
 WIDGET = """
     from build123d import Cylinder
-    from cadgen import step
+    from cadgen import model
 
 
-    @step
+    @model
     def widget():
         return Cylinder(5, 12)
 """

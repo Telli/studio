@@ -10,9 +10,12 @@ changed in the source, solved back from the dimension the engineer typed, and th
 
 It runs warm in a process of its own (`python -m cadgen.edit.tracer --serve`, started by
 `service.py`): one JSON request per line on stdin, one reply per line on stdout, with build123d
-imported once. It patches build123d and cadgen's model decorator for its own process only, so it is
-never imported anywhere else. Nothing here changes how cadgen builds: the STEP files are still
-written by running the scripts as the agent does.
+imported once. It patches build123d and the engine's models for its own process only, so it is
+never imported anywhere else. A part is a model of cadgen's engine (`@model`, `@xbf`, `@step`...):
+here a model is its plain function, so tracing one never asks the engine to build it, never starts
+an engine and writes nothing. Nothing here changes how cadgen builds: a part's document is still
+built by the engine, as the agent's run builds it (`service.py`). The one thing this process hands
+the engine is a body it made itself, the part at the rollback bar (`_bar_document`).
 """
 
 from __future__ import annotations
@@ -517,20 +520,23 @@ _wrap_plane_offset()
 
 
 def _wrap_import():
-    """A STEP brought in (``read_step``) is one row of the history, as SolidWorks, Fusion and NX list
-    an imported body: a solid with no features of its own, which later lines model on."""
-    from cadgen import step_scene
+    """A file brought in (``read_step``, ``read_xbf``) is one row of the history, as SolidWorks, Fusion
+    and NX list an imported body: a solid with no features of its own, which later lines model on.
+    Read as the engine reads one outside a build (its reader, with no memo of a build's), so this
+    process asks nothing of the engine."""
+    from cadgen.engine import document as _documents
+    from cadgen.engine import model as _declarations
 
-    original = step_scene.read_step
+    for name, reader in (("read_step", _documents.read_step_shape), ("read_xbf", _documents.read_xbf_shape)):
+        original = getattr(_declarations, name)
 
-    @functools.wraps(original)
-    def read_step(step_path, *, label=None):
-        result = original(step_path, label=label)
-        if RECORDING and _called_from_project():
-            _record("import", "Imported", original, (step_path,), {}, result, {"source": Path(str(step_path)).name})
-        return result
+        def read(path, __reader=reader, __original=original):
+            result = __reader(path)
+            if RECORDING and _called_from_project():
+                _record("import", "Imported", __original, (path,), {}, result, {"source": Path(str(path)).name})
+            return result
 
-    step_scene.read_step = read_step
+        setattr(_declarations, name, functools.wraps(original)(read))
 
 
 _wrap_import()
@@ -700,10 +706,24 @@ def _tag_children(method):
 B.Shape.edges = _tag_children(_shape_edges)
 B.Shape.faces = _tag_children(_shape_faces)
 
-# A model inside the tracer is its plain function: no build pipeline, no STEP written.
-import cadgen.authoring as _authoring  # noqa: E402
+# A model inside the tracer is its plain function: calling one (a child in an assembly's body,
+# `child().shape`) runs its body here, as a child runs inside the engine's build, and hands back
+# the handle a child's call does there (`api.Document.inside`: its id, and `.shape`, the result in
+# this process), labelled with its function's name when its body gave it none. No engine is asked
+# to build it and nothing is written. A @memo function already runs plainly outside a build.
+from cadgen.engine import api as _engine_api  # noqa: E402
+from cadgen.engine import model as _engine_model  # noqa: E402
+from cadgen.engine.ids import canonical  # noqa: E402
 
-_authoring._model_wrapper = lambda func, defn: func
+
+def _traced_call(self):
+    made = self.function()
+    if isinstance(made, B.Shape) and not made.__dict__.get("label"):
+        made.label = self.name
+    return _engine_api.Document.inside(self, made)
+
+
+_engine_model.Model.__call__ = _traced_call
 
 # Constrained sketches (`cadgen.sketch`), each kept with the place the script made it in (the
 # frame's globals and its locals then), so sketch mode runs its block again on its own.
@@ -1684,9 +1704,13 @@ def _features(summaries, timeline):
 
 
 def _is_model(file, function):
-    """Whether a project function is a part's model (`@step`), so an assembly's call to it is a component."""
+    """Whether a project function is a part's model (`@model`, or any of the engine's file
+    decorators), so an assembly's call to it is a component."""
+    from cadgen.edit.service import _DECORATORS
+
     try:
-        return re.search(rf"^\s*@step\b[^\n]*\n(?:\s*@[^\n]*\n)*\s*def\s+{re.escape(function)}\s*\(", _read(ROOT / file), re.M) is not None
+        return re.search(rf"^\s*@(?:cadgen\.)?(?:{'|'.join(_DECORATORS)})\b[^\n]*\n(?:\s*@[^\n]*\n)*\s*def\s+{re.escape(function)}\s*\(",
+                         _read(ROOT / file), re.M) is not None
     except (OSError, UnicodeDecodeError):
         return False
 
@@ -1711,18 +1735,25 @@ def _components(steps):
     return [{"file": file, "function": function, "steps": group} for (file, function), group in groups.items()]
 
 
-def _component_step(component):
-    """The STEP file a component's own part model writes, which Open Part opens: None for one that
-    writes none."""
-    from cadgen.authoring import registered_model
+def _component_model(component):
+    """A component's own part model, as the engine has it defined (``cadgen.engine.model._MODELS``,
+    keyed as a model's identity is): None for a function the trace ran but no script declared."""
+    return _engine_model._MODELS.get(f"{canonical(ROOT / component['file'])}::{component['function']}")
 
-    try:
-        model = registered_model((ROOT / component["file"]).resolve(), component["function"])
-    except Exception:  # noqa: BLE001 - a part the registry cannot name opens nothing
-        return None
-    if model is None or model.fmt != "step" or not getattr(model, "step_output", True):
-        return None
-    return str(model.output_path)
+
+def _component_step(component):
+    """The STEP file a component's own part model writes (`@step(out=...)`), which Open Part opens
+    where the part has one: None for one that writes none (a bare `@model`, opened by its document)."""
+    model = _component_model(component)
+    steps = [path for kind, path in model.targets() if kind == "step"] if model is not None else []
+    return str(steps[0]) if steps else None
+
+
+def _component_document(component):
+    """The id of a component's own part's document (``Model.id``, the engine's own), which Open Part
+    opens it by: None for a function no script declared a model."""
+    model = _component_model(component)
+    return model.id if model is not None else None
 
 
 def _bounds(shape):
@@ -1791,17 +1822,14 @@ def trace(request):
         printed = io.StringIO()
         with redirect_stdout(printed):
             spec.loader.exec_module(module)
-            models = [
-                value.__cadgen_model__
-                for value in vars(module).values()
-                if hasattr(value, "__cadgen_model__") and Path(str(value.__cadgen_model__.script_path)).resolve() == script
-            ]
+            # The engine's models this script defines (`cadgen.engine.model.models_in`), not those it imports.
+            models = _engine_model.models_in(vars(module), Path(canonical(script)))
             if not models:
-                return {"ok": False, "error": f"{script.name} declares no model (@step)."}
+                return {"ok": False, "error": f"{script.name} declares no model (@model)."}
             model = models[0]
             RECORDING = True
             try:
-                shape = model.func()
+                shape = model.function()
             finally:
                 RECORDING = False
     except Exception as error:
@@ -1866,7 +1894,12 @@ def trace(request):
     # The body and its making, for a command to act on (`commands.py`).
     _keep_version(str(script), shape, components)
     STATE[str(script)] = {"dimensions": {d["id"]: d for d in dimensions}, "rows": rows, "units": units,
-                          "shape": shape, "steps": steps, "level": level, "components": [c["function"] for c in components]}
+                          "shape": shape, "steps": steps, "level": level, "components": [c["function"] for c in components],
+                          # What a picked face is matched to (`face_feature`): the tree's features, an
+                          # assembly's by its parts, and the geometric map of a part's faces.
+                          "features": [] if components else features,
+                          "componentFeatures": [(c["function"], c["features"]) for c in components],
+                          "faceFeatures": made_faces}
     # What a move of the rollback bar alone needs of this trace, while its files read the same.
     LAST.clear()
     LAST.update(script=str(script), root=ROOT, files=dict(FILES), features=[] if components else features,
@@ -1880,6 +1913,9 @@ def trace(request):
         "ok": True,
         "script": str(script),
         "name": script.stem,
+        # The part's document, by the id the engine holds it by (`Model.id`): what the viewer shows.
+        "document": model.id,
+        "model": model.name,
         "units": units,
         "files": dict(FILES),
         "params": params,
@@ -1892,11 +1928,12 @@ def trace(request):
         # has neither: `{}` and 0.
         "faceFeatures": made_faces,
         # The part's own material (`part_material`), the design tree's Material row; "" for none.
-        "material": "" if components else part_material(script),
-        "materialName": "" if components else _material_name(part_material(script)),
+        "material": "" if components else part_material(script, shape),
+        "materialName": "" if components else _material_name(part_material(script, shape)),
         "faceCount": 0 if components else face_count(shape),
         "sketches": sketches,
-        "components": [{"name": c["function"], "file": c["file"], "features": c["features"], "step": _component_step(c)} for c in components],
+        "components": [{"name": c["function"], "file": c["file"], "features": c["features"], "step": _component_step(c),
+                        "document": _component_document(c)} for c in components],
         # Who made each feature, by its key: "you" or "agent", none where it is not known (`authors.py`).
         "authors": made_by,
         # An assembly's mates, as its joints are labelled (`mates.py`), for the design tree's Mates.
@@ -1912,14 +1949,16 @@ def trace(request):
 
 
 def _shown_color(shape):
-    """A shape's color as the hex it shows on screen (its channels are linear), or None."""
-    from cadgen.color import linear_to_srgb
+    """A shape's color as the hex it shows on screen, or None. A part's color is given in sRGB (a hex,
+    0-255 integers or a build123d Color) and the engine holds it linear (`cadgen.engine.colors`):
+    read as the engine reads it, then shown as sRGB again."""
+    from cadgen.engine.colors import linear, linear_to_srgb
 
     color = getattr(shape, "color", None) if isinstance(shape, B.Shape) else None
     if color is None:
         return None
     try:
-        red, green, blue, *_ = tuple(color)
+        red, green, blue, *_ = linear(color)
     except Exception:  # noqa: BLE001 - a color it cannot read shows none
         return None
     return "#" + "".join(f"{round(max(0.0, min(1.0, linear_to_srgb(channel))) * 255):02X}" for channel in (red, green, blue))
@@ -2349,36 +2388,83 @@ def preview(request):
         _put_back(kept)
 
 
-def part_material(script):
-    """The material a part's script gives it, as SolidWorks keeps a part's material in the part: a
-    top-level ``MATERIAL = "6061"``, or "" for none (`material_change` writes it)."""
+def catalogue_key(given):
+    """A material as the engine's catalogue names it (``cadgen.engine.materials``): its attribute
+    (``aluminium_6061``), from a ``Material`` of it, its name, its attribute or any alias the
+    catalogue knows (``"6061"``, ``"aluminum-6061-t6"``); None for one it does not have."""
+    from cadgen.engine import materials as catalogue
+
+    if isinstance(given, catalogue.Material):
+        found = next((key for key, entry in catalogue.CATALOGUE.items() if entry is given), None)
+        return found or catalogue_key(given.name)
+    text = str(given or "").strip()
+    if not text:
+        return None
+    spellings = [text, text.replace("-", " ")]
+    # 0.7 Studio named a part's material by its FEA table's key (``aluminum-6061-t6``): that entry's name.
+    from cadgen._internal.fea.materials import lookup_material
+
+    try:
+        spellings.append(lookup_material(text).name)
+    except ValueError:
+        pass
+    for spelling in spellings:
+        try:
+            entry = catalogue(spelling)
+        except LookupError:
+            continue
+        return next((key for key, value in catalogue.CATALOGUE.items() if value is entry), None)
+    return None
+
+
+def _material_line(function, var):
+    """The statement of the part's function that gives its body a material: ``<var>.material = ...``."""
+    return next((statement for statement in function.body if isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                 and isinstance(statement.targets[0], ast.Attribute) and statement.targets[0].attr == "material"
+                 and isinstance(statement.targets[0].value, ast.Name) and statement.targets[0].value.id == var), None) if var else None
+
+
+def _legacy_material(tree):
+    """0.7 Studio's top-level ``MATERIAL = "6061"``, which a part made before the engine's materials
+    may still carry: the statement, or None."""
+    return next((node for node in tree.body if isinstance(node, ast.Assign) and len(node.targets) == 1
+                 and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "MATERIAL"
+                 and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)), None)
+
+
+def part_material(script, shape=None):
+    """The material a part has, as the catalogue names it (`catalogue_key`): the one its body was
+    given, as the trace made it (``part.material = materials.aluminium_6061``, the engine's way),
+    else a 0.7 script's top-level ``MATERIAL = "6061"``; "" for none (`material_change` writes it)."""
+    held = getattr(shape, "material", None) if isinstance(shape, B.Shape) else None
+    if held:  # build123d's own default is ""
+        return catalogue_key(held) or str(getattr(held, "name", "") or "")
     try:
         tree = ast.parse(_read(Path(script)))
     except (OSError, SyntaxError, UnicodeDecodeError):
         return ""
-    for node in tree.body:
-        if (isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name)
-                and node.targets[0].id == "MATERIAL" and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str)):
-            return node.value.value.strip()
-    return ""
+    legacy = _legacy_material(tree)
+    if legacy is None:
+        return ""
+    written = legacy.value.value.strip()
+    return catalogue_key(written) or written
 
 
 def _material_name(key):
-    """A material as the table names it ("PLA"), or as written where the table has no such material; "" for none."""
+    """A material as the catalogue names it ("Aluminum 6061-T6"), or as written where it has no such material; "" for none."""
     if not key:
         return ""
-    from cadgen._internal.fea.materials import lookup_material
+    from cadgen.engine import materials as catalogue
 
-    try:
-        return lookup_material(key).name
-    except ValueError:
-        return key
+    found = catalogue_key(key)
+    return catalogue.CATALOGUE[found].name if found else key
 
 
 def _material(request):
     """The part's material: its script's own (`part_material`), else the project's brief's, as Studio's
     record says it (``material``), else in a ``project.json`` of the project's own folders."""
-    own = part_material(request["script"]) if request.get("script") else ""
+    traced = STATE.get(str(Path(request["script"]).resolve())) if request.get("script") else None
+    own = part_material(request["script"], traced["shape"] if traced else None) if request.get("script") else ""
     if own:
         return own
     named = str(request.get("material") or "").strip()
@@ -2400,9 +2486,10 @@ def mass_properties(request):
     area, its center of mass and its overall size, in its millimetres, from its solids as the last
     trace made them (at the rollback bar, the part as it is there); and the materials it could be
     made of, each with its density in g/cm^3, the project's own (as its brief names it) said when
-    the table has it. Its mass is its volume times the density of the material picked."""
-    from cadgen._internal.fea.materials import MATERIALS, lookup_material
+    the catalogue has it (the engine's, ``cadgen.engine.materials``). Its mass is its volume times
+    the density of the material picked."""
     from cadgen.edit import commands
+    from cadgen.engine import materials as catalogue
 
     script = Path(request["script"]).resolve()
     root = Path(request.get("root") or script.parent).resolve()
@@ -2423,10 +2510,7 @@ def mass_properties(request):
     centers = [(solid.center(B.CenterOf.MASS), solid.volume) for solid in solids]
     center = [sum(getattr(point, axis) * share for point, share in centers) / volume for axis in ("X", "Y", "Z")]
     box = shape.bounding_box()
-    try:
-        own = lookup_material(_material(request)) if _material(request) else None
-    except ValueError:
-        own = None
+    own = catalogue_key(_material(request))
     return {"ok": True, "mass": {
         "volume": volume,
         "area": sum(face.area for face in shape.faces()),
@@ -2434,9 +2518,10 @@ def mass_properties(request):
         **_inertia(solids),
         "box": [[box.min.X, box.min.Y, box.min.Z], [box.max.X, box.max.Y, box.max.Z]],
         "solids": len(solids),
-        "material": next((key for key, value in MATERIALS.items() if value is own), None),
-        "materials": [{"key": key, "name": value.name, "density": round(value.density * 1e9, 6)}
-                      for key, value in sorted(MATERIALS.items(), key=lambda item: item[1].name)],
+        "material": own,
+        # Each with its density in g/cm^3 (the catalogue's is kg/m^3).
+        "materials": [{"key": key, "name": value.name, "density": round(value.density / 1000, 6)}
+                      for key, value in sorted(catalogue.CATALOGUE.items(), key=lambda item: item[1].name)],
     }}
 
 
@@ -2990,12 +3075,27 @@ def _call_name(node):
     return getattr(node.func, "attr", None) or getattr(node.func, "id", None)
 
 
+def _written_alpha(value):
+    """The alpha a part's written color carries, as two hex digits ("" for none), where it is a
+    color the engine reads: a hex string (`"#B7A1D7CC"`), or 0.7's `srgb("#B7A1D7", 0.8)`. None for
+    any other expression."""
+    if isinstance(value, ast.Constant) and isinstance(value.value, str) and re.fullmatch(r"#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})", value.value):
+        return value.value[7:].upper()
+    if isinstance(value, ast.Call) and _call_name(value) == "srgb" and value.args and isinstance(value.args[0], ast.Constant):
+        given = value.args[1] if len(value.args) > 1 else next((k.value for k in value.keywords if k.arg in ("alpha", "a")), None)
+        if isinstance(given, ast.Constant) and isinstance(given.value, (int, float)) and not isinstance(given.value, bool):
+            return f"{round(max(0.0, min(1.0, float(given.value))) * 255):02X}"
+        return "" if given is None else None
+    return None
+
+
 def appearance(request):
     """Appearance, as SolidWorks' Edit Appearance colors a part: ``color``, the hex the engineer
-    picked, written where the part's body takes its color (``tray.color = srgb("#B7A1D7")``, its
-    alpha kept), or put in just before the part is returned; then the part is built again, as its
-    STEP carries the color."""
-    from cadgen.edit import commands, sketching
+    picked, written where the part's body takes its color (``tray.color = "#B7A1D7"``, sRGB as the
+    engine takes it; an alpha written after it kept), or put in just before the part is returned;
+    then the part is built again, as its document carries the color. A 0.7 ``srgb("#...", alpha)``
+    is written as the hex it means."""
+    from cadgen.edit import commands
 
     traced = trace(request)
     if not traced["ok"]:
@@ -3014,17 +3114,17 @@ def appearance(request):
     except commands.CommandError as error:
         return {"ok": False, "error": str(error)}
     edits = commands.Edits(body.text)
-    painted = f"srgb({json.dumps(color)})"
+    painted = json.dumps(color)
     var = body.name
     held = next((statement for statement in body.function.body if isinstance(statement, ast.Assign) and len(statement.targets) == 1
                  and isinstance(statement.targets[0], ast.Attribute) and statement.targets[0].attr == "color"
                  and isinstance(statement.targets[0].value, ast.Name) and statement.targets[0].value.id == var), None) if var else None
     if held is not None:
         value = held.value
-        if isinstance(value, ast.Call) and _call_name(value) == "srgb" and value.args and isinstance(value.args[0], ast.Constant):
-            # Its hex alone: an alpha after it stays.
-            first = value.args[0]
-            edits.put(first.lineno, first.col_offset, json.dumps(color), until=first.end_col_offset)
+        alpha = _written_alpha(value)
+        if alpha is not None and value.lineno == value.end_lineno:
+            # Its hex, an alpha written with it kept (`"#B7A1D7CC"`).
+            edits.put(value.lineno, value.col_offset, json.dumps(color + alpha), until=value.end_col_offset)
         elif value.lineno == value.end_lineno:
             edits.put(value.lineno, value.col_offset, painted, until=value.end_col_offset)
         else:
@@ -3044,12 +3144,6 @@ def appearance(request):
             edits.after(at, [f"{body.indent}{var}.color = {painted}"])
             line = at + 1
     text = edits.apply()
-    if not sketching.has_name(body.tree, "srgb"):
-        last = max((node.end_lineno for node in body.tree.body if isinstance(node, (ast.Import, ast.ImportFrom))), default=0)
-        lines = text.splitlines(keepends=True)
-        lines.insert(last, "from cadgen.color import srgb\n")
-        text = "".join(lines)
-        line += 1
     old = body.text
     _write(body.path, text)
     after = trace(request)
@@ -3327,11 +3421,13 @@ def sizes_preview(request):
 
 
 def material_change(request):
-    """Edit Material, as SolidWorks sets a part's: ``set_material`` (``{"name": ...}``, a name the
-    materials table knows) written as the script's top-level ``MATERIAL``, replaced where it is or put
-    just above the part's first function; an empty name takes it out. One change to undo."""
-    from cadgen._internal.fea.materials import lookup_material
-    from cadgen.edit import commands
+    """Edit Material, as SolidWorks sets a part's: ``set_material`` (``{"name": ...}``, a material the
+    engine's catalogue has, by its attribute, name or alias) written as the engine takes a part's
+    material, on the body in the part's function: ``part.material = materials.aluminium_6061``,
+    replaced where it is or put just before the part is returned; an empty name takes it out (a 0.7
+    top-level ``MATERIAL`` too). ``materials`` is brought in from cadgen when the file has it not.
+    One change to undo."""
+    from cadgen.edit import commands, sketching
 
     global ROOT
     script = Path(request["script"]).resolve()
@@ -3344,38 +3440,82 @@ def material_change(request):
     if refused:
         return refused
     name = str((request["set_material"] or {}).get("name") or "").strip()
-    if name:
-        try:
-            lookup_material(name)
-        except ValueError:
-            return {"ok": False, "error": f"{name} is not a material Studio knows. Pick one from the list."}
-    old = _read(script)
-    tree = ast.parse(old)
-    lines = old.splitlines(keepends=True)
-    held = next((node for node in tree.body if isinstance(node, ast.Assign) and len(node.targets) == 1
-                 and isinstance(node.targets[0], ast.Name) and node.targets[0].id == "MATERIAL"), None)
-    written = f"MATERIAL = {name!r}  # the part's material, as Edit Material sets it\n"
+    key = catalogue_key(name) if name else None
+    if name and key is None:
+        return {"ok": False, "error": f"{name} is not a material Studio knows. Pick one from the list."}
+    state = STATE[str(script)]
+    if state.get("components"):
+        return {"ok": False, "error": "An assembly's parts are given their materials in their own files. Open a part to set its material."}
+    try:
+        body = commands.find_body(state["steps"], state["shape"], state["level"], ROOT)
+    except commands.CommandError as error:
+        return {"ok": False, "error": str(error)}
+    edits = commands.Edits(body.text)
+    var = body.name
+    held = _material_line(body.function, var)
+    legacy = _legacy_material(body.tree) if body.path == script else None
+    written = f"materials.{key}" if key else None
     if held is not None:
-        lines[held.lineno - 1:held.end_lineno] = [written] if name else []
+        if written is None:
+            lines = body.text.splitlines(keepends=True)
+            del lines[held.lineno - 1:held.end_lineno]
+            text = "".join(lines)
+        elif held.value.lineno == held.value.end_lineno:
+            edits.put(held.value.lineno, held.value.col_offset, written, until=held.value.end_col_offset)
+            text = edits.apply()
+        else:
+            return {"ok": False, "error": "The part's material is written over several lines. Ask the agent to change it."}
         line = held.lineno
-    elif name:
-        first = next((node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))), None)
-        at = (min([first.lineno, *(d.lineno for d in first.decorator_list)]) - 1) if first is not None else len(lines)
-        lines[at:at] = [written, "\n"]
-        line = at + 1
+    elif written is None:
+        if legacy is None:
+            return {"ok": False, "error": "This part has no material to take out."}
+        lines = body.text.splitlines(keepends=True)
+        del lines[legacy.lineno - 1:legacy.end_lineno]
+        text, line = "".join(lines), legacy.lineno
     else:
-        return {"ok": False, "error": "This part has no material to take out."}
-    new = "".join(lines)
-    _write(script, new)
+        if var is None:
+            # `return <body>` becomes `part = <body>`, its material, and `return part`.
+            var = commands.fresh_name(body.tree, "part")
+            value = body.statement.value
+            edits.put(body.statement.lineno, body.statement.col_offset, f"{var} = ", until=value.col_offset)
+            edits.after(body.statement.end_lineno, [f"{body.indent}{var}.material = {written}", f"{body.indent}return {var}"])
+            line = body.statement.end_lineno + 1
+        else:
+            returned = next((statement for statement in reversed(body.function.body) if isinstance(statement, ast.Return)), None)
+            at = returned.lineno - 1 if returned is not None else body.function.end_lineno
+            edits.after(at, [f"{body.indent}{var}.material = {written}"])
+            line = at + 1
+        text = edits.apply()
+    if written is not None and not sketching.has_name(ast.parse(text), "materials"):
+        text, added = _from_cadgen(text, "materials")
+        line += added
+    old = body.text
+    _write(body.path, text)
     after = trace(request)
     if not after.get("ok"):
-        _write(script, old)
+        _write(body.path, old)
         trace(request)
-        return {"ok": False, "error": "The part does not build with that material line, so nothing changed."}
-    rel = script.relative_to(ROOT).as_posix()
-    after["change"] = {"kind": "material", "material": name, "file": rel, "line": line, "build": False,
-                       "undo": {"file": rel, "hunks": commands.hunks(new, old)}, "redo": {"file": rel, "hunks": commands.hunks(old, new)}}
+        return {"ok": False, "error": "The part does not build with that material, so nothing changed."}
+    after["change"] = {"kind": "material", "material": key or "", "file": body.rel, "line": line, "build": True,
+                       "undo": {"file": body.rel, "hunks": commands.hunks(text, old)}, "redo": {"file": body.rel, "hunks": commands.hunks(old, text)}}
     return after
+
+
+def _from_cadgen(text, name):
+    """``text`` with ``name`` brought in from cadgen: added to its ``from cadgen import ...``, or a
+    line of its own after its last import. With the lines that added above the rest (0 or 1)."""
+    tree = ast.parse(text)
+    lines = text.splitlines(keepends=True)
+    found = next((node for node in tree.body if isinstance(node, ast.ImportFrom) and node.module == "cadgen" and not node.level
+                  and all(alias.name != "*" for alias in node.names)), None)
+    if found is not None and found.lineno == found.end_lineno:
+        last = found.names[-1]
+        row = lines[last.end_lineno - 1]
+        lines[last.end_lineno - 1] = row[:last.end_col_offset] + f", {name}" + row[last.end_col_offset:]
+        return "".join(lines), 0
+    at = max((node.end_lineno for node in tree.body if isinstance(node, (ast.Import, ast.ImportFrom))), default=0)
+    lines.insert(at, f"from cadgen import {name}\n")
+    return "".join(lines), 1
 
 
 def splice(request):
@@ -4222,8 +4362,9 @@ def _first_line(feature, rel):
 
 def _bar(script, rel, line, reply):
     """The rollback bar at ``line`` of ``rel``: the tree item it sits above, the body there as a
-    tree of cadgen's store the viewer draws in place of the part's (`_bar_tree`), and the name that
-    holds it. None when that line no longer starts a tree item (the agent changed the file)."""
+    document of the engine's the viewer opens by its id in place of the part's (`_bar_document`),
+    and the name that holds it. None when that line no longer starts a tree item (the agent changed
+    the file)."""
     from cadgen.edit import commands
 
     state = STATE.get(str(script))
@@ -4243,17 +4384,30 @@ def _bar(script, rel, line, reply):
     except commands.CommandError as error:
         return {**where, "step": None, "error": str(error)}
     # No face map: the viewer names no face on the bar's body (`step/edit/faceChips.js`'s `shownFaces`).
-    return {**where, **_bar_tree(script, shape), "name": body.name}
+    try:
+        shown = _bar_document(script, shape)
+    except Exception as error:  # noqa: BLE001 - a bar the engine cannot show says why, as one with no body does
+        return {**where, "step": None, "error": str(error) or type(error).__name__}
+    return {**where, **shown, "name": body.name}
 
 
-def _bar_tree(script, shape):
-    """The body at a bar published to cadgen's store as the tree of a part, as a built model's is,
-    so the viewer draws it, and picks its faces and edges, as it does the part's own. The store is
-    addressed by content: a bar that did not move answers with the same tree."""
-    from cadgen.store.build import build_tree_from_compound
+def _bar_name(script):
+    """The name a part's body at its bar is handed to the engine by: the script's stem and a digest
+    of its path, so two projects' parts of one name never share a document, and one part's bar always
+    has the same one (moving the bar again is a new version of it, at the same id)."""
+    digest = hashlib.sha1(str(Path(script).resolve()).encode("utf-8")).hexdigest()[:8]
+    return f"{Path(script).stem} at the rollback bar {digest}"
 
-    tree, built, _ = build_tree_from_compound(shape, root_name=Path(script).stem)
-    return {"tree": tree, "kind": "assembly" if built.get("entryKind") == "assembly" else "part"}
+
+def _bar_document(script, shape):
+    """The body at a bar handed to the engine as a document of its own (``model(shape, name=)``, by
+    the engine's ``api.hand_over``, which it calls: this module runs as ``__main__``, where the
+    call would say so on the stdout the replies go to), in the engine of this process's environment,
+    the one the service runs in; so the viewer opens it by its id, and picks its faces and edges, as
+    it does the part's. The only request this process makes of the engine: a trace asks it nothing."""
+    handed = _engine_api.hand_over(shape, _bar_name(script))
+    assembly = bool(tuple(getattr(shape, "children", ()) or ()))
+    return {"document": {"id": handed.id, "url": handed.url, "name": handed.name}, "kind": "assembly" if assembly else "part"}
 
 
 def _with_bar(request, reply):
@@ -4296,8 +4450,71 @@ def _bar_only(request):
     return {"ok": True, "unchanged": True, "files": dict(LAST["files"]), "bar": placed.get("bar")}
 
 
+def _project_rel(file):
+    """A file the engine names (absolute) as the trace names it: relative to the project; None outside it."""
+    try:
+        return Path(canonical(file)).relative_to(Path(canonical(ROOT))).as_posix()
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _feature_made_by(state, made):
+    """The tree's feature the engine's ``made_by`` names, and the component it is in (None for a
+    part's own tree): the row of the line that made the face. The call's file and line are matched
+    to a traced operation that ran there (any frame of it: the design function's line, or a helper's
+    it calls), else to the tree item whose statement holds that line. None where none does."""
+    rel, line = _project_rel(made.get("file")), made.get("line")
+    if rel is None or not isinstance(line, int):
+        return None
+    row_of = {index: row["key"] for row in state["rows"] for index in row["steps"]}
+    rows = [row_of.get(step["index"]) for step in state["steps"]
+            if any(frame["file"] == rel and frame["line"] == line for frame in step["frames"])]
+    try:
+        top = _statement_line(ast.parse(_read(ROOT / rel)), line)
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        top = line
+    wanted = [row for row in rows if row] + [f"{rel}:{top}"]
+    scopes = [(None, state["features"])] + list(state["componentFeatures"])
+    for row in wanted:
+        for component, features in scopes:
+            found = next((feature for feature in features or () if row == feature.get("key") or row in (feature.get("rows") or ())), None)
+            if found is not None:
+                return found["key"], component
+    return None
+
+
+def face_feature(request):
+    """The feature of the tree that made a face (``face``: its number on the part, or an engine ref
+    ending in one), for the viewer's double-click: from the engine's ``made_by`` when the request
+    carries it (a model's document a live worker built), matched by file and line
+    (`_feature_made_by`); else from the trace's geometric map of the part's faces (a file, which
+    names no model: an imported STEP). The part is traced first when its files changed since."""
+    global ROOT
+    script = Path(request["script"]).resolve()
+    ROOT = Path(request.get("root") or script.parent).resolve()
+    if not _as_last_traced(script, ROOT) or str(script) not in STATE:
+        traced = trace(request)
+        if not traced["ok"]:
+            return traced
+    state = STATE[str(script)]
+    face = request.get("face")
+    made = request.get("made_by") if isinstance(request.get("made_by"), dict) else None
+    answer = {"face": face, "feature": None, "component": None, "source": None, "madeBy": made}
+    found = _feature_made_by(state, made) if made else None
+    if found is not None:
+        answer.update(feature=found[0], component=found[1], source="made_by")
+    else:
+        number = re.search(r"(\d+)\s*$", str(face if not isinstance(face, bool) else ""))
+        key = state["faceFeatures"].get(number.group(1)) if number else None
+        if key:
+            answer.update(feature=key, source="geometric")
+    return {"ok": True, "faceFeature": answer}
+
+
 def handle(request):
     try:
+        if request.get("op") == "face":
+            return face_feature(request)
         quick = _bar_only(request)
         if quick is not None:
             return quick
@@ -4310,8 +4527,22 @@ def handle(request):
         return {"ok": False, "error": str(error), "detail": traceback.format_exc(limit=4)}
 
 
+def _end_with(parent):
+    """This process ended once the one that started it is gone (the edit service's, in the engine's
+    daemon): an orphan tracer holds a kernel and its memory for nothing."""
+    import threading
+
+    def watch():
+        while os.getppid() == parent:
+            time.sleep(1)
+        os._exit(0)
+
+    threading.Thread(target=watch, daemon=True).start()
+
+
 def main():
     if "--serve" in sys.argv:
+        _end_with(os.getppid())
         for line in sys.stdin:
             if not line.strip():
                 continue

@@ -10,18 +10,32 @@ from __future__ import annotations
 import shutil
 import tempfile
 import textwrap
+import os
 import unittest
 from pathlib import Path
 
 from cadgen.edit import service as edit
 
+
+def setUpModule():
+    """An engine of this file's own (its folders, and a free port), which every process the edit
+    service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
+    from unittest import mock
+
+    from tests.python.support import engine_daemon
+
+    engine_daemon.isolate(unittest.addModuleCleanup)
+    patch = mock.patch.dict(os.environ, {"CADGEN_ENGINE_PORT": "0"})
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
+
 PART = """
     from build123d import Box, Pos
-    from cadgen import step
+    from cadgen import model
 
     WIDTH = 40
 
-    @step
+    @model
     def plate():
         part = Pos(0, 0, -5) * Box(WIDTH, 20, 5)
         return part
@@ -813,12 +827,12 @@ class SketchMode(unittest.TestCase):
     def test_an_inch_part_sketches_in_inches(self):
         root = project("""
             from build123d import Box
-            from cadgen import step
+            from cadgen import model
 
             INCH = 25.4
             SIDE = 1.00
 
-            @step
+            @model
             def plate():
                 part = Box(SIDE*INCH, SIDE*INCH, .25*INCH)
                 return part

@@ -70,12 +70,25 @@ def _type_name(shape) -> str:
     try:
         from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
 
-        from cadgen._internal.step_scene_types import _enum_name
-
         adaptor = BRepAdaptor_Surface(shape.wrapped) if isinstance(shape, B.Face) else BRepAdaptor_Curve(shape.wrapped)
         return _enum_name(adaptor.GetType(), "GeomAbs_")
     except Exception:  # noqa: BLE001 - an unnamed kind only loosens the match
         return ""
+
+
+_ENUM_TEXT: dict[tuple[type, int], str] = {}
+
+
+def _enum_name(value, prefix: str) -> str:
+    """An OCCT enum's name, its prefix off and lower-cased (``GeomAbs_Plane`` is ``plane``). Kept by
+    the enum's type and number: OCP's enums of different families share numbers, and ``str`` of one
+    is slow."""
+    key = (type(value), int(value))
+    text = _ENUM_TEXT.get(key)
+    if text is None:
+        text = _ENUM_TEXT[key] = str(value)
+    name = text.split(".")[-1]
+    return (name[len(prefix):] if name.startswith(prefix) else name).lower()
 
 
 class Topology:
@@ -1735,7 +1748,7 @@ def _imports(edits: Edits, body: Body, module: str | None, named_import: ast.Imp
     above the command's line."""
     if module is None:
         last = max((node.end_lineno for node in body.tree.body if isinstance(node, (ast.Import, ast.ImportFrom))), default=0)
-        edits.after(last, ["from cadgen import build123d as bd"])
+        edits.after(last, ["import build123d as bd"])
         return 1
     if module or named_import is None:
         return 0

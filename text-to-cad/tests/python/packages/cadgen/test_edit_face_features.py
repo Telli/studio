@@ -5,9 +5,8 @@ the very same B-rep face or one holding a point inside it (``faceFeatures``), an
 body has (``faceCount``); the rollback bar's body, which the viewer names no face on, says neither.
 
 They drive the edit service end to end, as the viewer's server does, on ``test_edit_commands.py``'s
-parts. The faces are numbered as the viewer numbers them (``faces_on_screen``): the part made by its
-script as a build makes it, written as its build writes its STEP, and read back by its selectors as
-the viewer reads that STEP. The surface keys are read on build123d's own faces (``SurfaceKeys``), and
+parts. The faces are numbered as the viewer numbers them (``faces_on_screen``): the part's document as
+the engine makes it of its model, read back as the viewer's document is numbered. The surface keys are read on build123d's own faces (``SurfaceKeys``), and
 the map itself on a body made here where OCCT is made to fail (``FaceMap``).
 """
 
@@ -23,6 +22,19 @@ from unittest import mock
 
 from tests.python.packages.cadgen import test_edit_commands as parts
 
+
+def setUpModule():
+    """An engine of this file's own (its folders, and a free port), which every process the edit
+    service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
+    from unittest import mock
+
+    from tests.python.support import engine_daemon
+
+    engine_daemon.isolate(unittest.addModuleCleanup)
+    patch = mock.patch.dict(os.environ, {"CADGEN_ENGINE_PORT": "0"})
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
+
 # PLATE placed at its end, as a part returned as ``Pos(...) * body`` is, and moved in place there.
 PLACED = {"plate.py": parts.PLATE["plate.py"].replace("return plate", "return bd.Pos(0, 0, 10) * plate")}
 MOVED = {"plate.py": parts.PLATE["plate.py"].replace(
@@ -32,10 +44,10 @@ MOVED = {"plate.py": parts.PLATE["plate.py"].replace(
 FUNNEL = {
     "funnel.py": """
         from build123d import Circle, Plane, Rectangle, loft
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def funnel():
             base = Rectangle(20, 20)
             top = Plane.XY.offset(15) * Circle(5)
@@ -49,10 +61,10 @@ FUNNEL = {
 TABS = {
     "tabs.py": """
         from build123d import Box, Pos
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def tabs():
             plate = Box(100, 50, 10)
             plate += Pos(-30, 0, 8.5) * Box(10, 10, 7)
@@ -68,10 +80,10 @@ HOLED = {"tabs.py": TABS["tabs.py"].replace(
 SLOTTED = {
     "slotted.py": """
         from build123d import Box, Pos
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def slotted():
             plate = Box(100, 50, 10)
             plate -= Pos(0, 0, 5) * Box(10, 60, 4)
@@ -85,10 +97,10 @@ def walled(length: float, width: float, wall: float) -> dict[str, str]:
     return {
         "tray.py": f"""
             from build123d import Box, Pos
-            from cadgen import step
+            from cadgen import model
 
 
-            @step
+            @model
             def tray():
                 body = Box({length}, {width}, 30)
                 body -= Pos(0, 0, 1) * Box({length - 2 * wall}, {width - 2 * wall}, 30)
@@ -104,26 +116,25 @@ PLATE_TOP_EDGES = [parts.edge("e1", (0, -HALF_WIDTH, TOP), 50.8), parts.edge("e2
 
 
 def faces_on_screen(script: Path) -> dict[int, object]:
-    """A part's faces by the numbers the viewer's references give them (``f12`` is 12): the part made
-    by its script as a build makes it (its model's own function, run here), written as its build
-    writes its STEP (``build_tree_through_step``), and read back by its selectors (``read_scene``),
-    in a store of the project's own."""
-    from cadgen.step_scene import read_scene
-    from cadgen.store.build import build_tree_through_step
+    """A part's faces by the numbers the viewer's references give them (``face 12``, ``f12``): the
+    part's document as the engine makes it of its model, built in this process (``daemon=False``:
+    no engine runs) and written as its xbf, then read back by the scene adapter as the viewer's
+    document is numbered (``step_open``)."""
+    from cadgen._internal.step_open import open_scene
+    from cadgen.engine import api
+    from cadgen.engine.model import models_in
 
     folder = str(script.parent)
     sys.path.insert(0, folder)
     try:
         made = runpy.run_path(str(script), run_name=f"made_{script.stem}")
-        model = next(value.__cadgen_model__ for value in made.values() if hasattr(value, "__cadgen_model__"))
-        shape = model.func()
+        model = models_in(made, script)[0]
+        document = script.with_suffix(".xbf")
+        api.export(model, document, daemon=False)
     finally:
         sys.path.remove(folder)
-    step = script.with_suffix(".step")
-    with mock.patch.dict(os.environ, {"CADGEN_CACHE_DIR": str(script.parent / ".store")}):
-        build_tree_through_step(shape, step, root_name=script.stem)
-        (leaf,) = read_scene(step).leaves()
-        return {face.ordinal: face.shape() for face in leaf.entities("face")}
+    (leaf,) = open_scene(document).leaves()
+    return {face.ordinal: face.shape() for face in leaf.entities("face")}
 
 
 def faces_of(shape) -> dict[int, object]:
@@ -206,16 +217,17 @@ class FaceFeatures(parts.Commands):
         self.assertEqual(state["faceFeatures"], {})
 
     def test_the_rollback_bars_body_has_no_map(self):
-        from cadgen.store.lazy import materialize_model
+        from cadgen.engine import api
 
         root, file, state = self.open(parts.PLATE, "plate.step")
         hole = self.key(state, "Hole")
         rolled = self.service.change({"file": file, "files": state["files"], "bar": {"item": hole}})
         self.assertTrue(rolled["ok"], rolled.get("error"))
         bar = rolled["bar"]
-        # The block before its hole, drawn in the part's place; the viewer names no face on it (`edit/faceChips.js`'s
-        # `shownFaces`), so the bar says no feature made any.
-        self.assertEqual({kind(face) for face in faces_of(materialize_model(bar["tree"], label="plate")).values()}, {"plane"})
+        # The plate before its hole, the engine's document the viewer opens in the part's place; the viewer names
+        # no face on it (`edit/faceChips.js`'s `shownFaces`), so the bar says no feature made any.
+        summary = api.inspect(bar["document"]["id"], query="summary")["summary"]
+        self.assertAlmostEqual(summary["volume"], (2 * 25.4) * (1 * 25.4) * (.25 * 25.4), places=3)
         self.assertNotIn("faceFeatures", bar)
         self.assertNotIn("faceCount", bar)
         # The part as a whole keeps its map, the hole's wall in it.

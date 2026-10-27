@@ -1,8 +1,9 @@
 """Drawings, as SolidWorks' Make Drawing from Part makes one and its Sheet Properties change it.
 
 A part's drawing is an engineering drawing script beside the part (``cadgen.eng_drawing``):
-``<name>_drawing.py``, which reads the part's STEP and lays out its views on a sheet, so the
-drawing follows the part. Make Drawing writes one from the template (top, front and right views
+``<name>_drawing.py``, which calls the part's model (``part().shape``: the engine's document of it)
+and lays out its views on a sheet, so the drawing follows the part. One made before parts were
+models reads the part's STEP, and is found by it as ever. Make Drawing writes one from the template (top, front and right views
 in third angle and an isometric, each with its overall size), and the drawing panel changes its
 sheet: the size, the scale, the title block's fields, and whether the isometric is drawn. Each
 change runs the script, which writes the drawing's PDF.
@@ -48,9 +49,11 @@ def _number(value: float) -> str:
 
 
 def find(root: Path, step: Path) -> Path | None:
-    """The project's drawing of a part: ``<name>_drawing.py`` beside the part's model, else an
-    engineering drawing script anywhere in the project that reads the part's STEP."""
+    """The project's drawing of a part (``step``: its script, or the STEP a drawing reads):
+    ``<name>_drawing.py`` beside the part's model, else an engineering drawing script anywhere in
+    the project that imports the part's script or reads its STEP."""
     name = step.stem
+    imports = re.compile(rf"^\s*(?:from\s+(?:\.\s*)?{re.escape(name)}\s+import|import\s+{re.escape(name)}\b)", re.M)
     # Drawing scripts are named for what they draw: those first, the one named for this part first of all.
     named = [path for path in _scripts(root) if path.name.endswith("_drawing.py")]
     candidates = sorted(named, key=lambda path: path.name != f"{name}_drawing.py")
@@ -59,7 +62,7 @@ def find(root: Path, step: Path) -> Path | None:
             text = path.read_text(encoding="utf-8")
         except OSError:
             continue
-        if "eng_drawing" in text and f"{name}.step" in text:
+        if "eng_drawing" in text and (f"{name}.step" in text or imports.search(text)):
             return path
     return None
 
@@ -73,23 +76,39 @@ def _scripts(root: Path):
 
 
 def template(name: str, step: Path, script: Path, *, material: str = "", units: str = "mm") -> str:
-    """A drawing script for the part named ``name``, from the engineering drawing skill's template."""
-    reading = os.path.relpath(Path(step).resolve(), Path(script).parent.resolve()).replace(os.sep, "/")
+    """A drawing script for the part named ``name``, from the engineering drawing skill's template.
+    ``step`` is the part's script, whose model it calls (``part().shape``), or a STEP, which it
+    reads (``read_step``)."""
+    source = Path(step)
+    if source.suffix.lower() == ".py":
+        from cadgen.edit.service import model_of
+
+        found = model_of(source.read_text(encoding="utf-8"))
+        if found is None:
+            raise DrawingError(f"{source.name} declares no model to draw.")
+        if source.resolve().parent != Path(script).resolve().parent:
+            raise DrawingError(f"A drawing goes beside its part: {source.name} is in another folder.")
+        # Beside it, the part's script imports by its name, as `python <drawing>.py` runs it.
+        head = f"from cadgen.eng_drawing import Sheet, eng_drawing\n\nfrom {source.stem} import {found[0]}"
+        return _template(name, head, f"{found[0]}().shape", material=material, units=units)
+    reading = os.path.relpath(source.resolve(), Path(script).parent.resolve()).replace(os.sep, "/")
+    head = "from pathlib import Path\n\nfrom cadgen import read_step\nfrom cadgen.eng_drawing import Sheet, eng_drawing"
+    return _template(name, head, f'read_step(Path(__file__).parent / "{reading}")', material=material, units=units)
+
+
+def _template(name: str, head: str, reads: str, *, material: str, units: str) -> str:
     function = f"{re.sub(r'[^0-9a-zA-Z_]', '_', name)}_drawing"
     title = name.replace("_", " ").upper()
     fields = [f'title="{title}"', f'part_number="{title.replace(" ", "-")}"']
     if material:
         fields.append(f'material="{material.upper()}"')
     fields += ['revision="A"', *([f'units="{units}"'] if units == "in" else [])]
-    return f'''from pathlib import Path
-
-import cadgen
-from cadgen.eng_drawing import Sheet, eng_drawing
+    return f'''{head}
 
 
 @eng_drawing(out="{function}.pdf")
 def {function}():
-    part = cadgen.read_step(Path(__file__).parent / "{reading}")
+    part = {reads}
     sheet = Sheet("A3", {", ".join(fields)})
     # Third angle, placed from the part's size; iso=True adds the isometric.
     top, front, right, iso = sheet.three_views(part, iso=True)

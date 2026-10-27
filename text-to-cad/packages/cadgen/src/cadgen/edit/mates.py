@@ -358,17 +358,16 @@ class _Lengths:
 
 
 def _step_function(text: str) -> str | None:
-    """The name of the function a part's script makes its part with (``@step``)."""
-    for node in ast.parse(text).body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
-                (isinstance(each, ast.Name) and each.id == "step") or (isinstance(each, ast.Attribute) and each.attr == "step")
-                or (isinstance(each, ast.Call) and commands._call_name(each) == "step") for each in node.decorator_list):
-            return node.name
-    return None
+    """The name of the function a part's script makes its part with: its model (``@model``, or any
+    of the engine's file decorators: ``service.model_of``)."""
+    from cadgen.edit.service import model_of
+
+    found = model_of(text)
+    return found[0] if found else None
 
 
 def parts_of(root, assembly) -> list[str]:
-    """The project's part scripts another assembly can insert: each with a ``@step`` function,
+    """The project's part scripts another assembly can insert: each with a model's function,
     the assembly itself left out, as project-relative paths."""
     from cadgen.edit.service import _python_files, is_part
 
@@ -378,14 +377,14 @@ def parts_of(root, assembly) -> list[str]:
 def insert(text: str, assembly, part, root) -> tuple[str, int, str]:
     """Insert Components, as SolidWorks' adds a part to an assembly: ``part``'s script imported in
     the assembly's (its folder put on the import path when no part of it is already imported from
-    there) and its function's part added to the children the assembly returns, where it is made,
+    there) and its model's shape (``part().shape``) added to the children the assembly returns, where it is made,
     for its mates to place. A part already in it is not inserted again: the design tree lists each
     part's model once."""
     tree = ast.parse(text)
     function, returned, listed = assembly_of(tree)
     made = _step_function(part.read_text(encoding="utf-8"))
     if made is None:
-        raise MateError(f"{part.name} makes no part (a function marked @step). Pick a part's script.")
+        raise MateError(f"{part.name} makes no part (a function marked @model). Pick a part's script.")
     module = part.stem
     imports = [node for node in tree.body if isinstance(node, ast.ImportFrom) and not node.level]
     found = next((node for node in imports if node.module == module), None)
@@ -421,7 +420,8 @@ def insert(text: str, assembly, part, root) -> tuple[str, int, str]:
         added.append(f"from {module} import {made}")
     if any(isinstance(node, ast.Call) and commands._call_name(node) == made for node in ast.walk(function)):
         raise MateError(f"{made} is in this assembly already. Ask the agent for another of it.")
-    child = f"{made}()"
+    # A model's call is its document; the assembly composes its shape (the engine's `child().shape`).
+    child = f"{made}().shape"
     # The child goes last in the list, on the list's line or the line of its last element.
     end = listed.elts[-1] if listed.elts else None
     row, col = (end.end_lineno, end.end_col_offset) if end is not None else (listed.lineno, listed.col_offset + 1)

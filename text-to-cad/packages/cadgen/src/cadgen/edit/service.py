@@ -1,26 +1,31 @@
 """Hand edits to a part's script, for the viewer's edit mode.
 
-The part script stays the source. Edit mode reads it as a design: a warm tracer process
-(``tracer.py``, in this Python) runs the script with every number in the project's files
-remembering where it is written and each build123d operation recorded, and answers with the part's
-history, its named sizes and its dimensions. A change rewrites one number in the source; then every
-part script that uses the changed file is built again, as the agent builds it, so its STEP, and the
-viewer reading it, follow.
+The part script stays the source. A part is a model of cadgen's engine: a function marked ``@model``
+(or with the file decorators, ``@xbf``, ``@step``...) in a script, whose document the engine holds by
+its id (``cadgen.engine.ids.model_id`` of the script and the function); the script is its feature
+tree. Edit mode reads it as a design: a warm tracer process (``tracer.py``, in this Python) runs the
+script with every number in the project's files remembering where it is written and each build123d
+operation recorded, and answers with the part's history, its named sizes and its dimensions. A change
+rewrites one number in the source; then every part script that uses the changed file is built again
+through the engine, as the agent's run builds it, so its document, and the viewer showing it, follow.
 
 The CAD kernel never loads into the server: the tracer and the builds are processes of their own
 (``test_module_boundaries``). This module only starts them and passes JSON, and notes the lines each
-hand edit writes, for who made each feature (``authors.py``: git and a small record, no kernel).
+hand edit writes, for who made each feature (``authors.py``: git and a small record, no kernel). The
+server is the engine's daemon, so those processes are its children: each is tracked by the process
+it started, and ends with the service (``close``) or, left alone, when the daemon is gone.
 """
 
 from __future__ import annotations
 
+import ast
+import atexit
 import hashlib
 import itertools
 import json
 import os
 import queue
 import re
-import shutil
 import subprocess
 import sys
 import threading
@@ -39,7 +44,10 @@ BUILD_TIMEOUT = 900
 # the scripts who made each feature is judged against (`authors.py`).
 _SKIP = re.compile(r"^(\.|node_modules$|__pycache__$|tmp$|dist$|build$|vendor$|site-packages$)")
 _SCAN_LIMIT = 4000
-_PART = re.compile(r"^\s*@step\b", re.M)
+# A part script declares a model of the engine's: ``@model``, or any of its file decorators
+# (``cadgen.engine.model``), bare or through the module (``@cadgen.model``).
+_DECORATORS = ("model", "xbf", "step", "glb", "stl", "threemf", "dxf")
+_PART = re.compile(rf"^\s*@(?:cadgen\.)?(?:{'|'.join(_DECORATORS)})\b", re.M)
 _IMPORT = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.M)
 # What a change may name: a number (`literal`), a dimension on the model, or a feature's input, and
 # the value typed; `leaf` answers which size to change when several make the value. A `command`
@@ -71,17 +79,92 @@ def is_part(path: Path) -> bool:
         return False
 
 
+def _decorated(node: ast.expr) -> tuple[str | None, str | None]:
+    """A decorator as the engine reads it: its kind (``model``, ``step``...) and its ``name=``."""
+    call = node if isinstance(node, ast.Call) else None
+    target = call.func if call is not None else node
+    kind = target.id if isinstance(target, ast.Name) else target.attr if isinstance(target, ast.Attribute) else None
+    named = next((keyword.value.value for keyword in (call.keywords if call is not None else ())
+                  if keyword.arg == "name" and isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str)), None)
+    return (kind if kind in _DECORATORS else None), named
+
+
+def model_of(text: str) -> tuple[str, str | None] | None:
+    """The part's model as its script declares it, read without running it: the first function a
+    decorator of the engine's marks, and the explicit ``name=`` it gives (None: the script's and the
+    function's). None for a script that declares none."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return None
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            marks = [_decorated(each) for each in node.decorator_list]
+            if any(kind for kind, _ in marks):
+                return node.name, next((named for _, named in marks if named), None)
+    return None
+
+
+def document_of(script: Path) -> str | None:
+    """The id of the document a part script's model makes, as the engine computes it
+    (``cadgen.engine.ids.model_id``): what the viewer opens the part by. None for a script that
+    declares no model."""
+    from cadgen.engine.ids import model_id
+
+    try:
+        found = model_of(Path(script).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return None
+    if found is None:
+        return None
+    try:
+        return model_id(script, found[0], found[1])
+    except (TypeError, ValueError):
+        return None
+
+
+def _model_home(ident: str) -> Path | None:
+    """The script a model's document is built from, as the engine's registry of documents records it
+    (``cadgen.engine.registry``, in the caller's state folder; no kernel). None for an id it does
+    not hold as a model's: a shape handed over, an opened file, or one never built."""
+    from cadgen.engine import registry
+
+    held = registry.current()
+    record = held.get(ident) if held is not None else None
+    if not record or record.get("kind") != "model":
+        return None
+    try:
+        return registry.home(held, record)
+    except (KeyError, TypeError, ValueError, OSError):
+        return None
+
+
 def script_for(file_ref: str) -> Path | None:
-    """The part script a viewer file is built from: the script itself, or the one beside a STEP
-    of the same name. None when there is none, or it declares no model (``@step``)."""
+    """The part script a viewer file is built from: the script itself; a model's document by its id,
+    the script the engine records it is built from; a file a part writes (a STEP, an xbf), the script
+    of the same name beside it, or beside its ``XBF`` folder (``@xbf``'s default). None when there
+    is none, or it declares no model."""
     if not file_ref:
         return None
-    path = Path(str(file_ref).split("#", 1)[0]).expanduser()
-    if path.suffix.lower() in (".step", ".stp"):
-        path = path.with_suffix(".py")
-    if path.suffix.lower() != ".py" or not path.is_absolute():
+    from cadgen.engine.ids import is_id
+
+    text = str(file_ref).split("#", 1)[0].strip()
+    if is_id(text):
+        home = _model_home(text)
+        return home.resolve() if home is not None and home.is_file() and is_part(home) else None
+    path = Path(text).expanduser()
+    if not path.is_absolute():
         return None
-    return path.resolve() if path.is_file() and is_part(path) else None
+    suffix = path.suffix.lower()
+    if suffix == ".py":
+        candidates = [path]
+    elif suffix in (".step", ".stp", ".xbf"):
+        candidates = [path.with_suffix(".py")]
+        if suffix == ".xbf" and path.parent.name == "XBF":
+            candidates.append(path.parent.parent / f"{path.stem}.py")
+    else:
+        return None
+    return next((each.resolve() for each in candidates if each.is_file() and is_part(each)), None)
 
 
 def imported_step(file_ref: str) -> Path | None:
@@ -146,6 +229,14 @@ def _relative(root: Path, path: Path) -> str:
         return Path(path).resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
         return str(path)
+
+
+def _drawn(file_ref: str, script: Path) -> Path:
+    """What a part's drawing reads the part from: the STEP the viewer shows, where that is a file on
+    disk (a part that writes one, or a drawing made before parts were models of the engine's), else
+    the part's script, whose model a drawing calls (``drawings.template``)."""
+    path = Path(str(file_ref or "").split("#", 1)[0]).expanduser()
+    return path if path.is_absolute() and path.suffix.lower() in (".step", ".stp") and path.is_file() else script
 
 
 def _drawing_of(root: Path, step: Path) -> dict | None:
@@ -322,14 +413,49 @@ class _Tracer:
                     return reply
 
 
+# A part built again, in a process of its own: its script's models built by the engine, as the
+# agent's run builds them (``cadgen.engine.api.build_script``: every model it defines, each writing
+# what its decorators declare), in the engine of this process's environment. A script whose models
+# are none of the engine's runs as it is. It ends when the process that started it does: the
+# engine's daemon, which the server is.
+_BUILD = """
+import os, sys, threading, time
+parent = os.getppid()
+def watch():
+    while os.getppid() == parent:
+        time.sleep(1)
+    os._exit(1)
+threading.Thread(target=watch, daemon=True).start()
+script = sys.argv[1]
+from cadgen.engine import api
+try:
+    report = api.build_script(script)
+except Exception as error:
+    print(str(error) or type(error).__name__, file=sys.stderr)
+    raise SystemExit(1)
+if not report.models:
+    import runpy
+    sys.argv = [script]
+    runpy.run_path(script, run_name="__main__")
+    raise SystemExit(0)
+failed = [row for row in report.models if not row.get("ok")]
+if failed:
+    print(str(failed[0].get("error") or "the build failed").strip(), file=sys.stderr)
+    raise SystemExit(1)
+"""
+
+
 class _Builds:
-    """The STEP files built again after a change: one batch at a time, in order."""
+    """The parts built again after a change: one batch at a time, in order. Each build is a child
+    process tracked by its handle, so closing the service ends the one running (``stop``)."""
 
     def __init__(self, python: str) -> None:
         self.python = python
         self._lock = threading.Lock()
         self._batches: queue.Queue[tuple[int, list[Path]]] = queue.Queue()
         self._batch = 0
+        self._running: subprocess.Popen | None = None
+        self._stopped = False
         self.status: dict = {"scripts": [], "done": 0, "error": None}
         threading.Thread(target=self._work, daemon=True).start()
 
@@ -343,30 +469,65 @@ class _Builds:
         with self._lock:
             return dict(self.status)
 
+    def stop(self) -> None:
+        """No more builds, and the one running ended: by the process this service started."""
+        with self._lock:
+            self._stopped = True
+            running, self._running = self._running, None
+        _end(running)
+
+    def _build(self, script: Path) -> str | None:
+        """One part built again: None, or why it failed (the last lines it said)."""
+        with self._lock:
+            if self._stopped:
+                return "the edit service stopped"
+            try:
+                process = subprocess.Popen(
+                    [self.python, "-c", _BUILD, str(script)],
+                    cwd=script.parent,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    **_no_window(),
+                )
+            except OSError as failure:
+                return str(failure)
+            self._running = process
+        try:
+            _out, said = process.communicate(timeout=BUILD_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            _end(process)
+            return f"the build took longer than {BUILD_TIMEOUT} seconds"
+        finally:
+            with self._lock:
+                if self._running is process:
+                    self._running = None
+        return None if process.returncode == 0 else " ".join((said or "").strip().splitlines()[-2:]) or "the build failed"
+
     def _work(self) -> None:
         while True:
             batch, scripts = self._batches.get()
             for script in scripts:
-                try:
-                    run = subprocess.run(
-                        [self.python, str(script)],
-                        cwd=script.parent,
-                        stdin=subprocess.DEVNULL,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        timeout=BUILD_TIMEOUT,
-                        **_no_window(),
-                    )
-                    error = None if run.returncode == 0 else " ".join(run.stderr.strip().splitlines()[-2:])
-                except (OSError, subprocess.TimeoutExpired) as failure:
-                    error = str(failure)
+                error = self._build(script)
                 with self._lock:
                     if batch != self._batch:
                         continue  # a newer change's batch is the one shown; this one still finishes
                     if error:
                         self.status["error"] = f"{script.name}: {error}"
                     self.status["done"] += 1
+
+
+def _end(process: subprocess.Popen | None) -> None:
+    """A child this service started, ended and waited for (never one found by its name)."""
+    if process is None:
+        return
+    if process.poll() is None:
+        process.kill()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 class EditService:
@@ -406,15 +567,14 @@ class EditService:
             return {"ok": True, "editable": False}
         # The first part made of it, where there is one: the names are taken in order, so none taken means none made.
         first = next(_adopted_names(source))
-        made = first if first.is_file() else None
-        return {"ok": True, "editable": False, "importable": True,
-                **({"part": str(made.with_suffix(".step"))} if made is not None else {})}
+        made = document_of(first) if first.is_file() else None
+        return {"ok": True, "editable": False, "importable": True, **({"part": made} if made else {})}
 
     def adopt(self, file_ref: str) -> dict:
         """A STEP brought in made a part to model on, as SolidWorks makes a part of a STEP it opens:
-        a script beside it (``<name>_part.py``) that reads it as one body with no history, and
-        writes its own STEP, so the file brought in is never written over. The part's STEP is the
-        imported one copied until the script first builds. ``part``: that STEP, to open."""
+        a script beside it (``<name>_part.py``) whose model reads it as one body with no history, so
+        the file brought in is never written over; then built, so its document is the engine's.
+        ``part``: that document's id, to open."""
         source = imported_step(file_ref)
         if source is None:
             return {"ok": False, "error": "Only a STEP with no part script can be made a part."}
@@ -427,16 +587,17 @@ class EditService:
 
 from pathlib import Path
 
-from cadgen import read_step, step
+from cadgen import model, read_step
 
 
-@step(out="{name}.step")
+@model
 def {function}():
     part = read_step(Path(__file__).parent / {source.name!r})
     return part
 ''', encoding="utf-8")
-        shutil.copyfile(source, script.with_suffix(".step"))
-        return {"ok": True, "part": str(script.with_suffix(".step")), "script": str(script)}
+        if self._builds is not None:
+            self._builds.start([script])
+        return {"ok": True, "part": document_of(script), "script": str(script), "building": self.building()}
 
     def state(self, file_ref: str, files: dict | None = None, bar: dict | None = None) -> dict:
         """The part as a design: its history, named sizes and dimensions. ``files`` is the hashes a
@@ -455,7 +616,7 @@ def {function}():
         reply = self._tracer.ask({"script": str(script), "root": str(root), "mesh": False, **_project_units(root),
                                   **({"bar": bar} if bar else {})})
         self._keep_read(script, reply)
-        drawing = _drawing_of(root, Path(file_ref)) if reply.get("ok") else None
+        drawing = _drawing_of(root, _drawn(file_ref, script)) if reply.get("ok") else None
         return {**reply, "root": str(root), "building": self.building(), **({"drawing": drawing} if drawing else {})}
 
     def change(self, payload: dict) -> dict:
@@ -468,9 +629,9 @@ def {function}():
             return {"ok": False, "error": "This model has no part script to change."}
         root = project_root(script)
         if isinstance(payload.get("drawing"), dict):
-            return {**self.drawing(root, script, Path(payload["file"]), payload["drawing"]), "root": str(root), "building": self.building()}
+            return {**self.drawing(root, script, _drawn(payload["file"], script), payload["drawing"]), "root": str(root), "building": self.building()}
         if isinstance(payload.get("sheet"), dict):
-            return {**self.sheet(root, Path(payload["file"]), payload["sheet"]), "root": str(root), "building": self.building()}
+            return {**self.sheet(root, _drawn(payload["file"], script), payload["sheet"]), "root": str(root), "building": self.building()}
         request = {key: payload[key] for key in _CHANGE_KEYS if key in payload}
         reply = self._tracer.ask({**request, "script": str(script), "root": str(root), "op": "edit", "mesh": False,
                                   **_project_units(root)})
@@ -584,8 +745,56 @@ def {function}():
                 "change": {"kind": "drawing", "file": rel, "line": min((each["start"] for each in redo), default=1), "words": words,
                            "pdf": _relative(root, Path(pdf)) if pdf else "", "build": False}}
 
+    def face_feature(self, payload: dict) -> dict:
+        """The feature of the design tree that made a face the viewer picked, for double-click and
+        the chips that name a face by it. ``payload``: ``file``, the document the face is on (a
+        model's id, or a file's path, as ``state`` takes it); ``face``, its number on the part
+        (``12``) or an engine ref to it (``plate/face 12``); and ``made_by``, what the engine said
+        made it (the facts of the face, ``cadgen inspect``'s ``made_by``), when the viewer has read
+        it. A model's document is answered from ``made_by`` (asked of the engine here when it was not
+        given): the feature, function, file and line of the call that made the face, matched to the
+        tree's rows, which are keyed by file and line. A file (an imported STEP, a part's STEP or
+        xbf) names no model, so it, and a model's document no live worker built, falls back to the
+        geometric map of the trace (``face_features.py``). Answers ``{"ok", "faceFeature": {"face",
+        "feature", "source", "madeBy"}}``: ``feature`` a key of ``state``'s ``features`` (or of a
+        component's), or None; ``source`` ``"made_by"``, ``"geometric"`` or None."""
+        file_ref = str(payload.get("file") or "")
+        face = payload.get("face")
+        script = script_for(file_ref)
+        if script is None:
+            return {"ok": False, "reason": "no-script", "error": "This model has no part script beside it."}
+        made = payload.get("made_by") if isinstance(payload.get("made_by"), dict) else _made_by(file_ref, face)
+        root = project_root(script)
+        return self._tracer.ask({"script": str(script), "root": str(root), "op": "face", "face": face, "made_by": made,
+                                 "mesh": False, **_project_units(root)})
+
     def close(self) -> None:
+        """The tracer and the build running ended: what closes the engine's server closes them."""
         self._tracer.stop()
+        if self._builds is not None:
+            self._builds.stop()
+
+
+def _made_by(file_ref: str, face) -> dict | None:
+    """What the engine says made a face of a model's document (``cadgen.engine.api.inspect``, in this
+    process's engine environment): None for a file, which names no model, or when the engine does not
+    know (no live worker built it)."""
+    from cadgen.engine.ids import is_id
+
+    ident, _, _ = str(file_ref).partition("#")
+    if not is_id(ident.strip()):
+        return None
+    ref = f"face {face}" if isinstance(face, int) and not isinstance(face, bool) else str(face or "")
+    if not ref.strip():
+        return None
+    try:
+        from cadgen.engine import api
+
+        facts = api.inspect(ident.strip(), ref)
+    except Exception:  # noqa: BLE001 - an engine that cannot say leaves the geometric map to answer
+        return None
+    found = facts.get("made_by") if isinstance(facts, dict) else None
+    return found if isinstance(found, dict) else None
 
 
 _shared: EditService | None = None
@@ -593,9 +802,20 @@ _shared_lock = threading.Lock()
 
 
 def shared_service() -> EditService:
-    """The server's one edit service, started on first use."""
+    """The server's one edit service, started on first use, closed with the process that holds it
+    (``close_shared``: the engine's server calls it when it closes; ``atexit`` for any other)."""
     global _shared
     with _shared_lock:
         if _shared is None:
             _shared = EditService()
+            atexit.register(close_shared)
         return _shared
+
+
+def close_shared() -> None:
+    """The server's edit service closed, its tracer and its build ended, if it was ever started."""
+    global _shared
+    with _shared_lock:
+        service, _shared = _shared, None
+    if service is not None:
+        service.close()

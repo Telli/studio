@@ -1,7 +1,7 @@
 """Studio's Sizes (``cadgen.edit.sizes``): every named size in a project's scripts in one place,
 read from the source; one changed where it is written; a shared one added beside the parts.
 
-The parts here are never run: a script is a part when it declares a model (``@step``), and Sizes
+The parts here are never run: a script is a part when it declares a model (``@model``), and Sizes
 reads only its text.
 """
 
@@ -27,7 +27,7 @@ BRACKET = textwrap.dedent(
     label = 3
 
 
-    @step
+    @model
     def bracket():
         return WIDTH
     """
@@ -39,7 +39,7 @@ HUB = textwrap.dedent(
     BORE = -2.5
 
 
-    @step
+    @model
     def hub():
         return BORE
     """
@@ -115,7 +115,7 @@ class SizesTest(unittest.TestCase):
     def test_adds_a_shared_size_beside_the_parts(self) -> None:
         self.write("cad/bracket.py", BRACKET)
         self.write("cad/hub.py", HUB)
-        self.write("fixtures/jig.py", "@step\ndef jig():\n    return 1\n")
+        self.write("fixtures/jig.py", "@model\ndef jig():\n    return 1\n")
         added = sizes.add_shared(str(self.root), "WALL", "2", "every  wall")
         self.assertEqual(added["file"], "cad/sizes.py")
         text = (self.root / "cad/sizes.py").read_text(encoding="utf-8")

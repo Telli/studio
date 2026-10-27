@@ -12,11 +12,25 @@ import os
 import shutil
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from cadgen.edit import service as edit
+
+
+def setUpModule():
+    """An engine of this file's own (its folders, and a free port), which every process the edit
+    service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
+    from unittest import mock
+
+    from tests.python.support import engine_daemon
+
+    engine_daemon.isolate(unittest.addModuleCleanup)
+    patch = mock.patch.dict(os.environ, {"CADGEN_ENGINE_PORT": "0"})
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
 
 PLATE = {
     "sizes.py": """
@@ -25,18 +39,18 @@ PLATE = {
     """,
     "plate.py": """
         from build123d import Box
-        from cadgen import step
+        from cadgen import model
         from sizes import WIDTH, THICKNESS
 
-        @step
+        @model
         def plate():
             return Box(WIDTH, 10, THICKNESS)
     """,
     "bracket.py": """
         from build123d import Box
-        from cadgen import step
+        from cadgen import model
 
-        @step
+        @model
         def bracket():
             return Box(5, 5, 5)
     """,
@@ -51,18 +65,18 @@ STACK = {
     """,
     "parts/plate.py": """
         from build123d import Box
-        from cadgen import step
+        from cadgen import model
         from sizes import WIDTH
 
-        @step
+        @model
         def plate():
             return Box(WIDTH, 10, 2)
     """,
     "parts/pin.py": """
         from build123d import Cylinder, Pos
-        from cadgen import step
+        from cadgen import model
 
-        @step
+        @model
         def pin():
             return Pos(0, 0, 4) * Cylinder(2, 6)
     """,
@@ -72,13 +86,13 @@ STACK = {
 
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "parts"))
         from build123d import Compound
-        from cadgen import step
+        from cadgen import model
         from pin import pin
         from plate import plate
 
-        @step
+        @model
         def stack():
-            return Compound(children=[plate(), pin()], label="stack")
+            return Compound(children=[plate().shape, pin().shape], label="stack")
     """,
 }
 
@@ -214,7 +228,7 @@ class EditService(unittest.TestCase):
 TRAY = {
     "tray.py": """
         from build123d import Axis, Pos, Rectangle, RectangleRounded, extrude, fillet
-        from cadgen import step
+        from cadgen import model
 
         LENGTH = 70
         WIDTH = 26
@@ -222,7 +236,7 @@ TRAY = {
         FLOOR = 1.5
         HEIGHT = 12
 
-        @step
+        @model
         def tray():
             outer = extrude(RectangleRounded(LENGTH, WIDTH, 6), amount=HEIGHT)
             outer = fillet(outer.edges().group_by(Axis.Z)[0], radius=0.6)
@@ -236,9 +250,9 @@ TRAY = {
 SPREAD = {
     "spread.py": """
         from build123d import Axis, Box, Cylinder, Pos, fillet
-        from cadgen import step
+        from cadgen import model
 
-        @step
+        @model
         def spread():
             base = Box(40, 20, 5)
             base = fillet(
@@ -256,9 +270,9 @@ SPREAD = {
 BUILT = {
     "built.py": """
         from build123d import Box, BuildPart, Cylinder, Mode
-        from cadgen import step
+        from cadgen import model
 
-        @step
+        @model
         def built():
             with BuildPart() as part:
                 Box(40, 20, 5)
@@ -271,9 +285,9 @@ BUILT = {
     """,
     "looped.py": """
         from build123d import Box, Cylinder, Pos
-        from cadgen import step
+        from cadgen import model
 
-        @step
+        @model
         def looped():
             base = Box(40, 20, 5)
             for x in (-10, 10):
@@ -337,7 +351,7 @@ class FeatureTree(unittest.TestCase):
 SKETCHED = {
     "bracket.py": """
         from build123d import extrude
-        from cadgen import step
+        from cadgen import model
         from cadgen.sketch import Sketch
 
         LENGTH = 40
@@ -345,7 +359,7 @@ SKETCHED = {
         HOLE = 6
         THICKNESS = 4
 
-        @step
+        @model
         def bracket():
             s = Sketch("Sketch1", plane="Top")
             bottom, right, top, left = s.rectangle((0, 0), (40, 20))
@@ -388,12 +402,12 @@ class ConstrainedSketches(unittest.TestCase):
 ROUNDED = {
     "tray.py": """
         from build123d import Axis, Box, fillet
-        from cadgen import step
+        from cadgen import model
 
         WALL = 2
 
 
-        @step
+        @model
         def tray():
             outer = Box(40, 20, 10)
             outer = fillet(outer.edges().filter_by(Axis.Z), radius=WALL)
@@ -401,13 +415,13 @@ ROUNDED = {
     """,
     "helped.py": """
         from build123d import Box
-        from cadgen import step
+        from cadgen import model
         from helpers import rounded
 
         WALL = 2
 
 
-        @step
+        @model
         def helped():
             outer = Box(40, 20, 10)
             outer = rounded(outer, WALL)
@@ -415,13 +429,13 @@ ROUNDED = {
     """,
     "deep.py": """
         from build123d import Box
-        from cadgen import step
+        from cadgen import model
         from helpers import descend
 
         WALL = 2
 
 
-        @step
+        @model
         def deep():
             outer = Box(40, 20, 10)
             outer = descend(outer, WALL, 9)
@@ -503,7 +517,7 @@ class FailedBuild(unittest.TestCase):
                          + ["return descend(shape, radius, depth - 1)"] * 4)
 
     def test_a_script_that_cannot_be_read_names_no_line(self):
-        (self.root / "tray.py").write_text("from cadgen import step\n\n\n@step\ndef tray(:\n    pass\n", encoding="utf-8")
+        (self.root / "tray.py").write_text("from cadgen import model\n\n\n@model\ndef tray(:\n    pass\n", encoding="utf-8")
         bad = self.service.state(str(self.root / "tray.step"))
         self.assertFalse(bad["ok"])
         # The traceback names the script's line, but no frame of the part ran, so no place is named.
@@ -542,6 +556,204 @@ class TypedValues(unittest.TestCase):
         changed = service.change({"file": file, "literal": width["id"], "text": "20 + 1.5", "files": state["files"]})
         self.assertTrue(changed["ok"], changed.get("error"))
         self.assertIn("WIDTH = 21.5\n", (root / "sizes.py").read_text(encoding="utf-8"))
+
+
+# A model-first part, as the agent writes one on cadgen 0.8: build123d by its module, a bare @model,
+# no file written. A rig composes it as the engine composes a child: `plate().shape`.
+MODELS = {
+    "plate.py": """
+        import build123d as bd
+        from cadgen import model
+
+        WIDTH = 40
+        HOLE = 6
+
+
+        @model
+        def plate():
+            part = bd.Box(WIDTH, 30, 5)
+            part -= bd.Cylinder(HOLE / 2, 5)
+            return part
+    """,
+    "post.py": """
+        import build123d as bd
+        from cadgen import model
+
+
+        @model
+        def post():
+            return bd.Pos(0, 0, 10) * bd.Cylinder(2, 15)
+    """,
+    "rig.py": """
+        import build123d as bd
+        from cadgen import model
+
+        from plate import plate
+        from post import post
+
+
+        @model
+        def rig():
+            return bd.Compound(children=[plate().shape, post().shape], label="rig")
+    """,
+    "broken.py": """
+        import build123d as bd
+        from cadgen import model
+
+
+        @model
+        def broken():
+            raise ValueError("the wall is thicker than the part")
+    """,
+}
+
+# A process the tracer starts reports here: any request for the engine, or an engine started.
+_GUARD = """
+import os, sys
+if any("cadgen.edit.tracer" in each for each in sys.orig_argv):
+    def _refused(what):
+        def refuse(*args, **kwargs):
+            with open(os.environ["STUDIO_TRACER_GUARD"], "a", encoding="utf-8") as told:
+                told.write(what + "\\n")
+            raise ConnectionError("the tracer asked the engine: " + what)
+        return refuse
+    import cadgen.engine.api as _api
+    import cadgen.engine.client as _client
+    _client.connect, _client.request, _client._start = _refused("connect"), _refused("request"), _refused("start")
+    _api._ask = _refused("ask")
+"""
+
+
+def line_reading(script: Path, text: str) -> int:
+    """The line of ``script`` that holds ``text``, counted from 1."""
+    return next(at for at, line in enumerate(script.read_text(encoding="utf-8").splitlines(), 1) if text in line)
+
+
+class ModelsOfTheEngine(unittest.TestCase):
+    """A part is a model of cadgen's engine: its script is the tree, its document is opened by the id
+    the engine computes, and a face picked on it names its feature from the engine's ``made_by``."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.root = project(MODELS)
+        cls.addClassCleanup(shutil.rmtree, cls.root, True)
+        cls.service = edit.EditService()
+        cls.addClassCleanup(cls.service.close)
+
+    def test_a_model_is_its_engine_id_and_reads_as_a_tree(self):
+        from cadgen.engine.ids import model_id
+
+        state = self.service.state(str(self.root / "plate.py"))
+        self.assertTrue(state["ok"], state.get("error"))
+        ident = model_id(self.root / "plate.py", "plate")
+        self.assertEqual((state["document"], edit.document_of(self.root / "plate.py")), (ident, ident))
+        self.assertEqual([feature["kind"] for feature in state["features"]], ["Boss-Extrude", "Hole"])
+
+    def test_an_assembly_of_child_models_reads_each_as_a_component(self):
+        state = self.service.state(str(self.root / "rig.py"))
+        self.assertTrue(state["ok"], state.get("error"))
+        from cadgen.engine.ids import model_id
+
+        self.assertEqual([(c["name"], c["document"], c["step"]) for c in state["components"]],
+                         [("plate", model_id(self.root / "plate.py", "plate"), None),
+                          ("post", model_id(self.root / "post.py", "post"), None)])
+        self.assertEqual([feature["kind"] for feature in state["components"][0]["features"]], ["Boss-Extrude", "Hole"])
+
+    def test_tracing_never_asks_the_engine(self):
+        guard = Path(tempfile.mkdtemp(prefix="tracer-guard-"))
+        self.addCleanup(shutil.rmtree, guard, True)
+        (guard / "sitecustomize.py").write_text(_GUARD, encoding="utf-8")
+        told = guard / "told.txt"
+        environment = mock.patch.dict(os.environ, {"PYTHONPATH": os.pathsep.join([str(guard), os.environ.get("PYTHONPATH", "")]),
+                                                   "STUDIO_TRACER_GUARD": str(told)})
+        environment.start()
+        self.addCleanup(environment.stop)
+        engine = Path(os.environ["CADGEN_ENGINE_DIR"])
+        doors = sorted(engine.glob("*.door"))
+        service = edit.EditService(build=False)
+        self.addCleanup(service.close)
+        # A part, and an assembly whose children's calls would be builds on the engine anywhere else.
+        for name in ("plate.py", "rig.py"):
+            state = service.state(str(self.root / name))
+            self.assertTrue(state["ok"], state.get("error"))
+        self.assertFalse(told.exists(), told.read_text(encoding="utf-8") if told.exists() else "")
+        self.assertEqual(sorted(engine.glob("*.door")), doors)
+        # The guard is live: the one request a trace may make, the rollback bar's body, is refused by it.
+        hole = line_reading(self.root / "plate.py", "Cylinder")
+        rolled = service.change({"file": str(self.root / "plate.py"), "bar": {"before": f"plate.py:{hole}"}})
+        self.assertTrue(rolled["ok"], rolled.get("error"))
+        self.assertIn("the tracer asked the engine", rolled["bar"]["error"])
+        self.assertTrue(told.exists())
+
+    def test_a_face_names_its_feature_from_made_by_and_the_bar_is_a_document(self):
+        from cadgen.engine import api
+
+        script = self.root / "plate.py"
+        built = api.build_script(script)
+        self.assertTrue(built.ok, built.models)
+        ident = edit.document_of(script)
+        self.assertEqual(edit.script_for(ident), script.resolve())
+        state = self.service.state(ident)
+        self.assertTrue(state["ok"], state.get("error"))
+        boss, hole = [feature["key"] for feature in state["features"]]
+        for face in range(1, state["faceCount"] + 1):
+            made = api.inspect(ident, f"face {face}")["made_by"]
+            found = self.service.face_feature({"file": ident, "face": face})["faceFeature"]
+            self.assertEqual((found["source"], found["madeBy"]), ("made_by", made))
+            self.assertEqual(found["feature"], hole if made["line"] == line_reading(script, "Cylinder") else boss)
+        # Given by the viewer, made_by is taken as it is: the route asks the engine nothing then.
+        told = self.service.face_feature({"file": ident, "face": "plate/face 1", "made_by": {**made, "line": line_reading(script, "bd.Box")}})
+        self.assertEqual(told["faceFeature"]["feature"], boss)
+        # The rollback bar's body is handed to the engine and opened by its id.
+        rolled = self.service.change({"file": ident, "bar": {"before": f"plate.py:{line_reading(script, 'Cylinder')}"}})
+        self.assertTrue(rolled["ok"], rolled.get("error"))
+        document = rolled["bar"]["document"]
+        self.assertAlmostEqual(api.inspect(document["id"], query="summary")["summary"]["volume"], 40 * 30 * 5, places=3)
+
+    def test_a_file_names_no_model_so_its_faces_fall_back_to_the_geometric_map(self):
+        import build123d as bd
+
+        root = project({"bracket.step": ""}, git=True)
+        self.addCleanup(shutil.rmtree, root, True)
+        bd.export_step(bd.Box(20, 20, 4) - bd.Cylinder(3, 4), str(root / "bracket.step"))
+        self.assertEqual(self.service.face_feature({"file": str(root / "bracket.step"), "face": 1})["reason"], "no-script")
+        adopted = self.service.change({"file": str(root / "bracket.step"), "adopt": {}})
+        self.assertTrue(adopted["ok"], adopted.get("error"))
+        self.assertEqual(adopted["part"], edit.document_of(Path(adopted["script"])))
+        # Its script's own STEP, opened as a file: no made_by, so the trace's map answers.
+        state = self.service.state(adopted["script"])
+        (imported,) = [feature["key"] for feature in state["features"]]
+        found = self.service.face_feature({"file": str(Path(adopted["script"]).with_suffix(".step")), "face": 3})["faceFeature"]
+        self.assertEqual((found["feature"], found["source"], found["madeBy"]), (imported, "geometric", None))
+
+    def test_a_build_that_fails_says_why_in_the_state(self):
+        building = self.service.rebuild(self.root, "broken.py")
+        self.assertEqual(building["scripts"], ["broken.py"])
+        deadline = time.monotonic() + edit.BUILD_TIMEOUT
+        while self.service.building()["done"] < 1 and time.monotonic() < deadline:
+            time.sleep(0.1)
+        status = self.service.building()
+        self.assertEqual(status["done"], 1)
+        self.assertIn("broken.py: ", status["error"])
+        self.assertIn("the wall is thicker than the part", status["error"])
+
+    def test_closing_the_service_ends_the_build_it_started(self):
+        # A build that never ends: the service's python stands in for one, by the process it starts.
+        folder = Path(tempfile.mkdtemp(prefix="edit-slow-"))
+        self.addCleanup(shutil.rmtree, folder, True)
+        python = folder / "python"
+        python.write_text("#!/bin/sh\nexec sleep 600\n", encoding="utf-8")
+        python.chmod(0o755)
+        service = edit.EditService(str(python))
+        self.addCleanup(service.close)
+        service.rebuild(self.root, "plate.py")
+        deadline = time.monotonic() + 60
+        while service._builds._running is None and time.monotonic() < deadline:
+            time.sleep(0.05)
+        running = service._builds._running
+        self.assertIsNotNone(running)
+        service.close()
+        self.assertIsNotNone(running.poll())
 
 
 if __name__ == "__main__":

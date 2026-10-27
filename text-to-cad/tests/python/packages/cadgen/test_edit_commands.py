@@ -16,10 +16,24 @@ import math
 import shutil
 import tempfile
 import textwrap
+import os
 import unittest
 from pathlib import Path
 
 from cadgen.edit import service as edit
+
+
+def setUpModule():
+    """An engine of this file's own (its folders, and a free port), which every process the edit
+    service starts inherits: the rollback bar's body is handed to it (``tracer._bar_document``)."""
+    from unittest import mock
+
+    from tests.python.support import engine_daemon
+
+    engine_daemon.isolate(unittest.addModuleCleanup)
+    patch = mock.patch.dict(os.environ, {"CADGEN_ENGINE_PORT": "0"})
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
 
 # A 20 x 10 x 4 block centred on the origin, returned outright, its sizes named in another file
 # and build123d imported by name.
@@ -31,10 +45,10 @@ BLOCK = {
     """,
     "block.py": """
         from build123d import Box
-        from cadgen import step
+        from cadgen import model
         from sizes import WIDTH, DEPTH, HEIGHT
 
-        @step
+        @model
         def block():
             return Box(WIDTH, DEPTH, HEIGHT)
     """,
@@ -43,7 +57,8 @@ BLOCK = {
 # An inch plate with a hole in it, held in a name, build123d reached through `bd`.
 PLATE = {
     "plate.py": """
-        from cadgen import build123d as bd, step
+        import build123d as bd
+        from cadgen import model
 
         INCH = 25.4
         LENGTH = 2.00
@@ -51,7 +66,7 @@ PLATE = {
         THICKNESS = .25
 
 
-        @step
+        @model
         def plate():
             plate = bd.Box(LENGTH*INCH, WIDTH*INCH, THICKNESS*INCH)
             plate -= bd.Pos(.5*INCH, 0, 0) * bd.Cylinder(.1*INCH, THICKNESS*INCH)
@@ -66,10 +81,10 @@ PLATE = {
 TRAY = {
     "tray.py": """
         from build123d import Axis, Box, Cylinder, Pos, fillet
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def tray():
             outer = Box(40, 20, 10)
             outer = fillet(outer.edges().filter_by(Axis.Z), radius=2)
@@ -89,10 +104,10 @@ TRAY = {
 POSTED = {
     "posted.py": """
         from build123d import Axis, Box, Cylinder, Pos, fillet
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def posted():
             plate = Box(40, 20, 4)
             post = Pos(0, 0, 5) * Cylinder(4, 6)
@@ -108,19 +123,19 @@ POSTED = {
 ASSEMBLY = {
     "parts/base.py": """
         from build123d import Box
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def base():
             return Box(20, 10, 4)
     """,
     "parts/pin.py": """
         from build123d import Cylinder, Pos
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def pin():
             return Pos(0, 0, 5) * Cylinder(2, 6)
     """,
@@ -130,14 +145,14 @@ ASSEMBLY = {
 
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "parts"))
         from build123d import Compound
-        from cadgen import step
+        from cadgen import model
         from base import base
         from pin import pin
 
 
-        @step
+        @model
         def stack():
-            return Compound(children=[base(), pin()], label="stack")
+            return Compound(children=[base().shape, pin().shape], label="stack")
     """,
 }
 
@@ -354,10 +369,10 @@ class BlockCommands(Commands):
 WEDGE = {
     "wedge.py": """
         from build123d import Axis, Box, chamfer
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def wedge():
             part = Box(20, 20, 10)
             part = chamfer(part.edges().group_by(Axis.Z)[-1].sort_by(Axis.Y)[-1], length=6)
@@ -547,7 +562,7 @@ class EditingFeatures(Commands):
         root, file, state = self.open(TRAY, "tray.step")
         script = root / "tray.py"
         script.write_text(script.read_text(encoding="utf-8").replace("radius=2)", "radius=WALL)").replace(
-            "@step", "WALL = 2\n\n\n@step"), encoding="utf-8")
+            "@model", "WALL = 2\n\n\n@model"), encoding="utf-8")
         state = self.service.state(file)
         self.assertTrue(state["ok"], state.get("error"))
         fillet = self.feature(state, "Fillet")
@@ -625,10 +640,10 @@ class EditingFeatures(Commands):
     def test_a_circular_pattern_turns_about_a_round_face_or_a_straight_edge(self):
         hub = {"hub.py": """
             from build123d import Box, Cylinder, Pos
-            from cadgen import step
+            from cadgen import model
 
 
-            @step
+            @model
             def hub():
                 hub = Box(40, 40, 4) + Pos(5, 5, 4) * Cylinder(4, 4)
                 hub -= Pos(15, 5, 0) * Cylinder(1, 10)
@@ -900,10 +915,11 @@ class RollingBack(Commands):
         self.assertTrue(rolled["ok"], rolled.get("error"))
         self.assertEqual((rolled["bar"]["before"], rolled["bar"]["item"], rolled["bar"]["name"], rolled["bar"]["kind"]),
                          (bar["before"], hole["key"], "part", "part"))
-        # The body there, as the store's tree the viewer draws: the block before its hole.
-        from cadgen.store.lazy import materialize_model
+        # The body there, handed to the engine as a document the viewer opens by its id: the block before its hole.
+        from cadgen.engine import api
 
-        self.assertAlmostEqual(materialize_model(rolled["bar"]["tree"], label="block").volume, 20 * 10 * 4, places=3)
+        summary = api.inspect(rolled["bar"]["document"]["id"], query="summary")["summary"]
+        self.assertAlmostEqual(summary["volume"], 20 * 10 * 4, places=3)
         filleted = self.service.change({"file": file, "files": rolled["files"], "bar": rolled["bar"], "command": {
             "command": "fillet", "selection": BLOCK_TOP_EDGES, "inputs": {"radius": "1"}}})
         self.assertTrue(filleted["ok"], filleted.get("error"))
@@ -1024,7 +1040,7 @@ class MassProperties(Commands):
         self.assertEqual(mass["box"], [[-10, -5, -2], [10, 5, 2]])
         # The project's material, and each the table has with its density in g/cm^3.
         self.assertEqual(mass["material"], "petg")
-        self.assertIn({"key": "aluminum-6061-t6", "name": "Aluminum 6061-T6", "density": 2.7}, mass["materials"])
+        self.assertIn({"key": "aluminium_6061", "name": "Aluminum 6061-T6", "density": 2.7}, mass["materials"])
 
     def test_at_the_rollback_bar_it_is_the_part_as_it_is_there(self):
         root, file, state = self.open(TRAY, "tray.step")
@@ -1039,11 +1055,11 @@ class MassProperties(Commands):
 SKETCHED = {
     "bracket.py": """
         from build123d import Box, Pos
-        from cadgen import step
+        from cadgen import model
         from cadgen.sketch import Sketch
 
 
-        @step
+        @model
         def bracket():
             part = Pos(0, 0, -5) * Box(40, 20, 10)
             sketch1 = Sketch("Sketch1", plane="Top")
@@ -1062,11 +1078,11 @@ SKETCHED = {
 CHANNEL = {
     "channel.py": """
         from build123d import Box, Pos
-        from cadgen import step
+        from cadgen import model
         from cadgen.sketch import Sketch
 
 
-        @step
+        @model
         def channel():
             part = Box(40, 20, 20) - Pos(0, 0, 5) * Box(30, 30, 20)
             sketch1 = Sketch("Sketch1", plane="Front")
@@ -1079,11 +1095,11 @@ CHANNEL = {
 WALLED = {
     "box.py": """
         from build123d import Box, Pos
-        from cadgen import step
+        from cadgen import model
         from cadgen.sketch import Sketch
 
 
-        @step
+        @model
         def box():
             part = Pos(0, 0, -5) * Box(40, 20, 10)
             sketch1 = Sketch("Sketch1", plane="Top")
@@ -1173,11 +1189,11 @@ class SketchedFeatures(Commands):
 TWO_WAY = {
     "plate.py": """
         from build123d import Box, Pos
-        from cadgen import step
+        from cadgen import model
         from cadgen.sketch import Sketch
 
 
-        @step
+        @model
         def plate():
             part = Pos(0, 0, -15) * Box(40, 20, 2)
             sketch1 = Sketch("Sketch1", plane="Top")
@@ -1191,12 +1207,12 @@ TWO_WAY = {
 FIRST_SOLID = {
     "puck.py": """
         from build123d import extrude
-        from cadgen import step
+        from cadgen import model
         from cadgen.sketch import Sketch
 
         HEIGHT = 4
 
-        @step
+        @model
         def puck():
             sketch1 = Sketch("Sketch1", plane="Top")
             sketch1.rectangle((-5, -5), (5, 5))
@@ -1428,21 +1444,22 @@ class Appearances(Commands):
         painted = self.paint(file, state, "#b7a1d7")
         self.assertTrue(painted["ok"], painted.get("error"))
         script = root / "plate.py"
-        self.assertIn('    plate.label = "plate"\n    plate.color = srgb("#B7A1D7")\n    return plate\n', script.read_text(encoding="utf-8"))
-        self.assertIn("from cadgen.color import srgb\n", script.read_text(encoding="utf-8"))
+        # sRGB hex, as the engine takes a part's color: nothing to import.
+        self.assertIn('    plate.label = "plate"\n    plate.color = "#B7A1D7"\n    return plate\n', script.read_text(encoding="utf-8"))
+        self.assertNotIn("srgb", script.read_text(encoding="utf-8"))
         self.assertEqual(painted["color"], "#B7A1D7")
         again = self.paint(file, painted, "#C8B4E5")
         self.assertTrue(again["ok"], again.get("error"))
         text = script.read_text(encoding="utf-8")
-        self.assertEqual((text.count(".color = "), text.count("import srgb")), (1, 1))
-        self.assertIn('plate.color = srgb("#C8B4E5")', text)
+        self.assertEqual(text.count(".color = "), 1)
+        self.assertIn('plate.color = "#C8B4E5"', text)
         self.assertFalse(self.paint(file, again, "lilac")["ok"])
 
     def test_a_part_returned_outright_is_named_to_be_colored(self):
         root, file, state = self.open(BLOCK, "block.step")
         painted = self.paint(file, state, "#2E3742")
         self.assertTrue(painted["ok"], painted.get("error"))
-        self.assertIn('    part = Box(WIDTH, DEPTH, HEIGHT)\n    part.color = srgb("#2E3742")\n    return part\n',
+        self.assertIn('    part = Box(WIDTH, DEPTH, HEIGHT)\n    part.color = "#2E3742"\n    return part\n',
                       (root / "block.py").read_text(encoding="utf-8"))
 
 
@@ -1634,8 +1651,12 @@ class Assemblies(Commands):
 
     def test_each_part_names_the_model_open_part_opens_and_the_assembly_takes_no_commands(self):
         root, file, state = self.open(ASSEMBLY, "assemblies/stack.step")
-        self.assertEqual([(c["name"], Path(c["step"]).parent.name, Path(c["step"]).name) for c in state["components"]],
-                         [("base", "parts", "base.step"), ("pin", "parts", "pin.step")])
+        # Each part's document by the id the engine holds it by: a bare @model writes no STEP to open.
+        from cadgen.engine.ids import model_id
+
+        self.assertEqual([(c["name"], c["document"], c["step"]) for c in state["components"]],
+                         [("base", model_id(root / "parts" / "base.py", "base"), None),
+                          ("pin", model_id(root / "parts" / "pin.py", "pin"), None)])
         refused = self.command(file, state, "fillet", BLOCK_TOP_EDGES, {"radius": "1"})
         self.assertFalse(refused["ok"])
 
@@ -1644,19 +1665,19 @@ class Assemblies(Commands):
 MATING = {
     "parts/base.py": """
         from build123d import Box, Cylinder, Pos
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def base():
             return Box(20, 10, 4) - Pos(5, 0, 0) * Cylinder(1.5, 4)
     """,
     "parts/pin.py": """
         from build123d import Cylinder, Pos
-        from cadgen import step
+        from cadgen import model
 
 
-        @step
+        @model
         def pin():
             return Pos(-3, 2, 10) * Cylinder(1.5, 6)
     """,
@@ -1679,10 +1700,10 @@ class Mates(Commands):
     def test_insert_components_lists_the_project_parts_and_adds_one_where_it_is_made(self):
         files = {**ASSEMBLY, "fixtures/cap.py": """
             from build123d import Box
-            from cadgen import step
+            from cadgen import model
 
 
-            @step
+            @model
             def cap():
                 return Box(8, 8, 2)
         """}
@@ -1694,7 +1715,7 @@ class Mates(Commands):
         reply = self.mated(file, state["files"], {"insert": "fixtures/cap.py"})
         text = script.read_text(encoding="utf-8")
         self.assertIn('sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "fixtures"))\nfrom cap import cap\n', text)
-        self.assertIn("children=[base(), pin(), cap()]", text)
+        self.assertIn("children=[base().shape, pin().shape, cap().shape]", text)
         self.assertEqual([component["name"] for component in reply["components"]], ["base", "pin", "cap"])
         self.assertEqual(reply["change"]["words"], "inserted cap")
         # One already in it is not inserted again; the tree lists each part's model once.
@@ -1712,7 +1733,7 @@ class Mates(Commands):
         script = root / "assemblies" / "stack.py"
         text = script.read_text(encoding="utf-8")
         self.assertIn("from cadgen.mates import Coincident, mate\n", text)
-        self.assertIn("    base_part = base()\n    pin_part = pin()\n    mate(pin_part, Coincident(pin_part.faces()", text)
+        self.assertIn("    base_part = base().shape\n    pin_part = pin().shape\n    mate(pin_part, Coincident(pin_part.faces()", text)
         self.assertIn('base_part.faces().sort_by(Axis.Z)[-1]))\n    return Compound(children=[base_part, pin_part], label="stack")\n', text)
         # Its bottom on the base's top, as far over it as it was: from z = 2 up to 8, x -4.5 to -1.5.
         self.assertEqual(self.box(file, reply["files"]), [[-10, -5, -2], [10, 5, 8]])
@@ -1793,6 +1814,20 @@ class Drawings(Commands):
     """Make Drawing, as SolidWorks' Make Drawing from Part, and the Drawing panel's sheet: a drawing
     script beside the part, run to its PDF."""
 
+    def test_a_model_parts_drawing_calls_its_model_and_is_found_by_it(self):
+        from cadgen.edit import drawings
+
+        root = project(BLOCK)
+        self.addCleanup(shutil.rmtree, root, True)
+        drawing = root / "block_drawing.py"
+        text = drawings.template("block", root / "block.py", drawing)
+        # Its document, by the model's call, as 0.8 composes one: no STEP needs to be on disk.
+        self.assertIn("from block import block\n", text)
+        self.assertIn("    part = block().shape\n", text)
+        drawing.write_text(text, encoding="utf-8")
+        self.assertEqual(drawings.find(root, root / "block.py"), drawing)
+        self.assertEqual(drawings.read(text)["out"], "block_drawing.pdf")
+
     def test_make_drawing_writes_a_script_beside_the_part_that_draws_it_and_its_sheet_changes(self):
         import build123d as B
 
@@ -1802,7 +1837,8 @@ class Drawings(Commands):
         self.assertTrue(made["ok"], made.get("error"))
         script = root / "block_drawing.py"
         text = script.read_text(encoding="utf-8")
-        self.assertIn('    part = cadgen.read_step(Path(__file__).parent / "block.step")\n', text)
+        # The STEP the viewer shows is a file here, so the drawing reads it.
+        self.assertIn('    part = read_step(Path(__file__).parent / "block.step")\n', text)
         self.assertIn('    sheet = Sheet("A3", title="BLOCK", part_number="BLOCK", revision="A")\n', text)
         self.assertIn("    top, front, right, iso = sheet.three_views(part, iso=True)\n", text)
         self.assertTrue((root / "block_drawing.pdf").exists())
@@ -1960,10 +1996,10 @@ IMPORTED = {
     "lid.py": """
         from pathlib import Path
 
-        from cadgen import read_step, step
+        from cadgen import model, read_step
 
 
-        @step(out="lid.step")
+        @model
         def lid():
             part = read_step(Path(__file__).parent / "imported" / "bracket.step")
             return part
@@ -2021,6 +2057,10 @@ class ImportedBodies(Commands):
         self.assertTrue(reply["ok"], reply.get("error"))
         self.assertEqual([feature["kind"] for feature in reply["features"]], ["Imported", "Hole"])
         self.assertEqual(reply["features"][-1]["edit"]["command"], "hole")
+        # A file that reached build123d nowhere imports it as 0.8 writes it, by its module.
+        text = (root / "lid.py").read_text(encoding="utf-8")
+        self.assertIn("\nimport build123d as bd\n", text)
+        self.assertNotIn("from cadgen import build123d", text)
 
     def test_offset_region_pulls_a_face_out_and_reopens_with_its_distance(self):
         import build123d as bd
@@ -2076,17 +2116,21 @@ class ImportedBodies(Commands):
         self.assertEqual(self.service.editable(str(source)), {"ok": True, "editable": False, "importable": True})
         made = self.service.change({"file": str(source), "adopt": {}})
         self.assertTrue(made["ok"], made.get("error"))
-        self.assertEqual(made["part"], str(root / "bracket_part.step"))
+        # A model's script beside it, opened by its document's id.
+        self.assertEqual(made["script"], str(root / "bracket_part.py"))
+        self.assertEqual(made["part"], edit.document_of(root / "bracket_part.py"))
+        self.assertIn("@model\ndef bracket_part():\n", (root / "bracket_part.py").read_text(encoding="utf-8"))
         # The part opens on the imported body, one row with nothing under it, and the STEP brought in is as it was.
-        state = self.service.state(made["part"])
+        state = self.service.state(made["script"])
         self.assertTrue(state["ok"], state.get("error"))
+        self.assertEqual(state["document"], made["part"])
         self.assertEqual([(feature["kind"], feature.get("named")) for feature in state["features"]], [("Imported", "bracket.step")])
         self.assertEqual(source.read_bytes(), before)
         # Opened again, the STEP names the part made of it; made a part again, it is another one.
-        self.assertEqual(self.service.editable(str(source))["part"], str(root / "bracket_part.step"))
-        self.assertEqual(self.service.change({"file": str(source), "adopt": {}})["part"], str(root / "bracket_part2.step"))
-        # A part's own STEP is no import.
-        self.assertFalse(self.service.change({"file": made["part"], "adopt": {}})["ok"])
+        self.assertEqual(self.service.editable(str(source))["part"], made["part"])
+        self.assertEqual(self.service.change({"file": str(source), "adopt": {}})["script"], str(root / "bracket_part2.py"))
+        # A part's own script is no import.
+        self.assertFalse(self.service.change({"file": made["script"], "adopt": {}})["ok"])
 
 
 # A part as agents write one: Blocks and Cylinders placed with `Pos`, a size from `sizes.py`, a fillet
@@ -2096,7 +2140,7 @@ PRIMITIVES = {
         POCKET = 10
     """,
     "geometry.py": """
-        from cadgen import build123d as bd
+        import build123d as bd
 
 
         def joiner():
@@ -2106,11 +2150,12 @@ PRIMITIVES = {
             return body
     """,
     "cradle.py": """
-        from cadgen import build123d as bd, step
+        import build123d as bd
+        from cadgen import model
         from sizes import POCKET
 
 
-        @step(out="cradle.step")
+        @model
         def cradle():
             body = bd.Box(40, 20, 10)
             body += bd.Pos(10, 0, 8) * bd.Box(4, 4, 6)
@@ -2119,11 +2164,11 @@ PRIMITIVES = {
             return body
     """,
     "joiner_part.py": """
-        from cadgen import step
+        from cadgen import model
         from geometry import joiner
 
 
-        @step(out="joiner_part.step")
+        @model
         def joiner_part():
             return joiner()
     """,
@@ -2203,26 +2248,41 @@ class EditingSizes(Commands):
 
 
 class EditingMaterial(Commands):
-    """Edit Material, as SolidWorks keeps a part's material in the part: one line of its script, read by Mass Properties."""
+    """Edit Material, as SolidWorks keeps a part's material in the part: one line of its body, the
+    engine's (``part.material = materials.<entry>``), read by Mass Properties."""
 
-    def test_a_parts_material_is_written_in_its_script_weighs_it_and_undoes(self):
+    def test_a_parts_material_is_written_on_its_body_weighs_it_and_undoes(self):
         root, file, state = self.open(BLOCK, "block.step")
         self.assertEqual(state["material"], "")
         before = (root / "block.py").read_text(encoding="utf-8")
-        made = self.service.change({"file": file, "files": state["files"], "set_material": {"name": "pla"}})
+        # Named as the catalogue's attribute, or any name it knows the material by.
+        made = self.service.change({"file": file, "files": state["files"], "set_material": {"name": "PLA"}})
         self.assertTrue(made["ok"], made.get("error"))
-        self.assertIn("MATERIAL = 'pla'", (root / "block.py").read_text(encoding="utf-8"))
+        text = (root / "block.py").read_text(encoding="utf-8")
+        self.assertIn("    part = Box(WIDTH, DEPTH, HEIGHT)\n    part.material = materials.pla\n    return part\n", text)
+        self.assertIn("from cadgen import model, materials\n", text)
         self.assertEqual((made["material"], made["materialName"]), ("pla", "PLA"))
         weighed = self.service.change({"file": file, "files": made["files"], "mass": {}})["mass"]
         self.assertEqual(weighed["material"], "pla")
+        self.assertIn({"key": "aluminium_6061", "name": "Aluminum 6061-T6", "density": 2.7}, weighed["materials"])
         # Changed in place, refused for a name nobody knows, and undone to what it was.
-        again = self.service.change({"file": file, "files": made["files"], "set_material": {"name": "steel"}})
-        self.assertEqual((root / "block.py").read_text(encoding="utf-8").count("MATERIAL ="), 1)
+        again = self.service.change({"file": file, "files": made["files"], "set_material": {"name": "6061"}})
+        self.assertTrue(again["ok"], again.get("error"))
+        text = (root / "block.py").read_text(encoding="utf-8")
+        self.assertEqual((text.count(".material ="), text.count("materials.aluminium_6061")), (1, 1))
         refused = self.service.change({"file": file, "files": again["files"], "set_material": {"name": "unobtainium"}})
         self.assertFalse(refused["ok"])
         undone = self.service.change({"file": file, "files": again["files"], "splice": again["change"]["undo"]})
         self.service.change({"file": file, "files": undone["files"], "splice": made["change"]["undo"]})
         self.assertEqual((root / "block.py").read_text(encoding="utf-8"), before)
+
+    def test_a_0_7_material_line_still_reads_and_is_taken_out(self):
+        root, file, state = self.open({**BLOCK, "block.py": BLOCK["block.py"].replace(
+            "        @model", "        MATERIAL = 'aluminum-6061-t6'\n\n\n        @model")}, "block.step")
+        self.assertEqual((state["material"], state["materialName"]), ("aluminium_6061", "Aluminum 6061-T6"))
+        removed = self.service.change({"file": file, "files": state["files"], "set_material": {"name": ""}})
+        self.assertTrue(removed["ok"], removed.get("error"))
+        self.assertNotIn("MATERIAL", (root / "block.py").read_text(encoding="utf-8"))
 
 
 class TangentAndLock(unittest.TestCase):
