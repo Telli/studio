@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { MousePointer2 } from "lucide-react";
 import { clamp, finiteOr } from "@text-to-cad/core/common/numbers.js";
@@ -13,11 +13,12 @@ import { useMotionExclusion } from "../kit/tools/model-effects/motionExclusion.j
 import { useSceneToolState, useSceneTools } from "../kit/tools/sceneTools.jsx";
 import { useViewSettings } from "../kit/view-settings/useViewSettings.js";
 import { useDeclinedSelectReference, useWorkspaceDocument, workspaceLoadAlert } from "../workspace/useWorkspaceDocument.js";
-import { ViewerElementContext, useViewerHost } from "../../host/context.js";
+import { useViewerHost } from "../../host/context.js";
 import { PointerPick } from "../kit/tools/select/usePointerPick.js";
 import { useSceneReferences } from "../kit/tools/select/sceneReferences.jsx";
 import { useSceneSelection } from "../kit/tools/select/useSceneSelection.js";
 import { DEFAULT_POSE_VALUE, NO_PRESET_VALUE, positionValuesAreDefault } from "../kit/inspector/kinematicsControls.jsx";
+import { useCamChrome, useCamResult, useCamView } from "./cam/useCamResult.jsx";
 import { GLB_DECLINED_LIVE_COMMANDS, GLB_RESULT_LIVE, GLB_TOOL, GLB_TOOL_MODES } from "./tools.js";
 import { useGlbAnimation } from "./useGlbAnimation.js";
 import { useGlbScene } from "./useGlbScene.js";
@@ -72,213 +73,16 @@ function useFeaView(root) {
   return { kit: wanted && kit ? kit : null, pending: wanted && kit === null };
 }
 
-/** Whether a loaded scene carries a CAM result: a mesh `cadgen cam plan` wrote, with its operations (`camResult.js` reads it). */
-function carriesCamResult(root) {
-  let found = false;
-  root?.traverse?.((object) => {
-    if (!found && object?.isMesh && object.geometry && object.userData?.generator === "cadgen cam" && Array.isArray(object.userData.operations)) found = true;
-  });
-  return found;
-}
-
-// The CAM result viewer (`camView.jsx`), once a job has loaded it, for every job after it.
-let camView = null;
-/** Loads the CAM result viewer: its own chunk, which a plain GLB and an FEA result never fetch. */
-export const loadCamView = () => import("./camView.jsx").then((module) => { camView = module; return module; });
-
-/** The CAM result viewer for a scene that carries a job (`kit`), as `useFeaView` is for a result: `pending` while it loads. */
-function useCamView(root) {
-  const wanted = useMemo(() => carriesCamResult(root), [root]);
-  const [kit, setKit] = useState(camView);
-  useEffect(() => {
-    if (!wanted || kit) return undefined;
-    let live = true;
-    loadCamView().then((module) => { if (live) setKit(module); }, () => { if (live) setKit(false); });
-    return () => { live = false; };
-  }, [wanted, kit]);
-  return { kit: wanted && kit ? kit : null, pending: wanted && kit === null };
-}
-
-const NO_CAM_CHOICE = Object.freeze({ time: null, preset: null, hidden: null, isolated: null, rapids: null, stock: null, fixtures: null, tool: null });
-// Display's gates for a job, after Surfaces, in this order: what each draws, and the key it is kept under.
-const CAM_GATES = Object.freeze([
-  Object.freeze({ key: "rapids", title: "Rapids", text: "The moves at rapid between cuts, dashed." }),
-  Object.freeze({ key: "stock", title: "Stock", text: "The block the part is cut from, see-through." }),
-  Object.freeze({ key: "fixtures", title: "Fixtures", text: "What holds the stock in each setup." }),
-  Object.freeze({ key: "tool", title: "Tool", text: "The tool, where the job has it at the time shown." }),
-]);
-
-/**
- * A CAM result's state (`cadgen cam plan`; the viewer is `camView.jsx`, `cv`): its job read once, the person's choices
- * as one renderer slice of the file's view (`cam`: the Time row's moment and preset, the operations hidden or isolated,
- * Display's four gates), the drawn paths and tool following them, and the playbar's own clip, which plays the job.
- * Everything here is inert for a scene that is not a job.
- */
-function useCamJob({ cv, scene, view, reducedMotion, shellRef, requestRenderRef, viewerElement }) {
-  const cam = useMemo(() => (cv ? cv.camResultOf(scene?.document?.scene) : null), [cv, scene]);
-  const signature = cam ? `cam:${cam.operations.map((operation) => operation.op).join(",")}:${cam.duration}` : "";
-  const [stored] = useState(() => view.state);
-  const restored = useMemo(() => (cam ? { ...NO_CAM_CHOICE, ...readFileView(stored, { cam: signature }).renderer.cam } : NO_CAM_CHOICE), [cam, stored, signature]);
-  const [edited, setEdited] = useState({ signature: "", ...NO_CAM_CHOICE });
-  const choice = edited.signature === signature ? { ...restored, ...edited } : restored;
-  const choiceRef = useRef(choice);
-  choiceRef.current = choice;
-  const choose = useCallback((patch) => {
-    setEdited({ ...choiceRef.current, ...patch, signature });
-    shellRef.current?.scheduleStateSave();
-  }, [signature, shellRef]);
-  const rendererState = useMemo(() => (cam ? { signatures: { cam: signature }, read: () => ({ cam: Object.fromEntries(Object.keys(NO_CAM_CHOICE).map((key) => [key, choiceRef.current[key] ?? null])) }) } : null),
-    [cam, signature]);
-
-  // Display's gates, each on unless the job's view turns it off, and what the person set since.
-  const gates = useMemo(() => {
-    const show = cam?.show || {};
-    const opening = { rapids: show.rapids !== false, stock: show.stock !== false && show.stock !== "none", fixtures: show.fixtures !== false, tool: show.tool !== false };
-    return Object.fromEntries(CAM_GATES.map(({ key }) => [key, typeof choice[key] === "boolean" ? choice[key] : opening[key]]));
-  }, [cam, choice]);
-  const operationCount = cam?.operations.length || 0;
-  const hidden = useMemo(() => new Set((Array.isArray(choice.hidden) ? choice.hidden : EMPTY).filter((index) => Number.isInteger(index) && index < operationCount)), [choice.hidden, operationCount]);
-  const isolated = Number.isInteger(choice.isolated) && cam?.nodes.paths.has(choice.isolated) ? choice.isolated : null;
-
-  // The Time row: the job as a motion (`fea/motion.js`'s contract), opening at its end with the whole job drawn.
-  const motion = useMemo(() => (cam ? cv.camMotion(cam) : null), [cam, cv]);
-  const control = useMemo(() => (motion ? { ...cv.motionControl(motion), ariaLabel: "Job time" } : null), [motion, cv]);
-  const presets = useMemo(() => (motion ? cv.motionPresets(motion, {}) : EMPTY), [motion, cv]);
-  const timeValue = cam ? clamp(Number.isFinite(choice.time) ? choice.time : cam.duration, 0, cam.duration) : 0;
-  const activePreset = presets.some((preset) => preset.value === choice.preset) ? choice.preset
-    : Math.abs(timeValue - (cam?.duration ?? 0)) < 1e-9 ? DEFAULT_POSE_VALUE : NO_PRESET_VALUE;
-  // While the Time row's play button plays the job in place, the moment it has reached.
-  const [inPlace, setInPlace] = useState(null);
-  const inPlaceRef = useRef(null);
-  inPlaceRef.current = inPlace;
-  const shownTime = inPlace ? inPlace.at : timeValue;
-  const playback = useMemo(() => (cam ? cv.jobPlayback(cam, reducedMotion) : null), [cam, cv, reducedMotion]);
-
-  // The drawn paths and the tool, built once per job; the routine playing, as the job time it has reached.
-  const pathsRef = useRef(null);
-  const toolRef = useRef(null);
-  const readoutRef = useRef(null);
-  // Preview's readout beside the tools view's: each is written as the job is drawn.
-  const previewReadoutRef = useRef(null);
-  const routineRef = useRef(null);
-  const paintRef = useRef(null);
-  paintRef.current = () => {
-    const paths = pathsRef.current;
-    if (!cam || !paths) return;
-    const at = routineRef.current !== null ? routineRef.current : shownTime;
-    paths.setTime(at);
-    toolRef.current.place(at, gates);
-    const placed = toolRef.current.placed;
-    const pace = routineRef.current !== null && playback?.pace > 1 ? `${playback.pace.toLocaleString("en-US")}× speed` : "";
-    const words = { ...cv.readoutWords(cam, at, placed?.operation || null), pace };
-    readoutRef.current?.(words);
-    previewReadoutRef.current?.(words);
-    requestRenderRef.current?.();
-  };
-  useEffect(() => {
-    if (!cam) return undefined;
-    const paths = cv.createCamPaths(cam);
-    const tool = cv.createCamTool(cam);
-    pathsRef.current = paths;
-    toolRef.current = tool;
-    return () => {
-      pathsRef.current = null;
-      toolRef.current = null;
-      paths.dispose();
-      tool.dispose();
-      requestRenderRef.current?.();
-    };
-  }, [cam, cv, requestRenderRef]);
-  const colorScheme = view.appearance?.colorScheme === "dark" ? "dark" : "light";
-  useEffect(() => {
-    if (!pathsRef.current) return;
-    pathsRef.current.style({ colours: cv.pathColours(viewerElement?.current || null, colorScheme), rapids: gates.rapids, hidden, isolated });
-    toolRef.current?.look(colorScheme);
-    paintRef.current();
-  }, [cam, cv, colorScheme, gates, hidden, isolated, viewerElement]);
-  useEffect(() => { paintRef.current(); }, [cam, shownTime]);
-
-  // The playbar's own clip: the job played on the tool, the paths drawn up to it; letting go puts it back at the Time row's moment.
-  const ownClips = useMemo(() => {
-    if (!cam || !playback?.duration) return EMPTY;
-    return [{
-      id: "cam:job", label: "Job", duration: playback.duration,
-      play: {
-        apply(elapsedSec) { routineRef.current = playback.jobTimeAt(elapsedSec); paintRef.current?.(); },
-        release() { routineRef.current = null; paintRef.current?.(); },
-      },
-    }];
-  }, [cam, playback]);
-
-  // The Time row's play button: the job in place, the row following it, once through, as the playbar plays it.
-  const playing = Boolean(inPlace);
-  useEffect(() => {
-    if (!playing || !playback) return undefined;
-    let previous = null;
-    let elapsed = playback.steps ? Math.max(playback.steps.findIndex((end) => end > inPlaceRef.current.from + 1e-9), 0) * cv.STEP_SECONDS
-      : inPlaceRef.current.from / playback.pace;
-    let frameId = 0;
-    const tick = (now) => {
-      if (!inPlaceRef.current) return;
-      elapsed += previous === null ? 0 : Math.max(now - previous, 0) / 1000;
-      previous = now;
-      if (elapsed >= playback.duration) { setInPlace(null); choose({ time: cam.duration, preset: null }); return; }
-      setInPlace({ at: playback.jobTimeAt(elapsed), from: inPlaceRef.current.from });
-      frameId = window.requestAnimationFrame(tick);
-    };
-    frameId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [playing, playback, cam, cv, choose]);
-  const stopInPlace = useCallback(() => {
-    const current = inPlaceRef.current;
-    if (!current) return;
-    setInPlace(null);
-    choose({ time: current.at, preset: null });
-  }, [choose]);
-  const time = cam ? {
-    control, value: shownTime, presets, preset: activePreset, playing,
-    onToggle: () => {
-      if (inPlaceRef.current) { stopInPlace(); return; }
-      const from = timeValue < cam.duration - 1e-6 * Math.max(cam.duration, 1) ? timeValue : 0;
-      setInPlace({ at: from, from });
-    },
-    onChange: (value) => { if (inPlaceRef.current) setInPlace(null); choose({ time: clamp(Number(value), 0, cam.duration), preset: null }); },
-    onPreset: (value) => {
-      if (inPlaceRef.current) setInPlace(null);
-      const preset = presets.find((entry) => entry.value === value);
-      if (preset) choose({ time: preset.values.motion, preset: value });
-    },
-    onReset: () => { if (inPlaceRef.current) setInPlace(null); choose({ time: null, preset: null }); },
-  } : null;
-
-  // What the readout says at the Time row's moment; the playbar writes over it as it plays.
-  const readout = useMemo(() => (cam ? cv.readoutWords(cam, shownTime, cv.operationAt(cam, shownTime)) : null), [cam, cv, shownTime]);
-  const displaySections = cam ? CAM_GATES.map(({ key, title, text }) => ({
-    id: `cam-${key}`, title, description: text, enabled: gates[key], onEnabledChange: (on) => choose({ [key]: on }),
-  })) : null;
-  return {
-    cam, rendererState, displaySections, ownClips, gates, hidden, isolated, time, readoutRef, previewReadoutRef, stopInPlace, playing,
-    toggleOperation: (index) => {
-      const next = new Set(hidden);
-      if (!next.delete(index)) next.add(index);
-      choose({ hidden: [...next].sort((a, b) => a - b) });
-    },
-    isolateOperation: (index) => choose({ isolated: isolated === index ? null : index }),
-    isolate: (index) => choose({ isolated: index }),
-    clearIsolation: () => choose({ isolated: null }),
-    readout,
-  };
-}
 const NO_REFERENCES = Object.freeze([]);
 const EXPLODE_OFF = Object.freeze({ exploded: { enabled: false, amount: 0 } });
 const CLIP_OFF = Object.freeze({ clip: { enabled: false, axis: "x", invert: false } });
 
 function GlbSurface({ view, data }) {
   const host = useViewerHost();
-  const viewerElement = useContext(ViewerElementContext);
   const document = useWorkspaceDocument({ view, data });
   const loaded = useGlbScene({ entry: document.entry, resources: document.client.resources });
-  // A result waits for its viewer as the file loading, so it is framed once, as the viewer draws it.
+  // A result waits for its viewer as the file loading, so it is framed once, as the viewer draws it: an FEA result's
+  // (`feaView.jsx`, below) and a CAM result's (`cam/useCamResult.jsx`), each loaded as its own chunk.
   const { kit: fv, pending: feaPending } = useFeaView(loaded.scene?.document?.scene);
   const { kit: cv, pending: camPending } = useCamView(loaded.scene?.document?.scene);
   const pending = feaPending || camPending;
@@ -403,28 +207,12 @@ function GlbSurface({ view, data }) {
   // A result that moves as a whole (`fea/motion.js`; a drop's fall, `fea/fall.js`, drawn by `feaFall.js`): the Time
   // row's value poses it, and Preview's playbar plays the same timeline (with reduced motion, only its `play` span).
   const reducedMotion = host.environment?.reducedMotion === true || prefersReducedMotion();
-  // A CAM result (`cadgen cam plan`): its job, its choices and its own clip, which plays the job (`useCamJob`).
+  // A CAM result (`cadgen cam plan`) is drawn as a plain GLB is, with its own tools, plus its job's chrome
+  // (`cam/useCamResult.jsx`): its Show rows and hidden operations, the row chosen in Job, and its Simulate routines,
+  // which join the file's own.
   const shellRef = useRef(null);
-  const job = useCamJob({ cv, scene, view, reducedMotion, shellRef, requestRenderRef, viewerElement });
-  const cam = job.cam;
-  // A job's finding chosen in the findings card: what it is about goes to Quick Edit by the part it was planned on.
-  const [camFinding, setCamFinding] = useState(null);
-  const chosenFinding = cam && camFinding?.cam === cam ? camFinding.finding : null;
-  const camChosenSomething = Boolean(chosenFinding) || job.isolated !== null;
-  // Choosing a finding isolates the operation it is about, where it names one, and hands its faces to Quick Edit.
-  const chooseCamFinding = (finding) => {
-    setCamFinding({ cam, finding });
-    const operation = cv.findingOperation(finding);
-    if (operation !== null) job.isolate(operation);
-  };
-  const clearCamChoice = () => { setCamFinding(null); if (job.isolated !== null) job.clearIsolation(); };
-  const camReferences = useMemo(() => {
-    if (!cam) return null;
-    const part = cv.camSourcePath(view.file.path, cam.document);
-    const selectors = (chosenFinding?.items || EMPTY).map((item) => item.ref).filter(Boolean).map((ref) => String(ref).replace(/^#/, ""));
-    return part && selectors.length ? [{ resource: { kind: "workspace-file", path: part }, target: { kind: "cad-selector", selectors },
-      summary: chosenFinding.summary || chosenFinding.description }] : [];
-  }, [cam, cv, view.file.path, chosenFinding]);
+  const camResult = useCamResult({ cv, scene, view, shellRef });
+  const cam = camResult.cam;
   const motion = useMemo(() => (fea ? fv.feaMotion(fea) : null), [fea]);
   const fall = useMemo(() => {
     const frame = motion?.kind === "fall" ? fv.fallFrame(THREE, fea) : null;
@@ -469,9 +257,9 @@ function GlbSurface({ view, data }) {
   const sceneRef = useRef(scene);
   sceneRef.current = scene;
   const animation = useGlbAnimation(scene?.document || null, () => { sceneRef.current?.syncExplode?.(); requestRenderRef.current?.(); },
-    cam ? job.ownClips : ownClips);
-  // A result (an FEA study's, a CAM job's) is drawn by its own viewer, here; a plain GLB by the scene tools, below.
-  const result = Boolean(fea || cam);
+    cam ? camResult.ownClips : ownClips);
+  // An FEA result is drawn by its own viewer, here; a plain GLB, and a CAM result with it, by the scene tools, below.
+  const result = Boolean(fea);
   const preview = usePreviewState();
   const previewing = preview.previewing;
   // Preview's scene for a result: the editor's sibling, the result's own objects mirrored on it (`resultPreview.js`),
@@ -512,7 +300,7 @@ function GlbSurface({ view, data }) {
       onClipSelect: settle(animation.onClipSelect), onRestart: settle(animation.onRestart) };
   }, [animation, result]);
 
-  // ---- a plain GLB's tools: Select (its nodes), Annotate, Measure, Explode, Clip --------------
+  // ---- a plain GLB's tools (a CAM result's too): Select (its nodes), Annotate, Measure, Explode, Clip --------------
   const sceneState = useSceneToolState({ toolModes: GLB_TOOL_MODES, previewing, fileKey: document.modelKey, revision: loaded.revision,
     measurable: true, resource: document.resource });
   const { measure } = sceneState;
@@ -521,25 +309,32 @@ function GlbSurface({ view, data }) {
   const selectionRef = useRef(selection);
   selectionRef.current = selection;
   // Parts where the file has several meshes to colour, Explode where it has several rigid nodes that draw (`glbScene.js`).
-  const plainFeatures = useMemo(() => viewFeaturesForKind("glb", { parts: scenePartCount(scene), explodeParts: scene?.explodeParts || 0 }), [scene]);
+  // A CAM result never explodes: its nodes are the part, the stock and the toolpaths, which mean nothing apart.
+  const plainFeatures = useMemo(() => viewFeaturesForKind("glb", { parts: scenePartCount(scene), explodeParts: cam ? 0 : scene?.explodeParts || 0 }),
+    [scene, cam]);
+  // What is picked: the nodes Select picked, and a CAM result's row chosen in Job.
+  const camResultRef = useRef(camResult);
+  camResultRef.current = camResult;
+  const clearPicked = useCallback(() => { selectionRef.current.clear(); camResultRef.current.clearChoice(); }, []);
   const plainLive = useMemo(() => ({
     declined: GLB_DECLINED_LIVE_COMMANDS,
-    commands: { clearSelection: () => selectionRef.current.clear() },
+    commands: { clearSelection: clearPicked },
     state: () => ({ selectedNodes: [...selectionRef.current.selected] })
-  }), []);
+  }), [clearPicked]);
   const measureRef = useRef(measure);
   measureRef.current = measure;
+  const camChosen = Boolean(camResult.choice);
   const plainEscape = useMemo(() => ({
-    active: selection.active || measure.drafting || measure.selected.length > 0,
+    active: selection.active || camChosen || measure.drafting || measure.selected.length > 0,
     // Escape cancels a measurement in progress, then lets go of what is picked.
     handle: () => {
       const now = measureRef.current;
       if (now.drafting) { now.cancelDraft(); return true; }
       if (now.selected.length) { now.select([]); return true; }
-      if (selectionRef.current.active) { selectionRef.current.clear(); return true; }
+      if (selectionRef.current.active || camResultRef.current.choice) { clearPicked(); return true; }
       return false;
     }
-  }), [selection.active, measure.drafting, measure.selected.length]);
+  }), [selection.active, camChosen, measure.drafting, measure.selected.length, clearPicked]);
   const choose = useCallback((patch) => {
     setEdited({ ...choiceRef.current, ...patch, signature });
     shellRef.current?.scheduleStateSave();
@@ -558,22 +353,23 @@ function GlbSurface({ view, data }) {
   const displaySettings = useViewSettings(view.appearance?.colorScheme === "dark" ? "dark" : "light");
   const shell = useRendererShell({
     view, services: document.services, resource: document.resource, modelKey: document.modelKey, revisionKey: loaded.revision,
-    features: cam ? EDGELESS_VIEW_FEATURES : fea ? FEA_VIEW_FEATURES : plainFeatures, toolModes: GLB_TOOL_MODES,
+    features: fea ? FEA_VIEW_FEATURES : plainFeatures, toolModes: GLB_TOOL_MODES,
     ...(result ? {} : { tool: sceneState.tool, deleteSelection: measure.removeSelected }),
     previewable: true, preview, scene, viewSettings: displaySettings, sceneEffects: !result,
     load: { busy: (loaded.busy || pending) && !scene, updating: loaded.busy && Boolean(scene), progress: loaded.progress, alert: loadAlert },
-    animation: routine, live: result ? GLB_RESULT_LIVE : plainLive, rendererState: cam ? job.rendererState : rendererState, displaySections: cam ? job.displaySections : markerShow ? [{
+    // A CAM result's slice of the file's view is its Show rows and hidden operations; an FEA result's, what Study shows.
+    animation: routine, live: result ? GLB_RESULT_LIVE : plainLive, rendererState: cam ? camResult.rendererState : rendererState, displaySections: markerShow ? [{
       id: "fea-markers", title: analysis.displayTitle, enabled: markersOn, onEnabledChange: (on) => choose({ markers: on }),
       description: fv.markerGateText(markers?.kinds?.length ? markers.kinds : analysis.markers.filter((kind) => kind !== "body_load")),
     }] : null,
-    // Escape lets go of what is chosen, which a result with no source to edit has no Quick Edit to clear; a job's
-    // isolated operation and chosen finding the same way.
-    escape: cam ? { active: camChosenSomething, handle: () => { if (!camChosenSomething) return false; clearCamChoice(); return true; } }
-      : fea ? { active: chosenSomething, handle: () => { if (!chosenSomething) return false; clearChoice(); return true; } } : plainEscape
+    // Escape lets go of what is chosen, which a result with no source to edit has no Quick Edit to clear.
+    escape: fea ? { active: chosenSomething, handle: () => { if (!chosenSomething) return false; clearChoice(); return true; } } : plainEscape
   });
   shellRef.current = shell;
   requestRenderRef.current = resultPreview ? () => { shell.requestRender(); requestPreviewFrame(); } : shell.requestRender;
   useDeclinedSelectReference(document);
+  // A CAM result's chrome, which reads the shell: Job in the file sidebar, its chosen row as a chip, its drawing.
+  const camChrome = useCamChrome({ result: camResult, scene, animation });
 
   // ---- one motion at a time: Explode, the routine and Clip, on a plain GLB -------------------
   // A result's cut stays through its routine (a flow's tracers stream inside the part it opens).
@@ -586,15 +382,20 @@ function GlbSurface({ view, data }) {
     animation: { applied: !result && Boolean(animation?.enabled), reset: () => animation?.onRelease() }
   });
 
-  // ---- Preview: its own scene, the editor's sibling over its geometry, and its own routine; a result's (a study's,
-  // a job's) with the result drawn on it and its own clips to play
+  // ---- Preview: its own scene, the editor's sibling over its geometry, and its own routine; an FEA result's with the
+  // result drawn on it and its own clips to play. A CAM result's drawing (`camView.jsx`) is the tools view's, beside
+  // the scene, never in it: Preview shows the part as the view had it, with the file's own routines (none).
   const previewScene = usePreviewScene(result ? null : scene, previewing) || resultPreview?.scene || null;
   const previewAnimation = useGlbAnimation(previewScene?.document || null,
-    result ? requestPreviewFrame : () => shell.frame.previewViewRef.current?.requestRender?.(), result ? (cam ? job.ownClips : ownClips) : undefined);
+    result ? requestPreviewFrame : () => shell.frame.previewViewRef.current?.requestRender?.(), result ? ownClips : undefined);
   const previewView = useMemo(() => ({ scene: previewScene, animation: previewAnimation }), [previewScene, previewAnimation]);
   const sceneTools = useSceneTools({ shell, scene, features: plainFeatures, state: sceneState, measurable: true, clearParts: selection.clear });
   const plainSelectActive = !previewing && Boolean(scene) && shell.toolMode === GLB_TOOL.SELECT;
-  const { references: nodeReferences, chips } = useSceneReferences({ scene, selection, resource: shell.frame.resource });
+  const nodes = useSceneReferences({ scene, selection, resource: shell.frame.resource });
+  // A CAM result's row chosen in Job is a chip too: the part the job was planned from, by its faces.
+  const nodeReferences = useMemo(() => (camChrome ? [...nodes.references, ...camChrome.references] : nodes.references),
+    [nodes.references, camChrome?.references]);
+  const chips = useMemo(() => (camChrome ? [...nodes.chips, ...camChrome.chips] : nodes.chips), [nodes.chips, camChrome?.chips]);
   const resourcePath = shell.frame.resource?.path;
   const nameNode = useCallback(reference => {
     const id = reference?.resource?.path === resourcePath && reference.target?.kind === "cad-selector" ? reference.target.selectors[0] : "";
@@ -603,7 +404,7 @@ function GlbSurface({ view, data }) {
   }, [resourcePath]);
   const handlePick = useCallback((hit, modifiers) => {
     selection.pick(hit, modifiers);
-    if (hit && !modifiers?.multiSelect) measureRef.current.select([]);
+    if (hit && !modifiers?.multiSelect) { measureRef.current.select([]); camResultRef.current.clearChoice(); }
   }, [selection.pick]);
 
   // Clip: the view's cut through the result (`feaClip.js`), as the viewport has applied it; none in
@@ -883,11 +684,8 @@ function GlbSurface({ view, data }) {
       .filter((label) => !clipRef.current || clipRef.current.keeps(label.face || label.at, fea.mesh)) : EMPTY), [markers, markersOn, markerShow, fieldLoad, fea]);
 
   // Select is an FEA result's one tool, with Study (and an assembly's Parts) its panels; a GLB that is not a result has none.
-  const selectActive = Boolean(fea || cam) && !shell.previewing && shell.toolMode === GLB_TOOL.SELECT;
-  // A job's Time row stops where it is when the tool or preview changes, as a motion's does.
-  const stopCamInPlace = job.stopInPlace;
-  useEffect(() => { stopCamInPlace(); }, [cam, shell.toolMode, shell.previewing]); // eslint-disable-line react-hooks/exhaustive-deps
-  const tools = cam ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON })] : fea ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON }),
+  const selectActive = Boolean(fea) && !shell.previewing && shell.toolMode === GLB_TOOL.SELECT;
+  const tools = fea ? [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON }),
     // A press opens its panel neutral (an edit cuts); a press while it is up, as its X, removes the cut.
     shell.tools.own({ id: GLB_TOOL.CLIP, label: "Clip", icon: fv.CLIP_ICON, active: clipShown,
       onSelect: () => {
@@ -957,14 +755,9 @@ function GlbSurface({ view, data }) {
     },
     onReset: () => choose({ ...NO_VALUES, preset: null }),
   };
-  // A job's section of the file sidebar, Job: the summary, the findings card, its setups, tools and operations, and its Time row.
-  const camPanel = useMemo(() => (cam ? { summary: cv.camSummary(cam), setups: cam.setups.map(cv.setupRow),
-    tools: cam.tools.filter((tool) => tool.node).map(cv.toolRow), operations: cam.operations.map(cv.operationRow) } : null), [cam, cv]);
-  // A result's reading of the file is the sidebar's (Study, an assembly's Parts, a job's Job); the face picked
-  // and the cut float over the model as a tool's panels do.
-  const sidebar = cam ? <cv.CamJobPanel summary={camPanel.summary} findings={cam.findings} setups={camPanel.setups} tools={camPanel.tools}
-    operations={camPanel.operations} hidden={job.hidden} isolated={job.isolated} onToggle={job.toggleOperation} onIsolate={job.isolateOperation}
-    onChooseFinding={chooseCamFinding} time={job.time} /> : fea ? <fv.FeaStudyPanel parts={parts} openPart={fv.weakestPartIndex(fea)}
+  // A result's reading of the file is the sidebar's (Study, an assembly's Parts); the face picked and the cut float over
+  // the model as a tool's panels do. A CAM result's Job is its chrome's (`useCamChrome`).
+  const sidebar = fea ? <fv.FeaStudyPanel parts={parts} openPart={fv.weakestPartIndex(fea)}
       setup={sections.setup} details={sections.details} sections={order} verdict={verdict} chosen={faces.id} onChoose={chooseFaces}
       result={resultControls} /> : null;
   const toolPanels = fea ? <>
@@ -978,10 +771,7 @@ function GlbSurface({ view, data }) {
     </div> : null}
   </> : null;
 
-  const overlay = cam ? (viewport) => <>
-    <cv.CamFraming runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} />
-    <cv.CamReadout readoutRef={job.readoutRef} words={job.readout} />
-  </> : fea ? (viewport) => <>
+  const overlay = fea ? (viewport) => <>
     <fv.FeaFraming runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} sync={viewport.syncSceneBounds} syncRef={syncBoundsRef} />
     {fall || motion?.poseAt || tracers ? <fv.FeaFallClock clockRef={clockRef} /> : null}
     <PointerPick viewport={viewport} scene={pickScene} enabled={selectActive} onPick={pick} />
@@ -992,10 +782,7 @@ function GlbSurface({ view, data }) {
   // Preview's: the same readings over its own viewport, stepped up over its playbar while the result has a routine; a
   // label projected through Preview's copy of the result mesh. Nothing in it picks.
   const previewMesh = fea && resultPreview ? resultPreview.copyOf(fea.mesh) : null;
-  const previewOverlay = cam ? (viewport) => <>
-    <cv.CamFraming runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} />
-    <cv.CamReadout readoutRef={job.previewReadoutRef} words={job.readout} raised={job.ownClips.length > 0} />
-  </> : fea ? (viewport) => <>
+  const previewOverlay = fea ? (viewport) => <>
     <fv.FeaFraming runtimeRef={viewport.runtimeRef} hostRef={viewport.hostRef} />
     {fall || motion?.poseAt || tracers ? <fv.FeaFallClock clockRef={previewClockRef} raised={ownClips.length > 0} /> : null}
     <fv.FeaColourBar result={fea} field={activeField} loadScale={loadScale} sigma={sigma} raised={ownClips.length > 0} />
@@ -1004,18 +791,20 @@ function GlbSurface({ view, data }) {
   </> : null;
   const resultPreviewView = { scene: previewScene, animation: previewAnimation, overlay: previewOverlay };
   if (result) {
-    return <RendererShell shell={shell} tools={tools} toolPanels={toolPanels} sidebar={sidebar} sidebarStartsOpen={cam ? cv.OPEN_SECTION : fv.OPEN_SECTION}
-      previewView={resultPreviewView} viewportOverlay={overlay} references={cam ? camReferences : references}
-      onClearReferences={cam ? () => setCamFinding(null) : clearChoice} copySelection={copySelection} />;
+    return <RendererShell shell={shell} tools={tools} toolPanels={toolPanels} sidebar={sidebar} sidebarStartsOpen={fv.OPEN_SECTION}
+      previewView={resultPreviewView} viewportOverlay={overlay} references={references} onClearReferences={clearChoice} copySelection={copySelection} />;
   }
   const strip = [shell.tools.own({ id: GLB_TOOL.SELECT, label: "Select", shortcut: TOOL_SHORTCUTS.select, icon: SELECT_ICON }), ...sceneTools.tools];
+  // A CAM result's Job is a section of the file sidebar, there whatever tool is in hand; none is open as the file opens.
   return <RendererShell shell={shell} tools={strip} subToolbar={sceneTools.subToolbar} previewView={previewView}
+    sidebar={camChrome?.sidebar ?? null}
     references={previewing ? NO_REFERENCES : nodeReferences} referenceChips={previewing ? NO_REFERENCES : chips} nameReference={nameNode}
-    onClearReferences={() => { selection.clear(); measure.select([]); }}
+    onClearReferences={() => { clearPicked(); measure.select([]); }}
     onSelectPress={sceneTools.onSelectPress} onSelectHover={sceneTools.onSelectHover}
     viewportOverlay={viewport => <>
       {sceneTools.overlay(viewport)}
       <PointerPick viewport={viewport} scene={scene} enabled={plainSelectActive} onPick={handlePick} onHover={selection.hoverHit} />
+      {camChrome?.overlay(viewport)}
     </>} />;
 }
 

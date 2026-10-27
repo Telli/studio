@@ -288,21 +288,21 @@ class ChangesRunWhatCanBreak(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(jobs_for(path), GATED - {"core-js", "mcp", "api", "docs", "fea"})
                 self.assertEqual(tests_for(path)["cadgen_tests"], [CADGEN])
-        # Its skill is read by the protocol suite alone, which holds its tables to the registry.
+        # Its skill is read by its own suite alone, which holds the router table and pages to what cadgen builds.
         for path in ("skills/cam/SKILL.md", "skills/cam/references/job-file.md", "skills/cam/agents/openai.yaml"):
             with self.subTest(path=path):
                 self.assertEqual(jobs_for(path), cadgen)
-                self.assertEqual(tests_for(path)["cadgen_tests"], [f"{CADGEN}/test_cam_protocol.py"])
+                self.assertEqual(tests_for(path)["cadgen_tests"], [f"{CADGEN}/cam/test_cam_skill.py"])
         # A CAM test file runs itself, in the cadgen job.
-        self.assertEqual(jobs_for(f"{CADGEN}/test_cam_plan.py"), cadgen)
-        self.assertEqual(tests_for(f"{CADGEN}/test_cam_plan.py")["cadgen_tests"], [f"{CADGEN}/test_cam_plan.py"])
+        self.assertEqual(jobs_for(f"{CADGEN}/cam/test_cam_plan.py"), cadgen)
+        self.assertEqual(tests_for(f"{CADGEN}/cam/test_cam_plan.py")["cadgen_tests"], [f"{CADGEN}/cam/test_cam_plan.py"])
 
     def test_a_suites_own_fixtures_run_the_tests_that_import_them(self):
         # cam_fixtures and fea_fixtures are imported by their suites alone: a change to one runs those, not
         # everything (the rest of tests/python/support is shared machinery, and does).
-        cam = sorted(f"{CADGEN}/{path.name}" for path in (REPO_ROOT / CADGEN).glob("test_cam*.py")
-                     if "cam_fixtures" in path.read_text(encoding="utf-8"))
-        self.assertIn(f"{CADGEN}/test_cam_plan.py", cam)
+        cam = sorted(path.relative_to(REPO_ROOT).as_posix() for path in (REPO_ROOT / CADGEN).rglob("test_cam*.py")
+                     if re.search(r"\bcam_fixtures\b", path.read_text(encoding="utf-8")))
+        self.assertIn(f"{CADGEN}/cam/test_cam_plan.py", cam)
         self.assertEqual(route("tests/python/support/cam_fixtures.py")["full"], "false")
         self.assertEqual(tests_for("tests/python/support/cam_fixtures.py")["cadgen_tests"], cam)
         self.assertEqual(jobs_for("tests/python/support/cam_fixtures.py"), {"cadgen-linux", "cadgen-windows", "skills"})

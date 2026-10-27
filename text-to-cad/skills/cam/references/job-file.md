@@ -1,301 +1,334 @@
 # The job file
 
-One JSON object, passed as `--job part.job.json` (or inline: `--job '{...}'`). It names the machine
-and its post, the material, the stock, the setups, the tools and the operations. This page is every
-key a job shares; each operation's own keys are on its reference page (the table under
-[`operations`](#operations)).
+One JSON object, passed as `--job part.cam.json` (or inline: `--job '{...}'`). This page is the keys
+every job shares; each operation adds its own keys, on its reference page. Every key is checked:
+an unknown key or value is refused with a sentence naming the allowed ones, and nothing is written.
 
 ```json
 {
-  "machine": {"kind": "mill", "axes": 3, "post": "grbl", "travel_mm": [800, 600, 120],
-              "max_rpm": 24000, "max_feed_mm_min": 5000, "rapid_mm_min": 5000, "units": "mm"},
+  "name": "bracket",
+  "machine": {"kind": "mill", "post": "grbl", "travel_mm": [300, 200, 80], "max_rpm": 24000},
   "material": "aluminum-6061",
-  "stock": {"type": "box", "margin_mm": [2, 2, 1, 1]},
-  "setups": [{"id": "top", "direction": "+Z", "origin": "stock_top_center", "clearance_mm": 10, "retract_mm": 3,
-              "fixture": {"type": "vise", "jaw_height_mm": 20, "grip_mm": 5}}],
-  "tools": [{"id": "T1", "type": "flat_endmill", "diameter_mm": 6, "flutes": 3, "flute_length_mm": 18,
-             "stickout_mm": 30, "holder": {"diameter_mm": 32, "length_mm": 40}, "material": "carbide"}],
-  "operations": [{"op": "pocket_2d", "setup": "top", "tool": "T1", "features": ["#o1.f12"]}],
-  "view": {"show": {"rapids": true, "stock": "initial"}}
+  "stock": {"kind": "box", "margin_mm": [2, 2, 1]},
+  "tools": [
+    {"id": "T1", "type": "flat", "diameter_mm": 6, "flutes": 3, "flute_length_mm": 20, "stickout_mm": 30}
+  ],
+  "setups": [
+    {"id": "top", "orientation": "+Z", "origin": "stock-top-center",
+     "operations": [{"op": "face", "tool": "T1"}]}
+  ]
 }
 ```
 
-Every key and every value is a closed vocabulary: an unknown key, an unknown name or a number out of
-range is refused before the part is opened, naming its path and what it takes:
-
-```
-operations[2].stepdown_mm: must be > 0, got -1
-operations[0]: unknown keys ['stepdown']; pocket_2d takes op, setup, tool, features, region, all, ...
-machine.post: required, and never guessed: a wrong post can crash a machine. Name the controller's dialect (or pass --post); built today for a mill: grbl, linuxcnc, fanuc, haas, mach3
-```
-
-A file path is read relative to where you run; `stock.from` is read relative to the job file's
-folder (to where you run, for inline JSON).
-
-## Units
-
-| Quantity | Unit | Keys |
-| --- | --- | --- |
-| Length, depth, diameter, margin, height | mm | every `*_mm` key |
-| Feed, plunge, rapid | mm/min | `feed_mm_min`, `plunge_mm_min`, `max_feed_mm_min`, `rapid_mm_min` |
-| Spindle speed | rpm | `rpm`, `max_rpm` |
-| Surface speed | m/min | `material.surface_m_min` |
-| Chip load | mm per tooth | `material.chipload_mm` |
-| Time | s | `dwell_s`, `spindle_spinup_s` |
-| Angle | degrees | `*_deg` |
-
-The whole job is metric. `machine.units: "inch"` writes the G-code in inches (G20, every coordinate,
-feed and depth converted); nothing in the job changes.
-
-## `machine`
-
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `kind` | `mill`, `router`, `lathe`, `laser`, `plasma`, `waterjet`, `wire_edm` or `sinker_edm`; required. Only `mill` and `router` have posts and operations today. | |
-| `axes` | a mill or router has 3, 4 or 5; a lathe 2; a wire EDM 2 or 4. Phase 1 plans 3-axis toolpaths on any of them. | the kind's first (3 for a mill) |
-| `post` | the controller's dialect: `grbl`, `linuxcnc`, `fanuc`, `haas` (mills only) or `mach3`. Required and never guessed; `--post` overrides it for one run ([machines-and-posts.md](machines-and-posts.md)). | |
-| `travel_mm` | `[x, y, z]` (a lathe `[x, z]`) | not stated |
-| `max_rpm` | the spindle's top speed; a faster computed speed is clamped to it, with an `rpm_clamped` warning | no limit |
-| `max_feed_mm_min` | the fastest cutting feed; faster feeds are clamped, with a `feed_clamped` warning | no limit |
-| `rapid_mm_min` | the rapid rate the cycle time is worked out at | 5000, with a warning that it was assumed |
-| `units` | `mm` or `inch`: what the G-code is written in | `mm` |
-| `spindle_spinup_s` | seconds to wait after every `M3` before cutting (`G4`) | the post's: 3 s on grbl, 0 on the others |
-
-A post that does not exist, is not built yet, or writes for another kind of machine is refused with
-the posts built for this one.
-
-## `material`
-
-Required: feeds and speeds are worked out from it. Either a name from the table
-([feeds-and-speeds.md](feeds-and-speeds.md#the-material-table)): `aluminum-6061`, `aluminum-7075`,
-`mild-steel`, `stainless-304`, `brass`, `acetal`, `hdpe`, `acrylic`, `mdf`, `plywood`, `hardwood`;
-or an object:
-
-| Key | Meaning |
+| key | meaning |
 | --- | --- |
-| `name` | the material's name; required |
-| `surface_m_min` | carbide surface speed, m/min; required for a name not in the table |
-| `chipload_mm` | chip load per tooth, mm: one number for every tool, or one per tool diameter, `{"3": 0.02, "6": 0.04}`; required for a name not in the table |
-| `hardness_hb` | Brinell hardness, recorded |
+| `name` | the job's name, for the posted files' headers |
+| `machine` | the machine: a catalog model, or its kind and whatever the user knows of it ([Machine](#machine)); required |
+| `material` | a feeds-table name or an object ([Material](#material)); required |
+| `stock` | what the part is cut from ([Stock](#stock)); required |
+| `tools` | the tool list, or the user's tool library file ([Tools](#tools)) |
+| `setups` | one per way the part is held, in order ([Setups](#setups)); required |
+| `tolerance_mm` | how closely paths follow the part (default 0.01) |
+| `coolant` | `off`, `flood`, `mist` or `air` for every operation that names none |
 
-A table name in an object may override its surface speed or chip load:
-`{"name": "aluminum-6061", "surface_m_min": 300}`.
+## Machine
 
-## `stock`
+| key | meaning |
+| --- | --- |
+| `model` | a machine from the catalog ([Machine models](#machine-models)), by id or name (`"tormach-1100mx"`, `"Haas VF-2"`): its maker's numbers fill in every key below the job leaves out, and the job's own keys win |
+| `kind` | `mill` (3-axis), `mill4` (plus an A axis about X), `mill5` (two rotary axes), `router`, `lathe`, `laser`, `plasma`, `waterjet`, `wire_edm`; left out, the model's |
+| `post` | the controller's dialect ([posts.md](posts.md)). Left out, the model's, else the kind's usual one (`fanuc` for mills and lathes, `grbl` for routers and lasers): assumed, and every posted file's header says so. A dialect read by the wrong controller moves the machine wrongly, so ask which controller runs the machine and name it when the user knows |
+| `name` | the machine's name, for the headers |
+| `travel_mm` | axis travel `[x, y, z]` (a lathe `[x, z]`, a laser, plasma or waterjet `[x, y]` or `[x, y, z]`); with it, the `travel` check runs |
+| `min_rpm`, `max_rpm`, `max_feed_mm_min` | limits: speeds and feeds are clamped to them, and a speed under `min_rpm` (a router's slowest) is raised to it (the `limits` warning says where). A tap is never raised (no tap runs at a router's speed), nor a drill, spot, reamer or boring bar, or any tool in a metal, more than 1.3 times: the plan refuses it with what to do instead. Left out, `max_rpm` is the kind's usual spindle limit, assumed |
+| `rapid_mm_min` | rapid traverse rate, for the cycle time (left out: the kind's usual one, assumed) |
+| `tool_change_s` | seconds per tool change, for the cycle time (left out: the kind's usual one, assumed) |
+| `rigid_tap` | whether the controller taps rigidly (the feed synchronised to the spindle). Left out, a tap that does not say `rigid` takes the controller's own tapping cycle (`M29` on Fanuc: a controller without rigid tapping stops with an alarm), assumed. `false`: such taps run in a floating holder (stopping three pitches short of a blind floor, not one, and the header says so), and a tap that asks for `rigid` is refused. The `mach3` post's tapping cycle does not follow the spindle, so with it this is `false` |
+| `spindle_spinup_s` | seconds the spindle takes to reach speed (0 to 60): every post dwells that long after each spindle start, and the cycle time counts it (left out: GRBL waits 3 s, the others none) |
+| `kinematics` | a `mill5`'s: `ac_trunnion` (A tilts the table about X, C turns it) or `bc_head` (B tilts the head, C turns the table) |
+| `rotary_limits_deg` | rotary travel: `{"a": [-120, 30], "c": [-360, 360]}` |
+| `diameter_mode` | a lathe's X words are diameters (default `true`) or radii |
+| `assumed` | the machine keys the job guessed because the user did not know them (`["kind"]`): the plan lists them with the rest |
 
-Required: what the machine starts from. Each kind of machine starts from some of them: a mill from
-`box`, `cylinder` or `from`; a router from those and `sheet`.
+The cutting machines take their process keys (power, amps, quality) on [cutting.md](cutting.md).
 
-| `type` | Keys | Meaning |
+A job needs only a `model` or a `kind`: `{"model": "tormach-1100mx"}` and `{"kind": "router"}` both
+plan. If the user does not know even the kind, ask once; if they still do not know, write
+`{"kind": "mill", "assumed": ["kind"]}`.
+
+### What the plan assumes
+
+Every value the plan takes that neither the job nor its model states is listed in the result's
+`assumed:` lines (`key`, `value`, `why`), in the GLB and under the verdict in the Viewer's Job panel.
+That covers a generic post, spindle limit, rapid rate or tool change time, the controller's own tapping cycle,
+a machine that may not be homed, a model's hand-set spindle (a trim router's dial: the header says how to set
+it), a used milling tool's flute length, stickout, small-cutter shank and flute count, and a hole maker's
+material (carbide). Read them to the user as questions to answer, never as facts. The checks do not stand behind
+a guess: a cut past an assumed flute length or stickout is a `not_judged` warning from `reach` (not an
+error, not a pass), and so is a shank or holder hit that rests on an assumed length
+(`holder_collision`). Stating the real number turns it back into a judged check.
+
+### Machine models
+
+Each model's numbers are its maker's published ones (the catalog keeps the page each came from);
+a number the maker does not publish is left out, and the kind's usual value stands in, assumed.
+Name another machine by its `kind` and the numbers the user knows.
+
+| id | machine | kind | post |
+| --- | --- | --- | --- |
+| `haas-vf-1` | Haas VF-1 | `mill` | `haas` |
+| `haas-vf-2` | Haas VF-2 | `mill` | `haas` |
+| `haas-mini-mill` | Haas Mini Mill | `mill` | `haas` |
+| `haas-umc-500` | Haas UMC-500 | `mill5` | `haas` |
+| `haas-st-10` | Haas ST-10 | `lathe` | `haas` |
+| `haas-tl-1` | Haas TL-1 | `lathe` | `haas` |
+| `tormach-440` | Tormach PCNC 440 | `mill` | `linuxcnc` |
+| `tormach-770mx` | Tormach 770MX | `mill` | `linuxcnc` |
+| `tormach-1100mx` | Tormach 1100MX | `mill` | `linuxcnc` |
+| `tormach-8l` | Tormach 8L | `lathe` | `linuxcnc` |
+| `tormach-15l` | Tormach 15L Slant-PRO | `lathe` | `linuxcnc` |
+| `shapeoko-5-pro` | Shapeoko 5 Pro | `router` | `grbl` |
+| `shapeoko-4-xxl` | Shapeoko 4 XXL | `router` | `grbl` |
+| `nomad-3` | Carbide 3D Nomad 3 | `mill` | `grbl` |
+| `x-carve-pro-4x4` | Inventables X-Carve Pro 4x4 | `router` | `grbl` |
+| `longmill-mk2-30x30` | Sienci LongMill MK2 30x30 | `router` | `grbl` |
+| `ortur-laser-master-3` | Ortur Laser Master 3 | `laser` | `grbl` |
+| `sculpfun-s30-pro-max` | Sculpfun S30 Pro Max | `laser` | `grbl` |
+
+Some machines cadgen cannot post for, because their controller reads no G-code file it writes as
+written: a Glowforge (its own cloud app), an OMTech CO2 laser (a Ruida controller), an xTool laser,
+the Langmuir CrossFire plasma tables (their own approved posts), a Makera Carvera (Makera's own
+firmware) and a Bantam Tools mill (a TinyG board behind Bantam's software). Naming one is refused
+with what to do instead: the maker's own software, from a STEP or a DXF.
+
+A trim router's speed (a Shapeoko's Compact Router) is set by hand on its dial, not by the program:
+tell the user which dial setting gives each posted speed.
+
+## Material
+
+A name from the feeds table:
+
+`aluminum-6061`, `aluminum-7075`, `steel-1018`, `stainless-304`, `tool-steel`, `titanium-6al4v`,
+`brass`, `copper`, `delrin`, `acrylic`, `hdpe`, `nylon`, `mdf`, `hardwood`, `plywood`,
+`carbon-fiber`, `foam`. `mild-steel` is `steel-1018` and `acetal` is `delrin`.
+
+Or an object that names one and overrides some of its numbers, keeping the rest of its row
+(`{"name": "aluminum-6061", "surface_m_min": 300}`), or describes another with `surface_m_min` (or
+`sfm`, surface feet per minute) and `chipload_mm`: `chipload_mm` is per tooth for a 6 mm tool
+(scaled with the diameter), or a chip load per tool diameter, `{"3": 0.02, "6": 0.04, "12": 0.06}`,
+interpolated between the diameters given. Also `drill_mm_per_rev` and `stepdown_fraction` (of the
+tool diameter). For a material not in the table, take the surface speed and chip load from the tool
+maker's chart; never borrow a row that only sounds close.
+
+The table's numbers are conservative starting points for carbide tools (from common tool makers'
+charts), clamped to the machine's limits, thinned for light stepovers. They are not tuned for the
+user's machine: say so. An operation's own `feed` (mm/min), `speed` (rpm) and `plunge_mm_min`
+override them.
+
+How the numbers are worked out:
+
+- **Speed:** `rpm = 1000 x Vc / (pi x D)` from the material's surface speed `Vc` (m/min), lower for
+  HSS tools, drills, reamers and taps; rounded to a whole 10 rpm and never above `max_rpm`.
+- **Feed:** `feed = rpm x flutes x chip load`. The chip load grows with the diameter: in proportion
+  below 1 mm, interpolated between 1, 3, 6, 10, 12 and 20 mm, held past 20 mm. A slot takes 0.75 of
+  it, an engraving and a thread mill half.
+- **Chip thinning:** at a stepover under half the diameter the chip is thinner than the feed per
+  tooth, so the feed rises by `D / (2 x sqrt(D x ae - ae^2))`, at most 2 times. The plunge is never
+  thinned: it is 0.3 of the un-thinned feed.
+- **Hole makers** feed per revolution (a drill's from the material, a reamer twice it, a spot half).
+- **A tap** feeds exactly `rpm x pitch`: anything else strips the thread or breaks the tap. Held to
+  `max_feed_mm_min`, its spindle slows to a whole rpm instead.
+
+For example a 6 mm 3-flute carbide end mill in 6061 at Vc 250: 13,260 rpm; at 0.04 mm a tooth,
+1,591 mm/min; plunge 477 mm/min. On a 10,000 rpm router spindle it runs at 10,000 rpm and 1,200
+mm/min.
+
+## Stock
+
+| `kind` | keys | meaning |
 | --- | --- | --- |
-| `box` | `margin_mm` `[x, y, z_top, z_bottom]` | the part's bounding box grown by `x` on each side in X, `y` on each side in Y, `z_top` above the part and `z_bottom` below it. Four numbers, each 0 or more; default all 0. |
-| `cylinder` | `margin_mm` `[radial, axial]` or one number for both; `diameter_mm`; `axis` (`X`, `Y` or `Z`, default `Z`) | a bar along `axis` through the middle of the part's box: `diameter_mm` across when stated (then no radial margin), else the smallest bar holding the part plus the radial margin; as long as the part plus the axial margin at each end. |
-| `sheet` | `margin_mm` `[x, y]` or one number; `thickness_mm` | the part's outline in X and Y grown by the margin, from the part's bottom up `thickness_mm` (default: the part's height). A router only. |
+| `box` | `margin_mm` or `size_mm` | a block round the part. `margin_mm` is one number (every side but the bottom), `[x, y]`, `[x, y, z]` (z on top only) or six numbers `[-x, +x, -y, +y, -z, +z]`; `size_mm` is `[x, y, z]`, centred on the part, flush with its bottom (any size that holds the part; smaller than the part on any axis is refused) |
+| `cylinder` | `diameter_mm`, `length_mm`, `axis`, `margin_mm`, `face_stock_mm` | bar stock for a lathe or a 4th axis; `axis` `x`, `y` or `z` (default `z`); `margin_mm` is one number or `[radial, axial]`, the axial margin at both ends (on a lathe at the chuck end only: the face end is `face_stock_mm`); a stated `diameter_mm` takes no radial margin and a stated `length_mm` no axial one; `face_stock_mm` (default 1 on a lathe) stands the bar proud of the part's +axis end, centred on its turning axis ([turning.md](turning.md#the-bar)). The bar is measured on the exact part, so it is never thinner than the part |
+| `sheet` | `thickness_mm`, `margin_mm` | a plate for cutting or routing. A `.dxf` part is cut from a sheet only, and needs `thickness_mm` (a drawing has no thickness of its own) |
+| `from_step` | `path` | another STEP (a casting, a blank), relative to the job file or the part; it must hold the whole part, by volume, not only its bounding box |
 
-Or `{"from": "blank.step"}` alone: the blank read from a STEP, in the part's frame. It must hold the
-part: a stock that does not (a bar too thin, a blank beside the part, a blank with a pocket where the
-part stands) is refused.
+The stock must suit the machine: a lathe turns a `cylinder`; a laser, plasma or waterjet cuts a
+`sheet`; a wire EDM a `sheet` or a `box`; mills and routers take any.
 
-## `setups`
+## Tools
 
-A non-empty list: one entry per way the part is held. Each setup's operations run in one program,
-written to its own `.nc` when the job has more than one.
+Every tool has an `id` (operations name it; no spaces round it) and a `type`. Milling tools share:
+`number` (the posted T number; default the digits of the id), `name`, `diameter_mm`, `flutes`,
+`flute_length_mm`, `stickout_mm`, `shank_diameter_mm`, `holder_diameter_mm`, `holder_length_mm`,
+`material` (`carbide` or `hss`). Lathe tools take `id`, `type`, `number`, `name`, `diameter_mm` and
+`material`; a beam or a wire only `id`, `type`, `number`, `name` and its own key. Give
+`flute_length_mm`, `stickout_mm` and the holder whenever the user knows them: the `reach`,
+`holder_collision` and `long_stickout` checks use them. A stickout given without a flute length
+cuts the default flutes (3 diameters) back to it; a holder states both its diameter and its length;
+a cutter under 3 mm sits on a 3 mm shank unless `shank_diameter_mm` says otherwise.
+A length the job leaves out is assumed, and listed ([What the plan assumes](#what-the-plan-assumes)).
 
-| Key | Meaning | Default |
+The user's own tools can live in a tool library file, written once and named by every job:
+`"tools": "my-tools.json"`. The file is a JSON list of tools as a job writes them, or
+`{"name": "shop", "tools": [...]}`, found beside the job file, else beside the part. A library's
+tools are the job's when an operation names them. `tools` can also mix inline tools and libraries:
+`[{"library": "my-tools.json", "only": ["T4"]}, {"id": "T9", ...}]`, where `only` keeps those tools
+even when no operation uses them. Tool ids are unique across the job and its libraries.
+
+| `type` | its own keys | for |
 | --- | --- | --- |
-| `id` | the setup's name; operations name it. In a job of several setups it names the file `<stem>.<id>.nc`, so letters, digits, `-`, `_` and `.` only. | required |
-| `direction` | the tool axis in the part's frame, pointing from the part to the spindle: `+X`, `-X`, `+Y`, `-Y`, `+Z`, `-Z`; or a face selector (`#o1.f4`) to look straight down that face's outward normal | `+Z` |
-| `origin` | where the work zero (G54) sits: a keyword below, or a point `[x, y, z]` in the part's frame, mm | `stock_top_center` |
-| `clearance_mm` | the height above the stock top the tool moves at between features | 10 |
-| `retract_mm` | the height above the stock top it lifts to between passes; above 0 and at or under `clearance_mm` | 3 |
-| `fixture` | what holds the stock (below); collisions are checked against it | `{"type": "none"}` |
+| `flat` | | flat end mill |
+| `face_mill` | | face mill (4 teeth by default) |
+| `ball` | | ball end mill |
+| `bull` | `corner_radius_mm` | end mill with a corner radius |
+| `vee` | `angle_deg`, `tip_diameter_mm` | V-bit for engraving and chamfers |
+| `chamfer` | `angle_deg`, `tip_diameter_mm` | chamfer mill |
+| `engraver` | `angle_deg`, `tip_diameter_mm` | engraving cutter |
+| `drill` | `point_angle` | twist drill (default 118°) |
+| `spot` | `angle_deg` | spot drill |
+| `tap` | `pitch_mm` | tap |
+| `reamer`, `boring` | | reamer, boring bar |
+| `counterbore` | `pilot_diameter_mm` (less than the diameter) | counterbore with a pilot |
+| `thread_mill` | `pitch_mm` | thread mill |
+| `slot` | `width_mm` | slot or keyseat cutter |
+| `turn` | `insert` (`C`, `D`, `V`, `W`), `nose_radius_mm`, `side` (`left`, `right`, `neutral`) | lathe turning tool |
+| `groove` | `width_mm`, `nose_radius_mm`, `side` | lathe grooving tool |
+| `thread` | `pitch_mm`, `side` | lathe threading tool |
+| `partoff` | `width_mm` | part-off blade |
+| `beam` | `kerf_mm` | laser, plasma or waterjet beam |
+| `wire` | `diameter_mm` | EDM wire |
 
-`direction: "+Z"` keeps the part's axes. `-Z` is the part turned over about its X axis (X stays, Y and
-Z flip). `+X` maps the part's X, Y, Z to the setup's Z, Y, -X; every other turn is the smallest one
-from +Z to the direction.
+## Setups
 
-Origin keywords, read on the box in the setup's frame (looking down the tool):
+A setup is one way the part is held. Each posts its own file, `<part>.<id><extension>`.
 
-| `origin` | X0 Y0 | Z0 |
-| --- | --- | --- |
-| `stock_top_center` | the stock's centre | the stock's top |
-| `stock_top_corner` | the stock's min-X, min-Y corner (front left) | the stock's top |
-| `part_bbox_top_center` | the part's centre | the part's top |
-| `part_bbox_top_corner` | the part's front left corner | the part's top |
-| `part_bbox_center` | the part's centre | the part's middle |
-| `part_bbox_bottom_center` | the part's centre | the part's bottom |
-| `part_bbox_bottom_corner` | the part's front left corner | the part's bottom |
+| key | meaning |
+| --- | --- |
+| `id` | short name (letters, digits, `-`, `_`); names the posted file |
+| `name` | the plain name the Viewer shows (default from the orientation: "Top") |
+| `orientation` | which way the tool looks at the part: `+Z` (from above, default), `-Z` (flipped), `+X`, `-X`, `+Y`, `-Y`; a planar face, `"#o1.f4"` ([below](#a-setup-on-a-face)); or a tilted 3+2 position `{"a_deg": 30, "c_deg": 90}` on a mill4/mill5 ([multi-axis.md](multi-axis.md)) |
+| `origin` | where work zero is, on the stock or the part's bounding box: `stock-top-center` (default), `stock-top-corner`, `stock-center`, `stock-bottom-center`, `stock-bottom-corner`, `part-top-center`, `part-top-corner`, `part-center`, `part-bottom-center`, `part-bottom-corner` (a corner is the setup's -X -Y one; a lathe takes no corner); or a point in part coordinates, `[x, y, z]` or `{"xyz": [x, y, z]}` |
+| `wcs` | the work offset posted: `G54`..`G59` (default G54, G55, ... by setup order) |
+| `fixture` | what holds the stock, one or a list: keep-out boxes (clamps, a vise's jaws) `{"min_mm": [...], "max_mm": [...], "name": "clamp"}` in part coordinates, a `{"type": "vise"}` or a `{"type": "plate"}` ([below](#fixture)); the `fixture` check refuses any move into one |
+| `clearance_mm` | height above the stock top for moves between features (default 5) |
+| `retract_mm` | height above the material for moves within a feature (default 2); at most `clearance_mm` |
+| `operations` | the operations, in cutting order |
 
-Tell the user where the zero is and how to set it on the machine: the program's header says
-`WCS: G54 at <origin>`.
+### A setup on a face
+
+`"orientation": "#o1.f4"` (on a `mill`, `router`, `mill4` or `mill5`) turns the part so that planar
+face looks up at the tool: the tool comes down its outward normal, and the part is turned by the
+smallest rotation that does it (a half turn about X for a face looking down -Z). The setup's
+`origin` keywords then sit on the stock or part box in that turned frame, so `stock-top-center`
+is over the highest stock point the tool sees. Its name is "Face #o1.f4 up", which the posted
+file's header carries. An edge, a vertex or a face that is not flat (a cylinder) is refused: it
+has no one normal to look down. On a mill4 or mill5 a face the rotary axes reach (within
+`rotary_limits_deg`) is that rotary position, as `+Y` is; one they cannot reach (a face with an X
+slope on a mill4) is a re-fixture by hand, as on a 3-axis mill.
 
 ### `fixture`
 
-| `type` | Sizes (mm) | What is modelled |
+A box has no `type` (or `"type": "box"`): `min_mm`, `max_mm` (part coordinates) and an optional
+`name`. A vise or a plate is built around the stock's box in the setup's frame (on a mill4 or
+mill5 in a rotary position, in the part's own axes: it is bolted to the table and turns with the
+part), then written as boxes in part coordinates, which the `fixture` check, the operations'
+leads and plunges, and the Viewer use:
+
+| `type` | keys (mm; default) | what is built |
 | --- | --- | --- |
-| `vise` | `jaw_height_mm` (40), `jaw_width_mm` (150), `grip_mm`, `parallels_mm` (0, and 0 is allowed: the stock on the vise's floor), `jaw_thickness_mm` (20), `parallel_width_mm` (6), `floor_thickness_mm` (10) | Two jaws `jaw_thickness_mm` thick closing on the stock's front and back (along the setup's Y), `jaw_width_mm` wide about its centre, standing on a floor `floor_thickness_mm` thick; the stock on two parallels `parallels_mm` tall and `parallel_width_mm` wide. `grip_mm` is how far the jaws reach up the stock: `jaw_height_mm - parallels_mm`, so any two give the third, and three must agree within 0.01 mm. A grip of 0 or less holds nothing and is refused. |
-| `plate` | `thickness_mm` (12), `border_mm` (25, 0 allowed) | A plate under the stock, `border_mm` wider than it all round (a fixture plate, a spoilboard, a vacuum table). |
-| `chuck` | `diameter_mm` (the stock's plus 20 each side), `jaw_length_mm` (30), `grip_mm` (10) | A cylinder about the setup's Z axis through the stock's centre, its jaw face `grip_mm` above the stock's bottom and `jaw_length_mm` long below it. |
-| `collet` | `diameter_mm` (the stock's plus 5 each side), `length_mm` (40), `grip_mm` (15, or the stock's length when shorter) | A cylinder holding the bottom `grip_mm` of the stock, `length_mm` long. |
-| `sheet` | none | A sheet held flat: nothing to collide with. |
-| `none` | none | Nothing modelled. |
+| `vise` | `jaws_along` (`x` or `y`; across the stock's narrower side, `y` on a tie), `jaw_height_mm` (40), `grip_mm`, `parallels_mm`, `jaw_width_mm` (150), `jaw_thickness_mm` (20), `parallel_width_mm` (6), `floor_thickness_mm` (10), `name` | Two jaws on the stock's sides along `jaws_along` (`x`: its -X and +X sides), `jaw_width_mm` wide about its centre, standing on the vise's floor; the stock on two parallels `parallels_mm` tall (none at 0), under its edges along the jaws. `grip_mm`, how far the jaws reach up the stock, is `jaw_height_mm - parallels_mm`: any two give the third, and three must agree within 0.01 mm. With fewer than two the grip is 10 (at most half the stock's height). A grip of 0 or less holds nothing and is refused. |
+| `plate` | `thickness_mm` (12), `border_mm` (25), `name` | A plate under the stock, `border_mm` wider than it all round (a fixture plate, a spoilboard you must not cut). |
 
-Every size the model uses can be stated; each is a number over 0 (`parallels_mm` and `border_mm` may
-be 0). A size the job does not state takes the default in brackets, and the sidecar lists it under
-`setups[].fixture.assumed` (and an `assumed_fixture` note); a size worked out from stated ones (the
-parallels from `jaw_height_mm` and `grip_mm`) is not assumed and is not listed. Say which sizes were
-assumed when you report, and ask for the real ones when a collision check leans on them. A lathe holds work in a
-`chuck`, `collet` or `none`; a laser, plasma or waterjet in a `sheet` or `none`.
+The boxes are named after the fixture's `name` (or its type): `vise -Y jaw`, `vise +Y jaw`,
+`vise floor`, `vise -Y parallel`, `plate`. Every size the job did not state is listed in an
+`assumed_fixture` note ([checks.md](checks.md)); say which were assumed when you report, and ask
+for the real ones when the cut runs near them. A vise or plate is a mill's or a router's: a lathe
+or a cutting machine refuses one, and a setup turned onto a sloping face refuses one (its boxes
+would stand at an angle to the part's axes: give the jaws as boxes).
 
-## `tools`
+```json
+"fixture": {"type": "vise", "jaws_along": "y", "jaw_height_mm": 40, "grip_mm": 8}
+```
 
-A non-empty list. [tools.md](tools.md) has every type, the keys each takes, and what a job leaves
-out.
+### Depths and heights
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `id` | `T` and the machine's tool table slot, `T1` to `T9999`; the program calls it as `T<n> M6` and its length offset as `H<n>` | required |
-| `type` | the tool's type ([tools.md](tools.md#types)) | required |
-| `material` | `carbide` or `hss` (HSS runs at 0.3 of carbide's surface speed) | `carbide` |
-| `diameter_mm`, `flutes`, `flute_length_mm`, `shank_diameter_mm`, and the type's own sizes | [tools.md](tools.md#types) | |
-| `stickout_mm` | how far the tool stands out of its holder | flute length plus one diameter |
-| `holder` | `{"diameter_mm", "length_mm"}`, both required; checked for collisions only when stated | none |
-| `comment` | a few words, written into the program's header | none |
+Every height a job gives (`bottom_z`, a region's `bottom_z`, a `path`'s) is in the setup's work
+coordinates, Z0 where its `origin` puts it: with `stock-top-center`, `"bottom_z": -3` is Z-3 in the
+program, 3 mm under the top of the stock as the job gives it, whatever an earlier operation took
+off. A `depth_mm` is measured down from what its operation's page says (a `face` from the stock
+top, an `engrave` from the surface, a hole from its top). Each setup is placed on the job's stock
+as given, so a later setup's stock top is the raw face it looks at, not what an earlier setup left;
+the stock simulation then runs the setups in order, so the checks and the Viewer see what each one
+leaves for the next.
 
-## `operations`
-
-A non-empty list, run in its order. Every operation takes these keys; each also takes its own.
-
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `op` | the operation (the table below) | required |
-| `setup` | the setup it runs in | the job's one setup, when it has one |
-| `tool` | the tool it cuts with; its type must be one the operation cuts with | required |
-| `features` | selectors from `cadgen cam features`, `["#o1.f19"]`: the feature's own selector, or any face of it | |
-| `region` | a closed outline in the setup's plane, mm: at least three `[x, y]` points enclosing an area, `[[0, 0], [40, 0], [40, 20], [0, 20]]` | |
-| `all` | `true`: every feature of the kind the operation cuts that the setup reaches | |
-| `rpm`, `feed_mm_min`, `plunge_mm_min` | override the computed spindle speed, feed and plunge (still held to the machine's limits) | worked out ([feeds-and-speeds.md](feeds-and-speeds.md)) |
-| `stock_to_leave_mm` | material left on walls and floors for a later finishing operation; a hole cycle refuses any but 0 | 0 |
-| `coolant` | `off`, `flood`, `mist` or `air` | `off` |
-| `clearance_mm`, `retract_mm` | override the setup's heights for this operation | the setup's |
-
-An operation names one of `features`, `region` or `all`, and only those it takes (its page says
-which). `facing` alone needs none: it faces the whole stock. A selector naming a feature of another
-kind is refused naming the field; one the setup's direction does not reach is an `unreachable`
-error.
-
-| `op` | plain word | status | its keys |
-| --- | --- | --- | --- |
-| `facing` | Face | runs today | [milling-2d.md](milling-2d.md#facing) |
-| `contour_2d` | Profile | runs today | [milling-2d.md](milling-2d.md#contour_2d) |
-| `pocket_2d` | Pocket | runs today | [milling-2d.md](milling-2d.md#pocket_2d) |
-| `slot` | Slot | runs today | [milling-2d.md](milling-2d.md#slot) |
-| `bore` | Helical bore | runs today | [milling-2d.md](milling-2d.md#bore) |
-| `circular` | Round pocket or boss | runs today | [milling-2d.md](milling-2d.md#circular) |
-| `thread_mill` | Thread mill | runs today | [milling-2d.md](milling-2d.md#thread_mill) |
-| `chamfer_2d` | Chamfer | runs today | [milling-2d.md](milling-2d.md#chamfer_2d) |
-| `engrave` | V-carve | runs today | [milling-2d.md](milling-2d.md#engrave) |
-| `trace` | Trace | runs today | [milling-2d.md](milling-2d.md#trace) |
-| `drill` | Drill | runs today | [drilling.md](drilling.md#drill) |
-| `spot_drill` | Spot drill | runs today | [drilling.md](drilling.md#spot_drill) |
-| `peck` | Peck drill | runs today | [drilling.md](drilling.md#peck-and-chip_break) |
-| `chip_break` | Chip-break drill | runs today | [drilling.md](drilling.md#peck-and-chip_break) |
-| `tap` | Tap | runs today | [drilling.md](drilling.md#tap-and-rigid_tap) |
-| `rigid_tap` | Rigid tap | runs today | [drilling.md](drilling.md#tap-and-rigid_tap) |
-| `ream` | Ream | runs today | [drilling.md](drilling.md#ream) |
-| `boring_cycle` | Boring bar | runs today | [drilling.md](drilling.md#boring_cycle) |
-| `counterbore` | Counterbore | runs today | [drilling.md](drilling.md#counterbore) |
-| `back_bore` | Back bore | runs today | [drilling.md](drilling.md#back_bore) |
-
-Every other name is known and refused with its phase: `adaptive_2d` (Adaptive clearing) is phase 2,
-designed with `adaptive_3d` ([milling-2d.md](milling-2d.md#adaptive_2d-phase-2)); so are 3D milling,
-turning, cutting, EDM and multi-axis ([planned-next.md](planned-next.md)).
-
-## Depths and heights
-
-`z_mm` is a height in the setup's work coordinates: `"z_mm": -3` is Z-3 in the program, whatever
-was cut before. `depth_mm` is measured down from a top, and which top depends on the operation:
-
-- **A milling operation** (`pocket_2d`, `contour_2d`, `slot`, `circular`, ...): from the top of the
-  material it starts from. That is the stock top of this setup (already taken down by a whole-stock
-  facing in an earlier setup: the turned-over setup below starts on the faced side), lowered by
-  any whole-stock facing earlier in this setup.
-- **`facing` itself:** from this setup's stock top.
-- **A hole operation** (`drill`, `tap`, `ream`, ...): from the hole's opening.
-
-For example, stock 1 mm over the part with the work zero on the stock top: a facing to the part's
-top leaves the material at Z-1. A `pocket_2d` on a region after it with `"depth_mm": 3` cuts to Z-4
-(3 mm under the faced top); with `"z_mm": -3` it cuts to Z-3 (2 mm under it).
-
-## Two setups: turning the part over
+### Two setups: turning the part over
 
 A part cut from a blank thicker than itself, with an outline to profile, usually takes two setups.
 The bracket here is 120 x 80 x 15 mm; the blank is 2.5 mm wider all round, 1 mm over the part and
-4 mm under it (`"margin_mm": [2.5, 2.5, 1, 4]`), 20 mm tall.
+4 mm under it, 20 mm tall:
 
 ```json
+"stock": {"kind": "box", "margin_mm": [2.5, 2.5, 2.5, 2.5, 4, 1]},
 "setups": [
-  {"id": "top", "direction": "+Z", "origin": "stock_top_center",
-   "fixture": {"type": "vise", "jaw_height_mm": 40, "grip_mm": 5}},
-  {"id": "bottom", "direction": "-Z", "origin": "stock_top_center",
-   "fixture": {"type": "vise", "jaw_height_mm": 40, "grip_mm": 8}}
-],
-"operations": [
-  {"op": "facing", "setup": "top", "tool": "T1"},
-  {"op": "contour_2d", "setup": "top", "tool": "T1", "features": ["#o1.f2"], "z_mm": -14},
-  {"op": "facing", "setup": "bottom", "tool": "T1"},
-  {"op": "contour_2d", "setup": "bottom", "tool": "T1", "features": ["#o1.f2"], "z_mm": -6.5}
+  {"id": "top", "orientation": "+Z", "origin": "stock-top-center",
+   "fixture": {"type": "vise", "jaw_height_mm": 40, "grip_mm": 5},
+   "operations": [
+     {"op": "face", "tool": "T1"},
+     {"op": "contour", "tool": "T1", "faces": ["#o1.f2"], "bottom_z": -14}
+   ]},
+  {"id": "bottom", "orientation": "-Z", "origin": "stock-top-center",
+   "fixture": {"type": "vise", "jaw_height_mm": 40, "grip_mm": 8},
+   "operations": [
+     {"op": "face", "tool": "T1"},
+     {"op": "contour", "tool": "T1", "faces": ["#o1.f2"], "bottom_z": -6.5}
+   ]}
 ]
 ```
 
 - **The top setup** faces 1 mm off (to Z-1, the part's top), does everything reached from the top,
-  and cuts the outline only partway: to Z-14, 13 of the part's 15 mm. The vise grips the bottom 5 mm
-  of the 20 mm blank, so its jaws' top is at Z-15, 1 mm under the deepest cut. Choose `grip_mm`
-  against the outline's depth: the stock's height less `grip_mm` must stay above the deepest cut by
-  a margin, or the profile runs into the jaws (`fixture_collision`).
-- **The bottom setup** turns the part over. cadgen carries the first setup's facing into it: its
-  stock is the 19 mm the facing left, so it stands in the vise on the faced top, the vise grips
-  8 mm of that, and its work zero on the stock top is on the raw bottom of the blank. It faces the
-  4 mm under the part off (to Z-4, the part's bottom), then finishes the outline's last 2 mm with a
-  0.5 mm overlap: to Z-6.5, where the top setup's cut reached Z-6 in this frame. Its jaws' top is
-  at Z-11, clear of that.
-- **The origin of a later setup:** `stock_top_center` puts Z0 on the raw face the operator can
-  touch off on; `part_bbox_top_center` puts Z0 on the part's face, which exists only after the
-  facing (the header then gives the stock top's Z to touch off on first). Either works: the header's
-  `Z0:` line says which surface and where the faced top is.
+  and cuts the outline only partway: to Z-14, 13 of the part's 15 mm. The vise grips the bottom
+  5 mm of the 20 mm blank, so its jaws' top is at Z-15, 1 mm under the deepest cut. Choose
+  `grip_mm` against the outline's depth: the stock's height less `grip_mm` must stay above the
+  deepest cut by a margin, or the profile runs into the jaws (`fixture`).
+- **The bottom setup** turns the part over onto the faced top. Its work zero is on the raw bottom
+  of the blank, the face the operator touches off on. It faces the 4 mm under the part off (to
+  Z-4, the part's bottom), then finishes the outline's last 2 mm with a 0.5 mm overlap: to Z-6.5,
+  where the top setup's cut reached Z-6 in this frame. Its jaws' top is at Z-12, clear of that.
+- **The origin of a later setup:** `stock-top-center` puts Z0 on the raw face the operator can
+  touch off on; `part-top-center` puts Z0 on the part's face, which exists only once the facing
+  has cut it, so the operator sets Z on the raw face first. Say which one you chose when you report.
 
-What cadgen models of the earlier setup: a whole-stock facing, as a plane across a box or sheet
-stock seen square (stock, fixture, origin and heights of the later setup all follow it). What it
-does not, until the stock simulation (phase 2): the earlier setup's other cuts. The bottom setup
-still sees solid stock where the top setup's outline groove is, so it ramps in where a plunge
-would do and a holder check may be pessimistic, and nothing checks that the part is still held
-once both cuts meet. Any other earlier facing (a region, a bar, a blank from a STEP) is an
-`unmodelled_earlier_cut` warning.
+## Operations
 
-## `view`
+Keys every operation takes:
 
-Optional: what the Viewer draws at first. `{"show": {...}}` with `rapids`, `fixtures` and `tool`
-(`true` or `false`) and `stock` (`initial` or `none`). `final`, the stock as the operations leave
-it, needs the stock simulation and is refused as phase 2.
-
-## What comes out
-
-`cadgen cam plan part.step [OUT] --job part.job.json` writes beside OUT (default
-`part.cam.glb` beside the part; OUT must end in `.cam.glb` or `.glb`), with the stem being OUT's name
-without that ending:
-
-| File | What it holds |
+| key | meaning |
 | --- | --- |
-| `<stem>.nc` | the G-code for the one setup; `<stem>.<setup id>.nc` per setup when the job has several |
-| `<stem>.cam.glb` | the part, the stock, each setup's fixture, each tool and each operation's toolpath, in the part's frame |
-| `<stem>.cam.json` | the sidecar: `generator`, `ok`, `document`, `occurrence`, `job` (an echo), `machine`, `post`, `material`, `setups`, `tools` (with each use's rpm and feed), `operations`, `summary`, `findings`, `checks`, `warnings`, `files` |
+| `op` | the operation ([the table in SKILL.md](../SKILL.md#choose-the-operation)) |
+| `tool` | a tool `id` |
+| `faces` | face selectors from `cadgen cam features` or the Viewer (`#o1.f15`), each once |
+| `region` | instead of faces, a boundary in the setup's coordinates: `{"polygon": [[x, y], ...], "bottom_z": z}` |
+| `feed`, `speed` | override the table's feed (mm/min) and spindle speed (rpm) |
+| `stepdown_mm` | depth per pass |
+| `stepover` | sideways step as a fraction of the tool diameter (0.4 = 40 %) |
+| `stepover_mm` | sideways step in mm (instead of `stepover`) |
+| `stock_to_leave_mm` | material left for a later finishing pass |
+| `plunge_mm_min` | override the plunge feed (mm/min), on operations that plunge or ramp (the milling ones) |
+| `clearance_mm`, `retract_mm` | this operation's own heights over the stock top, instead of the setup's; it ends at or above the setup's clearance. An operation's own key of that name (a drill's chip-break `retract_mm`) is its own |
+| `coolant` | `off`, `flood`, `mist`, `air` |
+| `name` | a name for the Viewer's row and the G-code comments |
 
-The sidecar's `operations[]` gives each operation's `rpm`, `feed_mm_min`, `plunge_mm_min`,
-`start_s`, `time_s`, `cut_length_mm`, `rapid_length_mm` and its `stats` and `lines` (what it did, in a
-line or two). `summary` holds `cycle_time_s`, `cut_length_mm`, `rapid_length_mm`, `tool_changes`,
-`operations`, `setups`, `programs`, `post` and `rapid_mm_min`. The same job writes the same bytes.
+What each operation adds is on its reference page. An operation refuses a shared key it does not
+read, rather than ignore it: of `feed`, `speed`, `stepdown_mm`, `stepover`, `stepover_mm` and
+`stock_to_leave_mm`,
 
-A plan with an error finding (a post's refusal among them: `no_post_support`) writes only the
-sidecar (`"ok": false`, with the findings), removes any G-code and GLB an earlier run left at those
-paths, and exits 1. A malformed job is an error message and writes nothing; so is a job file at the
-sidecar's own path (`<stem>.cam.json`), which the plan would overwrite.
+| operations | read |
+| --- | --- |
+| `face`, `pocket`, `adaptive`, `slot`, `helix_bore`, `circular`, `rough`, `waterline`, `rest`, `rotary` | all of them (`rest` of `parallel`: no `stepdown_mm`) |
+| `contour`, `swarf` | `feed`, `speed`, `stepdown_mm`, `stock_to_leave_mm` |
+| `parallel`, `scallop`, `surface_normal` | `feed`, `speed`, `stepover`, `stepover_mm`, `stock_to_leave_mm` |
+| `pencil`, `turn_rough`, `turn_finish`, `turn_groove` | `feed`, `speed`, `stock_to_leave_mm` |
+| `engrave`, `vcarve`, `trace`, `cut` | `feed`, `speed`, `stepdown_mm` (a beam's `cut`: `feed` only) |
+| `drill`, `thread_mill`, `chamfer`, `turn_face`, `turn_drill`, `turn_partoff` | `feed`, `speed` (a tap: `speed` only) |
+| `turn_thread` | `speed` (a thread feeds one pitch a turn) |
+| `wire_edm` | `feed` |

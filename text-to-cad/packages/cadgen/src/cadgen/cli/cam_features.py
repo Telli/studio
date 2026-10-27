@@ -1,8 +1,8 @@
-"""``cadgen cam features``: a GENERATED CLI over :func:`cadgen.cam.features`.
+"""``cadgen cam features`` — a GENERATED CLI over :func:`cadgen.cam.features`.
 
 No parser here on purpose: everything the command accepts is derived from the
 verb function's signature by :mod:`cadgen._internal.cli_from_function`, so a
-flag cannot drift from a parameter (design/format-doors.md).
+flag cannot drift from a parameter (README law 6).
 """
 
 from __future__ import annotations

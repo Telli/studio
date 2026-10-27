@@ -50,7 +50,7 @@ PUBLIC_SURFACE: dict[str, tuple[str, ...]] = {
     "cadgen.sdf": ("snapshot", "validate"),
     # Not a format: a part goes in, a result GLB and its sidecar come out.
     "cadgen.fea": ("faces", "parts", "solve"),
-    # The same shape: a part and a job go in, G-code, a result GLB and its sidecar come out.
+    # The same shape: a part and a job go in, a result GLB and G-code come out.
     "cadgen.cam": ("features", "plan"),
 }
 

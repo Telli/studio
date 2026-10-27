@@ -1,4 +1,4 @@
 interface:
   display_name: "CAM"
-  short_description: "CNC toolpaths and G-code for STEP parts"
-  default_prompt: "Use $cam to plan the machining of this part on my CNC mill and write the G-code for its controller."
+  short_description: "Plan toolpaths and post G-code for CNC machines."
+  default_prompt: "Use $cam to plan toolpaths for a saved part on the named machine, check the verdict, post the G-code and show the result in CAD Viewer."

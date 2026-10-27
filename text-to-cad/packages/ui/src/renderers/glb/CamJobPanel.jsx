@@ -1,161 +1,230 @@
-import { useState } from "react";
-import { Clock, Eye, EyeOff, Pause, Play } from "lucide-react";
+import { CircleCheck, CircleX, Eye, EyeOff } from "lucide-react";
 import { cn } from "@text-to-cad/ui/utils";
 import { Button } from "@text-to-cad/ui/primitives/button";
+import { ROW_NAME_UNDER_ACTIONS, TREE_INDENT_PX, TreeRowGuides, TreeRowLabel, TreeRowSurface, treeRowActionsClass } from "@text-to-cad/ui/primitives/tree-row";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
-import { ROW_NAME_UNDER_ACTIONS, TREE_INDENT_PX, TreeRowChevron, TreeRowLabel, TreeRowSurface, treeRowActionsClass } from "@text-to-cad/ui/primitives/tree-row";
-import { KinematicsPoseRow } from "../kit/inspector/kinematicsControls.jsx";
-import { parameterRow } from "../kit/inspector/parameterRow.jsx";
-import FindingsList, { findingsLabel } from "../kit/status/findings.jsx";
 import ToolPanel from "../kit/tools/ToolPanel.jsx";
-import { clockTime } from "./camResult.js";
+import { assumedWords, formatDuration, jobSummary, operationDetail, toolSpeeds } from "./cam/extras.js";
 
-// The panel's id: the tree's, as FEA's Study keeps it, so the stack and the strip treat it as Select's tree.
-export const CAM_JOB_PANEL_ID = "tree";
+// The section's id in the file sidebar: its size is its own (`sidebar:job`), not the Model tree's.
+export const CAM_JOB_SECTION_ID = "job";
+
+// The verdict's status in the theme's own status tones, FEA's verdict's: green to cut, red to fix.
+const TONES = Object.freeze({
+  ready: { icon: CircleCheck, text: "text-success", surface: "bg-success-bg/70" },
+  fix: { icon: CircleX, text: "text-error", surface: "bg-error-bg/70" },
+});
+
+const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
+const NONE = Object.freeze(new Set());
 // The room an operation row's eye takes at its right end (its `--row-actions`).
 const ROW_ACTIONS_WIDTH = "1.5rem";
-const NONE = Object.freeze([]);
-// What the findings card heads what must be fixed first, and the rest.
-const FINDING_HEADINGS = Object.freeze({ fix: "Fix before cutting", suggestions: "Suggestions" });
 
-/** A caption that wraps between its parts alone ("4 operations · 1 tool change"), never inside one. */
-const unbroken = (text) => String(text).split(" · ").map((part) => part.replace(/ /g, "\u00a0")).join(" · ");
+/** A tool's row: how the machine names it and what it is ("T1 6 mm flat"), its speed and feed beside it. */
+export const toolRowLabel = (tool) => [tool.label, tool.plain].filter(Boolean).join(" ");
 
 /**
- * The job at a glance, at the top of the panel: how long it takes on the machine, then what it takes ("4 operations
- * · 1 tool change · linuxcnc"), and where cadgen assumed the rapids' speed, a muted note that says so.
+ * What a row chooses: its id, its name (Quick Edit's chip), the operations it isolates, the faces Quick Edit names
+ * and the sentence it reads.
  */
-function JobSummary({ summary }) {
-  return <section aria-label="Summary" data-cam-summary="" className="mx-1 mb-2 flex flex-col gap-1 rounded-md bg-muted/60 px-2.5 pb-2 pt-2.5">
-    <div className="flex items-center gap-1.5 text-xs font-medium leading-4 text-foreground">
-      <Clock className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
-      <span className="min-w-0 tabular-nums" data-cam-cycle-time="">{summary.title}</span>
+const opChoice = (op) => ({ id: `op:${op.index}`, label: op.name || op.plain, ops: [op.index], faces: op.faces, summary: op.summary });
+
+/** The choices the panel's rows make, by row: a setup chooses all its operations; an error, the operation it is about. */
+export function camChoices(job) {
+  const choices = new Map();
+  for (const op of job.operations) choices.set(`op:${op.index}`, opChoice(op));
+  for (const setup of job.setups) {
+    choices.set(`setup:${setup.id}`, {
+      id: `setup:${setup.id}`, label: `${setup.plain} setup`, ops: setup.operations.map((op) => op.index),
+      faces: [...new Set(setup.operations.flatMap((op) => op.faces))],
+      summary: `${setup.plain} setup: ${setup.operations.map((op) => op.plain).join(", ")}, ${formatDuration(setup.timeS)}`,
+    });
+  }
+  // A tool chooses every operation that runs it.
+  for (const tool of job.tools || []) {
+    const ops = job.operations.filter((op) => tool.operations.includes(op.index));
+    const speeds = toolSpeeds(tool).replace(" · ", ", ");
+    choices.set(`tool:${tool.id}`, {
+      id: `tool:${tool.id}`, label: toolRowLabel(tool), ops: ops.map((op) => op.index), faces: [...new Set(ops.flatMap((op) => op.faces))],
+      summary: `${toolRowLabel(tool)}${speeds ? ` at ${speeds}` : ""}${ops.length ? `: ${ops.map((op) => op.plain).join(", ")}` : ", unused"}`,
+    });
+  }
+  job.findings.forEach((finding, index) => {
+    if (finding.level !== "error") return;
+    const ops = job.operations.filter((entry) => (finding.operations || [finding.operation]).includes(entry.index));
+    const op = ops[0] || null;
+    choices.set(`finding:${index}`, { id: `finding:${index}`, label: finding.message, ops: ops.map((entry) => entry.index),
+      faces: [...new Set(ops.flatMap((entry) => entry.faces))],
+      summary: op ? `${finding.message} (${ops.map((entry) => entry.summary).join("; ")})` : finding.message });
+  });
+  return choices;
+}
+
+/** A row that chooses on a press, Enter or Space, and says so (`aria-pressed`) while it is the choice. */
+function Choosable({ id, label, chosen, onChoose, className, children }) {
+  const active = chosen === id;
+  return <button type="button" aria-label={`Select ${label}`} aria-pressed={active} data-cam-choice={id} onClick={() => onChoose(id)}
+    className={cn("flex min-w-0 flex-1 items-center gap-1.5 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}>
+    {children}
+  </button>;
+}
+
+/**
+ * The answer first, as FEA's verdict: the headline in its status' tone ("Ready to cut · 42 min · 3 tools",
+ * "2 to fix"), what the job takes ("1 tool change · grbl controller"), whether G-code was written and how many
+ * warnings went to the agent, what the plan assumed that nobody stated (one small line each, its reason on hover),
+ * then each error in plain words, each a row that chooses the operation it is about.
+ */
+function CamVerdict({ job, chosen, onChoose }) {
+  const tone = TONES[job.verdict.status] || TONES.ready;
+  const Icon = tone.icon;
+  const errors = job.findings.map((finding, index) => ({ finding, index })).filter(({ finding }) => finding.level === "error");
+  const caption = [job.verdict.gcode, job.verdict.warnings ? plural(job.verdict.warnings, "warning") : ""]
+    .filter(Boolean).join(" · ");
+  const summary = jobSummary(job);
+  return <section aria-label="Verdict" data-cam-verdict={job.verdict.status} className={cn("mx-1 mb-1 flex flex-col gap-1 rounded-md px-2.5 py-2", tone.surface)}>
+    <div className={cn("flex items-center gap-1.5 text-xs leading-4", tone.text)}>
+      <Icon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden="true" />
+      <span className="min-w-0 [overflow-wrap:break-word]" data-cam-verdict-title="">{job.verdict.headline}</span>
     </div>
-    <p className="text-tiny leading-4 text-foreground" data-cam-summary-caption="">{unbroken(summary.caption)}</p>
-    {summary.note ? <p className="text-micro leading-3.5 text-muted-foreground [overflow-wrap:break-word]" data-cam-summary-note="">{summary.note}</p> : null}
+    {summary ? <p className="text-tiny leading-4 text-foreground/80" data-cam-summary="">{summary}</p> : null}
+    {caption ? <p className="text-tiny leading-4 text-muted-foreground" data-cam-verdict-caption="">{caption}</p> : null}
+    {job.assumed.length ? <ul className="flex flex-col" aria-label="Assumed" data-cam-assumed="">
+      {job.assumed.map((entry, index) => <li key={index} title={entry.why || undefined}
+        className="min-w-0 text-tiny leading-4 text-muted-foreground [overflow-wrap:anywhere]">Assumed {assumedWords(entry)}</li>)}
+    </ul> : null}
+    {errors.length ? <ul className="flex flex-col" aria-label="To fix">
+      {errors.map(({ finding, index }) => <li key={index} className="min-w-0 border-t border-foreground/10" data-cam-finding={finding.check || "error"}>
+        <Choosable id={`finding:${index}`} label={finding.message} chosen={chosen} onChoose={onChoose}
+          className={cn("-mx-1 items-start px-1 py-1 text-tiny leading-4 text-error hover:bg-foreground/5", chosen === `finding:${index}` && "bg-foreground/[0.07]")}>
+          <CircleX className="mt-0.5 size-3 shrink-0" strokeWidth={2} aria-hidden="true" />
+          <span className="min-w-0 [overflow-wrap:break-word]">{finding.message}</span>
+        </Choosable>
+      </li>)}
+    </ul> : null}
   </section>;
 }
 
-/** A heading of the job's parts (Findings, Setups, Tools, Operations), muted, its rows under it; it folds by its chevron. */
-function GroupRow({ id, label, detail = "", open, onToggle, children }) {
-  return <li className="min-w-0 [&:not(:first-child)]:pt-1" data-cam-group={id}>
-    <TreeRowSurface dense className="gap-0 pr-0 text-muted-foreground">
-      <button type="button" aria-label={`${open ? "Collapse" : "Expand"} ${label}`} aria-expanded={open} onClick={onToggle}
-        className="flex h-full min-w-0 flex-1 items-center gap-0 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <span className="grid h-6 w-4 shrink-0 place-items-center"><TreeRowChevron expanded={open} /></span>
-        <TreeRowLabel className={detail ? "shrink-0" : "flex-1"}>{label}</TreeRowLabel>
-        {detail ? <span className="min-w-0 flex-1 truncate pl-1.5 text-micro" data-cam-group-detail="">{detail}</span> : null}
-      </button>
-    </TreeRowSurface>
-    {open ? <ul>{children}</ul> : null}
-  </li>;
-}
-
 /**
- * A row that only says something (a setup, a tool): its name and what it is on its line, and a second line where it
- * has one (a tool's speed and feed), muted; whole in its hint where the narrow panel cuts it.
+ * A setup's row (its name and time), an operation's (its colour, its word, its tool and time) or a tool's (its name,
+ * its speed and feed), 24px, in the tree's rows. An operation's row has its eye (`onToggleHidden`) floating over its
+ * right end as an assembly row's does: on hover, and kept while its paths are put away (`hidden`).
  */
-function FactRow({ row }) {
+function JobRow({ id, label, detail, hint, swatch = null, depth, chosen, onChoose, hidden = false, onToggleHidden = null }) {
+  const eye = hidden ? "Reveal" : "Hide";
   return <li className="min-w-0">
-    <TooltipHint content={row.hint} overflowOnly={false}>
-      <div className="flex min-w-0 flex-col py-0.5 pr-2 text-tiny text-foreground/80" style={{ paddingLeft: TREE_INDENT_PX + 16 }} data-cam-row={row.id}>
-        <span className="flex min-w-0 items-baseline gap-1.5 leading-5">
-          <span className="shrink-0">{row.label}</span>
-          {row.detail ? <span className="min-w-0 truncate text-micro text-muted-foreground">{row.detail}</span> : null}
-        </span>
-        {/* Its speed and its feed, each whole: the feed goes under the speed where the two do not fit one line. */}
-        {row.speeds ? <span className="flex min-w-0 flex-wrap gap-x-1 text-micro leading-4 text-muted-foreground tabular-nums" data-cam-speeds="">
-          {row.speeds.split(" · ").map((part, index, all) => <span key={part} className="whitespace-nowrap">{part}{index < all.length - 1 ? " ·" : ""}</span>)}
-        </span> : null}
-      </div>
-    </TooltipHint>
-  </li>;
-}
-
-/**
- * An operation: its place and word, then its time; a press isolates it (its path alone on the model), a second press
- * shows them all again. Its eye floats over its right end as an assembly row's does: on hover, and kept while its
- * path is hidden.
- */
-function OperationRow({ row, hidden, isolated, onToggle, onIsolate }) {
-  const action = hidden ? "Show" : "Hide";
-  return <li className="min-w-0">
-    <TreeRowSurface dense active={isolated} className="group/row gap-0 pr-0" style={{ paddingLeft: TREE_INDENT_PX, "--row-actions": ROW_ACTIONS_WIDTH }} data-cam-row={row.id}
-      data-cam-hidden={hidden ? "" : undefined}>
-      <span className="w-4 shrink-0" />
-      <TooltipHint content={row.hint}>
-        <button type="button" aria-label={`Isolate ${row.label}`} aria-pressed={isolated} onClick={() => onIsolate(row.index)}
-          className={cn("flex h-full min-w-0 flex-1 items-center gap-1.5 rounded pr-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            hidden ? ROW_NAME_UNDER_ACTIONS.shown : ROW_NAME_UNDER_ACTIONS.hover, hidden && "text-muted-foreground")}>
-          <TreeRowLabel className="max-w-full shrink-0">{row.label}</TreeRowLabel>
-          <TreeRowLabel className="flex-1 text-micro text-muted-foreground tabular-nums">{row.detail}</TreeRowLabel>
-        </button>
+    <TreeRowSurface dense active={chosen === id} className={cn("gap-0 pr-0", onToggleHidden && "group/row")}
+      style={{ paddingLeft: depth * TREE_INDENT_PX, ...(onToggleHidden ? { "--row-actions": ROW_ACTIONS_WIDTH } : null) }}
+      data-cam-row={id} data-cam-hidden={hidden ? "" : undefined}>
+      <TreeRowGuides depth={depth} column={16} />
+      <span className="grid h-6 w-4 shrink-0 place-items-center" aria-hidden="true">
+        {swatch ? <span className={cn("size-2 rounded-full", hidden && "opacity-40")} style={{ backgroundColor: swatch }} data-cam-swatch="" /> : null}
+      </span>
+      <TooltipHint content={hint} overflowOnly={!hint}>
+        <Choosable id={id} label={label} chosen={chosen} onChoose={onChoose}
+          className={cn("h-full pr-2", onToggleHidden && (hidden ? ROW_NAME_UNDER_ACTIONS.shown : ROW_NAME_UNDER_ACTIONS.hover), hidden && "text-muted-foreground")}>
+          <TreeRowLabel className={detail ? "max-w-full shrink-0" : "flex-1"}>{label}</TreeRowLabel>
+          {detail ? <TreeRowLabel className="flex-1 text-micro text-muted-foreground tabular-nums">{detail}</TreeRowLabel> : null}
+        </Choosable>
       </TooltipHint>
-      <div data-row-actions="" className={treeRowActionsClass(hidden)}>
-        <TooltipHint content={action}>
-          <Button type="button" variant="ghost" size="icon-xs" aria-label={`${action} ${row.label}`} aria-pressed={!hidden} className="h-5 w-4 text-muted-foreground"
-            onClick={(event) => { event.stopPropagation(); onToggle(row.index); }}>
+      {onToggleHidden ? <div data-row-actions="" className={treeRowActionsClass(hidden)}>
+        <TooltipHint content={eye}>
+          <Button type="button" variant="ghost" size="icon-xs" aria-label={`${eye} ${label}`} className="h-5 w-4 text-muted-foreground"
+            onClick={(event) => { event.stopPropagation(); onToggleHidden(); }}>
             {hidden ? <EyeOff className="size-3" aria-hidden="true" /> : <Eye className="size-3" aria-hidden="true" />}
           </Button>
         </TooltipHint>
-      </div>
+      </div> : null}
     </TreeRowSurface>
   </li>;
 }
 
-/**
- * The job's Time row and Preset, at the panel's foot, which never scrolls (FEA's What you see is laid out the same
- * way): Preset (Default, the start of each operation, Custom once the row moves), then Time, a scrubber over the job's
- * clock whose value field says the job time, with a play button beside it that plays the job in place.
- */
-function JobTime({ control, value, presets, preset, playing, onChange, onPreset, onReset, onToggle }) {
-  const playButton = <TooltipHint content={playing ? "Pause" : "Play the job"}>
-    <Button type="button" variant="ghost" size="icon-xs" className="size-6 text-muted-foreground" data-cam-play=""
-      aria-label={playing ? "Pause" : "Play the job"} aria-pressed={playing} onClick={onToggle}>
-      {playing ? <Pause className="size-3" aria-hidden="true" /> : <Play className="size-3" aria-hidden="true" />}
-    </Button>
-  </TooltipHint>;
-  return <div className="flex flex-col gap-1.5 px-1 pb-1 [&_span:has(>[data-slot=select-trigger])]:min-w-0 [&_span:has(>[data-slot=select-trigger])]:shrink [&_[data-slot=select-trigger]]:min-w-0 [&_[data-slot=select-trigger]]:max-w-full"
-    data-cam-time="">
-    {presets.length ? <KinematicsPoseRow label="Preset" resetLabel="Reset the time" poses={presets} activeValue={preset} onSelect={onPreset} onReset={onReset} /> : null}
-    {/* Its label and its value as a clock ("1:40") on one line, the slider the row's whole width under them. */}
-    {parameterRow({ parameter: control, value, labelTitle: control.labelTitle, valueText: (at) => clockTime(at), action: playButton, wideLabel: true, onChange })}
-  </div>;
+/** The job's tools under a muted heading, each a row with its speed and feed: the speeds a machinist sets. */
+function JobTools({ job, chosen, onChoose }) {
+  const tools = job.tools;
+  if (!tools?.length) return null;
+  return <section aria-label="Tools" className="flex flex-col px-1 pb-1 text-tiny" data-cam-tools="">
+    <h3 className="flex h-6 items-center pl-4 text-tiny font-normal text-muted-foreground">Tools</h3>
+    <ul>
+      {tools.map((tool) => {
+        const speeds = toolSpeeds(tool);
+        return <JobRow key={tool.id} id={`tool:${tool.id}`} label={toolRowLabel(tool)} detail={speeds}
+          hint={[toolRowLabel(tool), speeds, job.operations.filter((op) => tool.operations.includes(op.index)).map((op) => op.name || op.plain).join(", ")]
+            .filter(Boolean).join(" · ")} depth={1} chosen={chosen} onChoose={onChoose} />;
+      })}
+    </ul>
+  </section>;
 }
 
 /**
- * A CAM result's section of the file sidebar, **Job**: the
- * summary (the cycle time, what it takes), the findings in the findings card the viewer lists a board's in
- * (`kit/status/findings.jsx`), then the job's **Setups**, its **Tools** (with the speed and feed cadgen computed) and
- * its **Operations** (each with its time, its eye and a press that isolates it), and after them the job's Time row.
- *
- * @param {{ summary: { title: string, caption: string, note: string }, findings: object[],
- *   setups: object[], tools: object[], operations: object[], hidden: Set<number>, isolated: number | null,
- *   onToggle(index: number): void, onIsolate(index: number): void, onChooseFinding(finding: object): void,
- *   time: object }} props
+ * What the view draws of the job beyond the part's surfaces, under a muted **Show** heading: a row each for what the
+ * file has (`gates`: Toolpaths, Rapids, Tool, Stock, Fixtures, Part), its words on hover, and its eye, as a layer's
+ * is: on hover, kept while it is put away. `onToggleGate(id, on)` turns one on or off.
  */
-export default function CamJobPanel({ summary, findings = NONE, setups, tools, operations, hidden, isolated, onToggle, onIsolate, onChooseFinding, time }) {
-  // Findings with nothing to fix start shut (the summary and the operations come first); one to fix opens them.
-  const [shut, setShut] = useState(() => new Set(findings.some((finding) => finding.severity === "error") ? NONE : ["findings"]));
-  const toggle = (id) => setShut((current) => {
-    const next = new Set(current);
-    if (!next.delete(id)) next.add(id);
-    return next;
-  });
-  const group = (id, label, rows, draw) => (rows.length ? <GroupRow key={id} id={id} label={label} open={!shut.has(id)} onToggle={() => toggle(id)}>{rows.map(draw)}</GroupRow> : null);
-  const footer = time ? <div className="shrink-0 border-t border-foreground/10 pt-1.5" data-cam-foot=""><JobTime {...time} /></div> : null;
-  return <ToolPanel id={CAM_JOB_PANEL_ID} title="Job" label="Job" fit="tree" collapsible={false}>
-    <JobSummary summary={summary} />
-    <ul className="flex flex-col px-1 pb-1 text-tiny" aria-label="Job">
-      {findings.length ? <GroupRow id="findings" label="Findings" detail={findingsLabel(findings)} open={!shut.has("findings")} onToggle={() => toggle("findings")}>
-        {/* The findings card a board's are listed in, its type stepped down to the panel's. */}
-        <li className="min-w-0 pb-1 pl-5 pr-2 [&_button]:py-0.5 [&_button]:text-tiny [&_button]:leading-4 [&_h3]:text-tiny [&_section]:min-w-0"><FindingsList findings={findings} onChoose={onChooseFinding} headings={FINDING_HEADINGS} /></li>
-      </GroupRow> : null}
-      {group("setups", "Setups", setups, (row) => <FactRow key={row.id} row={row} />)}
-      {group("tools", "Tools", tools, (row) => <FactRow key={row.id} row={row} />)}
-      {group("operations", "Operations", operations, (row) => <OperationRow key={row.id} row={row} hidden={hidden.has(row.index)} isolated={isolated === row.index}
-        onToggle={onToggle} onIsolate={onIsolate} />)}
+function JobShow({ gates, onToggleGate }) {
+  if (!gates?.length) return null;
+  return <section aria-label="Show" className="flex flex-col px-1 pb-1 text-tiny" data-cam-show="">
+    <h3 className="flex h-6 items-center pl-4 text-tiny font-normal text-muted-foreground">Show</h3>
+    <ul>
+      {gates.map((gate) => {
+        const away = !gate.on;
+        const eye = away ? "Reveal" : "Hide";
+        return <li key={gate.id} className="min-w-0">
+          <TreeRowSurface dense className="group/row gap-0 pr-0" style={{ paddingLeft: TREE_INDENT_PX, "--row-actions": ROW_ACTIONS_WIDTH }}
+            data-cam-gate={gate.id} data-cam-hidden={away ? "" : undefined}>
+            <TreeRowGuides depth={1} column={16} />
+            <span className="w-4 shrink-0" aria-hidden="true" />
+            <TooltipHint content={gate.hint}>
+              <span className={cn("flex h-full min-w-0 flex-1 items-center pr-2", away ? ROW_NAME_UNDER_ACTIONS.shown : ROW_NAME_UNDER_ACTIONS.hover,
+                away && "text-muted-foreground")}>
+                <TreeRowLabel className="flex-1">{gate.title}</TreeRowLabel>
+              </span>
+            </TooltipHint>
+            <div data-row-actions="" className={treeRowActionsClass(away)}>
+              <TooltipHint content={eye}>
+                <Button type="button" variant="ghost" size="icon-xs" aria-label={`${eye} ${gate.title.toLowerCase()}`} aria-pressed={away}
+                  className="h-5 w-4 text-muted-foreground" onClick={() => onToggleGate(gate.id, away)}>
+                  {away ? <EyeOff className="size-3" aria-hidden="true" /> : <Eye className="size-3" aria-hidden="true" />}
+                </Button>
+              </TooltipHint>
+            </div>
+          </TreeRowSurface>
+        </li>;
+      })}
     </ul>
-    {footer}
+  </section>;
+}
+
+/**
+ * A CAM result's **Job**, a section of the file sidebar (its tile a tree's, named Job), there whatever tool is in
+ * hand: the verdict first, its errors under it, then each setup with its operations under it (the plain word, the
+ * tool, the time), in the job's order, then the job's tools with their speeds, then what the view shows of the job
+ * (`gates`). Every setup, operation, tool and error row is a choice (`onChoose(id)`; `chosen` is the row chosen): it
+ * isolates its paths, and Quick Edit gets its faces and its sentence as a chip. An operation's swatch is its paths'
+ * colour (`colours`, by index), and its Hide/Reveal eye puts its paths away and back (`hidden`, `onToggleHidden(index)`).
+ *
+ * @param {{ job: object, colours: Record<number, string>, chosen: string, onChoose(id: string): void,
+ *   hidden?: Set<number> | null, onToggleHidden?(index: number): void,
+ *   gates?: { id: string, title: string, hint: string, on: boolean }[] | null, onToggleGate?(id: string, on: boolean): void }} props
+ */
+export default function CamJobPanel({ job, colours, chosen, onChoose, hidden = null, onToggleHidden = null, gates = null, onToggleGate = () => {} }) {
+  const away = hidden || NONE;
+  return <ToolPanel id={CAM_JOB_SECTION_ID} title="Job" label="Job" fit="tree" collapsible={false}>
+    <div className="pt-1">
+      <CamVerdict job={job} chosen={chosen} onChoose={onChoose} />
+    </div>
+    <ul className="flex flex-col px-1 pb-1 text-tiny" aria-label="Setups">
+      {job.setups.map((setup) => <li key={setup.id} className="min-w-0 [&:not(:first-child)]:pt-1">
+        <ul>
+          <JobRow id={`setup:${setup.id}`} label={setup.plain} detail={`${plural(setup.operations.length, "operation")} · ${formatDuration(setup.timeS)}`}
+            depth={0} chosen={chosen} onChoose={onChoose} />
+          {setup.operations.map((op) => <JobRow key={op.index} id={`op:${op.index}`} label={op.name || op.plain} detail={operationDetail(op)}
+            hint={[op.summary, ...op.limits].filter(Boolean).join(". ")} swatch={colours[op.index]} depth={1} chosen={chosen} onChoose={onChoose}
+            hidden={away.has(op.index)} onToggleHidden={onToggleHidden ? () => onToggleHidden(op.index) : null} />)}
+        </ul>
+      </li>)}
+    </ul>
+    <JobTools job={job} chosen={chosen} onChoose={onChoose} />
+    <JobShow gates={gates} onToggleGate={onToggleGate} />
   </ToolPanel>;
 }

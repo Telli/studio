@@ -1,82 +1,68 @@
-"""The public ``cam`` namespace: computer-aided manufacturing for a STEP part.
-
-CAM turns a part into machine instructions. A job file names the machine and
-its post (the G-code dialect), the material, the stock, the setups, the tools
-and the operations; ``plan`` turns it into G-code, a result GLB the viewer
-renders (part, stock, fixtures, toolpaths and tools) and a JSON sidecar with
-the numbers. cadgen never contacts a machine: it writes files, and a person
-loads them on the controller.
+"""The public ``cam`` namespace: toolpaths and G-code for a saved part.
 
 Two verbs, each mirrored by a generated CLI (``cadgen cam features``,
-``cadgen cam plan``): ``features`` lists what a part offers a machinist with
-the ``#o1.fN`` selectors a job names them by, ``plan`` runs one job. An
-operation this cadgen has not built yet says so plainly, with the phase it is
-planned for.
+``cadgen cam plan``; README law 6):
 
-No extra is needed: the engine uses OCP, shapely and numpy, all base
-dependencies. Import discipline: nothing here may pull in OCP, build123d,
-shapely or numpy at module scope (see :mod:`cadgen.step`), so ``--help`` stays
-cheap.
+* ``features`` lists what a CAM job can name on a part: every face with its
+  ``#o1.fN`` selector and a machining reading (a flat floor at Z, a wall, a hole
+  of a diameter and depth on an axis), plus the part's bounding box. For a DXF,
+  its closed profiles and holes.
+* ``plan`` reads a job (machine, material, stock, tools, setups and their
+  operations), plans every operation's toolpath, simulates the cut, checks it and
+  posts G-code for the named controller. It writes ``<stem>.cam.glb`` (the part,
+  the simulated stock and the toolpaths, with the verdict in its extras) and one
+  ``<stem>.<setup>.<ext>`` per setup beside the part, or in ``out_dir``.
+
+There is no decorator: a job is about a document (the saved STEP or DXF), and
+CLIs take documents only (law 7). A plan that cannot run writes nothing.
+
+Import discipline: nothing here may pull in OCP, build123d, ezdxf or shapely at
+module scope (see :mod:`cadgen.step`) -- ``--help`` must stay cheap. Each verb
+imports the engine (:mod:`cadgen._internal.cam.run`) inside its body.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from cadgen.results import CamFeaturesResult, CamResult
+from cadgen.results import CamFeaturesResult, CamPlanResult
 
 __all__ = ["features", "plan"]
 
 
-def features(
-    target: Path,
-    *,
-    occurrence: str | None = None,
-    direction: str | None = None,
-    verbose: bool = False,
-) -> CamFeaturesResult:
-    """List what a part offers a machinist: flat faces, holes, pockets, slots and outlines (profiles).
+def features(target: Path, *, occurrence: str | None = None, direction: str | None = None) -> CamFeaturesResult:
+    """List what a CAM job can name on a part: faces with their selectors and a machining reading, holes, floors.
 
-    target: the STEP/STP document holding the part.
-    occurrence: which part occurrence to list (``#o1``) when the document is an
+    target: the STEP/STP document holding the part, or a DXF of flat profiles.
+    occurrence: which part occurrence to read (``#o1.2``) when the document is an
         assembly. Omitted, the document must hold one part.
-    direction: list only what can be reached from this tool direction
-        (``+Z``, ``-Z``, ``-X``, ...). Omitted, each feature lists every axis
-        direction that reaches it.
-    verbose: show progress on stderr.
+    direction: list only what a tool coming from this side can work (``+Z``, ``-Z``,
+        ``+X``...): the holes it reaches, the floors and faces turned toward it, the
+        walls along it. A feature no direction lists is an undercut.
     """
     from cadgen._internal.cam.run import list_features
 
-    return list_features(target, occurrence=occurrence, direction=direction, verbose=verbose)
+    return list_features(Path(target), occurrence=occurrence, direction=direction)
 
 
-def plan(
-    target: Path,
-    out: Path | None = None,
-    *,
-    job: str | dict | None = None,
-    occurrence: str | None = None,
-    post: str | None = None,
-    verbose: bool = False,
-) -> CamResult:
-    """Plan one job (stock, setups, tools and operations) and write its G-code, result GLB and JSON sidecar.
+def plan(target: Path, *, job: str | dict | None = None, occurrence: str | None = None, post: str | None = None,
+         out_dir: Path | None = None, verbose: bool = False) -> CamPlanResult:
+    """Plan a CAM job on a part: toolpaths, a simulated cut, checks, and G-code per setup.
 
-    target: the STEP/STP document holding the part.
-    out: the result .glb path (ending in ``.cam.glb`` or ``.glb``). Omitted,
-        writes ``<document>.cam.glb`` beside the document. The sidecar
-        (``<stem>.cam.json``) and the G-code (``<stem>.nc``, or one
-        ``<stem>.<setup>.nc`` per setup) sit beside it.
-    job: the job: a JSON file path, inline JSON, or (library callers) a dict.
-        It names the machine and its post, the material, the stock, the
-        setups, the tools and the operations; see the cam skill for the
-        schema. Feature refs are the ones ``cadgen cam features`` prints.
-    occurrence: plan for this part occurrence (``#o1.2``) when the document is
-        an assembly. Omitted, the document must hold one part.
-    post: the post processor (G-code dialect) to write, overriding the job's
-        machine.post for a one-off export.
-    verbose: show every progress line and the timings on stderr. Without it, a
-        plan that runs long still says how far it has got on stderr, about every 10 s.
+    target: the STEP/STP document holding the part, or a DXF of flat profiles.
+    job: the job: a JSON file path, inline JSON, or (library callers) a dict. It
+        names the machine (kind and post), the material, the stock, the tools and
+        the setups, each with its operations; see the cam skill for the schema.
+        Face refs are the ones ``cadgen cam features`` prints.
+    occurrence: which part occurrence to machine (``#o1.2``) when the document is an
+        assembly. Omitted, the document must hold one part.
+    post: write the G-code for this post instead of the job's ``machine.post``
+        (``haas``): the same job for another controller, without editing it.
+    out_dir: where the result GLB and the posted files go. Omitted, they go beside
+        the document, as ``<stem>.cam.glb`` and ``<stem>.<setup>.<ext>``.
+    verbose: show every progress line and the timings on stderr.
     """
     from cadgen._internal.cam.run import plan_job
 
-    return plan_job(target, out, job=job, occurrence=occurrence, post=post, verbose=verbose)
+    return plan_job(Path(target), job=job, occurrence=occurrence, post=post,
+                    out_dir=None if out_dir is None else Path(out_dir), verbose=verbose)

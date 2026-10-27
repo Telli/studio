@@ -221,7 +221,7 @@ export const skillGroups = [
     name: "CAM",
     path: "skills/cam",
     summary:
-      "Plans CNC milling and drilling of a STEP part: toolpaths, feeds and speeds, and G-code for grbl, LinuxCNC, Fanuc, Haas or Mach3, with the toolpaths shown on the part.",
+      "Plans toolpaths and posts G-code for CNC mills, lathes, laser, plasma, waterjet and wire EDM, with a simulated cut, checks and cycle time.",
   },
   {
     name: "G-code",

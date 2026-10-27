@@ -1,218 +1,328 @@
 # 2.5D milling
 
-Flat passes stepping down: the tool cuts at one height, steps down, cuts again. Every operation here
-climb mills (the material on the tool's right, the spindle turning clockwise), goes down into
-material only by a ramp or a helix no steeper than `ramp_angle_deg` (3 degrees) unless the tool is in
-air, and moves between cuts at the setup's retract and clearance heights. A rapid down never lands on
-the material: it stops a feed height over the top of the material it enters (the operation's
-`retract_mm`, at most 1 mm), since a saw-cut or faced top is only known to a fraction of a
-millimetre, and the entry (a plunge in air at the plunge feed, a ramp, a helix) starts from there.
-Each takes the keys every
-operation takes ([job-file.md](job-file.md#operations)) and its own, below. Depths are in the setup's
-frame: `depth_mm` is below the top of the material, `z_mm` a height in the setup's frame (Z0 is the
-work zero); give one or the other, not both.
+Flat floors, straight walls, holes and edges, cut in levels with the tool along Z: `face`, `contour`,
+`pocket`, `adaptive`, `slot`, `chamfer`, `engrave`, `vcarve`, `helix_bore`, `circular`, `trace` and
+`thread_mill`. Drilling is
+[drilling.md](drilling.md); curved surfaces are [milling-3d.md](milling-3d.md). The keys every
+operation shares (`tool`, `faces`, `region`, `feed`, `speed`, `stepdown_mm`, `stepover`,
+`stepover_mm`, `stock_to_leave_mm`, `coolant`, `name`) are in [job-file.md](job-file.md#operations).
 
-An operation that cannot be planned on this part is an error finding, and the job is not planned:
-`empty_operation` (nothing to cut), `too_deep` (into the part), `tool_too_large` (the tool does not
-fit), `tool_too_small`, `unreachable` (no way in) or `gouge` ([findings.md](findings.md)).
+Read the part first: every face this page names comes from it.
 
-## `facing`
+```bash
+cadgen cam features part.step
+```
 
-Flattens the stock down to the part's top, row by row across the setup's X. With no target it faces
-the whole stock (the rows run off it at both ends); with a `region`, the tool's centre stays inside
-the region and hangs over its edge by a tenth of its diameter, no further.
+Coordinates in a `region`, a `path` or `holes` are the setup's work coordinates (WCS): with the
+default origin `stock-top-center`, Z 0 is the top of the stock and the part is below it.
 
-Tools: `face_mill`, `flat_endmill`, `bull_endmill`. Targets: none (the whole stock), `all`, or `region`.
+A minimal job: face the top, cut a slot, bore a hole, profile the outline out with tabs.
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `stepover` | the distance between rows, as a fraction of the tool's diameter (over 0, up to 1) | 0.7 for a face mill, 0.6 for an end mill |
-| `stepdown_mm` | the depth of each level; the last is exactly the floor | half the flutes, at most 2, for a carbide end mill; 1 otherwise |
-| `pattern` | `zigzag` (back and forth, staying down where the turn is in air) or `one_way` (lift and come back, every row cut the same way) | `zigzag` |
-| `depth_mm` / `z_mm` | the floor: below the stock top, or a height | the part's top |
-| `finish_mm` | leave this much for a last pass of its own | 0 |
+```json
+{
+  "machine": {"kind": "mill", "post": "grbl", "max_rpm": 24000},
+  "material": "aluminum-6061",
+  "stock": {"kind": "box", "margin_mm": [2, 2, 1]},
+  "tools": [
+    {"id": "T1", "type": "flat", "diameter_mm": 6, "flutes": 3, "flute_length_mm": 15, "stickout_mm": 30},
+    {"id": "T2", "type": "flat", "diameter_mm": 4, "flutes": 3, "flute_length_mm": 14}
+  ],
+  "setups": [{"id": "top", "operations": [
+    {"op": "face", "tool": "T1"},
+    {"op": "slot", "tool": "T2", "faces": ["#o1.f14"]},
+    {"op": "helix_bore", "tool": "T1", "faces": ["#o1.f8"]},
+    {"op": "contour", "tool": "T1", "faces": ["#o1.f3"], "loops": "outer", "tabs": {"count": 4}}
+  ]}]
+}
+```
 
-Refused (`too_deep`) when what the tool sweeps at the floor would cut the part. Face first: the other
-operations start from the faced top.
+```bash
+cadgen cam plan part.step --job job.cam.json
+```
 
-## `contour_2d`
+## face: Face
 
-Cuts round an outline, in levels down to the feature's bottom. Targets: a `profile` (the part's
-outside; `all: true` cuts every outline the setup reaches), a `pocket` or a `hole` (from inside), or a
-`region`. Tools: `flat_endmill`, `bull_endmill`.
+Takes the top of the stock down flat to the part's top in parallel passes that start and end
+outside the stock. Flat, bull or `face_mill` tool. Stepover defaults to 0.4 of an end mill's
+diameter and 0.7 of a face mill's. Zigzag rows stay down across their turns; `one_way` rows lift
+0.5 mm, come back over the row just cut and ramp down into the next. A row that cannot start in air
+(off the stock and clear of the fixtures) ramps in along itself at 3°. Facing below the part's top
+is refused (`too_deep`), a face with nothing to take off is `empty_operation`.
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `side` | `outside`, `inside` or `on` (the tool's centre on the outline). Cutting a profile from inside, or a pocket from outside, is refused: it goes into the part. | a profile's and a region's `outside`; a pocket's or hole's `inside` |
-| `stepdown_mm` | the depth of each level | half the tool's diameter |
-| `depth_mm` / `z_mm` | the floor; a region needs one | the feature's bottom |
-| `breakthrough_mm` | how far past the bottom a through outline goes | 0.3 on sheet stock (into the spoilboard), else 0 |
-| `finish_passes` | passes at the final depth, 0 to 10 | 0 |
-| `finish_mm` | what the finishing passes take off, in equal shares; needs `finish_passes` (with none, the passes are spring passes) | 0 |
-| `tabs` | `{"count", "width_mm", "height_mm"}`: bridges left standing at the bottom so a part cut free stays put; not with `side: on` | none |
-| `lead_radius_mm` | a quarter-circle lead on and off each pass from the air side, where it stays clear of the part and the fixture; 0 for none | the tool's radius |
-| `ramp_angle_deg` | the steepest the tool goes down into material | 3 |
+| key | meaning |
+| --- | --- |
+| `depth_mm` | how far below the stock top to face (default: down to the part's top plus the stock to leave) |
+| `pattern` | `zigzag` (default) or `one_way` (every pass climb, the same way) |
+| `angle_deg` | the passes' direction in the XY plane (0 runs along X) |
+| `region` | face only inside this polygon: the tool's centre stays 0.8 of its radius inside, so it hangs over the edge by a tenth of its diameter at most (a region too small for that is `tool_too_large`) |
 
-`tabs`: `count` (1 to 64) is required; `width_mm` defaults to the tool's diameter but at least 3 mm,
-`height_mm` to a quarter of the cut's depth, at least 1 mm and at most half the depth. Tabs are spaced
-evenly round each ring; the tool rises straight onto each and ramps down off it. Tell the user to cut
-the tabs by hand after the program.
+## pocket: Pocket
 
-Where a lead does not fit, a pass enters along itself: a helix inside a pocket or hole where one
-fits, else a ramp along its first straight run, else laps of the ring sloping down.
+Clears a pocket down to its floors by rings offset inward, innermost first, level by level. Name
+its floor faces (naming the deepest floor of a stepped pocket clears the steps above it too) or a
+`region` with `bottom_z`. Islands are walked round. Stepover defaults to 0.4 of the diameter.
 
-## `pocket_2d`
+| key | meaning |
+| --- | --- |
+| `entry` | `helix` (default), `ramp` or `plunge`: how each level is entered (a helix falls back to a ramp, then a plunge) |
+| `ramp_angle_deg` | the entry's ramp angle (default 3) |
+| `direction` | `climb` (default) or `conventional` |
+| `finish_mm` | leave this much on the walls and take it off in one ring at the floor, entered from the area just cleared |
+| `finish_floor_mm` | leave this much on the floor and take it off in a last level of its own, whose outer ring finishes the walls |
 
-Clears a `pocket` (its islands left standing) or a `region` down to its floor. Tools: `flat_endmill`,
-`bull_endmill`.
+A tool that cannot enter a level of the pocket is refused (`tool_too_large`, naming the level),
+never left to cut it short. Its `full_slot_mm` fact is the length cut at the tool's full width (the
+links between rings into uncut material), which the `full_slot` warning reads.
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `pattern` | `offset` (rings offset from the walls inward, cut from the innermost out) or `zigzag` (rows, then a ring round the walls) | `offset` |
-| `stepover` | between rings or rows, a fraction of the tool's diameter | 0.4 |
-| `stepdown_mm` | the depth of each level | half the tool's diameter |
-| `depth_mm` / `z_mm` | the floor; a region needs one; never under the pocket's own floor | the pocket's floor |
-| `finish_mm` | leave this on the walls for one ring at the final depth | 0 |
-| `finish_floor_mm` | leave this on the floor for a last level of its own (its outer ring finishes the walls too) | 0 |
-| `ramp_angle_deg` | the steepest entry: a helix inside the pocket, a ramp where none fits | 3 |
+## contour: Profile
 
-Inside corners tighter than the tool's radius keep the tool's radius: a `corner_left` warning says so
-for each pocket, the stats' `corner_left` lists each, and the operation's `lines` in the sidecar say
-`#o1.f19: R3 inside corners left at R4 by this tool`. Tell the user, or add a smaller tool for the
-corners.
+Follows a shape's loops at the tool's radius, level by level from the stock top. A flat face square
+to the tool names its outline and its holes; a wall (a plane standing square to XY, a cylinder or
+cone along Z) names the whole loop it stands on, on its air side; or give a `region`.
 
-## `adaptive_2d` (phase 2)
+| key | meaning |
+| --- | --- |
+| `side` | `outside` (the tool's edge on the loop, outside the shape), `inside` or `on` (the tool's centre on it). A face's default is `outside`; a floor below the part's top defaults to `inside` (its walls); a wall's side is its air side |
+| `loops` | a face's `all` (default), `outer` (the outline only) or `inner` (its holes only) |
+| `bottom_z` | how deep, WCS. Default: a wall's foot, a floor's height (inside), or whatever lies under the tool (a blind slot's floor), else the part's bottom (cut through) |
+| `through_mm` | go this much below a cut through (default 0: nothing below the part is cut). Give 0.2 to 0.5 mm to break through cleanly when the part sits on parallels or a spoilboard, and add the support as a `fixture` box if it could be hit |
+| `tabs` | `{"count": 4, "width_mm": 5, "height_mm": 1.5}`: bridges left on a cut through, evenly spaced (default width 5, height a third of the cut, at most 2 mm) |
+| `lead_in_mm`, `lead_out_mm` | radius of a tangent quarter-arc lead onto and off the loop from the air side (default 0: none); the descent is then made at the lead's start |
+| `finish_mm` | leave this much for the levels and take it off in one last full-depth pass |
+| `finish_passes` | split the finish into this many equal passes (0 to 10; default 1 with `finish_mm`); without `finish_mm`, spring passes at the final offset |
+| `entry` | `ramp` (default: zig-zag down along the loop itself) or `plunge` |
+| `ramp_angle_deg` | the ramp's angle (default 3) |
+| `direction` | `climb` (default) or `conventional` |
 
-Constant-engagement roughing (a light, steady cut, trochoidal in narrow places) moved to phase 2,
-where it is designed together with `adaptive_3d` over the stock simulation, and is refused today:
-`"adaptive_2d" is phase 2, not built yet`. Rough with `pocket_2d` (a smaller
-`stepover`, and `finish_mm` for a finishing ring) meanwhile.
+Holes are cut before the outline that holds them. A loop smaller than the tool is skipped and said
+(all of them: `tool_too_large`). The tool rises onto each tab and ramps down off its end along the
+loop at `ramp_angle_deg`, never dropping into the material. A lead that would swing into a fixture
+is shortened, then left out. Tell the user to cut the tabs by hand after the program.
 
-## `slot`
+## adaptive: Adaptive clear (lite)
 
-Cuts a `slot` feature (open at one end or both) or a straight `region` (a rectangle or an obround,
-with `depth_mm` or `z_mm`) along its centre line, full width, level by level. Each level starts at an
-open end where there is one (off the stock, so the tool goes down in air), else ramps in along the
-slot. A tool narrower than the slot then widens it with rings out to the walls. A tool wider than the
-slot is refused. Tools: `flat_endmill`, `bull_endmill`.
+Clears a pocket or an open area at a capped tool load, cutting only where material stands. Name it
+like a pocket: floor `faces`, or a `region` with `bottom_z`; an open side clears out to the stock's
+edge. It reads the stock as it stands (every earlier operation and setup replayed): what an earlier
+operation cut is air, and a level with nothing left is skipped. Each level grows the cleared area
+from that air, or from a helix at the region's most open point where there is none, one stepover at
+a time (each new pass is the cleared area offset by the stepover, clipped to the region), so no point
+of a pass is more than a stepover from material already cut; only the stretches that meet new
+material are cut, nearest first, so the tool works one side on before it crosses to the other.
+Stepover defaults to 0.15 of the diameter (more than 0.5 is refused); step down to twice the
+material's (deep and light), within the flutes. Flat or bull tool. Its result's `air_fraction` is the
+share of the cutting path that removes nothing (with `air_mm` and `cut_mm`): quote it when the user
+asks how efficient the path is.
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `stepdown_mm` | the depth of each level | a quarter of the tool's diameter |
-| `stepover` | between the widening rings, a fraction of the tool's diameter | 0.4 |
-| `finish_mm` | leave this on both walls for one ring at the final depth | 0 |
-| `depth_mm` / `z_mm` | the floor; a region needs one | the slot's floor |
-| `ramp_angle_deg` | the steepest ramp in | 3 |
+| key | meaning |
+| --- | --- |
+| `direction` | `climb` (default) or `conventional` |
+| `ramp_angle_deg` | the helix entry's angle (default 3) |
 
-A closed end is cut round (the slot's half width) or square (to the tool's radius, its corners left
-at it). A region slot that runs into the part is a `gouge` error.
+Its limits, which its result carries (quote them): it is not a true medial-axis adaptive solver; a
+pass round a small cleared area cuts up to about twice the stepover's worth per millimetre (the first
+ring round an entry); a piece too narrow for a helix is ramped into along its outline at full width;
+the stock as it stands is read on a grid (0.1 to 0.5 mm), so the first pass beside an earlier cut
+can run up to a cell in air.
 
-## `bore`
+## slot: Slot
 
-Helical interpolation of a `hole` to size with an end mill: the tool's centre goes round a circle of
-the hole's radius less its own, down at `pitch_mm` per turn, a whole circle at the bottom, then over
-to the hole's axis and straight up. Targets: `features` (holes). Tools: `flat_endmill`,
-`bull_endmill`.
+Cuts a slot along its centreline, each level entered by a ramp along the centreline. Give one of: a
+`path`, the slot's floor in `faces`, or its outline as a `region` (a straight stadium or rectangle:
+its long axis is the centreline, its short side the width). A slot wider than the tool is widened in
+loops round the centreline, a stepover (default 0.4 of the diameter) at a time; a tool wider than the
+slot is refused. An open slot is cut back and forth.
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `pitch_mm` | the depth per turn; a steeper pitch than `ramp_angle_deg` allows is refused (`unreachable`) | 0.2 x the tool's diameter, and no steeper than the ramp angle |
-| `target` | `hole`, or `counterbore` (bore the hole's counterbore to its diameter and depth; then no `depth_mm` or `z_mm`) | `hole` |
-| `depth_mm` / `z_mm` | the floor | the hole's bottom |
-| `breakthrough_mm` | past a through hole's bottom | 0.5 |
-| `ramp_angle_deg` | the steepest the helix goes | 3 |
+| key | meaning |
+| --- | --- |
+| `path` | `{"points": [[x, y], ...], "bottom_z": z}`: the centreline, any shape (closed when its last point is its first) |
+| `width_mm` | the slot's width (default: the tool's diameter for a path, the floor's or region's own width) |
+| `entry` | `ramp` (default) or `plunge` |
+| `ramp_angle_deg` | the ramp's angle (default 3) |
+| `direction` | `climb` (default) or `conventional`, for the widening loops |
 
-Refused when the tool does not fit (`tool_too_large`), when it is within a tenth of its radius of the
-hole's size (drill or ream it instead), and when it would leave a core standing in the middle, a hole
-over twice the tool's diameter (`tool_too_small`: use `circular`).
+## chamfer: Chamfer
 
-## `circular`
+Breaks the top edges of a face's loops (or a wall's top edge, or a `region`'s outline at its
+`bottom_z`) with a `vee`, `chamfer`, `engraver` or `spot` tool, in one pass on the air side. The
+depth comes from the tool's angle: a cone of half angle a cuts `width / tan(a)` deep (a 90° vee: as
+deep as wide). The modelled part has sharp edges there, so the gouge check does not judge a chamfer.
 
-A round pocket (a `hole` larger than the tool, or the largest circle inside a `region`) or a round
-boss (a cylindrical `profile`, or a `region`'s bounding circle with `boss: true`), level by level. A
-pocket enters each level with a helix at its centre, spirals out and ends with a whole finishing
-circle. A boss clears the stock round it, spiralling in to a whole finishing circle. Tools:
-`flat_endmill`, `bull_endmill`.
+| key | meaning |
+| --- | --- |
+| `width_mm` | the chamfer's width across the top face (required) |
+| `ramp_angle_deg` | the entry ramps down along the loop at this angle (default 3) |
+| `tip_offset_mm` | put the tip this much lower so the cone, not the point, cuts (default 0.2 for a sharp tip, 0 for a flat tip) |
+| `loops` | a face's `all` (default), `outer` or `inner` |
+| `direction` | `climb` (default) or `conventional` |
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `boss` | `true` for a boss from a region; a pocket takes no `clear_mm` | from the feature's kind |
-| `clear_mm` | how far round a boss to clear from its wall | the whole stock round it (the tool starts off the stock) |
-| `stepdown_mm` | the depth of each level | half the tool's diameter |
-| `stepover` | the spiral's step per turn, a fraction of the tool's diameter | 0.4 |
-| `depth_mm` / `z_mm` | the floor | the feature's bottom |
-| `breakthrough_mm` | past a through hole's bottom | 0.5 |
-| `ramp_angle_deg` | the steepest entry | 3 |
+A width the cone cannot reach (wider than its radius less the tip offset) is refused. The top must
+be faced first (a `face` earlier in the setup, or a stock with no allowance on top): a chamfer under
+uncut stock is `unreachable`. A tip that would touch the part under the chamfer is a `gouge`, a body
+that would hit the part above a lower edge `tool_too_large`.
 
-Where the tool cuts with its edge on the inside of a circle (a bore's helix, a round pocket's
-finishing circle, an internal thread), the feed is the feed at that edge: the centre's feed is
-scaled down by the centre's radius over the edge's (never under a quarter of it), as a machinist
-compensates an internal arc.
+## engrave: Engrave
 
-## `thread_mill`
+Follows curves at a shallow depth with the tool's centre on them: a DXF's lines, arcs, circles,
+ellipses, polylines and splines (open or closed; blocks are expanded; text, dimensions and hatches are
+skipped and counted: explode text to curves; any other entity is refused, naming its handle),
+the edges of flat faces, or a `region`'s outline. Vee, engraver or chamfer tool. Nearest curve first;
+plunges at each start. The modelled part has no engraving, so the gouge check does not judge it.
 
-Mills an internal thread in a `hole` (drilled to the tap drill size by an earlier operation) or, with
-`external: true`, an external thread round a cylindrical `profile`, with a single-point thread mill:
-one helix, one turn per pitch, entered and left by quarter-circle leads. Climb, so a right-hand
-internal thread is cut from the bottom up and a right-hand external one from the top down. Tools:
-`thread_mill`.
+| key | meaning |
+| --- | --- |
+| `dxf` | the drawing's path, relative to the job file (else the part), or absolute |
+| `origin_mm` | where the DXF's origin goes, `[x, y]` WCS (default `[0, 0]`) |
+| `depth_mm` | how deep below the surface (default 0.2); deeper than the step down is cut in passes |
+| `surface_z` | the surface's height, WCS (default: the named face's, else the part's top) |
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `pitch_mm` | the thread's pitch (1.5 for M10); must be the thread mill's own `pitch_mm` | required |
-| `thread_depth_mm` | the thread's depth: the internal thread's major diameter is the hole's plus twice it, the external's minor the boss's less twice it | 0.6134 x pitch (ISO metric) |
-| `hand` | `right` or `left` | `right` |
-| `external` | `true` for a thread round a boss | `false` |
-| `breakthrough_mm` | past a through hole's bottom | 0.5 |
+The line's width at the surface is `tip diameter + 2 x depth x tan(half angle)` (in its note).
 
-## `chamfer_2d`
+## vcarve: V-carve (lite)
 
-Breaks the top edge of each `profile` (from outside), `pocket` and `hole` (from inside) it is pointed
-at (`all: true`: every one the setup reaches) with a chamfer, one pass round each edge, with the cone
-of a `chamfer_mill` or `v_bit`. A 90 degree tool cuts a 45 degree chamfer as deep as it is wide. The
-wall must already be cut: phase 1 has no stock simulation to check it.
+Carves closed shapes with a V-bit along their medial axis (the centres of the largest circles that
+fit inside), so the walls come out as sharp Vs: a DXF's closed profiles (even-odd, so a letter's
+counter stays; open curves and text are skipped and counted in the note: explode text to curves),
+flat `faces` (each face's own area, from its height), or a `region` polygon (no `bottom_z`). Vee,
+engraver or chamfer tool; a flat, ball or other non-pointed tool is refused. At each point the tip
+goes `(distance to the outline - tip radius) / tan(half angle)` below the surface, so the cone's
+edge just touches the outline: a narrow stroke is shallow, a wide one deep. Runs are cut nearest
+first, each entered where the tool already is, straight down onto the surface at a corner, onto a
+point already cut as deep, or zig-zagging down along itself no steeper than the cone's flank (a
+round dot spirals in); never a plunge into material. The modelled part has no carving, so the gouge
+check does not judge it.
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `width_mm` | the chamfer's width across the top face | 0.5, or the width the part models |
-| `tip_offset_mm` | how far the tip runs below the chamfer's bottom, so the cone and not the point cuts it | 0.2 |
-| `ramp_angle_deg` | the steepest the pass ramps down from the edge's height | 3 |
+| key | meaning |
+| --- | --- |
+| `dxf` | the drawing's path, relative to the job file (else the part), or absolute |
+| `origin_mm` | where the DXF's origin goes, `[x, y]` WCS (default `[0, 0]`) |
+| `max_depth_mm` | the deepest the tip goes; wider than the cone there leaves a flat bottom (default: none) |
+| `surface_z` | the surface's height, WCS (default: the named face's, else the part's top) |
 
-A chamfer the part already models (inclined faces or a cone at the top of the walls, a hole's
-countersink) is cut as modelled: its own width and height, and the tool's angle must match its angle
-within half a degree. Refused when the cone is too short for the chamfer, when the tip or the tool's
-body would touch the part anywhere but the chamfer, when the tool does not fit inside a pocket or hole,
-and when stock still stands over the part's top (face it first).
+`stepdown_mm` (optional) carves in levels; the default is one pass. With `max_depth_mm`, the V-bit
+also runs the outline inset `tip radius + max_depth x tan(half angle)` at that depth (the walls'
+foot), and the flat bottom inside is left: an operation has one tool, so clear it with a separate
+`pocket` and a flat tool on the outline inset `flat_inset_mm`, its `region` `bottom_z` at
+`flat_bottom_z` (both in the facts, with `flat_area_mm2`; the note says so). A DXF shape's flat
+bottom needs its outline written as that region. The facts give `shapes`, `runs`, `levels`,
+`length_mm` and `max_depth_mm`.
 
-## `engrave`
+Refused: no closed shape, or every shape too small to carve (`empty_operation`); every shape
+narrower than the tool's tip (`tool_too_large`); a shape wider than the cone is tall with no
+`max_depth_mm` (`tool_too_small`: give one, or a wider V-bit); a `max_depth_mm` deeper than the
+cone, or a carve past the flutes (`too_deep`); the part's top under uncut stock (`unreachable`:
+face it first). A face below the part's top must be cleared down to first (a pocket before it).
+Lite: the flat bottom is not cleared, and the axis is read from the outline sampled every 0.1 mm
+(finer in small shapes), so it is within about that of the true one; the depth at each point is
+exact for where the point is.
 
-V-carves a closed area with a `v_bit`: a `region` drawn in the setup's plane (carved down from the top
-of the material) or a `pocket` of the part (from its top, at most to its floor). The tool's centre
-runs along the area's middle line at the depth where its cone just touches the nearest side, so the
-cut meets the outline at the top and never crosses it.
+## helix_bore: Helix bore
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `max_depth_mm` | the deepest the V-bit goes; where the carve would go deeper, the bottom is flat | none: as deep as the carve needs |
-| `clear_tool` | another tool of the job, a `flat_endmill`, that clears the flat bottom first | none |
-| `stepdown_mm` | split the carve into levels; also the clearing's stepdown | one pass (the clearing: half the flat tool's diameter) |
+Mills round holes by helical interpolation, posted as G2/G3 arcs with Z: the tool circles the
+hole's exact centre at the hole's radius less its own, from the top of the material down at a pitch
+per turn, then one flat circle at the bottom. A hole wider than twice the tool is bored inside out, a
+stepover (default 0.4 of the diameter) wider each circle, so no core is left. Name hole walls in
+`faces` (any face of a hole names the hole, and a counterbore's wall names the counterbore; it must
+open toward the tool) or list `holes`. A tool not smaller than the hole is refused
+(`tool_too_large`). Climb is counter-clockwise (G3). The feed is the table's at the cutting edge: the
+centre runs at it scaled by its circle's radius over the edge's, never under a quarter.
 
-A carve that needs a flat bottom and has no `clear_tool` is refused, as is one deeper than the
-V-bit's cone. Where the flat tool does not fit the flat bottom's corners, a `rest_material` warning
-says how much is left. Single-line text (lettering as a single stroke) is not built: draw the letters
-as closed outlines.
+| key | meaning |
+| --- | --- |
+| `holes` | `[{"center": [x, y], "diameter_mm": d, "bottom_z": z, "top_z": z}]`, WCS (`top_z` defaults to the part's top) |
+| `pitch_mm` | depth per turn (default the least of 0.2 of the diameter, `stepdown_mm` when given, and the pitch that keeps the tool's centre at `ramp_angle_deg` on each circle). A pitch steeper than the ramp angle on the smallest circle is refused (`unreachable`, naming the largest allowed) |
+| `ramp_angle_deg` | the helix's ramp angle when no pitch is given (default 3) |
+| `through_mm` | go this much below a through hole's bottom (default 0; 0.2 to 0.5 mm breaks through cleanly) |
+| `direction` | `climb` (default) or `conventional` |
 
-## `trace`
+## circular: Circular
 
-Cuts along a curve `depth_mm` deep: a chain of the part's edges (`features`: edge selectors, `#o1.e12`,
-followed end to end, open or closed, level in the setup's plane; the depth is below the edges) or a
-`region` (always closed; the depth is below the top of the material; its points' order is its
-direction). Tools: `flat_endmill`, `ball_endmill`, `bull_endmill`, `v_bit`, `chamfer_mill`.
+Clears a round pocket or the material round a round boss, level by level (step down: the
+material's default). Name the pocket's or the boss's wall in `faces` (a cylinder along Z: any face
+of a pocket names the whole of it), or give a `region` with `bottom_z` (a pocket is the largest
+circle inside the polygon; with `boss: true`, the boss is the smallest circle round it).
 
-| Key | Meaning | Default |
-| --- | --- | --- |
-| `depth_mm` | how deep the cut runs under the curve | required |
-| `offset` | `none` (the tool's centre on the curve); a closed loop takes `inside` or `outside`, an open chain `left` or `right` of its direction | `none` |
-| `start` | where an open chain starts: a point `[x, y]` (setup frame) at one of its ends, or its first edge's selector; required to offset an open chain | |
-| `stepdown_mm` | the depth of each level | half the tool's diameter |
-| `ramp_angle_deg` | the steepest ramp down along the curve | 3 |
+A pocket: each level goes down on a helix at the centre, spirals out to the wall a stepover
+(default 0.4 of the diameter) per turn in tangent half circles (true G2/G3 arcs), then cuts one
+whole finishing circle on the wall, counter-clockwise for climb. The feed is the table's at the
+cutting edge: the tool's centre runs at it scaled by its circle's radius over the edge's, never
+under a quarter. A tool not smaller than the pocket by a tenth of its radius on each side is
+refused (drill or ream it).
+
+A boss: each level starts on an outer ring, comes down in air off the stock or on a helix along the
+ring, cuts one whole circle there, spirals in to the boss's wall and cuts one whole finishing circle
+on it, clockwise for climb. A boss with less room round it than the tool's diameter is refused.
+
+Pick `helix_bore` to bore a hole to size up to about twice the tool's diameter (one circle at the
+wall), and `circular` for a wider round pocket (one spiral a level instead of a full-depth helix per
+circle) and for any boss.
+
+| key | meaning |
+| --- | --- |
+| `boss` | `true`: the faces are a boss's outside (or the region is a boss); `false`: a pocket. Default: what each face is; a region is a pocket. A face of the other kind is refused |
+| `clear_mm` | a boss only: how far out from its wall to clear (at least the tool's diameter is). Default: out to the stock's edge, or up to the part beside the boss when it stands nearer; a `clear_mm` reaching the part beside it is refused |
+| `bottom_z` | how deep, WCS (default: the pocket's bottom or the boss's foot; deeper than a blind pocket's bottom or a boss's foot is refused) |
+| `through_mm` | go this much below a through pocket's bottom (default 0) |
+| `ramp_angle_deg` | the helix's ramp angle (default 3) |
+| `direction` | `climb` (default) or `conventional` |
+
+`stock_to_leave_mm` is left on the wall and the floor. Its facts: `kind` (pocket or boss), `levels`,
+`turns` of spiral, `diameter_mm`, `bottom_z`, `entries` (`helix`, `air`), and a boss's `cleared_mm`.
+
+## trace: Trace
+
+Follows a chain of the part's edges `depth_mm` below them: name the edges in `edges` as the Viewer
+selects them (`#o1.e5`). They are joined end to end into chains, open or closed; each chain must lie
+level in the setup (a chain that climbs is refused). Levels run from the material's top over the
+edges (the stock top when they lie on the part's top) down by the step down; each level ramps in
+along the path at `ramp_angle_deg`, or comes straight down where the tool is off the stock. The part
+standing over the path within the tool's reach (an edge under a wall or an overhang) is refused.
+Flat, bull, ball, vee, chamfer or engraver tool.
+
+| key | meaning |
+| --- | --- |
+| `edges` | the edges to follow, `["#o1.e5", "#o1.e6"]` (required) |
+| `depth_mm` | how far below the edges to cut (required) |
+| `offset` | `on` (default: the tool's centre on the edges), `inside` or `outside` a closed loop (climb), `left` or `right` of an open chain looking along it from its start. An offset moves the centre the tool's cutting radius at the depth (a vee's: its radius `depth_mm` up its cone), so its edge runs on the edges. `left`/`right` on a loop or `inside`/`outside` on an open chain is refused |
+| `start` | where an open chain starts: a point `[x, y]` (WCS) at one of its ends, or its first or last edge (`"#o1.e5"`). Required with `left` or `right`; an edge in the middle of the chain is refused. Without it a chain is cut from its end nearer the tool |
+| `ramp_angle_deg` | the ramp's angle (default 3) |
+
+With `offset: on` the tool cuts into the modelled part on purpose (a groove along the edges), so the
+gouge check does not judge it; offset to one side it does. An open chain offset to one side is cut
+from its start at every level; one on its edges is cut back and forth. Its facts: `passes` (the
+chains), `levels`, `length_mm`, `bottom_z`, `offset`, `offset_mm`, `entries` (`ramp`, `air`).
+
+## thread_mill: Thread mill
+
+Mills a thread by helical interpolation with a `thread_mill` tool: inside a tap-sized hole (name its
+wall) or on a round boss (name its outside). It steps in on a tangent half circle, follows a helix of
+one pitch per turn over the thread's length, and steps out the same way. An internal thread is cut to
+its major diameter, an external one to the ISO minor diameter (`major - 1.22687 x pitch`). The
+modelled hole is the tap drill, so the gouge check does not judge a thread. Drill the hole first.
+
+| key | meaning |
+| --- | --- |
+| `thread` | `internal` or `external` (default: a hole's or a boss's) |
+| `pitch_mm` | the thread's pitch (default the tool's) |
+| `major_diameter_mm` | the nominal size. A hole's default is the tap drill plus the pitch, snapped to 0.5 mm (Ø5 at 1 mm is M6, Ø6.8 at 1.25 is M8); a boss's, its diameter |
+| `depth_mm` | the thread's length from the top (default: through and bosses their whole length, blind holes their depth less two pitches) |
+| `hand` | `right` (default) or `left` |
+| `form` | `single` (default: a single-point tool, the helix covers the whole length) or `multi` (a tool whose `flute_length_mm` of teeth covers the thread: one turn plus a turn per pitch the thread is longer; only the tool's own pitch) |
+| `passes` | radial passes splitting the thread's depth (default 1, 2 from a 1.5 mm pitch) |
+| `direction` | `climb` (default: a right-hand internal thread runs counter-clockwise from the bottom up, an external one clockwise from the top down) or `conventional` |
+
+The feed is the table's at the cutting edge, scaled to the tool's centre (slower in a hole, never
+under a quarter; faster round a boss). A tool not smaller than the hole is `tool_too_large`, a thread
+longer than the hole or into a blind hole's bottom `too_deep`. An internal thread needs its hole made
+first: without an earlier operation that makes it, the `prepared_hole` warning says so.
+
+## Reading the results
+
+Each operation's row says its tool, spindle speed, feed and time; its `facts` give `levels`,
+`passes`, `entries` (how levels were entered: `helix`, `ramp`, `lead`, `air`), `plunges`, and the
+floor or bottom it reached. A `note` becomes a warning line: loops too small for the tool, tabs a loop
+was too short for, a chamfer's or an engraving's width and depth, a thread's size. Inside corners the
+tool's radius cannot reach come back as the `corner_radius` warning ([checks.md](checks.md)): finish
+them with a smaller tool. Chamfer, engrave, V-carve, thread mill and a trace `on` its edges cut into the
+modelled part on purpose and are not judged by `gouge`; every other operation here is, so a gouge
+from them means a wrong face, edge, offset or `bottom_z`.

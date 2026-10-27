@@ -1,142 +1,117 @@
-"""Every operation ``cadgen cam`` knows, by name, in the order the skill and the viewer list them.
+"""Every operation ``cadgen cam`` knows, by name: built, or registered as planned.
 
-The registry is written once, here: all 55 names of the design, each with the phase it is built in, the family
-module and class that implement it, and the word the viewer shows. An operation is built when its family module
-defines its class: marking one built is writing that class, nothing here changes. Until then
-:func:`get_operation` refuses it in a sentence naming its phase, never an ImportError. Stdlib only: the family
-modules import lazily.
+The registry is written once, here, in the order the skill and the viewer list them (spec section 4): 2.5D
+milling, 3D milling, multi-axis, turning, cutting. Each entry names its module (``operations/<op>.py``) and class,
+its plain viewer word, its family, the machine kinds it runs on and whether it is ``full`` or ``lite``. An entry
+whose module is not in this cadgen makes :func:`get_operation` say so in one sentence ("'contour' is planned but not
+in this cadgen yet"), never an ImportError: adding an operation is adding its module, nothing else.
+
+The class (an :class:`~cadgen._internal.cam.operations.base.Operation`) repeats ``name``, ``plain``, ``family``,
+``machines`` and ``status``; a test keeps the two in step. Stdlib only: the modules import lazily.
 """
 
 from __future__ import annotations
 
+import difflib
 import importlib
+import importlib.util
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from cadgen._internal.cam.operations.base import Phase
-from cadgen._internal.cam.values import json_text
+from cadgen._internal.cam.job_errors import CamJobError, shown
 
 if TYPE_CHECKING:
     from cadgen._internal.cam.operations.base import Operation
 
-__all__ = ["Entry", "OPERATION_NAMES", "REGISTRY", "built", "get_operation"]
+__all__ = ["Entry", "OPERATION_NAMES", "REGISTRY", "available", "built", "get_operation", "MILLS"]
 
 _PACKAGE = "cadgen._internal.cam.operations"
+
+#: The machine kinds that mill (a 3-axis job runs on any of them; a 3+2 setup needs mill4 or mill5).
+MILLS = ("mill", "mill4", "mill5", "router")
 
 
 @dataclass(frozen=True)
 class Entry:
     name: str
-    phase: Phase
-    module: str            # "cadgen._internal.cam.operations.milling_2d"
-    cls: str               # "Pocket2dOperation"
-    word: str
+    module: str          # "cadgen._internal.cam.operations.pocket"
+    cls: str             # "PocketOp"
+    plain: str           # "Pocket"
+    family: str          # "2.5D milling"
+    machines: tuple[str, ...]
+    status: str          # "full" | "lite"
 
 
-def _entry(name: str, phase: Phase, family: str, word: str) -> Entry:
-    """``pocket_2d`` in ``milling_2d`` is ``milling_2d.Pocket2dOperation``."""
-    cls = "".join(part[:1].upper() + part[1:] for part in name.split("_")) + "Operation"
-    return Entry(name, phase, f"{_PACKAGE}.{family}", cls, word)
+def _entry(name: str, cls: str, plain: str, family: str, machines: tuple[str, ...], status: str = "full") -> Entry:
+    return Entry(name, f"{_PACKAGE}.{name}", cls, plain, family, machines, status)
 
+
+_25D, _3D, _MULTI, _TURN, _CUT = "2.5D milling", "3D milling", "Multi-axis", "Turning", "Cutting"
 
 REGISTRY: dict[str, Entry] = {entry.name: entry for entry in (
-    # Phase 1: 2.5D milling.
-    _entry("facing", 1, "milling_2d", "Face"),
-    _entry("contour_2d", 1, "milling_2d", "Profile"),
-    _entry("pocket_2d", 1, "milling_2d", "Pocket"),
-    _entry("slot", 1, "holes_2d", "Slot"),
-    _entry("bore", 1, "holes_2d", "Helical bore"),
-    _entry("circular", 1, "holes_2d", "Round pocket or boss"),
-    _entry("thread_mill", 1, "holes_2d", "Thread mill"),
-    _entry("chamfer_2d", 1, "edges_2d", "Chamfer"),
-    _entry("engrave", 1, "edges_2d", "V-carve"),
-    _entry("trace", 1, "edges_2d", "Trace"),
-    # Phase 1: drilling and hole cycles.
-    _entry("drill", 1, "drilling", "Drill"),
-    _entry("spot_drill", 1, "drilling", "Spot drill"),
-    _entry("peck", 1, "drilling", "Peck drill"),
-    _entry("chip_break", 1, "drilling", "Chip-break drill"),
-    _entry("tap", 1, "drilling", "Tap"),
-    _entry("rigid_tap", 1, "drilling", "Rigid tap"),
-    _entry("ream", 1, "drilling", "Ream"),
-    _entry("boring_cycle", 1, "drilling", "Boring bar"),
-    _entry("counterbore", 1, "drilling", "Counterbore"),
-    _entry("back_bore", 1, "drilling", "Back bore"),
-    # Phase 2: 3D milling over the stock simulation, and adaptive clearing (its 2D and 3D forms designed together).
-    _entry("adaptive_2d", 2, "milling_2d", "Adaptive clearing"),
-    _entry("adaptive_3d", 2, "milling_3d", "3D adaptive roughing"),
-    _entry("pocket_3d", 2, "milling_3d", "Z-level roughing"),
-    _entry("parallel", 2, "milling_3d", "Parallel"),
-    _entry("contour_3d", 2, "milling_3d", "Waterline"),
-    _entry("scallop", 2, "milling_3d", "Scallop"),
-    _entry("pencil", 2, "milling_3d", "Pencil"),
-    _entry("spiral", 2, "milling_3d", "Spiral"),
-    _entry("radial", 2, "milling_3d", "Radial"),
-    _entry("morph", 2, "milling_3d", "Morph"),
-    _entry("steep_shallow", 2, "milling_3d", "Steep and shallow"),
-    _entry("ramp", 2, "milling_3d", "Ramp"),
-    _entry("horizontal", 2, "milling_3d", "Flats"),
-    _entry("rest", 2, "milling_3d", "Rest machining"),
-    # Phase 3: turning.
-    _entry("lathe_face", 3, "turning", "Face"),
-    _entry("lathe_rough", 3, "turning", "Rough turn"),
-    _entry("lathe_finish", 3, "turning", "Finish turn"),
-    _entry("lathe_groove", 3, "turning", "Groove"),
-    _entry("lathe_part", 3, "turning", "Part off"),
-    _entry("lathe_thread", 3, "turning", "Thread"),
-    _entry("lathe_bore", 3, "turning", "Bore"),
-    _entry("lathe_drill", 3, "turning", "Drill on centre"),
-    # Phase 3: sheet cutting.
-    _entry("laser_cut", 3, "cutting", "Laser cut"),
-    _entry("laser_engrave", 3, "cutting", "Laser engrave"),
-    _entry("plasma_cut", 3, "cutting", "Plasma cut"),
-    _entry("waterjet_cut", 3, "cutting", "Waterjet cut"),
-    # Phase 3: EDM.
-    _entry("wire_contour", 3, "edm", "Wire contour"),
-    _entry("wire_open", 3, "edm", "Wire open profile"),
-    _entry("sinker", 3, "edm", "Sinker"),
-    # Phase 4: multi-axis.
-    _entry("indexed", 4, "multi_axis", "3+2 indexed"),
-    _entry("rotary_wrap", 4, "multi_axis", "Rotary wrap"),
-    _entry("rotary_parallel", 4, "multi_axis", "Rotary surface"),
-    _entry("swarf", 4, "multi_axis", "Swarf"),
-    _entry("multiaxis_contour", 4, "multi_axis", "5-axis contour"),
-    _entry("flowline_5x", 4, "multi_axis", "5-axis flowline"),
+    _entry("face", "FaceOp", "Face", _25D, MILLS),
+    _entry("contour", "ContourOp", "Profile", _25D, MILLS),
+    _entry("pocket", "PocketOp", "Pocket", _25D, MILLS),
+    _entry("adaptive", "AdaptiveOp", "Adaptive clear", _25D, MILLS, "lite"),
+    _entry("slot", "SlotOp", "Slot", _25D, MILLS),
+    _entry("drill", "DrillOp", "Drill", _25D, MILLS),
+    _entry("thread_mill", "ThreadMillOp", "Thread mill", _25D, MILLS),
+    _entry("chamfer", "ChamferOp", "Chamfer", _25D, MILLS),
+    _entry("engrave", "EngraveOp", "Engrave", _25D, MILLS),
+    _entry("vcarve", "VCarveOp", "V-carve", _25D, MILLS, "lite"),
+    _entry("helix_bore", "HelixBoreOp", "Helix bore", _25D, MILLS),
+    _entry("circular", "CircularOp", "Circular", _25D, MILLS),
+    _entry("trace", "TraceOp", "Trace", _25D, MILLS),
+    _entry("rough", "RoughOp", "3D rough", _3D, MILLS),
+    _entry("adaptive_3d", "Adaptive3dOp", "3D adaptive clear", _3D, MILLS, "lite"),
+    _entry("parallel", "ParallelOp", "Parallel finish", _3D, MILLS),
+    _entry("waterline", "WaterlineOp", "Waterline", _3D, MILLS),
+    _entry("scallop", "ScallopOp", "Scallop", _3D, MILLS, "lite"),
+    _entry("pencil", "PencilOp", "Pencil", _3D, MILLS, "lite"),
+    _entry("rest", "RestOp", "Rest machining", _3D, MILLS),
+    _entry("rotary", "RotaryOp", "4th-axis wrap", _MULTI, ("mill4", "mill5"), "lite"),
+    _entry("swarf", "SwarfOp", "Swarf", _MULTI, ("mill5",), "lite"),
+    _entry("surface_normal", "SurfaceNormalOp", "5-axis finish", _MULTI, ("mill5",), "lite"),
+    _entry("turn_face", "TurnFaceOp", "Face", _TURN, ("lathe",)),
+    _entry("turn_rough", "TurnRoughOp", "Rough turn", _TURN, ("lathe",)),
+    _entry("turn_finish", "TurnFinishOp", "Finish turn", _TURN, ("lathe",)),
+    _entry("turn_groove", "TurnGrooveOp", "Groove", _TURN, ("lathe",)),
+    _entry("turn_thread", "TurnThreadOp", "Thread", _TURN, ("lathe",)),
+    _entry("turn_drill", "TurnDrillOp", "Centre drill", _TURN, ("lathe",)),
+    _entry("turn_partoff", "TurnPartoffOp", "Part off", _TURN, ("lathe",)),
+    _entry("cut", "CutOp", "Cut out", _CUT, ("laser", "plasma", "waterjet", "router")),
+    _entry("wire_edm", "WireEdmOp", "Wire cut", _CUT, ("wire_edm",), "lite"),
 )}
-OPERATION_NAMES: tuple[str, ...] = tuple(REGISTRY)
 
-#: One instance per entry (not per name), so a test that swaps an entry never meets the old instance.
-_INSTANCES: dict[Entry, "Operation"] = {}
+OPERATION_NAMES = tuple(REGISTRY)
 
 
-def _cls(entry: Entry):
-    """The entry's class, or ``None`` while its family module does not define it."""
-    try:
-        module = importlib.import_module(entry.module)
-    except ModuleNotFoundError as exc:
-        if exc.name == entry.module:
-            return None
-        raise
-    return getattr(module, entry.cls, None)
+def available(name: str) -> bool:
+    """Whether this cadgen has the operation's module."""
+    entry = REGISTRY.get(name)
+    return entry is not None and importlib.util.find_spec(entry.module) is not None
 
 
 def built() -> tuple[str, ...]:
-    """The names this cadgen has built, in registry order."""
-    return tuple(name for name, entry in REGISTRY.items() if _cls(entry) is not None)
+    """The operations this cadgen can plan, in registry order."""
+    return tuple(name for name in OPERATION_NAMES if available(name))
 
 
-def get_operation(name: str) -> "Operation":
-    """The operation's instance. An unknown name: ValueError listing every name. A registered name not built
-    yet: ValueError 'operation: "adaptive_3d" is phase 2, not built yet; built today: ...'. Never ImportError."""
-    entry = REGISTRY.get(name) if isinstance(name, str) else None
-    if entry in _INSTANCES:
-        return _INSTANCES[entry]
-    if entry is None:
-        raise ValueError(f"operation: {json_text(name)} is not an operation cadgen knows; use one of {', '.join(OPERATION_NAMES)}")
-    cls = _cls(entry)
-    if cls is None:
-        today = ", ".join(built()) or "none yet"
-        raise ValueError(f"operation: {json_text(name)} is phase {entry.phase}, not built yet; built today: {today}")
-    instance = cls()
-    _INSTANCES[entry] = instance
-    return instance
+def entry_for(name: object, where: str = "op") -> Entry:
+    """The registry entry for ``name``, or the teaching error naming the operations."""
+    if not isinstance(name, str) or name not in REGISTRY:
+        close = difflib.get_close_matches(name, OPERATION_NAMES, n=1) if isinstance(name, str) else []
+        hint = f" (did you mean '{close[0]}'?)" if close else ""
+        raise CamJobError(f"{where}: unknown operation {shown(name)}{hint}; the operations are {', '.join(OPERATION_NAMES)}")
+    return REGISTRY[name]
+
+
+def get_operation(name: str, where: str = "op") -> "Operation":
+    """An instance of the operation's class. A registered name whose module this cadgen does not have is refused in a
+    sentence that names what is built."""
+    entry = entry_for(name, where)
+    if not available(name):
+        raise CamJobError(f"{where}: '{name}' is planned but not in this cadgen yet; the operations built are "
+                          f"{', '.join(built()) or 'none'}")
+    module = importlib.import_module(entry.module)
+    return getattr(module, entry.cls)()

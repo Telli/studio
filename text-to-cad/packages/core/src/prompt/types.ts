@@ -8,7 +8,7 @@ export type ReferenceTarget =
   | { kind: 'whole-resource' }
   | { kind: 'text-range'; start: TextPosition; end: TextPosition }
   | { kind: 'cad-selector'; selectors: readonly string[] };
-/** `summary` is a sentence a selection reads before what it names (an FEA result's "Fixed face 1"). */
+/** `summary` is a sentence a selection reads before what it names (an FEA result's "Fixed face 1", a board's check). */
 export interface PromptReference { resource: ResourceRef; target: ReferenceTarget; label?: string; summary?: string }
 export type PromptPart =
   | { id: string; kind: 'text'; text: string }

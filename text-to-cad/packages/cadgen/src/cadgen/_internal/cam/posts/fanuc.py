@@ -1,63 +1,64 @@
-"""Fanuc (0i / 30i series machining centres), in the conservative ISO form.
+"""``fanuc``: Fanuc 0i/30i-style controls (``.nc``) for mills, 4th/5th-axis mills and lathes.
 
-- ``%`` wrappers, an ``O`` number of four digits with the part in a comment, and ``N`` on every block (from N10 in
-  tens, back to N10 after N99990: Fanuc takes five digits).
-- Every number keeps its decimal point (``X10.``): without one Fanuc reads least increments (``X10`` is 0.01 mm).
-  Comments are upper case.
-- Tool change: ``G91 G28 Z0.`` and ``G90`` to go home, ``T<n> M6``, then ``G43 Z H<n>`` on the way down.
-- Canned cycles G81, G82, G83, G73, G84, G85, G89, G86, G76 and G87 with G98 / G99. A rigid tap is ``M29 S<rpm>``
-  before G84, with ``F = S x pitch``; a floating tap is G84 alone. Dwell P is whole milliseconds (``G4 P500``); G81,
-  G83, G73 and G86 take no P here, so one with a dwell is expanded. G76 and G87 shift by Q along the direction the
-  machine's parameters set (RD1 / RD2), assumed +X; a cycle shifting another way is expanded with ``M19`` (the usual
-  spindle orient code).
-- Peck clearance (G83) and chip-break back-off (G73) are the machine's parameters 5115 and 5114.
-- The end cancels the tool length offset (``G49``) after going home.
+The program sits between ``%`` lines under an ``O`` number (``machine.program_number``, default 1000, for the first
+setup; each next setup's program is one more, so two setups never share a number in the control's memory), comments
+are upper case, and every dimension word carries a decimal point (a Fanuc reads ``X10`` as 10 microns).
+``machine.line_numbers: true`` puts ``N10``, ``N20``... on every block (off by default).
+
+Mill: ``G21``, a safe-start block, ``G54``..``G59``, ``M5 M9`` and ``G91 G28 Z0.`` then ``T M6``, ``G0 X Y`` over the
+first point and ``G43 H`` at a clearance Z,
+G2/G3 with I/J, M8/M7/M9 (air has no standard code: a comment asks the operator to switch it by hand), the canned
+cycles G81 G82 G83 G73 G84 (``M29 S`` rigid tapping, F the posted S times the pitch; G74 left hand; no M29 for a tap
+cycle that says ``rigid: false``, a floating holder) G85 G86 G89, G76 fine boring and G87 back boring (Q shifts along
+the direction the control's parameters set, taken as +X; a bore that shifts another way is posted as its moves with
+``M19``; G87 always returns to the initial level, G98), dwell ``G4 P`` in milliseconds, ``G49`` after Z goes home,
+``M30``. A 3+2 setup enters the tilted working plane with
+``G68.2`` (ZXZ angles of the setup's frame) and ``G53.1`` after each tool change and leaves it with ``G69``;
+simultaneous moves post their A/B/C words under ``G43.4`` tool centre point control (rotary axes first, then
+``G43.4 H``, then X Y, then Z; drilling posts expanded there). At the end Z goes home, then the table to rotary zero
+(``G91 G28 A0. C0.``).
+
+Lathe (G-code system A): ``G18``, diameter X, ``G28 U0. W0.`` before ``T0101``-style tool words, ``G50 S`` clamp
+with ``G96`` constant surface speed or ``G97`` rpm, ``G98``/``G99`` feed per minute/revolution, the two-block ``G76``
+thread, and the two-block ``G71`` roughing cycle with its profile blocks when ``machine.cycles`` is true (expanded
+otherwise). No G90 on the lathe: in system A it is a turning cycle.
 """
 
 from __future__ import annotations
 
-import math
+from cadgen._internal.cam.posts._iso import CYCLES_OPTION, IsoPost
+from cadgen._internal.cam.posts.base import Program
 
-from cadgen._internal.cam.posts.base import PostBase, Route, _shift
+__all__ = ["FanucPost"]
+
+PROGRAM_NUMBER = {"type": "number", "default": 1000, "minimum": 1,
+                  "help": "the O number the first setup's program is stored under (the next setup's is one more)"}
 
 
-class FanucPost(PostBase):
+class FanucPost(IsoPost):
     name = "fanuc"
-    controller = "Fanuc"
-    cycles = frozenset({"drill", "spot", "peck", "chip_break", "tap", "rigid_tap", "ream", "bore", "fine_bore",
-                        "back_bore"})
-    cycle_dwells = frozenset({"spot", "tap", "rigid_tap", "ream", "fine_bore", "back_bore"})
-    orient = True
-    line_numbers = "every"
+    kinds = ("mill", "mill4", "mill5", "lathe")
+    extension = ".nc"
+    plain = "Fanuc"
     decimal_point = True
+    program_wrap = True
     upper_comments = True
-    tape = True
-    program_digits = 4
-    dwell_unit = "ms"
-    safe_start = "G0 G17 G40 G49 G80 G90 G94"
-    end_code = "M30"
-    end_lines = ("G49",)
+    mill_tool_home = ("G91 G28 Z0.", "G90")
+    mill_end_home = ("G91 G28 Z0.", "G90")
+    index_home_lines = ("G91 G28 Z0.", "G90")
+    lathe_home = ("G28 U0. W0.",)
+    tilt_style = "g68_2"
+    tcp_code = "G43.4"
+    rigid_tap_m29 = True
+    orient_lines = ("M19",)
+    dwell_ms = True
+    lathe_feed_codes = ("G98", "G99")
+    native_rough = True
+    options = {"cycles": CYCLES_OPTION, "program_number": PROGRAM_NUMBER,
+               "line_numbers": {"type": "bool", "default": False,
+                                "help": "N10, N20... on every block (off: no sequence numbers)"}}
 
-    def home_lines(self) -> list[str]:
-        return ["G91 G28 Z0.", "G90"]
-
-    def extra_header(self, kinds: frozenset[str] = frozenset()) -> list[str]:
-        if "rigid_tap" not in kinds:
-            return []
-        return ["Rigid tap written as M29 S then G84; check your control's rigid tap mode (some want M29 before M3)"]
-
-    def route(self, move, where):
-        route = super().route(move, where)
-        if route.how == "native" and move.cycle.kind in ("fine_bore", "back_bore"):
-            ux, uy = _shift(move.cycle)
-            if math.hypot(ux - 1.0, uy) > 1e-9:
-                return Route("expand")
-        return route
-
-    def before_cycle(self, prog, move) -> None:
-        if move.cycle.kind == "rigid_tap":
-            prog.code(f"M29 S{prog.speed}")
-
-    def after_cycle(self, prog) -> None:
-        if prog.cycle_kind == "rigid_tap":
-            prog.rpm = None   # rigid tapping ends with G80: M3 again before the spindle next cuts
+    def preamble(self, program: Program) -> list[str]:
+        if self._lathe:
+            return ["G21", "G0 G18 G40 G80 G98"]
+        return ["G21", "G0 G17 G40 G49 G80 G90 G94"]

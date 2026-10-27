@@ -290,7 +290,6 @@ RULES: tuple[Rule, ...] = (
     ), select(flags=["fea"])),
     # CAM needs no extra: its code is cadgen's, and runs the cadgen suite above. Its skill is read
     # by the protocol suite, which holds the skill's tables and links to the operation registry.
-    Rule(("skills/cam/**",), select(cadgen=[f"{CADGEN_SUITE}/test_cam_protocol.py"])),
 
     # The shared UI and the apps. The snapshot runtime is built from core alone, so ui
     # reaches the two hosts and the wheel, not cadgen's suites.
@@ -326,6 +325,8 @@ RULES: tuple[Rule, ...] = (
     Rule(("skills/dfam-check/**",), select(skills=[f"{SKILL_SUITES}/dfam-check"])),
     Rule(("skills/dfm/**",), select(skills=[f"{SKILL_SUITES}/dfm"])),
     Rule(("skills/work-instructions/**",), select(skills=[f"{SKILL_SUITES}/work-instructions"])),
+    # The cam skill's router table and pages are checked against what cadgen builds.
+    Rule(("skills/cam/**",), select(cadgen=[f"{CADGEN_SUITE}/cam/test_cam_skill.py"])),
     # Files that must never appear here: the test that refuses one runs when one does.
     Rule(("skills/**/node_runtime.py",), select(cadgen=[f"{CADGEN_SUITE}/test_node_resolve_bootstrap.py"])),
     Rule(("skills/*/scripts/packages/**",), policy("test_node_builder_bundles.py")),

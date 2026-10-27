@@ -1,135 +1,256 @@
-"""The protocol every operation implements.
+"""The ``Operation`` base every planner subclasses, and the context it plans in.
 
-An operation is what a job writes in ``"op"``: it reads its own keys (``parse``), turns them into a toolpath
-(``plan``, given a :class:`~cadgen._internal.cam.operations.context.PlanContext`, returning a
-:class:`~cadgen._internal.cam.operations.context.Planned`: the toolpath, its numbers and its findings), says what is
-wrong with it (``checks``) and says its numbers in a line or two (``human_lines``, from ``Planned.stats``).
-The job parser reads the keys every operation shares (``job.COMMON_KEYS``) and checks the operation's
-``machine_kinds``, ``tool_types`` and ``targets`` before handing the rest to ``parse``.
+An operation is a small class (one module per op under ``operations/``, registered in ``operations/__init__.py``)::
 
-Stdlib only at import: geometry and numerics live inside ``plan`` and ``checks``, so a malformed job fails in
-milliseconds. Units are the engine's: mm, mm/min, rpm, s.
+    class PocketOp(Operation):
+        name = "pocket"; plain = "Pocket"; family = "2.5D milling"
+        machines = MILLS; status = "full"          # or "lite", with ``limits``: plain-sentence caveats
+        keys = ("entry", "ramp_angle_deg", "direction")   # its own job keys, beyond OpSpec's shared ones
+        common_keys = SHARED                       # the shared tuning keys it reads (default: all of them)
+        tool_types = ("flat", "bull", "ball")      # the tool types it accepts (empty: any)
+        feeds_kind = "rough"                       # what it asks feeds.for_op for
+
+        def parse(self, spec: OpSpec, ctx: ParseContext) -> params      # closed keys; teaching errors
+        def plan(self, ctx: PlanContext, params) -> Toolpath           # WCS moves, op index stamped
+        def summary(self, ctx: PlanContext, params) -> str              # "Pocket #o1.f12 with T1 6 mm flat"
+
+``parse`` runs before the part is read (a malformed job fails fast); the base checks the op's own keys against
+``keys``, the shared tuning keys the job wrote against ``common_keys`` (law 9: a ``stepover`` a drill never reads is
+refused, not ignored), the tool's presence and type, and returns the ``extra`` dict; an op overrides it to return
+its own params.
+``plan`` starts at ``ctx.start`` (over the part at the clearance height) and should end at the clearance height; the
+run adds the tool change, spindle and coolant events around it and stamps the op range. Facts the checks read go
+in ``ctx.meta`` (``unreachable``: corners the tool cannot reach, for ``corner_radius``).
+
+:class:`PlanContext` hands a planner everything in WCS: ``part`` and its mesh (``mesh``), ``sections`` (material at
+a height), ``face``/``floor``/``footprint`` lookups, ``stock`` and its ``stock_outline``, ``heights``, the ``tool``,
+``feeds(kind)`` with the job's overrides (feed, speed, plunge) applied, ``stepover``/``stepdown`` with the op's defaults, and a ``log``.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Protocol
+from dataclasses import dataclass, field
+from typing import Any, ClassVar
 
-if TYPE_CHECKING:
-    from cadgen._internal.cam.job import Machine, Material, Setup, Tool
+from cadgen._internal.cam.job_errors import CamJobError, check_keys
 
-__all__ = ["Operation", "OperationBase", "PLAN_ERROR_KINDS", "ParseContext", "PlanError", "Phase", "TARGETS",
-           "by_severity", "finding", "naming_operation"]
+__all__ = ["Operation", "ParseContext", "PlanContext", "SHARED"]
 
-#: The phase an operation is built in (the design's four): 2.5D, 3D, turning/cutting/EDM, multi-axis.
-Phase = Literal[1, 2, 3, 4]
-#: What an operation can be pointed at: feature selectors, a closed region drawn in the setup's plane, or the
-#: whole part (``all: true``).
-TARGETS = ("features", "region", "all")
-#: Why an operation cannot be planned (:class:`PlanError`'s ``kind``, the error finding's ``type``): nothing to cut,
-#: deeper than the part allows, no way in, a tool too large or too small for the feature, a cut that would go into
-#: the part, and a tool that would come down into the fixture.
-PLAN_ERROR_KINDS = ("empty_operation", "too_deep", "unreachable", "tool_too_large", "tool_too_small", "gouge",
-                    "fixture_collision")
+#: The shared keys (job.OP_COMMON_KEYS) that tune an operation's cut. Each operation lists the ones it reads
+#: (``Operation.common_keys``); ``op``, ``tool``, ``name``, ``coolant``, ``clearance_mm`` and ``retract_mm`` every
+#: operation reads, and ``faces`` and ``region`` are ``takes_faces`` and ``takes_region``. ``plunge_mm_min`` is read by
+#: every operation that has a plunge, whatever its ``common_keys`` say (:meth:`Operation.with_plunge`).
+SHARED = ("feed", "speed", "stepdown_mm", "stepover", "stepover_mm", "stock_to_leave_mm", "plunge_mm_min")
+#: The feeds kinds (feeds.OP_KINDS) whose cut has a plunge: a milling cutter coming down along its axis at its own,
+#: slower feed. A hole maker feeds along its axis at its feed, a lathe tool by the revolution, and a beam or a wire
+#: never plunges, so their operations refuse ``plunge_mm_min``.
+PLUNGE_KINDS = ("rough", "slot", "finish", "face", "engrave", "thread_mill")
 
 
 @dataclass(frozen=True)
 class ParseContext:
-    """What an operation's ``parse`` may read besides its own keys: the job's parts it runs with."""
-
-    #: The operation's field path, for errors: ``operations[2]``.
-    where: str
-    machine: "Machine"
-    material: "Material"
-    setup: "Setup"
-    tool: "Tool"
+    job: Any                      # job.Job
+    setup: Any                    # job.Setup
 
 
-class Operation(Protocol):
-    name: ClassVar[str]                       # what a job writes in "op": "pocket_2d"
-    phase: ClassVar[Phase]
-    word: ClassVar[str]                       # what the viewer calls it: "Pocket"
-    keys: ClassVar[frozenset[str]]            # its own keys, beyond job.COMMON_KEYS
-    tool_types: ClassVar[tuple[str, ...]]     # the tool types it cuts with (job.TOOL_TYPES)
-    machine_kinds: ClassVar[tuple[str, ...]]  # the machines it runs on (job.MACHINE_KINDS)
-    targets: ClassVar[tuple[str, ...]]        # which of TARGETS it may be pointed at
-    target_required: ClassVar[bool]           # False when it has a whole-part default (facing)
+@dataclass
+class PlanContext:
+    job: Any
+    setup: Any                    # job.Setup
+    wcs: Any                      # wcs.WCS
+    heights: Any                  # linking.Heights
+    part: Any                     # part.Part
+    stock: Any                    # stock.StockGeometry
+    sections: Any                 # geom2d.Sections, WCS
+    spec: Any                     # job.OpSpec
+    index: int                    # the global operation index
+    tool: Any = None              # tools.Tool
+    start: tuple = (0.0, 0.0, 0.0)
+    tolerance_mm: float = 0.01
+    log: Any = None
+    meta: dict = field(default_factory=dict)
+    #: Every feeds the op asked for, in order; the first is the one its row shows.
+    chosen_feeds: list = field(default_factory=list)
+    #: Everything planned before this operation, in program order across setups: ``(wcs, Toolpath)`` per operation
+    #: (its op range, tool and events included), so a planner can simulate the stock as it stands (rest machining).
+    history: list = field(default_factory=list)
 
-    def parse(self, raw: dict, ctx: ParseContext) -> Any: ...       # stdlib; ValueError names the field
-    def plan(self, params: Any, ctx: Any) -> Any: ...               # context.Planned: toolpath, stats, findings
-    def checks(self, params: Any, ctx: Any, moves: list) -> list[dict]: ...   # findings (``finding``)
-    def human_lines(self, stats: dict) -> list[str]: ...
+    @property
+    def machine(self):
+        return self.job.machine
+
+    @property
+    def material(self):
+        return self.job.material
+
+    @property
+    def mesh(self):
+        """The part's (vertices, triangles) in this setup's WCS."""
+        return self.part.mesh_in(self.wcs)
+
+    def builder(self, start=None):
+        from cadgen._internal.cam.ir import ToolpathBuilder
+
+        return ToolpathBuilder(self.start if start is None else start, op=self.index)
+
+    def feeds(self, kind: str, *, stepover_mm: float | None = None):
+        from cadgen._internal.cam.feeds import for_op
+
+        chosen = for_op(self.material, self.tool, kind, self.machine, stepover_mm=stepover_mm, feed=self.spec.feed,
+                        speed=self.spec.speed, plunge=getattr(self.spec, "plunge_mm_min", None))
+        self.chosen_feeds.append(chosen)
+        return chosen
+
+    def stepover(self, default_fraction: float) -> float:
+        """The op's stepover in mm: ``stepover_mm``, else ``stepover`` x diameter, else the default fraction."""
+        if self.spec.stepover_mm is not None:
+            return float(self.spec.stepover_mm)
+        fraction = self.spec.stepover if self.spec.stepover is not None else default_fraction
+        return max(0.01, fraction * self.tool.diameter_mm)
+
+    def stepdown(self) -> float:
+        from cadgen._internal.cam.feeds import default_stepdown
+
+        if self.spec.stepdown_mm is not None:
+            return float(self.spec.stepdown_mm)
+        return default_stepdown(self.material, self.tool)
+
+    def face(self, ref: str):
+        return self.part.face(ref, where=f"{self.spec.where}.faces")
+
+    def face_triangles(self, ref: str):
+        import numpy as np
+
+        info = self.face(ref)
+        return np.asarray(self.part.triangles)[np.asarray(self.part.face_of_triangle) == info.ordinal]
+
+    def floor(self, ref: str) -> tuple[float, Any]:
+        """A flat face facing the tool: its WCS height and its footprint (WCS XY). Anything else is refused."""
+        import numpy as np
+
+        info = self.face(ref)
+        normal = None if info.normal is None else self.wcs.vectors_to_wcs([info.normal])[0]
+        if info.surface != "plane" or normal is None or normal[2] < 1.0 - 1e-6:
+            facing = "" if normal is None else f" facing ({', '.join(f'{v:.2f}' for v in normal)}) in this setup"
+            raise CamJobError(f"{self.spec.where}.faces: {ref} is a {info.surface}{facing}; a {self.spec.op} names "
+                              f"flat floors facing the tool (+Z of setup '{self.setup.id}')")
+        vertices, _ = self.mesh
+        triangles = self.face_triangles(ref)
+        z = float(np.asarray(vertices)[np.unique(triangles)][:, 2].mean())
+        return z, self.footprint(triangles)
+
+    def footprint(self, triangles):
+        from cadgen._internal.cam.geom2d import footprint
+
+        vertices, _ = self.mesh
+        return footprint(vertices, triangles)
+
+    @property
+    def stock_outline(self):
+        """The stock's silhouette on the WCS XY plane."""
+        import shapely
+
+        points = self.wcs.to_wcs(self.stock.vertices)[:, :2]
+        return shapely.MultiPoint(points).convex_hull
+
+    def say(self, message: str) -> None:
+        if self.log is not None:
+            self.log(message)
 
 
-class OperationBase:
-    """The protocol's defaults: a subclass states only what is its own."""
+class Operation:
+    name: ClassVar[str] = ""
+    plain: ClassVar[str] = ""
+    family: ClassVar[str] = ""
+    machines: ClassVar[tuple[str, ...]] = ()
+    status: ClassVar[str] = "full"
+    #: Plain-sentence caveats a lite operation carries into its results, its verdict caption and the skill.
+    limits: ClassVar[tuple[str, ...]] = ()
+    #: The op's own job keys, beyond the ones every operation shares (job.OP_COMMON_KEYS).
+    keys: ClassVar[tuple[str, ...]] = ()
+    #: The shared tuning keys (:data:`SHARED`) it reads; one the job sets that it does not read is refused.
+    common_keys: ClassVar[tuple[str, ...]] = SHARED
+    #: Tool types it accepts; empty accepts any.
+    tool_types: ClassVar[tuple[str, ...]] = ()
+    needs_tool: ClassVar[bool] = True
+    #: Whether it names faces (``faces``), a ``region``, either, or neither.
+    takes_faces: ClassVar[bool] = False
+    takes_region: ClassVar[bool] = False
+    feeds_kind: ClassVar[str] = "rough"
 
-    keys: ClassVar[frozenset[str]] = frozenset()
-    machine_kinds: ClassVar[tuple[str, ...]] = ("mill", "router")
-    targets: ClassVar[tuple[str, ...]] = ("features",)
-    target_required: ClassVar[bool] = True
+    def parse(self, spec, ctx: ParseContext) -> Any:
+        """Closed keys, the tool's presence and type; returns the op's own keys (``spec.extra``)."""
+        check_keys(spec.extra, self.keys, spec.where, hint=f"a {self.name}")
+        self.check_common_keys(spec, self.shared_keys(spec))
+        if self.needs_tool:
+            if spec.tool is None:
+                raise CamJobError(f"{spec.where}: a {self.name} needs \"tool\", one of the job's tools")
+            tool = ctx.job.tool(spec.tool)
+            if self.tool_types and tool.type not in self.tool_types:
+                raise CamJobError(f"{spec.where}: a {self.name} cuts with a {', '.join(self.tool_types)} tool; "
+                                  f"{tool.id} is a {tool.type}")
+            if "plunge_mm_min" in getattr(spec, "given", ()) and tool.family != "mill":
+                raise CamJobError(f"{spec.where}: a {tool.type} does not plunge (it cuts through the sheet where it "
+                                  "starts); remove plunge_mm_min")
+        if spec.faces and not self.takes_faces:
+            raise CamJobError(f"{spec.where}: a {self.name} takes no faces; remove \"faces\"")
+        if spec.region is not None and not self.takes_region:
+            raise CamJobError(f"{spec.where}: a {self.name} takes no region; remove \"region\"")
+        return dict(spec.extra)
 
-    def parse(self, raw: dict, ctx: ParseContext) -> Any:
-        return dict(raw)
+    def shared_keys(self, spec) -> tuple[str, ...]:
+        """The shared tuning keys this operation reads for ``spec`` (:attr:`common_keys`; ``rest`` by its ``of``),
+        ``plunge_mm_min`` among them exactly when it plunges (:meth:`with_plunge`)."""
+        return self.with_plunge(self.common_keys)
 
-    def checks(self, params: Any, ctx: Any, moves: list) -> list[dict]:
-        return []
+    def with_plunge(self, allowed) -> tuple[str, ...]:
+        """``allowed`` with ``plunge_mm_min`` in it exactly when this operation reads it: it asks
+        :func:`feeds.for_op` for a milling cut (it reads ``feed`` and ``speed``, and its feeds kind plunges:
+        :data:`PLUNGE_KINDS`)."""
+        allowed = tuple(key for key in allowed if key != "plunge_mm_min")
+        if "feed" in allowed and "speed" in allowed and self.feeds_kind in PLUNGE_KINDS:
+            allowed += ("plunge_mm_min",)
+        return allowed
 
-    def human_lines(self, stats: dict) -> list[str]:
-        return []
+    def check_common_keys(self, spec, allowed) -> None:
+        """Refuse a shared tuning key the job set that this operation never reads (law 9)."""
+        allowed = self.with_plunge(allowed)
+        stray = [key for key in SHARED if key in getattr(spec, "given", ()) and key not in allowed]
+        if stray:
+            reads = ", ".join(key for key in SHARED if key in allowed) or "none of them"
+            raise CamJobError(f"{spec.where}: a {self.name} does not use {' or '.join(stray)}; remove "
+                              f"{'it' if len(stray) == 1 else 'them'} (of the shared tuning keys a {self.name} "
+                              f"reads {reads})")
 
+    def plan(self, ctx: PlanContext, params) -> Any:
+        raise NotImplementedError
 
-def finding(severity: str, kind: str, summary: str, description: str, items=()) -> dict:
-    """One entry of a plan's findings, in the KiCad findings' shape. Its sentences never hold a number in
-    scientific notation (``values.plain_text``)."""
-    from cadgen._internal.cam.values import plain_text
-
-    return {"check": "cam", "severity": severity, "type": kind, "summary": plain_text(summary),
-            "description": plain_text(description), "items": list(items)}
-
-
-def naming_operation(found: dict, index: int, label: str) -> dict:
-    """``found`` (one operation's finding) with every item a dict that names the operation by its integer index in
-    the job (``operation``), so a reader never parses ``"operations[2] (pocket_2d)"`` back out of a sentence. An item
-    an operation wrote as a bare string (a feature's selector, ``"region"``) becomes ``{"text", "operation"}``, with
-    ``ref`` when it is a feature's selector (``#o1.f19``); a finding with no item gets one naming the operation."""
-    items = []
-    for item in found["items"] or [label]:
-        if isinstance(item, str):
-            entry = {"text": item if item == label else f"{label} {item}", "operation": index}
-            if item.startswith("#") and ".f" in item:
-                entry["ref"] = item
-        else:
-            entry = {**item, "operation": index}
-            entry.setdefault("text", label)
-        items.append(entry)
-    return {**found, "items": items}
-
-
-class PlanError(ValueError):
-    """An operation that is well formed but cannot be planned on this part: nothing to cut, deeper than the floor,
-    a tool that does not fit, a feature out of reach. ``plan`` raises it; the run turns it into an error finding of
-    type ``kind``, one of :data:`PLAN_ERROR_KINDS` (any other is refused: an ``internal:`` ValueError), and the job
-    returns ``ok=False`` with no G-code. A malformed key or value, or a selector naming the wrong thing, is still a
-    plain ``ValueError`` naming its field."""
-
-    def __init__(self, kind: str, summary: str, description: str = "", items=()):
-        if kind not in PLAN_ERROR_KINDS:
-            raise ValueError(f"internal: PlanError kind {kind!r} is not one of {', '.join(PLAN_ERROR_KINDS)}")
-        super().__init__(summary)
-        self.kind = kind
-        self.summary = summary
-        self.description = description
-        self.items = tuple(items)
-
-    def finding(self) -> dict:
-        return finding("error", self.kind, self.summary, self.description, self.items)
+    def summary(self, ctx: PlanContext, params) -> str:
+        """``Pocket #o1.f12 with T1 6 mm flat``: the plain word, what it cuts, the tool."""
+        faces = ctx.spec.faces
+        what = "" if not faces else (" " + ", ".join(faces) if len(faces) <= 3 else f" {len(faces)} faces")
+        name = f" ({ctx.spec.name})" if ctx.spec.name else ""
+        tool = f" with {ctx.tool.id} {ctx.tool.plain}" if ctx.tool is not None else ""
+        return f"{self.plain}{name}{what}{tool}"
 
 
-_SEVERITY = {"error": 0, "warning": 1, "info": 2}
+def region_polygon(spec, *, where: str):
+    """An op's ``region``: ``{"polygon": [[x, y], ...], "bottom_z": z}`` in WCS mm -> (shapely Polygon, bottom z or
+    None)."""
+    import shapely
 
+    from cadgen._internal.cam.job_errors import number_list, read_number
 
-def by_severity(found: list[dict]) -> list[dict]:
-    """Findings errors first, then warnings, then notes; stable within each."""
-    return sorted(found, key=lambda item: _SEVERITY[item["severity"]])
+    raw = spec.region
+    if not isinstance(raw, dict):
+        raise CamJobError(f"{where}.region must be {{\"polygon\": [[x, y], ...], \"bottom_z\": z}} in the setup's WCS")
+    check_keys(raw, ("polygon", "bottom_z"), f"{where}.region")
+    points = raw.get("polygon")
+    if not isinstance(points, list) or len(points) < 3:
+        raise CamJobError(f"{where}.region.polygon needs at least three [x, y] points")
+    coords = [number_list(p, f"{where}.region.polygon[{i}]", length=2) for i, p in enumerate(points)]
+    polygon = shapely.Polygon(coords)
+    if not polygon.is_valid or polygon.area <= 0:
+        raise CamJobError(f"{where}.region.polygon crosses itself or has no area")
+    bottom = read_number(raw, "bottom_z", f"{where}.region", minimum=-1e6) if "bottom_z" in raw else None
+    return polygon, bottom

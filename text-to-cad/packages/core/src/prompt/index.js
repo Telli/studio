@@ -166,7 +166,7 @@ export function formatPromptMessage(context, { attachmentPath, attachmentText } 
       const { reference } = part;
       const token = formatPromptReference(reference);
       if (reference.target.kind === 'whole-resource') files.push(token);
-      // A selection with a summary (an FEA result's face, a check it makes) reads that sentence, then what it names.
+      // A selection with a summary (an FEA result's face, a board's check) reads that sentence, then what it names.
       else references.push(reference.target.kind === 'cad-selector' && reference.summary ? `${reference.summary} · ${token}` : token);
     } else if (part.kind === 'attachment') {
       const inline = attachmentText?.(part);

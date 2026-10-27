@@ -1,617 +1,569 @@
-"""Feature recognition: what a part offers a machinist, read from its B-rep.
+"""The machining reading of a part: what ``cadgen cam features`` lists and what operations look up.
 
-Five kinds, each named by the viewer's selector of the face that identifies it:
+:func:`read_features` returns ``{"faces", "holes", "floors", "profiles"}`` (lists of dicts, the shapes
+:class:`~cadgen.results.CamFeaturesResult` documents):
 
-- ``hole``: concave cylinder faces on one axis line, a whole turn round, joined across air (a cross hole may split
-  a wall in two). Size: ``diameter_mm``, ``depth_mm``, ``through``, ``axis``; ``point_mm`` for a drill point (its
-  length past the full diameter); ``counterbore`` ``{diameter_mm, depth_mm}`` and ``countersink``
-  ``{diameter_mm, angle_deg}`` at an opening. ``depth_mm`` runs from where the hole opens on the part (the top of a
-  counterbore or countersink) to the bottom of its full diameter, or right through for a through hole. Its ref is
-  the wall; the rest of the wall, the counterbore, the countersink and a blind hole's floor follow in ``refs``.
-- ``pocket``: a planar floor whose outer edge is closed by walls rising from it (``length_mm`` and ``width_mm``
-  along and across its largest flat wall, ``depth_mm``, ``corner_radius_mm``: its smallest inside corner, 0 for a
-  sharp one), and ``islands``: walls standing on the floor inside it, each with its length, width and height.
-  Its ref is the floor; the walls and the islands' walls follow.
-- ``slot``: a planar floor between two parallel walls facing each other, open at one end or both (width,
-  length, depth). Its ref is the floor.
-- ``face``: a flat face whose normal is a tool direction, not part of the three above (length along its longest
-  straight edge and width, area).
-- ``profile``: outside walls along one axis that make a closed ring round it (outline length along its largest
-  flat wall and width, height). Profiles are listed along the part's thinnest axis (each axis that ties), where an
-  outline is cut; recognizing along one direction (a setup) lists that axis's. Its ref is the largest wall.
+* every face, with a plain ``reading`` ("flat floor at Z 12, facing +Z", "hole wall Ø5 along Z");
+* holes: the hole-wall cylinders grouped by axis line and radius, kept where they wrap (nearly) all the way round their
+  axis (a pocket's rounded corner, a fillet or a slot's end is not a hole: its faces read "rounded corner"), then split
+  where material stands between them along the axis (a split cylinder is one hole; two blind holes either side of a web
+  are two), with their diameter, depth, axis (pointing out of the opening), opening centre and whether they go through;
+  whether an end is open is asked of the exact solid (OCCT's classifier), off the axis so a drill point's cone reads as
+  a bottom. A counterbore (a wider coaxial cylinder stepped onto an open end) and a countersink (a cone widening out of
+  one) are part of the hole: it opens where they open on the part, ``depth_mm`` runs from there, and its entry carries
+  ``counterbore`` ``{diameter_mm, depth_mm}`` and ``countersink`` ``{diameter_mm, angle_deg}``; a blind hole's drawn
+  drill point is ``point_mm`` (its length past the full diameter). ``faces`` lists the walls first, then the
+  counterbore's wall and shoulder, the cones and a blind hole's floor, so any of them names the hole. ``reach`` lists
+  the ways out of its open ends (``+Z`` ...) that a ray from just past the end, on the axis and near the wall, leaves
+  the part along: a hole opening on a floor under a roof lists none;
+* floors: the flat faces square to an axis, with ``kind`` top, floor, bottom or underside, and for a +Z floor below
+  the top its pocket: the walls around it, their depth and the islands inside it;
+* a DXF's profiles: outline size, area and holes (a round hole with its diameter).
 
-``reach`` lists the tool directions that see the feature. It is a ray test with no tool width: every sample point
-of a face or a floor (and of a profile's walls, from just outside them) sees out of the part along the direction,
-and a hole's opening is clear along its axis at its centre and near its wall. Partly reached features list no
-reach. Whether a given tool fits (its diameter, its holder) is the operations' and the checks' business.
-Directions are the six axes unless the caller asks for others (a setup that faces a tilted face).
-
-:func:`recognize` returns :class:`Feature` in the document frame; :func:`features_in_frame` gives the ones a setup
-reaches in that setup's frame (:class:`cadgen._internal.cam.setups.SetupFrame`) for the operations to plan on.
-Stdlib only at import; the geometry is :mod:`cadgen._internal.cam.part`'s.
+:func:`holes` is the grouping alone, for the drilling operations. Stdlib at import; numpy and OCP inside.
 """
 
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
-from cadgen._internal.cam.part import (
-    LINEAR_TOL,
-    PROBE_MM,
-    Part,
-    Vec,
-    add,
-    cross,
-    dot,
-    parallel,
-    perpendicular,
-    same,
-    scale,
-    sub,
-    unit,
-)
-from cadgen._internal.cam.values import json_text, words
-from cadgen.results import CamFeature
+__all__ = ["axis_word", "direction_word", "holes", "read_features"]
 
-if TYPE_CHECKING:
-    from cadgen._internal.cam.setups import SetupFrame
+_AXES = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}
+_COS5 = math.cos(math.radians(5.0))
 
-__all__ = ["AXES", "KINDS", "Feature", "SetupFeature", "direction_word", "feature_for", "features_in_frame",
-           "parse_direction", "recognize"]
 
-#: The six axis tool directions, by the word a job and the CLI write.
-AXES: dict[str, Vec] = {
-    "+X": (1.0, 0.0, 0.0), "-X": (-1.0, 0.0, 0.0),
-    "+Y": (0.0, 1.0, 0.0), "-Y": (0.0, -1.0, 0.0),
-    "+Z": (0.0, 0.0, 1.0), "-Z": (0.0, 0.0, -1.0),
-}
-#: Feature kinds in listing order.
-KINDS = ("face", "hole", "pocket", "slot", "profile")
+def _g(value: float, digits: int = 3) -> str:
+    return f"{round(float(value), digits):g}"
 
-_TURN = 2 * math.pi
 
-
-def parse_direction(value, *, where: str = "direction") -> Vec:
-    """One of the six axis words (``+Z``) as a unit vector; anything else is a ValueError naming the words."""
-    if not isinstance(value, str) or value not in AXES:
-        raise ValueError(f"{where}: {json_text(value)} is not a tool direction; use {words(AXES)}")
-    return AXES[value]
-
-
-def direction_word(direction: Vec) -> str:
-    """``+Z`` for an axis direction, else the vector to two places."""
-    for word, axis in AXES.items():
-        if same(axis, direction):
-            return word
-    return "(" + ", ".join(f"{_num(c, 2):g}" for c in direction) + ")"
-
-
-def _axis_word(axis: Vec) -> str | list[float]:
-    """``Z`` for a line along an axis (either way round), else the vector."""
-    for name, vector in (("X", AXES["+X"]), ("Y", AXES["+Y"]), ("Z", AXES["+Z"])):
-        if parallel(vector, axis):
-            return name
-    return [_num(c, 4) for c in axis]
-
-
-def _axis_text(axis: Vec) -> str:
-    word = _axis_word(axis)
-    return word if isinstance(word, str) else direction_word(axis)
-
-
-def _num(value: float, places: int = 4) -> float:
-    rounded = round(float(value), places)
-    return 0.0 if rounded == 0 else rounded
-
-
-def _mm(value: float) -> str:
-    return f"{_num(value, 3):g}"
-
-
-def _at(point: Vec, axis: Vec) -> str:
-    """Where a feature sits, as a machinist reads it off a drawing: the two coordinates across an axis it runs along."""
-    for name, vector in (("X", AXES["+X"]), ("Y", AXES["+Y"]), ("Z", AXES["+Z"])):
-        if parallel(vector, axis):
-            return " ".join(f"{other} {_mm(point['XYZ'.index(other)])}" for other in "XYZ" if other != name)
-    return "(" + ", ".join(_mm(c) for c in point) + ")"
-
-
-def _level(point: Vec, axis: Vec) -> str:
-    """The coordinate along an axis line: ``Z 10``."""
-    for name, vector in (("X", AXES["+X"]), ("Y", AXES["+Y"]), ("Z", AXES["+Z"])):
-        if parallel(vector, axis):
-            return f"{name} {_mm(point['XYZ'.index(name)])}"
-    return "(" + ", ".join(_mm(c) for c in point) + ")"
-
-
-@dataclass(frozen=True)
-class Feature:
-    """One recognized feature, in the document frame (mm)."""
-
-    kind: str
-    ref: str
-    refs: tuple[str, ...]
-    size: dict = field(hash=False)
-    #: The tool directions that reach it (unit vectors, from the directions recognition was asked about).
-    reach: tuple[Vec, ...]
-    #: Its own direction: a face's or a floor's normal, a blind hole's axis out of its opening (a through hole's
-    #: points along the axis's positive sense), a profile's axis.
-    axis: Vec
-    #: The two ends of the feature along ``axis``: ``low`` the bottom (a floor's centroid, a blind hole's bottom
-    #: centre, a profile's lowest level), ``high`` where the tool comes in (a hole's opening on the part, above any
-    #: counterbore). Equal for a face.
-    low: Vec
-    high: Vec
-    hint: str = ""
-
-    def public(self) -> CamFeature:
-        return CamFeature(ref=self.ref, kind=self.kind, refs=self.refs, size=dict(self.size),
-                          reach=tuple(direction_word(d) for d in self.reach), hint=self.hint)
-
-
-def recognize(part: Part, directions=None) -> tuple[Feature, ...]:
-    """Every feature of ``part`` along ``directions`` (unit vectors; the six axes when omitted), in listing order:
-    by kind, then by the ordinal of the identifying face."""
-    directions = tuple(AXES.values()) if directions is None else tuple(unit(d) for d in directions)
-    holes = _holes(part, directions)
-    used = {_ordinal(ref) for hole in holes for ref in hole.refs}
-    floors: list[Feature] = []
-    for kind in ("pocket", "slot"):  # closed pockets claim their walls first: seen from the side, a wall is no slot
-        found = [feature for direction in directions for feature in _floors(part, direction, used, kind)]
-        used |= {_ordinal(ref) for feature in found for ref in feature.refs}
-        floors += found
-    faces = [feature for direction in directions for feature in _faces(part, direction, used)]
-    axes: list[Vec] = []
-    for direction in directions:
-        if not any(parallel(direction, axis) for axis in axes):
-            axes.append(direction)
-    if len(axes) > 1:  # an outline is cut along the part's thinnest axis
-        every = [face.ordinal for face in part.faces]
-        height = {axis: (lambda box: box[5] - box[4])(part.extent(every, axis)) for axis in axes}
-        axes = [axis for axis in axes if height[axis] <= min(height.values()) + LINEAR_TOL]
-    profiles = [feature for axis in axes for feature in _profiles(part, axis, directions, used)]
-    found = faces + holes + floors + profiles
-    order = sorted(range(len(found)), key=lambda i: (KINDS.index(found[i].kind), _ordinal(found[i].ref), i))
-    return tuple(found[i] for i in order)
-
-
-def _ordinal(ref: str) -> int:
-    return int(ref.rsplit(".f", 1)[1])
-
-
-def _clear_from(part: Part, ordinals, direction: Vec, *, offset: bool = False) -> bool:
-    """Every sample point of these faces sees out of the part along ``direction`` (from just off the face when
-    ``offset``, for a wall the ray would otherwise run along). A ray, so no tool width: see the module's docstring."""
-    for ordinal in ordinals:
-        samples = part.samples(ordinal)
-        if not samples:
-            return False
-        for point, normal in samples:
-            start = add(point, scale(normal, PROBE_MM)) if offset else point
-            if not part.clear(start, direction):
-                return False
-    return True
-
-
-def _across(part: Part, ordinals, direction: Vec) -> Vec:
-    """The in-plane direction a feature's length is measured along: its largest flat wall's, else the longest straight
-    edge of its largest flat face across ``direction``, else any perpendicular. So a part turned on the table
-    measures the same."""
-    by_size = sorted(ordinals, key=lambda o: (-part.face(o).area, o))
-    for ordinal in by_size:
-        face = part.face(ordinal)
-        if face.surface == "plane" and part.is_wall(ordinal, direction):
-            return unit(cross(direction, face.normal))
-    for ordinal in by_size:
-        face = part.face(ordinal)
-        if face.surface == "plane" and parallel(face.normal, direction):
-            line = part.longest_line(ordinal)
-            if line is not None and abs(dot(line, direction)) < 1e-6:
-                return unit(sub(line, scale(direction, dot(line, direction))))
-    return perpendicular(direction)
-
-
-def _footprint(part: Part, ordinals, direction: Vec, across_from=None) -> tuple[float, float]:
-    """Length and width of these faces across ``direction``, measured along and across :func:`_across`."""
-    across = _across(part, across_from if across_from is not None else ordinals, direction)
-    xmin, xmax, ymin, ymax = part.extent(ordinals, direction, across)[:4]
-    return xmax - xmin, ymax - ymin
-
-
-# --- holes ---------------------------------------------------------------------------------------------------
-
-def _on_line(a, b) -> bool:
-    """Two cylinders or cones on the same axis line."""
-    if not parallel(a.axis, b.axis):
-        return False
-    offset = sub(b.axis_point, a.axis_point)
-    across = sub(offset, scale(a.axis, dot(offset, a.axis)))
-    return math.sqrt(dot(across, across)) < LINEAR_TOL
-
-
-def _canonical(axis: Vec) -> Vec:
-    """The axis pointing its largest component positive, so a line has one direction whatever the faces say."""
-    biggest = max(range(3), key=lambda i: abs(axis[i]))
-    return axis if axis[biggest] > 0 else scale(axis, -1.0)
-
-
-@dataclass
-class _Run:
-    """Full-turn cylinder walls on one line and radius, joined end to end or across air. ``lo``/``hi`` are positions
-    along ``axis`` (``dot(point, axis)``); ``foot`` is the line's point at position 0."""
-
-    faces: list
-    axis: Vec
-    foot: Vec
-    radius: float
-    lo: float
-    hi: float
-    open_lo: bool = False
-    open_hi: bool = False
-
-    def at(self, t: float) -> Vec:
-        return add(self.foot, scale(self.axis, t))
-
-
-def _interval(face, axis: Vec) -> tuple[float, float]:
-    base = dot(face.axis_point, axis)
-    sense = dot(face.axis, axis)
-    ends = (base + face.v_range[0] * sense, base + face.v_range[1] * sense)
-    return min(ends), max(ends)
-
-
-def _holes(part: Part, directions) -> list[Feature]:
-    walls = [face for face in part.faces if face.surface == "cylinder" and face.concave]
-    lines: list[list] = []
-    for face in walls:
-        for line in lines:
-            if abs(line[0].radius - face.radius) <= LINEAR_TOL and _on_line(line[0], face):
-                line.append(face)
-                break
-        else:
-            lines.append([face])
-    runs: list[_Run] = []
-    for line in lines:
-        axis = _canonical(line[0].axis)
-        foot = sub(line[0].axis_point, scale(axis, dot(line[0].axis_point, axis)))
-        pieces = sorted(((*_interval(face, axis), face) for face in line), key=lambda p: (p[0], p[1], p[2].ordinal))
-        current: _Run | None = None
-        for lo, hi, face in pieces:
-            # Joined when they touch or overlap, or when the gap between them is air (a cross hole through the wall).
-            if current is not None and (lo <= current.hi + LINEAR_TOL
-                                        or not part.inside(add(foot, scale(axis, (current.hi + lo) / 2)))):
-                current.faces.append(face)
-                current.hi = max(current.hi, hi)
-                continue
-            current = _Run([face], axis, foot, line[0].radius, lo, hi)
-            runs.append(current)
-    holes = []
-    for run in runs:
-        if sum(face.span for face in run.faces) < _TURN - 1e-6:
-            continue  # part of a turn: an inside corner or a slot end, not a hole
-        run.open_hi = _opens(part, run, run.hi, run.axis)
-        run.open_lo = _opens(part, run, run.lo, scale(run.axis, -1.0))
-        if run.open_hi or run.open_lo:  # else a closed void: nothing can reach it
-            holes.append(run)
-    # A blind run on the line of a smaller one, with its floor at the smaller one's opening, is that hole's counterbore.
-    bores: dict[int, tuple[_Run, bool]] = {}
-    for hole in holes:
-        for bore in holes:
-            if bore is hole or bore.radius <= hole.radius + LINEAR_TOL or bore.open_lo == bore.open_hi \
-                    or not _on_line(bore.faces[0], hole.faces[0]):
-                continue
-            if hole.open_hi and not bore.open_lo and abs(bore.lo - hole.hi) < LINEAR_TOL:
-                bores.setdefault(id(hole), (bore, True))
-            elif hole.open_lo and not bore.open_hi and abs(bore.hi - hole.lo) < LINEAR_TOL:
-                bores.setdefault(id(hole), (bore, False))
-    taken = {id(bore) for bore, _ in bores.values()}
-    return [_hole(part, hole, bores.get(id(hole)), directions) for hole in holes if id(hole) not in taken]
-
-
-def _probes(run: _Run) -> list[Vec]:
-    """Offsets across the axis: the centre and four points near the wall."""
-    across = perpendicular(run.axis)
-    other = cross(run.axis, across)
-    return [(0.0, 0.0, 0.0)] + [add(scale(across, 0.9 * run.radius * math.cos(k * math.pi / 2)),
-                                     scale(other, 0.9 * run.radius * math.sin(k * math.pi / 2))) for k in range(4)]
-
-
-def _opens(part: Part, run: _Run, t: float, out: Vec) -> bool:
-    """The run's end at ``t`` opens outward along ``out``: just beyond it the centre and the points near the wall are
-    all in air, and a ray from each leaves the part. A counterbore's shoulder holds material; a drill point's cone
-    is air beyond the end but a ray meets the cone."""
-    beyond = add(run.at(t), scale(out, PROBE_MM))
-    points = [add(beyond, offset) for offset in _probes(run)]
-    return not any(part.inside(point) for point in points) and all(part.clear(point, out) for point in points)
-
-
-def _cones(part: Part, faces, run: _Run) -> list:
-    """Cone faces on the run's line next to these faces."""
-    seen = {face.ordinal for face in faces}
-    found = []
-    for face in faces:
-        for ordinal in part.neighbours(face.ordinal):
-            other = part.face(ordinal)
-            if ordinal not in seen and other.surface == "cone" and _on_line(other, run.faces[0]):
-                seen.add(ordinal)
-                found.append(other)
-    return found
-
-
-def _hole(part: Part, run: _Run, bore: tuple[_Run, bool] | None, directions) -> Feature:
-    axis = run.axis
-    walls = run.faces
-    refs = [face.ref for face in walls]
-    size: dict = {"diameter_mm": _num(2 * run.radius)}
-    extra: list[str] = []
-    # Where the hole opens on the part, at each open end: past a counterbore, then past a countersink.
-    outer = {True: run.hi, False: run.lo}
-    entry_faces = list(walls)
-    if bore is not None:
-        counterbore, high_side = bore
-        refs += [face.ref for face in counterbore.faces]
-        entry_faces += counterbore.faces
-        for ordinal in sorted({n for face in counterbore.faces for n in part.neighbours(face.ordinal)}):
-            shoulder = part.face(ordinal)
-            if shoulder.surface == "plane" and parallel(shoulder.normal, axis) and shoulder.ref not in refs and \
-                    abs(dot(shoulder.center, axis) - (counterbore.lo if high_side else counterbore.hi)) < LINEAR_TOL:
-                refs.append(shoulder.ref)
-        outer[high_side] = counterbore.hi if high_side else counterbore.lo
-        size["counterbore"] = {"diameter_mm": _num(2 * counterbore.radius), "depth_mm": _num(counterbore.hi - counterbore.lo)}
-        extra.append(f"cbore {_mm(2 * counterbore.radius)} x {_mm(counterbore.hi - counterbore.lo)}")
-    closed = None if (run.open_hi and run.open_lo) else (run.lo if run.open_hi else run.hi)
-    for cone in _cones(part, entry_faces, run):
-        low, high = part.extent([cone.ordinal], axis)[4:]
-        if closed is not None and (high <= closed + LINEAR_TOL if run.open_hi else low >= closed - LINEAR_TOL):
-            refs.append(cone.ref)
-            size["point_mm"] = _num(high - low)
-            extra.append(f"point {_mm(high - low)} mm")
-            continue
-        on_high = low >= run.hi - LINEAR_TOL
-        if not (run.open_hi if on_high else run.open_lo):
-            continue
-        refs.append(cone.ref)
-        outer[on_high] = max(outer[on_high], high) if on_high else min(outer[on_high], low)
-        diameter = _footprint(part, [cone.ordinal], axis)[0]
-        angle = math.degrees(2 * cone.half_angle)
-        size.setdefault("countersink", {"diameter_mm": _num(diameter), "angle_deg": _num(angle, 2)})
-        extra.append(f"csk {_mm(diameter)} x {_mm(angle)}")
-    if closed is not None:
-        for ordinal in sorted({n for face in walls for n in part.neighbours(face.ordinal)}):
-            floor = part.face(ordinal)
-            if floor.surface == "plane" and parallel(floor.normal, axis) and floor.ref not in refs and \
-                    abs(dot(floor.center, axis) - closed) < LINEAR_TOL:
-                refs.append(floor.ref)
-    through = closed is None
-    if through:
-        depth, low, high, toward = outer[True] - outer[False], run.at(outer[False]), run.at(outer[True]), axis
-    elif run.open_hi:
-        depth, low, high, toward = outer[True] - closed, run.at(closed), run.at(outer[True]), axis
-    else:
-        depth, low, high, toward = closed - outer[False], run.at(closed), run.at(outer[False]), scale(axis, -1.0)
-    reach = tuple(d for d in directions if (run.open_hi and same(d, axis)) or (run.open_lo and same(d, scale(axis, -1.0))))
-    size.update({"depth_mm": _num(depth), "through": through, "axis": _axis_word(axis)})
-    size = {key: size[key] for key in ("diameter_mm", "depth_mm", "through", "axis", "point_mm", "counterbore",
-                                       "countersink") if key in size}
-    hint = ", ".join([f"{_mm(2 * run.radius)} mm {'through' if through else 'blind'}", f"{_mm(depth)} mm deep",
-                      *extra, f"axis {_axis_text(axis)}", f"at {_at(high, axis)}"])
-    return Feature("hole", refs[0], tuple(refs), size, reach, toward, low, high, hint)
-
-
-# --- pockets and slots ---------------------------------------------------------------------------------------
-
-def _standing(part: Part, floor, seeds, direction: Vec, used: set[int]) -> set[int]:
-    """The walls standing on ``floor`` reached from ``seeds`` (faces rising from its edge): they reach down to it, or
-    to the top of a round between them and it. A wall whose foot is higher belongs to some other floor (a slot
-    crossing a step's wall)."""
-    level = dot(floor.center, direction)
-    foot = level + LINEAR_TOL + max([part.extent([r], direction)[5] - level for r in seeds
-                                     if not part.is_wall(r, direction)], default=0.0)
-    walls, queue = set(seeds), list(seeds)
-    while queue:
-        for other in part.neighbours(queue.pop()):
-            if other in walls or other == floor.ordinal or other in used or not part.is_wall(other, direction):
-                continue
-            if level - LINEAR_TOL <= part.extent([other], direction)[4] <= foot:
-                walls.add(other)
-                queue.append(other)
-    return walls
-
-
-def _rising(part: Part, level: float, ordinal: int, direction: Vec) -> bool:
-    low, high = part.extent([ordinal], direction)[4:]
-    return low >= level - LINEAR_TOL and high > level + LINEAR_TOL
-
-
-def _islands(part: Part, floor, direction: Vec, used: set[int]) -> list[list[int]]:
-    """The groups of walls standing on the floor's inner edges, one per island."""
-    level = dot(floor.center, direction)
-    inner = floor.edges - floor.outer_edges
-    seeds = [o for o in part.neighbours(floor.ordinal, inner) if o not in used and _rising(part, level, o, direction)]
-    walls = _standing(part, floor, seeds, direction, used) if seeds else set()
-    groups, remaining = [], set(walls)
-    for start in sorted(walls):
-        if start not in remaining:
-            continue
-        group, queue = [start], [start]
-        remaining.discard(start)
-        while queue:
-            for other in part.neighbours(queue.pop()):
-                if other in remaining:
-                    remaining.discard(other)
-                    group.append(other)
-                    queue.append(other)
-        groups.append(sorted(group))
-    return groups
-
-
-def _floors(part: Part, direction: Vec, used: set[int], kind: str) -> list[Feature]:
-    """The pockets (``kind`` "pocket") or the slots whose floors face ``direction``."""
-    found = []
-    for floor in part.faces:
-        if floor.surface != "plane" or floor.ordinal in used or not same(floor.normal, direction):
-            continue
-        level = dot(floor.center, direction)
-        rising, open_ = [], False
-        for other in part.neighbours(floor.ordinal, floor.outer_edges):
-            if _rising(part, level, other, direction):
-                rising.append(other)
-            else:
-                open_ = True
-        if not rising or open_ != (kind == "slot"):
-            continue
-        walls = sorted(_standing(part, floor, rising, direction, used))
-        depth = max(part.extent([w], direction)[5] for w in walls) - level
-        reach = (direction,) if _clear_from(part, [floor.ordinal], direction) else ()
-        refs = (floor.ref,) + tuple(part.face(w).ref for w in walls)
-        top = add(floor.center, scale(direction, depth))
-        corner = _inside_corner(part, walls, direction)
-        if not open_:
-            length, width = sorted(_footprint(part, [floor.ordinal, *walls], direction, walls), reverse=True)
-            islands = _islands(part, floor, direction, used | set(walls))
-            size = {"length_mm": _num(length), "width_mm": _num(width), "depth_mm": _num(depth),
-                    "corner_radius_mm": None if corner is None else _num(corner), "islands": []}
-            for island in islands:
-                island_length, island_width = sorted(_footprint(part, island, direction), reverse=True)
-                height = max(part.extent([w], direction)[5] for w in island) - level
-                size["islands"].append({"length_mm": _num(island_length), "width_mm": _num(island_width),
-                                        "height_mm": _num(height)})
-                refs += tuple(part.face(w).ref for w in island)
-            corners = ("sharp inside corners" if corner == 0 else f"R{_mm(corner)} inside corners") if corner is not None else ""
-            count = len(islands)
-            hint = ", ".join(filter(None, (f"{_mm(length)} x {_mm(width)} mm", f"{_mm(depth)} mm deep", corners,
-                                           f"{count} island{'s' if count > 1 else ''}" if count else "",
-                                           f"floor at {_level(floor.center, direction)}")))
-            found.append(Feature("pocket", floor.ref, refs, size, reach, direction, floor.center, top, hint))
-            continue
-        pair = _facing_walls(part, walls)
-        if pair is None:
-            continue  # a step: one wall, or walls that do not face: the floor is listed as a face
-        first, second = (part.face(o) for o in pair)
-        width = abs(dot(sub(first.center, second.center), first.normal))
-        along = unit(cross(first.normal, direction))
-        xmin, xmax = part.extent([floor.ordinal, *walls], direction, along)[:2]
-        size = {"width_mm": _num(width), "length_mm": _num(xmax - xmin), "depth_mm": _num(depth)}
-        if corner is not None:
-            size["corner_radius_mm"] = _num(corner)
-        hint = (f"{_mm(width)} mm wide, {_mm(xmax - xmin)} mm long, {_mm(depth)} mm deep, "
-                f"floor at {_level(floor.center, direction)}")
-        found.append(Feature("slot", floor.ref, refs, size, reach, direction, floor.center, top, hint))
-    return found
-
-
-def _air_side(part: Part, a: int, b: int) -> bool:
-    """Plane face ``a``'s centre lies on the air side of plane face ``b``."""
-    return dot(sub(part.face(a).center, part.face(b).center), part.face(b).normal) > LINEAR_TOL
-
-
-def _inside_corner(part: Part, walls, direction: Vec) -> float | None:
-    """The smallest inside corner round the walls: a concave cylinder's radius, 0 where two flat walls meet in a
-    sharp inside corner, ``None`` when the walls make no inside corner."""
-    radii = [part.face(w).radius for w in walls
-             if part.face(w).surface == "cylinder" and part.face(w).concave and parallel(part.face(w).axis, direction)]
-    planes = {w for w in walls if part.face(w).surface == "plane"}
-    for wall in planes:
-        for other in part.neighbours(wall):
-            if other in planes and _air_side(part, wall, other) and _air_side(part, other, wall):
-                return 0.0
-    return min(radii) if radii else None
-
-
-def _facing_walls(part: Part, walls) -> tuple[int, int] | None:
-    """The two largest flat walls that face each other across the floor, if any."""
-    planes = sorted((w for w in walls if part.face(w).surface == "plane"), key=lambda w: (-part.face(w).area, w))
-    for i, a in enumerate(planes):
-        for b in planes[i + 1:]:
-            if same(part.face(a).normal, scale(part.face(b).normal, -1.0)) and _air_side(part, a, b) and _air_side(part, b, a):
-                return (a, b)
+def axis_word(vector) -> str | None:
+    """``+Z``, ``-X``, ... when ``vector`` is within 5° of an axis, else ``None``."""
+    for name, axis in _AXES.items():
+        dot = sum(a * b for a, b in zip(vector, axis))
+        if dot > _COS5:
+            return f"+{name}"
+        if dot < -_COS5:
+            return f"-{name}"
     return None
 
 
-# --- faces and profiles --------------------------------------------------------------------------------------
+def _vec(vector) -> str:
+    return "(" + ", ".join(f"{v:.2f}" for v in vector) + ")"
 
-def _faces(part: Part, direction: Vec, used: set[int]) -> list[Feature]:
-    found = []
-    for face in part.faces:
-        if face.surface != "plane" or face.ordinal in used or not same(face.normal, direction):
+
+def holes(part) -> list[dict]:
+    """The part's holes: hole-wall cylinders grouped by axis line and radius, split at webs (:func:`_clusters`); a
+    wider coaxial cylinder stepped onto an open end is that hole's counterbore and a cone widening out of it its
+    countersink (both part of the hole, which opens where they open), a cone closing a blind end its drawn point."""
+    import numpy as np
+
+    groups: list[dict] = []
+    for info in part.faces.values():
+        if info.surface != "cylinder" or not info.hole:
             continue
-        length, width = sorted(_footprint(part, [face.ordinal], direction), reverse=True)
-        reach = (direction,) if _clear_from(part, [face.ordinal], direction) else ()
-        size = {"length_mm": _num(length), "width_mm": _num(width), "area_mm2": _num(face.area, 2)}
-        hint = f"flat {_mm(length)} x {_mm(width)} mm at {_level(face.center, direction)}"
-        found.append(Feature("face", face.ref, (face.ref,), size, reach, direction, face.center, face.center, hint))
+        d = np.asarray(info.axis, dtype=float)
+        p = np.asarray(info.axis_point, dtype=float)
+        for group in groups:
+            gd, gp = group["d"], group["p"]
+            if (abs(abs(float(gd @ d)) - 1.0) < 1e-6 and abs(group["r"] - info.radius_mm) < 1e-4
+                    and np.linalg.norm(np.cross(p - gp, gd)) < 1e-4):
+                group["faces"].append(info)
+                break
+        else:
+            groups.append({"d": d / np.linalg.norm(d), "p": p, "r": float(info.radius_mm), "faces": [info]})
+    triangles = np.asarray(part.triangles)
+    owners = np.asarray(part.face_of_triangle)
+    vertices = np.asarray(part.vertices)
+    touch = max(1e-3, 2.0 * float(getattr(part, "deflection_mm", 0.01)))
+    points = _FacePoints(part, triangles, owners, vertices)
+    runs = []
+    for group in groups:
+        d, p, r = group["d"], group["p"], group["r"]
+        side = np.cross(d, [1.0, 0.0, 0.0] if abs(d[0]) < 0.9 else [0.0, 1.0, 0.0])
+        side = side / np.linalg.norm(side)
+        # A hole's wall goes (nearly) all the way round its axis: a pocket's rounded corner, a fillet or a slot's
+        # end is a part of a cylinder, not a hole to drill.
+        if _wrap_deg(points, group["faces"], d, p, side) < HOLE_WRAP_DEG:
+            continue
+        for faces, t_low, t_high in _clusters(part, group["faces"], d, p, r, side, triangles, owners, vertices, touch):
+            runs.append(_run(part, faces, d, p, r, side, t_low, t_high))
+    runs = _counterbores(part, runs, points, touch)
+    out = []
+    for run in runs:
+        _cones(part, run, points, touch)
+        out.append(_hole(part, run, points, touch))
+    out.sort(key=lambda hole: int(hole["faces"][0].rsplit("f", 1)[1]))
+    return out
+
+
+#: How far round its axis a concave cylinder must wrap to be a hole (degrees): a coarse tessellation of a full hole
+#: still covers 300 and more; a pocket corner covers 90, a slot's end 180.
+HOLE_WRAP_DEG = 270.0
+
+
+def _wrap_deg(points, faces, d, p, side) -> float:
+    """How far round the axis ``d`` through ``p`` the cylinder faces ``faces`` reach (degrees): the circle less its
+    widest gap between their tessellation vertices."""
+    import numpy as np
+
+    other = np.cross(d, side)
+    xyz = [points.of(info.ordinal) for info in faces]
+    xyz = np.vstack([v for v in xyz if len(v)]) if any(len(v) for v in xyz) else np.zeros((0, 3))
+    if len(xyz) < 3:
+        return 0.0
+    rel = xyz - p
+    angles = np.sort(np.degrees(np.arctan2(rel @ other, rel @ side)) % 360.0)
+    gaps = np.diff(np.concatenate([angles, [angles[0] + 360.0]]))
+    return float(360.0 - gaps.max())
+
+
+class _FacePoints:
+    """Each face's tessellation vertices (part mm), gathered once."""
+
+    def __init__(self, part, triangles, owners, vertices):
+        import numpy as np
+
+        self.vertices = vertices
+        order = np.argsort(owners, kind="stable")
+        ordinals, starts = np.unique(owners[order], return_index=True)
+        bounds = list(starts[1:]) + [len(order)]
+        self._rows = {int(o): order[s:e] for o, s, e in zip(ordinals, starts, bounds)}
+        self._triangles = triangles
+        self._cache: dict = {}
+
+    def of(self, ordinal: int):
+        import numpy as np
+
+        if ordinal not in self._cache:
+            rows = self._rows.get(int(ordinal))
+            used = np.unique(self._triangles[rows]) if rows is not None else np.zeros(0, dtype=int)
+            self._cache[ordinal] = self.vertices[used]
+        return self._cache[ordinal]
+
+    def along(self, ordinal: int, run):
+        """The face's vertices as ``(t along the run's axis, distance from it)``."""
+        import numpy as np
+
+        rel = self.of(ordinal) - run.p
+        t = rel @ run.d
+        return t, np.linalg.norm(rel - np.outer(t, run.d), axis=1)
+
+
+class _Run:
+    """One hole being read: its wall faces on one axis line (``d`` a unit vector, ``p`` a point on it), its span
+    ``low..high`` along ``d``, which ends are open, and how far out each end opens on the part (``outer``: past a
+    counterbore or a countersink), with the faces, sizes and point that join it."""
+
+    def __init__(self, faces, d, p, r, side, low, high, open_low, open_high):
+        self.faces, self.d, self.p, self.r, self.side = list(faces), d, p, r, side
+        self.low, self.high, self.open_low, self.open_high = low, high, open_low, open_high
+        self.outer = {"low": low, "high": high}
+        #: The radius the hole has at each outer end (a counterbore's, else its own).
+        self.end_r = {"low": r, "high": r}
+        #: The ends a counterbore was folded into; the faces that joined the walls (counterbore, shoulder, cones).
+        self.bored: set[str] = set()
+        self.faces_extra: list[str] = []
+        self.cone_refs: list[str] = []
+        self.counterbore: dict | None = None
+        self.countersink: dict | None = None
+        self.point_mm = 0.0
+
+    def t(self, point) -> float:
+        import numpy as np
+
+        return float((np.asarray(point, dtype=float) - self.p) @ self.d)
+
+    def coaxial(self, d, p) -> bool:
+        import numpy as np
+
+        return abs(abs(float(self.d @ d)) - 1.0) < 1e-6 and float(np.linalg.norm(np.cross(p - self.p, self.d))) < 1e-3
+
+
+def _run(part, faces, d, p, r, side, t_low, t_high) -> _Run:
+    """Whether each end is open, asked of the exact solid."""
+    import numpy as np
+
+    # Off the axis at 0.7 r and 0.3 r beyond each end: a drill point's cone is air on the axis but material there.
+    offset = side * 0.7 * r
+    reach = max(0.05, 0.3 * r)
+    probes = np.array([p + d * (t_high + reach) + offset, p + d * (t_low - reach) + offset])
+    closed_high, closed_low = (bool(v) for v in part.classify(probes))
+    return _Run(faces, d, p, r, side, t_low, t_high, not closed_low, not closed_high)
+
+
+def _counterbores(part, runs: list[_Run], points: _FacePoints, touch: float) -> list[_Run]:
+    """Fold each counterbore into the hole under it: a wider cylinder on the hole's line whose one end sits on the
+    hole's open end, with material (the shoulder) round the hole there, and whose other end opens on the part."""
+    import numpy as np
+
+    taken: set[int] = set()
+    for k, hole in sorted(enumerate(runs), key=lambda item: item[1].r):
+        if k in taken:
+            continue
+        for j, bore in enumerate(runs):
+            if j == k or j in taken or bore.r <= hole.r + 1e-4 or not hole.coaxial(bore.d, bore.p):
+                continue
+            ends = sorted(((hole.t(bore.p + bore.d * bore.low), bore.open_low),
+                           (hole.t(bore.p + bore.d * bore.high), bore.open_high)))
+            (b_lo, open_lo), (b_hi, open_hi) = ends
+            for name in ("high", "low"):
+                if name in hole.bored:
+                    continue
+                if name == "high":
+                    step, far, far_open, inside = hole.high, b_hi, open_hi, -1.0
+                    near = b_lo
+                    hole_open = hole.open_high
+                else:
+                    step, far, far_open, inside = hole.low, b_lo, open_lo, 1.0
+                    near = b_hi
+                    hole_open = hole.open_low
+                if not (hole_open and far_open and abs(near - step) < touch):
+                    continue
+                # The shoulder: material round the hole just inside the step.
+                depth = min(0.5, 0.3 * (hole.high - hole.low))
+                probe = hole.p + hole.d * (step + inside * depth) + hole.side * 0.5 * (hole.r + bore.r)
+                if not bool(part.classify(np.asarray([probe]))[0]):
+                    continue
+                taken.add(j)
+                hole.bored.add(name)
+                hole.outer[name] = far
+                hole.end_r[name] = bore.r
+                hole.counterbore = {"diameter_mm": round(2 * bore.r, 4), "depth_mm": round(abs(far - near), 4)}
+                hole.faces_extra += [info.ref for info in sorted(bore.faces, key=lambda info: info.ordinal)]
+                hole.faces_extra += _flats(part, hole, points, step, bore.r, touch)
+                break
+    return [run for k, run in enumerate(runs) if k not in taken]
+
+
+def _flats(part, run: _Run, points: _FacePoints, at: float, radius: float, touch: float) -> list[str]:
+    """The flat faces square to the run's axis at ``at`` and within ``radius`` of it (a shoulder, a floor)."""
+    import numpy as np
+
+    found = []
+    for ordinal, info in sorted(part.faces.items()):
+        if info.surface != "plane" or info.normal is None:
+            continue
+        if abs(abs(float(np.asarray(info.normal) @ run.d)) - 1.0) > 1e-6:
+            continue
+        if abs(run.t(info.center_mm) - at) > touch:
+            continue
+        _, radial = points.along(ordinal, run)
+        if len(radial) and float(radial.max()) <= radius + touch:
+            found.append(info.ref)
     return found
 
 
-def _profiles(part: Part, axis: Vec, directions, used: set[int]) -> list[Feature]:
-    outside = [face.ordinal for face in part.faces
-               if face.ordinal not in used and part.is_wall(face.ordinal, axis)
-               and any(part.clear(add(p, scale(n, PROBE_MM)), n) for p, n in part.samples(face.ordinal))]
-    remaining, found = set(outside), []
-    for start in outside:
-        if start not in remaining:
+def _cones(part, run: _Run, points: _FacePoints, touch: float) -> None:
+    """A cone on the run's line at an open end widening outward (a countersink: the hole opens at its top) or at a
+    closed end narrowing inward (a drawn drill point: ``point_mm`` its length)."""
+    import numpy as np
+
+    for ordinal, info in sorted(part.faces.items()):
+        if info.surface != "cone" or info.axis is None:
             continue
-        component, queue = {start}, [start]
-        remaining.discard(start)
-        while queue:
-            for other in part.neighbours(queue.pop()):
-                if other in remaining:
-                    remaining.discard(other)
-                    component.add(other)
-                    queue.append(other)
-        members = sorted(component, key=lambda o: (-part.face(o).area, o))
-        across = _across(part, members, axis)
-        xmin, xmax, ymin, ymax, zmin, zmax = part.extent(members, axis, across)
-        if min(xmax - xmin, ymax - ymin) <= 10 * LINEAR_TOL:
-            continue  # no ring round the axis: a single flat (an island's top seen edge on), not an outline
-        side = cross(axis, across)
-        middle = add(scale(across, (xmin + xmax) / 2), scale(side, (ymin + ymax) / 2))
-        low, high = add(middle, scale(axis, zmin)), add(middle, scale(axis, zmax))
-        length, width = sorted((xmax - xmin, ymax - ymin), reverse=True)
-        reach = tuple(d for d in directions if parallel(d, axis) and _clear_from(part, members, d, offset=True))
-        size = {"length_mm": _num(length), "width_mm": _num(width), "height_mm": _num(zmax - zmin),
-                "axis": _axis_word(axis)}
-        hint = f"outline {_mm(length)} x {_mm(width)} mm, {_mm(zmax - zmin)} mm tall along {_axis_text(axis)}"
-        refs = tuple(part.face(o).ref for o in members)
-        found.append(Feature("profile", refs[0], refs, size, reach, axis, low, high, hint))
-    return found
-
-
-# --- setups --------------------------------------------------------------------------------------------------
-
-@dataclass(frozen=True)
-class SetupFeature:
-    """A feature as one setup sees it, in the setup's frame: ``top`` where the tool enters it, ``bottom`` the
-    deepest point it machines to (the same point for a face)."""
-
-    feature: Feature
-    top: Vec
-    bottom: Vec
-
-    @property
-    def depth(self) -> float:
-        return self.top[2] - self.bottom[2]
-
-
-def features_in_frame(part: Part, setup: "SetupFrame", features=None) -> tuple[SetupFeature, ...]:
-    """The features a setup's tool reaches (along ``setup.direction``), in the setup's frame. ``features`` defaults to
-    recognizing the part along that one direction."""
-    direction = tuple(float(c) for c in setup.direction)
-    features = recognize(part, (direction,)) if features is None else features
-    found = []
-    for feature in features:
-        if not any(same(d, direction) for d in feature.reach):
+        if not run.coaxial(np.asarray(info.axis, dtype=float), np.asarray(info.axis_point, dtype=float)):
             continue
-        a, b = (tuple(float(c) for c in point) for point in setup.frame.point_to_setup([feature.low, feature.high]))
-        top, bottom = (a, b) if a[2] >= b[2] else (b, a)
-        found.append(SetupFeature(feature, top, bottom))
-    return tuple(found)
+        t, radial = points.along(ordinal, run)
+        if not len(t):
+            continue
+        c_lo, c_hi = float(t.min()), float(t.max())
+        r_lo = float(radial[t <= c_lo + touch].mean())
+        r_hi = float(radial[t >= c_hi - touch].mean())
+        fit = max(0.05, 4 * touch)
+        for name, sign in (("high", 1.0), ("low", -1.0)):
+            near, far, r_near, r_far = (c_lo, c_hi, r_lo, r_hi) if sign > 0 else (c_hi, c_lo, r_hi, r_lo)
+            is_open = run.open_high if name == "high" else run.open_low
+            if is_open:
+                if abs(near - run.outer[name]) > touch or abs(r_near - run.end_r[name]) > fit or r_far <= r_near:
+                    continue
+                if run.countersink is None:
+                    from OCP.BRepAdaptor import BRepAdaptor_Surface
+
+                    angle = 2.0 * math.degrees(abs(BRepAdaptor_Surface(part.ocp_face(ordinal)).Cone().SemiAngle()))
+                    run.countersink = {"diameter_mm": round(2 * r_far, 4), "angle_deg": round(angle, 2)}
+                run.outer[name] = far
+                run.end_r[name] = r_far
+                run.cone_refs.append(info.ref)
+                break
+            end = run.high if name == "high" else run.low
+            if abs(near - end) <= touch and abs(r_near - run.r) <= fit and r_far < r_near:
+                run.point_mm = max(run.point_mm, abs(far - near))
+                run.cone_refs.append(info.ref)
+                break
 
 
-def feature_for(features, ref: str, kinds=KINDS) -> Feature | None:
-    """The feature a selector names: the one it identifies, else the first of ``kinds`` it is part of."""
-    candidates = [f for f in features if f.kind in kinds and ref in f.refs]
-    named = [f for f in candidates if f.ref == ref]
-    return (named or candidates or [None])[0]
+def _rays_clear(part, origins, direction) -> bool:
+    """No ray from ``origins`` along ``direction`` meets the part (its tessellation): the way out is clear."""
+    import numpy as np
+
+    d = np.asarray(direction, dtype=float)
+    d = d / np.linalg.norm(d)
+    u = np.cross(d, [1.0, 0.0, 0.0] if abs(d[0]) < 0.9 else [0.0, 1.0, 0.0])
+    u = u / np.linalg.norm(u)
+    w = np.cross(d, u)
+    vertices = np.asarray(part.vertices)
+    flat = np.column_stack([vertices @ u, vertices @ w, vertices @ d])
+    tri = flat[np.asarray(part.triangles)]                      # (T, 3, 3): u, w, along
+    origins = np.asarray(origins, dtype=float)
+    o = np.column_stack([origins @ u, origins @ w, origins @ d])
+    lo, hi = tri[:, :, :2].min(axis=1), tri[:, :, :2].max(axis=1)
+    near = ((lo[:, 0] <= o[:, 0].max() + 1e-9) & (hi[:, 0] >= o[:, 0].min() - 1e-9)
+            & (lo[:, 1] <= o[:, 1].max() + 1e-9) & (hi[:, 1] >= o[:, 1].min() - 1e-9)
+            & (tri[:, :, 2].max(axis=1) > o[:, 2].min()))
+    tri = tri[near]
+    if not len(tri):
+        return True
+    a, b, c = tri[:, 0], tri[:, 1], tri[:, 2]
+    det = (b[:, 0] - a[:, 0]) * (c[:, 1] - a[:, 1]) - (b[:, 1] - a[:, 1]) * (c[:, 0] - a[:, 0])
+    keep = np.abs(det) > 1e-12
+    a, b, c, det = a[keep], b[keep], c[keep], det[keep]
+    for x, y, z in o:
+        w1 = ((x - a[:, 0]) * (c[:, 1] - a[:, 1]) - (y - a[:, 1]) * (c[:, 0] - a[:, 0])) / det
+        w2 = ((b[:, 0] - a[:, 0]) * (y - a[:, 1]) - (b[:, 1] - a[:, 1]) * (x - a[:, 0])) / det
+        inside = (w1 >= -1e-9) & (w2 >= -1e-9) & (w1 + w2 <= 1 + 1e-9)
+        at = a[:, 2] + w1 * (b[:, 2] - a[:, 2]) + w2 * (c[:, 2] - a[:, 2])
+        if bool(np.any(inside & (at > z + 1e-6))):
+            return False
+    return True
+
+
+def direction_word(vector) -> str:
+    """``+Z`` for a vector within 5° of an axis, else the vector to two places."""
+    return axis_word(vector) or _vec(vector)
+
+
+def _clusters(part, faces, d, p, r, side, triangles, owners, vertices, touch):
+    """One axis-and-radius group split into holes, ``[(faces, t_low, t_high)]`` along the axis: faces whose spans
+    touch are one hole (a split cylinder), and so are spans with air between them (a slot or a cavity the hole
+    crosses); material between two spans (a web) makes two holes, so blind holes from both sides of a wall are
+    never read as one through hole. The gap is judged at its middle, on the axis and at 0.7 r round it."""
+    import numpy as np
+
+    spans = []
+    for info in faces:
+        used = np.unique(triangles[owners == info.ordinal])
+        t = (vertices[used] - p) @ d
+        spans.append((float(t.min()), float(t.max()), info))
+    spans.sort(key=lambda span: span[0])
+    across = np.cross(d, side)
+    clusters: list[list] = []
+    for low, high, info in spans:
+        if clusters and low > clusters[-1][2] + touch:
+            centre = p + d * (0.5 * (clusters[-1][2] + low))
+            probes = [centre] + [centre + sign * 0.7 * r * axis for axis in (side, across) for sign in (1.0, -1.0)]
+            if bool(np.any(part.classify(np.asarray(probes)))):
+                clusters.append([[info], low, high])
+                continue
+        if clusters:
+            clusters[-1][0].append(info)
+            clusters[-1][2] = max(clusters[-1][2], high)
+        else:
+            clusters.append([[info], low, high])
+    return [(cluster[0], cluster[1], cluster[2]) for cluster in clusters]
+
+
+def _hole(part, run: _Run, points: _FacePoints, touch: float) -> dict:
+    """One hole's entry, its axis pointing out of the opening, its opening where it opens on the part (the top of
+    its counterbore or countersink); ``reach`` the ways out of its open ends that no part of the part covers."""
+    import numpy as np
+
+    d, p, r = run.d, run.p, run.r
+    through = run.open_low and run.open_high
+    if through:
+        # Point the axis the way a tool comes in: toward +Z, else +X, else +Y.
+        reference = np.asarray(_AXES["Z"])
+        for axis in (_AXES["Z"], _AXES["X"], _AXES["Y"]):
+            if abs(float(np.asarray(axis) @ d)) > 1e-6:
+                reference = np.asarray(axis)
+                break
+        direction = d if float(reference @ d) > 0 else -d
+    else:
+        direction = d if run.open_high else -d
+    up = float(direction @ d) > 0
+    opening_t = run.outer["high"] if up else run.outer["low"]
+    if through:
+        bottom_t = run.outer["low"] if up else run.outer["high"]
+    else:
+        bottom_t = run.low if up else run.high
+    opening = p + d * opening_t
+    bottom = p + d * bottom_t
+    depth = abs(opening_t - bottom_t)
+    word = direction_word(direction)
+    # A ray out of each open end, from just past it on the axis and at 0.7 r round it: the part may stand over it
+    # (a roof over the floor it opens in), and then no tool comes in along the axis from that side.
+    across = np.cross(d, run.side)
+    reach = []
+    for name, out in (("high", d), ("low", -d)):
+        if not (run.open_high if name == "high" else run.open_low):
+            continue
+        start = p + d * run.outer[name] + out * max(0.05, 0.3 * r)
+        origins = [start] + [start + sign * 0.7 * r * axis for axis in (run.side, across) for sign in (1.0, -1.0)]
+        if _rays_clear(part, origins, out):
+            reach.append(direction_word(out))
+    refs = [info.ref for info in sorted(run.faces, key=lambda info: info.ordinal)]
+    refs += run.faces_extra + run.cone_refs
+    if not through:
+        refs += [ref for ref in _flats(part, run, points, bottom_t, r, touch) if ref not in refs]
+    entry = {
+        "faces": refs, "diameter_mm": round(2 * r, 4), "depth_mm": round(depth, 4),
+        "axis": [round(float(v), 6) + 0.0 for v in direction], "axis_word": word,
+        "center_mm": [round(float(v), 4) + 0.0 for v in opening],
+        "bottom_mm": [round(float(v), 4) + 0.0 for v in bottom], "through": through, "reach": reach,
+    }
+    extra = []
+    if run.counterbore:
+        entry["counterbore"] = run.counterbore
+        extra.append(f"counterbore Ø{_g(run.counterbore['diameter_mm'])} x {_g(run.counterbore['depth_mm'])}")
+    if run.countersink:
+        entry["countersink"] = run.countersink
+        extra.append(f"countersink Ø{_g(run.countersink['diameter_mm'])} x {_g(run.countersink['angle_deg'])}°")
+    if run.point_mm > 0 and not through:
+        entry["point_mm"] = round(run.point_mm, 4)
+        extra.append(f"drill point {_g(run.point_mm)} long")
+    reading = (f"Ø{_g(2 * r)} x {_g(depth)} {'through' if through else 'deep, blind'} along {word} "
+               f"at {_vec(opening).replace('.00', '')}")
+    if extra:
+        reading += ", " + ", ".join(extra)
+    if not reach:
+        reading += "; the part covers its opening along its axis, so no tool reaches it from there"
+    elif through and len(reach) == 1:
+        reading += f"; reached from {reach[0]} only (the part covers its other end)"
+    entry["reading"] = reading
+    return entry
+
+
+def _pocket(part, ordinal: int, z: float) -> dict | None:
+    """The walls around a +Z floor below the top, their height, and the islands inside it."""
+    from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_WIRE
+    from OCP.TopExp import TopExp, TopExp_Explorer
+    from OCP.TopTools import TopTools_IndexedDataMapOfShapeListOfShape
+
+    shape = part.shape.wrapped
+    ancestors = TopTools_IndexedDataMapOfShapeListOfShape()
+    TopExp.MapShapesAndAncestors_s(shape, TopAbs_EDGE, TopAbs_FACE, ancestors)
+    floor = part.ocp_face(ordinal)
+    walls: set[int] = set()
+    explorer = TopExp_Explorer(floor, TopAbs_EDGE)
+    while explorer.More():
+        faces = ancestors.FindFromKey(explorer.Current())
+        for neighbour in faces:
+            index = part._face_map.FindIndex(neighbour)
+            if index and index != ordinal:
+                info = part.faces[index]
+                vertical = (info.normal is not None and abs(info.normal[2]) < 0.1) or (
+                    info.axis is not None and axis_word(info.axis) in ("+Z", "-Z"))
+                if vertical and info.bounds and info.bounds[1][2] > z + 1e-6:
+                    walls.add(index)
+        explorer.Next()
+    if not walls:
+        return None
+    # An inner wire is an island when the faces along it rise above the floor; a deeper step's walls go down.
+    from OCP.BRepTools import BRepTools
+
+    outer = BRepTools.OuterWire_s(floor)
+    islands = 0
+    wires = TopExp_Explorer(floor, TopAbs_WIRE)
+    while wires.More():
+        wire = wires.Current()
+        if not wire.IsSame(outer):
+            edges = TopExp_Explorer(wire, TopAbs_EDGE)
+            rises = False
+            while edges.More() and not rises:
+                for neighbour in ancestors.FindFromKey(edges.Current()):
+                    index = part._face_map.FindIndex(neighbour)
+                    bounds = part.faces[index].bounds if index and index != ordinal else None
+                    rises = rises or bool(bounds and bounds[1][2] > z + 1e-6)
+                edges.Next()
+            islands += rises
+        wires.Next()
+    top = max(part.faces[w].bounds[1][2] for w in walls)
+    return {"walls": [part.faces[w].ref for w in sorted(walls)], "depth_mm": round(top - z, 4),
+            "islands": islands}
+
+
+def read_features(part) -> dict:
+    import numpy as np
+
+    if part.kind == "dxf":
+        return {"faces": [], "holes": [], "floors": [], "profiles": _profiles(part)}
+    low, high = (np.asarray(v) for v in part.bbox)
+    faces, floors = [], []
+    found = holes(part)
+    in_hole = {ref for hole in found for ref in hole["faces"]}
+    for ordinal, info in sorted(part.faces.items()):
+        entry = {"ref": info.ref, "surface": info.surface, "area_mm2": round(info.area_mm2, 3),
+                 "center_mm": [round(v, 4) + 0.0 for v in info.center_mm]}
+        if info.surface == "plane":
+            entry["normal"] = list(info.normal)
+            word = axis_word(info.normal)
+            if word:
+                index = "XYZ".index(word[1])
+                at = info.center_mm[index]
+                entry[f"{word[1].lower()}_mm"] = round(at, 4) + 0.0
+                if word[1] == "Z":
+                    if word[0] == "+":
+                        kind = "top" if abs(at - high[2]) < 1e-3 else "floor"
+                    else:
+                        kind = "bottom" if abs(at - low[2]) < 1e-3 else "underside"
+                    floor = {"ref": info.ref, "z_mm": round(at, 4) + 0.0, "normal": word, "kind": kind,
+                             "area_mm2": round(info.area_mm2, 3)}
+                    reading = f"flat {kind} at Z {_g(at)}, facing {word}"
+                    if kind == "floor":
+                        pocket = _pocket(part, ordinal, at)
+                        if pocket:
+                            floor["pocket"] = pocket
+                            islands = pocket["islands"]
+                            reading += (f" (a pocket floor {_g(pocket['depth_mm'])} mm down"
+                                        + (f", {islands} island{'s' if islands > 1 else ''}" if islands else "") + ")")
+                    floors.append(floor)
+                else:
+                    reading = f"flat wall at {word[1]} {_g(at)}, facing {word}"
+            else:
+                reading = f"flat, tilted, facing {_vec(info.normal)}"
+        elif info.surface == "cylinder":
+            word = axis_word(info.axis) or _vec(info.axis)
+            hole = bool(info.hole) and info.ref in in_hole
+            entry.update({"axis": list(info.axis), "diameter_mm": round(2 * info.radius_mm, 4), "hole": hole})
+            along = word.lstrip("+-")
+            if hole:
+                reading = f"hole wall Ø{_g(2 * info.radius_mm)} along {along}"
+            elif info.hole:
+                reading = (f"rounded corner R{_g(info.radius_mm)} along {along} (a fillet or a pocket's corner, not "
+                           "a hole)")
+            else:
+                reading = f"round wall Ø{_g(2 * info.radius_mm)} along {along} (outside)"
+        elif info.surface == "cone":
+            word = axis_word(info.axis) or _vec(info.axis)
+            entry["axis"] = list(info.axis)
+            reading = f"cone along {word.lstrip('+-')} (a chamfer, countersink or drill point)"
+        else:
+            reading = f"curved ({info.surface})"
+        entry["reading"] = f"{reading}, {_g(info.area_mm2, 1)} mm²"
+        faces.append(entry)
+    return {"faces": faces, "holes": found, "floors": floors, "profiles": []}
+
+
+def _profiles(part) -> list[dict]:
+    import numpy as np
+
+    out = []
+    for index, polygon in enumerate(part.profiles):
+        x0, y0, x1, y1 = polygon.bounds
+        hole_list = []
+        for ring in polygon.interiors:
+            coords = np.asarray(ring.coords)[:-1]
+            centre = coords.mean(axis=0)
+            radii = np.linalg.norm(coords - centre, axis=1)
+            round_ = len(coords) >= 8 and float(radii.max() - radii.min()) <= max(0.02, 0.01 * radii.mean())
+            hole_list.append({"center_mm": [round(float(v), 4) for v in centre],
+                              "diameter_mm": round(2 * float(radii.mean()), 4) if round_ else None})
+        sizes = [h["diameter_mm"] for h in hole_list if h["diameter_mm"]]
+        reading = f"outline {_g(x1 - x0)} x {_g(y1 - y0)} mm, {_g(polygon.area, 1)} mm²"
+        if hole_list:
+            reading += f", {len(hole_list)} hole{'s' if len(hole_list) > 1 else ''}"
+            if sizes:
+                reading += " (" + ", ".join(f"Ø{_g(s)}" for s in sorted(set(sizes))) + ")"
+        out.append({"index": index, "area_mm2": round(polygon.area, 3),
+                    "bounds_mm": [round(v, 4) for v in (x0, y0, x1, y1)], "holes": hole_list, "reading": reading})
+    return out

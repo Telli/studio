@@ -1,95 +1,119 @@
-"""Every post (G-code dialect) ``cadgen cam`` knows, by name: the phase it is built in, the machines it writes for,
-and the fewest axes those machines have (a 5-axis post writes rotary moves a 3-axis machine has no axis for).
+"""Every controller ``cadgen cam`` posts for, by name: built, or registered as planned (spec section 7).
 
-A job must name its post: a wrong post can crash a machine, so cadgen never guesses one. A post is built when its
-module defines its class (``posts/grbl.py`` defining ``GrblPost``): marking one built is writing that class, nothing
-here changes. Until then :func:`get_post` refuses it in a sentence naming its phase, as an unbuilt operation is
-refused. Stdlib only: the post modules import lazily.
+Each entry names its module (``posts/<name>.py``) and class, the machine kinds it serves and the posted file's
+extension. The job's ``machine.post`` is checked against this table before anything is planned (a post that does not
+serve the machine's kind is a teaching error), and :func:`get_post` refuses a registered post whose module is not in
+this cadgen in one sentence. Stdlib only: the modules import lazily.
 """
 
 from __future__ import annotations
 
+import difflib
 import importlib
+import importlib.util
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
 
-from cadgen._internal.cam.values import json_text
+from cadgen._internal.cam.job_errors import CamJobError, shown
 
-__all__ = ["POST_NAMES", "PostEntry", "REGISTRY", "built", "get_post"]
+if TYPE_CHECKING:
+    from cadgen._internal.cam.posts.base import Post
+
+__all__ = ["DEFAULT_POST", "Entry", "POST_NAMES", "REGISTRY", "available", "built", "entry_for", "get_post", "option_default",
+           "option_keys", "parse_options"]
 
 _PACKAGE = "cadgen._internal.cam.posts"
 
 
 @dataclass(frozen=True)
-class PostEntry:
+class Entry:
     name: str
-    phase: int
-    kinds: tuple[str, ...]      # the machine kinds it writes for
-    fewest_axes: int            # 5 for a 5-axis post
-    module: str                 # "cadgen._internal.cam.posts.grbl"
-    cls: str                    # "GrblPost"
+    module: str
+    cls: str
+    kinds: tuple[str, ...]
+    extension: str       # ".nc", with the dot
+    plain: str
 
 
-def _entry(name: str, phase: int, kinds: tuple[str, ...], fewest_axes: int = 2) -> PostEntry:
-    cls = "".join(part[:1].upper() + part[1:] for part in name.split("_")) + "Post"
-    return PostEntry(name, phase, kinds, fewest_axes, f"{_PACKAGE}.{name}", cls)
+def _entry(name: str, cls: str, kinds: tuple[str, ...], extension: str, plain: str) -> Entry:
+    return Entry(name, f"{_PACKAGE}.{name}", cls, kinds, extension, plain)
 
 
-REGISTRY: dict[str, PostEntry] = {entry.name: entry for entry in (
-    # Phase 1: mills and routers.
-    _entry("grbl", 1, ("mill", "router")),
-    _entry("linuxcnc", 1, ("mill", "router")),
-    _entry("fanuc", 1, ("mill", "router")),
-    _entry("haas", 1, ("mill",)),
-    _entry("mach3", 1, ("mill", "router")),
-    # Phase 3: lathes, cutting and EDM.
-    _entry("fanuc_lathe", 3, ("lathe",)),
-    _entry("linuxcnc_lathe", 3, ("lathe",)),
-    _entry("grbl_laser", 3, ("laser",)),
-    _entry("linuxcnc_plasma", 3, ("plasma",)),
-    _entry("waterjet", 3, ("waterjet",)),
-    _entry("fanuc_wire", 3, ("wire_edm",)),
-    _entry("sinker_iso", 3, ("sinker_edm",)),
-    # Phase 4: 5-axis, with tool centre point control, and 3+2 through G68.2.
-    _entry("linuxcnc_5x", 4, ("mill",), 5),
-    _entry("fanuc_5x", 4, ("mill",), 5),
-    _entry("haas_umc", 4, ("mill",), 5),
-    _entry("fanuc_g68_2", 4, ("mill",), 5),
+REGISTRY: dict[str, Entry] = {entry.name: entry for entry in (
+    _entry("grbl", "GrblPost", ("mill", "router", "laser"), ".nc", "GRBL 1.1"),
+    _entry("linuxcnc", "LinuxCncPost", ("mill", "mill4", "mill5", "lathe"), ".ngc", "LinuxCNC"),
+    _entry("fanuc", "FanucPost", ("mill", "mill4", "mill5", "lathe"), ".nc", "Fanuc"),
+    _entry("haas", "HaasPost", ("mill", "mill4", "mill5", "lathe"), ".nc", "Haas"),
+    _entry("mach3", "Mach3Post", ("mill", "mill4", "router", "plasma"), ".tap", "Mach3/Mach4"),
+    _entry("marlin", "MarlinPost", ("laser",), ".gcode", "Marlin laser"),
+    _entry("plasma", "PlasmaPost", ("plasma",), ".nc", "Plasma (THC)"),
+    _entry("waterjet", "WaterjetPost", ("waterjet",), ".nc", "Waterjet"),
+    _entry("wire_edm", "WireEdmPost", ("wire_edm",), ".nc", "Wire EDM (Fanuc-style)"),
 )}
-POST_NAMES: tuple[str, ...] = tuple(REGISTRY)
 
-_INSTANCES: dict[PostEntry, Any] = {}
+POST_NAMES = tuple(REGISTRY)
 
-
-def _cls(entry: PostEntry):
-    """The entry's class, or ``None`` while its module does not define it."""
-    try:
-        module = importlib.import_module(entry.module)
-    except ModuleNotFoundError as exc:
-        if exc.name == entry.module:
-            return None
-        raise
-    return getattr(module, entry.cls, None)
+#: The post a job gets when neither its machine nor its machine's model names one: the dialect most machines of the
+#: kind read (``machines.GENERIC`` says why for each, and the plan lists it as assumed).
+DEFAULT_POST = {"mill": "fanuc", "mill4": "fanuc", "mill5": "fanuc", "lathe": "fanuc", "router": "grbl",
+                "laser": "grbl", "plasma": "plasma", "waterjet": "waterjet", "wire_edm": "wire_edm"}
 
 
-def built(kind: str | None = None, axes: int | None = None) -> tuple[str, ...]:
-    """The posts this cadgen has built, in registry order; only those for ``kind`` with ``axes`` when given."""
-    return tuple(name for name, entry in REGISTRY.items()
-                 if (kind is None or kind in entry.kinds) and (axes is None or entry.fewest_axes <= axes)
-                 and _cls(entry) is not None)
+def available(name: str) -> bool:
+    entry = REGISTRY.get(name)
+    return entry is not None and importlib.util.find_spec(entry.module) is not None
 
 
-def get_post(name: str):
-    """The post's instance. An unknown name, or one not built yet: ValueError in a sentence, never ImportError."""
+def built() -> tuple[str, ...]:
+    return tuple(name for name in POST_NAMES if available(name))
+
+
+def entry_for(name: object, kind: str, where: str = "machine.post") -> Entry:
+    """The entry for ``name`` when it serves machine ``kind``, else the teaching error."""
+    if not isinstance(name, str) or name not in REGISTRY:
+        close = difflib.get_close_matches(name, POST_NAMES, n=1) if isinstance(name, str) else []
+        hint = f" (did you mean '{close[0]}'?)" if close else ""
+        raise CamJobError(f"{where}: unknown post {shown(name)}{hint}; the posts are {', '.join(POST_NAMES)}")
+    entry = REGISTRY[name]
+    if kind not in entry.kinds:
+        serving = [post for post, e in REGISTRY.items() if kind in e.kinds]
+        raise CamJobError(f"{where}: the {name} post does not serve a {kind}; it serves {', '.join(entry.kinds)}. "
+                          f"For a {kind} use {', '.join(serving)}")
+    return entry
+
+
+def _post_class(name: object):
     entry = REGISTRY.get(name) if isinstance(name, str) else None
-    if entry in _INSTANCES:
-        return _INSTANCES[entry]
-    if entry is None:
-        raise ValueError(f"post: {json_text(name)} is not a post cadgen knows; built today: {', '.join(built()) or 'none yet'}")
-    cls = _cls(entry)
-    if cls is None:
-        raise ValueError(f"post: {json_text(name)} is phase {entry.phase}, not built yet; "
-                         f"built today: {', '.join(built()) or 'none yet'}")
-    instance = cls()
-    _INSTANCES[entry] = instance
-    return instance
+    if entry is None or not available(name):
+        return None
+    return getattr(importlib.import_module(entry.module), entry.cls)
+
+
+def option_default(name: str, key: str):
+    """Post ``name``'s own default for its machine key ``key`` (grbl's ``spindle_spinup_s``), or None."""
+    cls = _post_class(name)
+    spec = cls.options.get(key) if cls is not None else None
+    return spec.get("default") if isinstance(spec, dict) else None
+
+
+def option_keys(machine: dict) -> tuple[str, ...]:
+    """The machine keys the job's post takes beyond the shared ones (``machine.cycles``, ``machine.laser_scale``...):
+    its ``options``. None while the kind or post is not one yet (the shared checks then teach)."""
+    kind = machine.get("kind")
+    name = machine.get("post", DEFAULT_POST.get(kind) if isinstance(kind, str) else None)
+    cls = _post_class(name)
+    return tuple(cls.options) if cls is not None else ()
+
+
+def parse_options(name: str, machine: dict) -> dict:
+    """The post's own machine keys from the job's machine object, checked (absent keys are left out)."""
+    cls = _post_class(name)
+    return cls.parse_options(machine) if cls is not None else {}
+
+
+def get_post(name: str, kind: str, where: str = "machine.post") -> "Post":
+    entry = entry_for(name, kind, where)
+    if not available(name):
+        raise CamJobError(f"{where}: the '{name}' post is planned but not in this cadgen yet; the posts built are "
+                          f"{', '.join(built()) or 'none'}")
+    return getattr(importlib.import_module(entry.module), entry.cls)()
