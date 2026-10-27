@@ -350,7 +350,15 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   (`ProjectsHome.tsx`: every project, a box to find one, the folders in no project), and New and
   Import beside them to add one, on both pages: New is the same New and dialog as a
   project's toolbar (`StudioNew.tsx`), where Create makes a new project and hands the job to its
-  first chat. Every project is pictured by
+  first chat. New is the one way to start a project: ⌘K's and the project switcher's New project
+  open it, and Make a project on a folder in no project makes one of it at once, its brief filled
+  in later. New's Part is New part, with no agent turn (`useNewPart.ts`, `newPart.ts`): on Home a
+  project named "Untitled part" (then "Untitled part 2", past Trash's names too) with a starter
+  part, `parts/part.py`, one block sketched from three named sizes as the cad skill writes its
+  smallest part, and the STEP that script builds (`workbench/starter/part.step`), opened beside
+  its new chat in CAD mode; in a project the same starter by the name given, the next name free
+  in its folder. Start a part by hand is the same, and any change in CAD mode builds the part
+  again from its script. Every project is pictured by
   its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in one
   column so the box and the tiles line up. A picture that came back empty (the CAD plugin still
   starting) is asked for again (`usePictures.ts`). A project with a chat waiting on the person (a
@@ -563,7 +571,7 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   AI is the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection goes to
   the agent through Quick Edit; CAD is the full workspace (edit mode). One choice for the person,
   across projects, kept on this device (`studio:simple-view`), the full workspace the first time
-  (`workbench/simpleView.ts`); Start a part by hand turns it off. The workspace floats over the
+  (`workbench/simpleView.ts`); New part and Start a part by hand turn it off. The workspace floats over the
   canvas, so the switch is one 150 ms fade (none with reduced motion) and the model keeps its box
   and its place. The viewer says
   what its part allows (`studio/notifications/edit-state`, to a host offering `studioEditState`):

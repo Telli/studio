@@ -34,6 +34,7 @@ import { SeeTheExample } from "./library/SeeTheExample";
 import type { Availability } from "./library/skillAvailability";
 import { useExample } from "./library/useSampleProject";
 import { partLabel } from "./partNames";
+import { partStem } from "./newPart";
 import { useEngineeringInterface } from "./studioInterface";
 import { useStudioProjectAt } from "./useStudioProjects";
 import {
@@ -71,6 +72,12 @@ export interface NewJob {
   readonly units: "mm" | "in";
   /** The job for the agent (`newWorkPrompt`). */
   readonly prompt: string;
+}
+
+/** New's Part, made at once rather than handed on: its name and folder, in a project. */
+export interface NewPart {
+  readonly name: string;
+  readonly folder: string;
 }
 
 /** How the panel names what follows: a field's label, or What it covers over its list. */
@@ -190,7 +197,9 @@ function BrowseLibrary(props: { readonly onBrowse: () => void }) {
  * shows dimmed, and its panel names the skill. The selected one's panel opens
  * with its example (`TemplatePreview`), and Browse the library opens the rest.
  * Create hands the job on (`onCreate`): into the open chat in a project, into a
- * new project's first chat on Home.
+ * new project's first chat on Home. Part is New part (`onNewPart`), made at once and opened in
+ * CAD mode, with no agent turn: on Home with nothing to fill in (it is "Untitled part" until
+ * renamed), in a project by its name.
  */
 export function NewDialog(props: {
   readonly open: boolean;
@@ -214,6 +223,8 @@ export function NewDialog(props: {
   readonly newProject?: boolean;
   /** Create: the work to start, for the host to hand to the agent; the dialog waits while it runs. */
   readonly onCreate: (job: NewJob) => void | Promise<unknown>;
+  /** Create on Part: the part made, as New part makes it; the dialog waits while it runs. */
+  readonly onNewPart: (part: NewPart) => Promise<unknown>;
 }) {
   const id = useId();
   const plugins = useEnvironmentQuery(
@@ -275,33 +286,38 @@ export function NewDialog(props: {
   const needs = chosen === undefined || chosen.availability.on ? null : chosen.availability;
   const needsPart = selected?.source === "from-part";
   const writesDocument = selected !== null && isDocumentTemplate(selected);
+  // New part: nothing for the agent, so no units or words; on Home, nothing to fill in at all.
+  const isPart = selected?.id === "part";
+  const named = !needsPart && !(isPart && props.newProject);
   // A part by its name in the engineering interface, by its path with code tools on.
   const plainWords = useEngineeringInterface();
   const partShown = (path: string) => (plainWords ? partLabel(path) : path);
   const ready =
     selected !== null &&
     needs === null &&
-    (needsPart ? part !== null : name.trim() !== "") &&
+    (needsPart ? part !== null : !named || name.trim() !== "") &&
     !creating;
 
   const create = () => {
     if (selected === null || needs !== null || creating) return;
-    const started = props.onCreate({
-      template: selected,
-      name,
-      units,
-      prompt: newWorkPrompt({
-        template: selected,
-        name,
-        folder,
-        units,
-        part: part === null ? null : serializeComposerFileLink(part),
-        description,
-        ...(selected.file === undefined
-          ? {}
-          : { templateLink: serializeComposerFileLink(selected.file) }),
-      }),
-    });
+    const started = isPart
+      ? props.onNewPart({ name, folder })
+      : props.onCreate({
+          template: selected,
+          name,
+          units,
+          prompt: newWorkPrompt({
+            template: selected,
+            name,
+            folder,
+            units,
+            part: part === null ? null : serializeComposerFileLink(part),
+            description,
+            ...(selected.file === undefined
+              ? {}
+              : { templateLink: serializeComposerFileLink(selected.file) }),
+          }),
+        });
     // A new project takes a moment to make: Create says so until its chat opens.
     if (started instanceof Promise) {
       setCreating(true);
@@ -323,7 +339,7 @@ export function NewDialog(props: {
             {starts.length === 0
               ? ""
               : `Start ${startLine}${props.newProject ? " in a new project" : ""}. `}
-            Create hands it to the agent.
+            {isPart ? "Create opens it in CAD mode." : "Create hands it to the agent."}
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
@@ -464,7 +480,7 @@ export function NewDialog(props: {
                         </Select>
                       )}
                     </Field>
-                  ) : (
+                  ) : !named ? null : (
                     <>
                       <Field label="Name" htmlFor={`${id}-name`}>
                         <Input
@@ -485,7 +501,7 @@ export function NewDialog(props: {
                       )}
                     </>
                   )}
-                  {writesDocument ? null : (
+                  {writesDocument || isPart ? null : (
                     <Field label="Units">
                       <Select
                         value={units}
@@ -505,25 +521,27 @@ export function NewDialog(props: {
                       </Select>
                     </Field>
                   )}
-                  <Field label="What it is" htmlFor={`${id}-description`}>
-                    <Textarea
-                      id={`${id}-description`}
-                      size="sm"
-                      value={description}
-                      onChange={(event) => setDescription(event.target.value)}
-                      placeholder={
-                        writesDocument
-                          ? "Anything it should say, or leave out"
-                          : needsPart
-                            ? "Anything the agent should know: loads, machine, finish"
-                            : "Size, features, what it attaches to"
-                      }
-                    />
-                  </Field>
-                  {plainWords || needsPart || name.trim() === "" ? null : (
+                  {isPart ? null : (
+                    <Field label="What it is" htmlFor={`${id}-description`}>
+                      <Textarea
+                        id={`${id}-description`}
+                        size="sm"
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                        placeholder={
+                          writesDocument
+                            ? "Anything it should say, or leave out"
+                            : needsPart
+                              ? "Anything the agent should know: loads, machine, finish"
+                              : "Size, features, what it attaches to"
+                        }
+                      />
+                    </Field>
+                  )}
+                  {plainWords || !named || name.trim() === "" ? null : (
                     <p className="text-2xs text-muted-foreground">
                       Saved as {(folder.trim() || selected.folder).replace(/\/+$/, "")}/
-                      {fileStem(name)}
+                      {isPart ? `${partStem(name)}.py` : fileStem(name)}
                       {writesDocument ? ".md" : ""}
                     </p>
                   )}

@@ -31,7 +31,7 @@ import { type Discipline, templateOffers } from "./newTemplates";
 import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
 import { ReadmeOverview } from "./ReadmeOverview";
-import { useStartPartByHand } from "./useStartPartByHand";
+import { useAddPart } from "./useNewPart";
 import { ProjectThreads } from "./ProjectThreads";
 import { usePictures } from "./usePictures";
 import { KIND_ICONS } from "./kinds";
@@ -433,7 +433,7 @@ export function ProjectPage(props: {
   const showsNew = composerRef !== null && !plainWords;
   useEffect(() => {
     if (pendingNew === null || !showsNew) return;
-    const asked = takeNew();
+    const asked = takeNew(false);
     if (asked === null) return;
     // oxlint-disable-next-line react/set-state-in-effect -- Takes the ask out of the store, so this New alone opens on it.
     setNewOpen((current) => ({
@@ -455,11 +455,9 @@ export function ProjectPage(props: {
   // What it is, as the brief says it: the project's description under its name.
   const purpose = studio?.project.brief.purpose.trim().split("\n")[0]?.trim() ?? "";
   const byHand = !useSimpleView();
-  const startPart = useStartPartByHand({
-    composerRef,
-    folder: cwd,
-    units: studio?.project.brief.units ?? "mm",
-  });
+  // New's Part, and Start a part by hand: the starter in `parts/`, opened in CAD mode.
+  const addPart = useAddPart(threadRef, cwd);
+  const startPart = addPart === null ? null : () => void addPart({ name: "Part" });
   const links = (studio?.project.brief.links ?? "")
     .split("\n")
     .map((line) => line.trim())
@@ -765,6 +763,7 @@ export function ProjectPage(props: {
             // The job goes to this chat: the Overview steps back beside it, so the work shows.
             useRightPanelStore.getState().setMaximized(threadRef, false);
           }}
+          onNewPart={(part) => addPart?.(part) ?? Promise.resolve()}
         />
       )}
     </div>

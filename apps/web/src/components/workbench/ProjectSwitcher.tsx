@@ -34,6 +34,7 @@ import {
 } from "./ProjectChoices";
 import type { ListedProject } from "./projectList";
 import { StarButton } from "./StarButton";
+import { useAskNewProject } from "./StudioNew";
 import { BackupDialog } from "./BackupDialog";
 import { folderLabel } from "./ProjectMenu";
 import { backupPlaceLabel, useLastBackup } from "./useBackup";
@@ -74,6 +75,7 @@ export function ProjectSwitcher(props: {
   useNowMinute();
   const openProject = useOpenProject();
   const navigate = useNavigate();
+  const askNewProject = useAskNewProject();
   const save = useSaveStudioProject(environmentId);
   const duplicate = useDuplicateProject(environmentId);
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, { reportFailure: true });
@@ -288,11 +290,7 @@ export function ProjectSwitcher(props: {
             none="No other projects yet."
           />
           <div className="mt-1.5 flex flex-col border-t border-border pt-1.5">
-            <button
-              type="button"
-              className={PROJECT_ROW_CLASS}
-              onClick={go(() => void navigate({ to: "/", hash: "start" }))}
-            >
+            <button type="button" className={PROJECT_ROW_CLASS} onClick={go(askNewProject)}>
               <PlusIcon className="size-4 text-muted-foreground" aria-hidden="true" />
               New project
             </button>

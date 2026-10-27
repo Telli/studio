@@ -280,7 +280,7 @@ export function ProjectOverview(props: {
   readonly onShowThreads: (() => void) | null;
   /** Simple view is off: the project's parts open in the full workspace, to start one by hand. */
   readonly byHand: boolean;
-  /** Starts a blank part to model by hand (`useStartPartByHand`); null where it can't. */
+  /** Starts a part to model by hand, the starter opened in CAD mode (`useAddPart`); null where it can't. */
   readonly onStartPart: (() => void) | null;
   /** The thread the Overview is beside, for the project's photos. */
   readonly threadRef: ScopedThreadRef;

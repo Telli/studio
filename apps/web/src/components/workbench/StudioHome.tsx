@@ -1,12 +1,11 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { FolderInputIcon, PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
 import {
   type KeyboardEvent,
   type ReactNode,
   type Ref,
-  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -32,7 +31,6 @@ import { ImportDialogHost } from "./ImportDialog";
 import { homeLayout } from "./homeStart";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
-import { useNewDialogStore } from "./newDialogStore";
 import { NewFilesNotice } from "./NewFilesNotice";
 import { HeadingLink } from "./OverviewModules";
 import { waitingFirst } from "./ProjectChoices";
@@ -43,6 +41,7 @@ import { droppedPath, readStudioImport } from "./studioImportBridge";
 import { StudioNew } from "./StudioNew";
 import { StudioTopBar } from "./StudioTopBar";
 import { useImportActions } from "./useImportActions";
+import { useNewPart } from "./useNewPart";
 import { useOpenShortcut } from "./useOpenShortcut";
 import { useProjectList } from "./useProjectList";
 import { useProjectTiles } from "./useProjectTiles";
@@ -115,6 +114,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   useNowMinute();
   useOpenShortcut(openFind);
   const { tile, dialogs } = useProjectTiles(environmentId, cards);
+  const newPart = useNewPart(environmentId);
   const split = splitStarred(
     cards,
     useStarredStore((store) => store.starred),
@@ -125,7 +125,8 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const allProjects = (
     <HeadingLink label="All projects" onClick={() => void navigate({ to: "/projects" })} />
   );
-  // Home's New, and New part's: Create starts a new project with the job as its first message.
+  // Home's New: Create starts a new project with the job as its first message, and its Part is
+  // New part. On the start page it has no button, and opens when asked (New project from ⌘K).
   const newProject = (hideButton: boolean) => (
     <StudioNew
       environmentId={environmentId}
@@ -133,6 +134,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
       newProject
       hideButton={hideButton}
       onCreate={(job) => start({ kind: "new", job })}
+      onNewPart={newPart}
     />
   );
 
@@ -152,8 +154,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                 <NewFilesNotice environmentId={environmentId} />
                 {layout === "start" ? (
                   <StartChoices
-                    // New, on its Part, until New part makes one with no dialog.
-                    onNewPart={() => useNewDialogStore.getState().ask("CAD", "part")}
+                    onNewPart={() => void newPart()}
                     onImport={importActions === null ? null : () => void importActions.pick()}
                     onScan={importActions?.scan ?? null}
                     onDescribe={() => startBox.current?.describe()}
@@ -328,11 +329,6 @@ function StartProject({
     else void bridge.pick().then((paths) => attach(paths.map(fromPath)));
   };
   const describe = useRef<HTMLTextAreaElement>(null);
-  const hash = useLocation({ select: (location) => location.hash });
-  // A workspace's New project (`ProjectSwitcher`) lands here: the box takes the typing.
-  useEffect(() => {
-    if (hash === "start") describe.current?.focus();
-  }, [hash]);
   useImperativeHandle(
     ref,
     () => ({

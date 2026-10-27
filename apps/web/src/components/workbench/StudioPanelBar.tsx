@@ -19,6 +19,7 @@ import { modeOf, setSimpleView, simpleOf, simpleViewToggle, useSimpleView } from
 import { StudioNew } from "./StudioNew";
 import { StudioTour } from "./StudioTour";
 import { partName } from "./partNames";
+import { useAddPart } from "./useNewPart";
 import { usePartContext } from "./usePartContext";
 import { useStudioProjectAt } from "./useStudioProjects";
 import { frontViewBusy, pluginViewKey, useViewerEditState } from "./viewerEditState";
@@ -127,6 +128,7 @@ export function StudioPanelBar(props: {
   // The part in front, for ⌘K; over the Overview or a document, there is none.
   const { shown, process } = usePartInFront(threadRef, folder);
   const studio = useStudioProjectAt(threadRef.environmentId, folder);
+  const addPart = useAddPart(threadRef, folder);
   // ⌘K's part: the one the viewer shows, else the project's lead part.
   const subject =
     shown !== null
@@ -187,7 +189,7 @@ export function StudioPanelBar(props: {
           <span className="@max-[40rem]/toolbar:hidden">Import</span>
         </Button>
       )}
-      {props.composerRef === null || folder === null ? null : (
+      {props.composerRef === null || folder === null || addPart === null ? null : (
         <StudioNew
           environmentId={threadRef.environmentId}
           cwd={folder}
@@ -196,6 +198,7 @@ export function StudioPanelBar(props: {
             // The job goes to this chat: the Overview steps back beside it, so the work shows.
             useRightPanelStore.getState().setMaximized(threadRef, false);
           }}
+          onNewPart={addPart}
         />
       )}
     </div>

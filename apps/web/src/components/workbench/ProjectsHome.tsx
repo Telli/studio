@@ -1,6 +1,7 @@
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { FolderIcon, FolderOpenIcon, PlusIcon } from "lucide-react";
+import { STUDIO_PROJECT_KINDS, studioFolderName } from "@t3tools/shared/studioProjects";
+import { FolderIcon, FolderOpenIcon } from "lucide-react";
 import { useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
@@ -15,14 +16,15 @@ import { ImportDialogHost } from "./ImportDialog";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
-import { NewProjectDialog } from "./NewProjectDialog";
 import { waitingFirst } from "./ProjectChoices";
 import { findProjects } from "./recentProjects";
 import { splitStarred, useStarredStore } from "./starredProjects";
 import { useEngineeringInterface } from "./studioInterface";
 import { StudioNew } from "./StudioNew";
 import { StudioTopBar } from "./StudioTopBar";
+import { useCreateStudioProject } from "./useCreateStudioProject";
 import { useImportActions } from "./useImportActions";
+import { useNewPart } from "./useNewPart";
 import { useOpenProject } from "./useOpenProject";
 import { useProjectList } from "./useProjectList";
 import { useProjectTiles } from "./useProjectTiles";
@@ -31,6 +33,9 @@ import { useStartOnce } from "./useStartProject";
 /** Starred and Recent, as Home and the project switcher label a group. */
 const GROUP_LABEL = "text-xs font-medium text-muted-foreground";
 const TILE_GRID = "grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4";
+
+/** What a folder made a project is until its brief says more: a part project. */
+const PART_KIND = STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!;
 
 const threadCount = (count: number) => (count === 1 ? "1 thread" : `${count} threads`);
 
@@ -69,8 +74,8 @@ function LooseFolderRow(props: {
  * each is a tile as on Home (`useProjectTiles`), the starred ones first, each group with the
  * projects waiting on the person first, then the one worked on last; the box finds one by name,
  * what it is for or a chat's title. Folders in no project are listed below, to open or make a
- * project of. In the engineering interface New and Import add a project as on Home; with code
- * tools on, New project starts one from a kind and any folders.
+ * project of, in one press (its brief is filled in later). New adds a project as on Home, and
+ * Import too in the engineering interface.
  */
 export function ProjectsHome() {
   const environmentId = usePrimaryEnvironmentId();
@@ -81,11 +86,6 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
   const { list, cards, loose } = useProjectList(environmentId);
   const openProject = useOpenProject();
-  const [dialog, setDialog] = useState<{ count: number; open: boolean; folder: string | null }>({
-    count: 0,
-    open: false,
-    folder: null,
-  });
   const [query, setQuery] = useState("");
   // Engineering has Studio's top bar and plain words; engineering with code keeps the old header.
   const engineering = useEngineeringInterface();
@@ -94,6 +94,19 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const importActions = engineering ? availableImport : null;
   useNowMinute();
   const { start } = useStartOnce(environmentId);
+  const newPart = useNewPart(environmentId);
+  const create = useCreateStudioProject(environmentId);
+  // A folder in no project made one as it is: named after it, a part project, its brief to fill.
+  const makeProject = (folder: EnvironmentProject) =>
+    void create({
+      environmentId,
+      name: studioFolderName(folder.workspaceRoot),
+      kind: PART_KIND,
+      units: "mm",
+      material: "",
+      purpose: "",
+      folders: [folder.workspaceRoot],
+    });
   const { tile, dialogs } = useProjectTiles(environmentId, cards);
   const split = splitStarred(
     findProjects(cards, query),
@@ -102,9 +115,6 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const starred = waitingFirst(split.starred);
   const rest = waitingFirst(split.rest);
   const shown = [...starred, ...rest];
-
-  const openDialog = (folder: string | null) =>
-    setDialog((current) => ({ count: current.count + 1, open: true, folder }));
 
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
@@ -171,19 +181,13 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                       Add a folder
                     </Button>
                   )}
-                  {engineering ? (
-                    <StudioNew
-                      environmentId={environmentId}
-                      cwd=""
-                      newProject
-                      onCreate={(job) => void start({ kind: "new", job })}
-                    />
-                  ) : (
-                    <Button size="sm" onClick={() => openDialog(null)}>
-                      <PlusIcon />
-                      New project
-                    </Button>
-                  )}
+                  <StudioNew
+                    environmentId={environmentId}
+                    cwd=""
+                    newProject
+                    onCreate={(job) => void start({ kind: "new", job })}
+                    onNewPart={newPart}
+                  />
                 </div>
               </div>
               {shown.length === 0 ? (
@@ -191,7 +195,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                   {cards.length === 0
                     ? engineering
                       ? "No projects yet. Start one with New, or Import what you have."
-                      : "No projects yet. Start one with New project, or make one of a folder below."
+                      : "No projects yet. Start one with New, or make one of a folder below."
                     : "No project matches that."}
                 </p>
               ) : (
@@ -227,7 +231,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                         folder={folder}
                         threads={own.length}
                         onOpen={() => void openProject(folder, own)}
-                        onMakeProject={() => openDialog(folder.workspaceRoot)}
+                        onMakeProject={() => makeProject(folder)}
                       />
                     ))}
                   </ul>
@@ -239,13 +243,6 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
       </div>
       <ImportDialogHost environmentId={environmentId} />
       {dialogs}
-      <NewProjectDialog
-        key={dialog.count}
-        open={dialog.open}
-        onOpenChange={(open) => setDialog((current) => ({ ...current, open }))}
-        environmentId={environmentId}
-        initialFolder={dialog.folder}
-      />
     </SidebarInset>
   );
 }

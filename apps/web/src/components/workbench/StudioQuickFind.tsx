@@ -46,6 +46,7 @@ import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } fr
 import { homeRecent } from "./recentActivity";
 import { useRecentFiles } from "./recentFiles";
 import { studioInterfaceCommands } from "./studioInterface";
+import { useAskNewProject } from "./StudioNew";
 import { useFolderPaths } from "./useFolderPaths";
 import { showChat } from "./overviewPanel";
 import { openInPanel } from "./useOpenInWorkbench";
@@ -131,6 +132,7 @@ function QuickFindBody(props: {
   const composerRef = useComposerHandleContext();
   const openProject = useOpenProject();
   const navigate = useNavigate();
+  const askNewProject = useAskNewProject();
   const router = useRouter();
   const onHome = useLocation({ select: (location) => location.pathname === "/" });
   const opened = useOpenedThreads();
@@ -386,7 +388,7 @@ function QuickFindBody(props: {
       icon: <PlusIcon className={ICON} />,
       title: "New project",
       terms: "new project start create",
-      run: go(() => void navigate({ to: "/", hash: "start" })),
+      run: go(askNewProject),
     },
     // The tour shows a project's workspace: from Home it opens the last project first.
     ...(workspace === null && cards[0] === undefined

@@ -42,7 +42,7 @@ function StartChoice(props: {
 
 /**
  * The start page's three ways in (`homeLayout` is `start`), as Vizcom's start page has them: New
- * part, Import a STEP (Import's picker; `onImport` null where there is no desktop app to read this
+ * part (a project with a starter part, open in CAD mode at once: `useNewPart`), Import a STEP (Import's picker; `onImport` null where there is no desktop app to read this
  * computer's files) and Describe it to the AI (Home's box, under these, takes the typing). Scan
  * this computer, Import's other way in, sits under them.
  */
@@ -59,7 +59,7 @@ export function StartChoices(props: {
           icon={KIND_ICONS.CAD}
           tint={KIND_TINTS.CAD}
           label="New part"
-          note="One solid, made to change by its dimensions."
+          note="Opens in CAD mode on a block to shape by its sizes."
           onChoose={props.onNewPart}
         />
         <StartChoice
