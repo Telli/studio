@@ -78,6 +78,26 @@ export function newProjectName(job: Pick<NewJob, "template" | "name">): string {
 const kindOf = (id: string) => STUDIO_PROJECT_KINDS.find((kind) => kind.id === id)!;
 
 /**
+ * The kind of project New starts for its work, which sets the folders the agent keeps it in: an
+ * assembly's is a product, a board's or a harness's a circuit board, a robot description's a
+ * robot, and the rest (a part, a sheet metal part, a document) a mechanical part. A blank project
+ * has no choice of its own in New.
+ */
+export function projectKindFor(templateId: string) {
+  switch (templateId) {
+    case "assembly":
+      return kindOf("product");
+    case "board":
+    case "harness":
+      return kindOf("board");
+    case "robot":
+      return kindOf("robot");
+    default:
+      return kindOf("part");
+  }
+}
+
+/**
  * Home's Start: makes the project (a new folder with its repository, `useCreateStudioProject`)
  * and opens its first chat, which sends the description, or New's job, as its first message
  * (`usePendingStart`), the way New in a project hands its job to the open chat. With a project of
@@ -161,7 +181,7 @@ export function useStartProject(environmentId: EnvironmentId) {
       return create({
         environmentId,
         name: newProjectName(job),
-        kind: kindOf(job.template.id === "board" ? "board" : "part"),
+        kind: projectKindFor(job.template.id),
         units: job.units,
         material: "",
         purpose: "",

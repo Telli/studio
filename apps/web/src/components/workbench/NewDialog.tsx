@@ -34,7 +34,6 @@ import { SeeTheExample } from "./library/SeeTheExample";
 import type { Availability } from "./library/skillAvailability";
 import { useExample } from "./library/useSampleProject";
 import { partLabel } from "./partNames";
-import { partStem } from "./newPart";
 import { useEngineeringInterface } from "./studioInterface";
 import { useStudioProjectAt } from "./useStudioProjects";
 import {
@@ -538,10 +537,11 @@ export function NewDialog(props: {
                       />
                     </Field>
                   )}
-                  {plainWords || !named || name.trim() === "" ? null : (
+                  {/* A part's file is the next name free in its folder, known once it is made. */}
+                  {plainWords || !named || isPart || name.trim() === "" ? null : (
                     <p className="text-2xs text-muted-foreground">
                       Saved as {(folder.trim() || selected.folder).replace(/\/+$/, "")}/
-                      {isPart ? `${partStem(name)}.py` : fileStem(name)}
+                      {fileStem(name)}
                       {writesDocument ? ".md" : ""}
                     </p>
                   )}

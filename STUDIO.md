@@ -350,15 +350,17 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   (`ProjectsHome.tsx`: every project, a box to find one, the folders in no project), and New and
   Import beside them to add one, on both pages: New is the same New and dialog as a
   project's toolbar (`StudioNew.tsx`), where Create makes a new project and hands the job to its
-  first chat. New is the one way to start a project: ⌘K's and the project switcher's New project
-  open it, and Make a project on a folder in no project makes one of it at once, its brief filled
-  in later. New's Part is New part, with no agent turn (`useNewPart.ts`, `newPart.ts`): on Home a
+  first chat, the kind of project its work needs (an assembly a product, a board or harness a
+  circuit board, a robot description a robot, the rest a mechanical part: `projectKindFor`). There
+  is one New: ⌘K's and the project switcher's New project open it, and Make a project on a folder
+  in no project makes a mechanical part project of it at once, its brief filled in later. New's Part is New part, with no agent turn (`useNewPart.ts`, `newPart.ts`): on Home a
   project named "Untitled part" (then "Untitled part 2", past Trash's names too) with a starter
   part, `parts/part.py`, one block sketched from three named sizes as the cad skill writes its
   smallest part, and the STEP that script builds (`workbench/starter/part.step`), opened beside
   its new chat in CAD mode; in a project the same starter by the name given, the next name free
-  in its folder. Start a part by hand is the same, and any change in CAD mode builds the part
-  again from its script. Every project is pictured by
+  in its folder. Start a part by hand is the same. A starter that can't be written leaves the
+  project made, open on its Overview, and says so. Any change in CAD mode builds the part again
+  from its script. Every project is pictured by
   its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in one
   column so the box and the tiles line up. A picture that came back empty (the CAD plugin still
   starting) is asked for again (`usePictures.ts`). A project with a chat waiting on the person (a

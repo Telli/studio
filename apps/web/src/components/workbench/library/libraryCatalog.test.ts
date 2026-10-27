@@ -311,7 +311,7 @@ describe("library catalog", () => {
     expect(showsUpAs("fea")).toEqual([
       "Evaluate: Strength under load, Vibration, Drop test, Make it lighter, Explain these results, More simulations",
     ]);
-    expect(showsUpAs("urdf")).toEqual(["Document: More documents"]);
+    expect(showsUpAs("urdf")).toEqual(["New: Robot description", "Document: More documents"]);
     expect(showsUpAs("sendcutsend")).toEqual(["Manufacture: Order from SendCutSend"]);
     expect(showsUpAs("no-such-skill")).toEqual([]);
   });

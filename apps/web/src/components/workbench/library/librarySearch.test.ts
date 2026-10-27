@@ -66,7 +66,7 @@ describe("filterLibrary", () => {
 
   it("finds under New only what New makes from nothing", () => {
     const underNew = found("New");
-    expect(underNew).toEqual(expect.arrayContaining(["doc:part", "doc:prd"]));
+    expect(underNew).toEqual(expect.arrayContaining(["doc:part", "doc:prd", "doc:robot"]));
     // Their templates work from a part, which no New offers.
     const fromPart = new Set([
       "doc:drawing",
@@ -74,7 +74,6 @@ describe("filterLibrary", () => {
       "doc:cam-job",
       "doc:print",
       "doc:cut-file",
-      "doc:robot",
       "doc:test-plan",
       "doc:instructions",
     ]);

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import starterStep from "./starter/part.step?raw";
 import {
   freePartStem,
+  makeNewPart,
   partStem,
   starterScript,
   starterStepAs,
@@ -32,6 +33,14 @@ describe("a new part's file", () => {
     expect(partStem("step")).toBe("part_step");
     expect(partStem("class")).toBe("part_class");
     expect(partStem("  ")).toBe("part");
+  });
+
+  it("is kept clear of the modules its build imports, which a file beside it would stand in for", () => {
+    expect(partStem("Platform")).toBe("part_platform");
+    expect(partStem("copy")).toBe("part_copy");
+    expect(partStem("Logging")).toBe("part_logging");
+    expect(partStem("numpy")).toBe("part_numpy");
+    expect(partStem("Platform bracket")).toBe("platform_bracket");
   });
 
   it("takes the next name free beside the parts already there", () => {
@@ -69,6 +78,21 @@ describe("the starter part", () => {
     expect(named).toMatch(/^ {4}shelf_bracket\(\)$/m);
   });
 
+  it("comes with the STEP its script builds: the block of its sizes, corner to corner", () => {
+    // Change the script's sizes or sketch and this fails until the STEP is built again
+    // (`starterScript`'s comment says how).
+    const size = (name: string) => {
+      const match = new RegExp(`^${name} = (\\d+(?:\\.\\d+)?)$`, "m").exec(script);
+      return Number(match?.[1]);
+    };
+    // A number as the STEP writes it: 40 is "40.", 12.5 is "12.5".
+    const written = (value: number) => (Number.isInteger(value) ? `${value}.` : `${value}`);
+    const corner = [size("LENGTH"), size("WIDTH"), size("HEIGHT")].map(written).join(",");
+    expect(corner).toBe("40.,20.,10.");
+    expect(starterStep).toContain(`CARTESIAN_POINT('',(${corner}));`);
+    expect(starterStep).toContain("CARTESIAN_POINT('',(0.,0.,0.));");
+  });
+
   it("comes with the STEP its script builds, named for its file as a build names it", () => {
     expect(starterStepAs(starterStep, "part")).toBe(starterStep);
     const named = starterStepAs(starterStep, "shelf_bracket");
@@ -77,5 +101,63 @@ describe("the starter part", () => {
     expect(named).not.toContain("PRODUCT('part'");
     // The category every part has stays as a build writes it.
     expect(named).toContain("PRODUCT_RELATED_PRODUCT_CATEGORY('part',");
+  });
+});
+
+describe("New part, step by step", () => {
+  /** New part's steps, recording what was opened and said; `write` is the starter's write. */
+  function run(write: (folder: string) => Promise<void>, names: ReadonlyArray<string> = []) {
+    const seen: string[] = [];
+    const done = makeNewPart<string>({
+      names: async () => names,
+      create: async ({ name, onFolder, show }) => {
+        seen.push(`made ${name}`);
+        await onFolder("/projects/untitled-part");
+        show("chat");
+        return true;
+      },
+      writeStarter: write,
+      openPart: (ref) => seen.push(`part beside ${ref}`),
+      openProject: (ref) => seen.push(`overview beside ${ref}`),
+      failed: (title, error) => seen.push(`${title}: ${(error as Error).message}`),
+    });
+    return done.then(() => seen);
+  }
+
+  it("makes the project past the names taken and opens its part", async () => {
+    expect(await run(async () => {}, ["Untitled part"])).toEqual([
+      "made Untitled part 2",
+      "part beside chat",
+    ]);
+  });
+
+  it("keeps the project when its starter can't be written, opens it, and says so", async () => {
+    expect(
+      await run(async () => {
+        throw new Error("parts/part.step could not be written.");
+      }),
+    ).toEqual([
+      "made Untitled part",
+      "overview beside chat",
+      "Made Untitled part, but its starter part could not be written: parts/part.step could not be written.",
+    ]);
+  });
+
+  it("makes nothing when the names can't be read", async () => {
+    const seen: string[] = [];
+    await makeNewPart<string>({
+      names: async () => {
+        throw new Error("Studio's projects could not be read.");
+      },
+      create: async () => {
+        seen.push("made");
+        return true;
+      },
+      writeStarter: async () => {},
+      openPart: () => {},
+      openProject: () => {},
+      failed: (title, error) => seen.push(`${title}: ${(error as Error).message}`),
+    });
+    expect(seen).toEqual(["Could not make the part: Studio's projects could not be read."]);
   });
 });

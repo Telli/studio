@@ -152,9 +152,9 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
     id: "robot",
     discipline: "Robotics",
     label: "Robot description",
-    description: "Links, joints and limits of an assembly, for simulation.",
+    description: "Links, joints and limits of the project's parts, for simulation.",
     skill: "urdf",
-    source: "from-part",
+    source: "new",
     folder: "robots",
     defaultName: "robot",
   },
@@ -364,7 +364,7 @@ export function newWorkPrompt(work: NewWork): string {
     case "cut-file":
       return `Make a cut-ready DXF of ${part} for laser or waterjet cutting.${ask}`;
     case "robot":
-      return `Make a URDF for ${part} with its links, joints and limits.${ask}`;
+      return `Create a new robot description, ${target}, with its links, joints and limits, using the project's parts where they fit.${ask}`;
     case "test-plan":
       return `Write a test plan for ${part} as ${folder}/${fileStem(work.name)}.md: what to test, how, and the pass criteria.${ask}`;
     case "instructions":

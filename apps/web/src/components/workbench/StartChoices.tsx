@@ -21,6 +21,8 @@ function StartChoice(props: {
   readonly label: string;
   readonly note: string;
   readonly disabled?: boolean;
+  /** Under way: it shows it, and takes no press. */
+  readonly busy?: boolean;
   readonly onChoose: () => void;
 }) {
   const Icon = props.icon;
@@ -28,7 +30,8 @@ function StartChoice(props: {
     <button
       type="button"
       onClick={props.onChoose}
-      disabled={props.disabled}
+      disabled={props.disabled || props.busy}
+      aria-busy={props.busy || undefined}
       className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-xs/5 outline-none transition-colors duration-150 enabled:hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:opacity-64"
     >
       <Icon aria-hidden="true" className={cn("size-6", props.tint ?? "text-foreground/75")} />
@@ -48,6 +51,8 @@ function StartChoice(props: {
  */
 export function StartChoices(props: {
   readonly onNewPart: () => void;
+  /** New part is being made. */
+  readonly newPartBusy: boolean;
   readonly onImport: (() => void) | null;
   readonly onScan: (() => void) | null;
   readonly onDescribe: () => void;
@@ -59,7 +64,12 @@ export function StartChoices(props: {
           icon={KIND_ICONS.CAD}
           tint={KIND_TINTS.CAD}
           label="New part"
-          note="Opens in CAD mode on a block to shape by its sizes."
+          note={
+            props.newPartBusy
+              ? "Making the part…"
+              : "Opens in CAD mode on a block to shape by its sizes."
+          }
+          busy={props.newPartBusy}
           onChoose={props.onNewPart}
         />
         <StartChoice

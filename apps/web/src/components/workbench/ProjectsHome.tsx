@@ -25,6 +25,7 @@ import { StudioTopBar } from "./StudioTopBar";
 import { useCreateStudioProject } from "./useCreateStudioProject";
 import { useImportActions } from "./useImportActions";
 import { useNewPart } from "./useNewPart";
+import { useOneAtATime } from "./useOneAtATime";
 import { useOpenProject } from "./useOpenProject";
 import { useProjectList } from "./useProjectList";
 import { useProjectTiles } from "./useProjectTiles";
@@ -37,6 +38,9 @@ const TILE_GRID = "grid grid-cols-[repeat(auto-fill,minmax(14rem,1fr))] gap-4";
 /** What a folder made a project is until its brief says more: a part project. */
 const PART_KIND = STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!;
 
+/** Each folder's Make a project under way: a second press while it is made does nothing more. */
+const madeProjectsUnderWay = new Map<string, Promise<void>>();
+
 const threadCount = (count: number) => (count === 1 ? "1 thread" : `${count} threads`);
 
 function LooseFolderRow(props: {
@@ -44,6 +48,8 @@ function LooseFolderRow(props: {
   readonly threads: number;
   readonly onOpen: () => void;
   readonly onMakeProject: () => void;
+  /** Its project is being made: Make a project takes no press. */
+  readonly making: boolean;
 }) {
   return (
     <li className="flex min-w-0 items-center gap-2 border-b border-border">
@@ -61,7 +67,7 @@ function LooseFolderRow(props: {
           {threadCount(props.threads)}
         </span>
       </button>
-      <Button variant="ghost-muted" size="xs" onClick={props.onMakeProject}>
+      <Button variant="ghost-muted" size="xs" disabled={props.making} onClick={props.onMakeProject}>
         Make a project
       </Button>
     </li>
@@ -97,15 +103,19 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const newPart = useNewPart(environmentId);
   const create = useCreateStudioProject(environmentId);
   // A folder in no project made one as it is: named after it, a part project, its brief to fill.
+  const making = useOneAtATime(madeProjectsUnderWay);
+  const madeKey = (folder: EnvironmentProject) => `${environmentId}\n${folder.workspaceRoot}`;
   const makeProject = (folder: EnvironmentProject) =>
-    void create({
-      environmentId,
-      name: studioFolderName(folder.workspaceRoot),
-      kind: PART_KIND,
-      units: "mm",
-      material: "",
-      purpose: "",
-      folders: [folder.workspaceRoot],
+    void making.run(madeKey(folder), async () => {
+      await create({
+        environmentId,
+        name: studioFolderName(folder.workspaceRoot),
+        kind: PART_KIND,
+        units: "mm",
+        material: "",
+        purpose: "",
+        folders: [folder.workspaceRoot],
+      });
     });
   const { tile, dialogs } = useProjectTiles(environmentId, cards);
   const split = splitStarred(
@@ -186,7 +196,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                     cwd=""
                     newProject
                     onCreate={(job) => void start({ kind: "new", job })}
-                    onNewPart={newPart}
+                    onNewPart={newPart.create}
                   />
                 </div>
               </div>
@@ -232,6 +242,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                         threads={own.length}
                         onOpen={() => void openProject(folder, own)}
                         onMakeProject={() => makeProject(folder)}
+                        making={making.busy.has(madeKey(folder))}
                       />
                     ))}
                   </ul>

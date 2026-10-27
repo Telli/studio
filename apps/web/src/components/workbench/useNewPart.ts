@@ -13,14 +13,16 @@ import { toastManager } from "../ui/toast";
 import { plainError } from "./importIntoProject";
 import {
   freePartStem,
+  makeNewPart,
   PART_FOLDER,
   partStem,
   starterScript,
   starterStepAs,
-  untitledName,
 } from "./newPart";
+import { showOverview } from "./overviewPanel";
 import { setSimpleView } from "./simpleView";
 import { useCreateStudioProject } from "./useCreateStudioProject";
+import { useOneAtATime } from "./useOneAtATime";
 import { openInPanel } from "./useOpenInWorkbench";
 
 /** What a new part's project is, for its brief: a part. */
@@ -30,7 +32,12 @@ const PART_KIND = STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!;
 const loadStarterStep = () => import("./starter/part.step?raw").then((module) => module.default);
 
 /** Each environment's New part under way: a second press while it is made does nothing more. */
-const underWay = new Map<string, Promise<void>>();
+const newPartsUnderWay = new Map<string, Promise<void>>();
+/** Each project folder's added part under way, the same. */
+const addedPartsUnderWay = new Map<string, Promise<void>>();
+
+const failedToast = (title: string, error: unknown) =>
+  toastManager.add({ type: "error", title, description: plainError(error) });
 
 /**
  * Writes a part's starter into a folder (`starterScript`, and the STEP it builds) and opens it
@@ -74,54 +81,56 @@ function useWriteStarter(environmentId: EnvironmentId | null) {
 /**
  * Home's New part, and New's Part on Home and the Projects page: a project named "Untitled part"
  * (`untitledName`, past every name of yours and Trash's) with the starter part in
- * `parts/part.py`, opened beside its new chat in CAD mode. No dialog and no agent turn; renaming
- * is Rename on the project. Resolves once it is open, or has said why it could not be made.
+ * `parts/part.py`, opened beside its new chat in CAD mode (`makeNewPart`). No dialog and no agent
+ * turn; renaming is Rename on the project. `create` resolves once it is open, or has said why it
+ * could not be made; `busy` while it is under way, when another press does nothing more.
  */
-export function useNewPart(environmentId: EnvironmentId): () => Promise<void> {
-  const create = useCreateStudioProject(environmentId);
+export function useNewPart(environmentId: EnvironmentId): {
+  readonly create: () => Promise<void>;
+  readonly busy: boolean;
+} {
+  const make = useCreateStudioProject(environmentId);
   const listStudioProjects = useAtomQueryRunner(studioProjectsEnvironment.list, {
     reportFailure: false,
     refresh: true,
   });
   const { writeStarter, open } = useWriteStarter(environmentId);
-  return useCallback(() => {
-    const running = underWay.get(environmentId);
-    if (running !== undefined) return running;
-    const work = (async () => {
-      try {
-        // Read now, not from the last render: a part may have been made a moment ago.
-        const known = await listStudioProjects({ environmentId, input: {} });
-        if (known._tag !== "Success") throw new Error("Studio's projects could not be read.");
-        const name = untitledName(
-          [...Object.values(known.value.projects), ...Object.values(known.value.trashed ?? {})].map(
-            (project) => project.name,
-          ),
-        );
+  const { run, busy } = useOneAtATime(newPartsUnderWay);
+  const create = useCallback(
+    () =>
+      run(environmentId, () => {
         const stem = partStem("part");
-        await create({
-          environmentId,
-          name,
-          kind: PART_KIND,
-          units: "mm",
-          material: "",
-          purpose: "",
-          folders: [],
-          // A write that fails throws out of `create` before it says the project was made, and
-          // the catch below says so, once.
-          onFolder: (folder) => writeStarter({ cwd: folder, folder: PART_FOLDER, stem }),
-          show: (ref) => open(ref, `${PART_FOLDER}/${stem}.step`),
+        return makeNewPart<ScopedThreadRef>({
+          // Read now, not from the last render: a part may have been made a moment ago.
+          names: async () => {
+            const known = await listStudioProjects({ environmentId, input: {} });
+            if (known._tag !== "Success") throw new Error("Studio's projects could not be read.");
+            return [
+              ...Object.values(known.value.projects),
+              ...Object.values(known.value.trashed ?? {}),
+            ].map((project) => project.name);
+          },
+          create: ({ name, onFolder, show }) =>
+            make({
+              environmentId,
+              name,
+              kind: PART_KIND,
+              units: "mm",
+              material: "",
+              purpose: "",
+              folders: [],
+              onFolder,
+              show,
+            }),
+          writeStarter: (folder) => writeStarter({ cwd: folder, folder: PART_FOLDER, stem }),
+          openPart: (ref) => open(ref, `${PART_FOLDER}/${stem}.step`),
+          openProject: showOverview,
+          failed: failedToast,
         });
-      } catch (error) {
-        toastManager.add({
-          type: "error",
-          title: "Could not make the part",
-          description: plainError(error),
-        });
-      }
-    })().finally(() => underWay.delete(environmentId));
-    underWay.set(environmentId, work);
-    return work;
-  }, [create, environmentId, listStudioProjects, open, writeStarter]);
+      }),
+    [environmentId, listStudioProjects, make, open, run, writeStarter],
+  );
+  return useMemo(() => ({ create, busy: busy.has(environmentId) }), [busy, create, environmentId]);
 }
 
 /**
@@ -140,6 +149,7 @@ export function useAddPart(
     refresh: true,
   });
   const { writeStarter, open } = useWriteStarter(environmentId);
+  const { run } = useOneAtATime(addedPartsUnderWay);
   return useMemo(() => {
     if (threadRef === null || cwd === null) return null;
     const { environmentId } = threadRef;
@@ -152,19 +162,18 @@ export function useAddPart(
       if (folder !== "" && !(await filesIn(parent)).includes(folder)) return [];
       throw new Error(`${folder || "The project's folder"} could not be read.`);
     };
-    return async (input) => {
-      try {
-        const folder = input.folder?.trim().replace(/^\/+|\/+$/g, "") || PART_FOLDER;
-        const stem = freePartStem(partStem(input.name), await filesIn(folder));
-        await writeStarter({ cwd, folder, stem });
-        open(threadRef, `${folder}/${stem}.step`);
-      } catch (error) {
-        toastManager.add({
-          type: "error",
-          title: "Could not make the part",
-          description: plainError(error),
-        });
-      }
+    // One at a time in a folder: a second press would find the same name free.
+    return (input) => {
+      const folder = input.folder?.trim().replace(/^\/+|\/+$/g, "") || PART_FOLDER;
+      return run(`${environmentId}\n${cwd}\n${folder}`, async () => {
+        try {
+          const stem = freePartStem(partStem(input.name), await filesIn(folder));
+          await writeStarter({ cwd, folder, stem });
+          open(threadRef, `${folder}/${stem}.step`);
+        } catch (error) {
+          failedToast("Could not make the part", error);
+        }
+      });
     };
-  }, [cwd, list, open, threadRef, writeStarter]);
+  }, [cwd, list, open, run, threadRef, writeStarter]);
 }

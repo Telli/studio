@@ -134,7 +134,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
       newProject
       hideButton={hideButton}
       onCreate={(job) => start({ kind: "new", job })}
-      onNewPart={newPart}
+      onNewPart={newPart.create}
     />
   );
 
@@ -154,7 +154,8 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                 <NewFilesNotice environmentId={environmentId} />
                 {layout === "start" ? (
                   <StartChoices
-                    onNewPart={() => void newPart()}
+                    onNewPart={() => void newPart.create()}
+                    newPartBusy={newPart.busy}
                     onImport={importActions === null ? null : () => void importActions.pick()}
                     onScan={importActions?.scan ?? null}
                     onDescribe={() => startBox.current?.describe()}
