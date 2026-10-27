@@ -38,8 +38,12 @@ import { treeTitles } from "./nx.js";
 // How often the view asks whether the part's files changed (the agent's edits, another view's):
 // an unchanged answer is a hash comparison on the server, and the part is not run.
 const POLL_MS = 1500;
-// How often a part made of a STEP brought in is asked after while its build runs.
+// How often a part made of a STEP brought in is asked after while its build runs, and for how long at most: the edit
+// service's own bound on a build (`BUILD_TIMEOUT`, fifteen minutes).
 const ADOPT_POLL_MS = 500;
+const ADOPT_POLLS = (15 * 60 * 1000) / ADOPT_POLL_MS;
+/** A STEP brought in, as the probe says it (`editable` false): the part made of it, and why its last build failed; or null. */
+const importedOf = reply => (reply?.importable ? { part: reply.part || null, error: reply.partError || "" } : null);
 const describe = error => (error instanceof Error ? error.message : String(error || "The change could not be made."));
 // Where a script that did not build stopped (`{ frames }`, from the engine), kept with the error it is
 // the place of. The same place again, as every poll says it, is no new state.
@@ -271,7 +275,7 @@ export function useEditMode({ client, file, active, reading = true }) {
           const reply = await client.editState(file, null, { probe: true });
           if (stopped) return;
           probed.current = file;
-          if (!reply?.editable) { setImported(reply?.importable ? { part: reply.part || null } : null); setStatus("none"); return; }
+          if (!reply?.editable) { setImported(importedOf(reply)); setStatus("none"); return; }
           setStatus(current => (current === "probing" ? (reading ? "reading" : "idle") : current));
         } catch {
           if (!stopped) setStatus("none");
@@ -889,31 +893,45 @@ export function useEditMode({ client, file, active, reading = true }) {
     setSketch(null); setSketchTool(null); setSketchSelection([]);
   }, [send]);
 
+  // Whether this view is still up: a part waited for (below) stops being asked after once it has gone.
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  // The STEP brought in as the probe says it now (`imported`: the part made of it, and why its build failed), kept for the chip.
+  const probeImported = useCallback(async () => {
+    const probe = await client.editState(file, null, { probe: true });
+    if (mounted.current && fileRef.current === file && !probe?.editable) setImported(importedOf(probe));
+    return probe;
+  }, [client, file]);
   // The part made of the STEP brought in, by its document's id, once the engine holds it: an id never built is not built by
   // opening it (cadgen's law 23), so the probe is asked again while its build runs (`partBuilding`) until it is built
-  // (`partBuilt`); null where none was made, or its build ended without it (the file moved on meanwhile, too).
+  // (`partBuilt`), for as long as a build may take; null where none was made, its build ended without it (its error is then
+  // `imported.error`), the view went or the file moved on meanwhile.
   const importedPart = useCallback(async () => {
     if (!supported || !file) return null;
-    for (;;) {
-      const probe = await client.editState(file, null, { probe: true });
-      if (fileRef.current !== file || !probe?.part) return null;
+    for (let asked = 0; asked < ADOPT_POLLS; asked += 1) {
+      const probe = await probeImported();
+      if (!mounted.current || fileRef.current !== file || !probe?.part) return null;
       if (probe.partBuilt) return probe.part;
       if (!probe.partBuilding) return null;
       await new Promise(resolve => setTimeout(resolve, ADOPT_POLL_MS));
     }
-  }, [client, file, supported]);
+    return null;
+  }, [file, supported, probeImported]);
   // The STEP brought in made a part beside it (`cadgen/edit/service.py` `adopt`), built, and named by its document's id, to
-  // open; null where it could not be made or did not build.
+  // open; null where it could not be made or did not build. Either way the chip learns of the part made, so a second press
+  // opens it rather than making another.
   const adopt = useCallback(async () => {
     if (!supported || !file) return null;
     const reply = await client.editChange({ file, adopt: {} });
-    if (!reply?.ok) return null;
+    if (!reply?.ok) { await probeImported().catch(() => null); return null; }
     const part = await importedPart();
     return part ? { ...reply, part } : null;
-  }, [client, file, supported, importedPart]);
+  }, [client, file, supported, importedPart, probeImported]);
 
   return {
     status, state, error, choice, saving, selected, hovered, command, editing, bar, imported, adopt, importedPart,
+    // The bar's body could not be shown (`message` says why): the bar goes to the end, as a roll to it does.
+    dropBar: message => { setBar(null); setError(message); },
     // The bar moved in the tree, the body there still on its way.
     rolling: Boolean(bar?.pending),
     select: setSelected,

@@ -36,6 +36,7 @@ import XbfPositionSection, { useXbfPose, writeXbfPosition, xbfPoseGiven, xbfPosi
 import { MeasureIcon, SelectIcon, SelectModeMenu, XBF_MEASURE_MODES, XBF_SELECT_DEFAULT, xbfSelectModes } from "./XbfSelectionModes.jsx";
 import { ToolIcon } from "./edit/cadIcons.jsx";
 import { WORKSPACE_SELECTION_COLOR } from "./edit/editLayout.js";
+import { rollbackExport } from "./edit/rollbackExport.js";
 import { useXbfCadMode } from "./edit/useXbfCadMode.jsx";
 import { useXbfElementFacts, useXbfSelectionChips, xbfCopyText, xbfNodeRefs } from "./xbfChips.jsx";
 import { xbfJointHandles } from "./xbfJointHandles.js";
@@ -383,11 +384,16 @@ function XbfSurface({ view, data }) {
   const pmiGdt = pmi.entries.some(entry => entry.kind !== "note");
   const pmiNotes = pmi.entries.some(entry => entry.kind === "note") || pmi.library.length > 0;
   const pmiViews = pmi.views.length > 0;
-  // While CAD mode's rollback bar is up the body on screen is not the document: nothing is exported of it.
-  const exportView = useMemo(() => loaded.document && !host.environment.compact && !rollback ? {
+  const shownExport = useMemo(() => loaded.document && !host.environment.compact ? {
     doc: loaded.document.source.doc, revision: loaded.revision, file: view.file.path, name: view.file.name, planar,
     ...(pmiGdt || pmiNotes || pmiViews ? { pmi: { gdt: pmiGdt, kept: [...(pmiNotes ? ["notes"] : []), ...(pmiViews ? ["views"] : [])] } } : {})
-  } : null, [loaded.document, loaded.revision, host.environment.compact, rollback, view.file.path, view.file.name, planar, pmiGdt, pmiNotes, pmiViews]);
+  } : null, [loaded.document, loaded.revision, host.environment.compact, view.file.path, view.file.name, planar, pmiGdt, pmiNotes, pmiViews]);
+  // While CAD mode's rollback bar is up the body on screen is not the document: Export keeps writing the part as it last
+  // stood on screen (`rollbackExport`).
+  const exported = useRef({ kept: null, bars: new Set() });
+  if (rollback) exported.current.bars.add(rollback);
+  const exportView = rollbackExport({ current: shownExport, kept: exported.current.kept, rollback, bars: exported.current.bars });
+  exported.current.kept = exportView;
   useExportView(exportView);
 
 
@@ -627,6 +633,8 @@ function XbfSurface({ view, data }) {
   cadRef.current = cad;
   useEffect(() => { setPartUnits(cad.units); }, [cad.units]);
   useEffect(() => { setRollback(cad.rollback); }, [cad.rollback]);
+  // The bar's body gone from the engine: the bar is rolled to the end, and CAD mode says why.
+  useEffect(() => { if (rollback && goneFromEngine(loaded.error)) cadRef.current?.rollbackGone(); }, [rollback, loaded.error]);
   // What was picked on one body names nothing on the other: the bar's body and the part number their faces apart.
   useEffect(() => { setChosen(now => (now.length ? EMPTY : now)); }, [rollback]);
   useEffect(() => { setCadHeld(cad.escapeActive); }, [cad.escapeActive]);

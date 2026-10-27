@@ -1,8 +1,10 @@
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ViewerHostContext } from '../../../host/context.js';
 import { testHost } from '../../../host/testing/host.js';
+import ImportedBody from './ImportedBody.jsx';
 import { useEditMode } from './useEditMode.js';
 
 afterEach(cleanup);
@@ -322,7 +324,7 @@ it("a STEP brought in with no part script is offered as a part to edit, made bes
   };
   const { result } = renderHook(() => useEditMode({ client, file: imported, active: true }), { wrapper: hostWith(() => {}) });
   await waitFor(() => expect(result.current.status).toBe('none'));
-  expect(result.current.imported).toEqual({ part: null });
+  expect(result.current.imported).toEqual({ part: null, error: '' });
   vi.useFakeTimers({ toFake: ['setTimeout'] });
   try {
     let made: unknown = 'waiting';
@@ -340,4 +342,31 @@ it("a STEP brought in with no part script is offered as a part to edit, made bes
   // A build that ended without the part names none to open.
   probes.push({ ok: true, editable: false, importable: true, part: PART, partBuilt: false, partBuilding: false });
   await expect(result.current.importedPart()).resolves.toBe(null);
+});
+
+it("a part made of a STEP whose build failed says why, and a second press opens it rather than making another", async () => {
+  const user = userEvent.setup();
+  const imported = '/project/vendor/pico.step';
+  const PART = '3f2a9c1e-7b4d-5e6f-8a9b-0c1d2e3f4a5b';
+  let made = false;
+  const client = {
+    editState: vi.fn(async () => (made
+      ? { ok: true, editable: false, importable: true, part: PART, partBuilt: false, partBuilding: false, partError: 'pico_part.py: the STEP this part reads is gone' }
+      : { ok: true, editable: false, importable: true })),
+    editChange: vi.fn(async () => { made = true; return { ok: true, part: PART, script: '/project/vendor/pico_part.py' }; }),
+  };
+  const onOpen = vi.fn();
+  function Chip() {
+    const edit = useEditMode({ client, file: imported, active: true });
+    return edit.imported ? <ImportedBody imported={edit.imported} onAdopt={edit.adopt} onOpenPart={edit.importedPart} onOpen={onOpen} /> : null;
+  }
+  render(<Chip />, { wrapper: hostWith(() => {}) });
+  await user.click(await screen.findByRole('button', { name: 'Edit as a part' }));
+  await waitFor(() => expect(screen.getByText(/Its part did not build: pico_part\.py: the STEP this part reads is gone/)).toBeTruthy());
+  // The part is made: pressed again it is asked after, never made a second time.
+  await user.click(screen.getByRole('button', { name: 'Open its part' }));
+  await waitFor(() => expect(client.editState.mock.calls.length).toBeGreaterThanOrEqual(3));
+  expect(client.editChange).toHaveBeenCalledTimes(1);
+  expect(onOpen).not.toHaveBeenCalled();
+  expect(screen.getByText(/Its part did not build/)).toBeTruthy();
 });

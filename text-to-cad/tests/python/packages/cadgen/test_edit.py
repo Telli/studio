@@ -858,6 +858,8 @@ class ModelsOfTheEngine(unittest.TestCase):
         self.assertIsNotNone(self.wait_built(broken)["error"])
         probe = broken.editable(str(other))
         self.assertEqual((probe["partBuilt"], probe["partBuilding"]), (False, False))
+        # Why it did not build, so the page says so rather than making another part of it.
+        self.assertEqual(probe["partError"], "other_part.py: the build failed")
 
     def test_a_color_with_alpha_keeps_it_through_the_engine(self):
         from cadgen.engine import api

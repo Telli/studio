@@ -36,6 +36,8 @@ import { useFaceFeatures } from "./useFaceFeatures.js";
 import { useHostFocus } from "./useHostFocus.js";
 
 const EMPTY = Object.freeze([]);
+// What the part says when the rollback bar's body is gone from the engine, and the bar is rolled to the end.
+export const ROLLBACK_GONE = "The body at the rollback bar is no longer in the engine, so the part is shown whole. Move the bar again to see it.";
 
 /**
  * Where a click on a face or an edge puts a hole or ends an extrude (`edit.setFacePoint`): the point clicked, and the
@@ -505,12 +507,17 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
   const colorScheme = view.appearance?.colorScheme === "dark" ? "dark" : "light";
   // The rollback bar's body, a document of its own the renderer opens by its id in the part's place while the bar is up.
   const rollback = editing && typeof edit.bar?.document?.id === "string" ? edit.bar.document.id : "";
+  /** The bar's body is gone from the engine (it answered 404 for it): the bar is rolled to the end, and the part says why. */
+  const rollbackGone = () => { if (rollback) edit.dropBar(ROLLBACK_GONE); };
+  // The dimensions layer only while it has something to draw: a feature's sizes, a plane or the origin, or a choice to make.
+  const dimensionsShown = dimensions.length > 0 || planes.length > 0 || Boolean(origin) || Boolean(edit.choice);
 
   /**
    * CAD mode's layers over the viewport, on the shell's runtime (the model group the xbf scene is in): the selection bar beside a
    * pick, the feature selected's dimensions and planes, the sketches, an open sketch, a feature's preview and its value callout,
-   * the inspections' marks, and the drawing's sheet over it all. A STEP brought in with no part script is offered as a part
-   * to model on, with the CAD layout chosen.
+   * the inspections' marks, and the drawing's sheet over it all. Each is mounted only while it has something to draw, and
+   * paints when the view is drawn, never per frame at rest. A STEP brought in with no part script is offered as a part to
+   * model on, in either layout (the switch has nothing to switch on it).
    */
   const overlay = viewport => <>
     {editing ? <>
@@ -520,7 +527,7 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
         onEdit={rowEdited ? editRow : undefined} /> : null}
       {sheetUp ? <SheetEditor edit={edit} colorScheme={colorScheme} /> : null}
       {!sheetUp && edit.command && edit.callout ? <ValueCallout viewport={viewport} callout={edit.callout} /> : null}
-      {!sheetUp ? <EditDimensions viewport={viewport} dimensions={dimensions} units={units}
+      {!sheetUp && dimensionsShown ? <EditDimensions viewport={viewport} dimensions={dimensions} units={units}
         // Held while a command's dialog is open, as its sizes are the dialog's, which Cancel puts back.
         disabled={edit.saving || Boolean(edit.command)} planes={planes} origin={origin}
         choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
@@ -541,14 +548,14 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
         ? <PreviewLayer viewport={viewport} preview={edit.featurePreview} mark={edit.preview?.mark ? edit.preview : null} extent={partExtent} />
         : null}
     </> : null}
-    {layout.layout === "manual" && edit.status === "none" && edit.imported && openFile
+    {edit.status === "none" && edit.imported && openFile
       ? <ImportedBody imported={edit.imported} onAdopt={edit.adopt} onOpenPart={edit.importedPart} onOpen={openFile} /> : null}
   </>;
 
   return {
     edit, editing, cad, editable, frame, overlay, references, faces, litFaces, nameChips, drawingTools, quickEdit,
     beforePick, modelPicks, doubleClickFace, doubleClickEmpty, faceMenu, escape, escapeActive: editing && (featureBarShown || commandHeld),
-    rollback,
+    rollback, rollbackGone,
     // The units the part reads in, which Measure reads in too, as SolidWorks' does.
     units: editing ? edit.state?.units || "" : ""
   };

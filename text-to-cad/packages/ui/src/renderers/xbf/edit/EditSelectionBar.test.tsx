@@ -14,7 +14,8 @@ function viewport() {
   camera.lookAt(0, 0, 0);
   const modelGroup = new THREE.Group();
   const domElement = { clientWidth: CANVAS.width, clientHeight: CANVAS.height };
-  const runtime = { THREE, camera, modelGroup, renderer: { domElement } };
+  const scene = new THREE.Scene();
+  const runtime = { THREE, camera, modelGroup, scene, renderer: { domElement, getRenderTarget: () => null } };
   const host = document.createElement('div');
   host.setAttribute('data-host', '');
   return { runtime, host, viewport: { runtimeRef: { current: runtime }, hostRef: { current: host }, viewerReadyTick: 0 } };
@@ -25,7 +26,8 @@ const PLATE = [-50, 50].flatMap(x => [-20, 20].map(y => [x, y, 0]));
 const noop = () => {};
 const ALL = [{ id: 'ask', enabled: true }, { id: 'add-context', enabled: true }, { id: 'annotate', enabled: true }, { id: 'edit', enabled: true }];
 
-// jsdom lays nothing out: the bar is given the box it has in the app, and each frame of the camera loop is a timer.
+// jsdom lays nothing out: the bar is given the box it has in the app, and a frame the bar asks for is a timer. A render of
+// the view is the scene's after-render hook called as the renderer calls it (`drawn`): the bar lays itself out then.
 const sizeOf = Object.getOwnPropertyDescriptors(HTMLElement.prototype);
 const boxOf = Element.prototype.getBoundingClientRect;
 beforeEach(() => {
@@ -53,6 +55,8 @@ function bar(props: Record<string, unknown> = {}, rig = viewport()) {
 }
 /** Time passing: past the double-click window, a few frames of the camera loop. */
 const wait = (ms = VIEWER_DOUBLE_CLICK_ACTIVATION_DELAY_MS + 100) => act(() => { vi.advanceTimersByTime(ms); });
+/** The view drawn once, as the viewport draws it after the camera moved. */
+const drawn = (rig: ReturnType<typeof viewport>) => act(() => { rig.runtime.scene.onAfterRender(rig.runtime.renderer as never, rig.runtime.scene, rig.runtime.camera as never, null as never, null as never, null as never); });
 const toolbar = () => screen.queryByRole('toolbar', { name: 'Selection' });
 const placed = () => { const style = toolbar()!.style; return [style.left, style.top]; };
 const names = () => within(toolbar()!).getAllByRole('button').map(button => button.getAttribute('aria-label') || button.textContent);
@@ -113,12 +117,15 @@ it('stands above the pick, centred on it, and follows the camera as it moves', (
   expect(placed()).toEqual(['200px', '142px']);
   // The camera pans 20 units right, so the model is 20 pixels left on the screen.
   view.runtime.camera.position.x += 20;
+  // Nothing follows until the view is drawn: no frame runs at rest.
   wait(50);
+  expect(placed()).toEqual(['200px', '142px']);
+  drawn(view);
   expect(placed()).toEqual(['180px', '142px']);
-  // And zooms in, so the plate fills more of the screen: the same camera loop, the same box.
+  // And zooms in, so the plate fills more of the screen: the same box.
   view.runtime.camera.zoom = 2;
   view.runtime.camera.updateProjectionMatrix();
-  wait(50);
+  drawn(view);
   const zoomed = placed();
   expect(Number.parseFloat(zoomed[1])).toBeLessThan(142);
 });

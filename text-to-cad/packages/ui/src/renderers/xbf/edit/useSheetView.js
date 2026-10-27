@@ -16,7 +16,8 @@ function token(element, name) {
 /**
  * The two colours a part's drawing sheet is painted in, `{ background, foreground }` as `#rrggbb`: the app's own `--background`
  * and `--foreground`, read off `element` when it is painted (a host switches its theme whenever it likes), else the app's
- * colours for `colorScheme` (`APP_THEME_COLORS`), as every flat drawing in the viewer is painted.
+ * colours for `colorScheme` (`APP_THEME_COLORS`): the dxf renderer's `readDrawingThemeColors` (`dxf/themeColors.js`), which
+ * a renderer slice may not import, written again here.
  *
  * @param {Element | null} element
  * @param {"light" | "dark"} colorScheme
@@ -32,7 +33,9 @@ export function sheetColors(element, colorScheme = "light") {
 /**
  * The canvas a part's drawing sheet is painted on (`SheetEditor.jsx`), on the kit's flat view (`useFlatCanvasView`: drag to pan,
  * wheel or pinch to zoom, double-click to fit, and the tool in hand's tap, hover and grab): the sheet in the app's colours, and
- * what the sheet's tools draw over it (`overlay`) in the same frame. Painted on demand, never each frame.
+ * what the sheet's tools draw over it (`overlay`) in the same frame. Painted on demand, never each frame. It is the painting
+ * half of the dxf renderer's `useDrawingView` (`dxf/useDrawingView.js`), without its library picture and capture, which
+ * the sheet has no use for.
  *
  * @param {{ drawing: object | null, colorScheme?: "light" | "dark",
  *   overlay?: ((ctx: CanvasRenderingContext2D, view: { transform: object, pixelRatio: number, width: number, height: number }) => void) | null,

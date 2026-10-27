@@ -4,6 +4,7 @@ import { WORKSPACE_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { VIEWER_DOUBLE_CLICK_ACTIVATION_DELAY_MS } from "../clickActivation.js";
 import { AddContextIcon, AnnotateIcon, AskIcon } from "./cadIcons.jsx";
 import { FeatureIcon } from "./featureIcons.jsx";
+import { useSceneRendered } from "./sceneRendered.js";
 import { SELECTION_BAR_EDGE_PX, placeBar, screenBox } from "./selectionBar.js";
 
 // A button of the bar: its icon and its name in a row, the workspace's pale blue under the pointer and its deeper one
@@ -42,27 +43,28 @@ function frameOf(runtime, points, width, height, host) {
  * model turns), and not otherwise: nothing is laid out for a view that holds still.
  */
 function useFrame(viewport, anchorKey, anchorRef, active) {
-  const { runtimeRef, hostRef, viewerReadyTick } = viewport;
+  const { runtimeRef, hostRef } = viewport;
   const [frame, setFrame] = useState(null);
+  const lastRef = useRef(null);
+  // Laid out after each render of the view, and once for new picks (`useSceneRendered`): nothing runs at rest.
+  const request = useSceneRendered(viewport, () => {
+    const runtime = runtimeRef.current, canvas = runtime?.renderer?.domElement;
+    if (!runtime?.camera || !runtime.modelGroup || !canvas) return;
+    runtime.camera.updateMatrixWorld();
+    runtime.modelGroup.updateMatrixWorld();
+    const width = canvas.clientWidth, height = canvas.clientHeight;
+    const signature = [width, height, ...runtime.camera.matrixWorld.elements, ...runtime.camera.projectionMatrix.elements,
+      ...runtime.modelGroup.matrixWorld.elements];
+    const last = lastRef.current;
+    if (last && last.every((value, index) => value === signature[index])) return;
+    lastRef.current = signature;
+    setFrame(frameOf(runtime, anchorRef.current?.() || [], width, height, hostRef?.current));
+  }, active);
   useEffect(() => {
-    if (!active) { setFrame(null); return undefined; }
-    let timer = 0, last = null;
-    const tick = () => {
-      timer = requestAnimationFrame(tick);
-      const runtime = runtimeRef.current, canvas = runtime?.renderer?.domElement;
-      if (!runtime?.camera || !runtime.modelGroup || !canvas) return;
-      runtime.camera.updateMatrixWorld();
-      runtime.modelGroup.updateMatrixWorld();
-      const width = canvas.clientWidth, height = canvas.clientHeight;
-      const signature = [width, height, ...runtime.camera.matrixWorld.elements, ...runtime.camera.projectionMatrix.elements,
-        ...runtime.modelGroup.matrixWorld.elements];
-      if (last && last.every((value, index) => value === signature[index])) return;
-      last = signature;
-      setFrame(frameOf(runtime, anchorRef.current?.() || [], width, height, hostRef?.current));
-    };
-    tick();
-    return () => cancelAnimationFrame(timer);
-  }, [active, anchorKey, runtimeRef, hostRef, anchorRef, viewerReadyTick]);
+    lastRef.current = null;
+    if (!active) { setFrame(null); return; }
+    request();
+  }, [active, anchorKey, request]);
   return frame;
 }
 

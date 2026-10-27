@@ -18,6 +18,7 @@ import {
   strokePath
 } from "./sketchDrawing.js";
 import { draggedAngle, draggedDepth, withUnit } from "./editMode.js";
+import { useSceneRendered } from "./sceneRendered.js";
 import { sketchGeometry } from "./sketchMode.js";
 import {
   CLICK_SLOP_PX,
@@ -336,16 +337,19 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
   const boxRefs = useRef({});
   const inputRefs = useRef({});
 
+  // Painted after each render of the view, and once for each change of its own (`useSceneRendered`: new props, the
+  // pointer over a sketch or an arrow, a drag): nothing runs at rest.
+  const paintRef = useRef(() => {});
+  const request = useSceneRendered(viewport, () => paintRef.current());
+  useEffect(() => { request(); });
   useEffect(() => {
     const host = viewport.hostRef?.current;
     const canvas = canvasRef.current;
     if (!host || !canvas) return undefined;
-    let frameId = 0;
     let painted = "";
     let colors = colorsFor(host);
     let cad = cadColors(host);
     const paint = () => {
-      frameId = requestAnimationFrame(paint);
       const runtime = viewport.runtimeRef?.current;
       const width = host.clientWidth || 1;
       const height = host.clientHeight || 1;
@@ -428,9 +432,10 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
         if (mark) mark.textContent = which === "angle" ? "°" : withUnit("", shape.units).trim();
       }
     };
-    frameId = requestAnimationFrame(paint);
-    return () => cancelAnimationFrame(frameId);
-  }, [viewport.hostRef, viewport.runtimeRef, viewport.viewerReadyTick]);
+    paintRef.current = paint;
+    request();
+    return () => { paintRef.current = () => {}; };
+  }, [viewport.hostRef, viewport.runtimeRef, viewport.viewerReadyTick, request]);
 
   useEffect(() => {
     const host = viewport.hostRef?.current;
@@ -461,6 +466,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       host.style.cursor = "";
       host.removeAttribute("title");
       hover.current = -2; // the sketch under the pointer, if any, is found again
+      request();
     };
     const dragMove = event => {
       if (!drag || event.pointerId !== drag.pointerId) return;
@@ -473,6 +479,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
         if (!shape?.onAngle) return;
         draggedRef.current = draggedAngle(drag.reach, at(event));
         version.current += 1;
+        request();
         return;
       }
       const second = drag.handle.which === "depth2";
@@ -481,6 +488,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       if (reached === null) return;
       draggedRef.current = { ...draggedDepth(reached - drag.grab, second ? "blind" : shape.end, shape.units), which: drag.handle.which };
       version.current += 1;
+      request();
     };
     const stopDrag = () => {
       drag = null;
@@ -498,6 +506,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       const reached = draggedRef.current;
       draggedRef.current = null;
       version.current += 1;
+      request();
       if (event.type === "pointercancel") return;
       if (moved) {
         if (reached) (reached.degrees ? shape?.onAngle : reached.which === "depth2" ? shape?.onDepth2 : shape?.onDepth)?.(reached.text);
@@ -559,8 +568,9 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       if (index === hover.current) return;
       hover.current = index;
       host.style.cursor = index >= 0 ? "pointer" : "";
+      request();
     };
-    const leave = () => { leaveHandle(); hover.current = -1; };
+    const leave = () => { leaveHandle(); hover.current = -1; request(); };
     // A double-click on a sketch's line opens it to edit, as in the design tree.
     const twice = event => {
       if (!live.current.onEdit) return;
@@ -588,7 +598,7 @@ export default function SketchesLayer({ viewport, sketches, selected = null, onP
       leaveHandle();
       if (hover.current >= 0) host.style.cursor = "";
     };
-  }, [viewport.hostRef, viewport.viewerReadyTick]);
+  }, [viewport.hostRef, viewport.viewerReadyTick, request]);
 
   const commitBox = (which, text) => {
     const shape = live.current.preview;

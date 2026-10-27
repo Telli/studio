@@ -12,7 +12,7 @@ import { testHost } from '../../../../dist/host/testing/host.js';
 import { editLayoutHost } from '../../../../dist/tab-store/editLayoutHost.js';
 import { presentXbfTree } from '../../../../dist/renderers/xbf/xbfTree.js';
 import { useXbfScene } from '../../../../dist/renderers/xbf/useXbfScene.js';
-import { useXbfCadMode } from '../../../../dist/renderers/xbf/edit/useXbfCadMode.js';
+import { ROLLBACK_GONE, useXbfCadMode } from '../../../../dist/renderers/xbf/edit/useXbfCadMode.js';
 
 // CAD mode's pieces that live on the renderer: what it draws over the xbf scene, the rollback bar's body opened in the part's
 // place, and Studio's hand-off between the AI's layout and CAD's on a double-click. The viewport is the browser's; these are the
@@ -53,10 +53,15 @@ const scene = {
 };
 const FACE = { id: 'i0/face/12', kind: 'face', ordinal: 12 };
 
-function server({ file = DOCUMENT } = {}) {
+const OTHER = '9e8d7c6b-5a4f-5e3d-8c2b-1a0f9e8d7c6b';
+const STEP = '/work/bought/bracket.step';
+/** The viewer's server: the plate's and another part's documents have scripts, a STEP brought in has none; `read` answers a
+ * read of the part (the plate, or a refusal). */
+function server({ read = (): object => PART } = {}) {
   return {
     editState: vi.fn(async (asked: string, _files: unknown, options?: { probe?: boolean }) => (options?.probe
-      ? (asked === file && asked === DOCUMENT ? { ok: true, editable: true, document: DOCUMENT } : { ok: true, editable: false }) : PART)),
+      ? ([DOCUMENT, OTHER].includes(asked) ? { ok: true, editable: true, document: asked }
+        : asked === STEP ? { ok: true, editable: false, importable: true } : { ok: true, editable: false }) : read())),
     editChange: vi.fn(async (change: { bar?: { item?: string } }) => (change.bar?.item
       ? { ...PART, bar: { before: change.bar.item, item: change.bar.item, name: 'Hole1', kind: 'part', document: { id: BAR, name: 'plate at the rollback bar 1a2b3c4d' } } }
       : PART)),
@@ -68,11 +73,11 @@ function server({ file = DOCUMENT } = {}) {
 }
 const host = testHost();
 const wrapper = ({ children }: { children: ReactNode }) => <ViewerHostContext.Provider value={host}>{children}</ViewerHostContext.Provider>;
-type Options = { layout?: string; file?: string; toolMode?: string; isolated?: boolean };
-function props(client: ReturnType<typeof server>, { layout = 'manual', file = DOCUMENT, toolMode = 'select', isolated = false }: Options = {},
+type Options = { layout?: string; file?: string; toolMode?: string; isolated?: boolean; assembly?: boolean };
+function props(client: ReturnType<typeof server>, { layout = 'manual', file = DOCUMENT, toolMode = 'select', isolated = false, assembly = false }: Options = {},
   extra: Record<string, unknown> = {}) {
   return { view: { file: { path: file }, appearance: {} }, document: { client, services: { preferences: { editLayout: layout }, onPreferenceChange: vi.fn() } },
-    scene, tree, assembly: false, loading: false, updating: false, revision: 'r1', selectedElementIds: [], setChosen: vi.fn(), facts: new Map(),
+    scene, tree, assembly, loading: false, updating: false, revision: 'r1', selectedElementIds: [], setChosen: vi.fn(), facts: new Map(),
     toolMode, previewing: false, ensureSelect: vi.fn(), setSelectFilter: vi.fn(), viewportRef: { current: null }, lookAt: vi.fn(), isolated, ...extra };
 }
 /** CAD mode over the renderer, re-rendered with other options as the tab's layout or the tool in hand changes. */
@@ -102,9 +107,12 @@ describe('what CAD mode draws on the xbf scene', () => {
       moveTo: (x: number, y: number) => { moves.push([x, y]); }, measureText: (text: string) => ({ width: text.length * 6 }),
     };
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as never);
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => setTimeout(() => callback(performance.now()), 0));
+    frames = 0;
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames += 1; return setTimeout(() => callback(performance.now()), 0); });
     vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id));
   });
+  // How many frames the layers have asked for.
+  let frames = 0;
 
   // The engine's document of a filleted plate and its pegs, as `cadgen serve` answers it (core's fixture).
   const FIXTURE = join(dirname(createRequire(import.meta.url).resolve('@text-to-cad/core/lib/xbf/xbfDocument.js')), '__fixtures__');
@@ -144,7 +152,8 @@ describe('what CAD mode draws on the xbf scene', () => {
     Object.defineProperty(element, 'clientWidth', { value: 800 });
     Object.defineProperty(element, 'clientHeight', { value: 600 });
     document.body.append(element);
-    const viewport = { runtimeRef: { current: { THREE, camera, modelGroup } }, hostRef: { current: element }, viewerReadyTick: 1 };
+    const scene3d = new THREE.Scene();
+    const viewport = { runtimeRef: { current: { THREE, camera, modelGroup, scene: scene3d } }, hostRef: { current: element }, viewerReadyTick: 1 };
 
     const client = server();
     function Overlay() {
@@ -159,6 +168,21 @@ describe('what CAD mode draws on the xbf scene', () => {
     const [x, y] = moves[0];
     expect(x).toBeCloseTo(((at.x + 1) * 800) / 2, 6);
     expect(y).toBeCloseTo(((1 - at.y) * 600) / 2, 6);
+    // Nothing selected, so no dimensions layer at all.
+    expect(document.querySelector('[data-cad-edit-dimensions]')).toBe(null);
+    // At rest nothing runs: no frame is asked for while nothing changes.
+    const asked = frames;
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+    expect(frames).toBe(asked);
+    // The camera moved and the view drawn: the sketch follows in that render, through the scene's after-render hook.
+    camera.position.set(-50, -90, 70);
+    camera.lookAt(0, 0, 0);
+    camera.updateMatrixWorld();
+    moves = [];
+    scene3d.onAfterRender({ getRenderTarget: () => null } as never, scene3d, camera, null as never, null as never, null as never);
+    const moved = new THREE.Vector3(0, 0, 4).applyMatrix4(modelGroup.matrixWorld).project(camera);
+    expect(moves[0][0]).toBeCloseTo(((moved.x + 1) * 800) / 2, 6);
+    expect(frames).toBe(asked);
     xbf.dispose();
   });
 });
@@ -183,6 +207,27 @@ describe('the rollback bar', () => {
     await act(async () => { await view.result.current.edit.rollTo(null); });
     expect(view.result.current.rollback).toBe('');
     await waitFor(() => expect(client.engineDocument.mock.calls.map(call => call[0])).toEqual([DOCUMENT, BAR, DOCUMENT]));
+  });
+
+  it("is rolled to the end when its body is gone from the engine, and the part says why", async () => {
+    const { result } = mount(server());
+    await waitFor(() => expect(result.current.editing).toBe(true));
+    await act(async () => { await result.current.edit.rollTo('plate.py:11'); });
+    expect(result.current.rollback).toBe(BAR);
+    act(() => result.current.rollbackGone());
+    expect([result.current.rollback, result.current.edit.bar, result.current.edit.error]).toEqual(['', null, ROLLBACK_GONE]);
+  });
+});
+
+describe('a STEP brought in', () => {
+  it("is offered as a part to model on in the AI's layout too, which is how Studio opens it", async () => {
+    const client = server();
+    function Overlay() {
+      const cad = useXbfCadMode(props(client, { layout: 'ai', file: STEP }) as never);
+      return cad.overlay({ runtimeRef: { current: null }, hostRef: { current: null }, viewerReadyTick: 0 });
+    }
+    render(<Overlay />, { wrapper });
+    await waitFor(() => expect(document.querySelector('[data-cad-imported-body]')?.textContent).toContain('Edit as a part'));
   });
 });
 
@@ -218,7 +263,7 @@ describe("Studio's hand-off on a double-click", () => {
     const { requester, release } = studio();
     released = release;
     // A plain STEP, in Studio: nothing to model, so nothing is asked.
-    const step = mount(server({ file: '/work/bought/bracket.step' }), { layout: 'ai', file: '/work/bought/bracket.step' });
+    const step = mount(server(), { layout: 'ai', file: STEP });
     await waitFor(() => expect(step.result.current.edit.status).toBe('none'));
     expect(step.result.current.doubleClickFace(FACE)).toBe(false);
     step.unmount();
@@ -267,5 +312,72 @@ describe("Studio's hand-off on a double-click", () => {
     act(() => result.current.edit.open('fillet'));
     expect(result.current.doubleClickEmpty()).toBe(false);
     expect(requester).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves empty space be with a sketch open, the sheet up, or another tool in hand', async () => {
+    const { requester, release } = studio();
+    released = release;
+    const sketching = mount(server());
+    await waitFor(() => expect(sketching.result.current.editing).toBe(true));
+    act(() => sketching.result.current.edit.openSketch(SKETCH));
+    expect(sketching.result.current.edit.sketch).toBeTruthy();
+    expect(sketching.result.current.doubleClickEmpty()).toBe(false);
+    sketching.unmount();
+    const sheet = mount(server());
+    await waitFor(() => expect(sheet.result.current.editing).toBe(true));
+    act(() => { void sheet.result.current.edit.openSheet(1); });
+    expect(sheet.result.current.edit.sheetView).toBeTruthy();
+    expect(sheet.result.current.doubleClickEmpty()).toBe(false);
+    sheet.unmount();
+    const measuring = mount(server(), { toolMode: 'measure' });
+    await waitFor(() => expect(measuring.result.current.editing).toBe(true));
+    expect(measuring.result.current.doubleClickEmpty()).toBe(false);
+    expect(requester).not.toHaveBeenCalled();
+  });
+
+  it("keeps Normal To on an assembly's faces, laid out for the AI", async () => {
+    const { requester, release } = studio();
+    released = release;
+    const { result } = mount(server(), { layout: 'ai', assembly: true });
+    await waitFor(() => expect(result.current.edit.status).toBe('ready'));
+    expect(result.current.doubleClickFace(FACE)).toBe(false);
+    expect(requester).not.toHaveBeenCalled();
+  });
+
+  it('drops the face waiting for CAD when another file comes, or when the part reads to an error', async () => {
+    released = studio().release;
+    const moved = mount(server(), { layout: 'ai' });
+    await waitFor(() => expect(moved.result.current.edit.status).toBe('ready'));
+    act(() => { moved.result.current.doubleClickFace(FACE); });
+    moved.rerender({ layout: 'manual', file: OTHER });
+    await waitFor(() => expect(moved.result.current.editing).toBe(true));
+    await act(async () => {});
+    expect(moved.result.current.edit.selected).toBe(null);
+    moved.unmount();
+    // A part that reads to nothing but an error: the face is let go, and not selected once the part reads after all.
+    let reads: () => object = () => ({ ok: false, error: 'plate.py: the build failed' });
+    const failing = mount(server({ read: () => reads() }), { layout: 'ai' });
+    await waitFor(() => expect(failing.result.current.editable).toBe(true));
+    act(() => { failing.result.current.doubleClickFace(FACE); });
+    failing.rerender({ layout: 'manual' });
+    await waitFor(() => expect(failing.result.current.edit.status).toBe('error'));
+    reads = () => PART;
+    await waitFor(() => expect(failing.result.current.edit.status).toBe('ready'), { timeout: 4000 });
+    await act(async () => {});
+    expect(failing.result.current.edit.selected).toBe(null);
+  });
+
+  it('a refusal of an earlier ask leaves the newer face waiting', async () => {
+    // The first ask is answered late, with a no; the second at once.
+    let refuse: (reason: Error) => void = () => {};
+    const answers = [new Promise((_resolve, reject) => { refuse = reject; }), Promise.resolve({})];
+    released = studio(async () => answers.shift()).release;
+    const { result, rerender } = mount(server(), { layout: 'ai' });
+    await waitFor(() => expect(result.current.edit.status).toBe('ready'));
+    act(() => { result.current.doubleClickFace({ id: 'i0/face/3', kind: 'face', ordinal: 3 }); });
+    act(() => { result.current.doubleClickFace(FACE); });
+    await act(async () => { refuse(new Error('Finish or cancel the command first')); });
+    rerender({ layout: 'manual' });
+    await waitFor(() => expect(result.current.edit.selected).toBe('plate.py:11'));
   });
 });

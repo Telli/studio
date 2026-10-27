@@ -3,6 +3,7 @@ import { MEASURE_DIMENSION_COMMITTED_COLOR } from "@text-to-cad/core/lib/viewer/
 import { Button } from "@text-to-cad/ui/primitives/button";
 import { cn } from "@text-to-cad/ui/utils";
 import { sizeName } from "./editMode.js";
+import { useSceneRendered } from "./sceneRendered.js";
 
 const ARROW_PX = 7;
 const EMPTY = Object.freeze([]);
@@ -72,7 +73,7 @@ function DimensionChip({ dimension, units, editing, active, disabled, onEdit, on
  * Edit mode's layer over the viewport: the selected feature's dimensions on the model, drawn in
  * Measure's color, each with its value, which a double-click changes. The points are the part's
  * own millimetres (`cadgen/edit`), placed as the model is (under the model group), and laid out
- * again only when the camera, the view's size or the dimensions changed.
+ * again only when the view is drawn or the dimensions changed.
  *
  * @param {{ viewport: { runtimeRef: object, hostRef: object, viewerReadyTick: number },
  *   dimensions: object[], units: string, disabled?: boolean, choice?: object | null,
@@ -94,17 +95,20 @@ export default function EditDimensions({ viewport, dimensions, units, disabled =
   const activeRef = useRef(null);
   activeRef.current = editing || hovered;
 
+  // Laid out after each render of the view and once when the dimensions or the marks change (`useSceneRendered`), never per
+  // frame at rest.
+  const paintRef = useRef(() => {});
+  const request = useSceneRendered(viewport, () => paintRef.current());
+  useEffect(() => { request(); });
   useEffect(() => {
     const host = viewport.hostRef?.current;
     const canvas = canvasRef.current;
     if (!host || !canvas) return undefined;
-    let frame = 0;
     let painted = "";
     let paintedDimensions = null;
     let paintedActive = null;
     let paintedMarks = null;
     const paint = () => {
-      frame = requestAnimationFrame(paint);
       const runtime = viewport.runtimeRef?.current;
       if (!runtime?.camera || !runtime.modelGroup) return;
       const width = host.clientWidth || 1;
@@ -179,9 +183,10 @@ export default function EditDimensions({ viewport, dimensions, units, disabled =
         if (at) chip.style.transform = `translate(${Math.round(at[0])}px, ${Math.round(at[1])}px) translate(-50%, -50%)`;
       }
     };
-    frame = requestAnimationFrame(paint);
-    return () => cancelAnimationFrame(frame);
-  }, [viewport.hostRef, viewport.runtimeRef, viewport.viewerReadyTick]);
+    paintRef.current = paint;
+    request();
+    return () => { paintRef.current = () => {}; };
+  }, [viewport.hostRef, viewport.runtimeRef, viewport.viewerReadyTick, request]);
 
   return <>
     <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-10 h-full w-full" aria-hidden="true" data-cad-edit-dimensions="" />

@@ -42,16 +42,16 @@ it('opens a selected callout even when a different geometry face remains picked'
   expect(screen.queryByRole('button', { name: 'Datum A', exact: true })).toBeNull();
 });
 
-it("where the layout has no Quick Edit (CAD mode's), a change asked for says it goes to the agent from AI mode", () => {
+it("where the layout has no Quick Edit (CAD mode's), a change asked for says to switch to AI to send it", () => {
   const a = datum(0, 'A', 'face-a');
   const changes = [{ key: 'edit:0:A', kind: 'edit', entryKey: a.key, values: { letter: 'B' } }];
   const { rerender } = render(<PmiSection pmi={section({ entries: [a], editable: true, changes }) as any} picked={[]} moving={false} quickEditAway />);
-  expect(screen.getByText('These changes go to the agent from Quick Edit in AI mode.')).toBeTruthy();
+  expect(screen.getByText('Switch to AI to send these changes to the agent.')).toBeTruthy();
   // In the AI layout Quick Edit is on screen, carrying them; and with nothing asked for there is nothing to say.
   rerender(<PmiSection pmi={section({ entries: [a], editable: true, changes }) as any} picked={[]} moving={false} />);
-  expect(screen.queryByText(/from Quick Edit in AI mode/)).toBeNull();
+  expect(screen.queryByText(/Switch to AI to send/)).toBeNull();
   rerender(<PmiSection pmi={section({ entries: [a], editable: true }) as any} picked={[]} moving={false} quickEditAway />);
-  expect(screen.queryByText(/from Quick Edit in AI mode/)).toBeNull();
+  expect(screen.queryByText(/Switch to AI to send/)).toBeNull();
 });
 
 it('lists two parts\' datum A apart, and a position offers its own part\'s datums alone', () => {
