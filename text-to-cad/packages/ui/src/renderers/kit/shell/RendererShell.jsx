@@ -155,6 +155,8 @@ const DOUBLE_PRESS_MS = 600;
  *   toolPanels?: import("react").ReactNode, sidebar?: import("react").ReactNode,
  *   references?: readonly import("@text-to-cad/core/prompt").PromptReference[],
  *   referenceChips?: readonly import("../tools/quick-edit/ReferenceChips.jsx").ReferenceChip[] | null,
+ *   requests?: ReadonlyArray<import("../tools/quick-edit/ReferenceChips.jsx").ReferenceChip & { request: string }> | null,
+ *   onClearRequests?: (() => void) | null,
  *   nameReference?: ((reference: import("@text-to-cad/core/prompt").PromptReference) => string | import("../inspector/pickGlyph.jsx").CompactName) | null,
  *   copySelection?: (() => unknown) | null,
  *   contextMenuItems?: ((press: { clientX: number, clientY: number, shiftKey: boolean }) => object[] | null) | null,
@@ -188,6 +190,10 @@ const DOUBLE_PRESS_MS = 600;
  *   carry offers one. The box sizes itself, for as long as it is open: a drag of its corner renders nothing
  *   here. `onClearReferences`: the renderer's clear of that selection, as a press on the
  *   background makes it; Quick Edit's X calls it, and clears Annotate's ink too.
+ *   `requests`: the changes the renderer was asked for in the view that its file's code should make
+ *   (a value or a placement the code holds, say), each a chip in Quick Edit
+ *   with what its prompt carries (`request`); `onClearRequests`: drops them all, as Quick Edit's
+ *   X does and a note that has gone does.
  *   `copySelection`: the viewer's copy key (⌘C / Ctrl+C) while the renderer's own tool is up and
  *   something is selected (Annotate's copies the view with its ink); null when there is nothing to copy.
  *   `contextMenuItems`: what THIS renderer offers on a secondary tap over the canvas; the
@@ -252,7 +258,8 @@ const DOUBLE_PRESS_MS = 600;
  *   it is open, whatever is picked or drawn, and with nothing picked on the file as a whole; `false`: it is shut
  *   until asked, a written note excepted; null (the default): it follows what it would carry (`references`).
  */
-export default function RendererShell({ shell, tools, toolPanels = null, subToolbar = null, sidebar = null, sidebarStartsOpen = null, references = null, referenceChips = null, nameReference = null, onClearReferences = null, copySelection = null, contextMenuItems = null,
+export default function RendererShell({ shell, tools, toolPanels = null, subToolbar = null, sidebar = null, sidebarStartsOpen = null, references = null, referenceChips = null, nameReference = null, onClearReferences = null,
+  requests = null, onClearRequests = null, copySelection = null, contextMenuItems = null,
   onContextMenuOpenChange = null, viewportOverlay = null, previewView = null,
   frameProvider = null, iconSprite = null, drawingToolIcons = null, onCanvasPointerDown = null, onSelectPress = null, onSelectHover = null, selectsAnnotations = true, inkTouches = null,
   alertBody = null, alertStartsDismissed = false, ribbon = null, leftDock = null, bottomDock = null, dialogPlace = null, dialogOpen = false,
@@ -567,7 +574,7 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
   };
   frame.copyActionRef.current = copyAction;
   // Quick Edit's X: nothing picked and nothing drawn, as the person would clear each.
-  const clearQuickEdit = () => { onClearReferences?.(); if (frame.annotation.hasAnnotation) frame.annotation.forget(); };
+  const clearQuickEdit = () => { onClearReferences?.(); onClearRequests?.(); if (frame.annotation.hasAnnotation) frame.annotation.forget(); };
   const forgetAnnotation = frame.annotation.forget;
   // Quick Edit's annotation: while Annotate is up or there is ink. The annotation goes with a note whenever
   // there is one (its views and annotation file, `frame.quickEditPrompt`); its Annotation chip's X wipes it.
@@ -616,7 +623,7 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
     status: failed ? null : <ViewUpdateStatus status={viewUpdateStatus} onRetry={frame.viewUpdate.retry} className="text-tiny" />
   } : null;
   const quickEdit = references ? <QuickEdit key={frame.modelKey} className="self-stretch" hidden={chromeHidden} docked={mobile}
-    resource={frame.resource} references={references} chips={referenceChips} nameReference={nameReference} annotation={annotation} prompt={frame.quickEditPrompt}
+    resource={frame.resource} references={references} chips={referenceChips} nameReference={nameReference} annotation={annotation} requests={requests} prompt={frame.quickEditPrompt}
     asked={quickEditAsked} onCopy={copyAction} onEscape={frame.escape} onClear={clearQuickEdit} disabled={viewerLoading || !scene} /> : null;
   const body = (
     <div

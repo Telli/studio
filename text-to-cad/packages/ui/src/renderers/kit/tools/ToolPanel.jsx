@@ -79,10 +79,10 @@ const REVEAL_CLASS = "animate-in fade-in-0 zoom-in-75 duration-150 motion-reduce
  * panel, wherever it sits among them.
  *
  * @param {{ id: string, title?: import("react").ReactNode, name?: string, label: string, summary?: import("react").ReactNode,
- *   actions?: import("react").ReactNode,
+ *   actions?: import("react").ReactNode, icon?: import("react").ComponentType<{ className?: string }> | null,
  *   header?: import("react").ReactNode, collapsible?: boolean, onClose?: (() => void) | null, closeLabel?: string,
  *   fit?: "fixed" | "tree" | "details", resizable?: boolean, hidden?: boolean, defaultCollapsed?: boolean,
- *   lead?: boolean, icon?: import("react").ComponentType | null, children?: import("react").ReactNode }} props
+ *   lead?: boolean, children?: import("react").ReactNode }} props
  *   `label` names the panel for assistive technology ("Clip controls"), with a heading or
  *   without; the chevron, the X and the grip take their names from it, unless the X says
  *   what it does itself (`closeLabel`, "Clear selection").
