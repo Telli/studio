@@ -206,8 +206,8 @@ A branch on top of `amy/hardware` for people who know hardware before code: `bra
 `"focus": "hardware"`. `amy/hardware` stays the base text-to-cad pins; this one rebases onto it.
 
 Its interface is a setting, Engineering, Engineering with code, or Code (Settings, Appearance,
-Interface; or the "Switch to ..." commands in the command palette, which "dev" also finds),
-Engineering by default, per device. Engineering puts every coding tool away (version control,
+Interface in the two code interfaces; Settings, Advanced, Interface in Engineering, where Appearance
+leaves the row out; the command palette has no switch commands), Engineering by default, per device. Engineering puts every coding tool away (version control,
 editors, terminals, scripts, branches, pull requests, diffs), names parts and documents rather than
 files ("Servo bracket", "Servo bracket drawing", "Servo bracket STL", not
 `parts/servo_bracket.step`) on the project page, tabs, file chips in the chat and the work log (`components/workbench/partNames.ts`), says what
@@ -225,9 +225,20 @@ Settings in Engineering leave out what a programmer sets (`CODE_SETTINGS_ROWS` i
 `components/workbench/engineeringSettings.ts`): the code font, agent update checks, response
 streaming, the rich text composer, the send shortcut, follow-up behaviour, glass opacity and
 contrast, a project's Workspace and Checkouts. Hiding changes nothing stored: each keeps its value
-and default, and Engineering with code and Code show them all (Settings, Appearance, Interface is
-the way there). Plugins and Diagnostics sit together under one Advanced group in the settings
-sidebar (`ADVANCED_SETTINGS_SECTIONS`, `studioInterface.ts`); their own settings URLs are unchanged.
+and default, and Engineering with code and Code show them all (Settings, Advanced, Interface is
+the way there). Plugins, Diagnostics and Interface (the switch above, `/settings/interface`) sit
+together under one Advanced group in the settings sidebar (`ADVANCED_SETTINGS_SECTIONS`,
+`studioInterface.ts`); their own settings URLs are unchanged, and the code interfaces list neither
+Diagnostics nor Interface as a section.
+
+Engineering's composer has no model picker and no Thinking or Speed choice (the "/model" command
+and the model shortcuts do nothing there): the model new chats start on, with its Thinking and
+Speed, is Settings, AI agents, New chats (`DefaultModelRow`, the one row that edits the default
+model, which General shows under "New threads" in the code interfaces). It applies to chats
+started afterwards and to a draft that has not picked a model; a chat that has run keeps its own.
+Engineering also has no pull requests or usage page: `/pull-requests` and `/usage` open Home
+(a replaced history entry), and the usage shortcut does nothing. The code interfaces keep all of
+these as they were.
 
 - **The project's overview.** The Project tab (Overview, in Engineering) opens on it: the
   project's README in its folder first, what it is and its decisions
@@ -407,7 +418,7 @@ sidebar (`ADVANCED_SETTINGS_SECTIONS`, `studioInterface.ts`); their own settings
   window's (`projectTabs.ts`): the Overview pinned first as its icon, then each file with its kind's
   colored icon (`FileKindIcon.tsx`) at its left and its close at its right, as Chrome's are, the
   one in front joined to the toolbar under them. There is no + (New is the one way to add), a
-  panel with every tab closed shows the Overview, and a tab's menu has no Copy path. The
+  panel with every tab closed shows the Overview, and a tab's menu has no Copy path in Engineering (the code interfaces keep it). The
   toolbar is one line of what can be done (`StudioPanelBar.tsx`): the AI | CAD switch, where the
   viewer in front has two layouts, then Import and New, always there, at its right end, as Home
   has them (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow window's panel

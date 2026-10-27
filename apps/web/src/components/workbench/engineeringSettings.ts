@@ -93,6 +93,15 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
     { title: "Model for short text", description: "Names chats and writes other short text." },
   ],
   ["thread-notifications", { title: "Chat notifications" }],
+  // The composer has no model picker here, so the model new chats start on is set under AI agents.
+  [
+    "default-model",
+    {
+      title: "Model",
+      description:
+        "The AI model new chats start on, with its Thinking and Speed. A chat that is already open keeps its own.",
+    },
+  ],
   // T3's policy is T3's; the row keeps the fact, without its link (`SettingsPanels.tsx`).
   ["privacy-policy", { title: "Privacy", description: `${APP_BASE_NAME} sends no usage data.` }],
 ]);
@@ -114,7 +123,10 @@ export function engineeringSettingsSearchItems(
       // The Diagnostics row is not on General here; its search result opens the page under Advanced.
       item.id === "diagnostics"
         ? { ...item, to: "/settings/diagnostics" as const, targetId: "diagnostics-processes" }
-        : item,
+        : // The model new chats start on is under AI agents here, not under General.
+          item.id === "default-model"
+          ? { ...item, to: "/settings/providers" as const }
+          : item,
     )
     .filter(
       (item) =>
@@ -141,7 +153,13 @@ export function settingsNavGroups<Entry extends { readonly to: string }>(
   engineering: boolean,
 ): { readonly main: Entry[]; readonly advanced: Entry[] } {
   if (!engineering) {
-    return { main: entries.filter((entry) => entry.to !== "/settings/diagnostics"), advanced: [] };
+    // Diagnostics is a link on General here, and the Interface switch a row of Appearance.
+    return {
+      main: entries.filter(
+        (entry) => entry.to !== "/settings/diagnostics" && entry.to !== "/settings/interface",
+      ),
+      advanced: [],
+    };
   }
   const advanced = ADVANCED_SETTINGS_SECTIONS.flatMap((to) =>
     entries.filter((entry) => entry.to === to),

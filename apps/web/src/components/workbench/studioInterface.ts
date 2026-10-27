@@ -5,8 +5,8 @@ import { partLabel } from "./partNames";
 import { WORKBENCH_LAYOUT } from "./workbenchLayout";
 
 /**
- * How Studio presents itself, the person's choice (Settings, Appearance,
- * Interface; or the command palette):
+ * How Studio presents itself, the person's choice (Settings, Appearance, Interface in the
+ * code interfaces; Settings, Advanced, Interface in the engineering one):
  *
  * - `engineering`: parts, checks and outputs first. The projects home, the
  *   project's overview, the title block over the viewer, Check, Make and
@@ -45,7 +45,6 @@ export const ENGINEERING_COMPOSER_PLACEHOLDER =
  * out the agent's coding commands (/init, /review and the like); the skills stay.
  */
 export const ENGINEERING_SLASH_DESCRIPTIONS: Readonly<Record<string, string>> = {
-  model: "Pick the AI model for this chat",
   plan: "Plan first: the agent says what it will do, then waits",
   default: "Back to working on the design",
 };
@@ -78,6 +77,8 @@ export const CODE_SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
 export const ADVANCED_SETTINGS_SECTIONS: ReadonlyArray<string> = [
   "/settings/plugins",
   "/settings/diagnostics",
+  // The Interface switch, the way back to the code interfaces (`StudioInterfaceSettingsPanel`).
+  "/settings/interface",
 ];
 
 /** The name of the engineering interface's group of ADVANCED_SETTINGS_SECTIONS. */
@@ -175,42 +176,6 @@ export function useStudioInterface(): StudioInterface {
     () => current,
     () => "code" as const,
   );
-}
-
-const SWITCH_TITLES: Record<StudioInterface, string> = {
-  engineering: "Switch to the engineering interface",
-  both: "Switch to engineering with code tools",
-  code: "Switch to the code interface",
-};
-
-/**
- * The command palette's switches to the other interfaces, none where Studio
- * offers no choice. Read when the palette lists its actions.
- */
-export function studioInterfaceCommands(): ReadonlyArray<{
-  readonly id: StudioInterface;
-  readonly title: string;
-  readonly searchTerms: ReadonlyArray<string>;
-  readonly run: () => void;
-}> {
-  if (!STUDIO_INTERFACE_AVAILABLE) return [];
-  return INTERFACES.filter((next) => next !== current).map((next) => ({
-    id: next,
-    title: SWITCH_TITLES[next],
-    searchTerms: [
-      "studio",
-      "interface",
-      "engineering",
-      "code",
-      "dev",
-      "developer",
-      "mode",
-      "view",
-      "hardware",
-      ...(next === "both" ? ["both", "hybrid", "mixed", "tools"] : []),
-    ],
-    run: () => setStudioInterface(next),
-  }));
 }
 
 /**

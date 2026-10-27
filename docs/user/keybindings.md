@@ -21,6 +21,9 @@ send shortcut. Click the send button to use the configured follow-up behavior.
 When an active turn has queued messages, `mod+Shift+Enter` sends the first as a
 steer. Change it under **Queue: Send First Queued Message as Steer** in Keybindings.
 
+In Studio's engineering interface the composer has no model or effort picker, so `mod+shift+m`
+and `mod+shift+e` do nothing there; the model is under **Settings, AI agents**.
+
 Use `mod+shift+m` to choose a model and `mod+shift+h` to choose a host.
 To step a new thread to the next machine instead of opening the menu, bind
 **Composer: Cycle Host** in Keybindings. It has no default shortcut.

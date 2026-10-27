@@ -241,7 +241,6 @@ import {
   hasEngineeringSurfaces,
   isEngineeringInterface,
   settingsSectionLabel,
-  studioInterfaceCommands,
 } from "./workbench/studioInterface";
 import { StudioQuickFind } from "./workbench/StudioQuickFind";
 import type { ChatComposerHandle } from "./chat/ChatComposer";
@@ -474,7 +473,8 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         });
         return;
       }
-      if (command === "usage.open") {
+      // The engineering interface has no usage page, so its shortcut does nothing.
+      if (command === "usage.open" && !isEngineeringInterface()) {
         event.preventDefault();
         event.stopPropagation();
         setOpen(false);
@@ -2284,17 +2284,6 @@ function OpenCommandPaletteDialog(props: {
       },
     });
   }
-  for (const interfaceCommand of studioInterfaceCommands()) {
-    actionItems.push({
-      kind: "action",
-      value: `action:studio-interface:${interfaceCommand.id}`,
-      searchTerms: [...interfaceCommand.searchTerms],
-      title: interfaceCommand.title,
-      icon: <SettingsIcon className={ITEM_ICON_CLASS} />,
-      run: async () => interfaceCommand.run(),
-    });
-  }
-
   // Target the active thread or draft's project, falling back to the first sidebar group.
   const contextualProjectGroup =
     (contextualProjectRef

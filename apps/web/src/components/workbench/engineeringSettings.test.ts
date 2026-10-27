@@ -80,6 +80,19 @@ describe("engineering settings", () => {
   });
 });
 
+describe("the model for new chats", () => {
+  it("is found under AI agents in the engineering interface, and under General elsewhere", () => {
+    const [here] = searchSettings(
+      "new thread provider",
+      engineeringSettingsSearchItems(SETTINGS_SEARCH_ITEMS),
+    );
+    expect(here?.id).toBe("default-model");
+    expect(here?.to).toBe("/settings/providers");
+    const [there] = searchSettings("new thread provider", SETTINGS_SEARCH_ITEMS);
+    expect(there?.to).toBe("/settings/general");
+  });
+});
+
 describe("settings sidebar groups", () => {
   const entries = [
     "/settings/general",
@@ -88,12 +101,17 @@ describe("settings sidebar groups", () => {
     "/settings/providers",
     "/settings/plugins",
     "/settings/diagnostics",
+    "/settings/interface",
   ].map((to) => ({ to }));
   const paths = (list: ReadonlyArray<{ to: string }>) => list.map((entry) => entry.to);
 
-  it("puts Plugins and Diagnostics together under Advanced in the engineering interface", () => {
+  it("puts Plugins, Diagnostics and Interface together under Advanced in the engineering interface", () => {
     const { main, advanced } = settingsNavGroups(entries, true);
-    expect(paths(advanced)).toEqual(["/settings/plugins", "/settings/diagnostics"]);
+    expect(paths(advanced)).toEqual([
+      "/settings/plugins",
+      "/settings/diagnostics",
+      "/settings/interface",
+    ]);
     expect(paths(main)).toEqual([
       "/settings/general",
       "/settings/appearance",
@@ -101,7 +119,7 @@ describe("settings sidebar groups", () => {
     ]);
   });
 
-  it("keeps the code interfaces' sections as they were, Diagnostics reached from General", () => {
+  it("keeps the code interfaces' sections as they were, the Interface switch in Appearance", () => {
     const { main, advanced } = settingsNavGroups(entries, false);
     expect(advanced).toEqual([]);
     expect(paths(main)).toEqual([

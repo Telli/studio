@@ -21,6 +21,7 @@ import {
   PanelsTopLeftIcon,
   KeyboardIcon,
   Link2Icon,
+  MonitorIcon,
   PaletteIcon,
   SearchIcon,
   Settings2Icon,
@@ -87,6 +88,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
 > = {
   "/settings/general": Settings2Icon,
   "/settings/diagnostics": Settings2Icon,
+  "/settings/interface": MonitorIcon,
   "/settings/appearance": PaletteIcon,
   "/settings/projects": PanelsTopLeftIcon,
   "/settings/keybindings": KeyboardIcon,

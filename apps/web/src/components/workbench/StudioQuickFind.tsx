@@ -45,7 +45,6 @@ import type { ListedProject } from "./projectList";
 import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
 import { homeRecent } from "./recentActivity";
 import { useRecentFiles } from "./recentFiles";
-import { studioInterfaceCommands } from "./studioInterface";
 import { useAskNewProject } from "./StudioNew";
 import { useFolderPaths } from "./useFolderPaths";
 import { showChat } from "./overviewPanel";
@@ -436,13 +435,6 @@ function QuickFindBody(props: {
       terms: "settings preferences ai agents appearance",
       run: go(() => void navigate({ to: "/settings" })),
     },
-    ...studioInterfaceCommands().map((command) => ({
-      value: `go:interface:${command.id}`,
-      icon: <SettingsIcon className={ICON} />,
-      title: command.title,
-      terms: command.searchTerms.join(" "),
-      run: go(command.run),
-    })),
   ];
   // A document from a template, written into the chat as the New dialog writes it (`NewDialog`).
   const documentRows: Group | null =

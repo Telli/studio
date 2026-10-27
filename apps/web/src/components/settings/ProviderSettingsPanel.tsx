@@ -1,4 +1,6 @@
 import { SettingsGroup } from "./SettingsGroup";
+import { DefaultModelRow } from "./DefaultModelRow";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import {
   AuthSettingsWriteScope,
@@ -292,8 +294,15 @@ interface ProviderSettingsTarget {
 }
 
 export function ProviderSettingsPanel(target: ProviderSettingsTarget) {
+  const engineering = useEngineeringInterface();
   return (
     <SettingsPageContainer className="@container/providers gap-8">
+      {/* The engineering composer has no model picker: the model new chats start on is chosen here. */}
+      {engineering && target.scoped ? (
+        <SettingsSection id="new-chats-model" title="New chats">
+          <DefaultModelRow />
+        </SettingsSection>
+      ) : null}
       <ProviderSettingsPanelContent
         key={`${target.environmentId ?? ""}:${target.instanceId ?? ""}`}
         {...target}

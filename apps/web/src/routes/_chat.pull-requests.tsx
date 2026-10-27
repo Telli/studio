@@ -19,7 +19,7 @@ import type {
   SourceControlProviderKind,
 } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import {
   ArrowDownUpIcon,
   CalendarArrowDownIcon,
@@ -49,6 +49,7 @@ import {
   type RefObject,
 } from "react";
 
+import { isEngineeringInterface } from "../components/workbench/studioInterface";
 import {
   filterPullRequestsByInvolvement,
   findScopedProject,
@@ -302,6 +303,11 @@ function pullRequestSearchLabels(raw: unknown): Partial<Pick<PullRequestsSearch,
 }
 
 export const Route = createFileRoute("/_chat/pull-requests")({
+  // The engineering interface has no pull requests page: an old link or history entry lands on Home.
+  // The code interfaces keep it.
+  beforeLoad: () => {
+    if (isEngineeringInterface()) throw redirect({ to: "/", replace: true });
+  },
   validateSearch: (raw: Record<string, unknown>): PullRequestsSearch => ({
     involvement:
       raw.involvement === "reviewing" || raw.involvement === "authored" ? raw.involvement : "all",

@@ -915,6 +915,17 @@ function SortableTab({
   );
 }
 
+/**
+ * Whether a tab's menu offers "Copy path": a file's, never an attachment's, and not in the
+ * engineering interface, where a path is a programmer's thing.
+ */
+export function tabOffersCopyPath(
+  surface: { readonly kind: string; readonly attachment?: unknown },
+  engineering: boolean,
+): boolean {
+  return surface.kind === "file" && surface.attachment === undefined && !engineering;
+}
+
 export function RightPanelTabs(props: RightPanelTabsProps) {
   // The engineering surfaces pin the project (and, with code tools, its source) ahead of the tabs.
   const engineeringSurfaces = useEngineeringSurfaces();
@@ -1073,7 +1084,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       const items: ContextMenuItem<TabContextMenuAction>[] = [];
       if (surface.kind === "device" && props.onRenameDevice)
         items.push({ id: "rename", label: "Rename" });
-      if (surface.kind === "file" && surface.attachment === undefined && !WORKBENCH_LAYOUT) {
+      if (tabOffersCopyPath(surface, engineering)) {
         items.push({ id: "copy-path", label: "Copy path" });
       }
       const menuPreviewTabId = previewTabIdOf(surface, props.previewSessions);
@@ -1152,7 +1163,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           break;
       }
     },
-    [props],
+    [engineering, props],
   );
   const handleTabMouseDown = useCallback((event: ReactMouseEvent) => {
     if (event.button !== 1) return;

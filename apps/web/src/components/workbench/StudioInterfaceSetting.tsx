@@ -1,9 +1,10 @@
-import { SettingsRow } from "../settings/settingsLayout";
+import { SettingsPageContainer, SettingsRow, SettingsSection } from "../settings/settingsLayout";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import {
   STUDIO_INTERFACE_AVAILABLE,
   type StudioInterface,
   setStudioInterface,
+  useEngineeringInterface,
   useStudioInterface,
 } from "./studioInterface";
 
@@ -22,10 +23,30 @@ const DESCRIPTIONS: Record<StudioInterface, string> = {
 
 const ORDER: ReadonlyArray<StudioInterface> = ["engineering", "both", "code"];
 
-/** Settings, Appearance, Interface: Studio as an engineering app, a code editor, or engineering with the code tools. */
+/**
+ * Settings, Appearance, Interface: Studio as an engineering app, a code editor, or engineering with
+ * the code tools. The engineering interface keeps this switch under Advanced instead
+ * (`StudioInterfaceSettingsPanel`), so it is not a row of Appearance there.
+ */
 export function StudioInterfaceSetting() {
-  if (!STUDIO_INTERFACE_AVAILABLE) return null;
+  const engineering = useEngineeringInterface();
+  if (!STUDIO_INTERFACE_AVAILABLE || engineering) return null;
   return <StudioInterfaceRow />;
+}
+
+/**
+ * Settings, Advanced, Interface: the same switch on a page of its own, which the engineering
+ * interface's Advanced group lists. It is the way back to the code interfaces and their settings,
+ * so it opens in every interface.
+ */
+export function StudioInterfaceSettingsPanel() {
+  return (
+    <SettingsPageContainer>
+      <SettingsSection id="studio-interface-section" title="Interface">
+        {STUDIO_INTERFACE_AVAILABLE ? <StudioInterfaceRow /> : null}
+      </SettingsSection>
+    </SettingsPageContainer>
+  );
 }
 
 function StudioInterfaceRow() {
