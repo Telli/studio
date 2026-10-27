@@ -147,7 +147,13 @@ export function StudioPanelBar(props: {
   const importMenu =
     importer === null || scanner === null ? null : (
       <>
-        <ImportMenu actions={{ scan: scanner.scan, pick: importer.pick }} />
+        <ImportMenu
+          actions={{ scan: scanner.scan, pick: importer.pick }}
+          hints={{
+            pick: `Copied into ${studio?.project.name ?? "the project"}`,
+            scan: "Makes new projects",
+          }}
+        />
         <ImportDialogHost environmentId={threadRef.environmentId} />
       </>
     );

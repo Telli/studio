@@ -46,8 +46,8 @@ export function findChats<T extends { readonly id: string; readonly title: strin
 }
 
 /**
- * Every Studio project's chats, from Home's project list, and the chats in no project, from Home's
- * Ask (`freeformChat.ts`): Chats, and the sidebar's recent chats.
+ * Every Studio project's chats, from Home's project list, and the older chats in no project, from Home's
+ * old Ask, which no longer exists (`freeformChat.ts`): Chats, and the sidebar's recent chats.
  */
 export function useAllChats(environmentId: EnvironmentId) {
   const { cards } = useProjectList(environmentId);

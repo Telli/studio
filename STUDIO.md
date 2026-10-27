@@ -334,7 +334,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   (`ProjectPicker.tsx`, the project switcher's own control and list, `ProjectChoices.tsx`), to a
   new chat in that project. One line is enough. Files can come with the words or alone (a PRD,
   requirements, sketches, CAD or a whole folder: Attach, or dropped on the box) and Start then
-  makes a new project from them. They go into the project's
+  makes a new project from them, or, with a project chosen beside Attach, opens a new chat in
+  that project with them. They go into the project's
   References (`brief/references/`), where the Overview lists them and every chat can read them,
   and the first message names them and asks the agent to read them all before anything else,
   then fill in the project's name, setup and README from them and ask only what they leave open
@@ -473,7 +474,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **Chats in no project.** Home's Ask, which made them, is gone (Amy, 2026-10-26: one Start
   box). The chats it made stay: they run in the folder that holds the Studio projects, registered
   as the workspace "No project", and Chats and the sidebar still list them under No project
-  (`workbench/freeformChat.ts`).
+  (`workbench/freeformChat.ts`). Nothing starts a new one now, so No project is a list of older
+  chats that shows only while some remain.
 - **One Import menu.** Files or a folder, and Scan this computer, are one component
   (`ImportMenu.tsx`) on Home's start page (the Import a STEP card opens it), Home's Your projects,
   the Projects page and the workspace toolbar, with the same items and names. In a workspace Files

@@ -211,3 +211,15 @@ export function takePendingStart(folder: string): PendingStart | null {
   pending.delete(key);
   return start;
 }
+
+/**
+ * Whether Home's Start box can start: words or files make a start (files alone set a project up
+ * from them), and not while another start is under way.
+ */
+export function canStart(
+  description: string,
+  attachments: ReadonlyArray<StartAttachment>,
+  busy: boolean,
+): boolean {
+  return (description.trim() !== "" || attachments.length > 0) && !busy;
+}

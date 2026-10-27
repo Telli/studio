@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  canStart,
   nameFromAttachment,
   provisionalProjectName,
   referencePaths,
@@ -194,5 +195,23 @@ describe("nameFromAttachment", () => {
     expect(nameFromAttachment("sumo-robot")).toBe("Sumo robot");
     expect(nameFromAttachment("servo_bracket_v2.step")).toBe("Servo bracket v2");
     expect(nameFromAttachment(".step")).toBe("New project");
+  });
+});
+
+describe("canStart", () => {
+  const file = { name: "prd.pdf", path: "/Users/sam/prd.pdf", file: null };
+
+  it("starts from words, from files with no words, and from both", () => {
+    expect(canStart("A phone stand", [], false)).toBe(true);
+    expect(canStart("", [file], false)).toBe(true);
+    expect(canStart("   ", [file], false)).toBe(true);
+    expect(canStart("A phone stand", [file], false)).toBe(true);
+  });
+
+  it("does not start from nothing, or while another start is under way", () => {
+    expect(canStart("", [], false)).toBe(false);
+    expect(canStart("   ", [], false)).toBe(false);
+    expect(canStart("A phone stand", [], true)).toBe(false);
+    expect(canStart("", [file], true)).toBe(false);
   });
 });

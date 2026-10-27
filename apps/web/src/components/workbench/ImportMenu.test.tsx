@@ -43,21 +43,36 @@ describe("Studio's one Import menu", () => {
     expect(actions.pick).not.toHaveBeenCalled();
   });
 
-  it("is what the start page's Import a STEP opens, with the same items", async () => {
+  it("is what the start page's Import a STEP opens, with the same items, beside New part only", async () => {
     const actions = { scan: vi.fn(), pick: vi.fn(async () => undefined) };
     await act(async () =>
       root.render(<StartChoices onNewPart={vi.fn()} newPartBusy={false} importActions={actions} />),
     );
-    const labels = Array.from(container.querySelectorAll("button")).map((button) =>
-      button.textContent?.startsWith("Import a STEP") ? "import" : button.textContent,
-    );
-    expect(labels).toHaveLength(2);
     expect(container.textContent).not.toContain("Describe it to the AI");
     const card = Array.from(container.querySelectorAll("button")).find((button) =>
       button.textContent?.startsWith("Import a STEP"),
     )!;
     await press(card);
     expect(menuItems()).toEqual(["Files or a folder", "Scan this computer"]);
+  });
+
+  it("says where each item lands when given hints, and the trigger says into this project", async () => {
+    const actions = { scan: vi.fn(), pick: vi.fn(async () => undefined) };
+    await act(async () =>
+      root.render(
+        <ImportMenu
+          actions={actions}
+          hints={{ pick: "Copied into Phone stand", scan: "Makes new projects" }}
+        />,
+      ),
+    );
+    const trigger = container.querySelector("button")!;
+    expect(trigger.getAttribute("aria-label")).toBe("Import into this project");
+    await press(trigger);
+    expect(menuItems()).toEqual([
+      "Files or a folderCopied into Phone stand",
+      "Scan this computerMakes new projects",
+    ]);
   });
 
   it("leaves Import a STEP disabled where there is no desktop app", async () => {

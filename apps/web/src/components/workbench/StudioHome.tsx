@@ -26,7 +26,7 @@ import { HeadingLink } from "./OverviewModules";
 import { waitingFirst } from "./ProjectChoices";
 import { ProjectPicker } from "./ProjectPicker";
 import { GetStarted, StartChoices, StartExamples, TILE_GRID } from "./StartChoices";
-import { nameOfPath, type StartAttachment } from "./startProject";
+import { canStart, nameOfPath, type StartAttachment } from "./startProject";
 import { droppedPath, readStudioImport } from "./studioImportBridge";
 import { StudioNew } from "./StudioNew";
 import { StudioTopBar } from "./StudioTopBar";
@@ -291,7 +291,7 @@ function StartProject(props: {
   };
   const run = props.start;
   // Words or files make a start.
-  const ready = (description.trim() !== "" || attachments.length > 0) && !busy;
+  const ready = canStart(description, attachments, busy);
   const startNow = () => {
     if (!ready) return;
     void run({
