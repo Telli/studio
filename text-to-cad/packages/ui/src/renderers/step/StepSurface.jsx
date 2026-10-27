@@ -150,7 +150,6 @@ import { featureAsk } from "./edit/featureAsk.jsx";
 import { boundsCorners, facePick, featurePick, pickedReferences, quickEditLetsGo, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
 import { faceChipName, faceNumber, faceReference, shownFaces } from "./edit/faceChips.js";
 import { chosenThrough, useAsked, useChosenFeature } from "./edit/selectionBarState.js";
-import { useAddToContext } from "./edit/useAddToContext.js";
 import { faceShapesOf, faceShapesText } from "../kit/tools/annotate/faceShapes.js";
 import { parseCadRefSelector, parseCadRefToken } from "@text-to-cad/core/lib/cadRefs.js";
 import { DRAWING_TOOL_ICONS, ToolIcon } from "./edit/cadIcons.jsx";
@@ -3693,8 +3692,9 @@ function StepSurfaceBody({ view, data }) {
       menu: selectModeMenu,
       onSelect: () => handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES),
     }),
-    ...shell.tools.drawing.map(tool => ({ ...tool, disabled: toolIdle,
-      icon: <ToolIcon id={tool.id} mode={drawingToolVariant(tool.id, shell.frame.annotation)} className="size-3.5" /> })),
+    // Pencil and Shapes are the Annotate tools, which write to the agent: the CAD workspace has no agent, so no ink.
+    ...(editing ? [] : shell.tools.drawing.map(tool => ({ ...tool, disabled: toolIdle,
+      icon: <ToolIcon id={tool.id} mode={drawingToolVariant(tool.id, shell.frame.annotation)} className="size-3.5" /> }))),
     shell.tools.own({ id: TAB_TOOL_MODE.MEASURE, label: "Measure", shortcut: TOOL_SHORTCUTS.measure,
       icon: <ToolIcon id={TAB_TOOL_MODE.MEASURE} mode={pickModeOf(measureFilter, STEP_MEASURE_MODES).id} className="size-3.5" />,
       active: tabToolMode === TAB_TOOL_MODE.MEASURE, disabled: measureToolDisabled,
@@ -3779,9 +3779,9 @@ function StepSurfaceBody({ view, data }) {
       .map(reference => ({ kind: reference.selectorType, id: reference.id, reference })) : EMPTY_LIST), [selectionActionVisible, selectedReferences]);
   const rowPick = useMemo(() => (featureChosen ? featurePick(editTree, edit.selected) : null), [featureChosen, editTree, edit.selected]);
   const barPicks = modelPicks.length ? modelPicks : rowPick ? [rowPick] : EMPTY_LIST;
-  // Ask opens Quick Edit, which the workspace shows only once asked (`quickEditShown`): on what is picked, or with nothing picked,
-  // on the part as a whole. Escape, a send, Clear (the box's X) or the picks emptying put it away, and so does a command or a sketch opening.
-  const { asked, ask, clear: clearAsked } = useAsked({ editing, picked: selectionCount > 0 || Boolean(rowPick),
+  // `asked`: Quick Edit opened by an Ask. The CAD workspace has no Ask (it has no agent), so there it is never set and its
+  // Quick Edit never shows (`quickEditShown`); the AI layout shows Quick Edit on the selection and needs no ask.
+  const { asked, clear: clearAsked } = useAsked({ editing, picked: selectionCount > 0 || Boolean(rowPick),
     held: commandOpen || sketchOpen, file: selectedKey });
   // Ask on a feature carries the statement that makes it (`featureAsk`): one reference to its line in its script, and a chip naming it
   // whose X lets go of the pick. Where the model has faces or edges picked they are what Ask carries instead.
@@ -3834,8 +3834,6 @@ function StepSurfaceBody({ view, data }) {
   // Edit does what a double-click on the row does: the sketch opens in the Sketch tab, a feature its Edit Feature; on faces, the
   // Edit Feature of the feature that made them.
   const editRow = () => { if (rowEdited?.sketch) openTreeSketch(rowEdited.sketch); else if (rowEdited) edit.editFeature(rowEdited.feature); };
-  // Annotate takes up the viewer's Pencil, as the strip's does.
-  const pencil = tools.find(tool => tool.id === "pencil");
   // Where the picks are: the boxes of the faces and edges as they sit on the model now, an Explode moving them with their part, or
   // the whole part for a row; the bar stands by what falls on the screen.
   const barAnchor = () => {
@@ -3900,8 +3898,8 @@ function StepSurfaceBody({ view, data }) {
   // go of them. Quick Edit's X and a send clear it too, and the box Ask opened goes with them.
   const clearSelected = () => { clearAssemblySelection(); measure.select([]); clearAsked(); dropFeature(); };
   const clearQuickEdit = () => { if (quickEditLetsGo({ held: commandOpen || sketchOpen }) === "box") clearAsked(); else clearSelected(); };
-  // The marks drawn on a face go to the agent as shapes in its coordinates, in the part's units, in Simple view and the workspace
-  // alike: Quick Edit's every way and Add to context. A face is named as its chip is (`nameReference`'s words: "Hole (6) · face 12" where
+  // The marks drawn on a face go to the agent as shapes in its coordinates, in the part's units, by Quick Edit in the AI layout. A face is named as its chip is
+  // (`nameReference`'s words: "Hole (6) · face 12" where
   // the engine says which feature made it, `faceChipName`'s pieces, else "bracket · face 12"); a touch that is no face (an edge) has
   // no name, so no mark is said to be on it.
   faceMarksRef.current = items => {
@@ -3914,16 +3912,6 @@ function StepSurfaceBody({ view, data }) {
     };
     return faceShapesText(faceShapesOf(items, { units, labelOf }), units);
   };
-  // Where the host has a chat box to fill, the selection bar's Add to context and the toolbar's put what Ask carries (`carried`), and the
-  // ink, there with no note and nothing sent (`useAddToContext`); ink alone is something to add. Once it is there the picks are let go of,
-  // and the ink with them (it went in the snapshot and the marks on a face), as
-  // a Queue lets go of both, so the next one starts fresh; if the box does not take it they are kept, and the viewport says why. While a
-  // command or a sketch is open the selection is its own (an Edge Blend's edges), so it waits, and the toolbar's buttons say so.
-  const addContext = useAddToContext({ resource: promptResource, references: carried.references, prompt: shell.frame.quickEditPrompt,
-    held: commandOpen || sketchOpen, annotated: shell.frame.annotation.hasAnnotation,
-    onAdded: () => { clearSelected(); if (shell.frame.annotation.hasAnnotation) shell.frame.annotation.forget(); },
-    onFailed: reportActionError });
-
   // ---- Preview ----------------------------------------------------------------------------
   // Its own scene while it is open, filled by its own layers inside its own viewport from the same
   // published mesh (`StepPreviewLayers`), posed and played by its own motion.
@@ -3957,9 +3945,9 @@ function StepSurfaceBody({ view, data }) {
   return <RendererShell shell={shell} tools={tools} subToolbar={tabToolMode === TAB_TOOL_MODE.MEASURE ? <MeasurementsBar measure={measure} /> : modelEffects.subToolbar} sidebar={stepSidebar} previewView={previewView}
     // The edit chrome's icons are drawn from this sprite, which the frame mounts once.
     iconSprite={<NxIconSprite />} drawingToolIcons={DRAWING_TOOL_ICONS}
-    // Quick Edit shows with a selection to carry in Simple view, as always, and in the workspace once Ask has asked for it.
-    references={quickEditOpen ? carried.references : EMPTY_LIST} referenceChips={quickEditOpen ? carried.chips : EMPTY_LIST}
-    quickEditAsked={editing ? asked : null} nameReference={nameReference}
+    // Quick Edit shows with a selection to carry in the AI layout, as always; the CAD workspace has no agent to send it to, so no box.
+    references={editing ? null : quickEditOpen ? carried.references : EMPTY_LIST} referenceChips={quickEditOpen ? carried.chips : EMPTY_LIST}
+    quickEditAsked={null} nameReference={nameReference}
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
       disabled={layoutHeld} /> : null}
     onClearReferences={clearQuickEdit} copySelection={copySelection} onSelectPress={selectPress} onSelectHover={selectHover}
@@ -3970,8 +3958,7 @@ function StepSurfaceBody({ view, data }) {
     // The toolbar is handed the view's own controls and its catching-up too, for its tab row's right end.
     ribbon={editing ? (stripTools, view) => <EditRibbon tools={stripTools} view={view} edit={edit} onCommand={startEditCommand} onSketch={startSketchCommand}
       sketchLabel={selectedTreeSketch ? "Edit Sketch" : "Sketch"} canOpenParts={Boolean(openPart)}
-      onNormalTo={normalTarget ? edit.lookNormalTo : null} onAsk={ask}
-      onAddContext={addContext.offered ? addContext.add : null} picked={addContext.picked} held={commandOpen || sketchOpen} /> : null}
+      onNormalTo={normalTarget ? edit.lookNormalTo : null} /> : null}
     leftDock={editing ? <EditBrowser edit={editWithRows} names={editNames} tree={editTree} references={selectedReferences}
       onEditSketch={openTreeSketch} onPlane={sketchOnPlane} onOpenPart={openPart} backTo={backTo} card={commandCard}
       onDeselect={deselectReference} /> : null}
@@ -3988,8 +3975,7 @@ function StepSurfaceBody({ view, data }) {
         {barActions.length ? <EditSelectionBar viewport={viewport} actions={barActions} anchor={barAnchor}
           anchorKey={barPicks.map(pick => `${pick.kind}:${pick.id}`).join(",")}
           editKind={rowEdited?.sketch ? "Sketch" : rowEdited?.feature.kind} editHint={rowEdited?.sketch ? "Edit Sketch" : "Edit Feature"}
-          onAsk={ask} onAddContext={addContext.offered && addContext.picked ? addContext.add : undefined}
-          onAnnotate={pencil && !pencil.disabled ? pencil.onSelect : undefined} onEdit={rowEdited ? editRow : undefined} /> : null}
+          onEdit={rowEdited ? editRow : undefined} /> : null}
         {sheetUp ? <SheetEditor edit={edit} colorScheme={resolvedColorSchemeMode} /> : null}
         {editing && !sheetUp && edit.command && edit.callout ? <ValueCallout viewport={viewport} callout={edit.callout} /> : null}
         {/* A STEP brought in, with no part script: made a part to edit beside it, and opened. */}

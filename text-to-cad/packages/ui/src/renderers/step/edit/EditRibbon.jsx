@@ -14,7 +14,7 @@ import { ToolbarButton } from "@text-to-cad/ui/primitives/toolbar-button";
 import { TooltipHint } from "@text-to-cad/ui/primitives/tooltip";
 import { cn } from "@text-to-cad/ui/utils";
 import { FLOATING_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
-import { AddContextIcon, AppearanceIcon, AskIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, InterferenceIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, ExpressionsIcon, MassPropertiesIcon, InsertComponentIcon, MateIcon, RedoIcon, SketchIcon, UndoIcon } from "./cadIcons.jsx";
+import { AppearanceIcon, COMMAND_ICONS, CompareIcon, DraftAnalysisIcon, InterferenceIcon, DrawingIcon, EditSheetIcon, ExitSketchIcon, ExpressionsIcon, MassPropertiesIcon, InsertComponentIcon, MateIcon, RedoIcon, SketchIcon, UndoIcon } from "./cadIcons.jsx";
 import { EDIT_COMMANDS, buildingText, busyState, unitWord } from "./editMode.js";
 import { SKETCH_ENTITIES, SKETCH_FAMILIES, SKETCH_MODIFY, SKETCH_TOOLS, sketchKey } from "./sketchMode.js";
 import { ConstructionIcon, NormalToIcon, SKETCH_TOOL_ICONS } from "./sketchIcons.jsx";
@@ -25,8 +25,6 @@ import CommandSearchBox from "./CommandSearchBox.jsx";
 const LABELS = Object.freeze({ clip: "Section View", references: "Select", exploded: "Exploded View" });
 // A sketch tool family's button name, as SolidWorks' flyouts are named.
 const FAMILY_NAMES = Object.freeze({ rectangle: "Rectangle", circle: "Circle", arc: "Arc", slot: "Slot", move_entities: "Move Entities" });
-// Annotate's tools: the strip's two that draw, Pencil first, as a family's flyout holds its tools.
-const ANNOTATE_TOOLS = Object.freeze(["pencil", "shapes"]);
 // Each command a picture large enough to tell apart, as SolidWorks' CommandManager draws its own: every
 // one the icon generator's (`cadIcons.jsx`, `sketchIcons.jsx`), the view's tools as the strip shows them.
 // Under the pointer the workspace's pale blue (`--cad-ws-hover`), pressed its deeper one (`PRESSED_CLASS`).
@@ -46,10 +44,6 @@ const TAB_CLASS = "flex items-center border-b-2 border-transparent px-2.5 text-t
 const TITLE_CLASS = "text-micro uppercase leading-3 tracking-wider text-muted-foreground";
 const STATUS_CLASSES = Object.freeze({ "Fully defined": "text-foreground", "Under defined": "text-blue-600 dark:text-blue-400",
   "Over defined": "text-red-600 dark:text-red-400" });
-// What the agent's buttons say while they cannot be used: Add to context with nothing to add, and both while a command is open
-// (the words Simple view's switch gives for the same hold).
-const NOTHING_PICKED_WORDS = "Select a face, edge or feature first";
-const COMMAND_OPEN_WORDS = "Finish or cancel the command first";
 // The More button's box, before it is first laid out.
 const MORE_WIDTH_PX = 46;
 const ALL_NAMED = Object.freeze({ compact: false, count: Infinity });
@@ -81,7 +75,7 @@ function RibbonGroup({ title, folded = false, end = false, menu = null, children
  * measured before it is painted. A folded group keeps its place, unseen past the edge, so each
  * group's right edge reads the same whichever are folded; the width the groups took with their
  * names is kept, to know when they fit again. The edges are the groups' widths summed, as the row
- * packs them with no gap: where they place themselves (the agent's group at the row's end) does
+ * packs them with no gap: where they place themselves (a group at the row's end) does
  * not change what they need.
  */
 function useRibbonFit(rowRef, moreRef, key) {
@@ -243,8 +237,7 @@ function searchable(groups, extras = []) {
  * row has Undo and Redo of the hand changes at the left, the tabs after them, and at the right the
  * part's units and where its build stands (or the sketch and how defined it is). Solid holds the
  * modeling commands in groups (`SOLID_GROUPS`: Create, Modify, Construct), each opening its
- * dialog, then Measure and Edit Section, Select, and the agent's Ask, Add to context and Annotate
- * (the strip's Pencil, with Shapes in its chevron's menu as a sketch tool family's flyout has its tools). Sketch
+ * dialog, then Measure and Edit Section, and Select. Sketch
  * holds the Sketch command (Edit Sketch on a sketch selected); Inspect measures and checks the
  * part, orients and colors its view and lists its Expressions; Assemble, for an assembly, holds
  * Assembly Constraints and Exploded Views; Drafting the part's drawing. A group shows its
@@ -263,19 +256,13 @@ function searchable(groups, extras = []) {
  * @param {{ tools: import("../../kit/tools/FloatingToolBar.js").ViewportTool[],
  *   edit: ReturnType<typeof import("./useEditMode.js").useEditMode>, onCommand?: (id: string) => void,
  *   onSketch?: () => void, sketchLabel?: string, onNormalTo?: (() => void) | null,
- *   onAsk?: (() => void) | null, onAddContext?: (() => void) | null, picked?: boolean,
  *   view?: { controls?: import("react").ReactNode, status?: import("react").ReactNode } | null }} props
  *   `onCommand` opens a command (the surface turns Select to what it picks); `onSketch` is the
- *   Sketch button (`sketchLabel`: "Edit Sketch" while a sketch is selected); `onAsk` and
- *   `onAddContext` are the agent's buttons, each left out (and the group with them) while the host
- *   gives none (Add to context needs a chat box to fill). `picked`: there is something for Add to context to add, a face,
- *   an edge, a feature or ink; without, it is dimmed and says what to select, while Ask, which asks about the part as a whole, is not.
- *   `held`: a command, a sketch or a panel is open, and the selection is its own (an Edge Blend's edges): both buttons are dimmed
- *   and say to finish or cancel it first, before anything about what is picked, since picking would not help. The selection bar
- *   stays out of an open command all the same.
+ *   Sketch button (`sketchLabel`: "Edit Sketch" while a sketch is selected). The workspace has no agent, so
+ *   the toolbar has no Ask, Add to context or Annotate.
  */
 export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id), onSketch = () => edit.startPicking(), sketchLabel = "Sketch",
-  canOpenParts = false, onNormalTo = null, onAsk = null, onAddContext = null, picked = false, held = false, view = null }) {
+  canOpenParts = false, onNormalTo = null, view = null }) {
   const byId = new Map(tools.map(tool => [tool.id, tool]));
   // The tab in front, as NX keeps it while the part is open.
   const [tab, setTab] = useState("solid");
@@ -287,9 +274,8 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
     setSketched(Boolean(sketch));
     if (!sketch) setTab("solid");
   }
-  // Each sketch tool family's tool last picked from its flyout, shown as its button; Annotate's too.
+  // Each sketch tool family's tool last picked from its flyout, shown as its button.
   const [lastOfFamily, setLastOfFamily] = useState({});
-  const [lastAnnotate, setLastAnnotate] = useState(ANNOTATE_TOOLS[0]);
   // The command search, opened by each ask made while this toolbar stands (S: `edit.findCommand`), and not by one made before it did.
   const [finding, setFinding] = useState(false);
   const [asked, setAsked] = useState(edit.findAsked);
@@ -434,33 +420,12 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   const panelItem = (id, label, icon, what, disabled = edit.status !== "ready") => ({ id, label, icon, active: edit.inspecting === what, disabled,
     onClick: () => (edit.inspecting === what ? edit.stopInspecting() : edit.inspect(what)) });
   const viewerTool = id => (byId.has(id) ? [toolItem(byId.get(id))] : []);
-  // What a SOLID_GROUPS item is, drawn: the Sketch command, a modeling command, the agent's Ask or Add to
-  // context where the host gives them, Annotate, or a tool of the viewer's strip (Measure, Edit Section, Select).
+  // What a SOLID_GROUPS item is, drawn: the Sketch command, a modeling command, or a tool of the viewer's strip (Measure,
+  // Edit Section, Select).
   const solidItems = id => {
     if (id === "sketch") return [sketchCommand];
     const command = EDIT_COMMANDS.find(each => each.id === id);
     if (command) return [commandItem(command)];
-    if (id === "ask") {
-      return onAsk ? [{ id, label: "Ask", icon: <AskIcon />, disabled: held, description: held ? COMMAND_OPEN_WORDS : undefined,
-        onClick: () => onAsk() }] : [];
-    }
-    if (id === "add-context") {
-      const reason = held ? COMMAND_OPEN_WORDS : picked ? undefined : NOTHING_PICKED_WORDS;
-      return onAddContext ? [{ id, label: "Add to context", icon: <AddContextIcon />, disabled: Boolean(reason), description: reason,
-        onClick: () => onAddContext() }] : [];
-    }
-    // Annotate: the button is the one of the strip's Pencil and Shapes in hand, else the one last taken up here (its menu, the
-    // group's), each with its strip icon, the tool it draws with; the menu lists both. Where the strip has neither there is no Annotate.
-    if (id === "annotate") {
-      const family = ANNOTATE_TOOLS.filter(each => byId.has(each)).map(each => {
-        const item = toolItem(byId.get(each));
-        return { ...item, onClick: () => { setLastAnnotate(each); item.onClick(); } };
-      });
-      if (!family.length) return [];
-      const shown = family.find(item => item.active) || family.find(item => item.id === lastAnnotate) || family[0];
-      return [{ ...shown, id, label: "Annotate", variants: family,
-        menu: family.length > 1 ? <FamilyMenu label="Annotate" items={family} onPick={setLastAnnotate} /> : null }];
-    }
     return viewerTool(id);
   };
   const drawing = placing ? [] : state?.drawing ? [

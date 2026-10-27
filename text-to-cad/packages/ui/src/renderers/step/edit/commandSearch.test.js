@@ -93,9 +93,9 @@ test("lists everything in the toolbar's order when nothing is typed", () => {
   assert.deepEqual(SOLID.filter(id => !subtracts.has(id)), drawn);
 });
 
-test("leaves out of the search what is not a CAD command: the filters of Select and the agent's buttons", () => {
+test("leaves out of the search what is not a CAD command: the filter of Select", () => {
   const left = SOLID_GROUPS.flatMap(group => group.items).filter(id => !ids("").includes(id));
-  assert.deepEqual(left, ["references", "ask", "add-context", "annotate"]);
+  assert.deepEqual(left, ["references"]);
 });
 
 test("lists a sketch's own tools first while it is open, then the rest", () => {

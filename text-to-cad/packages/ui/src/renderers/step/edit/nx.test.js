@@ -29,9 +29,14 @@ test("puts every modeling command in one group", () => {
   assert.equal(new Set(placed).size, placed.length);
 });
 
+test("has no agent in it: no group of Ask, Add to context or Annotate", () => {
+  const agents = new Set(["ask", "add-context", "annotate"]);
+  assert.equal(SOLID_GROUPS.some(group => group.items.some(item => agents.has(item))), false);
+});
+
 test("each group holds only what the toolbar can draw, and shows some of it as buttons", () => {
-  const drawn = new Set([...EDIT_COMMANDS.map(({ id }) => id), "sketch", "measure", "clip", "references", "ask", "add-context", "annotate"]);
-  assert.deepEqual(SOLID_GROUPS.map(group => group.title), ["Create", "Modify", "Construct", "Inspect", "Select", "Ask the agent"]);
+  const drawn = new Set([...EDIT_COMMANDS.map(({ id }) => id), "sketch", "measure", "clip", "references"]);
+  assert.deepEqual(SOLID_GROUPS.map(group => group.title), ["Create", "Modify", "Construct", "Inspect", "Select"]);
   for (const group of SOLID_GROUPS) {
     for (const item of group.items) assert.ok(drawn.has(item), `${group.title} holds "${item}", which the toolbar has no button for`);
     assert.ok(group.shown >= 1 && group.shown <= group.items.length, `${group.title} shows ${group.shown} of ${group.items.length}`);
