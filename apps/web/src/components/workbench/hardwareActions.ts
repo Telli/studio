@@ -837,7 +837,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     label: "URDF",
     gets: "A validated URDF with its links, joints, limits and a mesh for each link.",
     skill: "urdf",
-    kinds: ["Assembly"],
+    kinds: ["Part", "Assembly"],
     checks: false,
     prompt: (file) => `Make a URDF for ${file} with its links, joints and limits.`,
     short: (name) => `Describe ${name} as a robot`,
