@@ -590,6 +590,8 @@ interface ComposerDraftStoreState {
   finalizePromotedDraftThread: (threadRef: ComposerThreadTarget) => void;
   clearDraftThread: (threadRef: ComposerThreadTarget) => void;
   setStickyModelSelection: (modelSelection: ModelSelection | null | undefined) => void;
+  /** Forgets every remembered model pick, so new chats start on the default alone. */
+  clearStickyModelSelection: () => void;
   setPrompt: (threadRef: ComposerThreadTarget, prompt: string) => void;
   setTerminalContexts: (threadRef: ComposerThreadTarget, contexts: TerminalContextDraft[]) => void;
   setModelSelection: (
@@ -3055,6 +3057,14 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               stickyActiveProvider: normalized.instanceId,
             };
           });
+        },
+        clearStickyModelSelection: () => {
+          set((state) =>
+            Object.keys(state.stickyModelSelectionByProvider).length === 0 &&
+            state.stickyActiveProvider === null
+              ? state
+              : { stickyModelSelectionByProvider: {}, stickyActiveProvider: null },
+          );
         },
         applyStickyState: (threadRef) => {
           const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";

@@ -2,6 +2,7 @@ import { SettingsPageContainer, SettingsRow, SettingsSection } from "../settings
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import {
   STUDIO_INTERFACE_AVAILABLE,
+  interfaceSwitchPlacement,
   type StudioInterface,
   setStudioInterface,
   useEngineeringInterface,
@@ -30,7 +31,9 @@ const ORDER: ReadonlyArray<StudioInterface> = ["engineering", "both", "code"];
  */
 export function StudioInterfaceSetting() {
   const engineering = useEngineeringInterface();
-  if (!STUDIO_INTERFACE_AVAILABLE || engineering) return null;
+  if (interfaceSwitchPlacement(engineering, STUDIO_INTERFACE_AVAILABLE) !== "appearance") {
+    return null;
+  }
   return <StudioInterfaceRow />;
 }
 

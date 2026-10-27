@@ -99,7 +99,7 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
     {
       title: "Model",
       description:
-        "The AI model new chats start on, with its Thinking and Speed. A chat that is already open keeps its own.",
+        "The AI model new chats start on, with its Thinking and Speed. Applies to new chats and to the open chat's next turn.",
     },
   ],
   // T3's policy is T3's; the row keeps the fact, without its link (`SettingsPanels.tsx`).
@@ -123,10 +123,13 @@ export function engineeringSettingsSearchItems(
       // The Diagnostics row is not on General here; its search result opens the page under Advanced.
       item.id === "diagnostics"
         ? { ...item, to: "/settings/diagnostics" as const, targetId: "diagnostics-processes" }
-        : // The model new chats start on is under AI agents here, not under General.
-          item.id === "default-model"
-          ? { ...item, to: "/settings/providers" as const }
-          : item,
+        : // The Interface switch is a page under Advanced here, not a row of Appearance.
+          item.id === "studio-interface"
+          ? { ...item, to: "/settings/interface" as const }
+          : // The model new chats start on is under AI agents here, not under General.
+            item.id === "default-model"
+            ? { ...item, to: "/settings/providers" as const }
+            : item,
     )
     .filter(
       (item) =>

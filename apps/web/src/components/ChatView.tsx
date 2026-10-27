@@ -623,6 +623,7 @@ import { StudioToolbox } from "./workbench/StudioToolbox";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
 import { useProjectViewStore } from "./workbench/projectView";
+import { takeDefaultModelChange } from "./workbench/defaultModelFollow";
 import { useEngineeringInterface, useEngineeringSurfaces } from "./workbench/studioInterface";
 import { useDocumentFollow } from "./workbench/useDocumentFollow";
 import { useWorkbenchViewer } from "./workbench/useWorkbenchViewer";
@@ -10873,7 +10874,15 @@ export default function ChatView(props: ChatViewProps) {
   );
 
   const onProviderModelSelect = useCallback(
-    (instanceId: ProviderInstanceId, model: string, options?: { focusComposer?: boolean }) => {
+    (
+      instanceId: ProviderInstanceId,
+      model: string,
+      options?: {
+        focusComposer?: boolean;
+        /** Thinking and Speed to put on the model, instead of the ones it last had. */
+        modelOptions?: ModelSelection["options"];
+      },
+    ) => {
       if (!activeThread) return;
       // Look up the configured instance so model normalization and custom
       // model lookup stay scoped to that exact instance. Unknown instance ids
@@ -10923,9 +10932,13 @@ export default function ChatView(props: ChatViewProps) {
           resolvedModel
         ];
       const nextModelSelection: ModelSelection =
-        rememberedOptions !== undefined && rememberedOptions.length > 0
-          ? { instanceId, model: resolvedModel, options: [...rememberedOptions] }
-          : { instanceId, model: resolvedModel };
+        options?.modelOptions !== undefined && options.modelOptions.length > 0
+          ? { instanceId, model: resolvedModel, options: [...options.modelOptions] }
+          : options?.modelOptions === undefined &&
+              rememberedOptions !== undefined &&
+              rememberedOptions.length > 0
+            ? { instanceId, model: resolvedModel, options: [...rememberedOptions] }
+            : { instanceId, model: resolvedModel };
       const modelChangeBlockReason = getStartedThreadModelChangeBlockReason({
         providers: providerStatuses,
         hasStartedSession: activeRuntime !== null,
@@ -10965,6 +10978,28 @@ export default function ChatView(props: ChatViewProps) {
       settings,
     ],
   );
+  // The engineering composer has no model picker: a default model chosen in Settings, AI agents
+  // reaches this chat's next turn the next time it is in front (`workbench/defaultModelFollow.ts`).
+  useEffect(() => {
+    if (activeProjectKey === null || !activeThread) return;
+    const next = takeDefaultModelChange(
+      activeProjectKey,
+      engineeringInterface,
+      activeProjectDefaultModelSelection,
+    );
+    if (next === null) return;
+    onProviderModelSelect(next.instanceId, next.model, {
+      focusComposer: false,
+      modelOptions: next.options ?? [],
+    });
+    // `takeDefaultModelChange` answers null unless the default changed, so a re-run is harmless.
+  }, [
+    activeProjectDefaultModelSelection,
+    activeProjectKey,
+    activeThread,
+    engineeringInterface,
+    onProviderModelSelect,
+  ]);
   const onEnvModeChange = useCallback(
     (mode: DraftThreadEnvMode) => {
       if (multipleModelSelections !== null) return;

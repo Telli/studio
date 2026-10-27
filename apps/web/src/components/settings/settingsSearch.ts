@@ -222,6 +222,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["name icon emoji image checkout remove delete"],
   },
   {
+    // Studio only: the way back to the code interfaces, as ⌘K finds it (`useAvailableSettingsSearchItems`).
+    id: "studio-interface",
+    title: "Studio interface",
+    to: "/settings/appearance",
+    searchTerms: ["interface engineering code mode view developer hardware"],
+  },
+  {
     id: "default-model",
     title: "Default model",
     to: "/settings/general",

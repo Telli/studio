@@ -205,9 +205,11 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
 A branch on top of `amy/hardware` for people who know hardware before code: `brand.json`
 `"focus": "hardware"`. `amy/hardware` stays the base text-to-cad pins; this one rebases onto it.
 
-Its interface is a setting, Engineering, Engineering with code, or Code (Settings, Appearance,
-Interface in the two code interfaces; Settings, Advanced, Interface in Engineering, where Appearance
-leaves the row out; the command palette has no switch commands), Engineering by default, per device. Engineering puts every coding tool away (version control,
+Its interface is a setting, Engineering, Engineering with code, or Code, Engineering by default,
+per device. The switch is Settings, Appearance, Interface in the two code interfaces, and Settings,
+Advanced, Interface in Engineering, where Appearance leaves the row out. The command palette has no
+switch commands; searching settings for "interface" finds the switch in every interface. Engineering
+puts every coding tool away (version control,
 editors, terminals, scripts, branches, pull requests, diffs), names parts and documents rather than
 files ("Servo bracket", "Servo bracket drawing", "Servo bracket STL", not
 `parts/servo_bracket.step`) on the project page, tabs, file chips in the chat and the work log (`components/workbench/partNames.ts`), says what
@@ -235,7 +237,10 @@ Engineering's composer has no model picker and no Thinking or Speed choice (the 
 and the model shortcuts do nothing there): the model new chats start on, with its Thinking and
 Speed, is Settings, AI agents, New chats (`DefaultModelRow`, the one row that edits the default
 model, which General shows under "New threads" in the code interfaces). It applies to chats
-started afterwards and to a draft that has not picked a model; a chat that has run keeps its own.
+started afterwards, to a draft that has not picked a model, and, in Engineering, to the open chat's
+next turn (`workbench/defaultModelFollow.ts`: the chat applies a changed default when it is next in
+front, through the picker's own provider-lock check). Resetting it to Automatic forgets the remembered
+composer pick there.
 Engineering also has no pull requests or usage page: `/pull-requests` and `/usage` open Home
 (a replaced history entry), and the usage shortcut does nothing. The code interfaces keep all of
 these as they were.

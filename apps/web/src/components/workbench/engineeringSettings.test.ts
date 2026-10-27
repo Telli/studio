@@ -80,6 +80,21 @@ describe("engineering settings", () => {
   });
 });
 
+describe("finding the Interface switch", () => {
+  it("opens Appearance in the code interfaces and the Advanced page in engineering", () => {
+    const [there] = searchSettings("studio interface", SETTINGS_SEARCH_ITEMS);
+    expect(there?.id).toBe("studio-interface");
+    expect(there?.to).toBe("/settings/appearance");
+    const [here] = searchSettings(
+      "studio interface",
+      engineeringSettingsSearchItems(SETTINGS_SEARCH_ITEMS),
+    );
+    expect(here?.id).toBe("studio-interface");
+    expect(here?.to).toBe("/settings/interface");
+    expect(settingsSearchSectionLabel(here!.to, "Interface", true)).toBe("Advanced");
+  });
+});
+
 describe("the model for new chats", () => {
   it("is found under AI agents in the engineering interface, and under General elsewhere", () => {
     const [here] = searchSettings(

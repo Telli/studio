@@ -108,6 +108,19 @@ export function settingsSearchSectionLabel(
 }
 
 export const STUDIO_INTERFACE_AVAILABLE = WORKBENCH_LAYOUT && HARDWARE_FOCUS;
+
+/**
+ * Where the Interface switch is listed: a row of Appearance in the code interfaces, a page under
+ * Advanced in the engineering one, and nowhere where Studio offers no choice. Its page
+ * (`/settings/interface`) opens in every interface that offers it.
+ */
+export function interfaceSwitchPlacement(
+  engineering: boolean,
+  available: boolean,
+): "appearance" | "advanced" | null {
+  if (!available) return null;
+  return engineering ? "advanced" : "appearance";
+}
 const STORAGE_KEY = "studio:interface";
 const DEFAULT_INTERFACE: StudioInterface = "engineering";
 

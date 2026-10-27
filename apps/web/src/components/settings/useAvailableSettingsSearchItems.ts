@@ -12,7 +12,7 @@ import { useEnvironmentScope } from "~/state/session";
 import { isWslSettingsRowVisible } from "./ConnectionsSettings.logic";
 import { isProviderSettingsEnvironmentAvailable } from "./ProviderSettingsPanel.logic";
 import type { SettingsScopeSearch } from "./settingsScope";
-import { useEngineeringInterface } from "../workbench/studioInterface";
+import { STUDIO_INTERFACE_AVAILABLE, useEngineeringInterface } from "../workbench/studioInterface";
 import { engineeringSettingsSearchItems } from "../workbench/engineeringSettings";
 import {
   filterAvailableSettingsSearchItems,
@@ -75,9 +75,17 @@ export function useAvailableSettingsSearchItems(scopeSearch: SettingsScopeSearch
       scopeSearch.machine,
     ],
   );
+  // The Interface switch is offered only where Studio has the choice.
+  const offered = useMemo(
+    () =>
+      STUDIO_INTERFACE_AVAILABLE
+        ? available
+        : available.filter((item) => item.id !== "studio-interface"),
+    [available],
+  );
   // The engineering interface searches only the sections and rows it shows, by their names there.
   return useMemo(
-    () => (engineering ? engineeringSettingsSearchItems(available) : available),
-    [available, engineering],
+    () => (engineering ? engineeringSettingsSearchItems(offered) : offered),
+    [offered, engineering],
   );
 }
