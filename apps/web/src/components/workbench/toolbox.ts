@@ -1,0 +1,69 @@
+import {
+  type HardwareAction,
+  type HardwareActionGroup,
+  type HardwareActionMenu,
+} from "./hardwareActions";
+
+/** A run of jobs in a group, under its title; folded ones wait shut until opened in place. */
+export interface ToolboxSection {
+  readonly title: string;
+  readonly actions: ReadonlyArray<HardwareAction>;
+  readonly folded: boolean;
+}
+
+/** One of the Toolbox's three groups, with the Library entry whose picture marks it. */
+export interface ToolboxGroup {
+  readonly group: HardwareActionGroup;
+  readonly picture: string;
+  readonly sections: ReadonlyArray<ToolboxSection>;
+}
+
+/** The Library entry (`libraryCatalog.ts`) whose picture marks each group. */
+export const GROUP_PICTURES: Record<HardwareActionGroup, string> = {
+  Evaluate: "doc:simulation",
+  Manufacture: "doc:cam-job",
+  Document: "doc:drawing",
+};
+
+const GROUP_ORDER: ReadonlyArray<HardwareActionGroup> = ["Evaluate", "Manufacture", "Document"];
+
+/**
+ * The part's jobs as the Toolbox shows them: always Evaluate, Manufacture and Document, in that
+ * order. A group lists its menu's everyday sections open, then the ones the menu keeps under
+ * "More" folded; a group none of the jobs apply to has no sections.
+ */
+export function toolboxGroups(menus: ReadonlyArray<HardwareActionMenu>): ToolboxGroup[] {
+  return GROUP_ORDER.map((group) => {
+    const menu = menus.find((entry) => entry.group === group);
+    return {
+      group,
+      picture: GROUP_PICTURES[group],
+      sections: menu
+        ? [
+            ...menu.sections.map((section) => ({ ...section, folded: false })),
+            ...menu.others.map((section) => ({ ...section, folded: true })),
+          ]
+        : [],
+    };
+  });
+}
+
+const FOLDED_KEY = "studio:toolbox-folded";
+
+/** Whether the Toolbox was left collapsed to its edge on this device; open when never chosen. */
+export function readToolboxFolded(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(FOLDED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+/** Remembers, for this device, whether the Toolbox is collapsed to its edge. */
+export function writeToolboxFolded(folded: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(FOLDED_KEY, String(folded));
+  } catch {
+    // Storage is full or off: the choice holds until the window closes.
+  }
+}

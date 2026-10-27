@@ -2,13 +2,11 @@ import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ChevronDownIcon } from "lucide-react";
-import { Fragment, useMemo } from "react";
+import { Fragment } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { shortcutLabelForCommand } from "~/keybindings";
-import { pluginEnvironment } from "~/state/plugins";
-import { useEnvironmentQuery } from "~/state/query";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { Button } from "../ui/button";
 import {
@@ -21,12 +19,13 @@ import {
   MenuShortcut,
   MenuTrigger,
 } from "../ui/menu";
-import { type HardwareAction, hardwareActions } from "./hardwareActions";
+import type { HardwareAction } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
 import { type LibraryGroup, libraryHref } from "./library/librarySearch";
 import { handToChat } from "./NewDialog";
 import { useNewDialogStore } from "./newDialogStore";
 import { useOpenWorkspaceStore } from "./openWorkspace";
+import { usePartJobs } from "./usePartJobs";
 
 /** New on Documents (the toolbar's, `StudioNew`): a PRD, requirements, an FMEA, your own. */
 function newDocument() {
@@ -55,15 +54,7 @@ export function PartActions(props: {
   /** In the workspace's top bar: its buttons, menus opening below. Else small, opening above. */
   readonly inTopBar?: boolean;
 }) {
-  const list = useEnvironmentQuery(
-    pluginEnvironment.list({ environmentId: props.environmentId, input: {} }),
-  );
-  const groups = useMemo(() => {
-    const skills = new Set(
-      (list.data?.plugins ?? []).flatMap((plugin) => (plugin.enabled ? plugin.skills : [])),
-    );
-    return hardwareActions(props.kind, skills, props.process);
-  }, [list.data, props.kind, props.process]);
+  const { menus: groups } = usePartJobs(props.environmentId, props.kind, props.process);
   const findShortcut = shortcutLabelForCommand(
     useAtomValue(primaryServerKeybindingsAtom),
     "commandPalette.toggle",
