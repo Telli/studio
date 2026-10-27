@@ -281,8 +281,10 @@ Parts lists, balloons on a custom GA, and what the script prints about them:
   turned feature seen from the side, down every slot and across its ends, and a
   bolt circle's pitch circle. A centre line stated symmetric carries the ISO
   129-1 symbol, two short strokes beyond each end.
-- Dimensions measured from the geometry, true size at any scale; values wider
-  than their extension lines set beside them. Hole callouts in the standard
+- Dimensions measured from the geometry, true size at any scale, in
+  millimetres or, on a `Sheet(units="in")`, inches (`2.800`, `.060`): give a
+  part designed in inches an inch sheet. Values wider than their extension
+  lines are set beside them. Hole callouts in the standard
   symbols (⌀ ↧ ⌴ ⌵), drawn as line work so they print the same everywhere.
 - An ISO 5457 zoned border, an ISO 7200-style title block (TITLE, DWG NO., REV,
   SHEET, MATERIAL, FINISH, SCALE, SIZE, DRAWN, DATE, UNITS and the ISO 5456-2

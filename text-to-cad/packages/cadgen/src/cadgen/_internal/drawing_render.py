@@ -26,8 +26,9 @@ from cadgen._internal.drawing_base import (
     _CALLOUT_CLEAR, _CALLOUT_GAP, _CALLOUT_LANDING, _CALLOUT_STACK, _CENTRE_OVERSHOOT, _DIM_ROW, _FLAG_SIDE,
     _HATCH_SCALE, HATCHES, _LABEL_GAP, _LABEL_HEIGHT, _LAYERS, _MARGIN, _MIN_TEXT_MM, _PLANE_ROOM, _SAME_PLACE,
     SHEET_SIZES, _SIDES, _STANDARD_SCALES, _SYMBOL_ADVANCE, _TITLE_W, _box_dimension_value, _box_text, _cross,
-    _dimstyle, _dirs, _dot, _draw_dimension_symbols, _draw_flag, _draw_symbol, _fmt, _ink_width, _look,
-    _looks_down, _mtext_extent, _places, _runs, _scale_label, _shown, _spans, _text_box, _text_width, _where,
+    _dimstyle, _dirs, _dot, _draw_dimension_symbols, _draw_flag, _draw_symbol, _fmt, _ink_width, _length, _look,
+    _looks_down, _mtext_extent, _places, _runs, _scale_label, _shown, _spans, _stated_places, _text_box, _text_width,
+    UNITS, _where,
 )
 from cadgen._internal.drawing_gdt import (
     _DATUM_REACH, _FRAME_HEIGHT, _check_datums, _datum_toward, _draw_datum, _draw_frame, _draw_mark, _side_of,
@@ -433,7 +434,7 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
     for name, (color, linetype, weight) in _LAYERS.items():
         aci = 7 if sheet.ink == "mono" and name != "HIDDEN" else color
         doc.layers.add(name, color=aci, linetype=linetype, lineweight=int(round(weight * 100)))
-    dimstyle = _dimstyle(doc, sheet.text_height)
+    dimstyle = _dimstyle(doc, sheet.text_height, sheet.units)
     W, H, th = sheet.width, sheet.height, sheet.text_height
 
     def text(value, x, y, height, align, layer="TITLE", fit: float | None = None):
@@ -707,7 +708,7 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
         for name, at, own, slot_label in slots:
             if name in by_name:
                 view = by_name[name]
-                view.at = at
+                view.at = (at[0] + view._offset[0], at[1] + view._offset[1])
                 if name == "iso" and (view._auto_label is None or (view.label, view.scale) == view._auto_label):
                     view.scale, view.label = own, slot_label
                     view._auto_label = (slot_label, own)
@@ -841,8 +842,24 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
     if sheet._parts is not None and facts is not None:
         parts, first, last = sheet._parts
         facts.of_list(parts)["listed"].update(range(first, last + 1))
+    # Which view or dimension drew each entity (by its handle), and each view's place,
+    # box and the points Smart Dimension snaps to in it: what an editor of the sheet picks.
+    sources: dict[str, dict] = {}
+    views_drawn: list[dict] = []
+
+    def since(drawn_from: int, info: dict, *, unclaimed: bool = False) -> None:
+        for entity in list(msp)[drawn_from:]:
+            handle = str(entity.dxf.handle)
+            if not unclaimed or handle not in sources:
+                sources[handle] = info
+
     for (view, proj, bounds, items, plan, _centre), (_v, _p, _b, cx, cy, own_box) in zip(work, placed):
         sv = view.scale or s
+        view_number = sheet.views.index(view)
+        view_from = len(msp)
+
+        def drew(drawn_from: int, dim) -> None:
+            since(drawn_from, {"kind": "dim", "view": view_number, "dim": dim.index, "type": dim.kind, **_call_site(dim.source)})
         cut = cuts.get(id(view))
         section_anchors: dict[int, tuple[float, float]] = {}  # where a section's balloons land, by item
         record = None
@@ -877,6 +894,13 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
         # Bound now, not looked up later: the closures above read this loop's
         # variables, which belong to the last view by the time the loop is done.
         drawn[id(view)] = (view, functools.partial(_model_to_sheet, proj, view.at, (cx, cy), sv), own_box)
+        snaps, circles = _snaps(view, model_to_sheet, sv, own_box)
+        views_drawn.append({"view": view_number, "name": view.name, "label": (view.label or view.name).upper(),
+                            "at": [float(view.at[0]), float(view.at[1])], "scale": sv,
+                            "box": [float(c) for c in own_box], **_call_site(view._source),
+                            "arranged": view._arranged is not None,
+                            "offset": [float(c) for c in view._offset] if view._arranged is not None else None,
+                            "snaps": snaps, "circles": circles})
 
         # One set for the whole view, not one per pass. HLR returns an edge from
         # every face that bounds it, so an edge on the silhouette comes back
@@ -1182,8 +1206,10 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
                 label = f"({label})"
             # The value is measured in SHEET millimetres, which are the model's only
             # at 1:1. dimlfac scales what the dimension prints back to true size, per
-            # view, so a view drawn at its own scale still reads the part.
-            style_override = {"dimlfac": 1.0 / sv}
+            # view, so a view drawn at its own scale still reads the part, and into the
+            # sheet's units, so an inch sheet reads inches.
+            units = sheet.units
+            style_override = {"dimlfac": 1.0 / (sv * UNITS[units])}
             # A dimension to a hole's or a boss's centre runs its extension line as a
             # centre line, the way a drafter extends the centre mark to the dimension.
             for point, key in ((a, "dimltex1"), (b, "dimltex2")):
@@ -1193,30 +1219,37 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
                 # The deviations are the author's, in true size, and ezdxf prints them
                 # as given -- dimlfac scales the measurement, not the tolerance.
                 style_override |= {"dimtol": 1, "dimtp": tol[0], "dimtm": tol[1],
-                                   "dimtdec": _places(*tol), "dimtfac": 0.7}
+                                   "dimtdec": _stated_places(units, *tol), "dimtfac": 0.7}
             span = length if aligned else abs(b[0] - a[0]) if horizontal else abs(b[1] - a[1])
             measured = span / sv
             if true is not None and abs(true - measured) > 1e-6:
                 # The paper's length is the broken view's; the value is the part's.
                 measured = true
-                label = label.replace("<>", _fmt(true))
+                label = label.replace("<>", _length(true, units))
             if limits is not None:
+                # The limits are the author's, in the sheet's units.
                 low, high = limits
-                if not low - 1e-6 <= measured <= high + 1e-6:
+                value = measured / UNITS[units]
+                if not low - 1e-6 <= value <= high + 1e-6:
                     raise ValueError(f"{view.name} {name}: limits=({_fmt(low)}, {_fmt(high)}) do not hold the part, "
-                                     f"which measures {_fmt(measured)} there. Give the limits the design requires, "
-                                     "or change the model.")
+                                     f"which measures {_length(measured, units)} there. Give the limits the design "
+                                     "requires, or change the model.")
                 # The two limits, stacked; ezdxf prints them from the deviations.
-                style_override |= {"dimlim": 1, "dimtp": high - measured, "dimtm": measured - low,
-                                   "dimtdec": _places(low, high), "dimtfac": 0.7}
+                style_override |= {"dimlim": 1, "dimtp": high - value, "dimtm": value - low,
+                                   "dimtdec": _stated_places(units, low, high), "dimtfac": 0.7}
+            elif units != "mm":
+                # An inch value is written here rather than left to ezdxf's "<>": ezdxf
+                # rounds a half to even, on a float a hair either side of it, so 5/16 in
+                # read .312 and 11/16 read .687 beside radii reading R.313 and R.688.
+                label = label.replace("<>", _length(measured, units), 1)
             if basic:
                 style_override["dimgap"] = -abs(th * 0.25)  # a negative gap is the DXF's mark of a basic value
             # A value wider than the space between its extension lines is set beside
             # them, on the dimension line's side, instead of across them: centred,
             # "3 WALL" printed with both witness lines running through its glyphs.
             # One that fits stays centred and only its arrows go outside.
-            printed = label.replace("<>", _fmt(measured))
-            width = _ink_width(printed, th) + (_text_width(_tol_suffix(tol), th * 0.7) if tol else 0.0)
+            printed = label.replace("<>", _length(measured, units))
+            width = _ink_width(printed, th) + (_text_width(_tol_suffix(tol, units), th * 0.7) if tol else 0.0)
             arrow = th * 0.85
             location = None
             if aligned:
@@ -1342,6 +1375,7 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
         # outermost, then the callouts outside all of them, then notes and angles.
         for dim in items:
             if dim.kind == "linear":
+                drawn_from = len(msp)
                 a, b = model_to_sheet(dim.p1), model_to_sheet(dim.p2)
                 check("dim", dim.index, a, b)
                 across, up = abs(b[0] - a[0]) / sv, abs(b[1] - a[1]) / sv
@@ -1376,14 +1410,18 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
                 linear(a, b, dim.offset, dim.side, dim.row, dim.text, dim.orientation, dim.tol, dim.fit, true,
                        basic=dim.basic, reference=dim.reference, limits=dim.limits, name=f"dim {dim.index}",
                        frame=dim.frame, datum=dim.datum, keyed=dim.key, ends=(dim.p1, dim.p2))
+                drew(drawn_from, dim)
         extent = view.shape.bounding_box()
         corners = ((extent.min.X, extent.min.Y, extent.min.Z), (extent.max.X, extent.max.Y, extent.max.Z))
+        drawn_from = len(msp)
         if "width" in view._overall:
             linear((vx0, vy1), (vx1, vy1), None, "top", plan["overall"]["top"], None, "h",
                    true=whole[1] - whole[0] if whole else None, reference=view._overall_reference, ends=corners)
         if "height" in view._overall:
             linear((vx0, vy0), (vx0, vy1), None, "left", plan["overall"]["left"], None, "v",
                    true=whole[3] - whole[2] if whole else None, reference=view._overall_reference, ends=corners)
+        if view._overall:
+            since(drawn_from, {"kind": "overall", "view": view_number, **_call_site(view._overall_source)})
         # How far the callouts reach past each side, so balloons drawn later
         # stand outside them; callouts on one side share a knee, so this is not
         # applied until they are all placed.
@@ -1391,6 +1429,7 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
         for dim in items:
             if dim.kind not in ("diameter", "radius", "hole", "slot"):
                 continue
+            drawn_from = len(msp)
             # A callout: a radial leader from the circle to a horizontal landing
             # outside the view, past whatever dimensions stand on that side, with
             # the text reading along the landing. Stacked callouts on one side land
@@ -1398,7 +1437,7 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
             centre = model_to_sheet(dim.p1)
             check(dim.kind, dim.index, centre)
             r = dim.radius * sv
-            value = _callout_value(dim)
+            value = _callout_value(dim, sheet.units)
             text_w = _CALLOUT_LANDING + _CALLOUT_GAP + _ink_width(value, th)
             # Exit on the hole's own side of the view (the short way out), unless the
             # landing there would run into another view or off the frame; then the
@@ -1547,6 +1586,7 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
                     record["values"].append(2 * dim.radius)
                 elif dim.kind == "radius" and not dim.reference:
                     record["radii"].add(round(dim.radius, 3))
+            drew(drawn_from, dim)
         for name, value in callout_reach.items():
             reach[name] = max(reach[name], value)
         if id(view) in tables:
@@ -1566,6 +1606,7 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
                     # A feature of size made a datum locates from its centre.
                     record["anchors"].extend((axis, dim.feature.mouth[axis]) for axis in range(3))
         for dim in items:
+            drawn_from = len(msp)
             if dim.kind == "angle":
                 v = model_to_sheet(dim.p1)
                 a = model_to_sheet(dim.p2)
@@ -1611,6 +1652,8 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
                 # A note hanging below the view pushes the view's label down, as a
                 # dimension row there does.
                 reach["bottom"] = max(reach["bottom"], vy0 - q[1] + 1.0)
+            if dim.kind in ("angle", "frame", "note"):
+                drew(drawn_from, dim)
 
         for letter, point, stem in view._datums:
             # A datum feature symbol stands on its surface, its stem leading out of
@@ -1694,6 +1737,7 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
         for dim in items:
             if dim.kind != "flag":
                 continue
+            drawn_from = len(msp)
             # A flag note: a leader to the flag, the flag numbered as its note.
             p = model_to_sheet(dim.p1 if dim.p1 is not None else _item_point(view, dim.item))
             check("flag", dim.index, p)
@@ -1713,6 +1757,7 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
             claim(f"flag {number}", box)
             leaders.append((p, q, land))
             reach_past(box)
+            drew(drawn_from, dim)
 
         for p, label in thin:
             # A layer too thin to hatch is filled solid and named where it is.
@@ -1737,9 +1782,12 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
         # dimension on the bottom side never sits on it.
         text((view.label or view.name).upper(), view.at[0], vy0 - reach["bottom"] - _LABEL_GAP, _LABEL_HEIGHT,
              TextEntityAlignment.TOP_CENTER, "NOTES")
+        # Everything else the view drew -- its line work, centre marks, datums, balloons,
+        # tags and label -- is the view's.
+        since(view_from, {"kind": "view", "view": view_number}, unclaimed=True)
 
     for table in tables.values():
-        _draw_hole_table(msp, table, text)
+        _draw_hole_table(msp, table, text, sheet.units)
     from ezdxf import const
 
     for table, corner in zip(keyed, keyed_at):
@@ -1792,4 +1840,83 @@ def _draw_sheet(sheet: Sheet, *, index: int, count: int, label: str, warnings: l
         text(letter, spot[0], spot[1], th + 1.5, TextEntityAlignment.MIDDLE_CENTER, "NOTES")
     _draw_aux_arrows(msp, sheet, drawn, text, th)
     _merge_centre_lines(msp)
+    live = {str(entity.dxf.handle) for entity in msp}
+    doc.cadgen_sources = {handle: info for handle, info in sources.items() if handle in live}
+    doc.cadgen_views = views_drawn
     return doc
+
+
+def _call_site(source) -> dict:
+    """Where the drawing's script asked for a view or a dimension, as an editor of the
+    sheet reads it: its line, and where its call ends (the closing parenthesis), which
+    picks one call out of a chain."""
+    if not source:
+        return {"line": None, "end": None}
+    return {"line": source[1], "end": [source[2], source[3]] if len(source) > 3 and source[2] is not None else None}
+
+
+def _snaps(view, model_to_sheet, scale: float, box) -> tuple[list[dict], list[dict]]:
+    """What Smart Dimension picks in a view, each with the model point it is: the shape's
+    vertices and the centres of its circles seen round in this view (``snaps``), and those
+    circles (``circles``: a full circle is dimensioned by its diameter, an arc by its radius).
+    A pictorial view picks nothing: its lengths are foreshortened. Only what the view draws
+    is picked (not what lies outside a detail's circle or inside a break), and each model
+    point is in the frame the view's own calls take points in."""
+    if view.name == "iso":
+        return [], []
+    from build123d import GeomType, Pos
+
+    toward = _look(view)
+    undo = view._turn.inverse() if view._turn is not None else None
+    snaps: list[dict] = []
+    circles: list[dict] = []
+    taken: set = set()
+
+    def given(model) -> list[float]:
+        if undo is not None:
+            moved = (undo * Pos(*model)).position
+            model = (moved.X, moved.Y, moved.Z)
+        return [round(c, 6) for c in model]
+
+    def drawn(model, place) -> bool:
+        if view._break is not None and view._break.low < model[view._break.axis] < view._break.high:
+            return False
+        return box[0] - 0.5 <= place[0] <= box[1] + 0.5 and box[2] - 0.5 <= place[1] <= box[3] + 0.5
+
+    def snap(model, kind: str) -> None:
+        place = model_to_sheet(model)
+        key = (round(place[0], 3), round(place[1], 3))
+        if key not in taken and drawn(model, place):
+            taken.add(key)
+            snaps.append({"at": [round(place[0], 4), round(place[1], 4)], "model": given(model), "kind": kind})
+
+    seen: set = set()
+    for edge in view.shape.edges():
+        if edge.geom_type != GeomType.CIRCLE:
+            continue
+        try:
+            normal = edge.normal()
+        except Exception:  # noqa: BLE001 - an edge with no plane of its own is not seen round
+            continue
+        if abs(abs(normal.X * toward[0] + normal.Y * toward[1] + normal.Z * toward[2]) - 1.0) > 1e-6:
+            continue
+        centre = edge.arc_center
+        model = (float(centre.X), float(centre.Y), float(centre.Z))
+        radius = float(edge.radius)
+        place = model_to_sheet(model)
+        key = (round(place[0], 3), round(place[1], 3), round(radius, 6))
+        if key in seen or not drawn(model, place):
+            continue  # a hole's two rims are one circle in the view
+        seen.add(key)
+        snap(model, "centre")
+        circles.append({"at": [round(place[0], 4), round(place[1], 4)], "radius": round(radius * scale, 4),
+                        "model": given(model), "size": round(radius, 6),
+                        "full": math.isclose(float(edge.length), 2 * math.pi * radius, rel_tol=1e-6)})
+    # A full circle's one vertex is where the kernel closed it, not a corner anyone dimensions to.
+    rims = [(circle["at"], circle["radius"]) for circle in circles if circle["full"]]
+    for vertex in view.shape.vertices():
+        model = (float(vertex.X), float(vertex.Y), float(vertex.Z))
+        place = model_to_sheet(model)
+        if not any(abs(math.hypot(place[0] - at[0], place[1] - at[1]) - radius) < 1e-6 for at, radius in rims):
+            snap(model, "vertex")
+    return snaps, circles

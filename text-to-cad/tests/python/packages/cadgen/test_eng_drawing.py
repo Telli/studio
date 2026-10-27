@@ -354,8 +354,8 @@ class DrawingSheetTests(unittest.TestCase):
         top.overall()
         front.overall()
         front.dim((-1.40 * inch, -0.525 * inch, 0), (1.40 * inch, -0.525 * inch, 0), offset=-14, tol=0.005)
-        top.hole((0, 0, 2.000 * inch), 0.125 * inch, depth=0.5 * inch, tol=0.0005)
-        top.radius((0, 0, 2.000 * inch), 0.0625 * inch)
+        top.hole((0, 0, 2.000 * inch), 0.125 * inch, tol=0.0005)
+        top.radius((0, 0, 2.000 * inch), size=0.0625 * inch)
         doc = _render_sheet(sheet, index=1, count=1, label="inch")
         texts = _dim_texts(doc)
         for size in ("2.800", "1.050", "2.000"):
@@ -363,11 +363,10 @@ class DrawingSheetTests(unittest.TestCase):
         self.assertFalse(any("71.12" in t for t in texts), texts)
         self.assertTrue(any("2.800" in t and "±.005" in t for t in texts), texts)
         msp = doc.modelspace()
-        callouts = [e.dxf.text for e in msp.query("TEXT[layer=='DIM']")]
-        self.assertIn("%%c.125 ±.0005 \u21a7.500", callouts)
-        self.assertIn("R.063", callouts)
-        title = " ".join(e.dxf.text for e in msp.query("TEXT[layer=='TITLE']"))
-        self.assertIn("   IN   ", title)
+        callouts = _callouts(doc)
+        self.assertIn("%%c.125 ±.0005 THRU", callouts)
+        self.assertIn("R.063", [e.dxf.text for e in msp.query("TEXT[layer=='DIM']")])
+        self.assertIn("IN", [e.dxf.text for e in msp.query("TEXT[layer=='TITLE']")])
 
     def test_a_half_rounds_the_same_way_on_every_dimension(self) -> None:
         """5/16 in reads .313 as a length, as its radius does, and 11/16 reads .688.
@@ -384,7 +383,7 @@ class DrawingSheetTests(unittest.TestCase):
         sheet = Sheet("A4", title="KEY", units="in")
         top, _front, _right = sheet.three_views(part)
         top.overall()
-        top.radius((0, 0, 0.25 * inch), 0.0625 * inch)
+        top.radius((0, 0, 0.25 * inch), size=0.0625 * inch)
         doc = _render_sheet(sheet, index=1, count=1, label="halves")
         self.assertEqual(sorted(_dim_texts(doc)), [".313", ".688"])
         self.assertIn("R.063", [e.dxf.text for e in doc.modelspace().query("TEXT[layer=='DIM']")])
@@ -1714,12 +1713,6 @@ class SheetFurnitureTests(unittest.TestCase):
         inside = [e.dxf.text for e in msp.query("TEXT")
                   if x0 <= e.dxf.insert.x <= x0 + w and y0 <= e.dxf.insert.y <= y0 + h]
         self.assertEqual(inside, ["MATERIAL"])
-
-    def test_a_unit_the_sheet_does_not_measure_in_is_refused(self) -> None:
-        from cadgen.eng_drawing import Sheet
-
-        with self.assertRaisesRegex(ValueError, "25.4"):
-            Sheet("A3", units="in")
 
 
 class UnstatedTests(unittest.TestCase):

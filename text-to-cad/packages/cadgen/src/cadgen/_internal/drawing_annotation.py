@@ -15,7 +15,8 @@ from cadgen._internal.drawing_assembly import _BALLOON_AIR, _BALLOON_LEAD, _BALL
 from cadgen._internal.drawing_base import (
     _CALLOUT_CLEAR, _CALLOUT_GAP, _CALLOUT_LANDING, _DIM_ROW, _FLAG_SIDE, _LABEL_ROOM, _OPPOSITE, _SECTION_LETTERS,
     _SAME_PLACE, _SIDES,
-    _dot, _exact, _fmt, _ink_width, _look, _looks_down, _near, _places, _shown, _spans, _text_width, _where,
+    _dot, _exact, _fmt, _inches, _ink_width, _length, _look, _looks_down, _near, _places, _shown, _spans,
+    _stated_places, _text_width, _where,
 )
 from cadgen._internal.drawing_features import Slot
 from cadgen._internal.drawing_gdt import _DATUM_REACH, _datum_toward, _side_of, frame_size, mark_width
@@ -60,49 +61,62 @@ class _Dim:
     datum: str | None = None
     #: A key characteristic: marked with the profile's boxed letters after the value.
     key: bool = False
+    #: Where the drawing's script asked for it, as (file, line, end line, end column of
+    #: the call's closing parenthesis): what an editor of the sheet edits.
+    source: tuple | None = None
 
 
-def _tol_suffix(tol) -> str:
+def _tol_suffix(tol, units: str = "mm") -> str:
+    # The deviations are the author's, already in the sheet's units.
     if not tol:
         return ""
     plus, minus = tol
+    if units != "mm":
+        places = _stated_places(units, plus, minus)
+        if abs(plus - minus) < 1e-9:
+            return f" ±{_inches(plus, places)}"
+        return f" +{_inches(plus, places)}/-{_inches(minus, places)}"
     if abs(plus - minus) < 1e-9:
         return f" ±{_exact(plus)}"
     places = _places(plus, minus)  # plus and minus to one precision, as given
     return f" +{plus:.{places}f}/-{minus:.{places}f}"
 
 
-def hole_callout_text(spec: dict, *, tol=None, fit: str | None = None) -> str:
-    """The text of a hole callout, in the ISO/ASME symbols a shop reads."""
+def hole_callout_text(spec: dict, *, tol=None, fit: str | None = None, units: str = "mm") -> str:
+    """The text of a hole callout, in the ISO/ASME symbols a shop reads. The sizes are
+    the part's millimetres, printed in the sheet's ``units``."""
+    def size_of(mm: float) -> str:
+        return _length(mm, units)
+
     parts = []
     # One hole is not "1×": a count prints only when there is something to count.
     lead = f"{spec['count']}× " if (spec.get("count") or 1) > 1 else ""
     if spec.get("slot"):
-        text = f"{lead}{_fmt(spec['width'])} × {_fmt(spec['length'])} SLOT"
-        text += " THRU" if spec.get("thru") else (f" \u21a7{_fmt(spec['depth'])}" if spec.get("depth") else "")
+        text = f"{lead}{size_of(spec['width'])} × {size_of(spec['length'])} SLOT"
+        text += " THRU" if spec.get("thru") else (f" \u21a7{size_of(spec['depth'])}" if spec.get("depth") else "")
         if spec.get("cbore"):
             width, length, depth = spec["cbore"]
-            text += f"   \u2334 {_fmt(width)} × {_fmt(length)} \u21a7{_fmt(depth)}"
+            text += f"   \u2334 {size_of(width)} × {size_of(length)} \u21a7{size_of(depth)}"
         return text + (f"   {spec['label']}" if spec.get("label") else "")
-    size = spec["thread"] if spec.get("thread") else f"%%c{_fmt(spec['diameter'])}"
-    size += _tol_suffix(tol) + (f" {fit}" if fit else "")
+    size = spec["thread"] if spec.get("thread") else f"%%c{size_of(spec['diameter'])}"
+    size += _tol_suffix(tol, units) + (f" {fit}" if fit else "")
     if spec.get("thru"):
         size += " THRU"
     elif spec.get("depth") is not None:
-        size += f" \u21a7{_fmt(spec['depth'])}"
+        size += f" \u21a7{size_of(spec['depth'])}"
     if spec.get("pcd"):
         # The bolt circle: equally spaced on a circle of this diameter.
-        size += f" EQ SP ON %%c{_fmt(spec['pcd'])}"
+        size += f" EQ SP ON %%c{size_of(spec['pcd'])}"
     parts.append(lead + size)
 
     def same(a, b) -> bool:
         return a is not None and b is not None and all(abs(x - y) < 1e-3 for x, y in zip(a, b))
 
     def cbore(pair) -> str:
-        return f"\u2334 %%c{_fmt(pair[0])} \u21a7{_fmt(pair[1])}"
+        return f"\u2334 %%c{size_of(pair[0])} \u21a7{size_of(pair[1])}"
 
     def csk(pair) -> str:
-        return f"\u2335 %%c{_fmt(pair[0])} × {_fmt(pair[1])}°"
+        return f"\u2335 %%c{size_of(pair[0])} × {_fmt(pair[1])}°"
 
     # A through hole can be opened out at both ends: the same at each is stated
     # once, BOTH ENDS; something different at the far end is stated FAR SIDE.
@@ -222,13 +236,14 @@ def _radii_at(proj, target, *, closed_only: bool) -> list[float]:
     return sorted(radii)
 
 
-def _callout_value(dim: "_Dim") -> str:
+def _callout_value(dim: "_Dim", units: str = "mm") -> str:
     if dim.kind in ("hole", "slot"):
-        return hole_callout_text(dim.hole, tol=dim.tol, fit=dim.fit)
+        return hole_callout_text(dim.hole, tol=dim.tol, fit=dim.fit, units=units)
     if dim.text:
         value = dim.text
     else:
-        value = f"%%c{_fmt(2 * dim.radius)}" if dim.kind == "diameter" else f"R{_fmt(dim.radius)}"
+        value = (f"%%c{_length(2 * dim.radius, units)}" if dim.kind == "diameter"
+                 else f"R{_length(dim.radius, units)}")
     return f"({value})" if dim.reference else value
 
 
@@ -526,7 +541,7 @@ def _plan_view(view: View, proj, bounds, items: list["_Dim"], sheet: Sheet) -> d
             # The side a callout prefers is its hole's own half of the view, the
             # short way out, past every dimension row on that side.
             side = "right" if proj.point(dim.p1)[0] > cx + 1e-6 else "left"
-            width = _ink_width(_callout_value(dim), th)
+            width = _ink_width(_callout_value(dim, sheet.units), th)
             if dim.frame is not None:
                 width = max(width, frame_size(dim.frame, th)[0])
             room[side] = max(room[side], rowed[side] + _CALLOUT_CLEAR + _CALLOUT_LANDING + _CALLOUT_GAP
@@ -622,7 +637,7 @@ def _hole_table(view: View, proj, features, cut, items) -> _HoleTable:
     for letter, members in zip(_SECTION_LETTERS, order):
         is_slot = isinstance(members[0], Slot)
         spec = _slot_spec(members[0], 1) if is_slot else _hole_spec(members[0], 1)
-        size = hole_callout_text(spec)
+        size = hole_callout_text(spec, units=view.sheet.units)
         radius = members[0].width / 2 if is_slot else _outer_radius(spec)
         measured = []
         for feature in members:
@@ -662,8 +677,8 @@ def _draw_hole_tags(msp, table: _HoleTable, proj, to_sheet, sv: float, th: float
     text("0,0", o[0] - 1.0, o[1] - 1.0, 2.5, A.TOP_RIGHT, "DIM")
 
 
-def _draw_hole_table(msp, table: _HoleTable, text) -> None:
-    """The table itself, header on top: TAG, X, Y, SIZE."""
+def _draw_hole_table(msp, table: _HoleTable, text, units: str = "mm") -> None:
+    """The table itself, header on top: TAG, X, Y, SIZE, in the sheet's ``units``."""
     from ezdxf.enums import TextEntityAlignment as A
 
     x0, y1 = table.corner
@@ -679,7 +694,7 @@ def _draw_hole_table(msp, table: _HoleTable, text) -> None:
             msp.add_line((x, y1), (x, y1 - h), dxfattribs={"layer": "TITLE"})
         text(name, x + width / 2, y1 - _TABLE_ROW / 2, _CAPTION_HEIGHT, A.MIDDLE_CENTER, fit=width - 2)
         for r, row in enumerate(table.rows, start=1):
-            value = (row.tag, _fmt(row.x), _fmt(row.y), row.size)[c]
+            value = (row.tag, _length(row.x, units), _length(row.y, units), row.size)[c]
             mid = y1 - (r + 0.5) * _TABLE_ROW
             if c == 3:
                 text(value, x + 2.0, mid, 2.5, A.MIDDLE_LEFT, "NOTES")

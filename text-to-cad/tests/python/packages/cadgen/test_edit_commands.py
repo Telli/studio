@@ -1886,7 +1886,7 @@ class Drawings(Commands):
         holed = self.service.change({"file": file, "sheet": {"index": 1, "hash": dimensioned["sheet"]["hash"], "edit": {
             "kind": "diameter", "view": ref(top, 0), "center": circle["model"], "radius": circle["size"], "angle": 30}}})
         self.assertTrue(holed["ok"], holed.get("error"))
-        self.assertIn("    top.diameter((0, 0, 2), 2, angle=30)\n", script.read_text(encoding="utf-8"))
+        self.assertIn("    top.diameter((0, 0, 2), size=4, angle=30)\n", script.read_text(encoding="utf-8"))
 
         # Undo, as many times as changes were made, puts the script back as Make Drawing wrote it.
         replies = [moved, deleted, dimensioned, holed]

@@ -13,7 +13,7 @@ from collections.abc import Hashable
 from dataclasses import dataclass, field
 
 from cadgen._internal.drawing_annotation import hole_callout_text, _hole_spec, _looks_into, _slot_spec
-from cadgen._internal.drawing_base import _fmt, _shown, _where
+from cadgen._internal.drawing_base import _fmt, _length, _shown, _where
 from cadgen._internal.drawing_features import Slot
 
 
@@ -798,7 +798,7 @@ def _unstated_for_stage(record: dict, whose: str) -> list[str]:
     return lines
 
 
-def geometry_notes(part) -> list[str]:
+def geometry_notes(part, *, units: str = "mm") -> list[str]:
     """The general notes the part's own geometry makes true, for
     ``Sheet(notes=...)``. A note that governs unspecified edges -- ``FILLETS R3
     UNLESS OTHERWISE SPECIFIED.`` -- asks the shop to treat every such edge drawn
@@ -807,7 +807,8 @@ def geometry_notes(part) -> list[str]:
     is the note's), or every outside edge rounded (``ROUNDS``) or chamfered
     (``CHAMFERS 1 × 45°``), whichever is commoner. Blends and chamfers of other
     sizes still need stating, and the completeness report says which. A part
-    with sharp edges of both kinds gets no notes."""
+    with sharp edges of both kinds gets no notes. ``units`` is the sheet's: an inch
+    sheet's notes read ``FILLETS R.125``."""
     from collections import Counter
 
     from cadgen._internal.drawing_features import blends, chamfers, sharp_edges
@@ -818,14 +819,14 @@ def geometry_notes(part) -> list[str]:
     notes = []
     fillets = Counter(round(b.radius, 3) for b in found if b.concave)
     if fillets and not inside:
-        notes.append(f"FILLETS R{_fmt(_commonest(fillets))} UNLESS OTHERWISE SPECIFIED.")
+        notes.append(f"FILLETS R{_length(_commonest(fillets), units)} UNLESS OTHERWISE SPECIFIED.")
     rounds = Counter(round(b.radius, 3) for b in found if not b.concave)
     sizes = Counter(round(c.legs[0], 3) for c in bevels)
     if not outside and (rounds or sizes):
         if sum(rounds.values()) >= sum(sizes.values()):
-            notes.append(f"ROUNDS R{_fmt(_commonest(rounds))} UNLESS OTHERWISE SPECIFIED.")
+            notes.append(f"ROUNDS R{_length(_commonest(rounds), units)} UNLESS OTHERWISE SPECIFIED.")
         else:
-            notes.append(f"CHAMFERS {_fmt(_commonest(sizes))} × 45° UNLESS OTHERWISE SPECIFIED.")
+            notes.append(f"CHAMFERS {_length(_commonest(sizes), units)} × 45° UNLESS OTHERWISE SPECIFIED.")
     return notes
 
 
@@ -839,8 +840,11 @@ def _unstated_edges(record: dict, whose: str) -> list[str]:
     a note naming its radius and kind (FILLETS for inside corners, ROUNDS for
     outside edges, RADII for either) or by a ``radius()`` callout of its size; a
     chamfer by a note giving its size (``1 × 45°``, or ``1 × 2`` for unequal
-    legs)."""
+    legs), in millimetres or as an inch sheet prints it."""
     from cadgen._internal.drawing_features import blends, chamfers
+
+    def spelled(mm: float) -> str:
+        return "(?:" + "|".join(re.escape(each) for each in sorted({_fmt(mm), _length(mm, "in")})) + ")"
 
     notes = [note.upper() for note in record.get("notes", ())]
     lines = []
@@ -850,7 +854,7 @@ def _unstated_edges(record: dict, whose: str) -> list[str]:
         groups[key] = groups.get(key, 0) + 1
     for (radius, concave), count in sorted(groups.items()):
         word = "FILLET" if concave else "ROUND"
-        mark = re.compile(rf"\bR{re.escape(_fmt(radius))}(?!\.?\d)")  # R0.8 is not R0.85
+        mark = re.compile(rf"\bR{spelled(radius)}(?!\.?\d)")  # R0.8 is not R0.85
         named = any(mark.search(note) and (word in note or "RADII" in note) for note in notes)
         if named or radius in record.get("radii", ()):
             continue
@@ -866,8 +870,8 @@ def _unstated_edges(record: dict, whose: str) -> list[str]:
         bevels[key] = bevels.get(key, 0) + 1
     for (a, b), count in sorted(bevels.items()):
         size = f"{_fmt(a)} × 45°" if abs(a - b) < 1e-3 else f"{_fmt(a)} × {_fmt(b)}"
-        second = "45°" if abs(a - b) < 1e-3 else re.escape(_fmt(b))
-        mark = re.compile(rf"(?<![\d.]){re.escape(_fmt(a))} ?[×X] ?{second}")
+        second = "45°" if abs(a - b) < 1e-3 else spelled(b)
+        mark = re.compile(rf"(?<![\d.]){spelled(a)} ?[×X] ?{second}")
         if any(mark.search(note) for note in notes):
             continue
         plural = count > 1
