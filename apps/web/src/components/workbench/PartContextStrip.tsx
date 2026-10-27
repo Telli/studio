@@ -1,7 +1,5 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 
-import type { ComposerHandleRef } from "~/composerHandleContext";
 import { BoxIcon } from "lucide-react";
 import { useMemo } from "react";
 
@@ -11,7 +9,6 @@ import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelSto
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { PartContext } from "./partContext";
 import { buildLabel, materialLabel } from "./partLabels";
-import { PartActions } from "./PartActions";
 import { useEngineeringInterface, useEngineeringSurfaces } from "./studioInterface";
 import { usePartContext } from "./usePartContext";
 import { WORKBENCH_LAYOUT } from "./workbenchLayout";
@@ -44,21 +41,14 @@ export function partFacts(part: PartContext) {
  * the viewer's tab takes it away. Workbench layout only; `threadRef` is null
  * for a draft.
  */
-export function PartContextStrip(props: {
-  readonly threadRef: ScopedThreadRef | null;
-  /** Where the engineering surfaces' Check, Make and Document write their jobs. */
-  readonly composerRef: ComposerHandleRef;
-}) {
-  // The engineering interface names the part in its top bar and puts its jobs there.
+export function PartContextStrip(props: { readonly threadRef: ScopedThreadRef | null }) {
+  // The engineering interface names the part in its top bar; its jobs are in the Toolbox.
   const engineering = useEngineeringInterface();
   if (!WORKBENCH_LAYOUT || props.threadRef === null || engineering) return null;
-  return <ThreadPartContext threadRef={props.threadRef} composerRef={props.composerRef} />;
+  return <ThreadPartContext threadRef={props.threadRef} />;
 }
 
-function ThreadPartContext(props: {
-  readonly threadRef: ScopedThreadRef;
-  readonly composerRef: ComposerHandleRef;
-}) {
+function ThreadPartContext(props: { readonly threadRef: ScopedThreadRef }) {
   const { threadRef } = props;
   const shown = usePartContext(threadRef);
   const panel = useRightPanelStore((state) =>
@@ -130,14 +120,6 @@ function ThreadPartContext(props: {
           {failure === null ? null : <span className="mt-1 block text-destructive">{failure}</span>}
         </TooltipPopup>
       </Tooltip>
-      {engineering ? (
-        <PartActions
-          environmentId={threadRef.environmentId}
-          file={serializeComposerFileLink(part.path)}
-          kind={part.kind}
-          composerRef={props.composerRef}
-        />
-      ) : null}
     </div>
   );
 }

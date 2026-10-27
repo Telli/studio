@@ -2,7 +2,14 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { hardwareActions } from "./hardwareActions";
 import { pictureOf } from "./library/libraryPictures";
-import { GROUP_PICTURES, jobCount, toolboxFolded, toolboxGroups, toolboxView } from "./toolbox";
+import {
+  GROUP_PICTURES,
+  jobCount,
+  toolboxFolded,
+  toolboxGroups,
+  toolboxLibraryLink,
+  toolboxView,
+} from "./toolbox";
 
 const menus = () =>
   hardwareActions("Part", new Set(["fea", "dfm", "dfam-check", "cam"]), "CNC machining");
@@ -73,5 +80,23 @@ describe("jobCount", () => {
     expect(evaluate && jobCount(evaluate)).toBe(all.length);
     expect(all.length).toBeGreaterThan(0);
     expect(toolboxGroups([]).map(jobCount)).toEqual([0, 0, 0]);
+  });
+});
+
+describe("toolboxLibraryLink", () => {
+  it("opens the Library on the group, coming back here while the workspace can take a request", () => {
+    expect(
+      toolboxLibraryLink("Evaluate", { workspaceOpen: true, from: "/chat/t1" }).search,
+    ).toEqual({
+      group: "Evaluate",
+      from: "/chat/t1",
+    });
+  });
+
+  it("leaves out where to come back to when no workspace is open", () => {
+    expect(toolboxLibraryLink("Document", { workspaceOpen: false, from: "/chat/t1" })).toEqual({
+      to: "/library",
+      search: { group: "Document" },
+    });
   });
 });

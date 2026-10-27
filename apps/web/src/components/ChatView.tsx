@@ -11816,10 +11816,7 @@ export default function ChatView(props: ChatViewProps) {
                       </div>
                     </div>
                   ) : (
-                    <PartContextStrip
-                      threadRef={isServerThread ? activeThreadRef : null}
-                      composerRef={composerRef}
-                    />
+                    <PartContextStrip threadRef={isServerThread ? activeThreadRef : null} />
                   )}
                   <div
                     ref={draftHeroTransition.composerAnchorRef}

@@ -1,13 +1,10 @@
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
-import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { type ReactNode, useMemo } from "react";
 
-import { useComposerHandleContext } from "~/composerHandleContext";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
 import { CheckBadge } from "./CheckBadge";
-import { PartActions } from "./PartActions";
 import { shownChecks } from "./partChecks";
 import { buildLabel, materialLabel } from "./partLabels";
 import { partLabel } from "./partNames";
@@ -62,14 +59,13 @@ interface TitleBlockProps {
 /**
  * The drawing's title block, over the viewer: the part on screen, its type,
  * units, material, last build and checks (each opening its result; a result
- * on screen leads back to its part), read the way a shop drawing reads, and the
- * jobs it takes (Check, Make, Document) as the ribbon beside it. In the
+ * on screen leads back to its part), read the way a shop drawing reads. In the
  * engineering surfaces only (`useEngineeringSurfaces`), and only while the viewer shows a part of this plugin.
  */
 export function TitleBlock(props: TitleBlockProps) {
   const surfaces = useEngineeringSurfaces();
-  // The engineering interface keeps the view clear: the part's jobs are in the top bar
-  // (`StudioPanelBar`), and its facts are not repeated over the model.
+  // The engineering interface keeps the view clear: the part's jobs are in the Toolbox
+  // (`StudioToolbox`), and its facts are not repeated over the model.
   const engineering = useEngineeringInterface();
   if (!surfaces || engineering) return null;
   return <ThreadTitleBlock {...props} />;
@@ -77,7 +73,6 @@ export function TitleBlock(props: TitleBlockProps) {
 
 function ThreadTitleBlock(props: TitleBlockProps) {
   const shown = usePartContext({ environmentId: props.environmentId, threadId: props.threadId });
-  const composerRef = useComposerHandleContext();
   useNowMinute();
   const studio = useStudioProjectAt(props.environmentId, props.cwd ?? null);
   const folders = useMemo(
@@ -162,16 +157,6 @@ function ThreadTitleBlock(props: TitleBlockProps) {
           </Cell>
         )}
       </dl>
-      {composerRef === null ? null : (
-        <div className="flex shrink-0 items-center px-1.5">
-          <PartActions
-            environmentId={props.environmentId}
-            file={serializeComposerFileLink(part.path)}
-            kind={part.kind}
-            composerRef={composerRef}
-          />
-        </div>
-      )}
     </div>
   );
 }

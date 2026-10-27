@@ -393,11 +393,10 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   colored icon (`FileKindIcon.tsx`) at its left and its close at its right, as Chrome's are, the
   one in front joined to the toolbar under them. There is no + (New is the one way to add), a
   panel with every tab closed shows the Overview, and a tab's menu has no Copy path. The
-  toolbar is one line of what can be done (`StudioPanelBar.tsx`): over a part, Evaluate,
-  Manufacture and Document; then Simple view where the viewer in front has two layouts; and
-  Import and New, always there, at its right end, as Home has them (`StudioNew.tsx`, which hosts
+  toolbar is one line of what can be done (`StudioPanelBar.tsx`): the AI | CAD switch, Simple view
+  where the viewer in front has two layouts; and Import and New, always there, at its right end, as Home has them (`StudioNew.tsx`, which hosts
   New's dialog in Engineering); a narrow window's panel sheet keeps it. Whatever
-  writes into the chat (these menus, Cmd+K, the viewer's Add to chat, the Overview) brings the
+  writes into the chat (the Toolbox, Cmd+K, the viewer's Add to chat, the Overview) brings the
   chat back from a panel filling the window, as does a question or approval the agent waits on
   and a notification's Open chat (`useShowWaitingChat`), except a hand edit's note, which goes in quietly
   and leaves the keyboard in the view (`viewContext.ts`). Engineering with code keeps T3 Code's
@@ -603,13 +602,18 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **Point, then ask.** What the viewer adds to the chat (Quick Edit's references, a picture of the
   view) lands in the composer, to read and edit before it goes. The viewer is then told the
   context was taken, so the next addition carries only what is new.
-- **Evaluate, Manufacture, Document.** In the workspace's top bar, the jobs the part's kind takes:
+- **The Toolbox, and the AI | CAD switch.** The switch in the workspace's top bar chooses between
+  asking the agent (AI) and modeling the part yourself (CAD, where the agent's Ask and Add to context
+  are not offered). The Toolbox, down the right of the workspace in both, is the one place for what
+  a part can have done to it: Evaluate, Manufacture and Document, each a card with a picture and
+  how many jobs the part has in it; a press opens the group's jobs (`StudioToolbox.tsx`). It folds
+  to its icons, and starts folded in a narrow panel. The jobs the part's kind takes:
   simulations, fit, motion and mass; each way of making it (the project's own first: printing,
   CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
   export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.
-  Each job says in a line what it makes. Each menu keeps its everyday jobs; when it has more, its
-  More opens the quick find on all of its jobs. Each menu ends in What each makes…, which opens
-  the library at that menu's document types. Each job needs its text-to-cad skill
+  Each job says in a line what it makes. A group opens its everyday sections and folds the rest
+  in place; Cmd+K finds any job too. Each group ends in What each makes…, which opens the library
+  at that group's document types. Each job needs its text-to-cad skill
   (`components/workbench/hardwareActions.ts`) and sends the job, naming the part, to the chat, as
   New's Create does: each prompt asks for what it needs (the loads, the machine), so nothing waits
   on a second press. The composer's / menu offers Studio's own commands in plain words and the

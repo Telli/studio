@@ -9,7 +9,7 @@ export interface NewRequest {
 }
 
 /**
- * Opens New from outside it (`NewDialog`): the Document menu's From a template, the library's Make
+ * Opens New from outside it (`NewDialog`): the library's Make
  * one. A request is used once. The first New to see it (`StudioNew`, or `ProjectPage` with code
  * tools on) takes it into its own open state and opens on it, so it opens once, and nothing is
  * left for a New mounted later.

@@ -15,7 +15,7 @@ import { templateOffers } from "./newTemplates";
  * (`NewDialog`). The same button and dialog in both places it is: first in a project's panel
  * toolbar, where Create hands the job to the open chat, and on Home, where it starts a new project
  * with the job as its first message. It also opens when asked from elsewhere
- * (`useNewDialogStore`: the Document menu's From a template, the library's Make one), on the
+ * (`useNewDialogStore`: the library's Make one), on the
  * template asked for: it takes the request, so the ask opens this New once and no other.
  */
 export function StudioNew(props: {

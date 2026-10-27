@@ -427,7 +427,7 @@ export function ProjectPage(props: {
   };
   const composerRef = useComposerHandleContext();
   const plainWords = useEngineeringInterface();
-  // New asked for from outside the page (the Document menu's From a template, the library's Make
+  // New asked for from outside the page (the library's Make
   // one): where this page shows its New, it takes the request and opens on it, once.
   const showsNew = composerRef !== null && !plainWords;
   useEffect(() => {

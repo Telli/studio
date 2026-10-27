@@ -1,5 +1,4 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { DownloadIcon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
@@ -14,7 +13,6 @@ import { leadPartOf } from "./leadPart";
 import { ModeSwitch } from "./ModeSwitch";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePanelTabShortcuts } from "./panelTabShortcuts";
-import { PartActions } from "./PartActions";
 import { handToChat } from "./NewDialog";
 import { surfaceFile } from "./sameFile";
 import { modeOf, setSimpleView, simpleOf, simpleViewToggle, useSimpleView } from "./simpleView";
@@ -101,11 +99,10 @@ export function usePartInFront(
 
 /**
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
- * can be done: over a part in the CAD viewer, the part's jobs (Evaluate, Manufacture, with the
- * files to export, and Document), led by the project's way of making it; Simple view where the
- * viewer in front has two layouts (`simpleView.ts`, the person's choice, which every CAD view
- * takes from its host context); and Import and New, always there, at the row's right end
- * (`StudioNew`), where Home has them. ⌘K's jobs are for the part last on screen, else the lead part.
+ * can be done: Simple view where the viewer in front has two layouts (`simpleView.ts`, the
+ * person's choice, which every CAD view takes from its host context); and Import and New, always
+ * there, at the row's right end (`StudioNew`), where Home has them. A part's jobs are in the
+ * Toolbox (`StudioToolbox`). ⌘K's jobs are for the part last on screen, else the lead part.
  */
 export function StudioPanelBar(props: {
   readonly folder: string | null;
@@ -128,7 +125,7 @@ export function StudioPanelBar(props: {
     simpleViewToggle(frontView === null ? undefined : store.byView[frontView]),
   );
   // The part in front has its jobs on the row; over the Overview or a document, there are none.
-  const { part: inFront, shown, process } = usePartInFront(threadRef, folder);
+  const { shown, process } = usePartInFront(threadRef, folder);
   const studio = useStudioProjectAt(threadRef.environmentId, folder);
   // ⌘K's part: the one the viewer shows, else the project's lead part.
   const subject =
@@ -159,22 +156,12 @@ export function StudioPanelBar(props: {
   }, [folder, process, setWorkspace, subjectKind, subjectPath, threadRef]);
 
   return (
-    // A container, so a narrow panel shows the menus as their icons (`PartActions`).
+    // A container, so a narrow panel shows Import as its icon.
     <div
       className="@container/toolbar flex min-w-0 flex-1 items-center gap-2"
       data-studio-toolbar=""
     >
       <StudioTour />
-      {inFront === null || props.composerRef === null ? null : (
-        <PartActions
-          environmentId={threadRef.environmentId}
-          file={serializeComposerFileLink(inFront.path)}
-          kind={inFront.kind}
-          process={process}
-          composerRef={props.composerRef}
-          inTopBar
-        />
-      )}
       {/* The AI | CAD switch, Import and New close the row, at its right; Home's Your projects ends in Import and New too. */}
       <div className="flex-1" />
       {toggle === "hidden" ? null : (

@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { flushSync } from "react-dom";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { observeResize } from "~/lib/observeResize";
@@ -27,6 +28,7 @@ import { MENU_ICONS } from "./kinds";
 import { LibraryCard } from "./library/LibraryCard";
 import { LIBRARY_DOCUMENTS } from "./library/libraryCatalog";
 import { handToChat } from "./NewDialog";
+import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePartInFront } from "./StudioPanelBar";
 import {
   jobCount,
@@ -36,6 +38,7 @@ import {
   type ToolboxSection,
   toolboxFolded,
   toolboxGroups,
+  toolboxLibraryLink,
   toolboxView,
   writeToolboxFolded,
 } from "./toolbox";
@@ -82,6 +85,16 @@ export function StudioToolbox(props: {
     setViewedPath(partPath);
     dispatch({ type: "part-changed" });
   }
+
+  const navigate = useNavigate();
+  const router = useRouter();
+  const browse = (group: HardwareActionGroup) =>
+    void navigate(
+      toolboxLibraryLink(group, {
+        workspaceOpen: useOpenWorkspaceStore.getState().workspace !== null,
+        from: router.state.location.href,
+      }),
+    );
 
   const rootRef = useRef<HTMLDivElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
@@ -227,6 +240,11 @@ export function StudioToolbox(props: {
                 onRun={run}
               />
             ))}
+            <div className="px-1 pt-1">
+              <Button variant="ghost-muted" size="xs" onClick={() => browse(openGroup.group)}>
+                What each makes…
+              </Button>
+            </div>
           </div>
         )}
       </div>

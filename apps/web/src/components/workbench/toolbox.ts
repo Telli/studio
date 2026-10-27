@@ -3,6 +3,7 @@ import {
   type HardwareActionGroup,
   type HardwareActionMenu,
 } from "./hardwareActions";
+import { libraryHref } from "./library/librarySearch";
 
 /** A run of jobs in a group, under its title; folded ones wait shut until opened in place. */
 export interface ToolboxSection {
@@ -71,6 +72,18 @@ export function writeToolboxFolded(folded: boolean): void {
 /** A group's jobs, its folded sections' too. */
 export function jobCount(group: ToolboxGroup): number {
   return group.sections.reduce((count, section) => count + section.actions.length, 0);
+}
+
+/**
+ * The footer link "What each makes…": the Library open on the group. Its Make one comes back to
+ * `from` only while the workspace has a New to take the request (`workspaceOpen`, as ⌘K's Library
+ * does); from elsewhere it goes to Home's.
+ */
+export function toolboxLibraryLink(
+  group: HardwareActionGroup,
+  where: { readonly workspaceOpen: boolean; readonly from: string },
+) {
+  return libraryHref({ group, ...(where.workspaceOpen ? { from: where.from } : {}) });
 }
 
 /** What the Toolbox shows: its groups, or one group's sections and jobs. */

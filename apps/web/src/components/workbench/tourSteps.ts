@@ -30,7 +30,7 @@ export const TOUR_STEPS: ReadonlyArray<TourStep> = [
   {
     target: "[data-studio-toolbar]",
     title: "New, and what to do with a part",
-    body: "New starts a part, a board or a document. With a part open, use Evaluate, Manufacture and Document on it, and the AI | CAD switch to choose between asking the agent and modeling the part yourself.",
+    body: "New starts a part, a board or a document. The AI | CAD switch chooses between asking the agent and modeling the part yourself. With a part open, its Toolbox has Evaluate, Manufacture and Document.",
   },
 ];
 

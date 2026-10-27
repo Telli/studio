@@ -535,12 +535,11 @@ function QuickFindBody(props: {
  * ⌘K in the engineering interface, in place of T3 Code's command palette: one box that finds a
  * project, a part in any project, or any job for the part on screen, the long tail the menus leave
  * out as well (`quickFind.ts`), with Home, New project, the Library, Settings and the other
- * interfaces. Outside a project it opens on what was opened lately (Recent). A menu's
- * "More" opens it on that menu's jobs. Picking a job writes it into the chat's composer, as the
- * menus do; picking a part opens it, in its project if that is another.
+ * interfaces. Outside a project it opens on what was opened lately (Recent). Picking a job writes
+ * it into the chat's composer, as the Toolbox does (`StudioToolbox`); picking a part opens it, in its project if that is another.
  */
 export function StudioQuickFind(props: {
-  /** What it opens with typed: a menu's name from its "More" (`PartActions`), else nothing. */
+  /** What it opens with typed, else nothing. */
   readonly query: string;
   readonly setOpen: (open: boolean) => void;
 }) {
