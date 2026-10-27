@@ -1,16 +1,8 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { FolderInputIcon, PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
-import {
-  type KeyboardEvent,
-  type ReactNode,
-  type Ref,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from "react";
-import { flushSync } from "react-dom";
+import { PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
+import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { useNowMinute } from "~/hooks/useNowMinute";
@@ -19,11 +11,9 @@ import { shortcutLabelForCommand } from "~/keybindings";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { primaryServerKeybindingsAtom } from "~/state/server";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
 import { Kbd } from "../ui/kbd";
 import { SidebarInset } from "../ui/sidebar";
 import { Textarea } from "../ui/textarea";
-import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import type { ListedProject } from "./projectList";
 import { ENGINEERING_COMPOSER_PLACEHOLDER } from "./studioInterface";
 import { splitStarred, useStarredStore } from "./starredProjects";
@@ -46,7 +36,6 @@ import { useOpenShortcut } from "./useOpenShortcut";
 import { useProjectList } from "./useProjectList";
 import { useProjectTiles } from "./useProjectTiles";
 import { type ProjectStart, useStartOnce } from "./useStartProject";
-import { useAskAnything } from "./freeformChat";
 import { useExamples } from "./library/useSampleProject";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
@@ -79,8 +68,8 @@ function FindButton() {
 
 /**
  * Studio's Home, the way a CAD tool's welcome starts: what to make, and where you left off. With no
- * projects (`homeLayout`) it asks Where would you like to start?, with three ways in (New part,
- * Import a STEP, Describe it to the AI; `StartChoices`), Home's box under them, and the examples
+ * projects (`homeLayout`) it asks Where would you like to start?, with two big buttons (New part,
+ * Import a STEP; `StartChoices`), Home's Start box right under them, and the examples
  * Studio ships to make a copy of. With projects it is Welcome back: the box, then your starred
  * projects and the last few you worked on (`HOME_RECENT`), as pictures of their parts, each opening
  * where it was left, and the examples in a Get started strip under them that folds away. All
@@ -110,7 +99,6 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { busy, start } = useStartOnce(environmentId);
   const importActions = useImportActions();
   const navigate = useNavigate();
-  const startBox = useRef<StartBox>(null);
   useNowMinute();
   useOpenShortcut(openFind);
   const { tile, dialogs } = useProjectTiles(environmentId, cards);
@@ -156,13 +144,10 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                   <StartChoices
                     onNewPart={() => void newPart.create()}
                     newPartBusy={newPart.busy}
-                    onImport={importActions === null ? null : () => void importActions.pick()}
-                    onScan={importActions?.scan ?? null}
-                    onDescribe={() => startBox.current?.describe()}
+                    importActions={importActions}
                   />
                 ) : null}
                 <StartProject
-                  ref={startBox}
                   environmentId={environmentId}
                   cards={cards}
                   busy={busy}
@@ -236,16 +221,6 @@ function fromFile(file: File): StartAttachment {
 
 const fromPath = (path: string): StartAttachment => ({ name: nameOfPath(path), path, file: null });
 
-/** How Home's box starts a project: from an idea in words, or from files you already have. */
-type StartMode = "idea" | "ask" | "files";
-
-/** What Set up from files does, in order. */
-const SET_UP_STEPS = [
-  "Add what you have",
-  "Studio reads it and fills in the Overview",
-  "You answer what's left",
-] as const;
-
 /** The files and folders attached to Home's box, each with its Remove. */
 function AttachedList(props: {
   readonly attachments: ReadonlyArray<StartAttachment>;
@@ -277,28 +252,15 @@ function AttachedList(props: {
   );
 }
 
-/** What Home's page asks of its box: Describe it to the AI puts the typing there. */
-interface StartBox {
-  /** Starts describing: Start's mode, the box focused. */
-  readonly describe: () => void;
-}
-
 /**
- * Home's box, in three modes, each named with its button's word, as a sign-in form's Sign in and
- * Sign up. Ask: a question about anything, in a
- * chat in no project (`freeformChat.ts`), where the agent finds the work it is about. Start, from
- * an idea: say what to make and Start. It goes to a new project, as it starts, or to a new chat in a project of yours chosen
- * beside Attach (`ProjectPicker`), the box then reading as a project's chat box does. Set up, from
- * files: drop or choose what you already have (a PRD, requirements, sketches, CAD, a whole
- * folder), say what it is if you like, and Set up project makes a new project from it. Either way, files go into the project's References and
- * the agent reads them first (`startMessage`). The start page's Describe it to the AI starts
- * describing here (`StartBox`).
+ * Home's Start box, the AI's way in: say what to make and Start. It goes to a new project, as it
+ * starts, or to a new chat in a project of yours chosen beside Attach (`ProjectPicker`), the box
+ * then reading as a project's chat box does. Files can come with the words or on their own (a PRD,
+ * requirements, sketches, CAD, a whole folder: Attach, or dropped on the box), and Start makes a
+ * new project from them. Files go into the project's References and the agent reads them first
+ * (`startMessage`). There is no Ask here: a question goes in the box, or in a chat.
  */
-function StartProject({
-  ref,
-  ...props
-}: {
-  readonly ref?: Ref<StartBox>;
+function StartProject(props: {
   readonly environmentId: EnvironmentId;
   readonly cards: ReadonlyArray<ListedProject>;
   /** A start is under way (from here or from New). */
@@ -306,8 +268,6 @@ function StartProject({
   readonly start: (work: ProjectStart) => Promise<void>;
 }) {
   const { environmentId, busy } = props;
-  const [mode, setMode] = useState<StartMode>("idea");
-  const settingUp = mode === "files";
   const [chosenId, setChosenId] = useState<string | null>(null);
   const chosen = props.cards.find((card) => card.id === chosenId) ?? null;
   const [description, setDescription] = useState("");
@@ -329,45 +289,16 @@ function StartProject({
     if (bridge === null) fileInput.current?.click();
     else void bridge.pick().then((paths) => attach(paths.map(fromPath)));
   };
-  const describe = useRef<HTMLTextAreaElement>(null);
-  useImperativeHandle(
-    ref,
-    () => ({
-      describe: () => {
-        // Set up has no place to type: Start's box is there to focus once this renders.
-        flushSync(() => setMode("idea"));
-        describe.current?.focus();
-      },
-    }),
-    [],
-  );
   const run = props.start;
-  const asking = mode === "ask";
-  const askAnything = useAskAnything(environmentId);
-  const [askBusy, setAskBusy] = useState(false);
-  // Setting up needs something to set up from; describing and asking, words or files.
-  const ready =
-    (settingUp ? attachments.length > 0 : description.trim() !== "" || attachments.length > 0) &&
-    !busy &&
-    !askBusy;
+  // Words or files make a start.
+  const ready = (description.trim() !== "" || attachments.length > 0) && !busy;
   const startNow = () => {
     if (!ready) return;
-    if (asking) {
-      setAskBusy(true);
-      void askAnything({
-        question: description,
-        paths: attachments.flatMap((attachment) => attachment.path ?? []),
-        files: attachments.flatMap((attachment) =>
-          attachment.path === null && attachment.file !== null ? [attachment.file] : [],
-        ),
-      }).finally(() => setAskBusy(false));
-      return;
-    }
     void run({
       kind: "described",
       description,
       attachments,
-      project: settingUp ? null : chosen,
+      project: chosen,
     });
   };
   const startOnShortcut = (event: KeyboardEvent<HTMLElement>) => {
@@ -376,11 +307,7 @@ function StartProject({
       startNow();
     }
   };
-  const placeholder = asking
-    ? "Ask about anything: a part you made, a file, how something was done"
-    : chosen === null
-      ? "Describe a new project"
-      : ENGINEERING_COMPOSER_PLACEHOLDER;
+  const placeholder = chosen === null ? "Describe a new project" : ENGINEERING_COMPOSER_PLACEHOLDER;
 
   return (
     <section aria-label="Start" className="flex min-w-0 flex-col gap-3">
@@ -408,62 +335,23 @@ function StartProject({
       >
         {attaching ? (
           <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 text-sm font-medium text-foreground">
-            {settingUp
-              ? "Drop to add them"
-              : bridge === null
-                ? "Drop files to attach"
-                : "Drop files or folders to attach"}
+            {bridge === null ? "Drop files to attach" : "Drop files or folders to attach"}
           </div>
         ) : null}
-        <ToggleGroup
-          aria-label="How to start"
-          value={[mode]}
-          onValueChange={(next) => {
-            const value = next[0];
-            if (value === "idea" || value === "ask" || value === "files") setMode(value);
-          }}
-        >
-          <Toggle value="idea">Start</Toggle>
-          <Toggle value="ask">Ask</Toggle>
-          <Toggle value="files">Set up</Toggle>
-        </ToggleGroup>
-        {settingUp ? (
-          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-            <FolderInputIcon className="size-5" aria-hidden="true" />
-            <span>
-              Drop your PRD, requirements, sketches, CAD
-              {bridge === null ? "" : " or a whole folder"}
-            </span>
-            <Button variant="outline" size="sm" onClick={choose}>
-              {bridge === null ? "Choose files" : "Choose files or folders"}
-            </Button>
-          </div>
-        ) : (
-          <Textarea
-            ref={describe}
-            unstyled
-            rows={3}
-            aria-label={placeholder}
-            placeholder={placeholder}
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            onKeyDown={startOnShortcut}
-          />
-        )}
+        <Textarea
+          unstyled
+          rows={3}
+          aria-label={placeholder}
+          placeholder={placeholder}
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          onKeyDown={startOnShortcut}
+        />
         <AttachedList
           attachments={attachments}
           onRemove={(index) => setAttachments((current) => current.filter((_, at) => at !== index))}
         />
-        {settingUp ? (
-          <Input
-            size="sm"
-            aria-label="What it is"
-            placeholder="What it is (optional)"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            onKeyDown={startOnShortcut}
-          />
-        ) : asking ? null : attachments.some((attachment) => attachment.path !== null) ? (
+        {attachments.some((attachment) => attachment.path !== null) ? (
           <p className="text-xs text-muted-foreground">
             These go in {chosen === null ? "the new project's" : `${chosen.project.name}'s`}{" "}
             References, and the agent reads them first.
@@ -480,52 +368,21 @@ function StartProject({
               event.target.value = "";
             }}
           />
-          {settingUp ? (
-            <ol
-              aria-label="Setting up"
-              className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground"
-            >
-              {SET_UP_STEPS.map((step, index) => (
-                <li key={step} className="flex items-center gap-1.5">
-                  <span
-                    aria-hidden="true"
-                    className="flex size-4 shrink-0 items-center justify-center rounded-full border border-border text-2xs text-foreground"
-                  >
-                    {index + 1}
-                  </span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <>
-              <Button variant="ghost" size="sm" onClick={choose}>
-                <PaperclipIcon />
-                Attach
-              </Button>
-              {asking || props.cards.length === 0 ? null : (
-                <ProjectPicker
-                  environmentId={environmentId}
-                  cards={props.cards}
-                  chosen={chosen}
-                  onChoose={(card) => setChosenId(card?.id ?? null)}
-                />
-              )}
-            </>
+          <Button variant="ghost" size="sm" onClick={choose}>
+            <PaperclipIcon />
+            Attach
+          </Button>
+          {props.cards.length === 0 ? null : (
+            <ProjectPicker
+              environmentId={environmentId}
+              cards={props.cards}
+              chosen={chosen}
+              onChoose={(card) => setChosenId(card?.id ?? null)}
+            />
           )}
           <div className="flex-1" />
           <Button size="sm" disabled={!ready} onClick={startNow}>
-            {settingUp
-              ? busy
-                ? "Setting up…"
-                : "Set up project"
-              : asking
-                ? askBusy
-                  ? "Asking…"
-                  : "Ask"
-                : busy
-                  ? "Starting…"
-                  : "Start"}
+            {busy ? "Starting…" : "Start"}
           </Button>
         </div>
       </div>

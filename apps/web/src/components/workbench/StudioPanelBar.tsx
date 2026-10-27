@@ -1,5 +1,4 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import { DownloadIcon } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
@@ -8,7 +7,10 @@ import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelS
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
+import { ImportDialogHost } from "./ImportDialog";
+import { ImportMenu } from "./ImportMenu";
 import { useImportIntoProject } from "./importIntoProject";
+import { useImportActions } from "./useImportActions";
 import { leadPartOf } from "./leadPart";
 import { ModeSwitch } from "./ModeSwitch";
 import { useOpenWorkspaceStore } from "./openWorkspace";
@@ -102,7 +104,7 @@ export function usePartInFront(
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
  * can be done: the AI | CAD switch where the viewer in front has two layouts (`ModeSwitch` over
  * `simpleView.ts`, the person's choice, which every CAD view takes from its host context), with Back to AI before it
- * in CAD; and Import and New, always
+ * in CAD; and Import (`ImportMenu`, Studio's one Import) and New, always
  * there, at the row's right end (`StudioNew`), where Home has them. A part's jobs are in the
  * Toolbox (`StudioToolbox`). ⌘K's jobs are for the part last on screen, else the lead part.
  */
@@ -139,6 +141,16 @@ export function StudioPanelBar(props: {
         : { path: lead.file.path, kind: lead.file.kind };
   // Import beside New, as on Home: files brought into this project's folder.
   const importer = useImportIntoProject(folder, studio?.project.name ?? "the project");
+  // The same Import menu as Home's: here Files or a folder copies into this project, and Scan this
+  // computer opens the scan, which makes new projects.
+  const scanner = useImportActions();
+  const importMenu =
+    importer === null || scanner === null ? null : (
+      <>
+        <ImportMenu actions={{ scan: scanner.scan, pick: importer.pick }} />
+        <ImportDialogHost environmentId={threadRef.environmentId} />
+      </>
+    );
 
   // ⌘K finds jobs for the same part, from over everything (`StudioQuickFind`).
   const setWorkspace = useOpenWorkspaceStore((store) => store.setWorkspace);
@@ -194,18 +206,7 @@ export function StudioPanelBar(props: {
           />
         </>
       )}
-      {importer === null ? null : (
-        <Button
-          variant="outline"
-          size="sm"
-          aria-label="Import"
-          title="Import files or a folder into the project"
-          onClick={() => void importer.pick()}
-        >
-          <DownloadIcon aria-hidden="true" />
-          <span className="@max-[40rem]/toolbar:hidden">Import</span>
-        </Button>
-      )}
+      {importMenu}
       {props.composerRef === null || folder === null || addPart === null ? null : (
         <StudioNew
           environmentId={threadRef.environmentId}

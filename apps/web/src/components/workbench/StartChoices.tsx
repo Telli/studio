@@ -1,12 +1,13 @@
 import type { StudioSample } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { DownloadIcon, type LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { type ComponentProps, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import { ExampleCard } from "./examples/ExampleCard";
 import { readGetStartedFolded, writeGetStartedFolded } from "./homeStart";
-import { CHAT_ICON, KIND_ICONS, KIND_TINTS } from "./kinds";
+import { ImportMenu } from "./ImportMenu";
+import { KIND_ICONS, KIND_TINTS } from "./kinds";
 import { HeadingLink, MODULE_HEADING, OverviewModule } from "./OverviewModules";
 
 /** Home's tiles, four across on a wide window: the project tiles and the examples line up. */
@@ -14,8 +15,17 @@ export const TILE_GRID = "grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4";
 /** How many examples the Get started strip shows: one row; All examples has every one. */
 const STRIP_EXAMPLES = 4;
 
-/** One of the start page's three ways in: a big card, its icon over what it does and a line more. */
-function StartChoice(props: {
+/** One of the start page's two ways in: a big card, its icon over what it does and a line more. */
+function StartChoice({
+  icon: Icon,
+  tint,
+  label,
+  note,
+  disabled,
+  busy,
+  onChoose,
+  ...rest
+}: Omit<ComponentProps<"button">, "onClick" | "children" | "className"> & {
   readonly icon: LucideIcon;
   readonly tint?: string;
   readonly label: string;
@@ -23,75 +33,66 @@ function StartChoice(props: {
   readonly disabled?: boolean;
   /** Under way: it shows it, and takes no press. */
   readonly busy?: boolean;
-  readonly onChoose: () => void;
+  /** Unset where the card opens a menu (`ImportMenu`), which brings its own press. */
+  readonly onChoose?: () => void;
 }) {
-  const Icon = props.icon;
   return (
     <button
       type="button"
-      onClick={props.onChoose}
-      disabled={props.disabled || props.busy}
-      aria-busy={props.busy || undefined}
+      onClick={onChoose}
+      {...rest}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
       className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-xs/5 outline-none transition-colors duration-150 enabled:hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:opacity-64"
     >
-      <Icon aria-hidden="true" className={cn("size-6", props.tint ?? "text-foreground/75")} />
+      <Icon aria-hidden="true" className={cn("size-6", tint ?? "text-foreground/75")} />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm font-medium text-foreground">{props.label}</span>
-        <span className="text-sm text-muted-foreground">{props.note}</span>
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-sm text-muted-foreground">{note}</span>
       </span>
     </button>
   );
 }
 
 /**
- * The start page's three ways in (`homeLayout` is `start`), as Vizcom's start page has them: New
- * part (a project with a starter part, open in CAD mode at once: `useNewPart`), Import a STEP (Import's picker; `onImport` null where there is no desktop app to read this
- * computer's files) and Describe it to the AI (Home's box, under these, takes the typing). Scan
- * this computer, Import's other way in, sits under them.
+ * The start page's two big buttons (`homeLayout` is `start`), as Vizcom's start page has them:
+ * New part (a project with a starter part, open in CAD mode at once: `useNewPart`) and Import a
+ * STEP, which opens Studio's one Import menu (`ImportMenu`: Files or a folder, Scan this
+ * computer). `importActions` is null where there is no desktop app to read this computer's files.
+ * Home's Start box, which takes the AI's typing, sits right under these.
  */
 export function StartChoices(props: {
   readonly onNewPart: () => void;
   /** New part is being made. */
   readonly newPartBusy: boolean;
-  readonly onImport: (() => void) | null;
-  readonly onScan: (() => void) | null;
-  readonly onDescribe: () => void;
+  readonly importActions: ComponentProps<typeof ImportMenu>["actions"] | null;
 }) {
+  const importCard = (
+    <StartChoice
+      icon={DownloadIcon}
+      label="Import a STEP"
+      note={props.importActions === null ? "Needs the desktop app." : "Or drop files here."}
+      disabled={props.importActions === null}
+    />
+  );
   return (
-    <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StartChoice
-          icon={KIND_ICONS.CAD}
-          tint={KIND_TINTS.CAD}
-          label="New part"
-          note={
-            props.newPartBusy
-              ? "Making the part…"
-              : "Opens in CAD mode on a block to shape by its sizes."
-          }
-          busy={props.newPartBusy}
-          onChoose={props.onNewPart}
-        />
-        <StartChoice
-          icon={DownloadIcon}
-          label="Import a STEP"
-          note={props.onImport === null ? "Needs the desktop app." : "Or drop files here."}
-          disabled={props.onImport === null}
-          onChoose={() => props.onImport?.()}
-        />
-        <StartChoice
-          icon={CHAT_ICON}
-          tint={KIND_TINTS.Chats}
-          label="Describe it to the AI"
-          note='"A phone stand for my desk"'
-          onChoose={props.onDescribe}
-        />
-      </div>
-      {props.onScan === null ? null : (
-        <p className="flex flex-wrap items-baseline gap-x-2 text-xs text-muted-foreground">
-          Studio can also find the CAD already on this computer and group it into projects.
-          <HeadingLink label="Scan this computer" onClick={props.onScan} />
-        </p>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <StartChoice
+        icon={KIND_ICONS.CAD}
+        tint={KIND_TINTS.CAD}
+        label="New part"
+        note={
+          props.newPartBusy
+            ? "Making the part…"
+            : "Opens in CAD mode on a block to shape by its sizes."
+        }
+        busy={props.newPartBusy}
+        onChoose={props.onNewPart}
+      />
+      {props.importActions === null ? (
+        importCard
+      ) : (
+        <ImportMenu actions={props.importActions} trigger={importCard} />
       )}
     </div>
   );
@@ -113,7 +114,7 @@ function ExampleTiles(props: { readonly examples: ReadonlyArray<StudioSample> })
   );
 }
 
-/** The start page's examples, under its three ways in: every one, to open and make a copy of. */
+/** The start page's examples, under its two big buttons and the Start box: every one, to open and make a copy of. */
 export function StartExamples(props: { readonly examples: ReadonlyArray<StudioSample> }) {
   if (props.examples.length === 0) return null;
   return (

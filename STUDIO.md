@@ -329,23 +329,19 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
 - **Home, the switcher and the chats.** In Engineering, Home is where you start and pick up where
   you left off, and Projects is every project (Amy, 2026-10-23: they showed the same, since
   Projects went to Home): a top bar with the mark and a search that opens the quick find, then a box for what to
-  make, in three modes, Start, Ask and Set up, each named with its button's word (`StudioHome.tsx`).
-  Ask is a question in no project (below). Start, from an idea: Start sends what was typed to a new project (made, with a first chat that
+  make: the Start box, the AI's way in (`StudioHome.tsx`). Start sends what was typed to a new project (made, with a first chat that
   sends it as its first message), or, with a project of yours chosen beside Attach
   (`ProjectPicker.tsx`, the project switcher's own control and list, `ProjectChoices.tsx`), to a
-  new chat in that project. One line is enough. Set up, from files: a drop area for a PRD,
-  requirements, sketches, CAD or a whole folder (Choose files or
-  folders picks either in the desktop app), an optional What it is line, the three steps it takes
-  (add what you have, Studio reads it and fills in the Overview, you answer what's left) and Set
-  up project, always a new project. Switching keeps what was typed and attached. In Start and Set
-  up the files attached (Attach, the drop area, or dropped on the box) go into the project's
+  new chat in that project. One line is enough. Files can come with the words or alone (a PRD,
+  requirements, sketches, CAD or a whole folder: Attach, or dropped on the box) and Start then
+  makes a new project from them. They go into the project's
   References (`brief/references/`), where the Overview lists them and every chat can read them,
   and the first message names them and asks the agent to read them all before anything else,
   then fill in the project's name, setup and README from them and ask only what they leave open
   (`startMessage` in `startProject.ts`). A project can start from files alone, named after the
-  first; in the web app, without paths to copy, they go with the first message instead. Ask's go
-  to its chat in no project and into no References: its first message names those on this
-  computer by their paths and sends the others with it (`askMessage` in `freeformChat.ts`). Then
+  first; in the web app, without paths to copy, they go with the first message instead. There is
+  no Ask mode and no Set up mode (Amy, 2026-10-26: one Start box); a question goes in the box or in
+  a chat. Then
   the starred projects and the last four worked on, with All projects to the Projects page
   (`ProjectsHome.tsx`: every project, a box to find one, the folders in no project), and New and
   Import beside them to add one, on both pages: New is the same New and dialog as a
@@ -463,8 +459,8 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   agent", as Settings does).
 - **Onboarding.** Setup speaks Studio's words and ends at signing in to Claude or Codex
   (`WelcomeWizard.tsx`; Home brings in files). With no projects, Home asks Where would you like
-  to start?, with three ways in: New part, Import a STEP (Import's picker; Scan this computer
-  under them) and Describe it to the AI (Home's box, under them, focused), then the examples'
+  to start?, with two big buttons, New part and Import a STEP (which opens the one Import menu:
+  Files or a folder, Scan this computer), the Start box right under them, then the examples'
   cards (`StartChoices.tsx`, `homeLayout` in `homeStart.ts`). With projects, the examples sit in a Get started strip under Starred and Recent, folded
   away and kept so on this device if you like (`studio:get-started-folded`).
   Examples, on the rail, shows every example Studio ships, each on a page of its own, view only:
@@ -474,13 +470,15 @@ are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choic
   Library's and New's See the example open the servo bracket's page. The first workspace opened gives a five-step tour,
   once (`StudioTour.tsx`,
   `tourSteps.ts`): the project, its Overview, the tabs, the toolbar and the Toolbox.
-- **Ask, in no project.** Home's box has Start, Ask and Set up. Ask is a question about anything
-  (a part made last week, a file, how something was done) with no project to choose or make, as
-  Claude Code is asked from wherever it runs (Amy, 2026-10-23): a chat in the folder that holds
-  the Studio projects, registered once as the workspace "No project", its first message telling
-  the agent it is in no project, where the projects are, and that other work may be anywhere on
-  the computer (`workbench/freeformChat.ts`). It opens as a chat alone; Chats and the sidebar list
-  it under No project.
+- **Chats in no project.** Home's Ask, which made them, is gone (Amy, 2026-10-26: one Start
+  box). The chats it made stay: they run in the folder that holds the Studio projects, registered
+  as the workspace "No project", and Chats and the sidebar still list them under No project
+  (`workbench/freeformChat.ts`).
+- **One Import menu.** Files or a folder, and Scan this computer, are one component
+  (`ImportMenu.tsx`) on Home's start page (the Import a STEP card opens it), Home's Your projects,
+  the Projects page and the workspace toolbar, with the same items and names. In a workspace Files
+  or a folder copies into that project; elsewhere it makes projects. Dropping files stays where it
+  works (`ImportDropZone.tsx`, the Start box).
 - **Invite codes.** A friend without ChatGPT uses Codex on Amy's OpenAI key: the first screen's
   Invite code row, under the Claude and Codex cards, so a friend never has to pick Codex (in
   Settings it is AI agents, Codex), paste the code
