@@ -162,6 +162,11 @@ export interface FileViewerProps {
    */
   update?: ReactNode;
   /**
+   * The file's other builds, where it has them (the CAD viewer's Kernel menu: the same model built on
+   * other CAD kernels): after the host's update button, before the file's actions.
+   */
+  variants?: ReactNode;
+  /**
    * The host's Full size button, where the host shows the view small (inline in a conversation):
    * last at the navbar's right end.
    */
