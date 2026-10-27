@@ -5,7 +5,7 @@
  * viewer takes it from its host context; the STEP view selects the feature whose statement holds the
  * line once the part is read, and says the ask is taken however it went, and whether a feature held
  * the line (`take`), so the host lets it go and, where none did, opens the script there instead
- * (`step/edit/useHostFocus.js`). One per page, as a page is one view.
+ * (`xbf/edit/useHostFocus.js`). One per page, as a page is one view.
  */
 export interface Focus {
   readonly path: string;

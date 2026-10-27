@@ -185,7 +185,8 @@ is `chrome`: the navbar (`"page"`, the default) or the view alone (`"bare"`).
   side (it wraps before it would be): the tools, left to right, in **two sections** parted by one
   thin rule (a tool's `group`: the tools that pick, Select, Pencil, Shapes and Measure; then the
   model's effects, Explode and Clip), and the view's controls, **Projection**, **Display** and
-  **Preview**, directly after the last tool, in the same second section with no rule
+  **Preview** (led, on a document whose part has a script CAD mode edits, by its **AI | CAD** switch,
+  `xbf/edit/EditLayoutSwitch.jsx`, unless the host switches the layout itself), directly after the last tool, in the same second section with no rule
   between (a file with only tools that pick has its view's controls after a rule, as their own second
   section), in every host, with a navbar or without. 24px tiles with 14px icons,
   an even 4px apart, a tool's chevron touching its button, in a 34px row (`FloatingToolBar`,
@@ -1459,17 +1460,17 @@ box goes; measurements are not Quick Edit's, and stay. A note that has gone (Cop
 Escape in an empty box is the viewer's Escape (clearing the selection, and so the box);
 in a box with a note it only hands the keyboard back to the model.
 
-Where the host leaves it to the person (`asked` on the shell: edit mode's workspace, `step/edit/`), the box does not
+Where the host leaves it to the person (`asked` on the shell: edit mode's workspace, `xbf/edit/`), the box does not
 follow what is picked or drawn. It opens when asked for (Ask, in the toolbar or in the bar beside a pick), on what is
 picked (a feature the person chose is its statement in the part's script, all its lines where the engine read it whole, a range of that file, with a chip of the Part
 Navigator's name for it), or on the file as a whole with nothing picked, and the keyboard is in its note; until then it stays shut
 however much is picked or drawn, and a note already written keeps it open as ever. Escape, a send, the X and the picks being let go of put the ask away (the
-host's: `step/edit/selectionBarState.js`), and so does a command or a sketch opening. The X and a send let go of
+host's: `xbf/edit/selectionBarState.js`), and so does a command or a sketch opening. The X and a send let go of
 a feature chosen too, as a click on the model's background does (an orbit drag to look at it keeps it).
 
 **Add to context** (edit mode's selection bar, beside a pick, and the toolbar's Ask the agent group) puts the picks into the chat
 box without opening Quick Edit and without sending, to collect several faces, edges and features and write one message. It is Queue
-without the note (`addToContext`, `step/edit/useAddToContext.js`): the file, the same references Ask would carry (a feature chosen
+without the note (`addToContext`, `xbf/edit/useAddToContext.js`): the file, the same references Ask would carry (a feature chosen
 is the range of its script, named as the Part Navigator names it), the marks on a face and the snapshot Queue would attach, made and
 handed over inside the press. It is offered only where the destination is a composer (`canAddToContext`), so a host with no chat box shows neither
 button. Ink counts as something to add: alone it goes as the snapshot's annotation and the marks on a face. The toolbar's is dimmed

@@ -237,7 +237,7 @@ const DOUBLE_PRESS_MS = 600;
  *   `alertBody`, `alertStartsDismissed`: what a renderer lists under the alert it raised itself (a
  *   result's findings: `kit/status/findings.jsx`), a function of the card's `dismiss`, so a row
  *   chosen can put the card away, and whether that alert starts put away (suggestions only).
- *   `ribbon`, `leftDock`, `bottomDock`, `dialogPlace`: edit mode's frame (`step/edit/`), the workspace,
+ *   `ribbon`, `leftDock`, `bottomDock`, `dialogPlace`: edit mode's frame (`xbf/edit/`), the workspace,
  *   laid out as a CAD tool lays out its window and floating over the canvas, so the canvas keeps its
  *   box, and the model its place, whether the workspace or Simple view's ai layout is up: the toolbar
  *   across the top (`ribbon`, given the strip's tools; the strip then keeps only the view's own
@@ -252,8 +252,10 @@ const DOUBLE_PRESS_MS = 600;
  *   strip's: `ribbon(tools, view)` is handed them (`view.controls`, small tiles for its tab row's right
  *   end, and `view.status`; null while it fades). `dialogOpen`: the dialog's place holds something,
  *   and the top column, a tool's own row and its panels, keeps to the room past it.
- *   `navbarControls`: the renderer's own controls at the navbar's right end, put away with the
- *   view's tools (edit mode's switch between modeling by hand and asking the AI).
+ *   `layoutControl`: a control of the renderer's own that lays the view out (a `ViewportViewControl`,
+ *   `FloatingToolBar.js`), the first of the view's own controls: at the strip's end before Projection,
+ *   or at the toolbar's tab row's right end while the workspace is up (edit mode's switch between
+ *   modeling by hand and asking the AI, `xbf/edit/EditLayoutSwitch.jsx`).
  *   `quickEditAsked`: for a renderer with a button of its own to ask for Quick Edit (the workspace's Ask). `true`:
  *   it is open, whatever is picked or drawn, and with nothing picked on the file as a whole; `false`: it is shut
  *   until asked, a written note excepted; null (the default): it follows what it would carry (`references`).
@@ -263,7 +265,7 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
   onContextMenuOpenChange = null, viewportOverlay = null, previewView = null,
   frameProvider = null, iconSprite = null, drawingToolIcons = null, onCanvasPointerDown = null, onSelectPress = null, onSelectHover = null, selectsAnnotations = true, inkTouches = null,
   alertBody = null, alertStartsDismissed = false, ribbon = null, leftDock = null, bottomDock = null, dialogPlace = null, dialogOpen = false,
-  navbarControls = null, quickEditAsked = null }) {
+  layoutControl = null, quickEditAsked = null }) {
   const { t } = useI18n();
   const frame = shell.frame;
   // What a tool's letter takes up (`useRendererShell`'s `onKey`): the strip as drawn now, none
@@ -599,9 +601,10 @@ export default function RendererShell({ shell, tools, toolPanels = null, subTool
     <ViewUpdateStatus status={viewUpdateStatus} onRetry={frame.viewUpdate.retry}
       className="rounded-md bg-background/95 px-1 py-0.5 shadow-sm" />
   </div>;
-  // The view's own controls: Projection, Display, then Preview (a 3D view's). They end the strip, or, while the
+  // The view's own controls: the renderer's layout (`layoutControl`), Projection, Display, then Preview (a 3D view's). They end the strip, or, while the
   // workspace's toolbar is up, are its small tiles at its tab row's right end, their names below them.
   const viewControls = tooltipSide => (shell.previewable && !previewing ? [
+    ...(layoutControl ? [layoutControl] : []),
     { id: "projection", label: t("projection.label"), icon: <ProjectionIcon value={frame.projection.value} />, disabled: shell.idle,
       tile: <ProjectionPopover disabled={shell.idle} boundary={frame.hostElement} projection={frame.projection} tooltipSide={tooltipSide} />,
       // In a phone's More, a standard nested submenu of the two choices.

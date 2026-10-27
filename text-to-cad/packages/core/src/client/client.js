@@ -367,6 +367,12 @@ export function createCadClient({ origin = '', fetch: fetchImpl = globalThis.fet
     editChange(change, { signal } = {}) {
       return request('/__cad/edit/change', { body: change, signal, method: 'POST', timeoutMs: 200_000, operation: 'edit', headers: JSON_POST });
     },
+    // The feature that made a face of `file`, with the hashes the page read the part from (`files`).
+    editFace({ file, face, files = null } = {}, { signal } = {}) {
+      if (!file) return Promise.reject(new Error('Missing file'));
+      return request('/__cad/edit/face', { body: { file, face, ...(files ? { files } : {}) }, signal, method: 'POST', timeoutMs: 200_000,
+        operation: 'edit', headers: JSON_POST });
+    },
     async engineHolds(file, { signal } = {}) {
       // Whether the engine holds a read of the document now, asked without starting one.
       if (!file) throw new Error('Missing file');

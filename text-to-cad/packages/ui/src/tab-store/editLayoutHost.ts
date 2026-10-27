@@ -1,7 +1,7 @@
 /**
  * Whether the host lays out a part script's model itself. Studio's bar switches Simple view for
  * every view and sends the layout in its host context (`studio/editLayout`); the app that hosts the
- * viewer takes that layout, and its navbar shows no switch of its own (`step/StepSurface.jsx`). One
+ * viewer takes that layout, and the view shows no switch of its own (`xbf/edit/useXbfCadMode.jsx`). One
  * per page, as a page is one view.
  *
  * The host's switch shows and holds as the navbar's would, so the part on screen reports what the
@@ -10,7 +10,7 @@
  * holds the layout until it is finished or cancelled (`busy`). No part on screen, nothing of either.
  *
  * The part on screen asks the other way too (`request`): a double-click on a face laid out for the AI
- * asks for the CAD layout, one on empty space in CAD for the AI's (`step/edit/editLayout.js`'s
+ * asks for the CAD layout, one on empty space in CAD for the AI's (`xbf/edit/editLayout.js`'s
  * `doubleClickLayout`). The app that hosts the viewer says how to ask its host (`setRequester`) where
  * the host takes the ask (Studio's `studio/request/edit-layout`); the layout then comes back in the
  * host context as ever.

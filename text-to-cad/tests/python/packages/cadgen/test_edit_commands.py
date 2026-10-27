@@ -247,6 +247,18 @@ class BlockCommands(Commands):
         self.assertIn("    part = chamfer(part.edges(), length=0.5)\n", (root / "block.py").read_text(encoding="utf-8"))
         self.assertEqual(reply["rows"][-1]["inputs"][0]["label"], "Distance")
 
+    def test_a_pick_named_as_the_viewer_names_it_is_found_by_its_number(self):
+        # The engine's ref by number (`block/edge 3`), as the xbf viewer names a pick, reads as 0.7's `e3` did.
+        from cadgen.edit import commands
+
+        self.assertEqual([commands.selector_ordinal(each) for each in
+                          ("block/face 12", "face 12", "hand/finger.2/edge 3", "f12", "o1.2.e3", "block", "f:block.box1.2")],
+                         [("face", 12), ("face", 12), ("edge", 3), ("face", 12), ("edge", 3), (None, None), (None, None)])
+        root, file, state = self.open(BLOCK, "block.step")
+        reply = self.command(file, state, "chamfer", [{"selector": f"block/edge {n}"} for n in range(1, 13)], {"distance": "0.5"})
+        self.assertTrue(reply["ok"], reply.get("error"))
+        self.assertIn("    part = chamfer(part.edges(), length=0.5)\n", (root / "block.py").read_text(encoding="utf-8"))
+
     def test_a_face_selected_for_a_chamfer_stands_for_its_edges(self):
         root, file, state = self.open(BLOCK, "block.step")
         reply = self.command(file, state, "chamfer", BLOCK_TOP, {"distance": "0.5"})

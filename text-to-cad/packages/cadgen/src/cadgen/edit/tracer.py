@@ -1563,7 +1563,7 @@ def _editable(features, rows, steps, sketches, units):
         # The last line of the statement that holds the feature's line, where that statement starts there (its
         # own in a builder's `with` block or a `for` body, else the top one), for a line anywhere in a statement
         # written over several to be told as the feature's (a host opening the part at a line the agent cites,
-        # `step/edit/focus.js`).
+        # `xbf/edit/focus.js`).
         held = commands._innermost(statement, row["line"])
         if held.lineno == row["line"]:
             feature["end"] = held.end_lineno
@@ -4381,7 +4381,7 @@ def _bar(script, rel, line, reply):
         shape, body = commands.body_at(state["steps"], state["shape"], state["level"], ROOT, rel, line)
     except commands.CommandError as error:
         return {**where, "step": None, "error": str(error)}
-    # No face map: the viewer names no face on the bar's body (`step/edit/faceChips.js`'s `shownFaces`).
+    # No face map: the viewer names no face on the bar's body (`xbf/edit/faceChips.js`'s `shownFaces`).
     try:
         shown = _bar_document(script, shape)
     except Exception as error:  # noqa: BLE001 - a bar the engine cannot show says why, as one with no body does

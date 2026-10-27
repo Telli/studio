@@ -44,9 +44,9 @@ export interface TabSettings {
   library: { layout: LibraryLayout };
   /** The folder the name menu's Files was last in, this tab: where a model's Files starts; null, none yet. */
   explorer: { folder: string | null };
-  /** Edit mode's layout for a part script (`step/edit/editLayout.js`): Manual (the default) or AI. */
+  /** Edit mode's layout for a part script (`xbf/edit/editLayout.js`): Manual (the default) or AI. */
   editLayout: EditLayout;
-  /** Where Open Part came from (`step/edit/openedFrom.js`), by the part's absolute path, oldest first. */
+  /** Where Open Part came from (`xbf/edit/openedFrom.js`), by the part's absolute path, oldest first. */
   openedFrom: Record<string, OpenedFrom>;
 }
 export interface TabRecord {

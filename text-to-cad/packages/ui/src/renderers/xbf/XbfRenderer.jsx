@@ -21,6 +21,7 @@ import { useMeasureSession } from "../kit/tools/measure/useMeasureSession.js";
 import { MeasurementsBar } from "../kit/tools/measure/measurementChips.jsx";
 import { measureSelectHandlers } from "../kit/tools/measure/measureSelection.js";
 import MeasureFilterMenu, { MEASURE_MODES } from "../kit/tools/measure/MeasureFilterMenu.jsx";
+import { drawingToolVariant } from "../../annotation/toolbar.jsx";
 import { MEASURE_FILTER_DEFAULT } from "../kit/tools/measure/measureFilter.js";
 import JointHandleOverlay from "../kit/tools/pose/JointHandleOverlay.jsx";
 import { pickModeOf, selects } from "../kit/tools/select/selectFilter.js";
@@ -32,7 +33,9 @@ import { createClickActivation } from "./clickActivation.js";
 import XbfMeasureOverlay from "./XbfMeasure.jsx";
 import XbfModelTree from "./XbfModelTree.jsx";
 import XbfPositionSection, { useXbfPose, writeXbfPosition, xbfPoseGiven, xbfPositionRows } from "./XbfPositionSection.jsx";
-import { MeasureIcon, SelectIcon, SelectModeMenu, XBF_SELECT_DEFAULT, xbfSelectModes } from "./XbfSelectionModes.jsx";
+import { MeasureIcon, SelectIcon, SelectModeMenu, XBF_MEASURE_MODES, XBF_SELECT_DEFAULT, xbfSelectModes } from "./XbfSelectionModes.jsx";
+import { ToolIcon } from "./edit/cadIcons.jsx";
+import { useXbfCadMode } from "./edit/useXbfCadMode.jsx";
 import { useXbfElementFacts, useXbfSelectionChips, xbfCopyText, xbfNodeRefs } from "./xbfChips.jsx";
 import { xbfJointHandles } from "./xbfJointHandles.js";
 import { pmiMenuEntries, viewportMenuEntries } from "./xbfMenuItems.js";
@@ -69,7 +72,9 @@ const MENU_CONTROLS = Object.freeze({
 // Motion section, the shell's routine transport playing them (`useXbfMotion.js`). What differs is
 // underneath: the document is read from the engine that serves it, and every face and edge is to
 // hand from the start, so nothing waits on topology. And what only a document has: its PMI, drawn
-// on the model and read and asked for in the file sidebar's PMI section (`pmi/`).
+// on the model and read and asked for in the file sidebar's PMI section (`pmi/`). A document whose
+// part has a script CAD mode edits is CAD mode's too (`edit/useXbfCadMode.jsx`): laid out for
+// modeling it by hand, a CAD tool's toolbar, design tree and timeline over the same view and picks.
 
 const NO_REFERENCES = Object.freeze([]);
 const EMPTY = Object.freeze([]);
@@ -148,7 +153,9 @@ function XbfSurface({ view, data }) {
   const [toolMode, setToolMode] = useState(XBF_TOOL_MODES.defaultMode);
   const tool = useMemo(() => ({ mode: toolMode, set: setToolMode }), [toolMode]);
   const measuring = !previewing && toolMode === XBF_TOOL.MEASURE;
-  const measure = useMeasureSession({ fileKey: document.modelKey, revision: loaded.revision, picking: measuring });
+  // The units the part reads in, CAD mode's (set below, where it is read): Measure reads in them, as SolidWorks' does.
+  const [partUnits, setPartUnits] = useState("");
+  const measure = useMeasureSession({ fileKey: document.modelKey, revision: loaded.revision, picking: measuring, displayUnit: partUnits });
   const requestFrame = useCallback(() => shellRef.current?.requestFrame?.(), []);
   const requestRender = useCallback(() => shellRef.current?.requestRender?.(), []);
 
@@ -291,10 +298,12 @@ function XbfSurface({ view, data }) {
   // Escape, as a STEP's: a measurement in progress, then the tool in hand (Select taken up), then
   // the measurements picked, then the parts, faces and edges, then the isolation -- one layer a press.
   const escapeRef = useRef(() => false);
+  // CAD mode's own layers under Escape (a command's dialog open, the bar beside a feature chosen), as it says below.
+  const [cadHeld, setCadHeld] = useState(false);
   const escape = useMemo(() => ({
-    active: selected.length > 0 || isolatedIds.length > 0 || toolMode !== XBF_TOOL.SELECT || measure.selected.length > 0 || Boolean(pmiPicked),
+    active: selected.length > 0 || isolatedIds.length > 0 || toolMode !== XBF_TOOL.SELECT || measure.selected.length > 0 || Boolean(pmiPicked) || cadHeld,
     handle: () => escapeRef.current()
-  }), [selected.length, isolatedIds.length, toolMode, measure.selected.length, pmiPicked]);
+  }), [selected.length, isolatedIds.length, toolMode, measure.selected.length, pmiPicked, cadHeld]);
   // An xbf's CAD edges are hairlines (`xbfScene.js`): while the view draws them the viewport keeps
   // its pixel ratio through a camera gesture, as a STEP's does for its edges, so a press or a
   // drag never softens and shifts the model (the edges the view draws are only known after the
@@ -440,6 +449,7 @@ function XbfSurface({ view, data }) {
     setIsolatedIds(EMPTY);
   }, [isolatedIds, collapseSubtree]);
   escapeRef.current = () => {
+    if (cadRef.current?.escape()) return true;
     const now = measureRef.current;
     if (!previewing && toolMode === XBF_TOOL.MEASURE && now.drafting) { now.cancelDraft(); return true; }
     if (!previewing && toolMode !== XBF_TOOL.SELECT) { shellRef.current?.selectTool(XBF_TOOL.SELECT); return true; }
@@ -567,9 +577,13 @@ function XbfSurface({ view, data }) {
 
   // The selection as the last activation found it: what a double-click whose first click picked puts back.
   const lastPick = useRef(null);
+  // CAD mode, as it is read below: what a press means to its open command first (`beforePick`).
+  const cadRef = useRef(null);
   const handlePick = useCallback(async (found, modifiers) => {
     const hit = found?.press || null;
-    const multiSelect = Boolean(modifiers?.multiSelect);
+    const taken = cadRef.current?.beforePick(hit, Boolean(modifiers?.multiSelect)) || { multiSelect: Boolean(modifiers?.multiSelect), skip: false };
+    if (taken.skip) return;
+    const multiSelect = taken.multiSelect;
     lastPick.current = { before: selectedRef.current };
     if (shellRef.current?.toolMode !== XBF_TOOL.SELECT) ensureSelect();
     if (!multiSelect) setPmiPicked("");
@@ -591,9 +605,6 @@ function XbfSurface({ view, data }) {
     setHover({ parts: node ? tree.nodes.get(node)?.leafPartIds || EMPTY : EMPTY, element: null });
   }, [nodeOf, tree]);
   const selectActive = !previewing && Boolean(scene) && toolMode === XBF_TOOL.SELECT;
-  // A pick under Explode or Clip takes Select up, as a STEP's does.
-  const picking = !previewing && Boolean(scene) && toolMode === XBF_TOOL.SELECT;
-  useEffect(() => { if (!picking) setHover(NO_HOVER); }, [picking]);
 
   // ---- references and copies -------------------------------------------------------------------
   const facts = useXbfElementFacts({ source, fetch: engineFetch, version: loaded.revision, scene, elementIds: selectedElementIds });
@@ -604,8 +615,27 @@ function XbfSurface({ view, data }) {
     setHover(elements.length ? { parts: EMPTY, element: elements[0] } : { parts: ids, element: null });
   }, []);
   const resource = shell.frame.resource;
-  const { references, chips } = useXbfSelectionChips({ scene, tree, resource, selectedIds: selected, facts,
+  const { references, chips: ownChips } = useXbfSelectionChips({ scene, tree, resource, selectedIds: selected, facts,
     onRemove: removeFromSelection, onHover: hoverChip });
+  // A face or an edge looked at, as a double-click looks at one: the view turns square to it (CAD's
+  // Normal To, `kit/camera/lookAt.js`) and nothing is picked; navigation only.
+  const lookAt = useCallback((id) => {
+    const subject = xbfLookSubject(scene, id);
+    if (subject) shellRef.current?.frame.viewerRef.current?.lookAt?.(subject);
+  }, [scene]);
+
+  // ---- CAD mode: the part's script modeled by hand (`edit/useXbfCadMode.jsx`) -------------------
+  const cad = useXbfCadMode({ view, document, scene, tree, assembly, loading: loaded.busy && !scene, updating: loaded.busy && Boolean(scene),
+    revision: loaded.revision, selectedElementIds, setChosen, facts, toolMode, previewing, ensureSelect, setSelectFilter, viewportRef, lookAt });
+  cadRef.current = cad;
+  useEffect(() => { setPartUnits(cad.units); }, [cad.units]);
+  useEffect(() => { setCadHeld(cad.escapeActive); }, [cad.escapeActive]);
+  // A face picked names the feature that made it, in CAD mode (`nameChips`).
+  const nameChips = cad.nameChips;
+  const chips = useMemo(() => nameChips(ownChips), [nameChips, ownChips]);
+  // A pick under Explode or Clip takes Select up, as a STEP's does; while CAD mode's sketch is edited the presses are its.
+  const picking = !previewing && Boolean(scene) && toolMode === XBF_TOOL.SELECT && cad.modelPicks;
+  useEffect(() => { if (!picking) setHover(NO_HOVER); }, [picking]);
   promptReferencesRef.current = previewing ? NO_REFERENCES : references;
   // What a node or an element copies: its reference, the file's path with it.
   const singleChip = useCallback(ids => xbfCopyText({ scene, tree, resource, ids }), [scene, tree, resource]);
@@ -619,12 +649,6 @@ function XbfSurface({ view, data }) {
   }, [chips]);
 
   // ---- double-click: a face or edge looked at, a part isolated, empty space leaves isolation ----
-  // A face or an edge: the view turns square to it (CAD's Normal To, `kit/camera/lookAt.js`) and
-  // nothing is picked; navigation only.
-  const lookAt = useCallback((id) => {
-    const subject = xbfLookSubject(scene, id);
-    if (subject) shellRef.current?.frame.viewerRef.current?.lookAt?.(subject);
-  }, [scene]);
   // `activated`: the gesture's first click picked (`clickActivation.js`), so the selection it found
   // comes back first, through the one setter every pick goes through; then the double-click acts
   // as if that click had never happened. Under Select, Explode or Clip alike: under the two a pick
@@ -634,7 +658,11 @@ function XbfSurface({ view, data }) {
     lastPick.current = null;
     const hit = pickAtClient(clientX, clientY);
     if (!hit) { exitIsolate(); return; }
-    if (hit.kind) { usage.used("look_at"); lookAt(hit.id); return; }
+    if (hit.kind) {
+      // In CAD mode a face's double-click selects the feature that made it, as SolidWorks' does.
+      if (cadRef.current?.doubleClickFace(hit)) return;
+      usage.used("look_at"); lookAt(hit.id); return;
+    }
     const node = nodeOf(hit);
     if (node && assembly) { usage.used("isolate"); isolate([node]); }
   }, [pickAtClient, exitIsolate, lookAt, nodeOf, assembly, isolate, usage]);
@@ -704,8 +732,10 @@ function XbfSurface({ view, data }) {
     const hit = pickAtClient(press.clientX, press.clientY);
     let menu = null;
     if (hit?.kind) {
-      menu = xbfTopologyMenu({ elementId: hit.id, label: hit.name || hit.id, selectedElementIds,
-        copyText: singleChip([...new Set([...selectedElementIds, hit.id])]), zoomSelectionAvailable });
+      menu = { ...xbfTopologyMenu({ elementId: hit.id, label: hit.name || hit.id, selectedElementIds,
+        copyText: singleChip([...new Set([...selectedElementIds, hit.id])]), zoomSelectionAvailable }),
+      // What CAD mode offers first for a face it knows the feature of: Edit Feature, Edit Sketch.
+      featureItems: cad.faceMenu(hit) };
     } else if (hit && assembly) {
       menu = menuForNode(nodeOf(hit));
     }
@@ -725,14 +755,16 @@ function XbfSurface({ view, data }) {
     connected={connected} onConnectedChange={(id, checked) => setConnected(now => ({ ...now, [id]: checked }))} />,
   [selectFilter, assembly, posable, shell.idle, connected]);
   // Measure's chevron, a STEP's: a choice takes Measure up, as Select's takes Select up.
-  const measureFilterMenu = useMemo(() => <MeasureFilterMenu value={measureFilter} disabled={shell.idle}
+  const measureFilterMenu = useMemo(() => <MeasureFilterMenu value={measureFilter} disabled={shell.idle} modes={XBF_MEASURE_MODES}
     onChange={value => { setMeasureFilter(value); shellRef.current?.selectTool(XBF_TOOL.MEASURE); }} />,
   [measureFilter, shell.idle]);
   const strip = [
     // Each button badged with what its tool picks alone (its chevron's menu), none for All.
     shell.tools.own({ id: XBF_TOOL.SELECT, label: t("tool.select"), shortcut: TOOL_SHORTCUTS.select, menu: selectModeMenu,
       icon: <SelectIcon mode={pickModeOf(selectFilter, xbfSelectModes({ assembly, posable })).id} className="size-3.5" aria-hidden="true" /> }),
-    ...shell.tools.drawing.map(tool => ({ ...tool, disabled: shell.idle })),
+    // Pencil and Shapes write to the agent: CAD mode's workspace, which has none, has neither.
+    ...cad.drawingTools(shell.tools.drawing).map(tool => ({ ...tool, disabled: shell.idle,
+      icon: <ToolIcon id={tool.id} mode={drawingToolVariant(tool.id, shell.frame.annotation)} className="size-3.5" /> })),
     shell.tools.own({ id: XBF_TOOL.MEASURE, label: t("tool.measure"), shortcut: TOOL_SHORTCUTS.measure, menu: measureFilterMenu,
       icon: <MeasureIcon mode={pickModeOf(measureFilter, MEASURE_MODES).id} className="size-3.5" aria-hidden="true" />,
       onSelect: () => { if (shell.toolMode !== XBF_TOOL.MEASURE) shell.selectTool(XBF_TOOL.MEASURE); } }),
@@ -764,14 +796,19 @@ function XbfSurface({ view, data }) {
   const pmiShown = Boolean(pmi.entries.length || (pmi.editable && (pmiRequest || pmi.changes.length)));
   const pmiPickedFaces = useMemo(() => (scene ? selected.map(pmiFaceOf) : EMPTY), [scene, selected, pmiFaceOf]);
 
-  const sidebar = scene && (assembly || kinematics || pmiShown) ? <>
+  const pmiSection = pmiShown ? <PmiSection pmi={pmi} picked={pmiPickedFaces} selectedFeatureIds={selectedElementIds} moving={moving}
+    request={pmiRequest} onRequestDone={() => setPmiRequest(null)} /> : null;
+  // CAD mode's design tree stands in for the file sidebar (`leftDock`): its PMI is a panel of the tool stack, under the toolbar.
+  const pmiInSidebar = pmiShown && !cad.editing;
+  const sidebar = scene && (assembly || kinematics || pmiInSidebar) ? <>
     {assembly ? <XbfModelTree key={document.modelKey} tree={tree} active={!previewing} disabled={shell.idle} mode={shape}
       selectedIds={selected} onClearSelection={clearSelection} partControls={partControls} /> : null}
     {kinematics ? <XbfPositionSection kinematics={kinematics} motion={motionOwns ? motion : null} values={poseValues || {}} couplings={poseCouplings} preset={posePreset}
       changed={poseApplied} onValues={setPoseValues} onPreset={choosePreset} onReset={resetPose} /> : null}
-    {pmiShown ? <PmiSection pmi={pmi} picked={pmiPickedFaces} selectedFeatureIds={selectedElementIds} moving={moving}
-      request={pmiRequest} onRequestDone={() => setPmiRequest(null)} /> : null}
+    {pmiInSidebar ? pmiSection : null}
   </> : null;
+  // What Quick Edit carries: the AI layout's picks; CAD mode's workspace has no agent to send them to (`useXbfCadMode`'s `quickEdit`).
+  const quickEdit = cad.quickEdit({ references: previewing ? NO_REFERENCES : references, chips: previewing ? NO_REFERENCES : chips });
   // Whether the model hides a point of a callout from the camera now (its leader's start, an
   // extension line's): drawn faint. Within a thousandth of the model's size, a point is on the
   // surface the ray meets, not behind it.
@@ -804,7 +841,8 @@ function XbfSurface({ view, data }) {
   usePmiViewApplied({ applied: pmi.view, viewer: () => shellRef.current?.frame.viewerRef.current, store, fit: fitPmiView });
 
   return <RendererShell shell={shell} tools={strip} subToolbar={measuring ? <MeasurementsBar measure={measure} /> : null} sidebar={sidebar} previewView={previewView}
-    references={previewing ? NO_REFERENCES : references} referenceChips={previewing ? NO_REFERENCES : chips} nameReference={nameReference}
+    toolPanels={cad.editing ? pmiSection : null} {...cad.frame}
+    references={quickEdit.references} referenceChips={quickEdit.chips} nameReference={nameReference}
     requests={previewing ? NO_REFERENCES : pmi.changeChips} onClearRequests={pmi.clearChanges}
     onClearReferences={() => { setChosen(EMPTY); measure.select([]); }} copySelection={copySelection}
     onSelectPress={measureSelect.press} onSelectHover={measureSelect.hover} selectsAnnotations={selects(selectFilter, "annotation")}
@@ -819,6 +857,7 @@ function XbfSurface({ view, data }) {
           onSelect={key => { ensureSelect(); setPmiPicked(key); }} onHover={pmi.hover} onMove={pmi.move} onLookAt={lookAtPmi} hiddenAt={pmiHiddenAt} /> : null}
         <XbfPick viewport={viewport} scene={picker} enabled={picking} onPick={handlePick} onHover={handleHover} onDoublePick={handleDoublePick}
           deferRef={deferPickRef} pointerTypeRef={pointerTypeRef} />
+        {cad.overlay(viewport)}
       </>;
     }} />;
 }

@@ -302,7 +302,7 @@ export interface CadEditRow {
  * One feature of the design tree (`cadgen/edit/tracer.py`): the rows of the history it stands for (`rows`, in the history's
  * order: the lines of a profile drawn for it, its own, then the rows folded into it), at the statement that makes it, from
  * its first line (`line`, as `text` reads it) to its last (`end`, where the engine read the statement whole). The viewer
- * reads the rest of it as it finds it (`step/edit/editMode.js`'s `featureTree`).
+ * reads the rest of it as it finds it (`xbf/edit/editMode.js`'s `featureTree`).
  */
 export interface CadEditFeature {
   key: string;
@@ -396,6 +396,37 @@ export interface CadEditChangeRequest {
   bar_after?: CadEditBar | null;
 }
 
+/**
+ * The face a feature is asked for (`/__cad/edit/face`): `file`, the document on screen (a model's id
+ * or a file's path, as `editState` takes it); `face`, its number on the part or an engine ref to it
+ * (`plate/face 12`); `files`, the hashes the page read the part from (`editState`'s), so a face of a
+ * part that changed since names no feature.
+ */
+export interface CadEditFaceRequest {
+  file: string;
+  face: number | string;
+  files?: Record<string, string> | null;
+}
+
+/**
+ * The feature that made a face: `feature`, a key of the read's `features` (or of a component's), or
+ * null; `source`, how it was found (`made_by`, the engine's record of the call; `geometric`, the trace's
+ * map, for a file); `stale` while the part is being built again or its files moved on, when it names none.
+ */
+export interface CadEditFaceReply {
+  ok: boolean;
+  error?: string;
+  reason?: string;
+  faceFeature?: {
+    face: number | string;
+    feature: string | null;
+    component: string | null;
+    source: 'made_by' | 'geometric' | null;
+    madeBy: Record<string, unknown> | null;
+    stale?: boolean;
+  };
+}
+
 /** The rollback bar: above the tree item whose first line is `before` (`<file>:<line>`). */
 export interface CadEditBar {
   before: string;
@@ -410,6 +441,8 @@ export interface CadClient extends CadWorkspaceService {
   editState(file: string, files?: Record<string, string> | null, options?: CadRequestOptions & { probe?: boolean; bar?: CadEditBar | null }): Promise<CadEditState>;
   /** Edit mode: one number of the part's source changed, then the parts that use it built again. */
   editChange(change: CadEditChangeRequest, options?: CadRequestOptions): Promise<CadEditState>;
+  /** Edit mode: the feature of the design tree that made a face of the document on screen. */
+  editFace(request: CadEditFaceRequest, options?: CadRequestOptions): Promise<CadEditFaceReply>;
 }
 export interface CadClientOptions {
   resources?: CadResourceProvider;
