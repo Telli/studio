@@ -387,12 +387,16 @@ def cached_setup(cache: dict, ctx: SolveContext, inputs, refusal: str, build: Ca
     if ctx.assembly is not None or shape is None:
         raise ValueError(refusal)
     key = (id(shape), id(inputs))
-    if key not in cache:
-        setup = build(shape, {face.ordinal: face.ref for face in ctx.geometry.faces})
-        if len(cache) > 4:
-            cache.clear()
-        cache[key] = setup
-    return cache[key]
+    hit = cache.get(key)
+    # Held with the shape and the inputs it was built for, as ``shell.cached`` holds its own: an id is reused once
+    # its object is gone, so a later solve's part could otherwise take an earlier part's setup.
+    if hit is not None and hit[0] is shape and hit[1] is inputs:
+        return hit[2]
+    setup = build(shape, {face.ordinal: face.ref for face in ctx.geometry.faces})
+    if len(cache) > 4:
+        cache.clear()
+    cache[key] = (shape, inputs, setup)
+    return setup
 
 
 def iterative_rung(analysis, ctx: SolveContext, inputs, words: str):

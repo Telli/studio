@@ -96,7 +96,8 @@ class Part:
         except ValueError as exc:
             raise CamJobError(f"{where}: {ref} is not a face of this part ({exc}); cadgen cam features lists them") from None
         if selection.kind != "face":
-            raise CamJobError(f"{where}: {ref} is a {selection.kind} reference; operations take faces (#o1.f12)")
+            raise CamJobError(f"{where}: {ref} is a {selection.kind} reference; operations take faces (#o1.f12 or "
+                              "block/face 12)")
         if selection.occurrence_ref != self.occurrence:
             raise CamJobError(f"{where}: {ref} is on {selection.occurrence_ref}, but the job machines {self.occurrence}")
         ordinal = int(re.search(r"\.f(\d+)$", selection.ref).group(1))

@@ -25,14 +25,14 @@ _FIXTURE: dict[str, Path] = {}
 
 
 def setUpModule() -> None:
-    """One assembly and one store for every test here: its scene compiles once."""
+    """One assembly for every test here."""
     from build123d import Box, Compound, Pos, export_step
 
     temporary = generated_cad_directory(prefix="work-instruction-")
     unittest.addModuleCleanup(temporary.cleanup)
     root = Path(temporary.name)
     patch = mock.patch.dict(os.environ, {
-        "CADGEN_CACHE_DIR": str(root / "store"), "CADGEN_DAEMON": "0", "CADGEN_COMPONENT_WORKERS": "1",
+        "CADGEN_CACHE_DIR": str(root / "store"),
     })
     patch.start()
     unittest.addModuleCleanup(patch.stop)

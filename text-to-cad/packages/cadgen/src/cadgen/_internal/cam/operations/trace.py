@@ -69,12 +69,12 @@ class TraceOp(Operation):
             if isinstance(start, str):
                 if not EDGE_REF.match(start):
                     raise CamJobError(f"{where}.start must be a point [x, y] (WCS) at one end of an open chain, or "
-                                      f"its first or last edge (\"#o1.e5\"), not {shown(start)}")
+                                      f"its first or last edge (\"#o1.e5\" or \"block/edge 5\"), not {shown(start)}")
             elif (isinstance(start, (list, tuple)) and len(start) == 2 and all(is_number(v) for v in start)):
                 start = (float(start[0]), float(start[1]))
             else:
                 raise CamJobError(f"{where}.start must be a point [x, y] (WCS) at one end of an open chain, or its "
-                                  f"first or last edge (\"#o1.e5\"), not {shown(start)}")
+                                  f"first or last edge (\"#o1.e5\" or \"block/edge 5\"), not {shown(start)}")
         return {
             "edges": edge_refs(extra["edges"], f"{where}.edges"),
             "depth_mm": read_number(extra, "depth_mm", where),

@@ -2246,7 +2246,7 @@ class AssemblyDrawingTests(unittest.TestCase):
         from cadgen.eng_drawing import parts_list
 
         with temporary_directory(prefix="tmp-cad-eng-drawing-") as tmp:
-            with mock.patch.dict(os.environ, {"CADGEN_CACHE_DIR": str(Path(tmp) / "store"), "CADGEN_DAEMON": "0"}):
+            with mock.patch.dict(os.environ, {"CADGEN_CACHE_DIR": str(Path(tmp) / "store")}):
                 pin = Cylinder(3, 20)
                 placed = []
                 for x in (-10.0, 10.0, 30.0):

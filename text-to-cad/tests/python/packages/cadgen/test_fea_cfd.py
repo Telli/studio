@@ -249,6 +249,24 @@ def rectangular_duct_Pa(flow_m3_s: float, width_mm: float, height_mm: float, len
     return 12 * mu * (length_mm / 1000) * flow_m3_s / (w * h ** 3 * shape)
 
 
+class SetupCache(unittest.TestCase):
+    """A flow analysis builds a part's setup once per solve's shape and inputs; an id an earlier solve's freed
+    shape had is no hit (that took the last duct's flow for the next duct's)."""
+
+    def test_an_entry_for_another_object_at_the_same_id_is_built_again(self):
+        from types import SimpleNamespace
+
+        from cadgen._internal.fea.analyses.cfd import cached_setup
+
+        shape, inputs = object(), object()
+        ctx = SimpleNamespace(assembly=None, geometry=SimpleNamespace(shape=shape, faces=[]))
+        cache = {(id(shape), id(inputs)): (object(), object(), "the earlier part's")}
+        built = []
+        self.assertEqual(cached_setup(cache, ctx, inputs, "", lambda *_: built.append(1) or "this part's"), "this part's")
+        self.assertEqual(cached_setup(cache, ctx, inputs, "", lambda *_: built.append(1) or "again"), "this part's")
+        self.assertEqual(len(built), 1)
+
+
 @needs_fea
 class SharpCorneredDucts(unittest.TestCase):
     """Rectangular passages solve: the inlet's corners, where every velocity around a pressure node is held,

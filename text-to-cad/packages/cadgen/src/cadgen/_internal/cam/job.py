@@ -856,7 +856,16 @@ def _stock(raw: object, kind: str) -> StockSpec:
     return StockSpec(kind="from_step", path=path)
 
 
-_REF = re.compile(r"^(?:[^#\s]*)#o[\w.]+\.f\d+$|^#f\d+$")
+
+def _ref(letter: str, kind: str) -> re.Pattern:
+    """An element ref of one kind in either grammar the part's scene reads (``step_open``): 0.7's ``#o1.f12``
+    (a file before the ``#``, a label or no occurrence on a one-part document) or the engine's ``face 12`` and
+    ``f:<name>``, an owner (``block/face 12``) or a file or document id (``<id>#face 12``) before it."""
+    return re.compile(rf"^[^#\s]*#(?:[\w.:]+\.)?{letter}\d+$|^(?:[^#]*#)?(?:[^#]*/)?(?:{kind} \d+|{letter}:\S+)$")
+
+
+_REF = _ref("f", "face")
+_EDGE, _VERTEX = _ref("e", "edge"), _ref("v", "vertex")
 
 
 def _setup(raw: object, index: int, machine: Machine, tools: dict[str, Tool]) -> Setup:
@@ -883,7 +892,7 @@ def _setup(raw: object, index: int, machine: Machine, tools: dict[str, Tool]) ->
 
         # What the machine's rotary axes (and machine.rotary_limits_deg) can reach; every axis it has, named.
         orientation = check_orientation(orientation, machine, f"{where}.orientation")
-    elif isinstance(orientation, str) and "#" in orientation:
+    elif isinstance(orientation, str) and orientation not in ORIENTATIONS:
         orientation = _face_orientation(orientation, f"{where}.orientation", machine)
     else:
         orientation = choice(orientation, ORIENTATIONS, f"{where}.orientation")
@@ -906,20 +915,22 @@ def _setup(raw: object, index: int, machine: Machine, tools: dict[str, Tool]) ->
 
 
 def _face_orientation(value: str, where: str, machine: Machine) -> str:
-    """A setup turned onto a face (``#o1.f4``): a planar face's selector, kept as written; the plan reads the face's
-    outward normal from the part (``wcs.with_face_orientations``), and refuses one that is not planar."""
+    """A setup turned onto a face (``#o1.f4`` or ``block/face 4``): a planar face's selector, kept as written; the
+    plan reads the face's outward normal from the part (``wcs.with_face_orientations``), and refuses one that is not
+    planar."""
     if machine.kind not in FACE_ORIENTATION_KINDS:
         held = ("a lathe's setup is its spindle axis" if machine.kind == "lathe"
                 else f"a {machine.kind} cuts through the sheet lying flat")
         raise CamJobError(f"{where} is {shown(value)}, a face: {held}, so it cannot be turned onto a face; "
                           "remove orientation (or use +Z)")
-    if re.search(r"\.[ev]\d+$", value):
-        what = "an edge" if re.search(r"\.e\d+$", value) else "a vertex"
+    if _EDGE.match(value) or _VERTEX.match(value):
+        what = "an edge" if _EDGE.match(value) else "a vertex"
         raise CamJobError(f"{where} is {shown(value)}, {what}: a setup looks down a flat face's outward normal, so "
-                          "name a planar face (#o1.f4; cadgen cam features lists them)")
+                          "name a planar face (#o1.f4 or block/face 4; cadgen cam features lists them)")
     if not _REF.match(value):
         raise CamJobError(f"{where} is {shown(value)}; use one of {', '.join(ORIENTATIONS)}, a planar face's "
-                          "selector like \"#o1.f4\", or a tilt {\"a_deg\": .., \"c_deg\": ..} on a mill4 or mill5")
+                          "selector like \"#o1.f4\" or \"block/face 4\", or a tilt {\"a_deg\": .., \"c_deg\": ..} on a "
+                          "mill4 or mill5")
     return value
 
 
@@ -1035,7 +1046,7 @@ def _origin(value: object, where: str, machine: Machine) -> object:
 def _plain_orientation(orientation: object) -> str:
     if isinstance(orientation, dict):
         return "Tilted " + " ".join(f"{k[0].upper()}{v:g}°" for k, v in orientation.items() if v)
-    if "#" in orientation:
+    if orientation not in ORIENTATIONS:
         return f"Face {orientation} up"
     return {"+Z": "Top", "-Z": "Bottom", "+X": "Right", "-X": "Left", "+Y": "Back", "-Y": "Front"}[orientation]
 
@@ -1061,8 +1072,8 @@ def _operation(raw: object, where: str, index: int, machine: Machine, tools: dic
     if isinstance(faces, str):
         faces = [faces]
     if not isinstance(faces, list) or not all(isinstance(face, str) and _REF.match(face) for face in faces):
-        raise CamJobError(f"{where}.faces must be a list of face refs like \"#o1.f12\" (cadgen cam features lists "
-                          f"them), not {shown(raw.get('faces'))}")
+        raise CamJobError(f"{where}.faces must be a list of face refs like \"#o1.f12\" or \"block/face 12\" (cadgen "
+                          f"cam features lists them), not {shown(raw.get('faces'))}")
     for i, face in enumerate(faces):
         if face in faces[:i]:
             raise CamJobError(f"{where}.faces: {face!r} is listed twice; name each face once")

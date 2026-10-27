@@ -29,6 +29,7 @@ from cadgen._internal.atomic_replace import replace_atomic
 from cadgen._internal.cam.checks.base import finding
 from cadgen._internal.cam.job_errors import CamJobError, PlanError, PostRefusal
 from cadgen._internal.cli_log import CliLogger
+from cadgen._internal.step_open import document_stem
 from cadgen.results import CamFeaturesResult, CamPlanResult, _assumed_value
 
 __all__ = ["headline", "list_features", "parse_operations", "plan_job", "plan_setups"]
@@ -144,12 +145,13 @@ def headline(errors: int, seconds: float, tools: int) -> str:
 def _glb_path(document: Path, out_dir: Path | None) -> Path:
     """The result GLB's path: the document's stem beside it, or in ``out_dir``. Needs nothing from the job."""
     folder = Path(out_dir) if out_dir is not None else document.parent
-    return folder / f"{document.stem}.cam.glb"
+    return folder / f"{document_stem(document)}.cam.glb"
 
 
 def _naming(document: Path) -> re.Pattern:
     """A posted file's name for this document: ``<stem>.<setup>.<ext>``, or ``<stem>.<setup>.<tool>.<ext>``."""
-    return re.compile(rf"^{re.escape(document.stem)}\.([A-Za-z0-9_-]{{1,40}})(?:\.([A-Za-z0-9_-]{{1,40}}))?"
+    stem = re.escape(document_stem(document))
+    return re.compile(rf"^{stem}\.([A-Za-z0-9_-]{{1,40}})(?:\.([A-Za-z0-9_-]{{1,40}}))?"
                       r"(\.[A-Za-z0-9]+)$")
 
 
@@ -262,8 +264,8 @@ def plan_job(target: Path, *, job, occurrence: str | None = None, post: str | No
     document = Path(target)
     timings: dict[str, float] = {}
     started = time.perf_counter()
-    glb_path = _glb_path(document, out_dir)
     try:
+        glb_path = _glb_path(document, out_dir)
         if out_dir is not None and Path(out_dir).exists() and not Path(out_dir).is_dir():
             raise CamJobError(f"out_dir {out_dir} is a file; pass the folder the outputs go in")
         # Whatever happens next (a refusal, a crash, a plan), the last run's outputs are not left standing beside it.
@@ -534,7 +536,7 @@ def _plan(document, parsed, operations, post, glb_path, extension, logger, timin
         glb_tmp = glb_path.with_name(f".{glb_path.name}{suffix}")
         temporaries.append((glb_tmp, glb_path))
         write_glb(glb_tmp, part_mesh=(part.vertices, part.triangles), stock_mesh=sim.mesh(), lines=lines, cam=cam,
-                  name=f"{document.stem} cam")
+                  name=f"{document_stem(document)} cam")
         for _, _, final, text in rendered:
             tmp = final.with_name(f".{final.name}{suffix}")
             temporaries.append((tmp, final))
@@ -571,7 +573,9 @@ def _render_setup(post, plan, k, setup_plans, op_plans, tools, machine, document
     """One setup's posted files: ``[(setup id, tool label or None, final path, text)]``."""
     from cadgen import __version__
     from cadgen._internal.cam.posts.base import Program
+    from cadgen.engine.ids import is_id
 
+    stem = document_stem(document)
     notes = tuple(f"lite {entry['op']}: {limit}" for entry in lite for limit in entry["limits"]
                   if by_index[entry["operation"]].setup == plan.setup.id)
     # What the program rests on that nobody stated (the dialect, the spindle limit, the tapping) is said where the
@@ -583,7 +587,7 @@ def _render_setup(post, plan, k, setup_plans, op_plans, tools, machine, document
                  ) + tuple(f"Spindle {entry['value']}: {entry['why']}." for entry in parsed.assumed
                            if entry["key"] == "machine.spindle") + notes
     program = Program(setup=plan.setup, wcs=plan.wcs, toolpath=plan.toolpath, tools=tools, machine=machine,
-                      version=__version__, part=document.name, job_name=parsed.name,
+                      version=__version__, part=stem if is_id(str(document)) else document.name, job_name=parsed.name,
                       material=parsed.material.plain, tolerance_mm=tolerance, clearance_z=plan.heights.clearance,
                       retract_z=plan.heights.retract, setup_index=k, setup_count=len(setup_plans), notes=notes)
     setup_tools = {op.tool.id for op in op_plans if op.setup == plan.setup.id and op.tool is not None}
@@ -593,9 +597,9 @@ def _render_setup(post, plan, k, setup_plans, op_plans, tools, machine, document
         for label, text in post.render_tool_files(program):
             if not isinstance(label, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", label):
                 raise ValueError(f"post {post.name} labelled a tool file {label!r}; a label is letters, digits, - or _")
-            out.append((plan.setup.id, label, folder / f"{document.stem}.{plan.setup.id}.{label}{extension}", text))
+            out.append((plan.setup.id, label, folder / f"{stem}.{plan.setup.id}.{label}{extension}", text))
         return out
-    return [(plan.setup.id, None, folder / f"{document.stem}.{plan.setup.id}{extension}", post.render(program))]
+    return [(plan.setup.id, None, folder / f"{stem}.{plan.setup.id}{extension}", post.render(program))]
 
 
 def post_refusal_finding(exc: PostRefusal, post, op_plans) -> dict:

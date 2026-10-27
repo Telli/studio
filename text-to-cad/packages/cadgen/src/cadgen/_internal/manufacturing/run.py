@@ -57,6 +57,7 @@ def check_part(target: Path, *, study, occurrence: str | None = None, mesh_size:
     from cadgen._internal.checklist import fail_on_value, gate_failed
     from cadgen._internal.fea.study import load_document, parse_study
     from cadgen._internal.manufacturing.processes.base import closed
+    from cadgen._internal.step_open import document_stem
 
     fail_on_value(fail_on)
     document = Path(target)
@@ -65,13 +66,15 @@ def check_part(target: Path, *, study, occurrence: str | None = None, mesh_size:
                          "what it reads; run `cadgen fea faces IN.step` to list face refs")
     source = load_document(study)
     process = process_of(source)
-    glb = document.with_name(f"{document.stem}.{process.name}.glb")
-    sidecar = document.with_name(f"{document.stem}.{process.name}.result.json")
+    # A file's results go beside it; a document id has no folder, so its results go in the working directory.
+    stem = document_stem(document)
+    glb = document.with_name(f"{stem}.{process.name}.glb")
+    sidecar = document.with_name(f"{stem}.{process.name}.result.json")
     written = (glb, sidecar)
     named = _study_path(study)
     if named is not None and any(named == path.resolve() for path in written):
         raise ValueError(f"study: {named.name} is where the check writes its result; name the study "
-                         f"{document.stem}.{process.name}.json")
+                         f"{stem}.{process.name}.json")
     for stale in written:
         stale.unlink(missing_ok=True)
     parsed = parse_study(source, analysis=process, named_by="process")  # stdlib, before any heavy import

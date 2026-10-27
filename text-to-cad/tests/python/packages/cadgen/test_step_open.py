@@ -5,8 +5,9 @@ to the one ordinal the engine numbers it by."""
 
 from __future__ import annotations
 
+import contextlib
+import json
 import os
-import subprocess
 import sys
 import tempfile
 import textwrap
@@ -15,25 +16,27 @@ from pathlib import Path
 from unittest import mock
 
 from tests.python.support import engine_daemon
+from tests.python.support.cam_fixtures import mill_job, quiet
+from tests.python.support.fea_fixtures import needs_fea
 
 SRC = Path(__file__).resolve().parents[4] / "packages" / "cadgen" / "src"
 
-PLATE = """
+BLOCK = """
 import build123d as bd
 from cadgen import model
 
 
 @model
-def plate():
-    body = bd.Box(40, 20, 6)
-    hole = bd.Cylinder(3, 6)
-    plate = body - hole
-    plate.label = "plate"
-    return plate
+def block():
+    body = bd.Box(80, 60, 25, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN))
+    pocket = bd.Pos(0, 0, 15) * bd.Box(40, 30, 10, align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN))
+    block = body - pocket
+    block.label = "block"
+    return block
 
 
 if __name__ == "__main__":
-    plate()
+    block()
 """
 
 
@@ -94,6 +97,7 @@ class Files(unittest.TestCase):
         self.assertAlmostEqual(box.max.Z, 22.0, places=6)
         two = scene.resolve("#o1.2.f1,f2")
         self.assertEqual([s.ref for s in two], ["#o1.2.f1", "#o1.2.f2"])
+        self.assertEqual([s.ref for s in scene.resolve("#post,f1")], ["#o1.2", "#o1.2.f1"])
 
     def test_what_names_nothing_is_refused_saying_why(self) -> None:
         from cadgen._internal.step_open import open_scene
@@ -102,7 +106,8 @@ class Files(unittest.TestCase):
         for ref, said in (("#o1.2.f99", r"available: 1\.\.6"), ("#f1", "needs an occurrence prefix"),
                           ("#o7", "unknown occurrence"), ("other.step#o1.1.f1", "names other.step"),
                           ("post/face 99", r"available: 1\.\.6"), ("nothing/face 1", "no part or assembly nothing"),
-                          ("#o1.f1", "is a group")):
+                          ("#o1.f1", "is a group"), ("#o1.2.f1,post/face 2", "one grammar per line"),
+                          ("#o1.2.f1,,f2", "an empty selector")):
             with self.subTest(ref=ref), self.assertRaisesRegex(ValueError, said):
                 scene.resolve(ref)
         with self.assertRaisesRegex(ValueError, "is no part document"):
@@ -140,8 +145,9 @@ class DocumentId(unittest.TestCase):
         cls.addClassCleanup(patch.stop)
         folder = tempfile.TemporaryDirectory(prefix="step-open-model-")
         cls.addClassCleanup(folder.cleanup)
-        script = Path(os.path.realpath(folder.name)) / "plate.py"
-        script.write_text(textwrap.dedent(PLATE), encoding="utf-8")
+        cls.folder = Path(os.path.realpath(folder.name))
+        script = cls.folder / "block.py"
+        script.write_text(textwrap.dedent(BLOCK), encoding="utf-8")
         env = {**os.environ, "PYTHONPATH": str(SRC)}
         built = engine_daemon.run([sys.executable, str(script)], cwd=script.parent, env=env)
         if built.returncode != 0:
@@ -155,14 +161,14 @@ class DocumentId(unittest.TestCase):
         scene = open_scene(self.ident)
         (leaf,) = scene.leaves()
         # A model's document is its root assembly with the part below it, as its STEP export reads.
-        self.assertEqual((scene.document, scene.stem, leaf.ref), (self.ident, "plate", "#o1.1"))
+        self.assertEqual((scene.document, scene.stem, leaf.ref), (self.ident, "block", "#o1.1"))
         names = scene.structure["prototypes"][0]["faceNames"]
         for ordinal in range(1, len(list(leaf.entities("face"))) + 1):
             with self.subTest(face=ordinal):
-                refs = [f"#o1.1.f{ordinal}", f"#o1.f{ordinal}", f"#f{ordinal}", f"face {ordinal}", f"plate/face {ordinal}",
-                        f"{self.ident}#o1.1.f{ordinal}"]
+                refs = [f"#o1.1.f{ordinal}", f"#o1.f{ordinal}", f"#f{ordinal}", f"face {ordinal}",
+                        f"block/face {ordinal}", f"{self.ident}#o1.1.f{ordinal}"]
                 if str(ordinal) in names:
-                    refs.append(names[str(ordinal)])  # its element name, f:plate.body.N...
+                    refs.append(names[str(ordinal)])  # its element name, f:block.body.N...
                 found = {(s.occurrence_ref, s.ordinal) for ref in refs for s in scene.resolve(ref)}
                 self.assertEqual(found, {("#o1.1", ordinal)})
                 # The engine's own face N is the vendored ordinal's face: the same area and centre.
@@ -172,6 +178,72 @@ class DocumentId(unittest.TestCase):
                 for x, y in zip(facts["centroid"], centre):
                     self.assertAlmostEqual(x, y, places=5)
         self.assertTrue(names, "a model's faces carry the engine's element names")
+
+    def _face(self, normal_z: float, z: float) -> int:
+        """The ordinal of the block's planar face at height ``z`` facing up (1) or down (-1)."""
+        from cadgen._internal.step_open import open_scene
+
+        (leaf,) = open_scene(self.ident).leaves()
+        for face in leaf.entities("face"):
+            shape = face.shape()
+            if abs(_area_centre(shape)[1][2] - z) < 1e-6 and shape.normal_at().Z == normal_z:
+                return face.ordinal
+        raise AssertionError(f"no face at z {z}")
+
+    def _in_folder(self) -> Path:
+        """A working directory of the test's own: a document id's outputs go in the working directory."""
+        folder = Path(tempfile.mkdtemp(prefix="by-id-", dir=self.folder))
+        self.enterContext(contextlib.chdir(folder))
+        return folder
+
+    def test_a_cam_job_names_faces_and_edges_in_either_grammar(self) -> None:
+        from cadgen._internal.cam.job import parse_job
+        from cadgen._internal.cam.part import read_part
+
+        floor, top = self._face(1, 15), self._face(1, 25)
+        job = mill_job([{"op": "pocket", "tool": "T1", "faces": [f"block/face {floor}"]},
+                        {"op": "trace", "tool": "T1", "depth_mm": 0.5, "edges": ["block/edge 1"]}])
+        job["setups"][0]["orientation"] = f"block/face {top}"
+        parsed = parse_job(job)
+        self.assertEqual(parsed.setups[0].orientation, f"block/face {top}")
+        self.assertEqual(parsed.setups[0].operations[0].faces, (f"block/face {floor}",))
+        part = read_part(Path(self.ident))
+        self.assertEqual(part.face(f"block/face {floor}"), part.face(f"#o1.1.f{floor}"))
+        self.assertEqual(part.face(f"face {floor}").ref, f"#o1.1.f{floor}")
+
+    def test_cam_by_id_names_its_outputs_after_the_model(self) -> None:
+        from cadgen import cam
+
+        folder = self._in_folder()
+        floor = self._face(1, 15)
+        job = mill_job([{"op": "face", "tool": "T1"}, {"op": "pocket", "tool": "T1", "faces": [f"face {floor}"]}])
+        with quiet():
+            result = cam.plan(self.ident, job=job)
+        self.assertTrue(result.ok, result.findings)
+        self.assertEqual(sorted(path.name for path in folder.iterdir()), ["block.cam.glb", "block.top.nc"])
+
+    @needs_fea
+    def test_fea_and_a_manufacturing_check_by_id_name_their_results_after_the_model(self) -> None:
+        from cadgen import fea, manufacturing
+
+        folder = self._in_folder()
+        bottom, top, floor = self._face(-1, 0), self._face(1, 25), self._face(1, 15)
+        with quiet():
+            solved = fea.solve(self.ident, study={"material": "aluminum-6061-t6", "mesh": {"size_mm": 6.0},
+                                                  "fixtures": [{"faces": [f"face {bottom}"]}],
+                                                  "loads": [{"faces": [f"#o1.f{top}"], "type": "force",
+                                                             "vector_N": [0, 0, -500]}]})
+        self.assertTrue(solved.ok, solved.findings)
+        self.assertEqual((solved.glb.name, solved.sidecar.name), ("block.fea.glb", "block.fea.json"))
+        self.assertEqual(json.loads(solved.sidecar.read_text(encoding="utf-8"))["document"], self.ident)
+        with quiet():
+            checked = manufacturing.check(self.ident, study={
+                "process": "machining", "material": "6061-t6", "operation": "milling",
+                "tool": {"diameter_mm": 10, "flutes": 3}, "spindle_rpm": 8000, "feed_per_tooth_mm": 0.05,
+                "depth_mm": 3, "width_mm": 0.5, "mesh": {"size_mm": 6.0},
+                "cut_faces": [f"block/face {floor}"], "fixtures": [{"faces": [f"face {bottom}"]}]})
+        self.assertTrue(checked.ok)
+        self.assertTrue({"block.machining.glb", "block.machining.result.json"} <= {p.name for p in folder.iterdir()})
 
     def test_a_ref_naming_another_document_is_refused(self) -> None:
         from cadgen._internal.step_open import open_scene

@@ -25,8 +25,10 @@ from cadgen._internal.cam.part import resolve_one
 
 __all__ = ["Chain", "EDGE_REF", "chains", "edge_points", "edge_refs", "material_heights", "resolve_edge"]
 
-#: An edge selector: ``#o1.e5`` (any file prefix), or a bare ``#e5`` on a one-part document.
-EDGE_REF = re.compile(r"^(?:[^#\s]*)#o[\w.]+\.e\d+$|^#e\d+$")
+#: An edge selector in either grammar the part's scene reads: 0.7's ``#o1.e5`` (any file prefix, or a bare ``#e5``
+#: on a one-part document), or the engine's ``edge 5`` and ``e:<name>``, an owner (``block/edge 5``) or a file or
+#: document id before it.
+EDGE_REF = re.compile(r"^[^#\s]*#(?:[\w.:]+\.)?e\d+$|^(?:[^#]*#)?(?:[^#]*/)?(?:edge \d+|e:\S+)$")
 #: Two edge ends this close (mm) are one point of a chain; a chain whose heights spread more than this climbs.
 JOIN_MM = 1e-3
 
@@ -53,8 +55,8 @@ def edge_refs(raw: object, where: str) -> tuple[str, ...]:
     if isinstance(raw, str):
         raw = [raw]
     if not isinstance(raw, list) or not raw or not all(isinstance(ref, str) and EDGE_REF.match(ref) for ref in raw):
-        raise CamJobError(f"{where} must be a list of edge refs like \"#o1.e12\" (select the edges in the Viewer), "
-                          f"not {shown(raw)}")
+        raise CamJobError(f"{where} must be a list of edge refs like \"#o1.e12\" or \"block/edge 12\" (select the "
+                          f"edges in the Viewer), not {shown(raw)}")
     for i, ref in enumerate(raw):
         if ref in raw[:i]:
             raise CamJobError(f"{where}: {ref!r} is listed twice; name each edge once")
@@ -71,7 +73,7 @@ def resolve_edge(ctx, ref: str, where: str):
     except ValueError as exc:
         raise CamJobError(f"{where}: {ref} is not an edge of this part ({exc}); select the edges in the Viewer") from None
     if selection.kind != "edge":
-        raise CamJobError(f"{where}: {ref} is a {selection.kind} reference; name edges (#o1.e12)")
+        raise CamJobError(f"{where}: {ref} is a {selection.kind} reference; name edges (#o1.e12 or block/edge 12)")
     if selection.occurrence_ref != part.occurrence:
         raise CamJobError(f"{where}: {ref} is on {selection.occurrence_ref}, but the job machines {part.occurrence}")
     return selection

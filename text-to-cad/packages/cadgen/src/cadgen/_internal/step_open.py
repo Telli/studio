@@ -23,18 +23,21 @@ Stdlib only at import: the kernel loads when a document is opened.
 
 from __future__ import annotations
 
+import functools
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
-__all__ = ["DOCUMENT_SUFFIXES", "Occurrence", "Scene", "Selection", "open_scene", "pick_occurrence", "resolve_one"]
+__all__ = ["DOCUMENT_SUFFIXES", "Occurrence", "Scene", "Selection", "document_stem", "open_scene", "pick_occurrence",
+           "resolve_one"]
 
 #: The files a scene opens; anything else is a document id or refused.
 DOCUMENT_SUFFIXES = (".step", ".stp", ".xbf")
 
 _LETTERS = {"shape": "s", "face": "f", "edge": "e", "vertex": "v"}
-# 0.7 selectors the 0.7 grammar reads; a bare label or anything else is read as the engine's grammar.
+# 0.7 selectors the 0.7 grammar reads. A bare label reads in either grammar; a line of labels alone, or of
+# anything else, is read as the engine's.
 _NUMBERED = frozenset({"occurrence", "shape", "face", "edge", "vertex"})
 
 
@@ -55,6 +58,23 @@ def open_scene(source: Any) -> "Scene":
     if not path.is_file():
         raise FileNotFoundError(f"no document at {path}")
     return _read(path, str(path), path.stem)
+
+
+def document_stem(source: Any) -> str:
+    """What a tool names its outputs of ``source`` after: a file's stem, or a held document's name (``block`` for
+    a model's document), asked of the engine in the caller's environment; nothing is exported or built."""
+    from cadgen.engine.ids import is_id
+
+    text = os.fspath(source)
+    return _held_name(text) if is_id(text) else Path(text).stem
+
+
+@functools.lru_cache(maxsize=64)
+def _held_name(ident: str) -> str:
+    from cadgen.engine.api import inspect
+
+    found = inspect(ident, query="structure", progress=False)
+    return str((found.get("summary") or {}).get("name") or ident)
 
 
 def _read(path: Path, document: str, stem: str) -> "Scene":
@@ -133,10 +153,12 @@ class Selection:
     def shape(self) -> Any:
         """Its geometry in the document's frame, a build123d shape the caller owns, labelled and coloured as
         its occurrence is. An assembly occurrence is an unfused compound of the parts below it."""
-        from cadgen.engine.colors import color
-        from cadgen.geometry import _cast, _copy
+        from build123d import Compound
+        from OCP.BRepBuilderAPI import BRepBuilderAPI_Copy
 
-        result = _cast(_copy(self._scene._placed(self)))
+        from cadgen.engine.colors import color
+
+        result = Compound.cast(BRepBuilderAPI_Copy(self._scene._placed(self), True, False).Shape())
         occurrence = self._scene._occurrences[self.occurrence_ref]
         result.label = occurrence.label or ""
         if occurrence._color is not None:
@@ -240,7 +262,13 @@ class Scene:
 
         prefix, text = split_cad_ref(ref)
         parsed = parse_selector_list(text)
-        if parsed and all(p is not None and p.selector_type in _NUMBERED for p in parsed):
+        types = {p.selector_type if p is not None else None for p in parsed}
+        if types & _NUMBERED:
+            if None in types:
+                raise ValueError(f"{ref!r} has an empty selector")
+            if not types <= _NUMBERED | {"label"}:
+                raise ValueError(f"{ref!r} mixes 0.7 refs (#o1.f17) with the engine's (plate/face 17): one grammar per "
+                                 "line")
             refs.check_file(prefix or None, Path(self.document))
             return tuple(self._numbered(p) for p in parsed if p is not None)
         return tuple(self._hit(hit) for hit in refs.resolve_structure(self.structure, ref, Path(self.document)))
@@ -272,7 +300,7 @@ class Scene:
             if len(self._leaves) != 1:
                 raise ValueError(f"{ref!r} needs an occurrence prefix in an assembly")
             occurrence = self._leaves[0]
-        if parsed.selector_type == "occurrence":
+        if parsed.selector_type in ("occurrence", "label"):
             return occurrence
         below = [leaf for leaf in self._leaves if leaf.ref.startswith(occurrence.ref + ".")]
         if "prototype" not in occurrence._entry and len(below) == 1:

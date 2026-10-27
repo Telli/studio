@@ -47,7 +47,7 @@ class DocumentedTemplateTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         root = Path(temporary.name)
         self.enterContext(mock.patch.dict(os.environ, {
-            "CADGEN_CACHE_DIR": str(root / "store"), "CADGEN_DAEMON": "0", "CADGEN_COMPONENT_WORKERS": "1",
+            "CADGEN_CACHE_DIR": str(root / "store"),
         }))
         parts = []
         for label, z, size in (("base_plate", 0, 10), ("bracket", 25, 40), ("pin", 50, 4)):

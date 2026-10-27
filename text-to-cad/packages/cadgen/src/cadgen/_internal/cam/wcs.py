@@ -25,12 +25,18 @@ from dataclasses import dataclass
 
 from cadgen._internal.cam.job_errors import CamJobError
 
-__all__ = ["FaceOrientation", "WCS", "build_wcs", "rotation_for", "rotation_to", "with_face_orientations"]
+__all__ = ["FaceOrientation", "WCS", "build_wcs", "names_face", "rotation_for", "rotation_to", "with_face_orientations"]
 
 _AXES = {"X": (1.0, 0.0, 0.0), "Y": (0.0, 1.0, 0.0), "Z": (0.0, 0.0, 1.0)}
 #: For each tool direction, the part direction that becomes WCS +X (the rest follows by the right-hand rule).
 _WCS_X = {"+Z": (1.0, 0.0, 0.0), "-Z": (1.0, 0.0, 0.0), "+X": (0.0, 1.0, 0.0), "-X": (0.0, -1.0, 0.0),
           "+Y": (-1.0, 0.0, 0.0), "-Y": (1.0, 0.0, 0.0)}
+
+
+def names_face(orientation: object) -> bool:
+    """Whether a setup's orientation is a face it is turned onto, as the job wrote it (``#o1.f4``, ``block/face 4``):
+    any text but the six tool directions (``job._face_orientation`` has checked it is a face ref)."""
+    return isinstance(orientation, str) and orientation not in _WCS_X
 
 
 def _cross(a, b):
@@ -71,7 +77,7 @@ def rotation_for(orientation: object) -> tuple[tuple[float, float, float], ...]:
         if orientation.rotary is not None:
             return rotation_for(dict(orientation.rotary))
         return rotation_to(orientation.normal)
-    if isinstance(orientation, str) and "#" in orientation:
+    if names_face(orientation):
         raise CamJobError(f"orientation {orientation} names a face: read the part first (with_face_orientations)")
     if isinstance(orientation, dict):
         a = math.radians(orientation.get("a_deg", 0.0))
@@ -194,11 +200,11 @@ def with_face_orientations(job, part):
     or not planar, is a teaching error."""
     from dataclasses import replace
 
-    if not any(isinstance(s.orientation, str) and "#" in s.orientation for s in job.setups):
+    if not any(names_face(s.orientation) for s in job.setups):
         return job
     setups = []
     for setup in job.setups:
-        if isinstance(setup.orientation, str) and "#" in setup.orientation:
+        if names_face(setup.orientation):
             setup = replace(setup, orientation=_face_orientation(setup, part, job.machine))
         setups.append(setup)
     return replace(job, setups=tuple(setups))
