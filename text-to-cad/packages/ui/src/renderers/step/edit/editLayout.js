@@ -30,6 +30,18 @@ export function editLayoutState(edit) {
 }
 
 /**
+ * Whether the CAD workspace is the layout chosen, for what has no agent in it (Pencil and Shapes, Quick Edit): `manual`
+ * chosen for a model with a part script, or one the server has not yet answered for (`probing`), so none of the AI's
+ * pieces shows while it is asked and then goes. A model it says has none (`none`) is the viewer as it is, with them all.
+ * The workspace itself (`editing`) waits for the answer.
+ * @param {string} layout
+ * @param {{ status: string }} edit
+ */
+export function cadChosen(layout, edit) {
+  return layout === "manual" && edit.status !== "none";
+}
+
+/**
  * The layout and the way to change it, from the shell's services: `preferences` (the tab's
  * settings) and `onPreferenceChange` (its writer).
  * @param {{ preferences?: { editLayout?: string } | null, onPreferenceChange?: (patch: object) => void }} services

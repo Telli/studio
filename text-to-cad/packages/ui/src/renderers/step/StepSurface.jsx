@@ -160,7 +160,7 @@ import SketchesLayer from "./edit/SketchesLayer.jsx";
 import ImportedBody from "./edit/ImportedBody.jsx";
 import ValueCallout from "./edit/ValueCallout.jsx";
 import { NxIconSprite } from "../../lib/nxIcons.generated.jsx";
-import { WORKSPACE_SELECTION_COLOR, editLayoutState, useEditLayout } from "./edit/editLayout.js";
+import { WORKSPACE_SELECTION_COLOR, cadChosen, editLayoutState, useEditLayout } from "./edit/editLayout.js";
 import { editLayoutHost } from "../../tab-store/editLayoutHost.js";
 import { useHostFocus } from "./edit/useHostFocus.js";
 import { openedFrom, rememberOpenedFrom } from "./edit/openedFrom.js";
@@ -3341,6 +3341,9 @@ function StepSurfaceBody({ view, data }) {
   // command, sketch or pick open, or a change being saved, holds the switch (`layoutHeld`).
   const { editable, busy: layoutHeld } = editLayoutState(edit);
   const editing = editable && editLayout === "manual";
+  // The CAD layout chosen, the server's answer on the part script still to come too: the agent's pieces (Pencil and Shapes,
+  // Quick Edit) go by it, so none of them shows on a pick before the workspace is up (`cadChosen`).
+  const cad = cadChosen(editLayout, edit);
   // A command, a sketch or a plane being waited for, a panel the toolbar opened, or the drawing's sheet over the part: the selection
   // bar stays out of them. The feature selected is a pick for the bar only once the person has chosen it (`useChosenFeature`).
   const commandOpen = Boolean(edit.command || edit.picking || edit.inspecting || edit.sheetView);
@@ -3682,8 +3685,8 @@ function StepSurfaceBody({ view, data }) {
   // Every tool drawn by the icon generator (`edit/cadIcons.jsx`), the shell's and the model effects' too,
   // each showing what it has in hand: Select's and Measure's filter, the tool Pencil or Shapes draws with.
   // The toolbar shows these tools as the strip does.
-  // Pencil or Shapes in hand when the workspace opens is put down for Select, as the workspace has neither.
-  const putDownTool = mustPutDownTool({ editing, toolMode: shell.toolMode });
+  // Pencil or Shapes in hand when the CAD workspace is chosen is put down for Select, as the workspace has neither.
+  const putDownTool = mustPutDownTool({ cad, toolMode: shell.toolMode });
   useEffect(() => { if (putDownTool) ensureSelectTool(); }, [putDownTool, ensureSelectTool]);
   const tools = [
     shell.tools.own({
@@ -3695,8 +3698,8 @@ function StepSurfaceBody({ view, data }) {
       menu: selectModeMenu,
       onSelect: () => handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES),
     }),
-    // Pencil and Shapes are the Annotate tools, which write to the agent: the CAD workspace has no agent, so no ink.
-    ...stripDrawingTools({ editing, drawing: shell.tools.drawing }).map(tool => ({ ...tool, disabled: toolIdle,
+    // Pencil and Shapes are the Annotate tools, which write to the agent: the CAD workspace chosen has no agent, so no ink.
+    ...stripDrawingTools({ cad, drawing: shell.tools.drawing }).map(tool => ({ ...tool, disabled: toolIdle,
       icon: <ToolIcon id={tool.id} mode={drawingToolVariant(tool.id, shell.frame.annotation)} className="size-3.5" /> })),
     shell.tools.own({ id: TAB_TOOL_MODE.MEASURE, label: "Measure", shortcut: TOOL_SHORTCUTS.measure,
       icon: <ToolIcon id={TAB_TOOL_MODE.MEASURE} mode={pickModeOf(measureFilter, STEP_MEASURE_MODES).id} className="size-3.5" />,
@@ -3793,7 +3796,7 @@ function StepSurfaceBody({ view, data }) {
   // What the picks are, in the prompt grammar and as chips: what Quick Edit carries when it shows (`quickEditShown`), and what Add to context will deliver.
   const carried = useMemo(() => pickedReferences({ selectionActionVisible, selection: promptSelection, selectionChips: referenceChips, feature: featureCarried }),
     [selectionActionVisible, promptSelection, referenceChips, featureCarried]);
-  const quickEditOpen = quickEditShown({ editing, asked, selectionActionVisible });
+  const quickEditOpen = quickEditShown({ cad, asked, selectionActionVisible });
   // A row is its own feature; faces picked on the model are the feature the engine says made them all, where it is known and has
   // something to open (`facePick`), and then have its Edit as its row does (`selectionBarActions`). An edge, or a face not known, has none.
   const rowChosen = barPicks.length === 1 && barPicks[0].kind === "feature" ? barPicks[0] : null;
@@ -3945,11 +3948,11 @@ function StepSurfaceBody({ view, data }) {
     onCameraSettled: onLodCameraMoved
   };
 
-  const quickEditBox = quickEditCarries({ editing, open: quickEditOpen, carried, empty: EMPTY_LIST });
+  const quickEditBox = quickEditCarries({ cad, open: quickEditOpen, carried, empty: EMPTY_LIST });
   return <RendererShell shell={shell} tools={tools} subToolbar={tabToolMode === TAB_TOOL_MODE.MEASURE ? <MeasurementsBar measure={measure} /> : modelEffects.subToolbar} sidebar={stepSidebar} previewView={previewView}
     // The edit chrome's icons are drawn from this sprite, which the frame mounts once.
     iconSprite={<NxIconSprite />} drawingToolIcons={DRAWING_TOOL_ICONS}
-    // Quick Edit shows with a selection to carry in the AI layout, as always; the CAD workspace has no agent to send it to, so no box.
+    // Quick Edit shows with a selection to carry in the AI layout, as always; the CAD workspace chosen has no agent to send it to, so no box.
     references={quickEditBox.references} referenceChips={quickEditBox.chips}
     quickEditAsked={null} nameReference={nameReference}
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}

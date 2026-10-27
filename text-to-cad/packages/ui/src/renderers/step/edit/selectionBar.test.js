@@ -5,6 +5,7 @@ import * as THREE from "three";
 
 import { formatPromptMessage, formatPromptReference } from "@text-to-cad/core/prompt";
 import { createQuickEditContext } from "../../kit/tools/quick-edit/quickEditPrompt.js";
+import { cadChosen } from "./editLayout.js";
 import { featureTree } from "./editMode.js";
 import {
   boundsCorners, facePick, featurePick, featureReference, pickedReferences, placeBar, projectRoot, quickEditLetsGo, mustPutDownTool, quickEditCarries, quickEditShown, rowLabel, screenBox, selectionBarActions, stripDrawingTools
@@ -74,15 +75,15 @@ test("is about faces, edges and a feature, and nothing else", () => {
 });
 
 test("shows Quick Edit in the workspace only after Ask", () => {
-  assert.equal(quickEditShown({ editing: true, asked: false, selectionActionVisible: true }), false);
-  assert.equal(quickEditShown({ editing: true, asked: true, selectionActionVisible: true }), true);
+  assert.equal(quickEditShown({ cad: true, asked: false, selectionActionVisible: true }), false);
+  assert.equal(quickEditShown({ cad: true, asked: true, selectionActionVisible: true }), true);
   // Ask with nothing picked is Quick Edit on the whole part.
-  assert.equal(quickEditShown({ editing: true, asked: true, selectionActionVisible: false }), true);
-  assert.equal(quickEditShown({ editing: true, asked: false, selectionActionVisible: false }), false);
-  // Simple view shows it as it always has: with what is picked, and not otherwise, whether or not anything was asked.
-  assert.equal(quickEditShown({ editing: false, asked: false, selectionActionVisible: true }), true);
-  assert.equal(quickEditShown({ editing: false, asked: false, selectionActionVisible: false }), false);
-  assert.equal(quickEditShown({ editing: false, asked: true, selectionActionVisible: false }), false);
+  assert.equal(quickEditShown({ cad: true, asked: true, selectionActionVisible: false }), true);
+  assert.equal(quickEditShown({ cad: true, asked: false, selectionActionVisible: false }), false);
+  // The AI layout shows it as it always has: with what is picked, and not otherwise, whether or not anything was asked.
+  assert.equal(quickEditShown({ cad: false, asked: false, selectionActionVisible: true }), true);
+  assert.equal(quickEditShown({ cad: false, asked: false, selectionActionVisible: false }), false);
+  assert.equal(quickEditShown({ cad: false, asked: true, selectionActionVisible: false }), false);
 });
 
 // The sample bracket as the engine reads it: two extrudes a command made from sketches, a fillet written by hand,
@@ -357,21 +358,40 @@ test("Quick Edit's X or a send lets go of everything picked, but only of the box
 
 test("the strip has Pencil and Shapes in the AI layout and none in the CAD workspace", () => {
   const drawing = [{ id: "pencil" }, { id: "shapes" }];
-  assert.deepEqual(stripDrawingTools({ editing: false, drawing }), drawing);
-  assert.deepEqual(stripDrawingTools({ editing: true, drawing }), []);
+  assert.deepEqual(stripDrawingTools({ cad: false, drawing }), drawing);
+  assert.deepEqual(stripDrawingTools({ cad: true, drawing }), []);
 });
 
 test("Quick Edit is handed the picks in the AI layout, and no box at all in the CAD workspace", () => {
   const carried = { references: ["r"], chips: ["c"] }, empty = [];
-  assert.deepEqual(quickEditCarries({ editing: false, open: true, carried, empty }), { references: ["r"], chips: ["c"] });
-  assert.deepEqual(quickEditCarries({ editing: false, open: false, carried, empty }), { references: empty, chips: empty });
-  assert.deepEqual(quickEditCarries({ editing: true, open: true, carried, empty }), { references: null, chips: empty });
+  assert.deepEqual(quickEditCarries({ cad: false, open: true, carried, empty }), { references: ["r"], chips: ["c"] });
+  assert.deepEqual(quickEditCarries({ cad: false, open: false, carried, empty }), { references: empty, chips: empty });
+  assert.deepEqual(quickEditCarries({ cad: true, open: true, carried, empty }), { references: null, chips: empty });
 });
 
 test("Pencil or Shapes in hand is put down when the CAD workspace is up, and left alone in the AI layout", () => {
   for (const toolMode of ["pencil", "shapes"]) {
-    assert.equal(mustPutDownTool({ editing: true, toolMode }), true);
-    assert.equal(mustPutDownTool({ editing: false, toolMode }), false);
+    assert.equal(mustPutDownTool({ cad: true, toolMode }), true);
+    assert.equal(mustPutDownTool({ cad: false, toolMode }), false);
   }
-  for (const toolMode of ["references", "measure", ""]) assert.equal(mustPutDownTool({ editing: true, toolMode }), false);
+  for (const toolMode of ["references", "measure", ""]) assert.equal(mustPutDownTool({ cad: true, toolMode }), false);
+});
+
+test("none of the agent's pieces shows with CAD chosen while the engine is still asked about the part script", () => {
+  const drawing = [{ id: "pencil" }, { id: "shapes" }];
+  const carried = { references: ["r"], chips: ["c"] }, empty = [];
+  // Chosen, not yet editable: the workspace is not up, and still no Pencil, Shapes or Quick Edit on a pick.
+  const cad = cadChosen("manual", { status: "probing" });
+  assert.equal(cad, true);
+  assert.deepEqual(stripDrawingTools({ cad, drawing }), []);
+  assert.equal(quickEditShown({ cad, asked: false, selectionActionVisible: true }), false);
+  assert.deepEqual(quickEditCarries({ cad, open: false, carried, empty }), { references: null, chips: empty });
+  assert.equal(mustPutDownTool({ cad, toolMode: "pencil" }), true);
+  // A model with no part script is the viewer as it is, CAD chosen or not; the AI layout always has them.
+  for (const [layout, status] of [["manual", "none"], ["ai", "probing"], ["ai", "ready"]]) {
+    const other = cadChosen(layout, { status });
+    assert.deepEqual(stripDrawingTools({ cad: other, drawing }), drawing, `${layout} ${status}`);
+    assert.equal(quickEditShown({ cad: other, asked: false, selectionActionVisible: true }), true, `${layout} ${status}`);
+  }
+  for (const status of ["reading", "idle", "ready", "error"]) assert.equal(cadChosen("manual", { status }), true, status);
 });

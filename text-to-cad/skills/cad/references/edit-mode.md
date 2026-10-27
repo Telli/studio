@@ -253,7 +253,8 @@ by hand" below.
   found first, then the words other tools have for it (NX's and Fusion's: "edge blend", "press pull"); Enter runs the first result (the arrow keys move the choice), Escape
   puts the box away. It runs a result as its button does, and lists what the toolbar has and no
   more: a button the toolbar shows dimmed is dimmed in it, with the toolbar's reason, and while a
-  sketch is open it is the sketch's tools and the features made of it. Simple view leaves S alone.
+  sketch is open it is the sketch's tools and the features made of it. In AI mode (Studio's AI | CAD
+  switch on AI), S is left alone.
 - **Suppress** takes a feature out of the part but keeps its lines, as comments under a line that
   says what they are; Unsuppress puts them back exactly. A boolean that starts a name keeps the
   name meanwhile, on a line of its own:

@@ -23,7 +23,7 @@ const featureKey = feature => (feature && typeof feature === "object" ? feature.
 
 /**
  * What the bar offers beside the picks, in its order, each `{ id, enabled, reason? }` (`reason`: why it is held):
- * Ask, Add to context and Annotate, and Edit when there is one feature to edit. Nothing in Simple view, with
+ * Ask, Add to context and Annotate, and Edit when there is one feature to edit. Nothing in the AI layout, with
  * nothing picked, with a pick that is not a face, an edge or a feature, or while a command or a sketch is open
  * (`commandOpen`, `sketching`): the bar is for choosing what to do with a pick, and an open command is doing it.
  *
@@ -49,37 +49,38 @@ export function selectionBarActions({ editing, picks, commandOpen = false, sketc
 }
 
 /**
- * Whether Quick Edit shows. In the workspace (`editing`) only once the person has asked (`asked`: Ask, in the
- * bar or the toolbar), whatever is picked, and then even with nothing picked, on the part as a whole. In Simple
- * view as it always has: with a selection it can carry (`selectionActionVisible`).
+ * Whether Quick Edit shows. With the CAD workspace chosen (`cad`, `editLayout.js`'s `cadChosen`) only once the person
+ * has asked (`asked`: an Ask), whatever is picked, and then even with nothing picked, on the part as a whole. In the
+ * AI layout as it always has: with a selection it can carry (`selectionActionVisible`).
  */
-export function quickEditShown({ editing, asked, selectionActionVisible }) {
-  return editing ? Boolean(asked) : Boolean(selectionActionVisible);
+export function quickEditShown({ cad, asked, selectionActionVisible }) {
+  return cad ? Boolean(asked) : Boolean(selectionActionVisible);
 }
 
 /**
  * The drawing tools (Pencil, Shapes) the strip shows. They are Annotate's tools, which write to the agent, so the CAD workspace
- * (`editing`) has none; the AI layout has them as the viewer ships.
+ * chosen (`cad`, `cadChosen`) has none, even while the engine is still asked whether the part can be edited; the AI layout has
+ * them as the viewer ships.
  */
-export function stripDrawingTools({ editing, drawing }) {
-  return editing ? [] : drawing;
+export function stripDrawingTools({ cad, drawing }) {
+  return cad ? [] : drawing;
 }
 
 /**
- * What Quick Edit is handed to carry: in the AI layout the picks while it shows (`open`), else nothing. The CAD workspace has no agent
- * to send them to, so it is given no box at all (`references: null`).
+ * What Quick Edit is handed to carry: in the AI layout the picks while it shows (`open`), else nothing. The CAD workspace chosen
+ * (`cad`, `cadChosen`) has no agent to send them to, so it is given no box at all (`references: null`).
  */
-export function quickEditCarries({ editing, open, carried, empty }) {
-  if (editing) return { references: null, chips: empty };
+export function quickEditCarries({ cad, open, carried, empty }) {
+  if (cad) return { references: null, chips: empty };
   return { references: open ? carried.references : empty, chips: open ? carried.chips : empty };
 }
 
 /**
- * Whether the tool in hand must be put down for Select: Pencil or Shapes (`toolMode`) when the CAD workspace is up (`editing`), which
- * has neither, or a click would draw instead of select.
+ * Whether the tool in hand must be put down for Select: Pencil or Shapes (`toolMode`) when the CAD workspace is chosen (`cad`,
+ * `cadChosen`), whose strip has neither (`stripDrawingTools`), or a click would draw instead of select.
  */
-export function mustPutDownTool({ editing, toolMode }) {
-  return Boolean(editing) && (toolMode === "pencil" || toolMode === "shapes");
+export function mustPutDownTool({ cad, toolMode }) {
+  return Boolean(cad) && (toolMode === "pencil" || toolMode === "shapes");
 }
 
 /**
