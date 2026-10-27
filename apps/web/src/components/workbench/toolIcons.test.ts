@@ -2,7 +2,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { ACTION_SECTIONS, HARDWARE_ACTIONS, type HardwareAction } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
-import { hasSectionIcon, toolIcon } from "./toolIcons";
+import { hasSectionIcon, JOB_ICON_IDS, toolIcon } from "./toolIcons";
 
 /**
  * Jobs in one section that may share a picture, as `[section, first job, second job]`, each with
@@ -27,6 +27,11 @@ describe("toolIcon", () => {
       (action) => toolIcon(action) === MENU_ICONS[action.group],
     );
     expect(generic.map((action) => action.id)).toEqual([]);
+  });
+
+  it("keys every picture of its own to a real job", () => {
+    const ids = new Set(HARDWARE_ACTIONS.map((action) => action.id));
+    expect(JOB_ICON_IDS.filter((id) => !ids.has(id))).toEqual([]);
   });
 
   it("tells the tools in a section apart", () => {

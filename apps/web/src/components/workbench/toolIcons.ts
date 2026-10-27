@@ -164,6 +164,9 @@ const JOB_ICONS: Partial<Record<string, LucideIcon>> = {
   srdf: Move3dIcon,
 };
 
+/** The jobs with a picture of their own, by id: the test holds each to a real job. */
+export const JOB_ICON_IDS: ReadonlyArray<string> = Object.keys(JOB_ICONS);
+
 /** A section's picture (`ACTION_SECTIONS`), for a job of it that has none of its own yet. */
 const SECTION_ICONS: Partial<Record<string, LucideIcon>> = {
   simulation: DumbbellIcon,
