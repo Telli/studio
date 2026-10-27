@@ -36,7 +36,7 @@ export function booleanOf(id) {
 /**
  * The Features tab's groups, in Fusion's arrangement. A group is its title, what it
  * holds (modeling commands by their `EDIT_COMMANDS` id, "sketch", or a tool of the viewer:
- * "measure", "clip", "references"), and how many of them show as buttons (`shown`); the group's
+ * "references"), and how many of them show as buttons (`shown`); the group's
  * title is its menu, with every one. `end`: it stands at the row's right end. The workspace has
  * no agent, so no group of Ask, Add to context or Annotate. A subtracting command (Extruded Cut...) is not
  * listed: it opens by its unite command's Boolean.
@@ -47,7 +47,6 @@ export const SOLID_GROUPS = Object.freeze([
   // they are, an imported body's (no history) as well as any.
   { title: "Modify", items: ["offset_face", "fillet", "chamfer", "shell", "draft", "split", "delete_face", "delete_body"], shown: 4 },
   { title: "Construct", items: ["plane"], shown: 1 },
-  { title: "Inspect", items: ["measure", "clip"], shown: 2 },
   { title: "Select", items: ["references"], shown: 1 },
 ]);
 

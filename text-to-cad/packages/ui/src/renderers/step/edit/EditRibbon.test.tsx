@@ -53,7 +53,7 @@ it("opens a group's command from its menu", async () => {
 it("has no agent in it: no Ask the agent group, and no Ask, Add to context or Annotate, though the strip has Pencil and Shapes", () => {
   // The strip's Pencil and Shapes are Annotate's tools; the workspace is no place for them either.
   render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
-  expect(Object.keys(layout())).toEqual(['Create', 'Modify', 'Construct', 'Inspect', 'Select']);
+  expect(Object.keys(layout())).toEqual(['Create', 'Modify', 'Construct', 'Select']);
   expect(screen.queryByRole('group', { name: 'Ask the agent' })).toBeNull();
   const named = screen.getAllByRole('button').map(button => button.getAttribute('aria-label') || button.textContent);
   expect(named.filter(name => ['Ask', 'Add to context', 'Annotate', 'Pencil', 'Shapes'].includes(name || ''))).toEqual([]);
@@ -74,7 +74,6 @@ it("groups the Features tab's commands as the design does, each under SolidWorks
     Create: ['Sketch', 'Extruded Boss/Base', 'Revolved Boss/Base', 'Swept Boss/Base'],
     Modify: ['Move Face', 'Fillet', 'Chamfer', 'Shell'],
     Construct: ['Plane'],
-    Inspect: ['Measure', 'Section View'],
     Select: ['Select'],
   });
 });
@@ -112,7 +111,7 @@ it("names each group's menu apart from a command of the same name, the group's w
   const namesOnTab = () => screen.getAllByRole('button').map(button => button.getAttribute('aria-label') || '');
   expect(screen.getAllByRole('button', { name: 'Select' })).toHaveLength(1);
   expect(command('Select', 'Select')).toBe(screen.getByRole('button', { name: 'Select' }));
-  for (const title of ['Create', 'Modify', 'Construct', 'Inspect', 'Select']) {
+  for (const title of ['Create', 'Modify', 'Construct', 'Select']) {
     // The title is what the menu shows, and is in the name it is called by.
     expect([menuOf(title).getAttribute('aria-haspopup'), menuOf(title).textContent]).toEqual(['menu', title]);
   }
@@ -215,7 +214,7 @@ function layOutRibbon() {
   } });
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get(this: HTMLElement) {
     if (!this.hasAttribute('data-compact')) return 0;
-    return this.parentElement?.querySelector('[data-cad-ribbon-more]') ? 354 : 400;
+    return this.parentElement?.querySelector('[data-cad-ribbon-more]') ? 299 : 345;
   } });
   return () => keys.forEach((key, index) => {
     const descriptor = saved[index];
@@ -229,10 +228,10 @@ it("drops the groups' names, then folds the groups at the right into More, where
     render(<EditRibbon tools={PART_TOOLS} edit={edit() as never} />);
     // A folded group is hidden from the accessibility tree, so it has no name to be found by.
     const labelled = (title: string) => document.querySelector<HTMLElement>(`[role="group"][aria-label="${title}"]`)!;
-    // Five groups need 750px with their names and 500px without: the names go, then the groups at the
+    // Four groups need 600px with their names and 400px without: the names go, then the groups at the
     // right fold behind More.
     expect(screen.getByRole('button', { name: 'More commands' })).toBeTruthy();
-    expect(['Construct', 'Inspect', 'Select'].map(title => labelled(title).getAttribute('aria-hidden'))).toEqual([null, 'true', 'true']);
+    expect(['Construct', 'Select'].map(title => labelled(title).getAttribute('aria-hidden'))).toEqual([null, 'true']);
     expect(command('Create', 'Extruded Boss/Base').textContent).toBe('');
   } finally {
     restore();
@@ -275,8 +274,8 @@ function openSearch(patch: Record<string, unknown> = {}, props: Record<string, u
 }
 const PART_NAMES = ['Sketch', 'Extruded Boss/Base', 'Extruded Cut', 'Revolved Boss/Base', 'Revolved Cut', 'Swept Boss/Base', 'Swept Cut',
   'Lofted Boss/Base', 'Lofted Cut', 'Rib', 'Hole Wizard', 'Pattern', 'Mirror', 'Move Face', 'Fillet', 'Chamfer', 'Shell', 'Draft',
-  'Split', 'Delete Face', 'Delete/Keep Body', 'Plane', 'Measure', 'Section View', 'Mass Properties', 'Draft Analysis', 'Interference Detection', 'Compare',
-  'Normal To', 'Appearance', 'Equations', 'Make Drawing'];
+  'Split', 'Delete Face', 'Delete/Keep Body', 'Plane', 'Measure', 'Mass Properties', 'Draft Analysis', 'Interference Detection', 'Compare',
+  'Section View', 'Normal To', 'Appearance', 'Equations', 'Make Drawing'];
 const ASSEMBLY = { units: 'mm', components: [{ id: 'base' }], drawing: null };
 
 it("opens the box when S asks, beside the toolbar and not in it, listing the commands of every tab and not the one in front", () => {

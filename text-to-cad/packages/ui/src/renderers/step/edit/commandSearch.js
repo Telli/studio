@@ -30,7 +30,7 @@ export const COMMAND_WORDS = frozen({
   clip: ["section", "cross section", "edit section"],
 });
 
-/** The same for the toolbar's other buttons (Inspect, Assemble, Drafting, and the sketch's), by their ids. */
+/** The same for the toolbar's other buttons (Evaluate, Assemble, Drafting, and the sketch's), by their ids. */
 export const TOOLBAR_WORDS = frozen({
   mass: ["measure bodies", "weight", "volume"], interference: ["simple interference", "clash"], "normal-to": ["orient view", "look at"],
   appearance: ["edit object display", "color"], expressions: ["parameters", "expressions", "global variables"],
@@ -40,12 +40,12 @@ export const TOOLBAR_WORDS = frozen({
   trim: ["quick trim"], extend: ["quick extend"], spline: ["studio spline"],
 });
 
-// The Solid tab's buttons that are not modeling commands, and what each of the other tabs adds (the Inspect tab's, then Assemble's,
+// The Solid tab's buttons that are not modeling commands, and what each of the other tabs adds (the Evaluate tab's, then Assemble's,
 // then Drafting's), in the toolbar's order, under the names `EditRibbon.jsx` gives them. Select and the agent's buttons are no CAD command.
-const SOLID_BUTTONS = Object.freeze({ sketch: "Sketch", measure: "Measure", clip: "Section View" });
+const SOLID_BUTTONS = Object.freeze({ sketch: "Sketch" });
 const TAB_BUTTONS = Object.freeze([
-  ["mass", "Mass Properties"], ["draft-analysis", "Draft Analysis"], ["interference", "Interference Detection"], ["compare", "Compare"],
-  ["normal-to", "Normal To"], ["appearance", "Appearance"], ["expressions", "Equations"],
+  ["measure", "Measure"], ["mass", "Mass Properties"], ["draft-analysis", "Draft Analysis"], ["interference", "Interference Detection"], ["compare", "Compare"],
+  ["clip", "Section View"], ["normal-to", "Normal To"], ["appearance", "Appearance"], ["expressions", "Equations"],
   ["insert-components", "Insert Components"], ["mate", "Mate"], ["exploded", "Exploded View"],
   ["drawing", "Drawing"], ["edit-sheet", "Edit Sheet"], ["make-drawing", "Make Drawing"],
 ]);
@@ -94,7 +94,7 @@ const begins = (text, queried) => { const words = wordsOf(text); return queried.
 /**
  * The commands a query finds, each `{ id, label, detail }`: its name in the toolbar (NX's), and the Boolean
  * that tells a cut from the Extrude it is a Subtract of (`detail`, else null). Nothing typed lists them all,
- * in the toolbar's order: the Solid tab's, then what Inspect, Assemble and Drafting add. With a sketch open
+ * in the toolbar's order: the Solid tab's, then what Evaluate, Assemble and Drafting add. With a sketch open
  * (`sketching`) its tools come first, then the same, a sketch's Fillet, Chamfer and Mirror standing in for the
  * modeling commands of those ids. `labels` is the toolbar's name for a button where it varies (`{ sketch: "Edit Sketch" }`
  * while a sketch is selected), and is what is found and shown for it.

@@ -237,8 +237,8 @@ function searchable(groups, extras = []) {
  * row has Undo and Redo of the hand changes at the left, the tabs after them, and at the right the
  * part's units and where its build stands (or the sketch and how defined it is). Solid holds the
  * modeling commands in groups (`SOLID_GROUPS`: Create, Modify, Construct), each opening its
- * dialog, then Measure and Edit Section, and Select. Sketch
- * holds the Sketch command (Edit Sketch on a sketch selected); Inspect measures and checks the
+ * dialog, then Select (Measure and Section View are on the Evaluate tab). Sketch
+ * holds the Sketch command (Edit Sketch on a sketch selected); Evaluate measures and checks the
  * part, orients and colors its view and lists its Expressions; Assemble, for an assembly, holds
  * Assembly Constraints and Exploded Views; Drafting the part's drawing. A group shows its
  * most-used commands as buttons over its title, which is its menu of them all. While a sketch is
@@ -420,8 +420,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   const panelItem = (id, label, icon, what, disabled = edit.status !== "ready") => ({ id, label, icon, active: edit.inspecting === what, disabled,
     onClick: () => (edit.inspecting === what ? edit.stopInspecting() : edit.inspect(what)) });
   const viewerTool = id => (byId.has(id) ? [toolItem(byId.get(id))] : []);
-  // What a SOLID_GROUPS item is, drawn: the Sketch command, a modeling command, or a tool of the viewer's strip (Measure,
-  // Edit Section, Select).
+  // What a SOLID_GROUPS item is, drawn: the Sketch command, a modeling command, or a tool of the viewer's strip (Select).
   const solidItems = id => {
     if (id === "sketch") return [sketchCommand];
     const command = EDIT_COMMANDS.find(each => each.id === id);
@@ -443,7 +442,7 @@ export default function EditRibbon({ tools, edit, onCommand = id => edit.open(id
   const groupsOf = {
     solid: () => SOLID_GROUPS.map(group => ({ title: group.title, items: group.items.flatMap(solidItems), shown: group.shown, end: group.end })),
     sketch: () => [whole("Direct Sketch", [sketchCommand])],
-    // Inspect: what measures and checks the part, how it is seen, and the part's named sizes.
+    // Evaluate: what measures and checks the part, how it is seen, and the part's named sizes.
     inspect: () => [
       whole("Measure", [...viewerTool("measure"), panelItem("mass", "Mass Properties", <MassPropertiesIcon />, "mass")]),
       whole("Analyze", [
