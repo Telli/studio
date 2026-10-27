@@ -205,23 +205,21 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
 A branch on top of `amy/hardware` for people who know hardware before code: `brand.json`
 `"focus": "hardware"`. `amy/hardware` stays the base text-to-cad pins; this one rebases onto it.
 
-Its interface is a setting, Engineering, Engineering with code, or Code, Engineering by default,
-per device. The switch is Settings, Appearance, Interface in the two code interfaces, and Settings,
+Its interface is a setting, Engineering, Engineering with code, or Code, Engineering by default, per
+device. The switch is Settings, Appearance, Interface in the two code interfaces, and Settings,
 Advanced, Interface in Engineering, where Appearance leaves the row out. The command palette has no
 switch commands; searching settings for "interface" finds the switch in every interface. Engineering
-puts every coding tool away (version control,
-editors, terminals, scripts, branches, pull requests, diffs), names parts and documents rather than
-files ("Servo bracket", "Servo bracket drawing", "Servo bracket STL", not
-`parts/servo_bracket.step`) on the project page, tabs, file chips in the chat and the work log (`components/workbench/partNames.ts`), says what
-the agent's steps did to the design ("FEA study on the L bracket", "Built the L bracket") instead of
-the command lines, and reads like a shop drawing: a title block over the viewer with the part's
-type, units, material and build, and
-documents the agent writes (plans, reports) opening beside the thread as documents with a title
+puts every coding tool away (version control, editors, terminals, scripts, branches, pull requests,
+diffs), names parts and documents rather than files ("Servo bracket", "Servo bracket drawing",
+"Servo bracket STL", not `parts/servo_bracket.step`) on the project page, tabs, file chips in the
+chat and the work log (`components/workbench/partNames.ts`), says what the agent's steps did to the
+design ("FEA study on the L bracket", "Built the L bracket") instead of the command lines, and reads
+like a shop drawing: a title block over the viewer with the part's type, units, material and build,
+and documents the agent writes (plans, reports) opening beside the thread as documents with a title
 block of their own. Engineering with code keeps those surfaces (the projects home, the project's
-overview, the title block, documents) and brings every coding tool back in T3 Code's own words,
-with Source beside the pinned Project tab for the explorer. Code shows T3 Code's surfaces as they
-are. `<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choice for
-`brand/theme.css`.
+overview, the title block, documents) and brings every coding tool back in T3 Code's own words, with
+Source beside the pinned Project tab for the explorer. Code shows T3 Code's surfaces as they are.
+`<html data-studio-focus>` (`hardware`, `both` or `code`) carries the choice for `brand/theme.css`.
 
 Settings in Engineering leave out what a programmer sets (`CODE_SETTINGS_ROWS` in
 `components/workbench/engineeringSettings.ts`): the code font, agent update checks, response
@@ -233,17 +231,19 @@ together under one Advanced group in the settings sidebar (`ADVANCED_SETTINGS_SE
 `studioInterface.ts`); their own settings URLs are unchanged, and the code interfaces list neither
 Diagnostics nor Interface as a section.
 
-Engineering's composer has no model picker and no Thinking or Speed choice (the "/model" command
-and the model shortcuts do nothing there): the model new chats start on, with its Thinking and
-Speed, is Settings, AI agents, New chats (`DefaultModelRow`, the one row that edits the default
-model, which General shows under "New threads" in the code interfaces). It applies to chats
-started afterwards, to a draft that has not picked a model, and, in Engineering, to the open chat's
-next turn (`workbench/defaultModelFollow.ts`: the chat applies a changed default when it is next in
-front, through the picker's own provider-lock check). Resetting it to Automatic forgets the remembered
-composer pick there.
-Engineering also has no pull requests or usage page: `/pull-requests` and `/usage` open Home
-(a replaced history entry), and the usage shortcut does nothing. The code interfaces keep all of
-these as they were.
+Engineering's composer has no model picker and no Thinking or Speed choice (the "/model" command and
+the model shortcuts do nothing there): the model new chats start on, with its Thinking and Speed, is
+Settings, AI agents, New chats (`DefaultModelRow`, the one row that edits the default model, which
+General shows under "New threads" in the code interfaces). It applies to chats started afterwards,
+to a draft that has not picked a model, and, in Engineering, to the open chat's next turn
+(`workbench/defaultModelFollow.ts`: the chat that was in front when Settings opened takes a chosen
+model once, when it is next shown, through the picker's own provider-lock check, which toasts when
+the chat's provider cannot change). A reset to Automatic is not applied to an open chat; it forgets
+the remembered composer pick.
+
+Engineering also has no pull requests or usage page: `/pull-requests` and `/usage` open Home (a
+replaced history entry), and the usage shortcut does nothing. The code interfaces keep all of these
+as they were.
 
 - **The project's overview.** The Project tab (Overview, in Engineering) opens on it: the
   project's README in its folder first, what it is and its decisions

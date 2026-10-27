@@ -16,6 +16,7 @@ import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import { useComposerDraftStore } from "../../composerDraftStore";
 import { toastManager } from "../ui/toast";
+import { proposeModelFollow } from "../workbench/defaultModelFollow";
 import { useEngineeringInterface } from "../workbench/studioInterface";
 import { useSettingsScope } from "./SettingsScopeContext";
 import {
@@ -35,9 +36,10 @@ import {
  * `defaultModelSelection` at the scope Settings has selected (an environment's default, or a
  * project's override). General and Project settings show it under "New threads"; the engineering
  * interface, whose composer carries no model picker, shows it under AI agents instead. A change
- * applies to chats started afterwards; in the engineering interface the chat that is open also
- * takes it on its next turn (`workbench/defaultModelFollow.ts`). Resetting it to Automatic there
- * forgets the composer's remembered pick, so new chats start on the built-in model.
+ * applies to chats started afterwards; in the engineering interface the chat that was in front when
+ * Settings opened also takes a chosen model on its next turn (`workbench/defaultModelFollow.ts`).
+ * Resetting it is not applied to an open chat. There it also forgets the composer's remembered
+ * pick, so new chats start on the built-in model (at project scope, on the environment default).
  */
 export function DefaultModelRow() {
   const { scope, target, targets, connectedEnvironments } = useSettingsScope();
@@ -108,7 +110,10 @@ export function DefaultModelRow() {
     updateSettings({ defaultModelSelection: value });
     // With no picker in the engineering composer, a remembered pick could only be stale: new
     // chats should start on the built-in model once the default is reset.
-    if (value === null && engineering) useComposerDraftStore.getState().clearStickyModelSelection();
+    if (engineering) {
+      proposeModelFollow(value);
+      if (value === null) useComposerDraftStore.getState().clearStickyModelSelection();
+    }
   };
 
   return (

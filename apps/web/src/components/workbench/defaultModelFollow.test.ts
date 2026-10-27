@@ -1,48 +1,60 @@
 import { ProviderInstanceId, type ModelSelection } from "@t3tools/contracts";
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { defaultModelToApply, takeDefaultModelChange } from "./defaultModelFollow";
+import {
+  followToApply,
+  proposeModelFollow,
+  resetModelFollow,
+  setChatInFront,
+  takePendingFollow,
+} from "./defaultModelFollow";
 
-const pick = (model: string, options?: ModelSelection["options"]): ModelSelection => ({
+const pick = (model: string): ModelSelection => ({
   instanceId: ProviderInstanceId.make("codex"),
   model,
-  ...(options ? { options } : {}),
 });
+afterEach(resetModelFollow);
 
-describe("the open chat following the default model", () => {
-  it("applies a default that changed since the chat last looked", () => {
-    expect(defaultModelToApply({ engineering: true, current: pick("b"), seen: pick("a") })).toEqual(
+describe("which chat a model chosen in Settings applies to", () => {
+  it("applies to the matching chat", () => {
+    const pending = { threadKey: "e:t1", selection: pick("b") };
+    expect(followToApply({ engineering: true, pending, activeThreadKey: "e:t1" })).toEqual(
       pick("b"),
     );
-    expect(defaultModelToApply({ engineering: true, current: pick("a"), seen: null })).toEqual(
-      pick("a"),
-    );
   });
 
-  it("applies a change of Thinking or Speed alone", () => {
-    const high = pick("a", [{ id: "effort", value: "high" }] as never);
-    expect(defaultModelToApply({ engineering: true, current: high, seen: pick("a") })).toEqual(
-      high,
-    );
+  it("never applies to another chat, in the code interfaces, or with nothing pending", () => {
+    const pending = { threadKey: "e:t1", selection: pick("b") };
+    expect(followToApply({ engineering: true, pending, activeThreadKey: "e:t2" })).toBeNull();
+    expect(followToApply({ engineering: false, pending, activeThreadKey: "e:t1" })).toBeNull();
+    expect(followToApply({ engineering: true, pending: null, activeThreadKey: "e:t1" })).toBeNull();
+    expect(followToApply({ engineering: true, pending, activeThreadKey: null })).toBeNull();
   });
 
-  it("does nothing for the same default, a first look, a reset to Automatic, or the code interfaces", () => {
-    expect(defaultModelToApply({ engineering: true, current: pick("a"), seen: pick("a") })).toBe(
-      null,
-    );
-    expect(defaultModelToApply({ engineering: true, current: pick("a"), seen: undefined })).toBe(
-      null,
-    );
-    expect(defaultModelToApply({ engineering: true, current: null, seen: pick("a") })).toBe(null);
-    expect(defaultModelToApply({ engineering: false, current: pick("b"), seen: pick("a") })).toBe(
-      null,
-    );
+  it("is taken once, by the chat that was in front when the change was made", () => {
+    setChatInFront("e:t1");
+    proposeModelFollow(pick("b"));
+    setChatInFront("e:t1");
+    expect(takePendingFollow(true, "e:t2")).toBeNull();
+    expect(takePendingFollow(true, "e:t1")).toEqual(pick("b"));
+    expect(takePendingFollow(true, "e:t1")).toBeNull();
   });
 
-  it("remembers per project, so a change is applied once", () => {
-    expect(takeDefaultModelChange("p1", true, pick("a"))).toBe(null);
-    expect(takeDefaultModelChange("p1", true, pick("b"))).toEqual(pick("b"));
-    expect(takeDefaultModelChange("p1", true, pick("b"))).toBe(null);
-    expect(takeDefaultModelChange("p2", true, pick("b"))).toBe(null);
+  it("is replaced by a later change, and dropped by a reset to Automatic", () => {
+    setChatInFront("e:t1");
+    proposeModelFollow(pick("b"));
+    proposeModelFollow(pick("c"));
+    expect(takePendingFollow(true, "e:t1")).toEqual(pick("c"));
+    proposeModelFollow(pick("d"));
+    proposeModelFollow(null);
+    expect(takePendingFollow(true, "e:t1")).toBeNull();
+  });
+
+  it("does nothing when no chat has been in front, or in the code interfaces", () => {
+    proposeModelFollow(pick("b"));
+    expect(takePendingFollow(true, "e:t1")).toBeNull();
+    setChatInFront("e:t1");
+    proposeModelFollow(pick("b"));
+    expect(takePendingFollow(false, "e:t1")).toBeNull();
   });
 });

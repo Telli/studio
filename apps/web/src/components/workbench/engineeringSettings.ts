@@ -99,7 +99,7 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
     {
       title: "Model",
       description:
-        "The AI model new chats start on, with its Thinking and Speed. Applies to new chats and to the open chat's next turn.",
+        "The AI model new chats start on, with its Thinking and Speed. Applies to new chats and to the open chat's next turn, except a reset.",
     },
   ],
   // T3's policy is T3's; the row keeps the fact, without its link (`SettingsPanels.tsx`).

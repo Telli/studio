@@ -623,7 +623,7 @@ import { StudioToolbox } from "./workbench/StudioToolbox";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
 import { useProjectViewStore } from "./workbench/projectView";
-import { takeDefaultModelChange } from "./workbench/defaultModelFollow";
+import { setChatInFront, takePendingFollow } from "./workbench/defaultModelFollow";
 import { useEngineeringInterface, useEngineeringSurfaces } from "./workbench/studioInterface";
 import { useDocumentFollow } from "./workbench/useDocumentFollow";
 import { useWorkbenchViewer } from "./workbench/useWorkbenchViewer";
@@ -10881,6 +10881,8 @@ export default function ChatView(props: ChatViewProps) {
         focusComposer?: boolean;
         /** Thinking and Speed to put on the model, instead of the ones it last had. */
         modelOptions?: ModelSelection["options"];
+        /** Say so when the chat's provider keeps the change out, as the picker's block does. */
+        announceBlockedProvider?: boolean;
       },
     ) => {
       if (!activeThread) return;
@@ -10895,6 +10897,13 @@ export default function ChatView(props: ChatViewProps) {
         resolvedDriverKind !== null &&
         resolvedDriverKind !== lockedProvider
       ) {
+        if (options?.announceBlockedProvider === true) {
+          toastManager.add({
+            type: "warning",
+            title: "Start a new chat to switch providers",
+            description: "This thread does not support switching providers after it has started.",
+          });
+        }
         if (options?.focusComposer !== false) scheduleComposerFocus();
         return;
       }
@@ -10911,6 +10920,13 @@ export default function ChatView(props: ChatViewProps) {
           entry?.continuation?.groupKey &&
           currentEntry.continuation.groupKey !== entry.continuation.groupKey
         ) {
+          if (options?.announceBlockedProvider === true) {
+            toastManager.add({
+              type: "warning",
+              title: "Start a new chat to switch providers",
+              description: "This thread does not support switching providers after it has started.",
+            });
+          }
           if (options?.focusComposer !== false) scheduleComposerFocus();
           return;
         }
@@ -10978,27 +10994,26 @@ export default function ChatView(props: ChatViewProps) {
       settings,
     ],
   );
-  // The engineering composer has no model picker: a default model chosen in Settings, AI agents
-  // reaches this chat's next turn the next time it is in front (`workbench/defaultModelFollow.ts`).
+  // The engineering composer has no model picker: a model chosen in Settings, AI agents reaches the
+  // chat that was in front then, once, the next time it is shown (`workbench/defaultModelFollow.ts`).
   useEffect(() => {
-    if (activeProjectKey === null || !activeThread) return;
-    const next = takeDefaultModelChange(
-      activeProjectKey,
-      engineeringInterface,
-      activeProjectDefaultModelSelection,
-    );
+    setChatInFront(activeThreadKey);
+  }, [activeThreadKey]);
+  useEffect(() => {
+    if (!activeThread || providerStatuses.length === 0) return;
+    const next = takePendingFollow(engineeringInterface, activeThreadKey);
     if (next === null) return;
     onProviderModelSelect(next.instanceId, next.model, {
       focusComposer: false,
       modelOptions: next.options ?? [],
+      announceBlockedProvider: true,
     });
-    // `takeDefaultModelChange` answers null unless the default changed, so a re-run is harmless.
   }, [
-    activeProjectDefaultModelSelection,
-    activeProjectKey,
     activeThread,
+    activeThreadKey,
     engineeringInterface,
     onProviderModelSelect,
+    providerStatuses,
   ]);
   const onEnvModeChange = useCallback(
     (mode: DraftThreadEnvMode) => {

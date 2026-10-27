@@ -1,48 +1,63 @@
 import type { ModelSelection } from "@t3tools/contracts";
 
 /**
- * The engineering composer has no model picker, so a model chosen in Settings, AI agents must
- * also reach the chat that is open: its next turn uses the new choice. Settings and the chat
- * are different screens, so the chat notices the change when it is next in front: it keeps the
- * default it last saw per project (`seenDefaults`) and, when the saved default differs, applies
- * the new one through the picker's own path (`onProviderModelSelect`), which keeps the
- * provider-lock check and its toast. The default stays saved either way.
+ * The engineering composer has no model picker, so a model chosen in Settings, AI agents also
+ * reaches the chat that was open when Settings was: its next turn uses the new choice.
+ *
+ * Settings unmounts the chat, so the change waits as one pending entry keyed to that chat
+ * (`chatInFront`, which `ChatView` sets whenever a chat is shown; it keeps the last one while
+ * Settings is up). Only `DefaultModelRow` makes a pending change, and a later one replaces it.
+ * The chat takes it only when its own key matches, once, through the picker's own path
+ * (`onProviderModelSelect`).
  */
-const seenDefaults = new Map<string, ModelSelection | null>();
-
-const sameSelection = (a: ModelSelection | null, b: ModelSelection | null): boolean =>
-  a === b ||
-  (a !== null &&
-    b !== null &&
-    a.instanceId === b.instanceId &&
-    a.model === b.model &&
-    JSON.stringify(a.options ?? []) === JSON.stringify(b.options ?? []));
-
-/**
- * The selection to put on the open chat, or null. Only the engineering interface follows, only
- * for a default that changed since the chat last looked (the first look just remembers it), and
- * never for a default reset to Automatic, which has nothing to apply.
- */
-export function defaultModelToApply(input: {
-  readonly engineering: boolean;
-  readonly current: ModelSelection | null;
-  readonly seen: ModelSelection | null | undefined;
-}): ModelSelection | null {
-  if (!input.engineering || input.seen === undefined || input.current === null) return null;
-  return sameSelection(input.seen, input.current) ? null : input.current;
+export interface PendingModelFollow {
+  readonly threadKey: string;
+  readonly selection: ModelSelection;
 }
 
-/** Reads and remembers a project's default as the open chat sees it; returns what to apply. */
-export function takeDefaultModelChange(
-  projectKey: string,
+let chatInFront: string | null = null;
+let pending: PendingModelFollow | null = null;
+
+/** `ChatView` says which chat is shown. */
+export function setChatInFront(threadKey: string | null): void {
+  if (threadKey !== null) chatInFront = threadKey;
+}
+
+/**
+ * Settings chose a model (`selection`) or reset it to Automatic (null). A choice waits for the
+ * chat that was in front; a reset applies to no open chat, and drops any choice still waiting.
+ */
+export function proposeModelFollow(selection: ModelSelection | null): void {
+  pending =
+    selection !== null && chatInFront !== null ? { threadKey: chatInFront, selection } : null;
+}
+
+/**
+ * The selection to put on the chat whose key is `activeThreadKey`, or null. Only the engineering
+ * interface follows, only for the chat the change was made for, and only with something pending
+ * (so a chat loading cold, with no change made, never changes).
+ */
+export function followToApply(input: {
+  readonly engineering: boolean;
+  readonly pending: PendingModelFollow | null;
+  readonly activeThreadKey: string | null;
+}): ModelSelection | null {
+  if (!input.engineering || input.pending === null || input.activeThreadKey === null) return null;
+  return input.pending.threadKey === input.activeThreadKey ? input.pending.selection : null;
+}
+
+/** The chat takes its pending change: what to apply, which is then no longer pending. */
+export function takePendingFollow(
   engineering: boolean,
-  current: ModelSelection | null,
+  activeThreadKey: string | null,
 ): ModelSelection | null {
-  const apply = defaultModelToApply({
-    engineering,
-    current,
-    seen: seenDefaults.get(projectKey),
-  });
-  seenDefaults.set(projectKey, current);
-  return apply;
+  const selection = followToApply({ engineering, pending, activeThreadKey });
+  if (selection !== null) pending = null;
+  return selection;
+}
+
+/** Forgets everything, for tests. */
+export function resetModelFollow(): void {
+  chatInFront = null;
+  pending = null;
 }
