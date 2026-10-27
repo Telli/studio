@@ -771,6 +771,7 @@ export default {
   "pmi.placedBeside": "Beside its feature",
   "pmi.pin": "Pin placement",
   "pmi.pending": "In Quick Edit for the agent to write.",
+  "pmi.changesInAi": "These changes go to the agent from Quick Edit in AI mode.",
   "pmi.notShown": "not shown",
   "pmi.notShownReason": "Not shown: {reason}.",
   "pmi.warning": "Warning",

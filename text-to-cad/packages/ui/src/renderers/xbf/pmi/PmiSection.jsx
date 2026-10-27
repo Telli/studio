@@ -345,14 +345,16 @@ const uncoveredText = (count, t) => (!count ? t("pmi.coverageAll") : t(count ===
 /**
  * @param {{ pmi: ReturnType<typeof import("./useXbfPmi.jsx").useXbfPmi>, picked: Parameters<typeof pmiCreateOptions>[0]["picked"],
  *   selectedFeatureIds?: readonly string[], moving: boolean, request?: { kind: string, key: number } | null,
- *   onRequestDone?: () => void }} props
+ *   onRequestDone?: () => void, quickEditAway?: boolean }} props
  *   `picked`: the faces Select has picked, what New can make of; `selectedFeatureIds`: the faces,
  *   edges and vertices Select has picked, whose requirements the list narrows to while no
  *   annotation is picked; `moving`: the parts stand elsewhere than built, so the PMI is not drawn;
  *   `request`: a kind asked for from a face's menu ("Add datum"), which opens the section on its
- *   form; `onRequestDone`: the form has gone (added or cancelled).
+ *   form; `onRequestDone`: the form has gone (added or cancelled); `quickEditAway`: the view's
+ *   layout has no Quick Edit (CAD mode's workspace, which has no agent), so the changes asked for
+ *   say they go from the AI layout's.
  */
-export default function PmiSection({ pmi, picked, selectedFeatureIds = EMPTY, moving, request = null, onRequestDone }) {
+export default function PmiSection({ pmi, picked, selectedFeatureIds = EMPTY, moving, request = null, onRequestDone, quickEditAway = false }) {
   const { t } = useI18n();
   // What is already asked for counts as taken: a second new one never reuses a pending id, letter or name.
   const options = useMemo(() => pmiCreateOptions({ picked, entries: pmi.entries, pending: pmi.pending, parts: pmi.parts, views: pmi.views,
@@ -425,6 +427,7 @@ export default function PmiSection({ pmi, picked, selectedFeatureIds = EMPTY, mo
     {draft?.call ? <NewEntry key={draft.started} option={draft}
       onCancel={closeDraft} onAdd={(call) => { pmi.add(draft.part, call); closeDraft(); }} /> : null}
     {moving ? <FileSheetStatusText className="py-1">{t("pmi.moving")}</FileSheetStatusText> : null}
+    {quickEditAway && pmi.changes.length ? <FileSheetStatusText className="py-1" data-pmi-changes-away="">{t("pmi.changesInAi")}</FileSheetStatusText> : null}
     {!pmi.entries.length && !views.length && !draft ? <FileSheetStatusText className="py-1">{t("pmi.empty")}</FileSheetStatusText> : null}
     <div data-pmi-groups="">
       {views.length ? <FileSheetSettingsSection title={t("pmi.views")} sectionId="pmi-views">

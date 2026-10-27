@@ -741,6 +741,7 @@ export default {
   "pmi.placedBeside": "在其特徵旁",
   "pmi.pin": "固定位置",
   "pmi.pending": "已在快速編輯中，等待代理寫入。",
+  "pmi.changesInAi": "這些變更會在 AI 模式的快速編輯中傳送給代理。",
   "pmi.notShown": "未顯示",
   "pmi.notShownReason": "未顯示：{reason}。",
   "pmi.warning": "警告",

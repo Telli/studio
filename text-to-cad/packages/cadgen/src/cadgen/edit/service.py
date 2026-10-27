@@ -633,11 +633,14 @@ class EditService:
             return {"ok": True, "editable": False}
         # The first part made of it, where there is one: the names are taken in order, so none taken means none made.
         # ``partBuilt``: whether the engine holds its document yet (a build that failed, or is still running, leaves
-        # none to open: an id never built is not built by opening it).
+        # none to open: an id never built is not built by opening it); ``partBuilding``: whether a build of it is
+        # queued or running, so a page waits for it rather than saying it could not be made.
         first = next(_adopted_names(source))
         made = document_of(first) if first.is_file() else None
-        built = made is not None and _model_home(made) is not None and not (self._builds is not None and self._builds.pending(first))
-        return {"ok": True, "editable": False, "importable": True, **({"part": made, "partBuilt": built} if made else {})}
+        building = made is not None and self._builds is not None and self._builds.pending(first)
+        built = made is not None and _model_home(made) is not None and not building
+        return {"ok": True, "editable": False, "importable": True,
+                **({"part": made, "partBuilt": built, "partBuilding": building} if made else {})}
 
     def adopt(self, file_ref: str) -> dict:
         """A STEP brought in made a part to model on, as SolidWorks makes a part of a STEP it opens:

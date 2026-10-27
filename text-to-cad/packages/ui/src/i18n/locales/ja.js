@@ -740,6 +740,7 @@ export default {
   "pmi.placedBeside": "フィーチャの横",
   "pmi.pin": "配置を固定",
   "pmi.pending": "エージェントが書き込むよう、クイック編集に入っています。",
+  "pmi.changesInAi": "これらの変更は、AI モードのクイック編集からエージェントに送られます。",
   "pmi.notShown": "非表示",
   "pmi.notShownReason": "表示されません: {reason}。",
   "pmi.warning": "警告",

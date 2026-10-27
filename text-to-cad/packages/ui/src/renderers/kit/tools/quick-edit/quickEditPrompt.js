@@ -121,20 +121,20 @@ export const canAddToContext = destination => destination?.kind === "composer" &
 
 /**
  * Add to context: the picks (`references`, in the prompt grammar) go into the host's chat box as context for the person's next
- * message, with no note and nothing sent. It is a Queue without the note: the file on screen, the picks, the marks on a face, and
- * the views and files the Quick Edit `prompt` would attach (`promptAttachments`; pass them only where Queue would, and no picture is
- * made for it).
+ * message, with no note and nothing sent. It is a Queue without the note: the file on screen, the picks, the marks on a face, the
+ * changes the view was asked for (`requests`, a renderer's, each one paragraph, as Quick Edit carries them), and the views and
+ * files the Quick Edit `prompt` would attach (`promptAttachments`; pass them only where Queue would, and no picture is made for it).
  * Made and handed over inside the press, as Queue is, so the host binds its destination in the gesture. Never throws: a context that
  * cannot be made, or a host that cannot take it, is a rejection. Settles with the host's receipt (`deliveryFailure` reads it).
  *
  * @param {{ promptContext: import("@text-to-cad/core/prompt").PromptContextPort }} host
  * @param {{ resource: object, references: object[], views?: { label: string }[], files?: Promise<object> | null,
- *   read?: ((path: string) => Promise<Blob>) | null, marks?: string }} input
+ *   read?: ((path: string) => Promise<Blob>) | null, marks?: string, requests?: string[] }} input
  * @returns {Promise<import("@text-to-cad/core/prompt").PromptDeliveryResult>}
  */
-export function addToContext(host, { resource, references, views = [], files = null, read = null, marks = "" }) {
+export function addToContext(host, { resource, references, views = [], files = null, read = null, marks = "", requests = [] }) {
   try {
-    return Promise.resolve(host.promptContext.deliver(createQuickEditContext({ resource, references, text: "", views, files, read, marks })));
+    return Promise.resolve(host.promptContext.deliver(createQuickEditContext({ resource, references, text: "", views, files, read, marks, requests })));
   } catch (error) {
     return Promise.reject(error);
   }

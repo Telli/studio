@@ -7,16 +7,23 @@ import { requestSceneFrame } from "../../kit/viewport/sceneFrames.js";
 import { XBF_TOOL } from "../tools.js";
 import { XBF_SELECT_DEFAULT } from "../XbfSelectionModes.jsx";
 import { DRAWING_TOOL_ICONS } from "./cadIcons.jsx";
+import DraftAnalysisLayer from "./DraftAnalysisLayer.jsx";
 import EditBrowser, { floatsCard } from "./EditBrowser.jsx";
 import EditDimensions from "./EditDimensions.jsx";
 import { editLayoutControl } from "./EditLayoutSwitch.jsx";
 import EditRibbon from "./EditRibbon.jsx";
 import EditSelectionBar from "./EditSelectionBar.jsx";
 import EditTimeline from "./EditTimeline.jsx";
-import { cadChosen, editLayoutState, useEditLayout } from "./editLayout.js";
+import ImportedBody from "./ImportedBody.jsx";
+import PreviewLayer from "./PreviewLayer.jsx";
+import SheetEditor from "./SheetEditor.jsx";
+import SketchOverlay from "./SketchOverlay.jsx";
+import SketchesLayer from "./SketchesLayer.jsx";
+import ValueCallout from "./ValueCallout.jsx";
+import { cadChosen, doubleClickLayout, editLayoutState, pendingFaceStep, useEditLayout } from "./editLayout.js";
 import {
   ORIGIN_PLANES, STANDARD_VIEWS, editCommand, featureNames, featureTree, mirrorOutline, nextSketchName, notASketch, originAxis,
-  planeOutline, rolledBack, selectionDimensions, selectionItems, sizeName, sketchView, treeFeatures, treeSketch
+  planeOutline, rolledBack, selectionDimensions, selectionItems, sizeName, sketchTreeId, sketchView, treeFeatures, treeSketch
 } from "./editMode.js";
 import { faceChipName, faceNumber, faceReference, shownFaces } from "./faceChips.js";
 import { openedFrom, rememberOpenedFrom } from "./openedFrom.js";
@@ -74,13 +81,17 @@ export function useXbfEditLayout({ client, file, services, active, compact = fal
  * renderer's picks as the panels and commands read them (`selectors.js`'s `xbfEditReference`: the
  * engine's refs by number), names a face picked by the feature that made it (`useFaceFeatures`: its
  * chip, the selection bar's Edit, a double-click selecting the feature, the face's menu), and turns
- * Select to what a command picks. The agent's pieces (Pencil and Shapes, Quick Edit) are the AI
- * layout's alone.
+ * Select to what a command picks. The agent's pieces (Pencil and Shapes, Quick Edit, and so Ask, Add to
+ * context and Annotate) are the AI layout's alone: the CAD workspace has no agent in it.
  *
- * The drawing layers (sketches, previews, the draft and mass marks, a command's value callout, the
- * drawing's sheet), the rollback bar's body drawn in the part's place, Ask and Add to context, and the
- * AI layout's double-click into CAD are not here yet: each has its seam where it goes (`overlay`,
- * `faces`' `bar.document` gate, the selection bar's handlers, `doubleClickFace`).
+ * Over the viewport (`overlay`) it draws on the shell's runtime, whose model group holds the xbf scene:
+ * the sketches, an open sketch, a feature's preview, the draft and mass marks, a command's value
+ * callout and the drawing's sheet, each in the part's millimetres through the model group's transform,
+ * as a STEP's were. The rollback bar's body is a document of its own (`rollback`, its id), which the
+ * renderer opens in the part's place. A host that lays the workspace out (Studio's AI | CAD switch,
+ * `tab-store/editLayoutHost.ts`) is asked for CAD by a face's double-click laid out for the AI, the
+ * face's feature selected once the workspace has read the part, and for the AI by a double-click on
+ * empty space in CAD with nothing open (`doubleClickFace`, `doubleClickEmpty`).
  *
  * @param {object} options
  * @param {object} options.view  The renderer's view props (`file.path`, `appearance`).
@@ -100,9 +111,12 @@ export function useXbfEditLayout({ client, file, services, active, compact = fal
  * @param {(filter: readonly string[]) => void} options.setSelectFilter  Select's filter.
  * @param {{ current: object | null }} options.viewportRef  The viewport the shell gives the overlay.
  * @param {(id: string) => void} options.lookAt  Normal To a face or an edge (`xbfLookAt.js`).
+ * @param {((clientX: number, clientY: number) => object | null) | null} [options.pickAt]  What a press at a point of the
+ *   view takes, as Select's filter has it (the renderer's `pickAtClient`): Smart Dimension's and Convert Entities' edge.
+ * @param {boolean} [options.isolated]  Something is isolated: a double-click on empty space leaves the isolation first.
  */
 export function useXbfCadMode({ view, document, scene, tree, assembly, loading, updating, revision, selectedElementIds, setChosen, facts, toolMode,
-  previewing, ensureSelect, setSelectFilter, viewportRef, lookAt }) {
+  previewing, ensureSelect, setSelectFilter, viewportRef, lookAt, pickAt = null, isolated = false }) {
   const host = useViewerHost();
   const file = view.file.path;
   const services = document.services;
@@ -236,7 +250,11 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
   // background lets go of the feature chosen too.
   const many = editing && !edit.sketch && (Boolean(editCommand(edit.command)?.many) || edit.inspecting === "mate");
   const pointed = editing && ["hole", "extrude", "cut"].includes(edit.command);
+  // A face double-clicked laid out for the AI, waiting for CAD's layout and the part read (`pendingFaceStep`, below).
+  const pendingFace = useRef(null);
   const beforePick = (hit, multiSelect) => {
+    // Every press lets go of a face still waiting for the workspace: the newest one wins.
+    pendingFace.current = null;
     if (!editing) return { multiSelect, skip: false };
     if (!hit) { if (!multiSelect) dropFeature(); return { multiSelect: multiSelect || many, skip: false }; }
     if (pointed && (hit.kind === "face" || hit.kind === "edge") && hit.point) {
@@ -247,8 +265,17 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
     return { multiSelect: multiSelect || many, skip: false };
   };
   // While a sketch is edited the presses are the sketch's, but for Convert Entities and Smart Dimension, which take the
-  // model's edges.
-  const modelPicks = !editing || !edit.sketch || converting || dimensioning;
+  // model's edges; while the drawing's sheet covers the view, its own.
+  const sheetUp = editing && Boolean(edit.sheetView);
+  const modelPicks = !editing || ((!edit.sketch || converting || dimensioning) && !sheetUp);
+  // The model's edge under a point of the view, as an edit item (`selectionItems`), or null: what Smart Dimension and Convert
+  // Entities ask after while the sketch has the presses.
+  const modelEdgeAt = useCallback((clientX, clientY) => {
+    const hit = scene ? pickAt?.(clientX, clientY) : null;
+    if (hit?.kind !== "edge") return null;
+    const reference = xbfEditReference({ scene, tree, id: hit.id, facts: facts.get(hit.id) || null });
+    return reference ? selectionItems([reference])[0] || null : null;
+  }, [pickAt, scene, tree, facts]);
 
   // ---- the selection bar and a face's feature ---------------------------------------------------
   // Picking a face, an edge or a feature with Select in hand and no command open offers a small bar beside it: its Edit
@@ -283,11 +310,41 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
     chooseFeature();
     return true;
   };
+  // In Studio, a part laid out for the AI steps into the workspace on the face double-clicked, and the workspace goes back to the
+  // AI on a double-click on empty space with nothing open (`doubleClickLayout`): under Select only. A host that takes no ask
+  // (`editLayoutHost.request` false), a plain STEP, an assembly's faces and Jake's own viewer keep their double-click.
+  const nothingOpen = !commandOpen && !sketchOpen && !layoutHeld && !isolated;
+  const layoutAsked = target => doubleClickLayout({ layout: layout.layout, hosted: layout.hosted, editable, assembly, target, selecting,
+    open: !nothingOpen });
   const doubleClickFace = (hit) => {
+    if (hit?.kind === "face" && layoutAsked("face") === "manual") {
+      const pending = { hit, file, reached: false };
+      // A host that says no (a command open in it) leaves the face behind, if it is still the one waiting.
+      const refused = () => { if (pendingFace.current === pending) pendingFace.current = null; };
+      if (!editLayoutHost.request("manual", { refused })) return false;
+      pendingFace.current = pending;
+      return true;
+    }
     if (!editing || edit.command || edit.sketch || hit?.kind !== "face" || assembly || !facesShown) return false;
     void featureOf(hit.ordinal).then(feature => { if (!selectFaceFeature(feature)) lookAt(hit.id); });
     return true;
   };
+  /** A double-click on empty space: back to the AI's layout, where the host takes the ask; true when it was asked. */
+  const doubleClickEmpty = () => layoutAsked("empty") === "ai" && editLayoutHost.request("ai");
+  // The face waits for CAD's layout and the part read, then has its feature selected, once (`pendingFaceStep`); the next press
+  // lets it go too (`beforePick`).
+  useEffect(() => {
+    const pending = pendingFace.current;
+    if (!pending) return;
+    const { step, reached } = pendingFaceStep(pending, { layout: layout.layout, file, status: edit.status, editing, faces: Boolean(faces) });
+    // Kept on the face itself, which a refusal knows it by.
+    pending.reached = reached;
+    if (step === "wait") return;
+    pendingFace.current = null;
+    if (step === "select") void featureOf(pending.hit.ordinal).then(selectFaceFeature);
+    // Once per face handed over, on the render that can take it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout.layout, file, editing, edit.status, faces]);
   // SolidWorks' menu on a face: Edit Feature and Edit Sketch of the feature that made it, Normal To a flat one, and Appearance.
   const faceMenu = (hit) => {
     if (!editing || edit.sketch || hit?.kind !== "face") return EMPTY;
@@ -418,22 +475,80 @@ export function useXbfCadMode({ view, document, scene, tree, assembly, loading, 
     dialogOpen: editing && floatsCard(edit),
   };
 
-  /** CAD mode's layers over the viewport: the selection bar beside a pick, and the feature selected's dimensions and planes on the model. */
-  const overlay = viewport => (editing ? <>
-    {barActions.length ? <EditSelectionBar viewport={viewport} actions={barActions} anchor={barAnchor}
-      anchorKey={barPicks.map(pick => `${pick.kind}:${pick.id}`).join(",")}
-      editKind={rowEdited?.sketch ? "Sketch" : rowEdited?.feature.kind} editHint={rowEdited?.sketch ? "Edit Sketch" : "Edit Feature"}
-      onEdit={rowEdited ? editRow : undefined} /> : null}
-    {!edit.sheetView ? <EditDimensions viewport={viewport} dimensions={dimensions} units={edit.state?.units || ""}
-      // Held while a command's dialog is open, as its sizes are the dialog's, which Cancel puts back.
-      disabled={edit.saving || Boolean(edit.command)} planes={planes} origin={origin}
-      choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
-      onChoose={edit.choose} onDismissChoice={edit.dismissChoice} /> : null}
-  </> : null);
+  // ---- what is drawn on the model ---------------------------------------------------------------
+  // The sketches drawn on the model while none is edited: those nothing uses yet, the one selected in the tree, and the one an
+  // extrude or a revolve previews (a reopened feature's own).
+  const previewedSketch = edit.preview?.file ? edit.preview : null;
+  const previewedSketches = edit.preview?.mark === "picked" ? edit.preview.sketches : null;
+  const shownSketches = useMemo(() => (edit.sketch ? EMPTY : (edit.state?.sketches || EMPTY).filter(shown => shown.state
+    && (shown.consumed === null || (selectedTreeSketch && shown.file === selectedTreeSketch.file && shown.line === selectedTreeSketch.line)
+      || (previewedSketch && shown.file === previewedSketch.file && shown.line === previewedSketch.line)
+      || (previewedSketches || []).some(each => shown.file === each.file && shown.line === each.line)))),
+  [edit.sketch, edit.state?.sketches, selectedTreeSketch, previewedSketch, previewedSketches]);
+  // A sketch is picked on the model as in the design tree, with Select in hand and nothing else asking for a pick: the sketch
+  // an extrude takes (inside its outline too, while it waits for one), or one to work on next; a sweep's or a loft's
+  // sketches one after another. The part's extent is how far Through All goes in a preview.
+  const sketchFeature = Boolean(edit.command && (editCommand(edit.command)?.sketch || editCommand(edit.command)?.sketches));
+  const takesSketches = Boolean(edit.command && editCommand(edit.command)?.sketches);
+  const sketchesPickable = editing && selecting && !edit.sketch && !edit.picking && !edit.editing && (!edit.command || sketchFeature);
+  const selectEdit = edit.select;
+  const pickSketch = useCallback((shown) => {
+    const id = sketchTreeId(editTree, shown);
+    if (id) { selectEdit(id); chooseFeature(); }
+  }, [editTree, selectEdit, chooseFeature]);
+  const partBounds = edit.state?.bounds;
+  const partExtent = partBounds ? Math.hypot(...partBounds[1].map((value, axis) => value - partBounds[0][axis])) : 0;
+  // Mass Properties' center of mass, marked on the model while its card is open.
+  const massCenter = edit.mass?.center;
+  const massMark = useMemo(() => (massCenter ? { mark: "center", at: massCenter } : null), [massCenter]);
+  const units = edit.state?.units || "";
+  const colorScheme = view.appearance?.colorScheme === "dark" ? "dark" : "light";
+  // The rollback bar's body, a document of its own the renderer opens by its id in the part's place while the bar is up.
+  const rollback = editing && typeof edit.bar?.document?.id === "string" ? edit.bar.document.id : "";
+
+  /**
+   * CAD mode's layers over the viewport, on the shell's runtime (the model group the xbf scene is in): the selection bar beside a
+   * pick, the feature selected's dimensions and planes, the sketches, an open sketch, a feature's preview and its value callout,
+   * the inspections' marks, and the drawing's sheet over it all. A STEP brought in with no part script is offered as a part
+   * to model on, with the CAD layout chosen.
+   */
+  const overlay = viewport => <>
+    {editing ? <>
+      {barActions.length ? <EditSelectionBar viewport={viewport} actions={barActions} anchor={barAnchor}
+        anchorKey={barPicks.map(pick => `${pick.kind}:${pick.id}`).join(",")}
+        editKind={rowEdited?.sketch ? "Sketch" : rowEdited?.feature.kind} editHint={rowEdited?.sketch ? "Edit Sketch" : "Edit Feature"}
+        onEdit={rowEdited ? editRow : undefined} /> : null}
+      {sheetUp ? <SheetEditor edit={edit} colorScheme={colorScheme} /> : null}
+      {!sheetUp && edit.command && edit.callout ? <ValueCallout viewport={viewport} callout={edit.callout} /> : null}
+      {!sheetUp ? <EditDimensions viewport={viewport} dimensions={dimensions} units={units}
+        // Held while a command's dialog is open, as its sizes are the dialog's, which Cancel puts back.
+        disabled={edit.saving || Boolean(edit.command)} planes={planes} origin={origin}
+        choice={edit.choice} onChange={(dimension, text) => void edit.change({ dimension: dimension.id, text })}
+        onChoose={edit.choose} onDismissChoice={edit.dismissChoice} /> : null}
+      {edit.sketch ? <SketchOverlay viewport={viewport} edit={edit} units={units} modelEdgeAt={modelEdgeAt} /> : null}
+      {!sheetUp && shownSketches.length ? <SketchesLayer viewport={viewport} sketches={shownSketches} selected={previewedSketches || selectedTreeSketch}
+        onPick={sketchesPickable ? pickSketch : null} profiles={sketchFeature && (!selectedTreeSketch || takesSketches)} preview={edit.preview}
+        onEdit={sketchesPickable && !edit.command ? shown => openTreeSketch({ file: shown.file, line: shown.line, title: shown.name }) : null}
+        through={partExtent} /> : null}
+      {!sheetUp && edit.inspecting === "mass" && massMark ? <PreviewLayer viewport={viewport} preview={null} mark={massMark} extent={partExtent} /> : null}
+      {!sheetUp && edit.inspecting === "draft" && edit.draftCheck?.positions ? <DraftAnalysisLayer viewport={viewport} check={edit.draftCheck} /> : null}
+      {!sheetUp && edit.inspecting === "interference" && edit.interference?.shown
+        ? <PreviewLayer viewport={viewport} preview={edit.interference.shown} mark={null} extent={partExtent} /> : null}
+      {/* Compare: what the part gained since the version picked, and what it lost. */}
+      {!sheetUp && edit.inspecting === "compare" && edit.comparison?.shown
+        ? <PreviewLayer viewport={viewport} preview={edit.comparison.shown} mark={null} extent={partExtent} /> : null}
+      {!sheetUp && edit.command && (edit.featurePreview || ["pattern", "hole", "draft", "plane"].includes(edit.preview?.mark))
+        ? <PreviewLayer viewport={viewport} preview={edit.featurePreview} mark={edit.preview?.mark ? edit.preview : null} extent={partExtent} />
+        : null}
+    </> : null}
+    {layout.layout === "manual" && edit.status === "none" && edit.imported && openFile
+      ? <ImportedBody imported={edit.imported} onAdopt={edit.adopt} onOpenPart={edit.importedPart} onOpen={openFile} /> : null}
+  </>;
 
   return {
     edit, editing, cad, editable, frame, overlay, references, faces, litFaces, nameChips, drawingTools, quickEdit,
-    beforePick, modelPicks, doubleClickFace, faceMenu, escape, escapeActive: editing && (featureBarShown || commandHeld),
+    beforePick, modelPicks, doubleClickFace, doubleClickEmpty, faceMenu, escape, escapeActive: editing && (featureBarShown || commandHeld),
+    rollback,
     // The units the part reads in, which Measure reads in too, as SolidWorks' does.
     units: editing ? edit.state?.units || "" : ""
   };

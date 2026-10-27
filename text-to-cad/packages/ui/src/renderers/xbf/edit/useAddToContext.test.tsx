@@ -53,6 +53,17 @@ it('puts the picks in the chat box with no note, inside the press, and lets go o
   expect(view.onFailed).not.toHaveBeenCalled();
 });
 
+it("carries the changes the view was asked for (PMI's chips), and has something to add with only those", async () => {
+  const chat = chatBox();
+  const requests = [{ key: 'pmi:add:0', request: 'Add datum A on face 12.' }];
+  const view = adding(chat.host, { references: [], requests });
+  expect(view.result.current.picked).toBe(true);
+  act(() => view.result.current.add());
+  expect(parts(chat.delivered()[0])).toEqual([['requests', 'text'], ['file', 'reference']]);
+  await chat.answer({ status: 'added', partIds: [] });
+  expect(view.onAdded).toHaveBeenCalledTimes(1);
+});
+
 it('keeps the picks and says why when the chat box does not take them, in the words Quick Edit uses', async () => {
   const chat = chatBox();
   const view = adding(chat.host);

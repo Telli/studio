@@ -817,7 +817,8 @@ class ModelsOfTheEngine(unittest.TestCase):
         adopted = self.service.change({"file": str(source), "adopt": {}})
         self.assertTrue(adopted["ok"], adopted.get("error"))
         self.assertIsNone(self.wait_built(self.service)["error"])
-        self.assertEqual(self.service.editable(str(source))["partBuilt"], True)
+        self.assertEqual({key: self.service.editable(str(source))[key] for key in ("partBuilt", "partBuilding")},
+                         {"partBuilt": True, "partBuilding": False})
         source.rename(root / "elsewhere.step")
         read = self.service.state(adopted["script"])
         self.assertFalse(read["ok"])
@@ -825,6 +826,38 @@ class ModelsOfTheEngine(unittest.TestCase):
         self.assertEqual(read["error"], gone)
         self.service.rebuild(root, Path(adopted["script"]).name)
         self.assertIn(gone, self.wait_built(self.service)["error"])
+
+    def test_an_adopted_step_is_building_until_its_build_ends(self):
+        import build123d as bd
+
+        root = project({}, git=True)
+        self.addCleanup(shutil.rmtree, root, True)
+        source = root / "vendor.step"
+        bd.export_step(bd.Box(20, 20, 4), str(source))
+        # A build that never ends, by the python it is started with: the part is made and building, not yet built.
+        folder = Path(tempfile.mkdtemp(prefix="edit-slow-"))
+        self.addCleanup(shutil.rmtree, folder, True)
+        python = folder / "python"
+        python.write_text("#!/bin/sh\nexec sleep 600\n", encoding="utf-8")
+        python.chmod(0o755)
+        slow = edit.EditService(str(python))
+        self.addCleanup(slow.close)
+        adopted = slow.change({"file": str(source), "adopt": {}})
+        self.assertTrue(adopted["ok"], adopted.get("error"))
+        probe = slow.editable(str(source))
+        self.assertEqual((probe["part"], probe["partBuilt"], probe["partBuilding"]), (adopted["part"], False, True))
+        # One whose build fails: made, neither built nor building, so there is nothing to wait for.
+        failing = folder / "fails"
+        failing.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        failing.chmod(0o755)
+        broken = edit.EditService(str(failing))
+        self.addCleanup(broken.close)
+        other = root / "other.step"
+        bd.export_step(bd.Box(5, 5, 5), str(other))
+        self.assertTrue(broken.change({"file": str(other), "adopt": {}})["ok"])
+        self.assertIsNotNone(self.wait_built(broken)["error"])
+        probe = broken.editable(str(other))
+        self.assertEqual((probe["partBuilt"], probe["partBuilding"]), (False, False))
 
     def test_a_color_with_alpha_keeps_it_through_the_engine(self):
         from cadgen.engine import api

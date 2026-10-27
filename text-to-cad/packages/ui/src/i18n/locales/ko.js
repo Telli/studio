@@ -740,6 +740,7 @@ export default {
   "pmi.placedBeside": "피처 옆",
   "pmi.pin": "배치 고정",
   "pmi.pending": "에이전트가 작성하도록 빠른 편집에 있습니다.",
+  "pmi.changesInAi": "이 변경 사항은 AI 모드의 빠른 편집에서 에이전트에게 보내집니다.",
   "pmi.notShown": "표시 안 됨",
   "pmi.notShownReason": "표시되지 않음: {reason}.",
   "pmi.warning": "경고",

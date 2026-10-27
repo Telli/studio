@@ -38,6 +38,14 @@ test("delivers the picks with no note", async () => {
   assert.deepEqual(receipt, { status: "added", partIds: [] });
 });
 
+test("carries the changes the view was asked for, each a paragraph, as Quick Edit does", async () => {
+  const host = chatHost();
+  await addToContext(host, { resource: STEP, references: [FACE], requests: ["Add datum A on face 12.", "Make the hole's position tolerance 0.05."] });
+  const [context] = host.delivered;
+  assert.deepEqual(parts(context), [["requests", "text"], ["file", "reference"], ["reference-0", "reference"]]);
+  assert.match(formatPromptMessage(context), /Requested changes:\n\nAdd datum A on face 12\.\n\nMake the hole's position tolerance 0\.05\./);
+});
+
 test("is offered only with a chat box to fill", () => {
   assert.equal(canAddToContext({ kind: "composer", available: true }), true);
   // The clipboard takes a copy, not context for the next message; a chat box that cannot take it now is none.

@@ -8,11 +8,10 @@ import { REFERENCE_HOVER_COLOR, REFERENCE_SELECTED_COLOR } from "@text-to-cad/co
 import { ViewerElementContext } from "../../../host/context.js";
 import { FLOATING_CHROME_SURFACE_CLASS } from "../../../lib/floatingSurface.js";
 import { hasOpenPopup } from "../../../lib/popups.js";
-import { readDrawingThemeColors } from "../../dxf/themeColors.js";
-import { useDrawingView } from "../../dxf/useDrawingView.js";
 import { TOUCH_HIT_PX, isEditableTarget } from "../../kit/viewport/dom.js";
 import { SmartDimensionIcon } from "./sketchIcons.jsx";
 import { DeleteDimensionIcon, RedoIcon, UndoIcon } from "./cadIcons.jsx";
+import { sheetColors, useSheetView } from "./useSheetView.js";
 import {
   alignMove, circleEdit, clampMove, deleteEdit, dimensionEdit, dimensionTarget, dimensionText, edgeEnds, moveEdit, movingTogether,
   ownerOf, placeDimension, sheetDimensions, sheetHint, viewAt
@@ -106,7 +105,7 @@ export default function SheetEditor({ edit, colorScheme = "light" }) {
     if (up) {
       const { by } = shift.current;
       const moved = { scale: transform.scale, offsetX: transform.offsetX + by[0] * transform.scale, offsetY: transform.offsetY - by[1] * transform.scale };
-      drawDrawing(ctx, up.moving, { transform: moved, foreground: readDrawingThemeColors(ctx.canvas, colorScheme).foreground, pixelRatio });
+      drawDrawing(ctx, up.moving, { transform: moved, foreground: sheetColors(ctx.canvas, colorScheme).foreground, pixelRatio });
     }
     ctx.save();
     ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
@@ -299,7 +298,7 @@ export default function SheetEditor({ edit, colorScheme = "light" }) {
     return { tap, hover: hoverAt, grab };
   }, []);
 
-  const drawingView = useDrawingView({ drawing: lifted?.rest || prepared, colorScheme, onViewMoved: null, overlay,
+  const drawingView = useSheetView({ drawing: lifted?.rest || prepared, colorScheme, overlay,
     onTap: handlers.tap, onHover: handlers.hover, onGrab: handlers.grab });
   viewRef.current = drawingView;
   const { requestPaint } = drawingView;

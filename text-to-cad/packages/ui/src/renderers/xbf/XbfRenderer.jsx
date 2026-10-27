@@ -116,15 +116,18 @@ function XbfSurface({ view, data }) {
   const { t } = useI18n();
   const host = useViewerHost();
   const document = useWorkspaceDocument({ view, data });
-  const loaded = useXbfScene({ client: document.client, file: view.file.path });
+  // CAD mode's rollback bar, while it is up: its body, a document of its own the edit service handed the engine, opened by its id
+  // and drawn and picked in the part's place (set below, where CAD mode is read; `useXbfCadMode`'s `rollback`).
+  const [rollback, setRollback] = useState("");
+  const loaded = useXbfScene({ client: document.client, file: rollback || view.file.path });
   // A document the engine no longer holds is opened again, once, the catalog asked again first (it
   // still has the row it had): the file viewer then says what became of it, in the document's words.
   const reopened = useRef(false);
   useEffect(() => {
-    if (!goneFromEngine(loaded.error) || reopened.current) return;
+    if (rollback || !goneFromEngine(loaded.error) || reopened.current) return;
     reopened.current = true;
     void Promise.resolve(document.client?.refresh?.({ file: view.file.path })).catch(() => {}).finally(() => view.reload());
-  }, [loaded.error, view, document.client]);
+  }, [loaded.error, view, document.client, rollback]);
   const scene = loaded.scene;
   const source = loaded.document?.source?.url || "";
   // What every later read of the document's engine is made with: the fetch it was read with.
@@ -275,9 +278,10 @@ function XbfSurface({ view, data }) {
   }, [viewRestored, viewSignatures, stored, kinematics, restorePose]);
   const viewInputs = useRef(null);
   viewInputs.current = { tree: { expanded: expandedIds, hidden: hiddenIds, isolated: isolatedIds }, pose: kinematics ? pose.saved : null };
-  const rendererState = useMemo(() => (viewRestored && viewSignatures
+  // Never the rollback bar's body's: the shell keeps what the part's view stored while the bar is up.
+  const rendererState = useMemo(() => (viewRestored && viewSignatures && !rollback
     ? { signatures: viewSignatures, read: () => xbfViewSlices({ ...viewInputs.current, pmi: viewSignatures.pmi ? pmiViewRef.current.slice : null }) } : null),
-  [viewRestored, viewSignatures]);
+  [viewRestored, viewSignatures, rollback]);
   useEffect(() => { if (viewRestored) shellRef.current?.scheduleStateSave(); },
     [viewRestored, viewSignatures, expandedIds, hiddenIds, isolatedIds, pose.saved]);
 
@@ -379,10 +383,11 @@ function XbfSurface({ view, data }) {
   const pmiGdt = pmi.entries.some(entry => entry.kind !== "note");
   const pmiNotes = pmi.entries.some(entry => entry.kind === "note") || pmi.library.length > 0;
   const pmiViews = pmi.views.length > 0;
-  const exportView = useMemo(() => loaded.document && !host.environment.compact ? {
+  // While CAD mode's rollback bar is up the body on screen is not the document: nothing is exported of it.
+  const exportView = useMemo(() => loaded.document && !host.environment.compact && !rollback ? {
     doc: loaded.document.source.doc, revision: loaded.revision, file: view.file.path, name: view.file.name, planar,
     ...(pmiGdt || pmiNotes || pmiViews ? { pmi: { gdt: pmiGdt, kept: [...(pmiNotes ? ["notes"] : []), ...(pmiViews ? ["views"] : [])] } } : {})
-  } : null, [loaded.document, loaded.revision, host.environment.compact, view.file.path, view.file.name, planar, pmiGdt, pmiNotes, pmiViews]);
+  } : null, [loaded.document, loaded.revision, host.environment.compact, rollback, view.file.path, view.file.name, planar, pmiGdt, pmiNotes, pmiViews]);
   useExportView(exportView);
 
 
@@ -617,9 +622,13 @@ function XbfSurface({ view, data }) {
 
   // ---- CAD mode: the part's script modeled by hand (`edit/useXbfCadMode.jsx`) -------------------
   const cad = useXbfCadMode({ view, document, scene, tree, assembly, loading: loaded.busy && !scene, updating: loaded.busy && Boolean(scene),
-    revision: loaded.revision, selectedElementIds, setChosen, facts, toolMode, previewing, ensureSelect, setSelectFilter, viewportRef, lookAt });
+    revision: loaded.revision, selectedElementIds, setChosen, facts, toolMode, previewing, ensureSelect, setSelectFilter, viewportRef, lookAt,
+    pickAt: pickAtClient, isolated: isolatedIds.length > 0 });
   cadRef.current = cad;
   useEffect(() => { setPartUnits(cad.units); }, [cad.units]);
+  useEffect(() => { setRollback(cad.rollback); }, [cad.rollback]);
+  // What was picked on one body names nothing on the other: the bar's body and the part number their faces apart.
+  useEffect(() => { setChosen(now => (now.length ? EMPTY : now)); }, [rollback]);
   useEffect(() => { setCadHeld(cad.escapeActive); }, [cad.escapeActive]);
   // A face picked names the feature that made it, in CAD mode (`nameChips`).
   const nameChips = cad.nameChips;
@@ -641,11 +650,12 @@ function XbfSurface({ view, data }) {
     requestFrame();
   }, [scene, hover, selectedNodeIds, selectedElementIds, leavesOf, requestFrame, pmiLit, cadLit]);
   useEffect(() => { scene?.setHighlightColor(cad.editing ? WORKSPACE_SELECTION_COLOR : null); requestFrame(); }, [scene, cad.editing, requestFrame]);
-  promptReferencesRef.current = previewing ? NO_REFERENCES : references;
+  // The rollback bar's body is not the file: its faces and edges are named to nothing, copied or sent.
+  promptReferencesRef.current = previewing || rollback ? NO_REFERENCES : references;
   // What a node or an element copies: its reference, the file's path with it.
   const singleChip = useCallback(ids => xbfCopyText({ scene, tree, resource, ids }), [scene, tree, resource]);
   const copy = useCallback(text => { if (text) void host.clipboard.writeText(text).catch(() => {}); }, [host.clipboard]);
-  const copySelection = selected.length && !previewing ? () => copy(chips.map(chip => chip.copy).filter(Boolean).join("\n")) : null;
+  const copySelection = selected.length && !previewing && !rollback ? () => copy(chips.map(chip => chip.copy).filter(Boolean).join("\n")) : null;
   const nameReference = useCallback((reference) => {
     const selector = reference?.target?.kind === "cad-selector" ? reference.target.selectors?.[0] : "";
     const chip = selector ? chips.find(item => item.selectors?.includes(selector)) : null;
@@ -662,9 +672,11 @@ function XbfSurface({ view, data }) {
     if (activated && lastPick.current) setChosen(lastPick.current.before);
     lastPick.current = null;
     const hit = pickAtClient(clientX, clientY);
-    if (!hit) { exitIsolate(); return; }
+    // Empty space leaves the isolation; in Studio's CAD layout with nothing open, it goes back to the AI's (`doubleClickEmpty`).
+    if (!hit) { if (!cadRef.current?.doubleClickEmpty()) exitIsolate(); return; }
     if (hit.kind) {
-      // In CAD mode a face's double-click selects the feature that made it, as SolidWorks' does.
+      // In CAD mode a face's double-click selects the feature that made it, as SolidWorks' does; laid out for the AI in
+      // Studio, it asks for CAD with that feature to follow.
       if (cadRef.current?.doubleClickFace(hit)) return;
       usage.used("look_at"); lookAt(hit.id); return;
     }
@@ -802,7 +814,7 @@ function XbfSurface({ view, data }) {
   const pmiPickedFaces = useMemo(() => (scene ? selected.map(pmiFaceOf) : EMPTY), [scene, selected, pmiFaceOf]);
 
   const pmiSection = pmiShown ? <PmiSection pmi={pmi} picked={pmiPickedFaces} selectedFeatureIds={selectedElementIds} moving={moving}
-    request={pmiRequest} onRequestDone={() => setPmiRequest(null)} /> : null;
+    request={pmiRequest} onRequestDone={() => setPmiRequest(null)} quickEditAway={cad.editing} /> : null;
   // CAD mode's design tree stands in for the file sidebar (`leftDock`): its PMI is a panel of the tool stack, under the toolbar.
   const pmiInSidebar = pmiShown && !cad.editing;
   const sidebar = scene && (assembly || kinematics || pmiInSidebar) ? <>

@@ -310,17 +310,34 @@ it('S asks the toolbar for its command search by counting, so each ask is heard 
   expect(result.current.findAsked).toBe(2);
 });
 
-it("a STEP brought in with no part script is offered as a part to edit, made beside it and named to open", async () => {
+it("a STEP brought in with no part script is offered as a part to edit, made beside it, built, and named by its id to open", async () => {
   const imported = '/project/vendor/pico.step';
+  const PART = '3f2a9c1e-7b4d-5e6f-8a9b-0c1d2e3f4a5b';
+  // The engine holds the part only once its build is done: the probe says it is building, then built.
+  const probes = [{ ok: true, editable: false, importable: true }, { ok: true, editable: false, importable: true, part: PART, partBuilt: false, partBuilding: true },
+    { ok: true, editable: false, importable: true, part: PART, partBuilt: true, partBuilding: false }];
   const client = {
-    editState: vi.fn(async () => ({ ok: true, editable: false, importable: true })),
-    editChange: vi.fn(async () => ({ ok: true, part: '/project/vendor/pico_part.step' })),
+    editState: vi.fn(async () => probes.shift() || probes.at(-1)),
+    editChange: vi.fn(async () => ({ ok: true, part: PART, script: '/project/vendor/pico_part.py' })),
   };
   const { result } = renderHook(() => useEditMode({ client, file: imported, active: true }), { wrapper: hostWith(() => {}) });
   await waitFor(() => expect(result.current.status).toBe('none'));
   expect(result.current.imported).toEqual({ part: null });
-  let made: unknown;
-  await act(async () => { made = await result.current.adopt(); });
-  expect(client.editChange).toHaveBeenCalledWith({ file: imported, adopt: {} });
-  expect(made).toEqual({ ok: true, part: '/project/vendor/pico_part.step' });
+  vi.useFakeTimers({ toFake: ['setTimeout'] });
+  try {
+    let made: unknown = 'waiting';
+    const adopting = result.current.adopt().then(reply => { made = reply; });
+    await vi.advanceTimersByTimeAsync(0);
+    // Not opened while it builds: an id never built is not built by opening it.
+    expect(made).toBe('waiting');
+    await vi.advanceTimersByTimeAsync(1000);
+    await adopting;
+    expect(client.editChange).toHaveBeenCalledWith({ file: imported, adopt: {} });
+    expect(made).toMatchObject({ ok: true, part: PART });
+  } finally {
+    vi.useRealTimers();
+  }
+  // A build that ended without the part names none to open.
+  probes.push({ ok: true, editable: false, importable: true, part: PART, partBuilt: false, partBuilding: false });
+  await expect(result.current.importedPart()).resolves.toBe(null);
 });
