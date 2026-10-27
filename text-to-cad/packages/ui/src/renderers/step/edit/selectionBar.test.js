@@ -7,7 +7,7 @@ import { formatPromptMessage, formatPromptReference } from "@text-to-cad/core/pr
 import { createQuickEditContext } from "../../kit/tools/quick-edit/quickEditPrompt.js";
 import { featureTree } from "./editMode.js";
 import {
-  boundsCorners, facePick, featurePick, featureReference, pickedReferences, placeBar, projectRoot, quickEditLetsGo, quickEditShown, rowLabel, screenBox, selectionBarActions
+  boundsCorners, facePick, featurePick, featureReference, pickedReferences, placeBar, projectRoot, quickEditLetsGo, mustPutDownTool, quickEditCarries, quickEditShown, rowLabel, screenBox, selectionBarActions, stripDrawingTools
 } from "./selectionBar.js";
 
 // The workspace with Select in hand and nothing open: what the bar is offered under.
@@ -353,4 +353,25 @@ test("Quick Edit's X or a send lets go of everything picked, but only of the box
   assert.equal(quickEditLetsGo({ held: false }), "selection");
   // A note written, then Fillet opened and its edges picked: sending the note keeps the edges.
   assert.equal(quickEditLetsGo({ held: true }), "box");
+});
+
+test("the strip has Pencil and Shapes in the AI layout and none in the CAD workspace", () => {
+  const drawing = [{ id: "pencil" }, { id: "shapes" }];
+  assert.deepEqual(stripDrawingTools({ editing: false, drawing }), drawing);
+  assert.deepEqual(stripDrawingTools({ editing: true, drawing }), []);
+});
+
+test("Quick Edit is handed the picks in the AI layout, and no box at all in the CAD workspace", () => {
+  const carried = { references: ["r"], chips: ["c"] }, empty = [];
+  assert.deepEqual(quickEditCarries({ editing: false, open: true, carried, empty }), { references: ["r"], chips: ["c"] });
+  assert.deepEqual(quickEditCarries({ editing: false, open: false, carried, empty }), { references: empty, chips: empty });
+  assert.deepEqual(quickEditCarries({ editing: true, open: true, carried, empty }), { references: null, chips: empty });
+});
+
+test("Pencil or Shapes in hand is put down when the CAD workspace is up, and left alone in the AI layout", () => {
+  for (const toolMode of ["pencil", "shapes"]) {
+    assert.equal(mustPutDownTool({ editing: true, toolMode }), true);
+    assert.equal(mustPutDownTool({ editing: false, toolMode }), false);
+  }
+  for (const toolMode of ["references", "measure", ""]) assert.equal(mustPutDownTool({ editing: true, toolMode }), false);
 });

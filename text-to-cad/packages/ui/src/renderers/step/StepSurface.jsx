@@ -147,7 +147,7 @@ import EditRibbon from "./edit/EditRibbon.jsx";
 import EditTimeline from "./edit/EditTimeline.jsx";
 import EditSelectionBar from "./edit/EditSelectionBar.jsx";
 import { featureAsk } from "./edit/featureAsk.jsx";
-import { boundsCorners, facePick, featurePick, pickedReferences, quickEditLetsGo, quickEditShown, selectionBarActions } from "./edit/selectionBar.js";
+import { boundsCorners, facePick, featurePick, mustPutDownTool, pickedReferences, quickEditCarries, quickEditLetsGo, quickEditShown, selectionBarActions, stripDrawingTools } from "./edit/selectionBar.js";
 import { faceChipName, faceNumber, faceReference, shownFaces } from "./edit/faceChips.js";
 import { chosenThrough, useAsked, useChosenFeature } from "./edit/selectionBarState.js";
 import { faceShapesOf, faceShapesText } from "../kit/tools/annotate/faceShapes.js";
@@ -3682,6 +3682,9 @@ function StepSurfaceBody({ view, data }) {
   // Every tool drawn by the icon generator (`edit/cadIcons.jsx`), the shell's and the model effects' too,
   // each showing what it has in hand: Select's and Measure's filter, the tool Pencil or Shapes draws with.
   // The toolbar shows these tools as the strip does.
+  // Pencil or Shapes in hand when the workspace opens is put down for Select, as the workspace has neither.
+  const putDownTool = mustPutDownTool({ editing, toolMode: shell.toolMode });
+  useEffect(() => { if (putDownTool) ensureSelectTool(); }, [putDownTool, ensureSelectTool]);
   const tools = [
     shell.tools.own({
       id: TAB_TOOL_MODE.REFERENCES,
@@ -3693,8 +3696,8 @@ function StepSurfaceBody({ view, data }) {
       onSelect: () => handleSelectTabToolMode(TAB_TOOL_MODE.REFERENCES),
     }),
     // Pencil and Shapes are the Annotate tools, which write to the agent: the CAD workspace has no agent, so no ink.
-    ...(editing ? [] : shell.tools.drawing.map(tool => ({ ...tool, disabled: toolIdle,
-      icon: <ToolIcon id={tool.id} mode={drawingToolVariant(tool.id, shell.frame.annotation)} className="size-3.5" /> }))),
+    ...stripDrawingTools({ editing, drawing: shell.tools.drawing }).map(tool => ({ ...tool, disabled: toolIdle,
+      icon: <ToolIcon id={tool.id} mode={drawingToolVariant(tool.id, shell.frame.annotation)} className="size-3.5" /> })),
     shell.tools.own({ id: TAB_TOOL_MODE.MEASURE, label: "Measure", shortcut: TOOL_SHORTCUTS.measure,
       icon: <ToolIcon id={TAB_TOOL_MODE.MEASURE} mode={pickModeOf(measureFilter, STEP_MEASURE_MODES).id} className="size-3.5" />,
       active: tabToolMode === TAB_TOOL_MODE.MEASURE, disabled: measureToolDisabled,
@@ -3942,11 +3945,12 @@ function StepSurfaceBody({ view, data }) {
     onCameraSettled: onLodCameraMoved
   };
 
+  const quickEditBox = quickEditCarries({ editing, open: quickEditOpen, carried, empty: EMPTY_LIST });
   return <RendererShell shell={shell} tools={tools} subToolbar={tabToolMode === TAB_TOOL_MODE.MEASURE ? <MeasurementsBar measure={measure} /> : modelEffects.subToolbar} sidebar={stepSidebar} previewView={previewView}
     // The edit chrome's icons are drawn from this sprite, which the frame mounts once.
     iconSprite={<NxIconSprite />} drawingToolIcons={DRAWING_TOOL_ICONS}
     // Quick Edit shows with a selection to carry in the AI layout, as always; the CAD workspace has no agent to send it to, so no box.
-    references={editing ? null : quickEditOpen ? carried.references : EMPTY_LIST} referenceChips={quickEditOpen ? carried.chips : EMPTY_LIST}
+    references={quickEditBox.references} referenceChips={quickEditBox.chips}
     quickEditAsked={null} nameReference={nameReference}
     navbarControls={editable && !layoutHosted ? <EditLayoutSwitch value={editLayout} onChange={setEditLayout}
       disabled={layoutHeld} /> : null}

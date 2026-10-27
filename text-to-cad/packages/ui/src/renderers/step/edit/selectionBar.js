@@ -58,6 +58,31 @@ export function quickEditShown({ editing, asked, selectionActionVisible }) {
 }
 
 /**
+ * The drawing tools (Pencil, Shapes) the strip shows. They are Annotate's tools, which write to the agent, so the CAD workspace
+ * (`editing`) has none; the AI layout has them as the viewer ships.
+ */
+export function stripDrawingTools({ editing, drawing }) {
+  return editing ? [] : drawing;
+}
+
+/**
+ * What Quick Edit is handed to carry: in the AI layout the picks while it shows (`open`), else nothing. The CAD workspace has no agent
+ * to send them to, so it is given no box at all (`references: null`).
+ */
+export function quickEditCarries({ editing, open, carried, empty }) {
+  if (editing) return { references: null, chips: empty };
+  return { references: open ? carried.references : empty, chips: open ? carried.chips : empty };
+}
+
+/**
+ * Whether the tool in hand must be put down for Select: Pencil or Shapes (`toolMode`) when the CAD workspace is up (`editing`), which
+ * has neither, or a click would draw instead of select.
+ */
+export function mustPutDownTool({ editing, toolMode }) {
+  return Boolean(editing) && (toolMode === "pencil" || toolMode === "shapes");
+}
+
+/**
  * The row of the design tree (`featureTree`) that `selected`, the id the tree and the timeline select by, is, as the bar
  * sees a pick: `{ kind: "feature", id, feature, sketch, editable }`, or null for what is not a feature or a sketch (the
  * origin, a plane, a part of an assembly, nothing). `sketch` is the sketch a double-click on that row edits: a sketch of
