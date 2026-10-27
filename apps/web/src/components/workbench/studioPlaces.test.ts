@@ -8,6 +8,8 @@ describe("railMark", () => {
     expect(railMark("/chats")).toBe("chats");
     expect(railMark("/projects")).toBe("projects");
     expect(railMark("/needs-you")).toBe("needs");
+    expect(railMark("/examples")).toBe("examples");
+    expect(railMark("/examples/phone-stand")).toBe("examples");
   });
 
   it("marks Projects inside a project's workspace", () => {

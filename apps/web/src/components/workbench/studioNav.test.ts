@@ -10,6 +10,11 @@ describe("studioNavSection", () => {
     expect(studioNavSection("/needs-you")).toBe("needs");
   });
 
+  it("places Examples and each example's page, never as a thread", () => {
+    expect(studioNavSection("/examples")).toBe("examples");
+    expect(studioNavSection("/examples/phone-stand")).toBe("examples");
+  });
+
   it("places the Library, Studio's page that is no place on the rail", () => {
     expect(studioNavSection("/library")).toBe("library");
   });

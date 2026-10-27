@@ -2,7 +2,7 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { STUDIO_PROJECT_KINDS, studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useCallback, useMemo } from "react";
 
-import { readProjects, readThreadShells, useServerConfigs } from "~/state/entities";
+import { useServerConfigs } from "~/state/entities";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { pluginEnvironment } from "~/state/plugins";
 import { projectEnvironment } from "~/state/projects";
@@ -11,53 +11,51 @@ import { studioProjectsEnvironment } from "~/state/studioProjects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { toastManager } from "../../ui/toast";
+import { copyName, listExamples, sampleFile } from "../examples/examples";
 import { plainError } from "../importIntoProject";
-import { showOverview } from "../overviewPanel";
-import { listProjects } from "../projectList";
 import { readStudioImport } from "../studioImportBridge";
 import { useCreateStudioProject } from "../useCreateStudioProject";
 import { copiedEntries } from "../useDuplicateProject";
 import { openInPanel } from "../useOpenInWorkbench";
-import { useOpenProject } from "../useOpenProject";
-import {
-  copySample,
-  findSample,
-  inTurn,
-  SAMPLE_ID,
-  SAMPLE_MARKER,
-  SAMPLE_NAME,
-  SAMPLE_PURPOSE,
-  sampleMode,
-} from "./sampleProject";
+import { useStudioProjects } from "../useStudioProjects";
+import { copySample, inTurn } from "./sampleProject";
 
-/** What the sample is, for its brief: a part bent from sheet. */
-const SAMPLE_KIND = {
-  ...STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!,
-  process: "Sheet metal",
-} as const;
+/** What a copy of an example is, for its brief: a part; its README says the rest. */
+const PART_KIND = STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!;
 
-/** Each environment's open of the sample under way, which the next one waits for (`inTurn`). */
+/** Each environment's copy of an example under way, which the next one waits for (`inTurn`). */
 const underWay = new Map<string, Promise<unknown>>();
 
 /**
- * The finished sample project the server names in its config (`samples`), opened in Studio:
- * the copy made before (`findSample`), else a new project named `SAMPLE_NAME` holding a copy of
- * the sample's top-level files and folders, which the desktop app makes (`studioImport`). `open`
- * opens the project as its tile does, or, given a file in the sample (`parts/servo_bracket.step`),
- * that file beside its chat, and resolves to whether it opened. Null where nothing can be copied
- * (the web app, T3 Code, an environment on another computer, a server started without
- * `T3CODE_SAMPLES_DIR`): there Try a sample project starts the prompt in which the agent
- * builds it, and See the example is not offered.
+ * The examples an environment's server ships (`samples`), as the Examples page lists them
+ * (`listExamples`); `loaded` is false until its config is known. None where the server was
+ * started without `T3CODE_SAMPLES_DIR` (the web app's own server, T3 Code).
  */
-export function useSampleProject(environmentId: EnvironmentId) {
-  // Until Examples lists every sample, Try a sample project opens the servo bracket.
-  const sample =
-    useServerConfigs()
-      .get(environmentId)
-      ?.samples?.find((entry) => entry.id === SAMPLE_ID)?.path ?? null;
+export function useExamples(environmentId: EnvironmentId | null) {
+  const configs = useServerConfigs();
+  const config = environmentId === null ? undefined : configs.get(environmentId);
+  const samples = config?.samples;
+  const examples = useMemo(() => listExamples(samples), [samples]);
+  return { examples, loaded: config !== undefined };
+}
+
+/**
+ * An example the server ships, by its id, and Make a copy to edit: `copy` makes a new project
+ * named `copyName` (the example's name, or the next one free: "Phone stand 2"), copies the
+ * example's files into its folder (the desktop app copies them, `studioImport`), and opens it on
+ * the example's main file, or on `file` of it (the Library's See the example), beside its new
+ * chat. It resolves to whether the copy was made. Copies are made one at a time per environment,
+ * so a second is named past the first and never lands on it. `canCopy` is false where nothing can
+ * be copied (the web app, an environment on another computer): the example still shows, view
+ * only. Null for an example the server does not ship.
+ */
+export function useExample(environmentId: EnvironmentId, sampleId: string) {
+  const sample = useExamples(environmentId).examples.find((entry) => entry.id === sampleId) ?? null;
   const bridge = readStudioImport();
   // The desktop app copies on this computer, so only into the environment it runs.
   const onThisComputer = usePrimaryEnvironmentId() === environmentId;
+  const canCopy = bridge !== null && onThisComputer;
+  const projects = useStudioProjects(environmentId);
   const listStudioProjects = useAtomQueryRunner(studioProjectsEnvironment.list, {
     reportFailure: false,
     refresh: true,
@@ -66,65 +64,42 @@ export function useSampleProject(environmentId: EnvironmentId) {
   const read = useAtomQueryRunner(projectEnvironment.readFile, { reportFailure: false });
   const write = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
   const create = useCreateStudioProject(environmentId);
-  const openProject = useOpenProject();
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
 
-  const open = useCallback(
+  const copy = useCallback(
     (file?: string) =>
       inTurn(underWay, environmentId, async () => {
-        if (sample === null || bridge === null) return false;
+        if (sample === null || bridge === null || !canCopy) return false;
         const failed = (description: string) => {
           toastManager.add({
             type: "error",
-            title: "Could not open the sample project",
+            title: `Could not copy ${sample.name}`,
             description,
           });
           return false;
         };
         try {
-          const projects = await listStudioProjects({ environmentId, input: {} });
-          if (projects._tag !== "Success") return failed("Studio's projects could not be read.");
-          const found = await findSample(projects.value.projects, async (folder) => {
-            const marker = await read({
-              environmentId,
-              input: { cwd: folder, relativePath: SAMPLE_MARKER },
-            });
-            return marker._tag === "Success";
+          // Read now, not from the last render: a copy may have been made a moment ago.
+          const known = await listStudioProjects({ environmentId, input: {} });
+          if (known._tag !== "Success") return failed("Studio's projects could not be read.");
+          const name = copyName(
+            sample.name,
+            Object.values(known.value.projects).map((project) => project.name),
+          );
+          const listed = await list({
+            environmentId,
+            input: { cwd: sample.path, directoryPath: "" },
           });
-          if (found !== null) {
-            // Read now, not from the last render: the copy may have been made a moment ago.
-            const known = readProjects().filter((entry) => entry.environmentId === environmentId);
-            const [card] = listProjects(
-              { [found.id]: found.project },
-              known,
-              readThreadShells(),
-              environmentId,
-            ).cards;
-            if (card === undefined || card.folder === null) {
-              return failed("Its folder is not in Studio.");
-            }
-            const root = studioFolderKey(card.folder.workspaceRoot);
-            await openProject(
-              card.folder,
-              card.threads,
-              file === undefined
-                ? undefined
-                : (ref) => openInPanel(plugins, ref, `${root}/${file}`),
-            );
-            return true;
-          }
-
-          const listed = await list({ environmentId, input: { cwd: sample, directoryPath: "" } });
           if (listed._tag !== "Success") return failed("Its files could not be read.");
           const entries = listed.value.entries.map((entry) => entry.path);
           const copyInto = async (folder: string) => {
             // The new folder keeps what it starts with (its repository, its icon); its README
-            // gives way to the sample's.
+            // gives way to the example's.
             const fresh = await list({ environmentId, input: { cwd: folder, directoryPath: "" } });
             const present =
               fresh._tag === "Success" ? fresh.value.entries.map((entry) => entry.path) : [];
-            const from = studioFolderKey(sample);
+            const from = studioFolderKey(sample.path);
             await copySample({
               entries: copiedEntries(entries, present),
               copy: (names) =>
@@ -136,7 +111,7 @@ export function useSampleProject(environmentId: EnvironmentId) {
                 ? async () => {
                     const readme = await read({
                       environmentId,
-                      input: { cwd: sample, relativePath: "README.md" },
+                      input: { cwd: sample.path, relativePath: "README.md" },
                     });
                     if (readme._tag !== "Success" || readme.value.truncated) {
                       throw new Error("Its README could not be read.");
@@ -156,20 +131,20 @@ export function useSampleProject(environmentId: EnvironmentId) {
                 : null,
             });
           };
+          // Its new chat runs in the copy, where the example's paths hold.
+          const shown = (typeof file === "string" ? sampleFile(file) : null) ?? sample.open;
           return await create({
             environmentId,
-            name: SAMPLE_NAME,
-            kind: SAMPLE_KIND,
+            name,
+            kind: PART_KIND,
             units: "mm",
-            material: "5052-H32 aluminium, 2 mm",
-            purpose: SAMPLE_PURPOSE,
+            material: "",
+            purpose: sample.purpose,
             folders: [],
             // A copy that fails throws out of `create` before it says the project was made or
             // opens its chat, and the catch below says so, once.
             onFolder: copyInto,
-            // Its new chat runs in the copy, where the sample's paths hold.
-            show: (ref) =>
-              file === undefined ? showOverview(ref) : openInPanel(plugins, ref, file),
+            show: (ref) => void openInPanel(plugins, ref, shown),
           });
         } catch (error) {
           return failed(plainError(error));
@@ -177,18 +152,30 @@ export function useSampleProject(environmentId: EnvironmentId) {
       }),
     [
       bridge,
+      canCopy,
       create,
       environmentId,
       list,
       listStudioProjects,
-      openProject,
       plugins,
       read,
       sample,
       write,
     ],
   );
-  const opener = useMemo(() => ({ open }), [open]);
-  const canCopy = bridge !== null && onThisComputer;
-  return sampleMode({ sampleProject: sample, canCopy }) === "copy" ? opener : null;
+  const nextName = useMemo(
+    () =>
+      sample === null
+        ? null
+        : copyName(
+            sample.name,
+            Object.values(projects).map((project) => project.name),
+          ),
+    [projects, sample],
+  );
+  return useMemo(
+    () =>
+      sample === null || nextName === null ? null : { sample, canCopy, copyName: nextName, copy },
+    [canCopy, copy, nextName, sample],
+  );
 }

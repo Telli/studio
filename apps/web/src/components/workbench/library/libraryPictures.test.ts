@@ -6,7 +6,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { LIBRARY_DOCUMENTS } from "./libraryCatalog";
 import libraryExamples from "./libraryExamples.json";
-import { pictureOf, picturePath } from "./libraryPictures";
+import { examplePictureOf, pictureOf, picturePath } from "./libraryPictures";
 
 const ROOT = NodePath.join(import.meta.dirname, "..", "..", "..", "..", "..", "..");
 const SAMPLE = NodePath.join(ROOT, "studio-sample", "servo-bracket");
@@ -47,5 +47,16 @@ describe("library pictures", () => {
     const notMade = ENTRIES.filter((id) => EXAMPLES[id] === null);
     expect(notMade).not.toEqual([]);
     expect(notMade.filter((id) => pictureOf(id) !== null)).toEqual([]);
+  });
+
+  it("has a picture for every example Studio ships, and none for one it does not", () => {
+    const examples = NodeFS.readdirSync(NodePath.join(ROOT, "studio-sample"), {
+      withFileTypes: true,
+    })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    expect(examples).toContain("servo-bracket");
+    expect(examples.filter((id) => examplePictureOf(id) === null)).toEqual([]);
+    expect(examplePictureOf("no-such-example")).toBeNull();
   });
 });

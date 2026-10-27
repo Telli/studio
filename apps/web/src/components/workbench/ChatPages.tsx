@@ -18,13 +18,16 @@ import { chatLabel, workspaceTitle } from "./workspaceTitle";
 
 /**
  * A page of Studio beside the rail, as the Projects page is laid out: its top bar, then a column.
- * Chats, Needs you and the Library (`LibraryPage`) are each one.
+ * Chats, Needs you, the Library (`LibraryPage`), Examples and each example's page are each one.
  */
 export function ChatPage(props: {
   readonly title: string;
-  readonly count: number;
+  /** How many the page lists, beside its title; none for a page of one thing. */
+  readonly count?: number;
   readonly lede?: string;
   readonly search?: ReactNode;
+  /** The page's one action, at the end of its title. */
+  readonly action?: ReactNode;
   readonly children: ReactNode;
 }) {
   return (
@@ -37,16 +40,24 @@ export function ChatPage(props: {
         </StudioTopBar>
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-both">
           <div className="mx-auto flex max-w-4xl flex-col gap-5 px-6 py-6">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-2xl font-semibold text-foreground">
-                {props.title}{" "}
-                <span className="text-base font-normal text-muted-foreground tabular-nums">
-                  {props.count}
-                </span>
-              </h1>
-              {props.lede === undefined ? null : (
-                <p className="text-sm text-muted-foreground">{props.lede}</p>
-              )}
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <h1 className="text-2xl font-semibold text-foreground">
+                  {props.title}
+                  {props.count === undefined ? null : (
+                    <>
+                      {" "}
+                      <span className="text-base font-normal text-muted-foreground tabular-nums">
+                        {props.count}
+                      </span>
+                    </>
+                  )}
+                </h1>
+                {props.lede === undefined ? null : (
+                  <p className="text-sm text-muted-foreground">{props.lede}</p>
+                )}
+              </div>
+              {props.action}
             </div>
             {props.children}
           </div>

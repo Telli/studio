@@ -29,9 +29,10 @@ import {
 } from "./library/libraryCatalog";
 import { libraryHref } from "./library/librarySearch";
 import { NeedsSkill } from "./library/NeedsSkill";
+import { SAMPLE_ID } from "./library/sampleProject";
 import { SeeTheExample } from "./library/SeeTheExample";
 import type { Availability } from "./library/skillAvailability";
-import { useSampleProject } from "./library/useSampleProject";
+import { useExample } from "./library/useSampleProject";
 import { partLabel } from "./partNames";
 import { useEngineeringInterface } from "./studioInterface";
 import { useStudioProjectAt } from "./useStudioProjects";
@@ -92,9 +93,9 @@ function Field(props: {
 
 /**
  * The top of New's panel for a template: its example as the library pictures it, What it covers
- * (a built-in document's sections), and See the example, which opens the example in the sample
- * project where the sample can be copied. One that can't be made now first says which skill it
- * needs and why.
+ * (a built-in document's sections), and See the example, which opens the page of the example
+ * its example is in, where the server ships it. One that can't be made now first says which skill
+ * it needs and why.
  */
 function TemplatePreview(props: {
   readonly template: NewTemplate;
@@ -108,7 +109,7 @@ function TemplatePreview(props: {
   readonly onExampleOpened: () => void;
 }) {
   const { template, needs } = props;
-  const sample = useSampleProject(props.environmentId);
+  const sample = useExample(props.environmentId, SAMPLE_ID);
   const entry =
     template.file === undefined
       ? entryOfTemplate(template.id)
@@ -151,8 +152,8 @@ function TemplatePreview(props: {
         )}
         {example === null || sample === null ? null : (
           <SeeTheExample
+            sampleId={sample.sample.id}
             file={example}
-            open={sample.open}
             size="xs"
             onOpened={props.onExampleOpened}
           />

@@ -1,9 +1,11 @@
 import type { ReactNode, Ref } from "react";
 
+import { Badge } from "../../ui/badge";
+
 /**
- * A card, as Home's project tiles are: a picture over a name, and a note under it. A press opens
- * what it shows; a disabled one says why in its note. The Library's entries and the Toolbox's
- * groups are these.
+ * A card, as Home's project tiles are: a picture over a name, and a note or tags under it. A press
+ * opens what it shows; a disabled one says why in its note. The Library's entries, the Toolbox's
+ * groups and the examples (`ExampleCard`, with what each shows as tags) are these.
  */
 export function LibraryCard({
   ref,
@@ -13,6 +15,8 @@ export function LibraryCard({
   readonly picture: ReactNode;
   readonly name: string;
   readonly note: string | null;
+  /** Short words under the name: what an example shows. */
+  readonly tags?: ReadonlyArray<string>;
   readonly disabled?: boolean;
   readonly onOpen: () => void;
   readonly ref?: Ref<HTMLButtonElement>;
@@ -33,6 +37,15 @@ export function LibraryCard({
         <span className="truncate text-sm font-medium text-foreground">{props.name}</span>
         {props.note === null ? null : (
           <span className="truncate text-xs text-muted-foreground">{props.note}</span>
+        )}
+        {props.tags === undefined || props.tags.length === 0 ? null : (
+          <span className="flex flex-wrap gap-1 pt-1">
+            {props.tags.map((tag) => (
+              <Badge key={tag} variant="outline" size="sm">
+                {tag}
+              </Badge>
+            ))}
+          </span>
         )}
       </span>
     </button>

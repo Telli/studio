@@ -48,3 +48,21 @@ export function pictureOf(entryId: string): LibraryPictureSource | null {
   const url = IMAGES[`./pictures/${picturePath(item.picture)}`];
   return url === undefined ? null : { kind: "image", url };
 }
+
+/** The examples' pictures' URLs: `pictures/examples/<id>.png`, or `.webp` at the library's size. */
+const EXAMPLE_IMAGES = import.meta.glob<string>("./pictures/examples/*.{png,webp}", {
+  eager: true,
+  import: "default",
+});
+
+/**
+ * An example's picture, by its id (`studio-sample/<id>`), bundled here so every client shows it
+ * without reading the server's disk. Null for an example with none, which shows a plain card.
+ */
+export function examplePictureOf(sampleId: string): string | null {
+  return (
+    EXAMPLE_IMAGES[`./pictures/examples/${sampleId}.webp`] ??
+    EXAMPLE_IMAGES[`./pictures/examples/${sampleId}.png`] ??
+    null
+  );
+}

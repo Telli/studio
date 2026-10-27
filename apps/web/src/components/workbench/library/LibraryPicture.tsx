@@ -8,8 +8,8 @@ import { Page, TextPage } from "../OverviewModules";
 import type { LibraryDocument, LibraryEntry } from "./libraryCatalog";
 import { pictureOf } from "./libraryPictures";
 
-/** The box every picture fills: the pictures' own shape, 16:10. */
-const BOX =
+/** The box every picture fills, an example's (`ExamplePicture`) too: their own shape, 16:10. */
+export const PICTURE_BOX =
   "relative flex aspect-[8/5] flex-col items-center justify-center gap-2 overflow-hidden bg-muted/50";
 
 /** A file's folder and its name in it. */
@@ -43,7 +43,7 @@ export function LibraryPicture(props: {
 }) {
   const { entry } = props;
   const picture = pictureOf(entry.id);
-  const box = cn(BOX, props.className);
+  const box = cn(PICTURE_BOX, props.className);
   if (picture?.kind === "image") {
     return (
       <span className={box}>

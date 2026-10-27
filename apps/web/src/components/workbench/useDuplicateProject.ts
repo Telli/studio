@@ -9,6 +9,7 @@ import { projectEnvironment } from "~/state/projects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { toastManager } from "../ui/toast";
+import { copyName as freeName } from "./examples/examples";
 import { readStudioImport } from "./studioImportBridge";
 import { useSaveStudioProject } from "./useStudioProjects";
 
@@ -17,13 +18,7 @@ const NOT_COPIED = /^(?:\..*|node_modules|__pycache__|tmp|dist|build)$/;
 
 /** The copy's name: "<name> copy", then "<name> copy 2" and on, past the names already taken. */
 export function copyName(name: string, taken: ReadonlyArray<string>): string {
-  const names = new Set(taken.map((entry) => entry.trim().toLowerCase()));
-  const base = `${name.trim()} copy`;
-  if (!names.has(base.toLowerCase())) return base;
-  for (let count = 2; ; count++) {
-    const next = `${base} ${count}`;
-    if (!names.has(next.toLowerCase())) return next;
-  }
+  return freeName(`${name.trim()} copy`, taken);
 }
 
 /** The top-level files and folders of a folder's listing to copy, in order, but those already there. */

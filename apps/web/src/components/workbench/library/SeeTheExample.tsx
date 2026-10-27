@@ -1,39 +1,34 @@
-import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 
-import { cn } from "~/lib/utils";
 import { Button } from "../../ui/button";
-import { SAMPLE_NAME } from "./sampleProject";
 
 /**
- * See the example, as New and the library both offer it: opens an entry's example in the sample
- * project (`useSampleProject`'s `open`). The first press copies the sample in as a project of its
- * own, so it says where the example opens.
+ * See the example, as New and the library both offer it: opens the page of the example the file is
+ * in (`/examples/$id`), view only, where Make a copy to edit makes a project of your own from it
+ * and opens it on that file.
  */
 export function SeeTheExample(props: {
-  /** The example's file in the sample project. */
+  /** The example the file is in (`studio-sample/<id>`). */
+  readonly sampleId: string;
+  /** The example's file in it. */
   readonly file: string;
-  readonly open: (file: string) => Promise<boolean>;
   readonly size: "xs" | "sm";
-  /** Once the example is open. */
+  /** Once the example's page is opening. */
   readonly onOpened?: () => void;
   readonly className?: string;
 }) {
-  const [opening, setOpening] = useState(false);
-  const see = () => {
-    setOpening(true);
-    void props
-      .open(props.file)
-      .then((opened) => {
-        if (opened) props.onOpened?.();
-      })
-      .finally(() => setOpening(false));
-  };
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", props.className)}>
-      <Button variant="outline" size={props.size} disabled={opening} onClick={see}>
+    <div className={props.className}>
+      <Button
+        variant="outline"
+        size={props.size}
+        render={
+          <Link to="/examples/$id" params={{ id: props.sampleId }} search={{ file: props.file }} />
+        }
+        onClick={props.onOpened}
+      >
         See the example
       </Button>
-      <span className="text-xs text-muted-foreground">Opens in {SAMPLE_NAME}</span>
     </div>
   );
 }

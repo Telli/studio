@@ -47,8 +47,9 @@ import {
   type LibrarySearch,
 } from "./librarySearch";
 import { NeedsSkill, PluginsLink } from "./NeedsSkill";
+import { SAMPLE_ID } from "./sampleProject";
 import { SeeTheExample } from "./SeeTheExample";
-import { useSampleProject } from "./useSampleProject";
+import { useExample } from "./useSampleProject";
 
 /** Each group of document types by its place's icon: New's, then each part menu's (`kinds.ts`). */
 const GROUP_ICONS: Readonly<Record<LibraryGroup, LucideIcon>> = { New: PlusIcon, ...MENU_ICONS };
@@ -91,7 +92,8 @@ function LibraryContent(props: {
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
   const ownTemplates = useDocumentTemplates(environmentId).templates;
-  const sample = useSampleProject(environmentId);
+  // The example the library's examples are in, where the server ships it.
+  const sample = useExample(environmentId, SAMPLE_ID);
   const [query, setQuery] = useState("");
   const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -237,7 +239,7 @@ function LibraryContent(props: {
             environmentId={environmentId}
             plugins={plugins}
             skillLabel={skillLabel}
-            openExample={sample === null ? null : sample.open}
+            exampleId={sample === null ? null : sample.sample.id}
             onMakeOne={search.from !== undefined || engineering ? makeOne : null}
           />
         )}
@@ -249,7 +251,7 @@ function LibraryContent(props: {
 /**
  * An entry's detail: its picture large, what it is, then a document type's You give, It asks you
  * first, You get, Made by and Find it in, or a skill's Try asking and Shows up as. See the example
- * opens its example in the sample project, where the sample can be copied; Make one opens New on
+ * opens the page of the example its example is in, where the server ships it; Make one opens New on
  * its template, where it can be made and a New will take the ask. One that can't be made says
  * which skill it needs and why.
  */
@@ -259,19 +261,19 @@ function EntryDetail(props: {
   /** The installed plugins; undefined until they are known. */
   readonly plugins: ReadonlyArray<InstalledPlugin> | undefined;
   readonly skillLabel: (name: string) => string;
-  /** Opens a file of the sample project (`useSampleProject`); null where it can't be copied. */
-  readonly openExample: ((file: string) => Promise<boolean>) | null;
+  /** The example its example is in (`useExample`); null where the server ships none. */
+  readonly exampleId: string | null;
   /** Opens New on a template; null where no New would take it. */
   readonly onMakeOne: ((template: NewTemplate) => void) | null;
 }) {
-  const { entry, plugins, skillLabel, openExample, onMakeOne } = props;
+  const { entry, plugins, skillLabel, exampleId, onMakeOne } = props;
   const state =
     entry.kind === "document" && plugins !== undefined ? availability(entry, plugins) : null;
   const template =
     entry.kind === "document" && state?.on === true && onMakeOne !== null
       ? makeOneTemplate(entry)
       : null;
-  const example = openExample === null ? null : entry.example;
+  const example = exampleId === null ? null : entry.example;
 
   const shownAs = entry.kind === "skill" ? showsUpAs(entry.name) : [];
   const rows: ReadonlyArray<readonly [string, ReactNode]> =
@@ -334,8 +336,8 @@ function EntryDetail(props: {
       </DialogPanel>
       {example === null && template === null ? null : (
         <DialogFooter>
-          {example === null || openExample === null ? null : (
-            <SeeTheExample file={example} open={openExample} size="sm" className="sm:me-auto" />
+          {example === null || exampleId === null ? null : (
+            <SeeTheExample sampleId={exampleId} file={example} size="sm" className="sm:me-auto" />
           )}
           {template === null || onMakeOne === null ? null : (
             <Button size="sm" onClick={() => onMakeOne(template)}>

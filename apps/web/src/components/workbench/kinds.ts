@@ -11,6 +11,7 @@ import {
   MessageSquareIcon,
   PackageIcon,
   PencilRulerIcon,
+  ShapesIcon,
   SlidersHorizontalIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -108,6 +109,9 @@ export function fileIconKey(kind: string): ProjectGroup | "Setup" {
 
 /** A project's chats, beside the kinds of file it holds (the Overview's list of everything). */
 export const CHAT_ICON: LucideIcon = MessageSquareIcon;
+
+/** Studio's examples, on the rail and in ⌘K. */
+export const EXAMPLES_ICON: LucideIcon = ShapesIcon;
 
 /**
  * Each kind's color, as Google Drive colors Docs, Sheets and Slides, so a kind is told at a glance

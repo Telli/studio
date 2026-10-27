@@ -7,7 +7,7 @@ import { useDesktopUpdateState } from "~/state/desktopUpdate";
 import { resolveDesktopUpdateButtonAction } from "../desktopUpdate.logic";
 import { SidebarUpdatePill } from "../sidebar/SidebarUpdatePill";
 import { useSidebar } from "../ui/sidebar";
-import { CHAT_ICON } from "./kinds";
+import { CHAT_ICON, EXAMPLES_ICON } from "./kinds";
 import { needsYou } from "./recentActivity";
 import { railMark } from "./studioPlaces";
 import { useProjectList } from "./useProjectList";
@@ -16,12 +16,13 @@ import { useProjectList } from "./useProjectList";
 export const STUDIO_RAIL_WIDTH = 72;
 
 /** Where each place's page is. */
-type RailPage = "/" | "/chats" | "/projects" | "/needs-you" | "/settings";
+type RailPage = "/" | "/chats" | "/projects" | "/examples" | "/needs-you" | "/settings";
 
 /**
  * The places down the far left of Studio, as Slack's rail, each opening its own page as Claude's
- * and ChatGPT's sidebars open Chats and Projects: Home, Chats (every chat), Projects, Needs you
- * (the chats waiting on the person, with how many), and Settings at the foot. The one that shows
+ * and ChatGPT's sidebars open Chats and Projects: Home, Chats (every chat), Projects, Examples (the
+ * finished projects Studio ships), Needs you (the chats waiting on the person, with how many), and
+ * Settings at the foot. The one that shows
  * is marked; inside a project, Projects is. The rail stays when the list beside it folds, and then
  * carries the update button above Settings while an update waits (`RailUpdate`).
  */
@@ -55,6 +56,12 @@ export function StudioRail(props: { readonly environmentId: EnvironmentId }) {
         label="Projects"
         marked={mark === "projects"}
         onClick={() => go("/projects")}
+      />
+      <RailItem
+        icon={EXAMPLES_ICON}
+        label="Examples"
+        marked={mark === "examples"}
+        onClick={() => go("/examples")}
       />
       <RailItem
         icon={BellIcon}

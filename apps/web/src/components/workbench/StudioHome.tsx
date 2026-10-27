@@ -37,7 +37,8 @@ import { useProjectList } from "./useProjectList";
 import { useProjectTiles } from "./useProjectTiles";
 import { type ProjectStart, useStartOnce } from "./useStartProject";
 import { useAskAnything } from "./freeformChat";
-import { useSampleProject } from "./library/useSampleProject";
+import { SAMPLE_ID } from "./library/sampleProject";
+import { useExample } from "./library/useSampleProject";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 /** A group within Your projects, in the project switcher's words: Starred, then Recent. */
@@ -514,7 +515,7 @@ function StartProject(props: {
 
 /**
  * A first visit's sample project: where the desktop app can copy it, the finished one Studio
- * ships, opened as a project of your own (`useSampleProject`); elsewhere the prompt in which the
+ * ships, copied into a project of your own (`useExample`); elsewhere the prompt in which the
  * agent builds it.
  */
 function SampleOffer(props: {
@@ -523,7 +524,8 @@ function SampleOffer(props: {
   readonly busy: boolean;
   readonly start: (work: ProjectStart) => Promise<void>;
 }) {
-  const sample = useSampleProject(props.environmentId);
+  const example = useExample(props.environmentId, SAMPLE_ID);
+  const sample = example?.canCopy === true ? example : null;
   const [opening, setOpening] = useState(false);
   const open = () => {
     if (sample === null) {
@@ -536,7 +538,7 @@ function SampleOffer(props: {
       return;
     }
     setOpening(true);
-    void sample.open().finally(() => setOpening(false));
+    void sample.copy().finally(() => setOpening(false));
   };
   return (
     <div className={OFFER}>
