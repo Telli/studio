@@ -951,6 +951,7 @@ export function DiagnosticsSettingsPanel() {
       <ResourceTelemetryDiagnostics environmentId={environmentId} />
 
       <SettingsSection
+        id="diagnostics-processes"
         title="Live Processes"
         headerAction={
           <div className="flex items-center gap-1.5">

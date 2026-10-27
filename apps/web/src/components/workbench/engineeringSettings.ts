@@ -59,6 +59,7 @@ export const CODE_SETTINGS_ROWS: ReadonlySet<string> = new Set<SettingsSearchIte
   // Programmer settings. Each keeps its stored value and default; the code interfaces still show
   // them, and the Interface switch (Settings, Appearance) is the way there.
   "code-font",
+  "terminal-font",
   "provider-update-checks",
   "response-streaming",
   "composer-rich-text",
@@ -111,7 +112,9 @@ export function engineeringSettingsSearchItems(
   return items
     .map((item) =>
       // The Diagnostics row is not on General here; its search result opens the page under Advanced.
-      item.id === "diagnostics" ? { ...item, to: "/settings/diagnostics" as const } : item,
+      item.id === "diagnostics"
+        ? { ...item, to: "/settings/diagnostics" as const, targetId: "diagnostics-processes" }
+        : item,
     )
     .filter(
       (item) =>

@@ -370,11 +370,17 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 {navItems.map(renderNavItem)}
                 {advancedItems.length > 0 ? (
                   <SidebarMenuItem>
-                    <div className="flex h-8 items-center gap-2 px-2 text-sm font-medium text-sidebar-muted-foreground">
-                      <Settings2Icon className="size-4 shrink-0" />
-                      <span className="truncate">{ADVANCED_SETTINGS_LABEL}</span>
-                    </div>
-                    <SidebarMenu className="ml-4 border-l border-sidebar-border pl-2">
+                    <h3
+                      id="settings-nav-advanced"
+                      className="flex h-8 items-center px-2 text-2xs font-semibold text-sidebar-muted-foreground/75"
+                    >
+                      {ADVANCED_SETTINGS_LABEL}
+                    </h3>
+                    <SidebarMenu
+                      role="group"
+                      aria-labelledby="settings-nav-advanced"
+                      className="ml-4"
+                    >
                       {advancedItems.map(renderNavItem)}
                     </SidebarMenu>
                   </SidebarMenuItem>

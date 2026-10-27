@@ -1811,6 +1811,9 @@ const ADVANCED_TYPOGRAPHY_TARGET_IDS: ReadonlySet<string> = new Set([
  * target exists to scroll to.
  */
 function TypographySection() {
+  // The engineering interface offers the two-font view only: no Advanced switch, no per-surface
+  // rows (the stored per-surface fonts stay in effect).
+  const engineering = useEngineeringInterface();
   const [advanced, setAdvanced] = useLocalStorage(
     TYPOGRAPHY_ADVANCED_STORAGE_KEY,
     false,
@@ -1832,17 +1835,19 @@ function TypographySection() {
       id="typography"
       title="Typography"
       headerAction={
-        <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
-          Advanced
-          <Switch
-            checked={advanced}
-            onCheckedChange={(checked) => setAdvanced(Boolean(checked))}
-            aria-label="Show advanced typography settings"
-          />
-        </label>
+        engineering ? undefined : (
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground">
+            Advanced
+            <Switch
+              checked={advanced}
+              onCheckedChange={(checked) => setAdvanced(Boolean(checked))}
+              aria-label="Show advanced typography settings"
+            />
+          </label>
+        )
       }
     >
-      {advanced ? <FontSettingsGroup /> : <SimpleFontRows />}
+      {advanced && !engineering ? <FontSettingsGroup /> : <SimpleFontRows />}
       <WordWrapRow />
     </SettingsSection>
   );

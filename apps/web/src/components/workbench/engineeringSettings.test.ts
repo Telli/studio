@@ -47,6 +47,7 @@ describe("engineering settings", () => {
   it("leaves the programmer settings out of the engineering search and keeps them in the code one", () => {
     const hidden = [
       ["code font", "code-font"],
+      ["terminal font", "terminal-font"],
       ["update checks", "provider-update-checks"],
       ["streaming", "response-streaming"],
       ["rich text", "composer-rich-text"],
@@ -71,6 +72,7 @@ describe("engineering settings", () => {
       engineeringSettingsSearchItems(SETTINGS_SEARCH_ITEMS),
     );
     expect(result?.to).toBe("/settings/diagnostics");
+    expect(result?.targetId).toBe("diagnostics-processes");
     expect(settingsSearchSectionLabel(result!.to, "Diagnostics", true)).toBe("Advanced");
     expect(settingsSearchSectionLabel("/settings/diagnostics", "Diagnostics", false)).toBe(
       "Diagnostics",
