@@ -58,6 +58,10 @@ def main(argv: list[str]) -> int:
     except ImportError:
         print(f"{checkout} has no scripts/install/dev_install.py to build a dev plugin with.", file=sys.stderr)
         return 1
+    # Studio runs the skills, as the plugin hosts do: without this, dev_install treats "studio" as a
+    # host with none (Claude Desktop's chat), registers nothing and leaves the skills on the release.
+    if "studio" not in dev_install.PLUGIN_HOSTS:
+        dev_install.PLUGIN_HOSTS = (*dev_install.PLUGIN_HOSTS, "studio")
     try:
         version = dev_install.dev_version()
         # Registers the .venv as `version` in Studio's state and writes the `cadgen` command.
