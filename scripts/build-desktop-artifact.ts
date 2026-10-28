@@ -1660,6 +1660,24 @@ export function createStagePatchedDependencies(
   );
 }
 
+/**
+ * A staged install has no lockfile, so a range such as `^1.2.0-beta.15` takes the newest match
+ * and a patch made for one version goes unused, which pnpm refuses (ERR_PNPM_UNUSED_PATCH). A
+ * dependency patched for one exact version is installed at that version, as the lockfile has it.
+ */
+export function pinStagePatchedDependencies(
+  dependencies: Record<string, string>,
+  patchedDependencies: Record<string, string>,
+): Record<string, string> {
+  const pinned = { ...dependencies };
+  for (const patchKey of Object.keys(patchedDependencies)) {
+    const name = getPatchedDependencyPackageName(patchKey);
+    const version = patchKey.slice(name.length + 1);
+    if (version !== "" && Object.hasOwn(pinned, name)) pinned[name] = version;
+  }
+  return pinned;
+}
+
 function getPatchedDependencyPackageName(patchKey: string): string {
   const versionSeparator = patchKey.lastIndexOf("@");
   return versionSeparator > 0 ? patchKey.slice(0, versionSeparator) : patchKey;
@@ -3125,10 +3143,13 @@ export const stageWindowsServerSidecar = Effect.fn("stageWindowsServerSidecar")(
   yield* fs.makeDirectory(path.join(serverStageDir, "apps/server"), { recursive: true });
   yield* fs.copy(input.serverDistDir, path.join(serverStageDir, "apps/server/dist"));
 
-  const sidecarDependencies = {
-    ...input.runtimeExternalDependencies,
-    ...resolveFffNativeDependencies("win", input.arch, input.fffNodeVersion),
-  };
+  const sidecarDependencies = pinStagePatchedDependencies(
+    {
+      ...input.runtimeExternalDependencies,
+      ...resolveFffNativeDependencies("win", input.arch, input.fffNodeVersion),
+    },
+    input.patchedDependencies,
+  );
   const sidecarPatchedDependencies = createStagePatchedDependencies(
     input.patchedDependencies,
     sidecarDependencies,

@@ -22,6 +22,7 @@ import {
   DesktopDmgBackgroundSourceMissingError,
   createStageWorkspaceConfig,
   createStagePatchedDependencies,
+  pinStagePatchedDependencies,
   readWorkspaceConfig,
   createBuildConfig,
   DESKTOP_ELECTRON_LANGUAGES,
@@ -419,6 +420,20 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         "ffi-rs": "1.3.2",
         "playwright-core": "1.60.0",
       },
+    );
+  });
+
+  it("installs a dependency patched for one version at that version, not its range's newest", () => {
+    assert.deepStrictEqual(
+      pinStagePatchedDependencies(
+        { "node-pty": "^1.2.0-beta.15", "@pierre/diffs": "^1.1.0", ws: "^8.0.0" },
+        {
+          "node-pty@1.2.0-beta.15": "patches/node-pty@1.2.0-beta.15.patch",
+          "@pierre/diffs@1.1.20": "patches/@pierre%2Fdiffs@1.1.20.patch",
+          "alchemy@2.0.0-beta.49": "patches/alchemy@2.0.0-beta.49.patch",
+        },
+      ),
+      { "node-pty": "1.2.0-beta.15", "@pierre/diffs": "1.1.20", ws: "^8.0.0" },
     );
   });
 
