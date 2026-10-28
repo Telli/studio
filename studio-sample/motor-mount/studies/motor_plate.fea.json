@@ -1,20 +1,20 @@
 {
   "generator": "cadgen fea",
   "document": "parts/motor_plate.step",
-  "occurrence": "#o1.1",
+  "occurrence": "motor_plate/motor_plate",
   "study": {
     "material": "aluminum-6061-t6",
     "fixtures": [
       {
         "faces": [
-          "#o1.1.f22",
-          "#o1.1.f23",
-          "#o1.1.f24",
-          "#o1.1.f25",
-          "#o1.1.f28",
-          "#o1.1.f29",
-          "#o1.1.f30",
-          "#o1.1.f31"
+          "motor_plate/f:motor_plate.plate_pognbn~0536602222de",
+          "motor_plate/f:motor_plate.plate_pognbn~d72ffbb3a833",
+          "motor_plate/f:motor_plate.plate_pognbn~826fc30e3624",
+          "motor_plate/f:motor_plate.plate_pognbn~57ff47aa8c3a",
+          "motor_plate/f:motor_plate.plate_pognbn~ba41dfa91b63",
+          "motor_plate/f:motor_plate.plate_pognbn~63c9821a28a2",
+          "motor_plate/f:motor_plate.plate_pognbn~e310eef9d498",
+          "motor_plate/f:motor_plate.plate_pognbn~68e01a9b24e1"
         ],
         "type": "fixed"
       }
@@ -22,11 +22,11 @@
     "loads": [
       {
         "faces": [
-          "#o1.1.f27",
-          "#o1.1.f21",
-          "#o1.1.f26",
-          "#o1.1.f32",
-          "#o1.1.f33"
+          "motor_plate/f:motor_plate.plate_oickae~d144bca40c47",
+          "motor_plate/f:motor_plate.plate_ljfdoo~99ccc6689cec",
+          "motor_plate/f:motor_plate.plate_ljfdoo~56d99d9a616f",
+          "motor_plate/f:motor_plate.plate_ljfdoo~00d509e8d150",
+          "motor_plate/f:motor_plate.plate_ljfdoo~d14b01df935d"
         ],
         "type": "force",
         "vector_N": [
@@ -66,8 +66,8 @@
     "fracture_toughness_MPa_sqrt_m": 29.0
   },
   "faces": {
-    "#o1.1.f22": {
-      "ref": "#o1.1.f22",
+    "motor_plate/f:motor_plate.plate_pognbn~0536602222de": {
+      "ref": "motor_plate/f:motor_plate.plate_pognbn~0536602222de",
       "ordinal": 22,
       "area": 51.836278784235,
       "center": [
@@ -76,8 +76,8 @@
         3.0
       ]
     },
-    "#o1.1.f23": {
-      "ref": "#o1.1.f23",
+    "motor_plate/f:motor_plate.plate_pognbn~d72ffbb3a833": {
+      "ref": "motor_plate/f:motor_plate.plate_pognbn~d72ffbb3a833",
       "ordinal": 23,
       "area": 59.999999999999986,
       "center": [
@@ -86,8 +86,8 @@
         2.9999999999999996
       ]
     },
-    "#o1.1.f24": {
-      "ref": "#o1.1.f24",
+    "motor_plate/f:motor_plate.plate_pognbn~826fc30e3624": {
+      "ref": "motor_plate/f:motor_plate.plate_pognbn~826fc30e3624",
       "ordinal": 24,
       "area": 51.836278784235,
       "center": [
@@ -96,8 +96,8 @@
         3.0
       ]
     },
-    "#o1.1.f25": {
-      "ref": "#o1.1.f25",
+    "motor_plate/f:motor_plate.plate_pognbn~57ff47aa8c3a": {
+      "ref": "motor_plate/f:motor_plate.plate_pognbn~57ff47aa8c3a",
       "ordinal": 25,
       "area": 59.999999999999986,
       "center": [
@@ -106,8 +106,8 @@
         2.9999999999999996
       ]
     },
-    "#o1.1.f28": {
-      "ref": "#o1.1.f28",
+    "motor_plate/f:motor_plate.plate_pognbn~ba41dfa91b63": {
+      "ref": "motor_plate/f:motor_plate.plate_pognbn~ba41dfa91b63",
       "ordinal": 28,
       "area": 51.836278784235,
       "center": [
@@ -116,8 +116,8 @@
         3.0
       ]
     },
-    "#o1.1.f29": {
-      "ref": "#o1.1.f29",
+    "motor_plate/f:motor_plate.plate_pognbn~63c9821a28a2": {
+      "ref": "motor_plate/f:motor_plate.plate_pognbn~63c9821a28a2",
       "ordinal": 29,
       "area": 59.999999999999986,
       "center": [
@@ -126,8 +126,8 @@
         2.9999999999999996
       ]
     },
-    "#o1.1.f30": {
-      "ref": "#o1.1.f30",
+    "motor_plate/f:motor_plate.plate_pognbn~e310eef9d498": {
+      "ref": "motor_plate/f:motor_plate.plate_pognbn~e310eef9d498",
       "ordinal": 30,
       "area": 51.836278784235,
       "center": [
@@ -136,8 +136,8 @@
         3.0
       ]
     },
-    "#o1.1.f31": {
-      "ref": "#o1.1.f31",
+    "motor_plate/f:motor_plate.plate_pognbn~68e01a9b24e1": {
+      "ref": "motor_plate/f:motor_plate.plate_pognbn~68e01a9b24e1",
       "ordinal": 31,
       "area": 59.999999999999986,
       "center": [
@@ -146,8 +146,8 @@
         2.9999999999999996
       ]
     },
-    "#o1.1.f27": {
-      "ref": "#o1.1.f27",
+    "motor_plate/f:motor_plate.plate_oickae~d144bca40c47": {
+      "ref": "motor_plate/f:motor_plate.plate_oickae~d144bca40c47",
       "ordinal": 27,
       "area": 209.230070729094,
       "center": [
@@ -156,8 +156,8 @@
         1.5
       ]
     },
-    "#o1.1.f21": {
-      "ref": "#o1.1.f21",
+    "motor_plate/f:motor_plate.plate_ljfdoo~99ccc6689cec": {
+      "ref": "motor_plate/f:motor_plate.plate_ljfdoo~99ccc6689cec",
       "ordinal": 21,
       "area": 32.044245066618004,
       "center": [
@@ -166,8 +166,8 @@
         1.5
       ]
     },
-    "#o1.1.f26": {
-      "ref": "#o1.1.f26",
+    "motor_plate/f:motor_plate.plate_ljfdoo~56d99d9a616f": {
+      "ref": "motor_plate/f:motor_plate.plate_ljfdoo~56d99d9a616f",
       "ordinal": 26,
       "area": 32.044245066618004,
       "center": [
@@ -176,8 +176,8 @@
         1.5
       ]
     },
-    "#o1.1.f32": {
-      "ref": "#o1.1.f32",
+    "motor_plate/f:motor_plate.plate_ljfdoo~00d509e8d150": {
+      "ref": "motor_plate/f:motor_plate.plate_ljfdoo~00d509e8d150",
       "ordinal": 32,
       "area": 32.044245066618004,
       "center": [
@@ -186,8 +186,8 @@
         1.5
       ]
     },
-    "#o1.1.f33": {
-      "ref": "#o1.1.f33",
+    "motor_plate/f:motor_plate.plate_ljfdoo~d14b01df935d": {
+      "ref": "motor_plate/f:motor_plate.plate_ljfdoo~d14b01df935d",
       "ordinal": 33,
       "area": 32.044245066618004,
       "center": [
@@ -198,8 +198,8 @@
     }
   },
   "summary": {
-    "max_von_mises_MPa": 0.5499,
-    "max_von_mises_gauss_MPa": 0.5288,
+    "max_von_mises_MPa": 0.5293,
+    "max_von_mises_gauss_MPa": 0.4855,
     "max_von_mises_at_mm": [
       33.055,
       -1.945,
@@ -219,24 +219,24 @@
     ],
     "reaction_force_N": [
       50.0,
-      -0.0,
+      0.0,
       0.0
     ],
     "deformation_scale": 54000.0,
-    "safety_factor": 501.917,
+    "safety_factor": 521.397,
     "checks": [
       {
         "kind": "stress",
         "label": "Strength, 50 N of belt tension on the motor, along the belt",
-        "value": 0.5499,
+        "value": 0.5293,
         "limit": 276.0,
         "unit": "MPa",
-        "ratio": 0.001992,
+        "ratio": 0.001918,
         "close_at": 0.5,
         "margin": 2.0,
         "status": "passes",
         "where": {
-          "ref": "#o1.1.f28",
+          "ref": "motor_plate/f:motor_plate.plate_pognbn~ba41dfa91b63",
           "at": [
             33.055,
             -1.945,
@@ -249,19 +249,19 @@
   "fixtures": [
     {
       "faces": [
-        "#o1.1.f22",
-        "#o1.1.f23",
-        "#o1.1.f24",
-        "#o1.1.f25",
-        "#o1.1.f28",
-        "#o1.1.f29",
-        "#o1.1.f30",
-        "#o1.1.f31"
+        "motor_plate/f:motor_plate.plate_pognbn~0536602222de",
+        "motor_plate/f:motor_plate.plate_pognbn~d72ffbb3a833",
+        "motor_plate/f:motor_plate.plate_pognbn~826fc30e3624",
+        "motor_plate/f:motor_plate.plate_pognbn~57ff47aa8c3a",
+        "motor_plate/f:motor_plate.plate_pognbn~ba41dfa91b63",
+        "motor_plate/f:motor_plate.plate_pognbn~63c9821a28a2",
+        "motor_plate/f:motor_plate.plate_pognbn~e310eef9d498",
+        "motor_plate/f:motor_plate.plate_pognbn~68e01a9b24e1"
       ],
       "type": "fixed",
       "reaction_N": [
         50.0,
-        -0.0,
+        0.0,
         0.0
       ]
     }
@@ -272,7 +272,7 @@
       "name": "von Mises stress",
       "units": "MPa",
       "min": 0.0,
-      "max": 0.5499,
+      "max": 0.5293,
       "attribute_scale": 1.0
     },
     {
@@ -291,24 +291,17 @@
     "size_mm": 1.5,
     "order": 2,
     "mesher": "netgen",
-    "solver": "amg+cg (43 iterations)"
+    "solver": "calculix 2.23 (C3D10)"
   },
   "timings": {
-    "mesh_s": 1.858,
-    "mesh_to_fem_s": 0.802,
-    "assemble_s": 10.509,
-    "solve_s": 9.406,
-    "stress_s": 5.318
+    "mesh_s": 1.618,
+    "solve_s": 9.077,
+    "stress_s": 0.021
   },
-  "warnings": [],
+  "warnings": [
+    "199236 degrees of freedom: expect a slow solve; a larger mesh.size_mm is usually enough"
+  ],
   "findings": [],
-  "verdict": {
-    "status": "ready",
-    "headline": "Ready",
-    "errors": 0,
-    "warnings": 0,
-    "passed": 0
-  },
   "refined": null,
   "files": {
     "glb": "motor_plate.fea.glb",

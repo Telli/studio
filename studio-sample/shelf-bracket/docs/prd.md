@@ -36,7 +36,7 @@ Could:
 
 ## Performance targets: loads, life, temperatures, cycles
 
-- Load: 15 kg (147.1 N) down on the shelf flange of one bracket, the whole shelf's load on one bracket. The strength study gives a safety factor of 2.36 in the bracket itself (134.3 MPa at the corner relief, against 317.2 MPa yield), and 0.34 mm of sag at the tip, 0.91 mm of movement in all (`docs/shelf_bracket_strength_report.md`). At the rigid wall holes the model reads a higher peak, which the report explains.
+- Load: 15 kg (147.1 N) down on the shelf flange of one bracket, the whole shelf's load on one bracket. The strength study gives a safety factor of 2.43 in the bracket itself (130.8 MPa at the corner relief, against 317.2 MPa yield), and 0.34 mm of sag at the tip, 0.91 mm of movement in all (`docs/shelf_bracket_strength_report.md`). At the rigid wall holes the model reads a higher peak, which the report explains.
 - Life, cycles and temperatures: not set (open questions). Indoors, at room temperature, is assumed.
 
 ## Size, weight and interfaces
@@ -56,7 +56,7 @@ Not set. Two brackets for one shelf; no quote has been asked for.
 
 ## How success is measured
 
-- The strength study keeps a safety factor of at least 2 in the bracket itself: now 2.36. The study's own figure at the wall holes, a rigid fixture, is 1.44, and a study with the screw heads and the wall in it is an open action.
+- The strength study keeps a safety factor of at least 2 in the bracket itself: now 2.43. The study's own figure at the wall holes, a rigid fixture, is 1.47, and a study with the screw heads and the wall in it is an open action.
 - The tip moves under 1 mm: now 0.34 mm down, 0.91 mm in all, most of it a twist a shelf board would hold.
 - The sheet metal check passes: it does now, after the corner relief was opened from 5 to 7 mm.
 - SendCutSend's preflight passes for the STEP: it does. The cut file fails on its bend line type only.

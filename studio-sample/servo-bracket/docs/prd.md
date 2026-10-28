@@ -39,7 +39,7 @@ Could:
 
 ## Performance targets: loads, life, temperatures, cycles
 
-- Load: 20 N down at the horn, held steady. The strength study gives 48.9 MPa at the peak, a safety factor of 3.66 and 0.141 mm of movement (`docs/servo_bracket_strength_report.md`).
+- Load: 20 N down at the horn, held steady. The strength study gives 48.1 MPa at the peak, a safety factor of 3.73 and 0.141 mm of movement (`docs/servo_bracket_strength_report.md`).
 - The servo's own: up to 0.92 N·m when it stalls, and 60° in 0.19 s, both at 4.8 V (Tower Pro). Not yet studied against the bracket.
 - Life, cycles and temperatures: not set (open questions).
 
@@ -62,7 +62,7 @@ Not set. The quantity is not decided, and no quote has been asked for; the SendC
 
 ## How success is measured
 
-- The strength study passes with a safety factor of at least 2: now 3.66.
+- The strength study passes with a safety factor of at least 2: now 3.73.
 - The fit check finds no collision and the horn clears through 60° each way: now none, 1.7 mm at the closest.
 - The bracket passes its sheet metal check and SendCutSend's preflight: both fail now on one count, the cut file's bend line, which is solid where SendCutSend asks for a dashed one.
 - The clip passes its FDM check: it fails now, on thin lips and an open mesh.

@@ -1,16 +1,47 @@
 {
   "material": "aluminum-6061-t6",
   "fixtures": [
-    {"faces": ["#o1.1.f22", "#o1.1.f23", "#o1.1.f24", "#o1.1.f25", "#o1.1.f28", "#o1.1.f29", "#o1.1.f30", "#o1.1.f31"], "type": "fixed"}
+    {
+      "faces": [
+        "motor_plate/f:motor_plate.plate_pognbn~0536602222de",
+        "motor_plate/f:motor_plate.plate_pognbn~d72ffbb3a833",
+        "motor_plate/f:motor_plate.plate_pognbn~826fc30e3624",
+        "motor_plate/f:motor_plate.plate_pognbn~57ff47aa8c3a",
+        "motor_plate/f:motor_plate.plate_pognbn~ba41dfa91b63",
+        "motor_plate/f:motor_plate.plate_pognbn~63c9821a28a2",
+        "motor_plate/f:motor_plate.plate_pognbn~e310eef9d498",
+        "motor_plate/f:motor_plate.plate_pognbn~68e01a9b24e1"
+      ],
+      "type": "fixed"
+    }
   ],
   "loads": [
-    {"faces": ["#o1.1.f27", "#o1.1.f21", "#o1.1.f26", "#o1.1.f32", "#o1.1.f33"], "type": "force", "vector_N": [-50, 0, 0]}
+    {
+      "faces": [
+        "motor_plate/f:motor_plate.plate_oickae~d144bca40c47",
+        "motor_plate/f:motor_plate.plate_ljfdoo~99ccc6689cec",
+        "motor_plate/f:motor_plate.plate_ljfdoo~56d99d9a616f",
+        "motor_plate/f:motor_plate.plate_ljfdoo~00d509e8d150",
+        "motor_plate/f:motor_plate.plate_ljfdoo~d14b01df935d"
+      ],
+      "type": "force",
+      "vector_N": [
+        -50,
+        0,
+        0
+      ]
+    }
   ],
-  "mesh": {"size_mm": 1.5},
+  "mesh": {
+    "size_mm": 1.5
+  },
   "margin": 2,
   "view": {
     "checks": [
-      {"kind": "stress", "label": "Strength, 50 N of belt tension on the motor, along the belt"}
+      {
+        "kind": "stress",
+        "label": "Strength, 50 N of belt tension on the motor, along the belt"
+      }
     ]
   }
 }

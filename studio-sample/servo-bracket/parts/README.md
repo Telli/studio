@@ -38,5 +38,5 @@ From the exported STEP files (`cadgen run exports.py` first):
 
 - The strength study: studies/servo_bracket.study.json, solved with `cadgen fea solve parts/servo_bracket.step
   studies/servo_bracket.fea.glb --study studies/servo_bracket.study.json`.
-- The adapter's CAM job: `cadgen cam plan parts/horn_adapter.step --job cam/horn_adapter.job.json --out-dir cam` writes
+- The adapter's CAM job: `cadgen cam plan parts/horn_adapter.step --job cam/horn_adapter.cam.json --out-dir cam` writes
   cam/horn_adapter.cam.glb and the LinuxCNC programs cam/horn_adapter.top.ngc and cam/horn_adapter.bottom.ngc.

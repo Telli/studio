@@ -1,7 +1,7 @@
 {
   "generator": "cadgen fea",
   "document": "parts/servo_bracket.step",
-  "occurrence": "#o1.1",
+  "occurrence": "servo_bracket/servo_bracket",
   "study": {
     "material": {
       "name": "aluminium-5052-h32",
@@ -13,14 +13,14 @@
     "fixtures": [
       {
         "faces": [
-          "#o1.1.f13",
-          "#o1.1.f14"
+          "servo_bracket/f:servo_bracket.bracket_aijloh~0dfaef4410be",
+          "servo_bracket/f:servo_bracket.bracket_aijloh~f72eec084300"
         ],
         "type": "fixed"
       },
       {
         "faces": [
-          "#o1.1.f5"
+          "servo_bracket/f:servo_bracket.bracket_kpkmmn~22577347f833"
         ],
         "type": "roller"
       }
@@ -28,8 +28,8 @@
     "loads": [
       {
         "faces": [
-          "#o1.1.f19",
-          "#o1.1.f28"
+          "servo_bracket/f:servo_bracket.bracket_ncbhei~21f6bfd86b93",
+          "servo_bracket/f:servo_bracket.bracket_ncbhei~722412049df2"
         ],
         "type": "force",
         "vector_N": [
@@ -40,8 +40,8 @@
       },
       {
         "faces": [
-          "#o1.1.f17",
-          "#o1.1.f18"
+          "servo_bracket/f:servo_bracket.bracket_ncbhei~f907b4d4fef2",
+          "servo_bracket/f:servo_bracket.bracket_ncbhei~7be0d6d30ae1"
         ],
         "type": "force",
         "vector_N": [
@@ -91,8 +91,8 @@
     "density_t_per_mm3": 2.713e-09
   },
   "faces": {
-    "#o1.1.f13": {
-      "ref": "#o1.1.f13",
+    "servo_bracket/f:servo_bracket.bracket_aijloh~0dfaef4410be": {
+      "ref": "servo_bracket/f:servo_bracket.bracket_aijloh~0dfaef4410be",
       "ordinal": 13,
       "area": 28.274333882306273,
       "center": [
@@ -101,8 +101,8 @@
         -16.0
       ]
     },
-    "#o1.1.f14": {
-      "ref": "#o1.1.f14",
+    "servo_bracket/f:servo_bracket.bracket_aijloh~f72eec084300": {
+      "ref": "servo_bracket/f:servo_bracket.bracket_aijloh~f72eec084300",
       "ordinal": 14,
       "area": 28.274333882306273,
       "center": [
@@ -111,8 +111,8 @@
         -16.0
       ]
     },
-    "#o1.1.f5": {
-      "ref": "#o1.1.f5",
+    "servo_bracket/f:servo_bracket.bracket_kpkmmn~22577347f833": {
+      "ref": "servo_bracket/f:servo_bracket.bracket_kpkmmn~22577347f833",
       "ordinal": 5,
       "area": 1822.5685413235578,
       "center": [
@@ -121,8 +121,8 @@
         -17.47902474398984
       ]
     },
-    "#o1.1.f19": {
-      "ref": "#o1.1.f19",
+    "servo_bracket/f:servo_bracket.bracket_ncbhei~21f6bfd86b93": {
+      "ref": "servo_bracket/f:servo_bracket.bracket_ncbhei~21f6bfd86b93",
       "ordinal": 19,
       "area": 15.707963267947932,
       "center": [
@@ -131,8 +131,8 @@
         -1.0
       ]
     },
-    "#o1.1.f28": {
-      "ref": "#o1.1.f28",
+    "servo_bracket/f:servo_bracket.bracket_ncbhei~722412049df2": {
+      "ref": "servo_bracket/f:servo_bracket.bracket_ncbhei~722412049df2",
       "ordinal": 28,
       "area": 15.707963267947932,
       "center": [
@@ -141,8 +141,8 @@
         -1.0
       ]
     },
-    "#o1.1.f17": {
-      "ref": "#o1.1.f17",
+    "servo_bracket/f:servo_bracket.bracket_ncbhei~f907b4d4fef2": {
+      "ref": "servo_bracket/f:servo_bracket.bracket_ncbhei~f907b4d4fef2",
       "ordinal": 17,
       "area": 15.707963267947932,
       "center": [
@@ -151,8 +151,8 @@
         -1.0
       ]
     },
-    "#o1.1.f18": {
-      "ref": "#o1.1.f18",
+    "servo_bracket/f:servo_bracket.bracket_ncbhei~7be0d6d30ae1": {
+      "ref": "servo_bracket/f:servo_bracket.bracket_ncbhei~7be0d6d30ae1",
       "ordinal": 18,
       "area": 15.707963267947932,
       "center": [
@@ -163,15 +163,15 @@
     }
   },
   "summary": {
-    "max_von_mises_MPa": 48.9243,
-    "max_von_mises_gauss_MPa": 49.1324,
+    "max_von_mises_MPa": 48.0812,
+    "max_von_mises_gauss_MPa": 46.2791,
     "max_von_mises_at_mm": [
-      20.74,
-      12.402,
+      20.712,
+      12.309,
       0.0
     ],
     "yield_MPa": 179.3,
-    "max_displacement_mm": 0.140884,
+    "max_displacement_mm": 0.140941,
     "max_displacement_at_mm": [
       29.0,
       40.0,
@@ -188,23 +188,23 @@
       20.0
     ],
     "deformation_scale": 29.0,
-    "safety_factor": 3.664,
+    "safety_factor": 3.729,
     "checks": [
       {
         "kind": "stress",
         "label": "Strength, 20 N down at the horn through the servo's 4 screws",
-        "value": 48.9243,
+        "value": 48.0812,
         "limit": 179.3,
         "unit": "MPa",
-        "ratio": 0.272926,
+        "ratio": 0.268168,
         "close_at": 0.5,
         "margin": 2.0,
         "status": "passes",
         "where": {
-          "ref": "#o1.1.f9",
+          "ref": "servo_bracket/f:servo_bracket.bracket_kdabdf~01bdc045c495",
           "at": [
-            20.74,
-            12.402,
+            20.712,
+            12.309,
             0.0
           ]
         }
@@ -214,24 +214,24 @@
   "fixtures": [
     {
       "faces": [
-        "#o1.1.f13",
-        "#o1.1.f14"
+        "servo_bracket/f:servo_bracket.bracket_aijloh~0dfaef4410be",
+        "servo_bracket/f:servo_bracket.bracket_aijloh~f72eec084300"
       ],
       "type": "fixed",
       "reaction_N": [
-        -0.0,
-        -1.2115,
+        0.0,
+        -1.2113,
         20.0
       ]
     },
     {
       "faces": [
-        "#o1.1.f5"
+        "servo_bracket/f:servo_bracket.bracket_kpkmmn~22577347f833"
       ],
       "type": "roller",
       "reaction_N": [
         0.0,
-        1.2115,
+        1.2113,
         0.0
       ]
     }
@@ -242,7 +242,7 @@
       "name": "von Mises stress",
       "units": "MPa",
       "min": 0.0,
-      "max": 48.9243,
+      "max": 48.0812,
       "attribute_scale": 1.0
     },
     {
@@ -250,7 +250,7 @@
       "name": "displacement",
       "units": "mm",
       "min": 0.0,
-      "max": 0.140884,
+      "max": 0.140941,
       "attribute_scale": 1000.0
     }
   ],
@@ -261,24 +261,17 @@
     "size_mm": 2.0494,
     "order": 2,
     "mesher": "netgen",
-    "solver": "amg+cg (72 iterations)"
+    "solver": "calculix 2.23 (C3D10)"
   },
   "timings": {
-    "mesh_s": 2.053,
-    "mesh_to_fem_s": 1.169,
-    "assemble_s": 13.709,
-    "solve_s": 15.636,
-    "stress_s": 16.057
+    "mesh_s": 8.821,
+    "solve_s": 24.345,
+    "stress_s": 0.027
   },
-  "warnings": [],
+  "warnings": [
+    "234063 degrees of freedom: expect a slow solve; a larger mesh.size_mm is usually enough"
+  ],
   "findings": [],
-  "verdict": {
-    "status": "ready",
-    "headline": "Ready",
-    "errors": 0,
-    "warnings": 0,
-    "passed": 0
-  },
   "refined": null,
   "files": {
     "glb": "servo_bracket.fea.glb",

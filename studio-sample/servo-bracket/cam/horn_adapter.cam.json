@@ -1,0 +1,130 @@
+{
+  "name": "horn_adapter",
+  "machine": {
+    "kind": "mill",
+    "post": "linuxcnc",
+    "max_rpm": 10000,
+    "max_feed_mm_min": 2500,
+    "rapid_mm_min": 5000
+  },
+  "material": "aluminum-6061",
+  "coolant": "flood",
+  "stock": {
+    "margin_mm": [
+      2,
+      2,
+      1
+    ]
+  },
+  "tools": [
+    {
+      "id": "T1",
+      "type": "flat",
+      "diameter_mm": 6,
+      "flutes": 3,
+      "flute_length_mm": 13,
+      "stickout_mm": 20,
+      "name": "6 mm 3FL carbide, aluminium"
+    },
+    {
+      "id": "T3",
+      "type": "drill",
+      "diameter_mm": 2.5,
+      "flute_length_mm": 30,
+      "stickout_mm": 36,
+      "name": "2.5 mm M3 tap drill"
+    },
+    {
+      "id": "T4",
+      "type": "drill",
+      "diameter_mm": 3.4,
+      "flute_length_mm": 39,
+      "stickout_mm": 45,
+      "name": "3.4 mm drill"
+    },
+    {
+      "id": "T5",
+      "type": "flat",
+      "diameter_mm": 1.5,
+      "flutes": 2,
+      "flute_length_mm": 4.5,
+      "stickout_mm": 12,
+      "name": "1.5 mm 2FL carbide, long flutes"
+    },
+    {
+      "id": "T6",
+      "type": "flat",
+      "diameter_mm": 1,
+      "flutes": 2,
+      "flute_length_mm": 5,
+      "stickout_mm": 12,
+      "name": "1 mm 2FL carbide, long flutes"
+    }
+  ],
+  "setups": [
+    {
+      "id": "bottom",
+      "orientation": "-Z",
+      "origin": "stock-top-center",
+      "operations": [
+        {
+          "op": "pocket",
+          "tool": "T6",
+          "faces": [
+            "horn_adapter/f:horn_adapter.adapter_aecmfo~ec6e525faf47"
+          ],
+          "name": "The spline bore, 4 mm deep"
+        }
+      ]
+    },
+    {
+      "id": "top",
+      "orientation": "+Z",
+      "origin": "stock-top-center",
+      "operations": [
+        {
+          "op": "face",
+          "tool": "T1",
+          "name": "Face the top"
+        },
+        {
+          "op": "pocket",
+          "tool": "T5",
+          "faces": [
+            "horn_adapter/f:horn_adapter.adapter_pdijib~9abf75ea723a"
+          ],
+          "name": "The screw's counterbore"
+        },
+        {
+          "op": "drill",
+          "tool": "T3",
+          "faces": [
+            "horn_adapter/f:horn_adapter.adapter_khafhb~9844bcaed5a3",
+            "horn_adapter/f:horn_adapter.adapter_khafhb~07d20f22d69d",
+            "horn_adapter/f:horn_adapter.adapter_khafhb~7d6cddd476a4",
+            "horn_adapter/f:horn_adapter.adapter_khafhb~d10ec679db9a"
+          ],
+          "peck_mm": 1.5,
+          "name": "Drill the four M3 tapping holes"
+        },
+        {
+          "op": "drill",
+          "tool": "T4",
+          "faces": [
+            "horn_adapter/f:horn_adapter.adapter_pdijib~9c41fb3cf003"
+          ],
+          "peck_mm": 2,
+          "name": "Drill the screw's clearance hole"
+        },
+        {
+          "op": "profile",
+          "tool": "T1",
+          "side": "outside",
+          "through_mm": 0.5,
+          "stepdown_mm": 2,
+          "name": "Cut the outline free"
+        }
+      ]
+    }
+  ]
+}

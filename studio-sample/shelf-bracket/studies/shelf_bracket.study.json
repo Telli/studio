@@ -9,8 +9,8 @@
   "fixtures": [
     {
       "faces": [
-        "#o1.1.f13",
-        "#o1.1.f14"
+        "shelf_bracket/f:shelf_bracket.bracket_gclkcn_extrude1~ff90fb4fadb0",
+        "shelf_bracket/f:shelf_bracket.bracket_gclkcn_extrude1~fd9d0d6151c9"
       ],
       "type": "fixed"
     }
@@ -18,7 +18,7 @@
   "loads": [
     {
       "faces": [
-        "#o1.1.f24"
+        "shelf_bracket/f:shelf_bracket.bracket_aichcp~3937c7e4f9ec"
       ],
       "type": "force",
       "vector_N": [
@@ -39,7 +39,7 @@
         "kind": "displacement",
         "limit_mm": 1.0,
         "faces": [
-          "#o1.1.f19"
+          "shelf_bracket/f:shelf_bracket.bracket_aichcp~8cf08f7f4fd7"
         ],
         "label": "Tip sag"
       }

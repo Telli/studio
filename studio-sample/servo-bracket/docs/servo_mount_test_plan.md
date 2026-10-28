@@ -5,7 +5,7 @@ Seven tests for the first servo mount (`assemblies/servo_mount.step`), from a re
 ## What it must do
 
 - Hold an MG996R servo horn up, by its four tab holes.
-- Hold 20 N down at the servo horn. The strength study gives a safety factor of 3.66 against yield (`docs/servo_bracket_strength_report.md`).
+- Hold 20 N down at the servo horn. The strength study gives a safety factor of 3.73 against yield (`docs/servo_bracket_strength_report.md`).
 - Let the horn turn its whole 120°, 60° each way, without touching anything.
 - Fix to a wall with two M4 screws.
 

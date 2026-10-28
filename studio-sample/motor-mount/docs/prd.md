@@ -36,7 +36,7 @@ Could:
 
 ## Performance targets: loads, life, temperatures, cycles
 
-- Load: 50 N along the belt, held steady. The strength study gives 0.55 MPa at the peak, a safety factor of 501 and 0.000114 mm of movement (`docs/motor_plate_strength_report.md`).
+- Load: 50 N along the belt, held steady. The strength study gives 0.53 MPa at the peak, a safety factor of 521 and 0.000114 mm of movement (`docs/motor_plate_strength_report.md`).
 - Life, cycles, vibration and temperatures: not set (open questions).
 
 ## Size, weight and interfaces
@@ -57,8 +57,8 @@ Not set. One prototype is assumed; no quote has been asked for.
 
 ## How success is measured
 
-- The strength study passes with a safety factor of at least 2: now 501.
-- The CAM program is ready to cut with no errors: now it is, with four warnings (`cam/motor_plate_cam.md`).
+- The strength study passes with a safety factor of at least 2: now 521.
+- The CAM program is ready to cut with no errors: now it is, with two warnings, its bore and slots cut by hand (`cam/motor_plate_cam.md`).
 - The DFM review finds no failure: now none, two items to review (`docs/motor_plate_dfm.md`).
 - The first plate takes a real motor and tensions a belt: not made yet.
 

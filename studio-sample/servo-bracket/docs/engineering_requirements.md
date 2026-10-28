@@ -8,7 +8,7 @@ Thirteen requirements, each traced to a line of the PRD (`docs/prd.md`) and veri
 | --- | --- | --- | --- | --- | --- |
 | ER-1 | The servo's case fits the cutout | A 40.9 × 20.0 mm case in a 41.5 × 20.6 mm cutout: 0.3 mm a side. Cuts ±0.127 mm. | PRD M1 | Analysis: the fit check. Test: test plan 1 and 4. | Met in the model: no collision, 0.217 mm at the tightest, at the cutout's corners. |
 | ER-2 | The servo's screw holes | Four M3 × 0.5 tapped holes, 47.45 mm apart along the servo and 9.5 mm across. Cuts ±0.127 mm. | PRD M1 | Inspection: the drawing. Test: test plan 1, 2 and 3. | Open: the spacing is assumed, not from the datasheet. |
-| ER-3 | Strength | 20 N down at the horn, held steady, with a safety factor of at least 2 against 179.3 MPa yield. | PRD M2 | Analysis: the strength study. Test: test plan 6. | Met by analysis: 48.9 MPa, a safety factor of 3.66. |
+| ER-3 | Strength | 20 N down at the horn, held steady, with a safety factor of at least 2 against 179.3 MPa yield. | PRD M2 | Analysis: the strength study. Test: test plan 6. | Met by analysis: 48.1 MPa, a safety factor of 3.73. |
 | ER-4 | The sheet | 5052-H32 aluminium, 0.080 in ±0.005 in (1.905 to 2.159 mm). The model is 2.000 mm. | PRD M3 | Inspection. | Met: 2.000 mm is inside the sheet's tolerance. |
 | ER-5 | The bend | One 90° bend ±1°, inside radius 0.965 mm, SendCutSend's for this sheet. | PRD M3 | Analysis: the sheet metal check. Test: test plan 2. | Met in the model. |
 | ER-6 | The horn's travel | 120°, 60° each way, touching nothing. | PRD M4 | Analysis: the fit check's sweep of the travel. Test: test plan 5. | Met in the model: 1.699 mm at the closest, at every angle. |

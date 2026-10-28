@@ -24,7 +24,7 @@ and parts/imported/iso4762_socket_head_cap_screw_m3x6.step.
 Making it, from the exported STEP (`cadgen run exports.py` first):
 
 - CAM: `cadgen cam plan parts/motor_plate.step --job cam/motor_plate.cam.json --out-dir cam` writes
-  cam/motor_plate.cam.glb and the LinuxCNC programs cam/motor_plate.top.ngc and cam/motor_plate.bottom.ngc.
+  cam/motor_plate.cam.glb and the LinuxCNC program cam/motor_plate.top.ngc.
 - Strength: `cadgen fea solve parts/motor_plate.step studies/motor_plate.fea.glb --study studies/motor_plate.study.json`.
 
 Pictures: `cadgen snapshot --job pictures/motor_mount_pictures.job.json` draws the mount from its STEP (the angle, from
