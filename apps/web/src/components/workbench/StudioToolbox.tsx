@@ -178,6 +178,12 @@ export function StudioToolbox(props: {
         {openGroup === null ? (
           // Coming back slides the groups in from the left, as the group slid in from the right.
           <div className="flex flex-col gap-3 p-3 transition-[opacity,translate] duration-180 ease-out starting:-translate-x-3 starting:opacity-0 motion-reduce:transition-none">
+            {/* Said first, above the cards it explains: with no part in front they cannot open. */}
+            {part === null ? (
+              <p className="text-xs text-muted-foreground">
+                The jobs are for a part. Open one, from its tab or the Overview, to see them.
+              </p>
+            ) : null}
             {groups.map((group) => (
               <GroupCard
                 key={group.group}
@@ -191,9 +197,7 @@ export function StudioToolbox(props: {
                 }}
               />
             ))}
-            {part === null ? (
-              <p className="text-xs text-muted-foreground">Open a part to see what it can do.</p>
-            ) : jobs.status === "loading" ? (
+            {part === null ? null : jobs.status === "loading" ? (
               <p className="text-xs text-muted-foreground">Loading jobs…</p>
             ) : jobs.status === "failed" ? (
               <div className="flex flex-col items-start gap-2">

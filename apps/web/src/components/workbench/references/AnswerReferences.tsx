@@ -120,10 +120,19 @@ function ReferenceRow(props: {
   readonly onOpen: ReferenceOpener | null;
 }) {
   const { reference, onOpen } = props;
-  const { name, where } = referenceLabel(reference);
+  const engineering = useEngineeringInterface();
+  const label = referenceLabel(reference);
+  const { name } = label;
+  // In the engineering interface a row names what it cites, not a script's line numbers.
+  const where =
+    engineering && reference.target.kind === "file" && reference.target.lines !== null
+      ? null
+      : label.where;
   const said = where === null ? name : `${name}, ${where}`;
   // What the agent did not open, or knew without opening, reads quieter. It is not a failure.
   const quiet = reference.opened === "not opened" || reference.opened === "own knowledge";
+  // Whether the agent opened it is the agent's bookkeeping; the engineering interface leaves it out.
+  const opened = engineering ? null : reference.opened;
   const body = (
     <>
       <span className="w-4 shrink-0 text-right tabular-nums text-muted-foreground">
@@ -134,9 +143,11 @@ function ReferenceRow(props: {
       {where === null ? null : (
         <span className="min-w-0 truncate text-muted-foreground">{where}</span>
       )}
-      <span className={cn("ms-auto shrink-0 ps-2", quiet ? QUIET : "text-foreground")}>
-        {reference.opened}
-      </span>
+      {opened === null ? null : (
+        <span className={cn("ms-auto shrink-0 ps-2", quiet ? QUIET : "text-foreground")}>
+          {opened}
+        </span>
+      )}
     </>
   );
   const row =

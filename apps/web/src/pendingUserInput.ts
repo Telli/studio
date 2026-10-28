@@ -54,6 +54,17 @@ function normalizeSelectedOptionValues(value: string[] | undefined): string[] {
   return Array.from(new Set(value.filter((entry) => typeof entry === "string")));
 }
 
+/**
+ * A single-choice question's recommended option, as the agent marks one ("… (Recommended)"): what
+ * the question takes when nothing is picked or typed, as the composer's hint says ("leave this blank
+ * to use the selected option").
+ */
+function recommendedOptionValue(question: UserInputQuestion): string | null {
+  if (question.multiSelect) return null;
+  const option = question.options.find((candidate) => /\(Recommended\)\s*$/.test(candidate.label));
+  return option ? (option.value ?? option.label) : null;
+}
+
 export function resolvePendingUserInputAnswer(
   question: UserInputQuestion,
   draft: PendingUserInputDraftAnswer | undefined,
@@ -82,7 +93,9 @@ export function resolvePendingUserInputAnswer(
   return (
     selectedOptionValues[0] ??
     customAnswer ??
-    (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0 ? "" : null)
+    (question.allowCustomAnswer !== false && (draft?.attachmentCount ?? 0) > 0
+      ? ""
+      : recommendedOptionValue(question))
   );
 }
 
@@ -210,7 +223,14 @@ export function derivePendingUserInputProgress(
     questionIndex: normalizedQuestionIndex,
     activeQuestion,
     activeDraft,
-    selectedOptionValues: normalizeSelectedOptionValues(activeDraft?.selectedOptionValues),
+    // Nothing picked or typed: the answer is the recommended option, so it shows chosen.
+    selectedOptionValues:
+      activeQuestion !== null &&
+      normalizeSelectedOptionValues(activeDraft?.selectedOptionValues).length === 0 &&
+      typeof resolvedAnswer === "string" &&
+      resolvedAnswer === recommendedOptionValue(activeQuestion)
+        ? [resolvedAnswer]
+        : normalizeSelectedOptionValues(activeDraft?.selectedOptionValues),
     customAnswer,
     resolvedAnswer,
     usingCustomAnswer:

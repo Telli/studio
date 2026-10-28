@@ -85,6 +85,31 @@ const nativeChoiceQuestion = {
 } as const;
 
 describe("resolvePendingUserInputAnswer", () => {
+  it("takes the recommended option when nothing is picked or typed, as the composer's hint says", () => {
+    const question = {
+      id: "stage",
+      header: "Stage",
+      question: "How far along is the part?",
+      options: [
+        { label: "Prototype (Recommended)", description: "First prints" },
+        { label: "Production", description: "A repeat part" },
+      ],
+      multiSelect: false,
+    } as const;
+    expect(resolvePendingUserInputAnswer(question, undefined)).toBe("Prototype (Recommended)");
+    expect(resolvePendingUserInputAnswer(question, { selectedOptionValues: ["Production"] })).toBe(
+      "Production",
+    );
+    expect(resolvePendingUserInputAnswer(question, { customAnswer: "Pre-production" })).toBe(
+      "Pre-production",
+    );
+    expect(derivePendingUserInputProgress([question], {}, 0).selectedOptionValues).toEqual([
+      "Prototype (Recommended)",
+    ]);
+    // A multiple choice takes no default: each pick is the person's.
+    expect(resolvePendingUserInputAnswer({ ...question, multiSelect: true }, undefined)).toBeNull();
+  });
+
   it("preserves exact editor text, including a deliberately cleared answer", () => {
     const question = { ...singleSelectQuestion, initialAnswer: "  Proposed message\n" };
     expect(resolvePendingUserInputAnswer(question, { customAnswer: question.initialAnswer })).toBe(

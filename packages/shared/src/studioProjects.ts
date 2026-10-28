@@ -136,6 +136,13 @@ const EDITABLE_SKETCHES = [
   "When you change a part that still has such a profile, redraw it with `cadgen.sketch` in the same change, keeping its shape and sizes.",
 ].join("\n\n");
 
+const TALKING_TO_THE_PERSON = [
+  "The person is a mechanical engineer, not a programmer. Say what changed in the design and what it means in their words: parts, sizes, materials, fits, checks and drawings.",
+  "",
+  "- Do not talk about git, commits, branches, a script's line numbers or install steps. Studio keeps a version of the project at the end of every turn, so never offer to commit and never ask whether to.",
+  "- When something on this computer had to be set up or worked around to do the job, say so in one plain sentence, not how.",
+].join("\n");
+
 const SHOW_YOUR_WORK = [
   "The person works beside you in Studio, with the viewer next to this chat. Show them what you make, one thing at a time:",
   "",
@@ -246,6 +253,7 @@ export function studioProjectContext(
     ...section("Links", links),
     ...section("Notes", brief.notes),
     ...section("Sketches the person can edit", EDITABLE_SKETCHES),
+    ...section("Talking to the person", TALKING_TO_THE_PERSON),
     ...section("Show your work", SHOW_YOUR_WORK),
     ...section("Sources", SOURCES),
     ...section("The README", THE_README),
