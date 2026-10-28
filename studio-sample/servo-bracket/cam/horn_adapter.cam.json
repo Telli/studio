@@ -1,7 +1,6 @@
 {
   "name": "horn_adapter",
   "machine": {
-    "kind": "mill",
     "post": "linuxcnc",
     "max_rpm": 10000,
     "max_feed_mm_min": 2500,

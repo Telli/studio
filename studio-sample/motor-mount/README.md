@@ -32,6 +32,7 @@ A plate milled from 6061-T6 aluminium that mounts a NEMA 17 stepper motor to a f
 - Size the slots by their ends, Ø5.5 +0.1/0; the slots' straight walls fall under the general profile (2026-10-27, assumed)
 - Note "Deburr the holes and slots.", the drawing's own words, as Note 2 (2026-10-27, assumed)
 - Name two views: Section A-A through the bore, with the thickness, the pocket's depth, the bore and datum A's flatness, and Top, with every hole's and slot's size and position; the basic dimensions that locate the M3 holes and the slots' ends are in neither, so Top stays legible (the viewer lists them in its PMI section, and the STEP carries them) (2026-10-27, assumed)
+- Cut the pilot bore and the belt slots in the CAM program, with a 4 mm end mill added for the slots, no longer by hand (2026-10-28, assumed)
 
 ## Open actions
 

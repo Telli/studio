@@ -1,7 +1,6 @@
 {
   "name": "motor_plate",
   "machine": {
-    "kind": "mill",
     "name": "Tormach 1100MX",
     "post": "linuxcnc",
     "max_rpm": 10000,
@@ -37,6 +36,15 @@
       "name": "6 mm 3FL carbide, aluminium"
     },
     {
+      "id": "T3",
+      "type": "flat",
+      "diameter_mm": 4,
+      "flutes": 3,
+      "flute_length_mm": 11,
+      "stickout_mm": 18,
+      "name": "4 mm 3FL carbide, aluminium"
+    },
+    {
       "id": "T4",
       "type": "drill",
       "diameter_mm": 3.4,
@@ -66,6 +74,17 @@
           "name": "Weight-saving pocket"
         },
         {
+          "op": "profile",
+          "tool": "T2",
+          "side": "inside",
+          "faces": [
+            "motor_plate/f:motor_plate.plate_oickae~d144bca40c47"
+          ],
+          "through_mm": 0.5,
+          "stepdown_mm": 1.5,
+          "name": "Cut the pilot bore"
+        },
+        {
           "op": "drill",
           "tool": "T4",
           "faces": [
@@ -76,6 +95,24 @@
           ],
           "peck_mm": 2,
           "name": "Drill the M3 clearance holes"
+        },
+        {
+          "op": "profile",
+          "tool": "T3",
+          "side": "inside",
+          "faces": [
+            "motor_plate/f:motor_plate.plate_pognbn~0536602222de",
+            "motor_plate/f:motor_plate.plate_pognbn~d72ffbb3a833",
+            "motor_plate/f:motor_plate.plate_pognbn~826fc30e3624",
+            "motor_plate/f:motor_plate.plate_pognbn~57ff47aa8c3a",
+            "motor_plate/f:motor_plate.plate_pognbn~ba41dfa91b63",
+            "motor_plate/f:motor_plate.plate_pognbn~63c9821a28a2",
+            "motor_plate/f:motor_plate.plate_pognbn~e310eef9d498",
+            "motor_plate/f:motor_plate.plate_pognbn~68e01a9b24e1"
+          ],
+          "through_mm": 0.5,
+          "stepdown_mm": 1,
+          "name": "Cut the belt slots"
         },
         {
           "op": "profile",
