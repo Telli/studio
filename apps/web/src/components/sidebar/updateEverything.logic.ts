@@ -9,6 +9,7 @@ import {
   supportsServerUpdateThreadContinuation,
 } from "~/versionSkew";
 import type { ServerUpdateTarget } from "../ServerUpdateAction";
+import { isEngineeringInterface } from "../workbench/studioInterface";
 
 export interface UpdateEverythingMachine {
   readonly environmentId: EnvironmentId;
@@ -177,7 +178,8 @@ export function describeUpdateEverything(plan: UpdateEverythingPlan): {
     [
       plan.localVersion ? "this app" : null,
       countLabel(plan.servers.length, "server"),
-      countLabel(providerCount, "provider"),
+      // Studio's engineering interface calls them what its Settings does.
+      countLabel(providerCount, isEngineeringInterface() ? "AI agent" : "provider"),
     ].filter((part) => part !== null),
   )}`;
 

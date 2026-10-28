@@ -296,10 +296,15 @@ export function getDefaultProviderInstanceModel(
 const isSelectableProviderInstanceEntry = (entry: ProviderInstanceEntry): boolean =>
   entry.enabled && entry.isAvailable;
 
+/** A provider whose installed version is known to fail mid-turn (its compatibility advisory). */
+const isKnownBrokenProviderInstanceEntry = (entry: ProviderInstanceEntry): boolean =>
+  entry.snapshot.compatibilityAdvisory?.status === "broken";
+
 /**
  * Resolve an exact stored instance when it remains enabled and available.
  * Otherwise choose a deterministic fallback that can plausibly start now:
- * ready first, then a non-error probe result. An errored provider is retained
+ * ready and not a version known to be broken first, then ready, then a
+ * non-error probe result. An errored provider is retained
  * only when it was explicitly requested; it is never invented as a new-user
  * default.
  */
@@ -314,6 +319,9 @@ export function resolveSelectableProviderInstanceEntry(
     }
   }
   return (
+    entries.find(
+      (entry) => isProviderInstancePickerReady(entry) && !isKnownBrokenProviderInstanceEntry(entry),
+    ) ??
     entries.find(isProviderInstancePickerReady) ??
     entries.find((entry) => isSelectableProviderInstanceEntry(entry) && entry.status !== "error")
   );

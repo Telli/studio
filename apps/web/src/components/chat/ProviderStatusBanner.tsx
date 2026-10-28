@@ -111,11 +111,16 @@ export const ProviderStatusBanner = memo(function ProviderStatusBanner({
       ? `${providerName} needs you to sign in again`
       : `${providerName} is unauthenticated`
     : incompatible
-      ? `${providerName} ${status.version ?? ""} is ${incompatible.status === "broken" ? "known to be broken" : "unsupported"}`
+      ? studio
+        ? `${providerName} needs an update`
+        : `${providerName} ${status.version ?? ""} is ${incompatible.status === "broken" ? "known to be broken" : "unsupported"}`
       : studio
         ? `${providerName} isn't ready`
         : `${providerName} provider status`;
   const message =
+    (studio && incompatible
+      ? `This version of ${providerName} doesn't work with Studio. Update it in Settings, under AI agents.`
+      : null) ??
     incompatible?.message ??
     (studio && isUnauthenticated
       ? "Sign in again in Settings, under AI agents."

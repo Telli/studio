@@ -12,6 +12,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@t3tools/client-runtime/state/runtime";
+import { isEngineeringInterface } from "./workbench/studioInterface";
 
 export type ProviderUpdateCandidate = ServerProvider & {
   readonly versionAdvisory: NonNullable<ServerProvider["versionAdvisory"]> & {
@@ -245,8 +246,10 @@ export function getProviderUpdateInitialToastView(input: {
     title: getProviderUpdateInitialToastTitle(input.updateProviders),
     description:
       input.oneClickProviders.length > 0
-        ? "Install the update now or review provider settings."
-        : `${formatProviderList(input.updateProviders)} can be updated from provider settings.`,
+        ? isEngineeringInterface()
+          ? "Install the update now, or see the AI agents in Settings."
+          : "Install the update now or review provider settings."
+        : `${formatProviderList(input.updateProviders)} can be updated from ${isEngineeringInterface() ? "Settings, under AI agents" : "provider settings"}.`,
   };
 }
 
@@ -467,7 +470,7 @@ export function getProviderUpdateSidebarPillView(
       title:
         activeProviders.length === 1
           ? `Updating ${activeProviderName}`
-          : `Updating ${activeProviders.length} providers`,
+          : `Updating ${activeProviders.length} ${isEngineeringInterface() ? "AI agents" : "providers"}`,
       description:
         activeProviders.length === 1
           ? `${formatProviderList(activeProviders)} update in progress.`
@@ -584,7 +587,7 @@ function getProviderUpdateInitialToastTitle(
     const providerName = PROVIDER_DISPLAY_NAMES[provider.driver] ?? provider.driver;
     return `Update Available: ${providerName} ${formatVersion(provider.versionAdvisory.latestVersion)}`;
   }
-  return `Updates Available: ${providers.length} providers`;
+  return `Updates Available: ${providers.length} ${isEngineeringInterface() ? "AI agents" : "providers"}`;
 }
 
 function getFailedProviderUpdateDescription(providers: ReadonlyArray<ServerProvider>): string {

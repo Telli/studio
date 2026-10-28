@@ -1400,6 +1400,29 @@ describe("resolveComposerProviderSelection", () => {
     ).toBe(importedEntry.instanceId);
   });
 
+  it("starts a chat that asked for no provider on one whose version is not known to be broken", () => {
+    const broken = entry("codex", "codex", {
+      compatibilityAdvisory: {
+        status: "broken",
+        message: null,
+        recommendedVersion: null,
+        recommendedRange: ">=0.159.0",
+      },
+    });
+    const working = entry("claudeAgent");
+    const automatic = (candidate?: ProviderInstanceId) =>
+      resolveComposerProviderSelection({
+        entries: [broken, working],
+        candidateInstanceIds: [candidate],
+        lockedProvider: null,
+        lockedInstanceId: undefined,
+      }).selectedProviderEntry?.instanceId;
+
+    expect(automatic()).toBe(working.instanceId);
+    // One asked for by name is kept: its banner says what is wrong with it.
+    expect(automatic(broken.instanceId)).toBe(broken.instanceId);
+  });
+
   it("keeps the session driver authoritative over instance and draft selections", () => {
     const selected = entry("claudeAgent", "claude_work");
     const sessionEntry = entry("ollama", "local_models");

@@ -579,6 +579,8 @@ export function resolveComposerProviderSelection(input: {
   const requestedDriverKind =
     input.lockedProvider ??
     input.entries.find((entry) => entry.instanceId === requestedInstanceId)?.driverKind ??
+    // Nothing asked for: the provider a new chat would start on, not merely the first listed.
+    resolveSelectableProviderInstanceEntry(input.entries, undefined)?.driverKind ??
     input.entries[0]?.driverKind ??
     ProviderDriverKind.make("unconfigured");
   const lockedContinuationGroupKey = input.lockedProvider

@@ -18,5 +18,8 @@ export function projectChats<
 }
 
 export function chatLabel(title: string): string {
-  return title.trim() === "" ? "Untitled chat" : title.trim();
+  const named = title.trim();
+  if (named === "") return "Untitled chat";
+  // T3 titles a chat "New thread" until its first message names it.
+  return named === "New thread" ? "New chat" : named;
 }
