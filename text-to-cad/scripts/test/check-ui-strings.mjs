@@ -35,6 +35,21 @@ export const STATUS_VOCABULARY_FILE = 'packages/ui/src/renderers/kit/status/stat
 
 // Test renderers: they draw one triangle for the shell's own specs and ship to no person.
 const SKIPPED_DIRS = ['packages/ui/src/renderers/harness/', 'packages/ui/src/renderers/shell-harness/'];
+// Studio's own (its CAD mode, FEA, CAM, boards and kernels): English only for now, as Studio ships in English, so not
+// read. A folder ends in `/`, a file is named whole; Jake's files beside them stay checked.
+export const STUDIO_ENGLISH_ONLY = [
+  'packages/ui/src/renderers/xbf/edit/',
+  'packages/ui/src/renderers/glb/fea/',
+  'packages/ui/src/renderers/glb/FeaStudyPanel.jsx',
+  'packages/ui/src/renderers/glb/FeaVerdict.jsx',
+  'packages/ui/src/renderers/glb/FeaColourBar.jsx',
+  'packages/ui/src/renderers/glb/feaResult.js',
+  'packages/ui/src/renderers/glb/CamJobPanel.jsx',
+  'packages/ui/src/renderers/glb/camView.jsx',
+  'packages/ui/src/renderers/glb/__tests__/camFile.ts',
+  'packages/ui/src/renderers/board/',
+  'packages/ui/src/cad-viewer/KernelMenu.tsx',
+];
 
 const LANGUAGE_ATTRIBUTES = new Set([
   'aria-label', 'aria-description', 'aria-valuetext', 'aria-roledescription', 'aria-placeholder', 'title', 'placeholder',
@@ -90,9 +105,10 @@ function sourceFiles(dir, repo, out = []) {
     const rel = path.relative(repo, file).split(path.sep).join('/');
     if (item.isDirectory()) {
       if (item.name === 'node_modules' || item.name === '__fixtures__' || item.name === 'locales') continue;
-      if (SKIPPED_DIRS.some(skipped => `${rel}/`.startsWith(skipped))) continue;
+      if ([...SKIPPED_DIRS, ...STUDIO_ENGLISH_ONLY].some(skipped => `${rel}/`.startsWith(skipped))) continue;
       sourceFiles(file, repo, out);
-    } else if (/\.(?:[cm]?jsx?|tsx?)$/.test(item.name) && !/\.(?:test|spec)\.|\.d\.ts$/.test(item.name)) out.push(file);
+    } else if (/\.(?:[cm]?jsx?|tsx?)$/.test(item.name) && !/\.(?:test|spec)\.|\.d\.ts$/.test(item.name)
+      && !STUDIO_ENGLISH_ONLY.includes(rel)) out.push(file);
   }
   return out;
 }
@@ -198,6 +214,11 @@ export const UI_STRINGS_ALLOWLIST = [
   ['packages/ui/src/renderers/kit/status/ViewUpdateStatus.jsx', 'Meshing parts', "the status vocabulary's counted meshing line, said by its key (`statusLabels.js`)"],
   ['packages/ui/src/renderers/xbf/xbfMenus.js', 'Viewer', "the empty-space menu descriptor's own name, never drawn"],
   ['apps/mcp/src/host/bridge.ts', 'is not supported', "a JSON-RPC error to the host, not to a person"],
+  // Studio's lines in Jake's files, English only as its own folders are (`STUDIO_ENGLISH_ONLY`).
+  ['packages/ui/src/renderers/glb/GlbRenderer.jsx', 'Clip', "Studio's FEA and CAM section view, its control and Copy, in English"],
+  ['packages/ui/src/renderers/glb/GlbRenderer.jsx', 'Copy', "Studio's FEA and CAM section view, its control and Copy, in English"],
+  ['packages/ui/src/renderers/kit/shell/RendererShell.jsx', 'FeatureManager', "Studio's CAD mode's design tree, named as SolidWorks names it"],
+  ['packages/ui/src/renderers/kit/inspector/parameterRow.jsx', 'value', "Studio's names for a size's field and slider, in English"],
 ];
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

@@ -70,3 +70,17 @@ test('words are two letters running that are not a format, unit, brand or key ch
   for (const text of ['Select', 'Close ${}', 'Measurement ${}: ${}']) assert.equal(hasWords(text), true, text);
   for (const text of ['STEP', 'mm²', 'GitHub', 'Shift+', 'Ctrl+C', '×', '${} × ${}', 'X', '', null]) assert.equal(hasWords(text), false, String(text));
 });
+
+test("Studio's English-only folders and files are not read, and Jake's files beside them still are", async () => {
+  const english = 'export const A = () => <button title="Hide">Show all</button>;\n';
+  const errors = await fixture({
+    'packages/ui/src/renderers/xbf/edit/EditTree.jsx': english,
+    'packages/ui/src/renderers/glb/fea/setup.js': 'export const setup = { label: "Fixed faces" };\n',
+    'packages/ui/src/renderers/glb/CamJobPanel.jsx': english,
+    'packages/ui/src/cad-viewer/KernelMenu.tsx': english,
+    'packages/ui/src/renderers/xbf/XbfRenderer.jsx': english,
+    'packages/ui/src/renderers/glb/GlbRenderer.jsx': english,
+  });
+  assert.deepEqual([...new Set(errors.map(error => error.split(':')[0]))],
+    ['packages/ui/src/renderers/glb/GlbRenderer.jsx', 'packages/ui/src/renderers/xbf/XbfRenderer.jsx']);
+});
