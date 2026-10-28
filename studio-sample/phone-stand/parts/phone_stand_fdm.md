@@ -10,7 +10,7 @@ The first version did not pass this way: the cable slot was a plain rectangle, a
 - Measured with the dfam-check tool (its JSON in `checks/`):
   - `python scripts/dfam_tool.py measure parts/phone_stand_print.stl --angle-limit 45`
   - `python scripts/dfam_tool.py orientations parts/phone_stand_print.stl --angle-limit 45`
-- The tool does not measure bridges or plate contact, so `python checks/phone_stand_print_facts.py` measures both on `parts/phone_stand.step` as it prints.
+- The tool does not measure bridges or plate contact, so `cadgen run checks/phone_stand_print_facts.py` measures both on `parts/phone_stand.step` as it prints.
 - Print intent:
   - FDM in PLA (Bambu PLA Basic) at 0.2 mm layers, on a Bambu Lab P1S with a 0.4 mm nozzle.
   - No PLA or printer datasheet was given, so the limits are the FDM column of the skill's `references/process-limits.md`.

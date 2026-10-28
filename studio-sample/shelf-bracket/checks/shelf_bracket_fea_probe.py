@@ -1,5 +1,5 @@
 """Stress and movement read off the strength study's GLB: near the wall holes, at the corner relief, along the brace, at the tip.
-Run from the project root: python checks/shelf_bracket_fea_probe.py studies/shelf_bracket.fea.glb studies/shelf_bracket.fea.json "[[14,-25],[14,-125]]"."""
+Run from the project root: cadgen run checks/shelf_bracket_fea_probe.py studies/shelf_bracket.fea.glb studies/shelf_bracket.fea.json "[[14,-25],[14,-125]]"."""
 import sys, json
 import numpy as np
 sys.path.insert(0, __import__("os").path.dirname(__file__))

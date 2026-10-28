@@ -7,7 +7,7 @@ The plate can be milled as drawn on a 3-axis mill in two setups. Every measured 
 - Artifact: the plate's model, `parts/motor_plate.py`, reviewed on 2026-10-26, and its STEP (`parts/motor_plate.step`, from `exports.py`); one part, one solid; millimetres. The measurements and the CAM plan were run again on cadgen 0.8 on 2026-10-27 and read the same.
 - Process: CNC milling, 3-axis, two setups (top, then turned over), from a 116 x 62 x 10 mm 6061-T6 blank, as the CAM job plans it (`cam/motor_plate.cam.json`).
 - Tooling assumed: the CAM job's proposed tools: 10, 6 and 4 mm flat carbide end mills, a 6 mm spot drill, a 3.4 mm drill and a 6 mm 90° chamfer mill. No shop's specification was given.
-- Evidence: exact B-rep measurements of the model (`checks/motor_plate_dfm_measure.md`, from `python checks/motor_plate_dfm_measure.py`) and the CAM plan's checks (`cam/motor_plate.cam.glb`).
+- Evidence: exact B-rep measurements of the model (`checks/motor_plate_dfm_measure.md`, from `cadgen run checks/motor_plate_dfm_measure.py`) and the CAM plan's checks (`cam/motor_plate.cam.glb`).
 - Rules: Protolabs Network (Hubs), "How to design parts for CNC machining", https://www.hubs.com/knowledge-base/how-design-parts-cnc-machining/, read 2026-10-26, its table of recommended and feasible values and its best practices. ISO 2768-1 for the general tolerance, from its table of linear tolerances, not re-read this session.
 
 ## Findings

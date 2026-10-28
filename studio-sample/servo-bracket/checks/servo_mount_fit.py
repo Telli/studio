@@ -1,7 +1,7 @@
 """Fit and clearance of the servo mount: every pair of its parts checked for overlap and gap, the fits a touching
 joint hides measured on their own, and the horn adapter turned through its travel. Calls the mount's model, so it
 checks the mount as it is now, writes its findings to assemblies/servo_mount_fit.md beside it, prints them as one JSON
-line, and exits 1 when a part collides. Run it from anywhere: python checks/servo_mount_fit.py"""
+line, and exits 1 when a part collides. Run it from anywhere: cadgen run checks/servo_mount_fit.py"""
 
 import json
 import math

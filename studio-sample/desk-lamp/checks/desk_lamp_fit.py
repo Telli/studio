@@ -2,7 +2,7 @@
 touching joint hides measured on their own, then each hinge swung through its travel to find the angles where nothing
 collides and nothing goes through the desk, and at each pose the lamp's balance on its base and the torque each hinge
 must hold. Calls the lamp's model, so it checks the lamp as it is now, writes its findings to assemblies/desk_lamp_fit.md, prints them as
-one JSON line, and exits 1 when a part collides at rest. Run it from anywhere: python checks/desk_lamp_fit.py"""
+one JSON line, and exits 1 when a part collides at rest. Run it from anywhere: cadgen run checks/desk_lamp_fit.py"""
 
 import json
 import math
