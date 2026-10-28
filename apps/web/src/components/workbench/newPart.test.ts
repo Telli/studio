@@ -1,8 +1,13 @@
+import * as NodeFS from "node:fs";
+import * as NodePath from "node:path";
+
 import { describe, expect, it } from "vite-plus/test";
 
 import {
   type BuiltPart,
   buildPart,
+  CAD_BUILD_TIMEOUT_S,
+  PART_BUILD_MS,
   freePartStem,
   makeNewPart,
   partStem,
@@ -139,10 +144,24 @@ describe("a new part's first build", () => {
     ).toEqual({ error: "The part's build ended with no model." });
   });
 
+  it("waits as long as the CAD service lets one build run, and a little more", () => {
+    const python = NodeFS.readFileSync(
+      NodePath.join(
+        import.meta.dirname,
+        ...Array.from({ length: 5 }, () => ".."),
+        "text-to-cad/packages/cadgen/src/cadgen/edit/service.py",
+      ),
+      "utf8",
+    );
+    expect(CAD_BUILD_TIMEOUT_S).toBe(Number(/^BUILD_TIMEOUT = (\d+)$/m.exec(python)?.[1]));
+    expect(PART_BUILD_MS).toBeGreaterThan(CAD_BUILD_TIMEOUT_S * 1000);
+    expect(PART_BUILD_MS).toBeLessThanOrEqual((CAD_BUILD_TIMEOUT_S + 60) * 1000);
+  });
+
   it("gives up on a build that outlasts the CAD service's own limit", async () => {
     let clock = 0;
     const building = { ok: true, partBuilt: false, partBuilding: true };
-    const cad = service([{ ok: true }, ...Array.from({ length: 10 }, () => building)]);
+    const cad = service([{ ok: true }, ...Array.from({ length: 20 }, () => building)]);
     const built = await buildPart({
       post: cad.post,
       script: "/p/parts/part.py",
@@ -152,8 +171,10 @@ describe("a new part's first build", () => {
       now: () => clock,
     });
     expect(built).toEqual({ error: "The part took too long to build." });
-    // Asked while the limit had not passed: at 0, 100, 200 and 300 seconds, then 400 is past 330.
-    expect(cad.asked.filter((ask) => ask.path === "/__cad/edit/state")).toHaveLength(5);
+    // Asked every 100 seconds while the limit had not passed (0 to 900), then once past its 930.
+    expect(cad.asked.filter((ask) => ask.path === "/__cad/edit/state")).toHaveLength(
+      Math.ceil(PART_BUILD_MS / 100_000) + 1,
+    );
   });
 });
 

@@ -133,8 +133,14 @@ export type BuiltPart = { readonly id: string } | { readonly error: string };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/**
+ * The CAD service's own limit on one build, in seconds: `BUILD_TIMEOUT` in
+ * text-to-cad's `cadgen/edit/service.py`, which stops a build that runs longer (a test holds the two
+ * equal).
+ */
+export const CAD_BUILD_TIMEOUT_S = 900;
 /** How long a first build may take: the CAD service's own limit on one build, and a little more. */
-export const PART_BUILD_MS = 330_000;
+export const PART_BUILD_MS = (CAD_BUILD_TIMEOUT_S + 30) * 1000;
 const PART_BUILD_POLL_MS = 500;
 
 /**
