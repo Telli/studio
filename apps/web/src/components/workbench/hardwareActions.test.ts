@@ -52,29 +52,24 @@ describe("hardware actions", () => {
     expect(manufacture!.moreLabel).toBe("Ways to make it");
   });
 
-  it("puts the everyday simulations in Evaluate and every other one in a submenu by kind", () => {
+  it("puts the strength study in Evaluate, with nothing apart", () => {
     const evaluate = menu("Evaluate", "Part", ["fea", "cad"]);
     expect(titled(evaluate!.sections)).toEqual([
-      ["Simulation", ["Strength under load", "Vibration", "Drop test", "Make it lighter"]],
+      ["Simulation", ["Strength under load"]],
       ["Fit, motion and mass", ["Weight and center of mass"]],
     ]);
-    expect(evaluate!.others.map((section) => section.title)).toEqual([
-      "Strength and durability",
-      "Vibration, shock and sound",
-      "Heat",
-      "Flow",
-      "Electrical",
-    ]);
-    expect(evaluate!.moreLabel).toBe("More simulations");
+    expect(evaluate!.others).toEqual([]);
   });
 
-  it("gives an assembly its fit, motion, joints and building documents", () => {
+  it("gives an assembly its strength, fit, motion and building documents", () => {
     const evaluate = menu("Evaluate", "Assembly", ["fea", "cad"]);
-    expect(titled(evaluate!.sections)[1]).toEqual([
-      "Fit, motion and mass",
-      ["Fit and clearance", "Range of motion", "Weight and center of mass"],
+    expect(titled(evaluate!.sections)).toEqual([
+      ["Simulation", ["Strength under load"]],
+      [
+        "Fit, motion and mass",
+        ["Fit and clearance", "Range of motion", "Weight and center of mass"],
+      ],
     ]);
-    expect(evaluate!.others[0]?.actions.map((action) => action.label)).toContain("Bolted joints");
     const document = menu("Document", "Assembly", [
       "cad",
       "engineering-drawing",
@@ -93,20 +88,7 @@ describe("hardware actions", () => {
     ]);
   });
 
-  it("gives a board its own checks and files, and a mesh only the printing methods", () => {
-    expect(titled(menu("Manufacture", "Board", ["pcb", "pcb-dfm"])!.sections)).toEqual([
-      [
-        "Circuit board",
-        [
-          "Check for fabrication",
-          "Check for assembly",
-          "Route the board",
-          "Gerbers and drill files",
-          "Placement file and BOM",
-        ],
-      ],
-    ]);
-    expect(menu("Evaluate", "Board", ["pcb", "pcb-dfm", "fea", "cad"])).toBeUndefined();
+  it("gives a mesh only the printing methods", () => {
     expect(
       menu("Manufacture", "Mesh", ["dfm", "dfam-check", "cam"])!.others.map(
         (section) => section.title,
@@ -136,10 +118,10 @@ describe("hardware actions", () => {
   });
 
   it("says every outcome a check reports, in one shape", () => {
-    // dfam-check, dfm and pcb-dfm report a pass, a fail and a third outcome (need more info,
+    // dfam-check and dfm report a pass, a fail and a third outcome (need more info,
     // review, unverified): each check's line, and the library's Manufacturing check, name all three.
     const checks = HARDWARE_ACTIONS.filter((action) =>
-      ["dfam-check", "dfm", "pcb-dfm"].includes(action.skill ?? ""),
+      ["dfam-check", "dfm"].includes(action.skill ?? ""),
     );
     expect(checks).not.toEqual([]);
     const unsaid = checks.filter(

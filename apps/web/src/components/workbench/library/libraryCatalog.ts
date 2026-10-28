@@ -21,7 +21,7 @@ import libraryExamples from "./libraryExamples.json";
 import { SAMPLE_ID } from "./sampleProject";
 import { type Availability, missingSkill, TEXT_TO_CAD } from "./skillAvailability";
 
-export { type Availability, UNLISTED_TEMPLATES } from "./skillAvailability";
+export { type Availability } from "./skillAvailability";
 
 export interface LibraryDocument {
   readonly kind: "document";
@@ -133,16 +133,6 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     gets: "A STEP of the bent part and one of its flat pattern, with the scripts that make them, in parts/.",
   }),
   doc({
-    id: "doc:board",
-    name: "Board",
-    templates: ["board"],
-    actions: ["route", "gerbers", "placement"],
-    what: "A circuit board as a Python script, built into a KiCad board file.",
-    give: "The circuit you want and the parts on it.",
-    asks: "The board's outline and mounting holes, the fab, its layers and each power net's current.",
-    gets: "A routed KiCad board checked against the fab's rules, with its Gerbers, drill, placement file and BOM.",
-  }),
-  doc({
     id: "doc:drawing",
     name: "Engineering drawing",
     templates: ["drawing"],
@@ -167,7 +157,7 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     name: "Simulation",
     templates: ["strength-study"],
     actions: jobsRunBy("fea"),
-    what: "Where the part is most stressed and whether it holds, or how it vibrates, heats up or meets a flow.",
+    what: "Where a part or a bonded assembly is most stressed under its load, and whether it holds.",
     give: "The part, the load and where it pushes.",
     asks: "How it is held, and the material.",
     gets: "A study with the stress plot, the peak stress, the safety factor and a pass or fail.",
@@ -186,8 +176,8 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     id: "doc:manufacturing-check",
     name: "Manufacturing check",
     templates: [],
-    actions: [...jobsRunBy("dfm"), ...jobsRunBy("dfam-check"), ...jobsRunBy("pcb-dfm")],
-    what: "A review for the way it will be made, one finding at a time: 3D printing, CNC machining, sheet metal, molding or a circuit board.",
+    actions: [...jobsRunBy("dfm"), ...jobsRunBy("dfam-check")],
+    what: "A review for the way it will be made, one finding at a time: 3D printing, CNC machining, sheet metal or molding.",
     give: "The part and its process.",
     asks: null,
     gets: "Findings, each passing, to fix or to check, with the fix.",
@@ -385,10 +375,6 @@ const TRY_ASKING: Readonly<Record<string, string>> = {
   "engineering-drawing": "Make a drawing of the bracket for the shop.",
   fea: "Will it hold 20 N at the horn?",
   gcode: "Slice the cable clip in PETG, 0.2 mm layers.",
-  kernels: "Rebuild the bracket on another CAD kernel and compare it.",
-  "manufacturing-sim": "Will the bracket spring back when it is bent?",
-  pcb: "A board to power two servos from USB-C.",
-  "pcb-dfm": "Is this board ready to order?",
   sdf: "Make an SDF of the servo mount for Gazebo.",
   sendcutsend: "Is the bracket ready to order from SendCutSend in 2 mm 5052?",
   srdf: "Make a MoveIt SRDF for the servo mount.",
@@ -411,10 +397,6 @@ const TEXT_TO_CAD_NAMES: Readonly<Record<string, string>> = {
   "engineering-drawing": "Engineering Drawing",
   fea: "FEA",
   gcode: "G-code",
-  kernels: "CAD Kernels",
-  "manufacturing-sim": "Manufacturing Sim",
-  pcb: "PCB",
-  "pcb-dfm": "PCB DFM Review",
   sdf: "SDF",
   sendcutsend: "SendCutSend",
   srdf: "SRDF",

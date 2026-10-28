@@ -16,10 +16,6 @@ bracket from its model.
 The strength study, from the exported STEP: studies/shelf_bracket.study.json, solved with
 `cadgen fea solve parts/shelf_bracket.step studies/shelf_bracket.fea.glb --study studies/shelf_bracket.study.json`.
 
-The bending check: parts/shelf_bracket.sheet_metal.json, run with
-`cadgen manufacturing check parts/shelf_bracket.step --study parts/shelf_bracket.sheet_metal.json --fail-on error`,
-which writes parts/shelf_bracket.sheet_metal.glb and parts/shelf_bracket.sheet_metal.result.json.
-
 Checks, run from the project root after `cadgen run exports.py`: `cadgen run checks/shelf_bracket_step_facts.py` (the
 STEP's solid, volume and cylinders), `cadgen run checks/shelf_bracket_cut_facts.py` (the cut file's units, layers,
 bend lines, flange depths and hole distances, for the SendCutSend preflight) and `cadgen run

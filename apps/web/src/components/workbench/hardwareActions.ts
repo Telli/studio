@@ -30,20 +30,14 @@ export interface ActionSectionDef {
 }
 
 /**
- * The sections, as text-to-cad's skills cover the work: `fea` for every simulation, `cad` for fit,
+ * The sections, as text-to-cad's skills cover the work: `fea` for strength, `cad` for fit,
  * motion, mass, pictures and video and for exporting STEP, STL and 3MF, `dfam-check` for each way of printing (FDM, SLA/DLP, SLS and
- * MJF, metal powder bed), `dfm` for machining, sheet metal and molding, `pcb` and `pcb-dfm` for
- * boards, and `urdf`, `sdf` and `srdf` for robot descriptions.
+ * MJF, metal powder bed), `dfm` for machining, sheet metal and molding, and `urdf`, `sdf` and `srdf` for robot descriptions.
  */
 export const ACTION_SECTIONS: ReadonlyArray<ActionSectionDef> = [
   { id: "simulation", group: "Evaluate", title: "Simulation" },
   { id: "fit-mass", group: "Evaluate", title: "Fit, motion and mass" },
   { id: "results", group: "Evaluate", title: "Results" },
-  { id: "strength", group: "Evaluate", title: "Strength and durability", more: true },
-  { id: "vibration", group: "Evaluate", title: "Vibration, shock and sound", more: true },
-  { id: "heat", group: "Evaluate", title: "Heat", more: true },
-  { id: "flow", group: "Evaluate", title: "Flow", more: true },
-  { id: "electrical", group: "Evaluate", title: "Electrical", more: true },
   { id: "fdm", group: "Manufacture", title: "FDM printing", processes: ["3D printing (FDM)"] },
   {
     id: "resin",
@@ -77,7 +71,6 @@ export const ACTION_SECTIONS: ReadonlyArray<ActionSectionDef> = [
     title: "Injection molding",
     processes: ["Injection molding"],
   },
-  { id: "board", group: "Manufacture", title: "Circuit board" },
   { id: "buy", group: "Manufacture", title: "Buy" },
   { id: "export", group: "Manufacture", title: "Export files" },
   { id: "drawings", group: "Document", title: "Drawings" },
@@ -113,30 +106,6 @@ export interface HardwareAction {
 const SOLID = ["Part", "Assembly"];
 const PRINTABLE = ["Part", "Assembly", "Mesh"];
 
-/**
- * A simulation the `fea` skill runs on a part or an assembly. It makes a study with `result`, what
- * that analysis reports: "its natural frequencies and mode shapes".
- */
-const study = (
-  id: string,
-  section: string,
-  label: string,
-  result: string,
-  prompt: (file: string) => string,
-  kinds: ReadonlyArray<string> = SOLID,
-): HardwareAction => ({
-  id,
-  group: "Evaluate",
-  section,
-  label,
-  gets: `A study with ${result}.`,
-  skill: "fea",
-  kinds,
-  checks: true,
-  prompt,
-  short: (name) => `${label} of ${name}`,
-});
-
 /** A printability check by the `dfam-check` skill. */
 const printCheck = (
   id: string,
@@ -170,31 +139,6 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
       `Check ${file} for strength under its working load. Ask me for the loads, supports and material you need, then tell me where it is weakest and what to change.`,
     short: (name) => `Check ${name} under load`,
   },
-  study(
-    "vibration",
-    "simulation",
-    "Vibration",
-    "its natural frequencies and mode shapes",
-    (file) =>
-      `Find the natural frequencies and mode shapes of ${file}, and tell me whether anything it will see could make it resonate.`,
-  ),
-  study(
-    "drop",
-    "simulation",
-    "Drop test",
-    "an estimate of the peak stress and safety factor in the drop",
-    (file) =>
-      `Estimate what happens if ${file} is dropped: where it is most stressed and whether it breaks. Ask me for the height and what it lands on.`,
-  ),
-  study(
-    "topology",
-    "simulation",
-    "Make it lighter",
-    "the lighter shape as an STL to rebuild, and the mass it saves",
-    (file) =>
-      `Find where material can come out of ${file} while it still holds its load, and show me the shape to rebuild. Ask me for the loads, supports and how much lighter.`,
-    ["Part"],
-  ),
   {
     id: "fit",
     group: "Evaluate",
@@ -260,215 +204,6 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
       `Walk me through ${file} and tell me the cycle time, the tools, and anything to fix before cutting.`,
     short: (name) => `Explain the ${name} job`,
   },
-  study(
-    "buckling",
-    "strength",
-    "Buckling",
-    "the buckling load, its safety factor and the shape it buckles in",
-    (file) =>
-      `Check whether ${file} buckles under its load: the buckling load and the safety factor. Ask me for the loads and supports.`,
-  ),
-  study(
-    "fatigue",
-    "strength",
-    "Fatigue life",
-    "how many load cycles it lasts, against the cycles it needs",
-    (file) =>
-      `Estimate the fatigue life of ${file}: how many load cycles before it cracks. Ask me for the load and how often it repeats.`,
-  ),
-  study(
-    "nonlinear",
-    "strength",
-    "Permanent bend",
-    "whether it carries the load or gives way, and its permanent strain",
-    (file) =>
-      `Check whether ${file} bends for good under its load, and at what load it gives way. Ask me for the load and material.`,
-  ),
-  study(
-    "creep",
-    "strength",
-    "Creep",
-    "the creep strain and sag over time, and whether it holds",
-    (file) =>
-      `Check whether ${file} slowly sags or stretches under a load held for a long time. Ask me for the load, the temperature and how long.`,
-  ),
-  study(
-    "fracture",
-    "strength",
-    "Crack growth",
-    "whether the crack grows, and how big a crack it can take",
-    (file) =>
-      `Check whether a crack in ${file} would grow, and how big a crack it can take. Ask me where the crack is and the load.`,
-  ),
-  study(
-    "bolt",
-    "strength",
-    "Bolted joints",
-    "each bolt's load, and whether the joint holds, opens or slips",
-    (file) =>
-      `Check the bolted joints in ${file}: whether the bolts hold, whether the joint opens or slips, and the tightening torque. Ask me for the bolts and loads.`,
-    ["Assembly"],
-  ),
-  study(
-    "contact",
-    "strength",
-    "Parts pressing together",
-    "how hard the parts press on each other, and where",
-    (file) =>
-      `Check how hard the parts of ${file} press on each other, and where, under its load. Ask me for the load.`,
-    ["Assembly"],
-  ),
-  study(
-    "composite",
-    "strength",
-    "Composite layup",
-    "which ply fails first, and how close it comes to failing",
-    (file) =>
-      `Check the fibre layup of ${file}: which ply fails first and the safety factor. Ask me for the layup and loads.`,
-  ),
-  study(
-    "harmonic",
-    "vibration",
-    "Shaking (sine sweep)",
-    "where it resonates, how much it moves and the stress it sees",
-    (file) =>
-      `Shake ${file} across a frequency range, as on a shaker or by a motor, and tell me where it responds most and the stress it sees. Ask me for the range and level.`,
-  ),
-  study(
-    "random-vibration",
-    "vibration",
-    "Random vibration",
-    "the stress it sees at 3σ, and its safety factor",
-    (file) =>
-      `Check ${file} against a random vibration spec: the stress it sees and whether it lasts. Ask me for the spec in g²/Hz.`,
-  ),
-  study(
-    "shock",
-    "vibration",
-    "Shock",
-    "the peak stress in the shock, its safety factor and peak movement",
-    (file) =>
-      `Check ${file} against a shock spec: the peak stress and whether it survives. Ask me for the shock.`,
-  ),
-  study(
-    "impact",
-    "vibration",
-    "Drop impact (detailed)",
-    "the impact over time: the peak g, the peak stress and the safety factor",
-    (file) =>
-      `Run a detailed drop of ${file} onto a rigid floor, and tell me where it is most stressed and whether it breaks. Ask me for the drop.`,
-  ),
-  study(
-    "transient",
-    "vibration",
-    "Load over time",
-    "the peak stress, when it comes and the safety factor",
-    (file) =>
-      `Check ${file} under a load that changes over time, such as a hammer blow, and tell me the peak stress and when it comes. Ask me for the load over time.`,
-  ),
-  study(
-    "rotor",
-    "vibration",
-    "Spinning parts",
-    "the critical speeds, the unbalance response and the spinning stress",
-    (file) =>
-      `Check the spinning shaft or rotor in ${file}: its critical speeds, its response to unbalance and its spinning stress. Ask me for the speed range and bearings.`,
-  ),
-  study(
-    "acoustic",
-    "vibration",
-    "Sound",
-    "how loud it is in dB, or the frequencies its cavity booms at",
-    (file) =>
-      `Find how loud ${file} is, or the frequencies its cavity booms at. Ask me for the source of the sound.`,
-  ),
-  study(
-    "thermal",
-    "heat",
-    "How hot it gets",
-    "the hottest spot and the temperatures across it",
-    (file) =>
-      `Find how hot ${file} gets when it runs steadily: the hottest spot and the temperatures across it. Ask me for the heat sources and cooling.`,
-  ),
-  study(
-    "thermal-transient",
-    "heat",
-    "Heat over time",
-    "the temperatures over time, the hottest moment and where",
-    (file) =>
-      `Find how ${file} heats up through a warm-up or a duty cycle. Ask me for the heat over time and the cooling.`,
-  ),
-  study(
-    "thermal-stress",
-    "heat",
-    "Heat stress",
-    "the stress the heat causes, how far it warps and the safety factor",
-    (file) => `Check whether heating ${file} stresses or warps it. Ask me for the temperatures.`,
-  ),
-  study(
-    "conjugate-heat",
-    "heat",
-    "Cooling by a flow",
-    "how hot the part runs and how warm the coolant comes out",
-    (file) =>
-      `Find how hot ${file} runs with its coolant flowing, and how warm the coolant comes out. Ask me for the flow and the heat.`,
-  ),
-  study(
-    "cfd",
-    "flow",
-    "Flow through or around it",
-    "the pressure drop and the push of the air or water on it",
-    (file) =>
-      `Simulate the flow through or around ${file}: the pressure drop and the push of the air or water on it. Ask me for the fluid and the speed.`,
-  ),
-  study(
-    "cfd-turbulent",
-    "flow",
-    "Fast flow (turbulent)",
-    "the pressure drop and the forces in the fast, turbulent flow",
-    (file) =>
-      `Simulate the fast, turbulent flow through or around ${file}: the pressure drop and the forces. Ask me for the fluid and the speed.`,
-  ),
-  study(
-    "cfd-compressible",
-    "flow",
-    "Fast gas flow",
-    "the Mach number, whether it chokes and where any shock sits",
-    (file) =>
-      `Simulate the fast gas flow through ${file}: whether it chokes, the Mach number and where any shock sits. Ask me for the gas and pressures.`,
-  ),
-  study(
-    "fsi",
-    "flow",
-    "Flow and bending",
-    "how far the flow bends it, its stress and how the bend changes the flow",
-    (file) =>
-      `Check whether the flow bends ${file}, and how the bend changes the flow. Ask me for the fluid and the speed.`,
-  ),
-  study(
-    "multiphase",
-    "flow",
-    "Sloshing liquid",
-    "how high the liquid climbs and the force on the walls",
-    (file) =>
-      `Check how the liquid inside ${file} moves when it is shaken or braked: how high it climbs and the force on the walls. Ask me for the motion.`,
-  ),
-  study(
-    "electromagnetic",
-    "electrical",
-    "Magnetic and electric fields",
-    "the field and its forces, inductance, capacitance or heating",
-    (file) =>
-      `Simulate the magnetic or electric field in ${file}: forces, inductance, capacitance or heating from current. Ask me for the currents or voltages.`,
-  ),
-  study(
-    "piezo",
-    "electrical",
-    "Piezo",
-    "how far it moves at a voltage, its force and its resonance",
-    (file) =>
-      `Simulate the piezo element in ${file}: how far it moves at a voltage, the force, and its resonance. Ask me for the drive.`,
-  ),
   printCheck(
     "fdm",
     "fdm",
@@ -626,70 +361,6 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     prompt: (file) =>
       `Check ${file} for injection molding: draft, wall thickness and undercuts. Tell me what to change.`,
     short: (name) => `Check ${name} for injection molding`,
-  },
-  {
-    id: "board-fab",
-    group: "Manufacture",
-    section: "board",
-    label: "Check for fabrication",
-    gets: "Findings for fabrication, each passing, to fix or to check, with the fix.",
-    skill: "pcb-dfm",
-    kinds: ["Board"],
-    checks: true,
-    prompt: (file) =>
-      `Check ${file} against the fab's limits and tell me what to fix before ordering.`,
-    short: (name) => `Check ${name} for fabrication`,
-  },
-  {
-    id: "board-assembly",
-    group: "Manufacture",
-    section: "board",
-    label: "Check for assembly",
-    gets: "Findings for assembly, each passing, to fix or to check, with the fix.",
-    skill: "pcb-dfm",
-    kinds: ["Board"],
-    checks: true,
-    prompt: (file) =>
-      `Check ${file} for assembly: parts sourcing (LCSC or MPN), footprints, polarity, fiducials and placement. Tell me what to fix before ordering.`,
-    short: (name) => `Check ${name} for assembly`,
-  },
-  {
-    id: "route",
-    group: "Manufacture",
-    section: "board",
-    label: "Route the board",
-    gets: "The routed board, with what its design rule check and board checks found.",
-    skill: "pcb",
-    kinds: ["Board"],
-    checks: false,
-    prompt: (file) => `Route ${file} and run the board checks.`,
-    short: (name) => `Route ${name}`,
-  },
-  {
-    id: "gerbers",
-    group: "Manufacture",
-    section: "board",
-    label: "Gerbers and drill files",
-    gets: "Gerber and drill files for the fab, once the board passes its design rule check.",
-    skill: "pcb",
-    kinds: ["Board"],
-    checks: false,
-    prompt: (file) =>
-      `Run the design rule check on ${file}, then export its Gerber and drill files for the fab.`,
-    short: (name) => `Gerbers for ${name}`,
-  },
-  {
-    id: "placement",
-    group: "Manufacture",
-    section: "board",
-    label: "Placement file and BOM",
-    gets: "The placement file and the BOM as CSVs, for the assembler.",
-    skill: "pcb",
-    kinds: ["Board"],
-    checks: false,
-    prompt: (file) =>
-      `Export the placement (pick-and-place) file and the bill of materials of ${file} for assembly.`,
-    short: (name) => `Placement file for ${name}`,
   },
   {
     id: "standard-parts",

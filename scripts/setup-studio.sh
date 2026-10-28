@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Sets Studio up on a Mac from this checkout. Run it once after cloning, and again after pulling
-# changes: each step adds only what is missing or changed. It installs the app's packages, the CAD
+# changes: each step adds only what is missing or changed. It fetches the text-to-cad submodule at
+# its pin, installs the app's packages, the CAD
 # plugin's Python environment (text-to-cad/.venv) and its built pieces; cadgen 0.8 draws part
 # pictures in that Python, with no browser. It asks for nothing and changes no shell settings. Then
 # scripts/run-studio.sh starts Studio.
@@ -31,6 +32,9 @@ if ! command -v uv >/dev/null 2>&1; then
   curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
 fi
 echo "Node $(node -v), $(uv --version)"
+
+step "Fetching text-to-cad at Studio's pin"
+git -C "$ROOT" submodule update --init text-to-cad
 
 step "Installing Studio's packages"
 cd "$ROOT"

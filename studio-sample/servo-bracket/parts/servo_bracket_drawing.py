@@ -48,7 +48,7 @@ def servo_bracket_drawing():
             "TAP THE 4 HOLES M3x0.5 AFTER BENDING.",
         ],
     )
-    top, front, right, iso = sheet.three_views(part, iso=True, gap=60, offset=(0, 5))
+    top, front, right, iso = sheet.three_views(part, iso=True, gap=60)
 
     # Top: the shelf the servo drops into, its cutout and the four tapped holes for the servo's tabs. The features'
     # places along the width are measured from its left edge, in two rows below the view.

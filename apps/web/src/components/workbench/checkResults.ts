@@ -3,26 +3,14 @@ import type { ProjectFile } from "./projectFiles";
 /**
  * The checks a project's parts have been through, read from the results the
  * text-to-cad plugin writes beside each part: an FEA study's `<name>.fea.json`
- * (or a named study's `<name>.<study>.json`, beside its `.glb`) and a
- * manufacturing check's `<stem>.<process>.result.json`, each beside the
- * model of its result (`.glb`) that the viewer opens. A result holds its
+ * (or a named study's `<name>.<study>.json`), beside the model of its result
+ * (`.glb`) that the viewer opens. A result holds its
  * findings (`check`, `severity` error, warning or info, `summary`, and a
  * `fix` with its own `summary` when the check names one) and, from newer
  * versions, a verdict (`status` ready or fix, a `headline`, counts).
  */
 
-/** The processes `cadgen manufacturing check` simulates, as a study and its result name them. */
-export const MANUFACTURING_PROCESSES = [
-  "casting",
-  "molding",
-  "heat_treatment",
-  "machining",
-  "printing",
-  "welding",
-  "sheet_metal",
-] as const;
-
-const RESULT_FILE = /\.(?:fea\.json|result\.json)$/i;
+const RESULT_FILE = /\.fea\.json$/i;
 
 /** Whether the file is a check's result the overview reads. */
 export const isCheckResultPath = (path: string) => RESULT_FILE.test(path);
@@ -40,35 +28,6 @@ export const isNamedStudyPath = (path: string, paths: ReadonlySet<string>) =>
 /** An FEA study's analysis, in the plain word the FEA skill gives it. */
 const ANALYSIS_WORDS: Record<string, string> = {
   static: "Strength",
-  modal: "Vibration",
-  buckling: "Buckling",
-  thermal: "Heat",
-  thermal_transient: "Heat over time",
-  thermal_stress: "Heat stress",
-  harmonic: "Shaking",
-  random_vibration: "Random vibration",
-  shock: "Shock",
-  transient: "Over time",
-  fatigue: "Fatigue life",
-  drop: "Drop",
-  impact: "Drop impact",
-  cfd: "Flow",
-  cfd_turbulent: "Flow",
-  cfd_compressible: "Fast gas flow",
-  conjugate_heat: "Cooled by flow",
-  fsi: "Flow and bending",
-  nonlinear: "Permanent bend",
-  creep: "Creep",
-  composite: "Composite",
-  contact: "Contact",
-  bolt: "Bolted joint",
-  electromagnetic: "Magnetic and electric",
-  topology: "Lighten it",
-  acoustic: "Sound",
-  piezo: "Piezo",
-  fracture: "Cracks",
-  rotordynamics: "Spinning",
-  multiphase: "Two fluids",
 };
 
 /** `fix`: an error to fix; `warnings`: passed with something to look at; `ready`: passed. */

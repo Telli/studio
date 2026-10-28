@@ -58,7 +58,7 @@ Not set. Two brackets for one shelf; no quote has been asked for.
 
 - The strength study keeps a safety factor of at least 2 in the bracket itself: now 2.36. The study's own figure at the wall holes, a rigid fixture, is 1.44, and a study with the screw heads and the wall in it is an open action.
 - The tip moves under 1 mm: now 0.34 mm down, 0.91 mm in all, most of it a twist a shelf board would hold.
-- The sheet metal check and the bending check pass: both pass now, after the corner relief was opened from 5 to 7 mm.
+- The sheet metal check passes: it does now, after the corner relief was opened from 5 to 7 mm.
 - SendCutSend's preflight passes for the STEP: it does. The cut file fails on its bend line type only.
 - The first pair, screwed up with a board and 15 kg on it, holds without a visible bend.
 
@@ -69,7 +69,7 @@ Not set. Two brackets for one shelf; no quote has been asked for.
 
 ## Milestones
 
-- Done (2026-10-26): the bracket and its flat pattern modelled, the strength study, the sheet metal and bending checks, the cut file and its SendCutSend preflight, and the drawing.
+- Done (2026-10-26): the bracket and its flat pattern modelled, the strength study, the sheet metal check, the cut file and its SendCutSend preflight, and the drawing.
 - Next, not dated: order a pair, fit them with a board and load them.
 
 ## Open questions

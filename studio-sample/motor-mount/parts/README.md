@@ -25,8 +25,6 @@ Making it, from the exported STEP (`cadgen run exports.py` first):
 
 - CAM: `cadgen cam plan parts/motor_plate.step --job cam/motor_plate.cam.json --out-dir cam` writes
   cam/motor_plate.cam.glb and the LinuxCNC programs cam/motor_plate.top.ngc and cam/motor_plate.bottom.ngc.
-- Machining check: `cadgen manufacturing check parts/motor_plate.step --study parts/motor_plate.machining.json
-  --fail-on error` writes parts/motor_plate.machining.glb and its result beside the part.
 - Strength: `cadgen fea solve parts/motor_plate.step studies/motor_plate.fea.glb --study studies/motor_plate.study.json`.
 
 Pictures: `cadgen snapshot --job pictures/motor_mount_pictures.job.json` draws the mount from its STEP (the angle, from

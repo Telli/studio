@@ -1,7 +1,7 @@
 /**
  * What a new piece of work can be, the way a CAD system's New dialog offers
- * templates (a part, an assembly, a drawing) but across engineering: boards
- * and harnesses, studies, manufacturing, robots, documents. Each runs on one
+ * templates (a part, an assembly, a drawing) but across engineering: studies,
+ * manufacturing, robots, documents. Each runs on one
  * of text-to-cad's skills and can be made only while an enabled plugin has it;
  * New shows the rest dimmed, naming the skill (`templateOffers`).
  * A template either makes something new (a name, a folder, units) or works
@@ -10,7 +10,7 @@
 
 import type { InstalledPlugin } from "@t3tools/contracts";
 
-import { type Availability, missingSkill, UNLISTED_TEMPLATES } from "./library/skillAvailability";
+import { type Availability, missingSkill } from "./library/skillAvailability";
 
 export type Discipline =
   | "CAD"
@@ -87,26 +87,6 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
     source: "from-part",
     folder: "drawings",
     defaultName: "drawing",
-  },
-  {
-    id: "board",
-    discipline: "Electronics",
-    label: "Board",
-    description: "A KiCad board and schematic from the circuit you describe.",
-    skill: "pcb",
-    source: "new",
-    folder: "electronics",
-    defaultName: "Board",
-  },
-  {
-    id: "harness",
-    discipline: "Electronics",
-    label: "Wiring harness",
-    description: "Connectors, wires and lengths, with its bill of materials.",
-    skill: "harness",
-    source: "new",
-    folder: "electronics",
-    defaultName: "Wiring harness",
   },
   {
     id: "strength-study",
@@ -267,8 +247,7 @@ export interface TemplateOffer {
 /**
  * Every template New shows, in their order, documents after the rest: on where it needs no skill
  * or the enabled plugins' skills (`skills`) hold its skill, else off, naming that skill and the
- * plugin that lists it, as the library does (`missingSkill`). A template whose skill no plugin
- * ships (`UNLISTED_TEMPLATES`) is left out until a plugin lists it.
+ * plugin that lists it, as the library does (`missingSkill`).
  */
 export function templateOffers(
   skills: ReadonlySet<string>,
@@ -277,8 +256,6 @@ export function templateOffers(
   return [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES].flatMap((template): TemplateOffer[] => {
     const { skill } = template;
     if (skill === null || skills.has(skill)) return [{ template, availability: { on: true } }];
-    const listed = plugins.some((plugin) => plugin.skills.includes(skill));
-    if (!listed && UNLISTED_TEMPLATES.includes(template.id)) return [];
     return [{ template, availability: missingSkill(skill, plugins) }];
   });
 }
@@ -350,10 +327,6 @@ export function newWorkPrompt(work: NewWork): string {
       return `Create a new assembly as a cadgen model in ${target}.py, in ${units}, using the project's parts where they fit.${ask}`;
     case "sheet-metal":
       return `Create a new sheet metal part as a cadgen model in ${target}.py, in ${units}, with its flat pattern.${ask}`;
-    case "board":
-      return `Create a new KiCad board, ${target}, with its schematic.${ask}`;
-    case "harness":
-      return `Create a new wiring harness, ${target}, with its bill of materials.${ask}`;
     case "drawing":
       return `Make an engineering drawing of ${part} with its key dimensions and tolerances, in ${units}.${ask}`;
     case "strength-study":

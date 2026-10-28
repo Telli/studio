@@ -23,8 +23,8 @@ const plugin = (id: string, enabled: boolean, skills: ReadonlyArray<string>): In
   error: null,
 });
 
-/** text-to-cad, enabled and listing pcb, while only cad is among the skills that are on. */
-const textToCad = plugin("text-to-cad", true, ["cad", "engineering-drawing", "fea", "pcb"]);
+/** text-to-cad, enabled and listing fea, while only cad is among the skills that are on. */
+const textToCad = plugin("text-to-cad", true, ["cad", "engineering-drawing", "fea"]);
 const offers = templateOffers(new Set(["cad"]), [textToCad]);
 const offerOf = (id: string) => offers.find((offer) => offer.template.id === id);
 
@@ -47,7 +47,7 @@ describe("new templates", () => {
       "fmea",
       "design-review",
     ]);
-    expect(onWith(["fea", "cam", "pcb"]).map((entry) => entry.label)).toContain("Strength study");
+    expect(onWith(["fea", "cam"]).map((entry) => entry.label)).toContain("Strength study");
   });
 
   it("names new work by a file name the agent can use", () => {
@@ -65,7 +65,7 @@ describe("new templates", () => {
     ).toBe(
       "Create a new part as a cadgen model in parts/wall_bracket.py, in millimeters. 80 mm wide, two M5 holes.",
     );
-    // An assembly is a model too; a board is KiCad's, not a model.
+    // An assembly is a model too.
     const assembly = newWorkPrompt({
       template: template("assembly"),
       name: "Arm",
@@ -77,22 +77,12 @@ describe("new templates", () => {
     expect(assembly).toBe(
       "Create a new assembly as a cadgen model in assemblies/arm.py, in inches, using the project's parts where they fit.",
     );
-    expect(
-      newWorkPrompt({
-        template: template("board"),
-        name: "Driver",
-        folder: "electronics",
-        units: "mm",
-        part: null,
-        description: "",
-      }),
-    ).toBe("Create a new KiCad board, electronics/driver, with its schematic.");
   });
 
   it("offers what is on and names what is off", () => {
-    expect(offerOf("board")?.availability).toEqual({
+    expect(offerOf("strength-study")?.availability).toEqual({
       on: false,
-      skill: "pcb",
+      skill: "fea",
       plugin: "text-to-cad",
       installed: true,
     });
@@ -106,19 +96,8 @@ describe("new templates", () => {
       "assembly",
       "sheet-metal",
       "drawing",
-      "board",
+      "strength-study",
     ]);
-  });
-
-  it("leaves out what no plugin ships", () => {
-    expect(offers.map((offer) => offer.template.id)).not.toContain("harness");
-    // Once a plugin lists its skill, it is named, off until that plugin is on.
-    const harnesses = plugin("harnesses", false, ["harness"]);
-    expect(
-      templateOffers(new Set(["cad"]), [textToCad, harnesses]).find(
-        (offer) => offer.template.id === "harness",
-      )?.availability,
-    ).toEqual({ on: false, skill: "harness", plugin: "harnesses", installed: true });
   });
 
   it("works from the chosen part for a study, a CAM job or a drawing", () => {

@@ -11,7 +11,6 @@
     "example": "parts/servo_bracket.py",
     "picture": "parts/servo_bracket.step"
   },
-  "doc:board": null,
   "doc:drawing": {
     "example": "drawings/servo_bracket_drawing.pdf",
     "picture": "drawings/servo_bracket_drawing.pdf"
@@ -134,10 +133,6 @@
     "picture": "studies/servo_bracket.fea.glb"
   },
   "skill:text-to-cad/gcode": null,
-  "skill:text-to-cad/kernels": null,
-  "skill:text-to-cad/manufacturing-sim": null,
-  "skill:text-to-cad/pcb": null,
-  "skill:text-to-cad/pcb-dfm": null,
   "skill:text-to-cad/sdf": {
     "example": "robots/servo_mount.sdf",
     "picture": "robots/servo_mount.sdf"

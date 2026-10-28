@@ -12,7 +12,7 @@ describe("a project started from New on Home", () => {
       "Servo bracket",
     );
     expect(newProjectName({ template: template("part"), name: "Part" })).toBe("New part");
-    expect(newProjectName({ template: template("board"), name: " " })).toBe("New board");
+    expect(newProjectName({ template: template("assembly"), name: " " })).toBe("New assembly");
     expect(newProjectName({ template: document("fmea"), name: "FMEA" })).toBe("New FMEA");
     expect(newProjectName({ template: document("prd"), name: "PRD" })).toBe(
       "New product requirements (PRD)",
@@ -21,12 +21,10 @@ describe("a project started from New on Home", () => {
 });
 
 describe("the kind of project New starts", () => {
-  it("reaches every kind New has work for: part, product, circuit board and robot", () => {
+  it("reaches every kind New has work for: part, product and robot", () => {
     expect(projectKindFor("part").id).toBe("part");
     expect(projectKindFor("sheet-metal").id).toBe("part");
     expect(projectKindFor("assembly").id).toBe("product");
-    expect(projectKindFor("board").id).toBe("board");
-    expect(projectKindFor("harness").id).toBe("board");
     expect(projectKindFor("robot").id).toBe("robot");
     expect(projectKindFor("prd").id).toBe("part");
   });

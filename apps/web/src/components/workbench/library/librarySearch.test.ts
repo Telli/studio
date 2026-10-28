@@ -90,7 +90,6 @@ describe("libraryGroup", () => {
     expect(libraryGroup(doc("doc:part"))).toBe("New");
     expect(libraryGroup(doc("doc:prd"))).toBe("New");
     expect(libraryGroup(doc("doc:simulation"))).toBe("Evaluate");
-    expect(libraryGroup(doc("doc:board"))).toBe("Manufacture");
     // Its toolpaths are in Manufacture and its results in Evaluate: it shows in the first.
     expect(libraryGroup(doc("doc:cam-job"))).toBe("Manufacture");
     expect(libraryGroup(doc("doc:drawing"))).toBe("Document");

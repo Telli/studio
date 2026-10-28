@@ -1,6 +1,6 @@
 """The project's delivered files, written from its models: the stand's STEP, the placeholder phone's and the stand with
 the phone in it, and the stand as it prints as an STL and a 3MF, the files the slicer and the FDM check read. Run from
-the project root with `cadgen run exports.py` after a change; the printing check reads the stand's STEP."""
+the project root with `cadgen run exports.py` after a change."""
 
 import sys
 from pathlib import Path

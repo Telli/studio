@@ -1,9 +1,0 @@
-{
-  "process": "printing",
-  "technology": "fdm",
-  "polymer": "pla",
-  "build_direction": [1, 0, 0],
-  "bands": 12,
-  "release_from_plate": true,
-  "layer_thickness_mm": 0.2
-}

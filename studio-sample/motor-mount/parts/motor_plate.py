@@ -11,7 +11,8 @@ depth toleranced; B and C profiled to the datums before them; every other face h
 and two named views."""
 
 import build123d as bd
-from cadgen import materials, model
+from bd_materials import metals
+from cadgen import model
 from cadgen.ap242 import (annotate, datum, dimensional_location, dimensional_size, flatness_tolerance,
                           general_profile, note, plus_minus_tolerance, position_tolerance, section,
                           surface_profile_tolerance, view)
@@ -152,7 +153,7 @@ def motor_plate():
     )
 
     plate.color = "#B9C0C8"
-    plate.material = materials.aluminium_6061
+    plate.material = metals.aluminum()
     plate.label = "motor_plate"
     return requirements(plate)
 

@@ -1,5 +1,0 @@
-{"process": "machining", "material": "6061-t6", "operation": "milling",
- "tool": {"diameter_mm": 6, "flutes": 3}, "spindle_rpm": 10000, "feed_per_tooth_mm": 0.041,
- "depth_mm": 3, "width_mm": 0.2, "milling": "down",
- "cut_faces": ["#o1.1.f45"], "fixtures": [{"faces": ["#o1.1.f1", "#o1.1.f47"], "type": "fixed"}],
- "max_spindle_rpm": 10000}

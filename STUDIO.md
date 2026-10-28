@@ -1,20 +1,23 @@
 # text-to-cad Studio
 
 T3 Code made into a hardware app: agents design parts with the text-to-cad plugin, and the CAD
-view follows their work beside the thread. It is this fork's `amy/hardware` branch, pinned inside
-[text-to-cad](https://github.com/earthtojake/text-to-cad) as the `apps/studio` submodule.
+view follows their work beside the thread. It lives in this private repository, on `main`.
 
-This branch, `amy/hardware-first`, is the hardware engineer's version and lives in a private
-repository, never pushed to the public fork. It is one repository: text-to-cad is in it at
-`text-to-cad/`, a subtree of Jake's repository with its history, so the viewer and cadgen change
-here beside the app. His updates merge in (the `jake` remote is fetch-only):
+[text-to-cad](https://github.com/earthtojake/text-to-cad) is the `text-to-cad/` submodule, pinned
+to `studio-base` on [amywork777/text-to-cad-upstream](https://github.com/amywork777/text-to-cad-upstream):
+Jake's latest release, Amy's open text-to-cad PRs merged in, and Studio's Edit by hand on top
+(`packages/cadgen/src/cadgen/edit/` and `packages/ui/src/renderers/xbf/edit/`). Nothing else of
+Studio's lives there, so a new release or a PR's new commits come in by merging them into
+`studio-base`, keeping its suites green, pushing it, and moving the pin here:
 
 ```sh
-git fetch jake main && git merge -X subtree=text-to-cad/ jake/main
+git submodule update --remote text-to-cad
+git commit -m "text-to-cad: <what changed>" text-to-cad
 ```
 
-Set it up on a Mac with `scripts/setup-studio.sh`, after Apple's command line tools and Node 24,
-and again after pulling. It installs the packages (the repository's own vp, run through npx when
+Clone with `--recurse-submodules`, or let the setup fetch it. Set it up on a Mac with
+`scripts/setup-studio.sh`, after Apple's command line tools and Node 24, and again after pulling.
+It fetches the text-to-cad submodule at its pin, installs the packages (the repository's own vp, run through npx when
 none is installed), fetches Electron, makes `text-to-cad/.venv` with uv (Python 3.13,
 `requirements-dev.txt` and the `fea` extra), runs `npm ci`, `npm run build:packages` and
 `scripts/bundle/bundle.sh` in `text-to-cad/`, and checks for Claude Code; it changes no shell
@@ -143,8 +146,7 @@ short user name, so a long one comes near Windows's 260.
 
 ## Run it
 
-In a text-to-cad checkout, `git submodule update --init apps/studio`, then from `apps/studio`,
-after `vp i`:
+After `scripts/setup-studio.sh`:
 
 ```sh
 vpr studio            # server and web
@@ -205,10 +207,9 @@ Everything else is upstream T3 Code plus the fork's plugins (`FORK.md` on `main`
   its small stage pill. Other mentions of T3 Code stay: they describe T3's own machinery (T3
   Connect, its desktop updates), and rewording them would make every rebase conflict.
 
-## Hardware first (`amy/hardware-first`)
+## Hardware first
 
-A branch on top of `amy/hardware` for people who know hardware before code: `brand.json`
-`"focus": "hardware"`. `amy/hardware` stays the base text-to-cad pins; this one rebases onto it.
+For people who know hardware before code: `brand.json` `"focus": "hardware"`.
 
 Its interface is a setting, Engineering, Engineering with code, or Code, Engineering by default, per
 device. The switch is Settings, Appearance, Interface in the two code interfaces, and Settings,
@@ -679,23 +680,8 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   (`scripts/studio-dev-plugin.py`) and keeps its state in `~/.text-to-cad-studio-dev`. The
   checkout needs its `.venv` (with the `fea` extra), `npm ci` and `scripts/bundle/bundle.sh`.
 
-One command takes in a new T3 Code: from the fork's `main` checkout,
-`scripts/sync-upstream.sh --push` rebases `main` and `amy/plugins` onto upstream, and
-`amy/hardware` onto `amy/plugins`, stopping at the first conflict. Then bump text-to-cad's pin
-and tag the commit it pins, so it stays fetchable after the next rebase moves the branch:
-
-```sh
-git submodule update --remote apps/studio     # in text-to-cad: the pin follows amy/hardware
-pin=studio/pin/$(git -C apps/studio rev-parse --short=10 HEAD)
-git -C apps/studio tag "$pin" && git -C apps/studio push origin "$pin"
-```
-
-and commit `apps/studio`. What Studio changes against T3 Code is the compare view from the
-upstream commit the branch sits on to `amy/hardware`.
-
-Rebases stay clean because the branch adds files rather than editing T3's: an edit to an upstream
-file is a seam of a line or a few (`scripts/fork-diff.sh amy/hardware` on `main` lists them). Keep
-it that way: new behaviour goes in new files, and a T3 string or style is changed through `brand/`,
+A new T3 Code merges in cleanly because Studio adds files rather than editing T3's: an edit to an
+upstream file is a seam of a line or a few. Keep it that way: new behaviour goes in new files, and a T3 string or style is changed through `brand/`,
 not in place.
 
 ## Who the engineering interface is for (Amy, 2026-10-15)

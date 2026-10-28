@@ -17,16 +17,11 @@ describe("quick find", () => {
   });
 
   it("finds a job the menus leave out, by its name", () => {
-    expect(labels("buckling")).toEqual(["Evaluate · Strength and durability: Buckling"]);
+    expect(labels("bambu")).toEqual(["Manufacture · FDM printing: Print on a Bambu printer"]);
   });
 
   it("finds a whole section, or a menu's every job, by their names", () => {
-    expect(labels("evaluate heat")).toEqual([
-      "Evaluate · Heat: How hot it gets",
-      "Evaluate · Heat: Heat over time",
-      "Evaluate · Heat: Heat stress",
-      "Evaluate · Heat: Cooling by a flow",
-    ]);
+    expect(labels("evaluate simulation")).toEqual(["Evaluate · Simulation: Strength under load"]);
     const manufacture = labels("manufacture", "CNC machining");
     expect(manufacture[0]).toBe("Manufacture · CNC machining: Check for CNC machining");
     expect(manufacture).toContain("Manufacture · FDM printing: Slice for FDM");

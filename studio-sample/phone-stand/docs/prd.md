@@ -38,7 +38,6 @@ Could:
 ## Performance targets: loads, life, temperatures, cycles
 
 - Tipping: a 150 g phone in portrait tips it back at 1.05 N into the top of its screen; a 240 g phone at 1.48 N. In landscape, 2.63 N and 3.77 N (`docs/phone_stand_mass_and_tip.md`, with the printed mass estimated).
-- Printing: 0.317 mm of warp off the plate, against 0.4 mm (`parts/phone_stand_printing.md`).
 - The phone's weight and a tap are the only loads. Life, cycles and the temperatures it must stand (a car's dashboard would soften PLA) are not set (open questions).
 
 ## Size, weight and interfaces
@@ -60,7 +59,6 @@ Not set. One is to be printed first; no quantity beyond that is given.
 ## How success is measured
 
 - The FDM check finds nothing to fix: now none, with 8 mm bridges and no supports (`parts/phone_stand_fdm.md`).
-- The printing check is ready: now 0.317 mm of warp, within 0.4 mm.
 - The tip-over check passes with a 150 g phone: now 1.05 N against 1 N, a thin margin.
 - A printed stand holds a real phone, takes its charging cable and does not tip when its screen is tapped: not printed yet.
 
@@ -71,7 +69,7 @@ Not set. One is to be printed first; no quantity beyond that is given.
 
 ## Milestones
 
-- Done (2026-10-26): the stand modelled, its print file, the FDM and printing checks, the mass, fit and tip-over check, and its drawing.
+- Done (2026-10-26): the stand modelled, its print file, the FDM check, the mass, fit and tip-over check, and its drawing.
 - Next, not dated: slice it, print one, try it with a real phone and cable, and settle the open questions below.
 
 ## Open questions

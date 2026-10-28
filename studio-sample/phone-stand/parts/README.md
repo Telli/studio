@@ -18,9 +18,5 @@ writes no file: `cadgen run exports.py` writes the STEP files and the print file
 models themselves: `cadgen run parts/phone_stand_drawing.py` draws the stand, and `cadgen run checks/phone_stand_tip.py`
 checks it again.
 
-The printing check, from the exported STEP: `cadgen manufacturing check parts/phone_stand.step --study
-studies/phone_stand.printing.json`, which writes parts/phone_stand.printing.glb and
-parts/phone_stand.printing.result.json.
-
 Pictures: `cadgen snapshot --job pictures/phone_stand_pictures.job.json` draws them from the exported STEP files and
 STL.

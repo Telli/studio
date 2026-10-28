@@ -79,17 +79,13 @@ const kindOf = (id: string) => STUDIO_PROJECT_KINDS.find((kind) => kind.id === i
 
 /**
  * The kind of project New starts for its work, which sets the folders the agent keeps it in: an
- * assembly's is a product, a board's or a harness's a circuit board, a robot description's a
- * robot, and the rest (a part, a sheet metal part, a document) a mechanical part. A blank project
- * has no choice of its own in New.
+ * assembly's is a product, a robot description's a robot, and the rest (a part, a sheet metal
+ * part, a document) a mechanical part. A blank project has no choice of its own in New.
  */
 export function projectKindFor(templateId: string) {
   switch (templateId) {
     case "assembly":
       return kindOf("product");
-    case "board":
-    case "harness":
-      return kindOf("board");
     case "robot":
       return kindOf("robot");
     default:

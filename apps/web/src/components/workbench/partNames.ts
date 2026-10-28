@@ -1,5 +1,3 @@
-import { MANUFACTURING_PROCESSES } from "./checkResults";
-
 /**
  * Files as an engineer names them, for the engineering interface: a part, a
  * drawing, a study or a document by what it is called ("Servo bracket",
@@ -102,8 +100,6 @@ export function inSentence(name: string): string {
   return `the ${lowerName(name)}`;
 }
 
-const PROCESS_ENDING = MANUFACTURING_PROCESSES.join("|");
-
 /**
  * A mesh by its format, as an engineer asks for one ("send me the STL"): STL, 3MF, OBJ. A GLB is
  * the viewer's own picture of a part, so it stays a mesh.
@@ -125,11 +121,6 @@ const ENDINGS: ReadonlyArray<{
   readonly suffix: string | ((match: RegExpExecArray) => string);
 }> = [
   { ending: /\.fea\.(?:json|glb)$/i, kind: "FEA study", suffix: "FEA study" },
-  {
-    ending: new RegExp(`\\.(${PROCESS_ENDING})\\.(?:result\\.json|glb)$`, "i"),
-    kind: (match) => `${humanName(match[1]!)} check`,
-    suffix: (match) => `${humanName(match[1]!).toLowerCase()} check`,
-  },
   { ending: /\.cam\.(?:json|glb)$/i, kind: "CAM job", suffix: "CAM job" },
   { ending: /\.harness\.ya?ml$/i, kind: "Harness", suffix: "harness" },
   { ending: /(?:^|[._-])gerbers?\.zip$/i, kind: "Gerbers", suffix: "Gerbers" },

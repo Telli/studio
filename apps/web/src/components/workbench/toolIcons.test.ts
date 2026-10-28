@@ -64,9 +64,9 @@ describe("toolIcon", () => {
 
   it("falls back to the section's picture, then the group's, for a job without one", () => {
     expect(ACTION_SECTIONS.filter((section) => !hasSectionIcon(section.id))).toEqual([]);
-    const heat = job({ id: "new-heat-job", group: "Evaluate", section: "heat" });
-    const thermal = HARDWARE_ACTIONS.find((action) => action.id === "thermal")!;
-    expect(toolIcon(heat)).toBe(toolIcon(thermal));
+    const simulation = job({ id: "new-simulation-job", group: "Evaluate", section: "simulation" });
+    const strength = HARDWARE_ACTIONS.find((action) => action.id === "strength")!;
+    expect(toolIcon(simulation)).toBe(toolIcon(strength));
     const loose = job({ id: "new-job", group: "Document", section: "new-section" });
     expect(toolIcon(loose)).toBe(MENU_ICONS.Document);
   });

@@ -53,7 +53,6 @@ As drawn now, the bracket's two bends, its flanges, its holes and its corner rel
 
 - Forming on SendCutSend's press brake: their punch and die are not modelled. Bend order: either bend can go first. When the second is made, the first flange stands 3.5 mm clear of the end of the punch's line (the 7 mm relief past the 3.48 mm setback), which the tooling can't be checked against here.
 - The zinc coating at the bends: G90's coating can flake at a tight bend, and no source here gives a minimum radius for it.
-- Springback and cracking are the bending check's (`parts/shelf_bracket.sheet_metal.result.json`): it is ready to bend, with an overbend of 0.23°.
 - Deburring and finish: none is ordered; the galvanised sheet is the finish, and its cut edges are bare steel.
 
 Passing these checks does not approve the part for manufacture. It means the measured features meet the cited limits.

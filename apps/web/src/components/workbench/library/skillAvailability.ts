@@ -20,9 +20,6 @@ export type Availability =
 /** The plugin Studio's own skills come from. */
 export const TEXT_TO_CAD = "text-to-cad";
 
-/** New's templates that no plugin ships the skill for: New and the library leave them out. */
-export const UNLISTED_TEMPLATES: ReadonlyArray<string> = ["harness"];
-
 /**
  * A skill no enabled plugin has, named with the first installed plugin that lists it, or with
  * text-to-cad when none does.

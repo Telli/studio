@@ -19,7 +19,6 @@ import {
   ownTemplateEntries,
   showsUpAs,
   skillName,
-  UNLISTED_TEMPLATES,
 } from "./libraryCatalog";
 import libraryExamples from "./libraryExamples.json";
 
@@ -40,14 +39,9 @@ const ownName = (skill: string) =>
 
 /** The sample's outputs that could not be made, so their entries show no example. */
 const NOT_MADE = [
-  "doc:board",
   "doc:print",
   "skill:text-to-cad/bambu-labs",
   "skill:text-to-cad/gcode",
-  "skill:text-to-cad/kernels",
-  "skill:text-to-cad/manufacturing-sim",
-  "skill:text-to-cad/pcb",
-  "skill:text-to-cad/pcb-dfm",
   "skill:text-to-cad/work-instructions",
 ];
 
@@ -108,9 +102,7 @@ const fileTemplate: NewTemplate = {
 
 describe("library catalog", () => {
   it("maps every offered template and every menu job to exactly one entry", () => {
-    const templates = [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES]
-      .map((template) => template.id)
-      .filter((id) => !UNLISTED_TEMPLATES.includes(id));
+    const templates = [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES].map((template) => template.id);
     for (const id of templates) {
       expect(
         LIBRARY_DOCUMENTS.filter((entry) => entry.templates.includes(id)),
@@ -147,13 +139,8 @@ describe("library catalog", () => {
 
   it("says where it is", () => {
     expect(findItIn(doc("doc:part"))).toEqual(["New › CAD"]);
-    expect(findItIn(doc("doc:board"))).toEqual([
-      "New › Electronics",
-      "Manufacture › Circuit board",
-    ]);
     expect(findItIn(doc("doc:drawing"))).toEqual(["Document › Drawings"]);
     expect(findItIn(doc("doc:simulation"))).toContain("Evaluate › Simulation");
-    expect(findItIn(doc("doc:simulation"))).toContain("Evaluate › More simulations");
     expect(findItIn(doc("doc:order"))).toEqual([
       "Manufacture › Sheet metal",
       "Manufacture › Laser and waterjet cutting",
@@ -181,7 +168,7 @@ describe("library catalog", () => {
   it("names who makes it", () => {
     expect(madeBy(doc("doc:prd"))).toEqual(["the Product requirements (PRD) template"]);
     expect(madeBy(doc("doc:order"))).toEqual(["sendcutsend"]);
-    expect(madeBy(doc("doc:manufacturing-check"))).toEqual(["dfm", "dfam-check", "pcb-dfm"]);
+    expect(madeBy(doc("doc:manufacturing-check"))).toEqual(["dfm", "dfam-check"]);
     expect(madeBy(doc("doc:parts-list"))).toEqual(["the agent"]);
     expect(madeBy(doc("doc:drawing"))).toEqual(["engineering-drawing"]);
     // Their templates work from a part, which no New offers, and their jobs need no skill.
@@ -298,7 +285,7 @@ describe("library catalog", () => {
 
   it("asks something of the sample for each of text-to-cad's skills", () => {
     const skills = librarySkills([textToCad(true, "Use this skill.")]);
-    expect(skills).toHaveLength(19);
+    expect(skills).toHaveLength(15);
     expect(
       skills.filter((skill) => skill.tryAsking === null || skill.tryAsking === "Use this skill."),
     ).toEqual([]);
@@ -308,14 +295,8 @@ describe("library catalog", () => {
     expect(showsUpAs("dfm")).toEqual([
       "Manufacture: Check for CNC machining, Check as sheet metal, Check for injection molding",
     ]);
-    expect(showsUpAs("pcb")).toEqual([
-      "New: Board",
-      "Manufacture: Route the board, Gerbers and drill files, Placement file and BOM",
-    ]);
     // A template that works from a part is no New's: the skill shows up in its menus alone.
-    expect(showsUpAs("fea")).toEqual([
-      "Evaluate: Strength under load, Vibration, Drop test, Make it lighter, Explain these results, More simulations",
-    ]);
+    expect(showsUpAs("fea")).toEqual(["Evaluate: Strength under load, Explain these results"]);
     expect(showsUpAs("urdf")).toEqual(["New: Robot description", "Document: More documents"]);
     expect(showsUpAs("sendcutsend")).toEqual(["Manufacture: Order from SendCutSend"]);
     expect(showsUpAs("no-such-skill")).toEqual([]);
@@ -335,7 +316,7 @@ describe("library catalog", () => {
   });
 
   it("has a real example for every entry", () => {
-    expect(TEXT_TO_CAD_SKILLS).toHaveLength(19);
+    expect(TEXT_TO_CAD_SKILLS).toHaveLength(15);
     const entries = [...LIBRARY_DOCUMENTS, ...librarySkills([textToCad(true)])];
     expect(Object.keys(EXAMPLES).toSorted()).toEqual(entries.map((entry) => entry.id).toSorted());
     expect(entries.filter((entry) => entry.example === null).map((entry) => entry.id)).toEqual(

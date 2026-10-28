@@ -8,17 +8,15 @@ const files = (...paths: string[]) =>
   paths.map(classifyProjectFile).filter((file): file is ProjectFile => file !== null);
 
 describe("project starters", () => {
-  it("suggests the jobs the project's recent parts and boards take, checks first", () => {
+  it("suggests the jobs the project's recent parts take, checks first", () => {
     const starters = projectStarters(
-      files("parts/STEP/l_bracket.step", "electronics/PCB/servo_power.kicad_pcb", "notes/todo.md"),
-      new Set(["dfm", "cam", "pcb", "pcb-dfm", "cad"]),
+      files("parts/STEP/l_bracket.step", "notes/todo.md"),
+      new Set(["dfm", "cam", "cad"]),
       null,
     );
     expect(starters.map((starter) => starter.label)).toEqual([
       "Check L bracket for CNC machining",
-      "Check servo power for fabrication",
       "Post G-code for L bracket",
-      "Route servo power",
     ]);
     expect(starters[0]?.prompt).toBe(
       "Check [l_bracket.step](parts/STEP/l_bracket.step) for CNC machining: tool access, internal corners, thin walls and setups. Tell me what to change.",

@@ -24,7 +24,9 @@ describe("toolboxGroups", () => {
   it("shows the everyday sections open and the rest folded", () => {
     const [evaluate, manufacture] = toolboxGroups(menus());
     expect(evaluate?.sections[0]).toMatchObject({ title: "Simulation", folded: false });
-    expect(evaluate?.sections.find((section) => section.title === "Heat")?.folded).toBe(true);
+    expect(manufacture?.sections.find((section) => section.title === "FDM printing")?.folded).toBe(
+      true,
+    );
     expect(manufacture?.sections[0]?.title).toBe("CNC machining");
   });
 

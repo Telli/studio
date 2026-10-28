@@ -84,7 +84,7 @@ export default defineConfig({
   fmt: {
     ignorePatterns: [
       ".repos/**",
-      // text-to-cad (Jake's CAD harness, merged in as a subtree) keeps its own formatting, so his
+      // text-to-cad (Jake's CAD harness, the studio-base submodule) keeps its own formatting, so his
       // updates still merge.
       "text-to-cad/**",
       // The sample project holds the skills' own output, kept as they wrote it.

@@ -26,10 +26,6 @@ describe("part names", () => {
     });
     expect(partLabel("drawings/l_bracket.dxf")).toBe("L bracket drawing");
     expect(partLabel("parts/l_bracket.fea.json")).toBe("L bracket FEA study");
-    expect(partName("parts/l_bracket.heat_treatment.result.json")).toMatchObject({
-      kind: "Heat treatment check",
-      label: "L bracket heat treatment check",
-    });
     expect(partLabel("out/l_bracket.cam.glb")).toBe("L bracket CAM job");
     expect(partLabel("out/l_bracket.nc")).toBe("L bracket G-code");
     expect(partLabel("electronics/servo_power.kicad_pcb")).toBe("Servo power board");

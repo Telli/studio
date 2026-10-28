@@ -1,4 +1,3 @@
-import { MANUFACTURING_PROCESSES } from "./checkResults";
 import { humanName, partName } from "./partNames";
 
 /**
@@ -58,14 +57,10 @@ export interface ProjectFile {
   readonly version?: string;
 }
 
-/** A manufacturing check's result model, `<stem>.<process>.glb` (`checkResults.ts`). */
-const MANUFACTURING_RESULT = new RegExp(`\\.(?:${MANUFACTURING_PROCESSES.join("|")})\\.glb$`, "i");
-
 /** Where each kind of file is filed; what it is and what it is called are `partNames.ts`'s. */
 const RULES: ReadonlyArray<{ readonly test: RegExp; readonly group: ProjectGroup }> = [
   { test: /\.fea\.(?:glb|json)$/i, group: "Analysis" },
   { test: /(?:^|\/)FEA\/[^/]+\.(?:glb|json)$/i, group: "Analysis" },
-  { test: MANUFACTURING_RESULT, group: "Analysis" },
   { test: /\.cam\.(?:glb|json)$/i, group: "Manufacturing" },
   { test: /\.(?:nc|gcode|ngc|tap|gco)$/i, group: "Manufacturing" },
   { test: /\.(?:step|stp|xbf)$/i, group: "CAD" },

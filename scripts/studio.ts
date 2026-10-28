@@ -1,8 +1,8 @@
 // @effect-diagnostics nodeBuiltinImport:off - a launcher that only sets the environment and runs the dev runner.
 /**
  * Runs this app as text-to-cad Studio: T3 Code with the text-to-cad plugin
- * built in. text-to-cad lives in this repository at `text-to-cad/` (a subtree
- * of Jake's repository, STUDIO.md), so `node scripts/studio.ts [dev|dev:desktop]`
+ * built in. text-to-cad is this repository's `text-to-cad/` submodule
+ * (STUDIO.md), so `node scripts/studio.ts [dev|dev:desktop]`
  * from here:
  *
  * - reads the checkout as a plugin marketplace and installs and enables its

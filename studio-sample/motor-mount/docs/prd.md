@@ -37,7 +37,6 @@ Could:
 ## Performance targets: loads, life, temperatures, cycles
 
 - Load: 50 N along the belt, held steady. The strength study gives 0.55 MPa at the peak, a safety factor of 501 and 0.000114 mm of movement (`docs/motor_plate_strength_report.md`).
-- Machining: the pocket wall's finishing cut moves it 0.000146 mm and does not chatter at 10,000 rpm (`parts/motor_plate_machining.md`).
 - Life, cycles, vibration and temperatures: not set (open questions).
 
 ## Size, weight and interfaces
@@ -59,7 +58,6 @@ Not set. One prototype is assumed; no quote has been asked for.
 ## How success is measured
 
 - The strength study passes with a safety factor of at least 2: now 501.
-- The machining check is ready to cut: now it is.
 - The CAM program is ready to cut with no errors: now it is, with four warnings (`cam/motor_plate_cam.md`).
 - The DFM review finds no failure: now none, two items to review (`docs/motor_plate_dfm.md`).
 - The first plate takes a real motor and tensions a belt: not made yet.
@@ -70,7 +68,7 @@ Not set. One prototype is assumed; no quote has been asked for.
 
 ## Milestones
 
-- Done (2026-10-26): the plate and the mount modelled, the motor from step.parts, the geometry and fit checks, the CAM program, the machining check, the DFM review, the strength study and the drawing.
+- Done (2026-10-26): the plate and the mount modelled, the motor from step.parts, the geometry and fit checks, the CAM program, the DFM review, the strength study and the drawing.
 - Next, not dated: measure a bought motor's pilot, set the bore's tolerance, choose the frame and pulley, prove the program, mill the first plate.
 
 ## Open questions

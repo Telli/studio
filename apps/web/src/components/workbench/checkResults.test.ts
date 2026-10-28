@@ -57,7 +57,7 @@ const fea = JSON.stringify({
 const file = (path: string): ProjectFile => classifyProjectFile(path)!;
 
 describe("check results", () => {
-  it("reads FEA and manufacturing results, and nothing else", () => {
+  it("reads FEA results, and nothing else", () => {
     expect(
       [
         "bossbar.casting.result.json",
@@ -66,7 +66,7 @@ describe("check results", () => {
         "bossbar.step",
         "package.json",
       ].map(isCheckResultPath),
-    ).toEqual([true, true, false, false, false]);
+    ).toEqual([false, true, false, false, false]);
   });
 
   it("names the part, the check, its verdict and its issues, errors first", () => {
@@ -193,11 +193,11 @@ describe("check results", () => {
       status: "ready",
       headline: "Holds the load, safety factor 3.2",
     });
-    const modal = parseCheckResult(
+    const other = parseCheckResult(
       "plate.fea.json",
-      JSON.stringify({ document: "plate.step", study: { analysis: "modal" }, findings: [] }),
+      JSON.stringify({ document: "plate.step", study: { analysis: "thermal" }, findings: [] }),
     );
-    expect(modal?.check).toBe("Vibration");
+    expect(other?.check).toBe("Thermal");
     // A named study is found beside its picture; a JSON with none is not a study.
     const folder = new Set([
       "FEA/bracket.bracket-load.json",
