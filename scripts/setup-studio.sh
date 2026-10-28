@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Sets Studio up on a Mac from this checkout. Run it once after cloning, and again after pulling
 # changes: each step adds only what is missing or changed. It installs the app's packages, the CAD
-# plugin's Python environment (text-to-cad/.venv) and its built pieces, and the browser that draws
-# part pictures. It asks for nothing and changes no shell settings. Then scripts/run-studio.sh
-# starts Studio.
+# plugin's Python environment (text-to-cad/.venv) and its built pieces; cadgen 0.8 draws part
+# pictures in that Python, with no browser. It asks for nothing and changes no shell settings. Then
+# scripts/run-studio.sh starts Studio.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -57,9 +57,6 @@ step "Building the CAD plugin's viewer and runtime"
 npm ci
 npm run build:packages
 scripts/bundle/bundle.sh
-
-step "Getting the browser that draws part pictures"
-.venv/bin/python -m playwright install chromium
 
 step "Checking for Claude Code"
 if command -v claude >/dev/null 2>&1; then

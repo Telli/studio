@@ -17,8 +17,8 @@ Set it up on a Mac with `scripts/setup-studio.sh`, after Apple's command line to
 and again after pulling. It installs the packages (the repository's own vp, run through npx when
 none is installed), fetches Electron, makes `text-to-cad/.venv` with uv (Python 3.13,
 `requirements-dev.txt` and the `fea` extra), runs `npm ci`, `npm run build:packages` and
-`scripts/bundle/bundle.sh` in `text-to-cad/`, fetches the browser cadgen draws pictures with, and
-checks for Claude Code; it changes no shell settings. `scripts/run-studio.sh` starts it:
+`scripts/bundle/bundle.sh` in `text-to-cad/`, and checks for Claude Code; it changes no shell
+settings. `scripts/run-studio.sh` starts it:
 `TEXT_TO_CAD_DEV=1 vpr studio:desktop`, from this repository's `text-to-cad/` (`TEXT_TO_CAD_ROOT`
 points at another checkout). The development plugin is built with `text-to-cad/.venv`'s Python,
 since a Mac's own python3 can be too old for cadgen. A change to the viewer needs its packages
@@ -49,9 +49,8 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
 
 - **What it carries** (`build/studio-bundle`):
   - the CAD tools with a Python of their own: uv's movable CPython 3.13, with cadgen and its `fea`
-    extra pinned to the checkout's `.venv`. cadgen's STL and DXF builders run on the Node that
-    Playwright ships in it, which cadgen finds itself when none is on PATH (since 0.7.26), so the
-    Mac needs no Node;
+    extra pinned to the checkout's `.venv`. cadgen 0.8 makes STL and DXF, and draws part pictures,
+    in that Python, so the Mac needs no Node or browser for them;
   - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
     `@@STUDIO_…@@` placeholders;
   - the plugin's page;
@@ -71,8 +70,8 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   feed: macOS installs no update to an app signed ad hoc, so a new version is a new download.
 - **Signed, it updates itself** (`STUDIO_SIGN=1`). The build signs with the Developer ID
   Application certificate in this Mac's keychain, under the hardened runtime with Studio's
-  entitlements (`scripts/studio-app.entitlements.plist`: Electron and Playwright's Node compile
-  JavaScript as they go, and the CAD tools' Python loads libraries signed by others), and Apple
+  entitlements (`scripts/studio-app.entitlements.plist`: Electron compiles JavaScript as it goes,
+  and the CAD tools' Python loads libraries signed by others), and Apple
   notarizes it. It skips T3 Code's passkey sign-in setup, which needs T3's own Apple profile. It
   carries a zip and Studio's update feed, the releases of `amywork777/studio-download`: T3 Code's
   updater checks 15 seconds after launch and every 4 minutes. It downloads nothing by itself and
@@ -80,8 +79,8 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   sidebar's update button, one click downloads it and the next restarts into it. The button is at
   the foot of the list beside the rail, and on the rail above Settings while the list is folded and
   an update waits (`StudioRail.tsx`). Under the hardened runtime without those
-  entitlements, Playwright's Node crashes and the bundled Python can't load its own library; with
-  them both run (checked 2026-10-22, signed ad hoc with `--options runtime`).
+  entitlements, the bundled Python can't load its own library; with them it runs (checked
+  2026-10-22, signed ad hoc with `--options runtime`).
   - **Once, on Amy's Mac:** join the Apple Developer Program; in Xcode, Settings, Accounts, Manage
     Certificates, add a Developer ID Application certificate; make an app-specific password at
     account.apple.com; then save it for notarization with
@@ -156,6 +155,13 @@ vpr studio:desktop    # the Electron app
 at first start, brands the app from `brand/`, and keeps state in `~/.text-to-cad-studio` (never in
 T3 Code's `~/.t3`). `TEXT_TO_CAD_ROOT` points at another checkout; `TEXT_TO_CAD_STUDIO_HOME` moves
 the state.
+
+Studio's CAD engine keeps its own folders and port, so a cadgen 0.8 engine of the person's own (on
+3245, Claude Code's or Codex's plugin) and Studio's never find or retire each other: the packaged
+app's under `~/.text-to-cad-studio/cadgen` on 3345, a checkout's (`scripts/studio.ts`, every mode)
+under `~/.text-to-cad-studio-dev/cadgen` on 3346 (`apps/desktop/src/studio/studioEngine.ts`). Only
+the desktop app's boot and `scripts/studio.ts` set them: a headless server started another way (a
+remote `npx t3`, say) runs cadgen with cadgen's own folders and port.
 
 ## What it adds to T3 Code
 
@@ -589,7 +595,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   `text-to-cad/packages/cadgen/src/cadgen/edit/` (a tracer that runs the script with every number
   remembering where it is written, in a process of its own, behind the viewer's `/__cad/edit/*`
   routes, and `commands.py`, which matches a selection to the part by its geometry and writes a
-  command's line); the frame is `text-to-cad/packages/ui/src/renderers/step/edit/`. The CAD skill's
+  command's line); the frame is `text-to-cad/packages/ui/src/renderers/xbf/edit/`. The CAD skill's
   `references/edit-mode.md` tells the agent how to write parts that edit well.
 - **The AI | CAD switch.** Studio's bar chooses it where the CAD viewer in front has two layouts. AI
   is the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection goes to the

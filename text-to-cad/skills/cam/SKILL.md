@@ -99,7 +99,7 @@ end mill is 6.35 mm, 30 ipm is 762 mm/min).
    It prints the part's size, one line per face (`#o1.f15  flat floor at Z 17, facing +Z (a pocket
    floor 8 mm down, 1 island)`) and one line per hole (diameter, depth, through or blind, axis,
    position). For a `.dxf` it lists the closed profiles and holes. A face the user selected in the
-   Viewer arrives as `part.step#o1.f15` and needs no lookup.
+   Viewer arrives as `<id>#plate/face 15` (the model's id, then its face) and needs no lookup.
 
 2. **Pick the machine, material and stock.** Use what the user said; otherwise ask once, in one
    message, for what [machining-practice.md](references/machining-practice.md#ask-before-you-plan)

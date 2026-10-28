@@ -138,7 +138,7 @@ These rules hold for every analysis.
 | **Check a part under a load** | List its faces, write the study, solve, report. The workflow below. | [Linear static checklist](references/linear-static.md) |
 | **Check an assembly** | `cadgen fea parts` first, then write the study with a material per part, solve, read the findings by part. | [Assemblies](#assemblies) |
 | **Compare variants of a design** | Get the study right on one variant, then map its faces onto each other variant and solve each. | [Compare variants](#compare-variants) |
-| **Pick the faces to fix and load** | Prefer face references the user selected in the Viewer (`part.step#o1.f17`). Otherwise list faces and match by description. | [Face selection](references/linear-static.md#choosing-faces) |
+| **Pick the faces to fix and load** | Prefer face references the user selected in the Viewer (`<id>#plate/face 17`). Otherwise list faces and match by description. | [Face selection](references/linear-static.md#choosing-faces) |
 | **Write or edit a study** | One JSON object: material, fixtures, loads, mesh; for an assembly also parts and connections. | [Study file](references/study-file.md) |
 | **Choose a material** | Use the table by name, or give E, ν and yield explicitly. | [Materials](references/materials.md) |
 | **Judge the answer** | Compare with a hand estimate, refine once, read the peak away from the fixture. | [Validation](references/linear-static.md#judging-the-answer) |
@@ -199,7 +199,8 @@ you write it down. The full table, including the heat and flow units the other a
    the upright") to a selector. A document with several parts refuses with the occurrences it holds;
    pass the one to list, `cadgen fea faces assembly.step --occurrence #o2`, or for a whole assembly
    follow [Assemblies](#assemblies). When two faces fit equally, ask, quoting both selectors. A face
-   the user selected in the Viewer arrives as `part.step#o1.f17` and needs no lookup.
+   the user selected in the Viewer arrives as `<id>#plate/face 17` (the model's id, then its face)
+   and needs no lookup.
 
 2. **Write the study** as `study.json` beside the part (schema in
    [study-file.md](references/study-file.md)):

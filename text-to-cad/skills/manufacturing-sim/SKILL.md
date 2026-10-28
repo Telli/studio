@@ -106,7 +106,8 @@ rpm for a spindle, kJ/mm for a weld's heat input.
 
 1. **List the faces** the study names, if it names any (a casting's feeders, a cut's faces and the
    faces held, a weld's faces, a sheet's held flat). Prefer faces the user selected in the Viewer
-   (`part.step#o1.f12`); otherwise list them and match by description.
+   (`<id>#plate/face 12`, the model's id, then its face); otherwise list them and match by
+   description.
 
    ```bash
    cadgen fea faces part.step

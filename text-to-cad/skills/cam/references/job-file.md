@@ -306,7 +306,7 @@ Keys every operation takes:
 | --- | --- |
 | `op` | the operation ([the table in SKILL.md](../SKILL.md#choose-the-operation)) |
 | `tool` | a tool `id` |
-| `faces` | face selectors from `cadgen cam features` or the Viewer (`#o1.f15`), each once |
+| `faces` | face selectors from `cadgen cam features` or the Viewer (`plate/face 15`), each once |
 | `region` | instead of faces, a boundary in the setup's coordinates: `{"polygon": [[x, y], ...], "bottom_z": z}` |
 | `feed`, `speed` | override the table's feed (mm/min) and spindle speed (rpm) |
 | `stepdown_mm` | depth per pass |

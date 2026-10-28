@@ -17,7 +17,7 @@ before you report.
 
 1. **List the faces** (`cadgen fea faces part.step`, as in `$fea`): the faces the cutter is on (the
    wall being finished, the diameter being turned) and the faces the vise jaws, clamps or chuck hold.
-   Prefer faces the user selected in the Viewer (`part.step#o1.f12`).
+   Prefer faces the user selected in the Viewer (`<id>#plate/face 12`, the model's id, then its face).
 2. **Write the study** as `part.machining.json` beside the part ([The study](#the-study)), from the
    user's cutting data: the cutter, the spindle speed, the feed, the depths, and the drawing's
    tolerance on the cut faces.

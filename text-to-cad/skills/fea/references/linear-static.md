@@ -40,8 +40,8 @@ good answer from a bad one. The keys are in [study-file.md](study-file.md).
 
 ## Choosing faces
 
-1. Prefer references the user selected in the Viewer: they arrive as `part.step#o1.f17` and are
-   exact.
+1. Prefer references the user selected in the Viewer: they arrive as `<id>#plate/face 17` (the
+   model's id, then its face) and are exact.
 2. Otherwise run `cadgen fea faces part.step` and match by the hint (`plane, normal -Z, largest`),
    the centre, and the area. "The base", "the mounting face" and "the bottom" usually mean the
    largest planar face with a downward normal; "the top of the upright" is a small planar face at
