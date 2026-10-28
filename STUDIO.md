@@ -15,7 +15,8 @@ git submodule update --remote text-to-cad
 git commit -m "text-to-cad: <what changed>" text-to-cad
 ```
 
-Clone with `--recurse-submodules`, or let the setup fetch it. Set it up on a Mac with
+The setup fetches it (`git submodule update --init text-to-cad`; not `--recurse-submodules`,
+which trips on the vendored `.repos` tree's gitlinks). Set it up on a Mac with
 `scripts/setup-studio.sh`, after Apple's command line tools and Node 24, and again after pulling.
 It fetches the text-to-cad submodule at its pin, installs the packages (the repository's own vp, run through npx when
 none is installed), fetches Electron, makes `text-to-cad/.venv` with uv (Python 3.13,
