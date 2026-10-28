@@ -74,6 +74,8 @@ export interface PluginViewTarget {
   readonly arguments: Record<string, unknown>;
   /** Workspace-relative file the view opens. */
   readonly file?: string;
+  /** A new thread's project folder, which the server cannot look up until the thread is sent. */
+  readonly workspace?: string;
 }
 
 /** Largest file a view may hand the user through `ui/download-file`. */
@@ -176,6 +178,7 @@ export function PluginViewFrame(props: {
         tool: target.tool,
         arguments: JSON.parse(argumentsKey) as Record<string, unknown>,
         ...(target.file === undefined ? {} : { file: target.file }),
+        ...(target.workspace === undefined ? {} : { workspace: target.workspace }),
       },
     }).then((result) => {
       if (cancelled) return;
@@ -196,6 +199,7 @@ export function PluginViewFrame(props: {
     target.server,
     target.tool,
     target.file,
+    target.workspace,
     argumentsKey,
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Bumped by "Try again" to reopen.
     generation,

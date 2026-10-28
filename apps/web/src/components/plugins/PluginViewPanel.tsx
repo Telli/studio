@@ -14,8 +14,8 @@ const isAbsolute = (path: string) => path.startsWith("/") || /^[A-Za-z]:[\\/]/.t
 /**
  * A plugin view as a right-panel tab, running against the thread's plugin servers. In a new
  * thread, which the server has no record of until its first message, a file is named by its
- * absolute path in the project (`draftWorkspaceRoot`), and the view keeps the path it opened with
- * once the thread is sent, so it is not opened again.
+ * absolute path in the project (`draftWorkspaceRoot`), or by that project's folder when it opens
+ * no file, and the view keeps what it opened with once the thread is sent, so it is not opened again.
  */
 export default function PluginViewPanel(props: {
   readonly environmentId: EnvironmentId;
@@ -36,12 +36,16 @@ export default function PluginViewPanel(props: {
   const [opened, setOpened] = useState<{
     readonly id: string;
     readonly file: string | undefined;
+    readonly workspace: string | undefined;
   } | null>(null);
   useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect -- the path a view opened with is kept for that view.
-    if (opened?.id !== surface.id) setOpened({ id: surface.id, file: named });
-  }, [opened?.id, surface.id, named]);
+    if (opened?.id !== surface.id)
+      // oxlint-disable-next-line react/set-state-in-effect -- what a view opened with is kept for that view.
+      setOpened({ id: surface.id, file: named, workspace: draftWorkspaceRoot });
+  }, [opened?.id, surface.id, named, draftWorkspaceRoot]);
   const file = opened?.id === surface.id ? opened.file : named;
+  // A view that opens no file (a model by its document id) names a new thread's project instead.
+  const workspace = opened?.id === surface.id ? opened.workspace : draftWorkspaceRoot;
   // A file the view asks for (a CAD view's Open Part) opens beside the thread in a tab of its own,
   // and what the view says of its part is kept by this tab, for Studio's bar (`StudioPanelBar`).
   const threadRef = useMemo(
@@ -70,6 +74,7 @@ export default function PluginViewPanel(props: {
           resourceUri: surface.resourceUri,
           arguments: surface.arguments,
           ...(file === undefined ? {} : { file }),
+          ...(workspace === undefined ? {} : { workspace }),
         }}
         onSendMessage={props.onSendMessage}
         onAddContext={props.onAddContext}

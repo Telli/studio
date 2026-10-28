@@ -210,6 +210,8 @@ export const PluginOpenViewInput = Schema.Struct({
   arguments: Schema.Record(Schema.String, Schema.Unknown),
   /** Opening a file: its path relative to the thread's workspace. */
   file: Schema.optionalKey(Text(4096)),
+  /** A new thread's project folder, in full: the server has no record of the thread until its first message. */
+  workspace: Schema.optionalKey(Text(4096)),
 });
 export type PluginOpenViewInput = typeof PluginOpenViewInput.Type;
 

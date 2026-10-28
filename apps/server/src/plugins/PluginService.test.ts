@@ -119,6 +119,27 @@ describe("plugins", () => {
             })
             .pipe(Effect.flip);
           assert.strictEqual(gone.reason, "thread_not_found");
+          // One that opens no file (a model by its document id) names its project's folder instead.
+          const byFolder = yield* plugins.openView({
+            threadId: ThreadId.make("thread-draft-document"),
+            pluginId: "demo",
+            server: "main",
+            tool: "show",
+            arguments: { part: 1 },
+            workspace: files.work,
+          });
+          assert.deepEqual(byFolder.toolInput, { part: 1 });
+          const noProject = yield* plugins
+            .openView({
+              threadId: ThreadId.make("thread-draft-elsewhere"),
+              pluginId: "demo",
+              server: "main",
+              tool: "show",
+              arguments: {},
+              workspace: NodePath.join(files.work, "parts"),
+            })
+            .pipe(Effect.flip);
+          assert.strictEqual(noProject.reason, "thread_not_found");
 
           // A view's own request may call an app-only tool.
           const sync = yield* plugins.request({

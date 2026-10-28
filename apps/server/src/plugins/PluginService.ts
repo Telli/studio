@@ -151,13 +151,17 @@ const make = Effect.gen(function* () {
     }).pipe(Effect.withSpan("PluginService.modelPictures"));
 
   // A new thread lives only in its client until its first message is sent, so the server has no
-  // record of it. A view opened in one names its file by its absolute path, and works in the folder
-  // of the environment's project that holds it, kept here for the view's later requests until the
-  // server has the thread.
+  // record of it. A view opened in one names its file by its absolute path, or its project's folder
+  // when it opens no file (a model by its document id), and works in that project's folder, kept
+  // here for the view's later requests until the server has the thread.
   const draftRoots = new Map<ThreadId, string>();
 
   /** The thread's workspace: its worktree, else its project's root; a new thread's, as above. */
-  const workspaceOf = (threadId: ThreadId, file: string | undefined) =>
+  const workspaceOf = (
+    threadId: ThreadId,
+    file: string | undefined,
+    workspace: string | undefined,
+  ) =>
     Effect.gen(function* () {
       const records = yield* threads.getThreadRecords(threadId, []).pipe(Effect.option);
       if (Option.isSome(records)) {
@@ -177,15 +181,25 @@ const make = Effect.gen(function* () {
           return holding;
         }
       }
+      if (workspace !== undefined) {
+        const named = path.resolve(workspace);
+        const project = (yield* projects.list()).find(
+          (each) => path.resolve(each.workspaceRoot) === named,
+        );
+        if (project !== undefined) {
+          draftRoots.set(threadId, project.workspaceRoot);
+          return project.workspaceRoot;
+        }
+      }
       const remembered = draftRoots.get(threadId);
       if (remembered === undefined) return yield* Effect.fail("missing thread");
       return remembered;
     }).pipe(Effect.mapError(() => fail("thread_not_found", "that thread is gone")));
 
-  const rootsOf = (threadId: ThreadId | null, file?: string) =>
+  const rootsOf = (threadId: ThreadId | null, file?: string, workspace?: string) =>
     threadId === null
       ? Effect.succeed([])
-      : workspaceOf(threadId, file).pipe(Effect.map((root) => [root]));
+      : workspaceOf(threadId, file, workspace).pipe(Effect.map((root) => [root]));
 
   const scopeOf = (threadId: ThreadId | null) => threadId ?? PluginHost.ENVIRONMENT_SCOPE;
 
@@ -280,7 +294,7 @@ const make = Effect.gen(function* () {
     );
 
   const openView = Effect.fn("PluginService.openView")(function* (input: PluginOpenViewInput) {
-    const roots = yield* rootsOf(input.threadId, input.file);
+    const roots = yield* rootsOf(input.threadId, input.file, input.workspace);
     let toolInput: Record<string, unknown> = { ...input.arguments };
     let meta: Record<string, unknown> | undefined;
     if (input.file !== undefined) {
