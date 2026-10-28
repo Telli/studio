@@ -1,5 +1,5 @@
 """Work instructions for putting the desk lamp together, as a PDF in ../docs. It documents the lamp's STEP, which
-`python exports.py` writes from the lamp's model: run that first, then this. A prototype build order with a figure
+`cadgen run exports.py` writes from the lamp's model: run that first, then this. A prototype build order with a figure
 per step: no process spec governs this lamp yet, so the adhesive for the weight and the hinges' screw torques print NOT
 STATED and stay open items until they are chosen."""
 

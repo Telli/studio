@@ -1,6 +1,6 @@
 """The project's delivered files, written from its models: every part's STEP and the mount's, the bracket's flat
 pattern and its cut file, the printed parts' meshes, and the robot links' meshes the URDF and the SDF name. Run from
-the project root with `python exports.py` after a change; the strength study, the CAM job and the robot descriptions
+the project root with `cadgen run exports.py` after a change; the strength study, the CAM job and the robot descriptions
 read these files."""
 
 import sys

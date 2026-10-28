@@ -506,7 +506,7 @@ file sidebar: every section stays mounted, out of sight, and a routine plays fro
   a drawing's layer opens on its one block reference and stays folded on several; a robot opens
   down its chain of single links. The Model tree (`renderers/xbf/XbfModelTree.jsx`) starts below
   the document's chain of single assemblies, which it shows as open, with its rows shut, and Select's
-  mode shapes it beyond that (see Select's modes above). In every tree a pick on the model reveals
+  mode shapes it beyond that (see Select's menu above). In every tree a pick on the model reveals
   the owners of what was picked, and once the person opens or shuts a row the shape is theirs for
   the session.
 - **One section at a time.** None is open as a file opens. A tile opens its section in a panel

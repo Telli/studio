@@ -1,5 +1,5 @@
 """Facts from the bracket's exported STEP, the file SendCutSend is sent: its solid, volume, bounds and cylinders.
-Run from the project root after `python exports.py`."""
+Run from the project root after `cadgen run exports.py`."""
 from cadgen import read_step
 p = read_step("parts/shelf_bracket.step")
 solids = p.solids()

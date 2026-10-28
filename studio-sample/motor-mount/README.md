@@ -2,7 +2,7 @@
 
 ## What it is
 
-A plate milled from 6061-T6 aluminium that mounts a NEMA 17 stepper motor to a frame: a sample project to learn Studio with. The motor sits under the plate, its 22 mm pilot in the plate's bore and its shaft up through it to a belt pulley, held by four M3 screws on its 31 mm square whose heads sit flush in a pocket on top. Two M5 screws through slots at the plate's ends fix it to the frame, and the slots give 10 mm of travel to tension the belt. It is 110 x 56 x 6 mm and weighs 76.3 g. It holds 50 N of belt tension with a safety factor of 501, and it is machined on a 3-axis mill in two setups, in 14 minutes by its CAM program. Its requirements are on the model itself, as 3D PMI (a model-based definition): datums on its underside and two sides, the bore, the M3 holes and the slots sized and positioned, the underside's flatness and a general profile for every other face, exported in its AP242 STEP.
+A plate milled from 6061-T6 aluminium that mounts a NEMA 17 stepper motor to a frame: a sample project to learn Studio with. The motor sits under the plate, its 22 mm pilot in the plate's bore and its shaft up through it to a belt pulley, held by four M3 screws on its 31 mm square whose heads sit flush in a pocket on top. Two M5 screws through slots at the plate's ends fix it to the frame, and the slots give 10 mm of travel to tension the belt. It is 110 x 56 x 6 mm and weighs 76.3 g. It holds 50 N of belt tension with a safety factor of 501, and it is machined on a 3-axis mill in two setups, in 14 minutes by its CAM program. Its requirements are on the model itself, as 3D PMI (a model-based definition): datums on its underside and two sides, the bore, the M3 holes and the slots sized and positioned, the underside's flatness, the thickness and the pocket's depth, and a general profile for every other face, exported in its AP242 STEP.
 
 ## Decisions
 
@@ -27,9 +27,12 @@ A plate milled from 6061-T6 aluminium that mounts a NEMA 17 stepper motor to a f
 - Size the slots' ends Ø5.5 +0.1/0 and position them within Ø0.5 to A|B|C: the 0.5 mm between the slot and the 5 mm screw, the frame's holes clearing it (2026-10-27, assumed)
 - Locate the bore, the holes and the slots' ends by basic dimensions from B and C, the true positions the model draws (2026-10-27, assumed)
 - Profile datum B within 0.1 to A and datum C within 0.1 to A|B, so the frame the others are measured in is square (2026-10-27, assumed)
-- Hold every other face in a general profile of 0.5 to A|B|C (Note 1), a little inside ISO 2768-m's ±0.3 at this size, which the mill holds (2026-10-27, assumed)
+- Hold every other face in a general profile of 0.5 to A|B|C (Note 1): ±0.25, a little inside the drawing's ISO 2768-m at the plate's 30 to 120 mm sizes (±0.3), which the mill holds (2026-10-27, assumed)
+- Tolerance the 6 mm thickness and the pocket's 3 mm depth ±0.1, ISO 2768-m's at those sizes, where the general profile alone would allow ±0.25: the model then agrees with the drawing's general tolerance (2026-10-27, assumed)
+- Hold every position regardless of feature size: the PMI calls take no material condition modifier (MMC), and a position held at every size is the stricter, safe reading (2026-10-27, assumed)
+- Size the slots by their ends, Ø5.5 +0.1/0; the slots' straight walls fall under the general profile (2026-10-27, assumed)
 - Note "Deburr the holes and slots.", the drawing's own words, as Note 2 (2026-10-27, assumed)
-- Name two views: Section A-A through the bore, with the bore and datum A's flatness, and Top, with every hole's and slot's size and position (2026-10-27, assumed)
+- Name two views: Section A-A through the bore, with the thickness, the pocket's depth, the bore and datum A's flatness, and Top, with every hole's and slot's size and position; the basic dimensions that locate the M3 holes and the slots' ends are in neither, so Top stays legible (the viewer lists them in its PMI section, and the STEP carries them) (2026-10-27, assumed)
 
 ## Open actions
 

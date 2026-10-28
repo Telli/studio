@@ -11,7 +11,9 @@ at WebP quality 80:
   project page renders its pictures;
 - a study's or a CAM job's result (`.fea.glb`, `.cam.glb`): kept as it is, since cadgen 0.8's
   snapshot draws a result's mesh but not its stress colours or toolpaths; drawn only when it has
-  no picture yet;
+  no picture yet. `pictures/kept-results.json` holds the SHA-256 of the result each kept picture
+  shows, and a result that changed since is refused, by name: its picture would show another
+  result;
 - the drawing (PDF): its first page, by pdftoppm at 110 dpi;
 - the motion video (MP4): its frame at one second, by ffmpeg;
 - the examples' own pictures (PNG, JPG): as they are.
@@ -32,6 +34,7 @@ CADGEN_ENGINE_PORT to keep the run off cadgen's own engine.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -55,6 +58,8 @@ KEPT = (".fea.glb", ".cam.glb")
 # Drawn flat, in the gutter cadgen leaves around a drawing, so they take no padding.
 FLAT = {".dxf"}
 PHOTOS = {".png", ".jpg", ".jpeg"}
+# Each kept result picture's result, by the picture's name: {"source": "<example>/<path>", "sha256": ...}.
+KEPT_RESULTS = PICTURES / "kept-results.json"
 
 
 def picture_path(path: str, sample: str = SAMPLE) -> str:
@@ -127,6 +132,37 @@ def raster(sample: str, path: str, scratch: Path) -> Path:
     return target
 
 
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def kept_results(files: list[tuple[str, str]]) -> set[tuple[str, str]]:
+    """The results whose pictures are kept: each one's picture there and its result the one the
+    picture was drawn from. A result that changed since its picture refuses the run."""
+    recorded = json.loads(KEPT_RESULTS.read_text(encoding="utf-8")) if KEPT_RESULTS.is_file() else {}
+    kept, changed = set(), []
+    for sample, path in files:
+        name = picture_path(path, sample)
+        if not path.endswith(KEPT) or not (PICTURES / name).is_file():
+            continue
+        now = sha256(SAMPLES / sample / path)
+        if recorded.get(name, {}).get("sha256") != now:
+            changed.append(f"{sample}/{path}")
+        kept.add((sample, path))
+    if changed:
+        raise SystemExit(f"{', '.join(changed)}: changed since its picture was drawn, and cadgen 0.8 cannot draw a "
+                         "result's colours or toolpaths again; point the entry at a result its picture shows, or "
+                         "remove the picture to draw it plain")
+    return kept
+
+
+def record_results(files: list[tuple[str, str]]) -> None:
+    """The SHA-256 of each result a picture shows, beside the pictures (`kept_results`)."""
+    shown = {picture_path(path, sample): {"source": f"{sample}/{path}", "sha256": sha256(SAMPLES / sample / path)}
+             for sample, path in files if path.endswith(KEPT)}
+    KEPT_RESULTS.write_text(json.dumps(shown, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def fit(image: Image.Image) -> Image.Image:
     """The whole picture at the pictures' size, any room left in its own background (its corner)."""
     image = image.convert("RGB")
@@ -136,8 +172,7 @@ def fit(image: Image.Image) -> Image.Image:
 def main() -> int:
     files = pictured()
     PICTURES.mkdir(exist_ok=True)
-    kept = {(sample, path) for sample, path in files
-            if path.endswith(KEPT) and (PICTURES / picture_path(path, sample)).is_file()}
+    kept = kept_results(files)
     with tempfile.TemporaryDirectory(prefix="studio-library-pictures-") as folder:
         scratch = Path(folder)
         models = [(sample, path) for sample, path in files
@@ -152,6 +187,7 @@ def main() -> int:
             with Image.open(raster(sample, path, scratch)) as image:
                 fit(image).save(PICTURES / name, "WEBP", quality=80)
             print(f"pictures/{name}, from {sample}/{path}")
+    record_results(files)
     named = {picture_path(path, sample) for sample, path in files}
     for picture in PICTURES.glob("*.webp"):
         if picture.name not in named:

@@ -1,7 +1,8 @@
-import type { EnvironmentId } from "@t3tools/contracts";
+import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { STUDIO_PROJECT_KINDS, studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useCallback, useMemo } from "react";
 
+import { useRightPanelStore } from "~/rightPanelStore";
 import { useServerConfigs } from "~/state/entities";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { pluginEnvironment } from "~/state/plugins";
@@ -16,12 +17,12 @@ import { plainError } from "../importIntoProject";
 import { readStudioImport } from "../studioImportBridge";
 import { useCreateStudioProject } from "../useCreateStudioProject";
 import { copiedEntries } from "../useDuplicateProject";
-import { type BuiltPart } from "../newPart";
+import { showOverview } from "../overviewPanel";
 import { openDocumentInPanel, openInPanel } from "../useOpenInWorkbench";
-import { useBuildPart } from "../useNewPart";
+import { failedToast, useBuildPart } from "../useNewPart";
 import { useTrashedProjects } from "../trash/useTrash";
 import { useStudioProjects } from "../useStudioProjects";
-import { copySample, inTurn, isModelScript, openCopiedExample } from "./sampleProject";
+import { copySample, copyThenOpen, inTurn } from "./sampleProject";
 
 /** What a copy of an example is, for its brief: a part; its README says the rest. */
 const PART_KIND = STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!;
@@ -62,8 +63,10 @@ export function useEntryExample(
  * "Phone stand 2"), copies the
  * example's files into its folder (the desktop app copies them, `studioImport`), and opens it on
  * the example's main file, or on `file` of it (the Library's See the example), beside its new
- * chat. A model script is built first, while the copy is under way, and opened by its document
- * (`openCopiedExample`): the copy's models have never been built. It resolves to whether the copy was made. Copies are made one at a time per environment,
+ * chat. A model's script opens as New part opens a part (`copyThenOpen`): the project's Overview at
+ * once, then the model's document once its build lands, `onBuilding` told while it builds (a copy's
+ * models have never been built). It resolves to whether the copy was made, once what it opens is
+ * open. Copies are made one at a time per environment,
  * so a second is named past the first and never lands on it. `canCopy` is false where nothing can
  * be copied (the web app, an environment on another computer): the example still shows, view
  * only. Null for an example the server does not ship.
@@ -89,7 +92,7 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
   const build = useBuildPart(environmentId);
 
   const copy = useCallback(
-    (file?: string) =>
+    (file?: string, onBuilding?: () => void) =>
       inTurn(underWay, environmentId, async () => {
         if (sample === null || bridge === null || !canCopy) return false;
         const failed = (description: string) => {
@@ -155,34 +158,33 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
           };
           // Its new chat runs in the copy, where the example's paths hold.
           const shown = (typeof file === "string" ? sampleFile(file) : null) ?? sample.open;
-          let built: BuiltPart | null = null;
-          return await create({
-            environmentId,
+          return await copyThenOpen<ScopedThreadRef>({
+            file: shown,
             name,
-            kind: PART_KIND,
-            units: "mm",
-            ...copyBrief(sample),
-            folders: [],
             // A copy that fails throws out of `create` before it says the project was made or
             // opens its chat, and the catch below says so, once.
-            onFolder: async (folder) => {
-              await copyInto(folder);
-              if (isModelScript(shown))
-                built = await build(`${folder.replace(/[\\/]+$/, "")}/${shown}`);
-            },
-            show: (ref) =>
-              openCopiedExample({
-                file: shown,
-                built,
-                openDocument: (id) => void openDocumentInPanel(plugins, ref, id),
-                openFile: (path) => void openInPanel(plugins, ref, path),
-                failed: (error) =>
-                  toastManager.add({
-                    type: "error",
-                    title: `Made ${name}, but its model did not build`,
-                    description: error,
-                  }),
+            create: ({ onFolder, show }) =>
+              create({
+                environmentId,
+                name,
+                kind: PART_KIND,
+                units: "mm",
+                ...copyBrief(sample),
+                folders: [],
+                onFolder,
+                show,
               }),
+            copyInto,
+            openFile: (ref, path) => void openInPanel(plugins, ref, path),
+            openProject: showOverview,
+            build: (_ref, script) => build(script),
+            openPart: (ref, id) => {
+              // The model takes the Overview's place, beside the chat.
+              useRightPanelStore.getState().setMaximized(ref, false);
+              openDocumentInPanel(plugins, ref, id);
+            },
+            building: () => onBuilding?.(),
+            failed: failedToast,
           });
         } catch (error) {
           return failed(plainError(error));

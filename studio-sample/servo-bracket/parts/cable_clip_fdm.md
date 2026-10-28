@@ -4,7 +4,7 @@ One thing to change before printing: the channel's lips narrow to a sharp edge, 
 
 ## What was checked
 
-- File: `parts/cable_clip.stl`, exported from the clip's model by `python exports.py` at cadgen 0.8's one mesh tolerance (0.25 % of the part's size, 28.5°), and measured again on 2026-10-27.
+- File: `parts/cable_clip.stl`, exported from the clip's model by `cadgen run exports.py` at cadgen 0.8's one mesh tolerance (0.25 % of the part's size, 28.5°), and measured again on 2026-10-27.
 - Measured with the dfam-check tool:
   - `python scripts/dfam_tool.py measure parts/cable_clip.stl --angle-limit 45`
   - `python scripts/dfam_tool.py orientations parts/cable_clip.stl --angle-limit 45`

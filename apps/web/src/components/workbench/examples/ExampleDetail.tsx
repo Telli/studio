@@ -46,7 +46,8 @@ function ExampleContent(props: {
           input: { cwd: example.sample.path, relativePath: "README.md" },
         }),
   );
-  const [copying, setCopying] = useState(false);
+  // Under way: copying the example, then building the model it opens on.
+  const [copying, setCopying] = useState<"copying" | "building" | null>(null);
 
   if (!loaded) return null;
   if (example === null) {
@@ -78,8 +79,8 @@ function ExampleContent(props: {
           .map((piece) => piece.text)
           .join("");
   const copy = () => {
-    setCopying(true);
-    void example.copy(props.file).finally(() => setCopying(false));
+    setCopying("copying");
+    void example.copy(props.file, () => setCopying("building")).finally(() => setCopying(null));
   };
 
   return (
@@ -88,8 +89,12 @@ function ExampleContent(props: {
       lede="An example, view only. A copy goes to your projects, and the example never changes."
       action={
         <div className="flex flex-col items-start gap-1 sm:items-end">
-          <Button size="sm" disabled={!example.canCopy || copying} onClick={copy}>
-            {copying ? "Copying…" : "Make a copy to edit"}
+          <Button size="sm" disabled={!example.canCopy || copying !== null} onClick={copy}>
+            {copying === "copying"
+              ? "Copying…"
+              : copying === "building"
+                ? "Building the model…"
+                : "Make a copy to edit"}
           </Button>
           <span className="text-xs text-muted-foreground">
             {example.canCopy ? `Makes ${example.copyName}` : NEEDS_DESKTOP_APP}

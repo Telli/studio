@@ -1,5 +1,5 @@
 """The project's delivered files, written from its models: the bracket's STEP (what SendCutSend is sent), its flat
-pattern's STEP and its cut file. Run from the project root with `python exports.py` after a change; the strength study,
+pattern's STEP and its cut file. Run from the project root with `cadgen run exports.py` after a change; the strength study,
 the bending check and the preflight read these files."""
 
 import sys

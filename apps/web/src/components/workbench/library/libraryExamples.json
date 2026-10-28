@@ -29,8 +29,9 @@
     "picture": "page"
   },
   "doc:cam-job": {
-    "example": "cam/horn_adapter.cam.glb",
-    "picture": "cam/horn_adapter.cam.glb"
+    "sample": "motor-mount",
+    "example": "cam/motor_plate.cam.glb",
+    "picture": "pictures/motor_plate_cam.png"
   },
   "doc:print": null,
   "doc:pmi": {
@@ -108,8 +109,9 @@
     "picture": "parts/servo_bracket.step"
   },
   "skill:text-to-cad/cam": {
-    "example": "cam/horn_adapter.cam.glb",
-    "picture": "cam/horn_adapter.cam.glb"
+    "sample": "motor-mount",
+    "example": "cam/motor_plate.cam.glb",
+    "picture": "pictures/motor_plate_cam.png"
   },
   "skill:text-to-cad/dfam-check": {
     "example": "parts/cable_clip_fdm.md",

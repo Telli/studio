@@ -13,6 +13,7 @@ import { toastManager } from "../ui/toast";
 import { plainError } from "./importIntoProject";
 import {
   buildPart,
+  buildThenSwap,
   type BuiltPart,
   freePartStem,
   makeNewPart,
@@ -37,7 +38,7 @@ const newPartsUnderWay = new Map<string, Promise<void>>();
 const addedPartsUnderWay = new Map<string, Promise<void>>();
 
 /** A failure's toast; with `retry`, its Build again. */
-const failedToast = (title: string, error: unknown, retry?: () => void) => {
+export const failedToast = (title: string, error: unknown, retry?: () => void) => {
   const id = toastManager.add({
     type: "error",
     title,
@@ -222,16 +223,14 @@ export function useAddPart(
         try {
           const stem = freePartStem(partStem(input.name), await filesIn(folder));
           const script = await writeStarter({ cwd, folder, stem });
-          const attempt = async (): Promise<void> => {
-            const built = await build(script);
-            if ("id" in built) open(threadRef, built.id);
-            else {
-              failedToast(`Made ${stem}.py, but it did not build`, new Error(built.error), () => {
-                void attempt();
-              });
-            }
-          };
-          await attempt();
+          await buildThenSwap({
+            ref: threadRef,
+            script,
+            failedTitle: `Made ${stem}.py, but it did not build`,
+            build: (_ref, path) => build(path),
+            openPart: open,
+            failed: failedToast,
+          });
         } catch (error) {
           failedToast("Could not make the part", error);
         }

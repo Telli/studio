@@ -1,7 +1,7 @@
 """Checks the motor plate's 3D PMI: it builds the plate whole, in this process, and reads what its build says of its
 annotations (each one attached to its faces, every face of the plate with a requirement, no conflict); then reads the
 requirements back off the plate's AP242 STEP, as a supplier's program would. Run from the project root after
-`python exports.py`, with `python checks/motor_plate_pmi.py`; writes checks/motor_plate_pmi.md and exits 1 if any
+`cadgen run exports.py`, with `cadgen run checks/motor_plate_pmi.py`; writes checks/motor_plate_pmi.md and exits 1 if any
 check fails."""
 
 import sys
@@ -59,7 +59,7 @@ check("Faces the general profile holds, in the STEP", f"{covered} faces, profile
 
 lines = ["# Motor plate: 3D PMI check", "",
          "Measured on the plate's model (`parts/motor_plate.py`) and its AP242 STEP (`parts/motor_plate.step`, written "
-         "by `python exports.py`) with `python checks/motor_plate_pmi.py`.", "",
+         "by `cadgen run exports.py`) with `cadgen run checks/motor_plate_pmi.py`.", "",
          "| Check | Measured | Expected | Result |", "| --- | --- | --- | --- |"]
 lines += [f"| {a} | {b} | {c} | {d} |" for a, b, c, d in rows]
 (ROOT / "checks" / "motor_plate_pmi.md").write_text("\n".join(lines) + "\n")

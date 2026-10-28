@@ -1,5 +1,5 @@
 """The phone stand as it is printed: on its side, its right-hand face (the stand's -X side) on the plate, so its
-profile is the layer and it prints with nothing overhanging. Its STL and 3MF, which `python exports.py` writes beside
+profile is the layer and it prints with nothing overhanging. Its STL and 3MF, which `cadgen run exports.py` writes beside
 this script, are the files the slicer and the FDM check read. Origin: the plate's corner under the part; +Z up from the
 plate."""
 

@@ -1,5 +1,5 @@
 """The project's delivered files, written from its models: the plate's STEP (AP242, its PMI on its faces), the
-motor's and the mount's. Run from the project root with `python exports.py` after a change; the CAM job, the
+motor's and the mount's. Run from the project root with `cadgen run exports.py` after a change; the CAM job, the
 machining check and the strength study read the plate's STEP."""
 
 import sys

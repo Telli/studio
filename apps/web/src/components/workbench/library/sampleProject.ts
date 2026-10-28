@@ -4,6 +4,8 @@
  * second copy is named past the first.
  */
 
+import { type BuiltPart, buildThenSwap } from "../newPart";
+
 /** The servo bracket: the example the Library's examples are in, unless one names another. */
 export const SAMPLE_ID = "servo-bracket";
 
@@ -32,28 +34,61 @@ export function isModelScript(file: string): boolean {
   return file.toLowerCase().endsWith(".py");
 }
 
-/** What building a copy's model script answered (`buildPart`): its document, or why it did not build. */
-type Built = { readonly id: string } | { readonly error: string };
-
 /**
- * Opens a copy of an example on its file: a model script by the document its build made (`built`;
- * a copy's models were never built, so the copy builds the one it opens on), else the file as it
- * is. A script whose build failed opens as the script, and `failed` says why.
+ * Makes a copy of an example and opens it on its file, as New part opens a new part: the project is
+ * made with the example copied into its folder (`create`, its chat opened by `show`), and the copy
+ * opens at once. A model's script (`isModelScript`), whose copy has never been built, opens on the
+ * project's Overview; `building` then says the build is under way, and the model's document takes
+ * the Overview's place once the build lands (`buildThenSwap`, which says why when it does not). Any
+ * other file opens as it is. Resolves to whether the copy was made, once what it opens is open.
  */
-export function openCopiedExample(steps: {
+export async function copyThenOpen<Ref>(steps: {
+  /** The file the copy opens on, inside it, with "/". */
   readonly file: string;
-  /** The file's build, for a model script; null for any other file. */
-  readonly built: Built | null;
-  readonly openDocument: (id: string) => void;
-  readonly openFile: (file: string) => void;
-  readonly failed: (error: string) => void;
-}): void {
-  if (steps.built !== null && "id" in steps.built) {
-    steps.openDocument(steps.built.id);
-    return;
-  }
-  steps.openFile(steps.file);
-  if (steps.built !== null) steps.failed(steps.built.error);
+  /** The copy's name, for what a failed build says. */
+  readonly name: string;
+  readonly create: (input: {
+    readonly onFolder: (folder: string) => Promise<void>;
+    readonly show: (ref: Ref) => void;
+  }) => Promise<boolean>;
+  /** Copies the example into the new project's folder. */
+  readonly copyInto: (folder: string) => Promise<void>;
+  readonly openFile: (ref: Ref, file: string) => void;
+  /** Opens the project's Overview beside the chat. */
+  readonly openProject: (ref: Ref) => void;
+  readonly build: (ref: Ref, script: string) => Promise<BuiltPart>;
+  readonly openPart: (ref: Ref, id: string) => void;
+  /** The copy is made and its model is being built. */
+  readonly building: () => void;
+  readonly failed: (title: string, error: unknown, retry?: () => void) => void;
+}): Promise<boolean> {
+  const model = isModelScript(steps.file);
+  const made: { folder: string | null; chat: { readonly ref: Ref } | null } = {
+    folder: null,
+    chat: null,
+  };
+  const created = await steps.create({
+    onFolder: async (folder) => {
+      made.folder = folder;
+      await steps.copyInto(folder);
+    },
+    show: (ref) => {
+      made.chat = { ref };
+      if (model) steps.openProject(ref);
+      else steps.openFile(ref, steps.file);
+    },
+  });
+  if (!created || !model || made.folder === null || made.chat === null) return created;
+  steps.building();
+  await buildThenSwap({
+    ref: made.chat.ref,
+    script: `${made.folder.replace(/[\\/]+$/, "")}/${steps.file}`,
+    failedTitle: `Made ${steps.name}, but its model did not build`,
+    build: steps.build,
+    openPart: steps.openPart,
+    failed: steps.failed,
+  });
+  return true;
 }
 
 /**

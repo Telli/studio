@@ -49,7 +49,8 @@ by hand" below.
   finished body and follow it ([PMI](pmi.md)), the general profile taking any face a command adds.
 - **Profiles as `bd.Rectangle`, `bd.RectangleRounded`, `bd.Box` or `bd.Cylinder`, placed with `bd.Pos(...)`**, get
   dimensions drawn on the model. Other shapes still show their sizes in the history.
-- A unit constant (`INCH = 25.4`) is fine: lengths show in the project's units.
+- A unit constant named in the file (`INCH = 25.4`; build123d's own is `bd.IN`, 25.4) is fine: lengths
+  show in the project's units, and the commands write theirs by that name (`.03*INCH`).
 - **Bring a STEP in as its own line**, `part = read_step(Path(__file__).parent / "bracket.step")`
   (`from cadgen import read_step`; `read_xbf` of an xbf converted from it once reads faster), and
   model on that name. It is one feature, the imported body (NX's Body, SolidWorks' Imported1),

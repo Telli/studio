@@ -6,7 +6,7 @@ The first version did not pass this way: the cable slot was a plain rectangle, a
 
 ## What was checked
 
-- File: `parts/phone_stand_print.stl`, the stand turned onto its side as it prints, written by `python exports.py` from the model `parts/phone_stand_print.py`, at cadgen 0.8's one mesh tolerance (0.25 % of the part's size and 28.5°), and measured again on 2026-10-27.
+- File: `parts/phone_stand_print.stl`, the stand turned onto its side as it prints, written by `cadgen run exports.py` from the model `parts/phone_stand_print.py`, at cadgen 0.8's one mesh tolerance (0.25 % of the part's size and 28.5°), and measured again on 2026-10-27.
 - Measured with the dfam-check tool (its JSON in `checks/`):
   - `python scripts/dfam_tool.py measure parts/phone_stand_print.stl --angle-limit 45`
   - `python scripts/dfam_tool.py orientations parts/phone_stand_print.stl --angle-limit 45`
@@ -32,4 +32,4 @@ The first version did not pass this way: the cable slot was a plain rectangle, a
 
 Printed on its side, each layer is the profile, so the rest and the lip bend along their layers when the phone and a tap push on them, not across them.
 
-With the cad skill, any change goes into `parts/phone_stand.py`: build again with `python exports.py` and measure again here.
+With the cad skill, any change goes into `parts/phone_stand.py`: build again with `cadgen run exports.py` and measure again here.

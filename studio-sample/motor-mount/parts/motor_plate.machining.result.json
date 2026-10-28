@@ -252,15 +252,15 @@
     "solver": "calculix 2.23 (C3D10)"
   },
   "timings": {
-    "mesh_s": 0.602,
-    "assemble_s": 3.007,
-    "eigen_s": 3.712,
+    "mesh_s": 0.594,
+    "assemble_s": 3.019,
+    "eigen_s": 3.713,
     "static_mesh_to_fem_s": 0.0,
-    "static_solve_s": 1.729,
-    "static_stress_s": 0.306,
+    "static_solve_s": 1.752,
+    "static_stress_s": 0.309,
     "lobes_s": 0.003,
     "post_s": 0.023,
-    "mesh_to_fem_s": 0.173
+    "mesh_to_fem_s": 0.17
   },
   "warnings": [],
   "findings": [

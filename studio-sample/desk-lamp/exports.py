@@ -1,5 +1,5 @@
 """The project's delivered files, written from its models: the lamp's STEP (which its work instructions document) and
-each made part's, and the printed parts as STL for the slicer. Run from the project root with `python exports.py` after
+each made part's, and the printed parts as STL for the slicer. Run from the project root with `cadgen run exports.py` after
 a change."""
 
 import sys

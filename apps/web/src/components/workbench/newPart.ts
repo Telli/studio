@@ -242,15 +242,38 @@ export async function makeNewPart<Ref>(steps: {
     return;
   }
   if (opened === null) return;
-  const build = async (): Promise<void> => {
-    const built = await steps.build(opened.ref, script);
-    if ("id" in built) {
-      steps.openPart(opened.ref, built.id);
-      return;
-    }
-    steps.failed(`Made ${name}, but its part did not build`, new Error(built.error), () => {
-      void build();
-    });
-  };
-  await build();
+  await buildThenSwap({
+    ref: opened.ref,
+    script,
+    failedTitle: `Made ${name}, but its part did not build`,
+    build: steps.build,
+    openPart: steps.openPart,
+    failed: steps.failed,
+  });
+}
+
+/**
+ * The second half of opening a model that has not been built yet, as New part, a part added to a
+ * project and a copied example open theirs: what there is has already been opened at once (the
+ * project's Overview), then the script is built, and its document opened in its place once the
+ * build lands. A build that fails leaves what was opened and says why (`failedTitle`, the build's
+ * own error), with Build again (`retry`). It resolves once the document is open, or has said why not.
+ */
+export async function buildThenSwap<Ref>(steps: {
+  readonly ref: Ref;
+  /** The model's script, absolute. */
+  readonly script: string;
+  readonly failedTitle: string;
+  readonly build: (ref: Ref, script: string) => Promise<BuiltPart>;
+  readonly openPart: (ref: Ref, id: string) => void;
+  readonly failed: (title: string, error: unknown, retry?: () => void) => void;
+}): Promise<void> {
+  const built = await steps.build(steps.ref, steps.script);
+  if ("id" in built) {
+    steps.openPart(steps.ref, built.id);
+    return;
+  }
+  steps.failed(steps.failedTitle, new Error(built.error), () => {
+    void buildThenSwap(steps);
+  });
 }

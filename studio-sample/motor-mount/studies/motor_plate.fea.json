@@ -294,11 +294,11 @@
     "solver": "amg+cg (43 iterations)"
   },
   "timings": {
-    "mesh_s": 1.893,
-    "mesh_to_fem_s": 0.807,
-    "assemble_s": 10.142,
-    "solve_s": 9.371,
-    "stress_s": 5.346
+    "mesh_s": 1.858,
+    "mesh_to_fem_s": 0.802,
+    "assemble_s": 10.509,
+    "solve_s": 9.406,
+    "stress_s": 5.318
   },
   "warnings": [],
   "findings": [],

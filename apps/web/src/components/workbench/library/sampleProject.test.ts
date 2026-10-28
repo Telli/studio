@@ -5,14 +5,7 @@ import * as NodePath from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 
 import { copyName } from "../examples/examples";
-import {
-  copySample,
-  inTurn,
-  isModelScript,
-  openCopiedExample,
-  SAMPLE_ID,
-  SAMPLE_MARKER,
-} from "./sampleProject";
+import { copySample, inTurn, copyThenOpen, SAMPLE_ID, SAMPLE_MARKER } from "./sampleProject";
 
 const ROOT = NodePath.join(import.meta.dirname, "..", "..", "..", "..", "..", "..");
 const SAMPLE = NodePath.join(ROOT, "studio-sample", SAMPLE_ID);
@@ -77,24 +70,59 @@ describe("copying an example", () => {
     expect(await Promise.all([first, second])).toEqual(["Phone stand", "Phone stand 2"]);
   });
 
-  it("opens a copy's model by the document its build made, and any other file as it is", () => {
+  it("opens a copy on its Overview at once, then swaps to the model's document when its build lands", async () => {
     const done: string[] = [];
-    const steps = {
-      openDocument: (id: string) => done.push(`document ${id}`),
-      openFile: (file: string) => done.push(`file ${file}`),
-      failed: (error: string) => done.push(`failed ${error}`),
-    };
-    expect(isModelScript("assemblies/motor_mount.py")).toBe(true);
-    expect(isModelScript("drawings/motor_plate_drawing.pdf")).toBe(false);
-    openCopiedExample({ ...steps, file: "assemblies/motor_mount.py", built: { id: "doc-1" } });
-    openCopiedExample({ ...steps, file: "drawings/plate.pdf", built: null });
-    // A model that did not build still opens, as its script, and says why.
-    openCopiedExample({ ...steps, file: "parts/plate.py", built: { error: "NameError: WIDTH" } });
+    const steps = (file: string, built: { id: string } | { error: string }) => ({
+      file,
+      name: "Motor mount plate",
+      create: async (input: {
+        onFolder: (folder: string) => Promise<void>;
+        show: (ref: string) => void;
+      }) => {
+        await input.onFolder("/projects/motor/");
+        done.push("project made");
+        input.show("chat");
+        return true;
+      },
+      copyInto: async (folder: string) => void done.push(`copy into ${folder}`),
+      openFile: (ref: string, path: string) => void done.push(`${ref}: file ${path}`),
+      openProject: (ref: string) => void done.push(`${ref}: overview`),
+      build: async (ref: string, script: string) => {
+        done.push(`${ref}: build ${script}`);
+        return built;
+      },
+      openPart: (ref: string, id: string) => void done.push(`${ref}: document ${id}`),
+      building: () => void done.push("building"),
+      failed: (title: string, error: unknown, retry?: () => void) =>
+        void done.push(
+          `failed: ${title}: ${(error as Error).message}${retry ? " (Build again)" : ""}`,
+        ),
+    });
+    expect(await copyThenOpen(steps("assemblies/motor_mount.py", { id: "doc-1" }))).toBe(true);
     expect(done).toEqual([
-      "document doc-1",
-      "file drawings/plate.pdf",
-      "file parts/plate.py",
-      "failed NameError: WIDTH",
+      "copy into /projects/motor/",
+      "project made",
+      "chat: overview",
+      "building",
+      "chat: build /projects/motor/assemblies/motor_mount.py",
+      "chat: document doc-1",
+    ]);
+    // A model that does not build stays on the Overview, and says why, with Build again.
+    done.length = 0;
+    expect(await copyThenOpen(steps("parts/plate.py", { error: "NameError: WIDTH" }))).toBe(true);
+    expect(done.slice(2)).toEqual([
+      "chat: overview",
+      "building",
+      "chat: build /projects/motor/parts/plate.py",
+      "failed: Made Motor mount plate, but its model did not build: NameError: WIDTH (Build again)",
+    ]);
+    // Any other file opens as it is, with nothing built.
+    done.length = 0;
+    expect(await copyThenOpen(steps("drawings/plate.pdf", { id: "unused" }))).toBe(true);
+    expect(done).toEqual([
+      "copy into /projects/motor/",
+      "project made",
+      "chat: file drawings/plate.pdf",
     ]);
   });
 });
