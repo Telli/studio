@@ -462,6 +462,9 @@ ROUNDED = {
 }
 
 
+WRITTEN_FOR_07 = "This part was written for cadgen 0.7. Ask the AI to move it to 0.8."
+
+
 class FailedBuild(unittest.TestCase):
     """A part whose script stops says where it stopped: the frames of its traceback in its own files, so
     the viewer can tell which row of the last good part held that very line, or made the call that did. A
@@ -520,6 +523,30 @@ class FailedBuild(unittest.TestCase):
         self.assertEqual([frame["text"] for frame in frames],
                          ["return fillet(shape.edges().filter_by(Axis.Z), radius=radius)", "return rounded(shape, radius)"]
                          + ["return descend(shape, radius, depth - 1)"] * 4)
+
+    def test_a_part_written_for_cadgen_07_says_so_first(self):
+        written = {
+            # A name 0.7 exported, imported from cadgen.
+            "from cadgen import model, srgb\n\n\n@model\ndef tray():\n    return srgb(1, 0, 0)\n",
+            # One reached through the module as the part runs.
+            "import cadgen\nfrom cadgen import model\n\n\n@model\ndef tray():\n    return cadgen.read_scene('tray.step')\n",
+            # A module 0.7 had.
+            "from cadgen import model\nfrom cadgen.step_scene import scene\n\n\n@model\ndef tray():\n    return scene()\n",
+        }
+        for text in written:
+            with self.subTest(text=text.splitlines()[0]):
+                (self.root / "tray.py").write_text(text, encoding="utf-8")
+                bad = self.service.state(str(self.root / "tray.step"))
+                self.assertFalse(bad["ok"])
+                self.assertTrue(bad["error"].startswith(WRITTEN_FOR_07), bad["error"])
+                # The traceback follows, for the AI that moves it.
+                self.assertIn("Traceback", bad["error"])
+        # A name of the project's own that is missing is not 0.7's.
+        (self.root / "tray.py").write_text("from cadgen import model\nfrom helpers import srgb\n\n\n@model\ndef tray():\n    return srgb()\n",
+                                           encoding="utf-8")
+        bad = self.service.state(str(self.root / "tray.step"))
+        self.assertFalse(bad["ok"])
+        self.assertNotIn(WRITTEN_FOR_07, bad["error"])
 
     def test_a_script_that_cannot_be_read_names_no_line(self):
         (self.root / "tray.py").write_text("from cadgen import model\n\n\n@model\ndef tray(:\n    pass\n", encoding="utf-8")

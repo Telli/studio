@@ -521,6 +521,24 @@ _wrap_plane_offset()
 
 # What a part says when a file it reads (``read_step``, ``read_xbf``) is gone: moved, renamed, deleted.
 GONE = "the STEP this part reads is gone: "
+# What a part written for cadgen 0.7 is told, first, when it reaches for a name 0.7 had and 0.8 does not (`_written_for_07`).
+WRITTEN_FOR_07 = "This part was written for cadgen 0.7. Ask the AI to move it to 0.8."
+_NAMES_07 = frozenset({"build123d", "color", "srgb", "step_scene", "read_scene"})
+
+
+def _written_for_07(error: BaseException) -> bool:
+    """Whether ``error`` is a part reaching for one of cadgen 0.7's names: imported from cadgen (``from cadgen import
+    srgb``, ``import cadgen.step_scene``) or reached through it (``cadgen.read_scene``)."""
+    if isinstance(error, ImportError):
+        module = error.name or ""
+        if module != "cadgen" and not module.startswith("cadgen."):
+            return False
+        return getattr(error, "name_from", None) in _NAMES_07 or module.rsplit(".", 1)[-1] in _NAMES_07 or any(
+            f"cannot import name '{name}'" in str(error) for name in _NAMES_07)
+    if isinstance(error, AttributeError):
+        owner = getattr(getattr(error, "obj", None), "__name__", "")
+        return isinstance(owner, str) and owner.split(".")[0] == "cadgen" and getattr(error, "name", None) in _NAMES_07
+    return False
 
 
 def _wrap_import():
@@ -1841,7 +1859,9 @@ def trace(request):
     except Exception as error:
         if isinstance(error, FileNotFoundError) and str(error).startswith(GONE):
             return {"ok": False, "error": str(error), "failure": _stopped_at(error)}
-        return {"ok": False, "error": traceback.format_exc(limit=6), "failure": _stopped_at(error)}
+        said = traceback.format_exc(limit=6)
+        return {"ok": False, "error": f"{WRITTEN_FOR_07}\n\n{said}" if _written_for_07(error) else said,
+                "failure": _stopped_at(error)}
     finally:
         sys.path.remove(str(script.parent))
 
