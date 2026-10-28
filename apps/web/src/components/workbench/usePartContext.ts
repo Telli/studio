@@ -85,6 +85,9 @@ export function usePartContext(threadRef: ScopedThreadRef): {
 
   // While a model is shown, its build state is asked again each time it moves (a long ask, shared
   // by every caller showing it): a build starting, and its end or failure, reach the strip at once.
+  // A view that goes leaves its last ask to end by itself, within `BUILD_WAIT_SECONDS`, and asks no
+  // more: a plugin request has no way to be called off (the command, the server's relay to the CAD
+  // server and its tunnel to the engine all run to their answer), and one per view is all there is.
   useEffect(() => {
     if (model === null || modelKey === null) return;
     let cancelled = false;

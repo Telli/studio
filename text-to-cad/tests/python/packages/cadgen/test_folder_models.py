@@ -14,7 +14,7 @@ import uuid
 from pathlib import Path
 from unittest import mock
 
-from cadgen.edit.models import folder_models
+from cadgen.edit.models import folder_models, folders_models
 from cadgen.engine.registry import Folder, Registry
 from cadgen.viewer import handler as handler_module
 from cadgen.viewer.http_app import create_cad_app
@@ -72,6 +72,19 @@ class FolderModels(unittest.TestCase):
         with self.assertRaises(ValueError):
             folder_models(self.registry, "bracket")
 
+    def test_twenty_folders_are_read_in_one_read_of_the_registry(self):
+        roots = [str(self.project), *(str(self.tmp / f"tile{index}") for index in range(19))]
+        for root in roots[1:]:
+            Path(root).mkdir()
+        reads = []
+        listing = self.registry.list
+        with mock.patch.object(self.registry, "list", lambda: reads.append(1) or listing()):
+            answer = folders_models(self.registry, roots)
+        self.assertEqual(len(reads), 1)
+        self.assertEqual(list(answer["roots"]), roots)
+        self.assertEqual([model["name"] for model in answer["roots"][str(self.project)]], ["rig", "plate"])
+        self.assertTrue(all(answer["roots"][root] == [] for root in roots[1:]))
+
     def test_the_route_answers_it(self):
         app = create_cad_app(host="127.0.0.1", port=0, start=str(self.project))
         server = handler_module.serve(app, "127.0.0.1", 0)
@@ -86,6 +99,14 @@ class FolderModels(unittest.TestCase):
         response = connection.getresponse()
         self.assertEqual(response.status, 200)
         self.assertEqual([model["name"] for model in json.loads(response.read())["models"]], ["rig", "plate"])
+        # Several folders, one request: each answered under its own spelling.
+        other = self.tmp / "other"
+        connection.request("GET", f"/__cad/models?root={self.project}&root={other}")
+        response = connection.getresponse()
+        answer = json.loads(response.read())
+        self.assertEqual(sorted(answer["roots"]), sorted([str(self.project), str(other)]))
+        self.assertEqual(len(answer["roots"][str(other)]), 220)
+        self.assertNotIn("models", answer)
         connection.request("GET", "/__cad/models")
         response = connection.getresponse()
         self.assertEqual(response.status, 400)

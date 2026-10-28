@@ -481,10 +481,14 @@ class CadApp:
                 elif pathname == "/__cad/recents":
                     response.send_json(200, self._recents_payload())
                 elif pathname == "/__cad/models":
-                    # Studio: a project folder's models (``cadgen/edit/models.py``).
-                    from cadgen.edit.models import folder_models
+                    # Studio: project folders' models, every folder asked in one read (``cadgen/edit/models.py``).
+                    from cadgen.edit.models import folders_models
 
-                    response.send_json(200, folder_models(self.recents.registry, query.get("root") or ""))
+                    roots = [value for name, value in query if name == "root"]
+                    answer = folders_models(self.recents.registry, roots)
+                    if len(roots) == 1:
+                        answer["models"] = answer["roots"][roots[0]]
+                    response.send_json(200, answer)
                 elif pathname == "/__cad/thumbnail":
                     self._handle_thumbnail(response, query)
                 elif pathname == "/__cad/drawing":

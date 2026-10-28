@@ -11,16 +11,22 @@ from pathlib import Path
 
 
 def folder_models(registry, root: str) -> dict:
-    """``{models: [{id, name, script, kind, updated}]}`` for the folder ``root`` (any spelling: it is
-    resolved as the registry's paths are, so ``/tmp`` and ``/private/tmp`` are one folder). ``script``
-    is relative to the folder, with ``/``; ``kind`` is ``part`` or ``assembly`` as the last build's
-    facts count its parts (None before the engine has them); ``updated`` is when it was last built."""
+    """``{models: [...]}`` for the one folder ``root`` (``folders_models``)."""
+    return {"models": folders_models(registry, [root])["roots"][root]}
+
+
+def folders_models(registry, roots: list[str]) -> dict:
+    """``{roots: {<root as asked>: [{id, name, script, kind, updated}]}}`` for the folders ``roots``, from
+    one read of the registry. A root may be spelled any way: it is resolved as the registry's paths
+    are, so ``/tmp`` and ``/private/tmp`` are one folder. ``script`` is relative to its folder, with
+    ``/``; ``kind`` is ``part`` or ``assembly`` as the last build's facts count its parts (None before
+    the engine has them); ``updated`` is when it was last built."""
     from cadgen.engine import registry as registering
 
-    if not root or not os.path.isabs(root):
-        raise ValueError("GET /__cad/models needs ?root=<a project folder's absolute path>")
-    folder = Path(os.path.realpath(root))
-    models = []
+    if not roots or any(not root or not os.path.isabs(root) for root in roots):
+        raise ValueError("GET /__cad/models needs ?root=<a project folder's absolute path>, once per folder")
+    folders = {root: Path(os.path.realpath(root)) for root in roots}
+    found: dict[str, list[dict]] = {root: [] for root in roots}
     for record in registry.list() if registry is not None else []:
         if record.get("kind") != "model":
             continue
@@ -28,16 +34,19 @@ def folder_models(registry, root: str) -> dict:
             script = Path(os.path.realpath(registering.home(registry, record)))
         except (KeyError, TypeError, ValueError, OSError):
             continue
-        if folder not in script.parents or not script.is_file():
+        holders = [root for root, folder in folders.items() if folder in script.parents]
+        if not holders or not script.is_file():
             continue
         facts = record.get("facts") if isinstance(record.get("facts"), dict) else {}
         parts = facts.get("parts")
-        models.append({
-            "id": record["id"],
-            "name": record.get("name") or record.get("entry") or script.stem,
-            "script": script.relative_to(folder).as_posix(),
-            "kind": None if not isinstance(parts, int) else "assembly" if parts > 1 else "part",
-            "updated": record.get("built"),
-        })
-    models.sort(key=lambda model: (model["script"], model["name"]))
-    return {"models": models}
+        for root in holders:
+            found[root].append({
+                "id": record["id"],
+                "name": record.get("name") or record.get("entry") or script.stem,
+                "script": script.relative_to(folders[root]).as_posix(),
+                "kind": None if not isinstance(parts, int) else "assembly" if parts > 1 else "part",
+                "updated": record.get("built"),
+            })
+    for models in found.values():
+        models.sort(key=lambda model: (model["script"], model["name"]))
+    return {"roots": found}
