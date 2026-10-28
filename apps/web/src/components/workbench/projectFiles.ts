@@ -68,7 +68,7 @@ const RULES: ReadonlyArray<{ readonly test: RegExp; readonly group: ProjectGroup
   { test: MANUFACTURING_RESULT, group: "Analysis" },
   { test: /\.cam\.(?:glb|json)$/i, group: "Manufacturing" },
   { test: /\.(?:nc|gcode|ngc|tap|gco)$/i, group: "Manufacturing" },
-  { test: /\.(?:step|stp)$/i, group: "CAD" },
+  { test: /\.(?:step|stp|xbf)$/i, group: "CAD" },
   { test: /\.solidcraft$/i, group: "CAD" },
   { test: /\.(?:stl|3mf|obj|glb)$/i, group: "CAD" },
   { test: /\.(?:urdf|sdf|srdf)$/i, group: "CAD" },
@@ -159,14 +159,22 @@ export function groupProjectFiles(
   paths: ReadonlyArray<string>,
   query = "",
 ): Array<{ readonly group: ProjectGroup; readonly files: ProjectFile[] }> {
+  return groupFiles(
+    paths.map(classifyProjectFile).filter((file): file is ProjectFile => file !== null),
+    query,
+  );
+}
+
+/** Files already classified (a folder's, its models among them: `folderFiles`), by group as above. */
+export function groupFiles(
+  classified: ReadonlyArray<ProjectFile>,
+  query = "",
+): Array<{ readonly group: ProjectGroup; readonly files: ProjectFile[] }> {
   const needle = query.trim().toLowerCase();
-  const files = paths
-    .map(classifyProjectFile)
-    .filter((file): file is ProjectFile => file !== null)
-    .filter(
-      (file) =>
-        needle === "" || `${file.path}\n${file.title}\n${file.kind}`.toLowerCase().includes(needle),
-    );
+  const files = classified.filter(
+    (file) =>
+      needle === "" || `${file.path}\n${file.title}\n${file.kind}`.toLowerCase().includes(needle),
+  );
   return PROJECT_GROUPS.flatMap((group) => {
     const inGroup = files
       .filter((file) => file.group === group)

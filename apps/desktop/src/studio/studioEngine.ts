@@ -4,8 +4,8 @@
 import * as NodePath from "node:path";
 
 /**
- * Studio's CAD engine's port: the packaged app's, and a checkout's (`TEXT_TO_CAD_DEV=1`, or any
- * `scripts/studio.ts` run) one past it. Both are outside the ports a user's own cadgen rolls
+ * Studio's CAD engine's port: the packaged app's, and a checkout's (every `scripts/studio.ts` run)
+ * one past it. Both are outside the ports a user's own cadgen rolls
  * through from its 3245 (64 past it), so neither engine ever lands on the other's port, where the
  * one starting would retire the one idle there.
  */
@@ -37,6 +37,20 @@ export function studioEngineEnv(home: string, options: { readonly dev: boolean }
     CADGEN_ENGINE_PORT: String(options.dev ? STUDIO_DEV_ENGINE_PORT : STUDIO_ENGINE_PORT),
     CADGEN_LAUNCHER_DIR: NodePath.join(home, "bin"),
   };
+}
+
+/**
+ * A checkout's Studio's (`scripts/studio.ts`, every mode): its cadgen in the checkout's home,
+ * `~/.text-to-cad-studio-dev` unless `TEXT_TO_CAD_STUDIO_HOME` moves it, on the checkout's port, so a
+ * Studio run from a checkout never shares an engine with the packaged app.
+ */
+export function checkoutEngineEnv(
+  env: Readonly<Record<string, string | undefined>>,
+  homeDirectory: string,
+) {
+  const home =
+    env.TEXT_TO_CAD_STUDIO_HOME?.trim() || NodePath.join(homeDirectory, ".text-to-cad-studio-dev");
+  return studioEngineEnv(home, { dev: true });
 }
 
 /** `PATH` with Studio's `cadgen` command's folder first, once. */

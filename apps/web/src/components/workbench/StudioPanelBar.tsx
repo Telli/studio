@@ -21,6 +21,7 @@ import { modeOf, setSimpleView, simpleOf, simpleViewToggle, useSimpleView } from
 import { StudioNew } from "./StudioNew";
 import { StudioTour } from "./StudioTour";
 import { partName } from "./partNames";
+import { useFolderModels } from "./useFolderModels";
 import { useAddPart } from "./useNewPart";
 import { usePartContext } from "./usePartContext";
 import { useStudioProjectAt } from "./useStudioProjects";
@@ -43,6 +44,8 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
     resourceKey: `studio-lead-part:${folder ?? ""}`,
   });
   const entries = listing.data?.entries;
+  // Its cadgen 0.8 models among its parts, by their document ids.
+  const models = useFolderModels(threadRef.environmentId, folder ?? "", mutationId);
   return useMemo(
     () =>
       folder === null || entries === undefined
@@ -53,9 +56,10 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
               paths: entries
                 .filter((entry) => entry.kind === "file" && entry.ignored !== true)
                 .map((entry) => entry.path),
+              models,
             },
           ]),
-    [entries, folder],
+    [entries, folder, models],
   );
 }
 

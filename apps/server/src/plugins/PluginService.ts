@@ -32,6 +32,7 @@ import {
   readToolUi,
 } from "@t3tools/plugins";
 import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
@@ -198,11 +199,31 @@ const make = Effect.gen(function* () {
     if (token !== null) capabilities.set(key, token);
     return token;
   };
+  // Each key's launch under way: reads that start together ask the server's home launch once.
+  const launching = new Map<string, Deferred.Deferred<string | null>>();
+  const capabilityOf = (key: string, launch: Effect.Effect<string | null>) =>
+    Effect.gen(function* () {
+      const known = capabilities.get(key);
+      if (known !== undefined) return known;
+      const pending = launching.get(key);
+      if (pending !== undefined) return yield* Deferred.await(pending);
+      const deferred = yield* Deferred.make<string | null>();
+      launching.set(key, deferred);
+      return yield* launch.pipe(
+        Effect.tap((token) => Deferred.succeed(deferred, token)),
+        Effect.ensuring(
+          Deferred.succeed(deferred, null).pipe(
+            Effect.andThen(Effect.sync(() => launching.delete(key))),
+          ),
+        ),
+      );
+    });
 
   /**
    * A request of a view's server. A `cad_http` call that carries no capability (Studio's own UI
    * reading the viewer's routes) carries its scope's, asked of the server's home launch when none
-   * is known, and asked again once when the server refuses it as one from before it restarted.
+   * is known (once for reads that start together), and asked again once when the server answers
+   * the call with an error: the server that gave it may have restarted since.
    */
   const request = (input: PluginRequestInput) =>
     Effect.gen(function* () {
@@ -225,12 +246,12 @@ const make = Effect.gen(function* () {
         Effect.map((result) => remember(key, result)),
         Effect.orElseSucceed(() => null),
       );
-      const token = capabilities.get(key) ?? (yield* launch);
+      const token = yield* capabilityOf(key, launch);
       if (token === null) return { result: yield* call("tools/call", params) };
       const result = yield* call("tools/call", AppCapability.withCapability(params, token));
-      if (!AppCapability.refusedCapability(result)) return { result };
-      capabilities.delete(key);
-      const fresh = yield* launch;
+      if (!AppCapability.isErrorResult(result)) return { result };
+      if (capabilities.get(key) === token) capabilities.delete(key);
+      const fresh = yield* capabilityOf(key, launch);
       return {
         result:
           fresh === null
@@ -359,7 +380,7 @@ const make = Effect.gen(function* () {
       if (tool === undefined)
         return yield* fail("not_found", `no enabled plugin has the tool ${input.name}`);
       const roots = yield* rootsOf(input.threadId);
-      return yield* host.request({
+      const result = yield* host.request({
         scope: input.threadId,
         pluginId: tool.pluginId,
         server: tool.server,
@@ -370,6 +391,8 @@ const make = Effect.gen(function* () {
         },
         roots,
       });
+      // A launch's app capability is the UI's alone: it never reaches the agent's context.
+      return AppCapability.withoutCapability(result);
     });
 
   return PluginService.of({

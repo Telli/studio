@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  buildPollUrl,
   describePart,
   documentOf,
+  partBuild,
   readBuild,
   readDocumentId,
   readDocumentKind,
@@ -132,25 +134,36 @@ describe("the engine's document", () => {
     expect(readDocumentId({ state: "reading", retryMs: 250 })).toBeNull();
   });
 
-  const structure = (instances: number, materials: ReadonlyArray<string | null>) => ({
+  const structure = (children: number, materials: ReadonlyArray<string | null>) => ({
     name: "rig",
+    tree:
+      children === 0
+        ? { name: "rig", prototype: 0, instance: 0 }
+        : {
+            name: "rig",
+            children: Array.from({ length: children }, (_, index) => ({
+              name: `p${index}`,
+              prototype: 0,
+            })),
+          },
     prototypes: materials.map((name, index) => ({
       index,
       key: `k${index}`,
       name: `p${index}`,
       material: name === null ? null : { name, density: 2.7 },
     })),
-    instances: Array.from({ length: instances }, (_, index) => ({
+    instances: Array.from({ length: Math.max(children, 1) }, (_, index) => ({
       prototype: 0,
       path: `rig/p${index}`,
     })),
   });
 
-  it("is an assembly when more than one part is placed in it", () => {
-    expect(readDocumentKind(structure(1, [null]))).toBe("part");
+  it("is an assembly when its tree has components, one placed or many", () => {
+    expect(readDocumentKind(structure(0, [null]))).toBe("part");
+    expect(readDocumentKind(structure(1, [null]))).toBe("assembly");
     expect(readDocumentKind(structure(3, [null, null]))).toBe("assembly");
     expect(readDocumentKind(null)).toBeNull();
-    expect(readDocumentName(structure(1, [null]))).toBe("rig");
+    expect(readDocumentName(structure(0, [null]))).toBe("rig");
   });
 
   it("lists the named materials its parts are made of, once each", () => {
@@ -187,6 +200,40 @@ describe("readBuild", () => {
     expect(readBuild(current, 2000, false)).toEqual({ state: "saved", at: 2000 });
     expect(readBuild(null, 2000, false)).toEqual({ state: "saved", at: 2000 });
     expect(readBuild(null, null, true)).toBeNull();
+  });
+});
+
+describe("a shown model's build, as it happens", () => {
+  it("asks at once first, then for the next move past the version and progress last heard", () => {
+    expect(buildPollUrl(MODEL, null)).toBe(`/__cad/api/doc/${MODEL}/version?wait=20`);
+    expect(buildPollUrl(MODEL, { version: "3-1", building: null, failed: null, progress: 4 })).toBe(
+      `/__cad/api/doc/${MODEL}/version?wait=20&after=3-1&progress=4`,
+    );
+  });
+
+  it("says a build in flight, and a failed one that kept the version before it, over when it was built", () => {
+    const read = {
+      version: { version: "3-1", building: null, failed: null, progress: 4 },
+      updated: 9000,
+    };
+    expect(partBuild(null, read, true)).toEqual({ state: "built", at: 9000 });
+    const building = { version: "3-1", building: { phase: "building" }, failed: null, progress: 5 };
+    expect(partBuild(building, read, true)).toEqual({ state: "building" });
+    // The engine still holds 3-1: the revision never moved, and the failure is the news.
+    const failed = {
+      version: "3-1",
+      building: null,
+      failed: { model: "plate", error: "fillet failed" },
+      progress: 6,
+    };
+    expect(partBuild(failed, read, true)).toEqual({ state: "failed", error: "fillet failed" });
+    // A build that succeeds after it: built again.
+    const rebuilt = { version: "3-2", building: null, failed: null, progress: 8 };
+    expect(partBuild(rebuilt, { ...read, updated: 9500 }, true)).toEqual({
+      state: "built",
+      at: 9500,
+    });
+    expect(partBuild(null, null, true)).toBeNull();
   });
 });
 

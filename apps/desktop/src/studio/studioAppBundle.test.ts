@@ -6,7 +6,12 @@ import * as NodePath from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import { applyStudioAppBundle, writeFilledCopy } from "./studioAppBundle.ts";
-import { STUDIO_DEV_ENGINE_PORT, STUDIO_ENGINE_PORT, studioEngineEnv } from "./studioEngine.ts";
+import {
+  checkoutEngineEnv,
+  STUDIO_DEV_ENGINE_PORT,
+  STUDIO_ENGINE_PORT,
+  studioEngineEnv,
+} from "./studioEngine.ts";
 
 const made: string[] = [];
 const tempDir = (prefix = "studio-app-bundle-") => {
@@ -77,6 +82,22 @@ describe("studioEngineEnv", () => {
     }
     expect(dev.CADGEN_ENGINE_PORT).toBe(String(STUDIO_DEV_ENGINE_PORT));
     expect(release.CADGEN_ENGINE_PORT).not.toBe(dev.CADGEN_ENGINE_PORT);
+  });
+});
+
+describe("checkoutEngineEnv", () => {
+  it("runs a checkout's Studio on its own home and port, whatever its mode", () => {
+    for (const env of [{}, { TEXT_TO_CAD_DEV: "1" }]) {
+      expect(checkoutEngineEnv(env, "/Users/a")).toEqual(
+        studioEngineEnv("/Users/a/.text-to-cad-studio-dev", { dev: true }),
+      );
+    }
+    expect(checkoutEngineEnv({}, "/Users/a").CADGEN_ENGINE_PORT).not.toBe(
+      String(STUDIO_ENGINE_PORT),
+    );
+    expect(checkoutEngineEnv({ TEXT_TO_CAD_STUDIO_HOME: "/elsewhere" }, "/Users/a")).toMatchObject({
+      CADGEN_STATE_DIR: "/elsewhere/cadgen/state",
+    });
   });
 });
 

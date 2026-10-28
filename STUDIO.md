@@ -372,12 +372,15 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   and the project switcher's New project open it, and Make a project on a folder in no project makes
   a mechanical part project of it at once, its brief filled in later. New's Part is New part, with
   no agent turn (`useNewPart.ts`, `newPart.ts`): on Home a project named "Untitled part" (then
-  "Untitled part 2", past Trash's names too) with a starter part, `parts/part.py`, one block
-  sketched from three named sizes as the cad skill writes its smallest part, and the STEP that
-  script builds (`workbench/starter/part.step`), opened beside its new chat in CAD mode; in a
-  project the same starter by the name given, the next name free in its folder. Start a part by hand
-  is the same. A starter that can't be written leaves the project made, open on its Overview, and
-  says so. Any change in CAD mode builds the part again from its script. Every project is pictured
+  "Untitled part 2", past Trash's names too) with a starter part, `parts/part.py`, a cadgen 0.8
+  model of one block sketched from three named sizes as the cad skill writes its smallest part. Its
+  Overview opens beside its new chat at once; the script is built by Studio's CAD service (edit
+  mode's builds: the engine never builds a model because a view opened it), and the part opens in
+  CAD mode by its document id once that build is done. In a project the same starter by the name
+  given, the next name free in its folder. Start a part by hand is the same. A starter that can't be
+  written, or a build that fails, leaves the project made, on its Overview, and says so, a failed
+  build in its own words with Build again. Any change in CAD mode builds the part again from its
+  script. Every project is pictured
   by its first assembly (else its first part or board; `useProjectCover.ts`), with Import, all in
   one column so the box and the tiles line up. A picture that came back empty (the CAD plugin still
   starting) is asked for again (`usePictures.ts`). A project with a chat waiting on the person (a

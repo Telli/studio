@@ -16,8 +16,9 @@
  *   Studio's own plugins (`studio-plugins/`) are offered beside it: SolidCraft,
  *   only with STUDIO_SOLIDCRAFT=1 (STUDIO_SOLIDCRAFT_APP=1 bridges it to the app);
  *
- * Its cadgen keeps its own state, cache, engine and port in that home (`studioEngineEnv`), with
- * its `cadgen` command first on the agents' PATH, so a cadgen of the user's own never meets it.
+ * Its cadgen keeps its own state, cache, engine and port in the checkout's home
+ * (`~/.text-to-cad-studio-dev`, `checkoutEngineEnv`), with its `cadgen` command first on the agents'
+ * PATH, so neither a cadgen of the user's own nor the packaged app's ever meets it.
  *
  * TEXT_TO_CAD_ROOT points at another checkout; TEXT_TO_CAD_STUDIO_HOME moves the state.
  * TEXT_TO_CAD_DEV=1 runs the checkout's working copy instead of the released cadgen: its
@@ -29,7 +30,7 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
-import { studioEngineEnv, studioPath } from "../apps/desktop/src/studio/studioEngine.ts";
+import { checkoutEngineEnv, studioPath } from "../apps/desktop/src/studio/studioEngine.ts";
 import { buildEditorPage } from "./editor-pages.ts";
 
 const appRoot = NodePath.dirname(import.meta.dirname);
@@ -53,8 +54,10 @@ const home =
   process.env.TEXT_TO_CAD_STUDIO_HOME?.trim() ||
   NodePath.join(NodeOS.homedir(), dev ? ".text-to-cad-studio-dev" : ".text-to-cad-studio");
 // Studio's own cadgen state, engine and `cadgen` command: the dev plugin registers its
-// installation there, and the app and its agents run on it.
-const engineEnv = studioEngineEnv(home, { dev });
+// installation there, and the app and its agents run on it. Every run from a checkout keeps them in
+// the checkout's home on the checkout's port (whatever its T3 state's home), so it never shares an
+// engine with the packaged app.
+const engineEnv = checkoutEngineEnv(process.env, NodeOS.homedir());
 const cadgenEnv = {
   ...process.env,
   ...engineEnv,

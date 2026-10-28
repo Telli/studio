@@ -147,10 +147,14 @@ export function readDocumentId(reply: unknown): string | null {
   return isRecord(reply) && typeof reply.doc === "string" && reply.doc !== "" ? reply.doc : null;
 }
 
-/** A document's structure's parts (`/__cad/api/doc/<id>`): `assembly` for more than one placed, else `part`. */
+/**
+ * A document's structure (`/__cad/api/doc/<id>`) as a part or an assembly: an assembly's tree has
+ * children (its components, placed), a part's root is the part itself.
+ */
 export function readDocumentKind(structure: unknown): "part" | "assembly" | null {
-  if (!isRecord(structure) || !Array.isArray(structure.instances)) return null;
-  return structure.instances.length > 1 ? "assembly" : "part";
+  if (!isRecord(structure) || !isRecord(structure.tree)) return null;
+  const { children } = structure.tree;
+  return Array.isArray(children) && children.length > 0 ? "assembly" : "part";
 }
 
 /** The name the engine gives a document: a model's its function's, a file's its own. */
@@ -211,6 +215,35 @@ export function readBuild(
     if (version.building !== null && version.building !== undefined) return { state: "building" };
   }
   return updated === null ? null : { state: model ? "built" : "saved", at: updated };
+}
+
+/** How long one ask of a model's build state waits for it to move (`/version`'s `wait`). */
+export const BUILD_WAIT_SECONDS = 20;
+
+/**
+ * The next ask of a model's build state (`GET /__cad/api/doc/<id>/version`): answered once its
+ * version or its build's progress moves past what `last` said (a build starting, a frame of it, its
+ * end or its failure), or after `BUILD_WAIT_SECONDS`; the first ask, with no `last`, at once.
+ */
+export function buildPollUrl(id: string, last: unknown): string {
+  const base = `/__cad/api/doc/${encodeURIComponent(id)}/version?wait=${BUILD_WAIT_SECONDS}`;
+  if (!isRecord(last) || typeof last.version !== "string") return base;
+  const progress = typeof last.progress === "number" ? `&progress=${last.progress}` : "";
+  return `${base}&after=${encodeURIComponent(last.version)}${progress}`;
+}
+
+/**
+ * A shown model's build, as its part strip says it: the build state the live ask last heard
+ * (`buildPollUrl`) over the one its revision's facts read, so a build in flight, or one that failed
+ * and left the engine holding the version before it, is the news, not when it was last built.
+ */
+export function partBuild(
+  live: unknown,
+  read: { readonly version: unknown; readonly updated: number | null } | null,
+  model: boolean,
+): PartBuild | null {
+  if (read === null && live === null) return null;
+  return readBuild(isRecord(live) ? live : (read?.version ?? null), read?.updated ?? null, model);
 }
 
 /** A `cad_http` reply's JSON body: base64, gzipped when large (`encoding: "gzip"`). */

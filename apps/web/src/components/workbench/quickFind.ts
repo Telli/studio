@@ -1,6 +1,7 @@
 import type { HardwareAction, HardwareActionMenu } from "./hardwareActions";
 import { overviewParts } from "./checkResults";
 import { classifyProjectFile, type ProjectFile } from "./projectFiles";
+import { folderFiles, type ProjectModel } from "./projectModels";
 
 /**
  * What the quick find (`StudioQuickFind`, ⌘K) finds: projects, the parts, documents and chats in
@@ -54,12 +55,12 @@ export function folderParts<P>(
     readonly root: string;
     /** Its files, relative to it; null while they are listed. */
     readonly paths: ReadonlyArray<string> | null;
+    /** Its cadgen 0.8 models (`folderFiles`). */
+    readonly models?: ReadonlyArray<ProjectModel>;
   }>,
 ): FoundPart<P>[] {
-  return folders.flatMap(({ project, root, paths }) =>
-    overviewParts(
-      (paths ?? []).map(classifyProjectFile).filter((file): file is ProjectFile => file !== null),
-    ).map((file) => ({ project, root, file })),
+  return folders.flatMap(({ project, root, paths, models }) =>
+    overviewParts(folderFiles(paths ?? [], models)).map((file) => ({ project, root, file })),
   );
 }
 

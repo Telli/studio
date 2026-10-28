@@ -8,8 +8,9 @@ import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
 import { useStudioProjectAt } from "./useStudioProjects";
-import { classifyProjectFile, type ProjectFile } from "./projectFiles";
+import { folderFiles } from "./projectModels";
 import { projectStarters } from "./starterJobs";
+import { useFolderModels } from "./useFolderModels";
 
 /**
  * A new thread's starters in Studio, made from the project (`starterJobs.ts`):
@@ -34,15 +35,18 @@ export function ProjectStarters(props: {
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
   const brief = useStudioProjectAt(environmentId, cwd)?.project.brief ?? null;
+  // Its cadgen 0.8 models stand where their scripts are among its recent files.
+  const models = useFolderModels(environmentId, cwd);
   const starters = useMemo(() => {
-    const files = (recent ?? [])
-      .map((entry) => classifyProjectFile(entry.path))
-      .filter((file): file is ProjectFile => file !== null);
+    const files = folderFiles(
+      (recent ?? []).map((entry) => entry.path),
+      models,
+    );
     const skills = new Set(
       (plugins ?? []).flatMap((plugin) => (plugin.enabled ? plugin.skills : [])),
     );
     return projectStarters(files, skills, brief);
-  }, [recent, plugins, brief]);
+  }, [recent, models, plugins, brief]);
   if (starters.length === 0) return null;
 
   return (

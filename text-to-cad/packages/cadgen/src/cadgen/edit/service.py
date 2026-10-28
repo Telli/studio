@@ -480,16 +480,6 @@ if failed:
     raise SystemExit(1)
 """
 
-# The name CAD mode's rollback bar hands its body to the engine by (``tracer._bar_name``): a shape
-# document of the engine's that is no part of a project, so Recents leaves it out (``is_bar``).
-BAR_NAME = re.compile(r" at the rollback bar [0-9a-f]{8}\Z")
-
-
-def is_bar(record: dict) -> bool:
-    """Whether a registry record is a rollback bar's body: a shape handed over by its bar's name."""
-    return record.get("kind") == "shape" and bool(BAR_NAME.search(str(record.get("name") or "")))
-
-
 NO_ENGINE = "the engine is not running"
 
 

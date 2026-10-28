@@ -41,14 +41,16 @@ export function withCapability(params: Record<string, unknown>, token: string) {
   return { ...params, arguments: { ...args, headers: { ...headers, [CAPABILITY_HEADER]: token } } };
 }
 
-/**
- * Whether a `cad_http` reply refused the capability it carried: the server that delivered it has
- * restarted since (an idle thread's server is closed, and a new one has a capability of its own).
- */
-export function refusedCapability(result: unknown): boolean {
-  if (!isRecord(result) || result.isError !== true || !Array.isArray(result.content)) return false;
-  return result.content.some(
-    (part) =>
-      isRecord(part) && typeof part.text === "string" && /before CAD restarted/.test(part.text),
-  );
+/** Whether a tool call answered with an error (`isError`). */
+export function isErrorResult(result: unknown): boolean {
+  return isRecord(result) && result.isError === true;
+}
+
+/** A tool result without the capability in its `_meta`, as an agent is given it. */
+export function withoutCapability(result: unknown): unknown {
+  if (!isRecord(result) || !isRecord(result._meta) || !(CAPABILITY_META in result._meta)) {
+    return result;
+  }
+  const { [CAPABILITY_META]: _capability, ...meta } = result._meta;
+  return { ...result, _meta: meta };
 }

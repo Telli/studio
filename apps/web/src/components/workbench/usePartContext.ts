@@ -6,10 +6,11 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { isDocumentId } from "@t3tools/client-runtime/state/pluginFollow";
 
 import {
+  buildPollUrl,
   describePart,
   documentOf,
   type PartContext,
-  readBuild,
+  partBuild,
   readDocumentId,
   readDocumentKind,
   readDocumentName,
@@ -43,6 +44,10 @@ interface Read {
 
 /** The routes' reads under way, by thread and revision (`sharedLoad`). */
 const FACTS_IN_FLIGHT = new Map<string, Promise<Read>>();
+/** The shown models' build-state asks under way, by thread and ask (`sharedLoad`): one per view. */
+const BUILDS_IN_FLIGHT = new Map<string, Promise<unknown>>();
+/** How long to wait before asking again after an ask that was not answered (the engine away). */
+const BUILD_RETRY_MS = 5_000;
 
 const factsKey = (shown: ShownView) =>
   [shown.pluginId, shown.server, shown.path, shown.revision].join("\n");
@@ -60,26 +65,58 @@ export function usePartContext(threadRef: ScopedThreadRef): {
   const shown = useShownView(threadRef);
   const request = useAtomCommand(pluginEnvironment.request, { reportFailure: false });
   const [facts, setFacts] = useState<FileFacts | null>(null);
+  const [live, setLive] = useState<{ readonly id: string; readonly reply: unknown } | null>(null);
   const key = shown === null ? null : factsKey(shown);
+  const route = (view: ShownView) => async (url: string) => {
+    const result = await request({
+      environmentId: threadRef.environmentId,
+      input: {
+        threadId: threadRef.threadId,
+        pluginId: view.pluginId,
+        server: view.server,
+        method: "tools/call",
+        params: { name: "cad_http", arguments: { method: "GET", url } },
+      },
+    });
+    return result._tag === "Success" ? readTunnelJson(result.value.result).catch(() => null) : null;
+  };
+  const model = shown !== null && isDocumentId(shown.path) ? shown : null;
+  const modelKey = model === null ? null : [model.pluginId, model.server, model.path].join("\n");
+
+  // While a model is shown, its build state is asked again each time it moves (a long ask, shared
+  // by every caller showing it): a build starting, and its end or failure, reach the strip at once.
+  useEffect(() => {
+    if (model === null || modelKey === null) return;
+    let cancelled = false;
+    const ask = route(model);
+    void (async () => {
+      let last: unknown = null;
+      while (!cancelled) {
+        const url = buildPollUrl(model.path, last);
+        const reply = await sharedLoad(
+          BUILDS_IN_FLIGHT,
+          [threadRef.environmentId, threadRef.threadId, modelKey, url].join("\n"),
+          () => ask(url),
+        );
+        if (cancelled) return;
+        if (reply === null || typeof reply !== "object") {
+          await new Promise((resolve) => setTimeout(resolve, BUILD_RETRY_MS));
+          continue;
+        }
+        last = reply;
+        setLive({ id: model.path, reply });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `modelKey` names the model `model` holds; its revision moving must not restart the ask.
+  }, [modelKey, request, threadRef.environmentId, threadRef.threadId]);
 
   useEffect(() => {
     if (shown === null || key === null) return;
     let cancelled = false;
-    const route = async (url: string) => {
-      const result = await request({
-        environmentId: threadRef.environmentId,
-        input: {
-          threadId: threadRef.threadId,
-          pluginId: shown.pluginId,
-          server: shown.server,
-          method: "tools/call",
-          params: { name: "cad_http", arguments: { method: "GET", url } },
-        },
-      });
-      return result._tag === "Success"
-        ? readTunnelJson(result.value.result).catch(() => null)
-        : null;
-    };
+    const get = route(shown);
     // Every caller showing this revision shares one read of the routes (`sharedLoad`).
     const load = async (): Promise<Read> => {
       const target = documentOf(shown.path);
@@ -88,12 +125,12 @@ export function usePartContext(threadRef: ScopedThreadRef): {
           ? null
           : "id" in target
             ? target.id
-            : readDocumentId(await route(`/__cad/xbf?file=${encodeURIComponent(target.file)}`));
+            : readDocumentId(await get(`/__cad/xbf?file=${encodeURIComponent(target.file)}`));
       const doc = id === null ? null : `/__cad/api/doc/${encodeURIComponent(id)}`;
       const [structure, version, recents] = await Promise.all([
-        doc === null ? null : route(doc),
-        doc === null ? null : route(`${doc}/version`),
-        route("/__cad/recents"),
+        doc === null ? null : get(doc),
+        doc === null ? null : get(`${doc}/version`),
+        get("/__cad/recents"),
       ]);
       return { structure, version, recents };
     };
@@ -128,10 +165,11 @@ export function usePartContext(threadRef: ScopedThreadRef): {
       path: shown.path,
       ...describePart(shown.path, current?.kind ?? null, current?.name ?? null),
       materials: current?.materials ?? null,
-      build:
-        current === null
-          ? null
-          : readBuild(current.version, current.updated, isDocumentId(shown.path)),
+      build: partBuild(
+        live !== null && live.id === shown.path ? live.reply : null,
+        current,
+        isDocumentId(shown.path),
+      ),
     },
   };
 }

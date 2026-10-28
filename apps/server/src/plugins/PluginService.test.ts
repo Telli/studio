@@ -46,7 +46,9 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
       if (message.params.name === "cad_home")
         return reply({ content: [], _meta: { "dev.texttocad/httpToken": "token-" + ++homes } });
       if (message.params.name === "cad_http" && message.params.arguments.headers?.["x-cadgen-app"] === "token-1")
-        return reply({ isError: true, content: [{ type: "text", text: "This CAD view was opened before CAD restarted: close it and open CAD again." }] });
+        return reply({ isError: true, content: [{ type: "text", text: "This CAD view was opened before CAD restarted." }] });
+      if (message.params.name === "plain" && message.params.arguments.text === "launch")
+        return reply({ content: [{ type: "text", text: "{}" }], _meta: { "dev.texttocad/httpToken": "secret", other: 1 } });
       return reply({ content: [{ type: "text", text: JSON.stringify({ name: message.params.name, arguments: message.params.arguments, meta: message.params._meta ?? null }) }] });
     case "resources/read":
       return reply({ contents: [{ uri: message.params.uri, mimeType: "text/html;profile=mcp-app", text: "<p>demo view</p>",
@@ -327,10 +329,10 @@ describe("plugins", () => {
         return Effect.gen(function* () {
           const plugins = yield* PluginService.PluginService;
           yield* plugins.install("local-market/demo");
-          const route = (headers: Record<string, string>) =>
+          const route = (headers: Record<string, string>, scope: ThreadId | null = threadId) =>
             plugins
               .request({
-                threadId,
+                threadId: scope,
                 pluginId: "demo",
                 server: "main",
                 method: "tools/call",
@@ -358,6 +360,23 @@ describe("plugins", () => {
           assert.deepEqual(yield* route({ "x-cadgen-app": "the view's" }), {
             "x-cadgen-app": "the view's",
           });
+          // Reads that start together in a scope with none known (the environment's own server)
+          // ask its home launch once, and once again together when that one is refused.
+          const together = yield* Effect.all([route({}, null), route({}, null), route({}, null)], {
+            concurrency: "unbounded",
+          });
+          assert.deepEqual(together, [
+            { "x-cadgen-app": "token-2" },
+            { "x-cadgen-app": "token-2" },
+            { "x-cadgen-app": "token-2" },
+          ]);
+          // An agent never sees a launch's capability: it is the UI's alone.
+          const called = (yield* plugins.callAgentTool({
+            threadId,
+            name: "demo__plain",
+            arguments: { text: "launch" },
+          })) as { _meta: Record<string, unknown> };
+          assert.deepEqual(called._meta, { other: 1 });
         }).pipe(
           Effect.provide(
             layerFor(

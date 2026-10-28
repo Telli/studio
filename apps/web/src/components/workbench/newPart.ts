@@ -177,11 +177,12 @@ export async function buildPart(input: {
 
 /**
  * New part's steps in order (`useNewPart`): name the project past every name taken, make it, write
- * the starter into its folder, build it, then open the part beside its new chat by its document id.
- * A starter that can't be written, or doesn't build, leaves the project made, as it is: its chat
- * opens on its Overview, where Start a part by hand tries again, and `failed` says it was made and
- * why its part was not (a build's own error). Anything that stops the project being made says so
- * (`create` says its own failures). It resolves once the part is open, or has said why not.
+ * the starter into its folder, open its Overview beside its new chat at once, build the part, and
+ * swap to the part, by its document id, once it is built. A starter that can't be written, or doesn't
+ * build, leaves the project made, as it is, on its Overview, where Start a part by hand tries again;
+ * `failed` says it was made and why its part was not (a build's own error), with a way to build it
+ * again (`retry`). Anything that stops the project being made says so (`create` says its own
+ * failures). It resolves once the part is open, or has said why not.
  */
 export async function makeNewPart<Ref>(steps: {
   /** Every project's name, and Trash's. */
@@ -198,7 +199,7 @@ export async function makeNewPart<Ref>(steps: {
   readonly openPart: (ref: Ref, id: string) => void;
   /** Opens the project's Overview beside the chat. */
   readonly openProject: (ref: Ref) => void;
-  readonly failed: (title: string, error: unknown) => void;
+  readonly failed: (title: string, error: unknown, retry?: () => void) => void;
 }): Promise<void> {
   let name: string;
   try {
@@ -225,6 +226,7 @@ export async function makeNewPart<Ref>(steps: {
       },
       show: (ref) => {
         starter.chat = { ref };
+        steps.openProject(ref);
       },
     });
   } catch (error) {
@@ -232,19 +234,23 @@ export async function makeNewPart<Ref>(steps: {
     return;
   }
   const opened = starter.chat;
-  if (starter.script === null) {
-    if (opened !== null) steps.openProject(opened.ref);
+  const script = starter.script;
+  if (script === null) {
     if (starter.error !== null) {
       steps.failed(`Made ${name}, but its starter part could not be written`, starter.error);
     }
     return;
   }
   if (opened === null) return;
-  const built = await steps.build(opened.ref, starter.script);
-  if ("id" in built) {
-    steps.openPart(opened.ref, built.id);
-    return;
-  }
-  steps.openProject(opened.ref);
-  steps.failed(`Made ${name}, but its part did not build`, new Error(built.error));
+  const build = async (): Promise<void> => {
+    const built = await steps.build(opened.ref, script);
+    if ("id" in built) {
+      steps.openPart(opened.ref, built.id);
+      return;
+    }
+    steps.failed(`Made ${name}, but its part did not build`, new Error(built.error), () => {
+      void build();
+    });
+  };
+  await build();
 }

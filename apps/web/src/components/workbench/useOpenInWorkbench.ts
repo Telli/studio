@@ -8,6 +8,7 @@ import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { agentViewSurface, pluginAppSurface } from "../plugins/pluginSurfaces";
 import { rememberRecentFile } from "./recentFiles";
+import { knownModelTitle } from "./useFolderModels";
 import { sameFile, surfaceFile } from "./sameFile";
 
 /**
@@ -56,8 +57,11 @@ export function openDocumentInPanel(
   plugins: Parameters<typeof pluginFileHandlers>[0] | undefined,
   threadRef: ScopedThreadRef,
   id: string,
+  title?: string,
 ): boolean {
   const panels = useRightPanelStore.getState();
+  // Home's Recent lists it by its name: an id says nothing of what it is.
+  rememberRecentFile(threadRef, id, title ?? knownModelTitle(id));
   for (const plugin of plugins ?? []) {
     if (!plugin.enabled) continue;
     const view = plugin.views.find((candidate) => candidate.tool === DOCUMENT_VIEW_TOOL);

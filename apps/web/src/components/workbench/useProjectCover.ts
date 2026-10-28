@@ -3,7 +3,9 @@ import { useMemo } from "react";
 
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
-import { groupProjectFiles } from "./projectFiles";
+import { groupFiles, groupProjectFiles, type ProjectFile } from "./projectFiles";
+import { folderFiles, pictureVersions, type ProjectModel } from "./projectModels";
+import { useFolderModels } from "./useFolderModels";
 import { usePictures } from "./usePictures";
 
 /** The kinds of file that can picture a project, in the order one is chosen. */
@@ -11,17 +13,32 @@ const COVER_GROUPS = ["CAD", "Electronics", "Drawings", "Analysis"] as const;
 const IN_ASSEMBLIES = /(?:^|\/)assembl/i;
 
 /**
- * The file that pictures a project: its first assembly (the whole product), else its first part,
- * else its first board, drawing or study; the file its picture is rendered from (a SolidCraft
- * design's STEP). Null when it has nothing to picture yet.
+ * The file that pictures a project: its first assembly (the whole product), else its first part
+ * (a cadgen 0.8 model among them, by its document id), else its first board, drawing or study;
+ * the file its picture is rendered from (a SolidCraft design's STEP). Null when it has nothing to
+ * picture yet.
  */
-export function projectCover(paths: ReadonlyArray<string>): string | null {
-  const groups = groupProjectFiles(paths);
+export function projectCover(
+  paths: ReadonlyArray<string>,
+  models: ReadonlyArray<ProjectModel> = [],
+): string | null {
+  const cover = coverFile(paths, models);
+  return cover === null ? null : (cover.picture ?? cover.path);
+}
+
+function coverFile(
+  paths: ReadonlyArray<string>,
+  models: ReadonlyArray<ProjectModel>,
+): ProjectFile | null {
+  const groups = groupFiles(folderFiles(paths, models));
   const files = COVER_GROUPS.flatMap(
     (group) => groups.find((entry) => entry.group === group)?.files ?? [],
   );
-  const cover = files.find((file) => IN_ASSEMBLIES.test(file.folder)) ?? files[0];
-  return cover === undefined ? null : (cover.picture ?? cover.path);
+  return (
+    files.find((file) => file.kind === "Assembly" || IN_ASSEMBLIES.test(file.folder)) ??
+    files[0] ??
+    null
+  );
 }
 
 /**
@@ -41,14 +58,19 @@ function useCoverFile(environmentId: EnvironmentId, project: StudioProject | nul
   const listing = useEnvironmentQuery(
     cwd === "" ? null : projectEnvironment.listEntries({ environmentId, input: { cwd } }),
   );
-  const { cover, page } = useMemo(() => {
+  const models = useFolderModels(environmentId, cwd);
+  const { cover, page, versions } = useMemo(() => {
     const paths = (listing.data?.entries ?? [])
       .filter((entry) => entry.kind === "file" && entry.ignored !== true)
       .map((entry) => entry.path);
-    const coverFile = projectCover(paths);
-    return { cover: coverFile, page: coverFile === null ? projectPage(paths) : null };
-  }, [listing.data]);
-  return { cwd, cover, page };
+    const file = coverFile(paths, models);
+    return {
+      cover: file === null ? null : (file.picture ?? file.path),
+      page: file === null ? projectPage(paths) : null,
+      versions: file === null ? {} : pictureVersions([file]),
+    };
+  }, [listing.data, models]);
+  return { cwd, cover, page, versions };
 }
 
 /** The page that stands for a project with nothing to picture (`projectPage`), by its folder. */
@@ -76,7 +98,12 @@ export function useProjectCover(
   environmentId: EnvironmentId,
   project: StudioProject | null,
 ): string | undefined {
-  const { cwd, cover } = useCoverFile(environmentId, project);
-  const pictures = usePictures({ environmentId, cwd, paths: cover === null ? [] : [cover] });
+  const { cwd, cover, versions } = useCoverFile(environmentId, project);
+  const pictures = usePictures({
+    environmentId,
+    cwd,
+    paths: cover === null ? [] : [cover],
+    versions,
+  });
   return cover === null ? undefined : pictures.get(cover);
 }

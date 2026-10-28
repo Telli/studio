@@ -1,6 +1,6 @@
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { STUDIO_PROJECT_KINDS } from "@t3tools/shared/studioProjects";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import { useRightPanelStore } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
@@ -24,6 +24,7 @@ import { showOverview } from "./overviewPanel";
 import { setSimpleView } from "./simpleView";
 import { useCreateStudioProject } from "./useCreateStudioProject";
 import { useOneAtATime } from "./useOneAtATime";
+import { modelsChanged } from "./useFolderModels";
 import { openDocumentInPanel } from "./useOpenInWorkbench";
 import { useEnvironmentCadService } from "./useVersions";
 
@@ -35,8 +36,29 @@ const newPartsUnderWay = new Map<string, Promise<void>>();
 /** Each project folder's added part under way, the same. */
 const addedPartsUnderWay = new Map<string, Promise<void>>();
 
-const failedToast = (title: string, error: unknown) =>
-  toastManager.add({ type: "error", title, description: plainError(error) });
+/** A failure's toast; with `retry`, its Build again. */
+const failedToast = (title: string, error: unknown, retry?: () => void) => {
+  const id = toastManager.add({
+    type: "error",
+    title,
+    description: plainError(error),
+    ...(retry === undefined
+      ? {}
+      : {
+          actionProps: {
+            children: "Build again",
+            onClick: () => {
+              toastManager.close(id);
+              retry();
+            },
+          },
+        }),
+  });
+};
+
+/** How long a first build waits for Studio's CAD tools to come on (they start with the app). */
+const TOOLS_WAIT_MS = 60_000;
+const TOOLS_POLL_MS = 500;
 
 /** A path inside a folder, absolute as the folder is (Windows takes the forward slash too). */
 const inside = (folder: string, path: string) => `${folder.replace(/[\\/]+$/, "")}/${path}`;
@@ -53,6 +75,9 @@ function useStarterSteps(environmentId: EnvironmentId | null) {
     environmentId === null ? null : pluginEnvironment.list({ environmentId, input: {} }),
   ).data?.plugins;
   const service = useEnvironmentCadService(environmentId);
+  // The build reads the service as it is when it asks, so one started while the tools come on waits.
+  const current = useRef(service);
+  current.current = service;
   const writeStarter = useCallback(
     async (input: { readonly cwd: string; readonly folder: string; readonly stem: string }) => {
       const path = `${input.folder}/${input.stem}.py`;
@@ -66,13 +91,23 @@ function useStarterSteps(environmentId: EnvironmentId | null) {
     },
     [environmentId, write],
   );
-  const build = useCallback(
-    async (script: string): Promise<BuiltPart> =>
-      service === null
-        ? { error: "Studio's CAD tools are not on yet: open the part once they are." }
-        : buildPart({ post: service, script }),
-    [service],
-  );
+  const build = useCallback(async (script: string): Promise<BuiltPart> => {
+    const deadline = Date.now() + TOOLS_WAIT_MS;
+    while (current.current === null && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, TOOLS_POLL_MS));
+    }
+    const post = current.current;
+    if (post === null) {
+      return {
+        error:
+          "Studio's CAD tools did not start. Turn text-to-cad on in Settings, Plugins, then press Build again.",
+      };
+    }
+    const built = await buildPart({ post, script });
+    // Home's tiles, ⌘K and the Overview list it now.
+    if ("id" in built) modelsChanged();
+    return built;
+  }, []);
   const open = useCallback(
     (threadRef: ScopedThreadRef, id: string) => {
       setSimpleView(false);
@@ -177,9 +212,17 @@ export function useAddPart(
       return run(`${environmentId}\n${cwd}\n${folder}`, async () => {
         try {
           const stem = freePartStem(partStem(input.name), await filesIn(folder));
-          const built = await build(await writeStarter({ cwd, folder, stem }));
-          if ("id" in built) open(threadRef, built.id);
-          else failedToast(`Made ${stem}.py, but it did not build`, new Error(built.error));
+          const script = await writeStarter({ cwd, folder, stem });
+          const attempt = async (): Promise<void> => {
+            const built = await build(script);
+            if ("id" in built) open(threadRef, built.id);
+            else {
+              failedToast(`Made ${stem}.py, but it did not build`, new Error(built.error), () => {
+                void attempt();
+              });
+            }
+          };
+          await attempt();
         } catch (error) {
           failedToast("Could not make the part", error);
         }

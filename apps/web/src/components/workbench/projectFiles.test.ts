@@ -88,6 +88,12 @@ describe("project files", () => {
       title: "Sketch",
       kind: "Image",
     });
+    // A cadgen 0.8 document saved as a file (`@xbf`, or exported) is a part like a STEP.
+    expect(classifyProjectFile("parts/XBF/l_bracket.xbf")).toMatchObject({
+      title: "L bracket",
+      kind: "Part",
+      group: "CAD",
+    });
     expect(classifyProjectFile("out/l_bracket.nc")?.kind).toBe("G-code");
     expect(classifyProjectFile("parts/src/l_bracket.py")).toBeNull();
   });

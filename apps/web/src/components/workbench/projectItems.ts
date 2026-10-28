@@ -1,7 +1,7 @@
 import { overviewParts } from "./checkResults";
 import { partLabel } from "./partNames";
-import { classifyProjectFile, type ProjectFile, type ProjectGroup } from "./projectFiles";
-import { type ProjectModel, withModels } from "./projectModels";
+import type { ProjectFile, ProjectGroup } from "./projectFiles";
+import { folderFiles, type ProjectModel } from "./projectModels";
 
 /**
  * The types the Overview's list of a project's files filters by, as Google Drive filters a folder
@@ -79,12 +79,8 @@ export function projectFileItems(
 ): FileItem[] {
   const items: FileItem[] = [];
   for (const folder of folders) {
-    const files = withModels(
-      (folder.paths ?? [])
-        .map(classifyProjectFile)
-        .filter((file): file is ProjectFile => file !== null)
-        .filter((file) => !/^readme\.md$/i.test(file.path)),
-      folder.models,
+    const files = folderFiles(folder.paths ?? [], folder.models).filter(
+      (file) => !/^readme\.md$/i.test(file.path),
     );
     for (const file of overviewParts(files)) {
       items.push({ root: folder.root, file, label: labelOf(file) });

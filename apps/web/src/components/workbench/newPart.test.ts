@@ -138,6 +138,23 @@ describe("a new part's first build", () => {
       await run(service([{ ok: true }, { ok: true, partBuilt: false, partBuilding: false }]).post),
     ).toEqual({ error: "The part's build ended with no model." });
   });
+
+  it("gives up on a build that outlasts the CAD service's own limit", async () => {
+    let clock = 0;
+    const building = { ok: true, partBuilt: false, partBuilding: true };
+    const cad = service([{ ok: true }, ...Array.from({ length: 10 }, () => building)]);
+    const built = await buildPart({
+      post: cad.post,
+      script: "/p/parts/part.py",
+      wait: async () => {
+        clock += 100_000;
+      },
+      now: () => clock,
+    });
+    expect(built).toEqual({ error: "The part took too long to build." });
+    // Asked while the limit had not passed: at 0, 100, 200 and 300 seconds, then 400 is past 330.
+    expect(cad.asked.filter((ask) => ask.path === "/__cad/edit/state")).toHaveLength(5);
+  });
 });
 
 describe("New part, step by step", () => {
@@ -147,9 +164,10 @@ describe("New part, step by step", () => {
   function run(
     write: (folder: string) => Promise<string>,
     names: ReadonlyArray<string> = [],
-    built: BuiltPart = { id },
+    builds: ReadonlyArray<BuiltPart> = [{ id }],
   ) {
     const seen: string[] = [];
+    let next = 0;
     const done = makeNewPart<string>({
       names: async () => names,
       create: async ({ name, onFolder, show }) => {
@@ -161,29 +179,39 @@ describe("New part, step by step", () => {
       writeStarter: write,
       build: async (ref, script) => {
         seen.push(`built ${script} for ${ref}`);
-        return built;
+        return builds[next++] ?? { id };
       },
       openPart: (ref, part) => seen.push(`${part} beside ${ref}`),
       openProject: (ref) => seen.push(`overview beside ${ref}`),
-      failed: (title, error) => seen.push(`${title}: ${(error as Error).message}`),
+      failed: (title, error, retry) => {
+        seen.push(`${title}: ${(error as Error).message}`);
+        // Its Build again, pressed once.
+        if (retry !== undefined && next === 1) retry();
+      },
     });
     return done.then(() => seen);
   }
 
-  it("makes the project past the names taken, builds its part, and opens it by its id", async () => {
+  it("opens the project at once, builds its part, then swaps to it by its id", async () => {
     expect(await run(written, ["Untitled part"])).toEqual([
       "made Untitled part 2",
+      "overview beside chat",
       "built /projects/untitled-part/parts/part.py for chat",
       `${id} beside chat`,
     ]);
   });
 
-  it("opens the project and says the build's error when its part doesn't build", async () => {
-    expect(await run(written, [], { error: "part.py: the build failed" })).toEqual([
+  it("stays on the project and says the build's error, with Build again, when its part doesn't build", async () => {
+    const seen = await run(written, [], [{ error: "part.py: the build failed" }, { id }]);
+    // Build again's own build settles after `makeNewPart` does.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(seen).toEqual([
       "made Untitled part",
-      "built /projects/untitled-part/parts/part.py for chat",
       "overview beside chat",
+      "built /projects/untitled-part/parts/part.py for chat",
       "Made Untitled part, but its part did not build: part.py: the build failed",
+      "built /projects/untitled-part/parts/part.py for chat",
+      `${id} beside chat`,
     ]);
   });
 

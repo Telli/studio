@@ -28,7 +28,7 @@ import {
 import { KIND_ICONS } from "./kinds";
 import { humanName, partName } from "./partNames";
 import { leadPartOf } from "./leadPart";
-import { pictureVersions, withModels } from "./projectModels";
+import { folderFiles, pictureVersions } from "./projectModels";
 import { type FolderPart, MadeBadges, PartFooter, PartIcon } from "./PartBadges";
 import {
   CARD_GRID,
@@ -42,7 +42,6 @@ import {
   useFoldedModules,
 } from "./OverviewModules";
 import {
-  classifyProjectFile,
   DESIGN_GROUPS,
   filePlaces,
   groupProjectFiles,
@@ -57,7 +56,7 @@ import { ProjectThreads } from "./ProjectThreads";
 import { useEngineeringInterface } from "./studioInterface";
 import { usePictures } from "./usePictures";
 import { useProjectChecks } from "./useProjectChecks";
-import { useProjectModels } from "./useProjectModels";
+import { useProjectModels } from "./useFolderModels";
 import { projectChats } from "./workspaceTitle";
 
 const STATUS_ORDER: Record<CheckStatus | "none", number> = {
@@ -312,12 +311,7 @@ export function ProjectOverview(props: {
 
   const { byFolder, issues, checked, reading } = useMemo(() => {
     const byFolder = folders.map((folder) => {
-      const files = withModels(
-        (folder.paths ?? [])
-          .map(classifyProjectFile)
-          .filter((file): file is ProjectFile => file !== null),
-        folder.models,
-      );
+      const files = folderFiles(folder.paths ?? [], folder.models);
       const designs = overviewParts(files);
       const made = manufacturingFor(designs, files);
       const parts = designs

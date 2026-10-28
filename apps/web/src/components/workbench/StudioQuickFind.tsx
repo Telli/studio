@@ -46,6 +46,8 @@ import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } fr
 import { homeRecent } from "./recentActivity";
 import { useRecentFiles } from "./recentFiles";
 import { useAskNewProject } from "./StudioNew";
+import { pictureVersions } from "./projectModels";
+import { useProjectModels } from "./useFolderModels";
 import { useFolderPaths } from "./useFolderPaths";
 import { showChat } from "./overviewPanel";
 import { openInPanel } from "./useOpenInWorkbench";
@@ -80,6 +82,7 @@ function PartThumb(props: {
     environmentId: props.environmentId,
     cwd: props.root,
     paths: [path],
+    versions: pictureVersions([props.file]),
   }).get(path);
   return (
     <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
@@ -160,6 +163,11 @@ function QuickFindBody(props: {
     environmentId,
     useMemo(() => owners.map(([root]) => root), [owners]),
   );
+  // Each folder's cadgen 0.8 models, among its parts by their document ids.
+  const models = useProjectModels({
+    environmentId,
+    folders: useMemo(() => owners.map(([root]) => root), [owners]),
+  });
   const parts = useMemo(
     () =>
       folderParts<ListedProject | null>(
@@ -167,9 +175,10 @@ function QuickFindBody(props: {
           project: owners[index]?.[1] ?? null,
           root: listing.root,
           paths: listing.paths,
+          models: models.get(listing.root) ?? [],
         })),
       ),
-    [listings, owners],
+    [listings, models, owners],
   );
   const docs = useMemo(
     () =>
@@ -205,7 +214,9 @@ function QuickFindBody(props: {
   };
   const openPart = (found: FoundPart<ListedProject | null>) => {
     close();
-    const full = `${found.root}/${found.file.path}`;
+    // A cadgen 0.8 model opens by its document id, whichever folder holds its script.
+    const full =
+      found.file.document !== undefined ? found.file.path : `${found.root}/${found.file.path}`;
     if (workspace !== null && inHere(found)) {
       const path = studioFolderKey(found.root) === here ? found.file.path : full;
       openInPanel(plugins, workspace.threadRef, path);
@@ -330,7 +341,9 @@ function QuickFindBody(props: {
               : {
                   value: `recent:file:${item.thread.id}\n${item.file.path}`,
                   icon: <FileKindIcon path={item.file.path} className="size-4" />,
-                  title: partLabel(item.file.path.split(/[\\/]/).pop() ?? item.file.path),
+                  title:
+                    item.file.title ??
+                    partLabel(item.file.path.split(/[\\/]/).pop() ?? item.file.path),
                   description,
                   run: go(() => {
                     openInPanel(plugins, ref, item.file.path);

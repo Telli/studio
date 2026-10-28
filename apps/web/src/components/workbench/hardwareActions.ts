@@ -94,8 +94,8 @@ export interface HardwareAction {
   readonly section: string;
   readonly label: string;
   /**
-   * What you get: what its skill makes, one line under the label in its menu, in the voice of its
-   * library entry's "You get" (`libraryCatalog.ts`). A sentence of at most 100 characters.
+   * What you get: what its skill makes, its Toolbox tile's tooltip, in the voice of its library
+   * entry's "You get" (`libraryCatalog.ts`). A sentence of at most 100 characters.
    */
   readonly gets: string;
   /** The text-to-cad skill the job runs on; null for one any agent can do. */

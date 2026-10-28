@@ -127,8 +127,8 @@ describe("hardware actions", () => {
   });
 
   it("says what every job makes", () => {
-    // One line under the job's name in its menu: a sentence, at most 100 characters (3D PMI's,
-    // which names model-based definition and AP242, is the longest).
+    // Its tile's tooltip: a sentence, at most 100 characters (3D PMI's, which names model-based
+    // definition and AP242, is the longest).
     const unsaid = HARDWARE_ACTIONS.filter(
       (action) => !/^\S.*\.$/.test(action.gets) || action.gets.length > 100,
     );

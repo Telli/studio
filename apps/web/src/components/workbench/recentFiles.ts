@@ -5,9 +5,11 @@ import { useSyncExternalStore } from "react";
 export interface RecentFile {
   readonly environmentId: string;
   readonly threadId: string;
-  /** As it was opened: in the chat's folder, or a full path. */
+  /** As it was opened: in the chat's folder, or a full path; a cadgen 0.8 model's document id. */
   readonly path: string;
   readonly at: string;
+  /** What it is called, where its path does not say: a model's name. */
+  readonly title?: string;
 }
 
 const KEY = "studio:recent-files";
@@ -49,12 +51,13 @@ const listeners = new Set<() => void>();
 const snapshot = () => (current ??= readRecentFiles());
 
 /** Remembers a file opened beside a chat (`openInPanel`), for Home's Recent. */
-export function rememberRecentFile(threadRef: ScopedThreadRef, path: string): void {
+export function rememberRecentFile(threadRef: ScopedThreadRef, path: string, title?: string): void {
   current = withRecentFile(readRecentFiles(), {
     environmentId: threadRef.environmentId,
     threadId: threadRef.threadId,
     path,
     at: new Date().toISOString(),
+    ...(title === undefined ? {} : { title }),
   });
   for (const listener of listeners) listener();
   try {
