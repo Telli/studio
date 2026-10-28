@@ -117,6 +117,9 @@ jobs:
           npm run build:packages
 
       - name: Build Studio for Windows
+        # The desktop build prints each command's own output, so a failed step says why.
+        env:
+          T3CODE_DESKTOP_VERBOSE: "1"
         run: bash scripts/build-studio-app.sh "$VERSION"
 
       - name: Install it and check the CAD tools run
