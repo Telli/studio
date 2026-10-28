@@ -564,7 +564,7 @@ class _Builds:
             with self._lock:
                 if self._running is process:
                     self._running = None
-        return None if process.returncode == 0 else " ".join((said or "").strip().splitlines()[-2:]) or "the build failed"
+        return None if process.returncode == 0 else _last_said(said) or "the build failed"
 
     def _work(self) -> None:
         while True:
@@ -581,6 +581,13 @@ class _Builds:
                     if error:
                         self.status["error"] = f"{script.name}: {error}"
                     self.status["done"] += 1
+
+
+def _last_said(said: str | None) -> str:
+    """A failed build's last two lines, as one: its traceback's marker lines (only spaces, ``^`` and ``~``, under the
+    code they point at) and blank ones left out, and each line's indent with them."""
+    lines = [line.strip() for line in (said or "").splitlines() if line.strip(" \t^~")]
+    return " ".join(lines[-2:])
 
 
 def _end(process: subprocess.Popen | None) -> None:

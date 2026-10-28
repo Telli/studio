@@ -948,6 +948,25 @@ class ModelsOfTheEngine(unittest.TestCase):
         self.assertIn("broken.py: ", status["error"])
         self.assertIn("the wall is thicker than the part", status["error"])
 
+    def test_a_failed_build_says_its_error_without_the_tracebacks_markers(self):
+        # A build that fails as Python 3.13 says a NameError: the line, the marker line under it, the error.
+        folder = Path(tempfile.mkdtemp(prefix="edit-marked-"))
+        self.addCleanup(shutil.rmtree, folder, True)
+        python = folder / "python"
+        python.write_text("#!/bin/sh\ncat >&2 <<'SAID'\n  File \"plate.py\", line 7, in plate\n"
+                          "    return Box(40, 20, HEIGHTT)\n                       ^^^^^^^\n"
+                          "NameError: name 'HEIGHTT' is not defined\n   \nSAID\nexit 1\n", encoding="utf-8")
+        python.chmod(0o755)
+        service = edit.EditService(str(python))
+        self.addCleanup(service.close)
+        service.rebuild(self.root, "plate.py")
+        deadline = time.monotonic() + 60
+        while service.building()["done"] < 1 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        # Each script that uses plate.py was built; the error names the last one to fail.
+        self.assertRegex(service.building()["error"],
+                         r"^\w+\.py: return Box\(40, 20, HEIGHTT\) NameError: name 'HEIGHTT' is not defined$")
+
     def test_closing_the_service_ends_the_build_it_started(self):
         # A build that never ends: the service's python stands in for one, by the process it starts.
         folder = Path(tempfile.mkdtemp(prefix="edit-slow-"))
