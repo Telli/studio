@@ -132,6 +132,8 @@ vi.mock("react", () => ({
   useMemo: <T>(factory: () => T) => factory(),
 }));
 vi.mock("../components/Sidebar.logic", () => ({ orderItemsByPreferredIds: () => [] }));
+const panels = vi.hoisted(() => ({ setMaximized: vi.fn() }));
+vi.mock("../rightPanelStore", () => ({ useRightPanelStore: { getState: () => panels } }));
 vi.mock("../composerDraftStore", () => {
   const useComposerDraftStore = Object.assign(() => null, {
     getState: () => testState.draftStore,
@@ -220,6 +222,22 @@ describe.each([
       );
     },
   );
+
+  it("brings the chat it opens out from under a panel spread across the window", async () => {
+    testState.reset(draft);
+    panels.setMaximized.mockClear();
+    const pendingOpen = useNewThreadHandler()({
+      environmentId: "environment-ssh",
+      projectId: "project-remote",
+    } as never);
+    testState.completeProjectFileRead(null);
+    const opened = await pendingOpen;
+
+    expect(panels.setMaximized).toHaveBeenCalledWith(
+      { environmentId: "environment-ssh", threadId: opened!.threadId },
+      false,
+    );
+  });
 
   it("abandons a delayed draft open when the user navigates elsewhere", async () => {
     testState.reset(draft);

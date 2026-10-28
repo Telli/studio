@@ -37,7 +37,8 @@ import { studioNavSection } from "./studioNav";
 import { useProjectHeading } from "./StudioWorkspaceBar";
 import { useOpenChat } from "./useOpenChat";
 import { useRememberOpened } from "./useOpenProject";
-import { useProjectChats } from "./useProjectChats";
+import { useProjectChats, useProjectRefs } from "./useProjectChats";
+import { UnsentChatRows, useUnsentChats } from "./UnsentChats";
 
 // A quiet label over a list, as Claude's and Codex's sidebars head their recents.
 const headingClass = "text-xs font-medium text-muted-foreground";
@@ -110,6 +111,12 @@ function ProjectPanel(props: {
   const project: EnvironmentProject | null = useProject(scopeProjectRef(environmentId, folderId));
   const { folder, title } = useProjectHeading(environmentId, project);
   const chats = useProjectChats(environmentId, project);
+  // Chats begun and left unsent for another (New chat over one with text in it), listed first.
+  const currentDraftId = useParams({
+    strict: false,
+    select: (params) => ("draftId" in params ? (params.draftId ?? null) : null),
+  });
+  const unsent = useUnsentChats(useProjectRefs(environmentId, project), currentDraftId);
   const folded = useChatScopeStore((store) => store.folded);
   const toggleFolded = useChatScopeStore((store) => store.toggleFolded);
   // A new chat has no thread in the address yet; the workspace's own ref covers it too.
@@ -193,10 +200,15 @@ function ProjectPanel(props: {
             />
           </button>
         </div>
-        {folded ? null : chats.length === 0 ? (
+        {folded ? null : chats.length === 0 && unsent.length === 0 ? (
           <p className={emptyClass}>No chats yet. This one is the first.</p>
         ) : (
-          <ChatRows chats={chats} currentId={threadRef?.threadId ?? null} onOpen={openChat} />
+          <>
+            {unsent.length === 0 ? null : <UnsentChatRows chats={unsent} />}
+            {chats.length === 0 ? null : (
+              <ChatRows chats={chats} currentId={threadRef?.threadId ?? null} onOpen={openChat} />
+            )}
+          </>
         )}
       </div>
     </SidebarGroup>

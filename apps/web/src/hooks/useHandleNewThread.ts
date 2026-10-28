@@ -37,6 +37,7 @@ import {
 } from "../lib/chatThreadActions";
 import { readT3ProjectFile } from "../lib/t3ProjectFileDefaults";
 import { environmentServerConfigsAtom } from "../state/server";
+import { useRightPanelStore } from "../rightPanelStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { legacyProjectCwdPreferenceKey, useUiStateStore } from "../uiStateStore";
 import { useClientSettings } from "./useSettings";
@@ -69,7 +70,7 @@ export function useNewThreadHandler() {
     return resolveThreadRouteTarget(currentRouteParams);
   }, [router]);
 
-  return useCallback(
+  const create = useCallback(
     (
       projectRef: ScopedProjectRef,
       options?: {
@@ -446,6 +447,19 @@ export function useNewThreadHandler() {
       })();
     },
     [environmentServerConfigs, getCurrentRouteTarget, projectGroupingSettings, router],
+  );
+  // A new chat comes out from under a panel spread across the window (Studio's Overview over the
+  // project's empty chat, which a new chat reuses), so the chat it asked for shows.
+  return useCallback(
+    async (...args: Parameters<typeof create>) => {
+      const made = await create(...args);
+      if (made !== null)
+        useRightPanelStore
+          .getState()
+          .setMaximized(scopeThreadRef(args[0].environmentId, made.threadId), false);
+      return made;
+    },
+    [create],
   );
 }
 

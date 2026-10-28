@@ -11,18 +11,12 @@ import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
 import { useStudioProjectAt } from "./useStudioProjects";
 import { projectChats } from "./workspaceTitle";
 
-/**
- * Every chat of the project a folder belongs to, across all its folders, newest first, archived
- * ones left out. A folder in no project has only its own.
- */
-export function useProjectChats(
-  environmentId: EnvironmentId,
-  project: EnvironmentProject | null,
-): EnvironmentThreadShell[] {
+/** The projects of every folder of the project a folder belongs to; a folder in no project, its own. */
+export function useProjectRefs(environmentId: EnvironmentId, project: EnvironmentProject | null) {
   const folder = project?.workspaceRoot ?? null;
   const studio = useStudioProjectAt(environmentId, folder);
   const knownFolders = useEnvironmentFolders(environmentId);
-  const refs = useMemo(() => {
+  return useMemo(() => {
     const records =
       studio === null
         ? project === null
@@ -31,5 +25,15 @@ export function useProjectChats(
         : studio.project.folders.flatMap((path) => folderProject(knownFolders, path) ?? []);
     return records.map((record) => scopeProjectRef(environmentId, record.id));
   }, [studio, project, knownFolders, environmentId]);
-  return projectChats(useThreadShellsForProjectRefs(refs));
+}
+
+/**
+ * Every chat of the project a folder belongs to, across all its folders, newest first, archived
+ * ones left out. A folder in no project has only its own.
+ */
+export function useProjectChats(
+  environmentId: EnvironmentId,
+  project: EnvironmentProject | null,
+): EnvironmentThreadShell[] {
+  return projectChats(useThreadShellsForProjectRefs(useProjectRefs(environmentId, project)));
 }
