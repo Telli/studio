@@ -114,7 +114,7 @@ describe("copying an example", () => {
       "chat: overview",
       "building",
       "chat: build /projects/motor/parts/plate.py",
-      "failed: Made Motor mount plate, but its model did not build: NameError: WIDTH (Build again)",
+      "failed: Made Motor mount plate, but its part did not build: NameError: WIDTH (Build again)",
     ]);
     // Any other file opens as it is, with nothing built.
     done.length = 0;

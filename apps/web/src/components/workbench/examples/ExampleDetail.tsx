@@ -46,7 +46,7 @@ function ExampleContent(props: {
           input: { cwd: example.sample.path, relativePath: "README.md" },
         }),
   );
-  // Under way: copying the example, then building the model it opens on.
+  // Under way: copying the example, then building the part it opens on.
   const [copying, setCopying] = useState<"copying" | "building" | null>(null);
 
   if (!loaded) return null;
@@ -93,7 +93,7 @@ function ExampleContent(props: {
             {copying === "copying"
               ? "Copying…"
               : copying === "building"
-                ? "Building the model…"
+                ? "Building the part…"
                 : "Make a copy to edit"}
           </Button>
           <span className="text-xs text-muted-foreground">

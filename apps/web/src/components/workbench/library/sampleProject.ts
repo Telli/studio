@@ -83,7 +83,7 @@ export async function copyThenOpen<Ref>(steps: {
   await buildThenSwap({
     ref: made.chat.ref,
     script: `${made.folder.replace(/[\\/]+$/, "")}/${steps.file}`,
-    failedTitle: `Made ${steps.name}, but its model did not build`,
+    failedTitle: `Made ${steps.name}, but its part did not build`,
     build: steps.build,
     openPart: steps.openPart,
     failed: steps.failed,

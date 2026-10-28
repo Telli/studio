@@ -57,7 +57,7 @@ export const failedToast = (title: string, error: unknown, retry?: () => void) =
   });
 };
 
-/** How long a first build waits for Studio's CAD tools to come on (they start with the app). */
+/** How long a first build waits for Studio's CAD service to come on (it starts with the app). */
 const TOOLS_WAIT_MS = 60_000;
 const TOOLS_POLL_MS = 500;
 
@@ -66,7 +66,7 @@ const inside = (folder: string, path: string) => `${folder.replace(/[\\/]+$/, ""
 
 /**
  * Builds a part's script (absolute) through Studio's CAD service (`buildPart`, the environment's
- * server: a new chat is still a draft), waiting first for the CAD tools while they come on with the
+ * server: a new chat is still a draft), waiting first for the CAD service while it comes on with the
  * app; a built part is listed on Home, ⌘K and the Overview at once. New part's build, and a copied
  * example's.
  */
@@ -84,7 +84,7 @@ export function useBuildPart(environmentId: EnvironmentId | null) {
     if (post === null) {
       return {
         error:
-          "Studio's CAD tools did not start. Turn text-to-cad on in Settings, Plugins, then press Build again.",
+          "Studio's CAD service did not start. Turn text-to-cad on in Settings, Plugins, then press Build again.",
       };
     }
     const built = await buildPart({ post, script });
@@ -226,7 +226,7 @@ export function useAddPart(
           await buildThenSwap({
             ref: threadRef,
             script,
-            failedTitle: `Made ${stem}.py, but it did not build`,
+            failedTitle: `Made ${stem}.py, but its part did not build`,
             build: (_ref, path) => build(path),
             openPart: open,
             failed: failedToast,

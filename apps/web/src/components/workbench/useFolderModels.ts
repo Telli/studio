@@ -125,7 +125,7 @@ export const knownModelTitle = (id: string) => store.title(id);
 export const knownModelScript = (id: string) => store.script(id);
 
 /**
- * Each of `folders`' models, by folder: empty until first read, and where the CAD tools are off;
+ * Each of `folders`' models, by folder: empty until first read, and where the CAD service is off;
  * the last read while a newer one is under way. Pass the thread's `mutationId` where there is one:
  * an agent's change to the files reads them again, for every list.
  */
