@@ -10,7 +10,8 @@ import { create } from "zustand";
 export interface OpenWorkspace {
   readonly threadRef: ScopedThreadRef;
   readonly folder: string;
-  readonly part: { readonly path: string; readonly kind: string } | null;
+  /** `name`: what the part is called, where its viewer or the project's list says it. */
+  readonly part: { readonly path: string; readonly kind: string; readonly name?: string } | null;
   /** How the project's parts are made, from its setup. */
   readonly process: string | undefined;
 }

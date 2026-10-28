@@ -90,4 +90,17 @@ describe("project folders' models", () => {
     expect(models.models(env, "/p/a")).toHaveLength(2);
     expect(models.title("id-b")).toBe("Bracket");
   });
+
+  it("knows each model's script by its id, absolute in the folder that holds it", async () => {
+    const { store: models, flush } = store();
+    const cad = service();
+    models.want(env, ["/p/a", "/p/b"], cad.get);
+    flush();
+    cad.pending[0]!({
+      roots: { "/p/a": [model("id-a", "plate")], "/p/b": [model("id-b", "horn")] },
+    });
+    await settle();
+    expect(models.script("id-b")).toBe("/p/b/parts/horn.py");
+    expect(models.script("id-c")).toBeUndefined();
+  });
 });

@@ -92,6 +92,15 @@ export function folderModelsStore(schedule: (flush: () => void) => void = queueM
         }
       }
     },
+    /** A model's script, absolute in the folder it was read in; undefined for one not read. */
+    script(id: string): string | undefined {
+      for (const [key, { models }] of read) {
+        const model = models.find((entry) => entry.id === id);
+        if (model !== undefined)
+          return `${key.slice(key.indexOf("\n") + 1).replace(/[\\/]+$/, "")}/${model.script}`;
+      }
+      return undefined;
+    },
     /** What a model read in any folder is called, as the project lists it; undefined for one not read. */
     title(id: string): string | undefined {
       for (const { models } of read.values()) {
@@ -111,6 +120,9 @@ export const modelsChanged = () => store.changed();
 
 /** What a model read in any folder is called, as the project lists it; undefined for one not read. */
 export const knownModelTitle = (id: string) => store.title(id);
+
+/** A model's script, absolute, as a folder it was read in holds it; undefined for one not read. */
+export const knownModelScript = (id: string) => store.script(id);
 
 /**
  * Each of `folders`' models, by folder: empty until first read, and where the CAD tools are off;

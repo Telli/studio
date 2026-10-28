@@ -1,5 +1,4 @@
 import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
-import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { ChevronLeftIcon, PanelRightCloseIcon, PanelRightOpenIcon } from "lucide-react";
 import {
   lazy,
@@ -23,6 +22,7 @@ import { LibraryCard } from "./library/LibraryCard";
 import { LIBRARY_DOCUMENTS } from "./library/libraryCatalog";
 import { handToChat } from "./handToChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
+import { partLink } from "./partLink";
 import { usePartInFront } from "./StudioPanelBar";
 import { SectionJobs } from "./ToolboxJobs";
 import {
@@ -115,7 +115,7 @@ export function StudioToolbox(props: {
 
   const run = (action: HardwareAction) => {
     if (composerRef === null || part === null) return;
-    handToChat(composerRef, action.prompt(serializeComposerFileLink(part.path)));
+    handToChat(composerRef, action.prompt(partLink(part)));
   };
 
   if (folded) {

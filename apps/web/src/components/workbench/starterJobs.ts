@@ -1,8 +1,7 @@
-import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
-
 import type { ProjectBrief } from "./briefFolder";
 import { hardwareActions } from "./hardwareActions";
 import { describePart } from "./partContext";
+import { partLink } from "./partLink";
 import { lowerName } from "./partNames";
 import type { ProjectFile } from "./projectFiles";
 
@@ -49,7 +48,7 @@ export function projectStarters(
       .flatMap((section) => section.actions)
       .filter((action) => action.skill !== null);
     return {
-      link: serializeComposerFileLink(file.path),
+      link: partLink({ path: file.path, name: file.title }),
       name: lowerName(name),
       // A check of how it would be made first, else any check; then a way to make it (an export
       // is a file, not a way to make it).

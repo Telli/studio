@@ -40,6 +40,7 @@ import { useOpenedThreads } from "./openedThreads";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLabel } from "./partNames";
 import { ProjectThumb, projectStanding } from "./ProjectChoices";
+import { partLink } from "./partLink";
 import { classifyProjectFile, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import type { ListedProject } from "./projectList";
 import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
@@ -47,7 +48,7 @@ import { homeRecent } from "./recentActivity";
 import { useRecentFiles } from "./recentFiles";
 import { useAskNewProject } from "./StudioNew";
 import { pictureVersions } from "./projectModels";
-import { useProjectModels } from "./useFolderModels";
+import { knownModelTitle, useProjectModels } from "./useFolderModels";
 import { useFolderPaths } from "./useFolderPaths";
 import { showChat } from "./overviewPanel";
 import { openInPanel } from "./useOpenInWorkbench";
@@ -205,7 +206,14 @@ function QuickFindBody(props: {
     () => (part === null ? [] : hardwareActions(part.kind, skills, process)),
     [part, skills, process],
   );
-  const partTitle = part === null ? null : (classifyProjectFile(part.path)?.title ?? part.path);
+  // A model's id is never a title: its name, as its viewer or the project's list says it.
+  const partTitle =
+    part === null
+      ? null
+      : (part.name ??
+        classifyProjectFile(part.path)?.title ??
+        knownModelTitle(part.path) ??
+        "the part");
 
   // A job, or a new document, starts as New's Create starts it: written into the chat and sent.
   const startWork = (prompt: string) => {
@@ -241,7 +249,7 @@ function QuickFindBody(props: {
             icon: <JobIcon group={action.group} />,
             title: action.label,
             description: place,
-            run: () => startWork(action.prompt(serializeComposerFileLink(part.path))),
+            run: () => startWork(action.prompt(partLink(part))),
           })),
         };
   const shownParts = typed

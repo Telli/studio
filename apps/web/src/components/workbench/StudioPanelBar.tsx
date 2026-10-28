@@ -73,7 +73,7 @@ export function usePartInFront(
   threadRef: ScopedThreadRef,
   folder: string | null,
 ): {
-  readonly part: { readonly path: string; readonly kind: string } | null;
+  readonly part: { readonly path: string; readonly kind: string; readonly name?: string } | null;
   readonly process: string | undefined;
   /** What the viewer in front says of its part (`usePartContext`), when it has said. */
   readonly shown: ReturnType<typeof usePartContext>;
@@ -90,16 +90,17 @@ export function usePartInFront(
   const process = useStudioProjectAt(threadRef.environmentId, folder)?.project.brief.process;
   const shownPath = shown?.part.path ?? null;
   const shownKind = shown?.part.kind ?? null;
+  const shownName = shown?.part.name ?? null;
   const part = useMemo(
     () =>
       frontKind !== "plugin-app"
         ? null
         : shownPath !== null && shownKind !== null
-          ? { path: shownPath, kind: shownKind }
+          ? { path: shownPath, kind: shownKind, ...(shownName === null ? {} : { name: shownName }) }
           : frontFile === null
             ? null
             : { path: frontFile, kind: partName(frontFile)?.kind ?? "Part" },
-    [frontFile, frontKind, shownKind, shownPath],
+    [frontFile, frontKind, shownKind, shownName, shownPath],
   );
   return { part, process, shown };
 }
@@ -139,10 +140,10 @@ export function StudioPanelBar(props: {
   // ⌘K's part: the one the viewer shows, else the project's lead part.
   const subject =
     shown !== null
-      ? { path: shown.part.path, kind: shown.part.kind }
+      ? { path: shown.part.path, kind: shown.part.kind, name: shown.part.name }
       : lead === null
         ? null
-        : { path: lead.file.path, kind: lead.file.kind };
+        : { path: lead.file.path, kind: lead.file.kind, name: lead.file.title };
   // Import beside New, as on Home: files brought into this project's folder.
   const importer = useImportIntoProject(folder, studio?.project.name ?? "the project");
   // The same Import menu as Home's: here Files or a folder copies into this project, and Scan this
@@ -166,6 +167,7 @@ export function StudioPanelBar(props: {
   const setWorkspace = useOpenWorkspaceStore((store) => store.setWorkspace);
   const subjectPath = subject?.path ?? null;
   const subjectKind = subject?.kind ?? null;
+  const subjectName = subject?.name ?? null;
   useEffect(() => {
     if (folder === null) return;
     setWorkspace({
@@ -174,11 +176,15 @@ export function StudioPanelBar(props: {
       part:
         subjectPath === null || subjectKind === null
           ? null
-          : { path: subjectPath, kind: subjectKind },
+          : {
+              path: subjectPath,
+              kind: subjectKind,
+              ...(subjectName === null ? {} : { name: subjectName }),
+            },
       process,
     });
     return () => setWorkspace(null);
-  }, [folder, process, setWorkspace, subjectKind, subjectPath, threadRef]);
+  }, [folder, process, setWorkspace, subjectKind, subjectName, subjectPath, threadRef]);
 
   return (
     // A container, so a narrow panel shows Import as its icon.
