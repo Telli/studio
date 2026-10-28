@@ -7,9 +7,8 @@ relief is the notch where the two flanges' ends meet. The cut file draws the ben
 
 from math import pi
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 from shelf_bracket import (
@@ -44,7 +43,7 @@ SHELF_BEND = -SETBACK + BEND_ALLOWANCE / 2  # the shelf bend's centre line, in Z
 WALL_BEND = SETBACK - BEND_ALLOWANCE / 2  # the wall bend's centre line, in Y
 
 
-@step
+@model
 def shelf_bracket_flat():
     blank = Sketch("Blank", plane="Top")
     relief_side, shelf_edge, tip, brace, bottom, wall_edge, relief_end = blank.polyline(
@@ -92,7 +91,7 @@ def shelf_bracket_flat():
     blank.vertical_distance(hole4.center, hole3.center, WALL_HOLE_SPACING)
     flat = bd.extrude(blank.face(), amount=THICKNESS)
 
-    flat.color = srgb("#A9B0B6")
+    flat.color = "#A9B0B6"
     flat.label = "shelf_bracket_flat"
     return flat
 

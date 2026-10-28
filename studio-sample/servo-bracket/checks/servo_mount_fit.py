@@ -1,6 +1,6 @@
 """Fit and clearance of the servo mount: every pair of its parts checked for overlap and gap, the fits a touching
-joint hides measured on their own, and the horn adapter turned through its travel. Reads the saved
-assemblies/servo_mount.step, writes its findings to assemblies/servo_mount_fit.md beside it, prints them as one JSON
+joint hides measured on their own, and the horn adapter turned through its travel. Calls the mount's model, so it
+checks the mount as it is now, writes its findings to assemblies/servo_mount_fit.md beside it, prints them as one JSON
 line, and exits 1 when a part collides. Run it from anywhere: python checks/servo_mount_fit.py"""
 
 import json
@@ -9,18 +9,21 @@ import sys
 from itertools import combinations
 from pathlib import Path
 
-from cadgen import build123d as bd
-from cadgen import read_scene
+import build123d as bd
 from cadgen.geometry import closest_points, overlap_volume
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSEMBLY = "assemblies/servo_mount.step"
+sys.path.insert(0, str(ROOT / "assemblies"))
+
+from servo_mount import HORN_AXIS as HORN_ORIGIN, servo_mount  # noqa: E402
+
+ASSEMBLY = "assemblies/servo_mount.py"
 FINDINGS = "assemblies/servo_mount_fit.md"
 
 COLLISION_MM3 = 0.01  # an overlap above this, outside the joints listed below, is a collision
 TIGHT_MM = 0.5  # a gap under this is listed as tight
 TOUCH_MM = 1e-4  # parts closer than this touch
-HORN_AXIS = ((9.95, 22.3, 0.0), (0.0, 0.0, 1.0))  # the assembly's `horn` revolute (servo_mount.step.json)
+HORN_AXIS = (HORN_ORIGIN, (0.0, 0.0, 1.0))  # the assembly's `horn` revolute joint: its axis, along +Z
 HORN_TRAVEL = 60.0  # degrees each way
 HORN_STEP = 15.0
 
@@ -64,12 +67,13 @@ def fit(name: str, a, b) -> dict:
 
 
 def main() -> int:
-    scene = read_scene(ROOT / ASSEMBLY)
+    # Every placed part, by its label, with its ref's owner (`servo_mount/mg996r`, as `cadgen inspect` takes it). The
+    # mount stands at the world's origin, so its parts' own coordinates are the world's.
+    mount = servo_mount().shape
     parts = {}
-    for occurrence in scene.leaves():
-        (selection,) = scene.resolve(occurrence.ref)
-        (solid,) = selection.shape().solids()
-        parts[occurrence.label] = (occurrence.ref, solid, selection)
+    for part in mount.children:
+        (solid,) = part.solids()
+        parts[part.label] = (f"{mount.label}/{part.label}", solid, part)
 
     touches, threads, collisions, gaps = [], [], [], []
     for (label_a, (ref_a, a, _)), (label_b, (ref_b, b, _)) in combinations(parts.items(), 2):
@@ -122,7 +126,6 @@ def main() -> int:
     failed = bool(collisions or thread_off or horn_rubs)
     result = {
         "document": ASSEMBLY,
-        "document_hash": scene.document_hash,
         "parts": len(parts),
         "pairs": len(parts) * (len(parts) - 1) // 2,
         "collisions": collisions,
@@ -149,7 +152,7 @@ def markdown(result, tight, unexpected, horn_rubs) -> str:
     lines = [
         "# Fit and clearance: servo mount",
         "",
-        f"Checked `{result['document']}` (document `{result['document_hash'][:12]}`): its {result['parts']} parts, "
+        f"Checked the mount's model, `{result['document']}`: its {result['parts']} parts, "
         f"all {result['pairs']} pairs of them, each part's solid against each other's, then the fits a touching joint "
         f"hides, then the horn adapter turned through its travel.",
         "",
@@ -210,7 +213,7 @@ def markdown(result, tight, unexpected, horn_rubs) -> str:
         "## How it was checked",
         "",
         "- Every pair of parts: the exact overlap of their solids (`cadgen.geometry.overlap_volume`, mm³) and the least "
-        "distance between them (`closest_points`, mm), in the saved assembly's own placements. Where a gap is the "
+        "distance between them (`closest_points`, mm), in the mount model's own placements. Where a gap is the "
         "same at several places (the cutout's corners), \"closest at\" names one of them, on the first part named.",
         f"- An overlap above {result['limits']['collision_mm3']} mm³ is a collision unless it is a screw's thread in its "
         f"tapped hole; parts closer than {result['limits']['touch_mm']} mm touch; a gap under "

@@ -19,13 +19,14 @@ A wall shelf bracket bent from 14 gauge G90 galvanised steel, SendCutSend's G90-
 - Study the bracket with its screw heads and the wall in the model: the rigid-hole fixture puts the study's peak, 220.5 MPa, at the upper wall hole's edge, and just outside a screw head the flange is at 105 MPa.
 - Choose the wall's screws and plugs, and check them for about 138 N of pull on the upper screw.
 - Decide whether the whole 15 kg can sit on one bracket, as the study assumes, and whether heavy things at the shelf's front edge, past the arm's tip, need a study of their own.
-- To order the cut file instead of the STEP, make its BEND layer dashed: cadgen 0.7.26's DXF writer writes every layer solid.
+- To order the cut file instead of the STEP, make its BEND layer dashed: cadgen's DXF export writes every layer solid.
 - On the first pair, look at the outside of both bends for flaking zinc (no source here gives G90's coating a minimum radius), and check both bends (±1° at the wall bend swings the arm's tip 3.1 mm sideways).
 - Not modelled: the shelf board, which stops the arm twisting under the load (0.84 mm of the tip's 0.91 mm is sideways); buckling of the web's free edge (it sees 20 MPa); repeated loads.
 
 ## In this project
 
-- The part: [the shelf bracket](parts/shelf_bracket.step), its [flat pattern](parts/shelf_bracket_flat.step), and [the models' catalog](parts/README.md).
+- The models: [the shelf bracket](parts/shelf_bracket.py), its [flat pattern](parts/shelf_bracket_flat.py) and [cut file](parts/shelf_bracket_cut.py), with [the models' catalog](parts/README.md).
+- Their files, from [`exports.py`](exports.py): [the bracket's STEP](parts/shelf_bracket.step), the one SendCutSend is sent, and [the flat pattern's](parts/shelf_bracket_flat.step).
 - The checks: [strength](docs/shelf_bracket_strength_report.md) with its [result](studies/shelf_bracket.fea.glb), [sheet metal](parts/shelf_bracket_sheet_metal.md) and [bending](parts/shelf_bracket_bending.md) with its [result](parts/shelf_bracket.sheet_metal.glb).
 - Making it: [the cut file](cut/shelf_bracket_cut.dxf) and [its SendCutSend preflight](cut/shelf_bracket_sendcutsend.md), and [the bracket's drawing](drawings/shelf_bracket_drawing.pdf).
 - The documents: [PRD](docs/prd.md).

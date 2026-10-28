@@ -24,7 +24,7 @@ import {
 import libraryExamples from "./libraryExamples.json";
 
 const ROOT = NodePath.join(import.meta.dirname, "..", "..", "..", "..", "..", "..");
-const SAMPLE = NodePath.join(ROOT, "studio-sample", "servo-bracket");
+const SAMPLES = NodePath.join(ROOT, "studio-sample");
 const SKILLS = NodePath.join(ROOT, "text-to-cad", "skills");
 
 /** text-to-cad's skills: the folders of its skills/ that hold a SKILL.md. */
@@ -41,8 +41,6 @@ const ownName = (skill: string) =>
 /** The sample's outputs that could not be made, so their entries show no example. */
 const NOT_MADE = [
   "doc:board",
-  // 3D PMI's example is the motor mount's, once it carries PMI (the plan's Task 7).
-  "doc:pmi",
   "doc:print",
   "skill:text-to-cad/bambu-labs",
   "skill:text-to-cad/gcode",
@@ -53,8 +51,9 @@ const NOT_MADE = [
   "skill:text-to-cad/work-instructions",
 ];
 
-const EXAMPLES: Readonly<Record<string, { example: string; picture: string } | null>> =
-  libraryExamples;
+const EXAMPLES: Readonly<
+  Record<string, { sample?: string; example: string; picture: string } | null>
+> = libraryExamples;
 
 const doc = (id: string) => LIBRARY_DOCUMENTS.find((entry) => entry.id === id)!;
 
@@ -256,6 +255,7 @@ describe("library catalog", () => {
       tryAsking: "Draw the harness for the arm.",
       on: true,
       example: null,
+      exampleIn: null,
     });
   });
 
@@ -341,12 +341,30 @@ describe("library catalog", () => {
     expect(entries.filter((entry) => entry.example === null).map((entry) => entry.id)).toEqual(
       NOT_MADE,
     );
+    // Each file in the example its entry names, the servo bracket where it names none.
     const files = [
-      ...entries.flatMap((entry) => (entry.example === null ? [] : [entry.example])),
+      ...entries.flatMap((entry) =>
+        entry.example === null ? [] : [NodePath.join(entry.exampleIn!, entry.example)],
+      ),
       ...Object.values(EXAMPLES).flatMap((item) =>
-        item === null || item.picture === "page" ? [] : [item.picture],
+        item === null || item.picture === "page"
+          ? []
+          : [NodePath.join(item.sample ?? "servo-bracket", item.picture)],
       ),
     ];
-    expect(files.filter((file) => !NodeFS.existsSync(NodePath.join(SAMPLE, file)))).toEqual([]);
+    expect(files.filter((file) => !NodeFS.existsSync(NodePath.join(SAMPLES, file)))).toEqual([]);
+  });
+
+  it("opens 3D PMI's example on the motor mount's plate, the part that carries PMI", () => {
+    expect(LIBRARY_DOCUMENTS.find((entry) => entry.id === "doc:pmi")).toMatchObject({
+      example: "parts/motor_plate.py",
+      exampleIn: "motor-mount",
+    });
+    const plate = NodeFS.readFileSync(
+      NodePath.join(SAMPLES, "motor-mount", "parts", "motor_plate.py"),
+      "utf8",
+    );
+    expect(plate).toMatch(/from cadgen\.ap242 import/);
+    expect(plate).toMatch(/annotate\(/);
   });
 });

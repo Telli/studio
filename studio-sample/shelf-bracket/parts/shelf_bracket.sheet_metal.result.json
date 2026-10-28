@@ -177,9 +177,9 @@
     "solver": "hand formulas (Gardiner, DIN 6935)"
   },
   "timings": {
-    "mesh_s": 1.153,
-    "estimate_s": 0.12,
-    "mesh_to_fem_s": 0.03
+    "mesh_s": 1.102,
+    "estimate_s": 0.114,
+    "mesh_to_fem_s": 0.028
   },
   "warnings": [],
   "findings": [

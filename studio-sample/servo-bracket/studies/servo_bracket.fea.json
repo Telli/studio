@@ -264,14 +264,21 @@
     "solver": "amg+cg (72 iterations)"
   },
   "timings": {
-    "mesh_s": 2.059,
-    "mesh_to_fem_s": 1.045,
-    "assemble_s": 15.894,
-    "solve_s": 15.881,
-    "stress_s": 15.831
+    "mesh_s": 2.053,
+    "mesh_to_fem_s": 1.169,
+    "assemble_s": 13.709,
+    "solve_s": 15.636,
+    "stress_s": 16.057
   },
   "warnings": [],
   "findings": [],
+  "verdict": {
+    "status": "ready",
+    "headline": "Ready",
+    "errors": 0,
+    "warnings": 0,
+    "passed": 0
+  },
   "refined": null,
   "files": {
     "glb": "servo_bracket.fea.glb",

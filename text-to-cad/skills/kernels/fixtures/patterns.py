@@ -1,9 +1,9 @@
 """Locations, an aligned grid of pins and a polar arc of holes."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 
-@step
+@model
 def patterns():
     with bd.BuildPart() as part:
         # build123d ignores the part's Locations for a sketch: the plate stays centered.

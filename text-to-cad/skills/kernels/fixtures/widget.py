@@ -1,9 +1,9 @@
 """A box with a through hole, vertical edges filleted."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 
-@step
+@model
 def widget():
     with bd.BuildPart() as part:
         bd.Box(10, 10, 5)

@@ -1,22 +1,26 @@
-"""Two print facts the dfam-check tool does not measure, measured on the saved parts/phone_stand.step as it prints
+"""Two print facts the dfam-check tool does not measure, measured on the stand's model as it prints
 (on its side, +X up, its -X face on the plate): how far each flat roof bridges, and how much of the part sits on the
 plate. A roof is a flat face that faces straight down off the plate; it bridges between the edges where a wall below
 it holds it, and its span is the distance between them. Prints one JSON line. Run it from anywhere:
 python checks/phone_stand_print_facts.py"""
 
 import json
+import sys
 from pathlib import Path
 
-from cadgen import build123d as bd
-from cadgen import read_step
+import build123d as bd
 
 ROOT = Path(__file__).resolve().parent.parent
-STAND = "parts/phone_stand.step"
+sys.path.insert(0, str(ROOT / "parts"))
+
+from phone_stand import phone_stand  # noqa: E402
+
+STAND = "parts/phone_stand.py"
 UP = bd.Vector(1, 0, 0)  # the stand's +X is up as it prints (parts/phone_stand_print.py)
 
 
 def main() -> None:
-    (solid,) = read_step(ROOT / STAND).solids()
+    (solid,) = phone_stand().shape.solids()
     plate = solid.bounding_box().min.X
     flat_down = [face for face in solid.faces() if face.geom_type == bd.GeomType.PLANE
                  and face.normal_at().dot(UP) < -0.999]

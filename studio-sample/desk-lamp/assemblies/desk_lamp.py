@@ -3,19 +3,21 @@ arm's upper end, and the LED module screwed into the head. Both hinges are an IS
 M5 nylon insert locknut (both from step.parts) through two cheeks that clamp the arm, so each holds where it is set.
 Each part is placed by its mates, solved on every run, at the rest pose: the arm 55 degrees up from the desk and the
 head hanging level. `tilt` turns the arm on the base and `head` the head on the arm, through the range the fit check
-finds clear (assemblies/desk_lamp_fit.md); the `range` clip runs each through that range for the motion video."""
+finds clear (assemblies/desk_lamp_fit.md): each a revolute joint on the part it turns on, with a rigid joint of the same
+label on the sub-assembly it turns, which every part riding on it is in. The `range` sequence runs each through that
+range, as the viewer's Motion plays it and a GLB exported from the lamp carries it."""
 
 import math
 import sys
 from pathlib import Path
 
-import cadgen
-from cadgen import build123d as bd
-from cadgen import read_step, step
+import build123d as bd
+from cadgen import model, read_step
+from cadgen.ap242 import configuration_sequence
 from cadgen.mates import Coincident, Concentric, Distance, mate
 
 PARTS = Path(__file__).resolve().parent.parent / "parts"
-sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, built and linked here as children
+sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, each built in this run with its own document
 
 from arm import arm  # noqa: E402
 from base import CLEVIS_X, HEIGHT, HINGE_HEIGHT, POCKET_CLEARANCE, base  # noqa: E402
@@ -41,41 +43,22 @@ UP = (0, -1, 0)  # both hinges turn about -Y, so a positive angle lifts the arm,
 # The hinges' clear range, from the fit check's sweeps (assemblies/desk_lamp_fit.md), rounded in to whole 5 degrees.
 TILT_LIMITS = (-45.0, 135.0)
 HEAD_LIMITS = (-45.0, 175.0)
-RANGE_SECONDS = 12.0  # the range clip: the arm through its range in the first half, then the head in the second
+RANGE_SECONDS = 12.0  # the range sequence: the arm through its range in the first half, then the head in the second
 
-KINEMATICS = {
-    "mates": [
-        cadgen.revolute("tilt", parent="#base", child="#arm_assembly", origin=BASE_HINGE, direction=UP, limits=TILT_LIMITS),
-        cadgen.revolute("head", parent="#arm_assembly", child="#head_assembly", origin=HEAD_HINGE, direction=UP, limits=HEAD_LIMITS),
-    ],
-}
 
-ARM_PARTS = ["arm", "m5x30_screw:head_hinge", "m5_locknut:head_hinge"]
-HEAD_PARTS = ["head", "led_module", "m3x8_screw:left", "m3x8_screw:right"]
+def swing(s: float, lo: float, hi: float) -> float:
+    """A hinge's angle for a sine `s` in -1..1: out to `hi` on the up stroke and to `lo` on the down."""
+    return s * hi if s >= 0 else -s * lo
 
-# Each hinge swung from its rest to one end of its range, back through rest to the other end, and back, as the
-# `tilt` and `head` mates allow. The head's parts turn on the head's hinge first, then ride the arm.
-ANIMATION = f"""
-const T = {RANGE_SECONDS};
-const swing = (s, lo, hi) => (s >= 0 ? s * hi : -s * lo);
-export const clips = {{
-  range: {{
-    label: "Arm, then head, through their range",
-    duration: T,
-    update(t, m) {{
-      const half = T / 2;
-      const tilt = t < half ? swing(Math.sin(2 * Math.PI * t / half), {TILT_LIMITS[0]}, {TILT_LIMITS[1]}) : 0;
-      const head = t < half ? 0 : swing(Math.sin(2 * Math.PI * (t - half) / half), {HEAD_LIMITS[0]}, {HEAD_LIMITS[1]});
-      for (const label of {HEAD_PARTS}) {{
-        m.get(label).rotate({list(UP)}, head, {list(HEAD_HINGE)}).rotate({list(UP)}, tilt, {list(BASE_HINGE)});
-      }}
-      for (const label of {ARM_PARTS}) {{
-        m.get(label).rotate({list(UP)}, tilt, {list(BASE_HINGE)});
-      }}
-    }},
-  }},
-}};
-"""
+
+def through_range(t: float) -> dict:
+    """The lamp's pose `t` seconds into the range sequence: each hinge swung from its rest to one end of its range, back
+    through rest to the other end, and back, the arm in the first half and then the head."""
+    half = RANGE_SECONDS / 2
+    phase = 2 * math.pi * (t % half) / half
+    if t < half:
+        return {"tilt": swing(math.sin(phase), *TILT_LIMITS), "head": 0.0}
+    return {"tilt": 0.0, "head": swing(math.sin(phase), *HEAD_LIMITS)}
 
 
 def at_y(faces, y: float):
@@ -88,27 +71,27 @@ def round_faces(part, radius: float):
     return part.faces().filter_by(bd.GeomType.CYLINDER).filter_by(lambda face: abs(face.radius - radius) < 1e-3)
 
 
-@step(kinematics=KINEMATICS, animation=ANIMATION)
+@model
 def desk_lamp():
     inner, outer = CHEEK_GAP / 2, CHEEK_GAP / 2 + CHEEK  # a cheek's faces, out from the middle of its hinge
 
-    lamp_base = base()
+    lamp_base = base().shape
     clevis_holes = round_faces(lamp_base, HINGE_HOLE / 2)
     clevis_sides = lamp_base.faces().filter_by(bd.Axis.Y)
     pocket = round_faces(lamp_base, (WEIGHT_DIAMETER + POCKET_CLEARANCE) / 2)[0]
     pocket_ceiling = at_z(lamp_base.faces().filter_by(bd.Axis.Z), WEIGHT_THICKNESS)
 
-    steel = weight()
+    steel = weight().shape
     mate(steel, Concentric(round_faces(steel, WEIGHT_DIAMETER / 2)[0], pocket), Coincident(steel.faces().sort_by(bd.Axis.Z)[-1], pocket_ceiling))
 
-    lamp_arm = bd.Pos(*BASE_HINGE) * bd.Rot(0, -ARM_REST, 0) * arm()  # placed near its mates, turned to the rest pose
+    lamp_arm = bd.Pos(*BASE_HINGE) * bd.Rot(0, -ARM_REST, 0) * arm().shape  # placed near its mates, turned to the rest pose
     arm_holes = round_faces(lamp_arm, HINGE_HOLE / 2).sort_by(bd.Axis.X)
     arm_side = lamp_arm.faces().filter_by(bd.Axis.Y).sort_by(bd.Axis.Y)[-1]
     mate(lamp_arm, Concentric(arm_holes[0], clevis_holes[0]), Distance(arm_side, at_y(clevis_sides, inner), SIDE_PLAY))
     arm_holes = round_faces(lamp_arm, HINGE_HOLE / 2).sort_by(bd.Axis.X)
     arm_side = lamp_arm.faces().filter_by(bd.Axis.Y).sort_by(bd.Axis.Y)[-1]
 
-    lamp_head = bd.Pos(*HEAD_HINGE) * head()  # hanging level, as the rest pose has it
+    lamp_head = bd.Pos(*HEAD_HINGE) * head().shape  # hanging level, as the rest pose has it
     head_holes = round_faces(lamp_head, HINGE_HOLE / 2)
     mate(lamp_head, Concentric(head_holes[0], arm_holes[-1]), Distance(at_y(lamp_head.faces().filter_by(bd.Axis.Y), inner), arm_side, SIDE_PLAY))
     head_holes = round_faces(lamp_head, HINGE_HOLE / 2)
@@ -133,7 +116,7 @@ def desk_lamp():
     bosses = lamp_head.faces().filter_by(bd.Axis.Z).filter_by(lambda face: abs(face.area - boss_end) < 1e-2).sort_by(bd.Axis.X)
     pilots = round_faces(lamp_head, PILOT / 2).sort_by(bd.Axis.X)
     boss_z = bosses[0].center().Z
-    led = bd.Pos(HEAD_HINGE[0] + SHADE_FROM_HINGE, 0, boss_z) * bd.Rot(180, 0, 0) * led_module()  # its emitter down, out of the shade
+    led = bd.Pos(HEAD_HINGE[0] + SHADE_FROM_HINGE, 0, boss_z) * bd.Rot(180, 0, 0) * led_module().shape  # its emitter down, out of the shade
     led_holes = round_faces(led, LED_SCREW_HOLE / 2).sort_by(bd.Axis.X)
     mate(led, Coincident(led.faces().filter_by(bd.Axis.Z).sort_by(bd.Axis.Z)[-1], bosses[0]), Concentric(led_holes[0], pilots[0]), Concentric(led_holes[-1], pilots[-1]))
     led_holes = round_faces(led, LED_SCREW_HOLE / 2).sort_by(bd.Axis.X)
@@ -150,7 +133,15 @@ def desk_lamp():
     (base_screw, base_nut), (head_screw, head_nut) = hinges
     head_assembly = bd.Compound(children=[lamp_head, led, *led_screws], label="head_assembly")
     arm_assembly = bd.Compound(children=[lamp_arm, head_screw, head_nut, head_assembly], label="arm_assembly")
-    return bd.Compound(children=[lamp_base, steel, base_screw, base_nut, arm_assembly], label="desk_lamp")
+    lamp = bd.Compound(children=[lamp_base, steel, base_screw, base_nut, arm_assembly], label="desk_lamp")
+
+    # The hinges, where the parts stand at rest (each value 0 as built): every holder is at the world's origin, so the
+    # axes are given in the world's frame, and each sub-assembly's rigid joint at its hinge's own frame.
+    tilt = bd.RevoluteJoint("tilt", lamp_base, axis=bd.Axis(BASE_HINGE, UP), angular_range=TILT_LIMITS)
+    bd.RigidJoint("tilt", arm_assembly, tilt.location)
+    nod = bd.RevoluteJoint("head", lamp_arm, axis=bd.Axis(HEAD_HINGE, UP), angular_range=HEAD_LIMITS)
+    bd.RigidJoint("head", head_assembly, nod.location)
+    return configuration_sequence(lamp, "range", through_range, duration=RANGE_SECONDS)
 
 
 def at_z(faces, z: float):

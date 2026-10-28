@@ -2,23 +2,24 @@
   {
     "input": "assemblies/desk_lamp.step",
     "outputs": [
-      { "path": "pictures/desk_lamp_front.png", "camera": { "direction": [0, -1, 0] } },
-      { "path": "pictures/desk_lamp_back.png", "camera": { "direction": [0, 1, 0] } },
-      { "path": "pictures/desk_lamp_left.png", "camera": "left" },
-      { "path": "pictures/desk_lamp_right.png", "camera": "right" },
-      { "path": "pictures/desk_lamp_top.png", "camera": "top" },
-      { "path": "pictures/desk_lamp_bottom.png", "camera": "bottom" },
-      { "path": "pictures/desk_lamp_angle.png", "camera": { "direction": [1, -1, 0.8] } }
+      {"path": "pictures/desk_lamp_front.png", "camera": {"direction": [0, -1, 0]}, "width": 1200, "height": 900},
+      {"path": "pictures/desk_lamp_back.png", "camera": {"direction": [0, 1, 0]}, "width": 1200, "height": 900},
+      {"path": "pictures/desk_lamp_left.png", "camera": "left", "width": 1200, "height": 900},
+      {"path": "pictures/desk_lamp_right.png", "camera": "right", "width": 1200, "height": 900},
+      {"path": "pictures/desk_lamp_top.png", "camera": "top", "width": 1200, "height": 900},
+      {"path": "pictures/desk_lamp_bottom.png", "camera": "bottom", "width": 1200, "height": 900},
+      {"path": "pictures/desk_lamp_angle.png", "camera": {"direction": [1, -1, 0.8]}, "width": 1200, "height": 900},
+      {"path": "pictures/desk-lamp.png", "camera": {"direction": [1, -1, 0.8]}, "width": 640, "height": 400}
     ],
-    "output": { "sizeProfile": "simple" }
+    "output": {"padding": 0.04}
   },
   {
     "input": "assemblies/desk_lamp.step",
-    "display": { "exploded": { "enabled": true, "amount": 1.0 } },
+    "display": {"exploded": {"enabled": true, "amount": 0.6}},
     "outputs": [
-      { "path": "pictures/desk_lamp_exploded.png", "camera": { "direction": [1, -1, 0.8] } },
-      { "path": "pictures/desk_lamp_exploded_side.png", "camera": { "direction": [0.25, -1, 0.3] } }
+      {"path": "pictures/desk_lamp_exploded.png", "camera": {"direction": [1, -1, 0.8]}, "width": 1200, "height": 900},
+      {"path": "pictures/desk_lamp_exploded_side.png", "camera": {"direction": [0.25, -1, 0.3]}, "width": 1200, "height": 900}
     ],
-    "output": { "sizeProfile": "simple" }
+    "output": {"padding": 0.04}
   }
 ]}

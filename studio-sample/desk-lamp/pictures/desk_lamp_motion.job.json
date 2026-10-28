@@ -1,8 +1,0 @@
-{
-  "input": "assemblies/desk_lamp.step",
-  "animation": { "clip": "range" },
-  "video": { "fps": 24 },
-  "outputs": [
-    { "path": "pictures/desk_lamp_motion.mp4", "camera": { "direction": [0.35, -1, 0.35] }, "width": 960, "height": 540 }
-  ]
-}

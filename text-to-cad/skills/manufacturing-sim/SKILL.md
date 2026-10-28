@@ -74,21 +74,29 @@ A test keeps this table's **Runs today** rows in step with the processes cadgen 
 
 ## Setup
 
-Run cadgen through [uv](https://docs.astral.sh/uv/). `cadgen fea faces` shares one installation
-with the `$cad` skill and the CAD app's server; `cadgen manufacturing check` needs the `fea` extra,
-so it runs from its own installation, made the first time it is needed (below):
+Run cadgen through the `cadgen` command its installation writes, so this skill's commands
+share one installation, and its engine server, with the `$cad` skill and the CAD app's:
 
-- `cadgen` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.26 cadgen`
-- `python` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.26 python`
+- `cadgen` below means `cadgen +0.8.0` (`~/.local/bin/cadgen +0.8.0` where `~/.local/bin` is not on your PATH)
+- `python` below means `cadgen +0.8.0 run`
 
-Checking needs cadgen's opt-in `fea` extra (the mesher and the solver). The first time a check runs,
-`cadgen manufacturing check` fails with "cadgen's fea extra is not installed"; that is a missing
-install, not a modelling error. Run the same command with the extra in the requirement, and keep
-using that form for `manufacturing check` from then on (the first run downloads the mesher and
-solver; later runs reuse them):
+If `cadgen` is not on your PATH, or it says 0.8.0 is not installed, run
+`uvx --no-config --managed-python --python 3.13 --from cadgen==0.8.0 cadgen doctor` once,
+outside any sandbox or with its permission: it installs cadgen, registers it, writes the
+`cadgen` command and starts the engine. With the CAD app's server running, nothing else
+needs the sandbox's permission: it starts the engine and holds it. Without it, a sandboxed
+shell cannot start the engine; when a command says no engine is running, run `cadgen server`
+outside the sandbox once.
+
+`cadgen manufacturing check` needs cadgen's opt-in `fea` extra (the mesher and the solver);
+Studio's own installation carries it. Elsewhere the first check fails with "cadgen's fea extra is not
+installed"; that is a missing install, not a modelling error. Register an installation that has the
+extra once, outside any sandbox (the first run downloads the mesher and solver; later runs reuse
+them), then run the check again:
 
 ```bash
-uvx --no-config --managed-python --python 3.13 --from "cadgen[fea]==0.7.26" cadgen manufacturing check part.step --study part.casting.json
+uvx --no-config --managed-python --python 3.13 --from "cadgen[fea]==0.8.0" cadgen doctor
+cadgen manufacturing check part.step --study part.casting.json
 ```
 
 Units: mm for geometry, °C for temperatures, s for times, W/(m² K) for a heat transfer coefficient,

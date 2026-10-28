@@ -1,21 +1,18 @@
 """Engineering drawing of the mounting plate: holes, a slot, a corner radius.
 
-Run `python mounting_plate.py` first; this script documents the STEP it writes.
-The holes and the slot are called out from the part itself. The model keeps its
-sizes inside `lib.simple_model_library.make_mounting_plate`, so the positions
-below are that function's numbers, read from its source. The plate is symmetric
-about its horizontal centre line, and the drawing says so: the bore and the slot
-are on it, and the holes' spacing across it puts them half of it either side.
-The slot is on one side only, so along X the holes and the bore are placed from
-the left edge.
+It documents the model `mounting_plate.py` defines, beside it: the drawing calls it,
+so the engine builds it (a replay when it is current) and hands back its shape. The
+holes and the slot are called out from the part itself. The model keeps its sizes
+inside `lib.simple_model_library.make_mounting_plate`, so the positions below are
+that function's numbers, read from its source. The plate is symmetric about its
+horizontal centre line, and the drawing says so: the bore and the slot are on it,
+and the holes' spacing across it puts them half of it either side. The slot is on
+one side only, so along X the holes and the bore are placed from the left edge.
 """
 
-from pathlib import Path
-
-import cadgen
 from cadgen.eng_drawing import Sheet, eng_drawing
 
-STEP = Path(__file__).parent / "../STEP/mounting_plate.step"
+from mounting_plate import mounting_plate
 
 # From make_mounting_plate(): a 100 x 70 x 8 plate, ⌀5.5 holes at (±38, ±24), the
 # slot centred at x = 32 running along Y, R5 corners.
@@ -28,7 +25,7 @@ LEFT = -50.0
 
 @eng_drawing(out="../PDF/mounting_plate_drawing.pdf")
 def mounting_plate_drawing():
-    part = cadgen.read_step(STEP)
+    part = mounting_plate().shape
     sheet = Sheet("A3", title="MOUNTING PLATE", part_number="MP-100", revision="A", author="text-to-cad",
                   general_tolerance="ISO 2768-m", notes=["OUTSIDE EDGES ROUNDED R0.8.", "BREAK SHARP EDGES."])
     top, front, right, iso = sheet.three_views(part, iso=True)

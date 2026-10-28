@@ -4,7 +4,7 @@
  * second copy is named past the first.
  */
 
-/** The servo bracket: the example the Library's examples are in. */
+/** The servo bracket: the example the Library's examples are in, unless one names another. */
 export const SAMPLE_ID = "servo-bracket";
 
 /** The file at the top of an example that says what it is; a copy is a project, so it stays out. */
@@ -25,6 +25,35 @@ export async function copySample(steps: {
 }) {
   await steps.copy(steps.entries.filter((entry) => entry !== SAMPLE_MARKER));
   await steps.writeReadme?.();
+}
+
+/** Whether an example's file is a model's script, which a copy opens by the document it builds. */
+export function isModelScript(file: string): boolean {
+  return file.toLowerCase().endsWith(".py");
+}
+
+/** What building a copy's model script answered (`buildPart`): its document, or why it did not build. */
+type Built = { readonly id: string } | { readonly error: string };
+
+/**
+ * Opens a copy of an example on its file: a model script by the document its build made (`built`;
+ * a copy's models were never built, so the copy builds the one it opens on), else the file as it
+ * is. A script whose build failed opens as the script, and `failed` says why.
+ */
+export function openCopiedExample(steps: {
+  readonly file: string;
+  /** The file's build, for a model script; null for any other file. */
+  readonly built: Built | null;
+  readonly openDocument: (id: string) => void;
+  readonly openFile: (file: string) => void;
+  readonly failed: (error: string) => void;
+}): void {
+  if (steps.built !== null && "id" in steps.built) {
+    steps.openDocument(steps.built.id);
+    return;
+  }
+  steps.openFile(steps.file);
+  if (steps.built !== null) steps.failed(steps.built.error);
 }
 
 /**

@@ -1,9 +1,9 @@
 """Sketch with a hole, extruded, vertical edges filleted."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 
-@step
+@model
 def bracket():
     with bd.BuildPart() as part:
         with bd.BuildSketch():

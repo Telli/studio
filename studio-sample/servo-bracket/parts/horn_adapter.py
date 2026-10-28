@@ -3,9 +3,8 @@ the servo's horn screw, with four M3 tapped holes to bolt an arm or a load to. I
 25-tooth spline after milling; it is modeled at the spline's tip diameter. Origin: the centre of its underside, +Z up
 the servo's output axis."""
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 from sizes import SERVO_SPLINE
@@ -21,7 +20,7 @@ TAP_DRILL = 2.5  # M3x0.5
 CHAMFER = 0.5  # the top edge
 
 
-@step
+@model
 def horn_adapter():
     disc = Sketch("Disc", plane="Top")
     rim = disc.circle(disc.origin, DIAMETER / 2)
@@ -54,7 +53,7 @@ def horn_adapter():
 
     adapter = bd.chamfer(adapter.faces().sort_by(bd.Axis.Z)[-1].outer_wire().edges(), length=CHAMFER)
 
-    adapter.color = srgb("#8E99A6")
+    adapter.color = "#8E99A6"
     adapter.label = "horn_adapter"
     return adapter
 

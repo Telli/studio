@@ -5,7 +5,14 @@ import * as NodePath from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 
 import { copyName } from "../examples/examples";
-import { copySample, inTurn, SAMPLE_ID, SAMPLE_MARKER } from "./sampleProject";
+import {
+  copySample,
+  inTurn,
+  isModelScript,
+  openCopiedExample,
+  SAMPLE_ID,
+  SAMPLE_MARKER,
+} from "./sampleProject";
 
 const ROOT = NodePath.join(import.meta.dirname, "..", "..", "..", "..", "..", "..");
 const SAMPLE = NodePath.join(ROOT, "studio-sample", SAMPLE_ID);
@@ -68,5 +75,26 @@ describe("copying an example", () => {
     const second = copy(Promise.resolve());
     finishFirst();
     expect(await Promise.all([first, second])).toEqual(["Phone stand", "Phone stand 2"]);
+  });
+
+  it("opens a copy's model by the document its build made, and any other file as it is", () => {
+    const done: string[] = [];
+    const steps = {
+      openDocument: (id: string) => done.push(`document ${id}`),
+      openFile: (file: string) => done.push(`file ${file}`),
+      failed: (error: string) => done.push(`failed ${error}`),
+    };
+    expect(isModelScript("assemblies/motor_mount.py")).toBe(true);
+    expect(isModelScript("drawings/motor_plate_drawing.pdf")).toBe(false);
+    openCopiedExample({ ...steps, file: "assemblies/motor_mount.py", built: { id: "doc-1" } });
+    openCopiedExample({ ...steps, file: "drawings/plate.pdf", built: null });
+    // A model that did not build still opens, as its script, and says why.
+    openCopiedExample({ ...steps, file: "parts/plate.py", built: { error: "NameError: WIDTH" } });
+    expect(done).toEqual([
+      "document doc-1",
+      "file drawings/plate.pdf",
+      "file parts/plate.py",
+      "failed NameError: WIDTH",
+    ]);
   });
 });

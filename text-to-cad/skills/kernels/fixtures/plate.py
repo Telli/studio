@@ -1,9 +1,9 @@
 """A plate with a grid of through holes and chamfered vertical edges."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 
-@step
+@model
 def plate():
     with bd.BuildPart() as part:
         bd.Box(40, 30, 5)

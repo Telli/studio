@@ -2,18 +2,17 @@
 for the fit check, the tip-over check and the pictures. Origin: the middle of its bottom edge, on its back; +Y out of
 its screen, +Z up its length."""
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 
 from sizes import PHONE_CORNER, PHONE_LENGTH, PHONE_THICKNESS, PHONE_WIDTH
 
 
-@step
+@model
 def phone_placeholder():
     phone = bd.Box(PHONE_WIDTH, PHONE_THICKNESS, PHONE_LENGTH, align=(bd.Align.CENTER, bd.Align.MIN, bd.Align.MIN))
     phone = bd.fillet(phone.edges(), radius=PHONE_CORNER)
-    phone.color = srgb("#2B2D33")
+    phone.color = "#2B2D33"
     phone.label = "phone_placeholder"
     return phone
 

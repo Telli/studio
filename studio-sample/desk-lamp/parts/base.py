@@ -2,9 +2,8 @@
 clevis on top whose two cheeks clamp the arm's lower end on an M5 screw. The clevis stands behind the centre so the arm
 leans forward over the base. Origin: the centre of its underside, on the desk; +Z up, the hinge's axis along Y."""
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 from sizes import CHEEK, CHEEK_GAP, HINGE_HOLE, WEIGHT_DIAMETER, WEIGHT_THICKNESS
@@ -19,7 +18,7 @@ HINGE_HEIGHT = 30.0  # the hinge's axis above the base's top
 CLEVIS_LENGTH = 22.0  # each cheek along X; its top is rounded to half this about the hinge
 
 
-@step
+@model
 def base():
     disc = Sketch("Disc", plane="Top")
     rim = disc.circle(disc.origin, DIAMETER / 2)
@@ -42,7 +41,7 @@ def base():
 
     body -= bd.Pos(CLEVIS_X, 0, HEIGHT + HINGE_HEIGHT) * bd.Rot(90, 0, 0) * bd.Cylinder(HINGE_HOLE / 2, 2 * (CHEEK_GAP + 2 * CHEEK))  # M5 clearance hole
 
-    body.color = srgb("#56606C")
+    body.color = "#56606C"
     body.label = "base"
     return body
 

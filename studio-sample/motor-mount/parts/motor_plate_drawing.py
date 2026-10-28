@@ -1,12 +1,8 @@
-"""Engineering drawing of the motor plate, as a PDF in ../drawings. It documents the STEP that motor_plate.py writes
-beside this script: run `python parts/motor_plate.py` first, then this. The views, hidden lines and measured values
-are projected from that STEP, and every size a dimension points at is imported from the model, so moving a feature
-in the model moves its dimension here. The holes and slots are listed in a hole table, their sizes read off the
-part. The general tolerance (ISO 2768-m) and the pilot bore's tolerance are assumed for a prototype, not asked."""
+"""Engineering drawing of the motor plate, as a PDF in ../drawings. It draws the plate's model: `python
+parts/motor_plate_drawing.py` builds the plate as it is now and projects its views, hidden lines and measured values
+from it, and every size a dimension points at is imported from the model, so moving a feature in the model moves its
+dimension here. The holes and slots are listed in a hole table, their sizes read off the part. The general tolerance (ISO 2768-m) and the pilot bore's tolerance are assumed for a prototype, not asked."""
 
-from pathlib import Path
-
-import cadgen
 from cadgen.eng_drawing import Sheet, eng_drawing
 
 from motor_plate import (
@@ -18,9 +14,8 @@ from motor_plate import (
     POCKET_DEPTH,
     POCKET_SIZE,
     THICKNESS,
+    motor_plate,
 )
-
-STEP = Path(__file__).parent / "motor_plate.step"
 
 # The model's frame: the centre of the underside, +X along the belt, +Z up through the plate.
 P = POCKET_SIZE / 2
@@ -28,7 +23,7 @@ P = POCKET_SIZE / 2
 
 @eng_drawing(out="../drawings/motor_plate_drawing.pdf")
 def motor_plate_drawing():
-    part = cadgen.read_step(STEP)
+    part = motor_plate().shape
     sheet = Sheet(
         "A3",
         title="NEMA 17 MOTOR PLATE",

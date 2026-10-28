@@ -41,7 +41,7 @@ class KernelError(RuntimeError):
 def describe(target: str) -> cadgen_stub.Model:
     """The model a target names, with its declared outputs, without building it."""
     script, function = cadgen_stub.split_target(target)
-    saved = {name: sys.modules.get(name) for name in ("build123d", "cadgen", "cadgen.build123d")}
+    saved = {name: sys.modules.get(name) for name in ("build123d", "cadgen")}
     cadgen_stub.install(record._recording_module())
     try:
         return cadgen_stub.load(script, function)

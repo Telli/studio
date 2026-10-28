@@ -2,11 +2,18 @@
 under it, its pilot in the plate's bore and its shaft up through it to a belt pulley, held by four M3 screws whose
 heads sit in the pocket on top. Two M5 screws through the slots at its ends fix it to the frame; the slots let it
 slide along the belt, so it is pulled back to tension the belt and then clamped. Origin: the centre of its underside,
-the face the motor sits on; +X along the belt and the slots, +Z up through the plate to the pulley."""
+the face the motor sits on; +X along the belt and the slots, +Z up through the plate to the pulley.
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+It carries its requirements on its faces (3D PMI, a model-based definition): datum A the underside, B the front
+side and C the left end; the pilot bore, the M3 holes and the slots' ends sized and positioned to A|B|C, their
+true positions located by basic dimensions from B and C; the underside's flatness; B and C profiled to the datums
+before them; every other face held by the general profile (Note 1); and two named views."""
+
+import build123d as bd
+from cadgen import materials, model
+from cadgen.ap242 import (annotate, datum, dimensional_location, dimensional_size, flatness_tolerance,
+                          general_profile, note, plus_minus_tolerance, position_tolerance, section,
+                          surface_profile_tolerance, view)
 from cadgen.sketch import Sketch
 
 from sizes import MOTOR_BOLT_PATTERN, MOTOR_PILOT
@@ -26,8 +33,65 @@ SLOT_LENGTH = 10.0  # the belt's tensioning travel: between the centres of each 
 SLOT_SPACING = 80.0  # between the two slots' middles, along the belt
 CHAMFER = 0.5  # the outline's top and bottom edges
 
+# The plate's requirements (README, Decisions: each one assumed for a NEMA 17 plate on a 3-axis mill).
+GENERAL_PROFILE = 0.5  # every face nothing else controls, to A|B|C
+FLATNESS = 0.05  # the underside, datum A: the motor's face and the frame seat on it
+DATUM_PROFILE = 0.1  # datum features B and C, each to the datums before it
+PILOT_BORE_OVER = 0.1  # the bore 22.2 +0.1/0: the motor's 22 mm pilot always drops in
+PILOT_POSITION = 0.1  # the bore's axis, a diametral zone to A|B|C
+HOLE_OVER = 0.1  # the M3 holes 3.4 +0.1/0, as drilled
+HOLE_POSITION = 0.2  # the M3 holes' axes: (3.4 hole - 3.0 screw) / 2, the motor's holes tapped (fixed fastener)
+SLOT_OVER = 0.1  # the slots' ends R2.75, 5.5 +0.1/0 across
+SLOT_POSITION = 0.5  # the slots' ends: 5.5 slot - 5.0 screw, the frame's holes clear (floating fastener)
 
-@step
+
+def requirements(plate):
+    """The plate's PMI, on the faces of the finished plate: its datums, each feature's size and position, the
+    underside's flatness, the datum features' profiles, the general profile (Note 1), a note and two views."""
+    bottom = plate.faces().filter_by(bd.Axis.Z).sort_by(bd.Axis.Z)[0]
+    front = plate.faces().filter_by(bd.Axis.Y).sort_by(bd.Axis.Y)[0]
+    left = plate.faces().filter_by(bd.Axis.X).sort_by(bd.Axis.X)[0]
+    cylinders = plate.faces().filter_by(bd.GeomType.CYLINDER)
+    bore = cylinders.filter_by(lambda face: abs(face.radius - PILOT_BORE / 2) < 1e-3)[0]
+    holes = cylinders.filter_by(lambda face: abs(face.radius - SCREW_CLEARANCE / 2) < 1e-3).sort_by(bd.Axis.X).sort_by(bd.Axis.Y)
+    ends = cylinders.filter_by(lambda face: abs(face.radius - SLOT_WIDTH / 2) < 1e-3).sort_by(bd.Axis.X)
+
+    located = []  # each hole's and slot end's size, its position to A|B|C, and its basic distances from B and C
+    for kind, faces, over, zone in (("m3", holes, HOLE_OVER, HOLE_POSITION), ("slot-end", ends, SLOT_OVER, SLOT_POSITION)):
+        for n, face in enumerate(faces, 1):
+            name = f"{kind}-{n}"
+            located += [
+                dimensional_size(f"{name}-diameter", face, tolerance=plus_minus_tolerance(over, 0)),
+                position_tolerance(f"{name}-position", face, zone, datums=["A", "B", "C"]),
+                dimensional_location(f"{name}-from-B", front, face, basic=True),
+                dimensional_location(f"{name}-from-C", left, face, basic=True),
+            ]
+    return annotate(
+        plate,
+        datum("A", bottom),
+        datum("B", front),
+        datum("C", left),
+        general_profile("general", GENERAL_PROFILE, datums=["A", "B", "C"]),  # Note 1
+        dimensional_size("pilot-bore-diameter", bore, tolerance=plus_minus_tolerance(PILOT_BORE_OVER, 0)),
+        position_tolerance("pilot-bore-position", bore, PILOT_POSITION, datums=["A", "B", "C"]),
+        dimensional_location("pilot-bore-from-B", front, bore, basic=True),
+        dimensional_location("pilot-bore-from-C", left, bore, basic=True),
+        *located,
+        flatness_tolerance("A-flatness", bottom, FLATNESS),
+        surface_profile_tolerance("B-profile", front, DATUM_PROFILE, datums=["A"]),
+        surface_profile_tolerance("C-profile", left, DATUM_PROFILE, datums=["A", "B"]),
+        note("deburr", "Deburr the holes and slots."),  # Note 2, the drawing's own words
+        # Section A-A across Y through the bore's axis, keeping the far side so the front camera looks at the cut.
+        view("A-A", camera="front", section=section("y", 0, invert=True),
+             shows=["A", "pilot-bore-diameter", "pilot-bore-position", "A-flatness"]),
+        view("Top", camera="top",
+             shows=["B", "C", "pilot-bore-diameter", "pilot-bore-position", "pilot-bore-from-B", "pilot-bore-from-C",
+                    *(f"{kind}-{n}-{what}" for kind, count in (("m3", 4), ("slot-end", 4)) for n in range(1, count + 1)
+                      for what in ("diameter", "position"))]),
+    )
+
+
+@model
 def motor_plate():
     outline = Sketch("Outline", plane="Top")
     bottom, right, top, left = outline.center_rectangle(outline.origin, (PLATE_LENGTH / 2, PLATE_WIDTH / 2))
@@ -81,9 +145,10 @@ def motor_plate():
         length=CHAMFER,
     )
 
-    plate.color = srgb("#B9C0C8")
+    plate.color = "#B9C0C8"
+    plate.material = materials.aluminium_6061
     plate.label = "motor_plate"
-    return plate
+    return requirements(plate)
 
 
 if __name__ == "__main__":

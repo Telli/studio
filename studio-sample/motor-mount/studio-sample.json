@@ -7,11 +7,12 @@
   "material": "Aluminium 6061-T6, 10 mm plate",
   "shows": [
     "CNC",
+    "3D PMI",
     "G-code",
     "Stress test",
     "Drawing",
     "Assembly"
   ],
   "picture": "pictures/motor-mount.png",
-  "open": "assemblies/motor_mount.step"
+  "open": "assemblies/motor_mount.py"
 }

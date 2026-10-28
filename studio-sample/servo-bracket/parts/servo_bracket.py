@@ -4,9 +4,8 @@ wall with two M4 screws. The bend is drawn at SendCutSend's inside radius for th
 (servo_bracket_flat.py) is developed with their k-factor. Origin: the outside corner of the bend, halfway along it;
 +Y out from the wall, +Z up, the shelf's top face at Z = 0 and the flange's back face at Y = 0."""
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 from sizes import SERVO_LENGTH, SERVO_TAB_HOLE_ACROSS, SERVO_TAB_HOLE_SPACING, SERVO_WIDTH
@@ -29,7 +28,7 @@ CORNER = 3.0  # the outside corners' radius
 SERVO_Y = CUTOUT_FROM_WALL + SERVO_CLEARANCE + SERVO_WIDTH / 2  # wall face to the servo's centre line
 
 
-@step
+@model
 def servo_bracket():
     profile = Sketch("Profile", plane="Right")
     shelf, flange = profile.polyline((SHELF_DEPTH, 0), (0, 0), (0, -FLANGE_HEIGHT))
@@ -90,7 +89,7 @@ def servo_bracket():
     bracket = bd.fillet(bracket.edges().filter_by(bd.Axis.Z).group_by(bd.Axis.Y)[-1], radius=CORNER)  # Shelf corners
     bracket = bd.fillet(bracket.edges().filter_by(bd.Axis.Y).group_by(bd.Axis.Z)[0], radius=CORNER)  # Flange corners
 
-    bracket.color = srgb("#B9BFC6")
+    bracket.color = "#B9BFC6"
     bracket.label = "servo_bracket"
     return bracket
 

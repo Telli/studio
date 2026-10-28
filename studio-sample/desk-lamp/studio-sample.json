@@ -12,5 +12,5 @@
     "Work instructions"
   ],
   "picture": "pictures/desk-lamp.png",
-  "open": "assemblies/desk_lamp.step"
+  "open": "assemblies/desk_lamp.py"
 }

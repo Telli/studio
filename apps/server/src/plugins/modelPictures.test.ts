@@ -124,4 +124,28 @@ describe("model pictures", () => {
       { path: id, png: null },
     ]);
   });
+
+  it("answers a KiCad board with no picture, asking the renderer for nothing", async () => {
+    const dir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "pictures-"));
+    const project = NodePath.join(dir, "project");
+    NodeFS.mkdirSync(NodePath.join(project, "boards"), { recursive: true });
+    NodeFS.writeFileSync(NodePath.join(project, "boards", "driver.kicad_pcb"), "(kicad_pcb)");
+    const runs = NodePath.join(dir, "runs.txt");
+    // A renderer that would fail the request if it were asked: cadgen 0.8 draws no board yet.
+    const renderer = NodePath.join(dir, "renderer.mjs");
+    NodeFS.writeFileSync(
+      renderer,
+      `import fs from "node:fs";
+       fs.appendFileSync(${JSON.stringify(runs)}, "ran\\n");
+       process.exit(2);`,
+    );
+    const pictures = await renderModelPictures({
+      launch: { command: process.execPath, args: [renderer], env: {}, cwd: dir },
+      cwd: project,
+      paths: ["boards/driver.kicad_pcb"],
+      cacheDir: NodePath.join(dir, "cache"),
+    });
+    expect(pictures).toEqual([{ path: "boards/driver.kicad_pcb", png: null }]);
+    expect(NodeFS.existsSync(runs)).toBe(false);
+  });
 });

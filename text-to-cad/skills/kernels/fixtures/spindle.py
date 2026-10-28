@@ -1,9 +1,9 @@
 """A cone on a cylinder."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 
-@step
+@model
 def spindle():
     with bd.BuildPart() as part:
         bd.Cone(10, 4, 12)

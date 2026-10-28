@@ -905,7 +905,7 @@ def trace_model(target: str | Path) -> dict:
     from cadgen_stub import Unsupported as ModelUnsupported, install, load, shape_of, split_target
 
     script, function = split_target(str(target))
-    saved = {name: sys.modules.get(name) for name in ("build123d", "cadgen", "cadgen.build123d")}
+    saved = {name: sys.modules.get(name) for name in ("build123d", "cadgen")}
     install(_recording_module())
     _STACK.clear()
     try:

@@ -1,9 +1,9 @@
 """A loft from a square to a circle."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 
-@step
+@model
 def transition():
     with bd.BuildPart() as part:
         with bd.BuildSketch():

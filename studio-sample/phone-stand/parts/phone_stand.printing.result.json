@@ -117,11 +117,11 @@
     "solver": "amg+cg (55 iterations)"
   },
   "timings": {
-    "mesh_s": 2.077,
-    "assemble_s": 0.003,
-    "solve_s": 75.389,
+    "mesh_s": 1.866,
+    "assemble_s": 0.002,
+    "solve_s": 67.862,
     "post_s": 0.012,
-    "mesh_to_fem_s": 0.587
+    "mesh_to_fem_s": 0.465
   },
   "warnings": [],
   "findings": [

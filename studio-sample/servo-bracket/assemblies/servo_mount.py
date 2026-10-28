@@ -1,19 +1,22 @@
 """The servo mount: the bracket with an MG996R dropped into its cutout horn up, held by four ISO 4762 M3x8 socket head
 screws (downloaded from step.parts) in the bracket's tapped holes, the horn adapter on the servo's output, and the
 cable clip bonded to the flange. Each part is placed by its mates, solved on every run; the horn turns 60 degrees
-each way (the datasheet's 120 degrees of travel), and the `range` clip turns it through that travel for the motion
-video."""
+each way (the datasheet's 120 degrees of travel), a revolute joint on the servo with a rigid joint of the same label on
+the adapter, and the `range` sequence turns it through that travel, as the viewer's Motion plays it and a GLB exported
+from the mount carries it."""
 
 import sys
 from pathlib import Path
 
-import cadgen
-from cadgen import build123d as bd
-from cadgen import read_step, step
+import math
+
+import build123d as bd
+from cadgen import model, read_step
+from cadgen.ap242 import configuration_sequence
 from cadgen.mates import Coincident, Concentric, mate
 
 PARTS = Path(__file__).resolve().parent.parent / "parts"
-sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, built and linked here as children
+sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, each built in this run with its own document
 
 from cable_clip import BASE_WIDTH, HEIGHT, cable_clip  # noqa: E402
 from horn_adapter import horn_adapter  # noqa: E402
@@ -25,43 +28,22 @@ SCREW = PARTS / "imported" / "iso4762_socket_head_cap_screw_m3x8.step"  # step.p
 CLIP_FROM_SIDE = 1.0  # the clip's outer side in from the flange's side edge, at the servo's output end
 CLIP_FROM_BOTTOM = 2.0  # the clip's lower end up from the flange's bottom edge
 HORN_AXIS = (SERVO_LENGTH / 2 - SERVO_SHAFT_FROM_END, SERVO_Y, 0)  # the servo's output axis, along +Z
-RANGE_SECONDS = 6.0  # one cycle of the range clip: 0, up to +60, back through 0 to -60, and back to 0
-
-KINEMATICS = {
-    "mates": [
-        cadgen.revolute(
-            "horn",
-            parent="#mg996r",
-            child="#horn_adapter",
-            origin=HORN_AXIS,
-            direction=(0, 0, 1),
-            limits=(-SERVO_TRAVEL / 2, SERVO_TRAVEL / 2),
-        ),
-    ],
-}
-
-# The horn adapter turned about the horn's axis through the servo's whole travel, as the `horn` mate allows.
-ANIMATION = f"""
-export const clips = {{
-  range: {{
-    label: "Horn through its range",
-    duration: {RANGE_SECONDS},
-    update(t, m) {{
-      const angle = {SERVO_TRAVEL / 2} * Math.sin(2 * Math.PI * t / {RANGE_SECONDS});
-      m.get("horn_adapter").rotate([0, 0, 1], angle, [{HORN_AXIS[0]}, {HORN_AXIS[1]}, {HORN_AXIS[2]}]);
-    }},
-  }},
-}};
-"""
+RANGE_SECONDS = 6.0  # one cycle of the range sequence: 0, up to +60, back through 0 to -60, and back to 0
 
 
-@step(kinematics=KINEMATICS, animation=ANIMATION)
+
+def through_travel(t: float) -> dict:
+    """The horn's angle `t` seconds into the range sequence: a sine through the servo's whole travel."""
+    return {"horn": SERVO_TRAVEL / 2 * math.sin(2 * math.pi * t / RANGE_SECONDS)}
+
+
+@model
 def servo_mount():
-    bracket = servo_bracket()
+    bracket = servo_bracket().shape
     shelf_top = bracket.faces().sort_by(bd.Axis.Z)[-1]
     tapped = bracket.faces().filter_by(bd.GeomType.CYLINDER).filter_by(lambda face: abs(face.radius - TAP_DRILL / 2) < 1e-3)
 
-    servo = mg996r()
+    servo = mg996r().shape
     tab_holes = servo.faces().filter_by(bd.GeomType.CYLINDER).sort_by(bd.Axis.Z)[:4]
     tab_underside = servo.faces().filter_by(bd.Axis.Z).group_by(bd.Axis.Z)[1][0]
     mate(
@@ -83,18 +65,24 @@ def servo_mount():
             placed.label = f"m3x8_screw:{end}_{side}"
             screws.append(placed)
 
-    adapter = horn_adapter()
+    adapter = horn_adapter().shape
     bore = adapter.faces().filter_by(bd.GeomType.CYLINDER).filter_by(lambda face: abs(face.radius - SERVO_SPLINE / 2) < 1e-3)[0]
     bore_end = adapter.faces().filter_by(bd.Axis.Z).group_by(bd.Axis.Z)[1][0]
     spline = servo.faces().filter_by(bd.GeomType.CYLINDER).sort_by(bd.Axis.Z)[-1]
     spline_top = servo.faces().sort_by(bd.Axis.Z)[-1]
     mate(adapter, Concentric(bore, spline), Coincident(bore_end, spline_top))
 
-    clip = bd.Pos(WIDTH / 2 - CLIP_FROM_SIDE - BASE_WIDTH / 2, 0, -FLANGE_HEIGHT + CLIP_FROM_BOTTOM + HEIGHT / 2) * cable_clip()
+    clip = bd.Pos(WIDTH / 2 - CLIP_FROM_SIDE - BASE_WIDTH / 2, 0, -FLANGE_HEIGHT + CLIP_FROM_BOTTOM + HEIGHT / 2) * cable_clip().shape
     flange_front = bracket.faces().filter_by(bd.Axis.Y).group_by(bd.Axis.Y)[1][0]
     mate(clip, Coincident(clip.faces().filter_by(bd.Axis.Y).sort_by(bd.Axis.Y)[0], flange_front))
 
-    return bd.Compound(children=[bracket, servo, adapter, *screws, clip], label="servo_mount")
+    mount = bd.Compound(children=[bracket, servo, adapter, *screws, clip], label="servo_mount")
+
+    # The horn, where the adapter stands (its value 0 as built): the mount is at the world's origin, so the axis is given
+    # in the world's frame, and the adapter's rigid joint at the horn's own frame.
+    horn = bd.RevoluteJoint("horn", servo, axis=bd.Axis(HORN_AXIS, (0, 0, 1)), angular_range=(-SERVO_TRAVEL / 2, SERVO_TRAVEL / 2))
+    bd.RigidJoint("horn", adapter, horn.location)
+    return configuration_sequence(mount, "range", through_travel, duration=RANGE_SECONDS)
 
 
 if __name__ == "__main__":

@@ -1,15 +1,19 @@
-"""Measures the machining features of the saved motor plate for its DFM review (docs/motor_plate_dfm.md): every
-vertical inside corner's radius, the pocket's depth and width, each hole's and slot's diameter and depth, and the
-thinnest walls between features, as distances between the STEP's own faces. Run from the project root after
-`python parts/motor_plate.py`; writes checks/motor_plate_dfm_measure.md."""
+"""Measures the machining features of the motor plate for its DFM review (docs/motor_plate_dfm.md): every vertical
+inside corner's radius, the pocket's depth and width, each hole's and slot's diameter and depth, and the thinnest
+walls between features, as distances between the model's own faces. Run from the project root with
+`python checks/motor_plate_dfm_measure.py`; writes checks/motor_plate_dfm_measure.md."""
 
+import sys
 from pathlib import Path
 
-from cadgen import build123d as bd
-from cadgen import read_step
+import build123d as bd
 
 ROOT = Path(__file__).resolve().parent.parent
-plate = read_step(ROOT / "parts" / "motor_plate.step")
+sys.path.insert(0, str(ROOT / "parts"))
+
+from motor_plate import motor_plate  # noqa: E402
+
+plate = motor_plate().shape
 faces = plate.faces()
 bb = plate.bounding_box()
 top_z, bottom_z = bb.max.Z, bb.min.Z
@@ -79,8 +83,8 @@ rows.append(("Wall: M3 hole to pocket wall", "%.3f" % gap(screw_holes, pocket_wa
 rows.append(("Wall: M3 hole to pilot bore", "%.3f" % gap(screw_holes, bore), "in the 3 mm floor"))
 
 lines = ["# Motor plate: DFM measurements", "",
-         "Measured on `parts/motor_plate.step` with `python checks/motor_plate_dfm_measure.py`, from the STEP's own "
-         "faces (exact B-rep: radii from the cylinders, gaps as face-to-face distances). Millimetres; Z 0 is the "
+         "Measured on the plate's model (`parts/motor_plate.py`) with `python checks/motor_plate_dfm_measure.py`, from its "
+         "own faces (exact B-rep: radii from the cylinders, gaps as face-to-face distances). Millimetres; Z 0 is the "
          "plate's underside, Z 6 its top.", "",
          "| Feature | Measured | Where |", "| --- | --- | --- |"]
 lines += [f"| {a} | {b} | {c} |" for a, b, c in rows]

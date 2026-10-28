@@ -11,5 +11,5 @@
     "Assembly"
   ],
   "picture": "pictures/phone-stand.png",
-  "open": "parts/phone_stand.step"
+  "open": "parts/phone_stand.py"
 }

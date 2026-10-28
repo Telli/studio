@@ -1,0 +1,12 @@
+{"jobs": [
+  {
+    "input": "assemblies/motor_mount.step",
+    "display": {"pmi": false},
+    "outputs": [
+      {"path": "pictures/motor_mount_angle.png", "camera": "iso", "width": 1200, "height": 900},
+      {"path": "pictures/motor_mount_below.png", "camera": {"direction": [1, -1.4, -1]}, "width": 1200, "height": 900},
+      {"path": "pictures/motor-mount.png", "camera": "iso", "width": 640, "height": 400}
+    ],
+    "output": {"padding": 0.04}
+  }
+]}

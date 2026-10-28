@@ -27,7 +27,8 @@ A desk stand for a phone, printed in one piece in PLA on a Bambu Lab P1S: a samp
 
 ## In this project
 
-- The part: [the phone stand](parts/phone_stand.step), [as it prints, STL](parts/phone_stand_print.stl) and [3MF](parts/phone_stand_print.3mf), and [the stand with a phone in it](assemblies/phone_stand_portrait.step), with [the models' catalog](parts/README.md).
+- The models: [the phone stand](parts/phone_stand.py), [as it prints](parts/phone_stand_print.py) and [with a phone in it](assemblies/phone_stand_portrait.py), with [the models' catalog](parts/README.md).
+- Their files, from [`exports.py`](exports.py): [the stand's STEP](parts/phone_stand.step), [as it prints, STL](parts/phone_stand_print.stl) and [3MF](parts/phone_stand_print.3mf), and [the stand with a phone in it](assemblies/phone_stand_portrait.step).
 - The checks: [FDM printability](parts/phone_stand_fdm.md), [warp off the plate](parts/phone_stand_printing.md) with [its result](parts/phone_stand.printing.glb), and [mass, fit and tip-over](docs/phone_stand_mass_and_tip.md).
 - Making it: [the slicing notes and presets](manufacturing/phone_stand_slice.md) and [the drawing](drawings/phone_stand_drawing.pdf).
 - The documents: [PRD](docs/prd.md).

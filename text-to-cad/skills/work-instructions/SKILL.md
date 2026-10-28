@@ -29,14 +29,19 @@ placeholders, never defaults.
 
 ## Setup
 
-Run cadgen through [uv](https://docs.astral.sh/uv/), so this skill's commands share
-one installation, and its warm build daemon, with the CAD app's server:
+Run cadgen through the `cadgen` command its installation writes, so this skill's commands
+share one installation, and its engine server, with the CAD app's:
 
-- `cadgen` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.26 cadgen`
-- `python` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.26 python`
+- `cadgen` below means `cadgen +0.8.0` (`~/.local/bin/cadgen +0.8.0` where `~/.local/bin` is not on your PATH)
+- `python` below means `cadgen +0.8.0 run`
 
-The first run downloads that installation and the first snapshot its headless
-browser; later runs reuse both.
+If `cadgen` is not on your PATH, or it says 0.8.0 is not installed, run
+`uvx --no-config --managed-python --python 3.13 --from cadgen==0.8.0 cadgen doctor` once,
+outside any sandbox or with its permission: it installs cadgen, registers it, writes the
+`cadgen` command and starts the engine. With the CAD app's server running, nothing else
+needs the sandbox's permission: it starts the engine and holds it. Without it, a sandboxed
+shell cannot start the engine; when a command says no engine is running, run `cadgen server`
+outside the sandbox once.
 
 ## Workflow
 
@@ -66,8 +71,9 @@ browser; later runs reuse both.
      points is `controlled`.
    - **Its identity:** the instruction's own number and revision, and the
      assembly's part number. Never make these up.
-2. **Get the assembly.** The STEP a `@step` assembly model wrote (run `python
-   <model>.py` first; build or fix the model with `$cad`) or an imported one.
+2. **Get the assembly.** Its STEP, exported from the assembly's model
+   (`cadgen export <id> assembly.step`, or the project's `exports.py`; build or
+   fix the model with `$cad`), or an imported one.
    `Instruction(...).tree()` prints every part and subassembly with its ref
    (`#o1.2`) and name; those are what a step installs. Install a subassembly
    the model builds as one piece (a coilover, a wheel) by its ref or name: it

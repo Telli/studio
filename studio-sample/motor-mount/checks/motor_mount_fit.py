@@ -1,23 +1,24 @@
-"""Checks the saved motor mount for collisions between its parts and measures where the motor and screws sit on the
-plate. Run from the project root after `python assemblies/motor_mount.py`; writes checks/motor_mount_fit.md."""
+"""Checks the motor mount for collisions between its parts and measures where the motor and screws sit on the
+plate: it calls the mount's model, so it checks the mount as it is now. Run from the project root with
+`python checks/motor_mount_fit.py`; writes checks/motor_mount_fit.md."""
 
+import sys
 from itertools import combinations
 from pathlib import Path
 
-from cadgen import read_scene
 from cadgen.geometry import overlap_volume
 
 ROOT = Path(__file__).resolve().parent.parent
-scene = read_scene(ROOT / "assemblies" / "motor_mount.step")
+sys.path.insert(0, str(ROOT / "assemblies"))
 
-parts = {}
-for occ in scene.leaves():
-    (selection,) = scene.resolve(occ.ref)
-    parts[occ.label] = selection.shape()
+from motor_mount import motor_mount  # noqa: E402
+
+# Every placed part, in world coordinates, by its label.
+parts = {part.label: part for part in motor_mount().shape.leaves}
 
 lines = ["# Motor mount: fit check", "",
-         "Measured on `assemblies/motor_mount.step` with `python checks/motor_mount_fit.py`. Millimetres; the plate's "
-         "underside is Z 0.", "", "## Overlaps between parts", "", "| Parts | Overlap, mm3 | Result |", "| --- | --- | --- |"]
+         "Measured on the motor mount's model (`assemblies/motor_mount.py`) with `python checks/motor_mount_fit.py`. "
+         "Millimetres; the plate's underside is Z 0.", "", "## Overlaps between parts", "", "| Parts | Overlap, mm3 | Result |", "| --- | --- | --- |"]
 bad = 0
 for (a, sa), (b, sb) in combinations(parts.items(), 2):
     v = sum(overlap_volume(x, y) for x in sa.solids() for y in sb.solids())

@@ -41,14 +41,18 @@ by hand" below.
   variable's name beside it.
 - **Keep the body in one name and return it** (`tray = ...`, then `return tray`), in build123d's
   algebra style. A command writes its line right after the last statement that makes the body,
-  before `label` and `color` are set. A body returned outright (`return Box(...)`) is first put
-  in a name (`part = Box(...)`); a part built in builder style (`with BuildPart()`) takes no
-  commands yet.
-- **Profiles as `Rectangle`, `RectangleRounded`, `Box` or `Cylinder`, placed with `Pos(...)`**, get
+  before `label` and `color` are set. A body returned outright (`return bd.Box(...)`) is first
+  put in a name (`part = bd.Box(...)`); a part built in builder style (`with bd.BuildPart()`)
+  takes no commands yet.
+- **Give a part's PMI in its `return`** (`return annotate(part, ...)`, or a function of the part's
+  own the return calls): a command's line then lands before it, so the annotations stand on the
+  finished body and follow it ([PMI](pmi.md)), the general profile taking any face a command adds.
+- **Profiles as `bd.Rectangle`, `bd.RectangleRounded`, `bd.Box` or `bd.Cylinder`, placed with `bd.Pos(...)`**, get
   dimensions drawn on the model. Other shapes still show their sizes in the history.
 - A unit constant (`INCH = 25.4`) is fine: lengths show in the project's units.
-- **Bring a STEP in as its own line**, `part = read_step(Path(__file__).parent / "bracket.step")`,
-  and model on that name. It is one feature, the imported body (NX's Body, SolidWorks' Imported1),
+- **Bring a STEP in as its own line**, `part = read_step(Path(__file__).parent / "bracket.step")`
+  (`from cadgen import read_step`; `read_xbf` of an xbf converted from it once reads faster), and
+  model on that name. It is one feature, the imported body (NX's Body, SolidWorks' Imported1),
   with no history under it, as other CAD tools hold one. Change its faces with direct editing
   (`from cadgen.direct import offset_faces, delete_faces`): `part = offset_faces(part, <faces>,
   distance=2)` moves faces along their normals (negative pushes in), `part = delete_faces(part,
@@ -90,10 +94,10 @@ by hand" below.
   `length=1 * bd.tan(bd.radians(30)), length2=1`, which reopens as Angle distance, flipped.
 - **Shell**: `bd.offset(body, amount=-thickness, openings=<faces>)`; Shell outward is a positive amount.
 - **Split** cuts the body into bodies by an origin or reference plane, or a flat face's plane:
-  `part = split(part, bisect_by=Plane.YZ, keep=Keep.BOTH)` (`Keep.TOP`/`Keep.BOTTOM` keeps one side).
-  **Delete/Keep Body** then takes a body out by a face picked on it:
-  `part -= part.solids().sort_by(Axis.X)[-1]  # Delete Body`, or keeps it alone
-  (`part = Part() + part.solids().sort_by(Axis.X)[0]  # Keep Body`); a body is named by its place
+  `part = bd.split(part, bisect_by=bd.Plane.YZ, keep=bd.Keep.BOTH)` (`bd.Keep.TOP`/`bd.Keep.BOTTOM`
+  keeps one side). **Delete/Keep Body** then takes a body out by a face picked on it:
+  `part -= part.solids().sort_by(bd.Axis.X)[-1]  # Delete Body`, or keeps it alone
+  (`part = bd.Part() + part.solids().sort_by(bd.Axis.X)[0]  # Keep Body`); a body is named by its place
   along the axis the bodies are most spread along.
 - **Plane** (Reference Geometry) is a line of its own, offset from an origin plane or a flat face
   of the body: `plane1 = bd.Plane.XY.offset(10)`, `plane2 = bd.Plane(<face>).offset(-.25*INCH)`
@@ -102,7 +106,7 @@ by hand" below.
   an edge a plane normal to it at its start (or end):
   `plane4 = bd.Plane(origin=<edge>.position_at(0), z_dir=<edge>.tangent_at(0)).offset(0)`. The tree lists it as Plane1, and a
   sketch goes on it by its name: `sketch4 = Sketch("Sketch4", plane=plane1)`, as do a mirror
-  (`about=plane1`), a draft's neutral plane (`draft(<faces>, plane1, 2)`) and another plane
+  (`about=plane1`), a draft's neutral plane (`bd.draft(<faces>, plane1, 2)`) and another plane
   (`plane2 = plane1.offset(5)`), each written after the plane's own line. A line that only
   offsets a plane reads as a Plane; one that offsets a plane to place something reads as what it
   places. At angle turns it about its own X or Y axis through its origin, by the right hand:
@@ -121,36 +125,36 @@ by hand" below.
   placed by its own `Pos`: `plate -= [bd.Pos(0, 0, .3*INCH * i) * hole1 for i in range(1, 3)]`.
   About a round face's axis or a straight edge picked on the model:
   `hub -= [hole1.rotate(<face>.axis_of_rotation, i * 360 / 6) for i in range(1, 6)]`
-  (`Axis(<edge>)` for an edge). An Angle short of 360 spreads them from the first to the last:
-  `i * 90 / (4 - 1)`, or `PolarLocations(0, 4, angular_range=90, endpoint=True)`; a negative angle
+  (`bd.Axis(<edge>)` for an edge). An Angle short of 360 spreads them from the first to the last:
+  `i * 90 / (4 - 1)`, or `bd.PolarLocations(0, 4, angular_range=90, endpoint=True)`; a negative angle
   is Reverse direction.
 - **Extruded Boss/Base and Extruded Cut** make a solid of the sketch picked on the model or in the design tree:
-  `part += extrude(sketch2.face(), amount=5)`, or `part -= extrude(...)` for a cut (a negative
+  `part += bd.extrude(sketch2.face(), amount=5)`, or `part -= bd.extrude(...)` for a cut (a negative
   amount goes the other way along the sketch's normal; Mid Plane is `both=True` with half the
   depth; a cut Through All is `amount=-part.bounding_box().diagonal`; Up To Next is
-  `until=Until.NEXT, target=part` with no amount; Up To Surface and Up To Vertex are
+  `until=bd.Until.NEXT, target=part` with no amount; Up To Surface and Up To Vertex are
   `amount=sketch2.depth_to(<face>)`, or `depth_to(<edge>.start_point())` for the end of an edge,
   so the extrude follows what it ends on; a draft is `taper=` in degrees, drawn in, or out when
   negative). A cut starts toward the part. The line goes after the sketch's own lines.
   Direction 2 goes the other way too, as a second extrude of the same profile added to the
-  first: `part += extrude(sketch2.face(), amount=6) + extrude(sketch2.face(), amount=-4)`, Blind
+  first: `part += bd.extrude(sketch2.face(), amount=6) + bd.extrude(sketch2.face(), amount=-4)`, Blind
   or (for a cut) Through All, with its own `taper=`; not with Mid Plane. With Up To Surface or Up To
   Vertex it goes the other side of the sketch's plane from what Direction 1 ends on. It reads back
   as one feature with Direction 2 on.
 - **Revolved Boss/Base and Revolved Cut** turn the selected sketch about one of its lines (its
-  centerline, usually): `part += revolve(sketch2.face(), axis=sketch2.axis(line1),
-  revolution_arc=360)`, or `part -= revolve(...)` for a cut; Reverse direction is a negative
+  centerline, usually): `part += bd.revolve(sketch2.face(), axis=sketch2.axis(line1),
+  revolution_arc=360)`, or `part -= bd.revolve(...)` for a cut; Reverse direction is a negative
   angle. Mid Plane and Direction 2 turn the profile back first and revolve the whole angle:
-  `revolve(sketch2.face().rotate(sketch2.axis(line1), -45), axis=sketch2.axis(line1),
+  `bd.revolve(sketch2.face().rotate(sketch2.axis(line1), -45), axis=sketch2.axis(line1),
   revolution_arc=90)` is 90° Mid Plane; a turn back other than half is Direction 2's angle.
 - **Thin Feature** (an extrude's option) makes the outline a wall rather than filling it:
-  `part += extrude(sketch2.thin(1.5), amount=20)`, `side="outside"` or `side="mid"` for the wall
+  `part += bd.extrude(sketch2.thin(1.5), amount=20)`, `side="outside"` or `side="mid"` for the wall
   outside the outline or astride it.
 - **Swept Boss/Base and Swept Cut** run a profile sketch along a path sketch:
-  `part += sweep(sketch1.face(), path=sketch2.path(), transition=Transition.RIGHT)`, or `-=` for a
+  `part += bd.sweep(sketch1.face(), path=sketch2.path(), transition=bd.Transition.RIGHT)`, or `-=` for a
   cut. Its line goes after the later of the two sketches.
 - **Lofted Boss/Base and Lofted Cut** join profile sketches, usually on offset planes, in order:
-  `part += loft([sketch1.face(), sketch3.face()])`.
+  `part += bd.loft([sketch1.face(), sketch3.face()])`.
 - **Rib** grows a sketch's straight lines to the body, parallel to the sketch:
   `part += sketch4.rib(2, part)`, `flip=True` for the other side of the line.
 - Sizes are written in the project's units, as the file writes them (`.03*INCH` in an inch part).
@@ -173,7 +177,7 @@ by hand" below.
   acts on stays as written (its edges, faces, the feature it copies, its sketch) unless the
   engineer picks others: a fillet's, chamfer's, shell's, draft's or hole's panel rolls the part back to
   just before the feature, and edges or faces picked there are written as selectors on the body
-  as it was at that line (`outer = fillet(outer.faces().sort_by(Axis.Z)[-1].edges(), radius=2)`).
+  as it was at that line (`outer = bd.fillet(outer.faces().sort_by(bd.Axis.Z)[-1].edges(), radius=2)`).
   A value left as it was keeps how it was written (`radius=WALL` stays `radius=WALL`). A line
   written in the commands' form opens this way even when you wrote it.
 - **An assembly places its parts; a part is modeled on its own.** In an assembly the design tree
@@ -186,8 +190,8 @@ by hand" below.
   since it in amber and what it has lost in red, with their volumes. It writes nothing; edit mode
   keeps the last 12 versions while the viewer runs.
 - **New Sheet** (the Drafting tab's Sheet group, in a part) writes `<name>_drawing.py` beside the
-  part from the engineering drawing skill's template: it reads the part's STEP, puts top, front and
-  right views in third angle and an isometric on an A3 sheet, each with its overall size, and is run
+  part from the engineering drawing skill's template: it calls the part's model (`part().shape`, so
+  the drawing follows the part), puts top, front and right views in third angle and an isometric on an A3 sheet, each with its overall size, and is run
   at once to write `<name>_drawing.pdf` beside it. Its **Drawing** panel then sets the sheet as
   `Sheet(...)` takes it (size, `scale=0.5` for 1:2, the title block's `title`, `part_number`,
   `material`, `revision`, `author`) and whether `three_views(part, iso=True)` draws the isometric,
@@ -203,8 +207,8 @@ by hand" below.
   agent's, in the same script.
 - **Insert Components** (the Assembly tab, beside Mate) lists the project's part scripts and adds
   the one picked: `from cap import cap` in the assembly's script (with a `sys.path.insert` for its
-  folder when no part is imported from there yet) and `cap()` at the end of the `children` it
-  returns, where the part is made, for mates to place. A part already in the assembly is not
+  folder when no part is imported from there yet) and `cap().shape` at the end of the `children`
+  it returns, where the part is made, for mates to place. A part already in the assembly is not
   inserted again (the design tree lists each part's model once); ask for another instance in code.
 - **Mate** (the Assemble tab's Mate) places an assembly's part by a face or an edge picked on
   the part that stays and one on the part that moves to it, as SolidWorks' Standard Mates do. It
@@ -225,9 +229,9 @@ by hand" below.
   (`Sketch("Cable notch", ...)`). A hole of a standard size is named by its callout until renamed.
   No two features share a name, and nothing is built.
 - **Appearance** (the Inspect tab's Display group, or the part's menu in the design tree) colors the part with
-  the hex picked: written where its body takes its color, `tray.color = srgb("#B7A1D7")` (an alpha
-  kept), or just before it is returned, with `from cadgen.color import srgb`; the part is built
-  again, as its STEP carries the color.
+  the hex picked: written where its body takes its color, `tray.color = "#B7A1D7"` (an alpha kept
+  as the hex's last byte, `"#B7A1D7CC"`), or just before it is returned; the part is built again,
+  as its document carries the color.
 - **Mass Properties** (the Inspect tab's Measure group, or the part's menu in the design tree) weighs the part as
   it is, at the rollback bar when it is up: its volume, surface area, center of mass (marked on
   the model) and overall size, worked out from its solids, and its mass in a material of cadgen's
@@ -261,7 +265,7 @@ by hand" below.
 
   ```python
       # Suppressed (Cut-Extrude, 2 lines):
-      # cavity = Pos(0, 0, 2) * Box(36, 16, 10)
+      # cavity = bd.Pos(0, 0, 2) * bd.Box(36, 16, 10)
       # tray = outer - cavity
       tray = outer  # Cut-Extrude suppressed
   ```
@@ -275,7 +279,7 @@ by hand" below.
 ## Sketches drawn by hand
 
 - A new sketch is a line before the part is returned: `sketch2 = Sketch("Sketch2", plane="Top")`
-  (on a face of the body: `plane=part.faces().sort_by(Axis.Z)[-1]`; in an inch part, `unit=INCH`).
+  (on a face of the body: `plane=part.faces().sort_by(bd.Axis.Z)[-1]`; in an inch part, `unit=INCH`).
 - Each stroke, relation and dimension is one more line at the end of the sketch's own lines,
   the entities named as the sketch names them where the name is free (`line1, line2, line3, line4
   = sketch2.rectangle(sketch2.origin, (30, 20))`, `sketch2.length(line1, 30)`). A point drawn on

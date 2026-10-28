@@ -2,9 +2,8 @@
 servo. The lead is pressed into the channel through its opening. The channel runs along the clip's Z, so it prints
 standing up, the way it is drawn, with nothing overhanging. Origin: the centre of the bonded face; +Y out of it."""
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 BASE_WIDTH = 8.0
@@ -16,7 +15,7 @@ CHANNEL_FROM_BASE = 4.4  # the bonded face to the channel's axis; the channel's 
 OPENING = 2.6  # the gap the lead is pressed through
 
 
-@step
+@model
 def cable_clip():
     base = Sketch("Base", plane="Top")
     bottom, side1, top, side2 = base.rectangle((-BASE_WIDTH / 2, 0), (BASE_WIDTH / 2, BASE_THICKNESS))
@@ -43,7 +42,7 @@ def cable_clip():
     opening.length(side3, CABLE / 2 + WALL + 1)
     clip -= bd.extrude(opening.face(), amount=clip.bounding_box().diagonal, both=True)
 
-    clip.color = srgb("#3E6FA8")
+    clip.color = "#3E6FA8"
     clip.label = "cable_clip"
     return clip
 

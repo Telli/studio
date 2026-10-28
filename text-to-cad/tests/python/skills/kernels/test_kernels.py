@@ -35,8 +35,8 @@ FIXTURES = repo_path("skills/kernels/fixtures")
 REFERENCE = json.loads((FIXTURES / "reference.json").read_text(encoding="utf-8"))
 
 MODEL = textwrap.dedent('''
-    from cadgen import build123d as bd
-    from cadgen import step
+    import build123d as bd
+    from cadgen import model, step
 
 
     @step(out="../STEP/pill.step")
@@ -47,7 +47,7 @@ MODEL = textwrap.dedent('''
         return part.part
 
 
-    @step
+    @model
     def block():
         return bd.Box(1, 2, 3)
 
@@ -127,8 +127,8 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(program["root"]["select"], {"all": True})
 
     def test_unsupported_api_is_named_not_guessed(self):
-        self.script.write_text("from cadgen import build123d as bd, step\n\n"
-                               "@step\ndef twist():\n    return bd.Helix(1, 2, 3)\n", encoding="utf-8")
+        self.script.write_text("import build123d as bd\nfrom cadgen import model\n\n"
+                               "@model\ndef twist():\n    return bd.Helix(1, 2, 3)\n", encoding="utf-8")
         program = trace_model(str(self.script))
         self.assertFalse(program["ok"])
         self.assertIn("Helix", program["error"])
@@ -136,7 +136,7 @@ class ModelTests(unittest.TestCase):
     def test_edges_picked_in_python_are_refused_not_skipped(self):
         # an empty edge list would let a safe_chamfer-style helper skip the chamfer silently
         self.script.write_text(
-            "from cadgen import build123d as bd, step\n\n@step\ndef block():\n"
+            "import build123d as bd\nfrom cadgen import model\n\n@model\ndef block():\n"
             "    with bd.BuildPart() as part:\n        bd.Box(10, 10, 10)\n"
             "    top = [e for e in part.edges() if e.center().Z > 4]\n"
             "    return bd.chamfer(top, length=1) if top else part.part\n", encoding="utf-8")
@@ -144,18 +144,27 @@ class ModelTests(unittest.TestCase):
         self.assertFalse(program["ok"])
         self.assertIn("looping over part.edges()", program["error"])
 
-    def test_palette_colours_are_cadgens_numbers(self):
-        # palette modules do arithmetic on srgb() at import; a stand-in that returned the hex broke every radial part
-        self.script.write_text("from cadgen import build123d as bd, step, srgb\n\n"
-                               "BLACK = tuple(round(float(c), 5) for c in srgb('#0f1012'))\n\n"
-                               "@step\ndef block():\n    return bd.Box(1, 2, 3)\n", encoding="utf-8")
-        self.assertTrue(trace_model(str(self.script))["ok"])
-        self.assertEqual(cadgen_stub.srgb("#fff", 0.5), (1.0, 1.0, 1.0, 0.5))
-        self.assertAlmostEqual(cadgen_stub.srgb("#0f1012")[0], ((15 / 255 + 0.055) / 1.055) ** 2.4)
+    def test_a_name_cadgen_does_not_have_is_said_by_name(self):
+        # 0.8 has no srgb (a colour is its hex) and no cadgen.build123d: a model that reaches for one is told so,
+        # as cadgen itself refuses it, rather than run on a stand-in cadgen does not have.
+        self.script.write_text("import build123d as bd\nfrom cadgen import model, srgb\n\n"
+                               "@model\ndef block():\n    return bd.Box(1, 2, 3)\n", encoding="utf-8")
+        with self.assertRaisesRegex(KernelError, r"cadgen.srgb is cadgen's own"):
+            run(manifest.by_id("implicit"), str(self.script), cwd=self.tmp)
+        self.script.write_text("from cadgen import build123d as bd, model\n", encoding="utf-8")
+        with self.assertRaisesRegex(KernelError, r"cadgen.build123d is cadgen's own"):
+            run(manifest.by_id("implicit"), str(self.script), cwd=self.tmp)
+
+    def test_a_model_with_no_file_runs_beside_its_script(self):
+        # @model declares no file: the kernel's output is named after the script, beside it.
+        from kernel_tools.run import describe
+
+        described = describe(f"{self.script}::block")
+        self.assertEqual(described.outs, {"step": (self.script.parent / "parts.step").resolve()})
 
     def test_a_model_that_fails_to_load_is_reported_not_a_traceback(self):
-        self.script.write_text("from cadgen import build123d as bd, step\nraise ValueError('bad palette')\n", encoding="utf-8")
-        with self.assertRaisesRegex(KernelError, r"parts.py didn't load: ValueError: bad palette at parts.py:2"):
+        self.script.write_text("import build123d as bd\nfrom cadgen import model\nraise ValueError('bad palette')\n", encoding="utf-8")
+        with self.assertRaisesRegex(KernelError, r"parts.py didn't load: ValueError: bad palette at parts.py:3"):
             run(manifest.by_id("implicit"), str(self.script), cwd=self.tmp)
 
     @unittest.skipUnless(shutil.which("node"), "the implicit kernel runs on Node.js")
@@ -249,7 +258,7 @@ class FixtureTests(unittest.TestCase):
     def test_reference_volumes_are_build123ds(self):
         import build123d
 
-        saved = {name: sys.modules.get(name) for name in ("cadgen", "cadgen.build123d", "build123d")}
+        saved = {name: sys.modules.get(name) for name in ("cadgen", "build123d")}
         cadgen_stub.install(build123d)
         try:
             for name, expected in REFERENCE.items():

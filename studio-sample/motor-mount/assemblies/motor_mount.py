@@ -5,12 +5,12 @@ floor. The frame and the belt are not modelled. Origin: the plate's, the centre 
 import sys
 from pathlib import Path
 
-from cadgen import build123d as bd
-from cadgen import read_step, step
+import build123d as bd
+from cadgen import model, read_step
 from cadgen.mates import Coincident, Concentric, mate
 
 PARTS = Path(__file__).resolve().parent.parent / "parts"
-sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, built and linked here as children
+sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, each built in this run with its own document
 
 from motor_plate import SCREW_CLEARANCE, motor_plate  # noqa: E402
 from nema17 import nema17  # noqa: E402
@@ -19,13 +19,13 @@ from sizes import MOTOR_BODY_LENGTH  # noqa: E402
 SCREW = PARTS / "imported" / "iso4762_socket_head_cap_screw_m3x6.step"  # step.parts: iso4762_socket_head_cap_screw_m3x6
 
 
-@step
+@model
 def motor_mount():
-    plate = motor_plate()
+    plate = motor_plate().shape
     holes = plate.faces().filter_by(bd.GeomType.CYLINDER).filter_by(lambda face: abs(face.radius - SCREW_CLEARANCE / 2) < 1e-3)
     pocket_floor = plate.faces().filter_by(bd.Axis.Z).group_by(bd.Axis.Z)[1][0]
 
-    motor = bd.Pos(0, 0, -MOTOR_BODY_LENGTH) * nema17()  # its face against the plate's underside
+    motor = bd.Pos(0, 0, -MOTOR_BODY_LENGTH) * nema17().shape  # its face against the plate's underside
 
     screw = read_step(SCREW)
     screws = []

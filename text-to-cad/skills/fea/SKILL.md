@@ -148,22 +148,30 @@ Modelling the part itself is `$cad`; this skill only reads a saved `.step`. Show
 
 ## Setup
 
-Run cadgen through [uv](https://docs.astral.sh/uv/). `cadgen fea faces` and `cadgen fea parts`
-share one installation with the `$cad` skill and the CAD app's server; `cadgen fea solve` needs the
-`fea` extra, so it runs from its own installation, made the first time it is needed (below):
+Run cadgen through the `cadgen` command its installation writes, so this skill's commands
+share one installation, and its engine server, with the `$cad` skill and the CAD app's:
 
-- `cadgen` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.26 cadgen`
-- `python` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.26 python`
+- `cadgen` below means `cadgen +0.8.0` (`~/.local/bin/cadgen +0.8.0` where `~/.local/bin` is not on your PATH)
+- `python` below means `cadgen +0.8.0 run`
 
-Solving needs cadgen's opt-in `fea` extra, which brings the mesher (netgen) and the solver
-(scikit-fem, pyamg); `fea faces` and `fea parts` work without it. The first time a study runs, `cadgen fea solve` fails with "cadgen's fea extra
-is not installed"; that is a missing install, not a modelling error. Its `pip install` hint does not
-apply under uv: run the same command again with the extra in the requirement, and keep using that
-form for `fea solve` from then on (the first run downloads the mesher and solver, large; later runs
-reuse them):
+If `cadgen` is not on your PATH, or it says 0.8.0 is not installed, run
+`uvx --no-config --managed-python --python 3.13 --from cadgen==0.8.0 cadgen doctor` once,
+outside any sandbox or with its permission: it installs cadgen, registers it, writes the
+`cadgen` command and starts the engine. With the CAD app's server running, nothing else
+needs the sandbox's permission: it starts the engine and holds it. Without it, a sandboxed
+shell cannot start the engine; when a command says no engine is running, run `cadgen server`
+outside the sandbox once.
+
+`cadgen fea solve` needs cadgen's opt-in `fea` extra, which brings the mesher (netgen) and the
+solver (scikit-fem, pyamg); `fea faces` and `fea parts` work without it, and Studio's own installation
+carries it. Elsewhere the first study fails with "cadgen's fea extra is not installed"; that is a
+missing install, not a modelling error. Its `pip install` hint does not apply under uv: register an
+installation that has the extra once, outside any sandbox (the first run downloads the mesher and
+solver, large; later runs reuse them), then run the study again:
 
 ```bash
-uvx --no-config --managed-python --python 3.13 --from "cadgen[fea]==0.7.26" cadgen fea solve part.step --study study.json
+uvx --no-config --managed-python --python 3.13 --from "cadgen[fea]==0.8.0" cadgen doctor
+cadgen fea solve part.step --study study.json
 ```
 
 The analyses CalculiX solves run on it, faster, and the first of them downloads it once (`cadgen:

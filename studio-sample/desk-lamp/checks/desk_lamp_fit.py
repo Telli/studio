@@ -1,7 +1,7 @@
 """Fit, clearance and motion of the desk lamp: every pair of its parts checked for overlap and gap at rest, the fits a
 touching joint hides measured on their own, then each hinge swung through its travel to find the angles where nothing
 collides and nothing goes through the desk, and at each pose the lamp's balance on its base and the torque each hinge
-must hold. Reads the saved assemblies/desk_lamp.step, writes its findings to assemblies/desk_lamp_fit.md, prints them as
+must hold. Calls the lamp's model, so it checks the lamp as it is now, writes its findings to assemblies/desk_lamp_fit.md, prints them as
 one JSON line, and exits 1 when a part collides at rest. Run it from anywhere: python checks/desk_lamp_fit.py"""
 
 import json
@@ -10,19 +10,22 @@ import sys
 from itertools import combinations
 from pathlib import Path
 
-from cadgen import build123d as bd
-from cadgen import read_scene
+import build123d as bd
 from cadgen.geometry import closest_points, overlap_volume
 
 ROOT = Path(__file__).resolve().parent.parent
-ASSEMBLY = "assemblies/desk_lamp.step"
+sys.path.insert(0, str(ROOT / "assemblies"))
+
+from desk_lamp import BASE_HINGE as BASE_AXIS, HEAD_HINGE as HEAD_AXIS, UP, desk_lamp  # noqa: E402
+
+ASSEMBLY = "assemblies/desk_lamp.py"
 FINDINGS = "assemblies/desk_lamp_fit.md"
 
 COLLISION_MM3 = 0.01  # an overlap above this, outside the threads listed below, is a collision
 TIGHT_MM = 0.5  # a gap under this is listed as tight
 TOUCH_MM = 1e-4  # parts closer than this touch
-BASE_HINGE = ((-30.0, 0.0, 48.0), (0.0, -1.0, 0.0))  # the assembly's `tilt` revolute (desk_lamp.step.json)
-HEAD_HINGE = ((84.71528727020922, 0.0, 211.83040885779835), (0.0, -1.0, 0.0))  # its `head` revolute
+BASE_HINGE = (BASE_AXIS, UP)  # the assembly's `tilt` revolute joint: its axis, along -Y
+HEAD_HINGE = (HEAD_AXIS, UP)  # its `head` revolute joint
 SWEEP_STEP = 5.0  # degrees, then each end found to the degree
 FOOTPRINT_RADIUS = 60.0 - 0.6  # where the base meets the desk: its radius less the foot chamfer (parts/base.py)
 
@@ -89,13 +92,22 @@ def gap(a, b) -> tuple[float, list[float]]:
     return round(found.distance, 3), [round(value, 2) for value in (found.point_a.X, found.point_a.Y, found.point_a.Z)]
 
 
+def placed(node, path=()):
+    """Each part of the lamp with its ref's owner, its path of labels from the root (`desk_lamp/arm_assembly/arm`, as
+    `cadgen inspect` takes it). Every sub-assembly of the lamp stands at the world's origin, so its parts' own
+    coordinates are the world's."""
+    here = (*path, node.label)
+    if not node.children:
+        yield "/".join(here), node
+    for child in node.children:
+        yield from placed(child, here)
+
+
 def main() -> int:
-    scene = read_scene(ROOT / ASSEMBLY)
     parts = {}
-    for occurrence in scene.leaves():
-        (selection,) = scene.resolve(occurrence.ref)
-        (solid,) = selection.shape().solids()
-        parts[occurrence.label] = (occurrence.ref, solid)
+    for ref, part in placed(desk_lamp().shape):
+        (solid,) = part.solids()
+        parts[part.label] = (ref, solid)
 
     # Every pair at rest.
     touches, threads, collisions, gaps = [], [], [], []
@@ -249,7 +261,6 @@ def main() -> int:
     failed = bool(collisions or thread_off or unexpected)
     result = {
         "document": ASSEMBLY,
-        "document_hash": scene.document_hash,
         "parts": len(parts),
         "pairs": len(parts) * (len(parts) - 1) // 2,
         "collisions": collisions,
@@ -280,7 +291,7 @@ def markdown(result) -> str:
     lines = [
         "# Fit, clearance and motion: desk lamp",
         "",
-        f"Checked `{result['document']}` (document `{result['document_hash'][:12]}`): its {result['parts']} parts at rest, "
+        f"Checked the lamp's model, `{result['document']}`: its {result['parts']} parts at rest, "
         f"all {result['pairs']} pairs of them, then the fits a touching joint hides, then each hinge swung until a part "
         "collides or goes through the desk, then every pose of the two together in 15 degree steps.",
         "",
@@ -305,7 +316,7 @@ def markdown(result) -> str:
         "",
         "In the model the arm is 55 degrees up from the desk at rest, so it reaches from "
         f"{55 + tilt[0]['angle_deg']:g} to {55 + tilt[1]['angle_deg']:g} degrees up from the desk. The assembly's `tilt` and `head` "
-        "mates take these ranges, rounded in to whole 5 degrees.",
+        "joints take these ranges, rounded in to whole 5 degrees.",
         "",
     ]
     if blocked:
@@ -378,11 +389,11 @@ def markdown(result) -> str:
         "## How it was checked",
         "",
         "- Every pair of parts at rest: the exact overlap of their solids (`cadgen.geometry.overlap_volume`, mm³) and the "
-        "least distance between them (`closest_points`, mm), in the saved assembly's own placements.",
+        "least distance between them (`closest_points`, mm), in the lamp model's own placements.",
         f"- An overlap above {result['limits']['collision_mm3']} mm³ is a collision unless it is an M3 screw's thread in "
         f"its pilot hole; parts closer than {result['limits']['touch_mm']} mm touch; a gap under "
         f"{result['limits']['tight_mm']} mm is tight. These limits are this check's own, chosen for this design.",
-        "- Each hinge swung from rest in 5 degree steps, then a degree at a time, about the axis the assembly's mates "
+        "- Each hinge swung from rest in 5 degree steps, then a degree at a time, about the axis the assembly's joints "
         "declare: the arm with everything it carries, against the base, the weight and the base hinge's screw and nut; "
         "the head with the LED module and its screws, against the arm and everything else. A pose is blocked by an "
         "overlap, or by any part below the desk (z < 0).",

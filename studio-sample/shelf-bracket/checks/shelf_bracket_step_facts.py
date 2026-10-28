@@ -1,6 +1,6 @@
-import sys
+"""Facts from the bracket's exported STEP, the file SendCutSend is sent: its solid, volume, bounds and cylinders.
+Run from the project root after `python exports.py`."""
 from cadgen import read_step
-from cadgen import build123d as bd
 p = read_step("parts/shelf_bracket.step")
 solids = p.solids()
 print("solids", len(solids), "valid", p.is_valid, "volume mm3", round(p.volume, 1))

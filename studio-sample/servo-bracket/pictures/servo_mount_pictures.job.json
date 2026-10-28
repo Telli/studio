@@ -2,20 +2,20 @@
   {
     "input": "assemblies/servo_mount.step",
     "outputs": [
-      { "path": "pictures/servo_mount_front.png", "camera": { "direction": [0, 1, 0] } },
-      { "path": "pictures/servo_mount_side.png", "camera": "right" },
-      { "path": "pictures/servo_mount_top.png", "camera": "top" },
-      { "path": "pictures/servo_mount_angle.png", "camera": { "direction": [1, 1, 0.8] } }
+      {"path": "pictures/servo_mount_front.png", "camera": {"direction": [0, 1, 0]}, "width": 1200, "height": 900},
+      {"path": "pictures/servo_mount_side.png", "camera": "right", "width": 1200, "height": 900},
+      {"path": "pictures/servo_mount_top.png", "camera": "top", "width": 1200, "height": 900},
+      {"path": "pictures/servo_mount_angle.png", "camera": {"direction": [1, 1, 0.8]}, "width": 1200, "height": 900}
     ],
-    "output": { "sizeProfile": "simple" }
+    "output": {"padding": 0.04}
   },
   {
     "input": "assemblies/servo_mount.step",
-    "display": { "exploded": { "enabled": true, "amount": 1.0 } },
+    "display": {"exploded": {"enabled": true, "amount": 0.6}},
     "outputs": [
-      { "path": "pictures/servo_mount_exploded.png", "camera": { "direction": [1, 1, 0.8] } },
-      { "path": "pictures/servo_mount_exploded_side.png", "camera": { "direction": [1, 0.3, 0.25] } }
+      {"path": "pictures/servo_mount_exploded.png", "camera": {"direction": [1, 1, 0.8]}, "width": 1200, "height": 900},
+      {"path": "pictures/servo_mount_exploded_side.png", "camera": {"direction": [1, 0.3, 0.25]}, "width": 1200, "height": 900}
     ],
-    "output": { "sizeProfile": "simple" }
+    "output": {"padding": 0.04}
   }
 ]}

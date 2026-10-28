@@ -9,9 +9,8 @@ desk, halfway across; +Y back from the viewer, +Z up."""
 
 from math import cos, radians, sin
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 ANGLE = 65.0  # the viewing angle: the phone's tilt back from the desk, degrees
@@ -40,7 +39,7 @@ def along_rest(distance: float, out: float = 0.0) -> tuple[float, float]:
     return (REST_FROM_FRONT + distance * c - out * s, BASE_THICKNESS + distance * s + out * c)
 
 
-@step
+@model
 def phone_stand():
     c, s = cos(radians(ANGLE)), sin(radians(ANGLE))
     profile = Sketch("Profile", plane="Right")
@@ -122,7 +121,7 @@ def phone_stand():
               * bd.Box(CABLE_PASS_WIDTH, 2 * WALL / s + CABLE_PASS_HEIGHT, CABLE_PASS_HEIGHT,
                        align=(bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)))  # Cable pass
 
-    stand.color = srgb("#C9B8E8")
+    stand.color = "#C9B8E8"
     stand.label = "phone_stand"
     return stand
 

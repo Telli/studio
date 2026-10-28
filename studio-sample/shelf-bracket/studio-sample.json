@@ -11,5 +11,5 @@
     "Drawing"
   ],
   "picture": "pictures/shelf-bracket.png",
-  "open": "parts/shelf_bracket.step"
+  "open": "parts/shelf_bracket.py"
 }

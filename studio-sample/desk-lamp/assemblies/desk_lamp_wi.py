@@ -1,24 +1,25 @@
-"""Work instructions for putting the desk lamp together, as a PDF in ../docs. It documents the STEP that desk_lamp.py
-writes beside this script: run `python assemblies/desk_lamp.py` first, then this. A prototype build order with a figure
+"""Work instructions for putting the desk lamp together, as a PDF in ../docs. It documents the lamp's STEP, which
+`python exports.py` writes from the lamp's model: run that first, then this. A prototype build order with a figure
 per step: no process spec governs this lamp yet, so the adhesive for the weight and the hinges' screw torques print NOT
 STATED and stay open items until they are chosen."""
 
 from pathlib import Path
 
-from cadgen import build123d as bd
-from cadgen import read_scene
+import build123d as bd
 from cadgen.work_instruction import Instruction, work_instruction
+
+from desk_lamp import desk_lamp
 
 ASSEMBLY = Path(__file__).parent / "desk_lamp.step"
 
 
 def pocket_ceiling() -> str:
-    """The base's pocket ceiling, the face the weight is bonded to: flat, facing down, 10 mm up."""
-    (base,) = read_scene(ASSEMBLY).resolve("#base")
-    for entity in base.entities("face"):
-        face = entity.shape()
+    """The base's pocket ceiling, the face the weight is bonded to: flat, facing down, 10 mm up. Its ref names it by its
+    number in the base (`desk_lamp/base/face N`), as `cadgen inspect assemblies/desk_lamp.step` reads the STEP."""
+    (base,) = [part for part in desk_lamp().shape.leaves if part.label == "base"]
+    for number, face in enumerate(base.faces(), 1):
         if face.geom_type == bd.GeomType.PLANE and face.normal_at().Z < -0.99 and abs(face.center().Z - 10.0) < 1e-3:
-            return entity.ref
+            return f"desk_lamp/base/face {number}"
     raise ValueError("the base has no pocket ceiling at 10 mm")
 
 

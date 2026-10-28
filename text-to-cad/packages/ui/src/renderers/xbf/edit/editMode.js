@@ -1233,15 +1233,15 @@ export function suppressNote(change, { undo = false, redo = false } = {}) {
 /** Where a build of the parts that use a change stands, in a line; empty when it is done. */
 export function buildingText(building) {
   if (!building || !building.scripts?.length) return "";
-  if (building.error) return "A STEP file did not rebuild";
-  if (building.done < building.scripts.length) return `Updating STEP files, ${building.done} of ${building.scripts.length}`;
+  if (building.error) return "A part did not build";
+  if (building.done < building.scripts.length) return `Building the parts, ${building.done} of ${building.scripts.length}`;
   return "";
 }
 
 /**
  * What edit mode is busy with, as a CAD tool's status bar says it while it rebuilds: the part being
- * read, the body at the rollback bar on its way, a change being made or a sketch solved, the STEP
- * files being built again (`progress`, 0 to 100, how many are done). Null when it is idle.
+ * read, the body at the rollback bar on its way, a change being made or a sketch solved, the parts
+ * that use a change being built again (`progress`, 0 to 100, how many are done). Null when it is idle.
  */
 export function busyState(edit) {
   if (edit.status === "reading") return { text: "Reading the part", progress: null };

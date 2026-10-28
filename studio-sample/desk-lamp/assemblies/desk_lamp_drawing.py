@@ -1,12 +1,11 @@
 """Assembly drawing of the desk lamp, as a PDF in ../drawings: a general arrangement with every part ballooned to its
-parts list, then a first-pass sheet for each part the project makes. It documents the STEP that desk_lamp.py writes beside this script: run
-`python assemblies/desk_lamp.py` first, then this. A prototype's drawing at nominal sizes: no tolerances, fits or
+parts list, then a first-pass sheet for each part the project makes. It draws the lamp's model: running it builds the lamp
+as it is now. A prototype's drawing at nominal sizes: no tolerances, fits or
 general tolerance have been set, and the sheets say so."""
 
 import sys
 from pathlib import Path
 
-import cadgen
 from cadgen.eng_drawing import assembly_sheets, eng_drawing, parts_list
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "parts"))  # the base's sizes, so its dimensions follow the model
@@ -14,13 +13,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "parts"))  # the
 from base import CLEVIS_LENGTH, CLEVIS_X, DIAMETER, EDGE_ROUND, FOOT_CHAMFER, HEIGHT  # noqa: E402
 from sizes import CHEEK, CHEEK_GAP  # noqa: E402
 
-ASSEMBLY = Path(__file__).parent / "desk_lamp.step"
+from desk_lamp import desk_lamp  # noqa: E402
 MADE = ("base", "weight", "arm", "head")  # the parts this project makes, each detailed on a sheet of its own
 
 
 @eng_drawing(out="../drawings/desk_lamp_drawing.pdf")
 def desk_lamp_drawing():
-    parts = parts_list(cadgen.read_scene(ASSEMBLY))
+    parts = parts_list(desk_lamp().shape)
     parts.merge("m5x30_screw:base_hinge", "m5x30_screw:head_hinge", description="SCREW, ISO 4762 M5 X 30")
     parts.merge("m5_locknut:base_hinge", "m5_locknut:head_hinge", description="LOCKNUT, NYLON INSERT, M5")
     parts.merge("m3x8_screw:left", "m3x8_screw:right", description="SCREW, ISO 4762 M3 X 8")

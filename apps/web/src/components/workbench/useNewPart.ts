@@ -64,34 +64,17 @@ const TOOLS_POLL_MS = 500;
 const inside = (folder: string, path: string) => `${folder.replace(/[\\/]+$/, "")}/${path}`;
 
 /**
- * Writes a part's starter (`starterScript`) into a folder and answers its script's absolute path;
- * builds it through Studio's CAD service (`buildPart`, the environment's server: a new chat is
- * still a draft); and opens its document beside the chat in CAD mode, the full workspace, as the
- * Overview's file list opens a part. A write that fails throws, naming the file.
+ * Builds a part's script (absolute) through Studio's CAD service (`buildPart`, the environment's
+ * server: a new chat is still a draft), waiting first for the CAD tools while they come on with the
+ * app; a built part is listed on Home, ⌘K and the Overview at once. New part's build, and a copied
+ * example's.
  */
-function useStarterSteps(environmentId: EnvironmentId | null) {
-  const write = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
-  const plugins = useEnvironmentQuery(
-    environmentId === null ? null : pluginEnvironment.list({ environmentId, input: {} }),
-  ).data?.plugins;
+export function useBuildPart(environmentId: EnvironmentId | null) {
   const service = useEnvironmentCadService(environmentId);
   // The build reads the service as it is when it asks, so one started while the tools come on waits.
   const current = useRef(service);
   current.current = service;
-  const writeStarter = useCallback(
-    async (input: { readonly cwd: string; readonly folder: string; readonly stem: string }) => {
-      const path = `${input.folder}/${input.stem}.py`;
-      if (environmentId === null) throw new Error(`${path} could not be written.`);
-      const written = await write({
-        environmentId,
-        input: { cwd: input.cwd, relativePath: path, contents: starterScript(input.stem) },
-      });
-      if (written._tag !== "Success") throw new Error(`${path} could not be written.`);
-      return inside(input.cwd, path);
-    },
-    [environmentId, write],
-  );
-  const build = useCallback(async (script: string): Promise<BuiltPart> => {
+  return useCallback(async (script: string): Promise<BuiltPart> => {
     const deadline = Date.now() + TOOLS_WAIT_MS;
     while (current.current === null && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, TOOLS_POLL_MS));
@@ -108,6 +91,32 @@ function useStarterSteps(environmentId: EnvironmentId | null) {
     if ("id" in built) modelsChanged();
     return built;
   }, []);
+}
+
+/**
+ * Writes a part's starter (`starterScript`) into a folder and answers its script's absolute path;
+ * builds it (`useBuildPart`); and opens its document beside the chat in CAD mode, the full
+ * workspace, as the Overview's file list opens a part. A write that fails throws, naming the file.
+ */
+function useStarterSteps(environmentId: EnvironmentId | null) {
+  const write = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
+  const plugins = useEnvironmentQuery(
+    environmentId === null ? null : pluginEnvironment.list({ environmentId, input: {} }),
+  ).data?.plugins;
+  const build = useBuildPart(environmentId);
+  const writeStarter = useCallback(
+    async (input: { readonly cwd: string; readonly folder: string; readonly stem: string }) => {
+      const path = `${input.folder}/${input.stem}.py`;
+      if (environmentId === null) throw new Error(`${path} could not be written.`);
+      const written = await write({
+        environmentId,
+        input: { cwd: input.cwd, relativePath: path, contents: starterScript(input.stem) },
+      });
+      if (written._tag !== "Success") throw new Error(`${path} could not be written.`);
+      return inside(input.cwd, path);
+    },
+    [environmentId, write],
+  );
   const open = useCallback(
     (threadRef: ScopedThreadRef, id: string) => {
       setSimpleView(false);

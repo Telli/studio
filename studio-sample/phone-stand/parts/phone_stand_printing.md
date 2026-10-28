@@ -8,7 +8,7 @@ Checked with the manufacturing-sim skill's `printing` process:
 cadgen manufacturing check parts/phone_stand.step --study studies/phone_stand.printing.json --fail-on error
 ```
 
-The study (`studies/phone_stand.printing.json`): FDM in PLA, built along the stand's +X (on its side, its -X face on the plate, as `parts/phone_stand_print.py` turns it), 12 bands, 0.2 mm layers, let go of the plate once built. It meshed the part into 22911 tetrahedra of 4.811 mm, cut into 12 bands of 6.67 mm, and took PLA's inherent strain as -0.00238 in the plane (its expansion from its 60 °C glass transition down to a 25 °C chamber) and 0 along the build. It ran in 82 s.
+The study (`studies/phone_stand.printing.json`): FDM in PLA, built along the stand's +X (on its side, its -X face on the plate, as `parts/phone_stand_print.py` turns it), 12 bands, 0.2 mm layers, let go of the plate once built. It meshed the part into 22911 tetrahedra of 4.811 mm, cut into 12 bands of 6.67 mm, and took PLA's inherent strain as -0.00238 in the plane (its expansion from its 60 °C glass transition down to a 25 °C chamber) and 0 along the build. Its solve took 68 s (`timings` in the result).
 
 | Check | Measured | Limit | Result |
 | --- | --- | --- | --- |

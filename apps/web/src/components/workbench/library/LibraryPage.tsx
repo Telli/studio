@@ -49,9 +49,8 @@ import {
   type LibrarySearch,
 } from "./librarySearch";
 import { NeedsSkill, PluginsLink } from "./NeedsSkill";
-import { SAMPLE_ID } from "./sampleProject";
 import { SeeTheExample } from "./SeeTheExample";
-import { useExample, useExamples } from "./useSampleProject";
+import { useExamples } from "./useSampleProject";
 
 /** Each group of document types by its place's icon: New's, then each part menu's (`kinds.ts`). */
 const GROUP_ICONS: Readonly<Record<LibraryGroup, LucideIcon>> = { New: PlusIcon, ...MENU_ICONS };
@@ -95,8 +94,6 @@ function LibraryContent(props: {
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
   const ownTemplates = useDocumentTemplates(environmentId).templates;
-  // The example the library's examples are in, where the server ships it.
-  const sample = useExample(environmentId, SAMPLE_ID);
   const examples = useExamples(environmentId).examples;
   const [query, setQuery] = useState("");
   const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
@@ -244,7 +241,11 @@ function LibraryContent(props: {
             environmentId={environmentId}
             plugins={plugins}
             skillLabel={skillLabel}
-            exampleId={sample === null ? null : sample.sample.id}
+            exampleId={
+              shown.exampleIn !== null && examples.some((example) => example.id === shown.exampleIn)
+                ? shown.exampleIn
+                : null
+            }
             onMakeOne={search.from !== undefined || engineering ? makeOne : null}
           />
         )}
@@ -266,7 +267,7 @@ function EntryDetail(props: {
   /** The installed plugins; undefined until they are known. */
   readonly plugins: ReadonlyArray<InstalledPlugin> | undefined;
   readonly skillLabel: (name: string) => string;
-  /** The example its example is in (`useExample`); null where the server ships none. */
+  /** The example its example is in (`exampleIn`); null where the server ships none. */
   readonly exampleId: string | null;
   /** Opens New on a template; null where no New would take it. */
   readonly onMakeOne: ((template: NewTemplate) => void) | null;

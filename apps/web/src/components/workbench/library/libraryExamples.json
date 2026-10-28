@@ -1,14 +1,14 @@
 {
   "doc:part": {
-    "example": "parts/horn_adapter.step",
+    "example": "parts/horn_adapter.py",
     "picture": "parts/horn_adapter.step"
   },
   "doc:assembly": {
-    "example": "assemblies/servo_mount.step",
+    "example": "assemblies/servo_mount.py",
     "picture": "assemblies/servo_mount.step"
   },
   "doc:sheet-metal": {
-    "example": "parts/servo_bracket.step",
+    "example": "parts/servo_bracket.py",
     "picture": "parts/servo_bracket.step"
   },
   "doc:board": null,
@@ -33,7 +33,11 @@
     "picture": "cam/horn_adapter.cam.glb"
   },
   "doc:print": null,
-  "doc:pmi": null,
+  "doc:pmi": {
+    "sample": "motor-mount",
+    "example": "parts/motor_plate.py",
+    "picture": "pictures/motor_plate_pmi.png"
+  },
   "doc:cut-file": {
     "example": "cut/servo_bracket_cut.dxf",
     "picture": "cut/servo_bracket_cut.dxf"
@@ -100,7 +104,7 @@
   },
   "skill:text-to-cad/bambu-labs": null,
   "skill:text-to-cad/cad": {
-    "example": "parts/servo_bracket.step",
+    "example": "parts/servo_bracket.py",
     "picture": "parts/servo_bracket.step"
   },
   "skill:text-to-cad/cam": {

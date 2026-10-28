@@ -3,9 +3,8 @@ the base's clevis and the head's yoke, each on an M5 screw whose clamp holds the
 middle lightens it and takes the LED's lead. Origin: the base hinge's axis; the arm runs along +X to the head's hinge,
 its thickness along Y."""
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 from sizes import ARM_LENGTH, ARM_WIDTH, HINGE_HOLE, TONGUE
@@ -15,7 +14,7 @@ SLOT_FROM_HINGE = 30.0  # where the slot starts and ends, from each hinge's axis
 EDGE_CHAMFER = 0.6  # every edge of both flat faces
 
 
-@step
+@model
 def arm():
     outline = Sketch("Outline", plane="Front")
     outline.slot(outline.origin, (ARM_LENGTH, 0), ARM_WIDTH / 2)
@@ -31,7 +30,7 @@ def arm():
 
     link = bd.chamfer(link.faces().filter_by(bd.Axis.Y).sort_by(bd.Axis.Y)[-1].outer_wire().edges() + link.faces().filter_by(bd.Axis.Y).sort_by(bd.Axis.Y)[0].outer_wire().edges(), length=EDGE_CHAMFER)
 
-    link.color = srgb("#D9DDE2")
+    link.color = "#D9DDE2"
     link.label = "arm"
     return link
 

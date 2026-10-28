@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import math
 
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 THICKNESS = 1.5
 FLANGE_RADIUS = 1.5
@@ -59,7 +59,7 @@ def bent_profile(t: float, radius: float, legs: list[float], bends: list[float],
     return bd.Solid.extrude(profile, bd.Vector(0, width, 0))
 
 
-@step(out="../STEP/sheet_metal_bracket.step")
+@model
 def sheet_metal_bracket():
     # The channel: down the left flange, along the base, up the right flange; its base's mid-surface is z = -FLANGE - R - t/2.
     channel = bent_profile(THICKNESS, FLANGE_RADIUS, [FLANGE, BASE, FLANGE], [90, 90], -90, LENGTH)

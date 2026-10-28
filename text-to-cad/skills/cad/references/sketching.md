@@ -8,8 +8,8 @@ a plate with holes. The CAD viewer's edit mode shows it under its feature in the
 under defined, as SolidWorks marks it.
 
 ```python
-from build123d import extrude
-from cadgen import step
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 LENGTH = 70
@@ -17,7 +17,8 @@ WIDTH = 25
 HOLE = 8
 THICKNESS = 5
 
-@step
+
+@model
 def plate():
     s = Sketch("Sketch1", plane="Top")
     bottom, right, top, left = s.rectangle((0, 0), (70, 25))
@@ -28,7 +29,13 @@ def plate():
     s.diameter(hole, HOLE)
     s.horizontal_distance(bottom.start, hole.center, LENGTH / 2)
     s.vertical_distance(bottom.start, hole.center, WIDTH / 2)
-    return extrude(s.face(), amount=THICKNESS)
+    part = bd.extrude(s.face(), amount=THICKNESS)
+    part.label = "plate"
+    return part
+
+
+if __name__ == "__main__":
+    plate()
 ```
 
 ## Planes
@@ -98,7 +105,7 @@ def plate():
 - `s.convert(edges)` is Convert Entities: the model's edges (or the faces and wires they bound)
   projected onto the sketch as lines, arcs and circles, each held On Edge where the model puts it
   (a relation, `OnEdge1`), so they follow the part when its sizes change. Write it after the body
-  it takes them from: `outline = s.convert(part.faces().sort_by(Axis.Z)[-1])`. Its curves are
+  it takes them from: `outline = s.convert(part.faces().sort_by(bd.Axis.Z)[-1])`. Its curves are
   `outline[0]`, `outline[1]`, ...; offset them, fillet their corners or dimension to them. A
   spline edge, an ellipse or a circle tilted to the sketch comes in as a spline through places
   along it, each fixed where the model puts it (closed for a closed edge). `construction=True` brings them
@@ -118,18 +125,18 @@ def plate():
 - `s.face()` is the one closed region, holes cut out. `s.faces()` lists several regions. An open
   profile raises `SketchError` naming the point where it is open.
 - `s.axis(line)` is one of the sketch's lines as a build123d `Axis` in the part, for a revolve:
-  `revolve(s.face(), axis=s.axis(centerline), revolution_arc=360)`. Draw the axis as construction
+  `bd.revolve(s.face(), axis=s.axis(centerline), revolution_arc=360)`. Draw the axis as construction
   geometry (`construction=True`) so it is not part of the profile.
 - `s.depth_to(target)` is how far a flat face parallel to the sketch, or a vertex, is from the
   sketch's plane along its normal (negative behind it): an extrude's depth Up To Surface or Up To
-  Vertex, `extrude(s.face(), amount=s.depth_to(part.faces().sort_by(Axis.Z)[-1]))`.
+  Vertex, `bd.extrude(s.face(), amount=s.depth_to(part.faces().sort_by(bd.Axis.Z)[-1]))`.
 - `s.path()` is the sketch's curves joined end to end into one build123d `Wire`, open or closed:
-  what a sweep runs its profile along, `sweep(profile.face(), path=s.path(),
-  transition=Transition.RIGHT)` (mitred at a sharp corner). Curves that branch, or make more than
+  what a sweep runs its profile along, `bd.sweep(profile.face(), path=s.path(),
+  transition=bd.Transition.RIGHT)` (mitred at a sharp corner). Curves that branch, or make more than
   one chain, raise `SketchError`.
 - `s.thin(thickness, side="inside")` is the outline as a wall, as a Thin Feature makes one: faces to
   extrude, inside a closed outline, `"outside"` it, or `"mid"` astride it; beside an open one's
-  curves, square at their ends. `extrude(s.thin(1.5), amount=20)`.
+  curves, square at their ends. `bd.extrude(s.thin(1.5), amount=20)`.
 - `s.rib(thickness, body, flip=False)` is a rib grown parallel to the sketch: its straight lines
   thickened across its plane (half each side) and grown in the plane, square to each line, until
   they meet `body`. `part += s.rib(2, part)`; `flip=True` grows it the other way, and a rib that

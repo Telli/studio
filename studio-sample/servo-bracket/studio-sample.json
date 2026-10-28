@@ -14,5 +14,5 @@
     "Robot"
   ],
   "picture": "pictures/servo_mount_angle.png",
-  "open": "parts/servo_bracket.step"
+  "open": "parts/servo_bracket.py"
 }

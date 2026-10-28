@@ -1,0 +1,9 @@
+{"jobs": [
+  {
+    "input": "parts/shelf_bracket.step",
+    "outputs": [
+      {"path": "pictures/shelf-bracket.png", "camera": {"direction": [1, -0.6, 0.5]}, "width": 640, "height": 400}
+    ],
+    "output": {"padding": 0.08}
+  }
+]}

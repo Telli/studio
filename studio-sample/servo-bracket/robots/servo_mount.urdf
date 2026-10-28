@@ -5,11 +5,11 @@
     bracket's bend, +Y out from the wall, +Z up, origin at the bend's outside corner halfway along it. A documented
     exception to REP-103's +X forward: a mount bolted to a wall has no forward, and keeping the CAD frame keeps every
     number here checkable against the STEP.
-  root: base_link | source of dimensions: assemblies/servo_mount.step (document 0f80b609bc12) and parts/sizes.py
-    (Tower Pro's MG996R datasheet)
-  meshes: meshes/, one 3MF per link, exported by base_link.py and horn_link.py beside this file in that link's own
-    frame, so every visual origin is identity; source units mm, scale 0.001; coarse display meshes (mesh tolerance
-    1e-2 of each part's size, 0.8 rad)
+  root: base_link | source of dimensions: assemblies/servo_mount.step, exported from the mount's model
+    (assemblies/servo_mount.py), and parts/sizes.py (Tower Pro's MG996R datasheet)
+  meshes: meshes/, one 3MF per link, of the models base_link.py and horn_link.py beside this file (exports.py writes
+    them), each in that link's own frame, so every visual origin is identity; source units mm, scale 0.001; display
+    meshes at cadgen 0.8's one mesh tolerance (0.25 % of each part's size, 28.5 degrees)
   inertials: OCCT volume properties (centre of mass and inertia about it) of each part in the saved STEP, combined per
     link with the parallel-axis theorem, computed by a throwaway script. Densities: 5052-H32 and 6061 aluminium
     169.344 lb/ft^3 = 2712.6 kg/m^3 (SendCutSend, sendcutsend-specs.json); PETG 1.25 g/cm^3 (Bambu Studio's Bambu

@@ -1,0 +1,94 @@
+{
+  "jobs": [
+    {
+      "input": "parts/phone_stand.step",
+      "outputs": [
+        {
+          "path": "pictures/phone_stand_angle.png",
+          "camera": {
+            "direction": [
+              -1,
+              -1.4,
+              0.9
+            ]
+          },
+          "width": 1600,
+          "height": 1200
+        },
+        {
+          "path": "pictures/phone_stand_back.png",
+          "camera": {
+            "direction": [
+              1,
+              1.4,
+              0.9
+            ]
+          },
+          "width": 1600,
+          "height": 1200
+        },
+        {
+          "path": "pictures/phone-stand.png",
+          "camera": {
+            "direction": [
+              1,
+              -1.4,
+              0.9
+            ]
+          },
+          "width": 640,
+          "height": 400
+        }
+      ],
+      "output": {
+        "padding": 0.04
+      }
+    },
+    {
+      "input": "parts/phone_stand_print.stl",
+      "outputs": [
+        {
+          "path": "pictures/phone_stand_as_printed.png",
+          "camera": {
+            "direction": [
+              -1.2,
+              -1,
+              0.9
+            ]
+          },
+          "width": 1600,
+          "height": 1200
+        }
+      ],
+      "output": {
+        "padding": 0.04
+      }
+    },
+    {
+      "input": "assemblies/phone_stand_portrait.step",
+      "outputs": [
+        {
+          "path": "pictures/phone_stand_portrait_angle.png",
+          "camera": {
+            "direction": [
+              -1,
+              -1.4,
+              0.9
+            ]
+          },
+          "width": 1600,
+          "height": 1200
+        },
+        {
+          "path": "pictures/phone_stand_portrait_side.png",
+          "camera": "right",
+          "width": 1600,
+          "height": 1200
+        }
+      ],
+      "output": {
+        "padding": 0.04
+      }
+    }
+  ]
+}

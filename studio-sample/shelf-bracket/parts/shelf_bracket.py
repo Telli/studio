@@ -6,9 +6,8 @@ bend end clear of the other. The bends are drawn at SendCutSend's inside radius 
 (shelf_bracket_flat.py) is developed with their K-factor. Origin: the outside corner where the shelf's underside
 meets the wall, on the web's outside face; +Y out from the wall, +Z up, +X the way the flanges turn."""
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 THICKNESS = 1.8796  # G90-074: 0.074 in, SendCutSend's stock thickness, so the STEP uploads as drawn
@@ -32,7 +31,7 @@ SHELF_HOLE_SPACING = 100.0  # between the two shelf holes
 HOLE_INSET = 14.0  # the web's outside face to every hole's centre, across its flange
 
 
-@step
+@model
 def shelf_bracket():
     web = Sketch("Web", plane="Right")
     top, front, brace, bottom, back = web.polyline(
@@ -98,7 +97,7 @@ def shelf_bracket():
     bracket = bd.fillet(bracket.edges().filter_by(bd.Axis.Z).group_by(bd.Axis.X)[-1].group_by(bd.Axis.Z)[-1], radius=CORNER)  # Shelf flange corners
     bracket = bd.fillet(bracket.edges().filter_by(bd.Axis.Y).group_by(bd.Axis.X)[-1].group_by(bd.Axis.Y)[0], radius=CORNER)  # Wall flange corners
 
-    bracket.color = srgb("#A9B0B6")
+    bracket.color = "#A9B0B6"
     bracket.label = "shelf_bracket"
     return bracket
 

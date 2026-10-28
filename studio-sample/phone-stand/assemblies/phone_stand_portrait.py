@@ -5,11 +5,11 @@ import sys
 from math import cos, radians, sin
 from pathlib import Path
 
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 PARTS = Path(__file__).resolve().parent.parent / "parts"
-sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, built and linked here as children
+sys.path.insert(0, str(PARTS))  # the parts are models in ../parts, each built in this run with its own document
 
 from phone_placeholder import phone_placeholder  # noqa: E402
 from phone_stand import ANGLE, LEDGE_HEIGHT, along_rest, phone_stand  # noqa: E402
@@ -22,10 +22,10 @@ def on_ledge():
     return bd.Location((0, y, z)) * bd.Rot(ANGLE - 90, 0, 0) * bd.Rot(0, 0, 180)
 
 
-@step
+@model
 def phone_stand_portrait():
-    stand = phone_stand()
-    phone = on_ledge() * phone_placeholder()
+    stand = phone_stand().shape
+    phone = on_ledge() * phone_placeholder().shape
     return bd.Compound(children=[stand, phone], label="phone_stand_portrait")
 
 

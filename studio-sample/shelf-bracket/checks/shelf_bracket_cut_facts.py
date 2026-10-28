@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import ezdxf
 from ezdxf import bbox
-from cadgen.drawing_checks import validate_dxf_file
+from cadgen.engine.export.dxf import validate_dxf_file
 
 path = "cut/shelf_bracket_cut.dxf"
 doc = ezdxf.readfile(path); msp = doc.modelspace()

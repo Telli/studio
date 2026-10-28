@@ -179,10 +179,13 @@ Each returns the step, so they chain, and prints in the order called.
 `bond`, `layup`, `cure` and `machine` take `None` for a record nobody has
 stated yet; it prints NOT STATED. `surfaces` (on `bond`, `machine`, `apply` and
 `fasten`, where it marks the faces hardware the model does not carry goes
-into) are face refs (`#o1.2.f3`, from
-`cadgen.read_scene(path).resolve("#o1.2")[0].entities("face")`), each resolved
-to exactly one face when the step names it and drawn on the step's figure;
-each must be on a part installed by that step or before.
+into) are face refs: a part's ref as `tree()` prints it and the face's number
+(`#o1.2.f3`), or the same face in the engine's grammar (`rig/base/face 3`, as
+`cadgen inspect rig.step "rig/base/face 3"` answers for it). The number is the
+face's place in the part's `faces()` (`enumerate(part.faces(), 1)` on the part
+in the assembly model's `.shape`); confirm it with `cadgen inspect`. Each is
+resolved to exactly one face when the step names it and drawn on the step's
+figure; each must be on a part installed by that step or before.
 
 ## Sources
 

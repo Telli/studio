@@ -51,7 +51,7 @@ result is unreadable references and polarity marks. Treat them as **review**
 items, and as **fail** when a polarity mark or pin-1 indicator is the clipped
 part.
 
-Then by inspection, with a snapshot and the board read back ($pcb's `read_board`):
+Then by inspection, with the board shown in the CAD Viewer and read back ($pcb's `read_board`):
 
 - Outline: closed, one `Edge.Cuts` loop per board, internal cutouts with radii the
   fab's router can cut (often 0.5 mm minimum inside corners).

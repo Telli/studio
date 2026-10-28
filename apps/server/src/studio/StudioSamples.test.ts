@@ -105,11 +105,15 @@ it.effect("lists every example Studio ships, each with its files in place", () =
       "shelf-bracket",
     ]);
     for (const sample of samples) {
+      // Each opens on a model's script (a copy builds it and opens its document), which is there.
+      assert.isTrue(sample.open.endsWith(".py"), sample.id);
       assert.isTrue(yield* fileSystem.exists(path.join(sample.path, sample.open)), sample.id);
       assert.isTrue(yield* fileSystem.exists(path.join(sample.path, sample.picture)), sample.id);
       assert.isTrue(yield* fileSystem.exists(path.join(sample.path, "README.md")), sample.id);
       assert.isTrue((sample.process ?? "") !== "" && (sample.material ?? "") !== "", sample.id);
       assert.isTrue(sample.shows.length > 0, sample.id);
     }
+    // The CNC part carries its requirements on the model: the example 3D PMI's library entry opens.
+    assert.include(samples.find((sample) => sample.id === "motor-mount")?.shows ?? [], "3D PMI");
   }).pipe(Effect.provide(NodeServices.layer)),
 );

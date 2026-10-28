@@ -115,9 +115,9 @@ test("a hand change's note says what changed and where", () => {
 });
 
 test("a build in progress says how far it has got", () => {
-  assert.equal(buildingText({ scripts: ["a.py", "b.py"], done: 1, error: null }), "Updating STEP files, 1 of 2");
+  assert.equal(buildingText({ scripts: ["a.py", "b.py"], done: 1, error: null }), "Building the parts, 1 of 2");
   assert.equal(buildingText({ scripts: ["a.py"], done: 1, error: null }), "");
-  assert.equal(buildingText({ scripts: ["a.py"], done: 1, error: "a.py: failed" }), "A STEP file did not rebuild");
+  assert.equal(buildingText({ scripts: ["a.py"], done: 1, error: "a.py: failed" }), "A part did not build");
 });
 
 test("undo writes a change's number back, and redo writes it again", () => {
@@ -377,7 +377,7 @@ test("what edit mode is busy with is said, with how far a rebuild has got", () =
   assert.deepEqual(busyState({ status: "ready", saving: true, sketch: {} }), { text: "Solving", progress: null });
   assert.deepEqual(busyState({ status: "ready", saving: true }), { text: "Rebuilding", progress: null });
   const building = { scripts: ["a.py", "b.py", "c.py"], done: 1, error: null };
-  assert.deepEqual(busyState({ status: "ready", state: { building } }), { text: "Updating STEP files, 1 of 3", progress: 33 });
+  assert.deepEqual(busyState({ status: "ready", state: { building } }), { text: "Building the parts, 1 of 3", progress: 33 });
   assert.equal(busyState({ status: "ready", state: { building: { ...building, done: 3 } } }), null);
   assert.equal(busyState({ status: "ready", state: { building: { ...building, error: "failed" } } }), null);
 });

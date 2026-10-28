@@ -1,6 +1,6 @@
 # Fit, clearance and motion: desk lamp
 
-Checked `assemblies/desk_lamp.step` (document `e7194ec45beb`): its 11 parts at rest, all 55 pairs of them, then the fits a touching joint hides, then each hinge swung until a part collides or goes through the desk, then every pose of the two together in 15 degree steps.
+Checked the lamp's model, `assemblies/desk_lamp.py`: its 11 parts at rest, all 55 pairs of them, then the fits a touching joint hides, then each hinge swung until a part collides or goes through the desk, then every pose of the two together in 15 degree steps.
 
 ## Verdict
 
@@ -15,7 +15,7 @@ Positive lifts: the arm up and back, the head's front up. Each end is the last w
 | Arm on the base (`tilt`) | -45 | goes 2.0 mm through the desk | +136 | goes 2.6 mm through the desk |
 | Head on the arm (`head`) | -46 | the head hits the arm | +175 | the head hits the arm |
 
-In the model the arm is 55 degrees up from the desk at rest, so it reaches from 10 to 191 degrees up from the desk. The assembly's `tilt` and `head` mates take these ranges, rounded in to whole 5 degrees.
+In the model the arm is 55 degrees up from the desk at rest, so it reaches from 10 to 191 degrees up from the desk. The assembly's `tilt` and `head` joints take these ranges, rounded in to whole 5 degrees.
 
 Together, in 15 degree steps within those ranges, 28 of 238 poses are blocked, each by a part going through the desk:
 
@@ -93,7 +93,7 @@ Gaps a touching joint hides, measured between the features that make each fit.
 
 ## How it was checked
 
-- Every pair of parts at rest: the exact overlap of their solids (`cadgen.geometry.overlap_volume`, mm³) and the least distance between them (`closest_points`, mm), in the saved assembly's own placements.
+- Every pair of parts at rest: the exact overlap of their solids (`cadgen.geometry.overlap_volume`, mm³) and the least distance between them (`closest_points`, mm), in the lamp model's own placements.
 - An overlap above 0.01 mm³ is a collision unless it is an M3 screw's thread in its pilot hole; parts closer than 0.0001 mm touch; a gap under 0.5 mm is tight. These limits are this check's own, chosen for this design.
-- Each hinge swung from rest in 5 degree steps, then a degree at a time, about the axis the assembly's mates declare: the arm with everything it carries, against the base, the weight and the base hinge's screw and nut; the head with the LED module and its screws, against the arm and everything else. A pose is blocked by an overlap, or by any part below the desk (z < 0).
+- Each hinge swung from rest in 5 degree steps, then a degree at a time, about the axis the assembly's joints declare: the arm with everything it carries, against the base, the weight and the base hinge's screw and nut; the head with the LED module and its screws, against the arm and everything else. A pose is blocked by an overlap, or by any part below the desk (z < 0).
 - Not checked: the LED's lead, which is not modelled; the hinge screws' thread in the locknuts, drawn as touching; and the friction itself, which only a built lamp shows.

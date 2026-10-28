@@ -16,10 +16,12 @@ import { plainError } from "../importIntoProject";
 import { readStudioImport } from "../studioImportBridge";
 import { useCreateStudioProject } from "../useCreateStudioProject";
 import { copiedEntries } from "../useDuplicateProject";
-import { openInPanel } from "../useOpenInWorkbench";
+import { type BuiltPart } from "../newPart";
+import { openDocumentInPanel, openInPanel } from "../useOpenInWorkbench";
+import { useBuildPart } from "../useNewPart";
 import { useTrashedProjects } from "../trash/useTrash";
 import { useStudioProjects } from "../useStudioProjects";
-import { copySample, inTurn } from "./sampleProject";
+import { copySample, inTurn, isModelScript, openCopiedExample } from "./sampleProject";
 
 /** What a copy of an example is, for its brief: a part; its README says the rest. */
 const PART_KIND = STUDIO_PROJECT_KINDS.find((kind) => kind.id === "part")!;
@@ -41,12 +43,27 @@ export function useExamples(environmentId: EnvironmentId | null) {
 }
 
 /**
+ * The example a library entry's example is in (`exampleIn`), where the environment's server ships
+ * it; null where it does not, or the entry has no example, so no See the example shows.
+ */
+export function useEntryExample(
+  environmentId: EnvironmentId,
+  exampleIn: string | null,
+): string | null {
+  const examples = useExamples(environmentId).examples;
+  return exampleIn !== null && examples.some((example) => example.id === exampleIn)
+    ? exampleIn
+    : null;
+}
+
+/**
  * An example the server ships, by its id, and Make a copy to edit: `copy` makes a new project
  * named `copyName` (the example's name, or the next one free among your projects and Trash's:
  * "Phone stand 2"), copies the
  * example's files into its folder (the desktop app copies them, `studioImport`), and opens it on
  * the example's main file, or on `file` of it (the Library's See the example), beside its new
- * chat. It resolves to whether the copy was made. Copies are made one at a time per environment,
+ * chat. A model script is built first, while the copy is under way, and opened by its document
+ * (`openCopiedExample`): the copy's models have never been built. It resolves to whether the copy was made. Copies are made one at a time per environment,
  * so a second is named past the first and never lands on it. `canCopy` is false where nothing can
  * be copied (the web app, an environment on another computer): the example still shows, view
  * only. Null for an example the server does not ship.
@@ -69,6 +86,7 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
   const create = useCreateStudioProject(environmentId);
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
+  const build = useBuildPart(environmentId);
 
   const copy = useCallback(
     (file?: string) =>
@@ -137,6 +155,7 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
           };
           // Its new chat runs in the copy, where the example's paths hold.
           const shown = (typeof file === "string" ? sampleFile(file) : null) ?? sample.open;
+          let built: BuiltPart | null = null;
           return await create({
             environmentId,
             name,
@@ -146,8 +165,24 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
             folders: [],
             // A copy that fails throws out of `create` before it says the project was made or
             // opens its chat, and the catch below says so, once.
-            onFolder: copyInto,
-            show: (ref) => void openInPanel(plugins, ref, shown),
+            onFolder: async (folder) => {
+              await copyInto(folder);
+              if (isModelScript(shown))
+                built = await build(`${folder.replace(/[\\/]+$/, "")}/${shown}`);
+            },
+            show: (ref) =>
+              openCopiedExample({
+                file: shown,
+                built,
+                openDocument: (id) => void openDocumentInPanel(plugins, ref, id),
+                openFile: (path) => void openInPanel(plugins, ref, path),
+                failed: (error) =>
+                  toastManager.add({
+                    type: "error",
+                    title: `Made ${name}, but its model did not build`,
+                    description: error,
+                  }),
+              }),
           });
         } catch (error) {
           return failed(plainError(error));
@@ -155,6 +190,7 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
       }),
     [
       bridge,
+      build,
       canCopy,
       create,
       environmentId,

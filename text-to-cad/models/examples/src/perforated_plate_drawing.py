@@ -1,22 +1,18 @@
 """Engineering drawing of the perforated plate: a hole table instead of callouts.
 
-Run `python perforated_plate.py` first; this script documents the STEP it writes.
+It documents the model `perforated_plate.py` defines, beside it: the drawing calls
+it, so the engine builds it (a replay when it is current) and hands back its shape.
 The sheet chooses its own size and scale, and the holes and slot are tagged and
 tabulated from the part, so none of their sizes or positions is typed here.
 """
 
-from pathlib import Path
-
-import cadgen
 from cadgen.eng_drawing import Sheet, eng_drawing
-from perforated_plate import CORNER_RADIUS, LENGTH, THICKNESS, WIDTH
-
-STEP = Path(__file__).parent / "../STEP/perforated_plate.step"
+from perforated_plate import CORNER_RADIUS, LENGTH, THICKNESS, WIDTH, perforated_plate
 
 
 @eng_drawing(out="../PDF/perforated_plate_drawing.pdf")
 def perforated_plate_drawing():
-    part = cadgen.read_step(STEP)
+    part = perforated_plate().shape
     sheet = Sheet(size=None, scale=None, title="PERFORATED PLATE", part_number="PP-160", revision="A",
                   author="text-to-cad", general_tolerance="ISO 2768-m")
     top, front, _right = sheet.three_views(part)

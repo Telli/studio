@@ -1,17 +1,20 @@
 """Load a cadgen model program on a kernel that isn't cadgen's.
 
-A model is a plain Python script with a decorated function (``@step``,
-``@stl``, ...) returning a build123d shape. On another kernel the script still
-runs as the program it is; only two names change underneath it:
+A model is a plain Python script with a decorated function (``@model``, or a
+file decorator, ``@step``, ``@stl``, ...) returning a build123d shape, its
+build123d imported as itself (``import build123d as bd``). On another kernel
+the script still runs as the program it is; only two names change underneath
+it:
 
-- ``build123d`` (and ``cadgen.build123d``) is the kernel's build123d-shaped
-  module: a recorder that writes a CSG program, keel's usd-brep layer, ...
+- ``build123d`` is the kernel's build123d-shaped module: a recorder that
+  writes a CSG program, keel's usd-brep layer, ...
 - the ``cadgen`` decorators mark the model and hand the function back
-  unchanged, so calling it runs the body and returns the shape. Nothing is
-  written to cadgen's store.
+  unchanged, so calling it runs the body and returns the shape (``@memo``
+  hands its function back as it is). No engine builds it and nothing is
+  written to cadgen's cache.
 
-Anything else a model reaches for in cadgen (``read_step``, assemblies) is
-reported as unsupported on alternate kernels, by name.
+Anything else a model reaches for in cadgen (``read_step``, assemblies,
+materials) is reported as unsupported on alternate kernels, by name.
 
 Stdlib only: runners import this from foreign interpreters (keel's Python,
 a kernel's own venv).
@@ -25,7 +28,9 @@ import types
 from dataclasses import dataclass
 from pathlib import Path
 
-DECORATORS = {"step": "step", "dxf": "dxf", "stl": "stl", "glb": "glb", "threemf": "3mf"}
+# Each decorator and the file its kernel run is named after: a model with no file (``@model``) by a STEP of its
+# script's name, beside it.
+DECORATORS = {"model": "step", "step": "step", "dxf": "dxf", "stl": "stl", "glb": "glb", "threemf": "3mf"}
 
 
 class Unsupported(Exception):
@@ -40,24 +45,9 @@ class Model:
     outs: dict  # format -> resolved Path
 
 
-def srgb_to_linear(channel: float) -> float:
-    return channel / 12.92 if channel <= 0.04045 else ((channel + 0.055) / 1.055) ** 2.4
-
-
-def linear_to_srgb(channel: float) -> float:
-    return channel * 12.92 if channel <= 0.0031308 else 1.055 * channel ** (1 / 2.4) - 0.055
-
-
-def srgb(value: str, alpha: float = 1.0) -> tuple[float, float, float, float]:
-    """cadgen.srgb: the linear RGBA channels for an sRGB hex. Palette modules
-    call it at import and do arithmetic on the result, so it has to be real."""
-    text = value.strip().lstrip("#")
-    if len(text) == 3:
-        text = "".join(ch * 2 for ch in text)
-    if len(text) != 6:
-        raise ValueError(f"expected a #rgb or #rrggbb colour, got {value!r}")
-    red, green, blue = (int(text[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
-    return srgb_to_linear(red), srgb_to_linear(green), srgb_to_linear(blue), float(alpha)
+def _memo(func=None, **_ignored):
+    """``@memo``: a stage cadgen's engine replays whole; here, the function as it is."""
+    return func if func is not None else (lambda fn: fn)
 
 
 def _mark(fmt):
@@ -78,7 +68,7 @@ class _CadgenSubmodules(importlib.abc.MetaPathFinder):
     ModuleNotFoundError."""
 
     def find_spec(self, name, path=None, target=None):
-        if name.startswith("cadgen.") and name != "cadgen.build123d":
+        if name.startswith("cadgen."):
             raise Unsupported(f"{name} is cadgen's own; alternate kernels run the build123d geometry only")
         return None
 
@@ -87,10 +77,9 @@ def install(build123d_module) -> None:
     """Make ``cadgen`` and ``build123d`` resolve to this kernel's modules."""
     cadgen = types.ModuleType("cadgen")
     cadgen.__path__ = []
-    cadgen.build123d = build123d_module
     for name, fmt in DECORATORS.items():
         setattr(cadgen, name, _mark(fmt))
-    cadgen.srgb, cadgen.srgb_to_linear, cadgen.linear_to_srgb = srgb, srgb_to_linear, linear_to_srgb
+    cadgen.memo = _memo
 
     def missing(name):
         if name.startswith("__"):
@@ -99,7 +88,6 @@ def install(build123d_module) -> None:
 
     cadgen.__getattr__ = missing
     sys.modules["cadgen"] = cadgen
-    sys.modules["cadgen.build123d"] = build123d_module
     sys.modules["build123d"] = build123d_module
     if not any(isinstance(finder, _CadgenSubmodules) for finder in sys.meta_path):
         sys.meta_path.insert(0, _CadgenSubmodules())
@@ -123,7 +111,7 @@ def load(script, function: str | None = None) -> Model:
     elif len(models) == 1:
         (name,) = models
     elif not models:
-        raise Unsupported(f"{script.name} declares no model (a function decorated with @step, @stl, ...)")
+        raise Unsupported(f"{script.name} declares no model (a function decorated with @model, @step, @stl, ...)")
     else:
         raise Unsupported(f"{script.name} declares {len(models)} models; name one: {script.name}::{sorted(models)[0]}")
     fn = models[name]

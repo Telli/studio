@@ -1,6 +1,6 @@
 # Motor plate: DFM measurements
 
-Measured on `parts/motor_plate.step` with `python checks/motor_plate_dfm_measure.py`, from the STEP's own faces (exact B-rep: radii from the cylinders, gaps as face-to-face distances). Millimetres; Z 0 is the plate's underside, Z 6 its top.
+Measured on the plate's model (`parts/motor_plate.py`) with `python checks/motor_plate_dfm_measure.py`, from its own faces (exact B-rep: radii from the cylinders, gaps as face-to-face distances). Millimetres; Z 0 is the plate's underside, Z 6 its top.
 
 | Feature | Measured | Where |
 | --- | --- | --- |

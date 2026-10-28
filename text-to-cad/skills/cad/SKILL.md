@@ -17,6 +17,8 @@ page the person has open updates. Files are exports, made when asked.
 | Task | Start with | Reference |
 | --- | --- | --- |
 | **Create or edit a part or assembly** | The project's model script, or a new one ([below](#write-a-model-and-run-it)). | [Models](references/model-contract.md), [build123d](references/build123d-modeling.md), [positioning](references/positioning.md) |
+| **Sketch a profile** | A `cadgen.sketch` `Sketch` on a plane, held by relations and dimensions that take the part's named sizes, then an extrude of `s.face()`. | [Sketching](references/sketching.md) |
+| **Write a part the engineer edits by hand** (Studio's CAD mode) | Named sizes at the top (shared ones in `sizes.py` beside the parts), one feature per line, the body in one name. A hand edit arrives as a note: read the script again and keep what they wrote. | [Edit mode](references/edit-mode.md) |
 | **Organize a CAD project** | The project's existing layout. | [Project layout](references/project-layout.md) |
 | **Export STEP, STL, 3MF, GLB or xbf** | `cadgen export <id> <file>`. | [Exports](references/exports.md) |
 | **Use a vendor STEP, an xbf or a scan in a model** | `read_step`, `read_xbf` or `read_mesh` in the body. | [Inputs](references/model-contract.md#inputs) |
@@ -150,6 +152,10 @@ is the script's folder; two explicit names in it must differ.
 - **`import build123d as bd`, and use it attribute-style** (`bd.Box`). The import is lazy:
   the kernel loads on first use, in the worker. `from build123d import Box`, or a
   module-level `bd.Color(...)` or `bd.Align` default, loads it at that line instead.
+- **A sharp edge is a design decision.** Give a physical part's edges the fillets and
+  chamfers its manufacturing process and use call for, the process taken from the request
+  or, when it gives none, inferred and said as an assumption
+  ([fillets and chamfers](references/build123d-modeling.md#fillets-and-chamfers)).
 - **Colours are sRGB**, as a person picks them: `part.color = "#4a6fa5"`, or 0-255
   integers. Materials are values on the part: `part.material = materials.aluminium_6061`
   ([colour and materials](references/build123d-modeling.md#colour-and-materials)).

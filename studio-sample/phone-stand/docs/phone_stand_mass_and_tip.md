@@ -1,6 +1,6 @@
 # Phone stand: mass, fit and tip-over
 
-Checked `parts/phone_stand.step` and `assemblies/phone_stand_portrait.step` with `python checks/phone_stand_tip.py`. Every number below comes from that run.
+Checked `parts/phone_stand.py` and `assemblies/phone_stand_portrait.py` with `python checks/phone_stand_tip.py`. Every number below comes from that run.
 
 ## Verdict
 

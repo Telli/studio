@@ -1,14 +1,11 @@
-"""Engineering drawing of the shelf bracket, as a PDF in ../drawings. It documents the STEP that shelf_bracket.py writes
-beside this script: run `python parts/shelf_bracket.py` first, then this. The views, hidden lines and measured values
-are projected from that STEP, and every size a dimension points at is imported from the model, so moving a hole in the
-model moves its dimension here. The tolerances are SendCutSend's for the sheet the bracket is cut and bent from,
-G90-074 (sendcutsend-specs.json and their CNC bending page, as parts/shelf_bracket_sheet_metal.md and
-cut/shelf_bracket_sendcutsend.md cite them)."""
+"""Engineering drawing of the shelf bracket, as a PDF in ../drawings. It draws the shelf bracket's model: running it
+builds the model as it is now. The views, hidden lines and measured values are projected from it, and every size a
+dimension points at is imported from the model, so moving a hole in the model moves its dimension here. The tolerances
+are SendCutSend's for the sheet the bracket is cut and bent from, G90-074 (sendcutsend-specs.json and their CNC bending
+page, as parts/shelf_bracket_sheet_metal.md and cut/shelf_bracket_sendcutsend.md cite them)."""
 
 from math import atan2, cos, pi, sin
-from pathlib import Path
 
-import cadgen
 from cadgen.eng_drawing import Sheet, eng_drawing
 
 from shelf_bracket import (
@@ -30,9 +27,8 @@ from shelf_bracket import (
     WALL_HOLE_SPACING,
     WALL_HOLE_TOP,
     WEB_CORNER,
+    shelf_bracket,
 )
-
-STEP = Path(__file__).parent / "shelf_bracket.step"
 
 # The model's frame: the outside corner where the shelf meets the wall, on the web's outside face; +Y out from the
 # wall, +Z up, +X the way the flanges turn.
@@ -58,7 +54,7 @@ RELIEF_ROUND = (CORNER_RELIEF - RELIEF_CORNER, -CORNER_RELIEF + RELIEF_CORNER)
 
 @eng_drawing(out="../drawings/shelf_bracket_drawing.pdf")
 def shelf_bracket_drawing():
-    part = cadgen.read_step(STEP)
+    part = shelf_bracket().shape
     sheet = Sheet(
         "A2",
         scale=0.5,

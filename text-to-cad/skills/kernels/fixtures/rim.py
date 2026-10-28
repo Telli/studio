@@ -1,12 +1,12 @@
 """A boss on a plate: its rim chamfered and its foot filleted, edges picked
 by position (convex and concave, straight and round)."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 MIN = (bd.Align.CENTER, bd.Align.CENTER, bd.Align.MIN)
 
 
-@step
+@model
 def rim():
     with bd.BuildPart() as part:
         bd.Box(30, 30, 4, align=MIN)

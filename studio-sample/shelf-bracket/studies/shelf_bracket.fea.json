@@ -242,11 +242,11 @@
     "solver": "superlu (after amg)"
   },
   "timings": {
-    "mesh_s": 2.772,
-    "mesh_to_fem_s": 1.289,
-    "assemble_s": 14.375,
-    "solve_s": 86.425,
-    "stress_s": 6.044
+    "mesh_s": 2.785,
+    "mesh_to_fem_s": 1.016,
+    "assemble_s": 13.292,
+    "solve_s": 85.198,
+    "stress_s": 5.98
   },
   "warnings": [
     "the multigrid solve did not converge in 3 attempts; falling back to the direct solver (slower). Check that the fixtures hold the part."

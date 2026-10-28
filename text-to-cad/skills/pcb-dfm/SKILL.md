@@ -38,8 +38,8 @@ checklists here.
    to read each result.
 3. **The checklist.** What no command measures: the fab's limits beyond the
    board's own rules, panel and edge details, polarity marks, placement
-   rotations. Use the references below and a picture of the board, from
-   $pcb's snapshot: `cadgen pcb snapshot board.kicad_pcb tmp/board.png`.
+   rotations. Use the references below and the board itself, shown in the
+   CAD Viewer: cadgen 0.8 draws no board picture yet.
 
 Each finding names its parts by board reference (`U2`, `C8`, `#net:VBUS`);
 with $pcb's `python`, `read_board(path).resolve(ref)` answers where one is.

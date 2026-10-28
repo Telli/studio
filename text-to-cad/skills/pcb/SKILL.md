@@ -11,11 +11,19 @@ Use the installed local skill files as the runtime source of truth.
 
 ## Setup
 
-Run cadgen through [uv](https://docs.astral.sh/uv/), so this skill's commands share one
-installation, and its warm build daemon, with the CAD app's server:
+Run cadgen through the `cadgen` command its installation writes, so this skill's commands
+share one installation, and its engine server, with the CAD app's:
 
-- `cadgen` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.26 cadgen`
-- `python` below means `uvx --no-config --managed-python --python 3.13 --from cadgen==0.7.26 python`
+- `cadgen` below means `cadgen +0.8.0` (`~/.local/bin/cadgen +0.8.0` where `~/.local/bin` is not on your PATH)
+- `python` below means `cadgen +0.8.0 run`
+
+If `cadgen` is not on your PATH, or it says 0.8.0 is not installed, run
+`uvx --no-config --managed-python --python 3.13 --from cadgen==0.8.0 cadgen doctor` once,
+outside any sandbox or with its permission: it installs cadgen, registers it, writes the
+`cadgen` command and starts the engine. With the CAD app's server running, nothing else
+needs the sandbox's permission: it starts the engine and holds it. Without it, a sandboxed
+shell cannot start the engine; when a command says no engine is running, run `cadgen server`
+outside the sandbox once.
 
 KiCad builds the board: `@pcb` starts KiCad's headless API server (`kicad-cli api-server`), which only
 the **KiCad 10.99 nightly** (the KiCad 11 API) has; 10.0 is refused at start. It is installed, never bundled:
@@ -145,9 +153,8 @@ file with `read_board`. Each rule and script, verified on the nightly, is in [ch
 
 ## The loop
 
-Build; look (show the board, or `cadgen pcb snapshot blinky.kicad_pcb tmp/blinky.png`, with `--display copper` or
-`--display '{"mode":"copper","layers":["F.Cu","Edge.Cuts"]}'` for one layer set); read the findings and
-run your checks; change the script; again. A round is seconds, a real board hours of them, with the person
+Build; look (show the board in the CAD Viewer: cadgen 0.8 draws no board picture yet, and `cadgen pcb snapshot`
+says so); read the findings and run your checks; change the script; again. A round is seconds, a real board hours of them, with the person
 pointing in the viewer. Keep the checks you repeat as `check_*.py` beside the board, run with `python`.
 Confirm when unspecified: the outline and mounting holes (from the enclosure, drill/place origin on a corner);
 the fab and service (its limits are the rules; JLCPCB standard 2-layer when none is named, said so); layer
@@ -170,8 +177,8 @@ it from the saved file ([checks](references/checks.md#scripts) has the API); a f
 selectors (`#U1.3`), so the person can click what it names; after a rebuild, resolve against the new board.
 A Quick Edit prompt's views come as a snapshot job (inline JSON or a `.snapshot.json` path; save inline JSON
 to a file first): each view's window as a plan-view camera with the board's Display, the person's ink and
-measurements on the board in millimetres. `cadgen pcb snapshot --job <file>` renders what they saw again;
-look at their annotations before editing.
+measurements on the board in millimetres. Read what they drew from the job itself (cadgen 0.8 cannot render a
+board's view again yet) before editing.
 
 ## Handoff
 
@@ -191,21 +198,30 @@ on `pad.position`: rerun and the tracks follow.
 
 ## Show the model
 
-Show the user each file you create or change, and any they ask to see. Snapshots and
-validation don't replace this.
+Show the user each model you create or change, and any model or file they ask to see.
+A file you export is a download: give its path, do not open it.
+Snapshots and validation don't replace this. Never screenshot the viewer to confirm your
+own work; review with `cadgen snapshot`.
 
-- If your tools include `cad_show` (your host may prefix it), use it with the file's
-  absolute path, and follow its description for when to call it again. `cad_view` reads
-  what the user selected; `cad_screenshot` shows you what they see. Neither is a review
-  of your own work.
-- Otherwise run the CAD Viewer, from any folder:
+- If your tools include `cad_show` (your host may prefix it), call it with the model's id
+  or the file's absolute path, and follow its description for when to call it again.
+  The other tools depend on the host. A host that draws CAD cards or tabs (Claude
+  Desktop, the Codex app) also has `cad_view`, which reads what the user selected, and
+  `cad_screenshot`, which shows you what they see, both of a card or tab that is open, for
+  when they ask about it. A text host (Claude Code in a terminal, `codex exec`) draws
+  nothing: its `cad_show` opens the model's page in the user's browser and answers with
+  the URL to give them, and it has no view to read. `cad_inspect`, `cad_snapshot` and
+  `cad_export` are on every host. Call only the tools you have, and never say a card
+  shows a model when your host drew none.
+- Otherwise give the user the page's link once: a model's page is the `view:` line its
+  run prints. For a file, run the CAD Viewer, from any folder:
 
   ```bash
-  cadgen viewer --host 127.0.0.1 --json --detach
+  cadgen viewer --json FILE [FILE ...]
   ```
 
-  `--detach` returns once the viewer answers requests and leaves it running in the
-  background: always pass it, since a foreground viewer never exits (and piping its
-  output through `tail` can hide the URL for good). It starts this machine's one viewer,
-  or reuses it. Read `url` from its one JSON line (never guess the port), and for each
-  file return `url?file=<its URL-encoded absolute path>`. If it fails to launch, say so.
+  The command ensures this installation's engine, registers each file and prints
+  its page, `/<id>`, then exits. Read each file's `url` from `documents` in its one
+  JSON line (never guess the port); the URL carries its token query. A page follows
+  every later run of its model and every rewrite of its file, so share it once.
+  Return that link to the user. If it fails to launch, say so.

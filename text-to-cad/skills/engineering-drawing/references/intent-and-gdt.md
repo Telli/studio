@@ -25,7 +25,8 @@ Ask one thing at a time, in plain words with the standard term in brackets.
    - what can be loose (the general tolerance covers it)
 
    Show each one: a picture of the part with that feature marked (below). An
-   assembly's part is shown in place, the rest faded (`--focus`).
+   assembly's part is drawn alone, where it stands in the assembly
+   (`--display '{"isolated": [...]}'`).
 3. **The person confirms, changes or removes each item.** They may click the
    face they mean in the CAD viewer and paste its reference instead. A standard
    fit (ISO 286) may be suggested by name; a number is never applied without a
@@ -98,7 +99,7 @@ corner points, in the plane the label should face).
 
 ```bash
 cadgen snapshot STEP/clevis.step tmp/intent/2-bore.png --camera iso --annotation tmp/intent/2-bore.json
-cadgen snapshot STEP/rig.step tmp/intent/3-pin.png --camera iso --focus "#o1.2"
+cadgen snapshot STEP/rig.step tmp/intent/3-pin.png --camera iso --display '{"isolated": ["rig/pin"]}'
 ```
 
 Name the pictures by item and show them beside each question.

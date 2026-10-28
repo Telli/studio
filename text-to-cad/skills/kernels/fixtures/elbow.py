@@ -1,9 +1,9 @@
 """A round bar swept along a quarter circle."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 
-@step
+@model
 def elbow():
     with bd.BuildPart() as part:
         with bd.BuildLine() as path:

@@ -5,9 +5,8 @@ bend line and the flange -Y, both seen from the bracket's outside face. The cut 
 
 from math import pi
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 from servo_bracket import (
@@ -35,7 +34,7 @@ SHELF_FLAT = SHELF_DEPTH - SETBACK  # the shelf beyond the bend
 FLANGE_FLAT = FLANGE_HEIGHT - SETBACK  # the flange beyond the bend
 
 
-@step
+@model
 def servo_bracket_flat():
     blank = Sketch("Blank", plane="Top")
     flange_edge, end1, shelf_edge, end2 = blank.rectangle(
@@ -90,7 +89,7 @@ def servo_bracket_flat():
     blank.vertical_distance(hole6.center, blank.origin, BEND_ALLOWANCE / 2 + WALL_HOLE_DROP - SETBACK)
     flat = bd.extrude(blank.face(), amount=THICKNESS)
 
-    flat.color = srgb("#B9BFC6")
+    flat.color = "#B9BFC6"
     flat.label = "servo_bracket_flat"
     return flat
 

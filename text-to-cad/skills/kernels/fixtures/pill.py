@@ -1,9 +1,9 @@
 """A box filleted on every edge."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 
-@step
+@model
 def pill():
     with bd.BuildPart() as part:
         bd.Box(20, 10, 8)

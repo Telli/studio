@@ -11,8 +11,9 @@ import { examplePictureOf, pictureOf, picturePath } from "./libraryPictures";
 const ROOT = NodePath.join(import.meta.dirname, "..", "..", "..", "..", "..", "..");
 const SAMPLE = NodePath.join(ROOT, "studio-sample", "servo-bracket");
 
-const EXAMPLES: Readonly<Record<string, { example: string; picture: string } | null>> =
-  libraryExamples;
+const EXAMPLES: Readonly<
+  Record<string, { sample?: string; example: string; picture: string } | null>
+> = libraryExamples;
 
 /** The document types, then text-to-cad's skills, which the catalog test pins to its folders. */
 const ENTRIES = [
@@ -25,19 +26,25 @@ describe("library pictures", () => {
     const made = ENTRIES.filter((id) => EXAMPLES[id] !== null);
     expect(made.filter((id) => pictureOf(id) === null)).toEqual([]);
     for (const id of made) {
-      const { example, picture } = EXAMPLES[id]!;
+      const { sample, example, picture } = EXAMPLES[id]!;
       if (picture === "page") {
+        // A page is drawn from the servo bracket's own text.
+        expect(sample ?? "servo-bracket", id).toBe("servo-bracket");
         const text = NodeFS.readFileSync(NodePath.join(SAMPLE, example), "utf8");
         expect(pictureOf(id), id).toEqual({ kind: "page", text });
         expect(text, id).toMatch(/^# /);
       } else {
         expect(pictureOf(id), id).toEqual({
           kind: "image",
-          url: expect.stringContaining(`/pictures/${picturePath(picture)}`),
+          url: expect.stringContaining(`/pictures/${picturePath(picture, sample)}`),
         });
       }
     }
     expect(picturePath("parts/servo_bracket.step")).toBe("parts__servo_bracket.step.webp");
+    // Another example's pictures carry its id, so two examples' files of one path never meet.
+    expect(picturePath("pictures/motor_plate_pmi.png", "motor-mount")).toBe(
+      "motor-mount__pictures__motor_plate_pmi.png.webp",
+    );
   });
 
   it("leaves own templates and other plugins' skills to LibraryPicture", () => {

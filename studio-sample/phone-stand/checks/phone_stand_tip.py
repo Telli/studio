@@ -1,5 +1,5 @@
-"""Mass, fit and tip-over of the phone stand. Reads the saved parts/phone_stand.step (its volume and centre of mass)
-and assemblies/phone_stand_portrait.step (the phone placeholder in it, for the fit), works out whether the stand
+"""Mass, fit and tip-over of the phone stand. Calls the stand's model (its volume and centre of mass) and the model of
+the stand with the phone placeholder in it (for the fit), so it checks them as they are now, works out whether the stand
 tips when the phone's screen is tapped, writes its findings to docs/phone_stand_mass_and_tip.md, prints them as one
 JSON line, and exits 1 when a requirement fails. Run it from anywhere: python checks/phone_stand_tip.py
 
@@ -12,18 +12,18 @@ import sys
 from math import cos, radians, sin
 from pathlib import Path
 
-from cadgen import build123d as bd
-from cadgen import read_scene, read_step
+import build123d as bd
 from cadgen.geometry import closest_points, overlap_volume
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "parts"))
+sys.path[:0] = [str(ROOT / "parts"), str(ROOT / "assemblies")]
 
-from phone_stand import ANGLE, LEDGE_HEIGHT, LIP_HEIGHT, PHONE_SLOT, along_rest  # noqa: E402
+from phone_stand import ANGLE, LEDGE_HEIGHT, LIP_HEIGHT, PHONE_SLOT, along_rest, phone_stand  # noqa: E402
+from phone_stand_portrait import phone_stand_portrait  # noqa: E402
 from sizes import PHONE_LENGTH, PHONE_THICKNESS, PHONE_WIDTH  # noqa: E402
 
-STAND = "parts/phone_stand.step"
-ASSEMBLY = "assemblies/phone_stand_portrait.step"
+STAND = "parts/phone_stand.py"
+ASSEMBLY = "assemblies/phone_stand_portrait.py"
 FINDINGS = "docs/phone_stand_mass_and_tip.md"
 
 G = 9.81  # m/s²
@@ -65,7 +65,7 @@ def tip(stand_g: float, stand_com: tuple[float, float], phone_g: float, phone_he
 
 
 def main() -> int:
-    stand = read_step(ROOT / STAND)
+    stand = phone_stand().shape
     (solid,) = stand.solids()
     volume = solid.volume  # mm³
     com = solid.center(bd.CenterOf.MASS)
@@ -93,13 +93,10 @@ def main() -> int:
             cases.append(row)
     empty = round(rear - com.Y, 2)
 
-    # Fit: the phone placeholder in the stand, from the saved assembly.
-    scene = read_scene(ROOT / ASSEMBLY)
+    # Fit: the phone placeholder in the stand, each placed part in world coordinates.
     solids = {}
-    for occurrence in scene.leaves():
-        (selection,) = scene.resolve(occurrence.ref)
-        (part,) = selection.shape().solids()
-        solids[occurrence.label] = part
+    for part in phone_stand_portrait().shape.leaves:
+        (solids[part.label],) = part.solids()
     phone, holder = solids["phone_placeholder"], solids["phone_stand"]
     overlap = overlap_volume(phone, holder)
     touch = closest_points(phone, holder)

@@ -1,6 +1,7 @@
 /**
  * The library: every kind of document Studio makes, and every installed plugin's skills, each
- * with its example in the sample project (`studio-sample/servo-bracket`). A document gathers
+ * with its example in one of the examples Studio ships (`studio-sample/servo-bracket`, unless
+ * `libraryExamples.json` names another). A document gathers
  * under one name the templates New offers and the part menus' jobs that make it. The library
  * page lists these; New, the part menus and Settings link into it.
  */
@@ -17,6 +18,7 @@ import {
 } from "../hardwareActions";
 import { DOCUMENT_TEMPLATES, NEW_TEMPLATES, type NewTemplate } from "../newTemplates";
 import libraryExamples from "./libraryExamples.json";
+import { SAMPLE_ID } from "./sampleProject";
 import { type Availability, missingSkill, TEXT_TO_CAD } from "./skillAvailability";
 
 export { type Availability, UNLISTED_TEMPLATES } from "./skillAvailability";
@@ -36,8 +38,10 @@ export interface LibraryDocument {
   readonly templates: ReadonlyArray<string>;
   /** The part menus' jobs that make it, by id. */
   readonly actions: ReadonlyArray<string>;
-  /** Its example's file in the sample project; null where the sample could not make one. */
+  /** Its example's file in its example (`exampleIn`); null where no example could make one. */
   readonly example: string | null;
+  /** The example its example's file is in (`studio-sample/<id>`); null with no example. */
+  readonly exampleIn: string | null;
   /** For one of the person's own templates: that template, as New offers it. */
   readonly ownTemplate?: NewTemplate;
 }
@@ -56,14 +60,30 @@ export interface LibrarySkill {
   /** Its plugin is enabled. */
   readonly on: boolean;
   readonly example: string | null;
+  readonly exampleIn: string | null;
 }
 
 export type LibraryEntry = LibraryDocument | LibrarySkill;
 
-/** Each entry's example in the sample project, and the file its picture is made from. */
+/**
+ * Each entry's example: its file in an example Studio ships (`sample`, the servo bracket where it
+ * names none), and the file its picture is made from.
+ */
 const EXAMPLES: Readonly<
-  Record<string, { readonly example: string; readonly picture: string } | null>
+  Record<
+    string,
+    { readonly sample?: string; readonly example: string; readonly picture: string } | null
+  >
 > = libraryExamples;
+
+/** An entry's example file and the example it is in, by the entry's id; nulls where it has none. */
+function exampleOf(id: string) {
+  const item = EXAMPLES[id] ?? null;
+  return {
+    example: item?.example ?? null,
+    exampleIn: item === null ? null : (item.sample ?? SAMPLE_ID),
+  };
+}
 
 const TEMPLATES = [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES];
 
@@ -73,11 +93,11 @@ const jobsRunBy = (skill: string) =>
 
 /** A document type, with its example from `libraryExamples.json`. */
 const doc = (
-  entry: Omit<LibraryDocument, "kind" | "example" | "ownTemplate">,
+  entry: Omit<LibraryDocument, "kind" | "example" | "exampleIn" | "ownTemplate">,
 ): LibraryDocument => ({
   kind: "document",
   ...entry,
-  example: EXAMPLES[entry.id]?.example ?? null,
+  ...exampleOf(entry.id),
 });
 
 /** The document types, each named as New or the menus already name it. */
@@ -485,6 +505,7 @@ export function ownTemplateEntries(files: ReadonlyArray<NewTemplate>): LibraryDo
             templates: [template.id],
             actions: [],
             example: null,
+            exampleIn: null,
             ownTemplate: template,
           },
         ],
@@ -524,7 +545,7 @@ export function librarySkills(plugins: ReadonlyArray<InstalledPlugin>): LibraryS
         description: detail.description,
         tryAsking: (ours ? TRY_ASKING[detail.name] : undefined) ?? detail.defaultPrompt,
         on: plugin.enabled,
-        example: ours ? (EXAMPLES[id]?.example ?? null) : null,
+        ...(ours ? exampleOf(id) : { example: null, exampleIn: null }),
       };
     }),
   );

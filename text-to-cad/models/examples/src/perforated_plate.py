@@ -1,7 +1,7 @@
 from __future__ import annotations
-from cadgen import step
+from cadgen import model
 
-from cadgen import build123d as bd
+import build123d as bd
 
 
 LENGTH = 160.0
@@ -19,7 +19,7 @@ SLOT_LENGTH = 24.0
 SLOT_WIDTH = 8.0
 
 
-@step(out="../STEP/perforated_plate.step")
+@model
 def perforated_plate():
     """A plate with rows of holes, two dowel holes, a bore and a slot: the part a
     hole table documents. Millimetres."""

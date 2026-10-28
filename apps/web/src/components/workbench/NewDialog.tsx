@@ -29,10 +29,9 @@ import {
 } from "./library/libraryCatalog";
 import { libraryHref } from "./library/librarySearch";
 import { NeedsSkill } from "./library/NeedsSkill";
-import { SAMPLE_ID } from "./library/sampleProject";
 import { SeeTheExample } from "./library/SeeTheExample";
 import type { Availability } from "./library/skillAvailability";
-import { useExample } from "./library/useSampleProject";
+import { useEntryExample } from "./library/useSampleProject";
 import { partLabel } from "./partNames";
 import { useEngineeringInterface } from "./studioInterface";
 import { useStudioProjectAt } from "./useStudioProjects";
@@ -115,12 +114,12 @@ function TemplatePreview(props: {
   readonly onExampleOpened: () => void;
 }) {
   const { template, needs } = props;
-  const sample = useExample(props.environmentId, SAMPLE_ID);
   const entry =
     template.file === undefined
       ? entryOfTemplate(template.id)
       : (ownTemplateEntries([template])[0] ?? null);
   const example = entry?.example ?? null;
+  const sampleId = useEntryExample(props.environmentId, entry?.exampleIn ?? null);
   if (entry === null && needs === null && template.outline === undefined) return null;
 
   return (
@@ -156,9 +155,9 @@ function TemplatePreview(props: {
             </ol>
           </div>
         )}
-        {example === null || sample === null ? null : (
+        {example === null || sampleId === null ? null : (
           <SeeTheExample
-            sampleId={sample.sample.id}
+            sampleId={sampleId}
             file={example}
             size="xs"
             onOpened={props.onExampleOpened}

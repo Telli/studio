@@ -1,7 +1,7 @@
 from __future__ import annotations
-from cadgen import step
+from cadgen import model
 
-from cadgen import build123d as bd
+import build123d as bd
 
 
 LENGTH = 600.0
@@ -13,7 +13,7 @@ CROSS_HOLE_INSET = 20.0   # from each end of the bar
 END_CHAMFER = 1.0
 
 
-@step(out="../STEP/guide_bar.step")
+@model
 def guide_bar():
     """A 600 mm round bar with a spigot on one end and a cross hole near each end:
     a long part of constant section, which a drawing breaks. Millimetres."""

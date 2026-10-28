@@ -1,9 +1,9 @@
 """A full revolve of a profile drawn on XZ."""
-from cadgen import build123d as bd
-from cadgen import step
+import build123d as bd
+from cadgen import model
 
 
-@step
+@model
 def knob():
     with bd.BuildPart() as part:
         with bd.BuildSketch(bd.Plane.XZ):

@@ -3,9 +3,8 @@ of vents above the board. A yoke on its back, two cheeks either side of the arm,
 screw, whose clamp holds the head where it is tilted. Origin: the head hinge's axis, along Y; the shade hangs in front
 of it along +X, its opening down (-Z)."""
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 
 from sizes import CHEEK, CHEEK_GAP, HINGE_HOLE, LED_SCREW_SPACING
 
@@ -26,7 +25,7 @@ VENT_CIRCLE = 52.0  # outside the LED board
 VENTS = 8
 
 
-@step
+@model
 def head():
     shade = bd.Pos(SHADE_FROM_HINGE, 0, SHADE_TOP - SHADE_HEIGHT / 2) * bd.Cylinder(SHADE_DIAMETER / 2, SHADE_HEIGHT)
     shade = bd.fillet(shade.faces().sort_by(bd.Axis.Z)[-1].outer_wire().edges(), radius=TOP_ROUND)
@@ -47,7 +46,7 @@ def head():
 
     shade -= bd.Rot(90, 0, 0) * bd.Cylinder(HINGE_HOLE / 2, 2 * (CHEEK_GAP + 2 * CHEEK))  # M5 clearance hole
 
-    shade.color = srgb("#E07A3F")
+    shade.color = "#E07A3F"
     shade.label = "head"
     return shade
 

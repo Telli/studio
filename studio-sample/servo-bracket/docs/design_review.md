@@ -34,8 +34,8 @@ More views: [front](../pictures/servo_mount_front.png), [side](../pictures/servo
 | Fit and clearance | No part collides. The tightest gap is 0.217 mm, the servo's case at the cutout's corners. The horn clears everything by 1.699 mm through its travel. | `assemblies/servo_mount_fit.md` |
 | Sheet metal | The part passes every SendCutSend rule. Its cut file fails one: the bend line is solid, where SendCutSend asks for a dashed one. For review: the inside radius is under the general guides' 1 × thickness, the 1.725 mm web beside each tapped hole is under their 2.0 mm, and ±1° of bend moves the shelf's edge up to 0.70 mm. The grain direction is unverified. | `parts/servo_bracket_sheet_metal.md` |
 | SendCutSend preflight | Needs edits before upload: the cut file's bend line is solid, and SendCutSend asks for a dashed one in a DXF, which cadgen's `@dxf` can't yet write. Every other check passes, in ALU-080 with one bend. The STEP is not ready either: it is 2.000 mm against the sheet's 2.032 mm. Nothing was uploaded or ordered. | `cut/servo_bracket_sendcutsend.md` |
-| FDM printing, the cable clip | Fails on two counts: the channel's lips narrow to 0.37 mm, where a wall that stands free needs 1.6 mm, and its STL is not watertight. No supports needed; it prints standing up. | `parts/cable_clip_fdm.md` |
-| CAM job, the horn adapter | Planned: 9 operations in 2 setups on a 3-axis mill, 2 min 50 s of moves before tool changes. Four tools are held to the machine's 10,000 rpm, under the speed their size and the material call for, so they cut slower. The spline is left to be broached. | `cam/horn_adapter.cam.glb` |
+| FDM printing, the cable clip | Fails on one count: the channel's lips narrow to 0.36 mm, where a wall that stands free needs 1.6 mm. Its STL, exported again on cadgen 0.8 (2026-10-27), is watertight. No supports needed; it prints standing up. | `parts/cable_clip_fdm.md` |
+| CAM job, the horn adapter | Planned again on cadgen 0.8 (2026-10-27): 9 operations in 2 setups on a 3-axis mill, 5 min 54 s with its 7 tool changes at an assumed 10 s each. The 6 and 4 mm end mills are held to the machine's 10,000 rpm, under the speed their size and the material call for, so they cut slower. The spline is left to be broached. | `cam/horn_adapter.cam.glb` |
 | Robot descriptions | The URDF, SRDF and SDF all validate, strict. | `robots/servo_mount.urdf` |
 
 ![The servo bracket's stress from above, with the wall at the bottom: the peak at the cutout's corner nearest the wall at the output end](servo_bracket_strength_top.png)
@@ -68,7 +68,7 @@ No one is named for any action yet: each owner is an open question.
 | --- | --- | --- |
 | Measure an MG996R's tab holes, output axis, case and spline (test plan 1) | Not assigned | Open |
 | Make the cut file's bend line dashed: its BEND layer is solid, SendCutSend asks for a dashed bend line in a DXF, and cadgen 0.7.26's DXF writer can't write one; or send the bracket as a STEP at 2.032 mm (ER-7, ER-11) | Not assigned | Open |
-| Round the clip's lips, thicken its wall to 2.0 mm, repair its STL, and check it again; then slice it in PETG at 0.2 mm | Not assigned | Open |
+| Round the clip's lips, thicken its wall to 2.0 mm, and check it again; then slice it in PETG at 0.2 mm | Not assigned | Open |
 | Plan the spline's broaching and draw the adapter with its fits | Not assigned | Open |
 | Set the M3 screws' tightening torque | Not assigned | Open |
 | Study the servo's stall torque reacting through the bracket | Not assigned | Open |

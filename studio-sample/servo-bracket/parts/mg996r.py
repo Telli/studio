@@ -2,9 +2,8 @@
 envelope the datasheet gives, its two mounting tabs with two holes each, and the output spline. Its origin is the
 centre of the tabs' underside, where the servo sits on what holds it: +X toward the output end, +Z up to the spline."""
 
-from cadgen import build123d as bd
-from cadgen import step
-from cadgen.color import srgb
+import build123d as bd
+from cadgen import model
 from cadgen.sketch import Sketch
 
 from sizes import (
@@ -23,7 +22,7 @@ from sizes import (
 )
 
 
-@step
+@model
 def mg996r():
     case = Sketch("Case", plane="Top", offset=-SERVO_TAB_HEIGHT)
     side1, end1, side2, end2 = case.center_rectangle(case.origin, (SERVO_LENGTH / 2, SERVO_WIDTH / 2))
@@ -61,7 +60,7 @@ def mg996r():
     spline.diameter(teeth, SERVO_SPLINE)
     servo += bd.extrude(spline.face(), amount=SERVO_HEIGHT - SERVO_CASE_HEIGHT)
 
-    servo.color = srgb("#45474D")
+    servo.color = "#45474D"
     servo.label = "mg996r"
     return servo
 

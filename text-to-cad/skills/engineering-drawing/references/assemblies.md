@@ -8,9 +8,11 @@ An assembly is a drawing set: a general arrangement keyed to a parts list,
 then a sheet per part, each one refined like any sheet:
 
 ```python
+from rig import rig                                                       # the assembly's model
+
 @eng_drawing(out="../PDF/rig_drawing.pdf")
 def rig_drawing():
-    parts = parts_list(cadgen.read_scene(Path(__file__).parent / "../STEP/rig.step"))
+    parts = parts_list(rig().shape)                                       # the assembly as it is now
     parts.merge("eye:upper", "eye:lower")                                # one part, named twice
     parts.set("base_plate", material="AL 6061-T6", spec="AMS 4027", part_number="RIG-101")   # stated, never guessed
     parts.add("LOCTITE 243", spec="MIL-S-46163 TYPE II")                 # in no model: QTY AR
@@ -26,16 +28,17 @@ def rig_drawing():
 
 ## `parts_list(source)`
 
-`source` is a scene from `cadgen.read_scene(path)` or a live build123d
-`Compound` made with `children=`. Returns a `PartsList`: one `Item` per
-distinct part, numbered in the order the assembly first holds them.
-Occurrences are one part when they have the same name, the same colour and the
-same geometry (a shared STEP prototype, one shape object, or an exact
-translated copy). Anything less stays apart: a saved STEP shares one prototype
-between any parts of identical geometry (a steel spacer and a brass one), a
-label's detail often names a finish (`piston_rod:chrome`), and mirror images
-have identical volumes. `parts.twins` lists the item pairs that share a shape
-under different names, and the script prints them.
+`source` is an assembly: its model's shape (`rig().shape`), a STEP read with
+`cadgen.read_step(path)`, or any build123d `Compound` made with `children=`.
+Returns a `PartsList`: one `Item` per distinct part, numbered in the order the
+assembly first holds them. Occurrences are one part when they have the same
+name, the same colour and the same geometry (a shared STEP prototype, one
+shape object, or an exact translated copy). Anything less stays apart: a saved
+STEP shares one prototype between any parts of identical geometry (a steel
+spacer and a brass one), a label's detail often names a finish
+(`piston_rod:chrome`), and mirror images have identical volumes. `parts.twins`
+lists the item pairs that share a shape under different names, and the script
+prints them.
 
 - `parts[3]`, `parts["coil_spring"]`: an item by number, label or the label's
   name before the colon; an unknown or ambiguous key is refused with the list.
@@ -161,7 +164,7 @@ modelled as a small assembly, a layer per part, and drawn with a section
 through it:
 
 ```python
-parts = parts_list(cadgen.read_scene(Path(__file__).parent / "../STEP/case_back.step"))
+parts = parts_list(case_back().shape)                              # from case_back import case_back
 parts.set("shell", material="PC/ABS", family="plastic")
 parts.set("tape", material="3M VHB 4910")
 sheet = Sheet("A3", 5.0, title="CASE BACK")

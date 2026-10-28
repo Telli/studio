@@ -499,14 +499,16 @@ section, a tree's a tree icon named for it (Model tree, Links), Position's a spl
 clapperboard, PMI's a feature control frame, any other section's a page named for it. Preview has no
 file sidebar: every section stays mounted, out of sight, and a routine plays from Preview's playbar.
 
-- **How a tree opens, every tree.** Open until there is a choice
-  (`kit/inspector/treeExpansion.js`'s `openUntilChoice`): a tree's roots open, and any node with
-  exactly one child opens too, all the way down, since there is nothing to decide; a node with two
-  or more children stays shut. A board opens on Parts and Nets and each kind's one part; a
-  drawing's layer opens on its one block reference and stays folded on several; a robot opens
-  down its chain of single links; a STEP opens on its one choice. A pick on the model reveals the
-  owners of what was picked, and once the person opens or shuts a row the shape is theirs for the
-  session. Nothing else shapes a tree: not Select's filter, not a tool.
+- **How a tree opens.** A board's, a drawing's and a robot's trees open until there is a choice
+  (`renderers/kit/inspector/treeExpansion.js`'s `openUntilChoice`): a tree's roots open, and any
+  node with exactly one child opens too, all the way down, since there is nothing to decide; a node
+  with two or more children stays shut. A board opens on Parts and Nets and each kind's one part;
+  a drawing's layer opens on its one block reference and stays folded on several; a robot opens
+  down its chain of single links. The Model tree (`renderers/xbf/XbfModelTree.jsx`) starts below
+  the document's chain of single assemblies, which it shows as open, with its rows shut, and Select's
+  mode shapes it beyond that (see Select's modes above). In every tree a pick on the model reveals
+  the owners of what was picked, and once the person opens or shuts a row the shape is theirs for
+  the session.
 - **One section at a time.** None is open as a file opens. A tile opens its section in a panel
   under the toolbar, 8px below it, and is pressed while it is open; another tile opens its
   section in the panel instead; a second press of its tile closes it, and so does the X that

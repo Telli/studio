@@ -1,13 +1,9 @@
-"""Engineering drawing of the servo bracket, as a PDF in ../drawings. It documents the STEP that servo_bracket.py
-writes beside this script: run `python parts/servo_bracket.py` first, then this. The views, hidden lines and measured
-values are projected from that STEP, and every size a dimension points at is imported from the model, so moving a
-hole in the model moves its dimension here. The tolerances are SendCutSend's for the sheet the bracket is cut and bent
-from, ALU-080 (sendcutsend-specs.json and their CNC bending page, as parts/servo_bracket_sheet_metal.md and
-cut/servo_bracket_sendcutsend.md cite them)."""
+"""Engineering drawing of the servo bracket, as a PDF in ../drawings. It draws the servo bracket's model: running it
+builds the model as it is now. The views, hidden lines and measured values are projected from it, and every size a
+dimension points at is imported from the model, so moving a hole in the model moves its dimension here. The tolerances
+are SendCutSend's for the sheet the bracket is cut and bent from, ALU-080 (sendcutsend-specs.json and their CNC bending
+page, as parts/servo_bracket_sheet_metal.md and cut/servo_bracket_sendcutsend.md cite them)."""
 
-from pathlib import Path
-
-import cadgen
 from cadgen.eng_drawing import Sheet, eng_drawing
 
 from servo_bracket import (
@@ -25,10 +21,9 @@ from servo_bracket import (
     WALL_HOLE_DROP,
     WALL_HOLE_SPACING,
     WIDTH,
+    servo_bracket,
 )
 from sizes import SERVO_LENGTH, SERVO_TAB_HOLE_ACROSS, SERVO_TAB_HOLE_SPACING, SERVO_WIDTH
-
-STEP = Path(__file__).parent / "servo_bracket.step"
 
 # The model's frame: the outside corner of the bend, halfway along it; +Y out from the wall, +Z up.
 CUTOUT_X = SERVO_LENGTH / 2 + SERVO_CLEARANCE  # the cutout's ends, either side of the centre
@@ -40,7 +35,7 @@ ROW = 12  # sheet millimetres between rows of dimensions placed below a view
 
 @eng_drawing(out="../drawings/servo_bracket_drawing.pdf")
 def servo_bracket_drawing():
-    part = cadgen.read_step(STEP)
+    part = servo_bracket().shape
     sheet = Sheet(
         "A3",
         title="SERVO BRACKET",

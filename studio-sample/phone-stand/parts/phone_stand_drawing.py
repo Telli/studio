@@ -1,12 +1,10 @@
-"""Engineering drawing of the phone stand, as a PDF in ../drawings. It documents the STEP that phone_stand.py writes
-beside this script: run `python parts/phone_stand.py` first, then this. The views are projected from that STEP, and
-every point a dimension measures is worked out from the model's own sizes, so changing a size in the model moves
-its dimension here. A prototype's sheet: every size is nominal, as no tolerance has been asked for yet."""
+"""Engineering drawing of the phone stand, as a PDF in ../drawings. It draws the phone stand's model: running it builds
+the model as it is now. The views are projected from it, and every point a dimension measures is worked out from the
+model's own sizes, so changing a size in the model moves its dimension here. A prototype's sheet: every size is nominal,
+as no tolerance has been asked for yet."""
 
 from math import radians, sin
-from pathlib import Path
 
-import cadgen
 from cadgen.eng_drawing import Sheet, eng_drawing
 
 from phone_stand import (
@@ -28,9 +26,9 @@ from phone_stand import (
     WALL,
     WIDTH,
     along_rest,
+    phone_stand,
 )
 
-STEP = Path(__file__).parent / "phone_stand.step"
 SIDE = WIDTH / 2  # the right-hand face, which the right view looks at
 
 
@@ -41,7 +39,7 @@ def at(point: tuple[float, float], x: float = SIDE) -> tuple[float, float, float
 
 @eng_drawing(out="../drawings/phone_stand_drawing.pdf")
 def phone_stand_drawing():
-    part = cadgen.read_step(STEP)
+    part = phone_stand().shape
     sheet = Sheet(
         "A1",
         scale=1.0,
