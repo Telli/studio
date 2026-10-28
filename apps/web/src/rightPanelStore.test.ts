@@ -352,6 +352,42 @@ describe("rightPanelStore", () => {
     expect(selectThreadRightPanelState(migrated.byThreadKey, refA).maximized).toBe(true);
   });
 
+  it("names a saved CAD tab's file as cadgen 0.8's tools take it, in `source`", () => {
+    const saved = (tool: string, args: Record<string, unknown>) => ({
+      id: `plugin:text-to-cad/cad/${tool}:agent:part.step`,
+      kind: "plugin-app",
+      pluginId: "text-to-cad",
+      server: "cad",
+      tool,
+      title: "part.step",
+      resourceUri: "ui://cad/app",
+      arguments: args,
+    });
+    const migrated = migratePersistedRightPanelState({
+      byThreadKey: {
+        "env-1:thread-A": {
+          isOpen: true,
+          activeSurfaceId: "plugin:text-to-cad/cad/cad_open:agent:part.step",
+          surfaces: [
+            saved("cad_open", { path: "/work/part.step" }),
+            saved("cad_show", { path: "/work/part.step", view: "iso" }),
+            // Already 0.8's, and another tool's own `path`, are as they were.
+            saved("cad_view", { path: "/work/part.step" }),
+          ],
+        },
+      },
+    });
+    expect(
+      selectThreadRightPanelState(migrated.byThreadKey, refA).surfaces.map((surface) =>
+        surface.kind === "plugin-app" ? surface.arguments : null,
+      ),
+    ).toEqual([
+      { source: "/work/part.step" },
+      { source: "/work/part.step", view: "iso" },
+      { path: "/work/part.step" },
+    ]);
+  });
+
   it("drops the legacy singleton terminal surface during migration", () => {
     expect(
       migratePersistedRightPanelState({

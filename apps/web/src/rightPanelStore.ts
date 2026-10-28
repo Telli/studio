@@ -108,7 +108,8 @@ const RIGHT_PANEL_STORAGE_KEY = "t3code:right-panel-state:v2";
 // v11 stops persisting the pull-request list's shared panel, so a restart opens the page fresh.
 // v12 adds the device surface.
 // v14 removes the agents surface; lineage lives in the thread title bar.
-const RIGHT_PANEL_STORAGE_VERSION = 14;
+// v15 names a saved CAD tab's file in `source`, as cadgen 0.8's cad_open and cad_show take it.
+const RIGHT_PANEL_STORAGE_VERSION = 15;
 
 /** A fixed workspace-level ref: each PR surface carries its own real environment. */
 export const PULL_REQUESTS_PANEL_REF = scopeThreadRef(
@@ -475,6 +476,26 @@ function normalizeRevealLine(line: number | undefined): number | null {
   return Math.max(1, Math.trunc(line));
 }
 
+/**
+ * A saved tab of a view the agent opened, its call's arguments as the tool takes them now: cadgen
+ * 0.7's `cad_open` and `cad_show` named the file in `path`, 0.8's take it in `source`, so a tab
+ * saved before reruns its call on the same file.
+ */
+function currentViewArguments(surface: PluginAppSurface): PluginAppSurface {
+  const args = surface.arguments;
+  if (
+    (surface.tool !== "cad_open" && surface.tool !== "cad_show") ||
+    args === null ||
+    typeof args !== "object" ||
+    typeof args.path !== "string" ||
+    "source" in args
+  ) {
+    return surface;
+  }
+  const { path, ...rest } = args;
+  return { ...surface, arguments: { ...rest, source: path } };
+}
+
 export function migratePersistedRightPanelState(persistedState: unknown): {
   byThreadKey: Record<string, ThreadRightPanelState>;
   threadPanelVisibilityByThreadKey: Record<string, ThreadPanelVisibility>;
@@ -530,6 +551,7 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
                         }),
                       ];
                     }
+                    if (surface.kind === "plugin-app") return [currentViewArguments(surface)];
                     if (surface.kind !== "terminal") return [surface];
                     if (
                       !("resourceId" in surface) ||
