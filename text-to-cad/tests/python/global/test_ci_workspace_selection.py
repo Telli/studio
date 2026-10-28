@@ -314,14 +314,17 @@ class ChangesRunWhatCanBreak(unittest.TestCase):
         # everything (the rest of tests/python/support is shared machinery, and does).
         cam = sorted(path.relative_to(REPO_ROOT).as_posix() for path in (REPO_ROOT / CADGEN).rglob("test_cam*.py")
                      if re.search(r"\bcam_fixtures\b", path.read_text(encoding="utf-8")))
+        # Studio's STEP opener test, which makes its parts with them too.
+        cam = sorted([*cam, f"{CADGEN}/test_step_open.py"])
         self.assertIn(f"{CADGEN}/cam/test_cam_plan.py", cam)
         self.assertEqual(route("tests/python/support/cam_fixtures.py")["full"], "false")
         self.assertEqual(tests_for("tests/python/support/cam_fixtures.py")["cadgen_tests"], cam)
         self.assertEqual(jobs_for("tests/python/support/cam_fixtures.py"), {"cadgen-linux", "cadgen-windows", "skills"})
         fea = tests_for("tests/python/support/fea_fixtures.py")["cadgen_tests"]
         self.assertIn(f"{CADGEN}/test_fea_assembly.py", fea)
-        # The FEA suites and the manufacturing checks, which run on its pipeline.
-        self.assertTrue(all(path.rsplit("/", 1)[1].startswith("test_fea") or "/manufacturing/" in path for path in fea), fea)
+        # The FEA suites and the manufacturing checks, which run on its pipeline (and Studio's STEP opener test).
+        self.assertTrue(all(path.rsplit("/", 1)[1].startswith("test_fea") or "/manufacturing/" in path
+                            or path == f"{CADGEN}/test_step_open.py" for path in fea), fea)
         self.assertEqual(jobs_for("tests/python/support/fea_fixtures.py"),
                          {"cadgen-linux", "cadgen-windows", "fea", "skills"})
 

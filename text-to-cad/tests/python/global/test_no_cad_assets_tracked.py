@@ -43,6 +43,10 @@ ALLOWED: tuple[tuple[str, int, str], ...] = (
     ("packages/ui/src/renderers/dxf/__fixtures__/*.dxf", TINY,
      "the DXF renderer's test drawings; make_fixture.py writes them, and the JS tests that open them "
      "need neither Python nor ezdxf"),
+    # Studio's (CAM, earthtojake/text-to-cad#625).
+    ("packages/ui/src/renderers/glb/__tests__/boss.cam.glb", 200 * KIB,
+     "a real `cadgen cam plan` result (a 5-axis swarf and a 3+2 setup, 175 KB) that camRealGlb.test.ts reads; "
+     "a JS test cannot run the planner, and the test's header says how to make it again"),
 )
 
 OUTPUT_FOLDERS = ("STEP/x.step", "STL/x.stl", "GLB/x.glb", "3MF/x.3mf", "DXF/x.dxf", "XBF/x.xbf")

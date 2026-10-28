@@ -71,9 +71,10 @@ test('a KiCad board names its references as board selectors, as the agent resolv
   const board = { resource: { kind: 'workspace-file', path: '/work/PCB/servo hat.kicad_pcb' }, target: { kind: 'cad-selector', selectors: ['#U3', '#J4.A4', '#net:"a,b"', '#@x1.5y-2'] } };
   assert.equal(formatPromptReference(referencePart(board).reference), '"/work/PCB/servo hat.kicad_pcb"#U3,J4.A4,net:"a,b",@x1.5y-2');
   assert.deepEqual(promptReferenceIds(board), ['#U3', '#J4.A4', '#net:"a,b"', '#@x1.5y-2']);
-  // STEP's grammar is not a board's, and a board's is not STEP's.
+  // STEP's grammar (the engine's) is not a board's, and a board's is not STEP's: a net name in quotes
+  // is the board's alone, though a designator such as U3.9 reads in both.
   assert.throws(() => referencePart({ ...board, target: { kind: 'cad-selector', selectors: ['o1.2.f45'] } }), /invalid CAD/);
-  assert.throws(() => referencePart({ ...reference, target: { kind: 'cad-selector', selectors: ['#U3.9'] } }), /invalid CAD/);
+  assert.throws(() => referencePart({ ...reference, target: { kind: 'cad-selector', selectors: ['#net:"a,b"'] } }), /invalid CAD/);
   // A board's copied reference pasted into a note is that reference again, in the board's grammar.
   assert.deepEqual(parsePromptReference('/work/blinky.kicad_pcb#R1,R1.2,net:VBUS'),
     { resource: { kind: 'workspace-file', path: '/work/blinky.kicad_pcb' }, target: { kind: 'cad-selector', selectors: ['#R1', '#R1.2', '#net:VBUS'] } });
@@ -112,11 +113,11 @@ test('a delivery ledger delivers each operation once, bounds work in flight, and
   assert.equal(restarted, 1, 'the oldest completed operation was evicted');
 });
 
-test('a selection with a summary reads its summary, then its references', () => {
+test('a selection with a summary reads its summary, then its references, in the order picked', () => {
   const summarized = { resource: { kind: 'workspace-file', path: '/work/bracket.step' }, target: { kind: 'cad-selector', selectors: ['o1.f3', 'o1.f1'] },
     summary: 'The peak stress, 120 MPa, is above the 100 MPa this material yields at' };
   assert.equal(formatPromptMessage(createPromptContext([textPart('fix this'), referencePart(summarized)])),
-    'fix this\n\nReferences:\nThe peak stress, 120 MPa, is above the 100 MPa this material yields at · /work/bracket.step#o1.f1,o1.f3');
+    'fix this\n\nReferences:\nThe peak stress, 120 MPa, is above the 100 MPa this material yields at · /work/bracket.step#o1.f3,o1.f1');
 });
 
 test('a part picked in a model keeps its message: a label alone is not written', () => {

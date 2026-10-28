@@ -56,7 +56,9 @@ class EditRoutesTest(unittest.TestCase):
         status, body = self.post("/__cad/edit/state", {"file": str(self.tmp / "plate.step"), "probe": True})
         from cadgen.engine.ids import model_id
 
-        self.assertEqual((status, body), (200, {"ok": True, "editable": True, "document": model_id(script, "plate")}))
+        # Never built, and no build of it queued: nothing to open yet, and nothing to wait for.
+        self.assertEqual((status, body), (200, {"ok": True, "editable": True, "document": model_id(script, "plate"),
+                                                "partBuilt": False, "partBuilding": False}))
         _, none = self.post("/__cad/edit/state", {"file": str(self.tmp / "imported.step"), "probe": True})
         self.assertEqual(none, {"ok": True, "editable": False})
 

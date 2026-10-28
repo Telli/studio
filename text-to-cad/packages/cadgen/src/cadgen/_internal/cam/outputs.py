@@ -81,6 +81,8 @@ def write_glb(path: Path, *, part_mesh, stock_mesh, lines: list[dict], cam: dict
     the viewer reads (``extras.cam``)."""
     import numpy as np
 
+    from cadgen._internal.primitive_mesh import GLB_BIN_CHUNK, GLB_JSON_CHUNK, GLB_MAGIC, GLB_VERSION  # the container's one declaration
+
     blobs: list[bytes] = []
     views: list[dict] = []
     accessors: list[dict] = []
@@ -169,10 +171,10 @@ def write_glb(path: Path, *, part_mesh, stock_mesh, lines: list[dict], cam: dict
     total = 12 + 8 + len(header) + 8 + len(binary)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "wb") as handle:
-        handle.write(struct.pack("<4sII", b"glTF", 2, total))
-        handle.write(struct.pack("<II", len(header), 0x4E4F534A))
+        handle.write(struct.pack("<III", GLB_MAGIC, GLB_VERSION, total))
+        handle.write(struct.pack("<II", len(header), GLB_JSON_CHUNK))
         handle.write(header)
-        handle.write(struct.pack("<II", len(binary), 0x004E4942))
+        handle.write(struct.pack("<II", len(binary), GLB_BIN_CHUNK))
         handle.write(binary)
 
 
