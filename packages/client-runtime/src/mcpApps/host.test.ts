@@ -456,7 +456,7 @@ describe("makeMcpAppHost", () => {
   });
 
   it("forwards the viewer's edit state", () => {
-    const states: Array<{ editable: boolean; busy: boolean }> = [];
+    const states: Array<{ editable: boolean; busy: boolean; builds?: number }> = [];
     const { host } = setup({ onEditState: (state) => void states.push(state) });
     initialize(host);
     const editState = (params: Record<string, unknown>) =>
@@ -465,10 +465,15 @@ describe("makeMcpAppHost", () => {
     editState({ editable: true, busy: true });
     // Only the two answers travel on, whatever else comes with them.
     editState({ editable: false, busy: false, file: "/project/parts/tray.step" });
+    // And the builds the view saw end, where it counts them.
+    editState({ editable: true, busy: false, builds: 2 });
+    editState({ editable: true, busy: false, builds: "2" });
     expect(states).toEqual([
       { editable: true, busy: false },
       { editable: true, busy: true },
       { editable: false, busy: false },
+      { editable: true, busy: false, builds: 2 },
+      { editable: true, busy: false },
     ]);
   });
 

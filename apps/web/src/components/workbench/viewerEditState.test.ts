@@ -2,7 +2,7 @@ import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { frontViewBusy, pluginViewKey, useViewerEditState } from "./viewerEditState";
+import { frontViewBusy, heardBuilds, pluginViewKey, useViewerEditState } from "./viewerEditState";
 
 const surface = "plugin:cad/cad/cad_open:parts%2Fbracket.step";
 const thread = scopeThreadRef(EnvironmentId.make("local"), ThreadId.make("thread-1"));
@@ -43,5 +43,21 @@ describe("the viewer's edit state", () => {
     expect(useViewerEditState.getState().byView).toEqual({
       [view]: { editable: true, busy: true },
     });
+  });
+
+  it("hears a build the view saw end once, and none as a view opens or loads again", () => {
+    // A view opens: nothing built yet. Then its first build, said again with each edit state after.
+    expect(heardBuilds(view, 0)).toBe(false);
+    expect(heardBuilds(view, 1)).toBe(true);
+    expect(heardBuilds(view, 1)).toBe(false);
+    expect(heardBuilds(view, 2)).toBe(true);
+    // A view older than the count says none.
+    expect(heardBuilds(view, undefined)).toBe(false);
+    // Its page loaded again counts from nothing, and its next build is heard.
+    expect(heardBuilds(view, 0)).toBe(false);
+    expect(heardBuilds(view, 1)).toBe(true);
+    // A view closed and opened again starts again too.
+    useViewerEditState.getState().remove(view);
+    expect(heardBuilds(view, 1)).toBe(true);
   });
 });

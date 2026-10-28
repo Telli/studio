@@ -362,15 +362,18 @@ it('a host that lays the workspace out hears what the part on screen allows as i
     const studio = host({ displayMode: 'fullscreen', 'studio/editLayout': 'manual' }, { studioEditState: {} });
     const { unmount } = render(<App bridge={studio.bridge as any} server={studio.server as any} launch={home} />);
     // The STEP view says what its part allows (`editLayoutHost`): a part script, then a command open, then the part gone.
+    const builds = editLayoutHost.builds();
     act(() => editLayoutHost.reportEditState({ editable: true, busy: false }));
     act(() => editLayoutHost.reportEditState({ editable: true, busy: true }));
+    // A build CAD mode saw end, for Studio to list the part anew.
+    act(() => editLayoutHost.reportBuilt());
     act(() => editLayoutHost.reportEditState(null));
-    expect(said(studio.bridge.notify)).toEqual([{ editable: false, busy: false }, { editable: true, busy: false },
-      { editable: true, busy: true }, { editable: false, busy: false }]);
+    expect(said(studio.bridge.notify)).toEqual([{ editable: false, busy: false, builds }, { editable: true, busy: false, builds },
+      { editable: true, busy: true, builds }, { editable: true, busy: true, builds: builds + 1 }, { editable: false, busy: false, builds: builds + 1 }]);
     // A view closed says nothing more.
     unmount();
     act(() => editLayoutHost.reportEditState({ editable: true, busy: true }));
-    expect(said(studio.bridge.notify)).toHaveLength(4);
+    expect(said(studio.bridge.notify)).toHaveLength(5);
 
     const plain = host({ displayMode: 'fullscreen' });
     render(<App bridge={plain.bridge as any} server={plain.server as any} launch={home} />);

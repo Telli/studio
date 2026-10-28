@@ -36,6 +36,8 @@ import { useFaceFeatures } from "./useFaceFeatures.js";
 import { useHostFocus } from "./useHostFocus.js";
 
 const EMPTY = Object.freeze([]);
+// A file a part's script writes (`useXbfEditLayout`): opened in CAD, the part is shown by its document instead.
+const OPENED_AS_FILE = /\.(?:step|stp|xbf)$/i;
 // What the part says when the rollback bar's body is gone from the engine, and the bar is rolled to the end.
 export const ROLLBACK_GONE = "The body at the rollback bar is no longer in the engine, so the part is shown whole. Move the bar again to see it.";
 
@@ -59,6 +61,10 @@ export function facePoint({ scene, tree, hit, facts = null }) {
  * would, and nothing once this part leaves the screen; a picture drawn out of sight for the library
  * (`compact`) is not the part on screen.
  *
+ * In CAD's layout a part opened as a file its script wrote (a STEP, an .xbf) is shown by its document, built first where the
+ * engine holds none, so CAD mode's changes are seen as they build: the file is only what an export wrote once. The host hears
+ * of every build the part saw end (`editLayoutHost.reportBuilt`), to list its parts anew.
+ *
  * @param {{ client: object | null, file: string, services: object, active: boolean, compact?: boolean }} options
  */
 export function useXbfEditLayout({ client, file, services, active, compact = false }) {
@@ -70,6 +76,18 @@ export function useXbfEditLayout({ client, file, services, active, compact = fal
   const onScreen = !compact;
   useEffect(() => { if (onScreen) editLayoutHost.reportEditState({ editable, busy }); }, [onScreen, editable, busy]);
   useEffect(() => (onScreen ? () => editLayoutHost.reportEditState(null) : undefined), [onScreen]);
+  useEffect(() => { if (onScreen && edit.builds) editLayoutHost.reportBuilt(); }, [onScreen, edit.builds]);
+  const openFile = useViewerHost()?.navigation?.openFile;
+  const openRef = useRef(openFile);
+  openRef.current = openFile;
+  const { builtModel } = edit;
+  const swap = onScreen && layout === "manual" && Boolean(openFile) && Boolean(edit.model?.id) && OPENED_AS_FILE.test(file);
+  useEffect(() => {
+    if (!swap) return undefined;
+    let gone = false;
+    builtModel().then(id => { if (!gone && id) openRef.current?.(id); }, () => {});
+    return () => { gone = true; };
+  }, [swap, builtModel]);
   return { edit, layout, setLayout, hosted, editable, busy, editing: editable && layout === "manual", cad: cadChosen(layout, edit), onScreen };
 }
 

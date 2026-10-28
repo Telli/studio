@@ -123,11 +123,16 @@ export interface McpAppHostOptions {
   readonly openFile?: ((path: string) => Promise<void>) | undefined;
   /**
    * Hears what Studio's CAD view says of the part on screen (`studio/notifications/edit-state`):
-   * whether it has both layouts (`editable`) and whether an open command holds them (`busy`).
-   * Absent, the app is not offered it.
+   * whether it has both layouts (`editable`) and whether an open command holds them (`busy`),
+   * and, from a view that counts them, how many builds its page saw end (`builds`, which only
+   * grows), so Studio lists the parts they built. Absent, the app is not offered it.
    */
   readonly onEditState?:
-    | ((state: { readonly editable: boolean; readonly busy: boolean }) => void)
+    | ((state: {
+        readonly editable: boolean;
+        readonly busy: boolean;
+        readonly builds?: number;
+      }) => void)
     | undefined;
   /**
    * Switches Studio's AI | CAD layout at the CAD view's ask (`studio/request/edit-layout`): a
@@ -471,9 +476,11 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
         options.onRequestTeardown();
         return;
       case "studio/notifications/edit-state": {
-        const { editable, busy } = params;
+        const { editable, busy, builds } = params;
         if (typeof editable === "boolean" && typeof busy === "boolean") {
-          options.onEditState?.({ editable, busy });
+          options.onEditState?.(
+            typeof builds === "number" ? { editable, busy, builds } : { editable, busy },
+          );
         }
         return;
       }

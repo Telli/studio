@@ -370,3 +370,69 @@ it("a part made of a STEP whose build failed says why, and a second press opens 
   expect(onOpen).not.toHaveBeenCalled();
   expect(screen.getByText(/Its part did not build/)).toBeTruthy();
 });
+
+it("a part opened as its STEP names its document, builds it as New part does where the engine holds none, and counts the build", async () => {
+  const DOCUMENT = '7c1e2d3f-4a5b-5c6d-8e7f-9a0b1c2d3e4f';
+  // Never built (as the view opens, and as it is asked again): asked to build, then building, then built.
+  const never = { ok: true, editable: true, document: DOCUMENT, partBuilt: false, partBuilding: false };
+  const probes = [never, never, { ok: true, editable: true, document: DOCUMENT, partBuilt: false, partBuilding: true },
+    { ok: true, editable: true, document: DOCUMENT, partBuilt: true, partBuilding: false }];
+  const client = {
+    editState: vi.fn(async (_file: string, _files: unknown, options?: { probe?: boolean }) => (options?.probe ? probes.shift() || probes.at(-1) : read('20'))),
+    editChange: vi.fn(async () => ({ ok: true, document: DOCUMENT, building: { scripts: ['plate.py'], documents: [DOCUMENT], done: 0, error: null } })),
+  };
+  const { result } = renderHook(() => useEditMode({ client, file: FILE, active: true }), { wrapper: hostWith(() => {}) });
+  await waitFor(() => expect(result.current.model).toEqual({ id: DOCUMENT, built: false, building: false }));
+  expect(result.current.builds).toBe(0);
+  vi.useFakeTimers({ toFake: ['setTimeout'] });
+  try {
+    let opened: unknown = 'waiting';
+    const building = result.current.builtModel().then(id => { opened = id; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.editChange).toHaveBeenCalledWith({ file: FILE, build: true });
+    // Not named to open while it builds: an id never built is not built by opening it.
+    expect(opened).toBe('waiting');
+    await vi.advanceTimersByTimeAsync(1000);
+    await building;
+    expect(opened).toBe(DOCUMENT);
+  } finally {
+    vi.useRealTimers();
+  }
+  expect(client.editChange).toHaveBeenCalledTimes(1);
+  // Studio lists the part it built.
+  await waitFor(() => expect(result.current.builds).toBe(1));
+});
+
+it("a part opened as its STEP whose build fails says why in the one phrase, and names nothing to open", async () => {
+  const DOCUMENT = '7c1e2d3f-4a5b-5c6d-8e7f-9a0b1c2d3e4f';
+  let asked = false;
+  const client = {
+    editState: vi.fn(async (_file: string, _files: unknown, options?: { probe?: boolean }) => (!options?.probe ? read('20') : asked
+      ? { ok: true, editable: true, document: DOCUMENT, partBuilt: false, partBuilding: false, partError: "plate.py: NameError: name 'HEIGHTT' is not defined" }
+      : { ok: true, editable: true, document: DOCUMENT, partBuilt: false, partBuilding: false })),
+    editChange: vi.fn(async () => { asked = true; return { ok: true, document: DOCUMENT }; }),
+  };
+  const { result } = renderHook(() => useEditMode({ client, file: FILE, active: true }), { wrapper: hostWith(() => {}) });
+  await waitFor(() => expect(result.current.model?.id).toBe(DOCUMENT));
+  let opened: unknown = 'waiting';
+  await act(async () => { opened = await result.current.builtModel(); });
+  expect(opened).toBe(null);
+  expect(result.current.error).toBe("Its part did not build: plate.py: NameError: name 'HEIGHTT' is not defined");
+  expect(result.current.builds).toBe(0);
+});
+
+it("a build a change starts is counted once it ends, and one that fails is not", async () => {
+  const viewer = server();
+  const building = (done: number, error: string | null = null) => ({ ...read('20'), building: { scripts: ['plate.py'], documents: ['d'], done, error } });
+  const replies = [building(0), building(1)];
+  viewer.client.editState.mockImplementation(async (_file: string, _files: unknown, options?: { probe?: boolean }) => (options?.probe
+    ? { ok: true, editable: true } : replies.shift() || building(1)));
+  const { result } = renderHook(() => useEditMode({ client: viewer.client, file: FILE, active: true }), { wrapper: hostWith(() => {}) });
+  await waitFor(() => expect(result.current.status).toBe('ready'));
+  expect(result.current.builds).toBe(0);
+  await waitFor(() => expect(result.current.builds).toBe(1), { timeout: 4000 });
+  // A batch that failed is not a part Studio lists anew.
+  replies.push(building(0), building(1, 'plate.py: the build failed'));
+  await new Promise(resolve => setTimeout(resolve, 3400));
+  expect(result.current.builds).toBe(1);
+}, 10000);

@@ -76,3 +76,17 @@ test('a page hears when its host refuses the layout it asked for, and only then'
   await new Promise(resolve => setTimeout(resolve, 0));
   leave();
 });
+
+test('counts the builds the part on screen saw end, for the host to list its parts anew, whatever the part says after', () => {
+  let heard = 0;
+  const leave = editLayoutHost.subscribeEditState(() => { heard += 1; });
+  const before = editLayoutHost.builds();
+  editLayoutHost.reportBuilt();
+  expect(editLayoutHost.builds()).toBe(before + 1);
+  expect(heard).toBe(1);
+  // The count only grows: the part leaving the screen keeps it, so a host never hears an old count again.
+  editLayoutHost.reportEditState({ editable: true, busy: false });
+  editLayoutHost.reportEditState(null);
+  expect(editLayoutHost.builds()).toBe(before + 1);
+  leave();
+});

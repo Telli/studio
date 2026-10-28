@@ -40,9 +40,11 @@ import { setSimpleView, useSimpleView, viewerEditLayout } from "../workbench/sim
 import { sendsWithoutAsking } from "./sendWithoutAsking";
 import {
   frontViewBusy,
+  heardBuilds,
   useViewerEditState,
   type ViewerEditState,
 } from "../workbench/viewerEditState";
+import { modelsChanged } from "../workbench/useFolderModels";
 import {
   takeViewerFocus,
   useViewerFocus,
@@ -396,8 +398,11 @@ export function PluginViewFrame(props: {
       ...(editKey === undefined
         ? {}
         : {
-            onEditState: (state: ViewerEditState) =>
-              useViewerEditState.getState().set(editKey, state),
+            onEditState: (state: ViewerEditState) => {
+              useViewerEditState.getState().set(editKey, state);
+              // CAD mode built a part: Home, the Overview and Cmd+K list it as it now is.
+              if (heardBuilds(editKey, state.builds)) modelsChanged();
+            },
             // A double-click in the view steps into CAD on a face, or back to AI on empty space
             // (`text-to-cad/.../edit/editLayout.js`): the bar's switch, pressed from the view.
             requestEditLayout: async (layout: "manual" | "ai") => {

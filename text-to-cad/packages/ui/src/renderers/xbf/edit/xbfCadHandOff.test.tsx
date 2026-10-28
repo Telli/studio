@@ -231,6 +231,52 @@ describe('a STEP brought in', () => {
   });
 });
 
+describe('a part opened as its STEP', () => {
+  const OPENED = '/work/parts/plate.step';
+  /** The plate's script beside its STEP: the probe names its document, never built until a build is asked and has run. */
+  function partServer() {
+    const client = server();
+    let built = false;
+    let building = 0;
+    client.editState.mockImplementation(async (asked: string, _files: unknown, options?: { probe?: boolean }) => {
+      if (!options?.probe) return PART;
+      if (asked !== OPENED) return { ok: true, editable: true, document: asked };
+      if (building > 0) { building -= 1; built = building === 0; return { ok: true, editable: true, document: DOCUMENT, partBuilt: false, partBuilding: true }; }
+      return { ok: true, editable: true, document: DOCUMENT, partBuilt: built, partBuilding: false };
+    });
+    client.editChange.mockImplementation(async () => { building = 1; return { ok: true, document: DOCUMENT }; });
+    return client;
+  }
+  function opening(layout: string, compact = false) {
+    const client = partServer();
+    const openFile = vi.fn();
+    const shown = testHost({ navigation: { openFile } });
+    const inHost = ({ children }: { children: ReactNode }) => <ViewerHostContext.Provider value={shown}>{children}</ViewerHostContext.Provider>;
+    renderHook(() => useXbfCadMode(props(client, { layout, file: OPENED }, compact ? { view: { file: { path: OPENED }, appearance: { compact: true } } } : {}) as never),
+      { wrapper: inHost });
+    return { client, openFile };
+  }
+
+  it("is shown by its document in CAD, built first as New part builds one, and Studio hears of the build", async () => {
+    const before = editLayoutHost.builds();
+    const { client, openFile } = opening('manual');
+    await waitFor(() => expect(openFile).toHaveBeenCalledWith(DOCUMENT), { timeout: 3000 });
+    expect(client.editChange).toHaveBeenCalledWith({ file: OPENED, build: true });
+    expect(openFile).toHaveBeenCalledTimes(1);
+    expect(editLayoutHost.builds()).toBe(before + 1);
+  });
+
+  it("stays the STEP opened in the AI's layout, and in a picture drawn for the library", async () => {
+    const ai = opening('ai');
+    const picture = opening('manual', true);
+    await waitFor(() => expect(ai.client.editState).toHaveBeenCalledWith(OPENED, null, { probe: true }));
+    await waitFor(() => expect(picture.client.editState).toHaveBeenCalledWith(OPENED, null, { probe: true }));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    expect([...ai.openFile.mock.calls, ...picture.openFile.mock.calls]).toEqual([]);
+    expect([...ai.client.editChange.mock.calls, ...picture.client.editChange.mock.calls]).toEqual([]);
+  });
+});
+
 describe("Studio's hand-off on a double-click", () => {
   it("laid out for the AI, a face asks Studio for CAD, and once CAD has read the part that face's feature is selected", async () => {
     const { requester, release } = studio();

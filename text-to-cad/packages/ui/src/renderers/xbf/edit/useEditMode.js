@@ -44,6 +44,11 @@ const ADOPT_POLL_MS = 500;
 const ADOPT_POLLS = (15 * 60 * 1000) / ADOPT_POLL_MS;
 /** A STEP brought in, as the probe says it (`editable` false): the part made of it, and why its last build failed; or null. */
 const importedOf = reply => (reply?.importable ? { part: reply.part || null, error: reply.partError || "" } : null);
+/** The part's document, as the probe names it (`editable`): its id, whether the engine holds it, and whether it builds now; or null. */
+const modelOf = reply => (typeof reply?.document === "string" && reply.document
+  ? { id: reply.document, built: reply.partBuilt !== false, building: reply.partBuilding === true } : null);
+/** A part's build that failed, said as New part, a copied example and Edit as a part say it. */
+export const didNotBuild = error => `Its part did not build${error ? `: ${error}` : "."}`;
 const describe = error => (error instanceof Error ? error.message : String(error || "The change could not be made."));
 // Where a script that did not build stopped (`{ frames }`, from the engine), kept with the error it is
 // the place of. The same place again, as every poll says it, is no new state.
@@ -90,6 +95,11 @@ export function useEditMode({ client, file, active, reading = true }) {
   const [imported, setImported] = useState(null);
   // Where the script stopped, when the error is a part that did not build.
   const [stoppedAt, setStoppedAt] = useState(null);
+  // The part's document, as the probe named it (`modelOf`): a part opened as its STEP is shown by it (`builtModel`).
+  const [model, setModel] = useState(null);
+  // How many builds of the edit service's this view saw end, a change's or `builtModel`'s: each is a part Studio lists anew.
+  const [builds, setBuilds] = useState(0);
+  const buildRunning = useRef(false);
   // The profile an error is about, when the agent can redraw it as a sketch.
   const [redraw, setRedraw] = useState(null);
   // SolidWorks' Confirm Delete, open: the feature asked to go and its child features, which go with it on OK.
@@ -197,12 +207,26 @@ export function useEditMode({ client, file, active, reading = true }) {
     setSketch(null); setSketchTool(null); setSketchSelection([]); setPicking(false);
     setSheetView(null);
     setImported(null);
+    setModel(null);
+    buildRunning.current = false;
     probed.current = "";
     inflight.current = null;
     setStatus(supported && file ? "probing" : "none");
   }, [file, supported]);
 
+  // A build the edit service runs, followed through the replies that say it: one seen running and then seen ended without an
+  // error is counted (`builds`).
+  const watchBuild = useCallback(building => {
+    const scripts = Array.isArray(building?.scripts) ? building.scripts.length : 0;
+    if (!scripts) return;
+    if ((building.done || 0) < scripts) { buildRunning.current = true; return; }
+    if (!buildRunning.current) return;
+    buildRunning.current = false;
+    if (!building.error) setBuilds(count => count + 1);
+  }, []);
+
   const take = useCallback(reply => {
+    watchBuild(reply?.building);
     if (reply.unchanged) {
       // The part reads as it did, but who made its features moves on as a turn of the agent's ends
       // (`cadgen/edit/authors.py`): the read says it as it is now.
@@ -246,7 +270,7 @@ export function useEditMode({ client, file, active, reading = true }) {
       const found = (reply.sketches || []).find(view => view.file === current.file && view.name === current.name);
       return found ? { ...current, ...found } : current;
     });
-  }, []);
+  }, [watchBuild]);
 
   useEffect(() => {
     if (!supported || !file || !active) return undefined;
@@ -276,6 +300,7 @@ export function useEditMode({ client, file, active, reading = true }) {
           if (stopped) return;
           probed.current = file;
           if (!reply?.editable) { setImported(importedOf(reply)); setStatus("none"); return; }
+          setModel(modelOf(reply));
           setStatus(current => (current === "probing" ? (reading ? "reading" : "idle") : current));
         } catch {
           if (!stopped) setStatus("none");
@@ -917,6 +942,34 @@ export function useEditMode({ client, file, active, reading = true }) {
     }
     return null;
   }, [file, supported, probeImported]);
+  // The part's document, built where the engine holds none, by its id to open in the file's place: as New part builds one
+  // (`change` with `build`), asked after while it builds for as long as a build may take. A part opened as its STEP is shown
+  // by it, as the STEP is only what an export wrote once. Null where it did not build (the error says why in the one
+  // phrase), the view went or the file moved on meanwhile.
+  const builtModel = useCallback(async () => {
+    if (!supported || !file) return null;
+    let asked = false;
+    for (let polls = 0; polls < ADOPT_POLLS; polls += 1) {
+      const probe = await client.editState(file, null, { probe: true });
+      if (!mounted.current || fileRef.current !== file) return null;
+      const found = probe?.editable ? modelOf(probe) : null;
+      if (!found) return null;
+      if (found.built) {
+        if (asked) setBuilds(count => count + 1);
+        return found.id;
+      }
+      if (!found.building) {
+        if (asked) { setError(didNotBuild(probe.partError || "")); return null; }
+        const reply = await client.editChange({ file, build: true });
+        if (!mounted.current || fileRef.current !== file) return null;
+        if (!reply?.ok) { setError(didNotBuild(reply?.error || "")); return null; }
+        asked = true;
+        continue;
+      }
+      await new Promise(resolve => setTimeout(resolve, ADOPT_POLL_MS));
+    }
+    return null;
+  }, [client, file, supported]);
   // The STEP brought in made a part beside it (`cadgen/edit/service.py` `adopt`), built, and named by its document's id, to
   // open; null where it could not be made or did not build. Either way the chip learns of the part made, so a second press
   // opens it rather than making another.
@@ -929,7 +982,7 @@ export function useEditMode({ client, file, active, reading = true }) {
   }, [client, file, supported, importedPart, probeImported]);
 
   return {
-    status, state, error, choice, saving, selected, hovered, command, editing, bar, imported, adopt, importedPart,
+    status, state, error, choice, saving, selected, hovered, command, editing, bar, imported, adopt, importedPart, model, builtModel, builds,
     // The bar's body could not be shown (`message` says why): the bar goes to the end, as a roll to it does.
     dropBar: message => { setBar(null); setError(message); },
     // The bar moved in the tree, the body there still on its way.

@@ -8,6 +8,8 @@
  * navbar's switch hangs on (`editState`): whether its file has a part script, the two layouts
  * (`editable`), and whether a command, sketch or pick is open or a change is being saved, which
  * holds the layout until it is finished or cancelled (`busy`). No part on screen, nothing of either.
+ * It counts too the builds the part saw end (`builds`, a CAD-mode change's or a part opened as its STEP built first), so
+ * the host lists its parts anew (Studio's `modelsChanged`); the count only grows.
  *
  * The part on screen asks the other way too (`request`): a double-click on a face laid out for the AI
  * asks for the CAD layout, one on empty space in CAD for the AI's (`xbf/edit/editLayout.js`'s
@@ -27,6 +29,7 @@ const NONE: EditState = Object.freeze({ editable: false, busy: false });
 let hosted = false;
 const listeners = new Set<() => void>();
 let editState: EditState = NONE;
+let builds = 0;
 const editListeners = new Set<() => void>();
 let requester: ((layout: EditLayout) => unknown) | null = null;
 
@@ -50,6 +53,13 @@ export const editLayoutHost = {
     const { editable, busy } = next ?? NONE;
     if (editState.editable === editable && editState.busy === busy) return;
     editState = Object.freeze({ editable, busy });
+    for (const listener of editListeners) listener();
+  },
+  /** How many builds the parts on this page saw end, since it loaded. */
+  builds: (): number => builds,
+  /** A build the part on screen saw end: its listeners hear of it, as of a change of what it allows. */
+  reportBuilt(): void {
+    builds += 1;
     for (const listener of editListeners) listener();
   },
   subscribeEditState(listener: () => void): () => void {

@@ -204,10 +204,11 @@ export default function App({ bridge, server, launch: initial, presentation = 't
     tabStore.settings.update({ editLayout: hostLayout });
   }, [hostLayout, tabStore]);
   // Its switch shows and holds as the navbar's would: the host that asks for it (`studioEditState`)
-  // hears what the part on screen allows, now and at each change (`editLayoutHost`).
+  // hears what the part on screen allows, now and at each change (`editLayoutHost`), and how many
+  // builds CAD mode saw end, to list the parts they built.
   useEffect(() => {
     if (!bridge.hostCapabilities.studioEditState) return undefined;
-    const send = () => bridge.notify('studio/notifications/edit-state', { ...editLayoutHost.editState() });
+    const send = () => bridge.notify('studio/notifications/edit-state', { ...editLayoutHost.editState(), builds: editLayoutHost.builds() });
     send();
     return editLayoutHost.subscribeEditState(send);
   }, [bridge]);

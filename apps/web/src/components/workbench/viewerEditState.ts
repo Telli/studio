@@ -10,6 +10,8 @@ import { create } from "zustand";
 export interface ViewerEditState {
   readonly editable: boolean;
   readonly busy: boolean;
+  /** How many builds the view's page saw end (CAD mode's): it only grows while the page lives. */
+  readonly builds?: number;
 }
 
 /**
@@ -36,11 +38,27 @@ export const useViewerEditState = create<{
     setState({ byView: { ...get().byView, [key]: { editable, busy } } });
   },
   remove: (key) => {
+    buildsByView.delete(key);
     if (!(key in get().byView)) return;
     const { [key]: _gone, ...rest } = get().byView;
     setState({ byView: rest });
   },
 }));
+
+// The builds each open view last said it saw end (`heardBuilds`), by its key.
+const buildsByView = new Map<string, number>();
+
+/**
+ * Whether a view's edit state names a build it saw end that was not heard yet, for Studio to list
+ * the part it built (`modelsChanged`). The count only grows while the view's page lives, so a new
+ * count is a new build; a page loaded again counts from none.
+ */
+export function heardBuilds(key: string, builds: number | undefined): boolean {
+  if (builds === undefined) return false;
+  const last = buildsByView.get(key);
+  buildsByView.set(key, builds);
+  return builds > 0 && builds !== last;
+}
 
 /** Whether the view in front has a command or sketch open; a view that is gone has none. */
 export function frontViewBusy(
