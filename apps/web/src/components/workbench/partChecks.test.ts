@@ -46,4 +46,35 @@ describe("the checks of the file on screen", () => {
   it("has nothing to say about a file no check is about", () => {
     expect(shownChecks(folders, "/work/bracket/parts/lid.step")).toEqual({ results: [], of: null });
   });
+
+  describe("a cadgen 0.8 model, shown by its document id", () => {
+    const id = "6f1c0d8e-2b7a-4c1e-9d3f-5a6b7c8d9e0f";
+    const byId = parseCheckResult(
+      "FEA/plate.fea.json",
+      JSON.stringify({
+        generator: "cadgen fea",
+        document: id,
+        summary: { safety_factor: 6.3, checks: [{ label: "Strength" }] },
+        files: { glb: "plate.fea.glb" },
+        findings: [],
+      }),
+    )!;
+    const modelFolders: ReadonlyArray<FolderChecks> = [
+      {
+        root: "/work/plate",
+        paths: ["parts/plate.py", "FEA/plate.fea.glb", "FEA/plate.fea.json"],
+        results: [byId, study],
+      },
+    ];
+
+    it("lists the checks whose results name its id", () => {
+      const { results, of } = shownChecks(modelFolders, id);
+      expect(results.map(({ result }) => result.path)).toEqual(["FEA/plate.fea.json"]);
+      expect(of).toBeNull();
+    });
+
+    it("leads from a check's result back to the model, by its id", () => {
+      expect(shownChecks(modelFolders, "/work/plate/FEA/plate.fea.glb").of).toBe(id);
+    });
+  });
 });
