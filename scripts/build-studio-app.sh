@@ -87,6 +87,13 @@ fi
 rm -rf "$TMPDIR"
 mkdir -p "$TMPDIR"
 
+step "Checking text-to-cad is at Studio's pin"
+# text-to-cad is a submodule (STUDIO.md): the app ships the commit Studio pins, never another.
+[ -f "$CAD/package.json" ] || git -C "$ROOT" submodule update --init text-to-cad
+case "$(git -C "$ROOT" submodule status text-to-cad)" in
+  +*) stop "text-to-cad is checked out at another commit than Studio pins. Run git submodule update text-to-cad, or commit the new pin first." ;;
+esac
+
 step "Building the CAD tools' runtime and page"
 # text-to-cad's own packages first, as its lockfile names them: a checkout copied from another (or
 # one made before cadgen 0.8, whose viewer added sonner and gltf-validator) lacks some.
