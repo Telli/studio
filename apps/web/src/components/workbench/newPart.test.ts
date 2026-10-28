@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off - reads the CAD service's build limit from its Python source.
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
