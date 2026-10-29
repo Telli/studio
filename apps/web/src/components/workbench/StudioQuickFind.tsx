@@ -516,7 +516,7 @@ function QuickFindBody(props: {
       footerActionLabel="Choose"
       footerTrailing={
         typed || partTitle === null ? null : (
-          <span className="text-xs">Type what to do, like buckling or G-code</span>
+          <span className="text-xs">Type what to do, like a strength check or G-code</span>
         )
       }
     >

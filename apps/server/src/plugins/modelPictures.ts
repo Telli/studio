@@ -4,11 +4,11 @@
  * assembly, board, drawing and mesh, not only the ones a viewer has opened.
  * text-to-cad renders them itself: its CAD server is `cadgen mcp`, and the
  * same launcher with `snapshot` instead of `mcp` renders any document or file
- * it opens (a model by its document id, STEP, xbf, meshes, DXF, harnesses,
- * robots) to a PNG, a whole batch in one run. So a release runs the release's
- * cadgen and a development checkout its own. Pictures are cached by the
- * file's size and time, or by a model's build, so a page renders only what
- * changed. KiCad boards have no picture on cadgen 0.8 yet.
+ * it opens (a model by its document id, STEP, xbf, meshes, DXF, robots) to a
+ * PNG, a whole batch in one run. So a release runs the release's cadgen and a
+ * development checkout its own. Pictures are cached by the file's size and
+ * time, or by a model's build, so a page renders only what changed. KiCad
+ * boards and wiring harnesses have no picture on cadgen 0.8.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
@@ -24,7 +24,7 @@ const HEIGHT = 360;
 const RUN_MS = 4 * 60_000;
 
 /** The files cadgen renders, by ending. */
-const RENDERABLE = /\.(?:step|stp|xbf|stl|3mf|glb|dxf|urdf|srdf|sdf)$|\.harness\.ya?ml$/i;
+const RENDERABLE = /\.(?:step|stp|xbf|stl|3mf|glb|dxf|urdf|srdf|sdf)$/i;
 
 /** A cadgen document id: a model's, which its script's run prints (cadgen's `ids.is_id`). */
 const DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
