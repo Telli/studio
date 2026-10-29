@@ -15,8 +15,8 @@
 #
 # Run it from a checkout set up with scripts/setup-studio.sh (on Windows, the steps in
 # .github/workflows/studio-windows.yml), with Rust's cargo installed for the desktop build. It
-# stages build/studio-bundle (the CAD tools' Python, their plugin and page, the sample project and
-# studio.json), which the desktop build copies into the app's resources (scripts/lib/studio-app.ts)
+# stages build/studio-bundle (the CAD tools' Python, the FEA solver, their plugin and page, the
+# sample project and studio.json), which the desktop build copies into the app's resources (scripts/lib/studio-app.ts)
 # and which the app sets itself up from on each start (apps/desktop/src/studio/studioAppBundle.ts).
 #
 #   scripts/build-studio-app.sh [version]    (0.1.0 when left out)
@@ -121,6 +121,29 @@ uv pip freeze --python "$(native "$venv_python")" | grep -v -E '^-e |^cadgen|^zi
 uv pip install --python "$(native "$bundle_python")" --break-system-packages \
   -c "$(native "$work/constraints.txt")" "cadgen[fea] @ $wheel_url"
 "$bundle_python" -c "import cadgen.mcp.server, OCP, netgen"
+
+step "Adding the FEA solver"
+# CalculiX from conda-forge, which moves with its folder; the app points cadgen at it (CADGEN_CCX,
+# apps/desktop/src/studio/studioAppBundle.ts), so a strength check needs nothing installed.
+# micromamba fetches it: this machine's, else its one-file build, kept in the work folder.
+if command -v micromamba >/dev/null 2>&1; then
+  mamba=micromamba
+else
+  mamba_platform=osx-arm64 mamba_program=bin/micromamba
+  [ "$platform" = win ] && mamba_platform=win-64 mamba_program=Library/bin/micromamba.exe
+  curl -fsSL "https://micro.mamba.pm/api/micromamba/$mamba_platform/latest" | tar -xj -C "$work" "$mamba_program"
+  mamba="$work/$mamba_program"
+fi
+# Windows's conda-forge BLAS is Intel's MKL by default, 500 MB more than OpenBLAS.
+blas=()
+[ "$platform" = win ] && blas=("libblas=*=*openblas")
+solver="$BUNDLE/calculix"
+MAMBA_ROOT_PREFIX="$(native "$work/mamba")" "$mamba" create -y -q -p "$(native "$solver")" \
+  -c conda-forge "calculix>=2.20" ${blas[@]+"${blas[@]}"}
+# Only the program and its libraries go in the app.
+for unused in conda-meta include share Library/include Library/share; do rm -rf "${solver:?}/$unused"; done
+if [ "$platform" = win ]; then ccx="$solver/Library/bin/ccx.exe"; else ccx="$solver/bin/ccx"; fi
+"$ccx" -v | grep -q "Version 2\.2" || stop "The bundled CalculiX does not run."
 # The bundle carries no symlinks: copying it into the app turns relative links into links that
 # point outside the app, which fails the app's signature check.
 find "$BUNDLE" -type l | while IFS= read -r link; do

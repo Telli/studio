@@ -55,6 +55,10 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
   - the CAD tools with a Python of their own: uv's movable CPython 3.13, with cadgen and its `fea`
     extra pinned to the checkout's `.venv`. cadgen 0.8 makes STL and DXF, and draws part pictures,
     in that Python, so the Mac needs no Node or browser for them;
+  - the FEA solver, CalculiX from conda-forge (fetched by micromamba, its one-file build when the
+    machine has none), which the app names to cadgen as `CADGEN_CCX`, so a strength check needs
+    nothing installed. Windows's comes with OpenBLAS, not conda-forge's default MKL (about 100 MB
+    against 600);
   - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
     `@@STUDIO_…@@` placeholders;
   - the plugin's page;

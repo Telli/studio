@@ -181,6 +181,19 @@ describe("applyStudioAppBundle", () => {
     expect(env.T3CODE_SAMPLES_DIR).toBeUndefined();
   });
 
+  it("points cadgen at the bundled FEA solver when the bundle has one", () => {
+    const res = resources();
+    const ccx = NodePath.join(res, "studio", "calculix", "bin", "ccx");
+    write(ccx, "");
+    const env: Record<string, string | undefined> = {};
+    applyStudioAppBundle({ resourcesPath: res, homeDirectory: tempDir(), env, platform: "darwin" });
+    expect(env.CADGEN_CCX).toBe(ccx);
+
+    const none: Record<string, string | undefined> = {};
+    applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: tempDir(), env: none });
+    expect(none.CADGEN_CCX).toBeUndefined();
+  });
+
   it("leaves what the environment already says", () => {
     const home = tempDir();
     const res = resources();

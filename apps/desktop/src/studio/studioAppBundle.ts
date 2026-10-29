@@ -21,6 +21,8 @@ import { studioEngineEnv, studioPath } from "./studioEngine.ts";
  *   `T3CODE_DEFAULT_PLUGINS`).
  * - The finished sample projects, where the bundle has them (`T3CODE_SAMPLES_DIR`), which an
  *   example's Make a copy to edit copies into a new project.
+ * - The FEA solver, CalculiX, where the bundle has it (`CADGEN_CCX`), so a strength check runs
+ *   with nothing installed.
  * - The CAD tools' own cadgen state, cache, engine and port under the home (`studioEngineEnv`),
  *   with their `cadgen` command first on PATH, so the agents Studio runs use Studio's cadgen 0.8
  *   engine and a user's own cadgen never meets it. The bundled installation is registered there
@@ -63,6 +65,12 @@ export function applyStudioAppBundle(input: {
   env.PATH = studioPath(env.CADGEN_LAUNCHER_DIR!, env.PATH);
   const samples = NodePath.join(bundle, "sample");
   if (NodeFS.existsSync(samples)) setDefault(env, "T3CODE_SAMPLES_DIR", samples);
+  // conda-forge's layout: `bin/ccx` on a Mac, `Library\bin\ccx.exe` on Windows.
+  const ccx =
+    platform === "win32"
+      ? NodePath.join(bundle, "calculix", "Library", "bin", "ccx.exe")
+      : NodePath.join(bundle, "calculix", "bin", "ccx");
+  if (NodeFS.existsSync(ccx)) setDefault(env, "CADGEN_CCX", ccx);
   try {
     trustBundledTools(bundle);
     // A folder of Studio's own name: T3 Code's plugin store keys a marketplace by its folder name.
@@ -189,7 +197,7 @@ export function writeFilledCopy(
 }
 
 /**
- * The bundled Python and its libraries came in the same download as Studio, which the person let
+ * The bundled Python, the FEA solver and their libraries came in the same download as Studio, which the person let
  * open (Open Anyway). Clearing the download's quarantine mark from them keeps macOS from stopping
  * each of those programs again on its own. A no-op once cleared, and on a build that was never
  * downloaded.
@@ -197,10 +205,14 @@ export function writeFilledCopy(
 function trustBundledTools(bundle: string): void {
   // oxlint-disable-next-line t3code/no-global-process-runtime -- Runs before any Effect runtime.
   if (process.platform !== "darwin") return;
-  const python = NodePath.join(bundle, "python");
-  const marked = NodeChildProcess.spawnSync("xattr", ["-p", "com.apple.quarantine", python], {
-    stdio: "ignore",
-  });
-  if (marked.status !== 0) return;
-  NodeChildProcess.spawnSync("xattr", ["-dr", "com.apple.quarantine", python], { stdio: "ignore" });
+  for (const tools of ["python", "calculix"]) {
+    const folder = NodePath.join(bundle, tools);
+    const marked = NodeChildProcess.spawnSync("xattr", ["-p", "com.apple.quarantine", folder], {
+      stdio: "ignore",
+    });
+    if (marked.status !== 0) continue;
+    NodeChildProcess.spawnSync("xattr", ["-dr", "com.apple.quarantine", folder], {
+      stdio: "ignore",
+    });
+  }
 }
