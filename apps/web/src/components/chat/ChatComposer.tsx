@@ -6239,11 +6239,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         clipboardData?: DataTransfer;
       },
     ): boolean => {
+      // Studio: a job written in while the agent waits on a question is the person's answer to
+      // it (picking a tool answers "what next?"), so it goes into the answer, as typing would.
+      const answersQuestion =
+        isEngineeringInterface() && activePendingProgress !== null && !activePendingIsResponding;
       if (
         text.length === 0 ||
         isConnecting ||
         isComposerApprovalState ||
-        pendingUserInputs.length > 0 ||
+        (pendingUserInputs.length > 0 && !answersQuestion) ||
         projectSelectionRequired ||
         (options?.citationCommentAnchor && !composerEditorRef.current)
       ) {
@@ -6277,6 +6281,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       );
     },
     [
+      activePendingIsResponding,
+      activePendingProgress,
       applyPromptReplacement,
       isComposerApprovalState,
       isConnecting,

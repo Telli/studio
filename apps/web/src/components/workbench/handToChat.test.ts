@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
+import { toastManager } from "../ui/toast";
 import { handToChat, sendsAtOnce } from "./handToChat";
 
 /** A composer holding `draft`, keeping what is written into it and whether it was sent. */
@@ -21,7 +22,10 @@ function composer(draft: string, accepts = true) {
 }
 
 describe("handing a job to the chat", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 
   it("sends at once into an empty composer, and waits after a draft", () => {
     expect(sendsAtOnce("")).toBe(true);
@@ -43,10 +47,14 @@ describe("handing a job to the chat", () => {
     expect(state).toEqual({ value: "make the wall 3 mm and Run FEA on bracket.step", sent: false });
   });
 
-  it("sends nothing when the composer could not take the job", () => {
+  it("sends nothing when the composer could not take the job, and says why", () => {
     vi.stubGlobal("requestAnimationFrame", (step: () => void) => step());
+    const add = vi.spyOn(toastManager, "add");
     const { state, ref } = composer("", false);
     handToChat(ref, "Run FEA on bracket.step");
     expect(state.sent).toBe(false);
+    expect(add).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "The chat is waiting on you" }),
+    );
   });
 });
