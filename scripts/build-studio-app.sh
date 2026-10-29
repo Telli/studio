@@ -143,7 +143,11 @@ MAMBA_ROOT_PREFIX="$(native "$work/mamba")" "$mamba" create -y -q -p "$(native "
 # Only the program and its libraries go in the app.
 for unused in conda-meta include share Library/include Library/share; do rm -rf "${solver:?}/$unused"; done
 if [ "$platform" = win ]; then ccx="$solver/Library/bin/ccx.exe"; else ccx="$solver/bin/ccx"; fi
-"$ccx" -v | grep -q "Version 2\.2" || stop "The bundled CalculiX does not run."
+# `ccx -v` prints its version and exits 201.
+case "$("$ccx" -v 2>&1 || true)" in
+  *"Version 2.2"*) ;;
+  *) stop "The bundled CalculiX does not run." ;;
+esac
 # The bundle carries no symlinks: copying it into the app turns relative links into links that
 # point outside the app, which fails the app's signature check.
 find "$BUNDLE" -type l | while IFS= read -r link; do
