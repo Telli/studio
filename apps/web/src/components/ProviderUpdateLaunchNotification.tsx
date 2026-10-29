@@ -15,6 +15,7 @@ import {
 } from "./ProviderUpdateLaunchNotification.logic";
 import { ProviderUpdatePrimaryNotification } from "./ProviderUpdatePrimaryNotification";
 import { stackedThreadToast, toastManager } from "./ui/toast";
+import { useEngineeringInterface } from "./workbench/studioInterface";
 
 /**
  * True when a desktop-local secondary backend (the parallel WSL backend) is
@@ -35,11 +36,15 @@ function useHasLocalSecondaryEnvironment(): boolean {
 /**
  * The provider update popover. With a WSL backend present it splits the update
  * trigger per environment; without one (the common case) it falls back to the
- * single-prompt flow so non-WSL users see no change.
+ * single-prompt flow so non-WSL users see no change. The engineering interface shows none: a
+ * newer AI agent is not news to an engineer (Settings, AI agents lists it), and one too old to
+ * work says so in the chat's own banner.
  */
 export function ProviderUpdateLaunchNotification() {
   const hasLocalSecondary = useHasLocalSecondaryEnvironment();
+  const engineering = useEngineeringInterface();
 
+  if (engineering) return null;
   return hasLocalSecondary ? (
     <ProviderUpdateEnvironmentsNotification />
   ) : (
