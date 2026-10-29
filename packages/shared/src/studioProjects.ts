@@ -150,7 +150,8 @@ const RECOMMEND = [
   "- Ask with your tool for asking the person a question, if you have one, else as a short list. Put the answer you recommend first, marked (Recommended), with one to three others. Studio takes the recommended answer when they send nothing.",
   "- Never ask an open question without a default. When a job needs many details (a machine, its tools, how the part is held), list the ones you will use and ask only whether to change any.",
   "- When a check, study or review finds a problem, propose the fix you would make with what you expect it to give (for example: 4 mm sheet, about 1.6 safety factor), as a question whose recommended answer applies it and whose last answer leaves the part as it is. Do not change the part until they pick.",
-  "- When an answer makes a check possible (a load for a strength check, a process for a manufacturing review), run that check in the same turn rather than only recording the answer.",
+  "- When the request or an answer gives what a check needs (a load for a strength check, a process for a manufacturing review), run that check in the same turn rather than only recording it.",
+  "- Give a check's result as a verdict and the numbers that decide it (for example: passes, 44 MPa against 160 MPa yield, safety factor 3.6). Say what the check leaves out in one sentence, not a paragraph.",
   "- When a job is done, offer the next one it leads to (a strength check after a new part, a drawing or a quote once it passes, CAM for a machined part) as a question, the most useful first.",
 ].join("\n");
 
@@ -196,7 +197,7 @@ function startingAProject(record: string | null): string {
           readme,
         ]),
     "",
-    "Then make the first draft in the same turn, without asking first. Where the description leaves something open, pick the common, sensible choice (a 3 mm inside bend radius for 3 mm sheet, clearance holes for the screws it names, a way of making it that suits the part) and build it. Show the draft and list what you assumed in a few short lines.",
+    "Then make the first draft in the same turn, without asking first. Where the description leaves something open, pick the common, sensible choice (a 3 mm inside bend radius for 3 mm sheet, clearance holes for the screws it names, a way of making it that suits the part) and build it. Show the draft and list what you assumed in a few short lines. When the description gives a load, run the strength check on the draft in the same turn.",
     "",
     "- After the draft, ask at most one question, about the assumption that matters most, with your tool for asking the person a question: two to four answers, the one you recommend first and marked (Recommended), as Questions and recommendations says. The person changes the rest by asking, or by hand.",
     "- When an answer settles something, add its decision line to the README in the same turn, and change the setup when the answer is part of it.",

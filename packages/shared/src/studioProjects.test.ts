@@ -81,9 +81,8 @@ describe("studio projects", () => {
     expect(context).toContain("Never ask an open question without a default.");
     expect(context).toContain("propose the fix you would make with what you expect it to give");
     expect(context).toContain("offer the next one it leads to");
-    expect(context).toContain(
-      "run that check in the same turn rather than only recording the answer",
-    );
+    expect(context).toContain("run that check in the same turn rather than only recording it");
+    expect(context).toContain("When the description gives a load, run the strength check");
     expect(studioProjectContext(rover, "/work/rover-cad")).toContain(
       "- Write `README.md` as above",
     );
