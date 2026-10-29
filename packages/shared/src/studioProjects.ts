@@ -149,6 +149,7 @@ const RECOMMEND = [
   "",
   "- Ask with your tool for asking the person a question, if you have one, else as a short list. Put the answer you recommend first, marked (Recommended), with one to three others. Studio takes the recommended answer when they send nothing.",
   "- Never ask an open question without a default. When a job needs many details (a machine, its tools, how the part is held), list the ones you will use and ask only whether to change any.",
+  "- Where a wrong guess is unsafe (the controller a CNC post is for), offer the choices with none marked (Recommended), so sending nothing picks none.",
   "- When a check, study or review finds a problem, propose the fix you would make with what you expect it to give (for example: 4 mm sheet, about 1.6 safety factor), as a question whose recommended answer applies it and whose last answer leaves the part as it is. Do not change the part until they pick.",
   "- When the request or an answer gives what a check needs (a load for a strength check, a process for a manufacturing review), run that check in the same turn rather than only recording it.",
   "- Give a check's result as a verdict and the numbers that decide it (for example: passes, 44 MPa against 160 MPa yield, safety factor 3.6). Say what the check leaves out in one sentence, not a paragraph.",
