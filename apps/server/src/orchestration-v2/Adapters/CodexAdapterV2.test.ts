@@ -712,6 +712,57 @@ describe("CodexAdapterV2 process spawning", () => {
     );
   });
 
+  it("starts a Studio project's thread with only Studio's tools, not the person's own", () => {
+    const mcpSession = {
+      environmentId: EnvironmentId.make("environment-codex-mcp"),
+      threadId: ThreadId.make("thread-studio"),
+      providerSessionId: "mcp-session-codex",
+      providerInstanceId: ProviderInstanceId.make("codex"),
+      endpoint: "http://127.0.0.1:43123/mcp",
+      authorizationHeader: "Bearer secret-codex-token",
+      browserToolsAvailable: true,
+    };
+    // The person's Codex config, as `config/read` returns it: their CAD server and others.
+    const personal = CodexAdapterV2.codexConfigMcpServers({
+      model: "gpt-5.5",
+      mcp_servers: { cad: { command: "uvx" }, github: { command: "npx" }, "t3-code": {} },
+    });
+    const policy = {
+      runtimeMode: "full-access" as const,
+      interactionMode: "default" as const,
+      cwd: "/projects/bracket",
+    };
+
+    const studio = CodexAdapterV2.codexThreadRuntimeParams({
+      mcpSession,
+      runtimePolicy: { ...policy, projectContext: "# Studio project: Bracket" },
+      personalMcpServers: personal,
+    });
+    assert.deepEqual(studio.config, {
+      "tools.update_plan.enabled": true,
+      "features.plugins": false,
+      "features.apps": false,
+      mcp_servers: {
+        cad: { enabled: false },
+        github: { enabled: false },
+        "t3-code": {
+          url: "http://127.0.0.1:43123/mcp",
+          http_headers: { Authorization: "Bearer secret-codex-token" },
+        },
+      },
+    });
+
+    // A thread outside a Studio project keeps the person's setup as it is.
+    const code = CodexAdapterV2.codexThreadRuntimeParams({
+      mcpSession,
+      runtimePolicy: policy,
+      personalMcpServers: personal,
+    });
+    assert.deepEqual(Object.keys(code.config), ["tools.update_plan.enabled", "mcp_servers"]);
+    assert.deepEqual(Object.keys(code.config["mcp_servers"] as object), ["t3-code"]);
+    assert.deepEqual(CodexAdapterV2.codexConfigMcpServers({ model: "gpt-5.5" }), []);
+  });
+
   it.effect("resolves Windows command shims through the shared spawn policy", () =>
     Effect.gen(function* () {
       const command = yield* CodexAdapterV2.makeCodexAppServerSpawnCommand({

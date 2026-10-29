@@ -1342,35 +1342,60 @@ export class CodexAppServerClientFactory extends Context.Service<
  */
 export const CODEX_THREAD_CONFIG = { "tools.update_plan.enabled": true } as const;
 
+/**
+ * A Studio project's thread works only with Studio's tools: the person's own
+ * Codex plugins and apps are off, and so is each MCP server in their Codex
+ * config (`personalMcpServers`, from `config/read`). Codex merges
+ * `mcp_servers` into theirs rather than replacing it, so each is named.
+ */
+const CODEX_STUDIO_THREAD_CONFIG = {
+  "features.plugins": false,
+  "features.apps": false,
+} as const;
+
 export function codexThreadRuntimeParams(input: {
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly modelSelection?: { readonly model: string };
   readonly runtimePolicy?: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
+  /** The MCP servers in the person's Codex config, turned off in a Studio project's thread. */
+  readonly personalMcpServers?: ReadonlyArray<string>;
 }): {
   readonly cwd?: string;
   readonly model?: string;
   readonly config: Readonly<Record<string, Schema.Json>>;
 } {
   const { mcpSession } = input;
+  const studio = input.runtimePolicy?.projectContext !== undefined;
+  const mcpServers: Record<string, Schema.Json> = {};
+  if (studio) {
+    for (const name of input.personalMcpServers ?? []) {
+      if (name !== "t3-code") mcpServers[name] = { enabled: false };
+    }
+  }
+  if (mcpSession !== undefined) {
+    mcpServers["t3-code"] = {
+      url: mcpSession.endpoint,
+      http_headers: {
+        Authorization: mcpSession.authorizationHeader,
+      },
+    };
+  }
   return {
     ...(input.runtimePolicy?.cwd == null ? {} : { cwd: input.runtimePolicy.cwd }),
     ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
     config: {
       ...CODEX_THREAD_CONFIG,
-      ...(mcpSession === undefined
-        ? {}
-        : {
-            mcp_servers: {
-              "t3-code": {
-                url: mcpSession.endpoint,
-                http_headers: {
-                  Authorization: mcpSession.authorizationHeader,
-                },
-              },
-            },
-          }),
+      ...(studio ? CODEX_STUDIO_THREAD_CONFIG : {}),
+      ...(Object.keys(mcpServers).length === 0 ? {} : { mcp_servers: mcpServers }),
     },
   };
+}
+
+/** The MCP servers a Codex `config/read` names, from its effective config. */
+export function codexConfigMcpServers(config: unknown): ReadonlyArray<string> {
+  if (typeof config !== "object" || config === null) return [];
+  const servers = (config as { readonly mcp_servers?: unknown }).mcp_servers;
+  return typeof servers === "object" && servers !== null ? Object.keys(servers) : [];
 }
 
 const decodeCodexResumeMetadata = Schema.decodeUnknownEffect(
@@ -1847,6 +1872,22 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             yield* Ref.set(initialized, true);
           }),
         );
+        // A Studio project's threads start without the person's own Codex MCP servers
+        // (`codexThreadRuntimeParams`), named from the effective config, read once for this
+        // app-server. A config that cannot be read turns none off.
+        const personalMcpServers = yield* Effect.cached(
+          ensureInitialized.pipe(
+            Effect.andThen(client.request("config/read", {})),
+            Effect.map((response) => codexConfigMcpServers(response.config)),
+            Effect.orElseSucceed((): ReadonlyArray<string> => []),
+          ),
+        );
+        const personalMcpServersFor = (
+          runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy | undefined,
+        ) =>
+          runtimePolicy?.projectContext === undefined
+            ? Effect.succeed<ReadonlyArray<string>>([])
+            : personalMcpServers;
         const now = yield* DateTime.now;
         const session = providerSession({
           providerSessionId: input.providerSessionId,
@@ -6513,14 +6554,20 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             }),
           ensureThread: (threadInput) =>
             ensureInitialized.pipe(
-              Effect.andThen(mcpSessions.read(threadInput.threadId)),
-              Effect.flatMap((mcpSession) =>
+              Effect.andThen(
+                Effect.all([
+                  mcpSessions.read(threadInput.threadId),
+                  personalMcpServersFor(threadInput.runtimePolicy),
+                ]),
+              ),
+              Effect.flatMap(([mcpSession, personal]) =>
                 client.request(
                   "thread/start",
                   codexThreadRuntimeParams({
                     mcpSession,
                     modelSelection: threadInput.modelSelection,
                     runtimePolicy: threadInput.runtimePolicy,
+                    personalMcpServers: personal,
                   }),
                 ),
               ),
@@ -6554,6 +6601,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                   mcpSession: yield* readMcpSession(
                     threadInput.threadId ?? threadInput.providerThread.appThreadId,
                   ),
+                  personalMcpServers: yield* personalMcpServersFor(threadInput.runtimePolicy),
                   ...(threadInput.modelSelection === undefined
                     ? {}
                     : { modelSelection: threadInput.modelSelection }),
@@ -7284,6 +7332,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     mcpSession: yield* readMcpSession(threadInput.providerThread.appThreadId),
                     modelSelection: input.modelSelection,
                     runtimePolicy: input.runtimePolicy,
+                    personalMcpServers: yield* personalMcpServersFor(input.runtimePolicy),
                   }),
                 });
               }
@@ -7331,6 +7380,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                       : { lastTurnId: boundary.lastTurnId }),
                     ...codexThreadRuntimeParams({
                       mcpSession: yield* mcpSessions.read(threadInput.targetThreadId),
+                      personalMcpServers: yield* personalMcpServersFor(threadInput.runtimePolicy),
                       ...(threadInput.modelSelection === undefined
                         ? {}
                         : { modelSelection: threadInput.modelSelection }),
