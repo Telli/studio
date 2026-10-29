@@ -67,7 +67,7 @@ function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutation
  * The part in front of the workspace panel, as the CAD viewer shows it (it may have moved on from
  * the file it opened), else as the view the agent opened names it; null over the Overview, a
  * document, or anything that is not a CAD view. With it, how the project's parts are made, from
- * its setup, which Manufacture leads with. The panel bar and the Toolbox show its jobs.
+ * its setup, which Manufacture leads with. Jobs fall back from it to other parts (`usePartForJobs`).
  */
 export function usePartInFront(
   threadRef: ScopedThreadRef,
@@ -106,12 +106,37 @@ export function usePartInFront(
 }
 
 /**
+ * The part a job is for, the Toolbox's and ⌘K's: the part in front (`usePartInFront`), else the
+ * part last on screen, else the project's lead part, so over a report, a drawing or the Overview
+ * the project's jobs are still there.
+ */
+export function usePartForJobs(
+  threadRef: ScopedThreadRef,
+  folder: string | null,
+  mutationId: string | null,
+): {
+  readonly part: { readonly path: string; readonly kind: string; readonly name?: string } | null;
+  readonly process: string | undefined;
+} {
+  const { part: front, process, shown } = usePartInFront(threadRef, folder);
+  const lead = useLeadPart(threadRef, folder, mutationId);
+  const part =
+    front ??
+    (shown !== null
+      ? shown.part
+      : lead === null
+        ? null
+        : { path: lead.file.path, kind: lead.file.kind, name: lead.file.title });
+  return { part, process };
+}
+
+/**
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
  * can be done: the AI | CAD switch where the viewer in front has two layouts (`ModeSwitch` over
  * `simpleView.ts`, the person's choice, which every CAD view takes from its host context), with Back to AI before it
  * in CAD; and Import (`ImportMenu`, Studio's one Import) and New, always
  * there, at the row's right end (`StudioNew`), where Home has them. A part's jobs are in the
- * Toolbox (`StudioToolbox`). ⌘K's jobs are for the part last on screen, else the lead part.
+ * Toolbox (`StudioToolbox`). ⌘K's and the Toolbox's jobs are for the same part (`usePartForJobs`).
  */
 export function StudioPanelBar(props: {
   readonly folder: string | null;
@@ -121,7 +146,6 @@ export function StudioPanelBar(props: {
   readonly mutationId: string | null;
 }) {
   const { folder, threadRef } = props;
-  const lead = useLeadPart(threadRef, folder, props.mutationId);
   usePanelTabShortcuts(threadRef);
   // The AI | CAD switch, by what the CAD view in front says of its part (`viewerEditState.ts`): shown
   // where it has two layouts, held while a command or sketch is open in it.
@@ -133,17 +157,10 @@ export function StudioPanelBar(props: {
   const toggle = useViewerEditState((store) =>
     simpleViewToggle(frontView === null ? undefined : store.byView[frontView]),
   );
-  // The part in front, for ⌘K; over the Overview or a document, there is none.
-  const { shown, process } = usePartInFront(threadRef, folder);
+  // ⌘K's part, the Toolbox's too.
+  const { part: subject, process } = usePartForJobs(threadRef, folder, props.mutationId);
   const studio = useStudioProjectAt(threadRef.environmentId, folder);
   const addPart = useAddPart(threadRef, folder);
-  // ⌘K's part: the one the viewer shows, else the project's lead part.
-  const subject =
-    shown !== null
-      ? { path: shown.part.path, kind: shown.part.kind, name: shown.part.name }
-      : lead === null
-        ? null
-        : { path: lead.file.path, kind: lead.file.kind, name: lead.file.title };
   // Import beside New, as on Home: files brought into this project's folder.
   const importer = useImportIntoProject(folder, studio?.project.name ?? "the project");
   // The same Import menu as Home's: here Files or a folder copies into this project, and Scan this

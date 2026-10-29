@@ -12273,6 +12273,7 @@ export default function ChatView(props: ChatViewProps) {
                     folder={activeProject?.workspaceRoot ?? null}
                     composerRef={composerRef}
                     threadRef={activeThreadRef}
+                    mutationId={workspaceMutationId}
                   />
                 ),
               }
@@ -12350,6 +12351,7 @@ export default function ChatView(props: ChatViewProps) {
                       folder={activeProject?.workspaceRoot ?? null}
                       composerRef={composerRef}
                       threadRef={activeThreadRef}
+                      mutationId={workspaceMutationId}
                     />
                   ),
                 }

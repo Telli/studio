@@ -23,7 +23,7 @@ import { LIBRARY_DOCUMENTS } from "./library/libraryCatalog";
 import { handToChat } from "./handToChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
-import { usePartInFront } from "./StudioPanelBar";
+import { usePartForJobs } from "./StudioPanelBar";
 import { SectionJobs } from "./ToolboxJobs";
 import {
   jobCount,
@@ -54,10 +54,10 @@ const jobsNote = (count: number) => (count === 1 ? "1 job" : `${count} jobs`);
 
 /**
  * The Toolbox, down the right of the workspace panel beside the part, the same in AI and CAD: the
- * part's jobs (`usePartJobs`) as Evaluate, Manufacture and Document (`toolboxGroups`). It opens on
+ * jobs (`usePartJobs`) of the part in front, else the project's (`usePartForJobs`), as Evaluate, Manufacture and Document (`toolboxGroups`). It opens on
  * the three groups, each a card with its Library picture and how many jobs it has; a press slides
  * in that group's sections, each a grid of tool tiles, the everyday ones open and the rest folded
- * to open in place. A tile press sends its job in the chat for the part in front, or adds it after
+ * to open in place. A tile press sends its job in the chat for that part, or adds it after
  * a draft being written there for the person to send (`handToChat`).
  * It folds to an edge of the groups' icons, as chosen on this device, and on a narrow panel starts
  * folded so the model keeps the room.
@@ -66,9 +66,11 @@ export function StudioToolbox(props: {
   readonly threadRef: ScopedThreadRef;
   readonly folder: string | null;
   readonly composerRef: ComposerHandleRef | null;
+  /** The thread's workspace changes, which can make the project's first part. */
+  readonly mutationId: string | null;
 }) {
   const { threadRef, composerRef } = props;
-  const { part, process } = usePartInFront(threadRef, props.folder);
+  const { part, process } = usePartForJobs(threadRef, props.folder, props.mutationId);
   const jobs = usePartJobs(threadRef.environmentId, part?.kind ?? null, process);
   const groups = useMemo(() => toolboxGroups(jobs.menus), [jobs.menus]);
   const [view, dispatch] = useReducer(toolboxView, { open: null });
@@ -178,10 +180,10 @@ export function StudioToolbox(props: {
         {openGroup === null ? (
           // Coming back slides the groups in from the left, as the group slid in from the right.
           <div className="flex flex-col gap-3 p-3 transition-[opacity,translate] duration-180 ease-out starting:-translate-x-3 starting:opacity-0 motion-reduce:transition-none">
-            {/* Said first, above the cards it explains: with no part in front they cannot open. */}
+            {/* Said first, above the cards it explains: with no part in the project they cannot open. */}
             {part === null ? (
               <p className="text-xs text-muted-foreground">
-                The jobs are for a part. Open one, from its tab or the Overview, to see them.
+                The jobs are for a part. Make one in the chat, or import one, to see them.
               </p>
             ) : null}
             {groups.map((group) => (
