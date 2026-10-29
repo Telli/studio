@@ -197,7 +197,7 @@ function startingAProject(record: string | null): string {
     "",
     "Then make the first draft in the same turn, without asking first. Where the description leaves something open, pick the common, sensible choice (a 3 mm inside bend radius for 3 mm sheet, clearance holes for the screws it names, a way of making it that suits the part) and build it. Show the draft and list what you assumed in a few short lines.",
     "",
-    "- After the draft, ask at most one question, about the assumption that matters most, as Questions and recommendations says. The person changes the rest by asking, or by hand.",
+    "- After the draft, ask at most one question, about the assumption that matters most, with your tool for asking the person a question: two to four answers, the one you recommend first and marked (Recommended), as Questions and recommendations says. The person changes the rest by asking, or by hand.",
     "- When an answer settles something, add its decision line to the README in the same turn, and change the setup when the answer is part of it.",
   ].join("\n");
 }
