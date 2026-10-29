@@ -310,6 +310,15 @@ describe("ClaudeAdapterV2 runtime query policy", () => {
     ]);
     const systemPrompt = options.systemPrompt as { readonly append?: string };
     assert.isTrue(systemPrompt.append?.endsWith(`\n\n${projectContext}`));
+    // The person's own ~/.claude settings stay out; a thread outside a project keeps them.
+    assert.deepEqual(options.settingSources, ["project", "local"]);
+    const outside = ClaudeAdapterV2.makeClaudeQueryOptions({
+      modelSelection: CLAUDE_TEST_MODEL_SELECTION,
+      nativeThreadId: "native-thread-plain",
+      resume: false,
+      cwd: "/workspace",
+    });
+    assert.isUndefined(outside.settingSources);
   });
 
   it("reopens the live query when the Studio project changes", () => {

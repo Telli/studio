@@ -1053,6 +1053,12 @@ export function makeClaudeQueryOptions(input: {
       : {}),
     ...(input.environment === undefined ? {} : { env: input.environment }),
     ...(input.mcpServers === undefined ? {} : { mcpServers: input.mcpServers }),
+    // A Studio project's thread leaves out the person's own Claude settings (their plugins,
+    // MCP servers and CLAUDE.md in ~/.claude), as its Codex thread does; Studio's plugins come
+    // through the `plugins` option (`PluginStore.withClaudePlugins`), not from there.
+    ...(input.projectContext === undefined
+      ? {}
+      : { settingSources: ["project" as const, "local" as const] }),
     systemPrompt: {
       type: "preset" as const,
       preset: "claude_code" as const,
