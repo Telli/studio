@@ -3892,8 +3892,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   // Windows splits dependencies per process: app.asar carries only the
   // desktop main-process externals, while the server bundle's externals live
   // in the server.asar sidecar (see stageWindowsServerSidecar). macOS and
-  // Linux merge both sets into one app.asar.
-  const stageDependencies =
+  // Linux merge both sets into one app.asar. Either way a patched dependency
+  // installs at its patched version, as the sidecar's does.
+  const stageDependencies = pinStagePatchedDependencies(
     options.platform === "win"
       ? { ...resolvedDesktopRuntimeDependencies }
       : resolveMergedStageDependencies({
@@ -3902,7 +3903,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
           desktopDependencies: resolvedDesktopRuntimeDependencies,
           arch: options.arch,
           fffNodeVersion: serverPackageJson.dependencies["@ff-labs/fff-node"],
-        });
+        }),
+    workspacePatchedDependencies,
+  );
   const stagePatchedDependencies = createStagePatchedDependencies(
     workspacePatchedDependencies,
     stageDependencies,
