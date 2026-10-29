@@ -1,6 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { useNavigate } from "@tanstack/react-router";
 import { PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
 
@@ -22,7 +21,6 @@ import { homeLayout } from "./homeStart";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
-import { HeadingLink } from "./OverviewModules";
 import { waitingFirst } from "./ProjectChoices";
 import { ProjectPicker } from "./ProjectPicker";
 import { GetStarted, StartChoices, StartExamples, TILE_GRID } from "./StartChoices";
@@ -41,8 +39,6 @@ import { useExamples } from "./library/useSampleProject";
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 /** A group within Your projects, in the project switcher's words: Starred, then Recent. */
 const GROUP_LABEL = "text-xs font-medium text-muted-foreground";
-/** How many of the projects not starred Home shows, the last worked on: one row on a wide window. */
-const HOME_RECENT = 4;
 
 /** Opens the quick find (`StudioQuickFind`): the top bar's search, and Cmd+O on Home. */
 const openFind = () => openCommandPalette();
@@ -71,9 +67,9 @@ function FindButton() {
  * projects (`homeLayout`) it asks Where would you like to start?, with two big buttons (New part,
  * Import a STEP; `StartChoices`), Home's Start box right under them, and the examples
  * Studio ships to make a copy of. With projects it is Welcome back: the box, then your starred
- * projects and the last few you worked on (`HOME_RECENT`), as pictures of their parts, each opening
- * where it was left, and the examples in a Get started strip under them that folds away. All
- * projects goes to the Projects page, which has every one (`ProjectsHome`). The box takes what to
+ * projects and every other one, the last worked on first, as pictures of their parts, each opening
+ * on its part (Amy, 2026-10-29: one Home, not a Projects page beside it), and the examples in a Get
+ * started strip under them that folds away, its All examples the Library. The box takes what to
  * make: Start sends it to a new project (made, with a first chat that sends it), or, with a project
  * of yours chosen beside Attach, to a new chat in that project. New and Import beside the tiles add
  * a project: New the same New and dialog as a project's toolbar (a part, a board or a document, in
@@ -96,7 +92,6 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   // One start at a time, from the box or from New.
   const { busy, start } = useStartOnce(environmentId);
   const importActions = useImportActions();
-  const navigate = useNavigate();
   useNowMinute();
   useOpenShortcut(openFind);
   const { tile, dialogs } = useProjectTiles(environmentId, cards);
@@ -106,11 +101,8 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
     useStarredStore((store) => store.starred),
   );
   const starred = waitingFirst(split.starred);
-  // The last few, the ones waiting on the person first; every project is on the Projects page.
-  const recent = waitingFirst(split.rest).slice(0, HOME_RECENT);
-  const allProjects = (
-    <HeadingLink label="All projects" onClick={() => void navigate({ to: "/projects" })} />
-  );
+  // Every other project, the ones waiting on the person first, then the last worked on.
+  const recent = waitingFirst(split.rest);
   // Home's New: Create starts a new project with the job as its first message, and its Part is
   // New part. On the start page it has no button, and opens when asked (New project from ⌘K).
   const newProject = (hideButton: boolean) => (
@@ -168,12 +160,12 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                       {newProject(false)}
                     </div>
                     {starred.length === 0 ? null : (
-                      <TileGroup label="Starred" action={recent.length === 0 ? allProjects : null}>
+                      <TileGroup label="Starred" action={null}>
                         {starred.map(tile)}
                       </TileGroup>
                     )}
                     {recent.length === 0 ? null : (
-                      <TileGroup label="Recent" action={allProjects}>
+                      <TileGroup label="Recent" action={null}>
                         {recent.map(tile)}
                       </TileGroup>
                     )}

@@ -36,7 +36,6 @@ import LegacyThreadSidebar from "./LegacySidebar";
 import { useThreadVisitedMigration } from "../hooks/useThreadVisitedMigration";
 import ThreadSidebar from "./Sidebar";
 import { railMark } from "./workbench/studioPlaces";
-import { STUDIO_RAIL_WIDTH } from "./workbench/StudioRail";
 import { StudioSidebarFrame } from "./workbench/StudioSidebar";
 import { useEngineeringInterface } from "./workbench/studioInterface";
 import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
@@ -259,9 +258,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   // that would otherwise refresh a render-time snapshot.
   const viewportWidth = useSyncExternalStore(subscribeToViewportWidth, readViewportWidth);
   const [brandWidth, setBrandWidth] = useState(0);
-  // Studio's rail of places sits inside the sidebar, beside its list (`workbench/StudioRail.tsx`).
-  const sidebarMinimumWidth =
-    resolveThreadSidebarMinimumWidth(brandWidth) + (studioShell ? STUDIO_RAIL_WIDTH : 0);
+  const sidebarMinimumWidth = resolveThreadSidebarMinimumWidth(brandWidth);
   const sidebarMaximumWidth = resolveThreadSidebarMaximumWidth(viewportWidth, sidebarMinimumWidth);
   const resetSidebarWidth = () => {
     try {
@@ -284,8 +281,6 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   ) as CSSProperties;
   const sidebarProviderStyle = {
     "--sidebar-width": `${clampThreadSidebarWidth(sidebarWidth, sidebarMinimumWidth, sidebarMaximumWidth)}px`,
-    // Folded, Studio's sidebar keeps its rail (`collapsible="icon"` below).
-    ...(studioShell ? { "--sidebar-width-icon": `${STUDIO_RAIL_WIDTH}px` } : {}),
     "--panel-animation-duration": `${panelAnimationDurationMs}ms`,
     ...windowControlsInsetStyle,
   } as CSSProperties;
@@ -339,7 +334,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         <ProjectProjectionRetention />
         <Sidebar
           side="left"
-          collapsible={studioShell ? "icon" : "offcanvas"}
+          collapsible="offcanvas"
           data-app-sidebar=""
           role="navigation"
           aria-label={isOnSettings ? "Settings" : "Threads"}

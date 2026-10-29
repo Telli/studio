@@ -204,9 +204,9 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
     void navigate({ to: "/settings" });
   }, [closeMobileSidebar, navigate]);
   // Beside code tools, T3 Code's sidebar keeps Studio's Home a press away; Studio's own sidebar
-  // has Home and Settings on its rail (`workbench/StudioRail.tsx`).
+  // has Home at its top and Settings at its foot (`workbench/StudioNavLinks.tsx`).
   const engineering = useStudioInterface() === "both";
-  const studioRail = useEngineeringInterface();
+  const studioPlaces = useEngineeringInterface();
   const handleProjectsClick = useCallback(() => {
     closeMobileSidebar();
     void navigate({ to: "/" });
@@ -239,7 +239,7 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             // Home, as ⌘K and the project switcher name it: where Studio starts.
             <SidebarUtilityItem icon={<HomeIcon />} label="Home" onClick={handleProjectsClick} />
           ) : null}
-          {studioRail ? null : (
+          {studioPlaces ? null : (
             <SidebarUtilityItem
               icon={<SettingsIcon />}
               label="Settings"

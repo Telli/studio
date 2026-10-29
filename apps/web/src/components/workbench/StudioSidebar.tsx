@@ -4,8 +4,8 @@ import type {
   EnvironmentThreadShell,
 } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId, ProjectId, ScopedThreadRef } from "@t3tools/contracts";
-import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
-import { ChevronDownIcon, ChevronLeftIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
+import { useLocation, useParams } from "@tanstack/react-router";
+import { ChevronDownIcon, LayoutDashboardIcon, PlusIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
@@ -32,7 +32,7 @@ import { useChatScopeStore } from "./chatScope";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { showOverview } from "./overviewPanel";
 import { ProjectSwitcher } from "./ProjectSwitcher";
-import { StudioRail } from "./StudioRail";
+import { StudioFootLinks, StudioHomeLink } from "./StudioNavLinks";
 import { studioNavSection } from "./studioNav";
 import { useProjectHeading } from "./StudioWorkspaceBar";
 import { useOpenChat } from "./useOpenChat";
@@ -96,7 +96,7 @@ function RecentChats(props: {
 }
 
 /**
- * The open project beside the rail, inside its workspace: back to every project; the project (its
+ * The open project, inside its workspace, under Home (`StudioHomeLink`): the project (its
  * picture and name, which switch projects, and its own menu); its Overview (everything it holds,
  * its CAD, electronics, analysis and documents beside its chats); New chat; and its chats, newest
  * first, as ChatGPT lists a project's chats, folding away under their heading. Each chat says when
@@ -125,7 +125,6 @@ function ProjectPanel(props: {
   const overviewOpen = useRightPanelStore(
     (store) => selectActiveRightPanelSurface(store.byThreadKey, panelRef)?.kind === "files",
   );
-  const navigate = useNavigate();
   const handleNewThread = useNewThreadHandler();
   const { isMobile, open, openMobile, setOpenMobile } = useSidebar();
   const done = () => {
@@ -135,23 +134,9 @@ function ProjectPanel(props: {
 
   return (
     <SidebarGroup aria-label="Project">
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <SidebarMenuButton
-            size="sm"
-            onClick={() => {
-              done();
-              void navigate({ to: "/projects" });
-            }}
-          >
-            <ChevronLeftIcon aria-hidden="true" />
-            <span>All projects</span>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      </SidebarMenu>
       {/* The project's switcher is here while the sidebar shows, else in the top bar (one ⌘O). */}
       {(isMobile ? openMobile : open) ? (
-        <div data-tour="project" className="mt-2">
+        <div data-tour="project">
           <ProjectSwitcher environmentId={environmentId} folder={folder} title={title} wide />
         </div>
       ) : null}
@@ -216,7 +201,7 @@ function ProjectPanel(props: {
 }
 
 /**
- * The column beside the rail says where the person is: inside a project, that project
+ * The column says where the person is: inside a project, that project
  * (`ProjectPanel`); on Studio's pages (Home, Chats, Projects), the recent chats.
  */
 function StudioList(props: { readonly environmentId: EnvironmentId }) {
@@ -240,33 +225,32 @@ function StudioList(props: { readonly environmentId: EnvironmentId }) {
 }
 
 /**
- * Studio's sidebar around a column: Studio's rail of places down the far left (`StudioRail`), each
- * opening its own page, and beside it the column the page gives it. The column folds away from
- * the sidebar's own toggle or its shortcut, and the rail stays. Settings puts its sections there
- * (`AppSidebarLayout`); every other page, where the person is (`StudioSidebar`).
+ * Studio's sidebar, one column: Home at its top (`StudioHomeLink`), then the column the page gives
+ * it, and Trash and Settings at its foot. Settings puts its sections there (`AppSidebarLayout`);
+ * every other page, where the person is (`StudioSidebar`). It folds away whole from the sidebar's
+ * own toggle or its shortcut.
  */
 export function StudioSidebarFrame(props: { readonly children: ReactNode }) {
   const environmentId = usePrimaryEnvironmentId();
   return (
     <>
-      {/* Folded to the rail, the header keeps the window's controls and clips the name. */}
-      <div className="min-w-0 overflow-hidden">
-        <SidebarChromeHeader isElectron={isElectron} />
-      </div>
-      <div className="flex min-h-0 flex-1">
-        {environmentId === null ? null : <StudioRail environmentId={environmentId} />}
-        <div className="flex min-w-0 flex-1 flex-col border-s border-sidebar-border group-data-[collapsible=icon]:hidden">
-          {props.children}
+      <SidebarChromeHeader isElectron={isElectron} />
+      {environmentId === null ? null : (
+        <div className="px-2 pt-1 pb-2">
+          <StudioHomeLink environmentId={environmentId} />
         </div>
+      )}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">{props.children}</div>
+      <div className="px-2 pb-2">
+        <StudioFootLinks />
       </div>
     </>
   );
 }
 
 /**
- * The sidebar in the engineering interface: the rail (`StudioSidebarFrame`), and beside it where
- * the person is: the open project, or the recent chats. With code tools on, the sidebar is T3
- * Code's own.
+ * The sidebar in the engineering interface (`StudioSidebarFrame`): Home, then where the person is,
+ * the open project or the recent chats. With code tools on, the sidebar is T3 Code's own.
  */
 export function StudioSidebar() {
   const environmentId = usePrimaryEnvironmentId();
