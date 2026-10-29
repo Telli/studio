@@ -147,17 +147,21 @@ short user name, so a long one comes near Windows's 260.
 
 ## Run it
 
-After `scripts/setup-studio.sh`:
+After `scripts/setup-studio.sh`, `scripts/run-studio.sh` opens the app. `vpr` is the repository's
+own (`node_modules/.bin/vpr`, which setup installs; `run-studio.sh` puts it on the PATH):
 
 ```sh
-vpr studio            # server and web
-vpr studio:desktop    # the Electron app
+TEXT_TO_CAD_DEV=1 vpr studio            # server and web
+TEXT_TO_CAD_DEV=1 vpr studio:desktop    # the Electron app (what run-studio.sh runs)
 ```
 
 `scripts/studio.ts` reads the checkout as a plugin marketplace and turns its `text-to-cad` plugin on
 at first start, brands the app from `brand/`, and keeps state in `~/.text-to-cad-studio` (never in
 T3 Code's `~/.t3`). `TEXT_TO_CAD_ROOT` points at another checkout; `TEXT_TO_CAD_STUDIO_HOME` moves
-the state.
+the state and `STUDIO_PROJECTS_DIR` the projects (`~/studio-projects`). Every checkout's engine
+takes port 3346, so a second checkout's Studio beside a running one also needs
+`TEXT_TO_CAD_STUDIO_ENGINE_PORT` (another free port): without it the `text-to-cad` plugin's CAD
+server fails to start, `port 3346 is held by another cadgen`.
 
 Studio's CAD engine keeps its own folders and port, so a cadgen 0.8 engine of the person's own (on
 3245, Claude Code's or Codex's plugin) and Studio's never find or retire each other: the packaged

@@ -20,7 +20,8 @@
  * (`~/.text-to-cad-studio-dev`, `checkoutEngineEnv`), with its `cadgen` command first on the agents'
  * PATH, so neither a cadgen of the user's own nor the packaged app's ever meets it.
  *
- * TEXT_TO_CAD_ROOT points at another checkout; TEXT_TO_CAD_STUDIO_HOME moves the state.
+ * TEXT_TO_CAD_ROOT points at another checkout; TEXT_TO_CAD_STUDIO_HOME moves the state;
+ * TEXT_TO_CAD_STUDIO_ENGINE_PORT moves its engine's port (3346).
  * TEXT_TO_CAD_DEV=1 runs the checkout's working copy instead of the released cadgen: its
  * development plugin (scripts/studio-dev-plugin.py), with state of its own in
  * `~/.text-to-cad-studio-dev`, so it never mixes with a release's installs.
@@ -57,7 +58,13 @@ const home =
 // installation there, and the app and its agents run on it. Every run from a checkout keeps them in
 // the checkout's home on the checkout's port (whatever its T3 state's home), so it never shares an
 // engine with the packaged app.
-const engineEnv = checkoutEngineEnv(process.env, NodeOS.homedir());
+// TEXT_TO_CAD_STUDIO_ENGINE_PORT moves that engine off the checkout's port, so a second checkout's
+// Studio can run beside one already running instead of its CAD server failing on the held port.
+const enginePort = process.env.TEXT_TO_CAD_STUDIO_ENGINE_PORT?.trim();
+const engineEnv = {
+  ...checkoutEngineEnv(process.env, NodeOS.homedir()),
+  ...(enginePort ? { CADGEN_ENGINE_PORT: enginePort } : {}),
+};
 const cadgenEnv = {
   ...process.env,
   ...engineEnv,
