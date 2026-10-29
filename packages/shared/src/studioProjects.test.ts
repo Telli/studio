@@ -59,7 +59,7 @@ describe("studio projects", () => {
     expect(context).not.toContain("## Changing the setup");
   });
 
-  it("asks the agent to keep the README's decisions and to start a new project with a few questions", () => {
+  it("asks the agent to keep the README's decisions and to start a new project with a draft, not questions", () => {
     const context = studioProjectContext(rover, "/work/rover-cad", "/studio/rover/project.json");
     expect(context).toContain("## The README");
     expect(context).toContain("`## Decisions`");
@@ -68,22 +68,31 @@ describe("studio projects", () => {
     expect(context).toContain("Studio shows every section.");
     expect(context).toContain("## Starting a project");
     expect(context).toContain("as `name` in `/studio/rover/project.json`");
-    expect(context).toContain("at most three short questions");
+    expect(context).toContain("make the first draft in the same turn, without asking first");
+    expect(context).toContain("list what you assumed");
+    expect(context).not.toContain("before the first draft");
     expect(context).toContain("before any research or modelling");
     expect(context).toContain("a printer named means 3D printing");
     expect(context).toContain("add its decision line to the README in the same turn");
     expect(studioProjectContext(rover, "/work/rover-cad")).not.toContain("as `name` in");
+    // Every question carries the answer the agent recommends; a failed check comes with a fix.
+    expect(context).toContain("## Questions and recommendations");
+    expect(context).toContain("marked (Recommended)");
+    expect(context).toContain("Never ask an open question without a default.");
+    expect(context).toContain("propose the fix you would make with what you expect it to give");
+    expect(context).toContain("offer the next one it leads to");
     expect(studioProjectContext(rover, "/work/rover-cad")).toContain(
       "- Write `README.md` as above",
     );
   });
 
-  it("tells the agent where the setup is kept, and to propose what it means before changing parts", () => {
+  it("tells the agent where the setup is kept, and to update the parts a setup change clearly affects", () => {
     const context = studioProjectContext(rover, "/work/rover-cad", "/studio/rover/project.json");
     expect(context).toContain("## Changing the setup");
     expect(context).toContain("kept in `/studio/rover/project.json`");
     expect(context).toContain('"Casting"');
-    expect(context).toContain("wait\nfor a go before changing any part");
+    expect(context).toContain("Then update the parts the\nchange clearly affects in the same turn");
+    expect(context).not.toContain("wait\nfor a go before changing any part");
   });
 
   it("tells the agent how to cite", () => {

@@ -263,7 +263,7 @@ describe("check results", () => {
     expect(proposeFixPrompt(result, result.issues[0]!)).toBe(
       "The casting check on bossbar.step found: An isolated hot spot in the boss freezes last. " +
         "The check suggests: Feed it from #o1.f7: a riser of modulus 2.9 mm. " +
-        "Propose a fix: say what you would change and why, then wait for my go before changing the part.",
+        "Propose a fix: ask me with the change you recommend first and what you expect it to give, and wait for my pick before changing the part.",
     );
     expect(
       proposeFixPrompt(result, result.issues[0]!, "[bossbar.step](parts/bossbar.step)"),

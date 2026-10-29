@@ -143,6 +143,16 @@ const TALKING_TO_THE_PERSON = [
   "- When something on this computer had to be set up or worked around to do the job, say so in one plain sentence, not how.",
 ].join("\n");
 
+/** Recommend, don't only report: the person picks from what you would do. */
+const RECOMMEND = [
+  "The person wants your recommendation, not only the facts. Every time:",
+  "",
+  "- Ask with your tool for asking the person a question, if you have one, else as a short list. Put the answer you recommend first, marked (Recommended), with one to three others. Studio takes the recommended answer when they send nothing.",
+  "- Never ask an open question without a default. When a job needs many details (a machine, its tools, how the part is held), list the ones you will use and ask only whether to change any.",
+  "- When a check, study or review finds a problem, propose the fix you would make with what you expect it to give (for example: 4 mm sheet, about 1.6 safety factor), as a question whose recommended answer applies it and whose last answer leaves the part as it is. Do not change the part until they pick.",
+  "- When a job is done, offer the next one it leads to (a strength check after a new part, a drawing or a quote once it passes, CAM for a machined part) as a question, the most useful first.",
+].join("\n");
+
 const SHOW_YOUR_WORK = [
   "The person works beside you in Studio, with the viewer next to this chat. Show them what you make, one thing at a time:",
   "",
@@ -185,10 +195,10 @@ function startingAProject(record: string | null): string {
           readme,
         ]),
     "",
-    "Then say in one sentence that you started it, and ask at most three short questions, one at a time, before the first draft: what it attaches to or must fit, how it will be made, and any size that matters. Offer two to four answers to each with your tool for asking the person a question, if you have one, else list them. Let them skip the rest.",
+    "Then make the first draft in the same turn, without asking first. Where the description leaves something open, pick the common, sensible choice (a 3 mm inside bend radius for 3 mm sheet, clearance holes for the screws it names, a way of making it that suits the part) and build it. Show the draft and list what you assumed in a few short lines.",
     "",
+    "- After the draft, ask at most one question, about the assumption that matters most, as Questions and recommendations says. The person changes the rest by asking, or by hand.",
     "- When an answer settles something, add its decision line to the README in the same turn, and change the setup when the answer is part of it.",
-    "- Skip any question the description already answers, and make the first draft as soon as you know enough.",
   ].join("\n");
 }
 
@@ -245,15 +255,17 @@ export function studioProjectContext(
             `under \`brief\`: \`units\` is "mm" or "in", \`process\` is one of`,
             `${STUDIO_PROCESSES.map((process) => `"${process}"`).join(", ")}, and \`material\``,
             "and `quantity` are text. When asked to change the setup, change only those keys in that",
-            "file, keep it valid JSON, and commit it in its folder with git. Then say what the change",
-            "means for the parts (checks to rerun, features or wall thicknesses to revisit) and wait",
-            "for a go before changing any part.",
+            "file, keep it valid JSON, and commit it in its folder with git. Then update the parts the",
+            "change clearly affects in the same turn (a wall thickness, a bend radius, a hole for the new",
+            "screws) and say what changed and which checks to rerun. Where it could go two very",
+            "different ways, propose the one you recommend as a question instead.",
           ].join("\n"),
     ),
     ...section("Links", links),
     ...section("Notes", brief.notes),
     ...section("Sketches the person can edit", EDITABLE_SKETCHES),
     ...section("Talking to the person", TALKING_TO_THE_PERSON),
+    ...section("Questions and recommendations", RECOMMEND),
     ...section("Show your work", SHOW_YOUR_WORK),
     ...section("Sources", SOURCES),
     ...section("The README", THE_README),

@@ -261,7 +261,10 @@ as they were.
 asked)`, or `by hand`; a decision written date first reads too), then every other section the
   README has as written, its links opening what they name. The agent is told to keep it, and on a
   new project's first turn to name the project, set its setup and write the README before anything
-  else. Below it, modules: the lead part large (or, with no part yet, Start a part by hand), the
+  else, then to make a first draft in that same turn, listing what it assumed, and ask at most one
+  question after it (Amy, 2026-10-29: three questions before any part was too many). Every question
+  it asks puts the answer it recommends first, a failed check comes with the fix it would make, and
+  a finished job offers the next one (`RECOMMEND` in `packages/shared/src/studioProjects.ts`). Below it, modules: the lead part large (or, with no part yet, Start a part by hand), the
   open issues its checks found (each with the fix the check suggests, and Propose a fix, which asks
   the agent to propose and wait), then, in Engineering, everything in the project in one place the
   way Google Drive shows a folder (`components/workbench/ProjectEverything.tsx`): every kind of file
@@ -712,7 +715,7 @@ for a week on their own parts; the same part done in SolidWorks and in Studio, c
   guesses, the assumptions up front, and a track record: test results logged against a revision,
   a supplier's notes and quotes, and photos of the made part come back in and are compared with
   the model.
-- **A failed check.** The agent proposes the fix and waits for a go; it does not change the part
-  on its own.
+- **A failed check.** The agent proposes the fix it recommends, with what it expects it to give,
+  as a choice the engineer picks in one click, and waits; it does not change the part on its own.
 - **People.** One engineer, a small team editing the same product, and suppliers who see the
   released files and send back notes.

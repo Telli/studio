@@ -263,6 +263,6 @@ export function proposeFixPrompt(
   const suggestion = issue.fix === null ? "" : ` The check suggests: ${sentence(issue.fix)}.`;
   return (
     `The ${check} check on ${part} found: ${sentence(issue.summary)}.${suggestion} ` +
-    `Propose a fix: say what you would change and why, then wait for my go before changing the part.`
+    `Propose a fix: ask me with the change you recommend first and what you expect it to give, and wait for my pick before changing the part.`
   );
 }
