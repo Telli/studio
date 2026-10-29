@@ -91,6 +91,42 @@ describe("project folders' models", () => {
     expect(models.title("id-b")).toBe("Bracket");
   });
 
+  it("asks again when a folder's first read fails, until it answers or has failed five times", async () => {
+    const flushes: Array<() => void> = [];
+    const retries: Array<() => void> = [];
+    const models = folderModelsStore(
+      (flush) => flushes.push(flush),
+      (again) => retries.push(again),
+    );
+    const cad = service();
+    const ask = async (reply: unknown) => {
+      models.want(env, ["/p/a"], cad.get);
+      flushes.splice(0).forEach((flush) => flush());
+      cad.pending.at(-1)!(reply);
+      await settle();
+    };
+    // A fresh Home: the CAD service does not answer the tile's first read.
+    await ask(null);
+    expect(models.known(env, "/p/a")).toBe(false);
+    expect(retries).toHaveLength(1);
+    // The retry asks again, and this time the part is there.
+    retries.splice(0).forEach((again) => again());
+    await ask({ roots: { "/p/a": [model("id-a", "plate")] } });
+    expect(cad.asked).toHaveLength(2);
+    expect(models.models(env, "/p/a").map((entry) => entry.name)).toEqual(["plate"]);
+
+    // A folder that never answers counts as read and empty after five retries.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      models.want(env, ["/p/b"], cad.get);
+      flushes.splice(0).forEach((flush) => flush());
+      cad.pending.at(-1)!(null);
+      await settle();
+      retries.splice(0).forEach((again) => again());
+    }
+    expect(models.known(env, "/p/b")).toBe(true);
+    expect(models.models(env, "/p/b")).toEqual([]);
+  });
+
   it("knows each model's script by its id, absolute in the folder that holds it", async () => {
     const { store: models, flush } = store();
     const cad = service();

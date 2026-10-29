@@ -13,7 +13,13 @@ import { type CadGet, useEnvironmentCadGet } from "./useVersions";
  * (`modelsChanged`); then every folder on screen is read again, all of them in ONE request per
  * environment, and until it lands each keeps the models it had, so nothing blanks while it refreshes.
  */
-export function folderModelsStore(schedule: (flush: () => void) => void = queueMicrotask) {
+export function folderModelsStore(
+  schedule: (flush: () => void) => void = queueMicrotask,
+  // A first read that failed (the CAD service not answering yet) is asked again later, after
+  // 1, 2, 4, 8 and 16 seconds, before the folder counts as read and empty.
+  later: (again: () => void, attempt: number) => void = (again, attempt) =>
+    void setTimeout(again, 1000 * 2 ** (attempt - 1)),
+) {
   let revision = 0;
   let version = 0;
   const listeners = new Set<() => void>();
@@ -30,6 +36,8 @@ export function folderModelsStore(schedule: (flush: () => void) => void = queueM
   const waiting = new Map<string, { at: number; get: CadGet; roots: Set<string> }>();
   /** The folders asked at a revision and not answered yet, by environment and folder. */
   const asked = new Map<string, number>();
+  /** How many first reads of a folder have failed, by environment and folder. */
+  const failed = new Map<string, number>();
   const keyOf = (environmentId: EnvironmentId, root: string) => `${environmentId}\n${root}`;
 
   const flush = (environmentId: EnvironmentId) => {
@@ -51,7 +59,17 @@ export function folderModelsStore(schedule: (flush: () => void) => void = queueM
           typeof answered === "object" && answered !== null && root in answered
             ? readFolderModels({ models: (answered as Record<string, unknown>)[root] })
             : null;
-        // A failed read keeps what was known; a first one that failed is empty, at this revision.
+        // A failed read keeps what was known; a first one that failed is asked again, and is
+        // empty at this revision once it has failed RETRIES times.
+        if (models === null && held === undefined) {
+          const attempt = (failed.get(key) ?? 0) + 1;
+          failed.set(key, attempt);
+          if (attempt <= RETRIES) {
+            later(notify, attempt);
+            continue;
+          }
+        }
+        if (models !== null) failed.delete(key);
         read.set(key, { at: batch.at, models: models ?? held?.models ?? EMPTY });
       }
       notify();
@@ -117,6 +135,8 @@ export function folderModelsStore(schedule: (flush: () => void) => void = queueM
 }
 
 const EMPTY: ReadonlyArray<ProjectModel> = [];
+/** How many times a folder's first read is asked again before it counts as read and empty. */
+const RETRIES = 5;
 const store = folderModelsStore();
 
 /** A project's models may have changed (an agent's turn wrote its files, a part was built). */
