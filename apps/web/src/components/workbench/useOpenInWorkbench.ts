@@ -8,6 +8,7 @@ import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { agentViewSurface, pluginAppSurface } from "../plugins/pluginSurfaces";
 import { rememberRecentFile } from "./recentFiles";
+import { setSimpleView } from "./simpleView";
 import { knownModelTitle } from "./useFolderModels";
 import { sameFile, surfaceFile } from "./sameFile";
 
@@ -43,6 +44,23 @@ export function openInPanel(
   if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
   else panels.openFile(threadRef, path, line);
   return viewer !== undefined;
+}
+
+/**
+ * Opens a part the person picked (a project's tile, the switcher, Cmd+K, the Overview, a sample's
+ * copy, New part) beside its chat, in CAD mode, the full workspace: the one way a person gets to a
+ * part. Anything no viewer shows opens as a document, with the layout left as it was. Says whether
+ * a viewer took it (`openInPanel`).
+ */
+export function openPartInCad(
+  plugins: Parameters<typeof pluginFileHandlers>[0] | undefined,
+  threadRef: ScopedThreadRef,
+  part: string,
+): boolean {
+  useRightPanelStore.getState().setMaximized(threadRef, false);
+  const shown = openInPanel(plugins, threadRef, part);
+  if (shown) setSimpleView(false);
+  return shown;
 }
 
 /** The view tool that shows a cadgen model by its document id: text-to-cad's `cad_open`. */
@@ -102,13 +120,16 @@ export function useOpenChatFile(threadRef: ScopedThreadRef | null) {
 }
 
 /**
- * Opens a project file beside the thread the way an engineer looks at it: a
- * model, board or drawing in the plugin view that claims it, anything else as
- * a document. Takes a path in the thread's folder, or a full path.
+ * Opens a project file the person picked beside the thread, the way an engineer looks at it: a
+ * model, board or drawing in the plugin view that claims it, in CAD mode (`openPartInCad`),
+ * anything else as a document. Takes a path in the thread's folder, a full path, or a model's id.
  */
 export function useOpenInWorkbench(threadRef: ScopedThreadRef) {
   const plugins = useEnvironmentQuery(
     pluginEnvironment.list({ environmentId: threadRef.environmentId, input: {} }),
   ).data?.plugins;
-  return useCallback((path: string) => openInPanel(plugins, threadRef, path), [plugins, threadRef]);
+  return useCallback(
+    (path: string) => openPartInCad(plugins, threadRef, path),
+    [plugins, threadRef],
+  );
 }

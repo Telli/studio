@@ -14,7 +14,7 @@ import { useCallback, useEffect } from "react";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { buildThreadRouteParams } from "~/threadRoutes";
 import { readOpened, rememberOpened, threadToOpen } from "./openedThreads";
-import { showChat, showOverview } from "./overviewPanel";
+import { showChat, showProject } from "./overviewPanel";
 import { waitingChat } from "./recentActivity";
 
 /** Remembers the thread on screen as the one last open in its project. */
@@ -26,11 +26,12 @@ export function useRememberOpened(threadRef: ScopedThreadRef | null): void {
 }
 
 /**
- * Opens a project, or a folder in no project, on its page: in the thread last
- * open in it, else the one last worked on, else a new one in its first folder,
- * with its Overview across the window as a Drive folder opens, or what `show`
- * puts there (a part, from the quick find). A chat waiting on the person (a
- * question, an approval) is where a project opens without a `show`, beside its panel.
+ * Opens a project, or a folder in no project: in the thread last open in it,
+ * else the one last worked on, else a new one in its first folder, with its
+ * part beside the chat in CAD mode (`showProject`: the part left open, else its
+ * main part, else its Overview across the window), or what `show` puts there (a
+ * part, from the quick find). A chat waiting on the person (a question, an
+ * approval) is where a project opens without a `show`, beside its panel.
  */
 export function useOpenProject() {
   const navigate = useNavigate();
@@ -45,14 +46,14 @@ export function useOpenProject() {
       const thread = asking ?? threadToOpen(threads, readOpened());
       if (thread !== null) {
         const ref = scopeThreadRef(thread.environmentId, thread.id);
-        (asking !== null ? showChat : (show ?? showOverview))(ref);
+        (asking !== null ? showChat : (show ?? showProject))(ref);
         await navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
         return;
       }
       if (folder === null) return;
       const draft = await handleNewThread(scopeProjectRef(folder.environmentId, folder.id));
       if (draft !== null)
-        (show ?? showOverview)(scopeThreadRef(folder.environmentId, draft.threadId));
+        (show ?? showProject)(scopeThreadRef(folder.environmentId, draft.threadId));
     },
     [navigate, handleNewThread],
   );

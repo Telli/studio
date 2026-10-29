@@ -2,7 +2,6 @@ import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { STUDIO_PROJECT_KINDS } from "@t3tools/shared/studioProjects";
 import { useCallback, useMemo, useRef } from "react";
 
-import { useRightPanelStore } from "~/rightPanelStore";
 import { pluginEnvironment } from "~/state/plugins";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
@@ -22,11 +21,10 @@ import {
   starterScript,
 } from "./newPart";
 import { showOverview } from "./overviewPanel";
-import { setSimpleView } from "./simpleView";
 import { useCreateStudioProject } from "./useCreateStudioProject";
 import { useOneAtATime } from "./useOneAtATime";
 import { modelsChanged } from "./useFolderModels";
-import { openDocumentInPanel } from "./useOpenInWorkbench";
+import { openPartInCad } from "./useOpenInWorkbench";
 import { useEnvironmentCadService } from "./useVersions";
 
 /** What a new part's project is, for its brief: a part. */
@@ -119,11 +117,7 @@ function useStarterSteps(environmentId: EnvironmentId | null) {
     [environmentId, write],
   );
   const open = useCallback(
-    (threadRef: ScopedThreadRef, id: string) => {
-      setSimpleView(false);
-      useRightPanelStore.getState().setMaximized(threadRef, false);
-      openDocumentInPanel(plugins, threadRef, id);
-    },
+    (threadRef: ScopedThreadRef, id: string) => void openPartInCad(plugins, threadRef, id),
     [plugins],
   );
   return { writeStarter, build, open };

@@ -5,7 +5,7 @@ import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { groupFiles, groupProjectFiles, type ProjectFile } from "./projectFiles";
 import { folderFiles, pictureVersions, type ProjectModel } from "./projectModels";
-import { useFolderModels } from "./useFolderModels";
+import { folderModelsKnown, useFolderModels } from "./useFolderModels";
 import { usePictures } from "./usePictures";
 
 /** The kinds of file that can picture a project, in the order one is chosen. */
@@ -50,6 +50,32 @@ export function projectPage(paths: ReadonlyArray<string>): string | null {
   const first = documents?.find((file) => !/^readme\.md$/i.test(file.path)) ?? documents?.[0];
   if (first !== undefined) return first.path;
   return paths.find((path) => /^readme\.md$/i.test(path)) ?? null;
+}
+
+/**
+ * The part a project opens on (`showProject`): the file its tile pictures (`projectCover`'s
+ * choice, the file itself, not its picture), in the folder `cwd`. Undefined until the folder's
+ * files are read, and its models too where it has scripts (a cadgen 0.8 part is its script's
+ * model); null when it has no part yet.
+ */
+export function useProjectPart(
+  environmentId: EnvironmentId,
+  cwd: string,
+): string | null | undefined {
+  const listing = useEnvironmentQuery(
+    cwd === "" ? null : projectEnvironment.listEntries({ environmentId, input: { cwd } }),
+  );
+  const models = useFolderModels(environmentId, cwd);
+  const modelsKnown = cwd !== "" && folderModelsKnown(environmentId, cwd);
+  const entries = listing.data?.entries;
+  return useMemo(() => {
+    if (entries === undefined) return undefined;
+    const paths = entries
+      .filter((entry) => entry.kind === "file" && entry.ignored !== true)
+      .map((entry) => entry.path);
+    if (!modelsKnown && paths.some((path) => path.endsWith(".py"))) return undefined;
+    return coverFile(paths, models)?.path ?? null;
+  }, [entries, models, modelsKnown]);
 }
 
 /** The file that pictures the project's first folder (`projectCover`); null when none does yet. */

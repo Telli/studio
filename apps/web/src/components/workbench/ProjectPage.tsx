@@ -546,10 +546,8 @@ export function ProjectPage(props: {
       : `${studioFolderKey(root)}/${relativePath}`;
   const open = useOpenInWorkbench(threadRef);
   // Opening a thing from the Overview opens it beside the chat, as a Drive folder opens a file.
-  const openPath = (root: string, relativePath: string) => {
-    useRightPanelStore.getState().setMaximized(threadRef, false);
-    open(threadPath(root, relativePath));
-  };
+  const openPath = (root: string, relativePath: string) =>
+    void open(threadPath(root, relativePath));
   const openIn = (root: string) => (file: ProjectFile) => openPath(root, file.path);
 
   const page = (

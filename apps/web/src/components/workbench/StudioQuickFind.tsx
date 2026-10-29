@@ -51,7 +51,7 @@ import { pictureVersions } from "./projectModels";
 import { knownModelTitle, useProjectModels } from "./useFolderModels";
 import { useFolderPaths } from "./useFolderPaths";
 import { showChat } from "./overviewPanel";
-import { openInPanel } from "./useOpenInWorkbench";
+import { openPartInCad } from "./useOpenInWorkbench";
 import { useOpenProject } from "./useOpenProject";
 import { useTourStore } from "./tourSteps";
 import { usePictures } from "./usePictures";
@@ -227,10 +227,10 @@ function QuickFindBody(props: {
       found.file.document !== undefined ? found.file.path : `${found.root}/${found.file.path}`;
     if (workspace !== null && inHere(found)) {
       const path = studioFolderKey(found.root) === here ? found.file.path : full;
-      openInPanel(plugins, workspace.threadRef, path);
+      openPartInCad(plugins, workspace.threadRef, path);
     } else if (found.project !== null) {
       void openProject(found.project.folder, found.project.threads, (ref) =>
-        openInPanel(plugins, ref, full),
+        openPartInCad(plugins, ref, full),
       );
     }
   };
@@ -354,7 +354,7 @@ function QuickFindBody(props: {
                     partLabel(item.file.path.split(/[\\/]/).pop() ?? item.file.path),
                   description,
                   run: go(() => {
-                    openInPanel(plugins, ref, item.file.path);
+                    openPartInCad(plugins, ref, item.file.path);
                     openChat();
                   }),
                 };

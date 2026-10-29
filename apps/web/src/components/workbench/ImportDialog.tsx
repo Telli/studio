@@ -1,10 +1,13 @@
+import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId } from "@t3tools/contracts";
 import type { StudioImportKind } from "@t3tools/shared/studioImport";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
 import { BoxIcon, FolderPlusIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { cn } from "~/lib/utils";
+import { waitForProject } from "~/state/entities";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import {
@@ -33,6 +36,7 @@ import {
   suggestProject,
 } from "./importPlan";
 import { KIND_TINTS } from "./kinds";
+import { showProject } from "./overviewPanel";
 import { partLabel } from "./partNames";
 import { usePictures } from "./usePictures";
 import { readStudioImport, rememberScan } from "./studioImportBridge";
@@ -131,6 +135,7 @@ function ImportDialog(props: {
     [studioProjects, trashed],
   );
   const runImport = useImportProjects(environmentId);
+  const handleNewThread = useNewThreadHandler();
   const [step, setStep] = useState<"scan" | "found" | "sort">(
     start.kind === "scan" ? "scan" : "found",
   );
@@ -240,7 +245,11 @@ function ImportDialog(props: {
     if (busy || total === 0) return;
     setBusy(true);
     try {
-      const made = await runImport({ projects: chosen, placements: placed, newProjectName });
+      const { made, first } = await runImport({
+        projects: chosen,
+        placements: placed,
+        newProjectName,
+      });
       toastManager.add(
         made > 0
           ? {
@@ -255,6 +264,13 @@ function ImportDialog(props: {
             },
       );
       if (made > 0) onClose();
+      // The first project imported opens on its part, as a project opens from Home.
+      if (first !== null) {
+        const projectRef = scopeProjectRef(environmentId, first);
+        const project = await waitForProject(projectRef).catch(() => null);
+        const draft = project === null ? null : await handleNewThread(projectRef).catch(() => null);
+        if (draft !== null) showProject(scopeThreadRef(environmentId, draft.threadId));
+      }
     } finally {
       setBusy(false);
     }

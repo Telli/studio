@@ -71,6 +71,10 @@ export function folderModelsStore(schedule: (flush: () => void) => void = queueM
       revision += 1;
       notify();
     },
+    /** Whether a folder's models have been read once, a failed read included. */
+    known(environmentId: EnvironmentId, root: string): boolean {
+      return read.has(keyOf(environmentId, root));
+    },
     /** A folder's models as last read, kept while a newer read is under way; empty before any. */
     models(environmentId: EnvironmentId, root: string): ReadonlyArray<ProjectModel> {
       return read.get(keyOf(environmentId, root))?.models ?? EMPTY;
@@ -117,6 +121,10 @@ const store = folderModelsStore();
 
 /** A project's models may have changed (an agent's turn wrote its files, a part was built). */
 export const modelsChanged = () => store.changed();
+
+/** Whether a folder's models have been read once (`useFolderModels` re-renders when they are). */
+export const folderModelsKnown = (environmentId: EnvironmentId, root: string) =>
+  store.known(environmentId, root);
 
 /** What a model read in any folder is called, as the project lists it; undefined for one not read. */
 export const knownModelTitle = (id: string) => store.title(id);

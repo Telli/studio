@@ -2,7 +2,6 @@ import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { STUDIO_PROJECT_KINDS, studioFolderKey } from "@t3tools/shared/studioProjects";
 import { useCallback, useMemo } from "react";
 
-import { useRightPanelStore } from "~/rightPanelStore";
 import { useServerConfigs } from "~/state/entities";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { pluginEnvironment } from "~/state/plugins";
@@ -18,7 +17,7 @@ import { readStudioImport } from "../studioImportBridge";
 import { useCreateStudioProject } from "../useCreateStudioProject";
 import { copiedEntries } from "../useDuplicateProject";
 import { showOverview } from "../overviewPanel";
-import { openDocumentInPanel, openInPanel } from "../useOpenInWorkbench";
+import { openInPanel, openPartInCad } from "../useOpenInWorkbench";
 import { failedToast, useBuildPart } from "../useNewPart";
 import { useTrashedProjects } from "../trash/useTrash";
 import { useStudioProjects } from "../useStudioProjects";
@@ -178,11 +177,8 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
             openFile: (ref, path) => void openInPanel(plugins, ref, path),
             openProject: showOverview,
             build: (_ref, script) => build(script),
-            openPart: (ref, id) => {
-              // The model takes the Overview's place, beside the chat.
-              useRightPanelStore.getState().setMaximized(ref, false);
-              openDocumentInPanel(plugins, ref, id);
-            },
+            // The model takes the Overview's place, beside the chat, in CAD mode.
+            openPart: (ref, id) => void openPartInCad(plugins, ref, id),
             building: () => onBuilding?.(),
             failed: failedToast,
           });

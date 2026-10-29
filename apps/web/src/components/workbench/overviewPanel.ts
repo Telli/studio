@@ -1,8 +1,14 @@
-import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useEffect } from "react";
+import { create } from "zustand";
 
-import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
+import {
+  selectActiveRightPanelSurface,
+  selectThreadRightPanelState,
+  useRightPanelStore,
+} from "~/rightPanelStore";
+import { setSimpleView } from "./simpleView";
 
 /**
  * Opens a project's Overview beside a chat, across the window as a Google Drive folder opens
@@ -13,6 +19,44 @@ export function showOverview(threadRef: ScopedThreadRef): void {
   const panels = useRightPanelStore.getState();
   panels.open(threadRef, "files");
   panels.setMaximized(threadRef, true);
+}
+
+/** Threads of projects just opened, waiting for their part to be found (`useShowProjectPart`). */
+export const useOpeningProjects = create<{ readonly threads: ReadonlySet<string> }>()(() => ({
+  threads: new Set(),
+}));
+
+/**
+ * Opens a project the way an engineer picks up a part: its part beside the chat, in CAD mode. A
+ * viewer left open in the chat comes back to the front; else the workspace opens the project's
+ * main part once its files are read, or its Overview across the window when it has no part yet
+ * (`useShowProjectPart`). From Home's and the Projects page's tiles, the switcher and Cmd+K.
+ */
+export function showProject(threadRef: ScopedThreadRef): void {
+  const panels = useRightPanelStore.getState();
+  const viewer = selectThreadRightPanelState(panels.byThreadKey, threadRef).surfaces.find(
+    (surface) => surface.kind === "plugin-app",
+  );
+  if (viewer !== undefined) {
+    panels.activateSurface(threadRef, viewer.id);
+    panels.setMaximized(threadRef, false);
+    setSimpleView(false);
+    return;
+  }
+  const key = scopedThreadKey(threadRef);
+  useOpeningProjects.setState(({ threads }) => ({ threads: new Set(threads).add(key) }));
+}
+
+/** Takes a thread off the projects waiting for their part; false when it was not waiting. */
+export function takeOpeningProject(threadRef: ScopedThreadRef): boolean {
+  const key = scopedThreadKey(threadRef);
+  if (!useOpeningProjects.getState().threads.has(key)) return false;
+  useOpeningProjects.setState(({ threads }) => {
+    const rest = new Set(threads);
+    rest.delete(key);
+    return { threads: rest };
+  });
+  return true;
 }
 
 /**

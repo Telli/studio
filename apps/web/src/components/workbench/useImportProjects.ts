@@ -1,4 +1,4 @@
-import type { EnvironmentId } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
 import { EMPTY_STUDIO_BRIEF } from "@t3tools/shared/studioProjects";
 import { useCallback } from "react";
 
@@ -24,7 +24,8 @@ export interface ImportChoice {
 /**
  * Imports what Import proposed: each project is its folder where it is (known to the environment,
  * and a Studio project of its own), and each placed loose file is copied into its project's
- * folder, or into one new project made for them. Resolves to how many projects were made.
+ * folder, or into one new project made for them. Resolves to how many projects were made, and the
+ * first one's id, which Import opens.
  */
 export function useImportProjects(environmentId: EnvironmentId) {
   const register = useAtomCommand(projectEnvironment.create, { reportFailure: true });
@@ -33,9 +34,12 @@ export function useImportProjects(environmentId: EnvironmentId) {
   const knownFolders = useEnvironmentFolders(environmentId);
 
   return useCallback(
-    async (choice: ImportChoice): Promise<number> => {
+    async (
+      choice: ImportChoice,
+    ): Promise<{ readonly made: number; readonly first: ProjectId | null }> => {
       let made = 0;
-      const saveProject = async (name: string, folder: string) => {
+      let first: ProjectId | null = null;
+      const saveProject = async (name: string, folder: string, projectId: ProjectId | null) => {
         const id = await save(null, {
           name,
           template: "part",
@@ -44,16 +48,19 @@ export function useImportProjects(environmentId: EnvironmentId) {
           createdAt: new Date().toISOString(),
         });
         if (id !== null) made += 1;
+        if (id !== null && first === null) first = projectId;
         return id !== null;
       };
 
       const folders: Array<string | null> = [];
       for (const project of choice.projects) {
-        if (folderProject(knownFolders, project.folder) === null) {
+        let projectId = folderProject(knownFolders, project.folder)?.id ?? null;
+        if (projectId === null) {
+          projectId = newProjectId();
           const registered = await register({
             environmentId,
             input: {
-              projectId: newProjectId(),
+              projectId,
               title: project.name,
               workspaceRoot: project.folder,
               createWorkspaceRootIfMissing: false,
@@ -65,7 +72,9 @@ export function useImportProjects(environmentId: EnvironmentId) {
             continue;
           }
         }
-        folders.push((await saveProject(project.name, project.folder)) ? project.folder : null);
+        folders.push(
+          (await saveProject(project.name, project.folder, projectId)) ? project.folder : null,
+        );
       }
 
       const copies = new Map<string, string[]>();
@@ -78,7 +87,9 @@ export function useImportProjects(environmentId: EnvironmentId) {
             const name = choice.newProjectName.trim() || "Imported files";
             const created = await createNew({ environmentId, input: { name } });
             newFolder = created._tag === "Success" ? created.value.workspaceRoot : null;
-            if (newFolder !== null && !(await saveProject(name, newFolder))) newFolder = null;
+            const newId = created._tag === "Success" ? created.value.projectId : null;
+            if (newFolder !== null && !(await saveProject(name, newFolder, newId)))
+              newFolder = null;
           }
           folder = newFolder;
         } else {
@@ -90,7 +101,7 @@ export function useImportProjects(environmentId: EnvironmentId) {
       if (bridge !== null) {
         for (const [folder, sources] of copies) await bridge.copy(sources, folder).catch(() => []);
       }
-      return made;
+      return { made, first };
     },
     [register, createNew, save, knownFolders, environmentId],
   );

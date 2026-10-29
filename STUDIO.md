@@ -396,7 +396,11 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   and opens on that chat; Home lists no chats of its own. A tile's right-click, or the … on its
   hover, is the project's menu, the switcher's own actions in its words (`ProjectMenu.tsx`). A
   project opens in the thread last open in it on this device (else the one last worked on, else a
-  new one), with its Overview across the window (`useOpenProject.ts`). Projects are listed as a
+  new one), on its part beside the chat in CAD mode: the part left open there, else the one its
+  tile pictures, else, with no part yet, its Overview across the window (Amy, 2026-10-28: getting
+  to the part was confusing; `showProject`, `useShowProjectPart.ts`). A part the person opens
+  anywhere (the Overview, Cmd+K, a sample's copy, Import, New part) opens the same way, in CAD
+  (`openPartInCad`). Projects are listed as a
   recents list orders them, the one opened last on this device first (or worked on, if that came
   later), and the starred ones (kept on this computer) apart at the top of Home and the switcher.
   The sidebar is a rail of places down the far left, as Slack's (Amy, 2026-10-22, `StudioRail.tsx`):

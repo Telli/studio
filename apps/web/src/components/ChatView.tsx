@@ -626,6 +626,7 @@ import { useProjectViewStore } from "./workbench/projectView";
 import { setChatInFront, takePendingFollow } from "./workbench/defaultModelFollow";
 import { useEngineeringInterface, useEngineeringSurfaces } from "./workbench/studioInterface";
 import { useDocumentFollow } from "./workbench/useDocumentFollow";
+import { useShowProjectPart } from "./workbench/useShowProjectPart";
 import { useWorkbenchViewer } from "./workbench/useWorkbenchViewer";
 import { addViewContextToComposer } from "./workbench/viewContext";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
@@ -5932,6 +5933,12 @@ export default function ChatView(props: ChatViewProps) {
     environmentId,
     threadRef: activeThreadRef,
     serverThread: isServerThread,
+  });
+  // A project opened from Home, the switcher or Cmd+K shows its part in CAD (`showProject`).
+  useShowProjectPart({
+    environmentId,
+    threadRef: engineeringInterface ? activeThreadRef : null,
+    cwd: activeWorkspaceRoot ?? null,
   });
   useDocumentFollow({
     environmentId,
