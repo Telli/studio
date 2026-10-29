@@ -39,6 +39,16 @@ export function folderModelsStore(
   /** How many first reads of a folder have failed, by environment and folder. */
   const failed = new Map<string, number>();
   const keyOf = (environmentId: EnvironmentId, root: string) => `${environmentId}\n${root}`;
+  const models = (environmentId: EnvironmentId, root: string): ReadonlyArray<ProjectModel> =>
+    read.get(keyOf(environmentId, root))?.models ?? EMPTY;
+  /** Each list's last snapshot, by environment and folders, with the version it was made at. */
+  const snapshots = new Map<
+    string,
+    {
+      readonly version: number;
+      readonly value: ReadonlyMap<string, ReadonlyArray<ProjectModel>>;
+    }
+  >();
 
   const flush = (environmentId: EnvironmentId) => {
     const batch = waiting.get(environmentId);
@@ -94,8 +104,20 @@ export function folderModelsStore(
       return read.has(keyOf(environmentId, root));
     },
     /** A folder's models as last read, kept while a newer read is under way; empty before any. */
-    models(environmentId: EnvironmentId, root: string): ReadonlyArray<ProjectModel> {
-      return read.get(keyOf(environmentId, root))?.models ?? EMPTY;
+    models,
+    /**
+     * Each of the folders in `key` (one per line) and its models: the same Map until a read or a
+     * change moves the version, as `useSyncExternalStore` needs of a snapshot.
+     */
+    snapshot(environmentId: EnvironmentId, key: string) {
+      const id = `${environmentId}\n\n${key}`;
+      const held = snapshots.get(id);
+      if (held?.version === version) return held.value;
+      const value: ReadonlyMap<string, ReadonlyArray<ProjectModel>> = new Map(
+        (key === "" ? [] : key.split("\n")).map((root) => [root, models(environmentId, root)]),
+      );
+      snapshots.set(id, { version, value });
+      return value;
     },
     /** Asks for the folders not read at this revision yet, with every other asked for now, in one request. */
     want(environmentId: EnvironmentId, roots: ReadonlyArray<string>, get: CadGet) {
@@ -176,17 +198,11 @@ export function useProjectModels(input: {
   useEffect(() => {
     if (get === null || key === "") return;
     store.want(environmentId, key.split("\n"), get);
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `version` moves with each read and change: the folders are asked for again where they need it.
   }, [get, environmentId, key, version]);
-  return useMemo(
-    () =>
-      new Map(
-        (key === "" ? [] : key.split("\n")).map(
-          (root) => [root, store.models(environmentId, root)] as const,
-        ),
-      ),
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `version` moves as the store reads.
-    [environmentId, key, version],
-  );
+  // Read as the store's own snapshot, not a memo keyed on `version`: React Compiler drops a memo
+  // dependency its body never reads, and Home's tiles then kept their first, empty read.
+  return useSyncExternalStore(store.subscribe, () => store.snapshot(environmentId, key));
 }
 
 /** One folder's models (`useProjectModels`). */

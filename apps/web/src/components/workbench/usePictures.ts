@@ -48,7 +48,8 @@ export function usePictures(input: {
   const { environmentId, cwd } = input;
   const versions = JSON.stringify(input.versions ?? {});
   const render = useAtomCommand(pluginEnvironment.modelPictures, { reportFailure: false });
-  const [, setRevision] = useState(0);
+  // How many batches of pictures have arrived: a render reads the cache by it (`picturesFrom`).
+  const [revision, setRevision] = useState(0);
   const [tries, setTries] = useState(0);
   const wanted = input.paths.join("\n");
 
@@ -99,9 +100,23 @@ export function usePictures(input: {
     };
   }, [render, environmentId, cwd, wanted, versions, tries]);
 
+  return picturesFrom(cwd, input.paths, input.versions, revision);
+}
+
+/**
+ * The cached pictures of `paths`. `revision` is passed so React Compiler, which memoizes a render's
+ * work on what it reads, recomputes them when a batch arrives; the cache itself is not something it
+ * can see change, and a tile mounted before its picture otherwise stayed blank.
+ */
+function picturesFrom(
+  cwd: string,
+  paths: ReadonlyArray<string>,
+  versions: Readonly<Record<string, string>> | undefined,
+  _revision: number,
+): ReadonlyMap<string, string> {
   const pictures = new Map<string, string>();
-  for (const path of input.paths) {
-    const picture = pictureCache.get(`${cwd}\n${pictureKey(path, input.versions)}`)?.picture;
+  for (const path of paths) {
+    const picture = pictureCache.get(`${cwd}\n${pictureKey(path, versions)}`)?.picture;
     if (picture) pictures.set(path, picture);
   }
   return pictures;

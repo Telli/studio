@@ -91,6 +91,24 @@ describe("project folders' models", () => {
     expect(models.title("id-b")).toBe("Bracket");
   });
 
+  it("hands a tile the same snapshot until its folder is read, then one with the models", async () => {
+    const { store: models, flush } = store();
+    const cad = service();
+    const before = models.snapshot(env, "/p/a");
+    // Unchanged store, unchanged snapshot: React does not render again.
+    expect(models.snapshot(env, "/p/a")).toBe(before);
+    expect(before.get("/p/a")).toEqual([]);
+    models.want(env, ["/p/a"], cad.get);
+    flush();
+    cad.pending[0]!({ roots: { "/p/a": [model("id-a", "plate")] } });
+    await settle();
+    // Home's tile, mounted before the answer, now sees the part.
+    const after = models.snapshot(env, "/p/a");
+    expect(after).not.toBe(before);
+    expect(after.get("/p/a")?.map((entry) => entry.name)).toEqual(["plate"]);
+    expect(models.snapshot(env, "/p/a")).toBe(after);
+  });
+
   it("asks again when a folder's first read fails, until it answers or has failed five times", async () => {
     const flushes: Array<() => void> = [];
     const retries: Array<() => void> = [];
