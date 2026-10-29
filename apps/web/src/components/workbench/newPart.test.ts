@@ -133,7 +133,7 @@ describe("a new part's first build", () => {
     });
   });
 
-  it("says so when the service can't be asked, or the build ended with no model", async () => {
+  it("says so when the service can't be asked, or the build ended without a part", async () => {
     expect(await run(service([null]).post)).toEqual({
       error: "Studio's CAD service did not answer.",
     });
@@ -142,7 +142,7 @@ describe("a new part's first build", () => {
     ).toEqual({ error: "This model has no part script to change." });
     expect(
       await run(service([{ ok: true }, { ok: true, partBuilt: false, partBuilding: false }]).post),
-    ).toEqual({ error: "The part's build ended with no model." });
+    ).toEqual({ error: "The build ended without a part." });
   });
 
   it("waits as long as the CAD service lets one build run, and a little more", () => {

@@ -175,7 +175,7 @@ export async function buildPart(input: {
     if (probe.partBuilt === true && typeof probe.document === "string") {
       return { id: probe.document };
     }
-    if (probe.partBuilding !== true) return { error: "The part's build ended with no model." };
+    if (probe.partBuilding !== true) return { error: "The build ended without a part." };
     if (now() >= deadline) return { error: "The part took too long to build." };
     await wait(PART_BUILD_POLL_MS);
   }

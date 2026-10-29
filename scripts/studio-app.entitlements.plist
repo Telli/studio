@@ -2,9 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   What a signed Studio's programs may do under the hardened runtime notarization requires
-  (scripts/lib/studio-app.ts). The app and every program it carries take these: Electron and the
-  Node that Playwright ships (which cadgen's mesh and drawing builders run on) compile JavaScript as
-  they go, and the CAD tools' Python loads compiled libraries signed by others, as Python packages are.
+  (scripts/lib/studio-app.ts). The app and every program it carries take these: Electron compiles
+  JavaScript as it goes, and the CAD tools' Python loads compiled libraries signed by others, as
+  Python packages are.
 -->
 <plist version="1.0">
   <dict>
