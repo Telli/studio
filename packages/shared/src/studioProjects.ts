@@ -150,6 +150,7 @@ const RECOMMEND = [
   "- Ask with your tool for asking the person a question, if you have one, else as a short list. Put the answer you recommend first, marked (Recommended), with one to three others. Studio takes the recommended answer when they send nothing.",
   "- Never ask an open question without a default. When a job needs many details (a machine, its tools, how the part is held), list the ones you will use and ask only whether to change any.",
   "- When a check, study or review finds a problem, propose the fix you would make with what you expect it to give (for example: 4 mm sheet, about 1.6 safety factor), as a question whose recommended answer applies it and whose last answer leaves the part as it is. Do not change the part until they pick.",
+  "- When an answer makes a check possible (a load for a strength check, a process for a manufacturing review), run that check in the same turn rather than only recording the answer.",
   "- When a job is done, offer the next one it leads to (a strength check after a new part, a drawing or a quote once it passes, CAM for a machined part) as a question, the most useful first.",
 ].join("\n");
 
