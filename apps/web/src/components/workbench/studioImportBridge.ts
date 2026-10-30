@@ -5,8 +5,7 @@ import type { ImportFile } from "./importPlan";
  * `window.studioImport`). Import: the folders a first scan offers, a walk of one folder (or a file)
  * for its engineering files, a picker for files or folders, and copying into a project's folder.
  * Back up (`useBackup.ts`): a picker for one folder, and backing a project's folders up into it.
- * Open: a file in its own app. Mark up: a picture of a tab, saved to draw on. The later ones are
- * absent from a desktop app built before them.
+ * Open: a file in its own app. The later ones are absent from a desktop app built before them.
  */
 export interface StudioImportBridge {
   roots(): Promise<ReadonlyArray<{ readonly label: string; readonly path: string }>>;
@@ -24,17 +23,6 @@ export interface StudioImportBridge {
   ): Promise<{ readonly folder: string; readonly copied: number }>;
   /** Opens a document, sheet, drawing or model in its own app on this Mac (`StudioFilePage`). */
   openFile?(path: string): Promise<void>;
-  /** A picture of part of the window, in CSS pixels, saved into a project to mark up (`MarkUp.tsx`); says where. */
-  capture?(
-    rect: {
-      readonly x: number;
-      readonly y: number;
-      readonly width: number;
-      readonly height: number;
-    },
-    folder: string,
-    name: string,
-  ): Promise<string>;
 }
 
 /** Null outside the desktop app (the hosted or a remote web app), where Import is not offered. */

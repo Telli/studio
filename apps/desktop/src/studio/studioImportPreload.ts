@@ -2,7 +2,6 @@ import { ipcRenderer } from "electron";
 
 import {
   STUDIO_BACKUP_CHANNEL,
-  STUDIO_CAPTURE_CHANNEL,
   STUDIO_IMPORT_COPY_CHANNEL,
   STUDIO_IMPORT_PICK_CHANNEL,
   STUDIO_IMPORT_ROOTS_CHANNEL,
@@ -11,7 +10,7 @@ import {
   STUDIO_PICK_FOLDER_CHANNEL,
 } from "./studioImportChannels.ts";
 
-/** `window.studioImport`: Studio's files on this computer, Import, Back up, Open and Mark up (`studioImport.ts`). */
+/** `window.studioImport`: Studio's files on this computer, Import, Back up and Open (`studioImport.ts`). */
 export const studioImportBridge = {
   roots: () => ipcRenderer.invoke(STUDIO_IMPORT_ROOTS_CHANNEL),
   scan: (root: string) => ipcRenderer.invoke(STUDIO_IMPORT_SCAN_CHANNEL, root),
@@ -23,9 +22,4 @@ export const studioImportBridge = {
   backUp: (sources: ReadonlyArray<string>, folder: string) =>
     ipcRenderer.invoke(STUDIO_BACKUP_CHANNEL, sources, folder),
   openFile: (path: string) => ipcRenderer.invoke(STUDIO_OPEN_FILE_CHANNEL, path),
-  capture: (
-    rect: { x: number; y: number; width: number; height: number },
-    folder: string,
-    name: string,
-  ) => ipcRenderer.invoke(STUDIO_CAPTURE_CHANNEL, rect, folder, name),
 };
