@@ -12,6 +12,7 @@ import { ImportMenu } from "./ImportMenu";
 import { useImportIntoProject } from "./importIntoProject";
 import { useImportActions } from "./useImportActions";
 import { leadPartOf } from "./leadPart";
+import { MarkUpButton } from "./MarkUp";
 import { ModeSwitch } from "./ModeSwitch";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePanelTabShortcuts } from "./panelTabShortcuts";
@@ -134,7 +135,8 @@ export function usePartForJobs(
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
  * can be done: the AI | CAD switch where the viewer in front has two layouts (`ModeSwitch` over
  * `simpleView.ts`, the person's choice, which every CAD view takes from its host context), with Back to AI before it
- * in CAD; and Import (`ImportMenu`, Studio's one Import) and New, always
+ * in CAD; Mark up over any tab the CAD view does not show (`MarkUp.tsx`); and Import (`ImportMenu`,
+ * Studio's one Import) and New, always
  * there, at the row's right end (`StudioNew`), where Home has them. A part's jobs are in the
  * Toolbox (`StudioToolbox`). ⌘K's and the Toolbox's jobs are for the same part (`usePartForJobs`).
  */
@@ -239,6 +241,7 @@ export function StudioPanelBar(props: {
           />
         </>
       )}
+      <MarkUpButton threadRef={threadRef} folder={folder} />
       {importMenu}
       {props.composerRef === null || folder === null || addPart === null ? null : (
         <StudioNew

@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - file walking and copying with Node's own APIs.
+// @effect-diagnostics globalDate:off - a markup's name carries the time it was made; no Effect runtime here.
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -218,4 +219,32 @@ export async function backUp(
     });
   }
   return { folder: destination, copied };
+}
+
+/**
+ * Where a markup's picture is kept: Studio's own folder in the project (`.studio`, which a backup
+ * leaves out), named for what it shows and when, so markups of one page sort by time.
+ */
+export function markupFile(folder: string, name: string, now: Date): string {
+  const slug =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "panel";
+  const stamp = now.toISOString().slice(0, 19).replace(/:/g, "-");
+  return NodePath.join(folder, ".studio", "markups", `${slug}-${stamp}.png`);
+}
+
+/** Saves a markup's picture (`markupFile`) and says where it went. */
+export async function saveMarkup(
+  folder: string,
+  name: string,
+  png: Uint8Array,
+  now = new Date(),
+): Promise<string> {
+  const file = markupFile(folder, name, now);
+  await NodeFSP.mkdir(NodePath.dirname(file), { recursive: true });
+  await NodeFSP.writeFile(file, png);
+  return file;
 }

@@ -1,11 +1,20 @@
 // @effect-diagnostics nodeBuiltinImport:off - the test builds folders with Node's own APIs.
+// @effect-diagnostics globalDate:off - a markup's name is checked at a fixed time.
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
-import { backUp, copyInto, defaultRoots, isOpenable, scanFolder } from "./studioImportFiles.ts";
+import {
+  backUp,
+  copyInto,
+  defaultRoots,
+  isOpenable,
+  markupFile,
+  saveMarkup,
+  scanFolder,
+} from "./studioImportFiles.ts";
 
 let home: string;
 
@@ -154,5 +163,24 @@ describe("isOpenable", () => {
     for (const path of ["/p/run.command", "/p/setup.sh", "/p/Tool.app", "/p/part.py", "/p/a.js"]) {
       expect(isOpenable(path)).toBe(false);
     }
+  });
+});
+
+describe("markups", () => {
+  it("keeps a markup in Studio's own folder, named for what it shows and when", () => {
+    expect(
+      markupFile("/p", "Strength review (40 kg).md", new Date("2026-10-29T21:05:03.120Z")),
+    ).toBe(
+      NodePath.join("/p", ".studio", "markups", "strength-review-40-kg-md-2026-10-29T21-05-03.png"),
+    );
+    expect(markupFile("/p", "!!!", new Date("2026-10-29T21:05:03Z"))).toBe(
+      NodePath.join("/p", ".studio", "markups", "panel-2026-10-29T21-05-03.png"),
+    );
+  });
+
+  it("writes the picture there and says where", async () => {
+    const file = await saveMarkup(home, "report", new Uint8Array([137, 80, 78, 71]));
+    expect(NodePath.dirname(file)).toBe(NodePath.join(home, ".studio", "markups"));
+    expect([...(await NodeFSP.readFile(file))]).toEqual([137, 80, 78, 71]);
   });
 });
