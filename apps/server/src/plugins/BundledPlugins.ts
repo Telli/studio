@@ -12,8 +12,8 @@
  * uninstalls stays uninstalled; one the app stops naming is uninstalled, and
  * offered again if it is named again. A default still installed is updated when its
  * folder changed since the last start (`plugins/bundled.json`), so the tools
- * and views T3 lists for it follow the app. Without the variables nothing
- * changes.
+ * and views T3 lists for it follow the app, and one whose servers failed at their last start is
+ * listed again (`failedDefaults`). Without the variables nothing changes.
  */
 import { catalogKey } from "@t3tools/plugins";
 import * as HostProcess from "@t3tools/shared/HostProcess";
@@ -85,6 +85,29 @@ export function staleDefaults(
   return Object.entries(prints)
     .filter(([key, print]) => !installedNow.has(key) && seen[key] !== print)
     .map(([key]) => key);
+}
+
+/**
+ * The defaults to list again at a start: installed, on, and with a server whose last start failed
+ * (its engine still held by an older copy of the app, say), so one bad start never leaves the app
+ * without the tools it ships.
+ */
+export function failedDefaults(
+  installed: ReadonlyArray<{
+    readonly id: string;
+    readonly enabled: boolean;
+    readonly servers: ReadonlyArray<{ readonly state: string }>;
+  }>,
+  names: ReadonlyArray<string>,
+): ReadonlyArray<string> {
+  return installed
+    .filter(
+      (plugin) =>
+        names.includes(plugin.id) &&
+        plugin.enabled &&
+        plugin.servers.some((server) => server.state === "error"),
+    )
+    .map((plugin) => plugin.id);
 }
 
 /**
@@ -212,6 +235,18 @@ export const offerDefaults = Effect.gen(function* () {
     }
   }
   PluginFiles.writeJsonFile(seenFile, prints);
+
+  // A default whose servers failed when they last started is listed again, by turning it on.
+  const { plugins: listed } = yield* plugins.list;
+  for (const id of failedDefaults(listed, names)) {
+    yield* plugins
+      .setEnabled(id, true)
+      .pipe(
+        Effect.catch((error) =>
+          Effect.logWarning("bundled plugin was not listed again", { id, error: error.message }),
+        ),
+      );
+  }
 });
 
 /** Offers the defaults in the background, so startup never waits on a plugin's first listing. */

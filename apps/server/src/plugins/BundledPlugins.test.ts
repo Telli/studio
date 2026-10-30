@@ -77,6 +77,26 @@ describe("bundled plugin updates", () => {
       ["m/b", "m/d"],
     );
   });
+
+  it("lists again a default that is on and whose server failed at its last start", () => {
+    const plugin = (id: string, enabled: boolean, ...states: Array<string>) => ({
+      id,
+      enabled,
+      servers: states.map((state) => ({ state })),
+    });
+    assert.deepEqual(
+      BundledPlugins.failedDefaults(
+        [
+          plugin("text-to-cad", true, "error"),
+          plugin("off", false, "error"),
+          plugin("fine", true, "ready", "idle"),
+          plugin("theirs", true, "error"),
+        ],
+        ["text-to-cad", "off", "fine"],
+      ),
+      ["text-to-cad"],
+    );
+  });
 });
 
 describe("bundled plugins", () => {
