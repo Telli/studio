@@ -664,10 +664,20 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
 - **Point, then ask.** What the viewer adds to the chat (Quick Edit's references, a picture of the
   view) lands in the composer, to read and edit before it goes. The viewer is then told the
   context was taken, so the next addition carries only what is new.
-- **Mark up a drawing.** A drawing's PDF, a render or a photo opens in the CAD view too (text-to-cad's
-  picture renderer on the flat view a DXF uses), so it is marked up as a part is: Pencil and Shapes
-  draw on it, and Quick Edit sends the note with the view itself as a picture, marks and all, since
-  nothing draws a PDF again from a snapshot. A PDF reads a sheet per page.
+- **Mark up anything you can see.** One rule for every file, by what it is:
+
+  | What it is                                       | Opens in           | Moving around                              | Marking up                 |
+  | ------------------------------------------------ | ------------------ | ------------------------------------------ | -------------------------- |
+  | 3D: parts, assemblies, meshes, results           | the CAD view       | orbit, zoom                                | Pencil, Shapes, Quick Edit |
+  | Pages and pictures: every PDF, PNG/JPG/WebP, DXF | the CAD view, flat | scrolls like a PDF; pinch or ⌘-wheel zooms | Pencil, Shapes, Quick Edit |
+  | Words: Markdown, parts lists, G-code             | a document         | scrolls                                    | none                       |
+
+  Quick Edit sits on the right, beside what it marks, in every view and at every width; it docks
+  at the bottom only on a phone. Pages and pictures are text-to-cad's picture renderer on the flat
+  view a DXF uses: an upright page or a stack of them opens at its width with its top in view, a
+  landscape sheet opens whole. Quick Edit sends the note with the view itself as a picture, marks
+  and all, since nothing draws a PDF again from a snapshot.
+
 - **The Toolbox.** Down the right of the workspace, in AI and in CAD, it is the one place for what
   a part can have done to it: Evaluate, Manufacture and Document, each a card with a picture and
   how many jobs the part has in it; a press opens the group's jobs (`StudioToolbox.tsx`). It folds
