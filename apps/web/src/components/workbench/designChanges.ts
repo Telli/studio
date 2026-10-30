@@ -124,7 +124,17 @@ export function designChanges(paths: ReadonlyArray<string>): {
     );
     return { name: family.name, label, aspects, kind: shown.kind, open };
   });
-  return { changes, other };
+  // A document or picture named as a part is ("Flat pattern" beside the flat pattern) says what it
+  // is, so no two entries read the same.
+  const labels = changes.map((change) => change.label.toLowerCase());
+  const said = changes.map((change, index) =>
+    change.aspects.length === 0 &&
+    STANDALONE.has(change.kind) &&
+    labels.indexOf(labels[index]!) !== labels.lastIndexOf(labels[index]!)
+      ? { ...change, label: `${change.label} ${change.kind.toLowerCase()}` }
+      : change,
+  );
+  return { changes: said, other };
 }
 
 /**

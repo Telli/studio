@@ -34,6 +34,22 @@ describe("design changes", () => {
     expect(other).toBe(3);
   });
 
+  it("says what a document or picture is when it shares its part's name", () => {
+    const { changes } = designChanges([
+      "parts/bracket_flat.py",
+      "drawings/bracket_flat.dxf",
+      "drawings/bracket_flat.md",
+      "drawings/bracket_flat.png",
+      "docs/fea-report.md",
+    ]);
+    expect(changes.map((change) => change.label)).toEqual([
+      "Bracket flat",
+      "Bracket flat document",
+      "Bracket flat image",
+      "FEA report",
+    ]);
+  });
+
   it("names a lone aspect with its part, and opens a study's numbers as its model", () => {
     const { changes } = designChanges([
       "drawings/bracket.dxf",
