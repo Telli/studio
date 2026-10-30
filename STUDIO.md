@@ -664,6 +664,10 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
 - **Point, then ask.** What the viewer adds to the chat (Quick Edit's references, a picture of the
   view) lands in the composer, to read and edit before it goes. The viewer is then told the
   context was taken, so the next addition carries only what is new.
+- **Mark up a drawing.** A drawing's PDF, a render or a photo opens in the CAD view too (text-to-cad's
+  picture renderer on the flat view a DXF uses), so it is marked up as a part is: Pencil and Shapes
+  draw on it, and Quick Edit sends the note with the view itself as a picture, marks and all, since
+  nothing draws a PDF again from a snapshot. A PDF reads a sheet per page.
 - **The Toolbox.** Down the right of the workspace, in AI and in CAD, it is the one place for what
   a part can have done to it: Evaluate, Manufacture and Document, each a card with a picture and
   how many jobs the part has in it; a press opens the group's jobs (`StudioToolbox.tsx`). It folds
