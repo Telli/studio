@@ -9,6 +9,7 @@ import { useEnvironmentQuery } from "~/state/query";
 import { agentViewSurface, pluginAppSurface } from "../plugins/pluginSurfaces";
 import { rememberRecentFile } from "./recentFiles";
 import { setSimpleView } from "./simpleView";
+import { partName } from "./partNames";
 import { knownModelTitle } from "./useFolderModels";
 import { sameFile, surfaceFile } from "./sameFile";
 
@@ -40,10 +41,21 @@ export function openInPanel(
     panels.activateSurface(threadRef, open.id);
     return open.kind === "plugin-app";
   }
-  const viewer = plugins === undefined ? undefined : pluginFileHandlers(plugins, path)[0];
+  const viewer =
+    plugins === undefined || isWordsPdf(path) ? undefined : pluginFileHandlers(plugins, path)[0];
   if (viewer !== undefined) panels.openPluginApp(threadRef, pluginAppSurface(viewer, path));
   else panels.openFile(threadRef, path, line);
   return viewer !== undefined;
+}
+
+/**
+ * A PDF that is words (a datasheet, a report), not a drawing: it opens as a document, where a
+ * drawing's PDF opens in the CAD view to mark up. A drawing is the engineering drawing's sheet
+ * (`bracket_drawing.pdf`) or a PDF kept in a `drawings` folder.
+ */
+export function isWordsPdf(path: string): boolean {
+  if (!/\.pdf$/i.test(path)) return false;
+  return partName(path)?.kind !== "Drawing" && !/(?:^|[\\/])drawings?[\\/]/i.test(path);
 }
 
 /**
