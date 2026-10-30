@@ -619,6 +619,7 @@ import { frontTab, useShowWaitingChat } from "./workbench/overviewPanel";
 import { useProjectTabs } from "./workbench/projectTabs";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { StudioPanelBar } from "./workbench/StudioPanelBar";
+import { sendsAtOnce } from "./workbench/handToChat";
 import { StudioToolbox } from "./workbench/StudioToolbox";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
@@ -4684,6 +4685,22 @@ export default function ChatView(props: ChatViewProps) {
       }
     },
     [activeThreadId, environmentId, interactionMode, isServerThread, runtimeMode, startThreadTurn],
+  );
+  /**
+   * Studio: a view's message in a chat not started yet goes in through the composer, which starts
+   * the chat as a person's send does; into a draft being written it is added for the person to send.
+   */
+  const sendAppMessageThroughComposer = useCallback(
+    async (text: string) => {
+      const composer = composerRef.current;
+      if (composer === null) throw new Error("Messages from apps need a chat.");
+      const send = sendsAtOnce(composer.readSnapshot().value);
+      if (!composer.insertTextAtEnd(text, { ensureLeadingBoundary: true })) {
+        throw new Error("The chat is waiting on you: answer it, then send this again.");
+      }
+      if (send) composer.submit();
+    },
+    [composerRef],
   );
   const editQueuedRunCommand = useAtomCommand(threadEnvironment.editQueuedRun, {
     reportFailure: false,
@@ -11356,7 +11373,13 @@ export default function ChatView(props: ChatViewProps) {
           threadId={activeThread.id}
           surface={renderedRightPanelSurface}
           draftWorkspaceRoot={isServerThread ? undefined : activeProject?.workspaceRoot}
-          onSendMessage={isServerThread ? sendAppMessage : undefined}
+          onSendMessage={
+            isServerThread
+              ? sendAppMessage
+              : engineeringSurfaces
+                ? sendAppMessageThroughComposer
+                : undefined
+          }
           onAddContext={(content) => addViewContextToComposer(composerRef.current, content)}
           workspaceRoot={activeWorkspaceRoot ?? undefined}
           workspaceMutationId={workspaceMutationId}
