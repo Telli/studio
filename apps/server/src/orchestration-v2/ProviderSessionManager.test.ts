@@ -2686,6 +2686,55 @@ it.effect("ProviderSessionManagerV2 releases idle sessions without sweeping all 
   }),
 );
 
+it.effect(
+  "ProviderSessionManagerV2 releaseWhenIdle lets an idle session go at once and spares one opened after",
+  () =>
+    Effect.gen(function* () {
+      const state = yield* Ref.make(emptyState);
+      const effect = Effect.gen(function* () {
+        const eventSink = yield* EventSink.EventSinkV2;
+        const idAllocator = yield* IdAllocator.IdAllocatorV2;
+        const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
+        const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
+        const now = yield* DateTime.now;
+        const projectId = yield* idAllocator.allocate.project({
+          fixtureName: "provider-session-manager-release-when-idle",
+        });
+        const openSession = Effect.gen(function* () {
+          const threadId = yield* idAllocator.allocate.thread({
+            fixtureName: "provider-session-manager-release-when-idle",
+            projectId,
+          });
+          const providerSessionId = yield* idAllocator.allocate.providerSession({
+            providerInstanceId: modelSelection.instanceId,
+            threadId,
+          });
+          yield* eventSink.write({
+            events: [yield* makeThreadCreatedEvent({ idAllocator, threadId, now })],
+          });
+          yield* manager.open({ threadId, providerSessionId, modelSelection, runtimePolicy });
+          return { threadId, providerSessionId };
+        });
+
+        const before = yield* openSession;
+        yield* manager.releaseWhenIdle;
+        const after = yield* openSession;
+        yield* TestClock.adjust("1 millis");
+        yield* Effect.yieldNow;
+
+        // Long before its 30-minute idle window, the session open when it was asked goes.
+        assert.isTrue(Option.isNone(yield* manager.get(before.providerSessionId)));
+        const projection = yield* projectionStore.getThreadProjection(before.threadId);
+        assert.equal(projection.providerSessions.at(-1)?.status, "stopped");
+        // One opened after already has what it reads at open, and keeps its idle window.
+        assert.isTrue(Option.isSome(yield* manager.get(after.providerSessionId)));
+        assert.equal((yield* Ref.get(state)).closeCount, 1);
+      });
+
+      yield* effect.pipe(Effect.provide(layerTest({ state, idleTimeoutMs: 30 * 60 * 1000 })));
+    }),
+);
+
 it.effect("ProviderSessionManagerV2 persists release when session scope close hangs", () =>
   Effect.gen(function* () {
     const state = yield* Ref.make(emptyState);

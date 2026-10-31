@@ -64,6 +64,7 @@ import * as McpHttpServer from "./mcp/McpHttpServer.ts";
 import * as PluginService from "./plugins/PluginService.ts";
 import * as StudioProjects from "./studio/StudioProjects.ts";
 import * as BundledPlugins from "./plugins/BundledPlugins.ts";
+import * as PluginToolSessions from "./plugins/PluginToolSessions.ts";
 import * as McpSessionRegistry from "./mcp/McpSessionRegistry.ts";
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
 import * as DeviceService from "./device/DeviceService.ts";
@@ -681,8 +682,12 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
   ),
 );
 
-const layerRuntimeDependencies = BundledPlugins.layer.pipe(
+const layerRuntimeDependencies = Layer.mergeAll(
   // Offers the app's bundled plugins once the plugin service is up.
+  BundledPlugins.layer,
+  // Provider sessions open again once idle when the plugin tools agents see change.
+  PluginToolSessions.layer,
+).pipe(
   Layer.provideMerge(layerRuntimeCoreDependencies),
   // Misc.
   // Usage reads provider history through the ProviderHost, which needs the

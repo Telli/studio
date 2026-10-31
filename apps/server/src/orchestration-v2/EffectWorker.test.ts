@@ -109,6 +109,7 @@ function layerExecutorFor(input: {
         closeInstance: () => Effect.void,
         release: () => record("release"),
         detach: () => record("detach"),
+        releaseWhenIdle: Effect.void,
       }),
     ),
     Layer.succeed(

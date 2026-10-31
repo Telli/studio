@@ -192,6 +192,12 @@ export interface ProviderSessionManagerV2Shape {
      */
     readonly revokeMcpCredential?: boolean;
   }) => Effect.Effect<void, ProviderSessionManagerV2Error>;
+  /**
+   * Lets every live session go as soon as it is idle, as its idle timeout would: one idle now
+   * goes at once, a busy one when its turns end, and its thread's next turn opens it again.
+   * For what a provider reads only when its session opens, such as T3's MCP tool list.
+   */
+  readonly releaseWhenIdle: Effect.Effect<void>;
 }
 
 export class ProviderSessionManagerV2 extends Context.Service<
@@ -235,6 +241,8 @@ interface LiveSessionEntry {
    * for `idleTimeoutMs`.
    */
   readonly idleThreadUnloads: ReadonlyMap<ThreadId, IdleThreadUnload>;
+  /** Set by `releaseWhenIdle`: idle release waits no idle window. */
+  readonly releaseWhenIdle?: true;
 }
 
 interface IdleThreadUnload {
@@ -1158,7 +1166,8 @@ export const layerWithOptions = (
 
           yield* cancelIdleFiber(entry.idleFiber);
           const generation = entry.idleGeneration + 1;
-          const idleFiber = yield* Effect.sleep(Duration.millis(idleTimeoutMs)).pipe(
+          const wait = entry.releaseWhenIdle === true ? 0 : idleTimeoutMs;
+          const idleFiber = yield* Effect.sleep(Duration.millis(wait)).pipe(
             Effect.andThen(releaseIfStillIdle({ providerSessionId, generation })),
             Effect.forkIn(layerScope),
           );
@@ -2027,8 +2036,30 @@ export const layerWithOptions = (
         ),
       );
 
+      const releaseWhenIdle = Effect.gen(function* () {
+        const marked = yield* Ref.modify(sessions, (current) => {
+          const updated = new Map(current);
+          for (const [key, entry] of current) updated.set(key, { ...entry, releaseWhenIdle: true });
+          return [[...current.values()].map((entry) => entry.runtime.providerSessionId), updated];
+        });
+        yield* Effect.forEach(
+          marked,
+          (providerSessionId) =>
+            scheduleIdleReleaseInternal(providerSessionId).pipe(
+              Effect.catchCause((cause) =>
+                Effect.logWarning("orchestration-v2.driver-session.release-when-idle-failed", {
+                  providerSessionId,
+                  cause,
+                }),
+              ),
+            ),
+          { discard: true },
+        );
+      });
+
       return ProviderSessionManagerV2.of({
         shutdown,
+        releaseWhenIdle,
         open: (input) =>
           sessionOpen.withLock(
             input.providerSessionId,
