@@ -40,6 +40,7 @@ import { PluginViewFrame } from "./PluginViewFrame";
 const INITIAL_CATALOG_ROWS = 60;
 const SEARCH_DEBOUNCE_MS = 250;
 const CATALOG_POLL_MS = 2_000;
+const LIST_POLL_MS = 3_000;
 
 const COMPATIBILITY_BADGE = {
   works: "success",
@@ -148,6 +149,20 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
     return () => clearTimeout(timer);
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each read schedules the next while fetching.
   }, [fetchingCatalogs, catalog.data, refreshCatalogQuery]);
+  // A server starting, or failing and retried on its own, settles with no action here: while one
+  // is, read the list again until it does, so its row never shows a state it has left.
+  const unsettled = plugins.some(
+    (plugin) =>
+      plugin.enabled &&
+      plugin.servers.some((server) => server.state === "starting" || server.state === "error"),
+  );
+  const refreshList = list.refresh;
+  useEffect(() => {
+    if (!unsettled) return;
+    const timer = setTimeout(() => refreshList(), LIST_POLL_MS);
+    return () => clearTimeout(timer);
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Each read schedules the next while unsettled.
+  }, [unsettled, list.data, refreshList]);
   const visibleEntries =
     entries === null || showAll ? entries : entries.slice(0, INITIAL_CATALOG_ROWS);
   const globalViews = useMemo(() => pluginViewsWithEntrypoint(plugins, "global"), [plugins]);
