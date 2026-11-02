@@ -31,6 +31,7 @@ import {
   type ListedTool,
   readToolUi,
 } from "@t3tools/plugins";
+import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -38,6 +39,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as Schedule from "effect/Schedule";
 import type * as Stream from "effect/Stream";
 
 import * as HostProcess from "@t3tools/shared/HostProcess";
@@ -46,6 +48,7 @@ import * as ServerConfig from "../config.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as AppCapability from "./appCapability.ts";
+import * as ListingRetries from "./listingRetries.ts";
 import * as PluginFiles from "./pluginFiles.ts";
 import * as ModelPictures from "./modelPictures.ts";
 import * as PluginHost from "./PluginHost.ts";
@@ -62,6 +65,8 @@ export interface AgentTool {
 
 const MAX_VIEW_BYTES = 32 * 1024 * 1024;
 const LISTING_WAIT = "10 seconds";
+/** How often failed listings are looked at for a retry that is due. */
+const LISTING_RETRY_CHECK = "5 seconds";
 
 const fail = (reason: PluginOperationError["reason"], message: string) =>
   new PluginOperationError({ reason, message: clip(message, 400) });
@@ -408,6 +413,25 @@ const make = Effect.gen(function* () {
       // A launch's app capability is the UI's alone: it never reaches the agent's context.
       return AppCapability.withoutCapability(result);
     });
+
+  // An enabled plugin whose servers failed to list is listed again on its own (`listingRetries.ts`),
+  // as opening one of its views would: a server that has come back gives agents its tools.
+  const retries = new Map<string, ListingRetries.Retry>();
+  yield* Effect.gen(function* () {
+    const now = yield* Clock.currentTimeMillis;
+    const failing = (yield* store.enabledPlugins)
+      .filter((plugin) =>
+        Object.entries(plugin.listings).some(
+          ([server, listing]) => listing.state === "error" && plugin.servers[server] !== undefined,
+        ),
+      )
+      .map((plugin) => plugin.id);
+    yield* Effect.forEach(
+      ListingRetries.dueRetries(failing, retries, now),
+      (pluginId) => host.listPlugin(pluginId),
+      { concurrency: "unbounded", discard: true },
+    );
+  }).pipe(Effect.repeat(Schedule.spaced(LISTING_RETRY_CHECK)), Effect.forkScoped);
 
   return PluginService.of({
     catalog: store.catalog,

@@ -6,6 +6,9 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import { ThreadId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 
 import * as PluginService from "./PluginService.ts";
 import { draftThreadId, fixture, git, layerFor, threadId } from "./PluginService.testFixtures.ts";
@@ -220,6 +223,49 @@ describe("plugins", () => {
             files.work,
           ),
         ),
+        Effect.ensuring(
+          Effect.sync(() => NodeFS.rmSync(files.dir, { recursive: true, force: true })),
+        ),
+      );
+    });
+
+    it.effect("lists a failed server again on its own once it works, with no one asking", () => {
+      const files = fixture();
+      const server = NodePath.join(files.market, "demo", "server.mjs");
+      const working = NodeFS.readFileSync(server, "utf8");
+      return Effect.gen(function* () {
+        const plugins = yield* PluginService.PluginService;
+        yield* plugins.install("local-market/demo");
+        yield* plugins.setEnabled("demo", false);
+        NodeFS.writeFileSync(server, "process.exit(1);");
+        const failing = yield* plugins.setEnabled("demo", true);
+        assert.strictEqual(failing.servers[0]?.state, "error");
+        assert.deepEqual(yield* plugins.agentTools, []);
+        // The server is fixed outside Studio (its runtime finished installing, say).
+        NodeFS.writeFileSync(server, working);
+        const listed = yield* plugins.changes.pipe(
+          Stream.mapEffect(() => plugins.list),
+          Stream.filter(({ plugins: [demo] }) => demo?.servers[0]?.state === "ready"),
+          Stream.runHead,
+          Effect.forkScoped,
+        );
+        yield* Effect.yieldNow;
+        // Seen failing at the next check, then retried once its first wait is over.
+        yield* TestClock.adjust("1 minute");
+        yield* Fiber.join(listed);
+        assert.deepEqual(
+          (yield* plugins.agentTools).map((tool) => tool.name),
+          ["demo__show", "demo__plain"],
+        );
+      }).pipe(
+        Effect.provide(
+          layerFor(
+            [{ type: "folder", path: files.market }],
+            NodePath.join(files.dir, "t3"),
+            files.work,
+          ),
+        ),
+        Effect.scoped,
         Effect.ensuring(
           Effect.sync(() => NodeFS.rmSync(files.dir, { recursive: true, force: true })),
         ),
