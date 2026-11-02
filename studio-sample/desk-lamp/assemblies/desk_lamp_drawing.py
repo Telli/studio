@@ -38,7 +38,8 @@ def desk_lamp_drawing():
 
 def detail_base(sheet, base):
     """The base's sheet past its first pass: the clevis's cheeks placed, the pocket called out from below, its edges stated."""
-    top, front, right, iso = sheet.views
+    views = {view.name: view for view in sheet.views}  # the first pass draws only the views the part earns
+    top, front = views["top"], views["front"]
     radius = DIAMETER / 2
     clevis_back, clevis_front = CLEVIS_X - CLEVIS_LENGTH / 2, CLEVIS_X + CLEVIS_LENGTH / 2
     inner, outer = CHEEK_GAP / 2, CHEEK_GAP / 2 + CHEEK

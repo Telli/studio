@@ -12,7 +12,8 @@ unattached, so it is this run's PMI check too.
     text-to-cad/.venv/bin/python scripts/studio-samples-check.py [example ...]
 
 The engine is the cad command's own unless CAD_STATE_DIR, CAD_CACHE_DIR and CAD_ENGINE_DIR are set: then the run
-uses those folders (and CAD_ENGINE_PORT) and stops that engine when it ends. The engine listens on a loopback
+registers the checkout's .venv there, uses those folders (and CAD_ENGINE_PORT) and stops that engine when it
+ends. The engine listens on a loopback
 port, so a sandbox that refuses local sockets refuses the run.
 """
 
@@ -65,6 +66,13 @@ def main() -> int:
     env = dict(os.environ)
     env["PYTHONPATH"] = os.pathsep.join([*map(str, CAD_SRC), *filter(None, [env.get("PYTHONPATH")])])
     isolated = all(env.get(name) for name in ("CAD_STATE_DIR", "CAD_CACHE_DIR", "CAD_ENGINE_DIR"))
+    if isolated:
+        # A state folder of its own holds no installation yet: register the checkout's .venv there, as
+        # Studio's dev launcher does (scripts/studio-dev-plugin.py), so `cad run` finds one.
+        sys.path.insert(0, str(ROOT / "text-to-cad" / "scripts" / "install"))
+        import dev_install
+
+        dev_install.register("studio", [sys.executable], dev_install.dev_version())
     failed = []
     with tempfile.TemporaryDirectory(prefix="studio-samples-") as folder:
         try:
