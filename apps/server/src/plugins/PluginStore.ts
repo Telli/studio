@@ -438,7 +438,9 @@ const makeWith = (sources: ReadonlyArray<MarketplaceSource>) =>
               }),
             );
       const manifest = read instanceof Error ? null : read.manifest;
-      const serverError = servers.find((server) => server.error !== null)?.error ?? null;
+      // A server failing now: one turned off or starting again keeps its last error, but is not failing.
+      const serverError =
+        servers.find((server) => server.state === "error" && server.error !== null)?.error ?? null;
       return {
         id: record.id,
         displayName: clip(manifest?.displayName ?? record.id, 160),

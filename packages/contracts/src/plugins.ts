@@ -157,7 +157,7 @@ export const InstalledPlugin = Schema.Struct({
   updateAvailable: Schema.Boolean,
   /** Prompts the plugin suggests starting with (Codex's `interface.defaultPrompt`). */
   starterPrompts: Schema.optional(Schema.Array(Text(300)).check(Schema.isMaxLength(6))),
-  /** A manifest that no longer reads, or a server that failed to start. */
+  /** A manifest that no longer reads, or a server that is failing to start. */
   error: NullableText(400),
 });
 export type InstalledPlugin = typeof InstalledPlugin.Type;

@@ -179,7 +179,8 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
               <CompatibilityBadge compatibility={plugin.compatibility} />
               {busy ? <span>{busy}…</span> : null}
             </span>
-            {plugin.error ? (
+            {/* A failed server's error is also the plugin's: say it once, by the server. */}
+            {plugin.error && serverErrors.length === 0 ? (
               <span className="text-destructive-foreground">{plugin.error}</span>
             ) : null}
             {serverErrors.map((server) => (

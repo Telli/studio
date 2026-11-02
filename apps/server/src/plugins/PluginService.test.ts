@@ -198,6 +198,34 @@ describe("plugins", () => {
       },
     );
 
+    it.effect("reports a server that fails to start only while it is failing", () => {
+      const files = fixture();
+      return Effect.gen(function* () {
+        const plugins = yield* PluginService.PluginService;
+        yield* plugins.install("local-market/demo");
+        yield* plugins.setEnabled("demo", false);
+        NodeFS.writeFileSync(NodePath.join(files.market, "demo", "server.mjs"), "process.exit(1);");
+        const failing = yield* plugins.setEnabled("demo", true);
+        assert.strictEqual(failing.servers[0]?.state, "error");
+        assert.isNotNull(failing.error);
+        assert.strictEqual(failing.error, failing.servers[0]?.error);
+        // Turned off, it is no longer failing: its last start's error is not reported.
+        const off = yield* plugins.setEnabled("demo", false);
+        assert.deepEqual([off.servers[0]?.state, off.error], ["idle", null]);
+      }).pipe(
+        Effect.provide(
+          layerFor(
+            [{ type: "folder", path: files.market }],
+            NodePath.join(files.dir, "t3"),
+            files.work,
+          ),
+        ),
+        Effect.ensuring(
+          Effect.sync(() => NodeFS.rmSync(files.dir, { recursive: true, force: true })),
+        ),
+      );
+    });
+
     it.effect(
       "installs from a git marketplace into its own cache at the marketplace's commit",
       () => {
