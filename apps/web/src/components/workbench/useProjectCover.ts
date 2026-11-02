@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { groupFiles, groupProjectFiles, type ProjectFile } from "./projectFiles";
+import { sourceParts } from "./leadPart";
 import { folderFiles, pictureVersions, type ProjectModel } from "./projectModels";
 import { folderModelsKnown, useFolderModels } from "./useFolderModels";
 import { usePictures } from "./usePictures";
@@ -14,7 +15,8 @@ const IN_ASSEMBLIES = /(?:^|\/)assembl/i;
 
 /**
  * The file that pictures a project: its first assembly (the whole product), else its first part
- * (a cadgen 0.8 model among them, by its document id), else its first board, drawing or study;
+ * (a cadgen 0.8 model among them, by its document id), else its first board, drawing or study,
+ * of those not made from another (`sourceParts`: never `bracket_flat` over `bracket`);
  * the file its picture is rendered from (a SolidCraft design's STEP). Null when it has nothing to
  * picture yet.
  */
@@ -34,8 +36,10 @@ function coverFile(
   const files = COVER_GROUPS.flatMap(
     (group) => groups.find((entry) => entry.group === group)?.files ?? [],
   );
+  const sources = sourceParts(files);
   return (
-    files.find((file) => file.kind === "Assembly" || IN_ASSEMBLIES.test(file.folder)) ??
+    sources.find((file) => file.kind === "Assembly" || IN_ASSEMBLIES.test(file.folder)) ??
+    sources[0] ??
     files[0] ??
     null
   );

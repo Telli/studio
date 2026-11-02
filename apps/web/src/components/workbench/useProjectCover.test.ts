@@ -16,6 +16,25 @@ describe("a project's picture", () => {
     expect(projectCover(["parts/bracket.step", "parts/arm.step"])).toBe("parts/arm.step");
   });
 
+  it("pictures a part, not the flat pattern made from it, though the flat has two bodies", () => {
+    const model = (id: string, script: string, kind: "Part" | "Assembly") => ({
+      id,
+      name: id,
+      script,
+      kind,
+      updated: null,
+    });
+    expect(
+      projectCover(
+        ["parts/bracket_flat.py", "parts/bracket.py"],
+        [
+          model("flat", "parts/bracket_flat.py", "Assembly"),
+          model("bracket", "parts/bracket.py", "Part"),
+        ],
+      ),
+    ).toBe("bracket");
+  });
+
   it("pictures a board when there is no part, and nothing when there is only writing", () => {
     expect(projectCover(["docs/setup.md", "electronics/board/board.kicad_pcb"])).toBe(
       "electronics/board/board.kicad_pcb",

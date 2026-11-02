@@ -9,16 +9,33 @@ interface ReadFolder {
   readonly models?: ReadonlyArray<ProjectModel>;
 }
 
+const stem = (file: ProjectFile) => file.name.replace(/\..*$/, "").toLowerCase();
+
+/**
+ * The parts not named after another of `parts`: `bracket_flat` and `bracket-v2` are made from
+ * `bracket`, which stands for them, whichever a listing in name order puts first.
+ */
+export function sourceParts(parts: ReadonlyArray<ProjectFile>): ProjectFile[] {
+  const stems = parts.map(stem);
+  const made = (name: string) =>
+    stems.some(
+      (other) =>
+        other !== name && name.startsWith(other) && /^[-_. ]/.test(name.slice(other.length)),
+    );
+  return parts.filter((part) => !made(stem(part)));
+}
+
 /**
  * The project's lead part: the first part of the first folder that has one, in the order the
- * project files them. The Overview shows it large, and the workspace opens it.
+ * project files them, of those not made from another (`sourceParts`). The Overview shows it
+ * large, and the workspace opens it.
  */
 export function leadPartOf(
   folders: ReadonlyArray<ReadFolder>,
 ): { readonly root: string; readonly file: ProjectFile } | null {
   for (const folder of folders) {
-    const files = folderFiles(folder.paths ?? [], folder.models);
-    const file = overviewParts(files)[0];
+    const parts = overviewParts(folderFiles(folder.paths ?? [], folder.models));
+    const file = sourceParts(parts)[0] ?? parts[0];
     if (file !== undefined) return { root: folder.root, file };
   }
   return null;
