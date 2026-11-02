@@ -3,14 +3,14 @@
 marketplace the packaged app carries (scripts/build-studio-app.sh).
 
 The app's own Python runs the server, but the app can live anywhere, so its path is not known when
-the app is built. Every place that names it holds @@STUDIO_PYTHON@@, with @@STUDIO_PAGE@@ for the
-server's page and @@STUDIO_BIN@@ for the folder of Studio's `cad` command; the app fills them in on
-each start (apps/desktop/src/studio/studioAppBundle.ts), and registers that Python's CAD server in
-Studio's own CAD state there. The skills name no version: they run `cad`, the current installation,
-which is that one. The plugin's MCP server is `cad-mcp` run by that Python, which reaches the
-server it carries (`cad_mcp.engine`). The layout is a development install's
-(scripts/install/dev_install.py); its channel is "dev", as Studio's own is, which keeps the CAD
-server's update notices and telemetry off.
+the app is built. Every place that names it holds @@STUDIO_PYTHON@@, with @@STUDIO_BIN@@ for the
+folder of Studio's `cad` command; the app fills them in on each start
+(apps/desktop/src/studio/studioAppBundle.ts), and registers that Python's CAD server in Studio's own
+CAD state there. The skills name no version: they run `cad`, the current installation, which is
+that one. The plugin's MCP server is `cad-mcp` run by that Python, which reaches the server it
+carries (`cad_mcp.engine`), whose wheel carries the CAD app's page. The layout is a development
+install's (scripts/install/dev_install.py); its channel is "dev", as Studio's own is, which keeps
+the CAD server's update notices and telemetry off.
 
     python3 scripts/studio-app-plugin.py <text-to-cad checkout> <out folder>
 """
@@ -21,7 +21,6 @@ import sys
 from pathlib import Path
 
 PYTHON = "@@STUDIO_PYTHON@@"
-PAGE = "@@STUDIO_PAGE@@"
 BIN = "@@STUDIO_BIN@@"
 
 
@@ -39,7 +38,7 @@ def main(argv: list[str]) -> int:
     server = {
         "command": PYTHON,
         "args": ["-m", "cad_mcp"],
-        "env": {**dev_install.CHANNEL, "CAD_MCP_APP_DIR": PAGE},
+        "env": dev_install.CHANNEL,
         "startup_timeout_sec": dev_install.CODEX_STARTUP_SECONDS,
     }
     # `~/.local/bin/cad` is Studio's own, and the installer is the app's to run, never a skill's:

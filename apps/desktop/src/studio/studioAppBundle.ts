@@ -77,7 +77,6 @@ export function applyStudioAppBundle(input: {
     const marketplace = NodePath.join(home, "studio-app-plugins");
     writeFilledCopy(NodePath.join(bundle, "marketplace"), marketplace, {
       "@@STUDIO_PYTHON@@": forPlugin(python),
-      "@@STUDIO_PAGE@@": forPlugin(NodePath.join(bundle, "page")),
       "@@STUDIO_BIN@@": forPlugin(env.CAD_LAUNCHER_DIR!),
     });
     setDefault(env, "T3CODE_PLUGIN_MARKETPLACE", marketplace);

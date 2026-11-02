@@ -187,8 +187,6 @@ done
 
 step "Laying out the CAD plugin"
 "$bundle_python" "$(native "$ROOT/scripts/studio-app-plugin.py")" "$(native "$CAD")" "$(native "$BUNDLE/marketplace")"
-mkdir -p "$BUNDLE/page"
-cp "$CAD/apps/mcp/dist/index.html" "$BUNDLE/page/index.html"
 # The Electron profile's folder is named by the app's id, which no other app shares; a folder
 # called "studio" could be any app's of that name.
 cat >"$BUNDLE/studio.json" <<'JSON'

@@ -49,7 +49,7 @@ function resources(prefix?: string): string {
     NodePath.join(bundle, "marketplace", "plugins", "text-to-cad", "codex.mcp.json"),
     JSON.stringify({
       mcpServers: {
-        cad: { command: "@@STUDIO_PYTHON@@", env: { CAD_MCP_APP_DIR: "@@STUDIO_PAGE@@" } },
+        cad: { command: "@@STUDIO_PYTHON@@" },
       },
     }),
   );
@@ -137,7 +137,6 @@ describe("applyStudioAppBundle", () => {
       ),
     );
     expect(config.mcpServers.cad.command).toBe(python);
-    expect(config.mcpServers.cad.env.CAD_MCP_APP_DIR).toBe(NodePath.join(res, "studio", "page"));
   });
 
   it("runs Windows's Python, quoted in the skills where its folder has a space", () => {
