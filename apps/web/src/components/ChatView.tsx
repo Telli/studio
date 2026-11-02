@@ -624,6 +624,7 @@ import { StudioToolbox } from "./workbench/StudioToolbox";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
 import { useProjectViewStore } from "./workbench/projectView";
+import { useStudioProjectsList } from "./workbench/useStudioProjects";
 import { setChatInFront, takePendingFollow } from "./workbench/defaultModelFollow";
 import { useEngineeringInterface, useEngineeringSurfaces } from "./workbench/studioInterface";
 import { useDocumentFollow } from "./workbench/useDocumentFollow";
@@ -4167,6 +4168,13 @@ export default function ChatView(props: ChatViewProps) {
     mutationId: workspaceMutationId,
     refresh: gitStatusQuery.refresh,
     resourceKey: `git-status:${activeThreadKey ?? ""}:${gitStatusCwd ?? ""}`,
+  });
+  // An agent may rename or rewrite its project's file: the sidebar and Home read this list.
+  const studioProjectsList = useStudioProjectsList(environmentId);
+  useWorkspaceMutationRefresh({
+    mutationId: workspaceMutationId,
+    refresh: studioProjectsList.refresh,
+    resourceKey: `studio-projects:${environmentId}`,
   });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const scriptKeybindings =
