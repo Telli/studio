@@ -42,11 +42,16 @@ def main(argv: list[str]) -> int:
         "env": {**dev_install.CHANNEL, "CAD_MCP_APP_DIR": PAGE},
         "startup_timeout_sec": dev_install.CODEX_STARTUP_SECONDS,
     }
-    # `~/.local/bin/cad` is Studio's own, and the installer is the app's to run, never a skill's.
-    note = "This is Studio's own install of the CAD tools; do not run the install command here"
+    # `~/.local/bin/cad` is Studio's own, and the installer is the app's to run, never a skill's:
+    # each skill's install paragraph (the same words in every one) becomes what to do in Studio.
+    install = (
+        "Otherwise install text-to-cad, outside a sandbox or with its permission:\n\n"
+        f"```bash\n{dev_install.INSTALL_COMMANDS[0]}\n```\n\n"
+        f"On Windows, in PowerShell: `{dev_install.INSTALL_COMMANDS[1]}`. "
+    )
     rewrites = {
-        dev_install.INSTALL_COMMANDS[0]: f"# {note}",
-        dev_install.INSTALL_COMMANDS[1]: note,
+        install: "Otherwise the CAD tools are Studio's own: never install text-to-cad here, and ask "
+        "the person to restart Studio, which sets them up again.\n\n",
         "~/.local/bin": BIN,
     }
     plugin = out / "plugins" / name
