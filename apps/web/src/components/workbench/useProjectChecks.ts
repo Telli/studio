@@ -4,6 +4,7 @@ import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { useCallback } from "react";
 
+import { useRefreshOnReturn } from "~/hooks/useRefreshOnReturn";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { projectEnvironment } from "~/state/projects";
@@ -90,5 +91,7 @@ export function useProjectChecks(input: {
     refresh,
     resourceKey: `project-checks:${key}`,
   });
+  // Files added or removed outside Studio (in Finder, by another app) show when the user comes back.
+  useRefreshOnReturn(refresh);
   return folders;
 }

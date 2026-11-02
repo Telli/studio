@@ -1,6 +1,7 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 
+import { onReturn } from "~/hooks/useRefreshOnReturn";
 import { humanName } from "./partNames";
 import { type ProjectModel, readFolderModels } from "./projectModels";
 import { type CadGet, useEnvironmentCadGet } from "./useVersions";
@@ -164,6 +165,19 @@ const store = folderModelsStore();
 /** A project's models may have changed (an agent's turn wrote its files, a part was built). */
 export const modelsChanged = () => store.changed();
 
+// Files added outside Studio (in Finder, by another app) may be models: every list reads its
+// folders again when the user comes back, once for all of them however many lists are mounted.
+let listening: { count: number; stop: () => void } | null = null;
+const listenForReturn = () => {
+  listening ??= { count: 0, stop: onReturn(window, document, modelsChanged) };
+  listening.count += 1;
+  return () => {
+    if (listening === null || --listening.count > 0) return;
+    listening.stop();
+    listening = null;
+  };
+};
+
 /** Whether a folder's models have been read once (`useFolderModels` re-renders when they are). */
 export const folderModelsKnown = (environmentId: EnvironmentId, root: string) =>
   store.known(environmentId, root);
@@ -195,6 +209,7 @@ export function useProjectModels(input: {
     seen.current = mutationId;
     store.changed();
   }, [mutationId]);
+  useEffect(listenForReturn, []);
   useEffect(() => {
     if (get === null || key === "") return;
     store.want(environmentId, key.split("\n"), get);
