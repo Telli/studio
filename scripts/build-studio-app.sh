@@ -152,6 +152,13 @@ MAMBA_ROOT_PREFIX="$(native "$work/mamba")" "$mamba" create -y -q -p "$(native "
 # Only the program and its libraries go in the app.
 for unused in conda-meta include share Library/include Library/share; do rm -rf "${solver:?}/$unused"; done
 if [ "$platform" = win ]; then ccx="$solver/Library/bin/ccx.exe"; else ccx="$solver/bin/ccx"; fi
+if [ "$platform" = win ] && [ -d "$solver/Library/mingw-w64/bin" ]; then
+  # Windows finds a program's DLLs beside it, and conda-forge files ARPACK's in mingw-w64\bin.
+  for dll in "$solver"/Library/mingw-w64/bin/*.dll; do
+    [ -e "$solver/Library/bin/${dll##*/}" ] || cp "$dll" "$solver/Library/bin/"
+  done
+  rm -rf "$solver/Library/mingw-w64"
+fi
 if [ "$platform" = mac ]; then
   # Of its libraries, only those ccx loads: conda gives one OpenBLAS a dozen names, and each link
   # becomes a 13 MB copy once the bundle's links are made files below.
