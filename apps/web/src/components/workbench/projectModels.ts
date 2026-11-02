@@ -3,7 +3,7 @@ import { classifyProjectFile, type ProjectFile } from "./projectFiles";
 
 /**
  * A cadgen 0.8 model of a project's folder: a part script's `@model`, as the engine's registry
- * records it once it has been built (`GET /__cad/models?root=`, `cadgen/edit/models.py`). A model
+ * records it once it has been built (`GET /api/v1/local/models?root=`, `cad_server/viewer/folder_models.py`). A model
  * has no file of its own (its script writes none), so the workbench lists it by its document id,
  * which is what opens it, pictures it and runs its jobs.
  */
@@ -24,7 +24,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
- * A folder's models as `/__cad/models` answers them: every model of the engine's registry whose
+ * A folder's models as `/api/v1/local/models` answers them: every model of the engine's registry whose
  * script is in the folder, the rollback bar's bodies and models whose script is gone left out
  * there. Empty for anything else.
  */

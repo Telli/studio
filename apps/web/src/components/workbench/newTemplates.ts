@@ -320,13 +320,13 @@ export function newWorkPrompt(work: NewWork): string {
   const part = work.part ?? "the part I choose";
   const units = work.units === "in" ? "inches" : "millimeters";
   switch (template.id) {
-    // A part or an assembly is a cadgen 0.8 model: its script is the design, and builds it.
+    // A part or an assembly is a CAD model (`@model`): its script is the design, and builds it.
     case "part":
-      return `Create a new part as a cadgen model in ${target}.py, in ${units}.${ask}`;
+      return `Create a new part as a CAD model in ${target}.py, in ${units}.${ask}`;
     case "assembly":
-      return `Create a new assembly as a cadgen model in ${target}.py, in ${units}, using the project's parts where they fit.${ask}`;
+      return `Create a new assembly as a CAD model in ${target}.py, in ${units}, using the project's parts where they fit.${ask}`;
     case "sheet-metal":
-      return `Create a new sheet metal part as a cadgen model in ${target}.py, in ${units}, with its flat pattern.${ask}`;
+      return `Create a new sheet metal part as a CAD model in ${target}.py, in ${units}, with its flat pattern.${ask}`;
     case "drawing":
       return `Make an engineering drawing of ${part} with its key dimensions and tolerances, in ${units}.${ask}`;
     case "strength-study":

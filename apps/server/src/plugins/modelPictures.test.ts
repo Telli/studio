@@ -1,4 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off -- a stand-in renderer writes files the way cadgen snapshot does.
+// @effect-diagnostics nodeBuiltinImport:off -- a stand-in renderer writes files the way `cad snapshot` does.
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -10,7 +10,7 @@ import { renderModelPictures, snapshotLaunch } from "./modelPictures.ts";
 const server = (args: string[]) => ({
   command: "uvx",
   args,
-  env: { CADGEN_INSTALL_CHANNEL: "agent-plugins" },
+  env: { CAD_INSTALL_CHANNEL: "agent-plugins" },
   cwd: null,
   url: null,
   headers: {},
@@ -19,26 +19,39 @@ const server = (args: string[]) => ({
 });
 
 describe("model pictures", () => {
-  it("renders with the plugin's own cadgen: its CAD server's launcher, snapshot for mcp", () => {
+  it("renders with the plugin's own release: its CAD server's `cad snapshot`", () => {
     const release = snapshotLaunch(
-      { root: "/plugin", servers: { cad: server(["--from", "cadgen==0.8.0", "cadgen", "mcp"]) } },
+      {
+        root: "/plugin",
+        servers: {
+          cad: server(["--no-config", "--python", "3.14", "--from", "cad-mcp==0.10.0", "cad-mcp"]),
+        },
+      },
       { PATH: "/usr/bin" },
     );
-    expect(release?.args).toEqual(["--from", "cadgen==0.8.0", "cadgen", "snapshot"]);
+    expect(release?.args).toEqual([
+      "--no-config",
+      "--python",
+      "3.14",
+      "--from",
+      "cad-server==0.10.0",
+      "cad",
+      "snapshot",
+    ]);
     expect(release?.env).toMatchObject({
       PATH: "/usr/bin",
-      CADGEN_INSTALL_CHANNEL: "agent-plugins",
+      CAD_INSTALL_CHANNEL: "agent-plugins",
     });
     const checkout = snapshotLaunch(
       {
         root: "/plugin",
         servers: {
-          cad: { ...server(["-m", "cadgen.cli", "mcp"]), command: "/w/.venv/bin/python" },
+          cad: { ...server(["-m", "cad_mcp"]), command: "/w/.venv/bin/python" },
         },
       },
       {},
     );
-    expect(checkout?.args).toEqual(["-m", "cadgen.cli", "snapshot"]);
+    expect(checkout?.args).toEqual(["-m", "cad_server.cli", "snapshot"]);
     expect(
       snapshotLaunch({ root: "/p", servers: { other: server(["some-server", "mcp"]) } }, {}),
     ).toBeNull();
@@ -51,7 +64,7 @@ describe("model pictures", () => {
     NodeFS.writeFileSync(NodePath.join(project, "parts", "bracket.step"), "ISO-10303-21;");
     NodeFS.writeFileSync(NodePath.join(project, "parts", "broken.step"), "not a step");
     const runs = NodePath.join(dir, "runs.txt");
-    // Stands in for `cadgen snapshot --job`: writes each job's picture, refuses broken files.
+    // Stands in for `cad snapshot --job`: writes each job's picture, refuses broken files.
     const renderer = NodePath.join(dir, "renderer.mjs");
     NodeFS.writeFileSync(
       renderer,
@@ -86,7 +99,7 @@ describe("model pictures", () => {
     NodeFS.mkdirSync(NodePath.join(project, "XBF"), { recursive: true });
     NodeFS.writeFileSync(NodePath.join(project, "XBF", "plate.xbf"), "xbf");
     const inputs = NodePath.join(dir, "inputs.txt");
-    // Stands in for `cadgen snapshot --job`, saying what each job drew.
+    // Stands in for `cad snapshot --job`, saying what each job drew.
     const renderer = NodePath.join(dir, "renderer.mjs");
     NodeFS.writeFileSync(
       renderer,
@@ -131,7 +144,7 @@ describe("model pictures", () => {
     NodeFS.mkdirSync(NodePath.join(project, "boards"), { recursive: true });
     NodeFS.writeFileSync(NodePath.join(project, "boards", "driver.kicad_pcb"), "(kicad_pcb)");
     const runs = NodePath.join(dir, "runs.txt");
-    // A renderer that would fail the request if it were asked: cadgen 0.8 draws no board yet.
+    // A renderer that would fail the request if it were asked: the CAD server draws no board.
     const renderer = NodePath.join(dir, "renderer.mjs");
     NodeFS.writeFileSync(
       renderer,

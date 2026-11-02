@@ -28,7 +28,7 @@ const tools = [
   { name: "sync", description: "View state", inputSchema: { type: "object" }, _meta: { ui: { resourceUri: "ui://demo/view", visibility: ["app"] } } },
   { name: "plain", description: "Echo", inputSchema: { type: "object", properties: { text: { type: "string" } } } },
 ];
-// cadgen's app capability: each home launch delivers a new one, and cad_http refuses the first.
+// The CAD server's app capability: each home launch delivers a new one, and cad_http refuses the first.
 let homes = 0;
 readline.createInterface({ input: process.stdin }).on("line", (line) => {
   const message = JSON.parse(line);
@@ -43,7 +43,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
     case "tools/call":
       if (message.params.name === "cad_home")
         return reply({ content: [], _meta: { "dev.texttocad/httpToken": "token-" + ++homes } });
-      if (message.params.name === "cad_http" && message.params.arguments.headers?.["x-cadgen-app"] === "token-1")
+      if (message.params.name === "cad_http" && message.params.arguments.headers?.["x-cad-app"] === "token-1")
         return reply({ isError: true, content: [{ type: "text", text: "This CAD view was opened before CAD restarted." }] });
       if (message.params.name === "plain" && message.params.arguments.text === "launch")
         return reply({ content: [{ type: "text", text: "{}" }], _meta: { "dev.texttocad/httpToken": "secret", other: 1 } });

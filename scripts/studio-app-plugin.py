@@ -4,20 +4,19 @@ marketplace the packaged app carries (scripts/build-studio-app.sh).
 
 The app's own Python runs the server, but the app can live anywhere, so its path is not known when
 the app is built. Every place that names it holds @@STUDIO_PYTHON@@, with @@STUDIO_PAGE@@ for the
-server's page and @@STUDIO_BIN@@ for the folder of Studio's `cadgen` command; the app fills them
-in on each start (apps/desktop/src/studio/studioAppBundle.ts), and registers that Python's cadgen,
-the release's version, in Studio's own cadgen state there. The skills run it as cadgen 0.8's
-skills run any installation: `cadgen +<VERSION>`, through that command.
-The layout is the development plugin's (scripts/studio-dev-plugin.py), through the same
-scripts/install/dev_install.py functions; its channel is "dev", as Studio's own is, which keeps
-cadgen's update notices and telemetry off.
+server's page and @@STUDIO_BIN@@ for the folder of Studio's `cad` command; the app fills them in on
+each start (apps/desktop/src/studio/studioAppBundle.ts), and registers that Python's CAD server in
+Studio's own CAD state there. The skills name no version: they run `cad`, the current installation,
+which is that one. The plugin's MCP server is `cad-mcp` run by that Python, which reaches the
+server it carries (`cad_mcp.engine`). The layout is a development install's
+(scripts/install/dev_install.py); its channel is "dev", as Studio's own is, which keeps the CAD
+server's update notices and telemetry off.
 
     python3 scripts/studio-app-plugin.py <text-to-cad checkout> <out folder>
 """
 
 from __future__ import annotations
 
-import importlib.util
 import sys
 from pathlib import Path
 
@@ -35,26 +34,23 @@ def main(argv: list[str]) -> int:
     sys.path.insert(0, str(checkout / "scripts" / "install"))
     import dev_install
 
-    # The development plugin's fix for launches `rewrites=` does not reach (FEA's cadgen[fea]==<VERSION>).
-    spec = importlib.util.spec_from_file_location(
-        "studio_dev_plugin", Path(__file__).resolve().parent / "studio-dev-plugin.py"
-    )
-    dev_plugin = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(dev_plugin)
-
     version = (checkout / "VERSION").read_text(encoding="utf-8").strip()
     name = dev_install.plugin_name(checkout)
     server = {
         "command": PYTHON,
-        "args": ["-m", "cadgen.cli", "mcp"],
-        "env": {"CADGEN_INSTALL_CHANNEL": "dev", "CADGEN_MCP_APP_DIR": PAGE},
+        "args": ["-m", "cad_mcp"],
+        "env": {**dev_install.CHANNEL, "CAD_MCP_APP_DIR": PAGE},
         "startup_timeout_sec": dev_install.CODEX_STARTUP_SECONDS,
     }
-    # The skills' one-time `cadgen doctor` is the app's Python, and `~/.local/bin/cadgen` Studio's own.
-    rewrites = {**dev_install.skill_rewrites(version, version, python=PYTHON), "~/.local/bin": BIN}
+    # `~/.local/bin/cad` is Studio's own, and the installer is the app's to run, never a skill's.
+    note = "This is Studio's own install of the CAD tools; do not run the install command here"
+    rewrites = {
+        dev_install.INSTALL_COMMANDS[0]: f"# {note}",
+        dev_install.INSTALL_COMMANDS[1]: note,
+        "~/.local/bin": BIN,
+    }
     plugin = out / "plugins" / name
     dev_install.assemble("codex", plugin, version, server, root=checkout, rewrites=rewrites)
-    dev_plugin.point_launches_at(dev_install, plugin, version)
     dev_install.write_json(out / ".claude-plugin" / "marketplace.json", {
         "name": "studio-app",
         "owner": {"name": "Studio"},

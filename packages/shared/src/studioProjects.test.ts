@@ -49,7 +49,7 @@ describe("studio projects", () => {
     expect(context).toContain("never offer to commit");
     expect(context).toContain("## Sketches the person can edit");
     expect(context).toContain(
-      "Draw every 2D profile you extrude, revolve, cut, sweep or loft with `cadgen.sketch`",
+      "Draw every 2D profile you extrude, revolve, cut, sweep or loft with `cad.sketch`",
     );
     expect(context).toContain("Call parts and documents by their names");
     expect(context).toContain("round them up in a short report in `docs/`");

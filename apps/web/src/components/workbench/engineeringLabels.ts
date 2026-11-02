@@ -48,6 +48,17 @@ function partNamedAfter(command: string, marker: RegExp, endings: RegExp): strin
 const STEP = /\.(?:step|stp)$/i;
 const BOARD = /\.(?:kicad_pcb|kicad_sch)$/i;
 const MODEL = /\.(?:step|stp|stl|3mf|glb)$/i;
+/** A document the CAD engine reads: a STEP, its own `.xbf`, or a model's script. */
+const DOCUMENT = /\.(?:step|stp|xbf|py)$/i;
+/** The CAD command line in any spelling (`cad`, `cadgen`, `python -m cad_server.cli`), never "text-to-cad". */
+const cli = (rest: string) =>
+  new RegExp(String.raw`(?:^|[\s;&|(/])(?:cad(?:gen)?|cad_server)(?:\.cli)?\s+` + rest);
+const CLI_SNAPSHOT = cli(String.raw`(?:\S+\s+)*?(?:snapshot|render)\b`);
+const CLI_EXPORT = cli(String.raw`export\s+(.*)`);
+const CLI_OLD_EXPORT = cli(String.raw`(stl|3mf|glb|dxf)\b`);
+const CLI_INSPECT = cli(String.raw`(?:step\s+)?inspect\b`);
+const CLI_RUN = cli(String.raw`(?:build|run)\s+(?:-\S+\s+)*["']?([^\s"']+\.py)\b`);
+const CLI_ANY = cli("[a-z]");
 /** A skill's own tool or a helper, not a part's model script: it never "builds" a part. */
 const TOOL_SCRIPT = /(?:^|[\\/])(?:scripts?|skills?|tools?|lib|utils?|helpers?)[\\/]|_tool\.py\b/i;
 const of = (part: string | null, joiner: string) => (part === null ? "" : ` ${joiner} ${part}`);
@@ -97,7 +108,7 @@ const RULES: ReadonlyArray<(command: string) => StepLabel | null> = [
     return { done: `${done}${of(board, "for")}`, doing: `${doing}${of(board, "for")}` };
   },
   (command) => {
-    if (!/\b(?:snapshot|render)\b/.test(command) || !/\bcadgen\b/.test(command)) return null;
+    if (!CLI_SNAPSHOT.test(command)) return null;
     return { done: "Took a picture of the model", doing: "Taking a picture of the model" };
   },
   // The skills' own tools, named for what they check or make.
@@ -119,28 +130,40 @@ const RULES: ReadonlyArray<(command: string) => StepLabel | null> = [
         return { done: "Set up the slicer", doing: "Setting up the slicer" };
     }
   },
+  // `cad export SRC DST...`: each destination's format is its file's ending.
   (command) => {
-    const format = /\bcadgen(?:\.cli)?\s+(stl|3mf|glb|dxf)\b/.exec(command)?.[1];
+    const rest = CLI_EXPORT.exec(command)?.[1];
+    if (rest === undefined) return null;
+    const [source, ...outputs] = rest.split(/\s+/).filter((token) => !token.startsWith("-"));
+    const format = outputs.map((output) => /\.([a-z0-9]+)["']?$/i.exec(output)?.[1]).find(Boolean);
+    const part =
+      source === undefined
+        ? "the model"
+        : inSentence(humanName(base(source).replace(/\.[^.]+$/, "")));
+    const as = format === undefined ? "" : ` as ${format.toUpperCase()}`;
+    return { done: `Exported ${part}${as}`, doing: `Exporting ${part}${as}` };
+  },
+  (command) => {
+    const format = CLI_OLD_EXPORT.exec(command)?.[1];
     if (format === undefined) return null;
     const part = fileAfter(command, new RegExp(`\\b${format}\\b`), STEP) ?? "the model";
     const as = format.toUpperCase();
     return { done: `Exported ${part} as ${as}`, doing: `Exporting ${part} as ${as}` };
   },
   (command) => {
-    if (!/\bcadgen(?:\.cli)?\s+step\s+inspect\b/.test(command)) return null;
-    const part = fileAfter(command, /\binspect\b/, STEP) ?? "the model";
+    if (!CLI_INSPECT.test(command)) return null;
+    const part = partNamedAfter(command, /\binspect\b/, DOCUMENT) ?? "the model";
     return { done: `Read ${part}`, doing: `Reading ${part}` };
   },
   (command) =>
     /\bpcb\s+drc\b/.test(command)
       ? { done: "Checked the board", doing: "Checking the board" }
       : null,
-  // A model script builds its part: `python bracket.py`, through any interpreter or cadgen.
+  // A model script builds its part: `python bracket.py`, through any interpreter or `cad run`.
   (command) => {
     const script =
-      /\b(?:python3?|cadgen(?:\.cli)?\s+build)\s+(?:-\S+\s+)*["']?([^\s"']+\.py)\b/.exec(
-        command,
-      )?.[1];
+      CLI_RUN.exec(command)?.[1] ??
+      /\bpython3?\s+(?:-\S+\s+)*["']?([^\s"']+\.py)\b/.exec(command)?.[1];
     if (script === undefined) return null;
     // A tool or helper script works on the design; only a part's own script builds it.
     if (TOOL_SCRIPT.test(script)) {
@@ -150,9 +173,7 @@ const RULES: ReadonlyArray<(command: string) => StepLabel | null> = [
     return { done: `Built ${name}`, doing: `Building ${name}` };
   },
   (command) =>
-    /\bcadgen(?:\.cli)?\s+[a-z]/.test(command)
-      ? { done: "Worked on the design", doing: "Working on the design" }
-      : null,
+    CLI_ANY.test(command) ? { done: "Worked on the design", doing: "Working on the design" } : null,
   (command) =>
     /^(?:ls|find|cat|head|tail|grep|rg|fd|tree|wc|sed\s+-n|file|stat|du)\b/.test(command)
       ? { done: "Looked through the project", doing: "Looking through the project" }

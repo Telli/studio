@@ -8,7 +8,7 @@ import { type CadGet, useEnvironmentCadGet } from "./useVersions";
 
 /**
  * Project folders' cadgen 0.8 models (`readFolderModels`), read through Studio's CAD service as the
- * environment's own CAD server asks it (`GET /__cad/models?root=A&root=B...`), shared by every list
+ * environment's own CAD server asks it (`GET /api/v1/local/models?root=A&root=B...`), shared by every list
  * that shows a folder: the Overview, Home's tiles, the project switcher, ⌘K and a new chat's
  * starters. The revision moves when an agent changes a project's files, or Studio builds a part
  * (`modelsChanged`); then every folder on screen is read again, all of them in ONE request per
@@ -57,7 +57,7 @@ export function folderModelsStore(
     if (batch === undefined || batch.roots.size === 0) return;
     const roots = [...batch.roots];
     const query = roots.map((root) => `root=${encodeURIComponent(root)}`).join("&");
-    void batch.get(`/__cad/models?${query}`).then((reply) => {
+    void batch.get(`/api/v1/local/models?${query}`).then((reply) => {
       const answered =
         typeof reply === "object" && reply !== null && "roots" in reply ? reply.roots : null;
       for (const root of roots) {

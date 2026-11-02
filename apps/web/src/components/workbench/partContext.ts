@@ -133,7 +133,8 @@ const ENGINE_FILE = /\.(?:step|stp|xbf)$/i;
 
 /**
  * How the engine's document of what a view shows is reached: a model's by its id; a STEP's or an
- * xbf's by the id `/__cad/xbf?file=` answers for it (`readDocumentId`); any other file has none.
+ * xbf's by the id opening it answers (`POST /api/v1/documents`, `readOpenedDocument`); any other
+ * file has none.
  */
 export function documentOf(
   path: string,
@@ -142,13 +143,24 @@ export function documentOf(
   return ENGINE_FILE.test(path) ? { file: path } : null;
 }
 
-/** The document id `/__cad/xbf?file=` answers once the engine holds the file; null while it reads it. */
-export function readDocumentId(reply: unknown): string | null {
-  return isRecord(reply) && typeof reply.doc === "string" && reply.doc !== "" ? reply.doc : null;
+/** The document `POST /api/v1/documents` answers once the engine holds the file; null while it reads it. */
+export function readOpenedDocument(
+  reply: unknown,
+): { readonly id: string; readonly kind: string } | null {
+  if (!isRecord(reply) || reply.state === "reading") return null;
+  const { id, kind } = reply;
+  return typeof id === "string" && id !== "" && typeof kind === "string" && kind !== ""
+    ? { id, kind }
+    : null;
+}
+
+/** Where a document of `kind` is read (`/api/v1/documents/<kind>/<id>`): its `structure` below it. */
+export function documentApi(document: { readonly id: string; readonly kind: string }): string {
+  return `/api/v1/documents/${document.kind}/${encodeURIComponent(document.id)}`;
 }
 
 /**
- * A document's structure (`/__cad/api/doc/<id>`) as a part or an assembly: an assembly's tree has
+ * A document's structure (`/api/v1/documents/<kind>/<id>/structure`) as a part or an assembly: an assembly's tree has
  * children (its components, placed), a part's root is the part itself.
  */
 export function readDocumentKind(structure: unknown): "part" | "assembly" | null {
@@ -180,11 +192,11 @@ export function readMaterials(structure: unknown): string[] {
 const samePath = (a: string, b: string) => a.replaceAll("\\", "/") === b.replaceAll("\\", "/");
 
 /**
- * When Recents last saw the document change (`/__cad/recents`, `updated`, seconds), as epoch
- * milliseconds: a file's own time, a model's last build. A model is listed by its id.
+ * When Recents last saw the document change (`GET /api/v1/documents`, `updated`, seconds), as
+ * epoch milliseconds: a file's own time, a model's last build. A model is listed by its id.
  */
 export function readUpdated(recents: unknown, path: string): number | null {
-  const list = isRecord(recents) && Array.isArray(recents.recents) ? recents.recents : [];
+  const list = isRecord(recents) && Array.isArray(recents.documents) ? recents.documents : [];
   for (const recent of list) {
     if (!isRecord(recent)) continue;
     const named =
@@ -196,7 +208,7 @@ export function readUpdated(recents: unknown, path: string): number | null {
 }
 
 /**
- * The last build, from the document's version (`/__cad/api/doc/<id>/version`: a model's build in
+ * The last build, from the document's version (`/api/v1/documents/<id>/version`: a model's build in
  * flight, or the last one that failed, in its own words) and Recents' time: a build in flight or
  * failed is the news, else when it was built (a model) or saved (a file).
  */
@@ -221,12 +233,12 @@ export function readBuild(
 export const BUILD_WAIT_SECONDS = 20;
 
 /**
- * The next ask of a model's build state (`GET /__cad/api/doc/<id>/version`): answered once its
+ * The next ask of a model's build state (`GET /api/v1/documents/<id>/version`): answered once its
  * version or its build's progress moves past what `last` said (a build starting, a frame of it, its
  * end or its failure), or after `BUILD_WAIT_SECONDS`; the first ask, with no `last`, at once.
  */
 export function buildPollUrl(id: string, last: unknown): string {
-  const base = `/__cad/api/doc/${encodeURIComponent(id)}/version?wait=${BUILD_WAIT_SECONDS}`;
+  const base = `/api/v1/documents/${encodeURIComponent(id)}/version?wait=${BUILD_WAIT_SECONDS}`;
   if (!isRecord(last) || typeof last.version !== "string") return base;
   const progress = typeof last.progress === "number" ? `&progress=${last.progress}` : "";
   return `${base}&after=${encodeURIComponent(last.version)}${progress}`;
@@ -246,10 +258,31 @@ export function partBuild(
   return readBuild(isRecord(live) ? live : (read?.version ?? null), read?.updated ?? null, model);
 }
 
-/** A `cad_http` reply's JSON body: base64, gzipped when large (`encoding: "gzip"`). */
+/**
+ * A `cad_http` call's arguments: a GET of `url`, or with `body` a POST of it as JSON, carrying the
+ * viewer's guard (`x-cad-viewer`), which the CAD server asks of every request that changes something.
+ */
+export function cadHttpArguments(url: string, body?: unknown) {
+  if (body === undefined) return { method: "GET", url };
+  let binary = "";
+  for (const byte of new TextEncoder().encode(JSON.stringify(body)))
+    binary += String.fromCharCode(byte);
+  return {
+    method: "POST",
+    url,
+    headers: { "content-type": "application/json", "x-cad-viewer": "1" },
+    body: btoa(binary),
+  };
+}
+
+/**
+ * A `cad_http` reply's JSON body: base64, gzipped when large (`encoding: "gzip"`). A 201 is read too
+ * (a document opened); a 202 (still reading) and anything else is null.
+ */
 export async function readTunnelJson(result: unknown): Promise<unknown> {
   const reply = isRecord(result) ? result.structuredContent : null;
-  if (!isRecord(reply) || reply.status !== 200 || typeof reply.body !== "string") return null;
+  const answered = isRecord(reply) && (reply.status === 200 || reply.status === 201);
+  if (!answered || typeof reply.body !== "string") return null;
   const binary = atob(reply.body);
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
   const text =

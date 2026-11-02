@@ -1,5 +1,5 @@
 /**
- * New part, made with no agent and no questions (`useNewPart.ts`): a cadgen 0.8 model script that
+ * New part, made with no agent and no questions (`useNewPart.ts`): a CAD model script that
  * sketches one block from three named sizes, the cad skill's smallest part, so CAD mode opens on
  * something to edit. The engine never builds a model because a view opened it, so the script is
  * written, built by Studio's CAD service (edit mode's builds), and its document opened by its id
@@ -25,7 +25,7 @@ export function untitledName(existing: ReadonlyArray<string>): string {
 }
 
 /** Names a part's script can't take: the names it imports, and a module it would hide. */
-const TAKEN_BY_SCRIPT = new Set(["bd", "model", "step", "cadgen", "build123d", "sizes"]);
+const TAKEN_BY_SCRIPT = new Set(["bd", "model", "step", "cad", "cadgen", "build123d", "sizes"]);
 /**
  * Modules a part's build imports by name: a script runs with its folder first on the path, so a
  * part named `platform` or `copy` would stand in for Python's own and break its build. Python's
@@ -93,7 +93,7 @@ export function freePartStem(stem: string, taken: ReadonlyArray<string>): string
 
 /**
  * The starter part's script, as the servo bracket's parts are written: what it is, its sizes named
- * at the top, and one sketch on the Top plane, fully defined from them, extruded, in a cadgen 0.8
+ * at the top, and one sketch on the Top plane, fully defined from them, extruded, in a CAD
  * model (`@model`), which the engine builds when the script runs. `stem` names its function and its
  * label, as the script's file is named; the function's name and the script's path are its document
  * id.
@@ -103,8 +103,8 @@ export function starterScript(stem: string): string {
 mode, and add its features there. Origin: a corner of its underside, +Z up."""
 
 import build123d as bd
-from cadgen import model
-from cadgen.sketch import Sketch
+from cad import model
+from cad.sketch import Sketch
 
 LENGTH = 40.0
 WIDTH = 20.0
@@ -135,7 +135,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * The CAD service's own limit on one build, in seconds: `BUILD_TIMEOUT` in
- * text-to-cad's `cadgen/edit/service.py`, which stops a build that runs longer (a test holds the two
+ * text-to-cad's `cad/edit/service.py`, which stops a build that runs longer (a test holds the two
  * equal).
  */
 export const CAD_BUILD_TIMEOUT_S = 900;
@@ -145,7 +145,7 @@ const PART_BUILD_POLL_MS = 500;
 
 /**
  * Builds a part's script (`script`, absolute) through Studio's CAD service, edit mode's builds
- * (`cadgen/edit/service.py`, `change` with `build`), and waits until its document is built
+ * (`cad/edit/service.py`, `change` with `build`), and waits until its document is built
  * (`partBuilt`) or its build failed (`partError`, in the build's own words). `wait` is the pause
  * between asks.
  */
@@ -161,13 +161,13 @@ export async function buildPart(input: {
     isRecord(reply) && typeof reply.error === "string" && reply.error !== ""
       ? reply.error
       : otherwise;
-  const asked = await input.post("/__cad/edit/change", { file: input.script, build: true });
+  const asked = await input.post("/api/v1/local/edit/change", { file: input.script, build: true });
   if (!isRecord(asked) || asked.ok !== true) {
     return { error: said(asked, "Studio's CAD service did not answer.") };
   }
   const deadline = now() + PART_BUILD_MS;
   for (;;) {
-    const probe = await input.post("/__cad/edit/state", { file: input.script, probe: true });
+    const probe = await input.post("/api/v1/local/edit/state", { file: input.script, probe: true });
     if (!isRecord(probe) || probe.ok !== true) {
       return { error: said(probe, "Studio's CAD service did not answer.") };
     }

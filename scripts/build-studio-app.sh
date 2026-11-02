@@ -96,7 +96,7 @@ esac
 
 step "Building the CAD tools' runtime and page"
 # text-to-cad's own packages first, as its lockfile names them: a checkout copied from another (or
-# one made before cadgen 0.8, whose viewer added sonner and gltf-validator) lacks some.
+# one made before 0.10, whose packages are @cad/*) lacks some.
 (cd "$CAD" && npm ci --no-audit --no-fund && scripts/bundle/bundle.sh && npm run build:mcp)
 
 step "Making the CAD tools' own Python"
@@ -104,8 +104,9 @@ rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-uv python install 3.13
-python="$(uv python find --managed-python 3.13)"
+# The CAD packages need 3.14.
+uv python install 3.14
+python="$(uv python find --managed-python 3.14)"
 # uv's own CPython build moves with the folder it is in, so the app can carry it. Windows's keeps
 # python.exe at the top of that folder; a Mac's, in its bin.
 if [ "$platform" = win ]; then
@@ -113,17 +114,25 @@ if [ "$platform" = win ]; then
 else
   cp -R "$(cd "$(dirname "$python")/.." && pwd -P)" "$BUNDLE/python"
 fi
-uv build --wheel --out-dir "$(native "$work")" "$(native "$CAD/packages/cadgen")"
-wheel="$(ls "$work"/cadgen-*.whl)"
-if [ "$platform" = win ]; then wheel_url="file:///$(cygpath -m "$wheel")"; else wheel_url="file://$wheel"; fi
+# The library with its kernel (`cad[build123d]`, which brings netgen for FEA), the server (its
+# packaged runtime, which bundle.sh just built) and the agent apps' stdio transport, `cad-mcp`.
+wheel_url() {
+  local wheel
+  wheel="$(ls "$work"/"$1"-*.whl)"
+  if [ "$platform" = win ]; then echo "file:///$(cygpath -m "$wheel")"; else echo "file://$wheel"; fi
+}
+for package in cad cad-server cad-mcp; do
+  uv build --wheel --out-dir "$(native "$work")" "$(native "$CAD/packages/$package")"
+done
 # The versions the checkout's CAD tools run on, so the app runs the same ones.
-uv pip freeze --python "$(native "$venv_python")" | grep -v -E '^-e |^cadgen|^ziglang' >"$work/constraints.txt"
+uv pip freeze --python "$(native "$venv_python")" | grep -v -E '^-e |^cad(-server|-mcp)?==|^ziglang' >"$work/constraints.txt"
 uv pip install --python "$(native "$bundle_python")" --break-system-packages \
-  -c "$(native "$work/constraints.txt")" "cadgen[fea] @ $wheel_url"
-"$bundle_python" -c "import cadgen.mcp.server, OCP, netgen"
+  -c "$(native "$work/constraints.txt")" \
+  "cad[build123d] @ $(wheel_url cad)" "cad-server @ $(wheel_url cad_server)" "cad-mcp @ $(wheel_url cad_mcp)"
+"$bundle_python" -c "import cad_mcp.shim, cad_server.cli, OCP, netgen"
 
 step "Adding the FEA solver"
-# CalculiX from conda-forge, which moves with its folder; the app points cadgen at it (CADGEN_CCX,
+# CalculiX from conda-forge, which moves with its folder; the app points the CAD tools at it (CAD_CCX,
 # apps/desktop/src/studio/studioAppBundle.ts), so a strength check needs nothing installed.
 # micromamba fetches it: this machine's, else its one-file build, kept in the work folder.
 if command -v micromamba >/dev/null 2>&1; then

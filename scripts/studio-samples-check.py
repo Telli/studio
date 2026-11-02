@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Runs every script of Studio's examples (studio-sample/<id>/) with `cadgen run`, as their READMEs do, and says which
+"""Runs every script of Studio's examples (studio-sample/<id>/) with `cad run`, as their READMEs do, and says which
 did not exit 0.
 
 Each example is copied to a scratch folder first, so the run writes nothing into the example, and run from its
@@ -11,8 +11,8 @@ unattached, so it is this run's PMI check too.
 
     text-to-cad/.venv/bin/python scripts/studio-samples-check.py [example ...]
 
-The engine is cadgen's own unless CADGEN_STATE_DIR, CADGEN_CACHE_DIR and CADGEN_ENGINE_DIR are set: then the run
-uses those folders (and CADGEN_ENGINE_PORT) and stops that engine when it ends. cadgen's engine listens on a loopback
+The engine is the cad command's own unless CAD_STATE_DIR, CAD_CACHE_DIR and CAD_ENGINE_DIR are set: then the run
+uses those folders (and CAD_ENGINE_PORT) and stops that engine when it ends. The engine listens on a loopback
 port, so a sandbox that refuses local sockets refuses the run.
 """
 
@@ -27,7 +27,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLES = ROOT / "studio-sample"
-CADGEN_SRC = ROOT / "text-to-cad" / "packages" / "cadgen" / "src"
+# The library and its server, as text-to-cad's requirements-dev.txt installs them.
+CAD_SRC = [ROOT / "text-to-cad" / "packages" / package / "src" for package in ("cad", "cad-server")]
 
 
 def scripts(sample: Path) -> list[Path]:
@@ -51,8 +52,8 @@ def scripts(sample: Path) -> list[Path]:
 
 
 def run(script: Path, cwd: Path, env: dict[str, str]) -> tuple[int, str]:
-    """`cadgen run` of one script from the sample's root: its exit code and what it said."""
-    done = subprocess.run([sys.executable, "-m", "cadgen.cli", "run", str(script)], cwd=cwd, env=env,
+    """`cad run` of one script from the sample's root: its exit code and what it said."""
+    done = subprocess.run([sys.executable, "-m", "cad_server.cli", "run", str(script)], cwd=cwd, env=env,
                           capture_output=True, text=True)
     return done.returncode, f"{done.stdout}{done.stderr}"
 
@@ -62,8 +63,8 @@ def main() -> int:
     samples = [path for path in sorted(SAMPLES.iterdir()) if (path / "studio-sample.json").is_file()
                and (not asked or path.name in asked)]
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join([str(CADGEN_SRC), *filter(None, [env.get("PYTHONPATH")])])
-    isolated = all(env.get(name) for name in ("CADGEN_STATE_DIR", "CADGEN_CACHE_DIR", "CADGEN_ENGINE_DIR"))
+    env["PYTHONPATH"] = os.pathsep.join([*map(str, CAD_SRC), *filter(None, [env.get("PYTHONPATH")])])
+    isolated = all(env.get(name) for name in ("CAD_STATE_DIR", "CAD_CACHE_DIR", "CAD_ENGINE_DIR"))
     failed = []
     with tempfile.TemporaryDirectory(prefix="studio-samples-") as folder:
         try:
@@ -78,7 +79,7 @@ def main() -> int:
                         print("\n".join(said.splitlines()[-12:]), file=sys.stderr)
         finally:
             if isolated:
-                subprocess.run([sys.executable, "-m", "cadgen.cli", "stop"], env=env, capture_output=True)
+                subprocess.run([sys.executable, "-m", "cad_server.cli", "stop"], env=env, capture_output=True)
     print(f"{len(failed)} failed" + (f": {', '.join(failed)}" if failed else ""))
     return 1 if failed else 0
 

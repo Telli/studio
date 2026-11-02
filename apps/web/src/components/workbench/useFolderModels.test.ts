@@ -45,7 +45,7 @@ describe("project folders' models", () => {
     flush();
     expect(cad.asked).toHaveLength(1);
     expect(cad.asked[0]).toBe(
-      `/__cad/models?${roots.map((root) => `root=${encodeURIComponent(root)}`).join("&")}`,
+      `/api/v1/local/models?${roots.map((root) => `root=${encodeURIComponent(root)}`).join("&")}`,
     );
     cad.pending[0]!({
       roots: Object.fromEntries(

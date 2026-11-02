@@ -7,9 +7,9 @@ entry names another example (`sample`), and the file its picture is made from. A
 pictures/, as <its path, "/" as "__">.webp (another example's with its id and "__" first), 640x400
 at WebP quality 80:
 
-- models, meshes, the DXF and the robot descriptions: cadgen's snapshot, in one run, as Studio's
+- models, meshes, the DXF and the robot descriptions: the engine's snapshot, in one run, as Studio's
   project page renders its pictures;
-- a study's or a CAM job's result (`.fea.glb`, `.cam.glb`): kept as it is, since cadgen 0.8's
+- a study's or a CAM job's result (`.fea.glb`, `.cam.glb`): kept as it is, since the engine's
   snapshot draws a result's mesh but not its stress colours or toolpaths; drawn only when it has
   no picture yet. `pictures/kept-results.json` holds the SHA-256 of the result each kept picture
   shows, and a result that changed since is refused, by name: its picture would show another
@@ -27,9 +27,9 @@ any more is removed. Nothing is written into the examples, and the scratch folde
 
     text-to-cad/.venv/bin/python scripts/studio-library-pictures.py
 
-cadgen's snapshot asks its engine, which listens on a loopback port, so a sandbox that refuses local
-sockets refuses the run. Set CADGEN_STATE_DIR, CADGEN_CACHE_DIR, CADGEN_ENGINE_DIR and
-CADGEN_ENGINE_PORT to keep the run off cadgen's own engine.
+the engine's snapshot asks its engine, which listens on a loopback port, so a sandbox that refuses local
+sockets refuses the run. Set CAD_STATE_DIR, CAD_CACHE_DIR, CAD_ENGINE_DIR and
+CAD_ENGINE_PORT to keep the run off the cad command's own engine.
 """
 
 from __future__ import annotations
@@ -51,11 +51,11 @@ LIBRARY = ROOT / "apps" / "web" / "src" / "components" / "workbench" / "library"
 PICTURES = LIBRARY / "pictures"
 SIZE = (640, 400)
 
-# The files cadgen's snapshot renders, by ending; it picks the format's own snapshot by the same.
-CADGEN = {".step", ".stp", ".stl", ".3mf", ".glb", ".dxf", ".urdf", ".srdf", ".sdf"}
-# Results whose pictures cadgen 0.8 cannot draw again: their colours and paths are not drawn.
+# The files the engine's snapshot renders, by ending; it picks the format's own snapshot by the same.
+SNAPSHOT = {".step", ".stp", ".stl", ".3mf", ".glb", ".dxf", ".urdf", ".srdf", ".sdf"}
+# Results whose pictures the engine cannot draw again: their colours and paths are not drawn.
 KEPT = (".fea.glb", ".cam.glb")
-# Drawn flat, in the gutter cadgen leaves around a drawing, so they take no padding.
+# Drawn flat, in the gutter the engine leaves around a drawing, so they take no padding.
 FLAT = {".dxf"}
 PHOTOS = {".png", ".jpg", ".jpeg"}
 # Each kept result picture's result, by the picture's name: {"source": "<example>/<path>", "sha256": ...}.
@@ -86,7 +86,7 @@ def pictured() -> list[tuple[str, str]]:
 
 
 def job(sample: str, path: str, scratch: Path) -> dict:
-    """cadgen's snapshot job for one file, with the padding Studio's project page gives a model."""
+    """the engine's snapshot job for one file, with the padding Studio's project page gives a model."""
     padding = {} if Path(path).suffix.lower() in FLAT else {"output": {"padding": 0.08}}
     return {
         "input": str(SAMPLES / sample / path),
@@ -96,11 +96,11 @@ def job(sample: str, path: str, scratch: Path) -> dict:
 
 
 def render(files: list[tuple[str, str]], scratch: Path) -> None:
-    """cadgen's snapshot of each file, at the pictures' size, into the scratch folder."""
+    """the engine's snapshot of each file, at the pictures' size, into the scratch folder."""
     job_file = scratch / "jobs.json"
     job_file.write_text(json.dumps({"jobs": [job(sample, path, scratch) for sample, path in files]}), encoding="utf-8")
     subprocess.run(
-        [sys.executable, "-m", "cadgen.cli", "snapshot", "--job", str(job_file)]
+        [sys.executable, "-m", "cad_server.cli", "snapshot", "--job", str(job_file)]
         + ["--width", str(SIZE[0]), "--height", str(SIZE[1])],
         check=True,
         env=dict(os.environ),
@@ -109,7 +109,7 @@ def render(files: list[tuple[str, str]], scratch: Path) -> None:
 
 def raster(sample: str, path: str, scratch: Path) -> Path:
     """The picture's source as a raster: the picture itself, the PDF's first page, the video's
-    frame at one second, or cadgen's render (`render`)."""
+    frame at one second, or the engine's render (`render`)."""
     source = SAMPLES / sample / path
     suffix = source.suffix.lower()
     target = drawn(picture_path(path, sample), scratch)
@@ -127,7 +127,7 @@ def raster(sample: str, path: str, scratch: Path) -> Path:
             ["ffmpeg", "-v", "error", "-y", "-ss", "1", "-i", str(source), "-frames:v", "1", str(target)],
             check=True,
         )
-    elif suffix not in CADGEN:
+    elif suffix not in SNAPSHOT:
         raise SystemExit(f"{sample}/{path}: no renderer for {suffix} files")
     return target
 
@@ -150,7 +150,7 @@ def kept_results(files: list[tuple[str, str]]) -> set[tuple[str, str]]:
             changed.append(f"{sample}/{path}")
         kept.add((sample, path))
     if changed:
-        raise SystemExit(f"{', '.join(changed)}: changed since its picture was drawn, and cadgen 0.8 cannot draw a "
+        raise SystemExit(f"{', '.join(changed)}: changed since its picture was drawn, and the engine cannot draw a "
                          "result's colours or toolpaths again; point the entry at a result its picture shows, or "
                          "remove the picture to draw it plain")
     return kept
@@ -176,13 +176,13 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="studio-library-pictures-") as folder:
         scratch = Path(folder)
         models = [(sample, path) for sample, path in files
-                  if Path(path).suffix.lower() in CADGEN and (sample, path) not in kept]
+                  if Path(path).suffix.lower() in SNAPSHOT and (sample, path) not in kept]
         if models:
             render(models, scratch)
         for sample, path in files:
             name = picture_path(path, sample)
             if (sample, path) in kept:
-                print(f"pictures/{name}, kept: cadgen 0.8 cannot draw {path}'s result again")
+                print(f"pictures/{name}, kept: the engine cannot draw {path}'s result again")
                 continue
             with Image.open(raster(sample, path, scratch)) as image:
                 fit(image).save(PICTURES / name, "WEBP", quality=80)

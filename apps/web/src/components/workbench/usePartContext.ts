@@ -7,13 +7,15 @@ import { isDocumentId } from "@t3tools/client-runtime/state/pluginFollow";
 
 import {
   buildPollUrl,
+  cadHttpArguments,
   describePart,
+  documentApi,
   documentOf,
   type PartContext,
   partBuild,
-  readDocumentId,
   readDocumentKind,
   readDocumentName,
+  readOpenedDocument,
   readMaterials,
   readTunnelJson,
   readUpdated,
@@ -67,7 +69,7 @@ export function usePartContext(threadRef: ScopedThreadRef): {
   const [facts, setFacts] = useState<FileFacts | null>(null);
   const [live, setLive] = useState<{ readonly id: string; readonly reply: unknown } | null>(null);
   const key = shown === null ? null : factsKey(shown);
-  const route = (view: ShownView) => async (url: string) => {
+  const route = (view: ShownView) => async (url: string, body?: unknown) => {
     const result = await request({
       environmentId: threadRef.environmentId,
       input: {
@@ -75,7 +77,7 @@ export function usePartContext(threadRef: ScopedThreadRef): {
         pluginId: view.pluginId,
         server: view.server,
         method: "tools/call",
-        params: { name: "cad_http", arguments: { method: "GET", url } },
+        params: { name: "cad_http", arguments: cadHttpArguments(url, body) },
       },
     });
     return result._tag === "Success" ? readTunnelJson(result.value.result).catch(() => null) : null;
@@ -123,17 +125,17 @@ export function usePartContext(threadRef: ScopedThreadRef): {
     // Every caller showing this revision shares one read of the routes (`sharedLoad`).
     const load = async (): Promise<Read> => {
       const target = documentOf(shown.path);
-      const id =
+      // A STEP or an xbf is opened, which has the engine read it: null while it does.
+      const opened =
         target === null
           ? null
           : "id" in target
-            ? target.id
-            : readDocumentId(await get(`/__cad/xbf?file=${encodeURIComponent(target.file)}`));
-      const doc = id === null ? null : `/__cad/api/doc/${encodeURIComponent(id)}`;
+            ? { id: target.id, kind: "model" }
+            : readOpenedDocument(await get("/api/v1/documents", { path: target.file }));
       const [structure, version, recents] = await Promise.all([
-        doc === null ? null : get(doc),
-        doc === null ? null : get(`${doc}/version`),
-        get("/__cad/recents"),
+        opened === null ? null : get(`${documentApi(opened)}/structure`),
+        opened === null ? null : get(`/api/v1/documents/${encodeURIComponent(opened.id)}/version`),
+        get("/api/v1/documents"),
       ]);
       return { structure, version, recents };
     };

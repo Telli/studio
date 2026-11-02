@@ -63,7 +63,7 @@ describe("new templates", () => {
         description: "80 mm wide, two M5 holes",
       }),
     ).toBe(
-      "Create a new part as a cadgen model in parts/wall_bracket.py, in millimeters. 80 mm wide, two M5 holes.",
+      "Create a new part as a CAD model in parts/wall_bracket.py, in millimeters. 80 mm wide, two M5 holes.",
     );
     // An assembly is a model too.
     const assembly = newWorkPrompt({
@@ -75,7 +75,7 @@ describe("new templates", () => {
       description: "",
     });
     expect(assembly).toBe(
-      "Create a new assembly as a cadgen model in assemblies/arm.py, in inches, using the project's parts where they fit.",
+      "Create a new assembly as a CAD model in assemblies/arm.py, in inches, using the project's parts where they fit.",
     );
   });
 

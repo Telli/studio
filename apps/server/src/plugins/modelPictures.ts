@@ -2,13 +2,13 @@
 /**
  * Pictures of a project's models for Studio's project page: every part,
  * assembly, board, drawing and mesh, not only the ones a viewer has opened.
- * text-to-cad renders them itself: its CAD server is `cadgen mcp`, and the
- * same launcher with `snapshot` instead of `mcp` renders any document or file
+ * text-to-cad renders them itself: its plugin's MCP server is `cad-mcp`, and
+ * the server of the same release, `cad snapshot`, renders any document or file
  * it opens (a model by its document id, STEP, xbf, meshes, DXF, robots) to a
- * PNG, a whole batch in one run. So a release runs the release's cadgen and a
- * development checkout its own. Pictures are cached by the file's size and
- * time, or by a model's build, so a page renders only what changed. KiCad
- * boards and wiring harnesses have no picture on cadgen 0.8.
+ * PNG, a whole batch in one run. So a release runs the release's server and a
+ * development checkout or the Studio app its own Python's. Pictures are cached
+ * by the file's size and time, or by a model's build, so a page renders only
+ * what changed.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
@@ -23,10 +23,10 @@ const HEIGHT = 360;
 /** A batch of cold renders (a kernel warming up) can take this long. */
 const RUN_MS = 4 * 60_000;
 
-/** The files cadgen renders, by ending. */
+/** The files the CAD server renders, by ending. */
 const RENDERABLE = /\.(?:step|stp|xbf|stl|3mf|glb|dxf|urdf|srdf|sdf)$/i;
 
-/** A cadgen document id: a model's, which its script's run prints (cadgen's `ids.is_id`). */
+/** A CAD document id: a model's, which its script's run prints (the library's `ids.is_id`). */
 const DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export interface SnapshotLaunch {
@@ -37,19 +37,20 @@ export interface SnapshotLaunch {
 }
 
 /**
- * The command that renders pictures, from a plugin's CAD server: the server's
- * own launcher with its trailing `mcp` turned into `snapshot`. Null for a
- * server that is not cadgen's.
+ * The command that renders pictures, from a plugin's CAD server: a release's
+ * `uvx … --from cad-mcp==<version> cad-mcp` becomes that release's server's
+ * `uvx … --from cad-server==<version> cad snapshot`, and a Python's
+ * `python -m cad_mcp` (a checkout's .venv, the Studio app's own) that
+ * Python's `-m cad_server.cli snapshot`. Null for a server that is not CAD's.
  */
 export function snapshotLaunch(
   plugin: { readonly root: string; readonly servers: Readonly<Record<string, PluginServerConfig>> },
   environment: Readonly<Record<string, string | undefined>>,
 ): SnapshotLaunch | null {
   for (const config of Object.values(plugin.servers)) {
-    if (config.command === null || config.args.at(-1) !== "mcp") continue;
-    const before = config.args.at(-2) ?? "";
-    // `uvx … cadgen mcp`, or a checkout's `python -m cadgen.cli mcp`.
-    if (!/(?:^|[\\/])cadgen(?:\.cli)?$/.test(before)) continue;
+    if (config.command === null) continue;
+    const args = snapshotArgs(config.args);
+    if (args === null) continue;
     const env: Record<string, string> = {};
     for (const [key, value] of Object.entries(environment))
       if (value !== undefined) env[key] = value;
@@ -59,15 +60,31 @@ export function snapshotLaunch(
     env.CLAUDE_PLUGIN_ROOT = plugin.root;
     return {
       command: expandPluginRoot(config.command, plugin.root),
-      args: [
-        ...config.args.slice(0, -1).map((arg) => expandPluginRoot(arg, plugin.root)),
-        "snapshot",
-      ],
+      args: args.map((arg) => expandPluginRoot(arg, plugin.root)),
       env,
       cwd: plugin.root,
     };
   }
   return null;
+}
+
+/** The snapshot's arguments for a CAD server's launch arguments; null for another server's. */
+function snapshotArgs(args: ReadonlyArray<string>): string[] | null {
+  const last = args.at(-1);
+  if (last === "cad_mcp" && args.at(-2) === "-m")
+    return [...args.slice(0, -2), "-m", "cad_server.cli", "snapshot"];
+  if (last !== "cad-mcp") return null;
+  const from = args.indexOf("--from");
+  const release = from === -1 ? undefined : /^cad-mcp(==.+)$/.exec(args[from + 1] ?? "")?.[1];
+  if (release === undefined) return null;
+  return [
+    ...args.slice(0, from),
+    "--from",
+    `cad-server${release}`,
+    ...args.slice(from + 2, -1),
+    "cad",
+    "snapshot",
+  ];
 }
 
 export const isRenderable = (path: string) => RENDERABLE.test(path);

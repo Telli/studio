@@ -6,7 +6,7 @@ view follows their work beside the thread. It lives in this private repository, 
 [text-to-cad](https://github.com/earthtojake/text-to-cad) is the `text-to-cad/` submodule, pinned
 to `studio-base` on [amywork777/text-to-cad-upstream](https://github.com/amywork777/text-to-cad-upstream):
 Jake's latest release, Amy's open text-to-cad PRs merged in, and Studio's Edit by hand on top
-(`packages/cadgen/src/cadgen/edit/` and `packages/ui/src/renderers/xbf/edit/`). Nothing else of
+(`packages/cad/src/cad/edit/` and `packages/ui/src/renderers/xbf/edit/`). Nothing else of
 Studio's lives there, so a new release or a PR's new commits come in by merging them into
 `studio-base`, keeping its suites green, pushing it, and moving the pin here:
 
@@ -25,7 +25,7 @@ none is installed), fetches Electron, makes `text-to-cad/.venv` with uv (Python 
 settings. `scripts/run-studio.sh` starts it:
 `TEXT_TO_CAD_DEV=1 vpr studio:desktop`, from this repository's `text-to-cad/` (`TEXT_TO_CAD_ROOT`
 points at another checkout). The development plugin is built with `text-to-cad/.venv`'s Python,
-since a Mac's own python3 can be too old for cadgen. A change to the viewer needs its packages
+since a Mac's own python3 can be too old for the CAD tools (Python 3.14). A change to the viewer needs its packages
 built (`npm run build:packages` in `text-to-cad/`) before Studio starts.
 
 **The Mac app.** `scripts/build-studio-app.sh [version]` builds
@@ -52,11 +52,11 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
 (`--remote-debugging-port`), since a plain browser can't draw Studio's 3D views.
 
 - **What it carries** (`build/studio-bundle`):
-  - the CAD tools with a Python of their own: uv's movable CPython 3.13, with cadgen and its `fea`
-    extra pinned to the checkout's `.venv`. cadgen 0.8 makes STL and DXF, and draws part pictures,
+  - the CAD tools with a Python of their own: uv's movable CPython 3.14, with the `cad`,
+    `cad-server` and `cad-mcp` wheels and their dependencies pinned to the checkout's `.venv`. They make STL and DXF, and draws part pictures,
     in that Python, so the Mac needs no Node or browser for them;
   - the FEA solver, CalculiX from conda-forge (fetched by micromamba, its one-file build when the
-    machine has none), which the app names to cadgen as `CADGEN_CCX`, so a strength check needs
+    machine has none), which the app names to the CAD tools as `CAD_CCX`, so a strength check needs
     nothing installed. Windows's comes with OpenBLAS, not conda-forge's default MKL (about 100 MB
     against 600);
   - their plugin, laid out by `scripts/studio-app-plugin.py`, with the app's paths left as
@@ -165,14 +165,14 @@ T3 Code's `~/.t3`). `TEXT_TO_CAD_ROOT` points at another checkout; `TEXT_TO_CAD_
 the state and `STUDIO_PROJECTS_DIR` the projects (`~/studio-projects`). Every checkout's engine
 takes port 3346, so a second checkout's Studio beside a running one also needs
 `TEXT_TO_CAD_STUDIO_ENGINE_PORT` (another free port): without it the `text-to-cad` plugin's CAD
-server fails to start, `port 3346 is held by another cadgen`.
+server fails to start, `port 3346 is held by another CAD engine`.
 
-Studio's CAD engine keeps its own folders and port, so a cadgen 0.8 engine of the person's own (on
+Studio's CAD engine keeps its own folders and port, so a CAD engine of the person's own (on
 3245, Claude Code's or Codex's plugin) and Studio's never find or retire each other: the packaged
-app's under `~/.text-to-cad-studio/cadgen` on 3345, a checkout's (`scripts/studio.ts`, every mode)
-under `~/.text-to-cad-studio-dev/cadgen` on 3346 (`apps/desktop/src/studio/studioEngine.ts`). Only
+app's under `~/.text-to-cad-studio/cad` on 3345, a checkout's (`scripts/studio.ts`, every mode)
+under `~/.text-to-cad-studio-dev/cad` on 3346 (`apps/desktop/src/studio/studioEngine.ts`). Only
 the desktop app's boot and `scripts/studio.ts` set them: a headless server started another way (a
-remote `npx t3`, say) runs cadgen with cadgen's own folders and port.
+remote `npx t3`, say) runs `cad` with its own folders and port.
 
 ## What it adds to T3 Code
 
@@ -349,7 +349,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   hidden note, as of a restore. A project with several folders shows each folder's sizes under its
   name, since each folder's imports are its own, and Add shared size writes in the first folder with
   sizes, saying which. The CAD service reads the sizes from the source without running anything
-  (`cadgen/edit/sizes.py`, `/__cad/sizes`), so a CAD service started before them needs a restart to
+  (`cad/edit/sizes.py`, `/api/v1/local/sizes`), so a CAD service started before them needs a restart to
   show them.
 - **Versions and What changed.** Every chat turn's checkpoint is a version. The Overview's
   Versions lists a part's versions, newest first, each with when and which chat made it (and Now,
@@ -358,12 +358,12 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   see-through grey) or side by side, the named sizes of its script that changed, its volume and
   size, how its checks went at each, and the script's lines on request. The CAD service reads the
   versions with git and compares the solids in a process of its own
-  (`text-to-cad/packages/cadgen/src/cadgen/edit/versions.py` and `solid_diff.py`, ported from
-  Fixture's `diff_revision.py`; routes `/__cad/versions` and `/__cad/versions/compare`). It
+  (`text-to-cad/packages/cad/src/cad/edit/versions.py` and `solid_diff.py`, ported from
+  Fixture's `diff_revision.py`; routes `/api/v1/local/versions` and `/api/v1/local/versions/compare`). It
   writes under the project folder's `.studio/compare/`, which git is told to leave out. A picked
   version that is not the newest has Restore this version, as Google Docs does, with no question
   first: the part's file and its script go back to how that version had them
-  (`/__cad/versions/restore`), what was on disk kept first as a version unless one already holds
+  (`/api/v1/local/versions/restore`), what was on disk kept first as a version unless one already holds
   it (a commit under `refs/studio/kept/`, made with an index of its own, listed as what you had
   before restoring), and the agent hears of it with the next message, as a hand edit's note.
 - **Home, the switcher and the chats.** In Engineering, Home is where you start and pick up where
@@ -391,7 +391,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   and the project switcher's New project open it, and Make a project on a folder in no project makes
   a mechanical part project of it at once, its brief filled in later. New's Part is New part, with
   no agent turn (`useNewPart.ts`, `newPart.ts`): on Home a project named "Untitled part" (then
-  "Untitled part 2", past Trash's names too) with a starter part, `parts/part.py`, a cadgen 0.8
+  "Untitled part 2", past Trash's names too) with a starter part, `parts/part.py`, a CAD
   model of one block sketched from three named sizes as the cad skill writes its smallest part. Its
   Overview opens beside its new chat at once; the script is built by Studio's CAD service (edit
   mode's builds: the engine never builds a model because a view opened it), and the part opens in
@@ -558,7 +558,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   (`edit/EditTimeline.jsx`); the sketch tools as SolidWorks names them (Exit Sketch, Smart
   Dimension, Trim Entities). The script and the agent's notes keep their own names. A purple dot
   marks what the agent made and a grey one what you made, on the design tree's rows and under the
-  timeline's icons; a feature from before Studio kept track has neither (`cadgen/edit/authors.py`
+  timeline's icons; a feature from before Studio kept track has neither (`cad/edit/authors.py`
   records it in the project's `.studio/authors.jsonl`, and only once a chat has run there), and nor
   does any in a repository with linked worktrees, whose checkouts' checkpoints share refs that do
   not say which checkout made them. S finds any button of the toolbar by name, SolidWorks' or
@@ -576,7 +576,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   statement whole), with a chip named as the design tree names it ("Hole (6)"), the chip's X letting
   go of the pick (`featureAsk.jsx`; the script's absolute path is the engine's `root` with the
   feature's `file`). A face's chip says the feature that made it, "Hole (6) · face 12", where the
-  engine does (`cadgen/edit/face_features.py`: the first feature with a face on the same surface
+  engine does (`cad/edit/face_features.py`: the first feature with a face on the same surface
   that overlaps it; `edit/faceChips.js`), on a part, while the model on screen is the one the engine
   read; any other face keeps its label. Marks drawn on a face go to the agent as shapes in that
   face's own coordinates, in the part's units (`kit/tools/annotate/faceShapes.js`: a mark on one
@@ -609,8 +609,8 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   places its parts: double-click one in the design tree (Open Part) and the part opens on its own,
   in a tab of its own when the assembly is a project file's tab (`studio/open-file`, a plugin view's
   request to open a file beside the thread). The engine is
-  `text-to-cad/packages/cadgen/src/cadgen/edit/` (a tracer that runs the script with every number
-  remembering where it is written, in a process of its own, behind the viewer's `/__cad/edit/*`
+  `text-to-cad/packages/cad/src/cad/edit/` (a tracer that runs the script with every number
+  remembering where it is written, in a process of its own, behind the viewer's `/api/v1/local/edit/*`
   routes, and `commands.py`, which matches a selection to the part by its geometry and writes a
   command's line); the frame is `text-to-cad/packages/ui/src/renderers/xbf/edit/`. The CAD skill's
   `references/edit-mode.md` tells the agent how to write parts that edit well.
@@ -705,7 +705,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   boards and studies, a check and then a way to make each, from the same jobs the Toolbox has;
   a pick goes into the composer to edit before sending (`starterJobs.ts`).
 - **A checkout's working copy.** `TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs the checkout's own
-  cadgen instead of the release, so branch work (FEA, CAM, KiCad) reaches Studio: the launcher
+  CAD tools instead of the release, so branch work (FEA, CAM, KiCad) reaches Studio: the launcher
   builds the development plugin with the checkout's `scripts/install/dev_install.py`
   (`scripts/studio-dev-plugin.py`) and keeps its state in `~/.text-to-cad-studio-dev`. The
   checkout needs its `.venv` (with the `fea` extra), `npm ci` and `scripts/bundle/bundle.sh`.

@@ -17,7 +17,7 @@ import { projectCover } from "./useProjectCover";
 const PLATE = "0b9c3c1e-5d0a-5f8e-9a43-2f1d6c7b8a90";
 const RIG = "6f1d0a2b-3c4d-5e6f-8a9b-0c1d2e3f4a5b";
 
-/** `/__cad/models?root=/p/bracket` as the CAD service answers it (`cadgen/edit/models.py`). */
+/** `/api/v1/local/models?root=/p/bracket` as the CAD service answers it (`cad_server/viewer/folder_models.py`). */
 const reply = {
   models: [
     { id: RIG, name: "rig", script: "assemblies/rig.py", kind: "assembly", updated: 1_761_555_700 },

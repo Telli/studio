@@ -12,17 +12,17 @@
  *   Library's Examples section, which copies them in the desktop app (`T3CODE_SAMPLES_DIR`);
  * - keeps its state in `~/.text-to-cad-studio`, never in T3 Code's own home.
  *
- * - edits parts by hand in text-to-cad's own viewer (its edit mode, `cadgen/edit`);
+ * - edits parts by hand in text-to-cad's own viewer (its edit mode, `cad/edit`);
  *   Studio's own plugins (`studio-plugins/`) are offered beside it: SolidCraft,
  *   only with STUDIO_SOLIDCRAFT=1 (STUDIO_SOLIDCRAFT_APP=1 bridges it to the app);
  *
- * Its cadgen keeps its own state, cache, engine and port in the checkout's home
- * (`~/.text-to-cad-studio-dev`, `checkoutEngineEnv`), with its `cadgen` command first on the agents'
- * PATH, so neither a cadgen of the user's own nor the packaged app's ever meets it.
+ * Its CAD server keeps its own state, cache, engine and port in the checkout's home
+ * (`~/.text-to-cad-studio-dev`, `checkoutEngineEnv`), with its `cad` command first on the agents'
+ * PATH, so neither a CAD server of the user's own nor the packaged app's ever meets it.
  *
  * TEXT_TO_CAD_ROOT points at another checkout; TEXT_TO_CAD_STUDIO_HOME moves the state;
  * TEXT_TO_CAD_STUDIO_ENGINE_PORT moves its engine's port (3346).
- * TEXT_TO_CAD_DEV=1 runs the checkout's working copy instead of the released cadgen: its
+ * TEXT_TO_CAD_DEV=1 runs the checkout's working copy instead of the released CAD tools: its
  * development plugin (scripts/studio-dev-plugin.py), with state of its own in
  * `~/.text-to-cad-studio-dev`, so it never mixes with a release's installs.
  */
@@ -54,7 +54,7 @@ const dev = process.env.TEXT_TO_CAD_DEV?.trim() === "1";
 const home =
   process.env.TEXT_TO_CAD_STUDIO_HOME?.trim() ||
   NodePath.join(NodeOS.homedir(), dev ? ".text-to-cad-studio-dev" : ".text-to-cad-studio");
-// Studio's own cadgen state, engine and `cadgen` command: the dev plugin registers its
+// Studio's own CAD state, engine and `cad` command: the dev plugin registers its
 // installation there, and the app and its agents run on it. Every run from a checkout keeps them in
 // the checkout's home on the checkout's port (whatever its T3 state's home), so it never shares an
 // engine with the packaged app.
@@ -63,18 +63,18 @@ const home =
 const enginePort = process.env.TEXT_TO_CAD_STUDIO_ENGINE_PORT?.trim();
 const engineEnv = {
   ...checkoutEngineEnv(process.env, NodeOS.homedir()),
-  ...(enginePort ? { CADGEN_ENGINE_PORT: enginePort } : {}),
+  ...(enginePort ? { CAD_ENGINE_PORT: enginePort } : {}),
 };
-const cadgenEnv = {
+const cadEnv = {
   ...process.env,
   ...engineEnv,
-  PATH: studioPath(engineEnv.CADGEN_LAUNCHER_DIR, process.env.PATH),
+  PATH: studioPath(engineEnv.CAD_LAUNCHER_DIR, process.env.PATH),
 };
 // The checkout's development plugin: its skills and server on its .venv, its page built fresh.
 let marketplace = checkout;
 if (dev) {
   process.stderr.write(`Building the development plugin from ${checkout}...\n`);
-  // The checkout's own Python (its .venv, as new as cadgen needs), else the system's, which on a
+  // The checkout's own Python (its .venv, as new as the CAD tools need), else the system's, which on a
   // Mac with only Apple's command line tools is too old.
   const venvPython = NodePath.join(checkout, ".venv", "bin", "python");
   const built = NodeChildProcess.spawnSync(
@@ -82,7 +82,7 @@ if (dev) {
     [NodePath.join(appRoot, "scripts", "studio-dev-plugin.py"), checkout],
     {
       cwd: appRoot,
-      env: cadgenEnv,
+      env: cadEnv,
       stdio: ["ignore", "pipe", "inherit"],
       encoding: "utf8",
       maxBuffer: 64 * 1024 * 1024,
@@ -170,7 +170,7 @@ const run = NodeChildProcess.spawnSync(
     cwd: appRoot,
     stdio: "inherit",
     env: {
-      ...cadgenEnv,
+      ...cadEnv,
       T3CODE_PLUGIN_MARKETPLACE: markets.join(NodePath.delimiter),
       T3CODE_DEFAULT_PLUGINS: defaults.join(","),
       VITE_APP_BASE_NAME: brand.name,

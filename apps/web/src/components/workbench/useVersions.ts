@@ -6,7 +6,7 @@ import { create } from "zustand";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { readTunnelJson } from "./partContext";
+import { cadHttpArguments, readTunnelJson } from "./partContext";
 import type { Comparison, PartVersion } from "./versions";
 
 /** A POST to Studio's CAD service, answered with the route's JSON (null when it could not be asked). */
@@ -15,14 +15,8 @@ export type CadPost = (path: string, body: unknown) => Promise<unknown>;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const base64 = (text: string) => {
-  let binary = "";
-  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
-  return btoa(binary);
-};
-
 /**
- * Studio's CAD service (text-to-cad's viewer server, `cadgen/viewer/http_app.py`), asked through the
+ * Studio's CAD service (text-to-cad's viewer server, `cad_server/viewer/http_app.py`), asked through the
  * CAD plugin's `cad_http` tool for the thread's own server, as the CAD view asks it. Null while the
  * plugins load, when none opens STEP files, or with no thread.
  */
@@ -66,7 +60,7 @@ export function useEnvironmentCadGet(environmentId: EnvironmentId | null): CadGe
           pluginId,
           server,
           method: "tools/call",
-          params: { name: "cad_http", arguments: { method: "GET", url } },
+          params: { name: "cad_http", arguments: cadHttpArguments(url) },
         },
       });
       return result._tag === "Success"
@@ -101,15 +95,7 @@ function useCadPost(
           pluginId,
           server,
           method: "tools/call",
-          params: {
-            name: "cad_http",
-            arguments: {
-              method: "POST",
-              url: path,
-              headers: { "content-type": "application/json", "x-cadgen-viewer": "1" },
-              body: base64(JSON.stringify(body)),
-            },
-          },
+          params: { name: "cad_http", arguments: cadHttpArguments(path, body) },
         },
       });
       return result._tag === "Success"
@@ -147,7 +133,7 @@ export function usePartVersions(input: {
   useEffect(() => {
     if (post === null || path === null) return;
     let cancelled = false;
-    void post("/__cad/versions", { folder, path }).then((reply) => {
+    void post("/api/v1/local/versions", { folder, path }).then((reply) => {
       if (cancelled) return;
       setState(
         isRecord(reply) && reply.ok === true && Array.isArray(reply.versions)
@@ -175,7 +161,7 @@ export async function restoreVersion(
   | { readonly restored: ReadonlyArray<string>; readonly kept: string | null }
   | { readonly error: string }
 > {
-  const reply = await post("/__cad/versions/restore", input);
+  const reply = await post("/api/v1/local/versions/restore", input);
   if (isRecord(reply) && reply.ok === true && Array.isArray(reply.restored)) {
     return {
       restored: reply.restored.filter((path): path is string => typeof path === "string"),
@@ -214,7 +200,7 @@ export function useComparison(input: {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const ask = (retry: boolean) =>
-      post("/__cad/versions/compare", {
+      post("/api/v1/local/versions/compare", {
         folder,
         path,
         older,

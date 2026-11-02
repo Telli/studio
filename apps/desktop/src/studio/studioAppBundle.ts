@@ -21,13 +21,13 @@ import { studioEngineEnv, studioPath } from "./studioEngine.ts";
  *   `T3CODE_DEFAULT_PLUGINS`).
  * - The finished sample projects, where the bundle has them (`T3CODE_SAMPLES_DIR`), which an
  *   example's Make a copy to edit copies into a new project.
- * - The FEA solver, CalculiX, where the bundle has it (`CADGEN_CCX`), so a strength check runs
+ * - The FEA solver, CalculiX, where the bundle has it (`CAD_CCX`), so a strength check runs
  *   with nothing installed.
- * - The CAD tools' own cadgen state, cache, engine and port under the home (`studioEngineEnv`),
- *   with their `cadgen` command first on PATH, so the agents Studio runs use Studio's cadgen 0.8
- *   engine and a user's own cadgen never meets it. The bundled installation is registered there
- *   and that command written on each start (cadgen's `installations.startup`, as its CAD server
- *   does when it starts), in the background, so a skill's `cadgen +<version>` works before any
+ * - The CAD tools' own state, cache, server and port under the home (`studioEngineEnv`), with
+ *   their `cad` command first on PATH, so the agents Studio runs use Studio's CAD server and a
+ *   user's own never meets it. The bundled installation is registered there and that command
+ *   written on each start (the server's `installations.startup`, as an agent app's `cad-mcp`
+ *   runs it on a device with none), in the background, so a skill's `cad run` works before any
  *   CAD view has opened.
  *
  * Anything already set in the environment wins, so a test can point the app elsewhere. Without a
@@ -62,7 +62,7 @@ export function applyStudioAppBundle(input: {
   for (const [name, value] of Object.entries(studioEngineEnv(home, { dev: false }))) {
     setDefault(env, name, value);
   }
-  env.PATH = studioPath(env.CADGEN_LAUNCHER_DIR!, env.PATH);
+  env.PATH = studioPath(env.CAD_LAUNCHER_DIR!, env.PATH);
   const samples = NodePath.join(bundle, "sample");
   if (NodeFS.existsSync(samples)) setDefault(env, "T3CODE_SAMPLES_DIR", samples);
   // conda-forge's layout: `bin/ccx` on a Mac, `Library\bin\ccx.exe` on Windows.
@@ -70,7 +70,7 @@ export function applyStudioAppBundle(input: {
     platform === "win32"
       ? NodePath.join(bundle, "calculix", "Library", "bin", "ccx.exe")
       : NodePath.join(bundle, "calculix", "bin", "ccx");
-  if (NodeFS.existsSync(ccx)) setDefault(env, "CADGEN_CCX", ccx);
+  if (NodeFS.existsSync(ccx)) setDefault(env, "CAD_CCX", ccx);
   try {
     trustBundledTools(bundle);
     // A folder of Studio's own name: T3 Code's plugin store keys a marketplace by its folder name.
@@ -78,10 +78,10 @@ export function applyStudioAppBundle(input: {
     writeFilledCopy(NodePath.join(bundle, "marketplace"), marketplace, {
       "@@STUDIO_PYTHON@@": forPlugin(python),
       "@@STUDIO_PAGE@@": forPlugin(NodePath.join(bundle, "page")),
-      "@@STUDIO_BIN@@": forPlugin(env.CADGEN_LAUNCHER_DIR!),
+      "@@STUDIO_BIN@@": forPlugin(env.CAD_LAUNCHER_DIR!),
     });
     setDefault(env, "T3CODE_PLUGIN_MARKETPLACE", marketplace);
-    registerBundledCadgen(python, env);
+    registerBundledServer(python, env);
   } catch (error) {
     // Studio still opens; it just has no CAD tools this time, and says why in its log.
     // @effect-diagnostics-next-line globalConsole:off - Runs before any Effect logger exists.
@@ -97,16 +97,16 @@ interface StudioSettings {
 }
 
 /**
- * Registers the bundled cadgen in Studio's own cadgen state and writes its `cadgen` command, by
+ * Registers the bundled CAD server in Studio's own CAD state and writes its `cad` command, by
  * the bundled Python, in the background: a registration never holds up the app or fails it.
  */
-function registerBundledCadgen(python: string, env: Record<string, string | undefined>): void {
+function registerBundledServer(python: string, env: Record<string, string | undefined>): void {
   if (!NodeFS.existsSync(python)) return;
-  const child = NodeChildProcess.spawn(
-    python,
-    ["-c", "from cadgen._internal import installations; installations.startup()"],
-    { env: { ...env }, stdio: "ignore", detached: true },
-  );
+  const child = NodeChildProcess.spawn(python, ["-P", "-m", "cad_server._internal.installations"], {
+    env: { ...env },
+    stdio: "ignore",
+    detached: true,
+  });
   child.on("error", () => undefined);
   child.unref();
 }

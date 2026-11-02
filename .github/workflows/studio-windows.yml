@@ -110,9 +110,8 @@ jobs:
         working-directory: text-to-cad
         run: |
           set -euo pipefail
-          uv venv --python 3.13 .venv
+          uv venv --python 3.14 .venv
           uv pip install --python .venv/Scripts/python.exe -r requirements-dev.txt
-          uv pip install --python .venv/Scripts/python.exe -e "./packages/cadgen[fea]"
           npm ci
           npm run build:packages
 
@@ -147,7 +146,7 @@ jobs:
           Write-Host "$($rest.Count) of them outside the CAD tools, by folder:"
           $rest | Group-Object { $_.DirectoryName.Substring($app.Length) } | Sort-Object Count -Descending |
             Select-Object -First 15 | ForEach-Object { Write-Host "  $($_.Count) in .$($_.Name)" }
-          & (Join-Path $app "resources\studio\python\python.exe") -c "import cadgen.mcp.server, OCP, netgen; print('The CAD tools import in the installed app.')"
+          & (Join-Path $app "resources\studio\python\python.exe") -c "import cad_mcp.shim, cad_server.cli, OCP, netgen; print('The CAD tools import in the installed app.')"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Keep the installer

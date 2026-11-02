@@ -49,19 +49,19 @@ function resources(prefix?: string): string {
     NodePath.join(bundle, "marketplace", "plugins", "text-to-cad", "codex.mcp.json"),
     JSON.stringify({
       mcpServers: {
-        cad: { command: "@@STUDIO_PYTHON@@", env: { CADGEN_MCP_APP_DIR: "@@STUDIO_PAGE@@" } },
+        cad: { command: "@@STUDIO_PYTHON@@", env: { CAD_MCP_APP_DIR: "@@STUDIO_PAGE@@" } },
       },
     }),
   );
   write(
     NodePath.join(bundle, "marketplace", "plugins", "text-to-cad", "skills", "cad", "SKILL.md"),
-    "Run `@@STUDIO_PYTHON@@ -m cadgen.cli snapshot part.step part.png`.\n",
+    "Run `@@STUDIO_PYTHON@@ -m cad_server.cli snapshot part.step part.png`.\n",
   );
   return dir;
 }
 
 describe("studioEngineEnv", () => {
-  it("gives Studio's cadgen its own folders under its home, and a port of its own", () => {
+  it("gives Studio's CAD server its own folders under its home, and a port of its own", () => {
     const homes = ["/Users/a/.text-to-cad-studio", "/Users/a/.text-to-cad-studio-dev"];
     const release = studioEngineEnv(homes[0]!, { dev: false });
     const dev = studioEngineEnv(homes[1]!, { dev: true });
@@ -69,19 +69,19 @@ describe("studioEngineEnv", () => {
       [release, homes[0]!],
       [dev, homes[1]!],
     ] as const) {
-      const folders = [env.CADGEN_STATE_DIR, env.CADGEN_CACHE_DIR, env.CADGEN_ENGINE_DIR];
+      const folders = [env.CAD_STATE_DIR, env.CAD_CACHE_DIR, env.CAD_ENGINE_DIR];
       expect(new Set(folders).size).toBe(3);
-      for (const folder of [...folders, env.CADGEN_LAUNCHER_DIR]) {
+      for (const folder of [...folders, env.CAD_LAUNCHER_DIR]) {
         expect(folder.startsWith(`${home}/`)).toBe(true);
       }
     }
-    // Never a user's cadgen's 3245, nor a port it rolls to from there (64 past it); a checkout's
+    // Never a user's CAD server's 3245, nor a port it rolls to from there (64 past it); a checkout's
     // Studio never shares the app's.
-    for (const port of [Number(release.CADGEN_ENGINE_PORT), Number(dev.CADGEN_ENGINE_PORT)]) {
+    for (const port of [Number(release.CAD_ENGINE_PORT), Number(dev.CAD_ENGINE_PORT)]) {
       expect(port < 3245 || port > 3245 + 64).toBe(true);
     }
-    expect(dev.CADGEN_ENGINE_PORT).toBe(String(STUDIO_DEV_ENGINE_PORT));
-    expect(release.CADGEN_ENGINE_PORT).not.toBe(dev.CADGEN_ENGINE_PORT);
+    expect(dev.CAD_ENGINE_PORT).toBe(String(STUDIO_DEV_ENGINE_PORT));
+    expect(release.CAD_ENGINE_PORT).not.toBe(dev.CAD_ENGINE_PORT);
   });
 });
 
@@ -92,11 +92,9 @@ describe("checkoutEngineEnv", () => {
         studioEngineEnv("/Users/a/.text-to-cad-studio-dev", { dev: true }),
       );
     }
-    expect(checkoutEngineEnv({}, "/Users/a").CADGEN_ENGINE_PORT).not.toBe(
-      String(STUDIO_ENGINE_PORT),
-    );
+    expect(checkoutEngineEnv({}, "/Users/a").CAD_ENGINE_PORT).not.toBe(String(STUDIO_ENGINE_PORT));
     expect(checkoutEngineEnv({ TEXT_TO_CAD_STUDIO_HOME: "/elsewhere" }, "/Users/a")).toMatchObject({
-      CADGEN_STATE_DIR: "/elsewhere/cadgen/state",
+      CAD_STATE_DIR: "/elsewhere/cad/state",
     });
   });
 });
@@ -117,21 +115,21 @@ describe("applyStudioAppBundle", () => {
       T3CODE_DEFAULT_PLUGINS: "text-to-cad",
       T3CODE_PLUGIN_MARKETPLACE: marketplace,
     });
-    // Its cadgen keeps its state, cache, engine and port apart from a user's own cadgen.
-    const cadgen = NodePath.join(studioHome, "cadgen");
+    // Its CAD server keeps its state, cache, engine and port apart from a user's own.
+    const cad = NodePath.join(studioHome, "cad");
     expect(env).toMatchObject({
-      CADGEN_STATE_DIR: NodePath.join(cadgen, "state"),
-      CADGEN_CACHE_DIR: NodePath.join(cadgen, "cache"),
-      CADGEN_ENGINE_DIR: NodePath.join(cadgen, "engine"),
-      CADGEN_ENGINE_PORT: String(STUDIO_ENGINE_PORT),
-      CADGEN_LAUNCHER_DIR: NodePath.join(studioHome, "bin"),
+      CAD_STATE_DIR: NodePath.join(cad, "state"),
+      CAD_CACHE_DIR: NodePath.join(cad, "cache"),
+      CAD_ENGINE_DIR: NodePath.join(cad, "engine"),
+      CAD_ENGINE_PORT: String(STUDIO_ENGINE_PORT),
+      CAD_LAUNCHER_DIR: NodePath.join(studioHome, "bin"),
     });
     expect(env.PATH).toBe(NodePath.join(studioHome, "bin"));
     const skill = NodeFS.readFileSync(
       NodePath.join(marketplace, "plugins", "text-to-cad", "skills", "cad", "SKILL.md"),
       "utf8",
     );
-    expect(skill).toBe(`Run \`${python} -m cadgen.cli snapshot part.step part.png\`.\n`);
+    expect(skill).toBe(`Run \`${python} -m cad_server.cli snapshot part.step part.png\`.\n`);
     const config = JSON.parse(
       NodeFS.readFileSync(
         NodePath.join(marketplace, "plugins", "text-to-cad", "codex.mcp.json"),
@@ -139,7 +137,7 @@ describe("applyStudioAppBundle", () => {
       ),
     );
     expect(config.mcpServers.cad.command).toBe(python);
-    expect(config.mcpServers.cad.env.CADGEN_MCP_APP_DIR).toBe(NodePath.join(res, "studio", "page"));
+    expect(config.mcpServers.cad.env.CAD_MCP_APP_DIR).toBe(NodePath.join(res, "studio", "page"));
   });
 
   it("runs Windows's Python, quoted in the skills where its folder has a space", () => {
@@ -156,7 +154,7 @@ describe("applyStudioAppBundle", () => {
     );
     const python = NodePath.join(res, "studio", "python", "python.exe");
     expect(NodeFS.readFileSync(NodePath.join(plugin, "skills", "cad", "SKILL.md"), "utf8")).toBe(
-      `Run \`"${python}" -m cadgen.cli snapshot part.step part.png\`.\n`,
+      `Run \`"${python}" -m cad_server.cli snapshot part.step part.png\`.\n`,
     );
     const config = JSON.parse(NodeFS.readFileSync(NodePath.join(plugin, "codex.mcp.json"), "utf8"));
     expect(config.mcpServers.cad.command).toBe(python);
@@ -181,17 +179,17 @@ describe("applyStudioAppBundle", () => {
     expect(env.T3CODE_SAMPLES_DIR).toBeUndefined();
   });
 
-  it("points cadgen at the bundled FEA solver when the bundle has one", () => {
+  it("points the CAD tools at the bundled FEA solver when the bundle has one", () => {
     const res = resources();
     const ccx = NodePath.join(res, "studio", "calculix", "bin", "ccx");
     write(ccx, "");
     const env: Record<string, string | undefined> = {};
     applyStudioAppBundle({ resourcesPath: res, homeDirectory: tempDir(), env, platform: "darwin" });
-    expect(env.CADGEN_CCX).toBe(ccx);
+    expect(env.CAD_CCX).toBe(ccx);
 
     const none: Record<string, string | undefined> = {};
     applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: tempDir(), env: none });
-    expect(none.CADGEN_CCX).toBeUndefined();
+    expect(none.CAD_CCX).toBeUndefined();
   });
 
   it("leaves what the environment already says", () => {

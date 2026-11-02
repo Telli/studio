@@ -1,6 +1,6 @@
 /**
  * text-to-cad's app capability (its MCP server's page protocol 9). The CAD server's `cad_http`
- * reaches the viewer's routes (`/__cad/catalog`, `/__cad/recents`, edit mode's, versions', sizes')
+ * reaches the viewer's routes (`/api/v1/documents`, `/api/v1/local/…`: edit mode's, versions', sizes')
  * only with the capability its tool results deliver in `_meta`, UI-only: an agent calling
  * `cad_http` reaches its telemetry route and nothing else. A CAD view reads it from its launch and
  * sends it itself. Studio's own UI asks the same routes with no view in front (a part's facts, a
@@ -13,7 +13,7 @@ import { isRecord } from "@t3tools/plugins";
 /** Where a tool result carries the capability: `_meta`, which a host never shows the model. */
 export const CAPABILITY_META = "dev.texttocad/httpToken";
 /** The header a `cad_http` call carries it in. */
-export const CAPABILITY_HEADER = "x-cadgen-app";
+export const CAPABILITY_HEADER = "x-cad-app";
 /** The route tool the capability is for. */
 export const HTTP_TOOL = "cad_http";
 /** The app-only tool whose launch delivers one with nothing shown: the CAD home's. */

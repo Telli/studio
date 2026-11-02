@@ -2,7 +2,7 @@
 # Sets Studio up on a Mac from this checkout. Run it once after cloning, and again after pulling
 # changes: each step adds only what is missing or changed. It fetches the text-to-cad submodule at
 # its pin, installs the app's packages, the CAD
-# plugin's Python environment (text-to-cad/.venv) and its built pieces; cadgen 0.8 draws part
+# plugin's Python environment (text-to-cad/.venv) and its built pieces; the CAD server draws part
 # pictures in that Python, with no browser. It asks for nothing and changes no shell settings. Then
 # scripts/run-studio.sh starts Studio.
 set -euo pipefail
@@ -52,10 +52,12 @@ step "Downloading the desktop app's runtime (Electron)"
 
 step "Setting up the CAD plugin's Python"
 cd "$CAD"
-# 3.13: the Python Studio's CAD plugin runs on day to day, with its FEA packages.
-[ -x .venv/bin/python ] || uv venv --python 3.13 .venv
+# 3.14, which the CAD packages need: a .venv made on an older Python is made again. Its
+# requirements are the library with its kernel (FEA's netgen too), the server and cad-mcp.
+if ! { [ -x .venv/bin/python ] && .venv/bin/python -c 'import sys; sys.exit(sys.version_info < (3, 14))'; }; then
+  uv venv --clear --python 3.14 .venv
+fi
 uv pip install --python .venv/bin/python -r requirements-dev.txt
-uv pip install --python .venv/bin/python -e "./packages/cadgen[fea]"
 
 step "Building the CAD plugin's viewer and runtime"
 npm ci

@@ -61,10 +61,10 @@ describe("a new part's file", () => {
 describe("the starter part", () => {
   const script = starterScript("part");
 
-  it("is a cadgen 0.8 model: build123d itself, the model decorator on one function, run when the script is", () => {
+  it("is a CAD model: build123d itself, the model decorator on one function, run when the script is", () => {
     expect(script).toContain("import build123d as bd");
-    expect(script).toContain("from cadgen import model");
-    expect(script).not.toContain("from cadgen import build123d");
+    expect(script).toContain("from cad import model");
+    expect(script).not.toContain("from cad import build123d");
     expect(script).toMatch(/^@model\ndef part\(\):$/m);
     expect(script).toMatch(/^if __name__ == "__main__":\n {4}part\(\)$/m);
   });
@@ -111,9 +111,9 @@ describe("a new part's first build", () => {
     ]);
     expect(await run(cad.post)).toEqual<BuiltPart>({ id });
     expect(cad.asked).toEqual([
-      { path: "/__cad/edit/change", body: { file: "/p/parts/part.py", build: true } },
-      { path: "/__cad/edit/state", body: { file: "/p/parts/part.py", probe: true } },
-      { path: "/__cad/edit/state", body: { file: "/p/parts/part.py", probe: true } },
+      { path: "/api/v1/local/edit/change", body: { file: "/p/parts/part.py", build: true } },
+      { path: "/api/v1/local/edit/state", body: { file: "/p/parts/part.py", probe: true } },
+      { path: "/api/v1/local/edit/state", body: { file: "/p/parts/part.py", probe: true } },
     ]);
   });
 
@@ -150,7 +150,7 @@ describe("a new part's first build", () => {
       NodePath.join(
         import.meta.dirname,
         ...Array.from({ length: 5 }, () => ".."),
-        "text-to-cad/packages/cadgen/src/cadgen/edit/service.py",
+        "text-to-cad/packages/cad/src/cad/edit/service.py",
       ),
       "utf8",
     );
@@ -173,7 +173,7 @@ describe("a new part's first build", () => {
     });
     expect(built).toEqual({ error: "The part took too long to build." });
     // Asked every 100 seconds while the limit had not passed (0 to 900), then once past its 930.
-    expect(cad.asked.filter((ask) => ask.path === "/__cad/edit/state")).toHaveLength(
+    expect(cad.asked.filter((ask) => ask.path === "/api/v1/local/edit/state")).toHaveLength(
       Math.ceil(PART_BUILD_MS / 100_000) + 1,
     );
   });

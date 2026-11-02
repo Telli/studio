@@ -130,4 +130,27 @@ describe("the skills' tools and exports in an engineer's words", () => {
     expect(engineeringStepLabel("python scripts/helpers/fit.py").done).toBe("Worked on the design");
     expect(engineeringStepLabel("cadgen tidy").done).toBe("Worked on the design");
   });
+
+  it("reads the cad command line as the engine's verbs, in any spelling", () => {
+    expect(engineeringStepLabel("cad run parts/l_bracket.py")).toEqual({
+      done: "Built the L bracket",
+      doing: "Building the L bracket",
+    });
+    expect(engineeringStepLabel("cad export parts/clip.xbf out/clip.stl out/clip.3mf").done).toBe(
+      "Exported the clip as STL",
+    );
+    expect(engineeringStepLabel("cad export clip.step").done).toBe("Exported the clip");
+    expect(engineeringStepLabel("cad inspect parts/l_bracket.step").done).toBe(
+      "Read the L bracket",
+    );
+    expect(engineeringStepLabel("cad snapshot parts/l_bracket.py --view iso").done).toBe(
+      "Took a picture of the model",
+    );
+    expect(
+      engineeringStepLabel(".venv/bin/python -m cad_server.cli fea solve l_bracket.step").done,
+    ).toBe("FEA study on the L bracket");
+    expect(engineeringStepLabel("/Users/amy/.local/bin/cad tidy").done).toBe(
+      "Worked on the design",
+    );
+  });
 });

@@ -41,7 +41,7 @@ export function useProjectSizes(input: {
     let cancelled = false;
     void Promise.all(
       key.split("\n").map((folder) =>
-        post("/__cad/sizes", { folder }).then((reply): FolderSizes => {
+        post("/api/v1/local/sizes", { folder }).then((reply): FolderSizes => {
           const read = readSizes(reply);
           return "error" in read
             ? { folder, sizes: null, error: read.error }
@@ -74,7 +74,7 @@ export async function changeSize(
     readonly text: string;
   },
 ): Promise<{ readonly parts: ReadonlyArray<string> } | { readonly error: string }> {
-  const reply = await post("/__cad/sizes/set", input);
+  const reply = await post("/api/v1/local/sizes/set", input);
   if (isRecord(reply) && reply.ok === true) {
     return {
       parts: Array.isArray(reply.parts)
@@ -95,7 +95,7 @@ export async function addSharedSize(
     readonly note: string;
   },
 ): Promise<{ readonly file: string } | { readonly error: string }> {
-  const reply = await post("/__cad/sizes/add", input);
+  const reply = await post("/api/v1/local/sizes/add", input);
   return isRecord(reply) && reply.ok === true && typeof reply.file === "string"
     ? { file: reply.file }
     : { error: failure(reply) };

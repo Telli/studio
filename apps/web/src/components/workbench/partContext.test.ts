@@ -2,13 +2,15 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   buildPollUrl,
+  cadHttpArguments,
   describePart,
   documentOf,
   partBuild,
   readBuild,
-  readDocumentId,
   readDocumentKind,
   readDocumentName,
+  readOpenedDocument,
+  documentApi,
   readMaterials,
   readTunnelJson,
   readUpdated,
@@ -129,9 +131,11 @@ describe("the engine's document", () => {
     expect(documentOf("/work/bracket.STEP")).toEqual({ file: "/work/bracket.STEP" });
     expect(documentOf("/work/XBF/plate.xbf")).toEqual({ file: "/work/XBF/plate.xbf" });
     expect(documentOf("/work/mesh.stl")).toBeNull();
-    expect(readDocumentId({ doc: MODEL, url: `/__cad/api/doc/${MODEL}` })).toBe(MODEL);
-    // Still being read (202): no id yet.
-    expect(readDocumentId({ state: "reading", retryMs: 250 })).toBeNull();
+    const opened = { id: "f-1", kind: "step", api: "/api/v1/documents/step/f-1" };
+    expect(readOpenedDocument(opened)).toEqual({ id: "f-1", kind: "step" });
+    expect(documentApi({ id: "f-1", kind: "step" })).toBe("/api/v1/documents/step/f-1");
+    // Still being read (202): no document yet, though its id is known.
+    expect(readOpenedDocument({ ...opened, state: "reading", retryMs: 250 })).toBeNull();
   });
 
   const structure = (children: number, materials: ReadonlyArray<string | null>) => ({
@@ -205,9 +209,9 @@ describe("readBuild", () => {
 
 describe("a shown model's build, as it happens", () => {
   it("asks at once first, then for the next move past the version and progress last heard", () => {
-    expect(buildPollUrl(MODEL, null)).toBe(`/__cad/api/doc/${MODEL}/version?wait=20`);
+    expect(buildPollUrl(MODEL, null)).toBe(`/api/v1/documents/${MODEL}/version?wait=20`);
     expect(buildPollUrl(MODEL, { version: "3-1", building: null, failed: null, progress: 4 })).toBe(
-      `/__cad/api/doc/${MODEL}/version?wait=20&after=3-1&progress=4`,
+      `/api/v1/documents/${MODEL}/version?wait=20&after=3-1&progress=4`,
     );
   });
 
@@ -240,7 +244,7 @@ describe("a shown model's build, as it happens", () => {
 describe("readUpdated", () => {
   it("finds the document in Recents, a model by its id, and converts seconds to milliseconds", () => {
     const recents = {
-      recents: [
+      documents: [
         { path: "/work/bracket.step", kind: "file", updated: 1_700_000_000 },
         { path: MODEL, id: MODEL, kind: "model", updated: 1_700_000_100.5 },
       ],
@@ -249,7 +253,9 @@ describe("readUpdated", () => {
     expect(readUpdated(recents, MODEL)).toBe(1_700_000_100_500);
     expect(readUpdated(recents, "/work/other.step")).toBeNull();
     // cadgen 0.7's `modified` is no time cadgen 0.8 gives.
-    expect(readUpdated({ recents: [{ path: "/w/a.step", modified: 5 }] }, "/w/a.step")).toBeNull();
+    expect(
+      readUpdated({ documents: [{ path: "/w/a.step", modified: 5 }] }, "/w/a.step"),
+    ).toBeNull();
   });
 });
 
@@ -261,10 +267,31 @@ describe("readTunnelJson", () => {
     });
   });
 
-  it("is null for a route that did not answer 200", async () => {
+  it("is null for a route that did not answer 200, or 201 for a document opened", async () => {
     expect(
       await readTunnelJson({ structuredContent: { status: 404, headers: {}, body: "" } }),
     ).toBeNull();
+    const opened = { id: "f-1", kind: "step" };
+    const answered = async (status: number) => {
+      const reply = await tunnel(opened);
+      return readTunnelJson({ structuredContent: { ...reply.structuredContent, status } });
+    };
+    expect(await answered(201)).toEqual(opened);
+    // Still reading: asked again later, never read as the document.
+    expect(await answered(202)).toBeNull();
+  });
+});
+
+describe("cadHttpArguments", () => {
+  it("is a GET, or a POST of JSON carrying the viewer's guard", () => {
+    expect(cadHttpArguments("/api/v1/documents")).toEqual({
+      method: "GET",
+      url: "/api/v1/documents",
+    });
+    const post = cadHttpArguments("/api/v1/documents", { path: "/w/é.step" });
+    expect(post.headers).toEqual({ "content-type": "application/json", "x-cad-viewer": "1" });
+    const bytes = Uint8Array.from(atob(post.body ?? ""), (char) => char.charCodeAt(0));
+    expect(JSON.parse(new TextDecoder().decode(bytes))).toEqual({ path: "/w/é.step" });
   });
 });
 

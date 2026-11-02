@@ -43,14 +43,14 @@ describe("plugins: Studio's app capability", () => {
               );
           // The first capability the home launch gave was refused as stale: the next one is asked
           // for, and kept for the requests after.
-          assert.deepEqual(yield* route({}), { "x-cadgen-app": "token-2" });
+          assert.deepEqual(yield* route({}), { "x-cad-app": "token-2" });
           assert.deepEqual(yield* route({ accept: "application/json" }), {
             accept: "application/json",
-            "x-cadgen-app": "token-2",
+            "x-cad-app": "token-2",
           });
           // A view's own request carries its own, untouched.
-          assert.deepEqual(yield* route({ "x-cadgen-app": "the view's" }), {
-            "x-cadgen-app": "the view's",
+          assert.deepEqual(yield* route({ "x-cad-app": "the view's" }), {
+            "x-cad-app": "the view's",
           });
           // Reads that start together in a scope with none known (the environment's own server)
           // ask its home launch once, and once again together when that one is refused.
@@ -58,9 +58,9 @@ describe("plugins: Studio's app capability", () => {
             concurrency: "unbounded",
           });
           assert.deepEqual(together, [
-            { "x-cadgen-app": "token-2" },
-            { "x-cadgen-app": "token-2" },
-            { "x-cadgen-app": "token-2" },
+            { "x-cad-app": "token-2" },
+            { "x-cad-app": "token-2" },
+            { "x-cad-app": "token-2" },
           ]);
           // An agent never sees a launch's capability: it is the UI's alone.
           const called = (yield* plugins.callAgentTool({
