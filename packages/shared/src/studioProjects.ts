@@ -193,7 +193,7 @@ function startingAProject(record: string | null): string {
     ...(record === null
       ? [readme]
       : [
-          `- Give it a short name of two or three words (for example "Lanyard clip") as \`name\` in \`${record}\`.`,
+          `- Give it a short name of two or three words (for example "Lanyard clip") as \`name\` in \`${record}\`, and one plain sentence on what it is (for example "A clip that holds a badge on a lanyard") as \`brief.purpose\`, never the description's own words.`,
           "- In that file, set the setup the description says or clearly implies (a printer named means 3D printing), and commit the file in its folder with git.",
           readme,
         ]),

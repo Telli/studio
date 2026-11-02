@@ -168,7 +168,9 @@ export function useStartProject(environmentId: EnvironmentId) {
           kind: kindOf("part"),
           units,
           material: "",
-          purpose: description,
+          // The description goes with the first message, where the agent reads it. It is no
+          // purpose: written to run a chat, it reads badly as "What it is", and the agent writes one.
+          purpose: "",
           folders: [],
           onFolder: (folder) => prepare(folder, true),
         });

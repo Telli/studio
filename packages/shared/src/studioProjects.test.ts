@@ -68,6 +68,8 @@ describe("studio projects", () => {
     expect(context).toContain("Studio shows every section.");
     expect(context).toContain("## Starting a project");
     expect(context).toContain("as `name` in `/studio/rover/project.json`");
+    // What the Overview's "What it is" shows until the README says: a sentence, not the request.
+    expect(context).toContain("as `brief.purpose`, never the description's own words");
     expect(context).toContain("make the first draft in the same turn, without asking first");
     expect(context).toContain("list what you assumed");
     expect(context).not.toContain("before the first draft");
