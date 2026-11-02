@@ -174,9 +174,10 @@ if [ "$platform" = mac ]; then
   done
 fi
 # `ccx -v` prints its version and exits 201.
-case "$("$ccx" -v 2>&1 || true)" in
-  *"Version 2.2"*) ;;
-  *) stop "The bundled CalculiX does not run." ;;
+ccx_says="$("$ccx" -v 2>&1 || true)"
+case "$ccx_says" in
+  *"Version 2."*) ;;
+  *) stop "The bundled CalculiX does not run. ccx -v printed: ${ccx_says:-nothing}" ;;
 esac
 # The bundle carries no symlinks: copying it into the app turns relative links into links that
 # point outside the app, which fails the app's signature check.
