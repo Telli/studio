@@ -18,12 +18,13 @@ export const isCheckResultPath = (path: string) => RESULT_FILE.test(path);
 /**
  * Whether the file is a named FEA study's numbers, beside its picture: the FEA
  * skill keeps several studies of a part as `FEA/part.bracket-load.glb` and its
- * `part.bracket-load.json`. `paths` are the folder's files.
+ * `part.bracket-load.json` (or `part.bracket-load.result.json`, as agents on
+ * text-to-cad 0.10 save `cad fea solve --json`). `paths` are the folder's files.
  */
 export const isNamedStudyPath = (path: string, paths: ReadonlySet<string>) =>
-  /\.[^./\\]+\.json$/i.test(path) &&
+  /\.json$/i.test(path) &&
   !RESULT_FILE.test(path) &&
-  paths.has(path.replace(/\.json$/i, ".glb"));
+  paths.has(path.replace(/(\.result)?\.json$/i, ".glb"));
 
 /** An FEA study's analysis, in the plain word the FEA skill gives it. */
 const ANALYSIS_WORDS: Record<string, string> = {
@@ -109,7 +110,10 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
         ? "warnings"
         : "ready";
 
-  const fea = /\.fea\.json$/i.test(path) || data.generator === "cadgen fea";
+  // text-to-cad 0.10's `cad fea solve --json` names no generator: its study, and its picture at the top.
+  const solved = isRecord(data.study) ? text(data.glb) : null;
+  const picture = isRecord(data.files) ? text(data.files.glb) : solved;
+  const fea = /\.fea\.json$/i.test(path) || data.generator === "cadgen fea" || solved !== null;
   const study = isRecord(data.study) ? data.study : null;
   const summary = isRecord(data.summary) ? data.summary : null;
   const analysis = text(data.analysis) ?? text(study?.analysis);
@@ -119,7 +123,6 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
       ? text(summary.checks[0].label)
       : null;
   const safety = typeof summary?.safety_factor === "number" ? summary.safety_factor : null;
-  const picture = isRecord(data.files) ? text(data.files.glb) : null;
   const name = baseName(path);
   const folder = path
     .replaceAll("\\", "/")
@@ -185,6 +188,8 @@ export function resultsFor(part: ProjectFile, results: ReadonlyArray<CheckResult
     if (part.document !== undefined && result.part === part.document) return true;
     const named = result.part.toLowerCase();
     if (part.kind === "Design") return stemOf(named) === stem;
+    // A model's checks run on the STEP exported from it, named after its script.
+    if (part.document !== undefined && /\.(step|stp)$/.test(named)) return stemOf(named) === stem;
     return named === name || (!named.includes(".") && named === stem);
   });
 }

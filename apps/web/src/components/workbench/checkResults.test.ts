@@ -213,6 +213,51 @@ describe("check results", () => {
     ]);
   });
 
+  it("reads a strength check as an agent on text-to-cad 0.10 saves it, for the model it checked", () => {
+    // `cad fea solve parts/bracket.step studies/tip-load.glb --study studies/tip-load.json --json`,
+    // saved beside its picture; the STEP is exported from the model `parts/bracket.py` makes.
+    const folder = new Set([
+      "studies/tip-load.json",
+      "studies/tip-load.result.json",
+      "studies/tip-load.glb",
+    ]);
+    expect([...folder].map((path) => isNamedStudyPath(path, folder))).toEqual([true, true, false]);
+    expect(
+      parseCheckResult("studies/tip-load.json", JSON.stringify({ fixtures: [], loads: [] })),
+    ).toBeNull();
+    const result = parseCheckResult(
+      "studies/tip-load.result.json",
+      JSON.stringify({
+        ok: true,
+        document: "parts/bracket.step",
+        glb: "studies/tip-load.glb",
+        summary: { safety_factor: 1.868, checks: [{ kind: "stress", label: "Strength" }] },
+        study: { margin: 2 },
+        findings: [
+          { check: "fea", severity: "warning", summary: "It holds, but only 1.8× the load" },
+        ],
+      }),
+    )!;
+    expect(result).toMatchObject({
+      model: "studies/tip-load.glb",
+      part: "bracket.step",
+      check: "Strength",
+      status: "warnings",
+    });
+    const model = (script: string): ProjectFile => ({
+      path: "7dde5cd8-809d-5212-afd0-2a5e48278472",
+      name: script.split("/").at(-1)!,
+      title: "Bracket",
+      folder: "parts",
+      group: "CAD",
+      kind: "Part",
+      document: "7dde5cd8-809d-5212-afd0-2a5e48278472",
+      script,
+    });
+    expect(resultsFor(model("parts/bracket.py"), [result])).toHaveLength(1);
+    expect(resultsFor(model("parts/plate.py"), [result])).toHaveLength(0);
+  });
+
   it("finds a part's drawing sheet, wherever it is filed", () => {
     const part = file("parts/bracket.step");
     expect(
