@@ -23,6 +23,24 @@ describe("project starters", () => {
     );
   });
 
+  it("checks for the brief's way of making it first, and never offers to make a study's picture", () => {
+    const brief = { ...EMPTY_BRIEF, process: "Sheet metal" };
+    const recent = [
+      "studies/tip-load.glb",
+      "studies/tip-load.result.json",
+      "studies/tip-load.json",
+      "parts/bracket.step",
+    ];
+    const starters = projectStarters(
+      files(...recent),
+      new Set(["dfm", "dfam-check", "gcode", "cam", "cad"]),
+      brief,
+      new Set(recent),
+    );
+    expect(starters[0]?.label).toBe("Check bracket as sheet metal");
+    expect(starters.some((starter) => /tip load/i.test(starter.label))).toBe(false);
+  });
+
   it("offers only what the installed skills can do", () => {
     expect(
       projectStarters(files("parts/STEP/l_bracket.step"), new Set(["gcode"]), null).map(

@@ -38,14 +38,12 @@ export function ProjectStarters(props: {
   // Its cadgen 0.8 models stand where their scripts are among its recent files.
   const models = useFolderModels(environmentId, cwd);
   const starters = useMemo(() => {
-    const files = folderFiles(
-      (recent ?? []).map((entry) => entry.path),
-      models,
-    );
+    const paths = (recent ?? []).map((entry) => entry.path);
+    const files = folderFiles(paths, models);
     const skills = new Set(
       (plugins ?? []).flatMap((plugin) => (plugin.enabled ? plugin.skills : [])),
     );
-    return projectStarters(files, skills, brief);
+    return projectStarters(files, skills, brief, new Set(paths));
   }, [recent, models, plugins, brief]);
   if (starters.length === 0) return null;
 
