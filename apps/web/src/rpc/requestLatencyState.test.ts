@@ -95,6 +95,13 @@ describe("requestLatencyState", () => {
     ]);
   });
 
+  it("lets a plugin's server build or wait on a model past the usual threshold", () => {
+    // The CAD view's build state is a 20 s long ask, made again and again while a model shows.
+    trackRpcRequestSent("1", WS_METHODS.pluginsRequest, "plugins.request · env-1");
+    vi.advanceTimersByTime(LONG_RUNNING_RPC_ACK_THRESHOLD_MS - 1);
+    expect(getSlowRpcAckRequests()).toEqual([]);
+  });
+
   it("evicts the oldest pending requests once the tracker reaches capacity", () => {
     for (let index = 0; index < MAX_TRACKED_RPC_ACK_REQUESTS + 1; index += 1) {
       trackRpcRequestSent(String(index), "server.getConfig");

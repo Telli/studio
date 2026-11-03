@@ -7,8 +7,9 @@ import { appAtomRegistry } from "./atomRegistry";
 export const SLOW_RPC_ACK_THRESHOLD_MS = 15_000;
 /**
  * Some requests are slow by design — they shell out to a package manager on the
- * server and only respond once the install finishes. Warning about those after
- * 15s is noise, so they get a much longer leash.
+ * server and only respond once the install finishes, or ask a plugin's server,
+ * which builds a model or waits on one's build before it answers. Warning about
+ * those after 15s is noise, so they get a much longer leash.
  */
 export const LONG_RUNNING_RPC_ACK_THRESHOLD_MS = 120_000;
 export const MAX_TRACKED_RPC_ACK_REQUESTS = 256;
@@ -33,6 +34,7 @@ const longRunningRpcAckMethods = new Set<string>([
   WS_METHODS.serverUpdateProvider,
   WS_METHODS.serverRefreshProviders,
   WS_METHODS.serverUpdateServer,
+  WS_METHODS.pluginsRequest,
 ]);
 
 const slowRpcAckRequestsAtom = Atom.make<ReadonlyArray<SlowRpcAckRequest>>([]).pipe(
