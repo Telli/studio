@@ -277,11 +277,14 @@ function backgroundActivityProfileSettings(profile: BackgroundActivityProfile) {
   };
 }
 
-function AboutVersionTitle() {
+/** The version this is: the desktop app's own where it says one (`version`), else the web app's. */
+function AboutVersionTitle(props: { readonly version?: string | undefined }) {
   return (
     <span className="inline-flex items-baseline gap-2">
       <span>Version</span>
-      <code className="text-2xs font-medium text-muted-foreground">{APP_VERSION}</code>
+      <code className="text-2xs font-medium text-muted-foreground">
+        {props.version || APP_VERSION}
+      </code>
     </span>
   );
 }
@@ -437,7 +440,7 @@ function AboutVersionSection() {
     <>
       <SettingsRow
         id={searchableSetting("app-version").id}
-        title={<AboutVersionTitle />}
+        title={<AboutVersionTitle version={updateState?.currentVersion} />}
         description={description}
         control={
           <Tooltip>
