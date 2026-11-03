@@ -339,6 +339,7 @@ export const make = Effect.gen(function* () {
             contents: new TextDecoder("utf-8").decode(fileBytes),
             byteLength: stat.size,
             truncated: stat.size > PROJECT_READ_FILE_MAX_BYTES,
+            modifiedAt: stat.mtime.toISOString(),
           };
         }),
       (handle) =>

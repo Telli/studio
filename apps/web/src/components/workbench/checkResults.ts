@@ -55,6 +55,8 @@ export interface CheckResult {
   readonly headline: string;
   /** Errors first, then warnings. */
   readonly issues: ReadonlyArray<CheckIssue>;
+  /** When the result was written (seconds), when its file says. */
+  readonly written?: number;
 }
 
 const STATUS_RANK: Record<CheckStatus, number> = { fix: 2, warnings: 1, ready: 0 };
@@ -81,7 +83,11 @@ const text = (value: unknown): string | null =>
   typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 
 /** A result file's check, or null when the file is not one (or not yet whole). */
-export function parseCheckResult(path: string, contents: string): CheckResult | null {
+export function parseCheckResult(
+  path: string,
+  contents: string,
+  modifiedAt?: string,
+): CheckResult | null {
   let data: unknown;
   try {
     data = JSON.parse(contents);
@@ -110,10 +116,11 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
         ? "warnings"
         : "ready";
 
-  // text-to-cad 0.10's `cad fea solve --json` names no generator: its study, and its picture at the top.
-  const solved = isRecord(data.study) ? text(data.glb) : null;
-  const picture = isRecord(data.files) ? text(data.files.glb) : solved;
-  const fea = /\.fea\.json$/i.test(path) || data.generator === "cadgen fea" || solved !== null;
+  // text-to-cad 0.10's `cad fea solve --json` names no generator: its study, and its picture at the
+  // top. An agent saves it beside that picture, which stays its own when the files are renamed.
+  const solved = isRecord(data.study) && text(data.glb) !== null;
+  const picture = isRecord(data.files) ? text(data.files.glb) : null;
+  const fea = /\.fea\.json$/i.test(path) || data.generator === "cadgen fea" || solved;
   const study = isRecord(data.study) ? data.study : null;
   const summary = isRecord(data.summary) ? data.summary : null;
   const analysis = text(data.analysis) ?? text(study?.analysis);
@@ -129,8 +136,9 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
     .slice(0, path.replaceAll("\\", "/").lastIndexOf("/") + 1);
   return {
     path,
-    model:
-      fea && picture !== null
+    model: solved
+      ? path.replace(/(\.result)?\.json$/i, ".glb")
+      : fea && picture !== null
         ? `${folder}${baseName(picture)}`
         : path.replace(fea ? /\.json$/i : /\.result\.json$/i, ".glb"),
     part: baseName(text(data.document) ?? name.slice(0, name.indexOf("."))),
@@ -145,6 +153,7 @@ export function parseCheckResult(path: string, contents: string): CheckResult | 
         ? `Holds the load, safety factor ${safety.toFixed(safety < 10 ? 1 : 0)}`
         : "Passed every check"),
     issues,
+    ...(modifiedAt === undefined ? {} : { written: Date.parse(modifiedAt) / 1000 }),
   };
 }
 
@@ -191,6 +200,28 @@ export function resultsFor(part: ProjectFile, results: ReadonlyArray<CheckResult
     // A model's checks run on the STEP exported from it, named after its script.
     if (part.document !== undefined && /\.(step|stp)$/.test(named)) return stemOf(named) === stem;
     return named === name || (!named.includes(".") && named === stem);
+  });
+}
+
+/**
+ * The results among `results` still about their part as it is: a check written before the model it
+ * checked was last built is of a version since changed, so it neither passes nor fails the part.
+ */
+export function currentResults(
+  parts: ReadonlyArray<ProjectFile>,
+  results: ReadonlyArray<CheckResult>,
+): CheckResult[] {
+  return results.filter((result) => {
+    const { written } = result;
+    return (
+      written === undefined ||
+      !parts.some(
+        (part) =>
+          part.version !== undefined &&
+          written < Number(part.version) &&
+          resultsFor(part, [result]).length > 0,
+      )
+    );
   });
 }
 

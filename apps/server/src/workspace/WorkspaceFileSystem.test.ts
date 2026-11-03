@@ -6,6 +6,7 @@ import { it, describe, expect } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 
 import * as ServerConfig from "../config.ts";
@@ -163,7 +164,13 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
           contents: "export const answer = 42;\n",
           byteLength: 26,
           truncated: false,
+          modifiedAt: expect.any(String),
         });
+        // When it last changed, as the file says: a check's result is dated by it.
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const info = yield* fileSystem.stat(path.join(cwd, "src/index.ts"));
+        expect(result.modifiedAt).toBe(Option.getOrThrow(info.mtime).toISOString());
       }),
     );
 
@@ -186,6 +193,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
           contents: "# Report\n",
           byteLength: 9,
           truncated: false,
+          modifiedAt: expect.any(String),
         });
       }),
     );

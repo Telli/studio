@@ -53,7 +53,9 @@ const checksFamily = Atom.family((key: string) =>
         .flatMap((path) => {
           const file = Option.getOrNull(AsyncResult.value(get(reading(environmentId, root, path))));
           const result =
-            file === null || file.truncated ? null : parseCheckResult(path, file.contents);
+            file === null || file.truncated
+              ? null
+              : parseCheckResult(path, file.contents, file.modifiedAt);
           return result === null ? [] : [result];
         });
       return { root, paths, results };

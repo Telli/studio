@@ -446,6 +446,8 @@ export const ProjectReadFileResult = Schema.Struct({
   contents: Schema.String,
   byteLength: NonNegativeInt,
   truncated: Schema.Boolean,
+  // When the file on disk last changed; absent for contents not read from disk.
+  modifiedAt: Schema.optionalKey(IsoDateTime),
 });
 export type ProjectReadFileResult = typeof ProjectReadFileResult.Type;
 

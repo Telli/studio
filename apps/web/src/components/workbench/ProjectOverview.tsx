@@ -18,6 +18,7 @@ import {
   type CheckIssue,
   type CheckResult,
   type CheckStatus,
+  currentResults,
   drawingsFor,
   manufacturingFor,
   overviewParts,
@@ -314,11 +315,12 @@ export function ProjectOverview(props: {
       const files = folderFiles(folder.paths ?? [], folder.models);
       const designs = overviewParts(files);
       const made = manufacturingFor(designs, files);
+      const results = currentResults(designs, folder.results);
       const parts = designs
         .map((file) => ({
           root: folder.root,
           file,
-          results: resultsFor(file, folder.results),
+          results: resultsFor(file, results),
           drawings: drawingsFor(file, folder.paths ?? []),
           made: made.get(file.path) ?? [],
         }))
@@ -327,13 +329,12 @@ export function ProjectOverview(props: {
             STATUS_ORDER[worstStatus(a.results) ?? "none"] -
             STATUS_ORDER[worstStatus(b.results) ?? "none"],
         );
-      return { root: folder.root, parts };
+      return { root: folder.root, parts, results };
     });
-    const issues = folders
-      .flatMap((folder, index) =>
+    const issues = byFolder
+      .flatMap((folder) =>
         folder.results.flatMap((result) => {
-          const part =
-            byFolder[index]!.parts.find((entry) => entry.results.includes(result))?.file ?? null;
+          const part = folder.parts.find((entry) => entry.results.includes(result))?.file ?? null;
           return result.issues.map((issue) => ({ root: folder.root, result, issue, part }));
         }),
       )

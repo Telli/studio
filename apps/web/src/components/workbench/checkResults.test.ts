@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  currentResults,
   drawingsFor,
   isCheckResultPath,
   isNamedStudyPath,
@@ -256,6 +257,47 @@ describe("check results", () => {
     });
     expect(resultsFor(model("parts/bracket.py"), [result])).toHaveLength(1);
     expect(resultsFor(model("parts/plate.py"), [result])).toHaveLength(0);
+  });
+
+  it("drops a check run before its model was last built, and pictures a renamed study by its own file", () => {
+    // The 3 mm run, kept under a new name after the bracket went to 4 mm: its `glb` still names
+    // the picture the 4 mm run now owns.
+    const solved = (glb: string) =>
+      JSON.stringify({
+        document: "parts/bracket.step",
+        glb,
+        study: {},
+        summary: { checks: [{ label: "Strength" }] },
+        findings: [{ severity: "warning", summary: "It holds, but only 1.1× the load" }],
+      });
+    const before = parseCheckResult(
+      "studies/tip-load-3mm.result.json",
+      solved("studies/tip-load.glb"),
+      "2026-11-02T21:33:24.000Z",
+    )!;
+    const after = parseCheckResult(
+      "studies/tip-load.result.json",
+      solved("studies/tip-load.glb"),
+      "2026-11-02T21:33:57.000Z",
+    )!;
+    expect(before.model).toBe("studies/tip-load-3mm.glb");
+    const bracket: ProjectFile = {
+      path: "7dde5cd8-809d-5212-afd0-2a5e48278472",
+      name: "bracket.py",
+      title: "Bracket",
+      folder: "parts",
+      group: "CAD",
+      kind: "Part",
+      document: "7dde5cd8-809d-5212-afd0-2a5e48278472",
+      script: "parts/bracket.py",
+      version: String(Date.parse("2026-11-02T21:33:25.462Z") / 1000),
+    };
+    expect(currentResults([bracket], [before, after])).toEqual([after]);
+    // A result whose file names no time, or a part the engine has not built, is kept.
+    const untimed = parseCheckResult("studies/tip-load-3mm.result.json", solved("x.glb"))!;
+    expect(currentResults([bracket], [untimed])).toEqual([untimed]);
+    const { version: _, ...unbuilt } = bracket;
+    expect(currentResults([unbuilt], [before])).toEqual([before]);
   });
 
   it("finds a part's drawing sheet, wherever it is filed", () => {
