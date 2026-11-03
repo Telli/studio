@@ -8,6 +8,7 @@ import { FILE_ICONS, fileIconKey, KIND_TINTS } from "./kinds";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { showOverview } from "./overviewPanel";
 import { useEngineeringInterface } from "./studioInterface";
+import { useFolderModels } from "./useFolderModels";
 import { useOpenInWorkbench } from "./useOpenInWorkbench";
 import { useVersionRequestStore } from "./useVersions";
 
@@ -74,11 +75,14 @@ function DesignChanges(props: {
 }) {
   const open = useOpenInWorkbench(props.threadRef);
   const { changes, other, checkpointRef, threadRef } = props;
+  const workspace = useOpenWorkspaceStore((state) => state.workspace?.folder ?? "");
+  const models = useFolderModels(threadRef.environmentId, workspace);
   const compares = (change: DesignChange) =>
     checkpointRef !== null && change.open !== null && VERSIONED.test(change.open);
   // A changed part shows what changed in it, in the Overview's Versions, at this turn's version.
   const showChange = (change: DesignChange) => {
-    const path = change.open;
+    // A part whose only change is its script opens as the model the script makes.
+    const path = change.open ?? models.find((model) => model.script === change.script)?.id ?? null;
     if (path === null) return null;
     return () => {
       // The project's README is its Overview: the pinned tab comes to the front, not a copy.

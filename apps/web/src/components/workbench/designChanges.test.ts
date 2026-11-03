@@ -22,6 +22,7 @@ describe("design changes", () => {
         aspects: ["model", "mesh", "drawing", "FEA study"],
         kind: "Part",
         open: "parts/STEP/servo_bracket.step",
+        script: "parts/src/servo_bracket.py",
       },
       {
         name: "FEA report",
@@ -29,6 +30,7 @@ describe("design changes", () => {
         aspects: [],
         kind: "Document",
         open: "docs/fea-report.md",
+        script: null,
       },
     ]);
     expect(other).toBe(3);
@@ -72,16 +74,18 @@ describe("design changes", () => {
           aspects: ["model"],
           kind: "Part",
           open: "parts/servo_bracket.step",
+          script: null,
         },
       ],
       other: 0,
     });
   });
 
-  it("has nothing to open for a model script on its own", () => {
+  it("has no file to open for a model script on its own, only the script its model is named by", () => {
     expect(designChanges(["parts/bracket.py"]).changes[0]).toMatchObject({
       label: "Bracket",
       open: null,
+      script: "parts/bracket.py",
     });
   });
 

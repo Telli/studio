@@ -19,6 +19,8 @@ export interface DesignChange {
   readonly kind: string;
   /** The file to open to see it (a STEP over its mesh, a study's model over its numbers); null when none shows it. */
   readonly open: string | null;
+  /** Its model script, where it has one: a model opens by its id, which the folder's models name. */
+  readonly script: string | null;
 }
 
 /** Kinds that are files of their own, not of a part. */
@@ -122,7 +124,8 @@ export function designChanges(paths: ReadonlyArray<string>): {
     const aspects = family.aspects.filter(
       (aspect) => aspect.toLowerCase() !== family.name.toLowerCase(),
     );
-    return { name: family.name, label, aspects, kind: shown.kind, open };
+    const script = family.files.find((file) => file.kind === "Source")?.path ?? null;
+    return { name: family.name, label, aspects, kind: shown.kind, open, script };
   });
   // A document or picture named as a part is ("Flat pattern" beside the flat pattern) says what it
   // is, so no two entries read the same.
