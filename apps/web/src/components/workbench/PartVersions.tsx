@@ -22,10 +22,12 @@ import {
 import { type VersionChoice, WhatChanged } from "./WhatChanged";
 import {
   checkpointScopeOf,
+  isPartPath,
   plainRestoreError,
   readCheckpointRef,
   restoreNote,
   versionChoices,
+  versionedPath,
 } from "./versions";
 import { chatLabel } from "./workspaceTitle";
 
@@ -47,9 +49,6 @@ export interface VersionedPart {
   readonly file: ProjectFile;
   readonly results: ReadonlyArray<CheckResult>;
 }
-
-/** The file a part's versions are read from: a design's STEP, else the part's own file. */
-export const versionedPath = (file: ProjectFile) => file.picture ?? file.path;
 
 const SHOWN = 6;
 const partKey = (part: VersionedPart) =>
@@ -112,7 +111,7 @@ export function PartVersions(props: {
       : (props.parts.find(
           (entry) =>
             studioFolderKey(entry.root) === studioFolderKey(request.folder) &&
-            (versionedPath(entry.file) === request.path || entry.file.path === request.path),
+            isPartPath(entry.file, request.path),
         ) ?? null);
   const part =
     asked ?? props.parts.find((entry) => partKey(entry) === chosenKey) ?? props.parts[0] ?? null;

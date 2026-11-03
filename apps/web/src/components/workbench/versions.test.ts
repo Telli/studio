@@ -6,6 +6,7 @@ import {
   checkpointBefore,
   checkpointScopeOf,
   extentLine,
+  isPartPath,
   plainRestoreError,
   readCheckpointRef,
   restoreNote,
@@ -14,6 +15,7 @@ import {
   sizeLine,
   sizeName,
   versionChoices,
+  versionedPath,
   volumeLine,
   type PartVersion,
   type ShapeComparison,
@@ -208,5 +210,35 @@ describe("restoring a version", () => {
     expect(plainRestoreError("fatal: unable to write new index file")).toBe(
       "Studio couldn't restore that version.",
     );
+  });
+});
+
+describe("a part's versioned file", () => {
+  // A text-to-cad 0.10 model, listed by its document id, made by its script.
+  const bracket = {
+    path: "7dde5cd8-809d-5212-afd0-2a5e48278472",
+    name: "bracket.py",
+    title: "Bracket",
+    folder: "parts",
+    group: "CAD",
+    kind: "Part",
+    document: "7dde5cd8-809d-5212-afd0-2a5e48278472",
+    script: "parts/bracket.py",
+  } as const;
+
+  it("reads a model's versions from its script, which every checkpoint holds, never its id", () => {
+    expect(versionedPath(bracket)).toBe("parts/bracket.py");
+    const { document: _document, script: _script, ...step } = bracket;
+    expect(versionedPath({ ...step, path: "parts/plate.step", name: "plate.step" })).toBe(
+      "parts/plate.step",
+    );
+  });
+
+  it("is asked for by its script, its id, or the STEP exported beside it, never a neighbour's", () => {
+    expect(
+      ["parts/bracket.py", bracket.path, "parts/bracket.step", "parts/bracket_flat.step"].map(
+        (path) => isPartPath(bracket, path),
+      ),
+    ).toEqual([true, true, true, false]);
   });
 });

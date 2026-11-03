@@ -1,5 +1,6 @@
 import type { CheckResult } from "./checkResults";
 import { inSentence } from "./partNames";
+import type { ProjectFile } from "./projectFiles";
 
 /**
  * A part's versions and what changed between two of them, as the Overview's Versions shows them
@@ -346,3 +347,17 @@ export function scriptRows(older: string, newer: string, context = 3): ScriptRow
   fold(rows.length);
   return shown;
 }
+
+/**
+ * The file a part's versions are read from: a design's STEP, a model's script (its path is its
+ * document id, which no checkpoint holds), else the part's own file.
+ */
+export const versionedPath = (file: ProjectFile) => file.picture ?? file.script ?? file.path;
+
+/** Whether `path` is `file`: by its versioned file, its own path, or a model's STEP exported beside its script. */
+export const isPartPath = (file: ProjectFile, path: string) =>
+  versionedPath(file) === path ||
+  file.path === path ||
+  (file.script !== undefined &&
+    /\.(?:step|stp)$/i.test(path) &&
+    file.script.replace(/\.py$/i, "") === path.replace(/\.(?:step|stp)$/i, ""));
