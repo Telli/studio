@@ -63,6 +63,7 @@ export function modelProjectFile(model: ProjectModel): ProjectFile {
     kind: model.kind,
     document: model.id,
     script: model.script,
+    model: model.name,
     ...(model.updated === null ? {} : { version: model.updated }),
   };
 }

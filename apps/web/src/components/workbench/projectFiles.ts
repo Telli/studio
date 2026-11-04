@@ -53,6 +53,8 @@ export interface ProjectFile {
    */
   readonly document?: string;
   readonly script?: string;
+  /** A model's name in its script, which builds it at any version (What changed). */
+  readonly model?: string;
   /** A model's last build, which its picture is cached by. */
   readonly version?: string;
 }

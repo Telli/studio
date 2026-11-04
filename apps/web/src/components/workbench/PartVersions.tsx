@@ -339,6 +339,9 @@ export function PartVersions(props: {
                   post={post}
                   folder={part.root}
                   path={versionedPath(part.file)}
+                  model={
+                    versionedPath(part.file) === part.file.script ? (part.file.model ?? null) : null
+                  }
                   older={older}
                   newer={newer}
                   olderChoices={choices.slice(0, Math.max(newerIndex, 0)).toReversed()}

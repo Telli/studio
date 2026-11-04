@@ -187,14 +187,16 @@ export function useComparison(input: {
   readonly path: string;
   readonly older: string | null;
   readonly newer: string | null;
+  /** A model's name when `path` is its script: its solids are then built at both versions. */
+  readonly model: string | null;
   /** Text files to read at both versions too: the part's check results. */
   readonly texts: ReadonlyArray<string>;
 }): { readonly state: ComparisonState | null; readonly retry: () => void } {
-  const { post, folder, path, older, newer } = input;
+  const { post, folder, path, older, newer, model } = input;
   const texts = input.texts.join("\n");
   const [state, setState] = useState<(ComparisonState & { readonly key: string }) | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const key = [folder, path, older ?? "", newer ?? "", texts].join("\n");
+  const key = [folder, path, older ?? "", newer ?? "", model ?? "", texts].join("\n");
   useEffect(() => {
     if (post === null || older === null || newer === null) return;
     let cancelled = false;
@@ -205,6 +207,7 @@ export function useComparison(input: {
         path,
         older,
         newer,
+        ...(model === null ? {} : { model }),
         texts: texts === "" ? [] : texts.split("\n"),
         retry,
       }).then((reply) => {
@@ -224,7 +227,7 @@ export function useComparison(input: {
       cancelled = true;
       if (timer !== undefined) clearTimeout(timer);
     };
-  }, [attempt, folder, key, newer, older, path, post, texts]);
+  }, [attempt, folder, key, model, newer, older, path, post, texts]);
   const retry = useCallback(() => setAttempt((count) => count + 1), []);
   return { state: state !== null && state.key === key ? state : null, retry };
 }

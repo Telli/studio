@@ -81,7 +81,8 @@ function Facts(props: { readonly title: string; readonly lines: ReadonlyArray<st
  * part as one model (unchanged see-through grey, added material green, removed red) or the two
  * side by side, the named sizes of its script that changed, its volume and size, how its checks
  * went at each, and the script's own lines on request. The solids are compared by the CAD service
- * (`cadgen/edit/solid_diff.py`); Open in 3D shows the comparison, or the newer version, in the viewer.
+ * (`cadgen/edit/solid_diff.py`), a model's as each version builds it; Open in 3D shows the
+ * comparison, or the newer version, in the viewer.
  */
 export function WhatChanged(props: {
   readonly environmentId: EnvironmentId;
@@ -89,6 +90,8 @@ export function WhatChanged(props: {
   /** The part's folder, as the Overview names it, and the compared file in it. */
   readonly folder: string;
   readonly path: string;
+  /** The model `path` builds, when it is a model's script. */
+  readonly model: string | null;
   readonly older: VersionChoice | null;
   readonly newer: VersionChoice;
   /** The versions before the newer one, to compare it with another. */
@@ -109,6 +112,7 @@ export function WhatChanged(props: {
     path: props.path,
     older: props.older?.id ?? null,
     newer: props.newer.id,
+    model: props.model,
     texts: props.checkPaths,
   });
   const comparison = state?.comparison ?? null;
@@ -118,6 +122,11 @@ export function WhatChanged(props: {
     comparison === null
       ? []
       : [comparison.files.older, comparison.files.newer, ...(diff ? [diff] : [])];
+  // What Open in 3D shows: the comparison, else the newer version's solid. A script's own copy has
+  // none, so a model's script offers it once both versions are built.
+  const solid =
+    diff ??
+    (comparison === null || /\.py$/i.test(comparison.files.newer) ? null : comparison.files.newer);
   const pictures = usePictures({ environmentId: props.environmentId, cwd: props.folder, paths });
   const sizes = useMemo(() => {
     const changes = sizeChanges(
@@ -208,12 +217,8 @@ export function WhatChanged(props: {
             Script
           </Button>
         ) : null}
-        {comparison === null ? null : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => props.onOpen(diff ?? comparison.files.newer)}
-          >
+        {solid === null ? null : (
+          <Button variant="outline" size="sm" onClick={() => props.onOpen(solid)}>
             Open in 3D
           </Button>
         )}

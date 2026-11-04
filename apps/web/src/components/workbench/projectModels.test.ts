@@ -64,6 +64,7 @@ describe("a project's models", () => {
       kind: "Part",
       document: PLATE,
       script: "parts/mounting_plate.py",
+      model: "mounting_plate",
       version: "1761555600.25",
     });
     expect(pictureVersions([file])).toEqual({ [PLATE]: "1761555600.25" });
