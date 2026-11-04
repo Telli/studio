@@ -1,7 +1,7 @@
 # text-to-cad Studio
 
 T3 Code made into a hardware app: agents design parts with the text-to-cad plugin, and the CAD
-view follows their work beside the thread. It lives in this private repository, on `main`.
+view follows their work beside the thread. It lives in this repository, on `main`.
 
 [text-to-cad](https://github.com/earthtojake/text-to-cad) is the `text-to-cad/` submodule, pinned
 to `studio-base` on [amywork777/text-to-cad-upstream](https://github.com/amywork777/text-to-cad-upstream):
@@ -42,7 +42,7 @@ build:desktop` in the checkout, which rewrites the `dist-electron` and server `d
 stage among them, are in `build/tmp`, not the system's temp folder, which macOS empties every night
 at 3:35 of files no one has opened in three days: a build running then lost the bundle's empty files
 and made an update zip short of the app's signature (2026-10-22). Publish a version as a release of
-the public `amywork777/studio-download` (it holds only the download, never code) with the asset
+the public `amywork777/studio-download` (it holds only the downloads) with the asset
 named `Studio-arm64.dmg`, as the script prints. The website, the guide page and that repository's
 README link to `releases/latest/download/Studio-arm64.dmg`, so a new version changes no link.
 

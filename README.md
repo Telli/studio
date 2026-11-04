@@ -1,3 +1,31 @@
+# Studio
+
+Studio is a CAD app for mechanical engineers where an agent designs the part with you. You
+describe a bracket, an enclosure or a sheet-metal part. The agent writes it as code with
+[text-to-cad](https://github.com/earthtojake/text-to-cad), and the 3D model, drawings, strength
+check and versions sit beside the chat. You can also edit the model by hand.
+
+It is a fork of [T3 Code](https://github.com/pingdotgg/t3code), with text-to-cad as the
+`text-to-cad/` submodule. Both are MIT licensed, and so is Studio.
+
+- **Download for Mac or Windows:** [studio-for-mac.vercel.app](https://studio-for-mac.vercel.app)
+- **Build and run it from source:** [STUDIO.md](STUDIO.md)
+
+## Usage data
+
+The app counts which features get used, anonymously, so we can see what works: chats started,
+turns finished (provider, model, token counts, how long), projects made from a starter, and CAD
+actions such as opening a model, a hand edit, changing a size or comparing versions. It never
+sends your prompts, file names or designs. The first launch says so, and **Settings → About →
+Share usage data** turns it off. A build sends nothing unless it was made with a usage key, so a
+copy you build yourself sends nothing. The events are in
+[`apps/server/src/telemetry/AnalyticsService.ts`](apps/server/src/telemetry/AnalyticsService.ts)
+and [`apps/server/src/plugins/usageEvents.ts`](apps/server/src/plugins/usageEvents.ts).
+
+---
+
+The rest of this README is T3 Code's own.
+
 # T3 Code
 
 T3 Code is an "agent harness control surface". It enables control of the agents on your machine with a best-in-class mobile app ([iOS](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824), [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code)), [web app](https://app.t3.codes) and [Electron-based desktop app](https://t3.codes).
