@@ -172,8 +172,9 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                         Each project is a folder in{" "}
                         <span className="text-foreground select-all">{list.folder}</span>
                         {list.git
-                          ? " and its own git repository: every change is a commit, and pushing it shares the project."
-                          : ". Install git to give each one its own history."}
+                          ? ", which keeps every change as a version you can go back to."
+                          : // oxlint-disable-next-line t3code/studio-engineering-words -- Names the program the person must install.
+                            ". Install git to give each one its own history."}
                       </p>
                     )}
                   </div>

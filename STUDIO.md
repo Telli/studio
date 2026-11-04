@@ -2,6 +2,7 @@
 
 T3 Code made into a hardware app: agents design parts with the text-to-cad plugin, and the CAD
 view follows their work beside the thread. It lives in this repository, on `main`.
+Studio's laws are at the top of [AGENTS.md](AGENTS.md).
 
 [text-to-cad](https://github.com/earthtojake/text-to-cad) is the `text-to-cad/` submodule, pinned
 to `studio-base` on [amywork777/text-to-cad-upstream](https://github.com/amywork777/text-to-cad-upstream):

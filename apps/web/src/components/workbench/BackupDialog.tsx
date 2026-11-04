@@ -184,7 +184,7 @@ export function BackupDialog(props: {
         remoteName: "origin",
         protocol: "https",
       });
-      if (made._tag === "Failure") throw new Error("GitHub would not make the repository.");
+      if (made._tag === "Failure") throw new Error("GitHub would not make the private copy.");
     }
     const sent = await push.run({
       actionId: randomUUID(),
@@ -243,7 +243,7 @@ export function BackupDialog(props: {
               description={
                 backedUpTo !== null
                   ? `Into ${backedUpTo}, private. Each backup is a version you can go back to.`
-                  : `A private repository on your account${account === null ? "" : `, ${account}`}. Each backup is a version you can go back to.`
+                  : `A private copy on your GitHub account${account === null ? "" : `, ${account}`}. Each backup is a version you can go back to.`
               }
               note={toGitHub.note}
             />

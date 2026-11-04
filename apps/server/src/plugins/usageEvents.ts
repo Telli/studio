@@ -8,7 +8,8 @@ import { isRecord } from "@t3tools/plugins";
 
 import { HTTP_TOOL } from "./appCapability.ts";
 
-const EVENTS: Readonly<Record<string, string>> = {
+/** Each counted route and the event it records. */
+export const CAD_USAGE_EVENTS: Readonly<Record<string, string>> = {
   "/api/v1/documents": "cad.model.opened",
   "/api/v1/local/edit/change": "cad.hand_edit",
   "/api/v1/local/sizes/set": "cad.size.changed",
@@ -25,5 +26,5 @@ export function cadUsageEvent(method: string, params: unknown, result: unknown):
   const reply = isRecord(result) ? result.structuredContent : null;
   if (!isRecord(reply) || (reply.status !== 200 && reply.status !== 201)) return null;
   const path = args.url.replace(/^[a-z]+:\/\/[^/]+/i, "").split(/[?#]/)[0];
-  return EVENTS[path ?? ""] ?? null;
+  return CAD_USAGE_EVENTS[path ?? ""] ?? null;
 }

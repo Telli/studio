@@ -10,6 +10,7 @@ It is a fork of [T3 Code](https://github.com/pingdotgg/t3code), with text-to-cad
 
 - **Download for Mac or Windows:** [studio-for-mac.vercel.app](https://studio-for-mac.vercel.app)
 - **Build and run it from source:** [STUDIO.md](STUDIO.md)
+- **The rules every change keeps:** [Studio's laws](AGENTS.md#studios-laws)
 
 ## Usage data
 
@@ -18,9 +19,16 @@ turns finished (provider, model, token counts, how long), projects made from a s
 actions such as opening a model, a hand edit, changing a size or comparing versions. It never
 sends your prompts, file names or designs. The first launch says so, and **Settings → About →
 Share usage data** turns it off. A build sends nothing unless it was made with a usage key, so a
-copy you build yourself sends nothing. The events are in
-[`apps/server/src/telemetry/AnalyticsService.ts`](apps/server/src/telemetry/AnalyticsService.ts)
-and [`apps/server/src/plugins/usageEvents.ts`](apps/server/src/plugins/usageEvents.ts).
+copy you build yourself sends nothing. [`AnalyticsService.ts`](apps/server/src/telemetry/AnalyticsService.ts)
+sends them, and this is every event it can send (a test fails when the code and this list differ):
+
+- `client.connected`, `client.thread.started`, `client.turn.requested`
+- `provider.turn.completed`
+- `chatgpt.auth.started`, `chatgpt.auth.completed`, `chatgpt.transfer.started`,
+  `chatgpt.transfer.completed`
+- `studio.project.created`
+- `cad.model.opened`, `cad.hand_edit`, `cad.size.changed`, `cad.size.added`,
+  `cad.versions.compared`, `cad.version.restored`
 
 ---
 

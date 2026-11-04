@@ -34,7 +34,7 @@ export function StarButton(props: {
         className={cn(
           "size-3.5 transition-colors duration-150",
           starred
-            ? "fill-warning text-warning"
+            ? "fill-foreground text-foreground"
             : "text-muted-foreground group-hover/star:text-foreground",
         )}
         aria-hidden="true"

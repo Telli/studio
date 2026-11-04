@@ -273,6 +273,15 @@ export default defineConfig({
         rules: { "shadcn/no-unknown-classes": "error" },
       },
       {
+        // Studio's laws (AGENTS.md) that a linter can check, over Studio's own UI.
+        files: ["apps/web/src/components/workbench/**"],
+        excludeFiles: ["**/*.{test,spec}.{ts,tsx}"],
+        rules: {
+          "t3code/studio-code-font": "error",
+          "t3code/studio-engineering-words": "error",
+        },
+      },
+      {
         // State indicators paint inward; decorative rings keep their own geometry.
         files: ["apps/web/src/**"],
         rules: { "t3code/no-outset-state-indicators": "error" },

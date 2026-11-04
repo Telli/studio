@@ -1,3 +1,47 @@
+# Studio
+
+Studio is T3 Code made into a CAD app for mechanical engineers: an agent designs the part with
+[text-to-cad](https://github.com/earthtojake/text-to-cad) (the `text-to-cad/` submodule), and the
+model, drawings, strength check and versions sit beside the chat. [STUDIO.md](STUDIO.md) says how it
+is built and run. Studio's laws come first; T3 Code's guidance below holds where they say nothing.
+
+## Studio's laws
+
+These are LAWS, not conventions: a change that breaks one is wrong even when it works. People own
+them. An agent may propose a new law, but never weakens or removes one without Amy's yes. Each law
+says what holds it: a lint rule or a test fails on a break, and a law held by review is checked by
+whoever reviews the change.
+
+1. **Engineering words, never git's.** A person reads Project, Version, Sync, Revision, Design
+   option, Change request and Approve change; never repository, commit, push, branch, pull request
+   or merge. _Lint: `t3code/studio-engineering-words` over `components/workbench`._
+2. **One name and one way for each thing.** Reuse the screen, control and word that already exist
+   before making a new one. _Review._
+3. **The code is the model.** A part is its script. A hand edit changes the script and shows at
+   once, and nothing on screen claims to be newer or older than the code without saying so.
+   _Review._
+4. **No made-up numbers.** Every strength, size, cost or manufacturability figure comes from a real
+   run. What was not checked says "not checked". _Review._
+5. **Build first, then ask.** The agent makes the part, then asks specific questions about it;
+   never "would you like to proceed?". _Review._
+6. **Plain words first.** Formulas go in parentheses, and every assumption becomes a question the
+   engineer can answer with a tap. _Review._
+7. **Red, amber and green mean failed, warning and passed.** Nothing else uses them: a kind,
+   category or favorite gets another hue. _Lint: `shadcn/no-raw-colors` keeps colours on theme
+   tokens; review keeps `destructive`, `warning` and `success` for status._
+8. **NX and SolidWorks are the bar.** An engineer finds each thing where their CAD puts it.
+   _Review._
+9. **Only anonymous counts leave the machine.** Never prompts, file names or geometry. The README
+   lists every event, and the off switch stops all of them.
+   _Tests: `apps/server/src/telemetry/usageDataListed.test.ts`, `AnalyticsService.test.ts`._
+10. **text-to-cad stays Jake's.** Studio's changes to the CAD tools are commits on `studio-base` in
+    the submodule's fork, never edits made here; Studio's own code stays outside `text-to-cad/`.
+    _The submodule: an edit inside it is not part of Studio until it is a commit there._
+11. **Sans-serif text.** Monospace is only for code. _Lint: `t3code/studio-code-font` over
+    `components/workbench`._
+12. **Mac and Windows.** Studio ships for both, and a change is not done until it works on both.
+    _Review, and the Windows build (`.github/workflows/studio-windows.yml`)._
+
 # T3 Code
 
 T3 Code is a minimal GUI for coding agents. A Node WebSocket server wraps provider CLIs and agents (Codex, Claude Code, Cursor, Grok, OpenCode, Antigravity) and serves web, desktop, and mobile clients.
