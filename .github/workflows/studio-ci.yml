@@ -61,8 +61,8 @@ jobs:
       - name: Download Electron
         run: vp run --filter @t3tools/desktop ensure:electron
 
-      # Every package. The server's WebSocket RPC layer sits near TypeScript's instantiation limit
-      # (packages/contracts/src/rpc.ts says how to keep under it); past it its types turn to any.
+      # Every package. The server implements the WebSocket RPCs in two halves to stay under
+      # TypeScript's instantiation limit (packages/contracts/src/rpc.ts says why).
       - name: Typecheck
         run: vpr typecheck
 

@@ -819,9 +819,7 @@ const WsServerDiscoverSourceControlRpc = Rpc.make(WS_METHODS.serverDiscoverSourc
 });
 
 // No union with EnvironmentAuthorizationError on the plugin and projects RPCs: the group's
-// RpcScopeAuthorization middleware adds it to every RPC's error, and one more
-// union pushes `ServerWsRpcGroup.toLayer` in ws.ts past TypeScript's
-// instantiation limit (TS2589).
+// RpcScopeAuthorization middleware adds it to every RPC's error.
 const WsPluginsCatalogRpc = Rpc.make(WS_METHODS.pluginsCatalog, {
   payload: PluginCatalogInput,
   success: PluginCatalogResult,
@@ -1987,7 +1985,10 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
-export const WsRpcGroup = RpcGroup.make(
+// Two halves, so the server implements each in its own `toLayer`: one group of every RPC puts
+// the server's handler map past TypeScript's instantiation limit (TS2589), and its types turn
+// to any. The host: settings, providers, plugins, Studio projects, tasks and pull requests.
+export const WsHostRpcGroup = RpcGroup.make(
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
@@ -2097,6 +2098,10 @@ export const WsRpcGroup = RpcGroup.make(
   WsPullRequestsRequestReviewersRpc,
   WsPullRequestsLabelCandidatesRpc,
   WsPullRequestsSetLabelsRpc,
+).middleware(RpcScopeAuthorization);
+
+// The workspace: projects, files, version control, terminals, previews, devices and threads.
+export const WsWorkspaceRpcGroup = RpcGroup.make(
   WsSourceControlLookupRepositoryRpc,
   WsSourceControlCloneRepositoryRpc,
   WsSourceControlPublishRepositoryRpc,
@@ -2194,3 +2199,5 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SubscribeShellRpc,
   WsOrchestrationV2SubscribeThreadRpc,
 ).middleware(RpcScopeAuthorization);
+
+export const WsRpcGroup = WsHostRpcGroup.merge(WsWorkspaceRpcGroup);
