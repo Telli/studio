@@ -10,6 +10,13 @@ import * as NodeFS from "node:fs";
 import * as NodeModule from "node:module";
 import * as NodePath from "node:path";
 
+/** What this uses of esbuild, which is loaded from beside Vite and so has no types here. */
+interface Esbuild {
+  readonly build: (
+    options: Readonly<Record<string, unknown>>,
+  ) => Promise<{ readonly outputFiles: ReadonlyArray<{ readonly text: string }> }>;
+}
+
 /** Builds the page in `editor` (its index.html and src/main.tsx) to `outFile`. */
 export async function buildEditorPage(
   appRoot: string,
@@ -23,7 +30,7 @@ export async function buildEditorPage(
   );
   const esbuild = NodeModule.createRequire(NodePath.join(viteRoot, "package.json"))(
     "esbuild",
-  ) as typeof import("esbuild");
+  ) as Esbuild;
   const built = await esbuild.build({
     entryPoints: [NodePath.join(editor, "src", "main.tsx")],
     bundle: true,

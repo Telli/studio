@@ -59,7 +59,7 @@ it("names only lint rules that exist and are switched on, and files that exist",
     for (const [, rule] of holder.matchAll(/`(shadcn\/[a-z-]+)`/gu)) {
       assert.include(config, `"${rule}": "error"`, `law ${law.number}: ${rule} is not switched on`);
     }
-    for (const [, path] of holder.matchAll(/`([\w./-]+\.(?:ts|tsx|yml))`/gu)) {
+    for (const [, path = ""] of holder.matchAll(/`([\w./-]+\.(?:ts|tsx|yml))`/gu)) {
       assert.isTrue(
         NodeFS.existsSync(NodePath.join(ROOT, path)),
         `law ${law.number}: ${path} does not exist (name files by their path from the repository root)`,

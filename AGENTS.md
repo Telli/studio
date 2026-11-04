@@ -10,8 +10,8 @@ is built and run. Studio's laws come first; T3 Code's guidance below holds where
 These are LAWS, not conventions: a change that breaks one is wrong even when it works. People own
 them. An agent may propose a new law, but never weakens or removes one without Amy's yes. Each law
 says what holds it: a lint rule or a test fails on a break, and a law held by review is checked by
-whoever reviews the change. Studio CI (`.github/workflows/studio-ci.yml`) runs the lint and
-the tests on every push to `main` and every change request.
+whoever reviews the change. Studio CI (`.github/workflows/studio-ci.yml`) runs the lint, the
+typecheck and the tests on every push to `main` and every change request.
 
 1. **Engineering words, never git's.** A person reads Project, Version, Sync, Revision, Design
    option, Change request and Approve change; never repository, commit, push, branch, pull request

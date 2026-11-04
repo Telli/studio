@@ -818,64 +818,64 @@ const WsServerDiscoverSourceControlRpc = Rpc.make(WS_METHODS.serverDiscoverSourc
   error: EnvironmentAuthorizationError,
 });
 
+// No union with EnvironmentAuthorizationError on the plugin and projects RPCs: the group's
+// RpcScopeAuthorization middleware adds it to every RPC's error, and one more
+// union pushes `ServerWsRpcGroup.toLayer` in ws.ts past TypeScript's
+// instantiation limit (TS2589).
 const WsPluginsCatalogRpc = Rpc.make(WS_METHODS.pluginsCatalog, {
   payload: PluginCatalogInput,
   success: PluginCatalogResult,
-  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+  error: PluginOperationError,
 });
 
 const WsPluginsListRpc = Rpc.make(WS_METHODS.pluginsList, {
   payload: Schema.Struct({}),
   success: PluginListResult,
-  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+  error: PluginOperationError,
 });
 
 const WsPluginsInstallRpc = Rpc.make(WS_METHODS.pluginsInstall, {
   payload: PluginInstallInput,
   success: InstalledPlugin,
-  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+  error: PluginOperationError,
 });
 
 const WsPluginsSetEnabledRpc = Rpc.make(WS_METHODS.pluginsSetEnabled, {
   payload: PluginSetEnabledInput,
   success: InstalledPlugin,
-  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+  error: PluginOperationError,
 });
 
 const WsPluginsUninstallRpc = Rpc.make(WS_METHODS.pluginsUninstall, {
   payload: PluginIdInput,
   success: Schema.Struct({}),
-  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+  error: PluginOperationError,
 });
 
 const WsPluginsUpdateRpc = Rpc.make(WS_METHODS.pluginsUpdate, {
   payload: PluginIdInput,
   success: InstalledPlugin,
-  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+  error: PluginOperationError,
 });
 
 const WsPluginsOpenViewRpc = Rpc.make(WS_METHODS.pluginsOpenView, {
   payload: PluginOpenViewInput,
   success: PluginViewDocument,
-  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+  error: PluginOperationError,
 });
 
 const WsPluginsRequestRpc = Rpc.make(WS_METHODS.pluginsRequest, {
   payload: PluginRequestInput,
   success: PluginRequestResult,
-  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+  error: PluginOperationError,
 });
 
 const WsPluginsModelPicturesRpc = Rpc.make(WS_METHODS.pluginsModelPictures, {
   payload: PluginModelPicturesInput,
   success: PluginModelPicturesResult,
-  error: Schema.Union([PluginOperationError, EnvironmentAuthorizationError]),
+  error: PluginOperationError,
 });
 
-// No union with EnvironmentAuthorizationError here: the group's
-// RpcScopeAuthorization middleware adds it to every RPC's error, and one more
-// union pushes `ServerWsRpcGroup.toLayer` in ws.ts past TypeScript's
-// instantiation limit (TS2589).
 const WsStudioProjectsListRpc = Rpc.make(WS_METHODS.studioProjectsList, {
   payload: StudioProjectsListInput,
   success: StudioProjectsListResult,

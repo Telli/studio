@@ -1,7 +1,7 @@
 name: Studio CI
 
-# Lint and Studio's own tests on every push to main and every change request. They hold Studio's
-# laws (AGENTS.md). GitHub's own runners, which are free for a public repository.
+# Lint, typecheck and Studio's own tests on every push to main and every change request. They
+# hold Studio's laws (AGENTS.md). GitHub's own runners, which are free for a public repository.
 on:
   push:
     branches: [main]
@@ -37,6 +37,34 @@ jobs:
 
       - name: Lint
         run: vp lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb # v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: Download Electron
+        run: vp run --filter @t3tools/desktop ensure:electron
+
+      # Every package. The server's WebSocket RPC layer sits near TypeScript's instantiation limit
+      # (packages/contracts/src/rpc.ts says how to keep under it); past it its types turn to any.
+      - name: Typecheck
+        run: vpr typecheck
 
   test:
     name: Studio's tests
