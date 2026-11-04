@@ -10,7 +10,8 @@ is built and run. Studio's laws come first; T3 Code's guidance below holds where
 These are LAWS, not conventions: a change that breaks one is wrong even when it works. People own
 them. An agent may propose a new law, but never weakens or removes one without Amy's yes. Each law
 says what holds it: a lint rule or a test fails on a break, and a law held by review is checked by
-whoever reviews the change.
+whoever reviews the change. Studio CI (`.github/workflows/studio-ci.yml`) runs the lint and
+the tests on every push to `main` and every change request.
 
 1. **Engineering words, never git's.** A person reads Project, Version, Sync, Revision, Design
    option, Change request and Approve change; never repository, commit, push, branch, pull request
@@ -33,7 +34,8 @@ whoever reviews the change.
    _Review._
 9. **Only anonymous counts leave the machine.** Never prompts, file names or geometry. The README
    lists every event, and the off switch stops all of them.
-   _Tests: `apps/server/src/telemetry/usageDataListed.test.ts`, `AnalyticsService.test.ts`._
+   _Tests: `apps/server/src/telemetry/usageDataListed.test.ts` and
+   `apps/server/src/telemetry/AnalyticsService.test.ts`._
 10. **text-to-cad stays Jake's.** Studio's changes to the CAD tools are commits on `studio-base` in
     the submodule's fork, never edits made here; Studio's own code stays outside `text-to-cad/`.
     _The submodule: an edit inside it is not part of Studio until it is a commit there._

@@ -91,6 +91,7 @@ export function usePartContext(threadRef: ScopedThreadRef): {
   // more: a plugin request has no way to be called off (the command, the server's relay to the CAD
   // server and its tunnel to the engine all run to their answer), and one per view is all there is.
   useEffect(() => {
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `modelKey` names the model `model` holds; its revision moving must not restart the ask.
     if (model === null || modelKey === null) return;
     let cancelled = false;
     const ask = route(model);
@@ -115,12 +116,12 @@ export function usePartContext(threadRef: ScopedThreadRef): {
     return () => {
       cancelled = true;
     };
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `modelKey` names the model `model` holds; its revision moving must not restart the ask.
   }, [modelKey, request, threadRef.environmentId, threadRef.threadId]);
 
   useEffect(() => {
     if (shown === null || key === null) return;
     let cancelled = false;
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `key` names the document and revision `shown` holds; a sync that changes nothing else must not read them again.
     const get = route(shown);
     // Every caller showing this revision shares one read of the routes (`sharedLoad`).
     const load = async (): Promise<Read> => {
@@ -158,7 +159,6 @@ export function usePartContext(threadRef: ScopedThreadRef): {
     return () => {
       cancelled = true;
     };
-    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- `key` names the document and revision `shown` holds; a sync that changes nothing else must not read them again.
   }, [key, request, threadRef.environmentId, threadRef.threadId]);
 
   if (shown === null) return null;

@@ -21,19 +21,25 @@ export function ImportMenu(props: {
   const label = hints ? "Import into this project" : "Import";
   const items = (
     <MenuPopup align={props.trigger === undefined ? "end" : "start"} side="bottom" sideOffset={6}>
-      <MenuItem
-        className={hints ? "flex-col items-start gap-0" : undefined}
-        onClick={() => void props.actions.pick()}
-      >
-        Files or a folder
-        {hints ? <span className="text-xs text-muted-foreground">{hints.pick}</span> : null}
+      <MenuItem onClick={() => void props.actions.pick()}>
+        {hints ? (
+          <span className="flex flex-col items-start">
+            Files or a folder
+            <span className="text-xs text-muted-foreground">{hints.pick}</span>
+          </span>
+        ) : (
+          "Files or a folder"
+        )}
       </MenuItem>
-      <MenuItem
-        className={hints ? "flex-col items-start gap-0" : undefined}
-        onClick={props.actions.scan}
-      >
-        Scan this computer
-        {hints ? <span className="text-xs text-muted-foreground">{hints.scan}</span> : null}
+      <MenuItem onClick={props.actions.scan}>
+        {hints ? (
+          <span className="flex flex-col items-start">
+            Scan this computer
+            <span className="text-xs text-muted-foreground">{hints.scan}</span>
+          </span>
+        ) : (
+          "Scan this computer"
+        )}
       </MenuItem>
     </MenuPopup>
   );

@@ -1,0 +1,88 @@
+name: Studio CI
+
+# Lint and Studio's own tests on every push to main and every change request. They hold Studio's
+# laws (AGENTS.md). GitHub's own runners, which are free for a public repository.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb # v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: Lint
+        run: vp lint
+
+  test:
+    name: Studio's tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      # actions/checkout's cleanup runs submodule foreach, which fails on the orphaned gitlinks in
+      # the vendored .repos tree, so this fetches the commit itself (as studio-windows.yml does).
+      - name: Checkout
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $auth" fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git sparse-checkout set --no-cone '/*' '!/.repos/'
+          git -c checkout.workers=0 checkout --detach FETCH_HEAD
+          # text-to-cad, at Studio's pin on its public fork (STUDIO.md).
+          git submodule update --init --depth=1 text-to-cad
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@250f29ce396baf5e8f24498e17c0dfdebabc26eb # v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: The laws' own shape
+        working-directory: scripts
+        run: vp test run --config ../vite.config.ts --dir . studio-laws.test.ts
+
+      - name: Lint rules
+        working-directory: oxlint-plugin-t3code
+        run: vp test run --config ../vite.config.ts --dir .
+
+      - name: Studio's screens
+        working-directory: apps/web
+        run: vp test run src/components/workbench
+
+      - name: Studio's server
+        working-directory: apps/server
+        run: vp test run src/plugins src/studio src/telemetry
+
+      - name: Studio's desktop app
+        working-directory: apps/desktop
+        run: vp test run src/studio
