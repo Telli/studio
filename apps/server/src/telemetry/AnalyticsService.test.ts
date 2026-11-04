@@ -14,6 +14,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 
 import * as ServerConfig from "../config.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import { getTelemetryIdentifier } from "./Identify.ts";
 import * as AnalyticsService from "./AnalyticsService.ts";
 
@@ -272,6 +273,52 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       }).pipe(Effect.provide(layerRuntime));
 
       assert.deepEqual(capturedPaths, []);
+    }),
+  );
+
+  it.effect.each([true, false])("sends events only while usage data is shared (%s)", (shared) =>
+    Effect.gen(function* () {
+      const sent: Array<string> = [];
+      const layerTelemetry = AnalyticsService.layer.pipe(
+        Layer.provide(ServerSettings.layerTest({ shareUsageData: shared })),
+        Layer.provideMerge(
+          ServerConfig.ServerConfig.layerTest(process.cwd(), { prefix: "t3-telemetry-shared-" }),
+        ),
+      );
+      const layerRuntime = layerTelemetry.pipe(
+        Layer.provide(
+          ConfigProvider.layer(
+            ConfigProvider.fromUnknown({
+              T3CODE_TELEMETRY_ENABLED: true,
+              T3CODE_POSTHOG_KEY: "phc_test_key",
+              T3CODE_POSTHOG_HOST: "http://localhost",
+            }),
+          ),
+        ),
+        Layer.provide(
+          Layer.mergeAll(
+            Layer.succeed(HostProcess.Platform, "linux"),
+            Layer.succeed(HostProcess.Architecture, "arm64"),
+          ),
+        ),
+        Layer.provideMerge(NodeHttpServer.layerTest),
+      );
+      const layerBatchServer = HttpServer.serve(
+        Effect.gen(function* () {
+          const request = yield* HttpServerRequest.HttpServerRequest;
+          sent.push(request.url);
+          return HttpServerResponse.jsonUnsafe({});
+        }),
+      );
+
+      yield* Effect.gen(function* () {
+        yield* Layer.launch(layerBatchServer).pipe(Effect.forkScoped);
+        const analytics = yield* AnalyticsService.AnalyticsService;
+        yield* analytics.record("test.shared", { index: 1 });
+        yield* analytics.flush;
+      }).pipe(Effect.provide(layerRuntime));
+
+      assert.equal(sent.length, shared ? 1 : 0);
     }),
   );
 });

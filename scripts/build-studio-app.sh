@@ -196,12 +196,18 @@ step "Laying out the CAD plugin"
 "$bundle_python" "$(native "$ROOT/scripts/studio-app-plugin.py")" "$(native "$CAD")" "$(native "$BUNDLE/marketplace")"
 # The Electron profile's folder is named by the app's id, which no other app shares; a folder
 # called "studio" could be any app's of that name.
-cat >"$BUNDLE/studio.json" <<'JSON'
+# STUDIO_USAGE_KEY (a PostHog project key) makes a build that sends anonymous usage counts.
+usage_key=""
+if [ -n "${STUDIO_USAGE_KEY:-}" ]; then
+  usage_key=",
+  \"usageKey\": \"$STUDIO_USAGE_KEY\""
+fi
+cat >"$BUNDLE/studio.json" <<JSON
 {
   "name": "Studio",
   "home": ".text-to-cad-studio",
   "profile": "com.amywork777.studio",
-  "plugins": ["text-to-cad"]
+  "plugins": ["text-to-cad"]$usage_key
 }
 JSON
 

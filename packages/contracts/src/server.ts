@@ -354,6 +354,8 @@ export const ServerObservability = Schema.Struct({
   // Absent on servers from before the log signal shipped, so a newer client
   // reads those as having no log export rather than rejecting the whole config.
   otlpLogsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  // Whether this build can send usage counts at all, so a client says so only when true.
+  usageDataAvailable: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
 });
 export type ServerObservability = typeof ServerObservability.Type;
 

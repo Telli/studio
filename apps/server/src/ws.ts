@@ -229,6 +229,7 @@ import * as ProcessResourceMonitor from "./diagnostics/ProcessResourceMonitor.ts
 import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as HostResources from "./resourceTelemetry/HostResources.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
+import * as PluginUsageEvents from "./plugins/usageEvents.ts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
@@ -1754,6 +1755,9 @@ const layerWsRpc = (
               otlpMetricsEnabled: config.otlpMetricsUrl !== undefined,
               ...(config.otlpLogsUrl !== undefined ? { otlpLogsUrl: config.otlpLogsUrl } : {}),
               otlpLogsEnabled: config.otlpLogsUrl !== undefined,
+              usageDataAvailable: yield* AnalyticsService.usageDataAvailable.pipe(
+                Effect.orElseSucceed(() => false),
+              ),
             },
             settings,
             shellResumeCompletionMarker: true,
@@ -2296,10 +2300,29 @@ const layerWsRpc = (
           plugins.uninstall(input.pluginId).pipe(Effect.as({})),
         [WS_METHODS.pluginsUpdate]: (input) => plugins.update(input.pluginId),
         [WS_METHODS.pluginsOpenView]: (input) => plugins.openView(input),
-        [WS_METHODS.pluginsRequest]: (input) => plugins.request(input),
+        [WS_METHODS.pluginsRequest]: (input) =>
+          plugins.request(input).pipe(
+            Effect.tap(({ result }) => {
+              const event = PluginUsageEvents.cadUsageEvent(input.method, input.params, result);
+              return event === null ? Effect.void : analytics.record(event).pipe(Effect.ignore);
+            }),
+          ),
         [WS_METHODS.pluginsModelPictures]: (input) => plugins.modelPictures(input),
         [WS_METHODS.studioProjectsList]: () => studioProjects.list,
-        [WS_METHODS.studioProjectsSave]: (input) => studioProjects.save(input),
+        [WS_METHODS.studioProjectsSave]: (input) =>
+          studioProjects.save(input).pipe(
+            // A new project counts by its starter's id (blank, sheet metal, an example), no name.
+            Effect.tap(() => {
+              if (input.id !== null) return Effect.void;
+              const { template } = input.project;
+              return analytics
+                .record("studio.project.created", {
+                  template:
+                    template !== null && /^[a-z0-9-]{1,40}$/.test(template) ? template : "none",
+                })
+                .pipe(Effect.ignore);
+            }),
+          ),
         [WS_METHODS.studioProjectsTrash]: (input) => studioProjects[input.action](input.id),
         [WS_METHODS.providerUploadFeedback]: (input) =>
           Effect.gen(function* () {

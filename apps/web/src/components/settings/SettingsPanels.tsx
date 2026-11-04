@@ -641,6 +641,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       DEFAULT_UNIFIED_SETTINGS.enableProviderUpdateChecks
         ? ["Provider update checks"]
         : []),
+      ...(settings.shareUsageData !== DEFAULT_UNIFIED_SETTINGS.shareUsageData
+        ? ["Share usage data"]
+        : []),
       ...(settings.continueThreadsAfterServerUpdate !==
       DEFAULT_UNIFIED_SETTINGS.continueThreadsAfterServerUpdate
         ? ["Continue threads after restarts"]
@@ -717,6 +720,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.responseStreamingMode,
       settings.persistComposerContextStrip,
       settings.enableProviderUpdateChecks,
+      settings.shareUsageData,
       settings.continueThreadsAfterServerUpdate,
       settings.sidebarAutoSettleAfterDays,
       settings.sidebarAutoSettleOnMerge,
@@ -831,6 +835,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       snoozeLimitedThreads: DEFAULT_UNIFIED_SETTINGS.snoozeLimitedThreads,
       responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
       enableProviderUpdateChecks: DEFAULT_UNIFIED_SETTINGS.enableProviderUpdateChecks,
+      shareUsageData: DEFAULT_UNIFIED_SETTINGS.shareUsageData,
       continueThreadsAfterServerUpdate: DEFAULT_UNIFIED_SETTINGS.continueThreadsAfterServerUpdate,
       backgroundActivity: DEFAULT_UNIFIED_SETTINGS.backgroundActivity,
       backgroundActivityProfile: DEFAULT_UNIFIED_SETTINGS.backgroundActivityProfile,
@@ -3385,6 +3390,22 @@ export function GeneralSettingsPanel() {
             {IS_NIGHTLY_BUILD ? <NightlyMobileBetaRow /> : null}
           </>
         )}
+        {environment?.serverConfig?.observability.usageDataAvailable ? (
+          <SettingsRow
+            serverScoped
+            settingKeys={["shareUsageData"]}
+            {...searchableSetting("usage-data")}
+            description="Send anonymous counts of which features get used and how often. Never prompts, file names or designs."
+            control={
+              <ScopedSwitch
+                settingKeys={["shareUsageData"]}
+                checked={settings.shareUsageData}
+                onCheckedChange={(checked) => updateSettings({ shareUsageData: Boolean(checked) })}
+                aria-label="Share usage data"
+              />
+            }
+          />
+        ) : null}
         <SettingsRow
           {...searchableSetting("privacy-policy")}
           description="T3 Code's privacy policy. This build sends T3 Code no usage data."

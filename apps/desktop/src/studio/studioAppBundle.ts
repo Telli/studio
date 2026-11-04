@@ -59,6 +59,11 @@ export function applyStudioAppBundle(input: {
   setDefault(env, "VITE_APP_BASE_NAME", settings.name);
   setDefault(env, "T3CODE_DESKTOP_PROFILE", settings.profile);
   setDefault(env, "T3CODE_DEFAULT_PLUGINS", settings.plugins.join(","));
+  // A build made with a usage key sends anonymous usage counts, which Settings can turn off.
+  if (settings.usageKey !== undefined) {
+    setDefault(env, "T3CODE_POSTHOG_KEY", settings.usageKey);
+    setDefault(env, "T3CODE_TELEMETRY_ENABLED", "true");
+  }
   for (const [name, value] of Object.entries(studioEngineEnv(home, { dev: false }))) {
     setDefault(env, name, value);
   }
@@ -93,6 +98,8 @@ interface StudioSettings {
   readonly home: string;
   readonly profile: string;
   readonly plugins: ReadonlyArray<string>;
+  /** The PostHog project key usage counts go to; absent in a build made without one. */
+  readonly usageKey?: string;
 }
 
 /**
@@ -118,14 +125,20 @@ function readSettings(file: string): StudioSettings | null {
     return null;
   }
   if (typeof parsed !== "object" || parsed === null) return null;
-  const { name, home, profile, plugins } = parsed as Record<string, unknown>;
+  const { name, home, profile, plugins, usageKey } = parsed as Record<string, unknown>;
   if (typeof name !== "string" || typeof home !== "string" || typeof profile !== "string") {
     return null;
   }
   const names = Array.isArray(plugins)
     ? plugins.filter((plugin) => typeof plugin === "string")
     : [];
-  return { name, home, profile, plugins: names };
+  return {
+    name,
+    home,
+    profile,
+    plugins: names,
+    ...(typeof usageKey === "string" && usageKey !== "" ? { usageKey } : {}),
+  };
 }
 
 function setDefault(env: Record<string, string | undefined>, name: string, value: string): void {

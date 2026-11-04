@@ -29,7 +29,7 @@ const write = (file: string, content: string) => {
 };
 
 /** A Resources folder with the bundle `scripts/build-studio-app.sh` stages. */
-function resources(prefix?: string): string {
+function resources(prefix?: string, extra: Record<string, unknown> = {}): string {
   const dir = tempDir(prefix);
   const bundle = NodePath.join(dir, "studio");
   write(
@@ -39,6 +39,7 @@ function resources(prefix?: string): string {
       home: ".studio-test",
       profile: "studio",
       plugins: ["text-to-cad"],
+      ...extra,
     }),
   );
   write(
@@ -189,6 +190,21 @@ describe("applyStudioAppBundle", () => {
     const none: Record<string, string | undefined> = {};
     applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: tempDir(), env: none });
     expect(none.CAD_CCX).toBeUndefined();
+  });
+
+  it("sends usage counts only from a build made with a usage key", () => {
+    const env: Record<string, string | undefined> = {};
+    applyStudioAppBundle({
+      resourcesPath: resources(undefined, { usageKey: "phc_test" }),
+      homeDirectory: tempDir(),
+      env,
+    });
+    expect(env).toMatchObject({ T3CODE_POSTHOG_KEY: "phc_test", T3CODE_TELEMETRY_ENABLED: "true" });
+
+    const none: Record<string, string | undefined> = {};
+    applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: tempDir(), env: none });
+    expect(none.T3CODE_POSTHOG_KEY).toBeUndefined();
+    expect(none.T3CODE_TELEMETRY_ENABLED).toBeUndefined();
   });
 
   it("leaves what the environment already says", () => {

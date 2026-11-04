@@ -582,10 +582,17 @@ export const SETTINGS_SEARCH_ITEMS = [
     desktopOnly: true,
   },
   {
+    id: "usage-data",
+    title: "Share usage data",
+    to: "/settings/general",
+    environmentOnly: true,
+    searchTerms: ["telemetry analytics usage counts tracking privacy opt out"],
+  },
+  {
     id: "privacy-policy",
     title: "Privacy policy",
     to: "/settings/general",
-    searchTerms: ["telemetry analytics usage data tracking legal opt out"],
+    searchTerms: ["legal privacy terms"],
   },
   {
     id: "telemetry-export",

@@ -1,11 +1,11 @@
 /**
- * Product analytics, off in Studio.
+ * Product analytics: Studio's anonymous usage counts.
  *
- * T3 Code sent usage events to PostHog from here. Studio ships no PostHog key
- * and turns the service off, so `make` returns a service that drops every event
- * before it reads any identity or starts the sender. The sender stays only
- * because deleting it changes the server's inferred layer types and tips ws.ts
- * past TypeScript's instantiation limit (TS2589).
+ * Events go to PostHog only when the app was built with a usage key
+ * (`T3CODE_POSTHOG_KEY`, which a Studio app bundle sets with
+ * `T3CODE_TELEMETRY_ENABLED`) and the user has left the `shareUsageData`
+ * setting on. Otherwise `record` drops every event. Events carry counts,
+ * kinds and provider names, never prompts, file names or geometry.
  *
  * @module AnalyticsService
  */
@@ -30,6 +30,7 @@ import * as HttpClientResponse from "effect/http/HttpClientResponse";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import { getTelemetryIdentifier } from "./Identify.ts";
 
 interface BufferedAnalyticsEvent {
@@ -80,6 +81,12 @@ const TelemetryEnvConfig = Config.all({
   wslDistroName: Config.String("WSL_DISTRO_NAME").pipe(Config.option),
 });
 
+/** Whether this build can send usage counts at all: it has a usage key and telemetry on. */
+export const usageDataAvailable = Effect.gen(function* () {
+  const { enabled, posthogKey } = yield* TelemetryEnvConfig;
+  return enabled && posthogKey !== "";
+});
+
 export class AnalyticsService extends Context.Service<
   AnalyticsService,
   {
@@ -126,6 +133,8 @@ export const make = Effect.gen(function* () {
   }
   const httpClient = yield* HttpClient.HttpClient;
   const serverConfig = yield* ServerConfig.ServerConfig;
+  // Read on each event, so turning the setting off in Settings stops events at once.
+  const settings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
   const identifier = yield* getTelemetryIdentifier;
   const crypto = yield* Crypto.Crypto;
   const bufferRef = yield* Ref.make<ReadonlyArray<BufferedAnalyticsEvent>>([]);
@@ -262,6 +271,13 @@ export const make = Effect.gen(function* () {
   const record: AnalyticsService["Service"]["record"] = Effect.fn("AnalyticsService.record")(
     function* (event, properties) {
       if (!telemetryConfig.enabled || !identifier) return;
+      if (Option.isSome(settings)) {
+        const sharing = yield* settings.value.getSettings.pipe(
+          Effect.map((current) => current.shareUsageData),
+          Effect.orElseSucceed(() => false),
+        );
+        if (!sharing) return;
+      }
 
       // Telemetry is best effort: an event without a uuid is not sent. The
       // Node implementation throws (a defect) rather than failing, so catch both.

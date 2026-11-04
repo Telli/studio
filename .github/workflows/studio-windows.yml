@@ -119,6 +119,8 @@ jobs:
         # The desktop build prints each command's own output, so a failed step says why.
         env:
           T3CODE_DESKTOP_VERBOSE: "1"
+          # Empty until the repository has the secret, which makes a build that sends no usage counts.
+          STUDIO_USAGE_KEY: ${{ secrets.STUDIO_USAGE_KEY }}
         run: bash scripts/build-studio-app.sh "$VERSION"
 
       - name: Install it and check the CAD tools run
