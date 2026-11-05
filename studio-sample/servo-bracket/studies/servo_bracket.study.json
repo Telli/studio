@@ -70,12 +70,10 @@
     ]
   },
   "margin": 2,
-  "view": {
-    "checks": [
-      {
-        "kind": "stress",
-        "label": "Strength, 20 N down at the horn through the servo's 4 screws"
-      }
-    ]
-  }
+  "checks": [
+    {
+      "kind": "stress",
+      "label": "Strength, 20 N down at the horn through the servo's 4 screws"
+    }
+  ]
 }

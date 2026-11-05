@@ -1,5 +1,11 @@
 {
-  "material": "aluminum-6061-t6",
+  "material": {
+    "name": "aluminum-6061-t6",
+    "E_MPa": 68900.0,
+    "nu": 0.33,
+    "yield_MPa": 276.0,
+    "density_t_per_mm3": 2.7e-09
+  },
   "fixtures": [
     {
       "faces": [
@@ -36,12 +42,10 @@
     "size_mm": 1.5
   },
   "margin": 2,
-  "view": {
-    "checks": [
-      {
-        "kind": "stress",
-        "label": "Strength, 50 N of belt tension on the motor, along the belt"
-      }
-    ]
-  }
+  "checks": [
+    {
+      "kind": "stress",
+      "label": "Strength, 50 N of belt tension on the motor, along the belt"
+    }
+  ]
 }
