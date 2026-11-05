@@ -682,14 +682,15 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   and all, since nothing draws a PDF again from a snapshot.
 
 - **The Toolbox.** Down the right of the workspace, in AI and in CAD, it is the one place for what
-  a part can have done to it: Evaluate, Manufacture and Document, each a card with a picture and
-  how many jobs the part has in it; a press opens the group's jobs (`StudioToolbox.tsx`). It folds
-  to its icons, and starts folded in a narrow panel. The jobs the part's kind takes:
+  a part can have done to it: Evaluate, Manufacture and Document, in one list, each group's name
+  over its sections' tiles (`StudioToolbox.tsx`). Every job is a tile like every other: no group
+  hides behind a press, and nothing is folded away (Amy, 11/04: every skill weighs the same). It
+  folds to its icons, and starts folded in a narrow panel; a group's icon opens it on that group. The jobs the part's kind takes:
   simulations, fit, motion and mass; each way of making it (the project's own first: printing,
   CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
   export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.
-  Each job says in a line what it makes. A group opens its everyday sections and folds the rest
-  in place; Cmd+K finds any job too. Each group ends in What each makes…, which opens the library
+  Each job says in a line what it makes. A group's everyday sections come first and the rest
+  after; Cmd+K finds any job too. Each group ends in What each makes…, which opens the library
   at that group's document types. Each job needs its text-to-cad skill
   (`components/workbench/hardwareActions.ts`) and sends the job, naming the part, to the chat, as
   New's Create does: each prompt asks for what it needs (the loads, the machine), so nothing waits

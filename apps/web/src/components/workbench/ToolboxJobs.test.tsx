@@ -25,7 +25,7 @@ afterEach(async () => {
 });
 
 const jobs = HARDWARE_ACTIONS.filter((action) => action.section === "simulation");
-const section: ToolboxSection = { title: "Simulation", actions: jobs, folded: false };
+const section: ToolboxSection = { title: "Simulation", actions: jobs };
 
 /** A button's accessible name from its content: what is hidden from readers is left out. */
 function nameOf(element: Element): string {

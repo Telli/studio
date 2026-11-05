@@ -1,13 +1,12 @@
-import { ChevronRightIcon, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import { useId } from "react";
 
-import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { HardwareAction } from "./hardwareActions";
 import type { ToolboxSection } from "./toolbox";
 import { toolIcon, toolTint } from "./toolIcons";
 
-/** A section's title over its jobs as tool tiles, two to a row; a folded one opens in place. */
+/** A section's title over its jobs as tool tiles, two to a row, always open like every other. */
 export function SectionJobs(props: {
   readonly section: ToolboxSection;
   /** No chat to write the job into. */
@@ -15,28 +14,22 @@ export function SectionJobs(props: {
   readonly onRun: (action: HardwareAction) => void;
 }) {
   return (
-    <Collapsible defaultOpen={!props.section.folded}>
-      <CollapsibleTrigger className="group flex h-7 w-full items-center gap-1 rounded-md px-2 text-left text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-        <span className="min-w-0 flex-1 truncate">{props.section.title}</span>
-        <ChevronRightIcon
-          aria-hidden="true"
-          className="size-3.5 shrink-0 transition-transform duration-150 group-data-panel-open:rotate-90 motion-reduce:transition-none"
-        />
-      </CollapsibleTrigger>
-      <CollapsiblePanel>
-        <div className="grid grid-cols-2 gap-1.5 px-1 pb-2">
-          {props.section.actions.map((action) => (
-            <ToolTile
-              key={action.id}
-              action={action}
-              icon={toolIcon(action)}
-              disabled={props.disabled}
-              onRun={() => props.onRun(action)}
-            />
-          ))}
-        </div>
-      </CollapsiblePanel>
-    </Collapsible>
+    <section className="flex flex-col gap-1.5">
+      <h4 className="truncate px-1 text-xs font-medium text-muted-foreground">
+        {props.section.title}
+      </h4>
+      <div className="grid grid-cols-2 gap-1.5">
+        {props.section.actions.map((action) => (
+          <ToolTile
+            key={action.id}
+            action={action}
+            icon={toolIcon(action)}
+            disabled={props.disabled}
+            onRun={() => props.onRun(action)}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 

@@ -1,15 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { hardwareActions } from "./hardwareActions";
-import { pictureOf } from "./library/libraryPictures";
-import {
-  GROUP_PICTURES,
-  jobCount,
-  toolboxFolded,
-  toolboxGroups,
-  toolboxLibraryLink,
-  toolboxView,
-} from "./toolbox";
+import { jobCount, toolboxFolded, toolboxGroups, toolboxLibraryLink } from "./toolbox";
 
 const menus = () =>
   hardwareActions("Part", new Set(["fea", "dfm", "dfam-check", "cam"]), "CNC machining");
@@ -21,13 +13,12 @@ describe("toolboxGroups", () => {
     expect(groups.every((group) => group.sections.length === 0)).toBe(true);
   });
 
-  it("shows the everyday sections open and the rest folded", () => {
+  it("lists the everyday sections first and the menus' others after, nothing folded", () => {
     const [evaluate, manufacture] = toolboxGroups(menus());
-    expect(evaluate?.sections[0]).toMatchObject({ title: "Simulation", folded: false });
-    expect(manufacture?.sections.find((section) => section.title === "FDM printing")?.folded).toBe(
-      true,
-    );
+    expect(evaluate?.sections[0]?.title).toBe("Simulation");
     expect(manufacture?.sections[0]?.title).toBe("CNC machining");
+    expect(manufacture?.sections.map((section) => section.title)).toContain("FDM printing");
+    expect(Object.keys(manufacture?.sections[0] ?? {}).toSorted()).toEqual(["actions", "title"]);
   });
 
   it("lists every job exactly once", () => {
@@ -39,27 +30,6 @@ describe("toolboxGroups", () => {
     );
     expect(fromGroups.toSorted()).toEqual(fromMenus.toSorted());
     expect(new Set(fromGroups).size).toBe(fromGroups.length);
-  });
-});
-
-describe("GROUP_PICTURES", () => {
-  it("names a Library picture for each group", () => {
-    expect(GROUP_PICTURES.Evaluate).toBe("doc:simulation");
-    expect(GROUP_PICTURES.Manufacture).toBe("doc:cam-job");
-    expect(GROUP_PICTURES.Document).toBe("doc:drawing");
-    for (const entry of Object.values(GROUP_PICTURES)) expect(pictureOf(entry)).not.toBeNull();
-  });
-});
-
-describe("toolboxView", () => {
-  it("opens a group, and goes back to the groups", () => {
-    const open = toolboxView({ open: null }, { type: "open", group: "Manufacture" });
-    expect(open).toEqual({ open: "Manufacture" });
-    expect(toolboxView(open, { type: "back" })).toEqual({ open: null });
-  });
-
-  it("goes back to the groups when another part comes in front", () => {
-    expect(toolboxView({ open: "Evaluate" }, { type: "part-changed" })).toEqual({ open: null });
   });
 });
 
@@ -76,7 +46,7 @@ describe("toolboxFolded", () => {
 });
 
 describe("jobCount", () => {
-  it("counts a group's jobs, folded sections too", () => {
+  it("counts a group's jobs in all its sections", () => {
     const [evaluate] = toolboxGroups(menus());
     const all = evaluate?.sections.flatMap((section) => section.actions) ?? [];
     expect(evaluate && jobCount(evaluate)).toBe(all.length);
