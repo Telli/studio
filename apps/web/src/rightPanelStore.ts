@@ -326,6 +326,29 @@ const sameSurfaceUpdated = (entry: RightPanelSurface, surface: RightPanelSurface
   surface.kind === "plugin-app" &&
   JSON.stringify(entry.arguments) !== JSON.stringify(surface.arguments);
 
+/**
+ * Where a new tab goes: just right of the one in front, as a browser puts a tab opened from the
+ * page you are on, so what you open from a part sits beside it. From the files explorer (Studio's
+ * pinned Overview) or with nothing in front, at the end, in the order they were opened.
+ */
+const withNewSurface = (
+  surfaces: readonly RightPanelSurface[],
+  surface: RightPanelSurface,
+  activeSurfaceId: string | null,
+): RightPanelSurface[] => {
+  const at = surfaces.findIndex((entry) => entry.id === activeSurfaceId && entry.kind !== "files");
+  return at < 0
+    ? [...surfaces, surface]
+    : [...surfaces.slice(0, at + 1), surface, ...surfaces.slice(at + 1)];
+};
+
+/**
+ * The tab each thread's panel had in front before the one in front now. Closing the front tab
+ * goes back to it, so a drawing opened from its part and closed returns to the part. Not
+ * persisted: after a reload a close goes to the neighbour.
+ */
+const cameFromByThreadKey = new Map<string, string>();
+
 const upsertSurface = (
   current: ThreadRightPanelState,
   surface: RightPanelSurface,
@@ -335,7 +358,7 @@ const upsertSurface = (
   isOpen: true,
   surfaces: current.surfaces.some((entry) => entry.id === surface.id)
     ? current.surfaces.map((entry) => (sameSurfaceUpdated(entry, surface) ? surface : entry))
-    : [...current.surfaces, surface],
+    : withNewSurface(current.surfaces, surface, current.activeSurfaceId),
   activeSurfaceId: activate ? surface.id : current.activeSurfaceId,
 });
 
@@ -346,12 +369,16 @@ const updateThreadStateMap = (
 ): Record<string, ThreadRightPanelState> => {
   const current = byThreadKey[threadKey] ?? EMPTY_THREAD_STATE;
   const next = updater(current);
+  if (current.activeSurfaceId !== null && next.activeSurfaceId !== current.activeSurfaceId) {
+    cameFromByThreadKey.set(threadKey, current.activeSurfaceId);
+  }
   if (
     !next.isOpen &&
     next.activeSurfaceId === null &&
     next.surfaces.length === 0 &&
     !next.dismissedDeviceSurfaceIds?.length
   ) {
+    cameFromByThreadKey.delete(threadKey);
     if (!(threadKey in byThreadKey)) return byThreadKey;
     const { [threadKey]: _removed, ...rest } = byThreadKey;
     return rest;
@@ -785,7 +812,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
                 ? withoutStandaloneExplorer.map((entry) =>
                     entry.id === surface.id ? surface : entry,
                   )
-                : [...withoutStandaloneExplorer, surface],
+                : withNewSurface(withoutStandaloneExplorer, surface, current.activeSurfaceId),
             };
           }),
         ),
@@ -893,11 +920,19 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
           ),
         ),
       closeSurface: (ref, surfaceId) =>
-        set((state) =>
-          closeAction(state, scopedThreadKey(ref), (current) => {
+        set((state) => {
+          const threadKey = scopedThreadKey(ref);
+          return closeAction(state, threadKey, (current) => {
             const index = current.surfaces.findIndex((surface) => surface.id === surfaceId);
             if (index < 0) return current;
-            const surfaces = current.surfaces.filter((surface) => surface.id !== surfaceId);
+            const left = current.surfaces.filter((surface) => surface.id !== surfaceId);
+            // Opening a file put the explorer away; closing it from there brings the explorer back.
+            const cameFrom = cameFromByThreadKey.get(threadKey);
+            const backToExplorer =
+              current.activeSurfaceId === surfaceId &&
+              cameFrom === "files" &&
+              !left.some((surface) => surface.kind === "files");
+            const surfaces = backToExplorer ? [singletonSurface("files"), ...left] : left;
             const next = {
               ...current,
               isOpen: surfaces.length > 0 && current.isOpen,
@@ -906,13 +941,16 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             if (current.activeSurfaceId !== surfaceId) {
               return next;
             }
-            const fallback = surfaces[Math.min(index, surfaces.length - 1)] ?? null;
+            const fallback =
+              surfaces.find((surface) => surface.id === cameFrom) ??
+              surfaces[Math.min(index, surfaces.length - 1)] ??
+              null;
             return {
               ...next,
               activeSurfaceId: fallback?.id ?? null,
             };
-          }),
-        ),
+          });
+        }),
       closeOtherSurfaces: (ref, surfaceId) =>
         set((state) =>
           closeAction(state, scopedThreadKey(ref), (current) => {

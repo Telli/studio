@@ -1155,6 +1155,50 @@ describe("rightPanelStore", () => {
     );
   });
 
+  it("opens a new tab just right of the one in front, as a browser does", () => {
+    const store = useRightPanelStore.getState();
+    store.openFile(refA, "parts/a.py");
+    store.openFile(refA, "parts/b.py");
+    store.activateSurface(refA, "file:parts/a.py");
+    store.openFile(refA, "parts/c.py");
+    store.openTerminal(refA, "term-1");
+
+    expect(
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA).surfaces.map(
+        (surface) => surface.id,
+      ),
+    ).toEqual(["file:parts/a.py", "file:parts/c.py", "terminal:term-1", "file:parts/b.py"]);
+  });
+
+  it("closing the front tab goes back to the tab you were on before it", () => {
+    const store = useRightPanelStore.getState();
+    store.openFile(refA, "parts/a.py");
+    store.openFile(refA, "parts/b.py");
+    store.openFile(refA, "parts/c.py");
+    store.activateSurface(refA, "file:parts/a.py");
+    store.openFile(refA, "parts/a_drawing.py");
+    store.activateSurface(refA, "file:parts/c.py");
+    store.activateSurface(refA, "file:parts/a_drawing.py");
+    store.closeSurface(refA, "file:parts/a_drawing.py");
+
+    expect(selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, refA)?.id).toBe(
+      "file:parts/c.py",
+    );
+  });
+
+  it("closing a file opened from the explorer brings the explorer back", () => {
+    const store = useRightPanelStore.getState();
+    store.openFile(refA, "parts/a.py");
+    store.open(refA, "files");
+    store.openFile(refA, "parts/b.py");
+    store.closeSurface(refA, "file:parts/b.py");
+
+    const panel = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
+    expect(panel.activeSurfaceId).toBe("files");
+    expect(panel.surfaces.map((surface) => surface.id)).toEqual(["files", "file:parts/a.py"]);
+    expect(panel.isOpen).toBe(true);
+  });
+
   it("closing the final surface closes the panel", () => {
     useRightPanelStore.getState().openTerminal(refA, "term-1");
     useRightPanelStore.getState().closeSurface(refA, "terminal:term-1");

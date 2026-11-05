@@ -1078,7 +1078,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       const api = readLocalApi();
       if (!api) return;
 
-      const surfaceIndex = props.surfaces.findIndex((entry) => entry.id === surface.id);
+      // Counted along the tabs shown, so Studio's pinned Overview is never one of the "others".
+      const surfaceIndex = tabSurfaces.findIndex((entry) => entry.id === surface.id);
       if (surfaceIndex < 0) return;
 
       const items: ContextMenuItem<TabContextMenuAction>[] = [];
@@ -1111,17 +1112,17 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         {
           id: "close-others",
           label: "Close others",
-          disabled: props.surfaces.length <= 1,
+          disabled: tabSurfaces.length <= 1,
         },
         {
           id: "close-to-right",
           label: "Close to the right",
-          disabled: surfaceIndex >= props.surfaces.length - 1,
+          disabled: surfaceIndex >= tabSurfaces.length - 1,
         },
         {
           id: "close-all",
           label: "Close all",
-          disabled: props.surfaces.length === 0,
+          disabled: tabSurfaces.length === 0,
         },
       );
 
@@ -1163,7 +1164,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           break;
       }
     },
-    [engineering, props],
+    [engineering, props, tabSurfaces],
   );
   const handleTabMouseDown = useCallback((event: ReactMouseEvent) => {
     if (event.button !== 1) return;

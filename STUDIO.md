@@ -447,7 +447,11 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   its icon, then each file with its kind's colored icon (`FileKindIcon.tsx`) at its left and its
   close at its right, as Chrome's are, the one in front joined to the toolbar under them. There is
   no + (New is the one way to add), a panel with every tab closed shows the Overview, and a tab's
-  menu has no Copy path in Engineering (the code interfaces keep it). The toolbar is one line of
+  menu has no Copy path in Engineering (the code interfaces keep it). A tab opens just right of
+  the one in front (from the Overview, at the end), and closing the one in front goes back to the
+  tab you were on before it, as a browser does: a drawing opened from its part and closed returns
+  to the part, one opened from the Overview to the Overview (`rightPanelStore.ts`). The menu's
+  Close others, Close to the right and Close all count the tabs shown, never the pinned Overview. The toolbar is one line of
   what can be done (`StudioPanelBar.tsx`): the AI | CAD switch, where the viewer in front has two
   layouts (the one way between them: no Back to AI beside it), then Import and New, always there, at its
   right end, as Home has them (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow
