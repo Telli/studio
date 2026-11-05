@@ -1127,9 +1127,16 @@ export const ServerSettings = Schema.Struct({
   /**
    * Whether this server sends Studio its anonymous usage counts: which features
    * are used, never prompts, file names or models. Nothing is sent unless the
-   * app was built with a usage key (see AnalyticsService).
+   * app was built with a usage receiver (see AnalyticsService), and turning it
+   * off deletes what was sent.
    */
   shareUsageData: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  /**
+   * Whether the first-launch notice has told the person what usage counts are
+   * sent. Nothing is sent before it has, as text-to-cad sends nothing before
+   * its one line.
+   */
+  usageDataNoticeShown: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   // Retain the update-era key. On by default so restarts resume the work they
   // interrupted; recovery stops after three automatic continuations in a row.
   continueThreadsAfterServerUpdate: Schema.Boolean.pipe(
@@ -1544,6 +1551,7 @@ export const ServerSettingsPatch = Schema.Struct({
   responseStreamingMode: Schema.optionalKey(ResponseStreamingMode),
   enableProviderUpdateChecks: Schema.optionalKey(Schema.Boolean),
   shareUsageData: Schema.optionalKey(Schema.Boolean),
+  usageDataNoticeShown: Schema.optionalKey(Schema.Boolean),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
   projectAgentBrowserAccessOverrides: Schema.optionalKey(

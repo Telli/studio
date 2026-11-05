@@ -114,3 +114,6 @@ jobs:
       - name: Studio's desktop app
         working-directory: apps/desktop
         run: vp test run src/studio
+
+      - name: The usage receiver
+        run: node --test infra/usage/src/*.test.mjs

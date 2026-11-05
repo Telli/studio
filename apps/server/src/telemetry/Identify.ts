@@ -315,3 +315,13 @@ export const getTelemetryIdentifier = Effect.flatMap(
   HostProcess.HomeDirectory,
   getTelemetryIdentifierForHome,
 );
+
+/**
+ * The random id this install's usage counts go under (`anonymous-id` in the state directory), made on first
+ * use, and the one thing a deletion names. It is never derived from an account. Null when it cannot be read
+ * or made, and then nothing is sent.
+ */
+export const getInstallId = upsertAnonymousId.pipe(
+  Effect.tapError(logTelemetryIdentityError),
+  Effect.orElseSucceed(() => null),
+);

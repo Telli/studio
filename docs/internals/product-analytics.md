@@ -1,13 +1,17 @@
 # Product analytics
 
-Studio ships this switched off and without a PostHog key, so nothing below runs unless both
-`T3CODE_TELEMETRY_ENABLED` and `T3CODE_POSTHOG_KEY` are set.
+Studio sends usage counts the way text-to-cad does: to a receiver of its own
+([`infra/usage`](../../infra/usage/README.md)), which checks every batch and passes it to
+PostHog. No build carries a PostHog key, so the receiver can refuse, or PostHog be replaced,
+without a release. Nothing below runs unless the build names the receiver (`T3CODE_USAGE_URL`).
 
-The server owns PostHog delivery, opt-out, and identity for every connected client.
-[Identity selection](../../apps/server/src/telemetry/Identify.ts) hashes an available
-provider account ID, falling back to an installation-scoped ID. This identity can
-span several clients; it does not identify a browser session. Clients do not load
-the PostHog browser SDK. Client-use events require an authenticated connection, so
+The server owns delivery, opt-out, and identity for every connected client. The identity
+is the install's random id ([`getInstallId`](../../apps/server/src/telemetry/Identify.ts)),
+never one derived from a provider account, because an opt-out deletes by it. It can span
+several clients; it does not identify a browser session. Nothing is sent until the
+first-launch notice has been shown (`usageDataNoticeShown`), and turning sharing off owes
+the receiver a deletion of everything sent under the id, kept across restarts until taken;
+no batch goes out while one is owed. Clients do not load the PostHog browser SDK. Client-use events require an authenticated connection, so
 visiting the hosted app without connecting does not count as product use.
 
 ## Attribution boundaries
@@ -20,8 +24,8 @@ connection.
 Keep client and server dimensions separate. A desktop host can serve a phone or a
 remote browser, and a direct connection can cross a network. Older clients omit
 metadata. Missing client values must stay unknown rather than being backfilled
-from server properties. The legacy `clientType` property describes how the server
-runs; use `surface` for the connected client.
+from server properties. The batch's `mode` describes how the server runs; use
+`surface` for the connected client.
 
 ## Interpreting events
 
@@ -56,4 +60,5 @@ few tries. Without these limits, one stuck batch was sent every second for days.
 Keep analytics payloads to product metadata and normalized measurements. Do not
 send prompts, authentication material, raw provider payloads, user-assigned device
 names, or conversation identifiers. Client metadata is best effort; invalid values
-must not reject a connection. PostHog person profiles remain disabled.
+must not reject a connection. The receiver refuses any event or property outside its contract,
+so a new event needs its list, the README's and the server's to change together.

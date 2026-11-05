@@ -192,19 +192,26 @@ describe("applyStudioAppBundle", () => {
     expect(none.CAD_CCX).toBeUndefined();
   });
 
-  it("sends usage counts only from a build made with a usage key", () => {
+  it("sends usage counts only from a build made with a usage receiver", () => {
     const env: Record<string, string | undefined> = {};
     applyStudioAppBundle({
-      resourcesPath: resources(undefined, { usageKey: "phc_test" }),
+      resourcesPath: resources(undefined, { usageUrl: "https://usage.example" }),
       homeDirectory: tempDir(),
       env,
     });
-    expect(env).toMatchObject({ T3CODE_POSTHOG_KEY: "phc_test", T3CODE_TELEMETRY_ENABLED: "true" });
+    expect(env.T3CODE_USAGE_URL).toBe("https://usage.example");
 
     const none: Record<string, string | undefined> = {};
     applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: tempDir(), env: none });
-    expect(none.T3CODE_POSTHOG_KEY).toBeUndefined();
-    expect(none.T3CODE_TELEMETRY_ENABLED).toBeUndefined();
+    expect(none.T3CODE_USAGE_URL).toBeUndefined();
+
+    const plain: Record<string, string | undefined> = {};
+    applyStudioAppBundle({
+      resourcesPath: resources(undefined, { usageUrl: "http://usage.example" }),
+      homeDirectory: tempDir(),
+      env: plain,
+    });
+    expect(plain.T3CODE_USAGE_URL).toBeUndefined();
   });
 
   it("leaves what the environment already says", () => {

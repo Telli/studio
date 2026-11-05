@@ -33,9 +33,10 @@ typecheck and the tests on every push to `main` and every change request.
 8. **NX and SolidWorks are the bar.** An engineer finds each thing where their CAD puts it.
    _Review._
 9. **Only anonymous counts leave the machine.** Never prompts, file names or geometry. The README
-   lists every event, and the off switch stops all of them.
-   _Tests: `apps/server/src/telemetry/usageDataListed.test.ts` and
-   `apps/server/src/telemetry/AnalyticsService.test.ts`._
+   lists every event, the receiver refuses anything else, and the off switch stops all of them and
+   deletes what was sent.
+   _Tests: `apps/server/src/telemetry/usageDataListed.test.ts`,
+   `apps/server/src/telemetry/AnalyticsService.test.ts` and `infra/usage/src/events.test.mjs`._
 10. **text-to-cad stays Jake's.** Studio's changes to the CAD tools are commits on `studio-base` in
     the submodule's fork, never edits made here; Studio's own code stays outside `text-to-cad/`.
     _The submodule: an edit inside it is not part of Studio until it is a commit there._

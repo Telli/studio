@@ -3,8 +3,11 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientError from "effect/http/HttpClientError";
@@ -12,57 +15,44 @@ import * as HttpServer from "effect/http/HttpServer";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
-import { getTelemetryIdentifier } from "./Identify.ts";
+import { getInstallId } from "./Identify.ts";
 import * as AnalyticsService from "./AnalyticsService.ts";
 
-interface RecordedBatchRequest {
-  readonly path: string;
-  readonly body: {
-    readonly batch?: ReadonlyArray<{
-      readonly event?: string;
-      readonly properties?: {
-        readonly index?: number;
-        readonly clientType?: string;
-        readonly serverOs?: string;
-        readonly serverArch?: string;
-        readonly serverAppVersion?: string;
-        readonly serverMode?: string;
-        readonly t3CodeVersion?: string;
-      };
-    }>;
-  } | null;
+interface SentEvent {
+  readonly id?: string;
+  readonly event?: string;
+  readonly properties?: { readonly index?: number };
 }
 
-interface RecordedBatchBody {
-  readonly batch: ReadonlyArray<{
-    readonly event?: string;
-    readonly properties?: {
-      readonly index?: number;
-      readonly clientType?: string;
-      readonly serverOs?: string;
-      readonly serverArch?: string;
-      readonly serverAppVersion?: string;
-      readonly serverMode?: string;
-      readonly t3CodeVersion?: string;
-    };
-  }>;
+interface RecordedRequest {
+  readonly path: string;
+  readonly body: {
+    readonly schema?: number;
+    readonly install?: string;
+    readonly version?: string;
+    readonly platform?: string;
+    readonly arch?: string;
+    readonly mode?: string;
+    readonly events?: ReadonlyArray<SentEvent>;
+  } | null;
 }
 
 const SentBatch = Schema.fromJsonString(
   Schema.Struct({
-    batch: Schema.Array(Schema.Struct({ uuid: Schema.String })),
+    events: Schema.Array(Schema.Struct({ id: Schema.String })),
   }),
 );
 
 /**
  * HTTP client that reads each batch, then fails as if the connection dropped
- * before the response arrived. PostHog stores these batches, so the server
+ * before the response arrived. The receiver stores these batches, so the server
  * must not send them forever.
  */
-const layerAcceptThenFailClient = (batches: Array<ReadonlyArray<{ readonly uuid: string }>>) =>
+const layerAcceptThenFailClient = (batches: Array<ReadonlyArray<{ readonly id: string }>>) =>
   Layer.succeed(
     HttpClient.HttpClient,
     HttpClient.make((request) =>
@@ -71,7 +61,7 @@ const layerAcceptThenFailClient = (batches: Array<ReadonlyArray<{ readonly uuid:
           const body = yield* Schema.decodeEffect(SentBatch)(
             new TextDecoder().decode(request.body.body),
           ).pipe(Effect.orDie);
-          batches.push(body.batch);
+          batches.push(body.events);
         }
         return yield* new HttpClientError.HttpClientError({
           reason: new HttpClientError.TransportError({ request, cause: "connection reset" }),
@@ -79,6 +69,56 @@ const layerAcceptThenFailClient = (batches: Array<ReadonlyArray<{ readonly uuid:
       }),
     ),
   );
+
+/** A receiver that answers every request and keeps its path. */
+const receiver = (paths: Array<string>) =>
+  Layer.launch(
+    HttpServer.serve(
+      Effect.gen(function* () {
+        const request = yield* HttpServerRequest.HttpServerRequest;
+        // The test client puts the receiver's address in front of the route.
+        paths.push(request.url.replace(/^.*(?=\/v1\/)/u, ""));
+        return HttpServerResponse.empty({ status: 204 });
+      }),
+    ),
+  ).pipe(Effect.forkScoped);
+
+/**
+ * Everything the service needs but itself, with settings that may change once (`changesTo`) as the
+ * service starts.
+ */
+const receiverRuntime = (
+  shared: { readonly shareUsageData: boolean; readonly usageDataNoticeShown: boolean },
+  changesTo?: { readonly shareUsageData: boolean },
+) => {
+  const layerSettings = ServerSettings.layerTest(shared);
+  const layerChangingSettings =
+    changesTo === undefined
+      ? layerSettings
+      : Layer.effect(
+          ServerSettings.ServerSettingsService,
+          Effect.gen(function* () {
+            const base = yield* ServerSettings.ServerSettingsService;
+            return {
+              ...base,
+              streamChanges: Stream.make({ ...DEFAULT_SERVER_SETTINGS, ...shared, ...changesTo }),
+            };
+          }),
+        ).pipe(Layer.provide(layerSettings));
+  return Layer.mergeAll(
+    layerChangingSettings,
+    ServerConfig.ServerConfig.layerTest(process.cwd(), { prefix: "t3-telemetry-forget-" }),
+    ConfigProvider.layer(ConfigProvider.fromUnknown({ T3CODE_USAGE_URL: "http://localhost" })),
+    Layer.succeed(HostProcess.Platform, "linux"),
+    Layer.succeed(HostProcess.Architecture, "arm64"),
+  ).pipe(Layer.provideMerge(NodeHttpServer.layerTest));
+};
+
+const forgetOwedPath = Effect.gen(function* () {
+  const { anonymousIdPath } = yield* ServerConfig.ServerConfig;
+  const path = yield* Path.Path;
+  return path.join(path.dirname(anonymousIdPath), "usage-forget-owed");
+});
 
 it("retryDelayMs doubles from 2s and stays under the 5 minute cap", () => {
   assert.equal(AnalyticsService.retryDelayMs(1, 0), 1_000);
@@ -90,7 +130,7 @@ it("retryDelayMs doubles from 2s and stays under the 5 minute cap", () => {
 it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
   it.effect("a batch that keeps failing is retried with backoff, then dropped", () =>
     Effect.gen(function* () {
-      const batches: Array<ReadonlyArray<{ readonly uuid: string }>> = [];
+      const batches: Array<ReadonlyArray<{ readonly id: string }>> = [];
       const layerRuntime = AnalyticsService.layer.pipe(
         Layer.provideMerge(
           ServerConfig.ServerConfig.layerTest(process.cwd(), { prefix: "t3-telemetry-retry-" }),
@@ -98,9 +138,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         Layer.provide(
           ConfigProvider.layer(
             ConfigProvider.fromUnknown({
-              T3CODE_TELEMETRY_ENABLED: true,
-              T3CODE_POSTHOG_KEY: "phc_test_key",
-              T3CODE_POSTHOG_HOST: "http://localhost",
+              T3CODE_USAGE_URL: "http://localhost",
             }),
           ),
         ),
@@ -125,15 +163,16 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       }).pipe(Effect.provide(layerRuntime));
 
       assert.equal(batches.length, 5);
-      const uuids = batches.map((batch) => batch.map((event) => event.uuid).join(","));
-      assert.equal(new Set(uuids).size, 1, "every retry carries the same uuids");
-      assert.equal(new Set(batches[0]?.map((event) => event.uuid)).size, 20);
+      const ids = batches.map((batch) => batch.map((event) => event.id).join(","));
+      assert.equal(new Set(ids).size, 1, "every retry carries the same ids");
+      assert.equal(new Set(batches[0]?.map((event) => event.id)).size, 20);
     }),
   );
 
   it.effect("flush drains all buffered events across multiple batches", () =>
     Effect.gen(function* () {
-      const capturedRequests: Array<RecordedBatchRequest> = [];
+      let install: string | null = null;
+      const capturedRequests: Array<RecordedRequest> = [];
       const layerServerConfig = ServerConfig.ServerConfig.layerTest(process.cwd(), {
         prefix: "t3-telemetry-base-",
       });
@@ -141,9 +180,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       const layerTelemetry = AnalyticsService.layer.pipe(Layer.provideMerge(layerServerConfig));
       const layerConfig = ConfigProvider.layer(
         ConfigProvider.fromUnknown({
-          T3CODE_TELEMETRY_ENABLED: true,
-          T3CODE_POSTHOG_KEY: "phc_test_key",
-          T3CODE_POSTHOG_HOST: "http://localhost",
+          T3CODE_USAGE_URL: "http://localhost",
           T3CODE_TELEMETRY_FLUSH_BATCH_SIZE: 20,
         }),
       );
@@ -155,7 +192,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
           }
 
           const payload = yield* request.json.pipe(
-            Effect.map((body) => body as RecordedBatchRequest["body"]),
+            Effect.map((body) => body as RecordedRequest["body"]),
             Effect.orElseSucceed(() => null),
           );
 
@@ -177,8 +214,8 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
 
       yield* Effect.gen(function* () {
         yield* Layer.launch(layerBatchServer).pipe(Effect.forkScoped);
-        const telemetryIdentifier = yield* getTelemetryIdentifier;
-        assert.equal(telemetryIdentifier !== null, true);
+        install = yield* getInstallId;
+        assert.equal(install !== null, true);
         const analytics = yield* AnalyticsService.AnalyticsService;
 
         for (let index = 0; index < 45; index += 1) {
@@ -188,48 +225,35 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         yield* analytics.flush;
       }).pipe(Effect.provide(layerRuntime));
 
-      const batchRequests = capturedRequests.filter(
-        (request): request is RecordedBatchRequest & { readonly body: RecordedBatchBody } =>
-          Array.isArray(request.body?.batch),
+      const batchRequests = capturedRequests.filter((request) =>
+        Array.isArray(request.body?.events),
       );
       assert.equal(batchRequests.length, 3);
-      assert.equal(
-        batchRequests.every(
-          (request) => request.path.endsWith("/batch/") || request.path.endsWith("/batch"),
-        ),
-        true,
-      );
+      assert.isTrue(batchRequests.every((request) => request.path.endsWith("/v1/events")));
       const deliveredIndexes = batchRequests.flatMap((request) =>
-        request.body.batch
+        (request.body?.events ?? [])
           .filter((event) => event.event === "test.flush.drain")
           .map((event) => event.properties?.index)
           .filter((index): index is number => typeof index === "number"),
       );
-
-      const sorted = deliveredIndexes.toSorted((a, b) => a - b);
-      assert.equal(sorted.length, 45);
       assert.deepEqual(
-        sorted,
+        deliveredIndexes.toSorted((a, b) => a - b),
         Array.from({ length: 45 }, (_, index) => index),
       );
-      assert.equal(
-        batchRequests.every((request) =>
-          request.body.batch.every((event) => event.properties?.clientType === "cli-web-client"),
-        ),
-        true,
-      );
-      assert.equal(
-        batchRequests.every((request) =>
-          request.body.batch.every(
-            (event) =>
-              event.properties?.serverOs === "Linux" &&
-              event.properties.serverArch === "arm64" &&
-              event.properties.serverAppVersion === event.properties.t3CodeVersion &&
-              event.properties.serverMode === "web",
-          ),
-        ),
-        true,
-      );
+      // Each batch says who sends it, by the install's random id, beside the counts.
+      for (const request of batchRequests) {
+        const { schema, install: sentInstall, platform, arch, mode } = request.body ?? {};
+        assert.deepEqual(
+          { schema, install: sentInstall, platform, arch, mode },
+          {
+            schema: 1,
+            install: install ?? undefined,
+            platform: "linux",
+            arch: "arm64",
+            mode: "web",
+          },
+        );
+      }
     }),
   );
 
@@ -246,8 +270,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         Effect.provide(
           ConfigProvider.layer(
             ConfigProvider.fromUnknown({
-              T3CODE_TELEMETRY_ENABLED: true,
-              T3CODE_POSTHOG_KEY: "phc_test_key",
+              T3CODE_USAGE_URL: "https://usage.example",
               ...env,
             }),
           ),
@@ -267,8 +290,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       const layerConfig = ConfigProvider.layer(
         ConfigProvider.fromUnknown({
           T3CODE_TELEMETRY_ENABLED: false,
-          T3CODE_POSTHOG_KEY: "phc_test_key",
-          T3CODE_POSTHOG_HOST: "http://localhost",
+          T3CODE_USAGE_URL: "http://localhost",
         }),
       );
       const layerBatchServer = HttpServer.serve(
@@ -304,7 +326,9 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
     Effect.gen(function* () {
       const sent: Array<string> = [];
       const layerTelemetry = AnalyticsService.layer.pipe(
-        Layer.provide(ServerSettings.layerTest({ shareUsageData: shared })),
+        Layer.provide(
+          ServerSettings.layerTest({ shareUsageData: shared, usageDataNoticeShown: true }),
+        ),
         Layer.provideMerge(
           ServerConfig.ServerConfig.layerTest(process.cwd(), { prefix: "t3-telemetry-shared-" }),
         ),
@@ -313,9 +337,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         Layer.provide(
           ConfigProvider.layer(
             ConfigProvider.fromUnknown({
-              T3CODE_TELEMETRY_ENABLED: true,
-              T3CODE_POSTHOG_KEY: "phc_test_key",
-              T3CODE_POSTHOG_HOST: "http://localhost",
+              T3CODE_USAGE_URL: "http://localhost",
             }),
           ),
         ),
@@ -343,6 +365,71 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       }).pipe(Effect.provide(layerRuntime));
 
       assert.equal(sent.length, shared ? 1 : 0);
+    }),
+  );
+  it.effect("sends nothing until the first-launch notice has been shown", () =>
+    Effect.gen(function* () {
+      const paths: Array<string> = [];
+      yield* Effect.gen(function* () {
+        yield* receiver(paths);
+        yield* Effect.gen(function* () {
+          const analytics = yield* AnalyticsService.AnalyticsService;
+          yield* analytics.record("test.untold", { index: 1 });
+          yield* analytics.flush;
+        }).pipe(Effect.provide(AnalyticsService.layer));
+      }).pipe(
+        Effect.provide(receiverRuntime({ shareUsageData: true, usageDataNoticeShown: false })),
+      );
+      assert.deepEqual(paths, []);
+    }),
+  );
+
+  it.effect("turning sharing off asks the receiver to forget before anything more goes out", () =>
+    Effect.gen(function* () {
+      const paths: Array<string> = [];
+      const owed = yield* Effect.gen(function* () {
+        yield* receiver(paths);
+        const markerPath = yield* forgetOwedPath;
+        yield* Effect.gen(function* () {
+          const analytics = yield* AnalyticsService.AnalyticsService;
+          // The change reaches the service as it starts.
+          for (let turn = 0; turn < 5; turn += 1) yield* Effect.yieldNow;
+          yield* analytics.record("test.after", { index: 1 });
+          yield* analytics.flush;
+          assert.deepEqual(paths, [], "nothing goes out while a deletion is owed");
+        }).pipe(Effect.provide(AnalyticsService.layer));
+        return yield* (yield* FileSystem.FileSystem).exists(markerPath);
+      }).pipe(
+        Effect.provide(
+          receiverRuntime(
+            { shareUsageData: true, usageDataNoticeShown: true },
+            { shareUsageData: false },
+          ),
+        ),
+      );
+      assert.deepEqual(paths, ["/v1/forget", "/v1/events"]);
+      assert.isFalse(owed, "a deletion the receiver took is owed no more");
+    }),
+  );
+
+  it.effect("a deletion owed before a restart is asked for again", () =>
+    Effect.gen(function* () {
+      const paths: Array<string> = [];
+      yield* Effect.gen(function* () {
+        yield* receiver(paths);
+        const fileSystem = yield* FileSystem.FileSystem;
+        const markerPath = yield* forgetOwedPath;
+        yield* fileSystem.writeFileString(markerPath, "owed");
+        yield* Effect.gen(function* () {
+          const analytics = yield* AnalyticsService.AnalyticsService;
+          yield* analytics.record("test.owed", { index: 1 });
+          yield* analytics.flush;
+        }).pipe(Effect.provide(AnalyticsService.layer));
+        assert.isFalse(yield* fileSystem.exists(markerPath));
+      }).pipe(
+        Effect.provide(receiverRuntime({ shareUsageData: true, usageDataNoticeShown: true })),
+      );
+      assert.deepEqual(paths, ["/v1/forget", "/v1/events"]);
     }),
   );
 });
