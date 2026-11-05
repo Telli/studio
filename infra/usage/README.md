@@ -38,8 +38,13 @@ A `POST` with an `Origin` header (any browser) is refused, and the receiver keep
    `vercel deploy --prod` from `infra/usage`, then check that `GET <url>/v1/health` answers
    `{"ok":true}`.
 4. Give Studio the address: the repository variable `STUDIO_USAGE_URL` (read by the Windows build)
-   and `STUDIO_USAGE_URL=<url>` for `scripts/build-studio-app.sh`. A build made without it sends
-   nothing.
+   and the default in `scripts/build-studio-app.sh`. A build made with `STUDIO_USAGE_URL=` (empty)
+   sends nothing.
+
+It runs at https://studio-usage.vercel.app: the Vercel project `studio-usage` on Amy's personal
+Vercel (`amy-zhous-projects-45e75853`), over the Supabase project `studio-usage`
+(`mlkacarkcdxquuspekdr`, Amy's personal org). The database password is in Amy's Keychain as
+"Supabase studio-usage db password". Redeploy with `vercel deploy --prod` from here.
 
 ```bash
 node --test infra/usage/src/*.test.mjs

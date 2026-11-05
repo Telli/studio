@@ -55,3 +55,8 @@ NodeTest.test("knows exactly the events README.md lists", () => {
   const listed = [...section.matchAll(/`([a-z]+(?:\.[a-z_]+)+)`/gu)].map((found) => found[1]);
   NodeAssert.deepEqual([...EVENTS].toSorted(), listed.toSorted());
 });
+
+NodeTest.test("keeps a model id with its context size", () => {
+  const [row] = rowsOf(batchOf([eventOf({ properties: { model: "claude-opus-5-5[1m]" } })]));
+  NodeAssert.equal(row.properties.model, "claude-opus-5-5[1m]");
+});

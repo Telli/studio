@@ -18,7 +18,7 @@
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NAME = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 // A word, a model or version id, a few words of a fixed vocabulary: never a path, a line break or a sentence.
-const WORD = /^[A-Za-z0-9_.+:@,()/ -]{0,80}$/;
+const WORD = /^[A-Za-z0-9_.+:@,()[\]/ -]{0,80}$/;
 const PATHLIKE = /^[/~]|\\|^[A-Za-z]:|\/\//;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 const MAX_EVENTS = 100;

@@ -196,10 +196,12 @@ step "Laying out the CAD plugin"
 "$bundle_python" "$(native "$ROOT/scripts/studio-app-plugin.py")" "$(native "$CAD")" "$(native "$BUNDLE/marketplace")"
 # The Electron profile's folder is named by the app's id, which no other app shares; a folder
 # called "studio" could be any app's of that name.
-# STUDIO_USAGE_URL (Studio's usage receiver, infra/usage) makes a build that sends anonymous usage
-# counts there. No build carries a database key: the receiver holds it.
+# A build sends anonymous usage counts, once the person says yes, to Studio's usage receiver
+# (infra/usage), or to STUDIO_USAGE_URL; STUDIO_USAGE_URL= (empty) makes one that sends nothing.
+# No build carries a database key: the receiver holds it.
 usage_url=""
-if [ -n "${STUDIO_USAGE_URL:-}" ]; then
+STUDIO_USAGE_URL="${STUDIO_USAGE_URL-https://studio-usage.vercel.app}"
+if [ -n "$STUDIO_USAGE_URL" ]; then
   usage_url=",
   \"usageUrl\": \"$STUDIO_USAGE_URL\""
 fi
