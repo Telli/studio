@@ -597,7 +597,8 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   written, and rebuilds every part that uses the file, so the model reloads as any rebuild does; a
   value made of several sizes asks which to change, and a file changed since it was read is refused.
   The view's own tools (Select, Measure, Section View, Exploded View) stay on its strip, in CAD mode
-  as in AI, as SolidWorks keeps them on its Heads-up View toolbar; the toolbar holds the modeling.
+  as in AI, as SolidWorks keeps them on its Heads-up View toolbar, drawn in CAD mode in the
+  toolbar's icons (`EFFECT_ICONS` in `xbf/edit/cadIcons.jsx`); the toolbar holds the modeling.
   The toolbar's Create and Modify groups (Hole, Pattern, Mirror; Fillet, Chamfer, Shell) open a
   dialog at the model view's top left, beside the design tree, as SolidWorks' PropertyManager does:
   what the command acts on (the edges or faces selected on the model, Select turned to them as it
@@ -686,7 +687,9 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
 
 - **The Toolbox.** Down the right of the workspace, in AI and in CAD, it is the one place for what
   a part can have done to it: Evaluate, Manufacture and Document, a tab each like SolidWorks'
-  CommandManager (the tab left open is remembered on this device), each with a line on what it is
+  CommandManager (the tab left open is remembered on this device), three equal tiles of the
+  group's icon (the folded edge's, in its jobs' color) over its name, as the CAD toolbar's
+  buttons are, each with a line on what it is
   for (`GROUP_PURPOSES`) over its sections' tiles, split by rules (`StudioToolbox.tsx`).
   Manufacture keeps four sections, not one per process (3D printing, machining and molding, sheet
   metal and cutting, files and off-the-shelf parts), so no heading holds a lone tile that repeats

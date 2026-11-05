@@ -8,7 +8,7 @@ import { observeResize } from "~/lib/observeResize";
 import { Button } from "../ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { GROUP_PURPOSES, type HardwareAction, type HardwareActionGroup } from "./hardwareActions";
-import { MENU_ICONS } from "./kinds";
+import { MENU_ICONS, MENU_TINTS } from "./kinds";
 import { handToChat } from "./handToChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
@@ -134,9 +134,11 @@ export function StudioToolbox(props: {
         </Button>
       </div>
       <div className="shrink-0 border-b border-border p-2">
+        {/* Equal thirds, each its group's icon (the folded edge's, in its jobs' color) over its name. */}
         <ToggleGroup
           aria-label="Toolbox group"
           value={[tab]}
+          size="tile"
           className="w-full"
           onValueChange={(value) => {
             // Pressing the tab in front clears the group: it stays as it is.
@@ -144,11 +146,15 @@ export function StudioToolbox(props: {
             if (next) setTab(next.group);
           }}
         >
-          {groups.map((group) => (
-            <ToggleGroupItem key={group.group} value={group.group} className="flex-auto">
-              {group.group}
-            </ToggleGroupItem>
-          ))}
+          {groups.map((group) => {
+            const Icon = MENU_ICONS[group.group];
+            return (
+              <ToggleGroupItem key={group.group} value={group.group} className="flex-1 basis-0">
+                <Icon aria-hidden="true" className={MENU_TINTS[group.group]} />
+                {group.group}
+              </ToggleGroupItem>
+            );
+          })}
         </ToggleGroup>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">

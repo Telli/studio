@@ -20,6 +20,8 @@ const toggleVariants = cva(
         lg: "h-10 min-w-10 px-[calc(--spacing(2.5)-1px)] sm:h-9 sm:min-w-9",
         segmented:
           "h-6 min-w-0 rounded-md px-2.5 text-xs before:rounded-[calc(var(--radius-md)-1px)]",
+        // An icon over its name, as a CAD ribbon's buttons are: for a few choices that share a row equally.
+        tile: "h-auto min-w-0 flex-col gap-1 rounded-md px-1 pt-2 pb-1.5 text-xs before:rounded-[calc(var(--radius-md)-1px)] [&_svg:not([class*='size-'])]:size-4",
         sm: "h-8 min-w-8 px-[calc(--spacing(1.5)-1px)] sm:h-7 sm:min-w-7",
         xs: "h-7 min-w-7 px-[calc(--spacing(1)-1px)] sm:h-6 sm:min-w-6 rounded-md",
       },
