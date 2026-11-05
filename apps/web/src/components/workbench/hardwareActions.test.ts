@@ -17,16 +17,26 @@ describe("hardware actions", () => {
       "3D printing (FDM)",
     );
     expect(titled(manufacture!.sections)).toEqual([
-      ["FDM printing", ["Check for FDM printing", "Slice for FDM", "Print on a Bambu printer"]],
-      ["Buy", ["Off-the-shelf parts"]],
+      [
+        "3D printing",
+        [
+          "Check for FDM printing",
+          "Slice for FDM",
+          "Print on a Bambu printer",
+          "Check for resin printing",
+          "Check for SLS printing",
+          "Check for MJF printing",
+          "Check for metal printing",
+        ],
+      ],
+      ["Files and off-the-shelf parts", ["Off-the-shelf parts"]],
     ]);
     expect(titled(manufacture!.others)).toEqual([
-      ["Resin printing (SLA/DLP)", ["Check for resin printing"]],
-      ["SLS and MJF printing", ["Check for SLS printing", "Check for MJF printing"]],
-      ["Metal printing (SLM/DMLS)", ["Check for metal printing"]],
-      ["CNC machining", ["Check for CNC machining", "G-code for CNC"]],
-      ["Sheet metal", ["Check as sheet metal"]],
-      ["Injection molding", ["Check for injection molding"]],
+      [
+        "Machining and molding",
+        ["Check for CNC machining", "G-code for CNC", "Check for injection molding"],
+      ],
+      ["Sheet metal and cutting", ["Check as sheet metal"]],
     ]);
     expect(manufacture!.moreLabel).toBe("Other ways to make it");
   });
@@ -34,8 +44,8 @@ describe("hardware actions", () => {
   it("puts the files to export in Manufacture, after the ways to make it", () => {
     const manufacture = menu("Manufacture", "Part", ["dfm", "cad"], "CNC machining");
     expect(titled(manufacture!.sections)).toEqual([
-      ["CNC machining", ["Check for CNC machining"]],
-      ["Export files", ["STEP", "STL and 3MF"]],
+      ["Machining and molding", ["Check for CNC machining", "Check for injection molding"]],
+      ["Files and off-the-shelf parts", ["STEP", "STL and 3MF"]],
     ]);
     expect(menu("Manufacture", "Board", ["cad"])).toBeUndefined();
   });
@@ -44,10 +54,8 @@ describe("hardware actions", () => {
     const manufacture = menu("Manufacture", "Part", ["dfm", "dxf", "sendcutsend"]);
     expect(manufacture!.sections).toEqual([]);
     expect(manufacture!.others.map((section) => section.title)).toEqual([
-      "CNC machining",
-      "Sheet metal",
-      "Laser and waterjet cutting",
-      "Injection molding",
+      "Machining and molding",
+      "Sheet metal and cutting",
     ]);
     expect(manufacture!.moreLabel).toBe("Ways to make it");
   });
@@ -94,12 +102,7 @@ describe("hardware actions", () => {
       menu("Manufacture", "Mesh", ["dfm", "dfam-check", "cam"])!.others.map(
         (section) => section.title,
       ),
-    ).toEqual([
-      "FDM printing",
-      "Resin printing (SLA/DLP)",
-      "SLS and MJF printing",
-      "Metal printing (SLM/DMLS)",
-    ]);
+    ).toEqual(["3D printing"]);
   });
 
   it("names the part in the job it writes", () => {

@@ -216,7 +216,7 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     id: "doc:order",
     name: "Order from SendCutSend",
     templates: [],
-    actions: ["sendcutsend-sheet", "sendcutsend"],
+    actions: ["sendcutsend"],
     what: "A check of the upload against SendCutSend's own rules, before you order.",
     give: "The cut file or STEP, and the material, thickness and services you want.",
     asks: "The material, thickness and services, where they aren't clear.",

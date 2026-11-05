@@ -71,13 +71,12 @@ const JOB_ICONS: Partial<Record<string, LucideIcon>> = {
   // Sheet metal
   "sheet-metal": FoldVerticalIcon,
   "flat-pattern": UnfoldVerticalIcon,
-  "sendcutsend-sheet": TruckIcon,
   // Laser and waterjet cutting
   dxf: ScissorsIcon,
   sendcutsend: TruckIcon,
   // Injection molding
   molding: SyringeIcon,
-  // Buy and export
+  // Files and off-the-shelf parts
   "standard-parts": ShoppingCartIcon,
   "export-step": FileBoxIcon,
   "export-mesh": PyramidIcon,
@@ -105,16 +104,10 @@ const SECTION_ICONS: Partial<Record<string, LucideIcon>> = {
   simulation: DumbbellIcon,
   "fit-mass": RulerIcon,
   results: ChartColumnIcon,
-  fdm: SpoolIcon,
-  resin: DropletIcon,
-  powder: ScanLineIcon,
-  "metal-print": AnvilIcon,
-  cnc: DrillIcon,
+  printing: SpoolIcon,
+  machining: DrillIcon,
   sheet: FoldVerticalIcon,
-  cutting: ScissorsIcon,
-  molding: SyringeIcon,
-  buy: ShoppingCartIcon,
-  export: FileBoxIcon,
+  files: FileBoxIcon,
   drawings: PencilRulerIcon,
   building: ListOrderedIcon,
   pictures: CameraIcon,

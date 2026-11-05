@@ -1,7 +1,13 @@
 import { type LucideIcon } from "lucide-react";
 import { useId } from "react";
 
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import {
+  RICH_TOOLTIP_DELAY,
+  Tooltip,
+  TooltipPopup,
+  TooltipRich,
+  TooltipTrigger,
+} from "../ui/tooltip";
 import type { HardwareAction } from "./hardwareActions";
 import type { ToolboxSection } from "./toolbox";
 import { toolIcon, toolTint } from "./toolIcons";
@@ -35,7 +41,7 @@ export function SectionJobs(props: {
 
 /**
  * A job as a tool to pick up: a square raised tile, its own picture (`toolIcon`) large in its
- * color (`toolTint`) over its name. What it makes shows on hover and is the tile's description for
+ * color (`toolTint`) over its name. Its name and what it makes show on a pause over it and is the tile's description for
  * readers. A press sends the job (`onRun`).
  */
 function ToolTile(props: {
@@ -51,6 +57,7 @@ function ToolTile(props: {
   return (
     <Tooltip>
       <TooltipTrigger
+        delay={RICH_TOOLTIP_DELAY}
         render={
           <button
             type="button"
@@ -74,7 +81,9 @@ function ToolTile(props: {
           {action.gets}
         </span>
       </TooltipTrigger>
-      <TooltipPopup side="left">{action.gets}</TooltipPopup>
+      <TooltipPopup side="left">
+        <TooltipRich title={action.label} description={action.gets} />
+      </TooltipPopup>
     </Tooltip>
   );
 }

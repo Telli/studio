@@ -141,10 +141,7 @@ describe("library catalog", () => {
     expect(findItIn(doc("doc:part"))).toEqual(["New › CAD"]);
     expect(findItIn(doc("doc:drawing"))).toEqual(["Document › Drawings"]);
     expect(findItIn(doc("doc:simulation"))).toContain("Evaluate › Simulation");
-    expect(findItIn(doc("doc:order"))).toEqual([
-      "Manufacture › Sheet metal",
-      "Manufacture › Laser and waterjet cutting",
-    ]);
+    expect(findItIn(doc("doc:order"))).toEqual(["Manufacture › Sheet metal and cutting"]);
   });
 
   it("says New only where New makes it from nothing", () => {
@@ -293,7 +290,7 @@ describe("library catalog", () => {
 
   it("shows each skill where New and the menus offer it", () => {
     expect(showsUpAs("dfm")).toEqual([
-      "Manufacture: Check for CNC machining, Check as sheet metal, Check for injection molding",
+      "Manufacture: Check for CNC machining, Check for injection molding, Check as sheet metal",
     ]);
     // A template that works from a part is no New's: the skill shows up in its menus alone.
     expect(showsUpAs("fea")).toEqual(["Evaluate: Strength under load, Explain these results"]);

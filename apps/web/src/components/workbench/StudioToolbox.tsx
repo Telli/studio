@@ -7,7 +7,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { observeResize } from "~/lib/observeResize";
 import { Button } from "../ui/button";
-import type { HardwareAction, HardwareActionGroup } from "./hardwareActions";
+import { GROUP_PURPOSES, type HardwareAction, type HardwareActionGroup } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
 import { handToChat } from "./handToChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
@@ -232,6 +232,9 @@ function GroupJobs({
         <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
         {props.group.group}
       </h3>
+      <p className="-mt-2 px-1 text-xs text-muted-foreground">
+        {GROUP_PURPOSES[props.group.group]}
+      </p>
       {empty ? (
         <p className="px-1 text-xs text-muted-foreground">Nothing here for this file.</p>
       ) : (

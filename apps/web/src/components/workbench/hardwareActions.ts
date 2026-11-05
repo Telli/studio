@@ -38,41 +38,30 @@ export const ACTION_SECTIONS: ReadonlyArray<ActionSectionDef> = [
   { id: "simulation", group: "Evaluate", title: "Simulation" },
   { id: "fit-mass", group: "Evaluate", title: "Fit, motion and mass" },
   { id: "results", group: "Evaluate", title: "Results" },
-  { id: "fdm", group: "Manufacture", title: "FDM printing", processes: ["3D printing (FDM)"] },
   {
-    id: "resin",
+    id: "printing",
     group: "Manufacture",
-    title: "Resin printing (SLA/DLP)",
-    processes: ["3D printing (resin)"],
+    title: "3D printing",
+    processes: [
+      "3D printing (FDM)",
+      "3D printing (resin)",
+      "3D printing (SLS)",
+      "3D printing (metal)",
+    ],
   },
   {
-    id: "powder",
+    id: "machining",
     group: "Manufacture",
-    title: "SLS and MJF printing",
-    processes: ["3D printing (SLS)"],
+    title: "Machining and molding",
+    processes: ["CNC machining", "Injection molding"],
   },
   {
-    id: "metal-print",
+    id: "sheet",
     group: "Manufacture",
-    title: "Metal printing (SLM/DMLS)",
-    processes: ["3D printing (metal)"],
+    title: "Sheet metal and cutting",
+    processes: ["Sheet metal", "Laser or waterjet cutting"],
   },
-  { id: "cnc", group: "Manufacture", title: "CNC machining", processes: ["CNC machining"] },
-  { id: "sheet", group: "Manufacture", title: "Sheet metal", processes: ["Sheet metal"] },
-  {
-    id: "cutting",
-    group: "Manufacture",
-    title: "Laser and waterjet cutting",
-    processes: ["Laser or waterjet cutting"],
-  },
-  {
-    id: "molding",
-    group: "Manufacture",
-    title: "Injection molding",
-    processes: ["Injection molding"],
-  },
-  { id: "buy", group: "Manufacture", title: "Buy" },
-  { id: "export", group: "Manufacture", title: "Export files" },
+  { id: "files", group: "Manufacture", title: "Files and off-the-shelf parts" },
   { id: "drawings", group: "Document", title: "Drawings" },
   { id: "building", group: "Document", title: "Building it" },
   { id: "pictures", group: "Document", title: "Pictures and video" },
@@ -206,14 +195,14 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   },
   printCheck(
     "fdm",
-    "fdm",
+    "printing",
     "FDM printing",
     "overhangs, thin walls, small holes, bridges and bed fit, and the best build orientation",
   ),
   {
     id: "slice",
     group: "Manufacture",
-    section: "fdm",
+    section: "printing",
     label: "Slice for FDM",
     gets: "Sliced G-code from OrcaSlicer, checked against your printer and filament.",
     skill: "gcode",
@@ -225,7 +214,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "bambu",
     group: "Manufacture",
-    section: "fdm",
+    section: "printing",
     label: "Print on a Bambu printer",
     gets: "The print opened in Bambu Connect or Bambu Studio, for you to check and start.",
     skill: "bambu-labs",
@@ -237,32 +226,32 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   },
   printCheck(
     "resin",
-    "resin",
+    "printing",
     "resin printing",
     "supports, thin walls, small holes and fine features, and the best orientation",
   ),
   printCheck(
     "sls",
-    "powder",
+    "printing",
     "SLS printing",
     "wall thickness, small holes and features, and powder trapped inside",
   ),
   printCheck(
     "mjf",
-    "powder",
+    "printing",
     "MJF printing",
     "wall thickness, small holes and features, and powder trapped inside",
   ),
   printCheck(
     "metal-print",
-    "metal-print",
+    "printing",
     "metal printing",
     "overhangs and supports, thin walls, small holes and bridges, and the best orientation",
   ),
   {
     id: "cnc",
     group: "Manufacture",
-    section: "cnc",
+    section: "machining",
     label: "Check for CNC machining",
     gets: "Findings for CNC machining, each passing, to fix or to check, with the fix.",
     skill: "dfm",
@@ -275,7 +264,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "toolpaths",
     group: "Manufacture",
-    section: "cnc",
+    section: "machining",
     label: "G-code for CNC",
     gets: "G-code for each setup, and its toolpaths to look over before cutting.",
     skill: "cam",
@@ -312,22 +301,9 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     short: (name) => `Flat pattern of ${name}`,
   },
   {
-    id: "sendcutsend-sheet",
-    group: "Manufacture",
-    section: "sheet",
-    label: "Order from SendCutSend",
-    gets: "A preflight against SendCutSend's rules, bends included. Nothing is uploaded or ordered.",
-    skill: "sendcutsend",
-    kinds: ["Part", "Drawing"],
-    checks: false,
-    prompt: (file) =>
-      `Check ${file} for a SendCutSend order with bending: material, thickness, bends and any other services it needs.`,
-    short: (name) => `Get ${name} ready for SendCutSend`,
-  },
-  {
     id: "dxf",
     group: "Manufacture",
-    section: "cutting",
+    section: "sheet",
     label: "Cut-ready DXF",
     gets: "A DXF of the outline and holes to cut, each cut closed and drawn once.",
     skill: "dxf",
@@ -339,20 +315,20 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "sendcutsend",
     group: "Manufacture",
-    section: "cutting",
+    section: "sheet",
     label: "Order from SendCutSend",
-    gets: "A preflight against SendCutSend's rules for cutting. Nothing is uploaded or ordered.",
+    gets: "A preflight against SendCutSend's rules, bends included. Nothing is uploaded or ordered.",
     skill: "sendcutsend",
     kinds: ["Part", "Drawing"],
     checks: false,
     prompt: (file) =>
-      `Check ${file} for a SendCutSend order: material, thickness and any services it needs.`,
+      `Check ${file} for a SendCutSend order: material, thickness, any bends and the other services it needs.`,
     short: (name) => `Get ${name} ready for SendCutSend`,
   },
   {
     id: "molding",
     group: "Manufacture",
-    section: "molding",
+    section: "machining",
     label: "Check for injection molding",
     gets: "Findings for injection molding, each passing, to fix or to check, with the fix.",
     skill: "dfm",
@@ -365,7 +341,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "standard-parts",
     group: "Manufacture",
-    section: "buy",
+    section: "files",
     label: "Off-the-shelf parts",
     gets: "Each part's STEP file from step.parts, checked against its record.",
     skill: "step-parts",
@@ -378,7 +354,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "export-step",
     group: "Manufacture",
-    section: "export",
+    section: "files",
     label: "STEP",
     gets: "A STEP file, saved beside the part.",
     skill: "cad",
@@ -390,7 +366,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
   {
     id: "export-mesh",
     group: "Manufacture",
-    section: "export",
+    section: "files",
     label: "STL and 3MF",
     gets: "An STL and a 3MF, saved beside the part.",
     skill: "cad",
@@ -570,6 +546,13 @@ export interface HardwareActionMenu {
   /** The heading over the submenus: "More simulations", "Other ways to make it". */
   readonly moreLabel: string;
 }
+
+/** What each group is for, in a line under its name in the Toolbox. */
+export const GROUP_PURPOSES: Record<HardwareActionGroup, string> = {
+  Evaluate: "Will it hold, fit and move as it should?",
+  Manufacture: "Check it can be made, and make the files to make it.",
+  Document: "Drawings, instructions and pictures for whoever builds it.",
+};
 
 export const MORE_LABELS: Record<HardwareActionGroup, string> = {
   Evaluate: "More simulations",

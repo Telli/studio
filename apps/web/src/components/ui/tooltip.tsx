@@ -153,4 +153,58 @@ function TooltipPopup({
   );
 }
 
-export { TooltipProvider, Tooltip, TooltipTrigger, TooltipPopup, TooltipScrollDismissArea };
+/**
+ * How long a rich tooltip's trigger waits before opening (`TooltipTrigger delay`): long enough
+ * that passing over a control shows nothing, short enough that a pause on it explains it.
+ */
+const RICH_TOOLTIP_DELAY = 600;
+
+/**
+ * A tooltip that explains a control instead of naming it: its title, one line on what it does,
+ * and, when there is one, a short clip of it working, looped while the tooltip is open and left
+ * still for a reader who asks for reduced motion. Goes inside a `TooltipPopup`; its trigger opens
+ * after `RICH_TOOLTIP_DELAY`. A `note` says why a control is held, in place of the line.
+ */
+function TooltipRich({
+  title,
+  description,
+  clip,
+  note,
+}: {
+  readonly title: string;
+  readonly description: string;
+  /** A few seconds of the control in use, as a video file. */
+  readonly clip?: string;
+  /** Why the control can't be used right now, said instead of the description. */
+  readonly note?: string;
+}) {
+  const still =
+    typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return (
+    <span className="flex w-60 flex-col gap-0.5 py-1 text-left">
+      {clip ? (
+        <video
+          src={clip}
+          autoPlay={!still}
+          loop
+          muted
+          playsInline
+          aria-hidden="true"
+          className="mb-1.5 aspect-video w-full rounded-sm bg-muted object-cover"
+        />
+      ) : null}
+      <span className="font-medium text-foreground">{title}</span>
+      <span className="text-muted-foreground">{note ?? description}</span>
+    </span>
+  );
+}
+
+export {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipPopup,
+  TooltipRich,
+  RICH_TOOLTIP_DELAY,
+  TooltipScrollDismissArea,
+};

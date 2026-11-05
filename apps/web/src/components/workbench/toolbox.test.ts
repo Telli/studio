@@ -16,8 +16,8 @@ describe("toolboxGroups", () => {
   it("lists the everyday sections first and the menus' others after, nothing folded", () => {
     const [evaluate, manufacture] = toolboxGroups(menus());
     expect(evaluate?.sections[0]?.title).toBe("Simulation");
-    expect(manufacture?.sections[0]?.title).toBe("CNC machining");
-    expect(manufacture?.sections.map((section) => section.title)).toContain("FDM printing");
+    expect(manufacture?.sections[0]?.title).toBe("Machining and molding");
+    expect(manufacture?.sections.map((section) => section.title)).toContain("3D printing");
     expect(Object.keys(manufacture?.sections[0] ?? {}).toSorted()).toEqual(["actions", "title"]);
   });
 
