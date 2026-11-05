@@ -17,7 +17,7 @@ import * as PluginStore from "./PluginStore.ts";
 
 /**
  * A stdio MCP server in plain Node: `show` renders a view (and opens .step
- * files), `sync` is for the view alone, `plain` has no view.
+ * files), `sync` is for the view alone, `plain` has no view, and `wait` never answers.
  */
 const SERVER = String.raw`
 import readline from "node:readline";
@@ -41,6 +41,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
         instructions: JSON.stringify({ ext: message.params.capabilities.extensions ?? null, cwd: process.cwd(), root: process.env.PLUGIN_ROOT }) });
     case "tools/list": return reply({ tools });
     case "tools/call":
+      if (message.params.name === "wait") return;
       if (message.params.name === "cad_home")
         return reply({ content: [], _meta: { "dev.texttocad/httpToken": "token-" + ++homes } });
       if (message.params.name === "cad_http" && message.params.arguments.headers?.["x-cad-app"] === "token-1")

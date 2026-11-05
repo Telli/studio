@@ -276,6 +276,8 @@ export const PluginOperationErrorReason = Schema.Literals([
   "manifest_invalid",
   "server_failed",
   "request_failed",
+  // The plugin's server took longer than its tool timeout to answer.
+  "timed_out",
   "thread_not_found",
   "catalog_unavailable",
 ]);

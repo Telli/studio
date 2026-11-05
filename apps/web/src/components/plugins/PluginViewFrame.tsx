@@ -1,7 +1,12 @@
 import { partLabel } from "../workbench/partNames";
 import { hasEngineeringSurfaces, isEngineeringInterface } from "../workbench/studioInterface";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
-import type { EnvironmentId, PluginViewDocument, ThreadId } from "@t3tools/contracts";
+import {
+  PluginOperationError,
+  type EnvironmentId,
+  type PluginViewDocument,
+  type ThreadId,
+} from "@t3tools/contracts";
 import {
   makeMcpAppHost,
   McpAppHostRefusal,
@@ -16,6 +21,7 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { readMcpAppCsp } from "@t3tools/shared/mcpApp";
+import * as Schema from "effect/Schema";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { APP_BASE_NAME, APP_VERSION } from "~/branding";
@@ -88,6 +94,19 @@ const refusal = (result: {
   return new McpAppHostRefusal(
     error instanceof Error && error.message.trim() !== "" ? error.message : "Request failed.",
   );
+};
+
+/**
+ * A tool call that ran out of time, answered as the plugin's own error rather than a refusal: the
+ * host carries the view's calls, its server was only slow, so the view says that and keeps calling.
+ */
+const timedOut = (result: {
+  readonly cause: Parameters<typeof squashAtomCommandFailure>[0]["cause"];
+}): McpAppCallToolResult | null => {
+  const error = squashAtomCommandFailure(result);
+  return Schema.is(PluginOperationError)(error) && error.reason === "timed_out"
+    ? { isError: true, content: [{ type: "text", text: error.message }] }
+    : null;
 };
 
 function saveBlob(blob: Blob, name: string) {
@@ -308,7 +327,11 @@ export function PluginViewFrame(props: {
           params,
         },
       });
-      if (result._tag !== "Success") throw refusal(result);
+      if (result._tag !== "Success") {
+        const late = method === "tools/call" ? timedOut(result) : null;
+        if (late !== null) return late;
+        throw refusal(result);
+      }
       return result.value.result;
     };
     const ask = async (message: string) => {

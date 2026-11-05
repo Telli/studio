@@ -229,6 +229,50 @@ describe("plugins", () => {
       );
     });
 
+    it.effect("says a call that ran past the server's tool timeout timed out", () => {
+      const files = fixture();
+      NodeFS.writeFileSync(
+        NodePath.join(files.market, "demo", ".mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            main: {
+              command: process.execPath,
+              args: ["${PLUGIN_ROOT}/server.mjs"],
+              tool_timeout_sec: 1,
+            },
+          },
+        }),
+      );
+      return Effect.gen(function* () {
+        const plugins = yield* PluginService.PluginService;
+        yield* plugins.install("local-market/demo");
+        const late = yield* plugins
+          .request({
+            threadId,
+            pluginId: "demo",
+            server: "main",
+            method: "tools/call",
+            params: { name: "wait", arguments: {} },
+          })
+          .pipe(Effect.flip);
+        assert.deepEqual(
+          [late.reason, late.message],
+          ["timed_out", "The plugin did not answer in 1 second."],
+        );
+      }).pipe(
+        Effect.provide(
+          layerFor(
+            [{ type: "folder", path: files.market }],
+            NodePath.join(files.dir, "t3"),
+            files.work,
+          ),
+        ),
+        Effect.ensuring(
+          Effect.sync(() => NodeFS.rmSync(files.dir, { recursive: true, force: true })),
+        ),
+      );
+    });
+
     it.effect("lists a failed server again on its own once it works, with no one asking", () => {
       const files = fixture();
       const server = NodePath.join(files.market, "demo", "server.mjs");

@@ -27,12 +27,14 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
   CallToolResultSchema,
+  ErrorCode,
   GetPromptResultSchema,
   ListPromptsResultSchema,
   ListResourcesResultSchema,
   ListResourceTemplatesResultSchema,
   ListRootsRequestSchema,
   ListToolsResultSchema,
+  McpError,
   ReadResourceResultSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import * as Clock from "effect/Clock";
@@ -88,7 +90,7 @@ interface Connection {
 
 const sentence = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
 
-const requestFailed = (reason: "server_failed" | "request_failed", message: string) =>
+const requestFailed = (reason: "server_failed" | "request_failed" | "timed_out", message: string) =>
   new PluginOperationError({ reason, message: message.slice(0, 400) });
 
 /**
@@ -321,7 +323,13 @@ const make = Effect.gen(function* () {
             RESULT_SCHEMAS[input.method],
             { timeout, signal },
           ),
-        catch: (cause) => requestFailed("request_failed", sentence(cause)),
+        catch: (cause) =>
+          cause instanceof McpError && cause.code === ErrorCode.RequestTimeout
+            ? requestFailed(
+                "timed_out",
+                `The plugin did not answer in ${timeout / 1000} second${timeout === 1000 ? "" : "s"}.`,
+              )
+            : requestFailed("request_failed", sentence(cause)),
       });
     }).pipe(Effect.withSpan("PluginHost.request", { attributes: { method: input.method } }));
 
