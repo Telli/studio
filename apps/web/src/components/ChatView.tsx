@@ -6151,7 +6151,7 @@ export default function ChatView(props: ChatViewProps) {
   const activateRightPanelSurface = useCallback(
     (surface: RightPanelSurface) => {
       if (!activeThreadRef) return;
-      // Studio shows its Overview across the window and every other tab beside the chat.
+      // Studio's tabs keep the panel's size; leaving a spread Overview steps back (`frontTab`).
       if (engineeringInterface) frontTab(activeThreadRef, surface);
       else useRightPanelStore.getState().activateSurface(activeThreadRef, surface.id);
       if (surface.kind === "preview" && surface.resourceId) {

@@ -17,9 +17,14 @@ import { setSimpleView } from "./simpleView";
  */
 export function showOverview(threadRef: ScopedThreadRef): void {
   const panels = useRightPanelStore.getState();
+  const spread = selectThreadRightPanelState(panels.byThreadKey, threadRef).maximized === true;
   panels.open(threadRef, "files");
   panels.setMaximized(threadRef, true);
+  if (!spread) spreadForOverview.add(scopedThreadKey(threadRef));
 }
+
+/** The chats whose panel `showOverview` spread across the window, to step back on leaving it. */
+const spreadForOverview = new Set<string>();
 
 /** Threads of projects just opened, waiting for their part to be found (`useShowProjectPart`). */
 export const useOpeningProjects = create<{ readonly threads: ReadonlySet<string> }>()(() => ({
@@ -60,9 +65,10 @@ export function takeOpeningProject(threadRef: ScopedThreadRef): boolean {
 }
 
 /**
- * Puts a panel tab in front as Studio shows each: the Overview across the window, as a Drive folder
- * opens, any other tab beside the chat. Leaving the Overview steps back from the window; a part
- * the person spread across the window themselves stays so.
+ * Puts a panel tab in front at the size the panel has: going between the tabs never grows or
+ * shrinks it. Only leaving the Overview for a file steps back beside the chat, once, when the
+ * Overview was across the window (`showOverview`), as a file opened from a Drive folder does; a
+ * part the person spread across the window themselves stays so.
  */
 export function frontTab(
   threadRef: ScopedThreadRef,
@@ -71,8 +77,8 @@ export function frontTab(
   const panels = useRightPanelStore.getState();
   const leaving = selectActiveRightPanelSurface(panels.byThreadKey, threadRef)?.kind === "files";
   panels.activateSurface(threadRef, surface.id);
-  if (surface.kind === "files") panels.setMaximized(threadRef, true);
-  else if (leaving) panels.setMaximized(threadRef, false);
+  if (!leaving || surface.kind === "files") return;
+  if (spreadForOverview.delete(scopedThreadKey(threadRef))) panels.setMaximized(threadRef, false);
 }
 
 /**

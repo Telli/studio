@@ -7,7 +7,13 @@ import {
   selectThreadRightPanelState,
   useRightPanelStore,
 } from "~/rightPanelStore";
-import { showOverview, showProject, takeOpeningProject, useOpeningProjects } from "./overviewPanel";
+import {
+  frontTab,
+  showOverview,
+  showProject,
+  takeOpeningProject,
+  useOpeningProjects,
+} from "./overviewPanel";
 import { setSimpleView, useSimpleViewStore } from "./simpleView";
 
 const THREAD = scopeThreadRef(EnvironmentId.make("environment-local"), ThreadId.make("thread-1"));
@@ -51,5 +57,39 @@ describe("opening a project", () => {
     expect(panel().surfaces).toEqual([]);
     expect(takeOpeningProject(THREAD)).toBe(true);
     expect(takeOpeningProject(THREAD)).toBe(false);
+  });
+});
+
+describe("going between the panel's tabs", () => {
+  beforeEach(() => {
+    useRightPanelStore.setState({ byThreadKey: {}, threadPanelVisibilityByThreadKey: {} });
+  });
+
+  it("keeps the panel's size: the Overview tab opens beside the chat when the panel is there", () => {
+    useRightPanelStore.getState().openPluginApp(THREAD, BRACKET);
+    useRightPanelStore.getState().open(THREAD, "files");
+    frontTab(THREAD, BRACKET);
+    frontTab(THREAD, { id: "files", kind: "files" });
+    expect([panel().activeSurfaceId, panel().maximized]).toEqual(["files", undefined]);
+    frontTab(THREAD, BRACKET);
+    expect([panel().activeSurfaceId, panel().maximized]).toEqual([BRACKET.id, undefined]);
+  });
+
+  it("steps back beside the chat once, leaving an Overview opened across the window", () => {
+    useRightPanelStore.getState().openPluginApp(THREAD, BRACKET);
+    showOverview(THREAD);
+    expect(panel().maximized).toBe(true);
+    frontTab(THREAD, BRACKET);
+    expect([panel().activeSurfaceId, panel().maximized]).toEqual([BRACKET.id, undefined]);
+  });
+
+  it("leaves a part the person spread across the window so", () => {
+    useRightPanelStore.getState().openPluginApp(THREAD, BRACKET);
+    useRightPanelStore.getState().open(THREAD, "files");
+    frontTab(THREAD, BRACKET);
+    useRightPanelStore.getState().setMaximized(THREAD, true);
+    frontTab(THREAD, { id: "files", kind: "files" });
+    frontTab(THREAD, BRACKET);
+    expect(panel().maximized).toBe(true);
   });
 });

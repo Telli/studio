@@ -281,7 +281,8 @@ asked)`, or `by hand`; a decision written date first reads too), then every othe
   pictures (a part's with its checks, drawing and manufacturing files); then the parts' versions,
   the project's folders and the brief's links. The sidebar's Overview opens it across the window, as
   a Drive folder opens; opening a chat or a file from it brings the chat back with the file beside
-  it. With code tools on, the page keeps a module per kind (CAD, Electronics, then Documents and
+  it. Going between the panel's tabs, the Overview's included, never grows or shrinks the panel
+  (`frontTab`): only leaving an Overview that opened across the window steps back, once. With code tools on, the page keeps a module per kind (CAD, Electronics, then Documents and
   each other kind of file) and its Files, References and Threads tabs. In Engineering its New starts
   new designs only. A module shows once it has something in it, folds away (remembered on this
   computer), and is read again whenever the thread's agent changes files. Checks are the results
