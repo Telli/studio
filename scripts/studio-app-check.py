@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Checks an installed or built Studio the way a friend's first hour would use it: by the CAD tools the app carries,
+not the checkout's. With the app's own Python and a home of its own, it registers the bundled CAD server (as the
+app does on each start), builds the motor mount example's plate, then solves every example's strength study and
+holds each answer to the one the example ships with. No pass, no release.
+
+    python3 scripts/studio-app-check.py <the app's studio folder>
+
+The studio folder is `Studio.app/Contents/Resources/studio` on a Mac and `resources\\studio` beside Studio.exe on
+Windows. Nothing it writes is the person's: the home is a scratch folder, removed after, and the engine listens on
+its own port (CHECK_ENGINE_PORT), never the app's (3345) or a checkout's (3346), so it never retires either.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+CHECK_ENGINE_PORT = "3347"
+# The part it builds: the motor mount's plate, a model script.
+SAMPLE = "motor-mount"
+PART = "parts/motor_plate.py"
+# A fresh mesh of the same part lands near the shipped answer, not on it.
+STRESS_TOLERANCE = 0.25
+
+
+def python_of(bundle: Path) -> Path:
+    windows = bundle / "python" / "python.exe"
+    return windows if windows.is_file() else bundle / "python" / "bin" / "python3"
+
+
+def ccx_of(bundle: Path) -> Path:
+    """The FEA solver the app names to the CAD tools (studioAppBundle.ts): conda-forge's layout."""
+    windows = bundle / "calculix" / "Library" / "bin" / "ccx.exe"
+    return windows if windows.is_file() else bundle / "calculix" / "bin" / "ccx"
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print(__doc__.strip().splitlines()[-4], file=sys.stderr)
+        return 2
+    bundle = Path(sys.argv[1]).resolve()
+    python = python_of(bundle)
+    samples = bundle / "sample"
+    # Each study beside the answer the example ships with (`<name>.fea.json`), which names the document it solved.
+    studies = sorted(study for study in samples.glob("*/studies/*.study.json")
+                     if study.with_name(study.name.replace(".study.json", ".fea.json")).is_file())
+    ccx = ccx_of(bundle)
+    for needed in (python, ccx, samples / SAMPLE / PART):
+        if not needed.is_file():
+            print(f"FAIL the app carries no {needed}", file=sys.stderr)
+            return 1
+    if not studies:
+        print(f"FAIL the app carries no example with a strength study under {samples}", file=sys.stderr)
+        return 1
+
+    with tempfile.TemporaryDirectory(prefix="studio-app-check-") as folder:
+        home = Path(folder)
+        cad = home / "cad"
+        env = {
+            **os.environ,
+            # As studioEngine.ts gives the app's, on a port of this check's own.
+            "CAD_STATE_DIR": str(cad / "state"),
+            "CAD_CACHE_DIR": str(cad / "cache"),
+            "CAD_ENGINE_DIR": str(cad / "engine"),
+            "CAD_ENGINE_PORT": CHECK_ENGINE_PORT,
+            "CAD_LAUNCHER_DIR": str(home / "bin"),
+            # The app's own solver, and a home with nothing in it: no tool this Mac or PC happens to have
+            # cached stands in for one the app is missing.
+            "CAD_CCX": str(ccx),
+            "HOME": str(home),
+            "USERPROFILE": str(home),
+            "DO_NOT_TRACK": "1",
+        }
+        shutil.copytree(samples, home / "sample", ignore=shutil.ignore_patterns("__pycache__"))
+
+        def cad_command(*args: str, cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
+            started = time.monotonic()
+            done = subprocess.run([str(python), "-P", "-m", *args], cwd=cwd, env=env, capture_output=True,
+                                  text=True, timeout=timeout)
+            print(f"{'ok  ' if done.returncode == 0 else 'FAIL'} {' '.join(args)} "
+                  f"({time.monotonic() - started:.0f} s)", flush=True)
+            if done.returncode != 0:
+                print("\n".join(f"{done.stdout}{done.stderr}".splitlines()[-15:]), file=sys.stderr)
+            return done
+
+        try:
+            if cad_command("cad_server._internal.installations", cwd=home, timeout=300).returncode != 0:
+                return 1
+            if cad_command("cad_server.cli", "run", PART, cwd=home / "sample" / SAMPLE, timeout=600).returncode:
+                return 1
+            failed = 0
+            for study in studies:
+                project = home / "sample" / study.parent.parent.name
+                shipped = json.loads(study.with_name(study.name.replace(".study.json", ".fea.json"))
+                                     .read_text(encoding="utf-8"))
+                solved = cad_command("cad_server.cli", "fea", "solve", shipped["document"],
+                                     str(home / f"{project.name}.glb"), "--study",
+                                     str(study.relative_to(study.parent.parent)), "--json", cwd=project, timeout=900)
+                failed += 1 if solved.returncode != 0 else held_to_shipped(project.name, solved.stdout, shipped)
+            return 1 if failed else 0
+        finally:
+            subprocess.run([str(python), "-P", "-m", "cad_server.cli", "stop"], env=env, capture_output=True,
+                           timeout=60)
+
+
+def held_to_shipped(name: str, stdout: str, shipped: dict) -> int:
+    """The solve's answer beside the example's: forces in balance, stress near the shipped run's, the same verdicts."""
+    line = next((line for line in reversed(stdout.splitlines()) if line.startswith("{")), "")
+    result = json.loads(line) if line else {}
+    summary = result.get("summary") or {}
+    expected = shipped["summary"]
+    problems = []
+    applied, reaction = summary.get("applied_force_N"), summary.get("reaction_force_N")
+    if not applied or not reaction or any(abs(a + r) > 0.01 * max(1.0, abs(a)) for a, r in zip(applied, reaction)):
+        problems.append(f"the supports do not carry the load: applied {applied} N, reaction {reaction} N")
+    stress, shipped_stress = summary.get("max_von_mises_MPa"), expected["max_von_mises_MPa"]
+    if not isinstance(stress, (int, float)) or abs(stress - shipped_stress) > STRESS_TOLERANCE * shipped_stress:
+        problems.append(f"peak stress {stress} MPa, where the example's run found {shipped_stress} MPa")
+    statuses = [check.get("status") for check in summary.get("checks") or []]
+    if statuses != [check["status"] for check in expected["checks"]]:
+        problems.append(f"the checks say {statuses}, where the example's run says "
+                        f"{[check['status'] for check in expected['checks']]}")
+    if problems:
+        for problem in problems:
+            print(f"FAIL {name}: {problem}", file=sys.stderr)
+        return 1
+    print(f"ok   {name}: {stress} MPa peak (the example's run: {shipped_stress} MPa), checks {statuses}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

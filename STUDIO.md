@@ -32,7 +32,9 @@ built (`npm run build:packages` in `text-to-cad/`) before Studio starts.
 **The Mac app.** `scripts/build-studio-app.sh [version]` builds
 `release/Studio-<version>-arm64.dmg`, which needs nothing else on an Apple silicon Mac. Its first
 screen installs Claude Code and signs in, so the person needs only their own Claude subscription.
-Building it needs Rust 1.95 or newer for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one
+Its last step checks the built app (`scripts/studio-app-check.py`): with the app's own Python and a
+scratch home, it builds the motor mount example's plate and solves every example's strength study,
+each held to the answer the example ships with, and a build that fails is not offered for publishing. Building it needs Rust 1.95 or newer for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one
 installed beside an older default) and about 7 GB free; the download is about 400 MB and the app 1.2
 GB (from 0.1.4; 600 MB and 1.9 GB while the CAD tools went in twice). The disk image step reserves
 its whole temporary image (about 2.3 GB) at once, so it fails with "No space left" while gigabytes
@@ -119,7 +121,7 @@ scripts/build-studio-app.sh <version>`, then the `gh release create` line it pri
 **The Windows app.** The same script, run in Git Bash on Windows, builds the installer
 `release/Studio-<version>-x64.exe`. `.github/workflows/studio-windows.yml` runs it on GitHub's
 windows-latest (Run workflow with a version, or a push to an `amy/studio-windows…` branch), installs
-the result there, checks the CAD tools import in the installed app, and keeps the installer, its
+the result there, checks the installed app the same way, and keeps the installer, its
 blockmap and `latest.yml` as the run's artifact for three days (`gh run download`). Publish it into
 the version's release with the `gh release upload` line the script prints, which adds
 `Studio-Setup.exe`, the download's one name. Both apps' updaters read the latest release, so from

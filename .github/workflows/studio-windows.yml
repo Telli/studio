@@ -150,6 +150,11 @@ jobs:
             Select-Object -First 15 | ForEach-Object { Write-Host "  $($_.Count) in .$($_.Name)" }
           & (Join-Path $app "resources\studio\python\python.exe") -c "import cad_mcp.shim, cad_server.cli, OCP, netgen; print('The CAD tools import in the installed app.')"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # As the Mac build does: the installed app builds the example's plate and solves its
+          # strength study, held to the answer the example ships with.
+          $studio = Join-Path $app "resources\studio"
+          & (Join-Path $studio "python\python.exe") scripts\studio-app-check.py $studio
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Keep the installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
