@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { hardwareActions } from "./hardwareActions";
-import { jobCount, toolboxFolded, toolboxGroups, toolboxLibraryLink } from "./toolbox";
+import {
+  jobCount,
+  readToolboxTab,
+  toolboxFolded,
+  toolboxGroups,
+  toolboxLibraryLink,
+  writeToolboxTab,
+} from "./toolbox";
 
 const menus = () =>
   hardwareActions("Part", new Set(["fea", "dfm", "dfam-check", "cam"]), "CNC machining");
@@ -42,6 +49,17 @@ describe("toolboxFolded", () => {
   it("folds on a narrow panel until it is opened there", () => {
     expect(toolboxFolded({ chosen: false, narrow: true, openedNarrow: false })).toBe(true);
     expect(toolboxFolded({ chosen: true, narrow: true, openedNarrow: true })).toBe(false);
+  });
+});
+
+describe("the Toolbox tab", () => {
+  it("opens on the group left open on this device, else Evaluate", () => {
+    globalThis.localStorage?.removeItem("studio:toolbox-tab");
+    expect(readToolboxTab()).toBe("Evaluate");
+    writeToolboxTab("Document");
+    expect(readToolboxTab()).toBe(globalThis.localStorage ? "Document" : "Evaluate");
+    globalThis.localStorage?.setItem("studio:toolbox-tab", "Nonsense");
+    expect(readToolboxTab()).toBe("Evaluate");
   });
 });
 

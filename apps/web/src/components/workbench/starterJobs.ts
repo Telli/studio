@@ -1,5 +1,5 @@
 import type { ProjectBrief } from "./briefFolder";
-import { hardwareActions } from "./hardwareActions";
+import { type HardwareAction, hardwareActions } from "./hardwareActions";
 import { describePart } from "./partContext";
 import { partLink } from "./partLink";
 import { lowerName } from "./partNames";
@@ -24,9 +24,9 @@ const isStudyPicture = (path: string, paths: ReadonlySet<string>) =>
 
 /**
  * A new thread's starters, made from the project rather than fixed: the jobs
- * its most recently used parts, boards and studies take (a check first, then
- * a way to make it, the brief's own way of making it first), each one the
- * installed skills can do. A project with no files yet starts from its brief;
+ * its most recently used parts, boards and studies take, each kind of job once
+ * (a check of how it is made, the brief's way first; strength, fit or mass; a
+ * document; a way to make it), each one the installed skills can do. A project with no files yet starts from its brief;
  * with neither, there is nothing to suggest. `paths` are the recent files as
  * they are, numbers beside pictures included.
  */
@@ -45,39 +45,41 @@ export function projectStarters(
       starters.push(starter);
     }
   };
-  // A check for each recent file, then a way to make the most recent one.
   const jobs = subjects.map((file) => {
     // A cadgen 0.8 model is listed by its document id, with the name the engine gives it.
     const { name, kind } =
       file.document === undefined
         ? describePart(file.path, null)
         : { name: file.title, kind: file.kind };
-    // Every job for the part, its ways of making it included, in menu order; starters start jobs,
-    // so a write-up (no skill of its own) comes after the work.
-    const all = hardwareActions(kind, skills, brief?.process)
-      .flatMap((menu) => [...menu.sections, ...menu.others])
-      .flatMap((section) => section.actions)
-      .filter((action) => action.skill !== null);
     return {
       link: partLink({ path: file.path, name: file.title }),
       name: lowerName(name),
-      // A check of how it would be made first, else any check; then a way to make it (an export
-      // or a bought part is not a way to make it).
-      check:
-        all.find((action) => action.checks && action.group === "Manufacture") ??
-        all.find((action) => action.checks),
-      make: all.find(
-        (action) => action.group === "Manufacture" && !action.checks && action.section !== "files",
-      ),
-      document: all.find((action) => action.group === "Document"),
+      // Every job for the part, its ways of making it included, in menu order. Starters start
+      // work: a write-up (no skill of its own), an export or a bought part is none.
+      all: hardwareActions(kind, skills, brief?.process)
+        .flatMap((menu) => [...menu.sections, ...menu.others])
+        .flatMap((section) => section.actions)
+        .filter((action) => action.skill !== null && action.section !== "files"),
     };
   });
-  for (const job of jobs) {
-    if (job.check) add({ label: job.check.short(job.name), prompt: job.check.prompt(job.link) });
-  }
-  for (const job of jobs) {
-    const next = job.make ?? job.document;
-    if (next) add({ label: next.short(job.name), prompt: next.prompt(job.link) });
+  // Each kind of job once, from the most recent file that takes it, so the starters cover the
+  // work rather than one job on every part: a check of how it would be made (the brief's way
+  // first), a check of strength, fit or mass, a document, then a way to make it. A kind no
+  // installed skill does is left out, not filled with a second job of another kind.
+  const kinds: ReadonlyArray<(action: HardwareAction) => boolean> = [
+    (action) => action.group === "Manufacture" && action.checks,
+    (action) => action.group === "Evaluate",
+    (action) => action.group === "Document",
+    (action) => action.group === "Manufacture" && !action.checks,
+  ];
+  for (const isKind of kinds) {
+    for (const job of jobs) {
+      const action = job.all.find(isKind);
+      if (action) {
+        add({ label: action.short(job.name), prompt: action.prompt(job.link) });
+        break;
+      }
+    }
   }
   if (starters.length === 0 && brief !== null && brief.purpose.trim() !== "") {
     add({

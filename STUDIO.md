@@ -682,13 +682,14 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   and all, since nothing draws a PDF again from a snapshot.
 
 - **The Toolbox.** Down the right of the workspace, in AI and in CAD, it is the one place for what
-  a part can have done to it: Evaluate, Manufacture and Document, in one list, each group's name
-  and a line on what it is for (`GROUP_PURPOSES`) over its sections' tiles (`StudioToolbox.tsx`).
+  a part can have done to it: Evaluate, Manufacture and Document, a tab each like SolidWorks'
+  CommandManager (the tab left open is remembered on this device), each with a line on what it is
+  for (`GROUP_PURPOSES`) over its sections' tiles, split by rules (`StudioToolbox.tsx`).
   Manufacture keeps four sections, not one per process (3D printing, machining and molding, sheet
   metal and cutting, files and off-the-shelf parts), so no heading holds a lone tile that repeats
-  it; a pause on a tile shows its name and what it makes (`TooltipRich`). Every job is a tile like every other: no group
-  hides behind a press, and nothing is folded away (Amy, 11/04: every skill weighs the same). It
-  folds to its icons, and starts folded in a narrow panel; a group's icon opens it on that group. The jobs the part's kind takes:
+  it; a pause on a tile shows its name and what it makes (`TooltipRich`). Every job is a tile like every other: within a tab
+  nothing is folded away (Amy, 11/04: every skill weighs the same; 11/05: tabs, not one long list). It
+  folds to its icons, and starts folded in a narrow panel; a group's icon opens it on that tab. The jobs the part's kind takes:
   simulations, fit, motion and mass; each way of making it (the project's own first: printing,
   CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
   export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.

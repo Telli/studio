@@ -21,7 +21,7 @@ const GROUP_ORDER: ReadonlyArray<HardwareActionGroup> = ["Evaluate", "Manufactur
 
 /**
  * The part's jobs as the Toolbox shows them: always Evaluate, Manufacture and Document, in that
- * order, every section open and every job a tile like the others. The menus' everyday sections
+ * order, a tab each, every section open and every job a tile like the others. The menus' everyday sections
  * come first and the ones they keep under "More" after, nothing folded; a group none of the jobs
  * apply to has no sections.
  */
@@ -33,6 +33,26 @@ export function toolboxGroups(menus: ReadonlyArray<HardwareActionMenu>): Toolbox
 }
 
 const FOLDED_KEY = "studio:toolbox-folded";
+const TAB_KEY = "studio:toolbox-tab";
+
+/** The group the Toolbox was left on, on this device; Evaluate when never chosen. */
+export function readToolboxTab(): HardwareActionGroup {
+  try {
+    const stored = globalThis.localStorage?.getItem(TAB_KEY);
+    return GROUP_ORDER.find((group) => group === stored) ?? "Evaluate";
+  } catch {
+    return "Evaluate";
+  }
+}
+
+/** Remembers, for this device, the group the Toolbox shows. */
+export function writeToolboxTab(group: HardwareActionGroup): void {
+  try {
+    globalThis.localStorage?.setItem(TAB_KEY, group);
+  } catch {
+    // Storage is full or off: the choice holds until the window closes.
+  }
+}
 
 /** Whether the Toolbox was left collapsed to its edge on this device; open when never chosen. */
 export function readToolboxFolded(): boolean {

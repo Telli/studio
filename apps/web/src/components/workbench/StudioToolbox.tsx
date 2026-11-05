@@ -1,12 +1,12 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { PanelRightCloseIcon, PanelRightOpenIcon } from "lucide-react";
 import { type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { observeResize } from "~/lib/observeResize";
 import { Button } from "../ui/button";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { GROUP_PURPOSES, type HardwareAction, type HardwareActionGroup } from "./hardwareActions";
 import { MENU_ICONS } from "./kinds";
 import { handToChat } from "./handToChat";
@@ -16,24 +16,27 @@ import { usePartForJobs } from "./StudioPanelBar";
 import { SectionJobs } from "./ToolboxJobs";
 import {
   readToolboxFolded,
+  readToolboxTab,
   TOOLBOX_NARROW_REM,
   type ToolboxGroup,
   toolboxFolded,
   toolboxGroups,
   toolboxLibraryLink,
   writeToolboxFolded,
+  writeToolboxTab,
 } from "./toolbox";
 import { usePartJobs } from "./usePartJobs";
 
 /**
  * The Toolbox, down the right of the workspace panel beside the part, the same in AI and CAD: the
  * jobs (`usePartJobs`) of the part in front, else the project's (`usePartForJobs`), as Evaluate,
- * Manufacture and Document (`toolboxGroups`). Every job is a tile like every other, in one list
- * with nothing folded or tucked behind another press: each group's name over its sections' tiles.
+ * Manufacture and Document (`toolboxGroups`), a tab each, like SolidWorks' CommandManager; the tab
+ * left open is remembered on this device. Every job in a group is a tile like every other, nothing
+ * folded: the group's purpose over its sections, each section's name over its tiles.
  * A tile press sends its job in the chat for that part, or adds it after a draft being written
  * there for the person to send (`handToChat`). It folds to an edge of the groups' icons, as chosen
  * on this device, and on a narrow panel starts folded so the model keeps the room; a group's icon
- * there opens it on that group.
+ * there opens it on that group's tab.
  */
 export function StudioToolbox(props: {
   readonly threadRef: ScopedThreadRef;
@@ -58,20 +61,23 @@ export function StudioToolbox(props: {
     );
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const headingRefs = useRef(new Map<HardwareActionGroup, HTMLHeadingElement>());
   const { folded, setFolded } = useFolding(rootRef);
+  const [tab, setTabState] = useState(readToolboxTab);
+  const setTab = (group: HardwareActionGroup) => {
+    setTabState(group);
+    writeToolboxTab(group);
+  };
+  const shown = groups.find((group) => group.group === tab);
 
   const run = (action: HardwareAction) => {
     if (composerRef === null || part === null) return;
     handToChat(composerRef, action.prompt(partLink(part)));
   };
 
-  // From the folded edge: open, then bring that group's name to the top, with focus on it.
+  // From the folded edge: open on that group's tab.
   const openOn = (group: HardwareActionGroup) => {
-    flushSync(() => setFolded(false));
-    const heading = headingRefs.current.get(group);
-    heading?.scrollIntoView({ block: "start" });
-    heading?.focus({ preventScroll: true });
+    setTab(group);
+    setFolded(false);
   };
 
   if (folded) {
@@ -112,7 +118,7 @@ export function StudioToolbox(props: {
   return (
     <div
       ref={rootRef}
-      className="flex w-56 min-w-0 shrink flex-col border-l border-border"
+      className="flex w-64 min-w-0 shrink flex-col border-l border-border"
       data-studio-toolbox="open"
     >
       <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-border ps-3 pe-1.5">
@@ -127,8 +133,26 @@ export function StudioToolbox(props: {
           <PanelRightCloseIcon aria-hidden="true" />
         </Button>
       </div>
+      <div className="shrink-0 border-b border-border p-2">
+        <ToggleGroup
+          aria-label="Toolbox group"
+          value={[tab]}
+          className="w-full"
+          onValueChange={(value) => {
+            // Pressing the tab in front clears the group: it stays as it is.
+            const next = groups.find((group) => group.group === value[0]);
+            if (next) setTab(next.group);
+          }}
+        >
+          {groups.map((group) => (
+            <ToggleGroupItem key={group.group} value={group.group} className="flex-auto">
+              {group.group}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-5 p-2.5">
+        <div className="flex flex-col gap-4 p-2.5">
           {part === null ? (
             <p className="px-1 text-xs text-muted-foreground">
               The jobs are for a part. Make one in the chat, or import one, to see them.
@@ -149,19 +173,14 @@ export function StudioToolbox(props: {
                   Jobs start in a chat. Open one to use them.
                 </p>
               ) : null}
-              {groups.map((group) => (
+              {shown ? (
                 <GroupJobs
-                  key={group.group}
-                  group={group}
+                  group={shown}
                   disabled={composerRef === null}
                   onRun={run}
-                  onBrowse={() => browse(group.group)}
-                  headingRef={(element) => {
-                    if (element === null) headingRefs.current.delete(group.group);
-                    else headingRefs.current.set(group.group, element);
-                  }}
+                  onBrowse={() => browse(shown.group)}
                 />
-              ))}
+              ) : null}
             </>
           )}
         </div>
@@ -208,44 +227,31 @@ function useFolding(rootRef: RefObject<HTMLDivElement | null>) {
   };
 }
 
-/** A group: its name, then each of its sections' tiles, and the Library's word on what each makes. */
-function GroupJobs({
-  headingRef,
-  ...props
-}: {
+/**
+ * The tab in front: what the group is for, then each of its sections' tiles split by a rule, and
+ * the Library's word on what each makes.
+ */
+function GroupJobs(props: {
   readonly group: ToolboxGroup;
   /** No chat to write the job into. */
   readonly disabled: boolean;
   readonly onRun: (action: HardwareAction) => void;
   readonly onBrowse: () => void;
-  readonly headingRef: (element: HTMLHeadingElement | null) => void;
 }) {
-  const Icon = MENU_ICONS[props.group.group];
   const empty = props.group.sections.length === 0;
   return (
-    <section className="flex flex-col gap-3">
-      <h3
-        ref={headingRef}
-        tabIndex={-1}
-        className="flex items-center gap-1.5 px-1 text-sm font-medium text-foreground outline-none"
-      >
-        <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
-        {props.group.group}
-      </h3>
-      <p className="-mt-2 px-1 text-xs text-muted-foreground">
-        {GROUP_PURPOSES[props.group.group]}
-      </p>
+    <section aria-label={props.group.group} className="flex flex-col gap-3">
+      <p className="px-1 text-xs text-muted-foreground">{GROUP_PURPOSES[props.group.group]}</p>
       {empty ? (
         <p className="px-1 text-xs text-muted-foreground">Nothing here for this file.</p>
       ) : (
-        props.group.sections.map((section) => (
-          <SectionJobs
-            key={section.title}
-            section={section}
-            disabled={props.disabled}
-            onRun={props.onRun}
-          />
-        ))
+        <div className="flex flex-col divide-y divide-border">
+          {props.group.sections.map((section) => (
+            <div key={section.title} className="py-3 first:pt-0 last:pb-0">
+              <SectionJobs section={section} disabled={props.disabled} onRun={props.onRun} />
+            </div>
+          ))}
+        </div>
       )}
       {empty ? null : (
         <div className="px-0.5">

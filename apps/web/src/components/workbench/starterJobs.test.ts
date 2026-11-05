@@ -8,7 +8,7 @@ const files = (...paths: string[]) =>
   paths.map(classifyProjectFile).filter((file): file is ProjectFile => file !== null);
 
 describe("project starters", () => {
-  it("suggests the jobs the project's recent parts take, checks first", () => {
+  it("suggests each kind of job the project's recent parts take once, checks first", () => {
     const starters = projectStarters(
       files("parts/STEP/l_bracket.step", "notes/todo.md"),
       new Set(["dfm", "cam", "cad"]),
@@ -16,6 +16,8 @@ describe("project starters", () => {
     );
     expect(starters.map((starter) => starter.label)).toEqual([
       "Check L bracket for CNC machining",
+      "Weight of L bracket",
+      "3D PMI for L bracket",
       "Post G-code for L bracket",
     ]);
     expect(starters[0]?.prompt).toBe(
@@ -39,6 +41,16 @@ describe("project starters", () => {
     );
     expect(starters[0]?.label).toBe("Check bracket as sheet metal");
     expect(starters.some((starter) => /tip load/i.test(starter.label))).toBe(false);
+  });
+
+  it("never offers one job on every part", () => {
+    const labels = projectStarters(
+      files("parts/arm.step", "parts/base.step"),
+      new Set(["dfam-check", "gcode", "fea", "engineering-drawing"]),
+      null,
+    ).map((starter) => starter.label);
+    expect(labels.filter((label) => label.endsWith("for FDM printing"))).toHaveLength(1);
+    expect(labels.filter((label) => label.startsWith("Slice "))).toHaveLength(1);
   });
 
   it("offers only what the installed skills can do", () => {
