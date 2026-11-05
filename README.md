@@ -18,11 +18,11 @@ The app counts which features get used, anonymously, so we can see what works: c
 turns finished (provider, model, token counts, how long), projects made from a starter, and CAD
 actions such as opening a model, a hand edit, changing a size or comparing versions. It never
 sends your prompts, file names or designs. It works the way text-to-cad's own counts do. Nothing
-is sent until the first launch has said so, and **Settings → About → Share usage data** turns it
+is sent until you choose Share when the first launch asks, and **Settings → About → Share usage data** turns it
 off and deletes what was sent. Setting `DO_NOT_TRACK=1` turns it off for the whole machine, and a
 CI run (`CI` set) sends nothing. Counts go under a random install id to Studio's own receiver,
-[`infra/usage`](infra/usage/README.md), which refuses anything outside this list and passes the
-rest to PostHog; a build sends nothing unless it was made with the receiver's address, so a copy
+[`infra/usage`](infra/usage/README.md), which refuses anything outside this list and keeps the
+rest in Studio's own database, not an analytics service; a build sends nothing unless it was made with the receiver's address, so a copy
 you build yourself sends nothing. [`AnalyticsService.ts`](apps/server/src/telemetry/AnalyticsService.ts)
 sends them, and this is every event it can send (tests fail when the code, the receiver and this
 list differ):

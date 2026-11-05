@@ -1,17 +1,17 @@
 # Product analytics
 
 Studio sends usage counts the way text-to-cad does: to a receiver of its own
-([`infra/usage`](../../infra/usage/README.md)), which checks every batch and passes it to
-PostHog. No build carries a PostHog key, so the receiver can refuse, or PostHog be replaced,
-without a release. Nothing below runs unless the build names the receiver (`T3CODE_USAGE_URL`).
+([`infra/usage`](../../infra/usage/README.md)), which checks every batch and keeps it in
+Studio's own Postgres table, as Backplane keeps its own. No build carries a key to it, so the
+receiver can refuse an event, or the store change, without a release. Nothing below runs unless the build names the receiver (`T3CODE_USAGE_URL`).
 
 The server owns delivery, opt-out, and identity for every connected client. The identity
 is the install's random id ([`getInstallId`](../../apps/server/src/telemetry/Identify.ts)),
 never one derived from a provider account, because an opt-out deletes by it. It can span
 several clients; it does not identify a browser session. Nothing is sent until the
-first-launch notice has been shown (`usageDataNoticeShown`), and turning sharing off owes
+person has answered the first-launch notice (`usageDataAnswered`; closing it answers nothing), and turning sharing off owes
 the receiver a deletion of everything sent under the id, kept across restarts until taken;
-no batch goes out while one is owed. Clients do not load the PostHog browser SDK. Client-use events require an authenticated connection, so
+no batch goes out while one is owed. Clients send nothing themselves. Client-use events require an authenticated connection, so
 visiting the hosted app without connecting does not count as product use.
 
 ## Attribution boundaries
@@ -50,7 +50,7 @@ normalization or building reports.
 
 ## Delivery
 
-A send can fail after PostHog has stored the batch, so every retry is a copy.
+A send can fail after the receiver has kept the batch, so every retry is a copy.
 [Delivery](../../apps/server/src/telemetry/AnalyticsService.ts) gives each event a
 uuid when it is recorded, backs off after a failed send, and drops a batch after a
 few tries. Without these limits, one stuck batch was sent every second for days.

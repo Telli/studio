@@ -1,9 +1,9 @@
 /**
- * Product analytics: Studio's anonymous usage counts, sent the way text-to-cad sends its own.
+ * Product analytics: Studio's anonymous usage counts, sent the way text-to-cad and Backplane send theirs.
  *
- * Events go to Studio's usage receiver (`infra/usage`, which holds the PostHog keys) only when the app was
- * built with its address (`T3CODE_USAGE_URL`, which a Studio app bundle sets), the user was told (the
- * first-launch notice sets `usageDataNoticeShown`) and has left `shareUsageData` on, and neither
+ * Events go to Studio's usage receiver (`infra/usage`, which keeps them in Studio's own table) only when the app was
+ * built with its address (`T3CODE_USAGE_URL`, which a Studio app bundle sets), the user answered the
+ * first-launch notice (`usageDataAnswered`) and has left `shareUsageData` on, and neither
  * `DO_NOT_TRACK` nor `CI` is set. Otherwise `record` drops every event. They go under a random install id,
  * never one derived from an account, and carry counts, kinds and provider names, never prompts, file names
  * or geometry. Turning `shareUsageData` off asks the receiver to delete everything sent under the id, and
@@ -304,9 +304,9 @@ export const make = Effect.gen(function* () {
   const record: AnalyticsService["Service"]["record"] = Effect.fn("AnalyticsService.record")(
     function* (event, properties) {
       if (Option.isSome(settings)) {
-        // Nothing counted before the person was told is sent, nor anything after their no.
+        // Nothing counted before the person answered the notice is sent, nor anything after their no.
         const sharing = yield* settings.value.getSettings.pipe(
-          Effect.map((current) => current.shareUsageData && current.usageDataNoticeShown),
+          Effect.map((current) => current.shareUsageData && current.usageDataAnswered),
           Effect.orElseSucceed(() => false),
         );
         if (!sharing) return;
@@ -327,17 +327,20 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  // Turning sharing off owes a deletion of what was sent; turning it on again owes nothing.
+  // Turning sharing off after saying yes owes a deletion of what was sent. A no before any yes owes
+  // nothing, and contacts nobody; turning it on again owes nothing either.
   if (Option.isSome(settings)) {
+    const consenting = (current: { shareUsageData: boolean; usageDataAnswered: boolean }) =>
+      current.shareUsageData && current.usageDataAnswered;
     const shared = yield* Ref.make(
       yield* settings.value.getSettings.pipe(
-        Effect.map((current) => current.shareUsageData),
+        Effect.map(consenting),
         Effect.orElseSucceed(() => false),
       ),
     );
     yield* settings.value.streamChanges.pipe(
       Stream.runForEach((next) =>
-        Ref.getAndSet(shared, next.shareUsageData).pipe(
+        Ref.getAndSet(shared, consenting(next)).pipe(
           Effect.flatMap((was) => (was && !next.shareUsageData ? owe : Effect.void)),
         ),
       ),

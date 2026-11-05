@@ -17,14 +17,14 @@ function memoryStore({ fail = false } = {}) {
     inserted: [],
     forgotten: [],
     async insert(rows, context) {
-      if (fail) throw Object.assign(new Error("down"), { code: "posthog_503" });
+      if (fail) throw Object.assign(new Error("down"), { code: "database_503" });
       store.inserted.push({ rows, context });
     },
     async forget(install) {
       store.forgotten.push(install);
     },
     async ready() {
-      if (fail) throw Object.assign(new Error("down"), { code: "posthog_503" });
+      if (fail) throw Object.assign(new Error("down"), { code: "database_503" });
     },
   };
   return store;
@@ -90,12 +90,12 @@ NodeTest.test("forgets an install, and limits how often one caller may ask", asy
   NodeAssert.equal(notAnId.status, 400);
 });
 
-NodeTest.test("health names what is missing, or says PostHog will not take the keys", async () => {
+NodeTest.test("health names what is missing, or says the database will not answer", async () => {
   const health = new Request("https://usage.example/v1/health");
-  const missing = await handle(health, memoryStore(), { missing: ["POSTHOG_PROJECT_KEY"] });
+  const missing = await handle(health, memoryStore(), { missing: ["SUPABASE_SERVICE_ROLE_KEY"] });
   NodeAssert.equal(missing.status, 503);
-  NodeAssert.deepEqual(await missing.json(), { ok: false, missing: ["POSTHOG_PROJECT_KEY"] });
+  NodeAssert.deepEqual(await missing.json(), { ok: false, missing: ["SUPABASE_SERVICE_ROLE_KEY"] });
   const down = await handle(health, memoryStore({ fail: true }));
-  NodeAssert.deepEqual(await down.json(), { ok: false, error: "posthog_503" });
+  NodeAssert.deepEqual(await down.json(), { ok: false, error: "database_503" });
   NodeAssert.equal((await handle(health, memoryStore())).status, 200);
 });

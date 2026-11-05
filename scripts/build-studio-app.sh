@@ -197,7 +197,7 @@ step "Laying out the CAD plugin"
 # The Electron profile's folder is named by the app's id, which no other app shares; a folder
 # called "studio" could be any app's of that name.
 # STUDIO_USAGE_URL (Studio's usage receiver, infra/usage) makes a build that sends anonymous usage
-# counts there. No build carries a PostHog key: the receiver holds it.
+# counts there. No build carries a database key: the receiver holds it.
 usage_url=""
 if [ -n "${STUDIO_USAGE_URL:-}" ]; then
   usage_url=",

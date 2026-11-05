@@ -12,7 +12,7 @@
  * `install` is the install's random id (a UUID made on the machine, `anonymous-id` in Studio's state), the one
  * thing an opt-out names (`/v1/forget`). Each event's `id` is a UUID of its own, made when it was counted, and
  * `at` when (ISO 8601): a sender that never heard back sends the batch again as it was, and the store passes
- * both on, so PostHog takes the copy for what it is.
+ * both on, so the store takes the copy for what it is.
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

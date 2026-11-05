@@ -3420,14 +3420,19 @@ export function GeneralSettingsPanel() {
             control={
               <ScopedSwitch
                 settingKeys={["shareUsageData"]}
-                checked={settings.shareUsageData}
-                onCheckedChange={(checked) => updateSettings({ shareUsageData: Boolean(checked) })}
+                // On only after a yes: nothing is sent while the first-launch question is open.
+                checked={settings.shareUsageData && settings.usageDataAnswered}
+                onCheckedChange={(checked) =>
+                  updateSettings({ shareUsageData: Boolean(checked), usageDataAnswered: true })
+                }
                 aria-label="Share usage data"
               />
             }
           />
         ) : null}
-        {environment?.serverConfig?.observability.usageId && settings.shareUsageData ? (
+        {environment?.serverConfig?.observability.usageId &&
+        settings.shareUsageData &&
+        settings.usageDataAnswered ? (
           <UsageIdRow usageId={environment.serverConfig.observability.usageId} />
         ) : null}
         <SettingsRow
@@ -3441,9 +3446,10 @@ export function GeneralSettingsPanel() {
                     appName: APP_BASE_NAME,
                     version: APP_VERSION,
                     platform: environment?.serverConfig?.environment.platform ?? null,
-                    usageId: settings.shareUsageData
-                      ? (environment?.serverConfig?.observability.usageId ?? null)
-                      : null,
+                    usageId:
+                      settings.shareUsageData && settings.usageDataAnswered
+                        ? (environment?.serverConfig?.observability.usageId ?? null)
+                        : null,
                   })}
                   target="_blank"
                   rel="noreferrer noopener"

@@ -1,7 +1,7 @@
 /**
  * A limit on how often one caller may ask for something, kept in memory by the instance that answers (the
  * host reuses a warm one, and each instance keeps its own). /v1/forget is open to anyone and each deletion
- * spends PostHog's personal key, so it is limited per client address and per install id: Studio asks once,
+ * deletes from the table, so it is limited per client address and per install id: Studio asks once,
  * when usage data is turned off, and again only while the deletion it owes has not been taken. Beyond the
  * limit, a refusal and the time to wait: nothing is queued. Copied from text-to-cad's `apps/api` (MIT).
  *

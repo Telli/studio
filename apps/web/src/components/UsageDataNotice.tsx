@@ -1,5 +1,4 @@
 import { useAtomValue } from "@effect/atom-react";
-import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 import { APP_BASE_NAME } from "../branding";
@@ -12,9 +11,10 @@ import { toastManager } from "./ui/toast";
 let shown = false;
 
 /**
- * Says once, in a build that sends usage counts, what it sends and where to turn it off
- * (Settings → About). Builds without a usage receiver never show it. Showing it is what lets the
- * server send (`usageDataNoticeShown`): nothing counted before it goes anywhere.
+ * Asks once, in a build that sends usage counts, before any are sent: what it sends, and where to
+ * turn it off later (Settings → About). Share lets the server send; Don't share says no. Closing it
+ * answers nothing, so it asks again next launch, as Backplane's popup does. Builds without a usage
+ * receiver never ask.
  */
 export function UsageDataNotice() {
   const config = useAtomValue(primaryServerConfigAtom);
@@ -22,36 +22,34 @@ export function UsageDataNotice() {
   const updateSettings = useAtomCommand(serverEnvironment.updateSettings, {
     label: "note the usage data notice",
   });
-  const navigate = useNavigate();
-  const telling =
+  const asking =
     config !== null &&
     environmentId !== null &&
     config.observability.usageDataAvailable &&
     config.settings.shareUsageData &&
-    !config.settings.usageDataNoticeShown;
+    !config.settings.usageDataAnswered;
   useEffect(() => {
-    if (!telling || shown || environmentId === null) return;
+    if (!asking || shown || environmentId === null) return;
     shown = true;
-    void updateSettings({ environmentId, input: { patch: { usageDataNoticeShown: true } } });
-    const dismiss = () => toastManager.close(id);
+    const answer = (share: boolean) => {
+      toastManager.close(id);
+      void updateSettings({
+        environmentId,
+        input: { patch: { usageDataAnswered: true, shareUsageData: share } },
+      });
+    };
     const id = toastManager.add({
-      title: `${APP_BASE_NAME} sends anonymous usage counts`,
+      title: `Share anonymous usage counts with ${APP_BASE_NAME}?`,
       description:
-        "Which features get used and how often, to see what works. Never your prompts, file names or designs. Turning it off deletes what was sent.",
+        "Which features get used and how often, to see what works. Never your prompts, file names or designs. Nothing is sent until you choose Share, and Settings → About turns it off and deletes what was sent.",
       timeout: 0,
-      actionProps: {
-        children: "Turn off",
-        onClick: () => {
-          dismiss();
-          void navigate({ to: "/settings/general", hash: "usage-data" });
-        },
-      },
+      actionProps: { children: "Share", onClick: () => answer(true) },
       data: {
         actionLayout: "stacked-end",
-        secondaryActionProps: { children: "OK", onClick: dismiss },
+        secondaryActionProps: { children: "Don't share", onClick: () => answer(false) },
         secondaryActionVariant: "ghost",
       },
     });
-  }, [environmentId, navigate, telling, updateSettings]);
+  }, [asking, environmentId, updateSettings]);
   return null;
 }

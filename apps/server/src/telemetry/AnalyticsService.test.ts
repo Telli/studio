@@ -88,8 +88,8 @@ const receiver = (paths: Array<string>) =>
  * service starts.
  */
 const receiverRuntime = (
-  shared: { readonly shareUsageData: boolean; readonly usageDataNoticeShown: boolean },
-  changesTo?: { readonly shareUsageData: boolean },
+  shared: { readonly shareUsageData: boolean; readonly usageDataAnswered: boolean },
+  changesTo?: { readonly shareUsageData: boolean; readonly usageDataAnswered?: boolean },
 ) => {
   const layerSettings = ServerSettings.layerTest(shared);
   const layerChangingSettings =
@@ -327,7 +327,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       const sent: Array<string> = [];
       const layerTelemetry = AnalyticsService.layer.pipe(
         Layer.provide(
-          ServerSettings.layerTest({ shareUsageData: shared, usageDataNoticeShown: true }),
+          ServerSettings.layerTest({ shareUsageData: shared, usageDataAnswered: true }),
         ),
         Layer.provideMerge(
           ServerConfig.ServerConfig.layerTest(process.cwd(), { prefix: "t3-telemetry-shared-" }),
@@ -367,7 +367,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       assert.equal(sent.length, shared ? 1 : 0);
     }),
   );
-  it.effect("sends nothing until the first-launch notice has been shown", () =>
+  it.effect("sends nothing until the first-launch question is answered", () =>
     Effect.gen(function* () {
       const paths: Array<string> = [];
       yield* Effect.gen(function* () {
@@ -377,9 +377,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
           yield* analytics.record("test.untold", { index: 1 });
           yield* analytics.flush;
         }).pipe(Effect.provide(AnalyticsService.layer));
-      }).pipe(
-        Effect.provide(receiverRuntime({ shareUsageData: true, usageDataNoticeShown: false })),
-      );
+      }).pipe(Effect.provide(receiverRuntime({ shareUsageData: true, usageDataAnswered: false })));
       assert.deepEqual(paths, []);
     }),
   );
@@ -402,13 +400,34 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       }).pipe(
         Effect.provide(
           receiverRuntime(
-            { shareUsageData: true, usageDataNoticeShown: true },
+            { shareUsageData: true, usageDataAnswered: true },
             { shareUsageData: false },
           ),
         ),
       );
       assert.deepEqual(paths, ["/v1/forget", "/v1/events"]);
       assert.isFalse(owed, "a deletion the receiver took is owed no more");
+    }),
+  );
+
+  it.effect("a no before any yes contacts nobody", () =>
+    Effect.gen(function* () {
+      const paths: Array<string> = [];
+      yield* Effect.gen(function* () {
+        yield* receiver(paths);
+        yield* Effect.gen(function* () {
+          yield* AnalyticsService.AnalyticsService;
+          for (let turn = 0; turn < 5; turn += 1) yield* Effect.yieldNow;
+        }).pipe(Effect.provide(AnalyticsService.layer));
+      }).pipe(
+        Effect.provide(
+          receiverRuntime(
+            { shareUsageData: true, usageDataAnswered: false },
+            { shareUsageData: false, usageDataAnswered: true },
+          ),
+        ),
+      );
+      assert.deepEqual(paths, []);
     }),
   );
 
@@ -426,9 +445,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
           yield* analytics.flush;
         }).pipe(Effect.provide(AnalyticsService.layer));
         assert.isFalse(yield* fileSystem.exists(markerPath));
-      }).pipe(
-        Effect.provide(receiverRuntime({ shareUsageData: true, usageDataNoticeShown: true })),
-      );
+      }).pipe(Effect.provide(receiverRuntime({ shareUsageData: true, usageDataAnswered: true })));
       assert.deepEqual(paths, ["/v1/forget", "/v1/events"]);
     }),
   );

@@ -1,14 +1,14 @@
 /**
  * Studio's usage receiver, after text-to-cad's (`apps/api/src/handler.mjs` there): the one place Studio sends
  * usage counts, served by this project's one function (`api/v1.mjs`, which vercel.json sends every /v1 path
- * to). A plain fetch handler over a `store` (PostHog's, posthog.mjs), so the service behind it can change
- * without a release of Studio, and no build of Studio carries a PostHog key.
+ * to). A plain fetch handler over a `store` (Studio's own table, store.mjs), so what keeps the counts can
+ * change without a release of Studio, and no build of Studio carries a key to it.
  *
  *   POST   /v1/events          a batch of counts (events.mjs) -> 204
  *   POST   /v1/forget          {install}: forget everything sent under an install id -> 204, or 429 past
  *                              the limit per address and per install id (limit.mjs)
- *   GET    /v1/health          -> 200, or 503 naming a missing setting (posthog.mjs: SETTINGS)
- *                              or PostHog's status when it will not take the project's keys
+ *   GET    /v1/health          -> 200, or 503 naming a missing setting (store.mjs: SETTINGS)
+ *                              or the database's status when it will not answer
  *
  * It keeps no IP address and passes on nothing the batch does not name. The one thing it adds is the
  * country the host places the request in, on each of the batch's events.
