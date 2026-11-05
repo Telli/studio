@@ -249,9 +249,10 @@ together under one Advanced group in the settings sidebar (`ADVANCED_SETTINGS_SE
 `studioInterface.ts`); their own settings URLs are unchanged, and the code interfaces list neither
 Diagnostics nor Interface as a section.
 
-Engineering's composer has no model picker and no Thinking or Speed choice (the "/model" command and
-the model shortcuts do nothing there): the model new chats start on, with its Thinking and Speed, is
-Settings, AI agents, New chats (`DefaultModelRow`, the one row that edits the default model, which
+Engineering's composer has the model picker beside Send, as every chat app has it (Amy, 11/05: an
+easy way to set the model), opened by "/model" and the model shortcut too, one model a chat (no
+side-by-side runs of several); it has no Thinking or Speed choice. The model new chats start on,
+with its Thinking and Speed, is Settings, AI agents, New chats (`DefaultModelRow`, the one row that edits the default model, which
 General shows under "New threads" in the code interfaces). It applies to chats started afterwards,
 to a draft that has not picked a model, and, in Engineering, to the open chat's next turn
 (`workbench/defaultModelFollow.ts`: the chat that was in front when Settings opened takes a chosen
