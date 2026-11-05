@@ -151,6 +151,7 @@ const SERVER_CONFIG: ServerConfigType = {
     otlpMetricsEnabled: false,
     otlpLogsEnabled: false,
     usageDataAvailable: false,
+    usageId: null,
   },
   settings: DEFAULT_SERVER_SETTINGS,
 };

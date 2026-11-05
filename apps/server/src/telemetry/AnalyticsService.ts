@@ -3,8 +3,9 @@
  *
  * Events go to PostHog only when the app was built with a usage key
  * (`T3CODE_POSTHOG_KEY`, which a Studio app bundle sets with
- * `T3CODE_TELEMETRY_ENABLED`) and the user has left the `shareUsageData`
- * setting on. Otherwise `record` drops every event. Events carry counts,
+ * `T3CODE_TELEMETRY_ENABLED`), the user has left the `shareUsageData`
+ * setting on, and neither `DO_NOT_TRACK` nor `CI` is set. Otherwise `record`
+ * drops every event. Events carry counts,
  * kinds and provider names, never prompts, file names or geometry.
  *
  * @module AnalyticsService
@@ -79,13 +80,27 @@ const TelemetryEnvConfig = Config.all({
     Config.withDefault(1_000),
   ),
   wslDistroName: Config.String("WSL_DISTRO_NAME").pipe(Config.option),
+  doNotTrack: Config.String("DO_NOT_TRACK").pipe(Config.withDefault("")),
+  ci: Config.String("CI").pipe(Config.withDefault("")),
 });
 
-/** Whether this build can send usage counts at all: it has a usage key and telemetry on. */
-export const usageDataAvailable = Effect.gen(function* () {
-  const { enabled, posthogKey } = yield* TelemetryEnvConfig;
-  return enabled && posthogKey !== "";
-});
+/** An environment flag set to anything but empty, `0` or `false`. */
+const isSet = (value: string) => value.trim() !== "" && !/^(?:0|false)$/i.test(value.trim());
+
+/**
+ * Whether usage counts can be sent at all: the build has a usage key and telemetry on, and the
+ * machine has not opted out (`DO_NOT_TRACK`, consoledonottrack.com) or is not a CI run.
+ */
+const canSend = (config: Config.Success<typeof TelemetryEnvConfig>) =>
+  config.enabled && config.posthogKey !== "" && !isSet(config.doNotTrack) && !isSet(config.ci);
+
+/** Whether this build can send usage counts on this machine: what Settings' switch shows for. */
+export const usageDataAvailable = Effect.map(TelemetryEnvConfig, canSend);
+
+/** The id this machine's usage counts go under, for a problem report to name; null when none are sent. */
+export const usageId = Effect.flatMap(usageDataAvailable, (available) =>
+  available ? getTelemetryIdentifier : Effect.succeed(null),
+);
 
 export class AnalyticsService extends Context.Service<
   AnalyticsService,
@@ -128,7 +143,7 @@ function serverOsFromNodePlatform(platform: string): ClientOs {
 /** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const telemetryConfig = yield* TelemetryEnvConfig;
-  if (!telemetryConfig.enabled || telemetryConfig.posthogKey === "") {
+  if (!canSend(telemetryConfig)) {
     return AnalyticsService.of({ record: () => Effect.void, flush: Effect.void });
   }
   const httpClient = yield* HttpClient.HttpClient;

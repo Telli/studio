@@ -589,6 +589,19 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["telemetry analytics usage counts tracking privacy opt out"],
   },
   {
+    id: "usage-id",
+    title: "Usage ID",
+    to: "/settings/general",
+    environmentOnly: true,
+    searchTerms: ["telemetry analytics usage identifier id copy support"],
+  },
+  {
+    id: "report-problem",
+    title: "Report a problem",
+    to: "/settings/general",
+    searchTerms: ["bug issue feedback support help github"],
+  },
+  {
     id: "privacy-policy",
     title: "Privacy policy",
     to: "/settings/general",

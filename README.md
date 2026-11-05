@@ -18,7 +18,8 @@ The app counts which features get used, anonymously, so we can see what works: c
 turns finished (provider, model, token counts, how long), projects made from a starter, and CAD
 actions such as opening a model, a hand edit, changing a size or comparing versions. It never
 sends your prompts, file names or designs. The first launch says so, and **Settings → About →
-Share usage data** turns it off. A build sends nothing unless it was made with a usage key, so a
+Share usage data** turns it off. Setting `DO_NOT_TRACK=1` turns it off for the whole machine, and
+a CI run (`CI` set) sends nothing. A build sends nothing unless it was made with a usage key, so a
 copy you build yourself sends nothing. [`AnalyticsService.ts`](apps/server/src/telemetry/AnalyticsService.ts)
 sends them, and this is every event it can send (a test fails when the code and this list differ):
 

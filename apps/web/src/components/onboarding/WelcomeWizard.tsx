@@ -448,8 +448,8 @@ function ConnectionStep({
       ) : null}
       <div className="mt-6 flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
         <p className="min-w-0 text-xs leading-relaxed text-muted-foreground">
-          {/* This build sends no usage data (`apps/server/src/telemetry/AnalyticsService.ts`). */}
-          {APP_BASE_NAME} does not collect usage data.
+          {/* True of every build: usage counts carry none of these (`AnalyticsService.ts`). */}
+          {APP_BASE_NAME} never sends your prompts, file names or designs.
         </p>
         <Button
           className="shrink-0 self-end"

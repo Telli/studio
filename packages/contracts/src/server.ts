@@ -356,6 +356,9 @@ export const ServerObservability = Schema.Struct({
   otlpLogsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   // Whether this build can send usage counts at all, so a client says so only when true.
   usageDataAvailable: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  // The id this machine's usage counts go under, so a problem report can name it; null when
+  // none are sent.
+  usageId: Schema.NullOr(Schema.String).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
 });
 export type ServerObservability = typeof ServerObservability.Type;
 

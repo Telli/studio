@@ -233,6 +233,30 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
     }),
   );
 
+  it.effect.each([
+    [{}, true],
+    [{ DO_NOT_TRACK: "1" }, false],
+    [{ DO_NOT_TRACK: "true" }, false],
+    [{ DO_NOT_TRACK: "0" }, true],
+    [{ CI: "true" }, false],
+    [{ CI: "false" }, true],
+  ] as const)("sends nothing where the machine opts out: %j", ([env, available]) =>
+    Effect.gen(function* () {
+      const shown = yield* AnalyticsService.usageDataAvailable.pipe(
+        Effect.provide(
+          ConfigProvider.layer(
+            ConfigProvider.fromUnknown({
+              T3CODE_TELEMETRY_ENABLED: true,
+              T3CODE_POSTHOG_KEY: "phc_test_key",
+              ...env,
+            }),
+          ),
+        ),
+      );
+      assert.strictEqual(shown, available);
+    }),
+  );
+
   it.effect("does not send batch requests when telemetry is disabled", () =>
     Effect.gen(function* () {
       const capturedPaths: Array<string> = [];

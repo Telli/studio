@@ -176,6 +176,8 @@ import {
   useSettingsSearchTargetId,
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
+import { reportProblemUrl } from "./reportProblem";
+import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
 
@@ -275,6 +277,26 @@ function backgroundActivityProfileSettings(profile: BackgroundActivityProfile) {
       overrides: {},
     },
   };
+}
+
+/** The id this machine's usage counts go under, to quote in a problem report. */
+function UsageIdRow(props: { readonly usageId: string }) {
+  const { copyToClipboard, isCopied } = useCopyToClipboard({ timeout: 1500, target: "usage ID" });
+  return (
+    <SettingsRow
+      {...searchableSetting("usage-id")}
+      description={`Quote it in a problem report so this machine's counts can be found: ${props.usageId}`}
+      control={
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => copyToClipboard(props.usageId, undefined)}
+        >
+          {isCopied ? "Copied" : "Copy"}
+        </Button>
+      }
+    />
+  );
 }
 
 /** The version this is: the desktop app's own where it says one (`version`), else the web app's. */
@@ -3405,6 +3427,35 @@ export function GeneralSettingsPanel() {
             }
           />
         ) : null}
+        {environment?.serverConfig?.observability.usageId && settings.shareUsageData ? (
+          <UsageIdRow usageId={environment.serverConfig.observability.usageId} />
+        ) : null}
+        <SettingsRow
+          {...searchableSetting("report-problem")}
+          description="Open a new issue with the version and machine filled in."
+          control={
+            <Button
+              render={
+                <a
+                  href={reportProblemUrl({
+                    appName: APP_BASE_NAME,
+                    version: APP_VERSION,
+                    platform: environment?.serverConfig?.environment.platform ?? null,
+                    usageId: settings.shareUsageData
+                      ? (environment?.serverConfig?.observability.usageId ?? null)
+                      : null,
+                  })}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                />
+              }
+              size="sm"
+              variant="outline"
+            >
+              Report a problem
+            </Button>
+          }
+        />
         <SettingsRow
           {...searchableSetting("privacy-policy")}
           description="T3 Code's privacy policy. This build sends T3 Code no usage data."

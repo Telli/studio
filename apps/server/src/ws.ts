@@ -1764,6 +1764,7 @@ const layerWsRpc = (
               usageDataAvailable: yield* AnalyticsService.usageDataAvailable.pipe(
                 Effect.orElseSucceed(() => false),
               ),
+              usageId: yield* AnalyticsService.usageId.pipe(Effect.orElseSucceed(() => null)),
             },
             settings,
             shellResumeCompletionMarker: true,

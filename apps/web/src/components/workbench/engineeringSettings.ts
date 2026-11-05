@@ -103,7 +103,13 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
     },
   ],
   // T3's policy is T3's; the row keeps the fact, without its link (`SettingsPanels.tsx`).
-  ["privacy-policy", { title: "Privacy", description: `${APP_BASE_NAME} sends no usage data.` }],
+  [
+    "privacy-policy",
+    {
+      title: "Privacy",
+      description: `${APP_BASE_NAME} sends T3 Code nothing, and never sends your prompts, file names or designs.`,
+    },
+  ],
 ]);
 
 /** A row's own words in the engineering interface, or null where the row keeps its own. */
