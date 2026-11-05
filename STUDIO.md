@@ -322,8 +322,7 @@ asked)`, or `by hand`; a decision written date first reads too), then every othe
   Codex's inline views are not opened. An answer that cites nothing lists what its turn opened in
   the thread's folder. Each row opens what it names beside the chat (`references/openReference.ts`):
   a part's script, with a model of its name beside it, opens that part at the cited line, and in the
-  workspace selects the feature whose statement holds the line, in the design tree and on the
-  timeline (AI mode shows no features, so the script opens at those lines in front); a document at
+  workspace selects the feature whose statement holds the line in the design tree (AI mode shows no features, so the script opens at those lines in front); a document at
   its line or heading; a page as a link in the chat does. The part's view hears the ask in its host
   context (`studio/focus`: the script's path, a line and a number for each press, behind the
   `studioFocus` capability) and says it has taken it, however it went, and whether a feature held
@@ -556,12 +555,10 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   SolidWorks' words (Edit Feature, Edit Sketch, Suppress, Rename, Delete, Rollback, and Roll to End
   while rolled back) and the viewer's warning on the feature a failed build stopped in, told by the
   file, line and words the engine reports (the call into a helper, where the helper raised), and
-  nothing marked otherwise; a timeline along the bottom, Fusion's, of the features as icons with the
-  sketch each was made from just before it, whose rollback bar's marker is Rollback dragged
-  (`edit/EditTimeline.jsx`); the sketch tools as SolidWorks names them (Exit Sketch, Smart
+  nothing marked otherwise, and no timeline along the bottom: the tree is the one history, with its
+  rollback bar; the sketch tools as SolidWorks names them (Exit Sketch, Smart
   Dimension, Trim Entities). The script and the agent's notes keep their own names. A purple dot
-  marks what the agent made and a grey one what you made, on the design tree's rows and under the
-  timeline's icons; a feature from before Studio kept track has neither (`cad/edit/authors.py`
+  marks what the agent made and a grey one what you made, on the design tree's rows; a feature from before Studio kept track has neither (`cad/edit/authors.py`
   records it in the project's `.studio/authors.jsonl`, and only once a chat has run there), and nor
   does any in a repository with linked worktrees, whose checkouts' checkpoints share refs that do
   not say which checkout made them. S finds any button of the toolbar by name, SolidWorks' or
@@ -569,7 +566,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   commands only, ⌘K stays Studio's find, and AI mode leaves S to the viewer's strip. CAD mode reads
   the part once, quietly, after the model opens, so the full workspace opens on it at once
   (`useEditMode`). A pick in the workspace (a face or an edge on the model, a feature the person
-  pressed in the design tree or on the timeline, a sketch picked on the model) with no command open
+  pressed in the design tree, a sketch picked on the model) with no command open
   offers a small bar beside it (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Edit only (Edit
   Feature, or Edit Sketch; a face has none until the engine says which feature made it). A feature a
   command's OK selected is not a pick, or the bar would stand over the part all the while it is
@@ -591,10 +588,12 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   workspace, and the script stays its source: text-to-cad's own viewer is laid out as a CAD tool,
   with the toolbar across the top, the design tree at the top left (the part's Equations, its
   features numbered as SolidWorks numbers them, and the selected feature's inputs, each with the
-  formula behind it), the timeline along the bottom, and the feature's dimensions drawn on the
+  formula behind it), and the feature's dimensions drawn on the
   model, each changed by a double-click. A change rewrites one number in the script, as it was
   written, and rebuilds every part that uses the file, so the model reloads as any rebuild does; a
   value made of several sizes asks which to change, and a file changed since it was read is refused.
+  The view's own tools (Select, Measure, Section View, Exploded View) stay on its strip, in CAD mode
+  as in AI, as SolidWorks keeps them on its Heads-up View toolbar; the toolbar holds the modeling.
   The toolbar's Create and Modify groups (Hole, Pattern, Mirror; Fillet, Chamfer, Shell) open a
   dialog at the model view's top left, beside the design tree, as SolidWorks' PropertyManager does:
   what the command acts on (the edges or faces selected on the model, Select turned to them as it
@@ -607,9 +606,9 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   something other than the selection, is not written. Undo takes a command's line back. The agent
   hears of each change with the next message (a Hand edit note queued in the composer), never by a
   message of its own. Edit Feature reopens a feature's dialog, Suppress sets one aside, and the
-  rollback bar (dragged, in the design tree or along the timeline, or put under a feature by
-  Rollback) shows the part as it was above a feature, new features going in there. An assembly
-  places its parts: double-click one in the design tree (Open Part) and the part opens on its own,
+  rollback bar (dragged in the design tree, or put under a feature by Rollback) shows the part as it was above a feature, new features going in there. An assembly
+  places its parts, so its toolbar has Assembly and Evaluate only, and its part commands are found by S,
+  dimmed: isolate a part (double-click it in the design tree, or Isolate to edit) and the part opens on its own,
   in a tab of its own when the assembly is a project file's tab (`studio/open-file`, a plugin view's
   request to open a file beside the thread). The engine is
   `text-to-cad/packages/cad/src/cad/edit/` (a tracer that runs the script with every number
@@ -638,7 +637,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   design tree and shaded in the selection blue with its name, an extrude is previewed in amber (a
   cut in red, starting into the part), and a command's dialog floats in a card of its own at the
   model view's top left, beside the design tree, with OK, Apply and Cancel at its foot. One
-  generator draws every CAD icon of the workspace, the toolbar's, the design tree's, the timeline's
+  generator draws every CAD icon of the workspace, the toolbar's, the design tree's
   and the sketch tools' (`packages/ui/scripts/nx-icons.py`, which writes
   `src/lib/nxIcons.generated.jsx`; a test fails when the committed module is not what it writes);
   chevrons, spinners, close, the amber warning and the sketch overlay's check and cross stay
@@ -710,7 +709,8 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   electronics, magenta documents and drawings, cyan analysis, steel grey manufacturing. Never
   red, amber or green, which say how a check went.
 - **Start from a part.** A new thread offers jobs for the project's most recently used parts,
-  boards and studies, a check and then a way to make each, from the same jobs the Toolbox has;
+  boards and studies, each kind of job once (a making check, a strength, fit or mass check, a
+  document, a way to make it), from the same jobs the Toolbox has;
   a pick goes into the composer to edit before sending (`starterJobs.ts`).
 - **A checkout's working copy.** `TEXT_TO_CAD_DEV=1 vpr studio:desktop` runs the checkout's own
   CAD tools instead of the release, so branch work (FEA, CAM, KiCad) reaches Studio: the launcher
