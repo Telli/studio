@@ -47,6 +47,23 @@ export function homeRecent(
   return [...chats, ...shown].toSorted((a, b) => b.at.localeCompare(a.at)).slice(0, limit);
 }
 
+/**
+ * The chats opened lately on this device across every project, newest first, all but the one open
+ * (`openId`): what ⌘K leads with inside a project, so ⌘K then Enter goes back to the chat before,
+ * whichever project it is in.
+ */
+export function recentChats(
+  cards: ReadonlyArray<ListedProject>,
+  opened: OpenedThreads,
+  openId: string | null,
+  limit = 5,
+): Array<{ readonly card: ListedProject; readonly thread: EnvironmentThreadShell }> {
+  return homeRecent(cards, opened, [], limit + 1)
+    .filter((item) => item.thread.id !== openId)
+    .slice(0, limit)
+    .map(({ card, thread }) => ({ card, thread }));
+}
+
 /** The newest chat waiting on the person (a question, an approval) of these; null when none is. */
 export function waitingChat(
   threads: ReadonlyArray<EnvironmentThreadShell>,

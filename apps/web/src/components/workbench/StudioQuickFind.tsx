@@ -38,13 +38,14 @@ import { handToChat } from "./handToChat";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenedThreads } from "./openedThreads";
 import { useOpenWorkspaceStore } from "./openWorkspace";
+import { historyOutcome } from "./projectHistory";
 import { partLabel } from "./partNames";
 import { ProjectThumb, projectStanding } from "./ProjectChoices";
 import { partLink } from "./partLink";
 import { classifyProjectFile, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import type { ListedProject } from "./projectList";
 import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
-import { homeRecent } from "./recentActivity";
+import { homeRecent, recentChats } from "./recentActivity";
 import { useRecentFiles } from "./recentFiles";
 import { useAskNewProject } from "./StudioNew";
 import { pictureVersions } from "./projectModels";
@@ -62,6 +63,8 @@ const ICON = "size-4 shrink-0 text-muted-foreground";
 /** A group lists this many with nothing typed, and this many matches. */
 const SHOWN_UNTYPED = 5;
 const SHOWN_TYPED = 8;
+/** Recent chats ahead of the open project's, inside a project with nothing typed. */
+const SHOWN_RECENT_CHATS = 4;
 
 /** A part's, a document's or a chat's row: its kind's icon in its kind's color (`kinds.ts`). */
 function KindIcon(props: { readonly group: ProjectGroup | "Chats" }) {
@@ -294,24 +297,20 @@ function QuickFindBody(props: {
       run: () => openPart(found),
     })),
   };
-  // Chats, as the sidebar lists a project's: the open project's newest when nothing is typed.
-  const chats = (typed ? cards : current === null ? [] : [current])
-    .flatMap((card) => card.threads.map((thread) => ({ card, thread })))
-    .filter(
-      ({ card, thread }) => !typed || holdsWords(`${thread.title}\n${card.project.name}`, query),
-    )
-    .toSorted((a, b) => b.thread.updatedAt.localeCompare(a.thread.updatedAt))
-    .slice(0, typed ? SHOWN_TYPED : SHOWN_UNTYPED);
-  const chatRows: Group = {
-    label: typed || current === null ? "Chats" : `Chats in ${current.project.name}`,
-    rows: chats.map(({ card, thread }) => ({
-      value: `chat:${thread.id}`,
+  // A chat as the sidebar shows it: how it stands (Needs you, Working, when), with its project's
+  // name when that is not the project open; opening one from another project opens that project.
+  const chatRow = (
+    card: ListedProject,
+    thread: ListedProject["threads"][number],
+    key: string,
+  ): Row => {
+    const standing = chatStanding(thread);
+    return {
+      value: `${key}:${thread.id}`,
       icon: <KindIcon group="Chats" />,
       title: chatLabel(thread.title),
-      description:
-        card === current
-          ? chatStanding(thread).text
-          : `${chatStanding(thread).text} · ${card.project.name}`,
+      description: card === current ? standing.text : `${standing.text} · ${card.project.name}`,
+      waiting: historyOutcome(thread) === "needs-you",
       ...(thread.id === workspace?.threadRef.threadId ? { trailing: "Open" } : {}),
       run: go(() => {
         const ref = scopeThreadRef(thread.environmentId, thread.id);
@@ -319,7 +318,31 @@ function QuickFindBody(props: {
         if (thread.id === workspace?.threadRef.threadId) return;
         void navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
       }),
-    })),
+    };
+  };
+  // Inside a project with nothing typed, the chats opened lately in every project lead, the one
+  // open left out: ⌘K then Enter goes back to the chat before, whichever project it is in.
+  const lately =
+    typed || current === null
+      ? []
+      : recentChats(cards, opened, workspace?.threadRef.threadId ?? null, SHOWN_RECENT_CHATS);
+  const recentChatRows: Group = {
+    label: "Recent chats",
+    rows: lately.map(({ card, thread }) => chatRow(card, thread, "recent-chat")),
+  };
+  const leading = new Set(lately.map(({ thread }) => thread.id));
+  // Chats, as the sidebar lists a project's: the open project's newest when nothing is typed,
+  // but those Recent chats already shows.
+  const chats = (typed ? cards : current === null ? [] : [current])
+    .flatMap((card) => card.threads.map((thread) => ({ card, thread })))
+    .filter(({ card, thread }) =>
+      typed ? holdsWords(`${thread.title}\n${card.project.name}`, query) : !leading.has(thread.id),
+    )
+    .toSorted((a, b) => b.thread.updatedAt.localeCompare(a.thread.updatedAt))
+    .slice(0, typed ? SHOWN_TYPED : SHOWN_UNTYPED);
+  const chatRows: Group = {
+    label: typed || current === null ? "Chats" : `Chats in ${current.project.name}`,
+    rows: chats.map(({ card, thread }) => chatRow(card, thread, "chat")),
   };
   // What was opened lately, chats and files across every project, as Drive's Recent lists it:
   // with nothing typed and no project open, so Home's ⌘K jumps back into the work.
@@ -338,12 +361,18 @@ function QuickFindBody(props: {
               });
             };
             const description = `${item.card.project.name} · ${formatRelativeTimeLabel(item.at)}`;
+            // A chat says when it is at work or waiting on the person, as the sidebar's do.
+            const live = historyOutcome(item.thread);
             return item.kind === "chat"
               ? {
                   value: `recent:chat:${item.thread.id}`,
                   icon: <KindIcon group="Chats" />,
                   title: chatLabel(item.thread.title),
-                  description,
+                  description:
+                    live === "needs-you" || live === "working"
+                      ? `${item.card.project.name} · ${chatStanding(item.thread).text}`
+                      : description,
+                  waiting: live === "needs-you",
                   run: go(openChat),
                 }
               : {
@@ -498,7 +527,7 @@ function QuickFindBody(props: {
   const groups = (
     typed
       ? [jobs, partRows, documentFiles, chatRows, projects, documentRows, goTo]
-      : [recent, partRows, documentFiles, chatRows, projects, goTo]
+      : [recent, recentChatRows, partRows, documentFiles, chatRows, projects, goTo]
   ).filter((group): group is Group => group !== null && group.rows.length > 0);
 
   return (
@@ -564,7 +593,7 @@ function QuickFindBody(props: {
 /**
  * ⌘K in the engineering interface, in place of T3 Code's command palette: one box that finds a
  * project, a part in any project, or any job for the part on screen, the long tail the menus leave
- * out as well (`quickFind.ts`), with Home, New project, Trash, the Library (examples and all) and Settings. Outside a project it opens on what was opened lately (Recent). Picking a job writes
+ * out as well (`quickFind.ts`), with Home, New project, Trash, the Library (examples and all) and Settings. Outside a project it opens on what was opened lately (Recent); inside one, on the chats opened lately in every project (Recent chats), then the project's. Picking a job writes
  * it into the chat's composer, as the Toolbox does (`StudioToolbox`); picking a part opens it, in its project if that is another.
  */
 export function StudioQuickFind(props: {

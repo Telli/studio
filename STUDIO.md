@@ -486,7 +486,9 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   GitHub or in Finder. Where and when are remembered on this computer and shown under the
   menu (`useBackup.ts`).
 - **Quick find.** In Engineering ⌘K finds a project, a part (with its picture), a document or a chat
-  in any project (one in another project opens there; with nothing typed, the open project's), or
+  in any project (one in another project opens there; with nothing typed, the chats opened lately
+  in every project lead, the open one left out, each saying Needs you or Working, so Cmd+K then
+  Enter goes back to the chat before, whichever project it is in; then the open project's), or
   any job for the part on screen, with Home, New project, Take the tour, the Library (the examples,
   every document type and skill: what each makes and, where the servo bracket example has one, its
   example; `components/workbench/library/LibraryPage.tsx`), Settings and Trash
