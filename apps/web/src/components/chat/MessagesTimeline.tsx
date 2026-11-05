@@ -229,9 +229,11 @@ import {
   type StableMessagesTimelineRowsState,
   type MessagesTimelineRow,
   TIMELINE_MINIMAP_MIN_ITEMS,
+  QUIET_TURN_MS,
   type TimelineLatestRun,
   type WorkGroupScrollAnchor,
 } from "./MessagesTimeline.logic";
+import { formatCompactElapsedSeconds } from "./AgentElapsed";
 import { TurnDesignChanges } from "../workbench/TurnDesignChanges";
 import { splitSources } from "../workbench/references/answerSources";
 import { AnswerReferences, useShownReferences } from "../workbench/references/AnswerReferences";
@@ -3873,11 +3875,42 @@ function WorkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "workin
           {label}
           {shimmer ? <ActivityShimmerOverlay>{label}</ActivityShimmerOverlay> : null}
         </span>
+        {row.quietSince && !shimmer ? (
+          <QuietTurnNotice since={row.quietSince} step={row.lastStep} />
+        ) : null}
         {backgroundWorktreeSetup ? (
           <BackgroundWorktreeSetupChip snapshot={backgroundWorktreeSetup} />
         ) : null}
       </div>
     </div>
+  );
+}
+
+/**
+ * Says a working turn has shown nothing new for QUIET_TURN_MS, with its latest step, so a hung
+ * mesh or solve no longer looks like work. It only tells: stopping stays the person's call.
+ * Checks twice a minute and renders nothing until then.
+ */
+function QuietTurnNotice({ since, step }: { since: string; step: string | undefined }) {
+  const sinceMs = Date.parse(since);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  const quietMs = now - sinceMs;
+  if (!(quietMs >= QUIET_TURN_MS)) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<span className="min-w-0 truncate text-warning" />}>
+        Nothing new for {formatCompactElapsedSeconds(quietMs / 1000)}
+        {step ? ` · last step: ${step}` : ""}
+      </TooltipTrigger>
+      <TooltipPopup>
+        The agent may be waiting on a slow tool, like a big mesh or solve. If it looks stuck, stop
+        it and ask again.
+      </TooltipPopup>
+    </Tooltip>
   );
 }
 
