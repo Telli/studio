@@ -449,7 +449,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   no + (New is the one way to add), a panel with every tab closed shows the Overview, and a tab's
   menu has no Copy path in Engineering (the code interfaces keep it). The toolbar is one line of
   what can be done (`StudioPanelBar.tsx`): the AI | CAD switch, where the viewer in front has two
-  layouts, with Back to AI beside it while CAD is showing, then Import and New, always there, at its
+  layouts (the one way between them: no Back to AI beside it), then Import and New, always there, at its
   right end, as Home has them (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow
   window's panel sheet keeps it. Whatever writes into the chat (the Toolbox, Cmd+K, the viewer's Add
   to chat, the Overview) brings the chat back from a panel filling the window, as does a question or

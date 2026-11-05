@@ -6,7 +6,6 @@ import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh
 import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
-import { Button } from "../ui/button";
 import { ImportDialogHost } from "./ImportDialog";
 import { ImportMenu } from "./ImportMenu";
 import { useImportIntoProject } from "./importIntoProject";
@@ -133,8 +132,8 @@ export function usePartForJobs(
 /**
  * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
  * can be done: the AI | CAD switch where the viewer in front has two layouts (`ModeSwitch` over
- * `simpleView.ts`, the person's choice, which every CAD view takes from its host context), with Back to AI before it
- * in CAD; and Import (`ImportMenu`, Studio's one Import) and New, always
+ * `simpleView.ts`, the person's choice, which every CAD view takes from its host context), the one way between
+ * them; and Import (`ImportMenu`, Studio's one Import) and New, always
  * there, at the row's right end (`StudioNew`), where Home has them. A part's jobs are in the
  * Toolbox (`StudioToolbox`). ⌘K's and the Toolbox's jobs are for the same part (`usePartForJobs`).
  */
@@ -214,20 +213,6 @@ export function StudioPanelBar(props: {
       <div className="flex-1" />
       {toggle === "hidden" ? null : (
         <>
-          {/* In CAD, the way home: AI is where a part starts, and double-clicking empty space in the view goes there too. */}
-          {simpleView ? null : (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={toggle === "held"}
-              onClick={() => {
-                if (frontViewBusy(useViewerEditState.getState().byView, frontView)) return;
-                setSimpleView(true);
-              }}
-            >
-              Back to AI
-            </Button>
-          )}
           <ModeSwitch
             mode={modeOf(simpleView)}
             held={toggle === "held"}
