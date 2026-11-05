@@ -443,12 +443,12 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     group: "Document",
     section: "building",
     label: "Assembly instructions",
-    gets: "Numbered steps in docs/, each with the parts and tools it needs.",
-    skill: null,
+    gets: "A PDF a technician builds from: one action per step, each with a figure of the assembly.",
+    skill: "work-instructions",
     kinds: ["Assembly"],
     checks: false,
     prompt: (file) =>
-      `Write assembly instructions for ${file} in docs/, step by step, with the parts and tools each step needs.`,
+      `Write work instructions for ${file} with the work-instructions skill, as a PDF in docs/: one action per step, each with a figure of the assembly at that step.`,
     short: (name) => `Assembly instructions for ${name}`,
   },
   {

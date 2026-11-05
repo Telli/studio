@@ -73,6 +73,7 @@ describe("hardware actions", () => {
     const document = menu("Document", "Assembly", [
       "cad",
       "engineering-drawing",
+      "work-instructions",
       "urdf",
       "sdf",
       "srdf",

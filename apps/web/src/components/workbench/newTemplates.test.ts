@@ -41,13 +41,13 @@ describe("new templates", () => {
       "assembly",
       "sheet-metal",
       "test-plan",
-      "instructions",
       "prd",
       "requirements",
       "fmea",
       "design-review",
     ]);
     expect(onWith(["fea", "cam"]).map((entry) => entry.label)).toContain("Strength study");
+    expect(onWith(["cad", "work-instructions"]).map((entry) => entry.id)).toContain("instructions");
   });
 
   it("names new work by a file name the agent can use", () => {

@@ -59,8 +59,9 @@
     "picture": "page"
   },
   "doc:instructions": {
-    "example": "docs/servo_mount_assembly_instructions.md",
-    "picture": "page"
+    "sample": "desk-lamp",
+    "example": "docs/desk_lamp_work_instructions.pdf",
+    "picture": "docs/desk_lamp_work_instructions.pdf"
   },
   "doc:exploded": {
     "example": "pictures/servo_mount_exploded.png",

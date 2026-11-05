@@ -257,10 +257,10 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
     name: "Assembly instructions",
     templates: ["instructions"],
     actions: ["instructions"],
-    what: "Step-by-step build instructions with the parts each step needs.",
+    what: "Work instructions a technician builds from: one action per step, each with a figure of the assembly at that step.",
     give: "The assembly.",
-    asks: null,
-    gets: "Numbered steps in docs/, each with the parts and tools it needs.",
+    asks: "How formal it is (a prototype build order, production, or audited), and your company's template if you have one.",
+    gets: "A PDF in docs/: the parts, materials and tools, then the steps with their torque or cure values.",
   }),
   doc({
     id: "doc:exploded",

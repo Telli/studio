@@ -152,8 +152,8 @@ export const NEW_TEMPLATES: ReadonlyArray<NewTemplate> = [
     id: "instructions",
     discipline: "Documents",
     label: "Assembly instructions",
-    description: "Step-by-step build instructions with the parts each step needs.",
-    skill: null,
+    description: "A PDF a technician builds from, with a figure for each step.",
+    skill: "work-instructions",
     source: "from-part",
     folder: "docs",
     defaultName: "assembly_instructions",
@@ -342,7 +342,7 @@ export function newWorkPrompt(work: NewWork): string {
     case "test-plan":
       return `Write a test plan for ${part} as ${folder}/${fileStem(work.name)}.md: what to test, how, and the pass criteria.${ask}`;
     case "instructions":
-      return `Write assembly instructions for ${part} as ${folder}/${fileStem(work.name)}.md, step by step, with the parts each step needs.${ask}`;
+      return `Write work instructions for ${part} with the work-instructions skill, as ${folder}/${fileStem(work.name)}.pdf: one action per step, each with a figure of the assembly at that step.${ask}`;
     default:
       return `${template.label}: ${target}.${ask}`;
   }

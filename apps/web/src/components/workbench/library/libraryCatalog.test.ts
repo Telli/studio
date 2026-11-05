@@ -171,9 +171,9 @@ describe("library catalog", () => {
     expect(madeBy(doc("doc:manufacturing-check"))).toEqual(["dfm", "dfam-check"]);
     expect(madeBy(doc("doc:parts-list"))).toEqual(["the agent"]);
     expect(madeBy(doc("doc:drawing"))).toEqual(["engineering-drawing"]);
-    // Their templates work from a part, which no New offers, and their jobs need no skill.
+    // Its template works from a part, which no New offers, and its job needs no skill.
     expect(madeBy(doc("doc:test-plan"))).toEqual(["the agent"]);
-    expect(madeBy(doc("doc:instructions"))).toEqual(["the agent"]);
+    expect(madeBy(doc("doc:instructions"))).toEqual(["work-instructions"]);
   });
 
   it("offers Make one only for what New makes from nothing", () => {
