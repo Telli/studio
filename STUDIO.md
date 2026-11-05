@@ -575,11 +575,13 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   the part once, quietly, after the model opens, so the full workspace opens on it at once
   (`useEditMode`). A pick in the workspace (a face or an edge on the model, a feature the person
   pressed in the design tree, a sketch picked on the model) with no command open
-  offers a small bar beside it (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Edit only (Edit
-  Feature, or Edit Sketch; a face has none until the engine says which feature made it). A feature a
-  command's OK selected is not a pick, or the bar would stand over the part all the while it is
-  worked on. CAD mode has no Quick Edit box and nothing in it sends to the agent: picks go to the
-  agent only in AI mode, through Quick Edit, as Jake's viewer does. A feature chosen there goes as a
+  offers a small bar beside it (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Add to chat and
+  Edit (Edit Feature, or Edit Sketch; a face has none until the engine says which feature made it).
+  A feature a command's OK selected is not a pick, or the bar would stand over the part all the
+  while it is worked on. CAD mode has no Quick Edit box of its own: Add to chat puts the picks in
+  Studio's chat box as chips (`useAddToContext`, the same delivery as Quick Edit's), lets go of them,
+  and says on the button why when the chat box would not take them; it waits while a command or a
+  sketch is open. In AI mode picks go through Quick Edit, as Jake's viewer does. A feature goes as a
   `text-range` reference to its statement in its script (all its lines, where the engine read the
   statement whole), with a chip named as the design tree names it ("Hole (6)"), the chip's X letting
   go of the pick (`featureAsk.jsx`; the script's absolute path is the engine's `root` with the
