@@ -255,30 +255,37 @@ describe("desktop update UI helpers", () => {
 
   it("includes the downloaded version in the install confirmation copy", () => {
     expect(
-      getDesktopUpdateInstallConfirmationMessage({
-        availableVersion: "1.1.0",
-        downloadedVersion: "1.1.1",
-      }),
-    ).toContain("Install update 1.1.1 and restart T3 Code?");
+      getDesktopUpdateInstallConfirmationMessage(
+        {
+          availableVersion: "1.1.0",
+          downloadedVersion: "1.1.1",
+        },
+        0,
+        "Studio",
+      ),
+    ).toBe("Install update 1.1.1 and restart Studio?");
   });
 
   it("falls back to generic install confirmation copy when no version is available", () => {
     expect(
-      getDesktopUpdateInstallConfirmationMessage({
-        availableVersion: null,
-        downloadedVersion: null,
-      }),
-    ).toContain("Install update and restart T3 Code?");
+      getDesktopUpdateInstallConfirmationMessage(
+        {
+          availableVersion: null,
+          downloadedVersion: null,
+        },
+        0,
+        "Studio",
+      ),
+    ).toBe("Install update and restart Studio?");
   });
 
-  it("keeps the same install confirmation copy across desktop platforms", () => {
-    expect(
-      getDesktopUpdateInstallConfirmationMessage({
-        availableVersion: "1.1.0",
-        downloadedVersion: "1.1.0",
-      }),
-    ).toBe(
-      "Install update 1.1.0 and restart T3 Code?\n\nAny running tasks will be interrupted. Make sure you're ready before continuing.",
+  it("says the restart waits for the chats that are working", () => {
+    const state = { availableVersion: "1.1.0", downloadedVersion: "1.1.0" };
+    expect(getDesktopUpdateInstallConfirmationMessage(state, 1, "Studio")).toBe(
+      "Install update 1.1.0 and restart Studio?\n\nStudio restarts when the chat that is working finishes.",
+    );
+    expect(getDesktopUpdateInstallConfirmationMessage(state, 3, "Studio")).toContain(
+      "when the 3 chats that are working finish.",
     );
   });
 });

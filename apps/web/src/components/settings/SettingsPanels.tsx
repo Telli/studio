@@ -64,10 +64,10 @@ import { CliCommandSettingsRow } from "./CliCommandSettingsRow";
 import {
   canCheckForUpdate,
   getDesktopUpdateButtonTooltip,
-  getDesktopUpdateInstallConfirmationMessage,
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
 } from "../../components/desktopUpdate.logic";
+import { restartConfirmation, restartForUpdateWhenIdle } from "../../components/desktopUpdate.hold";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { TraitsPicker } from "../chat/TraitsPicker";
 import {
@@ -356,9 +356,7 @@ function AboutVersionSection() {
       let confirmed = false;
       try {
         confirmed = await ensureLocalApi().dialogs.confirm(
-          getDesktopUpdateInstallConfirmationMessage(
-            updateState ?? { availableVersion: null, downloadedVersion: null },
-          ),
+          restartConfirmation(updateState ?? { availableVersion: null, downloadedVersion: null }),
         );
       } catch (error) {
         setIsUpdateActionPending(false);
@@ -375,18 +373,19 @@ function AboutVersionSection() {
         setIsUpdateActionPending(false);
         return;
       }
-      void bridge
-        .installUpdate()
-        .catch((error: unknown) => {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Could not install update",
-              description: error instanceof Error ? error.message : "Install failed.",
-            }),
-          );
-        })
-        .finally(() => setIsUpdateActionPending(false));
+      setIsUpdateActionPending(false);
+      restartForUpdateWhenIdle(
+        () =>
+          void bridge.installUpdate().catch((error: unknown) => {
+            toastManager.add(
+              stackedThreadToast({
+                type: "error",
+                title: "Could not install update",
+                description: error instanceof Error ? error.message : "Install failed.",
+              }),
+            );
+          }),
+      );
       return;
     }
 

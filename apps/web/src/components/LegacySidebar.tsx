@@ -138,12 +138,12 @@ import { Kbd } from "./ui/kbd";
 import {
   getArm64IntelBuildWarningDescription,
   getDesktopUpdateActionError,
-  getDesktopUpdateInstallConfirmationMessage,
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
   shouldShowArm64IntelBuildWarning,
   shouldToastDesktopUpdateActionResult,
 } from "./desktopUpdate.logic";
+import { restartConfirmation, restartForUpdateWhenIdle } from "./desktopUpdate.hold";
 import { showDesktopUpdateDownloadedToast } from "./desktopUpdate.toast";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
@@ -3778,9 +3778,7 @@ export default function LegacySidebar() {
     if (desktopUpdateButtonAction === "install") {
       let confirmed = false;
       try {
-        confirmed = await ensureLocalApi().dialogs.confirm(
-          getDesktopUpdateInstallConfirmationMessage(desktopUpdateState),
-        );
+        confirmed = await ensureLocalApi().dialogs.confirm(restartConfirmation(desktopUpdateState));
       } catch (error) {
         setDesktopUpdateActionPending(false);
         toastManager.add(
@@ -3796,30 +3794,34 @@ export default function LegacySidebar() {
         setDesktopUpdateActionPending(false);
         return;
       }
-      void bridge
-        .installUpdate()
-        .then((result) => {
-          if (!shouldToastDesktopUpdateActionResult(result)) return;
-          const actionError = getDesktopUpdateActionError(result);
-          if (!actionError) return;
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Could not install update",
-              description: actionError,
+      setDesktopUpdateActionPending(false);
+      restartForUpdateWhenIdle(
+        () =>
+          void bridge
+            .installUpdate()
+            .then((result) => {
+              if (!shouldToastDesktopUpdateActionResult(result)) return;
+              const actionError = getDesktopUpdateActionError(result);
+              if (!actionError) return;
+              toastManager.add(
+                stackedThreadToast({
+                  type: "error",
+                  title: "Could not install update",
+                  description: actionError,
+                }),
+              );
+            })
+            .catch((error) => {
+              toastManager.add(
+                stackedThreadToast({
+                  type: "error",
+                  title: "Could not install update",
+                  description:
+                    error instanceof Error ? error.message : "An unexpected error occurred.",
+                }),
+              );
             }),
-          );
-        })
-        .catch((error) => {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Could not install update",
-              description: error instanceof Error ? error.message : "An unexpected error occurred.",
-            }),
-          );
-        })
-        .finally(() => setDesktopUpdateActionPending(false));
+      );
     }
   }, [
     desktopUpdateActionPending,

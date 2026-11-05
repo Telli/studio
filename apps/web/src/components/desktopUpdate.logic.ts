@@ -97,12 +97,25 @@ export function getDesktopUpdateButtonTooltip(state: DesktopUpdateState): string
   return "Up to date";
 }
 
+/**
+ * The question before restarting for an update. `running` is how many of this machine's chats are
+ * working: the restart waits for them (`desktopUpdate.hold.ts`), and the question says so.
+ */
 export function getDesktopUpdateInstallConfirmationMessage(
   state: Pick<DesktopUpdateState, "availableVersion" | "downloadedVersion">,
+  running: number,
+  appName: string,
 ): string {
   const version = state.downloadedVersion ?? state.availableVersion;
-  return `Install update${version ? ` ${version}` : ""} and restart T3 Code?\n\nAny running tasks will be interrupted. Make sure you're ready before continuing.`;
+  const install = `Install update${version ? ` ${version}` : ""} and restart ${appName}?`;
+  return running === 0
+    ? install
+    : `${install}\n\n${appName} restarts when ${chatsWorking(running)}.`;
 }
+
+/** "the chat that is working finishes", or "the 3 chats that are working finish". */
+export const chatsWorking = (count: number) =>
+  count === 1 ? "the chat that is working finishes" : `the ${count} chats that are working finish`;
 
 export function getDesktopUpdateActionError(result: DesktopUpdateActionResult): string | null {
   if (!result.accepted || result.completed) return null;

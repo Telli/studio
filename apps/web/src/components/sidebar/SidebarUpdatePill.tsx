@@ -14,12 +14,12 @@ import {
   getDesktopUpdateActionError,
   getDesktopUpdateButtonTooltip,
   getDesktopUpdateDownloadedVersion,
-  getDesktopUpdateInstallConfirmationMessage,
   isDesktopUpdateButtonDisabled,
   resolveDesktopUpdateButtonAction,
   shouldShowArm64IntelBuildWarning,
   shouldToastDesktopUpdateActionResult,
 } from "../desktopUpdate.logic";
+import { restartConfirmation, restartForUpdateWhenIdle } from "../desktopUpdate.hold";
 import { showDesktopUpdateDownloadedToast } from "../desktopUpdate.toast";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
@@ -294,9 +294,7 @@ function SidebarUpdateControl() {
     if (action === "install") {
       let confirmed = false;
       try {
-        confirmed = await ensureLocalApi().dialogs.confirm(
-          getDesktopUpdateInstallConfirmationMessage(state),
-        );
+        confirmed = await ensureLocalApi().dialogs.confirm(restartConfirmation(state));
       } catch (error) {
         setIsActionPending(false);
         toastManager.add(
@@ -312,7 +310,8 @@ function SidebarUpdateControl() {
         setIsActionPending(false);
         return;
       }
-      void installLocalUpdate(bridge).finally(() => setIsActionPending(false));
+      setIsActionPending(false);
+      restartForUpdateWhenIdle(() => void installLocalUpdate(bridge));
       return;
     }
 
@@ -355,7 +354,12 @@ function SidebarUpdateControl() {
         ...(bridge && action === "download"
           ? { downloadLocal: () => downloadLocalUpdate(bridge, { notifyDownloaded: false }) }
           : {}),
-        ...(bridge && action !== "none" ? { installLocal: () => installLocalUpdate(bridge) } : {}),
+        ...(bridge && action !== "none"
+          ? {
+              installLocal: async () =>
+                restartForUpdateWhenIdle(() => void installLocalUpdate(bridge)),
+            }
+          : {}),
       });
     } catch (error) {
       toastManager.add(
