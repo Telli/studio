@@ -29,6 +29,8 @@ export function UsageDataNotice() {
     config.settings.shareUsageData &&
     !config.settings.usageDataAnswered;
   useEffect(() => {
+    // A no that Restore defaults has reopened is asked again, not only at the next launch.
+    if (!asking) shown = false;
     if (!asking || shown || environmentId === null) return;
     shown = true;
     const answer = (share: boolean) => {

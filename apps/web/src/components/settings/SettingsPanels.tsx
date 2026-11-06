@@ -180,6 +180,7 @@ import {
 import { searchableSetting } from "./settingsSearch";
 import { reportProblemUrl } from "./reportProblem";
 import { TEXT_TO_CAD_SITE, textToCadVersion } from "./textToCadVersion";
+import { usageDataRestorePatch } from "./usageDataRestore";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
@@ -817,7 +818,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       snoozeLimitedThreads: DEFAULT_UNIFIED_SETTINGS.snoozeLimitedThreads,
       responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
       enableProviderUpdateChecks: DEFAULT_UNIFIED_SETTINGS.enableProviderUpdateChecks,
-      shareUsageData: DEFAULT_UNIFIED_SETTINGS.shareUsageData,
+      ...usageDataRestorePatch(settings),
       continueThreadsAfterServerUpdate: DEFAULT_UNIFIED_SETTINGS.continueThreadsAfterServerUpdate,
       backgroundActivity: DEFAULT_UNIFIED_SETTINGS.backgroundActivity,
       backgroundActivityProfile: DEFAULT_UNIFIED_SETTINGS.backgroundActivityProfile,
@@ -855,6 +856,7 @@ export function useSettingsRestore(onRestored?: () => void) {
     onRestored?.();
   }, [
     changedSettingLabels,
+    settings,
     clearThemeHalves,
     onRestored,
     setFollowSystem,
