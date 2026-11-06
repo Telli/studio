@@ -18,6 +18,7 @@ import {
   type CheckIssue,
   type CheckResult,
   type CheckStatus,
+  checkOutOfDate,
   currentResults,
   drawingsFor,
   manufacturingFor,
@@ -121,7 +122,11 @@ function LeadPart(props: {
         )}
       </button>
       <span className="min-w-0 truncate text-xs text-muted-foreground">
-        {status === null ? "Not checked yet" : sentenceCase(STATUS[status].caption)}
+        {status !== null
+          ? sentenceCase(STATUS[status].caption)
+          : part.outdated.length > 0
+            ? "Part changed since its last check"
+            : "Not checked yet"}
         {props.where === undefined ? "" : ` · ${props.where}`}
       </span>
       {part.drawings.length + part.made.length === 0 ? null : (
@@ -319,6 +324,9 @@ export function ProjectOverview(props: {
           root: folder.root,
           file,
           results: resultsFor(file, results),
+          outdated: resultsFor(file, folder.results).filter((result) =>
+            checkOutOfDate(result, file),
+          ),
           drawings: drawingsFor(file, folder.paths ?? []),
           made: made.get(file.path) ?? [],
         }))

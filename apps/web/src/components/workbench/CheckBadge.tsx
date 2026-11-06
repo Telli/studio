@@ -1,4 +1,10 @@
-import { CircleCheckIcon, CircleXIcon, type LucideIcon, TriangleAlertIcon } from "lucide-react";
+import {
+  CircleCheckIcon,
+  CircleXIcon,
+  HistoryIcon,
+  type LucideIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 
 import { Badge } from "../ui/badge";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -26,9 +32,20 @@ export const CHECK_STATUS: Record<
   ready: { variant: "success", word: "passes", caption: "checks pass", Icon: CircleCheckIcon },
 };
 
-/** One check of a part: its name and how it went, its verdict on hover, and its result on a click. */
-export function CheckBadge(props: { readonly result: CheckResult; readonly onOpen: () => void }) {
-  const { result } = props;
+/** What a check of a part since changed says, in place of its verdict. */
+const OUT_OF_DATE = "Part changed since this check";
+
+/**
+ * One check of a part: its name and how it went, its verdict on hover, and its result on a click.
+ * A check of a part since changed (`checkOutOfDate`) is an outline, no status color: it no longer
+ * passes or fails anything, and its result is still a click away.
+ */
+export function CheckBadge(props: {
+  readonly result: CheckResult;
+  readonly outOfDate?: boolean;
+  readonly onOpen: () => void;
+}) {
+  const { result, outOfDate = false } = props;
   const { variant, word, Icon } = CHECK_STATUS[result.status];
   return (
     <Tooltip>
@@ -37,18 +54,29 @@ export function CheckBadge(props: { readonly result: CheckResult; readonly onOpe
           <button
             type="button"
             onClick={props.onOpen}
-            aria-label={`${result.check} ${word}: ${result.headline}. Show the result`}
+            aria-label={
+              outOfDate
+                ? `${result.check}: ${OUT_OF_DATE}. Show the result`
+                : `${result.check} ${word}: ${result.headline}. Show the result`
+            }
             className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           />
         }
       >
-        <Badge variant={variant}>
-          <Icon aria-hidden="true" />
-          {result.check}
-        </Badge>
+        {outOfDate ? (
+          <Badge variant="outline">
+            <HistoryIcon aria-hidden="true" />
+            {result.check}
+          </Badge>
+        ) : (
+          <Badge variant={variant}>
+            <Icon aria-hidden="true" />
+            {result.check}
+          </Badge>
+        )}
       </TooltipTrigger>
       <TooltipPopup side="top" className="max-w-80">
-        {result.headline}
+        {outOfDate ? OUT_OF_DATE : result.headline}
       </TooltipPopup>
     </Tooltip>
   );

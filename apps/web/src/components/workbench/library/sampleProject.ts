@@ -60,6 +60,12 @@ export async function copyThenOpen<Ref>(steps: {
   readonly openPart: (ref: Ref, id: string) => void;
   /** The copy is made and its model is being built. */
   readonly building: () => void;
+  /**
+   * Dates the checks the copy came with to now. They were run on this very part, but a copy's
+   * files are dated by the copy and its models first build after, which would read as the part
+   * having changed since (`checkOutOfDate`). Runs once a build lands, Build again's too.
+   */
+  readonly redateChecks: (folder: string) => Promise<void>;
   readonly failed: (title: string, error: unknown, retry?: () => void) => void;
 }): Promise<boolean> {
   const model = isModelScript(steps.file);
@@ -80,12 +86,16 @@ export async function copyThenOpen<Ref>(steps: {
   });
   if (!created || !model || made.folder === null || made.chat === null) return created;
   steps.building();
+  const folder = made.folder;
   await buildThenSwap({
     ref: made.chat.ref,
-    script: `${made.folder.replace(/[\\/]+$/, "")}/${steps.file}`,
+    script: `${folder.replace(/[\\/]+$/, "")}/${steps.file}`,
     failedTitle: `Made ${steps.name}, but its part did not build`,
     build: steps.build,
-    openPart: steps.openPart,
+    openPart: (ref, id) => {
+      steps.openPart(ref, id);
+      void steps.redateChecks(folder);
+    },
     failed: steps.failed,
   });
   return true;

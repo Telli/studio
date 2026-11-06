@@ -93,6 +93,7 @@ describe("copying an example", () => {
       },
       openPart: (ref: string, id: string) => void done.push(`${ref}: document ${id}`),
       building: () => void done.push("building"),
+      redateChecks: async (folder: string) => void done.push(`redate checks in ${folder}`),
       failed: (title: string, error: unknown, retry?: () => void) =>
         void done.push(
           `failed: ${title}: ${(error as Error).message}${retry ? " (Build again)" : ""}`,
@@ -106,6 +107,7 @@ describe("copying an example", () => {
       "building",
       "chat: build /projects/motor/assemblies/motor_mount.py",
       "chat: document doc-1",
+      "redate checks in /projects/motor/",
     ]);
     // A model that does not build stays on the Overview, and says why, with Build again.
     done.length = 0;

@@ -204,6 +204,21 @@ export function resultsFor(part: ProjectFile, results: ReadonlyArray<CheckResult
 }
 
 /**
+ * Whether the part changed since this check: its last build is later than the result. A result
+ * whose file names no time, or a part the engine has not built, says nothing, so neither marks it.
+ */
+export function checkOutOfDate(
+  result: Pick<CheckResult, "written">,
+  part: Pick<ProjectFile, "version">,
+): boolean {
+  return (
+    result.written !== undefined &&
+    part.version !== undefined &&
+    result.written < Number(part.version)
+  );
+}
+
+/**
  * The results among `results` still about their part as it is: a check written before the model it
  * checked was last built is of a version since changed, so it neither passes nor fails the part.
  */
@@ -211,18 +226,10 @@ export function currentResults(
   parts: ReadonlyArray<ProjectFile>,
   results: ReadonlyArray<CheckResult>,
 ): CheckResult[] {
-  return results.filter((result) => {
-    const { written } = result;
-    return (
-      written === undefined ||
-      !parts.some(
-        (part) =>
-          part.version !== undefined &&
-          written < Number(part.version) &&
-          resultsFor(part, [result]).length > 0,
-      )
-    );
-  });
+  return results.filter(
+    (result) =>
+      !parts.some((part) => checkOutOfDate(result, part) && resultsFor(part, [result]).length > 0),
+  );
 }
 
 /**

@@ -5,6 +5,7 @@ import { type ReactNode, useMemo } from "react";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
 import { CheckBadge } from "./CheckBadge";
+import { checkOutOfDate } from "./checkResults";
 import { shownChecks } from "./partChecks";
 import { buildLabel, materialLabel } from "./partLabels";
 import { partLabel } from "./partNames";
@@ -135,6 +136,10 @@ function ThreadTitleBlock(props: TitleBlockProps) {
                 <CheckBadge
                   key={`${root}/${result.path}`}
                   result={result}
+                  outOfDate={
+                    part.build?.state === "built" &&
+                    checkOutOfDate(result, { version: String(part.build.at / 1000) })
+                  }
                   onOpen={() => open(`${root.replace(/[\\/]+$/, "")}/${result.model}`)}
                 />
               ))}

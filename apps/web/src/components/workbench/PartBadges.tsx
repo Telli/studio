@@ -1,6 +1,6 @@
 import { Badge } from "../ui/badge";
 import { CheckBadge } from "./CheckBadge";
-import type { CheckResult } from "./checkResults";
+import { checkOutOfDate, type CheckResult } from "./checkResults";
 import { KIND_ICONS } from "./kinds";
 import { lowerName } from "./partNames";
 import type { ProjectFile } from "./projectFiles";
@@ -13,6 +13,8 @@ export interface FolderPart {
   readonly root: string;
   readonly file: ProjectFile;
   readonly results: ReadonlyArray<CheckResult>;
+  /** Its checks from before it last changed (`checkOutOfDate`), which pass or fail nothing. */
+  readonly outdated: ReadonlyArray<CheckResult>;
   /** Its drawing sheets, relative to the folder. */
   readonly drawings: ReadonlyArray<string>;
   /** What was made to manufacture it: its CAM jobs, G-code, Gerbers (`manufacturingFor`). */
@@ -91,11 +93,16 @@ export function PartFooter(props: {
   const { part } = props;
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {part.results.length === 0 ? (
+      {part.results.length + part.outdated.length === 0 ? (
         <span className="text-xs text-muted-foreground">Not checked yet</span>
       ) : (
-        part.results.map((result) => (
-          <CheckBadge key={result.path} result={result} onOpen={() => props.onOpen(result.model)} />
+        [...part.results, ...part.outdated].map((result) => (
+          <CheckBadge
+            key={result.path}
+            result={result}
+            outOfDate={checkOutOfDate(result, part.file)}
+            onOpen={() => props.onOpen(result.model)}
+          />
         ))
       )}
       <MadeBadges part={part} onOpen={props.onOpen} />

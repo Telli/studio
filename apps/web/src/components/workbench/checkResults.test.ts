@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  checkOutOfDate,
   currentResults,
   drawingsFor,
   isCheckResultPath,
@@ -298,6 +299,29 @@ describe("check results", () => {
     expect(currentResults([bracket], [untimed])).toEqual([untimed]);
     const { version: _, ...unbuilt } = bracket;
     expect(currentResults([unbuilt], [before])).toEqual([before]);
+  });
+
+  it("says a check is out of date only when its part was built after it", () => {
+    const built = String(Date.parse("2026-11-02T21:33:25Z") / 1000);
+    const before = { written: Date.parse("2026-11-02T21:33:24Z") / 1000 };
+    const after = { written: Date.parse("2026-11-02T21:33:26Z") / 1000 };
+    expect(checkOutOfDate(before, { version: built })).toBe(true);
+    expect(checkOutOfDate(after, { version: built })).toBe(false);
+    expect(checkOutOfDate({}, { version: built })).toBe(false);
+    expect(checkOutOfDate(before, {})).toBe(false);
+  });
+
+  it("leaves a copied example's check unmarked: its model has never been built", () => {
+    const copied = parseCheckResult(
+      "studies/servo_bracket.fea.json",
+      JSON.stringify({ document: "parts/servo_bracket.step", findings: [] }),
+      "2026-11-06T09:00:00.000Z",
+    )!;
+    expect(checkOutOfDate(copied, file("parts/servo_bracket.step"))).toBe(false);
+    // Its first build rewrites the check (`copyThenOpen`), which then comes after that build.
+    expect(
+      checkOutOfDate({ written: copied.written! + 60 }, { version: String(copied.written! + 30) }),
+    ).toBe(false);
   });
 
   it("finds a part's drawing sheet, wherever it is filed", () => {

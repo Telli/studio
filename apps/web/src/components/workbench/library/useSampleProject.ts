@@ -11,6 +11,7 @@ import { studioProjectsEnvironment } from "~/state/studioProjects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { toastManager } from "../../ui/toast";
+import { isCheckResultPath } from "../checkResults";
 import { copyBrief, copyName, listExamples, sampleFile } from "../examples/examples";
 import { plainError } from "../importIntoProject";
 import { readStudioImport } from "../studioImportBridge";
@@ -84,6 +85,14 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
   });
   const list = useAtomQueryRunner(projectEnvironment.listEntries, { reportFailure: false });
   const read = useAtomQueryRunner(projectEnvironment.readFile, { reportFailure: false });
+  const listAgain = useAtomQueryRunner(projectEnvironment.listEntries, {
+    reportFailure: false,
+    refresh: true,
+  });
+  const readAgain = useAtomQueryRunner(projectEnvironment.readFile, {
+    reportFailure: false,
+    refresh: true,
+  });
   const write = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
   const create = useCreateStudioProject(environmentId);
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
@@ -180,6 +189,21 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
             // The model takes the Overview's place, beside the chat, in CAD mode.
             openPart: (ref, id) => void openPartInCad(plugins, ref, id),
             building: () => onBuilding?.(),
+            redateChecks: async (folder) => {
+              const files = await listAgain({ environmentId, input: { cwd: folder } });
+              if (files._tag !== "Success") return;
+              const checks = files.value.entries.filter(({ path }) => isCheckResultPath(path));
+              for (const { path: relativePath } of checks) {
+                const input = { cwd: folder, relativePath };
+                const check = await read({ environmentId, input });
+                if (check._tag !== "Success" || check.value.truncated) continue;
+                await write({
+                  environmentId,
+                  input: { ...input, contents: check.value.contents },
+                });
+                await readAgain({ environmentId, input });
+              }
+            },
             failed: failedToast,
           });
         } catch (error) {
@@ -193,9 +217,11 @@ export function useExample(environmentId: EnvironmentId, sampleId: string) {
       create,
       environmentId,
       list,
+      listAgain,
       listStudioProjects,
       plugins,
       read,
+      readAgain,
       sample,
       write,
     ],
