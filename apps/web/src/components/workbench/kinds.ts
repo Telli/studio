@@ -113,17 +113,13 @@ export const CHAT_ICON: LucideIcon = MessageSquareIcon;
 /** Studio's examples, in the Library's Examples section. */
 export const EXAMPLES_ICON: LucideIcon = ShapesIcon;
 
-/**
- * The quiet grey of a kind's icon on anything you act on: tiles, the Toolbox, New and the menus, so
- * those screens hold one accent (the brand blue) and the status colors alone.
- */
+/** The quiet grey of an icon that names no kind of thing. */
 export const KIND_TINT = "text-muted-foreground";
 
 /**
- * A file's mark where files of different formats sit together (tabs, file lists, Find, the chat's
- * chips): a muted hue of its own for the kinds you scan for, grey for the rest, the icon alone and
- * never its words. Never red, amber or green, which say failed, warning and passed. The hues are
- * theme tokens (`brand/theme.css`).
+ * A kind's hue, the same wherever Studio shows that kind: files, tiles, the Toolbox, New and Find,
+ * on the icon alone and never its words. Never red, amber or green, which say failed, warning and
+ * passed. The hues are theme tokens (`brand/theme.css`).
  */
 const FILE_TINTS: Partial<Record<ProjectGroup | "Setup", string>> = {
   CAD: "text-(--kind-cad)",
@@ -131,8 +127,25 @@ const FILE_TINTS: Partial<Record<ProjectGroup | "Setup", string>> = {
   Analysis: "text-(--kind-analysis)",
   Documents: "text-(--kind-document)",
   Drawings: "text-(--kind-document)",
+  Manufacturing: "text-(--kind-manufacturing)",
 };
 
 export function fileTint(key: ProjectGroup | "Setup"): string {
   return FILE_TINTS[key] ?? KIND_TINT;
+}
+
+/** Each Toolbox tab's hue, the kind its jobs make (as `MENU_ICONS`). */
+export const MENU_TINTS: Readonly<Record<HardwareActionGroup, string>> = {
+  Evaluate: fileTint("Analysis"),
+  Manufacture: fileTint("Manufacturing"),
+  Document: fileTint("Documents"),
+};
+
+/** A New template's hue: its kind's, as the Overview and Find color that kind. */
+export function templateTint(template: NewTemplate): string {
+  if (template.file !== undefined || template.discipline === "Documents") {
+    return fileTint("Documents");
+  }
+  if (template.id === "drawing") return fileTint("Drawings");
+  return template.discipline === "Robotics" ? fileTint("CAD") : fileTint(template.discipline);
 }

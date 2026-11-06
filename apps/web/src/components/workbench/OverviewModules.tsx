@@ -8,7 +8,7 @@ import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { workspaceAssetResource } from "../files/filePreviewMode";
 import { Button } from "../ui/button";
-import { KIND_ICONS, KIND_TINT } from "./kinds";
+import { fileTint, KIND_ICONS } from "./kinds";
 import { readmeInline } from "./projectReadme";
 import { filePlaces, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import { useEngineeringInterface } from "./studioInterface";
@@ -262,7 +262,7 @@ export function FileCard(props: {
             path={props.file.path}
           />
         ) : (
-          <Icon className={cn("size-8 opacity-60", KIND_TINT)} aria-hidden="true" />
+          <Icon className={cn("size-8", fileTint(props.file.group))} aria-hidden="true" />
         )}
       </button>
       <div className="flex min-w-0 flex-col">

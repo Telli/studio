@@ -8,7 +8,7 @@ import { ExampleCard } from "./examples/ExampleCard";
 import { NEEDS_DESKTOP_APP } from "./examples/examples";
 import { readGetStartedFolded, writeGetStartedFolded } from "./homeStart";
 import { ImportMenu } from "./ImportMenu";
-import { KIND_ICONS, KIND_TINT } from "./kinds";
+import { fileTint, KIND_ICONS } from "./kinds";
 import { HeadingLink, OverviewModule } from "./OverviewModules";
 import { GROUP_LABEL, MODULE_HEADING, SECTION_STACK, TILE_GRID } from "./studioLayout";
 
@@ -79,7 +79,7 @@ export function StartChoices(props: {
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <StartChoice
         icon={KIND_ICONS.CAD}
-        tint={KIND_TINT}
+        tint={fileTint("CAD")}
         label="New part"
         note={
           props.newPartBusy

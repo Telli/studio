@@ -1,6 +1,6 @@
 import type { EnvironmentId, InstalledPlugin } from "@t3tools/contracts";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { type LucideIcon, PlusIcon, PuzzleIcon } from "lucide-react";
+import { PlusIcon, PuzzleIcon } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { usePrimaryEnvironmentId } from "~/state/environments";
@@ -21,11 +21,9 @@ import { ChatPage } from "../ChatPages";
 import { findExamples } from "../examples/examples";
 import { ExamplesModule } from "../examples/ExamplesModule";
 import { useDocumentTemplates } from "../documentTemplates";
-import { MENU_ICONS } from "../kinds";
+import { EXAMPLES_ICON, fileTint, KIND_TINT, MENU_ICONS, MENU_TINTS } from "../kinds";
 import { useNewDialogStore } from "../newDialogStore";
 import type { NewTemplate } from "../newTemplates";
-import { OverviewModule } from "../OverviewModules";
-import { CARD_GRID } from "../studioLayout";
 import { useEngineeringInterface } from "../studioInterface";
 import {
   availability,
@@ -41,6 +39,7 @@ import {
 } from "./libraryCatalog";
 import { LibraryCard } from "./LibraryCard";
 import { LibraryPicture } from "./LibraryPicture";
+import { LibraryShelf, ShelfIndex, shelfAnchor, type Shelf } from "./LibraryShelf";
 import {
   filterLibrary,
   LIBRARY_GROUPS,
@@ -53,29 +52,38 @@ import { SeeTheExample } from "./SeeTheExample";
 import { useExamples } from "./useSampleProject";
 
 /** Each group of document types by its place's icon: New's, then each part menu's (`kinds.ts`). */
-const GROUP_ICONS: Readonly<Record<LibraryGroup, LucideIcon>> = { New: PlusIcon, ...MENU_ICONS };
+const GROUP_ICONS = { New: PlusIcon, ...MENU_ICONS } satisfies Record<LibraryGroup, unknown>;
 
-/** A group's place on the page, which `group` in the URL scrolls to. */
-const groupAnchor = (key: string) => `library-${key}`;
+/** Each group's hue: the kind it holds (`kinds.ts`). */
+const GROUP_TINTS: Readonly<Record<LibraryGroup, string>> = {
+  New: fileTint("CAD"),
+  ...MENU_TINTS,
+};
 
 /** An entry's name: a document type's as New or the menus say it, a skill's as `skillLabel` does. */
 const entryName = (entry: LibraryEntry, skillLabel: (name: string) => string) =>
   entry.kind === "document" ? entry.name : skillLabel(entry.name);
 
-interface Group {
-  readonly key: string;
-  readonly title: string;
-  readonly icon: LucideIcon;
+interface Group extends Shelf {
   readonly entries: ReadonlyArray<LibraryEntry>;
 }
 
+/** A shelf of what matched, with how many. */
+const shelfOf = (shelf: Omit<Shelf, "count">, entries: ReadonlyArray<LibraryEntry>): Group => ({
+  ...shelf,
+  count: entries.length,
+  entries,
+});
+
 /**
- * Studio's Library (`/library`, the one place on the rail for what Studio ships): the examples
- * first (`ExamplesModule`), then every document type Studio makes, grouped where it is found (New,
- * then the part menus Evaluate, Manufacture and Document), then every installed plugin's skills,
- * each a card with a picture of its real example (`LibraryPicture`) and its name. A card opens its
- * detail, kept in the URL (`entry`) so Back closes it; `group` scrolls to its group. Reached from
- * ⌘K, New, the part menus and Settings › Plugins (`libraryHref`).
+ * Studio's Toolbox page (`/library`, the one place on the rail for what Studio ships), laid out as
+ * a library: a directory of shelves down its side (`ShelfIndex`), and always-open shelves of covers
+ * (`LibraryShelf`). The examples come first (`ExamplesModule`), then every document type Studio
+ * makes, shelved where it is found (New, then the part menus Evaluate, Manufacture and Document),
+ * then every installed plugin's skills, each a cover with a picture of its real example
+ * (`LibraryPicture`) and its name. A cover opens its detail, kept in the URL (`entry`) so Back
+ * closes it; `group` scrolls to its shelf. Reached from ⌘K, New, the part menus and
+ * Settings › Plugins (`libraryHref`).
  */
 export function LibraryPage(props: { readonly search: LibrarySearch }) {
   const environmentId = usePrimaryEnvironmentId();
@@ -96,7 +104,6 @@ function LibraryContent(props: {
   const ownTemplates = useDocumentTemplates(environmentId).templates;
   const examples = useExamples(environmentId).examples;
   const [query, setQuery] = useState("");
-  const [folded, setFolded] = useState<ReadonlySet<string>>(() => new Set());
   const shownExamples = findExamples(examples, query);
 
   const documents = useMemo(
@@ -107,21 +114,33 @@ function LibraryContent(props: {
   const entries = useMemo(() => [...documents, ...skills], [documents, skills]);
   const matching = new Set(filterLibrary(entries, query));
   const groups: ReadonlyArray<Group> = [
-    ...LIBRARY_GROUPS.map((group) => ({
-      key: group,
-      title: group,
-      icon: GROUP_ICONS[group],
-      entries: documents.filter((entry) => libraryGroup(entry) === group && matching.has(entry)),
-    })),
+    ...LIBRARY_GROUPS.map((group) =>
+      shelfOf(
+        { key: group, title: group, icon: GROUP_ICONS[group], tint: GROUP_TINTS[group] },
+        documents.filter((entry) => libraryGroup(entry) === group && matching.has(entry)),
+      ),
+    ),
     ...[...new Map(skills.map((skill) => [skill.pluginId, skill.pluginName] as const))].map(
-      ([pluginId, pluginName]) => ({
-        key: `plugin:${pluginId}`,
-        title: `${pluginName} skills`,
-        icon: PuzzleIcon,
-        entries: skills.filter((skill) => skill.pluginId === pluginId && matching.has(skill)),
-      }),
+      ([pluginId, pluginName]) =>
+        shelfOf(
+          {
+            key: `plugin:${pluginId}`,
+            title: `${pluginName} skills`,
+            icon: PuzzleIcon,
+            tint: KIND_TINT,
+          },
+          skills.filter((skill) => skill.pluginId === pluginId && matching.has(skill)),
+        ),
     ),
   ].filter((group) => group.entries.length > 0);
+  const examplesShelf: Shelf = {
+    key: "examples",
+    title: "Examples",
+    icon: EXAMPLES_ICON,
+    tint: fileTint("CAD"),
+    count: shownExamples.length,
+  };
+  const shelves = [...(shownExamples.length === 0 ? [] : [examplesShelf]), ...groups];
 
   // Every skill on the page by its one name (`skillName`): cards, details, Made by, what it needs.
   const skillLabel = (name: string) => skillName(name, skills);
@@ -164,50 +183,38 @@ function LibraryContent(props: {
   // Opened on a group: it comes up to the top, unless it shows near the top already.
   useEffect(() => {
     if (search.group === undefined) return;
-    const anchor = document.getElementById(groupAnchor(search.group));
+    const anchor = document.getElementById(shelfAnchor(search.group));
     if (anchor === null) return;
     const top = anchor.getBoundingClientRect().top;
     if (top < 0 || top > window.innerHeight / 2) anchor.scrollIntoView({ block: "start" });
   }, [search.group]);
 
-  const fold = (key: string) =>
-    setFolded((current) => {
-      const next = new Set(current);
-      if (!next.delete(key)) next.add(key);
-      return next;
-    });
-
   return (
     <ChatPage
-      title="Library"
+      title="Toolbox"
       count={entries.length}
       lede="Open an example, or see what the agent can make."
       search={
         <Input
           type="search"
           size="sm"
-          placeholder="Search the library"
-          aria-label="Search the library"
+          placeholder="Search the Toolbox"
+          aria-label="Search the Toolbox"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
       }
     >
       {groups.length === 0 && shownExamples.length === 0 ? (
-        <p className="py-6 text-sm text-muted-foreground">Nothing in the library matches that.</p>
+        <p className="py-6 text-sm text-muted-foreground">Nothing in the Toolbox matches that.</p>
       ) : null}
-      <div className="@container flex min-w-0 flex-col gap-6">
-        <ExamplesModule examples={shownExamples} />
-        {groups.map((group) => (
-          <div key={group.key} id={groupAnchor(group.key)} className="scroll-mt-6">
-            <OverviewModule
-              title={group.title}
-              icon={group.icon}
-              count={group.entries.length}
-              folded={folded.has(group.key)}
-              onFold={() => fold(group.key)}
-            >
-              <div className={CARD_GRID}>
+      <div className="@container min-w-0">
+        <div className="flex min-w-0 items-start gap-8">
+          <ShelfIndex shelves={shelves} />
+          <div className="flex min-w-0 flex-1 flex-col gap-8">
+            <ExamplesModule shelf={examplesShelf} examples={shownExamples} />
+            {groups.map((group) => (
+              <LibraryShelf key={group.key} shelf={group}>
                 {group.entries.map((entry) => (
                   <LibraryCard
                     key={entry.id}
@@ -215,7 +222,7 @@ function LibraryContent(props: {
                       <LibraryPicture
                         entry={entry}
                         environmentId={environmentId}
-                        className="border-b border-border"
+                        className="aspect-square border-b border-border"
                       />
                     }
                     name={entryName(entry, skillLabel)}
@@ -223,10 +230,10 @@ function LibraryContent(props: {
                     onOpen={() => openEntry(entry.id)}
                   />
                 ))}
-              </div>
-            </OverviewModule>
+              </LibraryShelf>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
       <Dialog
         open={selected !== null}

@@ -52,7 +52,7 @@ function ExampleContent(props: {
   if (!loaded) return null;
   if (example === null) {
     return (
-      <ChatPage title="Library">
+      <ChatPage title="Toolbox">
         <p className="text-sm text-muted-foreground">
           Studio has no example by that name.{" "}
           <Link

@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
-import { HomeIcon, LibraryBigIcon, type LucideIcon, SettingsIcon, Trash2Icon } from "lucide-react";
+import { HomeIcon, type LucideIcon, SettingsIcon, ToolCaseIcon, Trash2Icon } from "lucide-react";
 
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "../ui/sidebar";
 import { useAllChats, waitingChats } from "./allChats";
@@ -49,8 +49,8 @@ export function StudioHomeLink(props: { readonly environmentId: EnvironmentId })
         onClick={() => go("/")}
       />
       <PlaceItem
-        icon={LibraryBigIcon}
-        label="Library"
+        icon={ToolCaseIcon}
+        label="Toolbox"
         marked={mark === "library"}
         onClick={() => {
           leave();

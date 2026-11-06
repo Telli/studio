@@ -6,7 +6,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   CompassIcon,
   HomeIcon,
-  LibraryBigIcon,
+  ToolCaseIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -32,7 +32,7 @@ import { chatStanding } from "./chatStanding";
 import { useDocumentTemplates } from "./documentTemplates";
 import { FileKindIcon } from "./FileKindIcon";
 import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
-import { CHAT_ICON, KIND_ICONS, KIND_TINT, MENU_ICONS } from "./kinds";
+import { CHAT_ICON, fileTint, KIND_ICONS, KIND_TINT, MENU_ICONS } from "./kinds";
 import { LIBRARY_DOCUMENTS, ownTemplateEntries } from "./library/libraryCatalog";
 import { findInLibrary } from "./library/librarySearch";
 import { useExamples } from "./library/useSampleProject";
@@ -80,7 +80,11 @@ const SHOWN_RECENT_CHATS = 4;
 /** A part's, a document's or a chat's row: its kind's icon in its kind's color (`kinds.ts`). */
 function KindIcon(props: { readonly group: ProjectGroup | "Chats" }) {
   const Icon = props.group === "Chats" ? CHAT_ICON : KIND_ICONS[props.group];
-  return <Icon className={cn("size-4 shrink-0", KIND_TINT)} />;
+  return (
+    <Icon
+      className={cn("size-4 shrink-0", props.group === "Chats" ? KIND_TINT : fileTint(props.group))}
+    />
+  );
 }
 
 /**
@@ -496,10 +500,10 @@ function QuickFindBody(props: {
     },
     {
       value: "go:library",
-      icon: <LibraryBigIcon className={ICON} />,
-      title: "Library",
+      icon: <ToolCaseIcon className={ICON} />,
+      title: "Toolbox",
       terms:
-        "library examples sample finished projects copy learn document types skills templates what can studio make",
+        "toolbox library examples sample finished projects copy learn document types skills templates what can studio make",
       run: go(() => openLibrary()),
     },
     {
@@ -552,7 +556,7 @@ function QuickFindBody(props: {
     SHOWN_TYPED,
   );
   const library: Group = {
-    label: "Library",
+    label: "Toolbox",
     rows: [
       ...foundInLibrary.examples.map((sample) => ({
         value: `example:${sample.id}`,

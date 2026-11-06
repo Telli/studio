@@ -31,7 +31,12 @@ export function ExamplePicture(props: { readonly sampleId: string; readonly clas
 export function ExampleCard(props: { readonly sample: StudioSample; readonly onOpen: () => void }) {
   return (
     <LibraryCard
-      picture={<ExamplePicture sampleId={props.sample.id} className="border-b border-border" />}
+      picture={
+        <ExamplePicture
+          sampleId={props.sample.id}
+          className="aspect-square border-b border-border"
+        />
+      }
       name={props.sample.name}
       note={null}
       tags={props.sample.shows}
