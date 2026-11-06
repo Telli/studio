@@ -38,7 +38,7 @@ const toggleVariants = cva(
         // Segmented, the pressed one marked by an accent underline alone, with no pill behind it:
         // for where you are, as a CAD ribbon marks its active tab.
         "segmented-accent":
-          "border-transparent text-muted-foreground shadow-none transition-colors before:shadow-none hover:bg-background/55 hover:text-foreground data-pressed:bg-transparent data-pressed:bg-linear-to-r data-pressed:from-info data-pressed:to-info data-pressed:bg-size-[calc(100%-0.75rem)_2px] data-pressed:bg-bottom data-pressed:bg-no-repeat data-pressed:text-foreground dark:hover:bg-input/32",
+          "border-transparent text-foreground/75 shadow-none transition-colors before:shadow-none hover:bg-background/55 hover:text-foreground data-pressed:bg-transparent data-pressed:bg-linear-to-r data-pressed:from-info data-pressed:to-info data-pressed:bg-size-[calc(100%-0.75rem)_2px] data-pressed:bg-bottom data-pressed:bg-no-repeat data-pressed:text-foreground dark:hover:bg-input/32",
       },
     },
   },

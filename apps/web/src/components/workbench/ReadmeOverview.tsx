@@ -357,6 +357,7 @@ export function ReadmeOverview(props: {
     );
   }
 
+  const longDecisions = sections.decisions.length > LONG_DECISIONS;
   const decisions =
     sections.decisions.length === 0 ? (
       <p className="text-sm text-muted-foreground">No decisions yet</p>
@@ -414,23 +415,25 @@ export function ReadmeOverview(props: {
             </FoldedWords>
           )}
         </div>
-        {sections.decisions.length > LONG_DECISIONS ? (
-          <OverviewModule
-            title="Decisions"
-            count={sections.decisions.length}
-            folded={!writingIn && !opened.includes("Decisions")}
-            onFold={() => toggleSection("Decisions")}
-          >
-            {decisions}
-          </OverviewModule>
-        ) : (
+        {longDecisions ? null : (
           <div className={SECTION_STACK}>
             <h2 className={MODULE_HEADING}>Decisions</h2>
             {decisions}
           </div>
         )}
-        {sections.more.length === 0 ? null : (
-          <div className="flex flex-col gap-6">
+        {!longDecisions && sections.more.length === 0 ? null : (
+          <div className="flex flex-col gap-1">
+            {longDecisions ? (
+              <OverviewModule
+                title="Decisions"
+                count={sections.decisions.length}
+                folded={!writingIn && !opened.includes("Decisions")}
+                onFold={() => toggleSection("Decisions")}
+                row
+              >
+                {decisions}
+              </OverviewModule>
+            ) : null}
             {sections.more.map((section) => (
               <OverviewModule
                 key={section.heading}
@@ -439,6 +442,7 @@ export function ReadmeOverview(props: {
                 count={section.blocks.filter((block) => block.kind !== "subheading").length}
                 folded={!writingIn && !opened.includes(section.heading)}
                 onFold={() => toggleSection(section.heading)}
+                row
               >
                 <div className="flex flex-col gap-2">
                   <ReadmeBlocks

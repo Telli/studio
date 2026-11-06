@@ -32,6 +32,9 @@ export const CHECK_STATUS: Record<
   ready: { variant: "success", word: "passes", caption: "checks pass", Icon: CircleCheckIcon },
 };
 
+/** How a check of a part since changed is marked, wherever it is said. */
+export const OutOfDateIcon = HistoryIcon;
+
 /** What a check of a part since changed says, in place of its verdict. */
 const OUT_OF_DATE = "Part changed since this check";
 
@@ -65,7 +68,7 @@ export function CheckBadge(props: {
       >
         {outOfDate ? (
           <Badge variant="outline">
-            <HistoryIcon aria-hidden="true" />
+            <OutOfDateIcon aria-hidden="true" />
             {result.check}
           </Badge>
         ) : (

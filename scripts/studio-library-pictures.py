@@ -5,23 +5,24 @@ libraryExamples.json names each library entry's example, in studio-sample/servo-
 entry names another example (`sample`), and the file its picture is made from. A Markdown example
 ("page") is drawn live from its own text; every other picture is rendered here into the library's
 pictures/, as <its path, "/" as "__">.webp (another example's with its id and "__" first), 640x400
-at WebP quality 80:
+at WebP quality 80. A part stands alone, on nothing, for the viewer's ground in each theme to show
+behind it (`on_nothing`); what is read as paper, a PDF or the DXF, stays on its own white sheet:
 
 - models, meshes, the DXF and the robot descriptions: the engine's snapshot, in one run, as Studio's
   project page renders its pictures;
-- a study's or a CAM job's result (`.fea.glb`, `.cam.glb`): kept as it is, since the engine's
-  snapshot draws a result's mesh but not its stress colours or toolpaths; drawn only when it has
-  no picture yet. `pictures/kept-results.json` holds the SHA-256 of the result each kept picture
-  shows, and a result that changed since is refused, by name: its picture would show another
-  result;
+- a study's or a CAM job's result (`.fea.glb`, `.cam.glb`): kept, since the engine's snapshot draws
+  a result's mesh but not its stress colours or toolpaths, and put on nothing from the picture
+  itself, its colours left alone; drawn only when it has no picture yet.
+  `pictures/kept-results.json` holds the SHA-256 of the result each kept picture shows, and a
+  result that changed since is refused, by name: its picture would show another result;
 - the drawing (PDF): its first page, by pdftoppm at 110 dpi;
 - the motion video (MP4): its frame at one second, by ffmpeg;
 - the examples' own pictures (PNG, JPG): as they are.
 
 Each example's card picture (its studio-sample.json `picture`) is bundled too, as
 pictures/examples/<id>.webp at the same size and quality, so every client shows it without reading
-the server's disk. A card keeps the part alone, on nothing, for the viewer's ground in each theme
-to show behind it (`on_nothing`); `--examples` bakes these alone, which asks no engine.
+the server's disk, the part alone on nothing as well; `--examples` bakes these alone, which asks no
+engine.
 
 Each keeps its whole frame, any room left filled with its own background. A picture no entry names
 any more is removed. Nothing is written into the examples, and the scratch folder is removed.
@@ -60,6 +61,10 @@ KEPT = (".fea.glb", ".cam.glb")
 # Drawn flat, in the gutter the engine leaves around a drawing, so they take no padding.
 FLAT = {".dxf"}
 PHOTOS = {".png", ".jpg", ".jpeg"}
+# How far a lossy picture's ground strays from its corner: its ringing, which is not the part.
+LOSSY_GROUND = 14
+# Read as paper: they keep their white sheet on the viewer's ground, dark or light.
+PAPER = {".pdf", ".dxf"}
 # Each kept result picture's result, by the picture's name: {"source": "<example>/<path>", "sha256": ...}.
 KEPT_RESULTS = PICTURES / "kept-results.json"
 
@@ -172,14 +177,14 @@ def fit(image: Image.Image) -> Image.Image:
     return ImageOps.pad(image, SIZE, method=Image.Resampling.LANCZOS, color=image.getpixel((0, 0)))
 
 
-def on_nothing(image: Image.Image) -> Image.Image:
+def on_nothing(image: Image.Image, tolerance: int = 2) -> Image.Image:
     """A picture drawn on a flat ground (its corner's colour) as the part alone on nothing. The
-    ground is what matches the corner, holes in the part too; the pixels beside it, the part's
-    antialiased outline, keep what the ground did not put there (colour to alpha), so no fringe
-    of the old ground shows on another. The part itself stays as it was drawn."""
+    ground is what matches the corner, within `tolerance`, holes in the part too; the pixels beside
+    it, the part's antialiased outline, keep what the ground did not put there (colour to alpha), so
+    no fringe of the old ground shows on another. The part itself stays as it was drawn."""
     rgb = np.asarray(image.convert("RGB"), dtype=float)
     ground = rgb[0, 0]
-    is_ground = np.abs(rgb - ground).max(axis=2) <= 2
+    is_ground = np.abs(rgb - ground).max(axis=2) <= tolerance
     mask = Image.fromarray(np.uint8(is_ground) * 255).filter(ImageFilter.MaxFilter(5))
     outline = np.asarray(mask) > 0
     # How far each channel left the ground, of as far as it could go that way.
@@ -191,6 +196,20 @@ def on_nothing(image: Image.Image) -> Image.Image:
     colour = np.where(kept, ground + (rgb - ground) / np.maximum(alpha[..., None], 1e-6), 0.0)
     drawn = np.dstack([np.clip(colour, 0, 255), alpha * 255])
     return Image.fromarray(np.uint8(np.rint(drawn)))
+
+
+def framed(image: Image.Image, path: str) -> Image.Image:
+    """A file's picture as the library shows it: a part on nothing, paper on its sheet."""
+    return fit(image if Path(path).suffix.lower() in PAPER else on_nothing(image))
+
+
+def put_on_nothing(picture: Path) -> None:
+    """A kept result's picture, on nothing, from the picture itself: once, its colours left alone."""
+    with Image.open(picture) as image:
+        if image.mode == "RGBA" and image.getpixel((0, 0))[3] == 0:
+            return
+        converted = fit(on_nothing(image, LOSSY_GROUND))
+    converted.save(picture, "WEBP", quality=80)
 
 
 def bake_examples() -> None:
@@ -219,10 +238,11 @@ def main() -> int:
         for sample, path in files:
             name = picture_path(path, sample)
             if (sample, path) in kept:
+                put_on_nothing(PICTURES / name)
                 print(f"pictures/{name}, kept: the engine cannot draw {path}'s result again")
                 continue
             with Image.open(raster(sample, path, scratch)) as image:
-                fit(image).save(PICTURES / name, "WEBP", quality=80)
+                framed(image, path).save(PICTURES / name, "WEBP", quality=80)
             print(f"pictures/{name}, from {sample}/{path}")
     record_results(files)
     named = {picture_path(path, sample) for sample, path in files}

@@ -1,12 +1,10 @@
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/models";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { ChevronRightIcon, MessageSquareIcon } from "lucide-react";
+import { MessageSquareIcon } from "lucide-react";
 
-import { useSidebar } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { KIND_TINT } from "./kinds";
 import { ProjectSwitcher } from "./ProjectSwitcher";
-import { StudioNav } from "./StudioTopBar";
 import { useStudioProjectAt } from "./useStudioProjects";
 import { chatLabel, workspaceTitle } from "./workspaceTitle";
 
@@ -22,11 +20,11 @@ export function useProjectHeading(
 }
 
 /**
- * The start of a project workspace's top bar, in the chat's header row: where the person is, as a
- * path, the project's switcher (`ProjectSwitcher`), then the open chat in it (Google Drive's "My
- * Drive › folder"). With the sidebar folded away (its own toggle or its shortcut), the bar leads
- * with Studio's mark (Home). The panel's toolbar carries the rest (`StudioPanelBar`). Short of
- * room the chat gives way first, down to its icon; its name stays on its tooltip.
+ * The start of a project workspace's top bar, in the chat's header row: where the person is, the
+ * project's switcher (`ProjectSwitcher`, which holds Home too), then the open chat in it. The
+ * panel's toolbar carries the rest (`StudioPanelBar`). Short of room the switcher keeps its width
+ * and the chat gives way first: its name, then its icon, which wraps out of the one row shown
+ * rather than clip. Its name stays on its tooltip.
  */
 export function StudioWorkspaceBar(props: {
   readonly environmentId: EnvironmentId;
@@ -35,25 +33,19 @@ export function StudioWorkspaceBar(props: {
   readonly chatTitle: string;
 }) {
   const { folder, title } = useProjectHeading(props.environmentId, props.project);
-  const { isMobile, open } = useSidebar();
-  const projectShown = open && !isMobile;
 
   return (
-    <nav aria-label="Where you are" className="flex min-w-0 flex-1 items-center gap-1">
-      {projectShown ? null : (
-        <>
-          <StudioNav compact />
-          <span aria-hidden className="mx-1.5 h-4 w-px shrink-0 bg-border" />
-        </>
-      )}
+    <nav
+      aria-label="Where you are"
+      className="flex h-10 min-w-0 flex-1 flex-wrap content-start items-center gap-1 overflow-hidden py-0.5"
+    >
       <ProjectSwitcher environmentId={props.environmentId} folder={folder} title={title} />
-      <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
       <Tooltip>
         <TooltipTrigger
           render={
             <span
               aria-current="page"
-              className="flex min-w-6 shrink-[9999] items-center gap-2 overflow-hidden px-1 text-sm font-medium text-foreground"
+              className="flex max-w-fit min-w-6 flex-[1_1_1.5rem] items-center gap-2 overflow-hidden px-1 text-sm font-medium text-foreground"
             />
           }
         >

@@ -107,6 +107,8 @@ export function OverviewModule(props: {
   readonly action?: ReactNode;
   /** Across both columns of a wide Overview. */
   readonly wide?: boolean;
+  /** A row of a list that opens: its name in sentence case, the chevron at the row's far end. */
+  readonly row?: boolean;
   readonly children: ReactNode;
 }) {
   const Icon = props.icon;
@@ -121,7 +123,9 @@ export function OverviewModule(props: {
           aria-expanded={!props.folded}
           onClick={props.onFold}
           className={cn(
-            MODULE_HEADING,
+            props.row
+              ? "-mx-2 flex min-h-7 min-w-0 flex-1 items-center gap-2 px-2 text-left text-sm font-medium text-foreground hover:bg-accent"
+              : MODULE_HEADING,
             "rounded-sm outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           )}
         >
@@ -137,13 +141,16 @@ export function OverviewModule(props: {
             aria-hidden="true"
             className={cn(
               "size-3 self-center transition-transform duration-150",
+              props.row && "ml-auto size-3.5 text-muted-foreground",
               props.folded && "-rotate-90",
             )}
           />
         </button>
         {props.folded ? null : props.action}
       </div>
-      {props.folded ? null : <div className="mt-3 flex flex-col gap-3">{props.children}</div>}
+      {props.folded ? null : (
+        <div className={cn("mt-3 flex flex-col gap-3", props.row && "pb-3")}>{props.children}</div>
+      )}
     </section>
   );
 }

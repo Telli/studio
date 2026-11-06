@@ -10,11 +10,12 @@ import { type ReactNode, useMemo, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { useNowMinute } from "~/hooks/useNowMinute";
+import { cn } from "~/lib/utils";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { useThreadShellsForProjectRefs } from "~/state/entities";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { CheckBadge, CHECK_STATUS as STATUS } from "./CheckBadge";
+import { CheckBadge, CHECK_STATUS as STATUS, OutOfDateIcon } from "./CheckBadge";
 import {
   type CheckIssue,
   type CheckResult,
@@ -58,7 +59,7 @@ import { ProjectEverything } from "./ProjectEverything";
 import { ProjectSizes } from "./ProjectSizes";
 import { ProjectThreads } from "./ProjectThreads";
 import { useEngineeringInterface } from "./studioInterface";
-import { TitleCell } from "./TitleBlock";
+import { TITLE_TONE } from "./TitleBlock";
 import { usePartContext } from "./usePartContext";
 import { usePictures } from "./usePictures";
 import { useProjectChecks } from "./useProjectChecks";
@@ -89,12 +90,32 @@ interface Issue {
 const issuePart = (entry: Issue) =>
   entry.part?.title ?? partName(entry.result.part)?.name ?? humanName(entry.result.part);
 
-/** The last of `LeadFacts`' cells ends the row, with no rule after it. */
-const FACT_CELL = "last:border-r-0";
+/** The icon of how a part's checks went, in its status color. */
+const STATUS_TONE: Record<CheckStatus, string> = {
+  fix: "text-destructive",
+  warnings: "text-warning-foreground",
+  ready: "text-success-foreground",
+};
+
+/** One of the lead part's facts: its label, then its value, on the line under the picture. */
+function LeadFact(props: {
+  readonly label: string;
+  readonly tone?: keyof typeof TITLE_TONE;
+  readonly children: ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 items-baseline gap-1.5">
+      <dt className="shrink-0 text-xs text-muted-foreground">{props.label}</dt>
+      <dd className={cn("min-w-0 text-sm font-medium", TITLE_TONE[props.tone ?? "default"])}>
+        {props.children}
+      </dd>
+    </div>
+  );
+}
 
 /**
- * The lead part's title block, under its picture, label over value (`TitleCell`): only what it
- * already carries. The viewer says more of the part it has open: its material, and a build under way.
+ * The lead part's facts, under its picture: only what it already carries. The viewer says more of
+ * the part it has open: its material, and a build under way.
  */
 function LeadFacts(props: {
   readonly part: FolderPart;
@@ -120,29 +141,21 @@ function LeadFacts(props: {
   );
   const checks = [...part.results, ...part.outdated];
   return (
-    <dl className="flex min-w-0 flex-wrap items-stretch gap-y-2 rounded-lg border border-border py-2">
-      <TitleCell label="Type" className={FACT_CELL}>
-        {part.file.kind}
-      </TitleCell>
-      <TitleCell label="Units" className={FACT_CELL}>
-        {facts?.units ?? props.units}
-      </TitleCell>
+    <dl className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
+      <LeadFact label="Type">{part.file.kind}</LeadFact>
+      <LeadFact label="Units">{facts?.units ?? props.units}</LeadFact>
       {material === null ? null : (
-        <TitleCell
-          label="Material"
-          className={FACT_CELL}
-          tone={material.missing ? "faint" : "default"}
-        >
+        <LeadFact label="Material" tone={material.missing ? "faint" : "default"}>
           {material.text}
-        </TitleCell>
+        </LeadFact>
       )}
       {build === null ? null : (
-        <TitleCell label="Build" className={FACT_CELL} tone={build.failed ? "error" : "default"}>
+        <LeadFact label="Build" tone={build.failed ? "error" : "default"}>
           {build.text}
-        </TitleCell>
+        </LeadFact>
       )}
       {checks.length === 0 ? null : (
-        <TitleCell label="Checks" className={FACT_CELL}>
+        <LeadFact label="Checks">
           <span className="flex min-w-0 flex-wrap gap-1">
             {checks.map((result) => (
               <CheckBadge
@@ -153,7 +166,7 @@ function LeadFacts(props: {
               />
             ))}
           </span>
-        </TitleCell>
+        </LeadFact>
       )}
     </dl>
   );
@@ -181,6 +194,8 @@ function LeadPart(props: {
   const picture = pictures.get(part.file.picture ?? part.file.path);
   const status = worstStatus(part.results);
   const name = part.file.title;
+  const StatusIcon =
+    status !== null ? STATUS[status].Icon : part.outdated.length > 0 ? OutOfDateIcon : null;
   return (
     <section aria-label="Lead part" className={SECTION_STACK}>
       <PageTitle title={name} label={part.file.kind} />
@@ -196,23 +211,34 @@ function LeadPart(props: {
           <PartIcon file={part.file} className="size-10 text-muted-foreground/50" />
         )}
       </button>
+      <p className="flex min-w-0 items-start gap-1.5 text-sm text-foreground">
+        {StatusIcon === null ? null : (
+          <StatusIcon
+            aria-hidden="true"
+            className={cn(
+              "mt-0.5 size-4 shrink-0",
+              status === null ? "text-muted-foreground" : STATUS_TONE[status],
+            )}
+          />
+        )}
+        <span className="min-w-0">
+          {status !== null
+            ? `${sentenceCase(STATUS[status].caption)} on ${name}`
+            : part.outdated.length > 0
+              ? `${name} changed since its last check`
+              : `No checks run on ${name} yet`}
+          {props.where === undefined ? "" : ` · ${props.where}`}
+        </span>
+      </p>
       <LeadFacts
         part={part}
         threadRef={props.threadRef}
         units={props.units}
         onOpenFile={props.onOpenFile}
       />
-      <span className="min-w-0 text-xs text-muted-foreground">
-        {status !== null
-          ? `${sentenceCase(STATUS[status].caption)} on ${name}`
-          : part.outdated.length > 0
-            ? `${name} changed since its last check`
-            : `No checks run on ${name} yet`}
-        {props.where === undefined ? "" : ` · ${props.where}`}
-      </span>
       {part.drawings.length + part.made.length === 0 ? null : (
         <div className="flex flex-wrap items-center gap-2">
-          <MadeBadges part={part} onOpen={props.onOpenFile} />
+          <MadeBadges part={part} onOpen={props.onOpenFile} lead />
         </div>
       )}
     </section>

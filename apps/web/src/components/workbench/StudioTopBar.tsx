@@ -10,22 +10,18 @@ import { WorkspacePageHeader } from "../WorkspacePageHeader";
 
 /**
  * Studio's mark and name, which lead Home and Studio's other pages while the chats are folded
- * away: how every engineering page starts its top bar then. A project's workspace puts its
- * switcher after it (`StudioWorkspaceBar`).
+ * away: how every engineering page starts its top bar then. A project's workspace leads with its
+ * switcher instead (`StudioWorkspaceBar`).
  */
-export function StudioNav(props: {
-  /** The mark alone, where the bar is narrow (a project's workspace, beside its chat). */
-  readonly compact?: boolean;
-}) {
+export function StudioNav() {
   return (
     <nav aria-label={APP_BASE_NAME} className="flex shrink-0 items-center">
       <Link
         to="/"
-        aria-label={props.compact ? `${APP_BASE_NAME} home` : undefined}
         className="flex items-center gap-1.5 rounded-md text-sm font-semibold text-foreground outline-hidden ring-ring focus-visible:ring-2 focus-visible:ring-inset"
       >
         <T3Wordmark aria-hidden className="h-4 w-auto shrink-0" />
-        {props.compact ? null : APP_BASE_NAME}
+        {APP_BASE_NAME}
       </Link>
     </nav>
   );

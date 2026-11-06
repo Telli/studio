@@ -15,7 +15,14 @@ import { usePartContext } from "./usePartContext";
 import { useProjectChecks } from "./useProjectChecks";
 import { useStudioProjectAt } from "./useStudioProjects";
 
-/** A label over its value, as a title block reads; the Overview's lead part reads the same. */
+/** A title block value's tone: a fact, one missing, or a failure. */
+export const TITLE_TONE = {
+  default: "text-foreground",
+  faint: "text-muted-foreground/70",
+  error: "text-destructive",
+} as const;
+
+/** A label over its value, as a title block reads. */
 export function TitleCell(props: {
   readonly label: string;
   readonly children: ReactNode;
@@ -29,17 +36,11 @@ export function TitleCell(props: {
         props.className,
       )}
     >
-      <dt className="text-xs leading-none font-medium tracking-widest text-muted-foreground uppercase">
-        {props.label}
-      </dt>
+      <dt className="text-xs leading-none text-muted-foreground">{props.label}</dt>
       <dd
         className={cn(
           "truncate text-xs leading-tight tabular-nums",
-          props.tone === "faint"
-            ? "text-muted-foreground/70"
-            : props.tone === "error"
-              ? "text-destructive"
-              : "text-foreground",
+          TITLE_TONE[props.tone ?? "default"],
         )}
       >
         {props.children}

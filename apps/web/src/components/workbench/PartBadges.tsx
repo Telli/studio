@@ -1,12 +1,10 @@
 import { Badge } from "../ui/badge";
+import { Button } from "../ui/button";
 import { CheckBadge } from "./CheckBadge";
 import { checkOutOfDate, type CheckResult } from "./checkResults";
-import { KIND_ICONS } from "./kinds";
+import { fileTint, KIND_ICONS } from "./kinds";
 import { lowerName } from "./partNames";
-import type { ProjectFile } from "./projectFiles";
-
-const DrawingIcon = KIND_ICONS.Drawings;
-const MadeIcon = KIND_ICONS.Manufacturing;
+import type { ProjectFile, ProjectGroup } from "./projectFiles";
 
 /** A part or board of a project folder, with how its checks went and what was made from it. */
 export interface FolderPart {
@@ -42,41 +40,67 @@ function madeKinds(files: ReadonlyArray<ProjectFile>) {
   return [...shown.values()];
 }
 
-/** What was made from a part, as badges that open it: its drawing sheets and manufacturing files. */
+/** One thing made from a part: a badge on a card, a control in its kind's hue under the lead part. */
+function MadeLink(props: {
+  readonly group: ProjectGroup;
+  readonly name: string;
+  readonly label: string;
+  readonly lead: boolean;
+  readonly onOpen: () => void;
+}) {
+  const Icon = KIND_ICONS[props.group];
+  if (props.lead) {
+    return (
+      <Button size="sm" variant="outline" aria-label={props.label} onClick={props.onOpen}>
+        <Icon aria-hidden="true" className={`size-3.5 ${fileTint(props.group)}`} />
+        {props.name}
+      </Button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={props.onOpen}
+      aria-label={props.label}
+      className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+    >
+      <Badge variant="outline">
+        <Icon aria-hidden="true" />
+        {props.name}
+      </Badge>
+    </button>
+  );
+}
+
+/** What was made from a part, each opening it: its drawing sheets and manufacturing files. */
 export function MadeBadges(props: {
   readonly part: FolderPart;
   readonly onOpen: (path: string) => void;
+  /** Under the lead part, where they are the part's outputs, not a tag on a card. */
+  readonly lead?: boolean;
 }) {
-  const { part } = props;
+  const { part, lead = false } = props;
   return (
     <>
       {part.drawings.map((drawing) => (
-        <button
+        <MadeLink
           key={drawing}
-          type="button"
-          onClick={() => props.onOpen(drawing)}
-          aria-label={`Open the drawing of ${part.file.title}`}
-          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-        >
-          <Badge variant="outline">
-            <DrawingIcon aria-hidden="true" />
-            Drawing
-          </Badge>
-        </button>
+          group="Drawings"
+          name="Drawing"
+          label={`Open the drawing of ${part.file.title}`}
+          lead={lead}
+          onOpen={() => props.onOpen(drawing)}
+        />
       ))}
       {madeKinds(part.made).map((made) => (
-        <button
+        <MadeLink
           key={made.path}
-          type="button"
-          onClick={() => props.onOpen(made.path)}
-          aria-label={`Open the ${lowerName(made.kind)} of ${part.file.title}`}
-          className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-        >
-          <Badge variant="outline">
-            <MadeIcon aria-hidden="true" />
-            {made.kind}
-          </Badge>
-        </button>
+          group="Manufacturing"
+          name={made.kind}
+          label={`Open the ${lowerName(made.kind)} of ${part.file.title}`}
+          lead={lead}
+          onOpen={() => props.onOpen(made.path)}
+        />
       ))}
     </>
   );
