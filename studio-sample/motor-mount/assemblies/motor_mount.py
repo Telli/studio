@@ -25,7 +25,8 @@ def motor_mount():
     holes = plate.faces().filter_by(bd.GeomType.CYLINDER).filter_by(lambda face: abs(face.radius - SCREW_CLEARANCE / 2) < 1e-3)
     pocket_floor = plate.faces().filter_by(bd.Axis.Z).group_by(bd.Axis.Z)[1][0]
 
-    motor = bd.Pos(0, 0, -MOTOR_BODY_LENGTH) * nema17().shape  # its face against the plate's underside
+    # The motor's face sits against the plate's underside.
+    motor = bd.Pos(0, 0, -MOTOR_BODY_LENGTH) * nema17().shape
 
     screw = read_step(SCREW)
     screws = []
