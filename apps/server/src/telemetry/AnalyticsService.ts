@@ -32,7 +32,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 
-import packageJson from "../../package.json" with { type: "json" };
+import { appVersion } from "../appVersion.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { getInstallId } from "./Identify.ts";
@@ -130,6 +130,7 @@ export class AnalyticsService extends Context.Service<
 /** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const telemetryConfig = yield* TelemetryEnvConfig;
+  const version = yield* appVersion;
   if (!canSend(telemetryConfig)) {
     return AnalyticsService.of({ record: () => Effect.void, flush: Effect.void });
   }
@@ -207,7 +208,7 @@ export const make = Effect.gen(function* () {
     post("/v1/events", {
       schema: 1,
       install,
-      version: packageJson.version,
+      version,
       platform: hostPlatform,
       arch: hostArchitecture,
       mode: serverConfig.mode,

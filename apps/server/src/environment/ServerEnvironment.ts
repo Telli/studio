@@ -13,7 +13,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
-import packageJson from "../../package.json" with { type: "json" };
+import { appVersion } from "../appVersion.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { resolveServerInstallation } from "../cli/invocation.ts";
 import { readAgentActivityPublishingActive } from "../cloud/config.ts";
@@ -213,7 +213,7 @@ export const make = Effect.gen(function* () {
       arch: platformArch(hostArchitecture),
       ...(machine === null ? {} : { machine }),
     },
-    serverVersion: packageJson.version,
+    serverVersion: yield* appVersion,
     orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
     capabilities: {
       repositoryIdentity: true,

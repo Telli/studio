@@ -16,6 +16,9 @@ import { studioEngineEnv, studioPath } from "./studioEngine.ts";
  * - Studio's own home (`T3CODE_HOME`) and Electron profile (`T3CODE_DESKTOP_PROFILE`), apart from
  *   T3 Code's `~/.t3`, so the two apps never share state or a single-instance lock.
  * - Its name (`VITE_APP_BASE_NAME`), which the desktop and the server read at runtime.
+ * - Its version (`T3CODE_APP_VERSION`), which the server says to clients and in usage counts, as
+ *   the build gave the web client (`APP_VERSION`); the server's own package stays T3 Code's.
+ * - The text-to-cad it includes (`STUDIO_TEXT_TO_CAD_VERSION`), which projects are stamped with.
  * - The CAD plugin, copied into the home with this copy of the app's paths filled in (the app can
  *   live anywhere), then offered and turned on (`T3CODE_PLUGIN_MARKETPLACE`,
  *   `T3CODE_DEFAULT_PLUGINS`).
@@ -57,6 +60,10 @@ export function applyStudioAppBundle(input: {
   const forPlugin = (path: string) => (platform === "win32" ? path.replaceAll("\\", "/") : path);
   setDefault(env, "T3CODE_HOME", home);
   setDefault(env, "VITE_APP_BASE_NAME", settings.name);
+  if (settings.version !== undefined) setDefault(env, "T3CODE_APP_VERSION", settings.version);
+  if (settings.textToCad !== undefined) {
+    setDefault(env, "STUDIO_TEXT_TO_CAD_VERSION", settings.textToCad);
+  }
   setDefault(env, "T3CODE_DESKTOP_PROFILE", settings.profile);
   setDefault(env, "T3CODE_DEFAULT_PLUGINS", settings.plugins.join(","));
   // A build made with a usage receiver sends anonymous usage counts there, which Settings can turn off.
@@ -95,6 +102,10 @@ interface StudioSettings {
   readonly home: string;
   readonly profile: string;
   readonly plugins: ReadonlyArray<string>;
+  /** Studio's version, which the build was given; absent in a build older than this field. */
+  readonly version?: string;
+  /** The text-to-cad version the build included. */
+  readonly textToCad?: string;
   /** Studio's usage receiver (`infra/usage`), which counts go to; absent in a build made without one. */
   readonly usageUrl?: string;
 }
@@ -114,6 +125,9 @@ function registerBundledServer(python: string, env: Record<string, string | unde
   child.unref();
 }
 
+const isVersion = (value: unknown): value is string =>
+  typeof value === "string" && /^[0-9A-Za-z.+-]{1,64}$/.test(value);
+
 function readSettings(file: string): StudioSettings | null {
   let parsed: unknown;
   try {
@@ -122,7 +136,10 @@ function readSettings(file: string): StudioSettings | null {
     return null;
   }
   if (typeof parsed !== "object" || parsed === null) return null;
-  const { name, home, profile, plugins, usageUrl } = parsed as Record<string, unknown>;
+  const { name, home, profile, plugins, version, textToCad, usageUrl } = parsed as Record<
+    string,
+    unknown
+  >;
   if (typeof name !== "string" || typeof home !== "string" || typeof profile !== "string") {
     return null;
   }
@@ -134,6 +151,8 @@ function readSettings(file: string): StudioSettings | null {
     home,
     profile,
     plugins: names,
+    ...(isVersion(version) ? { version } : {}),
+    ...(isVersion(textToCad) ? { textToCad } : {}),
     ...(typeof usageUrl === "string" && /^https:\/\/[^\s"]+$/.test(usageUrl) ? { usageUrl } : {}),
   };
 }

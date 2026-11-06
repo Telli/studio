@@ -194,6 +194,31 @@ describe("applyStudioAppBundle", () => {
     expect(none.CAD_CCX).toBeUndefined();
   });
 
+  it("says the versions the build was given, and none it was not", () => {
+    const env: Record<string, string | undefined> = {};
+    applyStudioAppBundle({
+      resourcesPath: resources(undefined, { version: "0.2.0", textToCad: "0.10.3" }),
+      homeDirectory: tempDir(),
+      env,
+    });
+    expect(env.T3CODE_APP_VERSION).toBe("0.2.0");
+    expect(env.STUDIO_TEXT_TO_CAD_VERSION).toBe("0.10.3");
+
+    const older: Record<string, string | undefined> = {};
+    applyStudioAppBundle({ resourcesPath: resources(), homeDirectory: tempDir(), env: older });
+    expect(older.T3CODE_APP_VERSION).toBeUndefined();
+    expect(older.STUDIO_TEXT_TO_CAD_VERSION).toBeUndefined();
+
+    const bad: Record<string, string | undefined> = {};
+    applyStudioAppBundle({
+      resourcesPath: resources(undefined, { version: "0.2.0\nmade up", textToCad: 3 }),
+      homeDirectory: tempDir(),
+      env: bad,
+    });
+    expect(bad.T3CODE_APP_VERSION).toBeUndefined();
+    expect(bad.STUDIO_TEXT_TO_CAD_VERSION).toBeUndefined();
+  });
+
   it("sends usage counts only from a build made with a usage receiver", () => {
     const env: Record<string, string | undefined> = {};
     applyStudioAppBundle({

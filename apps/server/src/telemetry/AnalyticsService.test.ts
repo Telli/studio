@@ -182,6 +182,7 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
         ConfigProvider.fromUnknown({
           T3CODE_USAGE_URL: "http://localhost",
           T3CODE_TELEMETRY_FLUSH_BATCH_SIZE: 20,
+          T3CODE_APP_VERSION: "0.2.0",
         }),
       );
       const layerBatchServer = HttpServer.serve(
@@ -242,12 +243,13 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       );
       // Each batch says who sends it, by the install's random id, beside the counts.
       for (const request of batchRequests) {
-        const { schema, install: sentInstall, platform, arch, mode } = request.body ?? {};
+        const { schema, install: sentInstall, version, platform, arch, mode } = request.body ?? {};
         assert.deepEqual(
-          { schema, install: sentInstall, platform, arch, mode },
+          { schema, install: sentInstall, version, platform, arch, mode },
           {
             schema: 1,
             install: install ?? undefined,
+            version: "0.2.0",
             platform: "linux",
             arch: "arm64",
             mode: "web",

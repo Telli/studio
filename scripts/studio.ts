@@ -68,6 +68,11 @@ const engineEnv = {
 const cadEnv = {
   ...process.env,
   ...engineEnv,
+  // The text-to-cad this checkout runs, which projects are stamped with, as a built app's is.
+  STUDIO_TEXT_TO_CAD_VERSION: NodeFS.readFileSync(
+    NodePath.join(checkout, "VERSION"),
+    "utf8",
+  ).trim(),
   PATH: studioPath(engineEnv.CAD_LAUNCHER_DIR, process.env.PATH),
 };
 // The checkout's development plugin: its skills and server on its .venv, its page built fresh.

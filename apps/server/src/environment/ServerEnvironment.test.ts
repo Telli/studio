@@ -1,6 +1,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { ORCHESTRATION_PROTOCOL_VERSION } from "@t3tools/contracts";
 import { expect, it } from "@effect/vitest";
+import * as ConfigProvider from "effect/ConfigProvider";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -13,6 +14,7 @@ import { DEFAULT_SIGNAL_EXPORT } from "@t3tools/shared/observability";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as OtelEnvironment from "@t3tools/shared/otelEnvironment";
 
+import packageJson from "../../package.json" with { type: "json" };
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import {
   PUBLISH_AGENT_ACTIVITY_SECRET,
@@ -311,6 +313,33 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
 
       const web = yield* describeWith({ mode: "web", desktopTelemetryControlFd: 5 });
       expect(web.capabilities.desktopAppUpdate).toBeUndefined();
+    }),
+  );
+
+  it.effect("says the version a packaged app names, else the server package's", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const baseDir = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "t3-server-environment-version-test-",
+      });
+      const serverConfig = yield* makeServerConfig(baseDir);
+      yield* fileSystem.makeDirectory(serverConfig.stateDir, { recursive: true });
+      const describeWith = (env: Record<string, string>) =>
+        Effect.gen(function* () {
+          const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
+          return yield* serverEnvironment.getDescriptor;
+        }).pipe(
+          Effect.provide(
+            ServerEnvironment.layer.pipe(
+              Layer.provide(ServerSecretStore.layer),
+              Layer.provide(ServerConfig.layer(serverConfig)),
+              Layer.provide(ConfigProvider.layer(ConfigProvider.fromUnknown(env))),
+            ),
+          ),
+        );
+
+      expect((yield* describeWith({ T3CODE_APP_VERSION: "0.2.0" })).serverVersion).toBe("0.2.0");
+      expect((yield* describeWith({})).serverVersion).toBe(packageJson.version);
     }),
   );
 

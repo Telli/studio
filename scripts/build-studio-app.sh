@@ -193,6 +193,7 @@ find "$BUNDLE" -type l | while IFS= read -r link; do
 done
 
 step "Laying out the CAD plugin"
+text_to_cad="$(tr -d '[:space:]' <"$CAD/VERSION")"
 "$bundle_python" "$(native "$ROOT/scripts/studio-app-plugin.py")" "$(native "$CAD")" "$(native "$BUNDLE/marketplace")"
 # The Electron profile's folder is named by the app's id, which no other app shares; a folder
 # called "studio" could be any app's of that name.
@@ -205,9 +206,13 @@ if [ -n "$STUDIO_USAGE_URL" ]; then
   usage_url=",
   \"usageUrl\": \"$STUDIO_USAGE_URL\""
 fi
+# Its version, for the server to say to clients and in usage counts (studioAppBundle.ts), as the
+# web client's build is told below; and the text-to-cad it includes, which projects are stamped with.
 cat >"$BUNDLE/studio.json" <<JSON
 {
   "name": "Studio",
+  "version": "$VERSION",
+  "textToCad": "$text_to_cad",
   "home": ".text-to-cad-studio",
   "profile": "com.amywork777.studio",
   "plugins": ["text-to-cad"]$usage_url
@@ -221,8 +226,11 @@ cp -R "$ROOT/studio-sample" "$BUNDLE/sample"
 step "Building the app"
 cd "$ROOT"
 T3CODE_DESKTOP_SIGNED="$signed" T3CODE_DESKTOP_STUDIO_BUNDLE="$(native "$BUNDLE")" VITE_APP_BASE_NAME=Studio \
-  T3CODE_BRAND_DIR="$(native "$ROOT/brand")" \
+  APP_VERSION="$VERSION" T3CODE_BRAND_DIR="$(native "$ROOT/brand")" \
   node scripts/build-desktop-artifact.ts --platform "$platform" --target "$target" --arch "$arch" --build-version "$VERSION"
+# A build whose pages say another version would count every use under the wrong release.
+grep -rqF --include='*.js' "\"$VERSION\"" "$ROOT/apps/server/dist/client/assets" ||
+  stop "The app's pages do not say version $VERSION: APP_VERSION did not reach the web build."
 
 if [ "$platform" = win ]; then
   # The download's one name, as on a Mac: releases/latest/download/Studio-Setup.exe.
