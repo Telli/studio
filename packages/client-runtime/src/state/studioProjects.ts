@@ -82,5 +82,17 @@ export function createStudioProjectsEnvironmentAtoms<R, E>(
       onSettled: ({ environmentId }, registry) =>
         Effect.sync(() => registry.update(studioSyncRevision(environmentId), (value) => value + 1)),
     }),
+    /** Gets the code a person enters at GitHub for Sign in with GitHub. */
+    gitHubSignInStart: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:studio-github:sign-in-start",
+      tag: WS_METHODS.studioGitHubSignInStart,
+      scheduler: createAtomCommandScheduler(),
+    }),
+    /** Checks once whether the code was entered; on yes the server has saved the token. */
+    gitHubSignInCheck: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:studio-github:sign-in-check",
+      tag: WS_METHODS.studioGitHubSignInCheck,
+      scheduler: createAtomCommandScheduler(),
+    }),
   };
 }

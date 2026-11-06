@@ -109,7 +109,7 @@ export function githubChoice(input: {
   /** The repository an earlier backup made, if any. */
   readonly backedUpTo: string | null;
 }): { readonly available: boolean; readonly note: string | null; readonly signIn: boolean } {
-  // In plain words, not the GitHub tool's own hints (its commands): Set up GitHub shows where.
+  // In plain words, not the GitHub tool's own hints (its commands): Sign in with GitHub sits below.
   if (!input.signedIn || input.account === null) {
     return { available: false, note: "Not signed in to GitHub on this Mac yet.", signIn: true };
   }

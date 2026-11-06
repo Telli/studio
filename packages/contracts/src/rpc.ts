@@ -397,6 +397,10 @@ import {
   StudioProjectsSaveInput,
   StudioProjectsSaveResult,
   StudioProjectsTrashInput,
+  StudioGitHubSignInCheckInput,
+  StudioGitHubSignInCheckResult,
+  StudioGitHubSignInError,
+  StudioGitHubSignInStartResult,
   StudioSyncError,
   StudioSyncSendInput,
   StudioSyncSendResult,
@@ -540,6 +544,8 @@ export const WS_METHODS = {
   studioProjectsTrash: "studioProjects.trash",
   studioSyncSend: "studioSync.send",
   studioSyncStatus: "studioSync.status",
+  studioGitHubSignInStart: "studioGitHub.signInStart",
+  studioGitHubSignInCheck: "studioGitHub.signInCheck",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
   serverPrepareAcpRegistryAgent: "server.prepareAcpRegistryAgent",
   serverUninstallAcpRegistryManagedBinary: "server.uninstallAcpRegistryManagedBinary",
@@ -938,6 +944,18 @@ const WsStudioProjectsTrashRpc = Rpc.make(WS_METHODS.studioProjectsTrash, {
   payload: StudioProjectsTrashInput,
   success: StudioProjectsSaveResult,
   error: StudioProjectsError,
+});
+
+const WsStudioGitHubSignInStartRpc = Rpc.make(WS_METHODS.studioGitHubSignInStart, {
+  payload: Schema.Struct({}),
+  success: StudioGitHubSignInStartResult,
+  error: StudioGitHubSignInError,
+});
+
+const WsStudioGitHubSignInCheckRpc = Rpc.make(WS_METHODS.studioGitHubSignInCheck, {
+  payload: StudioGitHubSignInCheckInput,
+  success: StudioGitHubSignInCheckResult,
+  error: StudioGitHubSignInError,
 });
 
 const WsStudioSyncSendRpc = Rpc.make(WS_METHODS.studioSyncSend, {
@@ -2096,6 +2114,8 @@ export const WsHostRpcGroup = RpcGroup.make(
   WsStudioProjectsTrashRpc,
   WsStudioSyncSendRpc,
   WsStudioSyncStatusRpc,
+  WsStudioGitHubSignInStartRpc,
+  WsStudioGitHubSignInCheckRpc,
   WsServerSearchAcpRegistryRpc,
   WsServerPrepareAcpRegistryAgentRpc,
   WsServerUninstallAcpRegistryManagedBinaryRpc,

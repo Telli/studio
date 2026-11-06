@@ -1,7 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { useNavigate } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import { GithubIcon, HardDriveUploadIcon } from "lucide-react";
 import { useState } from "react";
@@ -15,6 +14,7 @@ import { studioProjectsEnvironment } from "~/state/studioProjects";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useEnvironmentQuery } from "~/state/query";
 import { vcsEnvironment } from "~/state/vcs";
+import { GitHubSignIn } from "../settings/GitHubSignIn";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -98,9 +98,10 @@ export function BackupDialog(props: {
 }) {
   const { environmentId, project, last } = props;
   const folder = project.folders.length === 1 ? project.folders[0]! : null;
-  const discovery = useEnvironmentQuery(
+  const discoveryQuery = useEnvironmentQuery(
     sourceControlEnvironment.discovery({ environmentId, input: {} }),
-  ).data;
+  );
+  const discovery = discoveryQuery.data;
   const status =
     useEnvironmentQuery(
       folder === null ? null : vcsEnvironment.status({ environmentId, input: { cwd: folder } }),
@@ -137,12 +138,6 @@ export function BackupDialog(props: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const navigate = useNavigate();
-  // Signing in to GitHub is Settings' Source control: it opens there, the backup waits.
-  const setUpGitHub = () => {
-    props.onOpenChange(false);
-    void navigate({ to: "/settings/source-control" });
-  };
   const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
   const openInEditor = useAtomCommand(shellEnvironment.openInEditor, { reportFailure: true });
   const canReveal = serverConfig?.availableEditors.includes("file-manager") === true;
@@ -259,14 +254,14 @@ export function BackupDialog(props: {
               note={toFolder ? null : "Needs Studio's desktop app."}
             />
           </div>
+          {toGitHub.signIn ? (
+            <div className="pt-3">
+              <GitHubSignIn environmentId={environmentId} onSignedIn={discoveryQuery.refresh} />
+            </div>
+          ) : null}
           {error === null ? null : <p className="pt-3 text-xs text-destructive">{error}</p>}
         </DialogPanel>
         <DialogFooter>
-          {toGitHub.signIn ? (
-            <Button variant="ghost" disabled={busy} onClick={setUpGitHub}>
-              Set up GitHub
-            </Button>
-          ) : null}
           {choice === "folder" && last?.place.kind === "folder" ? (
             <Button variant="ghost" disabled={busy} onClick={() => run(true)}>
               Another folder

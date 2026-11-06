@@ -49,6 +49,7 @@ import { useEngineeringInterface } from "../workbench/studioInterface";
 import { GitIcon, JujutsuIcon, type Icon } from "../Icons";
 import { SourceControlHostSettings } from "./SourceControlHostSettings";
 import { GitHubAccountSettings } from "./GitHubAccountSettings";
+import { GitHubSignIn } from "./GitHubSignIn";
 import { GitHubTokenSettings } from "./GitHubTokenSettings";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SourceControlWritingSettingsSection } from "./SourceControlWritingSettings";
@@ -618,6 +619,9 @@ export function SourceControlSettingsPanel() {
                   {item.kind === "github" ? (
                     <SettingsSearchTarget id={searchableSetting("github-accounts").id}>
                       <div className="grid gap-6">
+                        {item.status !== "available" || item.auth.status === "unauthenticated" ? (
+                          <GitHubSignIn environmentId={environmentId} onSignedIn={handleScan} />
+                        ) : null}
                         {/* Shown even without gh: a saved token is how GitHub works without the CLI. */}
                         <GitHubTokenSettings
                           key={`token-${environmentId}`}

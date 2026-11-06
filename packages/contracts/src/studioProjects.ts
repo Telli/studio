@@ -154,6 +154,32 @@ export const StudioSyncStatusResult = Schema.Struct({
 });
 export type StudioSyncStatusResult = typeof StudioSyncStatusResult.Type;
 
+/** The code a person enters at GitHub, and how often and how long to check for it. */
+export const StudioGitHubSignInStartResult = Schema.Struct({
+  /** GitHub's handle on this sign-in, passed back with each check. */
+  deviceCode: TrimmedNonEmptyString,
+  userCode: TrimmedNonEmptyString,
+  verificationUri: TrimmedNonEmptyString,
+  intervalSeconds: Schema.Number,
+  expiresInSeconds: Schema.Number,
+});
+export type StudioGitHubSignInStartResult = typeof StudioGitHubSignInStartResult.Type;
+
+export const StudioGitHubSignInCheckInput = Schema.Struct({ deviceCode: TrimmedNonEmptyString });
+export type StudioGitHubSignInCheckInput = typeof StudioGitHubSignInCheckInput.Type;
+
+/** `slow-down` is GitHub asking for longer between checks. The token never reaches a client. */
+export const StudioGitHubSignInCheckResult = Schema.Struct({
+  state: Schema.Literals(["waiting", "slow-down", "signed-in", "expired", "denied"]),
+});
+export type StudioGitHubSignInCheckResult = typeof StudioGitHubSignInCheckResult.Type;
+
+/** A sign-in stopped. The message is shown to the person as it is. */
+export class StudioGitHubSignInError extends Schema.TaggedError<StudioGitHubSignInError>()(
+  "StudioGitHubSignInError",
+  { message: Schema.String },
+) {}
+
 /** A send or a receive stopped. The message is shown to the person as it is. */
 export class StudioSyncError extends Schema.TaggedError<StudioSyncError>()("StudioSyncError", {
   /**

@@ -69,7 +69,7 @@ describe("backup", () => {
       note: "This folder already has a repository of its own, so Studio leaves it alone.",
       signIn: false,
     });
-    // Not signed in says so in plain words, and offers Set up GitHub.
+    // Not signed in says so in plain words, and offers Sign in with GitHub.
     expect(githubChoice({ ...ready, signedIn: false, account: null })).toEqual({
       available: false,
       note: "Not signed in to GitHub on this Mac yet.",

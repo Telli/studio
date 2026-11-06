@@ -124,6 +124,7 @@ import * as ThreadManagementService from "./orchestration-v2/ThreadManagementSer
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
 import * as PluginService from "./plugins/PluginService.ts";
 import * as StudioProjects from "./studio/StudioProjects.ts";
+import * as StudioGitHubSignIn from "./studio/StudioGitHubSignIn.ts";
 import * as StudioSync from "./studio/StudioSync.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
 import * as ThreadLaunchService from "./orchestration-v2/ThreadLaunchService.ts";
@@ -1239,6 +1240,7 @@ const layerWsRpc = (
       const plugins = yield* PluginService.PluginService;
       const studioProjects = yield* StudioProjects.StudioProjects;
       const studioSync = yield* StudioSync.StudioSync;
+      const studioGitHubSignIn = yield* StudioGitHubSignIn.StudioGitHubSignIn;
       const analytics = yield* AnalyticsService.AnalyticsService;
       // Client-origin attribution (#7774): every thread/turn the connecting
       // client starts is credited to its surface + app version. Best-effort:
@@ -2112,6 +2114,8 @@ const layerWsRpc = (
             ),
           ),
         [WS_METHODS.studioSyncStatus]: (input) => studioSync.status(input),
+        [WS_METHODS.studioGitHubSignInStart]: () => studioGitHubSignIn.start,
+        [WS_METHODS.studioGitHubSignInCheck]: (input) => studioGitHubSignIn.check(input),
         [WS_METHODS.serverUpdateProvider]: (input) =>
           providerMaintenanceRunner.updateProvider(input),
         [WS_METHODS.providerConsumeResetCredit]: (input) =>

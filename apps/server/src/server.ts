@@ -63,6 +63,7 @@ import * as TerminalManager from "./terminal/Manager.ts";
 import * as McpHttpServer from "./mcp/McpHttpServer.ts";
 import * as PluginService from "./plugins/PluginService.ts";
 import * as StudioProjects from "./studio/StudioProjects.ts";
+import * as StudioGitHubSignIn from "./studio/StudioGitHubSignIn.ts";
 import * as StudioSync from "./studio/StudioSync.ts";
 import * as BundledPlugins from "./plugins/BundledPlugins.ts";
 import * as PluginToolSessions from "./plugins/PluginToolSessions.ts";
@@ -607,6 +608,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   // the WebSocket lists and saves them.
   Layer.provideMerge(layerStudioProjects),
   Layer.provideMerge(layerStudioSync),
+  Layer.provideMerge(StudioGitHubSignIn.layer),
   // The asset route uses the registry's GitHub credential for private PR media, which the
   // built-in drivers' layer provides alongside the registry.
   Layer.provideMerge(layerSourceControlProviderRegistry),
