@@ -586,13 +586,13 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   the part once, quietly, after the model opens, so the full workspace opens on it at once
   (`useEditMode`). A pick in the workspace (a face or an edge on the model, a feature the person
   pressed in the design tree, a sketch picked on the model) with no command open
-  offers a small bar beside it (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Add to chat and
+  offers a small bar beside it (`edit/EditSelectionBar.jsx`, `selectionBar.js`): Quick Edit and
   Edit (Edit Feature, or Edit Sketch; a face has none until the engine says which feature made it).
   A feature a command's OK selected is not a pick, or the bar would stand over the part all the
-  while it is worked on. CAD mode has no Quick Edit box of its own: Add to chat puts the picks in
-  Studio's chat box as chips (`useAddToContext`, the same delivery as Quick Edit's), lets go of them,
-  and says on the button why when the chat box would not take them; it waits while a command or a
-  sketch is open. In AI mode picks go through Quick Edit, as Jake's viewer does. A feature goes as a
+  while it is worked on. Quick Edit is the same box in both modes: AI mode opens it on any pick, as
+  Jake's viewer does, and CAD mode, where a pick is mostly for a command, once the bar's Quick Edit
+  asks for it (`useAsked`, the shell's `quickEditAsked`). There the bar gives way to the box; Escape,
+  the box's X or a send puts it away, and a written note keeps it open whatever is picked. A feature goes as a
   `text-range` reference to its statement in its script (all its lines, where the engine read the
   statement whole), with a chip named as the design tree names it ("Hole (6)"), the chip's X letting
   go of the pick (`featureAsk.jsx`; the script's absolute path is the engine's `root` with the
@@ -639,8 +639,8 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   command's line); the frame is `text-to-cad/packages/ui/src/renderers/xbf/edit/`. The CAD skill's
   `references/edit-mode.md` tells the agent how to write parts that edit well.
 - **The AI | CAD switch.** Studio's bar chooses it where the CAD viewer in front has two layouts. AI
-  is the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection goes to the
-  agent through Quick Edit; CAD is the full workspace (edit mode). One choice for the person, across
+  is the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection opens Quick
+  Edit; CAD is the full workspace (edit mode), where the pick bar's Quick Edit opens it. One choice for the person, across
   projects, kept on this device (`studio:simple-view`), AI where none was stored
   (`workbench/simpleView.ts`); New part and Start a part by hand turn it off. The workspace floats
   over the canvas, so the switch is one 150 ms fade (none with reduced motion) and the model keeps
