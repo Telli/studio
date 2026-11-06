@@ -1,14 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { leadKind, leadPartOf } from "./leadPart";
-
-describe("leadKind", () => {
-  it("says the part's kind, and calls it the latest only with a build time", () => {
-    expect(leadKind({ kind: "Part", version: "abc" })).toBe("Latest part");
-    expect(leadKind({ kind: "Assembly", version: "abc" })).toBe("Latest assembly");
-    expect(leadKind({ kind: "Part" })).toBe("Part");
-  });
-});
+import { leadPartOf } from "./leadPart";
 
 describe("leadPartOf", () => {
   it("takes the first part of the first folder that has one", () => {
@@ -33,6 +25,57 @@ describe("leadPartOf", () => {
       leadPartOf([{ root: "/work/a", paths: ["parts/bracketry.step", "parts/bracket.step"] }])?.file
         .path,
     ).toBe("parts/bracketry.step");
+  });
+
+  it("leads with the part with the most made from it, whatever was built last", () => {
+    const model = (id: string, kind: "Part" | "Assembly", updated: string) => ({
+      id,
+      name: id,
+      script: `${kind === "Part" ? "parts" : "assemblies"}/${id}.py`,
+      kind,
+      updated,
+    });
+    const paths = [
+      "cam/motor_plate.cam.glb",
+      "cam/motor_plate.top.ngc",
+      "drawings/motor_plate_drawing.pdf",
+      "studies/motor_plate.fea.glb",
+      "studies/motor_plate.fea.json",
+    ];
+    const models = [
+      model("nema17", "Part", "300"),
+      model("motor_plate", "Part", "100"),
+      model("motor_mount", "Assembly", "200"),
+    ];
+    expect(leadPartOf([{ root: "/w", paths, models }])?.file.title).toBe("Motor plate");
+    // Across folders too, and a drawing alone counts.
+    expect(
+      leadPartOf([
+        { root: "/a", paths: ["parts/hook.step"] },
+        { root: "/b", paths: ["parts/plate.step", "drawings/plate_drawing.pdf"] },
+      ])?.root,
+    ).toBe("/b");
+  });
+
+  it("leads with an assembly ahead of a newer part when neither has more made from it", () => {
+    const part = { id: "plate", name: "plate", script: "parts/plate.py", updated: "300" };
+    const whole = { id: "mount", name: "mount", script: "mount.py", updated: "100" };
+    expect(
+      leadPartOf([
+        {
+          root: "/w",
+          paths: [],
+          models: [
+            { ...part, kind: "Part" },
+            { ...whole, kind: "Assembly" },
+          ],
+        },
+      ])?.file.path,
+    ).toBe("mount");
+    // An assembly by the folder it is filed in, as the tile reads one.
+    expect(
+      leadPartOf([{ root: "/w", paths: ["parts/plate.step", "assemblies/mount.step"] }])?.file.path,
+    ).toBe("assemblies/mount.step");
   });
 
   it("leads with what was built last, an assembly ahead of the parts built with it", () => {

@@ -21,7 +21,7 @@ import { ChatPage } from "../ChatPages";
 import { findExamples } from "../examples/examples";
 import { ExamplesModule } from "../examples/ExamplesModule";
 import { useDocumentTemplates } from "../documentTemplates";
-import { EXAMPLES_ICON, fileTint, MENU_ICONS, MENU_TINTS } from "../kinds";
+import { EXAMPLES_ICON, fileTint, MENU_ICONS, MENU_TINTS, MENU_WORDS } from "../kinds";
 import { useNewDialogStore } from "../newDialogStore";
 import type { NewTemplate } from "../newTemplates";
 import { useEngineeringInterface } from "../studioInterface";
@@ -48,7 +48,7 @@ import {
   libraryGroup,
   type LibrarySearch,
 } from "./librarySearch";
-import { NeedsSkill, PluginsLink } from "./NeedsSkill";
+import { NeedsSkill } from "./NeedsSkill";
 import { SeeTheExample } from "./SeeTheExample";
 import { SkillDetail } from "./SkillDetail";
 import { useExamples } from "./useSampleProject";
@@ -82,7 +82,7 @@ const shelfOf = (shelf: Omit<Shelf, "count">, entries: ReadonlyArray<LibraryEntr
  * a library of skills: a directory of shelves down its side (`ShelfIndex`), and always-open shelves
  * of covers (`LibraryShelf`). The person's own skills come first, with Add a skill, then every
  * installed plugin's, then the examples (`ExamplesModule`) and every document type Studio makes,
- * shelved where it is found (New, then the part menus Evaluate, Manufacture and Document). A
+ * shelved where it is found (New, then the part menus Analysis, Manufacturing and Documents). A
  * skill's cover opens it in full (`SkillDetail`), a document type's its detail, kept in the URL
  * (`entry`) so Back closes it; `group` scrolls to its shelf. Reached from ⌘K, New, the part menus and
  * Settings › Plugins (`libraryHref`).
@@ -142,7 +142,12 @@ function LibraryContent(props: {
     .filter((group) => group.entries.length > 0);
   const documentShelves: ReadonlyArray<Group> = LIBRARY_GROUPS.map((group) =>
     shelfOf(
-      { key: group, title: group, icon: GROUP_ICONS[group], tint: GROUP_TINTS[group] },
+      {
+        key: group,
+        title: group === "New" ? group : MENU_WORDS[group],
+        icon: GROUP_ICONS[group],
+        tint: GROUP_TINTS[group],
+      },
       documents.filter((entry) => libraryGroup(entry) === group && matching.has(entry)),
     ),
   ).filter((group) => group.entries.length > 0);

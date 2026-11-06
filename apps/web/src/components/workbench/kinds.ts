@@ -25,9 +25,8 @@ import type { ProjectGroup } from "./projectFiles";
  * Overview's list of everything in the project, New, the part cards, the top bar's menus, the quick
  * find and the chat's change chips. Three kinds are designed from nothing (CAD, Electronics,
  * Documents); FEA and CAM are not kinds of design but work done on one, so what the top bar's
- * menus make (Analysis from Evaluate, Manufacturing from Manufacture, Drawings from Document)
- * carries the menu's icon and shows on the part it was made from, as a CAD system keeps a study
- * or a toolpath with its part.
+ * menus make (Analysis, Manufacturing, and Documents with Drawings) carries the menu's icon and
+ * shows on the part it was made from, as a CAD system keeps a study or a toolpath with its part.
  */
 export const KIND_ICONS: Readonly<Record<ProjectGroup, LucideIcon>> = {
   CAD: BoxIcon,
@@ -57,6 +56,17 @@ export function templateIcon(template: NewTemplate) {
   if (template.file !== undefined) return FilePlusIcon;
   return template.id === "drawing" ? KIND_ICONS.Drawings : DISCIPLINE_ICONS[template.discipline];
 }
+
+/**
+ * The menus in the one word Studio has for what their jobs make, the same as tabs, New, Find and
+ * the file filters say it. Their keys and URLs keep the CAD verbs, and the ribbon's own Evaluate
+ * tab stays, as SolidWorks names it.
+ */
+export const MENU_WORDS: Readonly<Record<HardwareActionGroup, ProjectGroup>> = {
+  Evaluate: "Analysis",
+  Manufacture: "Manufacturing",
+  Document: "Documents",
+};
 
 /** The top bar's menus, by what their jobs make. */
 export const MENU_ICONS: Readonly<Record<HardwareActionGroup, LucideIcon>> = {

@@ -139,9 +139,9 @@ describe("library catalog", () => {
 
   it("says where it is", () => {
     expect(findItIn(doc("doc:part"))).toEqual(["New › CAD"]);
-    expect(findItIn(doc("doc:drawing"))).toEqual(["Document › Drawings"]);
-    expect(findItIn(doc("doc:simulation"))).toContain("Evaluate › Simulation");
-    expect(findItIn(doc("doc:order"))).toEqual(["Manufacture › Sheet metal and cutting"]);
+    expect(findItIn(doc("doc:drawing"))).toEqual(["Documents › Drawings"]);
+    expect(findItIn(doc("doc:simulation"))).toContain("Analysis › Simulation");
+    expect(findItIn(doc("doc:order"))).toEqual(["Manufacturing › Sheet metal and cutting"]);
   });
 
   it("says New only where New makes it from nothing", () => {
@@ -267,7 +267,8 @@ describe("library catalog", () => {
   });
 
   it("names each of text-to-cad's skills as its own files do, installed or not", () => {
-    const named = TEXT_TO_CAD_SKILLS.map((name) => [name, ownName(name)]);
+    const job: Record<string, string> = { dfm: "Manufacturing check", fea: "Simulation" };
+    const named = TEXT_TO_CAD_SKILLS.map((name) => [name, job[name] ?? ownName(name)]);
     expect(named.filter(([, name]) => name === null)).toEqual([]);
     const installed = librarySkills([
       plugin(
@@ -290,12 +291,12 @@ describe("library catalog", () => {
 
   it("shows each skill where New and the menus offer it", () => {
     expect(showsUpAs("dfm")).toEqual([
-      "Manufacture: Check for CNC machining, Check for injection molding, Check as sheet metal",
+      "Manufacturing: Check for CNC machining, Check for injection molding, Check as sheet metal",
     ]);
     // A template that works from a part is no New's: the skill shows up in its menus alone.
-    expect(showsUpAs("fea")).toEqual(["Evaluate: Strength under load, Explain these results"]);
-    expect(showsUpAs("urdf")).toEqual(["New: Robot description", "Document: More documents"]);
-    expect(showsUpAs("sendcutsend")).toEqual(["Manufacture: Check for SendCutSend"]);
+    expect(showsUpAs("fea")).toEqual(["Analysis: Strength under load, Explain these results"]);
+    expect(showsUpAs("urdf")).toEqual(["New: Robot description", "Documents: More documents"]);
+    expect(showsUpAs("sendcutsend")).toEqual(["Manufacturing: Check for SendCutSend"]);
     expect(showsUpAs("no-such-skill")).toEqual([]);
   });
 

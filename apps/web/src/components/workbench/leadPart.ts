@@ -1,4 +1,4 @@
-import { overviewParts } from "./checkResults";
+import { drawingsFor, manufacturingFor, overviewParts, studiesFor } from "./checkResults";
 import type { ProjectFile } from "./projectFiles";
 import { byLatest, folderFiles, type ProjectModel } from "./projectModels";
 
@@ -10,6 +10,12 @@ interface ReadFolder {
 }
 
 const stem = (file: ProjectFile) => file.name.replace(/\..*$/, "").toLowerCase();
+
+const IN_ASSEMBLIES = /(?:^|\/)assembl/i;
+
+/** Whether the file is the whole product: an assembly by its kind, or by the folder it is filed in. */
+export const isAssembly = (file: Pick<ProjectFile, "kind" | "folder">) =>
+  file.kind === "Assembly" || IN_ASSEMBLIES.test(file.folder);
 
 /**
  * The parts not named after another of `parts`: `bracket_flat` and `bracket-v2` are made from
@@ -26,30 +32,37 @@ export function sourceParts(parts: ReadonlyArray<ProjectFile>): ProjectFile[] {
 }
 
 /**
- * What the Overview's lead picture is, in its kind's word, as the small label beside the part's
- * name: "Latest part". Only a part with a build time can be called the latest.
- */
-export function leadKind(file: Pick<ProjectFile, "kind" | "version">): string {
-  return file.version === undefined ? file.kind : `Latest ${file.kind.toLowerCase()}`;
-}
-
-/**
- * The project's lead part: what was built last (`byLatest`), of the parts not made from another
- * (`sourceParts`), across its folders; with no build times, the first of the first folder that
- * has a part, in the order the project files them. The Overview shows it large, and the workspace
- * opens it.
+ * The project's lead part, the one its work is on: of the parts not made from another
+ * (`sourceParts`), across its folders, the one with the most made from it (drawings, CAM jobs,
+ * studies), then an assembly, then what was built last (`byLatest`); with nothing to tell them
+ * apart, the first of the first folder that has a part, in the order the project files them. Read
+ * from the project's files alone, so the Overview, the workspace and a new chat's starters agree.
  */
 export function leadPartOf(
   folders: ReadonlyArray<ReadFolder>,
 ): { readonly root: string; readonly file: ProjectFile } | null {
-  let lead: { readonly root: string; readonly file: ProjectFile } | null = null;
-  for (const folder of folders) {
-    const parts = overviewParts(folderFiles(folder.paths ?? [], folder.models));
-    const sources = sourceParts(parts);
-    const file = (sources.length > 0 ? sources : parts).toSorted(byLatest)[0];
-    if (file !== undefined && (lead === null || byLatest(file, lead.file) < 0)) {
-      lead = { root: folder.root, file };
-    }
-  }
-  return lead;
+  const lead = folders
+    .flatMap((folder) => {
+      const paths = folder.paths ?? [];
+      const files = folderFiles(paths, folder.models);
+      const parts = overviewParts(files);
+      const manufacturing = manufacturingFor(parts, files);
+      const studies = studiesFor(parts, files);
+      const sources = sourceParts(parts);
+      return (sources.length > 0 ? sources : parts).map((file) => ({
+        root: folder.root,
+        file,
+        made:
+          drawingsFor(file, paths).length +
+          (manufacturing.get(file.path)?.length ?? 0) +
+          (studies.get(file.path)?.length ?? 0),
+      }));
+    })
+    .toSorted(
+      (a, b) =>
+        b.made - a.made ||
+        Number(isAssembly(b.file)) - Number(isAssembly(a.file)) ||
+        byLatest(a.file, b.file),
+    )[0];
+  return lead === undefined ? null : { root: lead.root, file: lead.file };
 }

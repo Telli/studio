@@ -15,7 +15,8 @@ import { usePartContext } from "./usePartContext";
 import { useProjectChecks } from "./useProjectChecks";
 import { useStudioProjectAt } from "./useStudioProjects";
 
-function Cell(props: {
+/** A label over its value, as a title block reads; the Overview's lead part reads the same. */
+export function TitleCell(props: {
   readonly label: string;
   readonly children: ReactNode;
   readonly className?: string;
@@ -104,33 +105,33 @@ function ThreadTitleBlock(props: TitleBlockProps) {
       className="@container/title-block flex h-11 shrink-0 items-stretch border-b border-border bg-background"
     >
       <dl className="flex min-w-0 flex-1 items-stretch">
-        <Cell label="Part" className="max-w-2/5 shrink">
+        <TitleCell label="Part" className="max-w-2/5 shrink">
           <span className="font-medium">{part.name}</span>
-        </Cell>
-        <Cell label="Type" className="hidden shrink-0 @md/title-block:flex">
+        </TitleCell>
+        <TitleCell label="Type" className="hidden shrink-0 @md/title-block:flex">
           {part.kind}
-        </Cell>
+        </TitleCell>
         {part.units === null ? null : (
-          <Cell label="Units" className="hidden shrink-0 @md/title-block:flex">
+          <TitleCell label="Units" className="hidden shrink-0 @md/title-block:flex">
             {part.units}
-          </Cell>
+          </TitleCell>
         )}
         {material === null ? null : (
-          <Cell
+          <TitleCell
             label="Material"
             className="hidden min-w-0 shrink @lg/title-block:flex"
             tone={material.missing ? "faint" : "default"}
           >
             {material.text}
-          </Cell>
+          </TitleCell>
         )}
         {build === null ? null : (
-          <Cell label="Build" className="shrink-0" tone={build.failed ? "error" : "default"}>
+          <TitleCell label="Build" className="shrink-0" tone={build.failed ? "error" : "default"}>
             {build.text}
-          </Cell>
+          </TitleCell>
         )}
         {about.results.length > 0 ? (
-          <Cell label="Checks" className="min-w-0 shrink">
+          <TitleCell label="Checks" className="min-w-0 shrink">
             <span className="flex min-w-0 gap-1 overflow-hidden">
               {about.results.map(({ root, result }) => (
                 <CheckBadge
@@ -144,14 +145,14 @@ function ThreadTitleBlock(props: TitleBlockProps) {
                 />
               ))}
             </span>
-          </Cell>
+          </TitleCell>
         ) : model ? (
-          <Cell label="Checks" className="hidden shrink-0 @md/title-block:flex" tone="faint">
+          <TitleCell label="Checks" className="hidden shrink-0 @md/title-block:flex" tone="faint">
             Not checked yet
-          </Cell>
+          </TitleCell>
         ) : null}
         {about.of === null ? null : (
-          <Cell label="Checked part" className="min-w-0 shrink">
+          <TitleCell label="Checked part" className="min-w-0 shrink">
             <button
               type="button"
               onClick={() => open(about.of!)}
@@ -159,7 +160,7 @@ function ThreadTitleBlock(props: TitleBlockProps) {
             >
               {partLabel(about.of)}
             </button>
-          </Cell>
+          </TitleCell>
         )}
       </dl>
     </div>

@@ -16,7 +16,7 @@ import { Button } from "../ui/button";
 import { Toggle, ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { GROUP_PURPOSES, type HardwareAction, type HardwareActionGroup } from "./hardwareActions";
-import { MENU_ICONS, MENU_TINTS } from "./kinds";
+import { MENU_ICONS, MENU_TINTS, MENU_WORDS } from "./kinds";
 import { handToChat } from "./handToChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
@@ -41,8 +41,8 @@ import { usePartJobs } from "./usePartJobs";
 
 /**
  * The Toolbox, down the right of the workspace panel beside the part, the same in AI and CAD: the
- * jobs (`usePartJobs`) of the part in front, else the project's (`usePartForJobs`), as Evaluate,
- * Manufacture and Document (`toolboxGroups`), a tab each, like SolidWorks' CommandManager; the tab
+ * jobs (`usePartJobs`) of the part in front, else the project's (`usePartForJobs`), as Analysis,
+ * Manufacturing and Documents (`toolboxGroups`, `MENU_WORDS`), a tab each, like SolidWorks' CommandManager; the tab
  * left open is remembered on this device. A group with no job for the file in front can't be
  * chosen, says why on its tooltip, and the Toolbox opens on one that has jobs and says what to open
  * for the rest. Every job
@@ -121,11 +121,11 @@ export function StudioToolbox(props: {
         {groups.map((group) => {
           const Icon = MENU_ICONS[group.group];
           return (
-            <ToolboxTip key={group.group} text={group.group} side="left">
+            <ToolboxTip key={group.group} text={MENU_WORDS[group.group]} side="left">
               <Toggle
                 variant="segmented-accent"
                 size="sm"
-                aria-label={group.group}
+                aria-label={MENU_WORDS[group.group]}
                 pressed={group.group === shown?.group}
                 onPressedChange={() => openOn(group.group)}
               >
@@ -183,7 +183,7 @@ export function StudioToolbox(props: {
                 className="flex-1 basis-0"
               >
                 <Icon aria-hidden="true" className={MENU_TINTS[group.group]} />
-                {group.group}
+                {MENU_WORDS[group.group]}
               </ToggleGroupItem>
             );
             if (!off) return item;
@@ -191,7 +191,7 @@ export function StudioToolbox(props: {
             return (
               <ToolboxTip
                 key={group.group}
-                text={toolboxLeftOut([group], part.kind) ?? group.group}
+                text={toolboxLeftOut([group], part.kind) ?? MENU_WORDS[group.group]}
                 side="bottom"
               >
                 <span className="flex min-w-0 flex-1 basis-0">{item}</span>

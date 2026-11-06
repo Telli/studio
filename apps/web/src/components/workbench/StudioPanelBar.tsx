@@ -2,15 +2,11 @@ import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useEffect, useMemo } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
-import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
-import { projectEnvironment } from "~/state/projects";
-import { useEnvironmentQuery } from "~/state/query";
 import { ImportDialogHost } from "./ImportDialog";
 import { ImportMenu } from "./ImportMenu";
 import { useImportIntoProject } from "./importIntoProject";
 import { useImportActions } from "./useImportActions";
-import { leadPartOf } from "./leadPart";
 import { ModeSwitch } from "./ModeSwitch";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { usePanelTabShortcuts } from "./panelTabShortcuts";
@@ -20,47 +16,11 @@ import { modeOf, setSimpleView, simpleOf, simpleViewToggle, useSimpleView } from
 import { StudioNew } from "./StudioNew";
 import { StudioTour } from "./StudioTour";
 import { partName } from "./partNames";
-import { useFolderModels } from "./useFolderModels";
+import { useLeadPart } from "./useLeadPart";
 import { useAddPart } from "./useNewPart";
 import { usePartContext } from "./usePartContext";
 import { useStudioProjectAt } from "./useStudioProjects";
 import { frontViewBusy, pluginViewKey, useViewerEditState } from "./viewerEditState";
-
-/** The thread folder's lead part, read again when the agent changes files. */
-function useLeadPart(threadRef: ScopedThreadRef, folder: string | null, mutationId: string | null) {
-  const listing = useEnvironmentQuery(
-    folder === null
-      ? null
-      : projectEnvironment.listEntries({
-          environmentId: threadRef.environmentId,
-          input: { cwd: folder },
-        }),
-  );
-  useWorkspaceMutationRefresh({
-    enabled: folder !== null,
-    mutationId,
-    refresh: listing.refresh,
-    resourceKey: `studio-lead-part:${folder ?? ""}`,
-  });
-  const entries = listing.data?.entries;
-  // Its cadgen 0.8 models among its parts, by their document ids.
-  const models = useFolderModels(threadRef.environmentId, folder ?? "", mutationId);
-  return useMemo(
-    () =>
-      folder === null || entries === undefined
-        ? null
-        : leadPartOf([
-            {
-              root: folder,
-              paths: entries
-                .filter((entry) => entry.kind === "file" && entry.ignored !== true)
-                .map((entry) => entry.path),
-              models,
-            },
-          ]),
-    [entries, folder, models],
-  );
-}
 
 /**
  * The part in front of the workspace panel, as the CAD viewer shows it (it may have moved on from
@@ -118,7 +78,7 @@ export function usePartForJobs(
   readonly process: string | undefined;
 } {
   const { part: front, process, shown } = usePartInFront(threadRef, folder);
-  const lead = useLeadPart(threadRef, folder, mutationId);
+  const lead = useLeadPart(threadRef.environmentId, folder, mutationId);
   const part =
     front ??
     (shown !== null

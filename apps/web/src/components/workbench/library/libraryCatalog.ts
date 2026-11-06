@@ -16,6 +16,7 @@ import {
   type HardwareActionGroup,
   MORE_LABELS,
 } from "../hardwareActions";
+import { MENU_WORDS } from "../kinds";
 import { DOCUMENT_TEMPLATES, NEW_TEMPLATES, type NewTemplate } from "../newTemplates";
 import libraryExamples from "./libraryExamples.json";
 import { SAMPLE_ID } from "./sampleProject";
@@ -383,19 +384,24 @@ const TRY_ASKING: Readonly<Record<string, string>> = {
   "work-instructions": "Write the work instructions for building the servo mount.",
 };
 
+/** A job's one name: the skill that runs it reads as its library entry does, whatever its own files say. */
+const JOB_NAMES: Readonly<Record<string, string>> = {
+  dfm: "Manufacturing check",
+  fea: "Simulation",
+};
+
 /**
  * text-to-cad's skills as they name themselves (`agents/openai.yaml`'s `display_name`), for where
  * no installed plugin names them, so a skill reads the same whether text-to-cad is installed or not.
  */
 const TEXT_TO_CAD_NAMES: Readonly<Record<string, string>> = {
+  ...JOB_NAMES,
   "bambu-labs": "Bambu Labs",
   cad: "CAD",
   cam: "CAM",
   "dfam-check": "DfAM Check",
-  dfm: "DFM Review",
   dxf: "DXF",
   "engineering-drawing": "Engineering Drawing",
-  fea: "FEA",
   gcode: "G-code",
   sdf: "SDF",
   sendcutsend: "SendCutSend",
@@ -452,7 +458,7 @@ export function madeBy(
 const menuPlace = (job: HardwareAction) => {
   const section = ACTION_SECTIONS.find((candidate) => candidate.id === job.section);
   const heading = section?.more === true ? MORE_LABELS[job.group] : (section?.title ?? job.section);
-  return `${job.group} › ${heading}`;
+  return `${MENU_WORDS[job.group]} › ${heading}`;
 };
 
 /** Find it in: New's discipline for each template, then each job's place in its menu. */
@@ -523,7 +529,8 @@ export function librarySkills(plugins: ReadonlyArray<InstalledPlugin>): LibraryS
         pluginId: plugin.id,
         pluginName: plugin.displayName,
         name: detail.name,
-        displayName: chatName(detail.name, detail.displayName),
+        displayName:
+          (ours ? JOB_NAMES[detail.name] : undefined) ?? chatName(detail.name, detail.displayName),
         description: detail.description,
         tryAsking: (ours ? TRY_ASKING[detail.name] : undefined) ?? detail.defaultPrompt,
         on: plugin.enabled,
@@ -561,7 +568,7 @@ export function showsUpAs(skill: string): ReadonlyArray<string> {
         (template) => template.skill === skill && template.source === "new",
       ).map((template) => template.label),
     },
-    ...MENUS.map((group) => ({ place: group, labels: menuLabels(group, skill) })),
+    ...MENUS.map((group) => ({ place: MENU_WORDS[group], labels: menuLabels(group, skill) })),
   ];
   return places
     .filter(({ labels }) => labels.length > 0)

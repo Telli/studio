@@ -9,11 +9,12 @@ import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
+import { useNowMinute } from "~/hooks/useNowMinute";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { useThreadShellsForProjectRefs } from "~/state/entities";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { CHECK_STATUS as STATUS } from "./CheckBadge";
+import { CheckBadge, CHECK_STATUS as STATUS } from "./CheckBadge";
 import {
   type CheckIssue,
   type CheckResult,
@@ -29,7 +30,8 @@ import {
 } from "./checkResults";
 import { KIND_ICONS } from "./kinds";
 import { humanName, partName } from "./partNames";
-import { leadKind, leadPartOf } from "./leadPart";
+import { leadPartOf } from "./leadPart";
+import { buildLabel, materialLabel } from "./partLabels";
 import { folderFiles, pictureVersions } from "./projectModels";
 import { PageTitle } from "./PageTitle";
 import { type FolderPart, MadeBadges, PartFooter, PartIcon } from "./PartBadges";
@@ -56,6 +58,8 @@ import { ProjectEverything } from "./ProjectEverything";
 import { ProjectSizes } from "./ProjectSizes";
 import { ProjectThreads } from "./ProjectThreads";
 import { useEngineeringInterface } from "./studioInterface";
+import { TitleCell } from "./TitleBlock";
+import { usePartContext } from "./usePartContext";
 import { usePictures } from "./usePictures";
 import { useProjectChecks } from "./useProjectChecks";
 import { useProjectModels } from "./useFolderModels";
@@ -85,11 +89,82 @@ interface Issue {
 const issuePart = (entry: Issue) =>
   entry.part?.title ?? partName(entry.result.part)?.name ?? humanName(entry.result.part);
 
-/** A link at a module's heading: New document, New chat. */
-/** The project's lead part, large: the first model of its first folder, with what was made from it. */
+/** The last of `LeadFacts`' cells ends the row, with no rule after it. */
+const FACT_CELL = "last:border-r-0";
+
+/**
+ * The lead part's title block, under its picture, label over value (`TitleCell`): only what it
+ * already carries. The viewer says more of the part it has open: its material, and a build under way.
+ */
+function LeadFacts(props: {
+  readonly part: FolderPart;
+  readonly threadRef: ScopedThreadRef;
+  /** How the project's sizes are written, until the viewer says how it reads the part. */
+  readonly units: string;
+  /** Opens a check's result, by its path in the part's folder. */
+  readonly onOpenFile: (path: string) => void;
+}) {
+  const { part } = props;
+  useNowMinute();
+  const shown = usePartContext(props.threadRef)?.part ?? null;
+  const facts =
+    shown?.path === (part.file.document ?? `${part.root.replace(/[\\/]+$/, "")}/${part.file.path}`)
+      ? shown
+      : null;
+  const material = facts === null ? null : materialLabel(facts.materials);
+  const build = buildLabel(
+    facts?.build ??
+      (part.file.version === undefined
+        ? null
+        : { state: "built", at: Number(part.file.version) * 1000 }),
+  );
+  const checks = [...part.results, ...part.outdated];
+  return (
+    <dl className="flex min-w-0 flex-wrap items-stretch gap-y-2 rounded-lg border border-border py-2">
+      <TitleCell label="Type" className={FACT_CELL}>
+        {part.file.kind}
+      </TitleCell>
+      <TitleCell label="Units" className={FACT_CELL}>
+        {facts?.units ?? props.units}
+      </TitleCell>
+      {material === null ? null : (
+        <TitleCell
+          label="Material"
+          className={FACT_CELL}
+          tone={material.missing ? "faint" : "default"}
+        >
+          {material.text}
+        </TitleCell>
+      )}
+      {build === null ? null : (
+        <TitleCell label="Build" className={FACT_CELL} tone={build.failed ? "error" : "default"}>
+          {build.text}
+        </TitleCell>
+      )}
+      {checks.length === 0 ? null : (
+        <TitleCell label="Checks" className={FACT_CELL}>
+          <span className="flex min-w-0 flex-wrap gap-1">
+            {checks.map((result) => (
+              <CheckBadge
+                key={result.path}
+                result={result}
+                outOfDate={checkOutOfDate(result, part.file)}
+                onOpen={() => props.onOpenFile(result.model)}
+              />
+            ))}
+          </span>
+        </TitleCell>
+      )}
+    </dl>
+  );
+}
+
+/** The project's lead part, large (`leadPartOf`): its picture, facts and what was made from it. */
 function LeadPart(props: {
   readonly environmentId: EnvironmentId;
   readonly part: FolderPart;
+  readonly threadRef: ScopedThreadRef;
+  readonly units: string;
   /** Its path, with code tools on. */
   readonly where: string | undefined;
   readonly onOpen: () => void;
@@ -105,9 +180,10 @@ function LeadPart(props: {
   });
   const picture = pictures.get(part.file.picture ?? part.file.path);
   const status = worstStatus(part.results);
+  const name = part.file.title;
   return (
     <section aria-label="Lead part" className={SECTION_STACK}>
-      <PageTitle title={part.file.title} label={leadKind(part.file)} />
+      <PageTitle title={name} label={part.file.kind} />
       <button
         type="button"
         onClick={props.onOpen}
@@ -120,12 +196,18 @@ function LeadPart(props: {
           <PartIcon file={part.file} className="size-10 text-muted-foreground/50" />
         )}
       </button>
-      <span className="min-w-0 truncate text-xs text-muted-foreground">
+      <LeadFacts
+        part={part}
+        threadRef={props.threadRef}
+        units={props.units}
+        onOpenFile={props.onOpenFile}
+      />
+      <span className="min-w-0 text-xs text-muted-foreground">
         {status !== null
-          ? sentenceCase(STATUS[status].caption)
+          ? `${sentenceCase(STATUS[status].caption)} on ${name}`
           : part.outdated.length > 0
-            ? "Part changed since its last check"
-            : "No checks run on this part yet"}
+            ? `${name} changed since its last check`
+            : `No checks run on ${name} yet`}
         {props.where === undefined ? "" : ` · ${props.where}`}
       </span>
       {part.drawings.length + part.made.length === 0 ? null : (
@@ -446,6 +528,8 @@ export function ProjectOverview(props: {
           <LeadPart
             environmentId={props.environmentId}
             part={lead}
+            threadRef={props.threadRef}
+            units={props.units}
             where={engineering ? undefined : lead.file.path}
             onOpen={() => props.onOpen(lead.root, lead.file.path)}
             onOpenFile={(path) => props.onOpen(lead.root, path)}

@@ -24,7 +24,8 @@ const isStudyPicture = (path: string, paths: ReadonlySet<string>) =>
 
 /**
  * A new thread's starters, made from the project rather than fixed: the jobs
- * its most recently used parts, boards and studies take, each kind of job once
+ * its lead part (`leadPartOf`, the part the Overview shows), then its most
+ * recently used parts, boards and studies take, each kind of job once
  * (a check of how it is made, the brief's way first; strength, fit or mass; a
  * document; a way to make it), each one the installed skills can do. A project with no files yet starts from its brief;
  * with neither, there is nothing to suggest. `paths` are the recent files as
@@ -35,8 +36,12 @@ export function projectStarters(
   skills: ReadonlySet<string>,
   brief: ProjectBrief | null,
   paths: ReadonlySet<string> = new Set(recentFiles.map((file) => file.path)),
+  lead: ProjectFile | null = null,
 ): Starter[] {
-  const subjects = recentFiles
+  const subjects = [
+    ...(lead === null ? [] : [lead]),
+    ...recentFiles.filter((file) => file.path !== lead?.path),
+  ]
     .filter((file) => STARTER_GROUPS.has(file.group) && !isStudyPicture(file.path, paths))
     .slice(0, 3);
   const starters: Starter[] = [];
@@ -62,7 +67,7 @@ export function projectStarters(
         .filter((action) => action.skill !== null && action.section !== "files"),
     };
   });
-  // Each kind of job once, from the most recent file that takes it, so the starters cover the
+  // Each kind of job once, from the first of them that takes it, so the starters cover the
   // work rather than one job on every part: a check of how it would be made (the brief's way
   // first), a check of strength, fit or mass, a document, then a way to make it. A kind no
   // installed skill does is left out, not filled with a second job of another kind.

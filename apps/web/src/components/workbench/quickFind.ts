@@ -1,5 +1,6 @@
 import type { HardwareAction, HardwareActionMenu } from "./hardwareActions";
 import { overviewParts } from "./checkResults";
+import { MENU_WORDS } from "./kinds";
 import { classifyProjectFile, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import { projectFileItems } from "./projectItems";
 import { folderFiles, type ProjectModel } from "./projectModels";
@@ -33,13 +34,14 @@ export interface FoundJob {
  */
 export function findJobs(menus: ReadonlyArray<HardwareActionMenu>, query: string): FoundJob[] {
   if (query.trim() === "") return [];
-  return menus.flatMap((menu) =>
-    [...menu.sections, ...menu.others].flatMap((section) =>
+  return menus.flatMap((menu) => {
+    const word = MENU_WORDS[menu.group];
+    return [...menu.sections, ...menu.others].flatMap((section) =>
       section.actions
-        .filter((action) => holdsWords(`${action.label}\n${section.title}\n${menu.group}`, query))
-        .map((action) => ({ action, place: `${menu.group} · ${section.title}` })),
-    ),
-  );
+        .filter((action) => holdsWords(`${action.label}\n${section.title}\n${word}`, query))
+        .map((action) => ({ action, place: `${word} · ${section.title}` })),
+    );
+  });
 }
 
 /** A part in one of a project's folders. */

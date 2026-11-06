@@ -16,8 +16,8 @@ import { chatLabel, workspaceTitle } from "./workspaceTitle";
 /**
  * A project as Home and Projects show it: a picture of its main part (its first assembly, else
  * its first part or board), or its kind's icon until it has one; its name as the sidebar says it
- * (`workspaceTitle`, and Needs you in blue while a chat waits on the person); and its latest chat
- * and when, or the chat that waits. New sits on the picture's corner on its first day, a star on
+ * (`workspaceTitle`); and its latest chat and when, or the chat that waits. Needs you sits in blue
+ * on the picture's corner while a chat waits on the person, New there on its first day, a star on
  * the other (shown on hover, and always once starred). With
  * `onMenu`, a right-click or the "…" on hover opens its menu, as Drive's on a file (`ProjectMenu`).
  */
@@ -82,7 +82,11 @@ export function ProjectTile(props: {
           ) : (
             <KindIcon className={cn("size-8", fileTint(kind))} aria-hidden="true" />
           )}
-          {first === undefined && activity.isNew ? (
+          {first !== undefined ? (
+            <span className="absolute top-2 left-2">
+              <Badge variant="info">Needs you</Badge>
+            </span>
+          ) : activity.isNew ? (
             <span className="absolute top-2 left-2">
               <Badge variant="outline">New</Badge>
             </span>
@@ -95,10 +99,7 @@ export function ProjectTile(props: {
             props.onMenu !== undefined && "pe-9",
           )}
         >
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium text-foreground">{name}</span>
-            {first !== undefined ? <Badge variant="info">Needs you</Badge> : null}
-          </span>
+          <span className="truncate text-sm font-medium text-foreground">{name}</span>
           <span
             className={cn(
               "truncate text-xs tabular-nums",

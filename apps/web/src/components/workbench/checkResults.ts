@@ -254,18 +254,18 @@ function sharedFolders(a: string, b: string): number {
 }
 
 /**
- * What was made to manufacture each part, by the part's path: the CAM jobs, G-code, Gerbers and
- * the like whose names begin with the part's own (`l_bracket.nc`, `servo_power.gerbers.zip`).
- * Each file is one part's: the one whose name it begins with most of, then the one in the folder
- * nearest it, so `bracket_v2.nc` is Bracket v2's, not Bracket's.
+ * What was made from each part in one group of files, by the part's path: those whose names begin
+ * with the part's own. Each file is one part's: the one whose name it begins with most of, then
+ * the one in the folder nearest it, so `bracket_v2.nc` is Bracket v2's, not Bracket's.
  */
-export function manufacturingFor(
+function namedFor(
   parts: ReadonlyArray<ProjectFile>,
   files: ReadonlyArray<ProjectFile>,
+  group: ProjectFile["group"],
 ): Map<string, ProjectFile[]> {
   const made = new Map<string, ProjectFile[]>();
   for (const file of files) {
-    if (file.group !== "Manufacturing") continue;
+    if (file.group !== group) continue;
     const name = file.name.toLowerCase();
     const owner = parts
       .filter((part) => {
@@ -281,6 +281,19 @@ export function manufacturingFor(
   }
   return made;
 }
+
+/**
+ * What was made to manufacture each part, by the part's path: the CAM jobs, G-code, Gerbers and
+ * the like whose names begin with the part's own (`l_bracket.nc`, `servo_power.gerbers.zip`).
+ */
+export const manufacturingFor = (
+  parts: ReadonlyArray<ProjectFile>,
+  files: ReadonlyArray<ProjectFile>,
+) => namedFor(parts, files, "Manufacturing");
+
+/** Each part's study files, by the part's path: those whose names begin with its own. */
+export const studiesFor = (parts: ReadonlyArray<ProjectFile>, files: ReadonlyArray<ProjectFile>) =>
+  namedFor(parts, files, "Analysis");
 
 /** The worst status among the results, or null when none has run. */
 export function worstStatus(results: ReadonlyArray<CheckResult>): CheckStatus | null {

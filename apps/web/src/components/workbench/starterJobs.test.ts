@@ -25,6 +25,12 @@ describe("project starters", () => {
     );
   });
 
+  it("starts on the lead part, however recently another was touched", () => {
+    const [touched, lead] = files("parts/nema17.step", "parts/motor_plate.step");
+    const starters = projectStarters([touched!, lead!], new Set(["dfm"]), null, undefined, lead);
+    expect(starters[0]?.label).toBe("Check motor plate for CNC machining");
+  });
+
   it("checks for the brief's way of making it first, and never offers to make a study's picture", () => {
     const brief = { ...EMPTY_BRIEF, process: "Sheet metal" };
     const recent = [

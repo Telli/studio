@@ -3,6 +3,7 @@ import {
   type HardwareActionGroup,
   type HardwareActionMenu,
 } from "./hardwareActions";
+import { MENU_WORDS } from "./kinds";
 import { libraryHref } from "./library/librarySearch";
 import { lowerName } from "./partNames";
 
@@ -97,7 +98,9 @@ export function toolboxShownGroup(
  * group has jobs for it.
  */
 export function toolboxLeftOut(groups: ReadonlyArray<ToolboxGroup>, kind: string): string | null {
-  const names = groups.filter((group) => jobCount(group) === 0).map((group) => group.group);
+  const names = groups
+    .filter((group) => jobCount(group) === 0)
+    .map((group) => MENU_WORDS[group.group]);
   if (names.length === 0) return null;
   const listed = new Intl.ListFormat("en", { type: "disjunction" }).format(names);
   return `No ${listed} jobs for this ${lowerName(kind)}. Open a part to see them.`;

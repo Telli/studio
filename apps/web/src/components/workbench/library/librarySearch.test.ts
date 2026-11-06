@@ -5,7 +5,7 @@ import { LIBRARY_DOCUMENTS, librarySkills } from "./libraryCatalog";
 import { filterLibrary, findInLibrary, libraryGroup, validateLibrarySearch } from "./librarySearch";
 
 /** A display name that no document type's own words hold, so only the shown name can find it. */
-const DISPLAY_NAMES: Readonly<Record<string, string>> = { fea: "Finite element analysis" };
+const DISPLAY_NAMES: Readonly<Record<string, string>> = { "dfam-check": "Printability review" };
 
 const detail = (name: string): PluginSkillDetail => ({
   name,
@@ -54,14 +54,18 @@ describe("filterLibrary", () => {
   });
 
   it("finds a document type by its skill's name as the page shows it, and by its own name", () => {
-    expect(found("finite element")).toEqual(
-      expect.arrayContaining(["doc:simulation", "skill:text-to-cad/fea"]),
+    expect(found("printability review")).toEqual(
+      expect.arrayContaining(["doc:manufacturing-check", "skill:text-to-cad/dfam-check"]),
     );
     expect(found("fea")).toContain("doc:simulation");
+    // The job's one name stands for its skill, whatever the skill's own files say.
+    expect(found("simulation")).toEqual(
+      expect.arrayContaining(["doc:simulation", "skill:text-to-cad/fea"]),
+    );
   });
 
   it("finds a document type by where it is", () => {
-    expect(found("Evaluate")).toContain("doc:simulation");
+    expect(found("Analysis")).toContain("doc:simulation");
   });
 
   it("finds under New only what New makes from nothing", () => {

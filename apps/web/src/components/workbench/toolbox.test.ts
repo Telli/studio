@@ -126,13 +126,13 @@ describe("the Toolbox on a file that is not a part", () => {
   it("says what is left out, and what to open for it", () => {
     expect(toolboxLeftOut(groupsFor("Part"), "Part")).toBeNull();
     expect(toolboxLeftOut(groupsFor("CAM job"), "CAM job")).toBe(
-      "No Manufacture jobs for this CAM job. Open a part to see them.",
+      "No Manufacturing jobs for this CAM job. Open a part to see them.",
     );
     expect(toolboxLeftOut(groupsFor("Drawing"), "Drawing")).toBe(
-      "No Evaluate jobs for this drawing. Open a part to see them.",
+      "No Analysis jobs for this drawing. Open a part to see them.",
     );
     expect(toolboxLeftOut(groupsFor("Document"), "Document")).toBe(
-      "No Evaluate or Manufacture jobs for this document. Open a part to see them.",
+      "No Analysis or Manufacturing jobs for this document. Open a part to see them.",
     );
   });
 });

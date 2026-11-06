@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
+import { MODULE_HEADING } from "../studioLayout";
 
 /** Covers along a shelf, by the width of the page's `@container`. */
 const SHELF_ROW = "grid grid-cols-2 gap-3 @xl:grid-cols-3 @3xl:grid-cols-4 @5xl:grid-cols-5";
@@ -33,10 +34,10 @@ export function LibraryShelf(props: {
       aria-label={shelf.title}
       className="flex scroll-mt-6 flex-col gap-3"
     >
-      <h2 className="flex items-center gap-2 border-b border-border pb-2 text-sm font-medium text-foreground">
+      <h2 className={cn(MODULE_HEADING, "items-center border-b border-border pb-2")}>
         <Icon aria-hidden="true" className={cn("size-4 shrink-0", shelf.tint)} />
         <span className="truncate">{shelf.title}</span>
-        <span className="text-xs font-normal text-muted-foreground">{shelf.count}</span>
+        <span className="tabular-nums">{shelf.count}</span>
       </h2>
       {props.note === undefined ? null : (
         <p className="text-sm text-muted-foreground">{props.note}</p>

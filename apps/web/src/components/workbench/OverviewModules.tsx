@@ -12,7 +12,7 @@ import { fileTint, KIND_ICONS } from "./kinds";
 import { readmeInline } from "./projectReadme";
 import { filePlaces, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import { useEngineeringInterface } from "./studioInterface";
-import { CARD_GRID, MODULE_HEADING, SECTION_STACK } from "./studioLayout";
+import { CARD_GRID, MODULE_HEADING, MODULE_NOTE, SECTION_STACK } from "./studioLayout";
 import { usePictures } from "./usePictures";
 
 /** A module shows this many files before "Show all": two rows of cards at most widths. */
@@ -62,7 +62,8 @@ export function useFoldedModules(project: string) {
 
 export function ShowAll(props: {
   readonly all: boolean;
-  readonly count: number;
+  /** How many there are to show; none for words folded to a few lines. */
+  readonly count?: number;
   readonly onToggle: () => void;
 }) {
   return (
@@ -71,7 +72,7 @@ export function ShowAll(props: {
       onClick={props.onToggle}
       className="self-start text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
     >
-      {props.all ? "Show fewer" : `Show all ${props.count}`}
+      {props.all ? "Show fewer" : `Show all${props.count === undefined ? "" : ` ${props.count}`}`}
     </button>
   );
 }
@@ -128,11 +129,7 @@ export function OverviewModule(props: {
             <Icon aria-hidden="true" className="size-3.5 self-center text-foreground/75" />
           )}
           {props.title}
-          {props.note ? (
-            <span className="font-normal tracking-normal text-muted-foreground normal-case">
-              {props.note}
-            </span>
-          ) : null}
+          {props.note ? <span className={MODULE_NOTE}>{props.note}</span> : null}
           {props.count === undefined ? null : (
             <span className="tabular-nums text-muted-foreground">{props.count}</span>
           )}

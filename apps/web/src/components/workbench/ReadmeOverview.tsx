@@ -11,6 +11,8 @@ import {
 } from "react";
 
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
+import { observeResize } from "~/lib/observeResize";
+import { cn } from "~/lib/utils";
 import { observeVisibleAnimation } from "~/lib/visibleAnimation";
 import {
   getOptimisticProjectFileQueryData,
@@ -18,8 +20,8 @@ import {
   useProjectFileQuery,
 } from "../files/projectFilesQueryState";
 import { useFileSaveCoordinator } from "../files/useFileSaveCoordinator";
-import { OverviewModule, useFoldedModules } from "./OverviewModules";
-import { MODULE_HEADING, SECTION_STACK } from "./studioLayout";
+import { OverviewModule, ShowAll, useFoldedModules } from "./OverviewModules";
+import { MODULE_HEADING, MODULE_NOTE, SECTION_STACK } from "./studioLayout";
 import {
   isPlainReadmeText,
   type ReadmeBlock,
@@ -243,6 +245,41 @@ function ReadmeBlocks(props: {
 }
 
 /**
+ * What the project is, folded to about four lines with Show all where there is more, so the page
+ * stays as short as its picture. Typing in it, or the first README coming in, shows it whole.
+ */
+function FoldedWords(props: { readonly children: ReactNode }) {
+  const writingIn = useContext(WritingIn);
+  const [all, setAll] = useState(false);
+  const [more, setMore] = useState(false);
+  const words = useRef<HTMLParagraphElement>(null);
+  const folded = !all && !writingIn;
+  useLayoutEffect(() => {
+    const element = words.current;
+    if (element === null || !folded) return;
+    const measure = () => setMore(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    return observeResize(element, measure);
+  }, [folded]);
+  return (
+    <>
+      <p
+        ref={words}
+        className={cn(
+          "max-w-[75ch] text-sm leading-relaxed whitespace-pre-line text-foreground",
+          folded && "line-clamp-4 focus-within:line-clamp-none",
+        )}
+      >
+        {props.children}
+      </p>
+      {writingIn || !(more || all) ? null : (
+        <ShowAll all={all} onToggle={() => setAll((value) => !value)} />
+      )}
+    </>
+  );
+}
+
+/**
  * The top of a project's Overview in the engineering interface: its README, read as an engineer
  * reads one. What it is (the brief's purpose until the README says), the decisions made so far,
  * each with when and whether it was asked of the agent or made by hand (a long list folded to its
@@ -359,17 +396,22 @@ export function ReadmeOverview(props: {
         className="flex flex-col gap-6"
       >
         <div className={SECTION_STACK}>
-          <h2 className={MODULE_HEADING}>What it is</h2>
+          <h2 className={MODULE_HEADING}>
+            What it is
+            {sections.whatItIs === null ? null : (
+              <span className={MODULE_NOTE}>From the README</span>
+            )}
+          </h2>
           {whatItIs === null ? (
             <p className="text-sm text-muted-foreground">
               Not written yet. Studio writes it from the project's chats.
             </p>
           ) : (
-            <p className="max-w-[75ch] text-sm leading-relaxed whitespace-pre-line text-foreground">
+            <FoldedWords>
               <Typed words={sections.whatItIs} multiline onSave={save}>
                 <ReadmeText text={whatItIs} onOpenPath={props.onOpenPath} />
               </Typed>
-            </p>
+            </FoldedWords>
           )}
         </div>
         {sections.decisions.length > LONG_DECISIONS ? (
