@@ -992,9 +992,14 @@ export const make = Effect.gen(function* () {
         } as ElectronUpdater.ElectronUpdaterFeedUrl);
       }
 
-      const settings = yield* desktopSettings.get;
+      // One channel: the feed has no nightlies and Settings no picker, so a Nightly an older app
+      // stored goes back to the build's own, or it would never find another update.
+      const channel = environment.defaultDesktopSettings.updateChannel;
+      if ((yield* desktopSettings.get).updateChannel !== channel) {
+        yield* desktopSettings.setUpdateChannel(channel).pipe(Effect.ignore);
+      }
       const enabled = yield* shouldEnableAutoUpdates;
-      yield* setState(createBaseUpdateState(settings.updateChannel, enabled, environment));
+      yield* setState(createBaseUpdateState(channel, enabled, environment));
       if (!enabled) {
         return;
       }
@@ -1002,7 +1007,7 @@ export const make = Effect.gen(function* () {
 
       yield* electronUpdater.setAutoDownload(false);
       yield* electronUpdater.setAutoInstallOnAppQuit(false);
-      yield* applyAutoUpdaterChannel(settings.updateChannel);
+      yield* applyAutoUpdaterChannel(channel);
       yield* electronUpdater.setDisableDifferentialDownload(
         isArm64HostRunningIntelBuild(environment.runtimeInfo),
       );
