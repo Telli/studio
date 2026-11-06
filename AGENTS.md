@@ -32,9 +32,10 @@ typecheck and the tests on every push to `main` and every change request.
    tokens; review keeps `destructive`, `warning` and `success` for status._
 8. **NX and SolidWorks are the bar.** An engineer finds each thing where their CAD puts it.
    _Review._
-9. **Only anonymous counts leave the machine.** Never prompts, file names or geometry. The README
-   lists every event, the receiver refuses anything else, and the off switch stops all of them and
-   deletes what was sent.
+9. **Studio itself sends only anonymous counts.** Never prompts, file names or geometry. A project
+   leaves the machine only when the person turns on Sync or backs it up, to their own account. The
+   README lists every event, the receiver refuses anything else, and the off switch stops all of
+   them and deletes what was sent.
    _Tests: `apps/server/src/telemetry/usageDataListed.test.ts`,
    `apps/server/src/telemetry/AnalyticsService.test.ts` and `infra/usage/src/events.test.mjs`._
 10. **text-to-cad stays Jake's.** Studio's changes to the CAD tools are commits on `studio-base` in
