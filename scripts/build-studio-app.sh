@@ -237,8 +237,9 @@ if [ "$platform" = win ]; then
   cp "$ROOT/release/Studio-$VERSION-x64.exe" "$ROOT/release/Studio-Setup.exe"
   printf '\n\033[1mStudio is built:\033[0m %s\n' "$ROOT/release/Studio-$VERSION-x64.exe"
   # What a running Studio updates from: the installer, its blockmap (for downloading only what
-  # changed) and latest.yml, which names them.
-  printf "Add it to the version's release with:\n\n  gh release upload v%s %s --repo amywork777/studio-download\n\n" \
+  # changed) and latest.yml, which names them. They join the Mac build's draft, so neither updater
+  # reads a release that lacks its feed.
+  printf "Add it to the version's draft with:\n\n  gh release upload v%s %s --repo amywork777/studio-download\n\n" \
     "$VERSION" "Studio-Setup.exe Studio-$VERSION-x64.exe Studio-$VERSION-x64.exe.blockmap latest.yml"
   exit 0
 fi
@@ -274,5 +275,9 @@ if [ "$signed" = true ]; then
   # latest-mac.yml, which names them.
   assets="$assets $ROOT/release/Studio-$VERSION-arm64.zip $ROOT/release/Studio-$VERSION-arm64.zip.blockmap $ROOT/release/latest-mac.yml"
 fi
-printf 'Publish it with:\n\n  gh release create v%s %s --repo amywork777/studio-download --title "Studio %s"\n\n' \
-  "$VERSION" "$assets" "$VERSION"
+# A draft first, with its notes (STUDIO.md, Releasing), so neither updater reads a release that lacks
+# its feed. Nothing here publishes: Amy adds the Windows files, tries the download, then publishes.
+printf 'Draft it with:\n\n  gh release create v%s %s --repo amywork777/studio-download --draft --title "Studio %s (text-to-cad %s)" --notes-file release/notes.md\n\n' \
+  "$VERSION" "$assets" "$VERSION" "$text_to_cad"
+printf 'Add the Windows files, try its download, then publish with:\n\n  gh release edit v%s --repo amywork777/studio-download --draft=false --latest\n\n' \
+  "$VERSION"
