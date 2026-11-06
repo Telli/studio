@@ -155,6 +155,9 @@ jobs:
           $studio = Join-Path $app "resources\studio"
           & (Join-Path $studio "python\python.exe") scripts\studio-app-check.py $studio
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # A release must open: the installed app starts on a home of its own and shows its first screen.
+          node scripts/studio-app-open-check.mjs $exe.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Keep the installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

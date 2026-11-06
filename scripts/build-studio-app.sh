@@ -243,9 +243,10 @@ if [ "$platform" = win ]; then
   exit 0
 fi
 
-# The built app's own CAD tools build the example's plate and solve its strength study, held to the
-# answer the example ships with (scripts/studio-app-check.py): a build that fails it is not offered
-# for publishing. On Windows the workflow checks the installed app the same way.
+# The built app's own CAD tools rebuild the examples' STEP files and solve their strength studies, held
+# to what the examples ship with (scripts/studio-app-check.py), and the app must open
+# (scripts/studio-app-open-check.mjs): a build that fails is not offered for publishing. On Windows
+# the workflow checks the installed app the same way.
 # It checks the app inside the DMG, the one a person downloads, mounted read-only.
 step "Checking the app's CAD tools"
 mounted="$(mktemp -d "$TMPDIR/studio-dmg.XXXXXX")"
@@ -253,8 +254,14 @@ hdiutil attach -readonly -nobrowse -mountpoint "$mounted" "$ROOT/release/Studio-
 app_studio="$mounted/Studio.app/Contents/Resources/studio"
 checked=true
 "$app_studio/python/bin/python3" "$ROOT/scripts/studio-app-check.py" "$app_studio" || checked=false
-hdiutil detach "$mounted" >/dev/null
-[ "$checked" = true ] || stop "The built app could not build the example part or solve its strength study."
+# A release must open: the same app starts on a home of its own and shows its first screen.
+step "Opening the app"
+opened=true
+node "$ROOT/scripts/studio-app-open-check.mjs" "$mounted/Studio.app" || opened=false
+# The app's background setup can still be running from the disk image for a moment.
+hdiutil detach "$mounted" >/dev/null || hdiutil detach -force "$mounted" >/dev/null
+[ "$checked" = true ] || stop "The built app could not rebuild the examples or solve their strength studies."
+[ "$opened" = true ] || stop "The built app did not open to its first screen."
 
 # The download's one name: the guide page and amywork777/studio-download's README link to
 # releases/latest/download/Studio-arm64.dmg, so publishing a version changes no link.
