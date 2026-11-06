@@ -8,9 +8,9 @@
 export const WORKBENCH_LAYOUT = import.meta.env.VITE_APP_LAYOUT === "workbench";
 
 export const CHAT_DOCK_WIDTH_STORAGE_KEY = "studio:chat-dock-width";
-export const CHAT_DOCK_DEFAULT_WIDTH = 400;
-/** The composer overflows below this, the floor T3 keeps beside its panel. */
-export const CHAT_DOCK_MIN_WIDTH = 360;
+export const CHAT_DOCK_DEFAULT_WIDTH = 340;
+/** As narrow as the dock goes: it opens there, for the model to have the room. */
+export const CHAT_DOCK_MIN_WIDTH = 340;
 /** The viewer's own floor; below both floors the dock yields, as T3's chat column does. */
 export const WORKBENCH_MIN_WIDTH = 360;
 

@@ -39,7 +39,7 @@ function DeleteForeverDialog(props: {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogClose render={<Button variant="outline" />}>Cancel</AlertDialogClose>
-          <Button variant="destructive" onClick={props.onDelete}>
+          <Button variant="secondary" onClick={props.onDelete}>
             Delete forever
           </Button>
         </AlertDialogFooter>
@@ -92,7 +92,7 @@ function TrashPageFor(props: { readonly environmentId: EnvironmentId }) {
               key={entry.id}
               className="flex min-w-0 items-center gap-3 border-b border-border p-3"
             >
-              <ProjectThumb environmentId={environmentId} project={entry} />
+              <ProjectThumb environmentId={environmentId} project={entry} size="lg" />
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
                 {entry.name}
               </span>
@@ -109,7 +109,7 @@ function TrashPageFor(props: { readonly environmentId: EnvironmentId }) {
                   Restore
                 </Button>
                 <Button
-                  variant="destructive-outline"
+                  variant="ghost-muted"
                   size="sm"
                   disabled={busy.has(entry.id)}
                   onClick={() => setDeleting({ id: entry.id, name: entry.name })}

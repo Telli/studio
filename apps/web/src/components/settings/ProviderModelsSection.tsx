@@ -485,9 +485,9 @@ export function ProviderModelsSection({
         <span className="flex min-w-0 items-baseline gap-2">
           <span className={cn(nameClassName, "truncate")}>{model.name}</span>
           {model.name !== model.slug ? (
-            <code className="truncate font-mono text-xs text-muted-foreground/70">
+            <span className="truncate text-xs tabular-nums text-muted-foreground/70">
               {model.slug}
-            </code>
+            </span>
           ) : null}
           {model.isCustom ? <span className="text-xs text-muted-foreground/70">custom</span> : null}
         </span>

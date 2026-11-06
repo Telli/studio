@@ -171,7 +171,7 @@ function ProviderLastChecked({ lastCheckedAt }: { lastCheckedAt: string | null }
     <span>
       {lastCheckedRelative.suffix ? (
         <>
-          Checked <span className="font-mono tabular-nums">{lastCheckedRelative.value}</span>{" "}
+          Checked <span className="tabular-nums">{lastCheckedRelative.value}</span>{" "}
           {lastCheckedRelative.suffix}
         </>
       ) : (
@@ -274,7 +274,7 @@ function EnvironmentUnavailablePlaceholder({
         <ExpandableText
           key={environment.environmentId}
           text={error}
-          className="w-full text-left font-mono text-xs leading-relaxed text-muted-foreground"
+          className="w-full text-left text-xs leading-relaxed text-muted-foreground"
         />
       ) : null}
     </ProviderSettingsPlaceholder>

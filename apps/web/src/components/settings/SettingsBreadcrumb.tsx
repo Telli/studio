@@ -1,8 +1,4 @@
-import {
-  WorkspaceBreadcrumb,
-  WorkspaceBreadcrumbItem,
-  WorkspaceBreadcrumbSeparator,
-} from "../WorkspaceBreadcrumb";
+import { WorkspaceBreadcrumb, WorkspaceBreadcrumbItem } from "../WorkspaceBreadcrumb";
 import { SETTINGS_SECTION_LABELS } from "./settingsSearch";
 import { settingsSectionLabel, useEngineeringInterface } from "../workbench/studioInterface";
 
@@ -27,22 +23,18 @@ export function useSettingsPageLabel(pathname: string): string | null {
 }
 
 /**
- * `Settings / Section`. The scope a change applies to lives at the top of the
- * page content, see `SettingsScopeSentence`.
+ * `Settings`, for an unnamed page: a named one says its name once, in its title
+ * (`SettingsPageContainer`) and on the rail. The scope a change applies to
+ * lives at the top of the page content, see `SettingsScopeSentence`.
  */
 export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
   const sectionLabel = useSettingsPageLabel(pathname);
+  if (sectionLabel !== null) return null;
 
   return (
     <WorkspaceBreadcrumb ariaLabel="Settings breadcrumb">
-      {sectionLabel ? (
-        <>
-          <WorkspaceBreadcrumbItem>Settings</WorkspaceBreadcrumbItem>
-          <WorkspaceBreadcrumbSeparator />
-        </>
-      ) : null}
       <WorkspaceBreadcrumbItem current className="truncate">
-        {sectionLabel ?? "Settings"}
+        Settings
       </WorkspaceBreadcrumbItem>
     </WorkspaceBreadcrumb>
   );

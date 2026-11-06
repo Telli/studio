@@ -48,7 +48,7 @@ export function ProjectStarters(props: {
   if (starters.length === 0) return null;
 
   return (
-    <div className="pointer-events-auto mt-4 flex flex-wrap justify-center gap-2">
+    <div className="pointer-events-auto mt-4 flex flex-wrap gap-2">
       {starters.map((starter) => (
         <Button
           key={starter.label}

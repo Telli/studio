@@ -35,10 +35,10 @@ const toggleVariants = cva(
           "border-input bg-background not-dark:bg-clip-padding shadow-xs/5 not-disabled:not-active:not-data-pressed:before:shadow-[0_1px_--theme(--color-black/4%)] dark:bg-input/32 dark:data-pressed:bg-input dark:hover:bg-input/64 dark:not-disabled:not-active:not-data-pressed:before:shadow-[0_-1px_--theme(--color-white/6%)] dark:not-disabled:not-data-pressed:before:shadow-[0_-1px_--theme(--color-white/2%)] [:disabled,:active,[data-pressed]]:shadow-none",
         segmented:
           "border-transparent text-muted-foreground shadow-none transition-colors before:shadow-none hover:bg-background/55 hover:text-foreground data-pressed:bg-background data-pressed:text-foreground data-pressed:shadow-xs/10 dark:hover:bg-input/32 dark:data-pressed:bg-input/72",
-        // Segmented, the pressed one marked by an accent underline rather than a lighter grey: for
-        // where you are, as a CAD ribbon marks its active tab.
+        // Segmented, the pressed one marked by an accent underline alone, with no pill behind it:
+        // for where you are, as a CAD ribbon marks its active tab.
         "segmented-accent":
-          "border-transparent text-muted-foreground shadow-none transition-colors before:shadow-none hover:bg-background/55 hover:text-foreground data-pressed:bg-linear-to-r data-pressed:from-info data-pressed:to-info data-pressed:bg-size-[calc(100%-0.75rem)_2px] data-pressed:bg-bottom data-pressed:bg-no-repeat data-pressed:text-foreground dark:hover:bg-input/32",
+          "border-transparent text-muted-foreground shadow-none transition-colors before:shadow-none hover:bg-background/55 hover:text-foreground data-pressed:bg-transparent data-pressed:bg-linear-to-r data-pressed:from-info data-pressed:to-info data-pressed:bg-size-[calc(100%-0.75rem)_2px] data-pressed:bg-bottom data-pressed:bg-no-repeat data-pressed:text-foreground dark:hover:bg-input/32",
       },
     },
   },

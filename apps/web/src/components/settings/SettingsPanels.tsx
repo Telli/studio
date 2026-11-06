@@ -143,9 +143,9 @@ import {
 } from "../ui/number-field";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { StudioInterfaceSetting } from "../workbench/StudioInterfaceSetting";
-import { engineeringSettingCopy } from "../workbench/engineeringSettings";
+import { engineeringRestoreLabel, engineeringSettingCopy } from "../workbench/engineeringSettings";
 import { MODULE_HEADING } from "../workbench/studioLayout";
-import { useEngineeringInterface } from "../workbench/studioInterface";
+import { isEngineeringInterface, useEngineeringInterface } from "../workbench/studioInterface";
 import { Switch } from "../ui/switch";
 import { ScopedSwitch } from "./ScopedSwitch";
 import { stackedThreadToast, toastManager } from "../ui/toast";
@@ -305,9 +305,9 @@ function AboutVersionTitle(props: { readonly version?: string | undefined }) {
   return (
     <span className="inline-flex items-baseline gap-2">
       <span>Version</span>
-      <code className="text-xs font-medium text-muted-foreground">
+      <span className="text-xs font-medium tabular-nums text-muted-foreground">
         {props.version || APP_VERSION}
-      </code>
+      </span>
     </span>
   );
 }
@@ -767,9 +767,12 @@ export function useSettingsRestore(onRestored?: () => void) {
     if (changedSettingLabels.length === 0) return;
     const api = readLocalApi();
     const confirmed = await (api ?? ensureLocalApi()).dialogs.confirm(
-      ["Restore default settings?", `This will reset: ${changedSettingLabels.join(", ")}.`].join(
-        "\n",
-      ),
+      [
+        "Restore default settings?",
+        `This will reset: ${changedSettingLabels
+          .map((label) => engineeringRestoreLabel(label, isEngineeringInterface()))
+          .join(", ")}.`,
+      ].join("\n"),
       { variant: "destructive" },
     );
     if (!confirmed) return;
@@ -1267,7 +1270,7 @@ export function AppearanceSettingsPanel() {
           control={
             <div className="flex w-full items-center gap-3 sm:w-52">
               <output
-                className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                className="min-w-12 rounded-md bg-muted px-2 py-1 text-center text-xs font-medium tabular-nums text-foreground"
                 htmlFor="appearance-contrast"
               >
                 {settings.appearanceContrast}%
@@ -1313,7 +1316,7 @@ export function AppearanceSettingsPanel() {
           control={
             <div className="flex w-full items-center gap-3 sm:w-52">
               <output
-                className="min-w-12 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                className="min-w-12 rounded-md bg-muted px-2 py-1 text-center text-xs font-medium tabular-nums text-foreground"
                 htmlFor="glass-opacity"
               >
                 {settings.glassOpacity}%
@@ -1507,7 +1510,7 @@ export function AppearanceSettingsPanel() {
               <PanelAnimationsPreview durationMs={settings.panelAnimationDurationMs} />
               <div className="flex w-full items-center gap-3">
                 <output
-                  className="min-w-16 rounded-md bg-muted px-2 py-1 text-center font-mono text-xs font-medium tabular-nums text-foreground"
+                  className="min-w-16 rounded-md bg-muted px-2 py-1 text-center text-xs font-medium tabular-nums text-foreground"
                   htmlFor="panel-animation-duration"
                 >
                   {settings.panelAnimationDurationMs} ms

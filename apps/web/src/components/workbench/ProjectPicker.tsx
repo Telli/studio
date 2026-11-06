@@ -7,12 +7,13 @@ import { Button } from "../ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { PROJECT_ROW_CLASS, ProjectChoices, ProjectThumb } from "./ProjectChoices";
 import type { ListedProject } from "./projectList";
+import { workspaceTitle } from "./workspaceTitle";
 
 /**
  * Where Home's box sends what is typed: a new project, as it starts, or a chat in a project of
  * yours. In the box it is one quiet line, as Attach beside it is (the project's picture or a +,
- * its name, the switcher's chevrons); its list is the project switcher's own (`ProjectChoices`),
- * with New project at its head.
+ * its name, or Project until one is chosen, beside Start project; the switcher's chevrons); its
+ * list is the project switcher's own (`ProjectChoices`), with New project at its head.
  */
 export function ProjectPicker(props: {
   readonly environmentId: EnvironmentId;
@@ -44,7 +45,7 @@ export function ProjectPicker(props: {
           <Button
             variant="ghost"
             size="sm"
-            aria-label={`Project: ${chosen === null ? "a new project" : chosen.project.name}. Choose another`}
+            aria-label={`Project: ${chosen === null ? "a new project" : workspaceTitle(chosen.project.name, null)}. Choose another`}
           />
         }
       >
@@ -54,7 +55,7 @@ export function ProjectPicker(props: {
           <ProjectThumb environmentId={environmentId} project={chosen.project} size="xs" />
         )}
         <span className="max-w-48 truncate">
-          {chosen === null ? "New project" : chosen.project.name}
+          {chosen === null ? "Project" : workspaceTitle(chosen.project.name, null)}
         </span>
         <ChevronsUpDownIcon className="text-muted-foreground" aria-hidden="true" />
       </PopoverTrigger>

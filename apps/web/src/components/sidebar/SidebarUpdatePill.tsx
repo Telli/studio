@@ -4,7 +4,6 @@ import { type ComponentProps, useCallback, useEffect, useId, useRef, useState } 
 import { flushSync } from "react-dom";
 import { isElectron } from "../../env";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
-import { cn } from "../../lib/utils";
 import { ensureLocalApi } from "../../localApi";
 import { useDesktopUpdateState } from "../../state/desktopUpdate";
 import { stackedThreadToast, toastManager } from "../ui/toast";
@@ -23,7 +22,7 @@ import { restartConfirmation, restartForUpdateWhenIdle } from "../desktopUpdate.
 import { showDesktopUpdateDownloadedToast } from "../desktopUpdate.toast";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
-import { SidebarMenuItem } from "../ui/sidebar";
+import { SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   DesktopUpdateStatusIcon,
@@ -186,10 +185,12 @@ async function installLocalUpdate(bridge: DesktopBridge): Promise<void> {
 }
 
 /**
- * The sidebar update button. With only a local app update it downloads, then
- * installs. When other machines' servers or any providers are behind, one
- * click updates everything: providers, then servers, then this app last. On
- * web there is no local app, so the button shows only for remote updates.
+ * The sidebar's update row, a footer row like those above it, there only while
+ * an update exists (Settings keeps Check for updates). With only a local app
+ * update it downloads, then installs. When other machines' servers or any
+ * providers are behind, one click updates everything: providers, then servers,
+ * then this app last. On web there is no local app, so the row shows only for
+ * remote updates.
  */
 export function SidebarUpdatePill() {
   return <SidebarUpdateControl />;
@@ -230,7 +231,7 @@ function SidebarUpdateControl() {
     isChecking: state?.status === "checking",
     prefersReducedMotion,
   });
-  const { iconStatus, showUpdateDetails, showUpdateIconState } = resolveSidebarUpdatePresentation({
+  const { iconStatus, showUpdateDetails } = resolveSidebarUpdatePresentation({
     action,
     showsEverything: runsEverything || isRunningEverything,
     isDownloading,
@@ -384,28 +385,13 @@ function SidebarUpdateControl() {
     );
   }, [prefersReducedMotion, state?.status]);
 
-  // Web has no local app to check, so it only shows the button for remote work.
-  if (!isElectron && !runsEverything && !isUpdatingEverything) return null;
+  // Nothing to update, on web with no local app too: the row is not there.
+  if (!showUpdateDetails) return null;
 
   const updateButton = (
-    <button
-      type="button"
+    <SidebarMenuButton
       aria-label={tooltip}
       aria-disabled={isInteractionDisabled || undefined}
-      className={cn(
-        "inline-flex size-8 items-center justify-center rounded-full outline-hidden ring-ring transition-colors focus-visible:ring-2 focus-visible:ring-inset",
-        isInteractionDisabled ? "cursor-not-allowed" : "cursor-pointer",
-        showUpdateIconState
-          ? cn(
-              "bg-sidebar-control-surface text-sidebar-foreground",
-              !isInteractionDisabled && "hover:bg-sidebar-row-hover",
-            )
-          : cn(
-              "text-(--sidebar-icon-color)",
-              !isInteractionDisabled && "hover:bg-sidebar-row-hover hover:text-sidebar-foreground",
-            ),
-        ((disabled && !showUpdateIconState) || isRunningEverything) && "opacity-60",
-      )}
       onClick={handleAction}
       onBlur={() => {
         suppressReleaseNotesFocusOpen.current = false;
@@ -434,11 +420,12 @@ function SidebarUpdateControl() {
         onCheckAnimationIteration={handleCheckAnimationIteration}
         status={iconStatus}
       />
-    </button>
+      <span>{isRunningEverything || isDownloading ? tooltip : "Update available"}</span>
+    </SidebarMenuButton>
   );
 
   return (
-    <SidebarMenuItem className="ml-auto shrink-0">
+    <SidebarMenuItem className="min-w-0 flex-1">
       <Popover
         handle={releaseNotesPopoverHandle}
         onOpenChange={(open, details) => {

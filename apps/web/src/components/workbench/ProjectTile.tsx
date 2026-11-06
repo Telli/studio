@@ -11,12 +11,13 @@ import { projectActivity } from "./recentProjects";
 import { StarButton } from "./StarButton";
 import { Page } from "./OverviewModules";
 import { useProjectCover, useProjectPage } from "./useProjectCover";
-import { chatLabel } from "./workspaceTitle";
+import { chatLabel, workspaceTitle } from "./workspaceTitle";
 
 /**
  * A project as Home and Projects show it: a picture of its main part (its first assembly, else
- * its first part or board), or its kind's icon until it has one; its name (marked New on its first
- * day, and Needs you while a chat waits on the person); and its latest chat and when, or the chat
+ * its first part or board), or its kind's icon until it has one; its name as the sidebar says it
+ * (`workspaceTitle`, marked New in grey on its first day, and Needs you in blue while a chat waits
+ * on the person); and its latest chat and when, or the chat
  * that waits. A star sits over the picture (shown on hover, and always once starred). With
  * `onMenu`, a right-click or the "…" on hover opens its menu, as Drive's on a file (`ProjectMenu`).
  */
@@ -56,6 +57,7 @@ export function ProjectTile(props: {
         : `${waiting.length} chats are waiting on you`;
   const kind = project.template === "board" ? "Electronics" : "CAD";
   const KindIcon = KIND_ICONS[kind];
+  const name = workspaceTitle(project.name, null);
 
   return (
     <div className="group/tile relative flex min-w-0 flex-col">
@@ -89,11 +91,11 @@ export function ProjectTile(props: {
           )}
         >
           <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium text-foreground">{project.name}</span>
+            <span className="truncate text-sm font-medium text-foreground">{name}</span>
             {first !== undefined ? (
               <Badge variant="info">Needs you</Badge>
             ) : activity.isNew ? (
-              <Badge variant="info">New</Badge>
+              <span className="shrink-0 text-xs text-muted-foreground">New</span>
             ) : null}
           </span>
           <span
@@ -108,13 +110,13 @@ export function ProjectTile(props: {
       </button>
       <StarButton
         id={props.id}
-        name={project.name}
+        name={name}
         className="absolute top-2 right-2 bg-background/85 opacity-0 group-hover/tile:opacity-100 group-focus-within/tile:opacity-100 data-[starred]:opacity-100"
       />
       {props.onMenu === undefined ? null : (
         <button
           type="button"
-          aria-label={`More for ${project.name}`}
+          aria-label={`More for ${name}`}
           onClick={(event) => {
             const box = event.currentTarget.getBoundingClientRect();
             props.onMenu?.({ x: box.left, y: box.bottom });

@@ -28,8 +28,9 @@ import {
 } from "./checkResults";
 import { KIND_ICONS } from "./kinds";
 import { humanName, partName } from "./partNames";
-import { leadHeading, leadPartOf } from "./leadPart";
+import { leadKind, leadPartOf } from "./leadPart";
 import { folderFiles, pictureVersions } from "./projectModels";
+import { PageTitle } from "./PageTitle";
 import { type FolderPart, MadeBadges, PartFooter, PartIcon } from "./PartBadges";
 import { CARD_GRID, GROUP_LABEL, MODULE_HEADING, SECTION_STACK } from "./studioLayout";
 import {
@@ -105,14 +106,13 @@ function LeadPart(props: {
   const status = worstStatus(part.results);
   return (
     <section aria-label="Lead part" className={SECTION_STACK}>
-      <h2 className={MODULE_HEADING}>
-        <span className="min-w-0 truncate">{leadHeading(part.file)}</span>
-      </h2>
+      <PageTitle title={part.file.title} label={leadKind(part.file)} />
+      {/* Past the page's gutters (`WorkspacePageContainer`) to the panel's edges; beside the README, its left one. */}
       <button
         type="button"
         onClick={props.onOpen}
         aria-label={`Open ${part.file.title} in the viewer`}
-        className="flex aspect-[4/3] max-h-[32rem] items-center justify-center overflow-hidden rounded-lg bg-(--model-ground) outline-none transition-opacity duration-150 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="-mx-5 flex aspect-[4/3] max-h-[32rem] items-center justify-center overflow-hidden bg-(--model-ground) outline-none sm:-mx-6 @3xl:mr-0 transition-opacity duration-150 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {picture ? (
           <img src={picture} alt="" className="size-full object-contain" />

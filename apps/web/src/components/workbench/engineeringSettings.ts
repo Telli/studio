@@ -93,6 +93,28 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
     { title: "Model for short text", description: "Names chats and writes other short text." },
   ],
   ["thread-notifications", { title: "Chat notifications" }],
+  [
+    "in-app-notifications",
+    {
+      description:
+        "Show a toast when another chat finishes, fails, or needs input or approval while this app has focus.",
+    },
+  ],
+  [
+    "skills-in-slash-menu",
+    {
+      title: "Show skills when you type /",
+      description: "Also list skills when you type / in the chat box. Typing $ always lists them.",
+    },
+  ],
+  [
+    "composer-collapse",
+    {
+      title: "Collapse chat box on scroll",
+      description:
+        "Rest the chat box on a single line when you scroll the conversation. Click it or start typing to expand it again.",
+    },
+  ],
   // The composer has no model picker here, so the model new chats start on is set under AI agents.
   [
     "default-model",
@@ -111,6 +133,28 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
     },
   ],
 ]);
+
+/** What Restore defaults lists, in the rows' own words: a setting a row hides is still listed. */
+const ENGINEERING_RESTORE_LABELS: ReadonlyMap<string, string> = new Map([
+  ["Thread notifications", "Chat notifications"],
+  ["Visible threads", "Visible chats"],
+  ["Auto-settle inactive threads", "Mark inactive chats done"],
+  ["Auto-settle merged threads", "Mark merged chats done"],
+  ["Auto-resume limited threads", "Auto-resume limited chats"],
+  ["Snooze limited threads", "Snooze limited chats"],
+  ["Composer context", "Chat box context"],
+  ["Show skills in slash menu", "Show skills when you type /"],
+  ["Collapse composer on scroll", "Collapse chat box on scroll"],
+  ["Rich text composer", "Rich text chat box"],
+  ["Continue threads after restarts", "Continue chats after restarts"],
+  ["New thread mode", "New chat mode"],
+  ["Text generation model", "Model for short text"],
+]);
+
+/** A label of Restore defaults' list, as the engineering interface says it. */
+export function engineeringRestoreLabel(label: string, engineering: boolean): string {
+  return (engineering && ENGINEERING_RESTORE_LABELS.get(label)) || label;
+}
 
 /** A row's own words in the engineering interface, or null where the row keeps its own. */
 export function engineeringSettingCopy(

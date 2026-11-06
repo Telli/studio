@@ -85,7 +85,7 @@ function readInitialThreadSidebarWidth(): number {
   }
 }
 
-/** Folds the sidebar as a part opens in CAD (`foldSidebarForPart`), which runs outside React. */
+/** Folds the sidebar as a project or a part opens (`foldSidebarForPart`), which runs outside React. */
 function FoldSidebarForPart() {
   const { setOpen } = useSidebar();
   useEffect(() => onFoldSidebarForPart(() => void setOpen(false)), [setOpen]);

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { SETTINGS_SEARCH_ITEMS, searchSettings } from "../settings/settingsSearch";
 import {
   CODE_SETTINGS_ROWS,
+  engineeringRestoreLabel,
   engineeringSettingCopy,
   engineeringSettingsSearchItems,
   settingsNavGroups,
@@ -42,6 +43,29 @@ describe("engineering settings", () => {
     );
     expect(engineeringSettingCopy("text-generation-model", false)).toBeNull();
     expect(engineeringSettingCopy("time-format", true)).toBeNull();
+  });
+
+  it("says chats and the chat box on General, its ids and the code interface unchanged", () => {
+    for (const id of ["in-app-notifications", "skills-in-slash-menu", "composer-collapse"]) {
+      const copy = engineeringSettingCopy(id, true);
+      expect(`${copy?.title ?? ""} ${copy?.description}`).not.toMatch(
+        /thread|composer|slash|settle/i,
+      );
+      expect(engineeringSettingCopy(id, false)).toBeNull();
+    }
+  });
+
+  it("lists what Restore defaults resets in the rows' own words", () => {
+    expect(engineeringRestoreLabel("Collapse composer on scroll", true)).toBe(
+      "Collapse chat box on scroll",
+    );
+    expect(engineeringRestoreLabel("Auto-settle merged threads", true)).toBe(
+      "Mark merged chats done",
+    );
+    expect(engineeringRestoreLabel("Time format", true)).toBe("Time format");
+    expect(engineeringRestoreLabel("Collapse composer on scroll", false)).toBe(
+      "Collapse composer on scroll",
+    );
   });
 
   it("leaves the programmer settings out of the engineering search and keeps them in the code one", () => {

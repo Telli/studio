@@ -16,6 +16,7 @@ import { buildThreadRouteParams } from "~/threadRoutes";
 import { readOpened, rememberOpened, threadToOpen } from "./openedThreads";
 import { showChat, showProject } from "./overviewPanel";
 import { waitingChat } from "./recentActivity";
+import { foldSidebarForPart } from "./sidebarFold";
 
 /** Remembers the thread on screen as the one last open in its project. */
 export function useRememberOpened(threadRef: ScopedThreadRef | null): void {
@@ -31,7 +32,8 @@ export function useRememberOpened(threadRef: ScopedThreadRef | null): void {
  * part beside the chat in CAD mode (`showProject`: the part left open, else its
  * main part, else its Overview across the window), or what `show` puts there (a
  * part, from the quick find). A chat waiting on the person (a question, an
- * approval) is where a project opens without a `show`, beside its panel.
+ * approval) is where a project opens without a `show`, beside its panel. The
+ * sidebar folds for it (`foldSidebarForPart`).
  */
 export function useOpenProject() {
   const navigate = useNavigate();
@@ -45,6 +47,7 @@ export function useOpenProject() {
       const asking = show === undefined ? waitingChat(threads) : null;
       const thread = asking ?? threadToOpen(threads, readOpened());
       if (thread !== null) {
+        foldSidebarForPart();
         const ref = scopeThreadRef(thread.environmentId, thread.id);
         (asking !== null ? showChat : (show ?? showProject))(ref);
         await navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
@@ -52,8 +55,10 @@ export function useOpenProject() {
       }
       if (folder === null) return;
       const draft = await handleNewThread(scopeProjectRef(folder.environmentId, folder.id));
-      if (draft !== null)
+      if (draft !== null) {
+        foldSidebarForPart();
         (show ?? showProject)(scopeThreadRef(folder.environmentId, draft.threadId));
+      }
     },
     [navigate, handleNewThread],
   );

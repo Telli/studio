@@ -10,11 +10,18 @@ import {
 } from "../ui/tooltip";
 import type { HardwareAction } from "./hardwareActions";
 import type { ToolboxSection } from "./toolbox";
-import { GROUP_LABEL, SECTION_STACK } from "./studioLayout";
+import { GROUP_LABEL } from "./studioLayout";
 import { KIND_TINT } from "./kinds";
 import { toolIcon } from "./toolIcons";
 
-/** A section's title over its jobs as tool tiles, two to a row, always open like every other. */
+/** The grid every section of a tab flows into, two even tiles to a row (`SectionJobs`). */
+export const TOOL_GRID = "grid grid-cols-2 gap-x-2 gap-y-3";
+
+/**
+ * A section's jobs as tool tiles, flowing into the tab's one grid (`TOOL_GRID`), with its title over
+ * its first tile, always open like every other. Each tile keeps its cell's width, and sits at its
+ * row's foot, so a row with a title in one cell still lines its tiles up.
+ */
 export function SectionJobs(props: {
   readonly section: ToolboxSection;
   /** No chat to write the job into. */
@@ -22,19 +29,20 @@ export function SectionJobs(props: {
   readonly onRun: (action: HardwareAction) => void;
 }) {
   return (
-    <section className={SECTION_STACK}>
-      <h4 className={`${GROUP_LABEL} truncate`}>{props.section.title}</h4>
-      <div className="grid grid-cols-2 gap-2">
-        {props.section.actions.map((action) => (
+    <section aria-label={props.section.title} className="contents">
+      {props.section.actions.map((action, index) => (
+        <div key={action.id} className="flex min-w-0 flex-col justify-end gap-2">
+          {index === 0 ? (
+            <h4 className={`${GROUP_LABEL} truncate`}>{props.section.title}</h4>
+          ) : null}
           <ToolTile
-            key={action.id}
             action={action}
             icon={toolIcon(action)}
             disabled={props.disabled}
             onRun={() => props.onRun(action)}
           />
-        ))}
-      </div>
+        </div>
+      ))}
     </section>
   );
 }

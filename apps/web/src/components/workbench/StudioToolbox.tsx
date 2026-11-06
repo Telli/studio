@@ -14,7 +14,7 @@ import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
 import { useSimpleView } from "./simpleView";
 import { usePartForJobs } from "./StudioPanelBar";
-import { SectionJobs } from "./ToolboxJobs";
+import { SectionJobs, TOOL_GRID } from "./ToolboxJobs";
 import {
   readToolboxFolded,
   readToolboxTab,
@@ -37,8 +37,8 @@ import { usePartJobs } from "./usePartJobs";
  * Manufacture and Document (`toolboxGroups`), a tab each, like SolidWorks' CommandManager; the tab
  * left open is remembered on this device. A group with no job for the file in front can't be
  * chosen, and the Toolbox opens on one that has jobs and says what to open for the rest. Every job
- * in a group is a tile like every other, nothing folded: the group's purpose over its sections,
- * each section's name over its tiles.
+ * in a group is a tile like every other, nothing folded: the group's purpose over one even grid of
+ * tiles, each section's name over its first.
  * A tile press sends its job in the chat for that part, or adds it after a draft being written
  * there for the person to send (`handToChat`). It folds to an edge of the groups' icons, as chosen
  * on this device, and on a narrow panel (`toolboxNarrowRem`: in CAD, one beside a chat) starts
@@ -254,8 +254,8 @@ function useFolding(rootRef: RefObject<HTMLDivElement | null>) {
 }
 
 /**
- * The tab in front: what the group is for, then each of its sections' tiles split by a rule, and
- * the Library's word on what each makes.
+ * The tab in front: what the group is for, then all its sections' tiles in one grid (`TOOL_GRID`),
+ * and the Library's word on what each makes.
  */
 function GroupJobs(props: {
   readonly group: ToolboxGroup;
@@ -271,11 +271,14 @@ function GroupJobs(props: {
     <section aria-label={props.group.group} className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">{GROUP_PURPOSES[props.group.group]}</p>
       {empty ? null : (
-        <div className="flex flex-col divide-y divide-border">
+        <div className={TOOL_GRID}>
           {props.group.sections.map((section) => (
-            <div key={section.title} className="py-3 first:pt-0 last:pb-0">
-              <SectionJobs section={section} disabled={props.disabled} onRun={props.onRun} />
-            </div>
+            <SectionJobs
+              key={section.title}
+              section={section}
+              disabled={props.disabled}
+              onRun={props.onRun}
+            />
           ))}
         </div>
       )}

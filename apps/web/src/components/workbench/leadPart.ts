@@ -26,12 +26,11 @@ export function sourceParts(parts: ReadonlyArray<ProjectFile>): ProjectFile[] {
 }
 
 /**
- * What the Overview's lead picture shows, in its kind's word: "Latest part: LED module". Only a
- * part with a build time can be called the latest.
+ * What the Overview's lead picture is, in its kind's word, as the small label beside the part's
+ * name: "Latest part". Only a part with a build time can be called the latest.
  */
-export function leadHeading(file: Pick<ProjectFile, "kind" | "title" | "version">): string {
-  const kind = file.version === undefined ? file.kind : `Latest ${file.kind.toLowerCase()}`;
-  return `${kind}: ${file.title}`;
+export function leadKind(file: Pick<ProjectFile, "kind" | "version">): string {
+  return file.version === undefined ? file.kind : `Latest ${file.kind.toLowerCase()}`;
 }
 
 /**

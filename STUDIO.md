@@ -708,7 +708,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   CommandManager (the tab left open is remembered on this device), three equal tiles of the
   group's icon (the folded edge's, in its jobs' color) over its name, as the CAD toolbar's
   buttons are, each with a line on what it is
-  for (`GROUP_PURPOSES`) over its sections' tiles, split by rules (`StudioToolbox.tsx`).
+  for (`GROUP_PURPOSES`) over its sections' tiles, in one even grid (`StudioToolbox.tsx`).
   Manufacture keeps four sections, not one per process (3D printing, machining and molding, sheet
   metal and cutting, files and off-the-shelf parts), so no heading holds a lone tile that repeats
   it; a pause on a tile shows its name and what it makes (`TooltipRich`). Every job is a tile like every other: within a tab

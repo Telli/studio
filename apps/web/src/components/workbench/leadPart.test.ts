@@ -1,16 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { leadHeading, leadPartOf } from "./leadPart";
+import { leadKind, leadPartOf } from "./leadPart";
 
-describe("leadHeading", () => {
-  it("names the part by its kind, and calls it the latest only with a build time", () => {
-    expect(leadHeading({ kind: "Part", title: "LED module", version: "abc" })).toBe(
-      "Latest part: LED module",
-    );
-    expect(leadHeading({ kind: "Assembly", title: "Desk lamp", version: "abc" })).toBe(
-      "Latest assembly: Desk lamp",
-    );
-    expect(leadHeading({ kind: "Part", title: "LED module" })).toBe("Part: LED module");
+describe("leadKind", () => {
+  it("says the part's kind, and calls it the latest only with a build time", () => {
+    expect(leadKind({ kind: "Part", version: "abc" })).toBe("Latest part");
+    expect(leadKind({ kind: "Assembly", version: "abc" })).toBe("Latest assembly");
+    expect(leadKind({ kind: "Part" })).toBe("Part");
   });
 });
 
