@@ -504,8 +504,9 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   any job for the part on screen, with Home, New project, Take the tour, the Library (the examples,
   every document type and skill: what each makes and, where the servo bracket example has one, its
   example; `components/workbench/library/LibraryPage.tsx`), Settings and Trash
-  (`components/workbench/StudioQuickFind.tsx`). Engineering with code keeps T3 Code's command
-  palette.
+  (`components/workbench/StudioQuickFind.tsx`). Once something is typed it also finds the Library's
+  examples and document types, each opening the page the Library opens. Engineering with code keeps
+  T3 Code's command palette.
 - **Getting around.** The top bar is a path, the project then the open chat, the project's name
   opening its Overview (`StudioWorkspaceBar.tsx`). The panel's tabs take Chrome's shortcuts:
   Ctrl+Tab and Ctrl+Shift+Tab go round them, Cmd+1 to 8 to one by its place and Cmd+9 to the last

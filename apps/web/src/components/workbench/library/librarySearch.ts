@@ -3,6 +3,9 @@
  * ⌘K and Settings link into it with `libraryHref`, so none of them imports the page.
  */
 
+import type { StudioSample } from "@t3tools/contracts";
+
+import { findExamples } from "../examples/examples";
 import { HARDWARE_ACTIONS } from "../hardwareActions";
 import { holdsWords } from "../quickFind";
 import {
@@ -88,4 +91,24 @@ export function filterLibrary(entries: ReadonlyArray<LibraryEntry>, query: strin
   const skills = entries.filter((entry) => entry.kind === "skill");
   const shown = (skill: string) => skillName(skill, skills);
   return entries.filter((entry) => holdsWords(searchText(entry, shown), query));
+}
+
+/**
+ * What ⌘K finds in the Library once something is typed, by the Library's own search: its examples
+ * (`findExamples`) and its document types, each at most `shown`. Nothing typed finds nothing, so ⌘K
+ * then Enter stays on the work.
+ */
+export function findInLibrary(
+  examples: ReadonlyArray<StudioSample>,
+  documents: ReadonlyArray<LibraryDocument>,
+  query: string,
+  shown: number,
+): { readonly examples: StudioSample[]; readonly documents: LibraryDocument[] } {
+  if (query.trim() === "") return { examples: [], documents: [] };
+  return {
+    examples: findExamples(examples, query).slice(0, shown),
+    documents: filterLibrary(documents, query)
+      .filter((entry) => entry.kind === "document")
+      .slice(0, shown),
+  };
 }

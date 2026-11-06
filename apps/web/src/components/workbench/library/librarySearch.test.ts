@@ -1,8 +1,8 @@
-import type { InstalledPlugin, PluginSkillDetail } from "@t3tools/contracts";
+import type { InstalledPlugin, PluginSkillDetail, StudioSample } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { LIBRARY_DOCUMENTS, librarySkills } from "./libraryCatalog";
-import { filterLibrary, libraryGroup, validateLibrarySearch } from "./librarySearch";
+import { filterLibrary, findInLibrary, libraryGroup, validateLibrarySearch } from "./librarySearch";
 
 /** A display name that no document type's own words hold, so only the shown name can find it. */
 const DISPLAY_NAMES: Readonly<Record<string, string>> = { fea: "Finite element analysis" };
@@ -82,6 +82,35 @@ describe("filterLibrary", () => {
 
   it("lists everything for a blank search", () => {
     expect(filterLibrary(all, "  ")).toEqual(all);
+  });
+});
+
+describe("findInLibrary", () => {
+  const example = (id: string, name: string) =>
+    ({ id, name, shows: ["Sheet metal"] }) as unknown as StudioSample;
+  const examples = [
+    example("servo-bracket", "Servo bracket"),
+    example("shelf-bracket", "Shelf bracket"),
+  ];
+
+  it("finds the Library's examples by name, as its search box does", () => {
+    const found = findInLibrary(examples, LIBRARY_DOCUMENTS, "bracket", 8);
+    expect(found.examples.map((sample) => sample.name)).toEqual(["Servo bracket", "Shelf bracket"]);
+    expect(findInLibrary(examples, LIBRARY_DOCUMENTS, "turbine", 8).examples).toEqual([]);
+  });
+
+  it("finds its document types", () => {
+    const [first] = LIBRARY_DOCUMENTS;
+    const found = findInLibrary([], LIBRARY_DOCUMENTS, first!.name, 8);
+    expect(found.documents.map((entry) => entry.id)).toContain(first!.id);
+  });
+
+  it("finds nothing with nothing typed, and each list stops at its limit", () => {
+    expect(findInLibrary(examples, LIBRARY_DOCUMENTS, "  ", 8)).toEqual({
+      examples: [],
+      documents: [],
+    });
+    expect(findInLibrary(examples, LIBRARY_DOCUMENTS, "bracket", 1).examples).toHaveLength(1);
   });
 });
 

@@ -2,7 +2,7 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { studioFolderKey } from "@t3tools/shared/studioProjects";
-import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   CompassIcon,
   HomeIcon,
@@ -33,7 +33,9 @@ import { useDocumentTemplates } from "./documentTemplates";
 import { FileKindIcon } from "./FileKindIcon";
 import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
 import { CHAT_ICON, KIND_ICONS, KIND_TINT, MENU_ICONS } from "./kinds";
-import { libraryHref } from "./library/librarySearch";
+import { LIBRARY_DOCUMENTS, ownTemplateEntries } from "./library/libraryCatalog";
+import { findInLibrary } from "./library/librarySearch";
+import { useExamples } from "./library/useSampleProject";
 import { handToChat } from "./handToChat";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenedThreads } from "./openedThreads";
@@ -56,6 +58,7 @@ import {
 import { homeRecent, recentChats } from "./recentActivity";
 import { useRecentFiles } from "./recentFiles";
 import { useAskNewProject } from "./StudioNew";
+import { useOpenLibrary } from "./StudioNavLinks";
 import { pictureVersions } from "./projectModels";
 import { knownModelTitle, useProjectModels } from "./useFolderModels";
 import { useFolderPaths } from "./useFolderPaths";
@@ -141,13 +144,14 @@ function QuickFindBody(props: {
   const workspace = useOpenWorkspaceStore((store) => store.workspace);
   const { cards } = useProjectList(environmentId);
   const documents = useDocumentTemplates(environmentId);
+  const examples = useExamples(environmentId).examples;
   const plugins = useEnvironmentQuery(pluginEnvironment.list({ environmentId, input: {} })).data
     ?.plugins;
   const composerRef = useComposerHandleContext();
   const openProject = useOpenProject();
   const navigate = useNavigate();
   const askNewProject = useAskNewProject();
-  const router = useRouter();
+  const openLibrary = useOpenLibrary();
   const onHome = useLocation({ select: (location) => location.pathname === "/" });
   const opened = useOpenedThreads();
   const recentFiles = useRecentFiles();
@@ -496,13 +500,7 @@ function QuickFindBody(props: {
       title: "Library",
       terms:
         "library examples sample finished projects copy learn document types skills templates what can studio make",
-      // From a project, the library's Make one comes back to it, where its New is.
-      run: go(
-        () =>
-          void navigate(
-            libraryHref(workspace === null ? {} : { from: router.state.location.href }),
-          ),
-      ),
+      run: go(() => openLibrary()),
     },
     {
       value: "go:settings",
@@ -546,13 +544,39 @@ function QuickFindBody(props: {
                 ),
             })),
         };
+  // The Library's examples and templates, by its own search, each opening the page it opens.
+  const foundInLibrary = findInLibrary(
+    examples,
+    [...LIBRARY_DOCUMENTS, ...ownTemplateEntries(documents.templates)],
+    query,
+    SHOWN_TYPED,
+  );
+  const library: Group = {
+    label: "Library",
+    rows: [
+      ...foundInLibrary.examples.map((sample) => ({
+        value: `example:${sample.id}`,
+        icon: <KindIcon group="CAD" />,
+        title: sample.name,
+        description: "Example",
+        run: go(() => void navigate({ to: "/library/examples/$id", params: { id: sample.id } })),
+      })),
+      ...foundInLibrary.documents.map((entry) => ({
+        value: `library:${entry.id}`,
+        icon: <KindIcon group="Documents" />,
+        title: entry.name,
+        description: entry.what,
+        run: go(() => openLibrary(entry.id)),
+      })),
+    ],
+  };
   const goTo: Group = {
     label: "Go to",
     rows: places.filter((place) => !typed || holdsWords(`${place.title}\n${place.terms}`, query)),
   };
   const groups = (
     typed
-      ? [jobs, partRows, documentFiles, fileRows, chatRows, projects, documentRows, goTo]
+      ? [jobs, partRows, documentFiles, fileRows, chatRows, projects, library, documentRows, goTo]
       : [recent, recentChatRows, partRows, documentFiles, chatRows, projects, goTo]
   ).filter((group): group is Group => group !== null && group.rows.length > 0);
 
@@ -568,7 +592,7 @@ function QuickFindBody(props: {
             ? "Find a project, a part, a document or a chat"
             : `Find anything, or what to do with ${partTitle}`,
       }}
-      footerActionLabel="Choose"
+      {...(groups.length === 0 ? {} : { footerActionLabel: "Choose" })}
       footerTrailing={
         typed || partTitle === null ? null : (
           <span className="text-xs">Type what to do, like a strength check or G-code</span>
@@ -619,7 +643,7 @@ function QuickFindBody(props: {
 /**
  * ⌘K in the engineering interface, in place of T3 Code's command palette: one box that finds a
  * project, a part in any project, or any job for the part on screen, the long tail the menus leave
- * out as well (`quickFind.ts`), with Home, New project, Trash, the Library (examples and all) and Settings. Outside a project it opens on what was opened lately (Recent); inside one, on the chats opened lately in every project (Recent chats), then the project's. Picking a job writes
+ * out as well (`quickFind.ts`), with Home, New project, Trash, the Library (and, once something is typed, its examples and templates) and Settings. Outside a project it opens on what was opened lately (Recent); inside one, on the chats opened lately in every project (Recent chats), then the project's. Picking a job writes
  * it into the chat's composer, as the Toolbox does (`StudioToolbox`); picking a part opens it, in its project if that is another.
  */
 export function StudioQuickFind(props: {
