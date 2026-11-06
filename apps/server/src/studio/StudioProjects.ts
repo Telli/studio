@@ -36,6 +36,11 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 
 import * as ProcessRunner from "../processRunner.ts";
+import {
+  blankedFiltersEnv,
+  FOLDER_FILTERS_ARGS,
+  FOLDER_SAFE_GIT_ARGS,
+} from "../vcs/gitFolderSafety.ts";
 
 const PROJECT_FILE = "project.json";
 const README_FILE = "README.md";
@@ -168,12 +173,14 @@ const make = Effect.gen(function* () {
     folder: string,
     args: ReadonlyArray<string>,
     timeout: Duration.Input = "10 seconds",
+    env?: NodeJS.ProcessEnv,
   ) =>
     processRunner.run({
       command: "git",
-      args: ["-C", folder, ...args],
+      args: ["-C", folder, ...FOLDER_SAFE_GIT_ARGS, ...args],
       timeout,
       timeoutBehavior: "timedOutResult",
+      ...(env === undefined ? {} : { env }),
     });
 
   /** Git's trimmed output, or undefined when it fails or prints nothing. */
@@ -200,8 +207,8 @@ const make = Effect.gen(function* () {
   );
 
   /** One git step in a project folder; false, logged, when it fails, so the caller stops. */
-  const gitStep = (folder: string, args: ReadonlyArray<string>) =>
-    runGit(folder, args, "30 seconds").pipe(
+  const gitStep = (folder: string, args: ReadonlyArray<string>, env?: NodeJS.ProcessEnv) =>
+    runGit(folder, args, "30 seconds", env).pipe(
       Effect.flatMap((result) =>
         result.code === 0
           ? Effect.succeed(true)
@@ -237,9 +244,11 @@ const make = Effect.gen(function* () {
         (yield* gitOutput(folder, ["config", "--get", "init.defaultBranch"])) ?? "main";
       if (!(yield* gitStep(folder, ["init", "--quiet", `--initial-branch=${branch}`]))) return;
     }
-    if (!(yield* gitStep(folder, ["add", "--all", "--", ...files]))) return;
+    // A project's folder can hold a `.git` that came with it (`gitFolderSafety.ts`).
+    const filters = blankedFiltersEnv((yield* gitOutput(folder, FOLDER_FILTERS_ARGS)) ?? "");
+    if (!(yield* gitStep(folder, ["add", "--all", "--", ...files], filters))) return;
     // Only these files, so anything else the user staged stays theirs to commit.
-    yield* gitStep(folder, ["commit", "--quiet", "--message", message, "--", ...files]);
+    yield* gitStep(folder, ["commit", "--quiet", "--message", message, "--", ...files], filters);
   });
 
   /** A file's text, None when it does not exist. */

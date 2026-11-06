@@ -18,6 +18,7 @@ import { CheckpointRef, GitCommandError, VcsProcessExitError } from "@t3tools/co
 import * as ServerConfig from "../config.ts";
 import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";
 import * as ProcessRunner from "../processRunner.ts";
+import { FOLDER_SAFE_GIT_ARGS } from "./gitFolderSafety.ts";
 import * as GitVcsDriver from "./GitVcsDriver.ts";
 import type * as VcsDriver from "./VcsDriver.ts";
 import * as VcsDriverRegistry from "./VcsDriverRegistry.ts";
@@ -191,7 +192,22 @@ it.effect("checkpoint recovery discovers nested HEAD independently of inherited 
   }).pipe(Effect.scoped, Effect.provide(layerGitContract)),
 );
 
-it.effect("checkpoint capture still fails when a clean filter rejects a file", () =>
+// A person's own git settings, for a test: a config of the test's, where their filters live.
+const withGlobalGitConfig = (file: string) =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const saved = process.env.GIT_CONFIG_GLOBAL;
+      process.env.GIT_CONFIG_GLOBAL = file;
+      return saved;
+    }),
+    (saved) =>
+      Effect.sync(() => {
+        if (saved === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+        else process.env.GIT_CONFIG_GLOBAL = saved;
+      }),
+  );
+
+it.effect("checkpoint capture still fails when a person's clean filter rejects a file", () =>
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -199,10 +215,14 @@ it.effect("checkpoint capture still fails when a clean filter rejects a file", (
     const cwd = yield* fileSystem.makeTempDirectoryScoped({
       prefix: "t3-checkpoint-filter-failure-",
     });
-    const { git, checkpointRef } = yield* makeCheckpointFixture(driver, cwd);
+    const { checkpointRef } = yield* makeCheckpointFixture(driver, cwd);
     yield* fileSystem.writeFileString(path.join(cwd, ".gitattributes"), "file.txt filter=reject\n");
-    yield* git(["config", "filter.reject.clean", "false"]);
-    yield* git(["config", "filter.reject.required", "true"]);
+    const globalConfig = yield* fileSystem.makeTempFileScoped({ prefix: "t3-gitconfig-" });
+    yield* fileSystem.writeFileString(
+      globalConfig,
+      '[filter "reject"]\n\tclean = false\n\trequired = true\n',
+    );
+    yield* withGlobalGitConfig(globalConfig);
     const originalIndex = yield* fileSystem.readFile(path.join(cwd, ".git", "index"));
 
     const result = yield* Effect.result(
@@ -212,6 +232,47 @@ it.effect("checkpoint capture still fails when a clean filter rejects a file", (
     assert.strictEqual(result._tag, "Failure");
     assert.deepEqual(yield* fileSystem.readFile(path.join(cwd, ".git", "index")), originalIndex);
     assert.isFalse(yield* driver.checkpoints.hasCheckpointRef({ cwd, checkpointRef }));
+  }).pipe(Effect.scoped, Effect.provide(layerGitContract)),
+);
+
+it.effect("checkpoints run nothing a folder's own git settings name", () =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const driver = yield* GitVcsDriver.makeVcsDriverShape();
+    const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-checkpoint-folder-" });
+    const outside = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-checkpoint-marker-" });
+    const { git, checkpointRef } = yield* makeCheckpointFixture(driver, cwd);
+    const marker = path.join(outside, "ran");
+    const program = path.join(outside, "program.sh");
+    const filter = path.join(outside, "filter.sh");
+    yield* fileSystem.writeFileString(program, `#!/bin/sh\ntouch "${marker}"\n`);
+    yield* fileSystem.writeFileString(filter, `#!/bin/sh\ntouch "${marker}"\ncat\n`);
+    yield* fileSystem.chmod(program, 0o755);
+    yield* fileSystem.chmod(filter, 0o755);
+    yield* git(["config", "core.fsmonitor", program]);
+    yield* git(["config", "filter.a=b.clean", filter]);
+    yield* git(["config", "filter.a=b.smudge", filter]);
+    yield* git(["config", "filter.a=b.required", "true"]);
+    yield* fileSystem.writeFileString(path.join(cwd, ".gitattributes"), "*.txt filter=a=b\n");
+    for (const hook of ["post-index-change", "reference-transaction"]) {
+      yield* fileSystem.copyFile(program, path.join(cwd, ".git", "hooks", hook));
+    }
+    yield* fileSystem.writeFileString(path.join(cwd, "supplier.txt"), "kept as it is\n");
+
+    yield* driver.checkpoints.captureCheckpoint({ cwd, checkpointRef });
+    yield* fileSystem.writeFileString(path.join(cwd, "supplier.txt"), "changed\n");
+    assert.isTrue(yield* driver.checkpoints.restoreCheckpoint({ cwd, checkpointRef }));
+    yield* driver.checkpoints.deleteCheckpointRefs({ cwd, checkpointRefs: [checkpointRef] });
+
+    assert.isFalse(yield* fileSystem.exists(marker));
+    assert.equal(
+      yield* fileSystem.readFileString(path.join(cwd, "supplier.txt")),
+      "kept as it is\n",
+    );
+    // The fixture does run its program for a git step without those settings.
+    yield* git(["add", "--all"]);
+    assert.isTrue(yield* fileSystem.exists(marker));
   }).pipe(Effect.scoped, Effect.provide(layerGitContract)),
 );
 
@@ -1155,6 +1216,7 @@ it.effect("GitVcsDriver flushes checkpoint objects and refs to disk before publi
     assert.deepStrictEqual(observedArgs.at(-1), [
       "-C",
       "/repo",
+      ...FOLDER_SAFE_GIT_ARGS,
       "-c",
       "core.fsync=objects,reference",
       "-c",

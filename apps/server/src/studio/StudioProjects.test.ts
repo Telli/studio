@@ -171,6 +171,36 @@ it.effect("saves a project as a folder of its own: a readable file, a README and
   ),
 );
 
+it.effect("saves a project without running what its folder's git settings name", () =>
+  withStudio((home) =>
+    Effect.gen(function* () {
+      const studio = yield* StudioProjects.StudioProjects;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const saved = yield* studio.save({ id: null, project: roverArm(home, path) });
+      if (!(yield* studio.list).git) return;
+      const folder = path.join(saved.folder, "rover-arm");
+      const marker = path.join(home, "ran");
+      const program = path.join(home, "program.sh");
+      yield* fileSystem.writeFileString(program, `#!/bin/sh\ntouch "${marker}"\ncat\n`);
+      yield* fileSystem.chmod(program, 0o755);
+      yield* git(folder, ["config", "core.fsmonitor", program]);
+      yield* git(folder, ["config", "filter.supplier.clean", program]);
+      yield* git(folder, ["config", "filter.supplier.required", "true"]);
+      yield* fileSystem.copyFile(program, path.join(folder, ".git", "hooks", "pre-commit"));
+      yield* fileSystem.writeFileString(path.join(folder, ".gitattributes"), "* filter=supplier\n");
+
+      yield* studio.save({
+        id: "rover-arm",
+        project: { ...roverArm(home, path), name: "Rover arm v2" },
+      });
+
+      assert.equal(yield* git(folder, ["log", "-1", "--format=%s"]), "Update Rover arm v2");
+      assert.isFalse(yield* fileSystem.exists(marker));
+    }),
+  ),
+);
+
 it.effect("names a new project's folder from its name, never reusing one that exists", () =>
   withStudio((home) =>
     Effect.gen(function* () {

@@ -37,6 +37,7 @@ import {
   PATCH_RENDER_PREFIX_ARGS,
   splitNullSeparatedGitStdoutPaths,
 } from "./GitVcsDriverCore.ts";
+import { blankedFiltersEnv, FOLDER_FILTERS_ARGS, FOLDER_SAFE_GIT_ARGS } from "./gitFolderSafety.ts";
 import * as VcsDriver from "./VcsDriver.ts";
 import * as VcsProcess from "./VcsProcess.ts";
 
@@ -431,8 +432,7 @@ const CHECKPOINT_RECOVERY_TIMEOUT = "5 seconds";
 const GIT_CHECK_IGNORE_MAX_STDIN_BYTES = 256 * 1024;
 const CHECKPOINT_DIFF_MAX_OUTPUT_BYTES = 10_000_000;
 const WORKSPACE_GIT_HARDENED_CONFIG_ARGS = [
-  "-c",
-  "core.fsmonitor=false",
+  ...FOLDER_SAFE_GIT_ARGS,
   "-c",
   "core.untrackedCache=false",
 ] as const;
@@ -812,20 +812,24 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
     "core.fsyncMethod=fsync",
   ] as const;
 
+  // Every checkpoint step, as it runs on any folder, unasked: a folder's settings start nothing.
+  const checkpointGit: typeof execute = (input) =>
+    execute({ ...input, args: [...FOLDER_SAFE_GIT_ARGS, ...input.args] });
+  const folderFiltersBlanked = (operation: string, cwd: string) =>
+    execute({ operation, cwd, args: FOLDER_FILTERS_ARGS, allowNonZeroExit: true }).pipe(
+      Effect.map((result) => (result.exitCode === 0 ? blankedFiltersEnv(result.stdout) : {})),
+    );
+
   const checkpoints: VcsDriver.VcsCheckpointOps = {
     captureCheckpoint: Effect.fn("GitVcsDriver.checkpoints.captureCheckpoint")(function* (input) {
       const operation = VcsProcess.CHECKPOINT_CAPTURE_OPERATION;
-      const indexConfig = [
-        "-c",
-        "core.fsmonitor=false",
-        "-c",
-        "sparse.expectFilesOutsideOfPatterns=false",
-      ];
+      const indexConfig = ["-c", "sparse.expectFilesOutsideOfPatterns=false"];
       const gitCommonDir = yield* resolveGitCommonDir(input.cwd);
       const indexId = yield* crypto.randomUUIDv4.pipe(Effect.orDie);
       const tempIndexPath = path.join(gitCommonDir, `t3-checkpoint-index-${indexId}`);
       const commitEnv: NodeJS.ProcessEnv = {
         ...process.env,
+        ...(yield* folderFiltersBlanked(operation, input.cwd)),
         GIT_INDEX_FILE: tempIndexPath,
         GIT_AUTHOR_NAME: "T3 Code",
         GIT_AUTHOR_EMAIL: "t3code@users.noreply.github.com",
@@ -842,7 +846,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
 
       yield* Effect.gen(function* () {
         const headExists = yield* hasHeadCommit(input.cwd);
-        const sparseConfig = yield* execute({
+        const sparseConfig = yield* checkpointGit({
           operation,
           cwd: input.cwd,
           args: ["config", "--bool", "core.sparseCheckout"],
@@ -850,7 +854,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         });
         let sparseCheckout = sparseConfig.stdout.trim() === "true";
         if (sparseCheckout) {
-          const help = yield* execute({
+          const help = yield* checkpointGit({
             operation,
             cwd: input.cwd,
             args: ["add", "-h"],
@@ -860,7 +864,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         }
         if (headExists) {
           const reusedIndex = yield* Effect.gen(function* () {
-            const indexPath = yield* execute({
+            const indexPath = yield* checkpointGit({
               operation,
               cwd: input.cwd,
               args: ["rev-parse", "--path-format=absolute", "--git-path", "index"],
@@ -872,7 +876,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
             if (indexTime <= 0) return false;
             yield* fileSystem.copyFile(indexPath.stdout.trim(), tempIndexPath);
             // Retain stat data only where the copied index already matches HEAD.
-            yield* execute({
+            yield* checkpointGit({
               operation,
               cwd: input.cwd,
               args: [...indexConfig, "read-tree", "--reset", "HEAD"],
@@ -889,7 +893,15 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
               operation,
               command: "git",
               cwd: input.cwd,
-              args: [...indexConfig, "ls-files", "--full-name", "--sparse", "-v", "-z"],
+              args: [
+                ...FOLDER_SAFE_GIT_ARGS,
+                ...indexConfig,
+                "ls-files",
+                "--full-name",
+                "--sparse",
+                "-v",
+                "-z",
+              ],
               env: commitEnv,
               maxOutputBytes: 4_096,
               outputMode: "truncate",
@@ -919,7 +931,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
               },
             });
             if (skippedPaths.length > 0 && !specialFlags) {
-              const selected = yield* execute({
+              const selected = yield* checkpointGit({
                 operation,
                 cwd: input.cwd,
                 args: [...indexConfig, "sparse-checkout", "check-rules", "-z"],
@@ -936,7 +948,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
           }).pipe(Effect.orElseSucceed(() => false));
           if (!reusedIndex) {
             if (sparseCheckout) {
-              const cone = yield* execute({
+              const cone = yield* checkpointGit({
                 operation,
                 cwd: input.cwd,
                 args: ["config", "--bool", "core.sparseCheckoutCone"],
@@ -954,7 +966,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
               }
             }
             yield* cleanupTempIndex;
-            yield* execute({
+            yield* checkpointGit({
               operation,
               cwd: input.cwd,
               // A fresh sparse index represents excluded directories without marking them deleted.
@@ -967,7 +979,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         }
 
         const stageFiles = (exclusions: ReadonlyArray<string>) =>
-          execute({
+          checkpointGit({
             operation,
             cwd: input.cwd,
             // Preserve absent skipped entries, but capture present nonignored files outside the cone.
@@ -989,7 +1001,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
               Effect.gen(function* () {
                 // Git cannot stage an embedded repository until it has a commit. Discover these
                 // only after staging fails so ordinary checkpoints do not need another file scan.
-                const untracked = yield* execute({
+                const untracked = yield* checkpointGit({
                   operation,
                   cwd: input.cwd,
                   args: ["ls-files", "--others", "--exclude-standard", "-z", "--", "."],
@@ -1036,7 +1048,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
           }),
         );
 
-        const writeTreeResult = yield* execute({
+        const writeTreeResult = yield* checkpointGit({
           operation,
           cwd: input.cwd,
           args: [...indexConfig, ...durableWrite, "write-tree"],
@@ -1055,7 +1067,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
 
         const message = `t3 checkpoint ref=${input.checkpointRef}`;
         // HEAD is the parent so listAuthoredPaths can see how HEAD moved between checkpoints.
-        const commitTreeResult = yield* execute({
+        const commitTreeResult = yield* checkpointGit({
           operation,
           cwd: input.cwd,
           args: [
@@ -1079,7 +1091,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
           });
         }
 
-        yield* execute({
+        yield* checkpointGit({
           operation,
           cwd: input.cwd,
           args: [...durableWrite, "update-ref", input.checkpointRef, commitOid],
@@ -1105,17 +1117,20 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         return false;
       }
 
-      const tracked = yield* execute({
+      const env = { ...process.env, ...(yield* folderFiltersBlanked(operation, input.cwd)) };
+      const tracked = yield* checkpointGit({
         operation,
         cwd: input.cwd,
         args: ["ls-files", "--cached", `--with-tree=${commitOid}`, "-z", "--", "."],
+        env,
       });
       // An empty index and checkpoint have nothing for git restore's pathspec to match.
       if (tracked.stdout.length > 0) {
-        yield* execute({
+        yield* checkpointGit({
           operation,
           cwd: input.cwd,
           args: ["restore", "--source", commitOid, "--worktree", "--staged", "--", "."],
+          env,
         });
       }
       // Restoring away the last tracked file can remove a nested workspace directory.
@@ -1132,11 +1147,12 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         ),
       );
       yield* recreateWorkspace;
-      const cleaned = yield* execute({
+      const cleaned = yield* checkpointGit({
         operation,
         cwd: input.cwd,
         args: ["clean", "-fd", "--", "."],
         allowNonZeroExit: true,
+        env,
       });
       if (cleaned.exitCode !== 0) {
         // Git can remove every child, then fail trying to remove './' itself.
@@ -1161,10 +1177,11 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
 
       const headExists = yield* hasHeadCommit(input.cwd);
       if (headExists) {
-        yield* execute({
+        yield* checkpointGit({
           operation,
           cwd: input.cwd,
           args: ["reset", "--quiet", "--", "."],
+          env,
         });
       }
 
@@ -1206,7 +1223,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         }
       }
 
-      const result = yield* execute({
+      const result = yield* checkpointGit({
         operation,
         cwd: input.cwd,
         args: [
@@ -1244,7 +1261,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
 
     listAuthoredPaths: Effect.fn("GitVcsDriver.checkpoints.listAuthoredPaths")(function* (input) {
       const operation = "GitVcsDriver.checkpoints.listAuthoredPaths";
-      const heads = yield* execute({
+      const heads = yield* checkpointGit({
         operation,
         cwd: input.cwd,
         args: [
@@ -1264,7 +1281,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       }
 
       const listPaths = (args: ReadonlyArray<string>) =>
-        execute({
+        checkpointGit({
           operation,
           cwd: input.cwd,
           args: [...args, "--name-only", "-z", "--no-renames", "--no-ext-diff"],
@@ -1296,7 +1313,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         yield* Effect.forEach(
           input.checkpointRefs,
           (checkpointRef) =>
-            execute({
+            checkpointGit({
               operation: "GitVcsDriver.checkpoints.deleteCheckpointRefs",
               cwd: input.cwd,
               args: ["update-ref", "-d", checkpointRef],
