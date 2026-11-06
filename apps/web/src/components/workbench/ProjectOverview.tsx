@@ -106,6 +106,7 @@ function LeadPart(props: {
   const status = worstStatus(part.results);
   return (
     <section aria-label="Lead part" className="flex min-w-0 flex-col gap-2">
+      {part.file.version === undefined ? null : <h2 className={headingClass}>Latest</h2>}
       <button
         type="button"
         onClick={props.onOpen}
@@ -260,8 +261,9 @@ function FolderParts(props: {
 
 /**
  * The project's overview, the first thing its page shows, made of modules that each appear once
- * the project holds something for them and update as the agent writes files: the lead part large
- * (or, with none yet, how to start one), the issues its checks found with the fix each suggests
+ * the project holds something for them and update as the agent writes files: the lead part large,
+ * what was built last (or, with none yet, how to start one), then in Studio every file, latest
+ * first, so the parts are in view without scrolling past the README, the issues its checks found with the fix each suggests
  * (asking for one writes the ask into the composer: the agent proposes and waits), its versions,
  * then the three kinds of thing designed (CAD and Electronics, each part with its checks, drawing
  * and manufacturing files; Documents), a module for each kind made from them (drawings, analysis,
@@ -460,6 +462,17 @@ export function ProjectOverview(props: {
         </div>
       )}
 
+      {/* What the project holds, the latest first, as a Drive folder shows it (`ProjectEverything`). */}
+      {engineering ? (
+        <ProjectEverything
+          environmentId={props.environmentId}
+          threadRef={props.threadRef}
+          folders={folders}
+          parts={partsByPath}
+          onOpenFile={props.onOpen}
+        />
+      ) : null}
+
       {props.readme !== null && (checked || issues.length > 0) ? (
         <OpenIssues
           issues={issues}
@@ -472,18 +485,6 @@ export function ProjectOverview(props: {
       ) : null}
 
       <div className="grid min-w-0 gap-8 @3xl:grid-cols-2">
-        {/* What the project holds, its files, as a Drive folder shows them (`ProjectEverything`). */}
-        {engineering ? (
-          <div className="min-w-0 @3xl:col-span-2">
-            <ProjectEverything
-              environmentId={props.environmentId}
-              threadRef={props.threadRef}
-              folders={folders}
-              parts={partsByPath}
-              onOpenFile={props.onOpen}
-            />
-          </div>
-        ) : null}
         {/* Every named size in one table, shared ones first (`ProjectSizes`). */}
         {partCount === 0 ? null : (
           <ProjectSizes

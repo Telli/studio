@@ -14,11 +14,16 @@ export interface ReadmeDecision {
   readonly how: "asked" | "by hand" | null;
 }
 
+/** A piece of a section, in the order it was written: a line of prose, a `###` heading, or a point at its depth. */
+export type ReadmeBlock =
+  | { readonly kind: "paragraph"; readonly text: string }
+  | { readonly kind: "subheading"; readonly text: string }
+  | { readonly kind: "item"; readonly text: string; readonly depth: number };
+
 /** A section of the README beyond What it is and Decisions: open questions, notes, risks. */
 export interface ReadmeSection {
   readonly heading: string;
-  readonly paragraphs: ReadonlyArray<string>;
-  readonly items: ReadonlyArray<string>;
+  readonly blocks: ReadonlyArray<ReadmeBlock>;
 }
 
 export interface ReadmeSections {
@@ -33,7 +38,10 @@ export interface ReadmeSections {
  * server): the project's icon and a line saying where it was made, not what it is.
  */
 const STARTING_LINE = /^\s*(<[^>]+>|Created in \[T3 Code\]\([^)]*\)\.?)\s*$/;
-const LIST_ITEM = /^\s*[-*]\s+(.+)$/;
+const LIST_ITEM = /^\s*(?:[-*]|\d+[.)])\s+(.+)$/;
+const SUBHEADING = /^#{3,6}\s+(.+?)\s*#*\s*$/;
+/** Where one sentence ends and the next starts, past the abbreviations that end in a stop. */
+const SENTENCE_END = /(?<!\b(?:e\.g|i\.e|vs|approx|no|fig)\.)(?<=[.!?])\s+(?=[A-Z0-9["(])/gi;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** `2026-10-19 — what was decided. Source: user brief.` */
 const DATE_FIRST = /^(\d{4}-\d{2}-\d{2})\s*(?:[—–:-]\s*)?(.+)$/;
@@ -62,26 +70,59 @@ function readDecision(item: string): ReadmeDecision {
   };
 }
 
-/** A section's lines as its paragraphs (blank-line separated) and its list items. */
+/**
+ * A section's lines as they read: each list item at its depth (by indentation), each `###` heading,
+ * and prose as a line of its own, or as points where it runs to several sentences, so a long
+ * paragraph reads as a list.
+ */
 function readSection(heading: string, lines: ReadonlyArray<string>): ReadmeSection {
-  const paragraphs: string[] = [];
-  const items: string[] = [];
+  const blocks: ReadmeBlock[] = [];
+  const indents: number[] = [];
   let paragraph: string[] = [];
   const close = () => {
     const text = paragraph.join(" ").trim();
-    if (text !== "") paragraphs.push(text);
     paragraph = [];
+    if (text === "") return;
+    indents.length = 0;
+    const sentences = text.split(SENTENCE_END);
+    if (sentences.length === 1) blocks.push({ kind: "paragraph", text });
+    else
+      blocks.push(
+        ...sentences.map((sentence) => ({ kind: "item", text: sentence, depth: 0 }) as const),
+      );
   };
   for (const line of lines) {
     const item = LIST_ITEM.exec(line)?.[1];
-    if (item !== undefined) {
+    const subheading = SUBHEADING.exec(line)?.[1];
+    if (subheading !== undefined) {
       close();
-      items.push(item.trim());
+      indents.length = 0;
+      blocks.push({ kind: "subheading", text: subheading });
+    } else if (item !== undefined) {
+      close();
+      const indent = line.length - line.trimStart().length;
+      while ((indents.at(-1) ?? -1) >= indent) indents.pop();
+      blocks.push({ kind: "item", text: item.trim(), depth: indents.length });
+      indents.push(indent);
     } else if (line.trim() === "") close();
     else paragraph.push(line.trim());
   }
   close();
-  return { heading, paragraphs, items };
+  return { heading, blocks };
+}
+
+/** A section's blocks with each run of points together, for one list each. */
+export function readmeRuns(
+  blocks: ReadonlyArray<ReadmeBlock>,
+): ReadonlyArray<ReadmeBlock | ReadonlyArray<Extract<ReadmeBlock, { kind: "item" }>>> {
+  const runs: Array<ReadmeBlock | Array<Extract<ReadmeBlock, { kind: "item" }>>> = [];
+  for (const block of blocks) {
+    const last = runs.at(-1);
+    if (block.kind !== "item") runs.push(block);
+    else if (Array.isArray(last)) last.push(block);
+    else runs.push([block]);
+  }
+  return runs;
 }
 
 export function readmeSections(markdown: string | null): ReadmeSections {
@@ -115,7 +156,7 @@ export function readmeSections(markdown: string | null): ReadmeSections {
   const more = sections
     .filter(({ heading }) => !["what it is", "decisions"].includes(heading.toLowerCase()))
     .map(({ heading, lines }) => readSection(heading, lines))
-    .filter((section) => section.paragraphs.length > 0 || section.items.length > 0);
+    .filter((section) => section.blocks.length > 0);
   const opening = intro.filter((line) => !STARTING_LINE.test(line));
   return { title, whatItIs: text(named("what it is")) ?? text(opening), decisions, more };
 }

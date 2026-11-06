@@ -11,7 +11,7 @@ import { KIND_ICONS, KIND_TINTS } from "./kinds";
 import { CARD_GRID, FileCard, MODULE_HEADING, ShowAll } from "./OverviewModules";
 import { type FolderPart, PartFooter } from "./PartBadges";
 import type { ProjectGroup } from "./projectFiles";
-import { pictureVersions, type ProjectModel } from "./projectModels";
+import { byLatest, pictureVersions, type ProjectModel } from "./projectModels";
 import {
   type FileItem,
   ITEM_TYPES,
@@ -161,7 +161,8 @@ function ListRows(props: {
  * What a project holds, its assets, in one place, the way Google Drive shows a folder: every kind
  * of file together (CAD, electronics, analysis, manufacturing files, documents, references), each
  * marked by its kind's icon in its kind's color, filtered by type and shown as a list (name, kind,
- * how a part's checks went or where a file is) or as cards with pictures. Its chats are down the
+ * how a part's checks went or where a file is) or as cards with pictures, what was built last
+ * first, as Drive and Docs open on what you worked on last. Its chats are down the
  * left (`StudioSidebar`). A press opens a file beside the chat.
  */
 export function ProjectEverything(props: {
@@ -181,11 +182,13 @@ export function ProjectEverything(props: {
   const [all, setAll] = useState(false);
   const items = useMemo<Item[]>(
     () =>
-      projectFileItems(props.folders).map((file) => ({
-        key: fullPath(file),
-        type: itemType(file.file.group),
-        file,
-      })),
+      projectFileItems(props.folders)
+        .toSorted((a, b) => byLatest(a.file, b.file))
+        .map((file) => ({
+          key: fullPath(file),
+          type: itemType(file.file.group),
+          file,
+        })),
     [props.folders],
   );
   const present = ITEM_TYPES.filter((entry) => items.some((item) => item.type === entry));

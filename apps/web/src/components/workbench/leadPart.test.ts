@@ -27,6 +27,32 @@ describe("leadPartOf", () => {
     ).toBe("parts/bracketry.step");
   });
 
+  it("leads with what was built last, an assembly ahead of the parts built with it", () => {
+    const model = (id: string, kind: "Part" | "Assembly", updated: string) => ({
+      id,
+      name: id,
+      script: `parts/${id}.py`,
+      kind,
+      updated,
+    });
+    const older = model("frame", "Part", "100");
+    const newer = model("carriage", "Part", "200");
+    const whole = model("plotter", "Assembly", "200");
+    expect(leadPartOf([{ root: "/w", paths: [], models: [older, newer] }])?.file.path).toBe(
+      "carriage",
+    );
+    expect(leadPartOf([{ root: "/w", paths: [], models: [newer, whole, older] }])?.file.path).toBe(
+      "plotter",
+    );
+    // Across folders too, wherever the first folder's parts are.
+    expect(
+      leadPartOf([
+        { root: "/a", paths: [], models: [older] },
+        { root: "/b", paths: [], models: [newer] },
+      ])?.root,
+    ).toBe("/b");
+  });
+
   it("is null when no folder has a part, or while one is still read", () => {
     expect(leadPartOf([])).toBeNull();
     expect(leadPartOf([{ root: "/work/a", paths: ["README.md", "docs/plan.md"] }])).toBeNull();

@@ -47,6 +47,16 @@ export function readFolderModels(reply: unknown): ProjectModel[] {
 }
 
 /**
+ * The newest first: by when the engine last built each (`version`), an assembly ahead of the parts
+ * built with it. A file the engine keeps no time for comes after, in the order it was in.
+ */
+export function byLatest(a: ProjectFile, b: ProjectFile): number {
+  const built = Number(b.version ?? 0) - Number(a.version ?? 0);
+  if (built !== 0 || a.version === undefined) return built;
+  return Number(b.kind === "Assembly") - Number(a.kind === "Assembly");
+}
+
+/**
  * A model as the project lists a part: by its document id (`path`), named as the engine names it,
  * filed in its script's folder under the script's name, so the checks run on it (named after its
  * script, as cadgen names a model's outputs) find it.

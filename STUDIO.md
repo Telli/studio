@@ -276,9 +276,7 @@ asked)`, or `by hand`; a decision written date first reads too), then every othe
   else, then to make a first draft in that same turn, listing what it assumed, and ask at most one
   question after it (Amy, 2026-10-29: three questions before any part was too many). Every question
   it asks puts the answer it recommends first, a failed check comes with the fix it would make, and
-  a finished job offers the next one (`RECOMMEND` in `packages/shared/src/studioProjects.ts`). Below it, modules: the lead part large (or, with no part yet, Start a part by hand), the
-  open issues its checks found (each with the fix the check suggests, and Propose a fix, which asks
-  the agent to propose and wait), then, in Engineering, everything in the project in one place the
+  a finished job offers the next one (`RECOMMEND` in `packages/shared/src/studioProjects.ts`). Below it, modules: the lead part large, what was built last (or, with no part yet, Start a part by hand), beside the README with its sections folded to their headings; then, in Engineering, everything in the project in one place, latest first, the
   way Google Drive shows a folder (`components/workbench/ProjectEverything.tsx`): every kind of file
   together (its chats are down the left), each marked by its kind's icon in its kind's color
   (`KIND_TINTS`), filtered by type (CAD, Electronics, Analysis, Manufacturing, Documents,

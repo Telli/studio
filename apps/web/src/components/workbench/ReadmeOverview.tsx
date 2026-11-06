@@ -18,10 +18,13 @@ import {
   useProjectFileQuery,
 } from "../files/projectFilesQueryState";
 import { useFileSaveCoordinator } from "../files/useFileSaveCoordinator";
+import { OverviewModule, useFoldedModules } from "./OverviewModules";
 import {
   isPlainReadmeText,
+  type ReadmeBlock,
   type ReadmeDecision,
   readmeInline,
+  readmeRuns,
   readmeSections,
   replaceReadmeText,
   scribblePath,
@@ -30,6 +33,8 @@ import {
 } from "./projectReadme";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+/** A point of the README, by its depth: each level further in, with its own marker. */
+const POINT = ["ms-4 list-disc", "ms-8 list-[circle]", "ms-12 list-[square]"] as const;
 const LINK =
   "rounded-sm text-foreground underline decoration-muted-foreground/50 underline-offset-2 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
@@ -180,11 +185,47 @@ function decisionNote(decision: ReadmeDecision): string | null {
   return note === "" ? null : note;
 }
 
+/** A section's prose, `###` headings and nested points, in the order written. */
+function ReadmeBlocks(props: {
+  readonly blocks: ReadonlyArray<ReadmeBlock>;
+  readonly onSave: (before: string, after: string) => void;
+  readonly onOpenPath: (path: string) => void;
+}) {
+  const words = (text: string) => (
+    <Typed words={text} multiline onSave={props.onSave}>
+      <ReadmeText text={text} onOpenPath={props.onOpenPath} />
+    </Typed>
+  );
+  return readmeRuns(props.blocks).map((run) => {
+    if ("kind" in run) {
+      return run.kind === "subheading" ? (
+        <h3 key={run.text} className="pt-1 text-xs font-medium text-foreground">
+          {words(run.text)}
+        </h3>
+      ) : (
+        <p key={run.text} className="max-w-[75ch] text-sm leading-relaxed text-foreground">
+          {words(run.text)}
+        </p>
+      );
+    }
+    return (
+      <ul key={run[0]?.text} className="flex max-w-[75ch] flex-col gap-1 text-sm text-foreground">
+        {run.map((point) => (
+          <li key={point.text} className={POINT[Math.min(point.depth, POINT.length - 1)]}>
+            {words(point.text)}
+          </li>
+        ))}
+      </ul>
+    );
+  });
+}
+
 /**
  * The top of a project's Overview in the engineering interface: its README, read as an engineer
  * reads one. What it is (the brief's purpose until the README says), the decisions made so far,
  * each with when and whether it was asked of the agent or made by hand, then every other section
- * the README has (open questions, notes). The agent keeps the README as it works
+ * the README has (open questions, notes), each folded to its heading until opened, so the page is
+ * as short as the project's picture and the parts stay in view. The agent keeps the README as it works
  * (`studioProjectContext`); the person types into it where it reads (`Typed`), with no Edit button.
  */
 export function ReadmeOverview(props: {
@@ -226,6 +267,8 @@ export function ReadmeOverview(props: {
     refresh: readme.refresh,
     resourceKey: `studio-readme:${props.cwd}`,
   });
+  // The sections opened on this computer, kept as the Overview's modules keep their folds.
+  const { folded: opened, toggle: toggleSection } = useFoldedModules(`readme:${props.cwd}`);
   const file = readme.data ?? null;
   const sections = readmeSections(file === null || file.truncated ? null : file.contents);
   const whatItIs = sections.whatItIs ?? (props.purpose.trim() || null);
@@ -305,29 +348,27 @@ export function ReadmeOverview(props: {
             </ul>
           )}
         </div>
-        {sections.more.map((section) => (
-          <div key={section.heading} className="flex flex-col gap-1.5">
-            <h2 className={SECTION_LABEL}>{section.heading}</h2>
-            {section.paragraphs.map((paragraph) => (
-              <p key={paragraph} className="max-w-[75ch] text-sm leading-relaxed text-foreground">
-                <Typed words={paragraph} multiline onSave={save}>
-                  <ReadmeText text={paragraph} onOpenPath={props.onOpenPath} />
-                </Typed>
-              </p>
+        {sections.more.length === 0 ? null : (
+          <div className="flex flex-col gap-3">
+            {sections.more.map((section) => (
+              <OverviewModule
+                key={section.heading}
+                title={section.heading}
+                count={section.blocks.filter((block) => block.kind !== "subheading").length}
+                folded={!writingIn && !opened.includes(section.heading)}
+                onFold={() => toggleSection(section.heading)}
+              >
+                <div className="flex flex-col gap-1.5 pt-2">
+                  <ReadmeBlocks
+                    blocks={section.blocks}
+                    onSave={save}
+                    onOpenPath={props.onOpenPath}
+                  />
+                </div>
+              </OverviewModule>
             ))}
-            {section.items.length === 0 ? null : (
-              <ul className="flex list-disc flex-col gap-1 ps-4 text-sm text-foreground">
-                {section.items.map((item) => (
-                  <li key={item}>
-                    <Typed words={item} onSave={save}>
-                      <ReadmeText text={item} onOpenPath={props.onOpenPath} />
-                    </Typed>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
-        ))}
+        )}
         <p className="text-xs text-muted-foreground">
           Studio writes this from the project's chats and keeps it current. Click a line to change
           it.

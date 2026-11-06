@@ -4,6 +4,7 @@ import {
   isPlainReadmeText,
   nextReadmeWriteIn,
   readmeInline,
+  readmeRuns,
   readmeSections,
   type ReadmeWriteIn,
   replaceReadmeText,
@@ -67,9 +68,51 @@ describe("readmeSections", () => {
     );
     expect(sections.whatItIs).toBe("Holds a bike.");
     expect(sections.more).toEqual([
-      { heading: "Open questions", paragraphs: ["Wall construction; bike weight."], items: [] },
-      { heading: "Notes", paragraphs: [], items: ["Print it on its side", "Use four screws"] },
+      {
+        heading: "Open questions",
+        blocks: [{ kind: "paragraph", text: "Wall construction; bike weight." }],
+      },
+      {
+        heading: "Notes",
+        blocks: [
+          { kind: "item", text: "Print it on its side", depth: 0 },
+          { kind: "item", text: "Use four screws", depth: 0 },
+        ],
+      },
     ]);
+  });
+
+  it("keeps a section's prose, points and headings in the order written, points at their depth", () => {
+    const { more } = readmeSections(
+      "## Notes\n\nFirst.\n\n### Fit\n\n- Saddle\n  - Width 62 mm\n    - Assumed\n  - Depth 22 mm\n- Clamp\n\nNext: measure it\n",
+    );
+    expect(more[0]?.blocks).toEqual([
+      { kind: "paragraph", text: "First." },
+      { kind: "subheading", text: "Fit" },
+      { kind: "item", text: "Saddle", depth: 0 },
+      { kind: "item", text: "Width 62 mm", depth: 1 },
+      { kind: "item", text: "Assumed", depth: 2 },
+      { kind: "item", text: "Depth 22 mm", depth: 1 },
+      { kind: "item", text: "Clamp", depth: 0 },
+      { kind: "paragraph", text: "Next: measure it" },
+    ]);
+  });
+
+  it("reads a paragraph of several sentences as points", () => {
+    const { more } = readmeSections(
+      "## Research\n\nThe mount fits a [P1P](https://a.example/b.c). It takes 2.5 mm pens, e.g. fineliners. Print it flat.\n",
+    );
+    expect(more[0]?.blocks).toEqual([
+      { kind: "item", text: "The mount fits a [P1P](https://a.example/b.c).", depth: 0 },
+      { kind: "item", text: "It takes 2.5 mm pens, e.g. fineliners.", depth: 0 },
+      { kind: "item", text: "Print it flat.", depth: 0 },
+    ]);
+  });
+
+  it("takes one list for each run of points", () => {
+    const point = { kind: "item", text: "a", depth: 0 } as const;
+    const line = { kind: "paragraph", text: "b" } as const;
+    expect(readmeRuns([point, point, line, point])).toEqual([[point, point], line, [point]]);
   });
 
   it("keeps a parenthesis that is not a date or a how", () => {
