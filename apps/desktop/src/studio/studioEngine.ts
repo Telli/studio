@@ -23,7 +23,9 @@ export const STUDIO_DEV_ENGINE_PORT = 3346;
  *   Code's or Codex's plugin, on 3245) is never found by Studio's to retire, nor finds it;
  * - `CAD_ENGINE_PORT`: its own port (`STUDIO_ENGINE_PORT`);
  * - `CAD_LAUNCHER_DIR`: where its `cad` command is written (`<home>/bin`), which its agents'
- *   skills run (`studioPath` puts it first on their PATH).
+ *   skills run (`studioPath` puts it first on their PATH);
+ * - `CAD_INSTALL_CHANNEL`: `dev`, which keeps the CAD tools' update notices and telemetry off from
+ *   the very first `cad` command, before any MCP session has written the channel down.
  *
  * The folder is `cad`, not 0.8's `cadgen`: a 0.8 installation's record never stands for 0.10's.
  * The agents Studio runs inherit these, so every `cad` they run is Studio's installation on
@@ -37,6 +39,7 @@ export function studioEngineEnv(home: string, options: { readonly dev: boolean }
     CAD_ENGINE_DIR: NodePath.join(cad, "engine"),
     CAD_ENGINE_PORT: String(options.dev ? STUDIO_DEV_ENGINE_PORT : STUDIO_ENGINE_PORT),
     CAD_LAUNCHER_DIR: NodePath.join(home, "bin"),
+    CAD_INSTALL_CHANNEL: "dev",
   };
 }
 

@@ -124,6 +124,8 @@ describe("applyStudioAppBundle", () => {
       CAD_ENGINE_DIR: NodePath.join(cad, "engine"),
       CAD_ENGINE_PORT: String(STUDIO_ENGINE_PORT),
       CAD_LAUNCHER_DIR: NodePath.join(studioHome, "bin"),
+      // text-to-cad's telemetry is off from the first `cad` command, in any order.
+      CAD_INSTALL_CHANNEL: "dev",
     });
     expect(env.PATH).toBe(NodePath.join(studioHome, "bin"));
     const skill = NodeFS.readFileSync(
