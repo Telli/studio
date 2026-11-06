@@ -8,8 +8,9 @@
  *   node scripts/studio-app-open-check.mjs <Studio.app or Studio.exe> [folder for its scratch home]
  *
  * It stops only the process it started, by the id it was given (`app.kill`, then `taskkill` for that
- * id's own tree on Windows). The scratch home goes with it. The home also keeps the app off the
- * person's engine and counts nothing: no update check, no usage counts.
+ * id's own tree on Windows). It then removes the scratch home, though late CAD cache files can
+ * bring a folder of them back. The home also keeps the app off the person's engine and counts
+ * nothing: no update check, no usage counts.
  */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
