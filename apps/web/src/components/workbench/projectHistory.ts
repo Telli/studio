@@ -12,6 +12,7 @@ export type HistoryOutcome =
   | "working"
   | "needs-you"
   | "failed"
+  | "limited"
   | "stopped"
   | "done"
   | "not-started";
@@ -38,7 +39,7 @@ export function historyOutcome(
     case undefined:
       return "not-started";
     case "failed":
-      return "failed";
+      return thread.runtime?.lastErrorClass === "usage_limit" ? "limited" : "failed";
     case "interrupted":
     case "cancelled":
     case "rolled_back":

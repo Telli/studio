@@ -384,7 +384,7 @@ function QuickFindBody(props: {
               });
             };
             const description = `${item.card.project.name} · ${formatRelativeTimeLabel(item.at)}`;
-            // A chat says when it is at work or waiting on the person, as the sidebar's do.
+            // A chat says when it is at work, waiting on the person or stopped, as the sidebar's do.
             const live = historyOutcome(item.thread);
             return item.kind === "chat"
               ? {
@@ -392,7 +392,10 @@ function QuickFindBody(props: {
                   icon: <KindIcon group="Chats" />,
                   title: chatLabel(item.thread.title),
                   description:
-                    live === "needs-you" || live === "working"
+                    live === "needs-you" ||
+                    live === "working" ||
+                    live === "failed" ||
+                    live === "limited"
                       ? `${item.card.project.name} · ${chatStanding(item.thread).text}`
                       : description,
                   waiting: live === "needs-you",

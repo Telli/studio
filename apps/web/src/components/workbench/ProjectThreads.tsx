@@ -8,6 +8,7 @@ import {
   CircleIcon,
   CircleSlashIcon,
   CircleXIcon,
+  GaugeIcon,
   type LucideIcon,
   MessageSquareIcon,
 } from "lucide-react";
@@ -30,7 +31,8 @@ const OUTCOMES: Record<
 > = {
   "needs-you": { Icon: CircleAlertIcon, word: "Needs you", tone: "text-info-foreground" },
   working: { Icon: CircleDashedIcon, word: "Working", tone: "text-foreground" },
-  failed: { Icon: CircleXIcon, word: "Stopped on an error", tone: "text-destructive" },
+  failed: { Icon: CircleXIcon, word: "Failed", tone: "text-destructive" },
+  limited: { Icon: GaugeIcon, word: "Usage limit", tone: "text-warning-foreground" },
   stopped: { Icon: CircleSlashIcon, word: "Stopped", tone: "text-muted-foreground" },
   done: { Icon: CircleCheckIcon, word: null, tone: "text-muted-foreground" },
   "not-started": { Icon: CircleIcon, word: "Not started", tone: "text-muted-foreground" },

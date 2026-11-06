@@ -95,11 +95,11 @@ export function shownChats(
   return { chats: shown, hidden: chats.length - shown.length };
 }
 
-/** What a folded project says of its chats: one needs the person, or one is at work. */
+/** What a folded project says of its chats: one needs the person, is at work, failed or is limited. */
 export function foldedStanding(
   threads: ReadonlyArray<EnvironmentThreadShell>,
 ): { readonly text: string; readonly tone: string } | null {
   const said = (outcome: string) => threads.find((chat) => historyOutcome(chat) === outcome);
-  const chat = said("needs-you") ?? said("working");
+  const chat = said("needs-you") ?? said("working") ?? said("failed") ?? said("limited");
   return chat === undefined ? null : chatStanding(chat);
 }
