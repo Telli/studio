@@ -2,7 +2,14 @@ import type { InstalledPlugin, PluginSkillDetail, StudioSample } from "@t3tools/
 import { describe, expect, it } from "vite-plus/test";
 
 import { LIBRARY_DOCUMENTS, librarySkills } from "./libraryCatalog";
-import { filterLibrary, findInLibrary, libraryGroup, validateLibrarySearch } from "./librarySearch";
+import {
+  documentGroup,
+  filterLibrary,
+  findInLibrary,
+  libraryGroup,
+  skillGroup,
+  validateLibrarySearch,
+} from "./librarySearch";
 
 /** A display name that no document type's own words hold, so only the shown name can find it. */
 const DISPLAY_NAMES: Readonly<Record<string, string>> = { "dfam-check": "Printability review" };
@@ -115,6 +122,21 @@ describe("findInLibrary", () => {
       documents: [],
     });
     expect(findInLibrary(examples, LIBRARY_DOCUMENTS, "bracket", 1).examples).toHaveLength(1);
+  });
+});
+
+describe("the Toolbox's shelves", () => {
+  it("stands each skill on the shelf of the work it does", () => {
+    expect(skillGroup("cad")).toBe("New");
+    expect(skillGroup("urdf")).toBe("New");
+    expect(skillGroup("fea")).toBe("Evaluate");
+    expect(skillGroup("cam")).toBe("Manufacture");
+    expect(skillGroup("work-instructions")).toBe("Document");
+  });
+
+  it("files a type no skill makes as a document, not under New", () => {
+    expect(documentGroup(doc("doc:prd"))).toBe("Document");
+    expect(documentGroup(doc("doc:parts-list"))).toBe("Document");
   });
 });
 

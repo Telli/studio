@@ -15,6 +15,7 @@ import {
   LIBRARY_DOCUMENTS,
   librarySkills,
   madeBy,
+  skillsBehind,
   makeOneTemplate,
   ownTemplateEntries,
   showsUpAs,
@@ -160,6 +161,12 @@ describe("library catalog", () => {
         entry.id,
       ).toBe(entry.templates.some((id) => fromNothing.has(id)));
     }
+  });
+
+  it("finds the skill behind a document type, and none behind a plain template", () => {
+    const byId = (id: string) => LIBRARY_DOCUMENTS.find((entry) => entry.id === id)!;
+    expect(skillsBehind(byId("doc:cam-job"))).toContain("cam");
+    expect(skillsBehind(byId("doc:prd"))).toEqual([]);
   });
 
   it("names who makes it", () => {

@@ -28,7 +28,8 @@ typecheck and the tests on every push to `main` and every change request.
 6. **Plain words first.** Formulas go in parentheses, and every assumption becomes a question the
    engineer can answer with a tap. _Review._
 7. **Red, amber and green mean failed, warning and passed.** Nothing else uses them: a kind,
-   category or favorite gets another hue. _Lint: `shadcn/no-raw-colors` keeps colours on theme
+   category or favorite gets another hue. The one exception is the view's X, Y and Z axes in red,
+   green and blue, which name a direction as every CAD tool does. _Lint: `shadcn/no-raw-colors` keeps colours on theme
    tokens; review keeps `destructive`, `warning` and `success` for status._
 8. **NX and SolidWorks are the bar.** An engineer finds each thing where their CAD puts it.
    _Review._

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
 import { MODULE_HEADING } from "../studioLayout";
@@ -14,6 +14,8 @@ export interface Shelf {
   readonly icon: LucideIcon;
   readonly tint: string;
   readonly count: number;
+  /** Who it comes from, over its run of shelves in the index. */
+  readonly source?: string;
 }
 
 /** A shelf's place on the page, which `group` in the URL and the shelf index scroll to. */
@@ -54,9 +56,9 @@ export function ShelfIndex(props: { readonly shelves: ReadonlyArray<Shelf> }) {
       aria-label="Shelves"
       className="sticky top-0 hidden w-48 shrink-0 flex-col gap-0.5 @3xl:flex"
     >
-      {props.shelves.map((shelf) => {
+      {props.shelves.map((shelf, index) => {
         const Icon = shelf.icon;
-        return (
+        const button = (
           <button
             key={shelf.key}
             type="button"
@@ -69,6 +71,14 @@ export function ShelfIndex(props: { readonly shelves: ReadonlyArray<Shelf> }) {
             <span className="min-w-0 flex-1 truncate">{shelf.title}</span>
             <span className="text-xs text-muted-foreground">{shelf.count}</span>
           </button>
+        );
+        return shelf.source === undefined || shelf.source === props.shelves[index - 1]?.source ? (
+          button
+        ) : (
+          <Fragment key={shelf.key}>
+            <p className={cn(MODULE_HEADING, "px-2 py-1.5")}>{shelf.source}</p>
+            {button}
+          </Fragment>
         );
       })}
     </nav>

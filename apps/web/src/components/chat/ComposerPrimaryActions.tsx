@@ -320,7 +320,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
       type={showResume ? "button" : "submit"}
       className={cn(
         "relative isolate flex size-8 items-center justify-center overflow-hidden rounded-lg shadow-xs transition-all duration-150 enabled:cursor-pointer enabled:inset-shadow-control-highlight hover:scale-105 active:inset-shadow-control-pressed active:shadow-none disabled:pointer-events-none disabled:opacity-64 disabled:shadow-none disabled:hover:scale-100 sm:h-8 sm:w-8 [&_svg]:pointer-events-none",
-        // Blue only while it can send; grey until then, as Home's Start project is.
+        // Blue only while it can send; grey until then, as Home's Start is.
         sendDisabled
           ? "bg-secondary text-secondary-foreground"
           : "bg-message-action text-message-action-foreground enabled:shadow-message-action/24 hover:bg-message-action-hover",

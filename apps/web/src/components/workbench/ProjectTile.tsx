@@ -17,7 +17,7 @@ import { chatLabel, workspaceTitle } from "./workspaceTitle";
  * A project as Home and Projects show it: a picture of its main part (its first assembly, else
  * its first part or board), or its kind's icon until it has one; its name as the sidebar says it
  * (`workspaceTitle`); and its latest chat and when, or the chat that waits. Needs you sits in blue
- * on the picture's corner while a chat waits on the person, New there on its first day, a star on
+ * on the picture's corner while a chat waits on the person, a star on
  * the other (shown on hover, and always once starred). With
  * `onMenu`, a right-click or the "…" on hover opens its menu, as Drive's on a file (`ProjectMenu`).
  */
@@ -85,10 +85,6 @@ export function ProjectTile(props: {
           {first !== undefined ? (
             <span className="absolute top-2 left-2">
               <Badge variant="info">Needs you</Badge>
-            </span>
-          ) : activity.isNew ? (
-            <span className="absolute top-2 left-2">
-              <Badge variant="outline">New</Badge>
             </span>
           ) : null}
         </span>

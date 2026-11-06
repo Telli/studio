@@ -73,6 +73,35 @@ export function libraryGroup(entry: LibraryDocument): LibraryGroup {
   return HARDWARE_ACTIONS.find((job) => job.id === first)?.group ?? "New";
 }
 
+/** The shelf of a type no skill makes: New only makes parts with a skill, so it is a document. */
+export const documentGroup = (entry: LibraryDocument): LibraryGroup => {
+  const group = libraryGroup(entry);
+  return group === "New" ? "Document" : group;
+};
+
+/** Which shelf each of text-to-cad's skills stands on, by the work it does. */
+const SKILL_GROUPS: Readonly<Record<string, LibraryGroup>> = {
+  cad: "New",
+  "step-parts": "New",
+  urdf: "New",
+  sdf: "New",
+  srdf: "New",
+  fea: "Evaluate",
+  dfm: "Manufacture",
+  "dfam-check": "Manufacture",
+  cam: "Manufacture",
+  gcode: "Manufacture",
+  "bambu-labs": "Manufacture",
+  dxf: "Manufacture",
+  sendcutsend: "Manufacture",
+  "engineering-drawing": "Document",
+  "work-instructions": "Document",
+};
+
+/** The shelf of a skill; one text-to-cad adds later stands with the part menu of its first job. */
+export const skillGroup = (skill: string): LibraryGroup =>
+  SKILL_GROUPS[skill] ?? HARDWARE_ACTIONS.find((job) => job.skill === skill)?.group ?? "New";
+
 /**
  * What the search box looks through: an entry's name, what it is, its skills, by their names and
  * as the page shows them (`shown`), and where it is.

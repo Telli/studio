@@ -427,6 +427,20 @@ const templatesBehind = (entry: LibraryDocument) =>
 const jobsBehind = (entry: LibraryDocument) =>
   entry.actions.flatMap((id) => HARDWARE_ACTIONS.filter((job) => job.id === id));
 
+/**
+ * The skills that make a document type, by its templates and its jobs. A type with one lives inside
+ * that skill's detail (Makes); only a type no skill makes gets a tile of its own.
+ */
+export function skillsBehind(entry: LibraryDocument): ReadonlyArray<string> {
+  return [
+    ...new Set(
+      [...templatesBehind(entry), ...jobsBehind(entry)].flatMap((maker) =>
+        maker.skill === null ? [] : [maker.skill],
+      ),
+    ),
+  ];
+}
+
 /** The entry one of New's templates belongs to. */
 export function entryOfTemplate(templateId: string): LibraryDocument | null {
   return LIBRARY_DOCUMENTS.find((entry) => entry.templates.includes(templateId)) ?? null;

@@ -12,7 +12,7 @@ import { workspaceTitle } from "./workspaceTitle";
 /**
  * Where Home's box sends what is typed: a new project, as it starts, or a chat in a project of
  * yours. In the box it is one quiet line, as Attach beside it is (the project's picture or a +,
- * its name, or Project until one is chosen, beside Start project; the switcher's chevrons); its
+ * its name, or Project until one is chosen, beside Start; the switcher's chevrons); its
  * list is the project switcher's own (`ProjectChoices`), with New project at its head.
  */
 export function ProjectPicker(props: {

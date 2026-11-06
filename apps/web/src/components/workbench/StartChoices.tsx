@@ -137,12 +137,12 @@ export function StartExamples(props: { readonly examples: ReadonlyArray<StudioSa
 
 /**
  * Home's Get started strip, under Starred and Recent once there are projects: a row of the
- * examples, with All examples (the Library). It folds away as an Overview module does, and
- * the fold is kept on this device (`readGetStartedFolded`).
+ * examples, and All examples opens the rest in place. It folds away as an Overview module does,
+ * and the fold is kept on this device (`readGetStartedFolded`).
  */
 export function GetStarted(props: { readonly examples: ReadonlyArray<StudioSample> }) {
-  const navigate = useNavigate();
   const [folded, setFolded] = useState(readGetStartedFolded);
+  const [allShown, setAllShown] = useState(false);
   if (props.examples.length === 0) return null;
   return (
     <OverviewModule
@@ -153,10 +153,17 @@ export function GetStarted(props: { readonly examples: ReadonlyArray<StudioSampl
         writeGetStartedFolded(!folded);
       }}
       action={
-        <HeadingLink label="All examples" onClick={() => void navigate({ to: "/library" })} />
+        props.examples.length <= STRIP_EXAMPLES ? undefined : (
+          <HeadingLink
+            label={allShown ? "Fewer examples" : "All examples"}
+            onClick={() => setAllShown(!allShown)}
+          />
+        )
       }
     >
-      <ExampleTiles examples={props.examples.slice(0, STRIP_EXAMPLES)} />
+      <ExampleTiles
+        examples={allShown ? props.examples : props.examples.slice(0, STRIP_EXAMPLES)}
+      />
     </OverviewModule>
   );
 }

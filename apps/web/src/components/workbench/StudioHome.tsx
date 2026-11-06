@@ -270,7 +270,10 @@ function StartProject(props: {
       startNow();
     }
   };
-  const placeholder = chosen === null ? "Describe a new project" : ENGINEERING_COMPOSER_PLACEHOLDER;
+  const placeholder =
+    chosen === null
+      ? "Describe a part, or pick a project to work in"
+      : ENGINEERING_COMPOSER_PLACEHOLDER;
 
   return (
     <section aria-label="Start" className={SECTION_STACK}>
@@ -351,7 +354,7 @@ function StartProject(props: {
             disabled={!ready}
             onClick={startNow}
           >
-            {busy ? "Starting…" : chosen === null ? "Start project" : "Start chat"}
+            {busy ? "Starting…" : "Start"}
           </Button>
         </div>
       </div>

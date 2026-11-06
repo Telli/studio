@@ -11,7 +11,6 @@ import {
   MessageSquareIcon,
   PackageIcon,
   PencilRulerIcon,
-  ShapesIcon,
   SlidersHorizontalIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -119,9 +118,6 @@ export function fileIconKey(kind: string): ProjectGroup | "Setup" {
 
 /** A project's chats, beside the kinds of file it holds (the Overview's list of everything). */
 export const CHAT_ICON: LucideIcon = MessageSquareIcon;
-
-/** Studio's examples, in the Library's Examples section. */
-export const EXAMPLES_ICON: LucideIcon = ShapesIcon;
 
 /** The quiet grey of an icon that names no kind of thing. */
 export const KIND_TINT = "text-muted-foreground";

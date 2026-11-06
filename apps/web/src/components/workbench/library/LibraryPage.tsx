@@ -1,6 +1,6 @@
 import { MY_SKILLS_PLUGIN_ID, type EnvironmentId, type InstalledPlugin } from "@t3tools/contracts";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { PlusIcon, PuzzleIcon } from "lucide-react";
+import { PlusIcon, PuzzleIcon, UserRoundIcon } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { usePrimaryEnvironmentId } from "~/state/environments";
@@ -18,10 +18,8 @@ import {
 } from "../../ui/dialog";
 import { Input } from "../../ui/input";
 import { ChatPage } from "../ChatPages";
-import { findExamples } from "../examples/examples";
-import { ExamplesModule } from "../examples/ExamplesModule";
 import { useDocumentTemplates } from "../documentTemplates";
-import { EXAMPLES_ICON, fileTint, MENU_ICONS, MENU_TINTS, MENU_WORDS } from "../kinds";
+import { fileTint, MENU_ICONS, MENU_TINTS, MENU_WORDS } from "../kinds";
 import { useNewDialogStore } from "../newDialogStore";
 import type { NewTemplate } from "../newTemplates";
 import { useEngineeringInterface } from "../studioInterface";
@@ -29,12 +27,13 @@ import {
   availability,
   findItIn,
   LIBRARY_DOCUMENTS,
+  type LibraryDocument,
   type LibraryEntry,
   librarySkills,
   madeBy,
   makeOneTemplate,
   ownTemplateEntries,
-  showsUpAs,
+  skillsBehind,
   skillName,
 } from "./libraryCatalog";
 import { AddSkillTile } from "./AddSkill";
@@ -42,15 +41,17 @@ import { LibraryCard } from "./LibraryCard";
 import { LibraryPicture } from "./LibraryPicture";
 import { LibraryShelf, ShelfIndex, shelfAnchor, type Shelf } from "./LibraryShelf";
 import {
+  documentGroup,
   filterLibrary,
   LIBRARY_GROUPS,
   type LibraryGroup,
-  libraryGroup,
   type LibrarySearch,
+  skillGroup,
 } from "./librarySearch";
 import { NeedsSkill } from "./NeedsSkill";
 import { SeeTheExample } from "./SeeTheExample";
 import { SkillDetail } from "./SkillDetail";
+import { TEXT_TO_CAD } from "./skillAvailability";
 import { useExamples } from "./useSampleProject";
 
 /** Each group of document types by its place's icon: New's, then each part menu's (`kinds.ts`). */
@@ -80,11 +81,12 @@ const shelfOf = (shelf: Omit<Shelf, "count">, entries: ReadonlyArray<LibraryEntr
 /**
  * Studio's Toolbox page (`/library`, the one place on the rail for what Studio ships), laid out as
  * a library of skills: a directory of shelves down its side (`ShelfIndex`), and always-open shelves
- * of covers (`LibraryShelf`). The person's own skills come first, with Add a skill, then every
- * installed plugin's, then the examples (`ExamplesModule`) and every document type Studio makes,
- * shelved where it is found (New, then the part menus Analysis, Manufacturing and Documents). A
- * skill's cover opens it in full (`SkillDetail`), a document type's its detail, kept in the URL
- * (`entry`) so Back closes it; `group` scrolls to its shelf. Reached from ⌘K, New, the part menus and
+ * of covers (`LibraryShelf`). text-to-cad's skills stand on the shelves of the work they do (New,
+ * then the part menus Analysis, Manufacturing and Documents), each holding what it makes, with the
+ * document types no skill makes beside them. Then every other plugin's skills, and the person's own
+ * with Add a skill: first once they have one, last until then. A skill's cover opens it in full
+ * (`SkillDetail`), a document type's its detail, kept in the URL (`entry`) so Back closes it;
+ * `group` scrolls to its shelf. Reached from ⌘K, New, the part menus and
  * Settings › Plugins (`libraryHref`).
  */
 export function LibraryPage(props: { readonly search: LibrarySearch }) {
@@ -106,7 +108,6 @@ function LibraryContent(props: {
   const ownTemplates = useDocumentTemplates(environmentId).templates;
   const examples = useExamples(environmentId).examples;
   const [query, setQuery] = useState("");
-  const shownExamples = findExamples(examples, query);
 
   const documents = useMemo(
     () => [...LIBRARY_DOCUMENTS, ...ownTemplateEntries(ownTemplates)],
@@ -117,17 +118,44 @@ function LibraryContent(props: {
   const matching = new Set(filterLibrary(entries, query));
   const pluginsWithSkills = [
     ...new Map(skills.map((skill) => [skill.pluginId, skill.pluginName] as const)),
-  ].filter(([pluginId]) => pluginId !== MY_SKILLS_PLUGIN_ID);
+  ].filter(([pluginId]) => pluginId !== MY_SKILLS_PLUGIN_ID && pluginId !== TEXT_TO_CAD);
   const mySkills = shelfOf(
     {
       key: `plugin:${MY_SKILLS_PLUGIN_ID}`,
       title: "My skills",
-      icon: PuzzleIcon,
+      icon: UserRoundIcon,
       tint: fileTint("CAD"),
     },
     skills.filter((skill) => skill.pluginId === MY_SKILLS_PLUGIN_ID && matching.has(skill)),
   );
-  const skillShelves: ReadonlyArray<Group> = pluginsWithSkills
+  const ourSkills = skills.filter((skill) => skill.pluginId === TEXT_TO_CAD);
+  const makes = (skill: string) => documents.filter((entry) => skillsBehind(entry).includes(skill));
+  // A skill shows for its own words, or for what it makes.
+  const ourShown = ourSkills.filter(
+    (skill) => matching.has(skill) || makes(skill.name).some((entry) => matching.has(entry)),
+  );
+  // A document type lives inside the skill that makes it; only one no skill here makes is a tile.
+  const onItsOwn = documents.filter(
+    (entry) =>
+      matching.has(entry) &&
+      !skillsBehind(entry).some((skill) => ourSkills.some((own) => own.name === skill)),
+  );
+  const workShelves: ReadonlyArray<Group> = LIBRARY_GROUPS.map((group) =>
+    shelfOf(
+      {
+        key: group,
+        title: group === "New" ? group : MENU_WORDS[group],
+        icon: GROUP_ICONS[group],
+        tint: GROUP_TINTS[group],
+        source: "text-to-cad",
+      },
+      [
+        ...ourShown.filter((skill) => skillGroup(skill.name) === group),
+        ...onItsOwn.filter((entry) => documentGroup(entry) === group),
+      ],
+    ),
+  ).filter((group) => group.entries.length > 0);
+  const pluginShelves: ReadonlyArray<Group> = pluginsWithSkills
     .map(([pluginId, pluginName]) =>
       shelfOf(
         {
@@ -140,31 +168,13 @@ function LibraryContent(props: {
       ),
     )
     .filter((group) => group.entries.length > 0);
-  const documentShelves: ReadonlyArray<Group> = LIBRARY_GROUPS.map((group) =>
-    shelfOf(
-      {
-        key: group,
-        title: group === "New" ? group : MENU_WORDS[group],
-        icon: GROUP_ICONS[group],
-        tint: GROUP_TINTS[group],
-      },
-      documents.filter((entry) => libraryGroup(entry) === group && matching.has(entry)),
-    ),
-  ).filter((group) => group.entries.length > 0);
-  const examplesShelf: Shelf = {
-    key: "examples",
-    title: "Examples",
-    icon: EXAMPLES_ICON,
-    tint: fileTint("CAD"),
-    count: shownExamples.length,
-  };
-  // My skills stays on the page with nothing in it, since it holds Add a skill.
-  const showMySkills = query === "" || mySkills.entries.length > 0;
-  const shelves = [
-    ...(showMySkills ? [mySkills] : []),
-    ...skillShelves,
-    ...(shownExamples.length === 0 ? [] : [examplesShelf]),
-    ...documentShelves,
+  // My skills holds Add a skill, so it stays with nothing in it: last until the person has one.
+  const haveOwn = mySkills.entries.length > 0;
+  const shelves: ReadonlyArray<Group> = [
+    ...(haveOwn ? [mySkills] : []),
+    ...workShelves,
+    ...pluginShelves,
+    ...(!haveOwn && query === "" ? [mySkills] : []),
   ];
   const nothingFound = shelves.length === 0;
 
@@ -242,8 +252,8 @@ function LibraryContent(props: {
   return (
     <ChatPage
       title="Toolbox"
-      count={entries.length}
-      lede="The skills the agent works from, and what it makes with them. Open one to read it, or add your own."
+      count={shelves.reduce((tiles, shelf) => tiles + shelf.count, 0)}
+      lede="The skills the agent works from: text-to-cad's and your own. Open one to read it and see what it makes."
       search={
         <Input
           type="search"
@@ -262,20 +272,11 @@ function LibraryContent(props: {
         <div className="flex min-w-0 items-start gap-8">
           <ShelfIndex shelves={shelves} />
           <div className="flex min-w-0 flex-1 flex-col gap-8">
-            {showMySkills ? (
-              <LibraryShelf shelf={mySkills}>
-                <AddSkillTile environmentId={environmentId} onAdded={openOwnSkill} />
-                {mySkills.entries.map(cover)}
-              </LibraryShelf>
-            ) : null}
-            {skillShelves.map((group) => (
+            {shelves.map((group) => (
               <LibraryShelf key={group.key} shelf={group}>
-                {group.entries.map(cover)}
-              </LibraryShelf>
-            ))}
-            <ExamplesModule shelf={examplesShelf} examples={shownExamples} />
-            {documentShelves.map((group) => (
-              <LibraryShelf key={group.key} shelf={group}>
+                {group === mySkills ? (
+                  <AddSkillTile environmentId={environmentId} onAdded={openOwnSkill} />
+                ) : null}
                 {group.entries.map(cover)}
               </LibraryShelf>
             ))}
@@ -295,6 +296,8 @@ function LibraryContent(props: {
             environmentId={environmentId}
             plugins={plugins}
             skillLabel={skillLabel}
+            makes={shown.kind === "skill" ? makes(shown.name) : []}
+            onOpenEntry={openEntry}
             exampleId={
               shown.exampleIn !== null && examples.some((example) => example.id === shown.exampleIn)
                 ? shown.exampleIn
@@ -324,6 +327,9 @@ function EntryDetail(props: {
   /** The installed plugins; undefined until they are known. */
   readonly plugins: ReadonlyArray<InstalledPlugin> | undefined;
   readonly skillLabel: (name: string) => string;
+  /** What a skill makes, each opening its own detail. */
+  readonly makes: ReadonlyArray<LibraryDocument>;
+  readonly onOpenEntry: (id: string) => void;
   /** The example its example is in (`exampleIn`); null where the server ships none. */
   readonly exampleId: string | null;
   /** Opens New on a template; null where no New would take it. */
@@ -342,7 +348,6 @@ function EntryDetail(props: {
       : null;
   const example = exampleId === null ? null : entry.example;
 
-  const shownAs = entry.kind === "skill" ? showsUpAs(entry.name) : [];
   const rows: ReadonlyArray<readonly [string, ReactNode]> =
     entry.kind === "document"
       ? [
@@ -354,15 +359,20 @@ function EntryDetail(props: {
         ]
       : [
           ...(entry.tryAsking === null ? [] : [["Try asking", `“${entry.tryAsking}”`] as const]),
-          ...(shownAs.length === 0
+          ...(props.makes.length === 0
             ? []
             : [
                 [
-                  "Shows up as",
-                  shownAs.map((line) => (
-                    <span key={line} className="block">
-                      {line}
-                    </span>
+                  "Makes",
+                  props.makes.map((made) => (
+                    <button
+                      key={made.id}
+                      type="button"
+                      onClick={() => props.onOpenEntry(made.id)}
+                      className="block text-start hover:underline focus-visible:underline focus-visible:outline-none"
+                    >
+                      {made.name}
+                    </button>
                   )),
                 ] as const,
               ]),
