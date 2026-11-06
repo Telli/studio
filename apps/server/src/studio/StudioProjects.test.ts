@@ -171,6 +171,69 @@ it.effect("saves a project as a folder of its own: a readable file, a README and
   ),
 );
 
+it.effect("stamps the text-to-cad the app includes, so each Version records it", () => {
+  const engineFile = (home: string, path: Path.Path) =>
+    path.join(home, "studio-projects", "rover-arm", ".studio", "engine.json");
+  return withStudio(
+    (home) =>
+      Effect.gen(function* () {
+        const studio = yield* StudioProjects.StudioProjects;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const project = roverArm(home, path);
+        const saved = yield* studio.save({ id: null, project });
+        assert.deepEqual(JSON.parse(yield* fileSystem.readFileString(engineFile(home, path))), {
+          textToCad: "0.10.3",
+        });
+        if (!saved.git) return;
+        const folder = path.join(saved.folder, "rover-arm");
+        assert.equal(yield* git(folder, ["status", "--porcelain"]), "");
+        assert.include(yield* git(folder, ["ls-files"]), ".studio/engine.json");
+
+        // The same engine and the same project: no new Version.
+        yield* studio.save({ id: "rover-arm", project });
+        assert.equal(yield* git(folder, ["log", "--format=%s"]), "Add Rover arm");
+      }),
+    { environment: { STUDIO_TEXT_TO_CAD_VERSION: "0.10.3" } },
+  );
+});
+
+it.effect("moves the stamp on the next save with a newer text-to-cad, and only then", () => {
+  return withStudio(
+    (home) =>
+      Effect.gen(function* () {
+        const studio = yield* StudioProjects.StudioProjects;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const project = roverArm(home, path);
+        const saved = yield* studio.save({ id: null, project });
+        const stamp = path.join(saved.folder, "rover-arm", ".studio", "engine.json");
+        yield* fileSystem.writeFileString(stamp, '{\n  "textToCad": "0.10.3"\n}\n');
+
+        yield* studio.list;
+        assert.include(yield* fileSystem.readFileString(stamp), "0.10.3");
+
+        yield* studio.save({ id: "rover-arm", project });
+        assert.include(yield* fileSystem.readFileString(stamp), "0.11.0");
+      }),
+    { environment: { STUDIO_TEXT_TO_CAD_VERSION: "0.11.0" } },
+  );
+});
+
+it.effect("stamps nothing where the app names no text-to-cad", () =>
+  withStudio((home) =>
+    Effect.gen(function* () {
+      const studio = yield* StudioProjects.StudioProjects;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const saved = yield* studio.save({ id: null, project: roverArm(home, path) });
+      assert.isFalse(
+        yield* fileSystem.exists(path.join(saved.folder, "rover-arm", ".studio", "engine.json")),
+      );
+    }),
+  ),
+);
+
 it.effect("saves a project without running what its folder's git settings name", () =>
   withStudio((home) =>
     Effect.gen(function* () {

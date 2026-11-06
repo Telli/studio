@@ -4,8 +4,10 @@
  * else `~/studio-projects`) holds one folder per project, `<root>/<id>/`, with
  * its `project.json` and a README Studio writes. Where git is available each
  * project folder is its own repository and every save is a commit, so pushing
- * that repository shares that project. Git is best-effort: a save never fails
- * over it. Trash is `<root>/.trash/<id>/project.json`: a trashed project's
+ * that repository shares that project. Each save stamps `.studio/engine.json`
+ * with the text-to-cad this app includes, so every Version records what it was
+ * last worked on with; an update alone never touches a project. Git is
+ * best-effort: a save never fails over it. Trash is `<root>/.trash/<id>/project.json`: a trashed project's
  * file moves there (with when) and back on restore; its folder and history
  * stay where they are, so the id stays its own.
  *
@@ -44,6 +46,8 @@ import {
 
 const PROJECT_FILE = "project.json";
 const README_FILE = "README.md";
+/** With forward slashes, as git takes it on Windows too. */
+const ENGINE_FILE = ".studio/engine.json";
 const TRASH_FOLDER = ".trash";
 const MAX_ID_LENGTH = 60;
 
@@ -75,6 +79,11 @@ const decodeProjectFile = Schema.decodeEffect(fromLenientJson(StudioProjectFile)
 const encodeProjectFile = Schema.encodeEffect(fromJsonStringPretty(StudioProjectFile));
 const decodeTrashedFile = Schema.decodeEffect(fromLenientJson(TrashedProjectFile));
 const encodeTrashedFile = Schema.encodeEffect(fromJsonStringPretty(TrashedProjectFile));
+
+/** `.studio/engine.json`: the text-to-cad this project was last worked on with. */
+const encodeEngineFile = Schema.encodeEffect(
+  fromJsonStringPretty(Schema.Struct({ textToCad: Schema.String })),
+);
 
 export class StudioProjects extends Context.Service<
   StudioProjects,
@@ -161,7 +170,10 @@ const make = Effect.gen(function* () {
   const path = yield* Path.Path;
   const processRunner = yield* ProcessRunner.ProcessRunner;
   const home = yield* HostProcess.HomeDirectory;
-  const configuredRoot = (yield* HostProcess.Environment).STUDIO_PROJECTS_DIR?.trim();
+  const environment = yield* HostProcess.Environment;
+  const configuredRoot = environment.STUDIO_PROJECTS_DIR?.trim();
+  // The app's own (`studioAppBundle.ts`); nothing is stamped where it names none.
+  const textToCad = environment.STUDIO_TEXT_TO_CAD_VERSION?.trim() || null;
   const root = path.resolve(
     configuredRoot ? expandHomePath(configuredRoot, home) : path.join(home, "studio-projects"),
   );
@@ -438,23 +450,33 @@ const make = Effect.gen(function* () {
     };
     const json = `${yield* encodeProjectFile(file).pipe(Effect.mapError(failed))}\n`;
     const readme = projectReadme(file);
+    const engine =
+      textToCad === null
+        ? null
+        : `${yield* encodeEngineFile({ textToCad }).pipe(Effect.mapError(failed))}\n`;
 
     const projectPath = path.join(folder, PROJECT_FILE);
     const readmePath = path.join(folder, README_FILE);
-    const [previous, previousReadme] = yield* Effect.all([
+    const enginePath = path.join(folder, ...ENGINE_FILE.split("/"));
+    const [previous, previousReadme, previousEngine] = yield* Effect.all([
       readText(projectPath),
       readText(readmePath),
+      readText(enginePath),
     ]).pipe(Effect.mapError(failed));
     if (
       Option.getOrUndefined(previous) === json &&
-      Option.getOrUndefined(previousReadme) === readme
+      Option.getOrUndefined(previousReadme) === readme &&
+      (engine === null || Option.getOrUndefined(previousEngine) === engine)
     )
       return;
 
-    yield* fileSystem.makeDirectory(folder, { recursive: true }).pipe(Effect.mapError(failed));
+    yield* fileSystem
+      .makeDirectory(path.dirname(enginePath), { recursive: true })
+      .pipe(Effect.mapError(failed));
     for (const [filePath, contents] of [
       [projectPath, json],
       [readmePath, readme],
+      ...(engine === null ? [] : [[enginePath, engine] as const]),
     ] as const) {
       yield* writeFileStringAtomically({ filePath, contents }).pipe(
         Effect.provideService(FileSystem.FileSystem, fileSystem),
@@ -464,7 +486,7 @@ const make = Effect.gen(function* () {
     }
     yield* commit(
       folder,
-      [PROJECT_FILE, README_FILE],
+      [PROJECT_FILE, README_FILE, ...(engine === null ? [] : [ENGINE_FILE])],
       `${Option.isNone(previous) ? "Add" : "Update"} ${project.name}`,
     );
   });
