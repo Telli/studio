@@ -7955,6 +7955,7 @@ export default function ChatView(props: ChatViewProps) {
             });
             if (result._tag === "Failure") throw squashAtomCommandFailure(result);
           },
+          onUseAnotherModel: () => composerRef.current?.openModelPicker(),
         })
       : null;
   const composerBannerItems = useMemo<ComposerBannerStackItem[]>(() => {

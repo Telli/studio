@@ -6,6 +6,7 @@ import {
 import { GaugeIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
+import { isEngineeringInterface } from "../workbench/studioInterface";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
 type RecoveryProps = {
@@ -15,6 +16,8 @@ type RecoveryProps = {
   snoozedUntil: string | null;
   recovery: OrchestrationV2LimitRecovery | null;
   onChange: (recovery: OrchestrationV2LimitRecoveryUpdate) => Promise<void>;
+  /** Opens the composer's model picker, where a chat can move to another model. */
+  onUseAnotherModel: () => void;
 };
 
 export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
@@ -28,8 +31,17 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
     title: "Usage limit reached",
     description: resetAt
       ? `Resets ${new Date(resetAt).toLocaleString()}`
-      : "Reset time unavailable; retry manually",
-    actions: canSchedule ? <RecoveryActions key={`${runId}:${resetAt}`} {...props} /> : null,
+      : isEngineeringInterface()
+        ? "Reset time unknown"
+        : "Reset time unavailable; retry manually",
+    actions: (
+      <div className="flex flex-wrap items-center gap-2">
+        {canSchedule ? <RecoveryActions key={`${runId}:${resetAt}`} {...props} /> : null}
+        <Button size="xs" variant="ghost" onClick={props.onUseAnotherModel}>
+          Use another model
+        </Button>
+      </div>
+    ),
   };
 }
 
@@ -56,7 +68,11 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
   async function toggle(action: "resume" | "snooze") {
     if (resetAt === null) return;
     if (action === "snooze" && !snoozed && Date.parse(resetAt) <= Date.now()) {
-      setError("The reset time has passed. Retry the thread manually.");
+      setError(
+        isEngineeringInterface()
+          ? "The reset time has passed. Send a message to carry on."
+          : "The reset time has passed. Retry the thread manually.",
+      );
       setNowMs(Date.now());
       return;
     }
@@ -74,7 +90,7 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
     setPending(false);
   }
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <>
       <Button size="xs" variant="ghost" disabled={pending} onClick={() => void toggle("resume")}>
         {pending ? "Saving..." : scheduled ? "Cancel auto-resume" : "Resume at reset"}
       </Button>
@@ -93,6 +109,6 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
           {error}
         </p>
       ) : null}
-    </div>
+    </>
   );
 }

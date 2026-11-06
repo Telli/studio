@@ -28,7 +28,6 @@ export const CODE_SETTINGS_ROWS: ReadonlySet<string> = new Set<SettingsSearchIte
   "worktree-submodules",
   "start-from-origin",
   "project-grouping",
-  "auto-resume-limited-threads",
   "snooze-limited-threads",
   "working-shelf",
   "auto-settle-merged-threads",
@@ -93,6 +92,14 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
     { title: "Model for short text", description: "Names chats and writes other short text." },
   ],
   ["thread-notifications", { title: "Chat notifications" }],
+  [
+    "auto-resume-limited-threads",
+    {
+      title: "Auto-resume limited chats",
+      description:
+        "Carry on at the reported reset time when a chat hits a usage limit. Each chat can cancel it.",
+    },
+  ],
   [
     "in-app-notifications",
     {
