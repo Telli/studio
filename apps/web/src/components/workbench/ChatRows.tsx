@@ -25,8 +25,7 @@ import { chatLabel } from "./workspaceTitle";
 type ChatMenuChoice = "rename" | "delete";
 
 /**
- * Chats down the sidebar (`StudioSidebar`), each with how it stands (`chatStanding`) and, in the
- * list of every project's chats, the name of its project under its own (`projectOf`),
+ * Chats down the sidebar (`StudioSidebar`), each with how it stands (`chatStanding`),
  * and the two things a chat app lets you do to one: Rename it where it is (its name becomes a box;
  * Enter or clicking away keeps the new name, Escape the old) and Delete it, after asking. Both
  * are a right-click away, or the "…" that shows on a row's hover in place of its time. The
@@ -38,8 +37,6 @@ export function ChatRows(props: {
   readonly chats: ReadonlyArray<EnvironmentThreadShell>;
   readonly currentId: string | null;
   readonly onOpen: (chat: EnvironmentThreadShell, current: boolean) => void;
-  /** The project a chat is in, where the list holds more than one project's. */
-  readonly projectOf?: (chat: EnvironmentThreadShell) => string | undefined;
 }) {
   const { deleteThread } = useThreadActions();
   const updateMetadata = useOrchestrationCommand(threadEnvironment.updateMetadata, {
@@ -82,7 +79,6 @@ export function ChatRows(props: {
         {props.chats.map((chat) => {
           const current = chat.id === props.currentId;
           const state = chatStanding(chat);
-          const project = props.projectOf?.(chat);
           return (
             <SidebarMenuItem key={chat.id} className="group/chat relative">
               {renaming === chat.id ? (
@@ -101,7 +97,6 @@ export function ChatRows(props: {
               ) : (
                 <>
                   <SidebarMenuButton
-                    size={project === undefined ? "default" : "lg"}
                     isActive={current}
                     aria-current={current ? "page" : undefined}
                     onClick={() => props.onOpen(chat, current)}
@@ -110,20 +105,10 @@ export function ChatRows(props: {
                       void showMenu(chat, { x: event.clientX, y: event.clientY });
                     }}
                   >
-                    {project === undefined ? (
-                      <span className="min-w-0 flex-1 truncate">{chatLabel(chat.title)}</span>
-                    ) : (
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate">{chatLabel(chat.title)}</span>
-                        <span className="truncate text-xs font-normal text-muted-foreground">
-                          {project}
-                        </span>
-                      </span>
-                    )}
+                    <span className="min-w-0 flex-1 truncate">{chatLabel(chat.title)}</span>
                     <span
                       className={cn(
                         "shrink-0 text-2xs font-normal tabular-nums group-hover/chat:invisible group-focus-within/chat:invisible",
-                        project === undefined ? null : "self-start pt-0.5",
                         state.tone,
                       )}
                     >

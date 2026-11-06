@@ -51,8 +51,7 @@ const actionClass =
   "flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-foreground outline-none transition-colors duration-150 hover:bg-accent focus-visible:bg-accent [&>svg]:size-3.5 [&>svg]:shrink-0 [&>svg]:text-muted-foreground";
 
 /**
- * The project's name at the head of its sidebar (`wide`), or in the top bar while the sidebar is
- * folded, as a CAD tool's document switcher: a control that says it is the project on one line
+ * The project's name in the top bar, as a CAD tool's document switcher: a control that says it is the project on one line
  * (its picture, its name, the up-and-down chevrons every switcher has), opened by a click or
  * Cmd+O. Its top is the open project's own menu: Rename, Duplicate (a copy with its own folder,
  * `useDuplicateProject`), Version history (the Overview's Versions), Back up (into a folder the
@@ -67,8 +66,6 @@ export function ProjectSwitcher(props: {
   /** The workspace's folder: its project is marked open. */
   readonly folder: string | null;
   readonly title: string;
-  /** Across its container, as the head of the project's sidebar. */
-  readonly wide?: boolean;
 }) {
   const { environmentId } = props;
   const { cards } = useProjectList(environmentId);
@@ -157,7 +154,7 @@ export function ProjectSwitcher(props: {
                   <button
                     type="button"
                     aria-label={`Project ${props.title}: switch project`}
-                    className={cn(PROJECT_CONTROL_CLASS, props.wide ? "h-11 w-full" : "h-9")}
+                    className={cn(PROJECT_CONTROL_CLASS, "h-9")}
                   />
                 }
               />
@@ -166,16 +163,13 @@ export function ProjectSwitcher(props: {
             <ProjectThumb
               environmentId={environmentId}
               project={current?.project ?? null}
-              size={props.wide ? "md" : "sm"}
+              size="sm"
             />
             <span className="min-w-0 truncate text-sm font-semibold text-foreground">
               {props.title}
             </span>
             <ChevronsUpDownIcon
-              className={cn(
-                "size-3.5 shrink-0 text-muted-foreground",
-                props.wide ? "ms-auto" : "ms-0.5",
-              )}
+              className={cn("size-3.5 shrink-0 text-muted-foreground", "ms-0.5")}
               aria-hidden="true"
             />
           </TooltipTrigger>

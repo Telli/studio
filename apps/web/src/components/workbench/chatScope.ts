@@ -1,31 +1,45 @@
 import { create } from "zustand";
 
 /**
- * Whether a project's chats are folded away under their heading in its page beside the rail
- * (`StudioSidebar`), as an Overview module folds. Per device, as the person last chose.
+ * Which projects show their chats down the sidebar (`StudioSidebar`), as a folder opens in a file
+ * tree. Per device, as the person last left them; opening a chat in a project unfolds it there.
  */
-const FOLDED_KEY = "studio:chats-folded";
+const OPEN_KEY = "studio:projects-unfolded";
 
-function readFolded(): boolean {
+function readUnfolded(): ReadonlyArray<string> {
   try {
-    return globalThis.localStorage?.getItem(FOLDED_KEY) === "true";
+    const saved: unknown = JSON.parse(globalThis.localStorage?.getItem(OPEN_KEY) ?? "[]");
+    return Array.isArray(saved) ? saved.filter((id) => typeof id === "string") : [];
   } catch {
-    return false;
+    return [];
+  }
+}
+
+function keep(unfolded: ReadonlyArray<string>): void {
+  try {
+    globalThis.localStorage?.setItem(OPEN_KEY, JSON.stringify(unfolded));
+  } catch {
+    // Storage is full or off: the choice holds until the window closes.
   }
 }
 
 export const useChatScopeStore = create<{
-  readonly folded: boolean;
-  readonly toggleFolded: () => void;
+  readonly unfolded: ReadonlyArray<string>;
+  readonly toggle: (id: string) => void;
+  readonly unfold: (id: string) => void;
 }>()((set, get) => ({
-  folded: readFolded(),
-  toggleFolded: () => {
-    const folded = !get().folded;
-    set({ folded });
-    try {
-      globalThis.localStorage?.setItem(FOLDED_KEY, String(folded));
-    } catch {
-      // Storage is full or off: the choice holds until the window closes.
-    }
+  unfolded: readUnfolded(),
+  toggle: (id) => {
+    const { unfolded } = get();
+    const next = unfolded.includes(id) ? unfolded.filter((each) => each !== id) : [...unfolded, id];
+    set({ unfolded: next });
+    keep(next);
+  },
+  unfold: (id) => {
+    const { unfolded } = get();
+    if (unfolded.includes(id)) return;
+    const next = [...unfolded, id];
+    set({ unfolded: next });
+    keep(next);
   },
 }));

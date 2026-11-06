@@ -15,7 +15,7 @@ export const TOUR_STEPS: ReadonlyArray<TourStep> = [
   {
     target: '[data-tour="project"]',
     title: "This is your project",
-    body: "Everything you make lives inside it. Click its name to switch projects, or to rename it, back it up or show it in Finder. Its chats are listed below it.",
+    body: "Everything you make lives inside it. Every project is listed here, with its chats under it: click one to fold it, or its … to rename it, back it up or show it in Finder.",
   },
   {
     target: "[data-pinned-project-tab]",

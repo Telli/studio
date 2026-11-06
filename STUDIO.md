@@ -434,20 +434,27 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   Studio's pages the recent chats, each with its project's name; inside a project, the project; on
   Settings, its sections (T3's settings list inside Studio's frame, `StudioSidebarFrame`), so the
   rail stays there too. Folding it (the panel button beside the window's controls, or its shortcut)
-  keeps the rail (`collapsible="icon"`). Inside a project the column has All projects to go back,
-  then at its top the project's name, a control on one line with its picture that switches projects
-  (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick find on Home), whose
-  top is the project's own menu (Rename, Duplicate, a copy in a new folder made by the desktop app,
-  Version history once it has a part, Back up, Show in Finder, and Move to Trash; T3's Remove
-  project in Settings is hidden in Engineering), then its Overview, New chat, and its chats, newest
-  first, which fold away under their heading as an Overview module folds (`chatScope.ts`). Like
+  keeps the rail (`collapsible="icon"`). The column is the same on every page: every project with
+  its chats nested under it, as Claude lists folders and their sessions, so several projects can be
+  worked on at once and their chats gone between in a click (`StudioSidebar.tsx`,
+  `sidebarProjects.ts`). Projects order by work, never by opening, so a row stays under the pointer.
+  Pressing a project folds or unfolds it and moves the person nowhere; its chat or Overview does. It
+  stays as left on this device (`chatScope.ts`), and the project a chat opens in unfolds. Folded, it
+  says Needs you or Working. Unfolded: Overview, New chat, then its chats, newest first, five and
+  Show more, the open chat always among them. A right-click or the … on its hover is the project's
+  menu (`useProjectMenu`). Folders in no project with a chat, and older chats in none, follow it.
+  The project's switcher (`components/workbench/ProjectSwitcher.tsx`, also Cmd+O, which is the quick
+  find on Home) is in the top bar beside the open chat, whose top is the project's own menu (Rename,
+  Duplicate, a copy in a new folder made by the desktop app, Version history once it has a part,
+  Back up, Show in Finder, and Move to Trash; T3's Remove project in Settings is hidden in
+  Engineering). Like
   Claude's and Codex's sidebars, the panel button is a plain dark icon and the rows and their icons
   read dark, with the lists' labels quiet (`brand/theme.css`). T3 Code drew the button white for its
   stage artwork, which a fork's mark replaces, so on Studio's light sidebar it nearly vanished. The
   footer's Home icon is only in T3 Code's sidebar beside code tools, and its Settings only outside
   Studio's rail. Opening a chat from another project opens that project. What the project holds is
-  on its Overview. The top bar names the open chat; with the sidebar folded (T3 Code's toggle or its
-  shortcut) it leads with the mark and the project's switcher. The panel's tabs are what was opened
+  on its Overview. The top bar names the project and the open chat; with the sidebar folded (T3 Code's
+  toggle or its shortcut) it leads with the mark. The panel's tabs are what was opened
   lately in the project, along its top as a browser's are (`brand/theme.css`), and the same beside
   each of the folder's chats, as a Chrome window's (`projectTabs.ts`): the Overview pinned first as
   its icon, then each file with its kind's colored icon (`FileKindIcon.tsx`) at its left and its
