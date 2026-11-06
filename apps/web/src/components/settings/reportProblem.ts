@@ -7,11 +7,13 @@ const OS_NAMES = { darwin: "macOS", windows: "Windows", linux: "Linux", unknown:
 
 /**
  * A new issue on Studio's tracker with what a fix needs already filled in: the version, the
- * machine, and the usage id when this machine sends counts, so its counts can be found.
+ * text-to-cad it includes where it names one, the machine, and the usage id when this machine
+ * sends counts, so its counts can be found.
  */
 export function reportProblemUrl(input: {
   readonly appName: string;
   readonly version: string;
+  readonly textToCadVersion: string | null;
   readonly platform: Pick<ExecutionEnvironmentPlatform, "os" | "arch"> | null;
   readonly usageId: string | null;
 }): string {
@@ -28,6 +30,7 @@ export function reportProblemUrl(input: {
     "",
     "---",
     `${input.appName} ${input.version}`,
+    ...(input.textToCadVersion === null ? [] : [`text-to-cad: ${input.textToCadVersion}`]),
     `Machine: ${machine}`,
     ...(input.usageId === null ? [] : [`Usage ID: ${input.usageId}`]),
   ].join("\n");

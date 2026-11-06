@@ -94,6 +94,8 @@ import { useSettingsScope } from "./SettingsScopeContext";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
 import { useThreadActions } from "../../hooks/useThreadActions";
 import { useDesktopUpdateState } from "../../state/desktopUpdate";
+import { pluginEnvironment } from "../../state/plugins";
+import { useEnvironmentQuery } from "../../state/query";
 import {
   getCustomModelOptionsByInstance,
   resolveAppModelSelectionState,
@@ -178,6 +180,7 @@ import {
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
 import { reportProblemUrl } from "./reportProblem";
+import { TEXT_TO_CAD_SITE, textToCadVersion } from "./textToCadVersion";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { PanelAnimationsPreview } from "./PanelAnimationsPreview";
@@ -312,7 +315,28 @@ function AboutVersionTitle(props: { readonly version?: string | undefined }) {
   );
 }
 
-function AboutVersionSection() {
+/** The text-to-cad included in this Studio: a real version from its plugin, or no row at all. */
+function TextToCadRow(props: { readonly version: string | null }) {
+  if (props.version === null) return null;
+  return (
+    <SettingsRow
+      id={searchableSetting("text-to-cad").id}
+      title={`text-to-cad ${props.version}, included`}
+      description="The CAD tools inside Studio, with Studio's changes. They update with Studio."
+      control={
+        <Button
+          render={<a href={TEXT_TO_CAD_SITE} target="_blank" rel="noreferrer noopener" />}
+          size="sm"
+          variant="outline"
+        >
+          Original project
+        </Button>
+      }
+    />
+  );
+}
+
+function AboutVersionSection(props: { readonly textToCadVersion: string | null }) {
   const updateState = useDesktopUpdateState();
   const [isChangingUpdateChannel, setIsChangingUpdateChannel] = useState(false);
   const [isUpdateActionPending, setIsUpdateActionPending] = useState(false);
@@ -482,6 +506,7 @@ function AboutVersionSection() {
           </Tooltip>
         }
       />
+      <TextToCadRow version={props.textToCadVersion} />
       {hasDesktopBridge ? (
         <SettingsRow
           {...searchableSetting("update-track")}
@@ -2235,6 +2260,13 @@ export function GeneralSettingsPanel() {
   // needs exactly one environment.
   const environmentId = environment?.environmentId ?? null;
   const isEnvironmentScope = scope.environmentIds.length === 1 && environmentId !== null;
+  const includedTextToCad = textToCadVersion(
+    useEnvironmentQuery(
+      environmentId !== null && environment?.connection.phase === "connected"
+        ? pluginEnvironment.list({ environmentId, input: {} })
+        : null,
+    ).data?.plugins ?? [],
+  );
   const hasServerTargets = connectedEnvironments.length > 0;
   const [backgroundActivityDialogOpen, setBackgroundActivityDialogOpen] = useState(false);
   const mixedResponseStreamingMode = useScopedSettingsMixed(["responseStreamingMode"]);
@@ -3402,7 +3434,7 @@ export function GeneralSettingsPanel() {
 
       <SettingsSection id="about" title="About">
         {isElectron || HOSTED_APP_CHANNEL ? (
-          <AboutVersionSection />
+          <AboutVersionSection textToCadVersion={includedTextToCad} />
         ) : (
           <>
             <SettingsRow
@@ -3410,6 +3442,7 @@ export function GeneralSettingsPanel() {
               title={<AboutVersionTitle />}
               description="Current version of the application."
             />
+            <TextToCadRow version={includedTextToCad} />
             {IS_NIGHTLY_BUILD ? <NightlyMobileBetaRow /> : null}
           </>
         )}
@@ -3439,7 +3472,7 @@ export function GeneralSettingsPanel() {
         ) : null}
         <SettingsRow
           {...searchableSetting("report-problem")}
-          description="Open a new issue with the version and machine filled in."
+          description="Open a new issue with the versions and machine filled in."
           control={
             <Button
               render={
@@ -3447,6 +3480,7 @@ export function GeneralSettingsPanel() {
                   href={reportProblemUrl({
                     appName: APP_BASE_NAME,
                     version: APP_VERSION,
+                    textToCadVersion: includedTextToCad,
                     platform: environment?.serverConfig?.environment.platform ?? null,
                     usageId:
                       settings.shareUsageData && settings.usageDataAnswered

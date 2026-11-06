@@ -568,6 +568,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["about check for updates download install upgrade release"],
   },
   {
+    id: "text-to-cad",
+    title: "text-to-cad",
+    to: "/settings/general",
+    searchTerms: ["cad tools included engine version original project"],
+  },
+  {
     id: "update-track",
     title: "Update track",
     to: "/settings/general",
