@@ -96,7 +96,7 @@ export const isRenderable = (path: string) => RENDERABLE.test(path);
  * How a picture is drawn, in what it is cached by: a picture drawn another way is a new picture,
  * not the old one kept. Now a part on nothing, the tile's own ground in each theme behind it.
  */
-const PICTURE_LOOK = "on-nothing";
+const PICTURE_LOOK = "model-alone";
 
 /** Where a picture is cached: named by what it shows, so an edit or a build is a new picture. */
 const cached = (cacheDir: string, key: string) =>

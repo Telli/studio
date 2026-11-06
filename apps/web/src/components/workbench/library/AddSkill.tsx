@@ -2,6 +2,7 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { PlusIcon } from "lucide-react";
 import { useId, useState } from "react";
 
+import { cn } from "~/lib/utils";
 import { pluginEnvironment } from "~/state/plugins";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { Button } from "../../ui/button";
@@ -17,6 +18,8 @@ import {
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Textarea } from "../../ui/textarea";
+import { LibraryCard } from "./LibraryCard";
+import { PICTURE_BOX } from "./LibraryPicture";
 
 /**
  * The tile at the head of My skills, a cover's size: asks a skill's name and what it is for, adds
@@ -47,14 +50,17 @@ export function AddSkillTile(props: {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex min-h-40 min-w-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-sm font-medium text-foreground outline-none hover:border-foreground/25 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-      >
-        <PlusIcon aria-hidden="true" className="size-5 text-primary" />
-        Add a skill
-      </button>
+      <LibraryCard
+        picture={
+          <span className={cn(PICTURE_BOX, "aspect-square border-b border-border")}>
+            <PlusIcon aria-hidden="true" className="size-8 text-primary" />
+          </span>
+        }
+        name="Add a skill"
+        blurb="Teach the agent a job of your own."
+        note={null}
+        onOpen={() => setOpen(true)}
+      />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogPopup className="max-w-md">
           <DialogHeader>
