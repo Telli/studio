@@ -287,7 +287,7 @@ function FolderFiles(props: {
             props.label === null ? "py-10 text-center" : "py-1",
           )}
         >
-          {listing.data === undefined
+          {listing.data === null
             ? "Reading the folder"
             : props.query.trim() !== ""
               ? "Nothing matches that."

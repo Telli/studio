@@ -86,7 +86,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   const { environmentId } = props;
   const { list, cards } = useProjectList(environmentId);
   // Until the list arrives nothing shows under the box, and the start page waits (`homeLayout`).
-  const loaded = list !== undefined;
+  const loaded = list !== null;
   const layout = homeLayout({ loaded, projects: cards.length });
   const { examples } = useExamples(environmentId);
   // One start at a time, from the box or from New.

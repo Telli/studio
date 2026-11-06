@@ -43,6 +43,7 @@ export function ModeSwitch(props: {
     <ToggleGroup
       aria-label="Editing mode"
       value={[props.mode]}
+      variant="segmented-accent"
       disabled={props.held}
       onValueChange={(value) => {
         // Pressing the one in use clears the group: the mode stays as it is.

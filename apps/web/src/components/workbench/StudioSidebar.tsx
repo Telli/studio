@@ -270,7 +270,7 @@ function ProjectsList(props: { readonly environmentId: EnvironmentId }) {
     select: (location) => studioNavSection(location.pathname) === "workspace",
   });
   useNowMinute();
-  const { cards, loose } = useProjectList(environmentId);
+  const { list, cards, loose } = useProjectList(environmentId);
   const free = useNoProjectFolder(environmentId).project;
   const threads = useThreadShells();
   const openProject = useOpenProject();
@@ -308,7 +308,7 @@ function ProjectsList(props: { readonly environmentId: EnvironmentId }) {
         <div className="flex h-7 items-center ps-(--sidebar-row-content-inset)">
           <h2 className={headingClass}>Projects</h2>
         </div>
-        {entries.length === 0 ? (
+        {list === null ? null : entries.length === 0 ? (
           <p className={emptyClass}>No projects yet. Start one from Home.</p>
         ) : (
           entries.map((entry) => (

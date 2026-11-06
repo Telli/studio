@@ -117,7 +117,7 @@ export function toolboxLibraryLink(
 
 /**
  * Whether the Toolbox shows as its edge. On a wide panel, as the person left it on this device; on
- * a narrow one (`TOOLBOX_NARROW_REM`) folded, so the model keeps the room, until opened there.
+ * a narrow one (`toolboxNarrowRem`) folded, so the model keeps the room, until opened there.
  */
 export function toolboxFolded(input: {
   readonly chosen: boolean;
@@ -127,5 +127,11 @@ export function toolboxFolded(input: {
   return input.narrow ? !input.openedNarrow : input.chosen;
 }
 
-/** Under this width the workspace panel is narrow, and the Toolbox starts folded. */
-export const TOOLBOX_NARROW_REM = 40;
+/**
+ * Under this width the workspace panel is narrow, and the Toolbox starts folded. In AI it writes
+ * into the chat, so it stays out down to a small panel. In CAD the model is the work: beside a chat
+ * the panel is about 1270px wide and the Toolbox folds, across the window (about 1800px) it stays out.
+ */
+export function toolboxNarrowRem(simple: boolean): number {
+  return simple ? 40 : 84;
+}

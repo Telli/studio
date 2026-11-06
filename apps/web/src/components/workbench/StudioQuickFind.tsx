@@ -633,7 +633,9 @@ export function StudioQuickFind(props: {
       data-command-palette="true"
       data-testid="command-palette"
       finalFocus={() => {
-        composerRef?.current?.focusAtEnd();
+        // A chat's box, where there is one; else back to what was focused.
+        if (!composerRef?.current) return true;
+        composerRef.current.focusAtEnd();
         return false;
       }}
       onBackdropPointerDown={() => props.setOpen(false)}

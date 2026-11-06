@@ -222,6 +222,7 @@ export function StudioPanelBar(props: {
       {importMenu}
       {props.composerRef === null || folder === null || addPart === null ? null : (
         <StudioNew
+          buttonVariant="outline"
           environmentId={threadRef.environmentId}
           cwd={folder}
           onCreate={(job) => {

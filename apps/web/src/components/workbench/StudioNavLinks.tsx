@@ -3,9 +3,8 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { HomeIcon, type LucideIcon, SettingsIcon, Trash2Icon } from "lucide-react";
 
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "../ui/sidebar";
-import { needsYou } from "./recentActivity";
+import { useAllChats, waitingChats } from "./allChats";
 import { railMark } from "./studioPlaces";
-import { useProjectList } from "./useProjectList";
 
 /** Where each place's page is. */
 type PlacePage = "/" | "/trash" | "/settings";
@@ -17,8 +16,7 @@ type PlacePage = "/" | "/trash" | "/settings";
  * Chats, Projects and Library pages stay one link away (Home's All examples, Cmd+K).
  */
 export function StudioHomeLink(props: { readonly environmentId: EnvironmentId }) {
-  const { cards } = useProjectList(props.environmentId);
-  const waiting = new Set(needsYou(cards).map(({ thread }) => thread.id)).size;
+  const waiting = waitingChats(useAllChats(props.environmentId).chats).length;
   const { mark, go } = usePlaces();
   return (
     <SidebarMenu aria-label="Studio">

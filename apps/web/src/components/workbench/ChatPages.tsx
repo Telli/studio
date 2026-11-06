@@ -9,14 +9,12 @@ import { usePrimaryEnvironmentId } from "~/state/environments";
 import { Input } from "../ui/input";
 import { SidebarInset } from "../ui/sidebar";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
-import { findChats, useAllChats } from "./allChats";
+import { findChats, useAllChats, waitingChats } from "./allChats";
 import { chatStanding } from "./chatStanding";
 import type { ChatsSearch } from "./chatsSearch";
 import { CHAT_ICON } from "./kinds";
-import { needsYou } from "./recentActivity";
 import { StudioTopBar } from "./StudioTopBar";
 import { useOpenChat } from "./useOpenChat";
-import { useProjectList } from "./useProjectList";
 import { chatLabel } from "./workspaceTitle";
 
 /**
@@ -115,18 +113,9 @@ function ChatsPageContent(props: {
 }) {
   const navigate = useNavigate();
   const everyChat = useAllChats(props.environmentId);
-  const { cards } = useProjectList(props.environmentId);
   const [query, setQuery] = useState("");
   const filter = props.search.filter;
-  // Who is waiting on the person is `needsYou`'s call, as the rail's count and Home's tiles make it.
-  const waitingIds = useMemo(
-    () => new Set(needsYou(cards).map(({ thread }) => thread.id)),
-    [cards],
-  );
-  const waiting = useMemo(
-    () => everyChat.chats.filter((chat) => waitingIds.has(chat.id)),
-    [everyChat.chats, waitingIds],
-  );
+  const waiting = useMemo(() => waitingChats(everyChat.chats), [everyChat.chats]);
   const listed = filter === "needs-you" ? waiting : everyChat.chats;
   const shown = findChats(listed, everyChat.projectOf, query);
   return (

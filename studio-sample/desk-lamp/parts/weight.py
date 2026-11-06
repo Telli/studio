@@ -19,7 +19,7 @@ def weight():
 
     plate = bd.chamfer(plate.edges().filter_by(bd.GeomType.CIRCLE), length=EDGE_CHAMFER)
 
-    plate.color = "#6B6F75"
+    plate.color = "#C0C0C0"
     plate.label = "weight"
     return plate
 

@@ -116,7 +116,7 @@ function StatBlock({
       </div>
       <div
         className={cn(
-          "mt-1 truncate font-mono text-lg font-semibold tabular-nums text-foreground",
+          "mt-1 truncate text-lg font-semibold tabular-nums text-foreground",
           tone === "warning" && "text-warning-foreground",
           tone === "danger" && "text-destructive",
         )}
@@ -392,10 +392,10 @@ function ProcessDiagnosticsTable({
                     onToggle={toggleProcess}
                   />
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {process.cpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {formatBytes(process.rssBytes)}
                 </td>
                 <td className="px-3 py-2 align-middle text-muted-foreground">
@@ -408,7 +408,7 @@ function ProcessDiagnosticsTable({
                     </TooltipPopup>
                   </Tooltip>
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums text-muted-foreground">
+                <td className="px-3 py-2 text-right align-middle tabular-nums text-muted-foreground">
                   {process.pid}
                 </td>
                 <td className="truncate px-3 py-2 align-middle text-muted-foreground">
@@ -622,19 +622,19 @@ function ProcessResourceHistoryTable({
                     }
                   />
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {formatCpuTime(process.cpuSecondsApprox)}
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {process.currentCpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {process.avgCpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {process.maxCpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums">
+                <td className="px-3 py-2 text-right align-middle tabular-nums">
                   {formatBytes(process.maxRssBytes)}
                 </td>
                 <td className="px-3 py-2 align-middle text-muted-foreground">
@@ -647,7 +647,7 @@ function ProcessResourceHistoryTable({
                     </TooltipPopup>
                   </Tooltip>
                 </td>
-                <td className="px-3 py-2 text-right align-middle font-mono tabular-nums text-muted-foreground sm:pr-5">
+                <td className="px-3 py-2 text-right align-middle tabular-nums text-muted-foreground sm:pr-5">
                   {process.pid}
                 </td>
               </tr>
@@ -675,7 +675,7 @@ function DiagnosticsLastChecked({ checkedAt }: { checkedAt: DateTime.Utc | null 
     <span className="text-2xs text-muted-foreground/60">
       {relative.suffix ? (
         <>
-          Checked <span className="font-mono tabular-nums">{relative.value}</span> {relative.suffix}
+          Checked <span className="tabular-nums">{relative.value}</span> {relative.suffix}
         </>
       ) : (
         <>Checked {relative.value}</>
@@ -1177,10 +1177,10 @@ export function DiagnosticsSettingsPanel() {
                 <td className="max-w-[360px] px-4 py-3 align-top text-muted-foreground">
                   <ExpandableText text={failure.cause} />
                 </td>
-                <td className="px-4 py-3 align-top font-mono tabular-nums">
+                <td className="px-4 py-3 align-top tabular-nums">
                   {formatDuration(failure.durationMs)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground last:sm:pr-5">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums text-muted-foreground last:sm:pr-5">
                   {formatRelativeNoWrap(failure.endedAt)}
                 </td>
               </tr>
@@ -1202,13 +1202,11 @@ export function DiagnosticsSettingsPanel() {
                 <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
                   {failure.name}
                 </td>
-                <td className="px-4 py-3 align-top font-mono tabular-nums">
-                  {formatCount(failure.count)}
-                </td>
+                <td className="px-4 py-3 align-top tabular-nums">{formatCount(failure.count)}</td>
                 <td className="max-w-[360px] px-4 py-3 align-top text-muted-foreground">
                   <ExpandableText text={failure.cause} />
                 </td>
-                <td className="w-px whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground last:sm:pr-5">
+                <td className="w-px whitespace-nowrap px-4 py-3 align-top tabular-nums text-muted-foreground last:sm:pr-5">
                   {formatRelativeNoWrap(failure.lastSeenAt)}
                 </td>
               </tr>
@@ -1233,10 +1231,10 @@ export function DiagnosticsSettingsPanel() {
                 <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
                   {span.name}
                 </td>
-                <td className="px-4 py-3 align-top font-mono tabular-nums">
+                <td className="px-4 py-3 align-top tabular-nums">
                   {formatDuration(span.durationMs)}
                 </td>
-                <td className="w-px whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground">
+                <td className="w-px whitespace-nowrap px-4 py-3 align-top tabular-nums text-muted-foreground">
                   {formatRelativeNoWrap(span.endedAt)}
                 </td>
                 <td className="min-w-0 whitespace-nowrap px-4 py-3 align-top text-muted-foreground last:sm:pr-5">
@@ -1282,11 +1280,11 @@ export function DiagnosticsSettingsPanel() {
                     key={`${event.traceId}:${event.spanId}:${DateTime.formatIso(event.seenAt)}:${event.message}`}
                     className="hover:bg-muted/15"
                   >
-                    <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums text-muted-foreground sm:pl-5">
+                    <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums text-muted-foreground sm:pl-5">
                       {formatRelativeNoWrap(event.seenAt)}
                     </td>
                     <td className="px-4 py-3 align-top">
-                      <span className="inline-flex rounded bg-muted px-1.5 py-0.5 font-mono text-2xs font-medium uppercase text-foreground/80">
+                      <span className="inline-flex rounded bg-muted px-1.5 py-0.5 text-2xs font-medium uppercase text-foreground/80">
                         {event.level}
                       </span>
                     </td>
@@ -1327,16 +1325,16 @@ export function DiagnosticsSettingsPanel() {
                 <td className="px-4 py-3 align-top text-xs font-medium text-foreground first:sm:pl-5">
                   {span.name}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums">
                   {formatCount(span.count)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums">
                   {formatCount(span.failureCount)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums">
                   {formatDuration(span.averageDurationMs)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 align-top font-mono tabular-nums last:sm:pr-5">
+                <td className="whitespace-nowrap px-4 py-3 align-top tabular-nums last:sm:pr-5">
                   {formatDuration(span.maxDurationMs)}
                 </td>
               </tr>

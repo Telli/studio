@@ -20,12 +20,13 @@ at WebP quality 80:
 
 Each example's card picture (its studio-sample.json `picture`) is bundled too, as
 pictures/examples/<id>.webp at the same size and quality, so every client shows it without reading
-the server's disk.
+the server's disk. A card keeps the part alone, on nothing, for the viewer's ground in each theme
+to show behind it (`on_nothing`); `--examples` bakes these alone, which asks no engine.
 
 Each keeps its whole frame, any room left filled with its own background. A picture no entry names
 any more is removed. Nothing is written into the examples, and the scratch folder is removed.
 
-    text-to-cad/.venv/bin/python scripts/studio-library-pictures.py
+    text-to-cad/.venv/bin/python scripts/studio-library-pictures.py [--examples]
 
 the engine's snapshot asks its engine, which listens on a loopback port, so a sandbox that refuses local
 sockets refuses the run. Set CAD_STATE_DIR, CAD_CACHE_DIR, CAD_ENGINE_DIR and
@@ -42,7 +43,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageOps
+import numpy as np
+from PIL import Image, ImageFilter, ImageOps
 
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLES = ROOT / "studio-sample"
@@ -165,11 +167,46 @@ def record_results(files: list[tuple[str, str]]) -> None:
 
 def fit(image: Image.Image) -> Image.Image:
     """The whole picture at the pictures' size, any room left in its own background (its corner)."""
-    image = image.convert("RGB")
+    if image.mode != "RGBA":
+        image = image.convert("RGB")
     return ImageOps.pad(image, SIZE, method=Image.Resampling.LANCZOS, color=image.getpixel((0, 0)))
 
 
+def on_nothing(image: Image.Image) -> Image.Image:
+    """A picture drawn on a flat ground (its corner's colour) as the part alone on nothing. The
+    ground is what matches the corner, holes in the part too; the pixels beside it, the part's
+    antialiased outline, keep what the ground did not put there (colour to alpha), so no fringe
+    of the old ground shows on another. The part itself stays as it was drawn."""
+    rgb = np.asarray(image.convert("RGB"), dtype=float)
+    ground = rgb[0, 0]
+    is_ground = np.abs(rgb - ground).max(axis=2) <= 2
+    mask = Image.fromarray(np.uint8(is_ground) * 255).filter(ImageFilter.MaxFilter(5))
+    outline = np.asarray(mask) > 0
+    # How far each channel left the ground, of as far as it could go that way.
+    above = np.maximum(rgb - ground, 0) / np.maximum(255 - ground, 1)
+    below = np.maximum(ground - rgb, 0) / np.maximum(ground, 1)
+    alpha = np.where(outline, np.maximum(above, below).max(axis=2), 1.0)
+    alpha[is_ground] = 0
+    kept = alpha[..., None] > 0
+    colour = np.where(kept, ground + (rgb - ground) / np.maximum(alpha[..., None], 1e-6), 0.0)
+    drawn = np.dstack([np.clip(colour, 0, 255), alpha * 255])
+    return Image.fromarray(np.uint8(np.rint(drawn)))
+
+
+def bake_examples() -> None:
+    """Each example's card picture, on nothing, into the library's pictures/examples/."""
+    (PICTURES / "examples").mkdir(exist_ok=True)
+    for marker in sorted(SAMPLES.glob("*/studio-sample.json")):
+        card = marker.parent / json.loads(marker.read_text(encoding="utf-8"))["picture"]
+        with Image.open(card) as image:
+            fit(on_nothing(image)).save(PICTURES / "examples" / f"{marker.parent.name}.webp", "WEBP", quality=80)
+        print(f"pictures/examples/{marker.parent.name}.webp, from {marker.parent.name}/{card.name}")
+
+
 def main() -> int:
+    if sys.argv[1:] == ["--examples"]:
+        bake_examples()
+        return 0
     files = pictured()
     PICTURES.mkdir(exist_ok=True)
     kept = kept_results(files)
@@ -193,12 +230,7 @@ def main() -> int:
         if picture.name not in named:
             picture.unlink()
             print(f"removed pictures/{picture.name}")
-    (PICTURES / "examples").mkdir(exist_ok=True)
-    for marker in sorted(SAMPLES.glob("*/studio-sample.json")):
-        card = marker.parent / json.loads(marker.read_text(encoding="utf-8"))["picture"]
-        with Image.open(card) as image:
-            fit(image).save(PICTURES / "examples" / f"{marker.parent.name}.webp", "WEBP", quality=80)
-        print(f"pictures/examples/{marker.parent.name}.webp, from {marker.parent.name}/{card.name}")
+    bake_examples()
     return 0
 
 

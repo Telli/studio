@@ -41,7 +41,7 @@ def base():
 
     body -= bd.Pos(CLEVIS_X, 0, HEIGHT + HINGE_HEIGHT) * bd.Rot(90, 0, 0) * bd.Cylinder(HINGE_HOLE / 2, 2 * (CHEEK_GAP + 2 * CHEEK))  # M5 clearance hole
 
-    body.color = "#56606C"
+    body.color = "#C8C8C8"
     body.label = "base"
     return body
 

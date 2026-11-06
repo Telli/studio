@@ -28,6 +28,8 @@ export function StudioNew(props: {
   readonly newProject?: boolean;
   /** No New button: it opens only when asked (`useNewDialogStore`). */
   readonly hideButton?: boolean;
+  /** Inside a project New is a file action, as quiet as Import beside it: `outline`. Else filled. */
+  readonly buttonVariant?: "default" | "outline";
   readonly onCreate: (job: NewJob) => void;
   /** New's Part: the part made, with no agent turn. */
   readonly onNewPart: (part: NewPart) => Promise<unknown>;
@@ -67,6 +69,7 @@ export function StudioNew(props: {
     <>
       {props.hideButton ? null : (
         <Button
+          variant={props.buttonVariant ?? "default"}
           size="sm"
           onClick={() =>
             setOpened((current) => ({ open: true, count: current.count + 1, asked: null }))

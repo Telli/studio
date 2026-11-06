@@ -13,10 +13,13 @@ const ToggleGroupContext = React.createContext<VariantProps<typeof toggleVariant
   variant: "default",
 });
 
+const isSegmented = (variant: VariantProps<typeof toggleVariants>["variant"]) =>
+  variant === "segmented" || variant === "segmented-accent";
+
 function ToggleGroup({
   className,
   variant = "segmented",
-  size = variant === "segmented" ? "segmented" : "default",
+  size = isSegmented(variant) ? "segmented" : "default",
   orientation = "horizontal",
   children,
   ...props
@@ -29,7 +32,7 @@ function ToggleGroup({
         orientation === "horizontal"
           ? "*:pointer-coarse:after:min-w-auto"
           : "*:pointer-coarse:after:min-h-auto",
-        variant === "segmented"
+        isSegmented(variant)
           ? "gap-0.5 rounded-lg bg-input/40 p-0.5"
           : variant === "default"
             ? "gap-0.5"

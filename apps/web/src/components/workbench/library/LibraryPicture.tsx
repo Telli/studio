@@ -8,9 +8,12 @@ import { Page, TextPage } from "../OverviewModules";
 import type { LibraryDocument, LibraryEntry } from "./libraryCatalog";
 import { pictureOf } from "./libraryPictures";
 
-/** The box every picture fills, an example's (`ExamplePicture`) too: their own shape, 16:10. */
+/**
+ * The box every picture fills, an example's (`ExamplePicture`) too: their own shape, 16:10, on the
+ * viewer's ground, which an example's picture, drawn on nothing, shows through.
+ */
 export const PICTURE_BOX =
-  "relative flex aspect-[8/5] flex-col items-center justify-center gap-2 overflow-hidden bg-muted/50";
+  "relative flex aspect-[8/5] flex-col items-center justify-center gap-2 overflow-hidden bg-(--model-ground)";
 
 /** A file's folder and its name in it. */
 const folderAndName = (file: string) => {

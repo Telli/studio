@@ -5,6 +5,7 @@ import {
   jobCount,
   readToolboxTab,
   toolboxFolded,
+  toolboxNarrowRem,
   toolboxGroups,
   toolboxLeftOut,
   toolboxLibraryLink,
@@ -51,6 +52,16 @@ describe("toolboxFolded", () => {
   it("folds on a narrow panel until it is opened there", () => {
     expect(toolboxFolded({ chosen: false, narrow: true, openedNarrow: false })).toBe(true);
     expect(toolboxFolded({ chosen: true, narrow: true, openedNarrow: true })).toBe(false);
+  });
+});
+
+describe("toolboxNarrowRem", () => {
+  it("folds beside a chat in CAD and stays out across the window, and in AI down to a small panel", () => {
+    const narrow = (simple: boolean, width: number) => width < toolboxNarrowRem(simple) * 16;
+    expect(narrow(false, 1270)).toBe(true);
+    expect(narrow(false, 1800)).toBe(false);
+    expect(narrow(true, 1270)).toBe(false);
+    expect(narrow(true, 600)).toBe(true);
   });
 });
 

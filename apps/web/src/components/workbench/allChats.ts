@@ -3,6 +3,7 @@ import { useMemo } from "react";
 
 import { useThreadShells } from "~/state/entities";
 import { NO_PROJECT, noProjectChats, useNoProjectFolder } from "./freeformChat";
+import { historyOutcome } from "./projectHistory";
 import { useProjectList } from "./useProjectList";
 import { projectChats, workspaceTitle } from "./workspaceTitle";
 
@@ -45,12 +46,19 @@ export function findChats<T extends { readonly id: string; readonly title: strin
   });
 }
 
+/** Of these chats, the ones waiting on the person: Chats' Needs you, and Home's count in the sidebar. */
+export function waitingChats<T extends Parameters<typeof historyOutcome>[0]>(
+  chats: ReadonlyArray<T>,
+): T[] {
+  return chats.filter((chat) => historyOutcome(chat) === "needs-you");
+}
+
 /**
- * Every Studio project's chats, from Home's project list, and the older chats in no project, from Home's
- * old Ask, which no longer exists (`freeformChat.ts`): Chats, and the sidebar's recent chats.
+ * Every chat the sidebar can reach: each Studio project's, the older chats in no project, from Home's
+ * old Ask, which no longer exists (`freeformChat.ts`), and those in folders in no project.
  */
 export function useAllChats(environmentId: EnvironmentId) {
-  const { cards } = useProjectList(environmentId);
+  const { cards, loose } = useProjectList(environmentId);
   const free = useNoProjectFolder(environmentId).project;
   const threads = useThreadShells();
   return useMemo(() => {
@@ -63,6 +71,10 @@ export function useAllChats(environmentId: EnvironmentId) {
         threads: card.threads,
       })),
       ...(unfiled.length > 0 ? [{ name: NO_PROJECT, threads: unfiled }] : []),
+      ...loose.map(({ folder, threads: own }) => ({
+        name: workspaceTitle(null, folder.workspaceRoot),
+        threads: own,
+      })),
     ]);
-  }, [cards, environmentId, free, threads]);
+  }, [cards, loose, environmentId, free, threads]);
 }

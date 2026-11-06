@@ -713,7 +713,8 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   metal and cutting, files and off-the-shelf parts), so no heading holds a lone tile that repeats
   it; a pause on a tile shows its name and what it makes (`TooltipRich`). Every job is a tile like every other: within a tab
   nothing is folded away (Amy, 11/04: every skill weighs the same; 11/05: tabs, not one long list). It
-  folds to its icons, and starts folded in a narrow panel; a group's icon opens it on that tab. The jobs the part's kind takes:
+  folds to its icons, and starts folded in a narrow panel, in CAD any panel beside a chat, so the
+  model keeps the room (`toolboxNarrowRem`); a group's icon opens it on that tab. The jobs the part's kind takes:
   simulations, fit, motion and mass; each way of making it (the project's own first: printing,
   CNC with G-code, sheet metal, cutting, molding, boards), buying standard parts and the files to
   export (STEP, STL and 3MF); drawings, instructions, pictures, reports and robot descriptions.

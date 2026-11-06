@@ -81,7 +81,7 @@ function TrashPageFor(props: { readonly environmentId: EnvironmentId }) {
       count={entries.length}
       lede="Projects and their chats stay here until you delete them forever."
     >
-      {list === undefined ? null : entries.length === 0 ? (
+      {list === null ? null : entries.length === 0 ? (
         <p className="py-6 text-sm text-muted-foreground">
           Trash is empty. A project's menu has Move to Trash.
         </p>

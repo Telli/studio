@@ -218,7 +218,7 @@ function LastSampleLabel({ sampledAt }: { sampledAt: DateTime.Utc | null }) {
   }
   return (
     <span className="text-2xs text-muted-foreground/60">
-      Updated <span className="font-mono tabular-nums">{relative.value}</span>
+      Updated <span className="tabular-nums">{relative.value}</span>
       {relative.suffix ? ` ${relative.suffix}` : ""}
     </span>
   );
@@ -247,7 +247,7 @@ function IconStat({
       </div>
       <div
         className={cn(
-          "mt-2.5 truncate font-mono text-2xl font-semibold tracking-tighter tabular-nums text-foreground",
+          "mt-2.5 truncate text-2xl font-semibold tracking-tighter tabular-nums text-foreground",
           tone === "warning" && "text-warning-foreground",
           tone === "danger" && "text-destructive",
         )}
@@ -277,7 +277,7 @@ function AggregateCard({
         <div className="text-3xs font-semibold uppercase tracking-widest text-muted-foreground/75">
           {label}
         </div>
-        <div className="rounded-md bg-muted/55 px-1.5 py-0.5 font-mono text-3xs tabular-nums text-muted-foreground/70">
+        <div className="rounded-md bg-muted/55 px-1.5 py-0.5 text-3xs tabular-nums text-muted-foreground/70">
           {aggregate.processCount} {aggregate.processCount === 1 ? "process" : "processes"}
         </div>
       </div>
@@ -297,9 +297,7 @@ function MetricPair({ label, value }: { label: string; value: string }) {
       <div className="text-3xs font-semibold uppercase tracking-widest text-muted-foreground/45">
         {label}
       </div>
-      <div className="truncate font-mono text-xs font-medium tabular-nums text-foreground/90">
-        {value}
-      </div>
+      <div className="truncate text-xs font-medium tabular-nums text-foreground/90">{value}</div>
     </div>
   );
 }
@@ -351,7 +349,7 @@ function DetailRow({
       <span className="text-2xs text-muted-foreground/75">{label}</span>
       <span
         className={cn(
-          "min-w-0 truncate text-right font-mono text-2xs tabular-nums text-foreground/85",
+          "min-w-0 truncate text-right text-2xs tabular-nums text-foreground/85",
           valueClassName,
         )}
       >
@@ -619,31 +617,31 @@ function ProcessTable({
                 <td className="truncate px-3 py-2 text-2xs text-muted-foreground">
                   {categoryLabel(process.category)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {process.cpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {formatCpuTime(process.cpuTimeMs)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {formatBytes(process.residentBytes)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-info-foreground">
+                <td className="px-3 py-2 text-right tabular-nums text-info-foreground">
                   {formatRate(process.ioReadBytesPerSecond)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-warning-foreground">
+                <td className="px-3 py-2 text-right tabular-nums text-warning-foreground">
                   {formatRate(process.ioWriteBytesPerSecond)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                   {formatBytes(process.ioReadBytes)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                   <Tooltip>
                     <TooltipTrigger render={<span>{formatBytes(process.ioWriteBytes)}</span>} />
                     <TooltipPopup side="top">{ioSemanticsLabel(process.ioSemantics)}</TooltipPopup>
                   </Tooltip>
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                   {process.identity.pid}
                 </td>
                 <td className="px-2 py-2 text-right sm:pr-4">
@@ -728,25 +726,25 @@ function HistoryProcessTable({
                 <td className="truncate px-3 py-2 text-2xs text-muted-foreground">
                   {categoryLabel(process.category)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {formatCpuTime(process.cpuTimeMs)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {process.maxCpuPercent.toFixed(1)}%
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
+                <td className="px-3 py-2 text-right tabular-nums">
                   {formatBytes(process.peakRssBytes)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-info-foreground">
+                <td className="px-3 py-2 text-right tabular-nums text-info-foreground">
                   {formatBytes(process.ioReadBytes)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-warning-foreground">
+                <td className="px-3 py-2 text-right tabular-nums text-warning-foreground">
                   {formatBytes(process.ioWriteBytes)}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                   {process.sampleCount}
                 </td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground sm:pr-5">
+                <td className="px-3 py-2 text-right tabular-nums text-muted-foreground sm:pr-5">
                   {process.identity.pid}
                 </td>
               </tr>
@@ -794,14 +792,14 @@ function AttributionTable({ entries }: { entries: ReadonlyArray<ResourceAttribut
                 {entry.component}
               </td>
               <td className="truncate px-3 py-2 text-muted-foreground">{entry.operation}</td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums text-info-foreground">
+              <td className="px-3 py-2 text-right tabular-nums text-info-foreground">
                 {formatBytes(entry.logicalReadBytes)}
               </td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums text-warning-foreground">
+              <td className="px-3 py-2 text-right tabular-nums text-warning-foreground">
                 {formatBytes(entry.logicalWriteBytes)}
               </td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums">{entry.count}</td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground sm:pr-5">
+              <td className="px-3 py-2 text-right tabular-nums">{entry.count}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-muted-foreground sm:pr-5">
                 {(entry.durationMs / 1_000).toFixed(2)}s
               </td>
             </tr>

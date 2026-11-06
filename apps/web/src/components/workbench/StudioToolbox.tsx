@@ -12,18 +12,19 @@ import { KIND_TINT, MENU_ICONS } from "./kinds";
 import { handToChat } from "./handToChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
+import { useSimpleView } from "./simpleView";
 import { usePartForJobs } from "./StudioPanelBar";
 import { SectionJobs } from "./ToolboxJobs";
 import {
   readToolboxFolded,
   readToolboxTab,
-  TOOLBOX_NARROW_REM,
   jobCount,
   type ToolboxGroup,
   toolboxFolded,
   toolboxGroups,
   toolboxLeftOut,
   toolboxLibraryLink,
+  toolboxNarrowRem,
   toolboxShownGroup,
   writeToolboxFolded,
   writeToolboxTab,
@@ -40,8 +41,8 @@ import { usePartJobs } from "./usePartJobs";
  * each section's name over its tiles.
  * A tile press sends its job in the chat for that part, or adds it after a draft being written
  * there for the person to send (`handToChat`). It folds to an edge of the groups' icons, as chosen
- * on this device, and on a narrow panel starts folded so the model keeps the room; a group's icon
- * there opens it on that group's tab.
+ * on this device, and on a narrow panel (`toolboxNarrowRem`: in CAD, one beside a chat) starts
+ * folded so the model keeps the room; a group's icon there opens it on that group's tab.
  */
 export function StudioToolbox(props: {
   readonly threadRef: ScopedThreadRef;
@@ -149,6 +150,7 @@ export function StudioToolbox(props: {
         <ToggleGroup
           aria-label="Toolbox group"
           value={shown === undefined ? [] : [shown.group]}
+          variant="segmented-accent"
           size="tile"
           className="w-full"
           onValueChange={(value) => {
@@ -218,6 +220,7 @@ export function StudioToolbox(props: {
  * forgets an opening there once it is wide again.
  */
 function useFolding(rootRef: RefObject<HTMLDivElement | null>) {
+  const narrowRem = toolboxNarrowRem(useSimpleView());
   const [chosen, setChosen] = useState(readToolboxFolded);
   const [narrow, setNarrow] = useState(false);
   const [openedNarrow, setOpenedNarrow] = useState(false);
@@ -234,9 +237,9 @@ function useFolding(rootRef: RefObject<HTMLDivElement | null>) {
       const width = entries.at(-1)?.contentRect.width;
       if (width === undefined) return;
       const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      setNarrow(width < TOOLBOX_NARROW_REM * rem);
+      setNarrow(width < narrowRem * rem);
     });
-  }, [rootRef]);
+  }, [rootRef, narrowRem]);
   return {
     folded: toolboxFolded({ chosen, narrow, openedNarrow }),
     setFolded: (next: boolean) => {
