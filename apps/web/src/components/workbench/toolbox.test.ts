@@ -6,7 +6,9 @@ import {
   readToolboxTab,
   toolboxFolded,
   toolboxGroups,
+  toolboxLeftOut,
   toolboxLibraryLink,
+  toolboxShownGroup,
   writeToolboxTab,
 } from "./toolbox";
 
@@ -88,5 +90,38 @@ describe("toolboxLibraryLink", () => {
       to: "/library",
       search: { group: "Document" },
     });
+  });
+});
+
+describe("the Toolbox on a file that is not a part", () => {
+  const SKILLS = new Set(["fea", "cad", "dfm", "cam", "dxf", "sendcutsend"]);
+  const groupsFor = (kind: string) => toolboxGroups(hardwareActions(kind, SKILLS));
+  const labels = (kind: string, tab: Parameters<typeof toolboxShownGroup>[1]) =>
+    toolboxShownGroup(groupsFor(kind), tab)?.sections.flatMap((section) =>
+      section.actions.map((action) => action.label),
+    );
+
+  it("stays on the group left open where it has jobs", () => {
+    expect(toolboxShownGroup(groupsFor("Part"), "Manufacture")?.group).toBe("Manufacture");
+    expect(labels("CAM job", "Evaluate")).toEqual(["Explain this job"]);
+  });
+
+  it("opens on a group with jobs where the one left open has none for this kind", () => {
+    expect(toolboxShownGroup(groupsFor("CAM job"), "Manufacture")?.group).toBe("Evaluate");
+    expect(labels("Drawing", "Evaluate")).toEqual(["Cut-ready DXF", "Order from SendCutSend"]);
+    expect(labels("Document", "Manufacture")).toEqual(["Write up the results"]);
+  });
+
+  it("says what is left out, and what to open for it", () => {
+    expect(toolboxLeftOut(groupsFor("Part"), "Part")).toBeNull();
+    expect(toolboxLeftOut(groupsFor("CAM job"), "CAM job")).toBe(
+      "No Manufacture jobs for this CAM job. Open a part to see them.",
+    );
+    expect(toolboxLeftOut(groupsFor("Drawing"), "Drawing")).toBe(
+      "No Evaluate jobs for this drawing. Open a part to see them.",
+    );
+    expect(toolboxLeftOut(groupsFor("Document"), "Document")).toBe(
+      "No Evaluate or Manufacture jobs for this document. Open a part to see them.",
+    );
   });
 });

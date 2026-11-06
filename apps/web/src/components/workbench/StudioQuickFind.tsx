@@ -44,7 +44,15 @@ import { ProjectThumb, projectStanding } from "./ProjectChoices";
 import { partLink } from "./partLink";
 import { classifyProjectFile, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import type { ListedProject } from "./projectList";
-import { type FoundPart, findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
+import {
+  findFiles,
+  findJobs,
+  folderDocuments,
+  folderOtherFiles,
+  folderParts,
+  type FoundPart,
+  holdsWords,
+} from "./quickFind";
 import { homeRecent, recentChats } from "./recentActivity";
 import { useRecentFiles } from "./recentFiles";
 import { useAskNewProject } from "./StudioNew";
@@ -195,6 +203,17 @@ function QuickFindBody(props: {
       ),
     [listings, owners],
   );
+  const otherFiles = useMemo(
+    () =>
+      folderOtherFiles<ListedProject | null>(
+        listings.map((listing, index) => ({
+          project: owners[index]?.[1] ?? null,
+          root: listing.root,
+          paths: listing.paths,
+        })),
+      ),
+    [listings, owners],
+  );
   const inHere = (part: FoundPart<ListedProject | null>) =>
     here !== null &&
     (part.project === null ? studioFolderKey(part.root) === here : part.project === current);
@@ -255,14 +274,8 @@ function QuickFindBody(props: {
             run: () => startWork(action.prompt(partLink(part))),
           })),
         };
-  const shownParts = typed
-    ? parts.filter(({ project, file }) =>
-        holdsWords(
-          `${file.title}\n${file.kind}\n${file.path}\n${project?.project.name ?? ""}`,
-          query,
-        ),
-      )
-    : parts.filter(inHere);
+  const ownerName = (project: ListedProject | null) => project?.project.name ?? "";
+  const shownParts = typed ? findFiles(parts, query, ownerName) : parts.filter(inHere);
   const partRows: Group = {
     label: typed || current === null ? "Parts" : `Parts in ${current.project.name}`,
     rows: shownParts.map((found) => ({
@@ -277,12 +290,7 @@ function QuickFindBody(props: {
     })),
   };
   const shownDocs = typed
-    ? docs.filter(({ project, file }) =>
-        holdsWords(
-          `${file.title}\n${file.kind}\n${file.path}\n${project?.project.name ?? ""}`,
-          query,
-        ),
-      )
+    ? findFiles(docs, query, ownerName)
     : docs.filter(inHere).slice(0, SHOWN_UNTYPED);
   const documentFiles: Group = {
     label: typed || current === null ? "Documents" : `Documents in ${current.project.name}`,
@@ -296,6 +304,21 @@ function QuickFindBody(props: {
           : `${found.file.kind} · ${found.project?.project.name ?? ""}`,
       run: () => openPart(found),
     })),
+  };
+  // Every other file, by its name or kind ("cam job", "drawing"), only once something is typed.
+  const fileRows: Group = {
+    label: "Files",
+    rows: (typed ? findFiles(otherFiles, query, ownerName) : [])
+      .slice(0, SHOWN_TYPED)
+      .map((found) => ({
+        value: `file:${found.root}\n${found.file.path}`,
+        icon: <PartThumb environmentId={environmentId} root={found.root} file={found.file} />,
+        title: found.file.title,
+        description: inHere(found)
+          ? found.file.kind
+          : `${found.file.kind} · ${found.project?.project.name ?? ""}`,
+        run: () => openPart(found),
+      })),
   };
   // A chat as the sidebar shows it: how it stands (Needs you, Working, when), with its project's
   // name when that is not the project open; opening one from another project opens that project.
@@ -526,7 +549,7 @@ function QuickFindBody(props: {
   };
   const groups = (
     typed
-      ? [jobs, partRows, documentFiles, chatRows, projects, documentRows, goTo]
+      ? [jobs, partRows, documentFiles, fileRows, chatRows, projects, documentRows, goTo]
       : [recent, recentChatRows, partRows, documentFiles, chatRows, projects, goTo]
   ).filter((group): group is Group => group !== null && group.rows.length > 0);
 

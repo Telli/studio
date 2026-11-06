@@ -7,6 +7,7 @@ import { selectThreadRightPanelState, useRightPanelStore } from "~/rightPanelSto
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { agentViewSurface, pluginAppSurface } from "../plugins/pluginSurfaces";
+import { keepOverviewSpread } from "./overviewPanel";
 import { rememberRecentFile } from "./recentFiles";
 import { setSimpleView } from "./simpleView";
 import { knownModelTitle } from "./useFolderModels";
@@ -60,6 +61,21 @@ export function openPartInCad(
 ): boolean {
   useRightPanelStore.getState().setMaximized(threadRef, false);
   const shown = openInPanel(plugins, threadRef, part);
+  if (shown) setSimpleView(false);
+  return shown;
+}
+
+/**
+ * Opens a file picked on the Overview as `openPartInCad` does, at the width the panel has: one
+ * spread across the window stays so, as the person left it.
+ */
+export function openFromOverview(
+  plugins: Parameters<typeof pluginFileHandlers>[0] | undefined,
+  threadRef: ScopedThreadRef,
+  path: string,
+): boolean {
+  keepOverviewSpread(threadRef);
+  const shown = openInPanel(plugins, threadRef, path);
   if (shown) setSimpleView(false);
   return shown;
 }
@@ -131,6 +147,17 @@ export function useOpenInWorkbench(threadRef: ScopedThreadRef) {
   ).data?.plugins;
   return useCallback(
     (path: string) => openPartInCad(plugins, threadRef, path),
+    [plugins, threadRef],
+  );
+}
+
+/** `useOpenInWorkbench` for the Overview, whose files open at the panel's width (`openFromOverview`). */
+export function useOpenFromOverview(threadRef: ScopedThreadRef) {
+  const plugins = useEnvironmentQuery(
+    pluginEnvironment.list({ environmentId: threadRef.environmentId, input: {} }),
+  ).data?.plugins;
+  return useCallback(
+    (path: string) => openFromOverview(plugins, threadRef, path),
     [plugins, threadRef],
   );
 }

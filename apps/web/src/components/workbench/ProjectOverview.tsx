@@ -265,8 +265,9 @@ function FolderParts(props: {
  * what was built last (or, with none yet, how to start one), then in Studio every file, latest
  * first, so the parts are in view without scrolling past the README, the issues its checks found with the fix each suggests
  * (asking for one writes the ask into the composer: the agent proposes and waits), its versions,
- * then the three kinds of thing designed (CAD and Electronics, each part with its checks, drawing
- * and manufacturing files; Documents), a module for each kind made from them (drawings, analysis,
+ * its sizes (a long table, so below the versions), then the three kinds of thing designed (CAD
+ * and Electronics, each part with its checks, drawing and manufacturing files; Documents), a
+ * module for each kind made from them (drawings, analysis,
  * manufacturing files) and the rest, and the project's other chats. Each module folds
  * away. Checks are the results text-to-cad writes beside the parts (`checkResults.ts`).
  */
@@ -485,18 +486,6 @@ export function ProjectOverview(props: {
       ) : null}
 
       <div className="grid min-w-0 gap-8 @3xl:grid-cols-2">
-        {/* Every named size in one table, shared ones first (`ProjectSizes`). */}
-        {partCount === 0 ? null : (
-          <ProjectSizes
-            environmentId={props.environmentId}
-            threadRef={props.threadRef}
-            folders={props.folders}
-            mutationId={props.mutationId}
-            composerRef={props.composerRef}
-            folded={folded.includes("Sizes")}
-            onFold={() => toggle("Sizes")}
-          />
-        )}
         {versioned.length === 0 ? null : (
           <PartVersions
             environmentId={props.environmentId}
@@ -509,6 +498,18 @@ export function ProjectOverview(props: {
             onFold={() => toggle("Versions")}
             onOpen={props.onOpen}
             composerRef={props.composerRef}
+          />
+        )}
+        {/* Every named size in one table, shared ones first (`ProjectSizes`). */}
+        {partCount === 0 ? null : (
+          <ProjectSizes
+            environmentId={props.environmentId}
+            threadRef={props.threadRef}
+            folders={props.folders}
+            mutationId={props.mutationId}
+            composerRef={props.composerRef}
+            folded={folded.includes("Sizes")}
+            onFold={() => toggle("Sizes")}
           />
         )}
         {/* A project of one part shows it above, large; these are for picking among several. */}

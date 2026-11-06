@@ -12,8 +12,9 @@ import { setSimpleView } from "./simpleView";
 
 /**
  * Opens a project's Overview beside a chat, across the window as a Google Drive folder opens
- * (`ProjectEverything`): from the sidebar's Overview and the top bar's project name. Opening a
- * file or a chat from it, or New's Create, brings the chat back beside it.
+ * (`ProjectEverything`): from the sidebar's Overview and the top bar's project name. A file opened
+ * from it keeps that width (`openFromOverview`); opening a chat from it, or New's Create, brings
+ * the chat back beside it.
  */
 export function showOverview(threadRef: ScopedThreadRef): void {
   const panels = useRightPanelStore.getState();
@@ -25,6 +26,11 @@ export function showOverview(threadRef: ScopedThreadRef): void {
 
 /** The chats whose panel `showOverview` spread across the window, to step back on leaving it. */
 const spreadForOverview = new Set<string>();
+
+/** A file opened from the Overview stays at the panel's width: going between tabs keeps it too. */
+export function keepOverviewSpread(threadRef: ScopedThreadRef): void {
+  spreadForOverview.delete(scopedThreadKey(threadRef));
+}
 
 /** Threads of projects just opened, waiting for their part to be found (`useShowProjectPart`). */
 export const useOpeningProjects = create<{ readonly threads: ReadonlySet<string> }>()(() => ({
@@ -66,9 +72,9 @@ export function takeOpeningProject(threadRef: ScopedThreadRef): boolean {
 
 /**
  * Puts a panel tab in front at the size the panel has: going between the tabs never grows or
- * shrinks it. Only leaving the Overview for a file steps back beside the chat, once, when the
- * Overview was across the window (`showOverview`), as a file opened from a Drive folder does; a
- * part the person spread across the window themselves stays so.
+ * shrinks it. Only leaving the Overview for another tab steps back beside the chat, once, when the
+ * Overview was across the window (`showOverview`); a part the person spread across the window
+ * themselves stays so.
  */
 export function frontTab(
   threadRef: ScopedThreadRef,

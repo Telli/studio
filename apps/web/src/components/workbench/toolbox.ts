@@ -4,6 +4,7 @@ import {
   type HardwareActionMenu,
 } from "./hardwareActions";
 import { libraryHref } from "./library/librarySearch";
+import { lowerName } from "./partNames";
 
 /** A run of jobs in a group, under its title. */
 export interface ToolboxSection {
@@ -75,6 +76,31 @@ export function writeToolboxFolded(folded: boolean): void {
 /** A group's jobs, in all its sections. */
 export function jobCount(group: ToolboxGroup): number {
   return group.sections.reduce((count, section) => count + section.actions.length, 0);
+}
+
+/**
+ * The group the Toolbox shows: the one left open, or where that has no job for this file (a CAM job
+ * has nothing in Manufacture), the first that has one. The one left open stays remembered.
+ */
+export function toolboxShownGroup(
+  groups: ReadonlyArray<ToolboxGroup>,
+  tab: HardwareActionGroup,
+): ToolboxGroup | undefined {
+  const left = groups.find((group) => group.group === tab);
+  return left !== undefined && jobCount(left) > 0
+    ? left
+    : (groups.find((group) => jobCount(group) > 0) ?? left);
+}
+
+/**
+ * What the file in front leaves out, in plain words and with what to open for it; null when every
+ * group has jobs for it.
+ */
+export function toolboxLeftOut(groups: ReadonlyArray<ToolboxGroup>, kind: string): string | null {
+  const names = groups.filter((group) => jobCount(group) === 0).map((group) => group.group);
+  if (names.length === 0) return null;
+  const listed = new Intl.ListFormat("en", { type: "disjunction" }).format(names);
+  return `No ${listed} jobs for this ${lowerName(kind)}. Open a part to see them.`;
 }
 
 /**

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { hardwareActions } from "./hardwareActions";
-import { findJobs, folderDocuments, folderParts, holdsWords } from "./quickFind";
+import {
+  findFiles,
+  findJobs,
+  folderDocuments,
+  folderOtherFiles,
+  folderParts,
+  holdsWords,
+} from "./quickFind";
 
 const SKILLS = new Set(["fea", "cad", "dfm", "dfam-check", "cam", "gcode", "bambu-labs"]);
 const labels = (query: string, process?: string) =>
@@ -44,6 +51,33 @@ describe("quick find", () => {
       ["Bike hook", "hook.solidcraft", "hook.step"],
       ["Bike hook", "clip.stl", undefined],
     ]);
+  });
+
+  it("finds a file by its kind as well as its name, each thing once", () => {
+    const found = (query: string) =>
+      findFiles(
+        folderOtherFiles([
+          {
+            project: "Motor mount",
+            root: "/p/motor",
+            paths: [
+              "README.md",
+              "motor_plate.step",
+              "motor_plate.cam.glb",
+              "motor_plate.cam.json",
+              "motor_plate.dxf",
+              "docs/prd.md",
+            ],
+          },
+        ]),
+        query,
+        (project) => project,
+      ).map(({ file }) => [file.title, file.kind, file.path]);
+    expect(found("cam job")).toEqual([["Motor plate", "CAM job", "motor_plate.cam.glb"]]);
+    expect(found("MOTOR drawing")).toEqual([["Motor plate", "Drawing", "motor_plate.dxf"]]);
+    // Parts and documents are found as themselves.
+    expect(found("part")).toEqual([]);
+    expect(found("prd")).toEqual([]);
   });
 
   it("finds each folder's documents, leaving the README to the Overview", () => {

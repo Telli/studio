@@ -15,6 +15,7 @@ import {
   useOpeningProjects,
 } from "./overviewPanel";
 import { setSimpleView, useSimpleViewStore } from "./simpleView";
+import { openFromOverview, openPartInCad } from "./useOpenInWorkbench";
 
 const THREAD = scopeThreadRef(EnvironmentId.make("environment-local"), ThreadId.make("thread-1"));
 
@@ -91,5 +92,37 @@ describe("going between the panel's tabs", () => {
     frontTab(THREAD, { id: "files", kind: "files" });
     frontTab(THREAD, BRACKET);
     expect(panel().maximized).toBe(true);
+  });
+});
+
+describe("opening a file from the Overview", () => {
+  beforeEach(() => {
+    useRightPanelStore.setState({ byThreadKey: {}, threadPanelVisibilityByThreadKey: {} });
+  });
+
+  it("keeps the panel across the window, however it got there", () => {
+    showOverview(THREAD);
+    openFromOverview(undefined, THREAD, "docs/prd.md");
+    expect(panel().maximized).toBe(true);
+
+    useRightPanelStore.getState().open(THREAD, "files");
+    useRightPanelStore.getState().setMaximized(THREAD, true);
+    openFromOverview(undefined, THREAD, "docs/fmea.md");
+    expect(panel().maximized).toBe(true);
+  });
+
+  it("stays across the window going back and forth between the tabs after", () => {
+    useRightPanelStore.getState().openPluginApp(THREAD, BRACKET);
+    showOverview(THREAD);
+    openFromOverview(undefined, THREAD, "docs/prd.md");
+    frontTab(THREAD, { id: "files", kind: "files" });
+    frontTab(THREAD, BRACKET);
+    expect(panel().maximized).toBe(true);
+  });
+
+  it("leaves a part picked anywhere else stepping back beside the chat", () => {
+    showOverview(THREAD);
+    openPartInCad(undefined, THREAD, "docs/prd.md");
+    expect(panel().maximized).toBeUndefined();
   });
 });

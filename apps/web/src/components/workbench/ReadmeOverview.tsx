@@ -1,4 +1,4 @@
-import type { EnvironmentId } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectReadFileResult } from "@t3tools/contracts";
 import {
   createContext,
   type KeyboardEvent,
@@ -23,6 +23,7 @@ import {
   isPlainReadmeText,
   type ReadmeBlock,
   type ReadmeDecision,
+  readmeHeading,
   readmeInline,
   readmeRuns,
   readmeSections,
@@ -33,6 +34,8 @@ import {
 } from "./projectReadme";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+/** Past this many decisions the list folds to its heading, so the project's files stay close. */
+const LONG_DECISIONS = 5;
 /** A point of the README, by its depth: each level further in, with its own marker. */
 const POINT = ["ms-4 list-disc", "ms-8 list-[circle]", "ms-12 list-[square]"] as const;
 const LINK =
@@ -116,6 +119,17 @@ const README = "README.md";
 const noPending = () => {};
 
 /**
+ * Each project's README as last read, by environment and folder, for the session: past its idle
+ * time the Overview shows these words while it is read again, not "Not written yet".
+ */
+const lastReadme = new Map<string, ProjectReadFileResult>();
+
+function heldReadme(key: string, read: ProjectReadFileResult | null) {
+  if (read !== null) lastReadme.set(key, read);
+  return read ?? lastReadme.get(key) ?? null;
+}
+
+/**
  * A piece of the README typed into where it reads, as a document's pieces are
  * (`StudioDocumentSurface`): a click puts the cursor there, leaving it saves the new words in that
  * place (`replaceReadmeText`), Escape puts the old ones back, and Enter leaves a one-line piece.
@@ -172,17 +186,22 @@ function Typed(props: {
   );
 }
 
+/** A date as the Overview says it: "Oct 19". */
+const readmeDay = (when: string) =>
+  new Date(`${when}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
 /** "Oct 19, asked": when and how a decision was made, as far as its line says. */
 function decisionNote(decision: ReadmeDecision): string | null {
-  const day =
-    decision.when === null
-      ? null
-      : new Date(`${decision.when}T00:00:00`).toLocaleDateString(undefined, {
-          month: "short",
-          day: "numeric",
-        });
+  const day = decision.when === null ? null : readmeDay(decision.when);
   const note = [day, decision.how].filter((part) => part !== null).join(", ");
   return note === "" ? null : note;
+}
+
+/** "researched Nov 5": what a dated heading says beside its title. */
+function headingNote(heading: ReturnType<typeof readmeHeading>): string | null {
+  if (heading.when === null) return null;
+  const day = readmeDay(heading.when);
+  return heading.word === null ? day : `${heading.word} ${day}`;
 }
 
 /** A section's prose, `###` headings and nested points, in the order written. */
@@ -198,9 +217,12 @@ function ReadmeBlocks(props: {
   );
   return readmeRuns(props.blocks).map((run) => {
     if ("kind" in run) {
-      return run.kind === "subheading" ? (
-        <h3 key={run.text} className="pt-1 text-xs font-medium text-foreground">
-          {words(run.text)}
+      const heading = run.kind === "subheading" ? readmeHeading(run.text) : null;
+      const note = heading === null ? null : headingNote(heading);
+      return heading !== null ? (
+        <h3 key={run.text} className="flex items-baseline gap-2 pt-1 text-xs text-foreground">
+          <span className="font-medium">{words(heading.title)}</span>
+          {note === null ? null : <span className="text-muted-foreground">{note}</span>}
         </h3>
       ) : (
         <p key={run.text} className="max-w-[75ch] text-sm leading-relaxed text-foreground">
@@ -223,10 +245,12 @@ function ReadmeBlocks(props: {
 /**
  * The top of a project's Overview in the engineering interface: its README, read as an engineer
  * reads one. What it is (the brief's purpose until the README says), the decisions made so far,
- * each with when and whether it was asked of the agent or made by hand, then every other section
- * the README has (open questions, notes), each folded to its heading until opened, so the page is
- * as short as the project's picture and the parts stay in view. The agent keeps the README as it works
- * (`studioProjectContext`); the person types into it where it reads (`Typed`), with no Edit button.
+ * each with when and whether it was asked of the agent or made by hand (a long list folded to its
+ * heading until opened), then every other section the README has (open questions, notes), each
+ * folded to its heading until opened, a dated heading with its date quiet beside its title, so the
+ * page is as short as the project's picture and the parts stay in view. The agent keeps the README
+ * as it works (`studioProjectContext`); the person types into it where it reads (`Typed`), with no
+ * Edit button.
  */
 export function ReadmeOverview(props: {
   readonly environmentId: EnvironmentId;
@@ -267,9 +291,10 @@ export function ReadmeOverview(props: {
     refresh: readme.refresh,
     resourceKey: `studio-readme:${props.cwd}`,
   });
-  // The sections opened on this computer, kept as the Overview's modules keep their folds.
+  // The sections opened on this computer (a long Decisions too), kept as the Overview's modules
+  // keep their folds.
   const { folded: opened, toggle: toggleSection } = useFoldedModules(`readme:${props.cwd}`);
-  const file = readme.data ?? null;
+  const file = heldReadme(`${environmentId}\n${cwd}`, readme.data);
   const sections = readmeSections(file === null || file.truncated ? null : file.contents);
   const whatItIs = sections.whatItIs ?? (props.purpose.trim() || null);
   const { waiting, writingIn } = useReadmeWriteIn({
@@ -295,6 +320,34 @@ export function ReadmeOverview(props: {
     );
   }
 
+  const decisions =
+    sections.decisions.length === 0 ? (
+      <p className="text-sm text-muted-foreground">No decisions yet</p>
+    ) : (
+      <ul className="flex flex-col gap-1.5">
+        {sections.decisions.map((decision) => {
+          const note = decisionNote(decision);
+          return (
+            <li
+              key={`${decision.text}-${decision.when ?? ""}`}
+              className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground"
+            >
+              <span>
+                <Typed words={decision.text} onSave={save}>
+                  <ReadmeText text={decision.text} onOpenPath={props.onOpenPath} />
+                </Typed>
+              </span>
+              {note === null ? null : (
+                <span className="text-xs text-muted-foreground">
+                  <Words text={note} />
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    );
+
   return (
     <WritingIn.Provider value={writingIn}>
       <section
@@ -319,41 +372,28 @@ export function ReadmeOverview(props: {
             </p>
           )}
         </div>
-        <div className="flex flex-col gap-1.5">
-          <h2 className={SECTION_LABEL}>Decisions</h2>
-          {sections.decisions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No decisions yet</p>
-          ) : (
-            <ul className="flex flex-col gap-1.5">
-              {sections.decisions.map((decision) => {
-                const note = decisionNote(decision);
-                return (
-                  <li
-                    key={`${decision.text}-${decision.when ?? ""}`}
-                    className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground"
-                  >
-                    <span>
-                      <Typed words={decision.text} onSave={save}>
-                        <ReadmeText text={decision.text} onOpenPath={props.onOpenPath} />
-                      </Typed>
-                    </span>
-                    {note === null ? null : (
-                      <span className="text-xs text-muted-foreground">
-                        <Words text={note} />
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
+        {sections.decisions.length > LONG_DECISIONS ? (
+          <OverviewModule
+            title="Decisions"
+            count={sections.decisions.length}
+            folded={!writingIn && !opened.includes("Decisions")}
+            onFold={() => toggleSection("Decisions")}
+          >
+            <div className="pt-2">{decisions}</div>
+          </OverviewModule>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <h2 className={SECTION_LABEL}>Decisions</h2>
+            {decisions}
+          </div>
+        )}
         {sections.more.length === 0 ? null : (
           <div className="flex flex-col gap-3">
             {sections.more.map((section) => (
               <OverviewModule
                 key={section.heading}
-                title={section.heading}
+                title={readmeHeading(section.heading).title}
+                note={headingNote(readmeHeading(section.heading))}
                 count={section.blocks.filter((block) => block.kind !== "subheading").length}
                 folded={!writingIn && !opened.includes(section.heading)}
                 onFold={() => toggleSection(section.heading)}

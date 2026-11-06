@@ -46,6 +46,9 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** `2026-10-19 — what was decided. Source: user brief.` */
 const DATE_FIRST = /^(\d{4}-\d{2}-\d{2})\s*(?:[—–:-]\s*)?(.+)$/;
 const SOURCE = /\s*Source:\s*([^.]*)\.?\s*$/i;
+/** `Existing designs — researched 2026-11-05`, `Fit check - 2026-10-23`, `Fit check (2026-10-23)`. */
+const DATED_HEADING =
+  /^(.+?)\s*(?:[—–:-]\s+|\(\s*)(?:([a-z][a-z ]*?)\s+)?(\d{4}-\d{2}-\d{2})\s*\)?$/i;
 
 const withoutStop = (text: string) => text.trim().replace(/\.$/, "");
 
@@ -109,6 +112,21 @@ function readSection(heading: string, lines: ReadonlyArray<string>): ReadmeSecti
   }
   close();
   return { heading, blocks };
+}
+
+/** A README heading as it reads: its title, and the date a dated one ends on, with its word if any. */
+export function readmeHeading(heading: string): {
+  readonly title: string;
+  readonly word: string | null;
+  readonly when: string | null;
+} {
+  const dated = DATED_HEADING.exec(heading.trim());
+  if (dated === null) return { title: heading, word: null, when: null };
+  return {
+    title: dated[1] ?? heading,
+    word: dated[2]?.toLowerCase() ?? null,
+    when: dated[3] ?? null,
+  };
 }
 
 /** A section's blocks with each run of points together, for one list each. */

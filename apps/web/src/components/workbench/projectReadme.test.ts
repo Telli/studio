@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   isPlainReadmeText,
   nextReadmeWriteIn,
+  readmeHeading,
   readmeInline,
   readmeRuns,
   readmeSections,
@@ -228,5 +229,33 @@ describe("a new project's README coming in", () => {
     expect(scribblePath(120, 1)).toBe(scribblePath(120, 1));
     expect(scribblePath(120, 1)).not.toBe(scribblePath(120, 2));
     expect(scribblePath(120, 1).match(/M/g)).toHaveLength(1);
+  });
+});
+
+describe("readmeHeading", () => {
+  it("takes the date off a dated heading, with the word before it", () => {
+    expect(readmeHeading("Existing designs — researched 2026-11-05")).toEqual({
+      title: "Existing designs",
+      word: "researched",
+      when: "2026-11-05",
+    });
+    expect(readmeHeading("EXISTING DESIGNS – RESEARCHED 2026-11-05").word).toBe("researched");
+    expect(readmeHeading("Fit check - 2026-10-23")).toEqual({
+      title: "Fit check",
+      word: null,
+      when: "2026-10-23",
+    });
+    expect(readmeHeading("Fit check (2026-10-23)").title).toBe("Fit check");
+  });
+
+  it("leaves any other heading as written", () => {
+    for (const heading of [
+      "Open questions",
+      "Off-the-shelf parts",
+      "2026-10-23",
+      "Rev 2 - final",
+    ]) {
+      expect(readmeHeading(heading)).toEqual({ title: heading, word: null, when: null });
+    }
   });
 });

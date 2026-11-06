@@ -99,6 +99,8 @@ export function HeadingLink(props: { readonly label: string; readonly onClick: (
 
 export function OverviewModule(props: {
   readonly title: string;
+  /** Said quietly beside the title: when a dated README section was written. */
+  readonly note?: string | null | undefined;
   /** The kind it holds, as Studio marks that kind everywhere (`kinds.ts`). */
   readonly icon?: LucideIcon;
   readonly count?: number;
@@ -130,6 +132,11 @@ export function OverviewModule(props: {
             <Icon aria-hidden="true" className="size-3.5 self-center text-foreground/75" />
           )}
           {props.title}
+          {props.note ? (
+            <span className="font-normal tracking-normal text-muted-foreground/70 normal-case">
+              {props.note}
+            </span>
+          ) : null}
           {props.count === undefined ? null : (
             <span className="tabular-nums text-muted-foreground/70">{props.count}</span>
           )}

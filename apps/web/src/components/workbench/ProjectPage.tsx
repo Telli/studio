@@ -50,7 +50,7 @@ import { useImportIntoProject } from "./importIntoProject";
 import { useEngineeringInterface } from "./studioInterface";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
 import { useSimpleView } from "./simpleView";
-import { useOpenInWorkbench } from "./useOpenInWorkbench";
+import { useOpenFromOverview } from "./useOpenInWorkbench";
 import { useSaveStudioProject, useStudioProjectAt } from "./useStudioProjects";
 
 /** Groups whose files have pictures: everything the CAD plugin can render. */
@@ -549,8 +549,8 @@ export function ProjectPage(props: {
     isDocumentId(relativePath) || studioFolderKey(root) === studioFolderKey(cwd)
       ? relativePath
       : `${studioFolderKey(root)}/${relativePath}`;
-  const open = useOpenInWorkbench(threadRef);
-  // Opening a thing from the Overview opens it beside the chat, as a Drive folder opens a file.
+  const open = useOpenFromOverview(threadRef);
+  // Opening a thing from the Overview keeps the panel's width (`openFromOverview`).
   const openPath = (root: string, relativePath: string) =>
     void open(threadPath(root, relativePath));
   const openIn = (root: string) => (file: ProjectFile) => openPath(root, file.path);

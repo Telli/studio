@@ -34,6 +34,13 @@ const listing = (environmentId: EnvironmentId, root: string) =>
 const reading = (environmentId: EnvironmentId, root: string, relativePath: string) =>
   projectEnvironment.readFile({ environmentId, input: { cwd: root, relativePath } });
 
+/**
+ * Each folder as last read, by environment and folder, for the session: past a listing's idle time
+ * the Overview draws from this while it is read again, as `useFolderModels` keeps its models and
+ * `usePictures` its pictures, so a page shown again does not go empty.
+ */
+const lastRead = new Map<string, FolderChecks>();
+
 // React cannot subscribe to a list of atoms whose length changes, so every folder's listing and
 // every result read happen inside one derived atom keyed by the folders.
 const checksFamily = Atom.family((key: string) =>
@@ -43,7 +50,8 @@ const checksFamily = Atom.family((key: string) =>
       const entries = Option.getOrNull(
         AsyncResult.value(get(listing(environmentId, root))),
       )?.entries;
-      if (entries === undefined) return { root, paths: null, results: [] };
+      const held = `${environmentId}\n${root}`;
+      if (entries === undefined) return lastRead.get(held) ?? { root, paths: null, results: [] };
       const paths = entries
         .filter((entry) => entry.kind === "file" && entry.ignored !== true)
         .map((entry) => entry.path);
@@ -58,7 +66,9 @@ const checksFamily = Atom.family((key: string) =>
               : parseCheckResult(path, file.contents, file.modifiedAt);
           return result === null ? [] : [result];
         });
-      return { root, paths, results };
+      const folder = { root, paths, results };
+      lastRead.set(held, folder);
+      return folder;
     });
   }).pipe(Atom.withLabel(`studio:project-checks:${key}`)),
 );

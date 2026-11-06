@@ -18,10 +18,13 @@ import {
   readToolboxFolded,
   readToolboxTab,
   TOOLBOX_NARROW_REM,
+  jobCount,
   type ToolboxGroup,
   toolboxFolded,
   toolboxGroups,
+  toolboxLeftOut,
   toolboxLibraryLink,
+  toolboxShownGroup,
   writeToolboxFolded,
   writeToolboxTab,
 } from "./toolbox";
@@ -31,8 +34,10 @@ import { usePartJobs } from "./usePartJobs";
  * The Toolbox, down the right of the workspace panel beside the part, the same in AI and CAD: the
  * jobs (`usePartJobs`) of the part in front, else the project's (`usePartForJobs`), as Evaluate,
  * Manufacture and Document (`toolboxGroups`), a tab each, like SolidWorks' CommandManager; the tab
- * left open is remembered on this device. Every job in a group is a tile like every other, nothing
- * folded: the group's purpose over its sections, each section's name over its tiles.
+ * left open is remembered on this device. A group with no job for the file in front can't be
+ * chosen, and the Toolbox opens on one that has jobs and says what to open for the rest. Every job
+ * in a group is a tile like every other, nothing folded: the group's purpose over its sections,
+ * each section's name over its tiles.
  * A tile press sends its job in the chat for that part, or adds it after a draft being written
  * there for the person to send (`handToChat`). It folds to an edge of the groups' icons, as chosen
  * on this device, and on a narrow panel starts folded so the model keeps the room; a group's icon
@@ -67,7 +72,12 @@ export function StudioToolbox(props: {
     setTabState(group);
     writeToolboxTab(group);
   };
-  const shown = groups.find((group) => group.group === tab);
+  // Until the jobs are known, no group counts as empty and the tab left open holds.
+  const ready = part !== null && jobs.status === "ready";
+  const shown = ready
+    ? toolboxShownGroup(groups, tab)
+    : groups.find((group) => group.group === tab);
+  const leftOut = ready ? toolboxLeftOut(groups, part.kind) : null;
 
   const run = (action: HardwareAction) => {
     if (composerRef === null || part === null) return;
@@ -137,7 +147,7 @@ export function StudioToolbox(props: {
         {/* Equal thirds, each its group's icon (the folded edge's, in its jobs' color) over its name. */}
         <ToggleGroup
           aria-label="Toolbox group"
-          value={[tab]}
+          value={shown === undefined ? [] : [shown.group]}
           size="tile"
           className="w-full"
           onValueChange={(value) => {
@@ -149,7 +159,12 @@ export function StudioToolbox(props: {
           {groups.map((group) => {
             const Icon = MENU_ICONS[group.group];
             return (
-              <ToggleGroupItem key={group.group} value={group.group} className="flex-1 basis-0">
+              <ToggleGroupItem
+                key={group.group}
+                value={group.group}
+                disabled={ready && jobCount(group) === 0}
+                className="flex-1 basis-0"
+              >
                 <Icon aria-hidden="true" className={KIND_TINT} />
                 {group.group}
               </ToggleGroupItem>
@@ -182,6 +197,7 @@ export function StudioToolbox(props: {
               {shown ? (
                 <GroupJobs
                   group={shown}
+                  leftOut={leftOut}
                   disabled={composerRef === null}
                   onRun={run}
                   onBrowse={() => browse(shown.group)}
@@ -239,6 +255,8 @@ function useFolding(rootRef: RefObject<HTMLDivElement | null>) {
  */
 function GroupJobs(props: {
   readonly group: ToolboxGroup;
+  /** What the file in front has no jobs for, and what to open for them (`toolboxLeftOut`). */
+  readonly leftOut: string | null;
   /** No chat to write the job into. */
   readonly disabled: boolean;
   readonly onRun: (action: HardwareAction) => void;
@@ -248,9 +266,7 @@ function GroupJobs(props: {
   return (
     <section aria-label={props.group.group} className="flex flex-col gap-3">
       <p className="px-1 text-xs text-muted-foreground">{GROUP_PURPOSES[props.group.group]}</p>
-      {empty ? (
-        <p className="px-1 text-xs text-muted-foreground">Nothing here for this file.</p>
-      ) : (
+      {empty ? null : (
         <div className="flex flex-col divide-y divide-border">
           {props.group.sections.map((section) => (
             <div key={section.title} className="py-3 first:pt-0 last:pb-0">
@@ -258,6 +274,9 @@ function GroupJobs(props: {
             </div>
           ))}
         </div>
+      )}
+      {props.leftOut === null ? null : (
+        <p className="px-1 text-xs text-muted-foreground">{props.leftOut}</p>
       )}
       {empty ? null : (
         <div className="px-0.5">

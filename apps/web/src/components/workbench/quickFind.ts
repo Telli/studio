@@ -1,12 +1,13 @@
 import type { HardwareAction, HardwareActionMenu } from "./hardwareActions";
 import { overviewParts } from "./checkResults";
-import { classifyProjectFile, type ProjectFile } from "./projectFiles";
+import { classifyProjectFile, type ProjectFile, type ProjectGroup } from "./projectFiles";
+import { projectFileItems } from "./projectItems";
 import { folderFiles, type ProjectModel } from "./projectModels";
 
 /**
- * What the quick find (`StudioQuickFind`, ⌘K) finds: projects, the parts, documents and chats in
- * them, and every job for the part on screen, the long tail the menus leave to it as well as the
- * everyday ones.
+ * What the quick find (`StudioQuickFind`, ⌘K) finds: projects, the parts, documents, other files
+ * and chats in them, and every job for the part on screen, the long tail the menus leave to it as
+ * well as the everyday ones.
  */
 
 /** Whether the text holds every word typed, ignoring case: "evaluate heat" finds the heat studies. */
@@ -78,5 +79,36 @@ export function folderDocuments<P>(
       .filter((file): file is ProjectFile => file !== null)
       .filter((file) => file.group === "Documents" && !/^readme\.md$/i.test(file.path))
       .map((file) => ({ project, root, file })),
+  );
+}
+
+const PARTS_AND_DOCUMENTS: ReadonlySet<ProjectGroup> = new Set(["CAD", "Electronics", "Documents"]);
+
+/**
+ * Every other file the Overview lists, each thing once (`projectFileItems`): what was made from the
+ * parts, such as CAM jobs, drawings and studies, then images and references. Found by typing.
+ */
+export function folderOtherFiles<P>(
+  folders: ReadonlyArray<{
+    readonly project: P;
+    readonly root: string;
+    readonly paths: ReadonlyArray<string> | null;
+  }>,
+): FoundPart<P>[] {
+  return folders.flatMap(({ project, root, paths }) =>
+    projectFileItems([{ root, paths }])
+      .filter(({ file }) => !PARTS_AND_DOCUMENTS.has(file.group))
+      .map(({ file }) => ({ project, root, file })),
+  );
+}
+
+/** The files holding every word typed in their name, kind or path, or their project's name. */
+export function findFiles<P>(
+  files: ReadonlyArray<FoundPart<P>>,
+  query: string,
+  projectName: (project: P) => string,
+): FoundPart<P>[] {
+  return files.filter(({ project, file }) =>
+    holdsWords(`${file.title}\n${file.kind}\n${file.path}\n${projectName(project)}`, query),
   );
 }
