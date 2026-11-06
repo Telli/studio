@@ -93,6 +93,36 @@ describe("model pictures", () => {
     expect(NodeFS.readFileSync(runs, "utf8").trim().split("\n")).toHaveLength(3);
   });
 
+  it("draws a part on nothing, for the tile's ground to show, and a drawing on its paper", async () => {
+    const dir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "pictures-"));
+    NodeFS.writeFileSync(NodePath.join(dir, "bracket.step"), "ISO-10303-21;");
+    NodeFS.writeFileSync(NodePath.join(dir, "sheet.dxf"), "0\nEOF");
+    const outputs = NodePath.join(dir, "outputs.txt");
+    // Stands in for `cad snapshot --job`, saying how each job asked to be finished.
+    const renderer = NodePath.join(dir, "renderer.mjs");
+    NodeFS.writeFileSync(
+      renderer,
+      `import fs from "node:fs";
+       const jobs = JSON.parse(fs.readFileSync(process.argv[process.argv.indexOf("--job") + 1], "utf8"));
+       for (const job of jobs) {
+         fs.appendFileSync(${JSON.stringify(outputs)}, JSON.stringify(job.output) + "\\n");
+         fs.writeFileSync(job.outputs[0].path, "PNG");
+       }`,
+    );
+    await renderModelPictures({
+      launch: { command: process.execPath, args: [renderer], env: {}, cwd: dir },
+      cwd: dir,
+      paths: ["bracket.step", "sheet.dxf"],
+      cacheDir: NodePath.join(dir, "cache"),
+    });
+    expect(
+      NodeFS.readFileSync(outputs, "utf8")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line)),
+    ).toEqual([{ padding: 0.08, transparent: true }, { padding: 0.08 }]);
+  });
+
   it("pictures a model by its document id, cached by its build, and an .xbf by its path", async () => {
     const dir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "pictures-"));
     const project = NodePath.join(dir, "project");

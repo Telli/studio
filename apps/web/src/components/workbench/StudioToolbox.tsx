@@ -131,7 +131,8 @@ export function StudioToolbox(props: {
       className="flex w-64 min-w-0 shrink flex-col border-l border-border"
       data-studio-toolbox="open"
     >
-      <div className="flex h-10 shrink-0 items-center justify-between gap-2 border-b border-border ps-3 pe-1.5">
+      {/* As tall as the ribbon's tab row beside it, so their hairlines run on as one. */}
+      <div className="flex h-7 shrink-0 items-center justify-between gap-2 border-b border-border ps-3 pe-1">
         <h2 className="text-sm font-medium text-foreground">Toolbox</h2>
         <Button
           variant="ghost-muted"

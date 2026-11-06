@@ -298,10 +298,22 @@ html[data-studio-focus="hardware"] .chat-markdown :not(pre) > code {
 }
 
 /*
+ * The model view's ground, text-to-cad's Workbench canvas (`themeSettings.js`), whatever theme the
+ * person picks: a part's picture is drawn on nothing, so it sits on this as it sits in the viewer.
+ */
+html {
+  --model-ground: #f0f4f9;
+}
+html.dark {
+  --model-ground: #36393f;
+}
+
+/*
  * The panel's tabs are what was opened lately, along its top as a browser's are: the Overview
  * pinned first as its icon alone (`PinnedProjectTab.tsx`), then each file with its kind's colored
- * icon (`FileKindIcon.tsx`). The tab in front lifts out of a quieter strip into the toolbar under
- * it (the panel's toolbar row, `StudioPanelBar.tsx`), as Chrome's front tab joins its toolbar.
+ * icon (`FileKindIcon.tsx`). The tab in front lifts out of a quieter strip into the surface under
+ * it, as Chrome's front tab joins its toolbar. The panel's toolbar (`StudioPanelBar.tsx`) ends the
+ * strip, on the tabs' line.
  */
 html[data-studio-focus="hardware"] [data-right-panel-tabbar] {
   align-items: flex-end;
@@ -341,8 +353,9 @@ html[data-studio-focus="hardware"]
   width: 1px;
   background: var(--border);
 }
-/* The arrows that scroll a long row of tabs sit on the tabs' line, not under it. */
-html[data-studio-focus="hardware"] [data-right-panel-tabbar] > [aria-label="Scroll panel tabs"] {
+/* The arrows that scroll a long row of tabs, and the toolbar, sit on the tabs' line. */
+html[data-studio-focus="hardware"] [data-right-panel-tabbar] > [aria-label="Scroll panel tabs"],
+html[data-studio-focus="hardware"] [data-right-panel-tabbar] > [data-right-panel-toolbar] {
   align-self: flex-end;
   height: 2rem;
 }

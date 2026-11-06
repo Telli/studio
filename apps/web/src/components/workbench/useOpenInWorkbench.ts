@@ -10,6 +10,7 @@ import { agentViewSurface, pluginAppSurface } from "../plugins/pluginSurfaces";
 import { keepOverviewSpread } from "./overviewPanel";
 import { rememberRecentFile } from "./recentFiles";
 import { setSimpleView } from "./simpleView";
+import { foldSidebarForPart } from "./sidebarFold";
 import { knownModelTitle } from "./useFolderModels";
 import { sameFile, surfaceFile } from "./sameFile";
 
@@ -48,11 +49,17 @@ export function openInPanel(
   return viewer !== undefined;
 }
 
+/** A viewer took the part the person picked: CAD mode, with the sidebar folded for the model. */
+function startInCad() {
+  setSimpleView(false);
+  foldSidebarForPart();
+}
+
 /**
  * Opens a part the person picked (a project's tile, the switcher, Cmd+K, the Overview, a sample's
- * copy, New part) beside its chat, in CAD mode, the full workspace: the one way a person gets to a
- * part. Anything no viewer shows opens as a document, with the layout left as it was. Says whether
- * a viewer took it (`openInPanel`).
+ * copy, New part) beside its chat, in CAD mode, the full workspace, with the sidebar folded: the
+ * one way a person gets to a part. Anything no viewer shows opens as a document, with the layout
+ * left as it was. Says whether a viewer took it (`openInPanel`).
  */
 export function openPartInCad(
   plugins: Parameters<typeof pluginFileHandlers>[0] | undefined,
@@ -61,7 +68,7 @@ export function openPartInCad(
 ): boolean {
   useRightPanelStore.getState().setMaximized(threadRef, false);
   const shown = openInPanel(plugins, threadRef, part);
-  if (shown) setSimpleView(false);
+  if (shown) startInCad();
   return shown;
 }
 
@@ -76,7 +83,7 @@ export function openFromOverview(
 ): boolean {
   keepOverviewSpread(threadRef);
   const shown = openInPanel(plugins, threadRef, path);
-  if (shown) setSimpleView(false);
+  if (shown) startInCad();
   return shown;
 }
 

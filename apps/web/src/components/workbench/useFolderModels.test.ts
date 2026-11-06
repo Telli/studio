@@ -157,4 +157,21 @@ describe("project folders' models", () => {
     expect(models.script("id-b")).toBe("/p/b/parts/horn.py");
     expect(models.script("id-c")).toBeUndefined();
   });
+
+  it("titles a model as its folder lists it, or as the viewer said where no folder does", async () => {
+    const { store: models, flush } = store();
+    const cad = service();
+    models.want(env, ["/p/a"], cad.get);
+    flush();
+    cad.pending[0]!({ roots: { "/p/a": [model("id-a", "led_module")] } });
+    await settle();
+    models.hear("id-a", "Old name");
+    models.hear("id-b", "Head");
+    expect([...models.titles()]).toEqual([
+      ["id-a", "LED module"],
+      ["id-b", "Head"],
+    ]);
+    // The same Map until something moves, as a store's snapshot must be.
+    expect(models.titles()).toBe(models.titles());
+  });
 });

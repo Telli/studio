@@ -130,11 +130,11 @@ export function usePartForJobs(
 }
 
 /**
- * The workspace panel's toolbar, under its tabs (`RightPanelTabs`' toolbar row), one line of what
+ * The workspace panel's toolbar, at the right end of its tab row (`RightPanelTabs`' `toolbar`), what
  * can be done: the AI | CAD switch where the viewer in front has two layouts (`ModeSwitch` over
  * `simpleView.ts`, the person's choice, which every CAD view takes from its host context), the one way between
  * them; and Import (`ImportMenu`, Studio's one Import) and New, always
- * there, at the row's right end (`StudioNew`), where Home has them. A part's jobs are in the
+ * there, last (`StudioNew`), where Home has them. A part's jobs are in the
  * Toolbox (`StudioToolbox`). ⌘K's and the Toolbox's jobs are for the same part (`usePartForJobs`).
  */
 export function StudioPanelBar(props: {
@@ -203,14 +203,9 @@ export function StudioPanelBar(props: {
   }, [folder, process, setWorkspace, subjectKind, subjectName, subjectPath, threadRef]);
 
   return (
-    // A container, so a narrow panel shows Import as its icon.
-    <div
-      className="@container/toolbar flex min-w-0 flex-1 items-center gap-2"
-      data-studio-toolbar=""
-    >
+    <div className="flex items-center gap-2" data-studio-toolbar="">
       <StudioTour />
-      {/* The AI | CAD switch, Import and New close the row, at its right; Home's Your projects ends in Import and New too. */}
-      <div className="flex-1" />
+      {/* The AI | CAD switch, Import and New close the row; Home's Your projects ends in Import and New too. */}
       {toggle === "hidden" ? null : (
         <>
           <ModeSwitch

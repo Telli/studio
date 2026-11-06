@@ -14,6 +14,7 @@ import {
   takeOpeningProject,
   useOpeningProjects,
 } from "./overviewPanel";
+import { onFoldSidebarForPart } from "./sidebarFold";
 import { setSimpleView, useSimpleViewStore } from "./simpleView";
 import { openFromOverview, openPartInCad } from "./useOpenInWorkbench";
 
@@ -118,6 +119,29 @@ describe("opening a file from the Overview", () => {
     frontTab(THREAD, { id: "files", kind: "files" });
     frontTab(THREAD, BRACKET);
     expect(panel().maximized).toBe(true);
+  });
+
+  it("folds the sidebar for a part a viewer took, and leaves it for a document", () => {
+    const LED = "11111111-2222-4333-8444-555555555555";
+    const plugins = [
+      {
+        id: "text-to-cad",
+        displayName: "text-to-cad",
+        enabled: true,
+        views: [{ tool: "cad_open", server: "cad", title: "CAD", resourceUri: "ui://cad/viewer" }],
+      },
+    ] as unknown as Parameters<typeof openPartInCad>[0];
+    let folds = 0;
+    const stop = onFoldSidebarForPart(() => {
+      folds += 1;
+    });
+    openPartInCad(undefined, THREAD, "docs/prd.md");
+    openFromOverview(undefined, THREAD, "docs/prd.md");
+    expect(folds).toBe(0);
+    openPartInCad(plugins, THREAD, LED);
+    openFromOverview(plugins, THREAD, LED);
+    expect(folds).toBe(2);
+    stop();
   });
 
   it("leaves a part picked anywhere else stepping back beside the chat", () => {

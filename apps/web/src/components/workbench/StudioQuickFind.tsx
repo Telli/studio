@@ -97,7 +97,7 @@ function PartThumb(props: {
     versions: pictureVersions([props.file]),
   }).get(path);
   return (
-    <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
+    <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)">
       {picture === undefined ? (
         <KindIcon group={props.file.group} />
       ) : (

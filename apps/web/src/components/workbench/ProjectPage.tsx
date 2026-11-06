@@ -91,9 +91,9 @@ function FileTile(props: {
       onClick={props.onOpen}
       className="group flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
     >
-      <span className="flex aspect-[4/3] items-center justify-center border-b border-border bg-muted/50">
+      <span className="flex aspect-[4/3] items-center justify-center overflow-hidden border-b border-border bg-(--model-ground)">
         {props.picture ? (
-          <img src={props.picture} alt="" className="size-full object-contain p-2" />
+          <img src={props.picture} alt="" className="size-full object-contain" />
         ) : (
           <Icon className="size-7 text-muted-foreground/60" aria-hidden="true" />
         )}

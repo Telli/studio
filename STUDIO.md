@@ -452,21 +452,23 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   footer's Home icon is only in T3 Code's sidebar beside code tools, and its Settings only outside
   Studio's rail. Opening a chat from another project opens that project. What the project holds is
   on its Overview. The top bar names the project and the open chat; with the sidebar folded (T3 Code's
-  toggle or its shortcut) it leads with the mark. The panel's tabs are what was opened
+  toggle or its shortcut, and a part opening in CAD starts so, `workbench/sidebarFold.ts`) it leads
+  with the mark. The panel's tabs are what was opened
   lately in the project, along its top as a browser's are (`brand/theme.css`), and the same beside
   each of the folder's chats, as a Chrome window's (`projectTabs.ts`): the Overview pinned first as
   its icon, then each file with its kind's colored icon (`FileKindIcon.tsx`) at its left and its
-  close at its right, as Chrome's are, the one in front joined to the toolbar under them. There is
+  close at its right, as Chrome's are, the one in front joined to the surface under it. There is
   no + (New is the one way to add), a panel with every tab closed shows the Overview, and a tab's
   menu has no Copy path in Engineering (the code interfaces keep it). A tab opens just right of
   the one in front (from the Overview, at the end), and closing the one in front goes back to the
   tab you were on before it, as a browser does: a drawing opened from its part and closed returns
   to the part, one opened from the Overview to the Overview (`rightPanelStore.ts`). The menu's
-  Close others, Close to the right and Close all count the tabs shown, never the pinned Overview. The toolbar is one line of
-  what can be done (`StudioPanelBar.tsx`): the AI | CAD switch, where the viewer in front has two
-  layouts (the one way between them: no Back to AI beside it), then Import and New, always there, at its
-  right end, as Home has them (`StudioNew.tsx`, which hosts New's dialog in Engineering); a narrow
-  window's panel sheet keeps it. Whatever writes into the chat (the Toolbox, Cmd+K, the viewer's Add
+  Close others, Close to the right and Close all count the tabs shown, never the pinned Overview. The toolbar ends the
+  tab row (`StudioPanelBar.tsx`, there is no row of its own): the AI | CAD switch, where the viewer
+  in front has two layouts (the one way between them: no Back to AI beside it), then Import and New,
+  always there, as Home has them (`StudioNew.tsx`, which hosts New's dialog in Engineering), with
+  the tabs keeping their scroller and Import dropping to its icon beside chat; a narrow window's
+  panel sheet keeps it. Whatever writes into the chat (the Toolbox, Cmd+K, the viewer's Add
   to chat, the Overview) brings the chat back from a panel filling the window, as does a question or
   approval the agent waits on and a notification's Open chat (`useShowWaitingChat`), except a hand
   edit's note, which goes in quietly and leaves the keyboard in the view (`viewContext.ts`).
@@ -605,7 +607,7 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   Quick Edit goes.
 - **Edit mode in the CAD view.** A model with a part script beside it opens in edit mode, the full
   workspace, and the script stays its source: text-to-cad's own viewer is laid out as a CAD tool,
-  with the toolbar across the top, the design tree at the top left (the part's Equations, its
+  with the toolbar across the top, the design tree docked at the left (the part's Equations, its
   features numbered as SolidWorks numbers them, and the selected feature's inputs, each with the
   formula behind it), and the feature's dimensions drawn on the
   model, each changed by a double-click. A change rewrites one number in the script, as it was
@@ -640,9 +642,10 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   is the viewer's ai layout, text-to-cad's view exactly as it ships, where a selection opens Quick
   Edit; CAD is the full workspace (edit mode), where the pick bar's Quick Edit opens it. One choice for the person, across
   projects, kept on this device (`studio:simple-view`), AI where none was stored
-  (`workbench/simpleView.ts`); New part and Start a part by hand turn it off. The workspace floats
-  over the canvas, so the switch is one 150 ms fade (none with reduced motion) and the model keeps
-  its box and its place. The viewer says what its part allows (`studio/notifications/edit-state`, to
+  (`workbench/simpleView.ts`); New part and Start a part by hand turn it off. The workspace stands
+  over the view, one 150 ms fade (none with reduced motion), and the design tree is a column docked
+  at the view's left: the canvas starts at its hairline, so the switch is a plain resize of the canvas
+  and the camera stays where it was. The viewer says what its part allows (`studio/notifications/edit-state`, to
   a host offering `studioEditState`): a STEP with no part script has one layout, so no toggle shows,
   and a command, sketch or pick open, or a change saving, holds the toggle until it is finished or
   cancelled; a view that closes or opens another file forgets it (`workbench/viewerEditState.ts`). A
@@ -729,7 +732,9 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   badges, the Toolbox, the quick find and the chat's change chips
   (`components/workbench/kinds.ts`), all in one quiet grey: a screen holds one accent, the brand
   blue on what you can act on, and red, amber and green say how a check went. Kinds are told
-  apart by their icons, and the CAD ribbon's icons are the same blue on greys.
+  apart by their icons. The CAD ribbon's, tree's and timeline's icons are one weight of line in
+  the text's own grey, each command a silhouette of its own, and blue shows only on the pressed
+  command; the rollback bar is grey too, blue only while dragged or focused.
 - **Start from a part.** A new thread offers jobs for the project's most recently used parts,
   boards and studies, each kind of job once (a making check, a strength, fit or mass check, a
   document, a way to make it), from the same jobs the Toolbox has;

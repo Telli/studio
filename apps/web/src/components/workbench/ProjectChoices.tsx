@@ -72,7 +72,7 @@ export function ProjectThumb(props: {
   return (
     <span
       className={cn(
-        "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50",
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)",
         props.size === "xs" ? "size-4 rounded-sm" : props.size === "sm" ? "size-6" : "size-8",
       )}
     >

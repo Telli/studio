@@ -91,6 +91,13 @@ if (dev) {
   const folder = built.stdout.trim().split("\n").at(-1) ?? "";
   if (built.status !== 0 || folder === "") process.exit(built.status || 1);
   marketplace = folder;
+  // The engine serves the CAD page from the folder it started with, and it outlives this launcher:
+  // left running, it would keep serving the last build's page.
+  NodeChildProcess.spawnSync(
+    NodeFS.existsSync(venvPython) ? venvPython : "python3",
+    ["-m", "cad_server.engine", "stop"],
+    { cwd: appRoot, env: cadEnv, stdio: ["ignore", "ignore", "inherit"] },
+  );
 }
 
 // Studio's own plugins (studio-plugins/), copied fresh each start with this computer's paths

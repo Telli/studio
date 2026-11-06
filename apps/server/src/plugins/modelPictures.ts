@@ -26,6 +26,9 @@ const RUN_MS = 4 * 60_000;
 /** The files the CAD server renders, by ending. */
 const RENDERABLE = /\.(?:step|stp|xbf|stl|3mf|glb|dxf|urdf|srdf|sdf)$/i;
 
+/** The files drawn on their own paper. */
+const DRAWING = /\.dxf$/i;
+
 /** A CAD document id: a model's, which its script's run prints (the library's `ids.is_id`). */
 const DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -89,11 +92,17 @@ function snapshotArgs(args: ReadonlyArray<string>): string[] | null {
 
 export const isRenderable = (path: string) => RENDERABLE.test(path);
 
+/**
+ * How a picture is drawn, in what it is cached by: a picture drawn another way is a new picture,
+ * not the old one kept. Now a part on nothing, the tile's own ground in each theme behind it.
+ */
+const PICTURE_LOOK = "on-nothing";
+
 /** Where a picture is cached: named by what it shows, so an edit or a build is a new picture. */
 const cached = (cacheDir: string, key: string) =>
   NodePath.join(
     cacheDir,
-    `${NodeCrypto.createHash("sha256").update(key).digest("hex").slice(0, 32)}.png`,
+    `${NodeCrypto.createHash("sha256").update(`${PICTURE_LOOK}\n${key}`).digest("hex").slice(0, 32)}.png`,
   );
 
 /** A file's picture: by the file and its size and time. */
@@ -194,7 +203,9 @@ async function render(input: PicturesInput) {
   const job = (file: { readonly absolute: string; readonly picture: string }) => ({
     input: file.absolute,
     outputs: [{ path: file.picture }],
-    output: { padding: 0.08 },
+    // A part on nothing, the viewer's ground the tile's. A drawing keeps its paper: its dark ink on
+    // nothing would be lost on a dark tile.
+    output: { padding: 0.08, ...(DRAWING.test(file.absolute) ? {} : { transparent: true }) },
   });
   const runJobs = async (jobs: ReadonlyArray<ReturnType<typeof job>>) => {
     const jobFile = NodePath.join(input.cacheDir, `job-${NodeCrypto.randomUUID()}.json`);

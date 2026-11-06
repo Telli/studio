@@ -39,6 +39,8 @@ export function folderModelsStore(
   const asked = new Map<string, number>();
   /** How many first reads of a folder have failed, by environment and folder. */
   const failed = new Map<string, number>();
+  /** What the viewer calls a model no folder has listed (`noteModelTitle`), by its id. */
+  const heard = new Map<string, string>();
   const keyOf = (environmentId: EnvironmentId, root: string) => `${environmentId}\n${root}`;
   const models = (environmentId: EnvironmentId, root: string): ReadonlyArray<ProjectModel> =>
     read.get(keyOf(environmentId, root))?.models ?? EMPTY;
@@ -50,6 +52,10 @@ export function folderModelsStore(
       readonly value: ReadonlyMap<string, ReadonlyArray<ProjectModel>>;
     }
   >();
+  let titles: { readonly version: number; readonly value: ReadonlyMap<string, string> } = {
+    version: -1,
+    value: new Map(),
+  };
 
   const flush = (environmentId: EnvironmentId) => {
     const batch = waiting.get(environmentId);
@@ -152,7 +158,23 @@ export function folderModelsStore(
         const model = models.find((entry) => entry.id === id);
         if (model !== undefined) return humanName(model.name);
       }
-      return undefined;
+      return heard.get(id);
+    },
+    /** What the viewer calls a model: its name until a folder lists it, and for one none does. */
+    hear(id: string, name: string) {
+      if (heard.get(id) === name) return;
+      heard.set(id, name);
+      notify();
+    },
+    /** Every model's title by its id: the same Map until a read or a change moves the version. */
+    titles() {
+      if (titles.version === version) return titles.value;
+      const value = new Map(heard);
+      for (const { models } of read.values()) {
+        for (const model of models) value.set(model.id, humanName(model.name));
+      }
+      titles = { version, value };
+      return value;
     },
   };
 }
@@ -184,6 +206,13 @@ export const folderModelsKnown = (environmentId: EnvironmentId, root: string) =>
 
 /** What a model read in any folder is called, as the project lists it; undefined for one not read. */
 export const knownModelTitle = (id: string) => store.title(id);
+
+/** The viewer has read what a model is called. */
+export const noteModelTitle = (id: string, name: string) => store.hear(id, humanName(name));
+
+/** Every model's title by its id: what a panel tab, which holds only the id, is called. */
+export const useModelTitles = () =>
+  useSyncExternalStore(store.subscribe, store.titles, store.titles);
 
 /** A model's script, absolute, as a folder it was read in holds it; undefined for one not read. */
 export const knownModelScript = (id: string) => store.script(id);

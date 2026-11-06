@@ -86,7 +86,7 @@ function FoundPicture(props: {
   });
   const picture = path === null ? undefined : pictures.get(path);
   return (
-    <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
+    <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)">
       {picture ? (
         <img src={picture} alt="" className="size-full object-cover" />
       ) : (

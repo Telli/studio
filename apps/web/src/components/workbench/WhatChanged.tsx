@@ -45,9 +45,9 @@ function Picture(props: {
 }) {
   return (
     <figure className="flex min-w-0 flex-col gap-1.5">
-      <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
+      <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)">
         {props.src ? (
-          <img src={props.src} alt={props.alt} className="size-full object-contain p-3" />
+          <img src={props.src} alt={props.alt} className="size-full object-contain" />
         ) : (
           <BoxIcon className="size-8 text-muted-foreground/50" aria-hidden="true" />
         )}

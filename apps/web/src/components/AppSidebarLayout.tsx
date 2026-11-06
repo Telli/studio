@@ -37,6 +37,7 @@ import { useThreadVisitedMigration } from "../hooks/useThreadVisitedMigration";
 import ThreadSidebar from "./Sidebar";
 import { railMark } from "./workbench/studioPlaces";
 import { StudioSidebarFrame } from "./workbench/StudioSidebar";
+import { onFoldSidebarForPart } from "./workbench/sidebarFold";
 import { useEngineeringInterface } from "./workbench/studioInterface";
 import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import { SidebarBrandWidthProbe, SidebarChromeHeader } from "./sidebar/SidebarChrome";
@@ -82,6 +83,13 @@ function readInitialThreadSidebarWidth(): number {
     console.error("Could not read persisted thread sidebar width.", error);
     return resolveInitialThreadSidebarWidth(null, window.innerWidth);
   }
+}
+
+/** Folds the sidebar as a part opens in CAD (`foldSidebarForPart`), which runs outside React. */
+function FoldSidebarForPart() {
+  const { setOpen } = useSidebar();
+  useEffect(() => onFoldSidebarForPart(() => void setOpen(false)), [setOpen]);
+  return null;
 }
 
 function SidebarControl({ label = "Toggle main sidebar" }: { label?: string }) {
@@ -331,6 +339,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         style={sidebarProviderStyle}
       >
         <SidebarBrandWidthProbe onWidthChange={setBrandWidth} />
+        <FoldSidebarForPart />
         <ProjectProjectionRetention />
         <Sidebar
           side="left"

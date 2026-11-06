@@ -23,6 +23,7 @@ import {
   type ShownView,
 } from "./partContext";
 import { useShownView } from "./shownModels";
+import { noteModelTitle } from "./useFolderModels";
 
 /** What the engine and Recents say about one revision of a document. */
 interface FileFacts {
@@ -146,11 +147,14 @@ export function usePartContext(threadRef: ScopedThreadRef): {
       load,
     ).then(({ structure, version, recents }) => {
       if (cancelled) return;
+      const name = readDocumentName(structure);
+      // A panel tab holds only the model's id: this names it, for one no folder lists.
+      if (name !== null && isDocumentId(shown.path)) noteModelTitle(shown.path, name);
       setFacts({
         key,
         path: shown.path,
         kind: readDocumentKind(structure),
-        name: readDocumentName(structure),
+        name,
         materials: structure === null ? null : readMaterials(structure),
         version,
         updated: readUpdated(recents, shown.path),

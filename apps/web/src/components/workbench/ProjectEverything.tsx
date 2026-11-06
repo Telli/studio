@@ -135,7 +135,7 @@ function ListRows(props: {
         )}
       >
         <span role="cell" className="flex min-w-0 items-center gap-2.5 text-foreground">
-          <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50">
+          <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)">
             {picture ? (
               <img src={picture} alt="" className="size-full object-cover" />
             ) : (

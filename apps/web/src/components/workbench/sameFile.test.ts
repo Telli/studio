@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { sameFile, surfaceFile } from "./sameFile";
+import type { PluginAppSurface } from "~/rightPanelStore";
+
+import { sameFile, surfaceFile, viewTabTitle } from "./sameFile";
 
 describe("same file", () => {
   it("knows a file named in the thread's folder and in full for one", () => {
@@ -33,5 +35,27 @@ describe("same file", () => {
       }),
     ).toBe("parts/tray.step");
     expect(surfaceFile({ id: "files", kind: "files" })).toBeNull();
+  });
+
+  it("names a view's tab by its part, and leaves a view with no file its own title", () => {
+    const LED = "11111111-2222-4333-8444-555555555555";
+    const view = (id: PluginAppSurface["id"], title: string): PluginAppSurface => ({
+      id,
+      kind: "plugin-app",
+      pluginId: "cad",
+      server: "cad",
+      tool: "cad_open",
+      title,
+      resourceUri: "ui://cad",
+      arguments: {},
+    });
+    const titles = new Map([[LED, "LED module"]]);
+    expect(viewTabTitle(view(`plugin:cad:agent:${LED}`, "CAD"), titles)).toBe("LED module");
+    expect(viewTabTitle(view("plugin:cad:agent:parts%2Fhead.step", "head.step"), titles)).toBe(
+      "Head",
+    );
+    // Its name not read yet, a model stays as the view titles it; so does a view with nothing open.
+    expect(viewTabTitle(view(`plugin:cad:agent:${LED}`, "CAD"), new Map())).toBe("CAD");
+    expect(viewTabTitle(view("plugin:cad", "CAD"), titles)).toBe("CAD");
   });
 });

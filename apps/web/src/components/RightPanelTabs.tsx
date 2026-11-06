@@ -37,7 +37,6 @@ import {
   Plus,
   TerminalSquare,
   Puzzle,
-  Box,
   X as XIcon,
 } from "lucide-react";
 import { Volume2, VolumeOff } from "lucide";
@@ -105,11 +104,13 @@ import {
   useEngineeringInterface,
   useEngineeringSurfaces,
 } from "./workbench/studioInterface";
-import { partLabel, partName } from "./workbench/partNames";
+import { partLabel } from "./workbench/partNames";
 import { useProjectViewStore } from "./workbench/projectView";
-import { surfaceFile } from "./workbench/sameFile";
+import { surfaceFile, viewTabTitle } from "./workbench/sameFile";
 import { FileKindIcon } from "./workbench/FileKindIcon";
+import { KIND_ICONS, KIND_TINT } from "./workbench/kinds";
 import { PinnedProjectTab } from "./workbench/PinnedProjectTab";
+import { useModelTitles } from "./workbench/useFolderModels";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
 
 interface RightPanelTabsProps {
@@ -124,9 +125,12 @@ interface RightPanelTabsProps {
   defaultWidth?: number;
   inlineSize?: PreviewPanelInlineSize;
   layoutControls?: ReactNode;
-  /** A row under the tabs for what can be done to the surface in front (Studio's toolbar). */
+  /**
+   * What can be done to the surface in front (Studio's toolbar), at the right end of the tab row,
+   * which is its `@container/toolbar`: a narrow panel shortens it.
+   */
   toolbar?: ReactNode;
-  /** A column beside the surface in front, under the toolbar (Studio's Toolbox), at most half the width. */
+  /** A column beside the surface in front, under the tab row (Studio's Toolbox), at most half the width. */
   aside?: ReactNode;
   surfaces: readonly RightPanelSurface[];
   /** Fallback environment for surfaces that do not carry their own. */
@@ -631,6 +635,7 @@ function surfaceTitle(
   surface: RightPanelSurface,
   sessions: Readonly<Record<string, PreviewSessionSnapshot>>,
   terminalLabelsById: ReadonlyMap<string, string>,
+  modelTitles: ReadonlyMap<string, string>,
 ): string {
   switch (surface.kind) {
     case "diff":
@@ -655,7 +660,7 @@ function surfaceTitle(
     case "device":
       return surface.title ?? surface.target?.name ?? "Device";
     case "plugin-app":
-      return (isEngineeringInterface() && partName(surface.title)?.label) || surface.title;
+      return isEngineeringInterface() ? viewTabTitle(surface, modelTitles) : surface.title;
     case "preview": {
       const snapshot = surface.resourceId ? sessions[surface.resourceId] : null;
       if (!snapshot || snapshot.navStatus._tag === "Idle") return "Browser";
@@ -749,10 +754,11 @@ function SurfaceIcon({
         <Smartphone className="size-3 shrink-0" />
       );
     case "plugin-app":
-      // In the workbench (Studio) a plugin view is the model or board viewer, marked by its kind.
+      // In the workbench (Studio) a plugin view is the model or board viewer, marked by its kind:
+      // CAD's cube, the AI | CAD switch's, for a part and for the view before it has one.
       return WORKBENCH_LAYOUT ? (
         surfaceFile(surface) === null ? (
-          <Box className="size-3 shrink-0" />
+          <KIND_ICONS.CAD className={cn("size-3.5 shrink-0", KIND_TINT)} aria-hidden="true" />
         ) : (
           <FileKindIcon path={surfaceFile(surface) ?? ""} className="size-3.5" />
         )
@@ -936,6 +942,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     : props.surfaces;
   const ownsDesktopTitleBar = isElectron && props.mode === "inline";
   const browserProfiles = useBrowserDefaults().profiles;
+  const modelTitles = useModelTitles();
   const { resolvedTheme } = useTheme();
   const tabListRef = useRef<HTMLDivElement>(null);
   const addSurfaceTriggerRef = useRef<HTMLButtonElement>(null);
@@ -1260,6 +1267,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           ownsDesktopTitleBar && "drag-region",
           ownsDesktopTitleBar && "wco:pr-(--workspace-native-controls-inset)",
           props.mode === "inline" && props.maximized && COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
+          props.toolbar !== undefined && "@container/toolbar",
         )}
         data-right-panel-tabbar
       >
@@ -1283,6 +1291,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                   surface,
                   props.previewSessions,
                   props.terminalLabelsById,
+                  modelTitles,
                 );
                 const previewTabId = previewTabIdOf(surface, props.previewSessions);
                 // Desktop state is keyed by the session id, but desktop actions
@@ -1585,6 +1594,14 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             </Tooltip>
           </div>
         ) : null}
+        {props.toolbar === undefined ? null : (
+          <div
+            className="ms-2 flex shrink-0 items-center [-webkit-app-region:no-drag]"
+            data-right-panel-toolbar
+          >
+            {props.toolbar}
+          </div>
+        )}
         {props.layoutControls}
         {ownsDesktopTitleBar && !props.layoutControls ? (
           // Keeps the tabs clear of the window controls when the layout toggles live elsewhere.
@@ -1597,14 +1614,6 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           />
         ) : null}
       </div>
-      {props.toolbar === undefined ? null : (
-        <div
-          className="flex h-10 shrink-0 items-center border-b border-border px-3"
-          data-right-panel-toolbar
-        >
-          {props.toolbar}
-        </div>
-      )}
       <div className="flex min-h-0 flex-1" data-right-panel-body>
         <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-right-panel-surface-content>
           {props.activeSurfaceId === null ? (

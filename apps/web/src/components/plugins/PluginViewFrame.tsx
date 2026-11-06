@@ -545,7 +545,7 @@ export function PluginViewFrame(props: {
           ) : null}
           <iframe
             ref={frameRef}
-            title={target.title}
+            aria-label={target.title}
             className="block min-h-0 w-full flex-1 border-0"
             style={{ colorScheme: theme.appearance }}
             sandbox={"src" in frame ? PLUGIN_VIEW_STAGED_SANDBOX : PLUGIN_VIEW_SRCDOC_SANDBOX}

@@ -1,4 +1,8 @@
-import type { RightPanelSurface } from "~/rightPanelStore";
+import { isDocumentId } from "@t3tools/client-runtime/state/pluginFollow";
+
+import type { PluginAppSurface, RightPanelSurface } from "~/rightPanelStore";
+
+import { partName } from "./partNames";
 
 /** A path as files are compared: `/` between folders, without a leading `./` or a trailing `/`. */
 export const normalPath = (path: string) =>
@@ -32,4 +36,18 @@ export function surfaceFile(surface: RightPanelSurface): string | null {
   // A view the agent opened (`agentViewSurface`) names its file only in its id.
   const named = /:agent:(.+)$/.exec(surface.id)?.[1];
   return named === undefined ? null : decodeURIComponent(named);
+}
+
+/**
+ * A view's tab as an engineer reads it: its part's name ("LED module", "Head"). A file's tab is
+ * titled by its file; a model's names only its document id, so its name comes from `modelTitles`
+ * (`useModelTitles`). A view with no file, or a model not read yet, keeps the view's own title.
+ */
+export function viewTabTitle(
+  surface: PluginAppSurface,
+  modelTitles: ReadonlyMap<string, string>,
+): string {
+  const file = surfaceFile(surface);
+  if (file !== null && isDocumentId(file)) return modelTitles.get(file) ?? surface.title;
+  return partName(surface.title)?.label ?? surface.title;
 }

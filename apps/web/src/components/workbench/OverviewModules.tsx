@@ -254,10 +254,10 @@ export function FileCard(props: {
         type="button"
         onClick={props.onOpen}
         aria-label={`Open ${props.file.title}`}
-        className="flex aspect-[4/3] min-w-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/50 outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="flex aspect-[4/3] min-w-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground) outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {props.picture ? (
-          <img src={props.picture} alt="" className="size-full object-contain p-2" />
+          <img src={props.picture} alt="" className="size-full object-contain" />
         ) : PAGE.test(props.file.path) ? (
           <Page environmentId={props.environmentId} root={props.root} path={props.file.path} />
         ) : photo ? (
