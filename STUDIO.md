@@ -33,8 +33,9 @@ built (`npm run build:packages` in `text-to-cad/`) before Studio starts.
 `release/Studio-<version>-arm64.dmg`, which needs nothing else on an Apple silicon Mac. Its first
 screen installs Claude Code and signs in, so the person needs only their own Claude subscription.
 Its last step checks the built app (`scripts/studio-app-check.py`): with the app's own Python and a
-scratch home, it builds the motor mount example's plate and solves every example's strength study,
-each held to the answer the example ships with, and a build that fails is not offered for publishing. Building it needs Rust 1.95 or newer for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one
+scratch home, it rebuilds all five examples, compares each STEP with the one shipped and solves every
+strength study, held to the answer the example ships with. Then `scripts/studio-app-open-check.mjs`
+starts the app from the disk image. A build that fails either is not offered for publishing. Building it needs Rust 1.95 or newer for the resource monitor (`RUSTUP_TOOLCHAIN=1.95` uses one
 installed beside an older default) and about 7 GB free; the download is about 400 MB and the app 1.2
 GB (from 0.1.4; 600 MB and 1.9 GB while the CAD tools went in twice). The disk image step reserves
 its whole temporary image (about 2.3 GB) at once, so it fails with "No space left" while gigabytes
@@ -98,15 +99,13 @@ Its screenshots are the sample project in a packaged app, driven over Chrome's d
     `xcrun notarytool store-credentials studio-notary --apple-id <Apple ID> --team-id <Team ID>`
     (it asks for the password, which stays in the keychain).
   - **Each release:** `STUDIO_SIGN=1 APPLE_KEYCHAIN_PROFILE=studio-notary RUSTUP_TOOLCHAIN=1.95
-scripts/build-studio-app.sh <version>`, then the `gh release create` line it prints: the DMG
+scripts/build-studio-app.sh <version>`, then the draft line it prints (Releasing): the DMG
     under its one name, and the zip, its blockmap and `latest-mac.yml` the updater reads. It needs
     about 10 GB free: the last release's files in `release/` and `build/studio-bundle` can go once
     it is published. 0.1.3 ran out on its last step (2026-10-22), which now moves the DMG and the
     zip out of the stage instead of copying them; its zip was made from the notarized DMG's app
     with `ditto -c -k --sequesterRsrc --keepParent`, as 0.1.2's was. 0.1.4 (2026-10-23) built
-    whole from 8.6 GB free plus the 7.8 GB iOS simulator runtime Amy chose to delete. Publish as a
-    draft with the Windows files too (`gh release create ... --draft`, then `gh release edit
---draft=false --latest`), so neither updater ever reads a release without its feed.
+    whole from 8.6 GB free plus the 7.8 GB iOS simulator runtime Amy chose to delete.
   - The first signed version is still a download: a copy signed ad hoc has no feed to find it.
 - **On each start**, the app's boot step (`apps/desktop/src/studio/studioAppBundle.ts`) points
   it at `Resources/studio`:
@@ -122,8 +121,8 @@ scripts/build-studio-app.sh <version>`, then the `gh release create` line it pri
 `release/Studio-<version>-x64.exe`. `.github/workflows/studio-windows.yml` runs it on GitHub's
 windows-latest (Run workflow with a version, or a push to an `amy/studio-windows…` branch), installs
 the result there, checks the installed app the same way, and keeps the installer, its
-blockmap and `latest.yml` as the run's artifact for three days (`gh run download`). Publish it into
-the version's release with the `gh release upload` line the script prints, which adds
+blockmap and `latest.yml` as the run's artifact for three days (`gh run download`). Add it to the
+version's draft with the `gh release upload` line the script prints, which adds
 `Studio-Setup.exe`, the download's one name. Both apps' updaters read the latest release, so from
 0.1.3 on every release carries `latest-mac.yml` and `latest.yml` together: a release with only one
 leaves the other platform's updater with an error. The 0.1.3 installer is about 320 MB (482 MB while
@@ -151,6 +150,58 @@ short user name, so a long one comes near Windows's 260.
   pnpm then refuses to install over the mobile app's unused patches. GitHub's checkout includes it
   and installs only the desktop app's packages, as T3 Code's release does; locally, add
   `apps/mobile` to the sparse checkout and install with the same `--filter`s.
+
+## Releasing
+
+Studio is one app with one number, `0.MINOR.PATCH`. Its minor moves when Jake's does, and the rest
+are patches. It names the text-to-cad it includes beside that number and never builds its number
+from his. There is one channel, Latest. The app reads both from `studio.json`, written by the build:
+About and Report a problem name the text-to-cad, and saving a project writes it to
+`.studio/engine.json`, so every Version records what made it. An update never rewrites a project.
+
+1. **The bump.** `.github/workflows/studio-text-to-cad-bump.yml` runs
+   `scripts/studio-bump-text-to-cad.sh` every six hours. When Jake's latest release is newer than
+   the pin, it merges his tag into a copy of `studio-base` (`bump/<version>` on the fork, never
+   rebased), runs his Test workflow once on each head, and keeps one draft review on Studio,
+   `bump/text-to-cad`, with his notes, the test result and any new `docs/migrations/` file. That
+   review also runs Studio CI and a Windows build. A later run merges in what moved and refreshes
+   the result. A conflict opens the review listing its files: resolve it on `bump/<version>` and the
+   next run carries on. It stops with a notice until Studio has the secret `STUDIO_BUMP_TOKEN`, a
+   fine-grained token on Studio and the fork with Contents, Pull requests and Actions set to
+   read and write. Actions must be on for the fork, and his workflow has not run there yet.
+2. **Approve (Amy).** A patch: read it. A minor: read the migration guide and run a real project.
+   Then fast-forward `studio-base` to `bump/<version>` and merge the review.
+3. **Build.** Windows with Run workflow on `studio-windows.yml`, Mac with the signed build under
+   Each release. Both check what they built, and either failing means no release:
+   `scripts/studio-app-check.py` rebuilds all five examples and compares each STEP with the one
+   shipped, then solves their studies, and `scripts/studio-app-open-check.mjs` starts the app on a
+   scratch home and fails on a blank window or an error screen.
+4. **Notes.** Write `release/notes.md`. The app shows the body's last 8 lines, last first, and
+   ignores everything after `## Full changelog`, so keep at most 7 plain bullets with text-to-cad
+   last. The title is the build's: `Studio 0.2.0 (text-to-cad 0.10.4)`.
+
+   ```md
+   - What an engineer notices, one line each.
+   - Includes text-to-cad 0.10.4: an export tolerance now holds on faces with loose edges.
+
+   ## Full changelog
+
+   Jake's release link, source ids, SHA256SUMS.
+   ```
+
+5. **Draft.** Run the lines the builds print: `gh release create ... --draft` on the Mac, then
+   `gh release upload` for the Windows files, so neither updater reads a release without its feed.
+   Measure the update with `python3 scripts/studio-update-size.py <old>.blockmap <new>.blockmap`:
+   the Mac's zip from 0.1.4 to 0.1.5 needs 330 of 487 MB. The first update after a DMG install is
+   always whole.
+6. **Try it (Amy).** Install the draft's download and open an example.
+7. **Publish (Amy).** `gh release edit v<version> --repo amywork777/studio-download --draft=false
+--latest`, then tag this repository `v<version>` and the fork `studio-v<version>`.
+
+**Rollback.** Stop the spread with `gh release edit v<good> --repo amywork777/studio-download
+--latest`: the updater and the download links read the latest release. Nobody already on the bad
+build goes down, so ship the next patch on the last good pin. A project goes back through its
+Versions. Never delete a release, and never rewind `studio-base`.
 
 ## Run it
 

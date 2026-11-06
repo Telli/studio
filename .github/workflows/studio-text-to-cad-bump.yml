@@ -1,0 +1,42 @@
+name: Studio text-to-cad bump
+
+# Every six hours, offers Jake's latest text-to-cad release as one draft review on Studio
+# (scripts/studio-bump-text-to-cad.sh). It publishes nothing, and stops with a notice until the
+# repository has the STUDIO_BUMP_TOKEN secret (STUDIO.md, Releasing).
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: studio-text-to-cad-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Offer the latest text-to-cad
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # actions/checkout's cleanup runs submodule foreach, which fails on the orphaned gitlinks in
+      # the vendored .repos tree (studio-windows.yml), and this needs only the script.
+      - name: Checkout
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GIT_TERMINAL_PROMPT: "0"
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git"
+          auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c http.extraheader="AUTHORIZATION: basic $auth" fetch --no-tags --depth=1 --filter=blob:none origin "$GITHUB_SHA"
+          git sparse-checkout set --no-cone '/scripts/'
+          git -c http.extraheader="AUTHORIZATION: basic $auth" checkout --detach FETCH_HEAD
+
+      - name: Offer it
+        env:
+          STUDIO_BUMP_TOKEN: ${{ secrets.STUDIO_BUMP_TOKEN }}
+        run: bash scripts/studio-bump-text-to-cad.sh
