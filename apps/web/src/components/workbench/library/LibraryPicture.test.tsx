@@ -5,7 +5,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { PictureOrGlyph } from "./LibraryPicture";
+import { DocumentSheet, PictureOrGlyph } from "./LibraryPicture";
 
 let root: Root;
 let container: HTMLDivElement;
@@ -42,5 +42,15 @@ describe("PictureOrGlyph", () => {
 
     expect(glyph()).not.toBeNull();
     expect(picture()).toBeNull();
+  });
+});
+
+describe("DocumentSheet", () => {
+  it("draws a document's lines as bars, with no words to read as a second title", async () => {
+    const text = "# Fit and clearance\n\nChecked the mount's model.\n<img src='a.png'>\nAll clear.";
+    await act(async () => root.render(<DocumentSheet text={text} />));
+
+    expect(container.textContent).toBe("");
+    expect(container.firstElementChild?.children).toHaveLength(3);
   });
 });

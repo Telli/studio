@@ -95,13 +95,16 @@ type Choice = "open" | "rename" | "duplicate" | "backup" | "folder" | "star" | "
 /**
  * A project's menu where it shows as a tile (Home), as Google Drive's is on a file: a right-click,
  * or the "…" on its hover. The same actions in the same words as the project switcher's own menu
- * (`ProjectSwitcher`): Open, Rename…, Duplicate, Back up…, Show in Finder, Star, and Move to
- * Trash, which says so with Undo (`useTrash`). `dialogs` goes once beside the tiles.
+ * (`ProjectSwitcher`): Open, Rename…, Duplicate, Back up…, Show in Finder, Star (not where the
+ * project's own star shows, `ownStar`), and Move to Trash, which says so with Undo (`useTrash`).
+ * `dialogs` goes once beside the tiles.
  */
 export function useProjectMenu(props: {
   readonly environmentId: EnvironmentId;
   readonly cards: ReadonlyArray<ListedProject>;
   readonly onOpen: (card: ListedProject) => void;
+  /** The project shows its star itself, as a tile does, so the menu does not say it again. */
+  readonly ownStar?: boolean;
 }): {
   readonly show: (card: ListedProject, position: { x: number; y: number }) => void;
   readonly dialogs: ReactNode;
@@ -132,7 +135,14 @@ export function useProjectMenu(props: {
           ...(canShowFolder && folder !== undefined
             ? [{ id: "folder" as const, label: folderLabel(serverConfig?.environment.platform.os) }]
             : []),
-          { id: "star", label: starred.includes(card.id) ? "Unstar" : "Star" },
+          ...(props.ownStar === true
+            ? []
+            : [
+                {
+                  id: "star" as const,
+                  label: starred.includes(card.id) ? "Unstar" : "Star",
+                },
+              ]),
           { id: "trash", label: "Move to Trash", separatorBefore: true },
         ],
         position,

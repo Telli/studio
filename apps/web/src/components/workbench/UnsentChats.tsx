@@ -13,6 +13,7 @@ import {
   useComposerDraftStore,
 } from "~/composerDraftStore";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
+import { childRowClass } from "./ChatRows";
 import { showChat } from "./overviewPanel";
 
 interface UnsentChat {
@@ -66,18 +67,19 @@ export function useUnsentChats(
 export function UnsentChatRows(props: { readonly chats: ReadonlyArray<UnsentChat> }) {
   const navigate = useNavigate();
   return (
-    <SidebarMenu>
+    <SidebarMenu size="compact">
       {props.chats.map(({ draftId, session, preview }) => (
         <SidebarMenuItem key={draftId}>
           <SidebarMenuButton
+            size="compact"
             title={`Unsent: ${preview}`}
             onClick={() => {
               showChat(scopeThreadRef(session.environmentId, session.threadId));
               void navigate({ to: "/draft/$draftId", params: { draftId } });
             }}
           >
-            <SquarePenIcon aria-hidden className="size-4 shrink-0 text-warning-foreground" />
-            <span className="min-w-0 flex-1 truncate">{preview}</span>
+            <SquarePenIcon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <span className={childRowClass(false)}>{preview}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       ))}

@@ -118,13 +118,11 @@ function ListRows(props: {
     const part = props.parts.get(fullPath(file));
     const status = part === undefined ? undefined : worstStatus(part.results);
     const details =
-      status === undefined
+      status === undefined || status === null
         ? file.file.folder === ""
           ? "In the project's folder"
           : `In ${file.file.folder}`
-        : status === null
-          ? "Not checked yet"
-          : capitalize(CHECK_STATUS[status].caption);
+        : capitalize(CHECK_STATUS[status].caption);
     const picture = pictures.get(file.file.picture ?? file.file.path);
     return (
       <button

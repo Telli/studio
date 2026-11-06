@@ -5,7 +5,7 @@ import { useState } from "react";
 import { cn } from "~/lib/utils";
 import { KIND_ICONS, KIND_TINT, templateIcon } from "../kinds";
 import { DOCUMENT_TEMPLATES, NEW_TEMPLATES } from "../newTemplates";
-import { Page, TextPage } from "../OverviewModules";
+import { Page } from "../OverviewModules";
 import type { LibraryDocument, LibraryEntry } from "./libraryCatalog";
 import { pictureOf } from "./libraryPictures";
 
@@ -57,13 +57,44 @@ function documentIcon(entry: LibraryDocument) {
   return template === undefined ? KIND_ICONS.Documents : templateIcon(template);
 }
 
+/** How many of a document's lines its sheet draws, and how long a line runs the sheet's width. */
+const SHEET_LINES = 12;
+const FULL_LINE = 64;
+
+/**
+ * A document as a small dimmed sheet in the picture's well: each of its opening lines a bar as long
+ * as the line, a heading's stronger. No words, so a page never reads as a second title beside the
+ * tile's name, and nothing is cut off mid-sentence.
+ */
+export function DocumentSheet(props: { readonly text: string }) {
+  const lines = props.text
+    .split("\n")
+    .map((line) => line.replace(/<[^>]*>/g, "").trim())
+    .filter((line) => line !== "")
+    .slice(0, SHEET_LINES);
+  return (
+    <span className="flex aspect-[3/4] h-4/5 flex-col gap-1.5 overflow-hidden rounded-sm border border-border bg-background p-2.5 opacity-80">
+      {lines.map((line, index) => (
+        <span
+          key={index}
+          className={cn(
+            "h-1 shrink-0 rounded-full",
+            line.startsWith("#") ? "bg-foreground/35" : "bg-foreground/15",
+          )}
+          style={{ width: `${Math.min(100, Math.round((line.length / FULL_LINE) * 100))}%` }}
+        />
+      ))}
+    </span>
+  );
+}
+
 /**
  * An entry's picture of its real example in the sample project (`pictureOf`): the picture rendered
- * from the example's file, or a Markdown example as a page of its own words. One of the person's
- * own templates is its own first page, with the Documents icon until the file is read, and for
- * good if it can't be read as text. An entry with no example (another plugin's skill, or an output
- * the sample could not make) shows its icon and says none ships: a skill its plugin's (the puzzle
- * piece Settings marks plugins with), a document type its template's, as New shows it.
+ * from the example's file, or a Markdown example as a small sheet (`DocumentSheet`). One of the
+ * person's own templates is its own first page, with the Documents icon until the file is read,
+ * and for good if it can't be read as text. An entry with no example (another plugin's skill, or an
+ * output the sample could not make) shows its icon alone: a skill its plugin's (the puzzle piece
+ * Settings marks plugins with), a document type its template's, as New shows it.
  */
 export function LibraryPicture(props: {
   readonly entry: LibraryEntry;
@@ -85,7 +116,7 @@ export function LibraryPicture(props: {
   if (picture?.kind === "page") {
     return (
       <span className={box}>
-        <TextPage text={picture.text} />
+        <DocumentSheet text={picture.text} />
       </span>
     );
   }
@@ -96,8 +127,8 @@ export function LibraryPicture(props: {
       <span className={box}>
         <DocumentsIcon aria-hidden="true" className={cn("size-8 opacity-60", KIND_TINT)} />
         {/* The page covers the icon once the template is read. */}
-        <span className="absolute inset-0 flex">
-          <Page environmentId={props.environmentId} {...folderAndName(own)} />
+        <span className="absolute inset-0 flex items-center justify-center bg-(--model-ground)">
+          <Page environmentId={props.environmentId} {...folderAndName(own)} view={DocumentSheet} />
         </span>
       </span>
     );
@@ -105,11 +136,6 @@ export function LibraryPicture(props: {
   return (
     <span className={box}>
       <Icon aria-hidden="true" className={cn("size-8 opacity-60", KIND_TINT)} />
-      {entry.kind === "skill" ? null : (
-        <span className="px-3 text-center text-xs text-muted-foreground">
-          No example ships with this document type.
-        </span>
-      )}
     </span>
   );
 }

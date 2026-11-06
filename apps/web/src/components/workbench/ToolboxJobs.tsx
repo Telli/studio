@@ -32,9 +32,7 @@ export function SectionJobs(props: {
     <section aria-label={props.section.title} className="contents">
       {props.section.actions.map((action, index) => (
         <div key={action.id} className="flex min-w-0 flex-col justify-end gap-2">
-          {index === 0 ? (
-            <h4 className={`${GROUP_LABEL} truncate`}>{props.section.title}</h4>
-          ) : null}
+          {index === 0 ? <h4 className={GROUP_LABEL}>{props.section.title}</h4> : null}
           <ToolTile
             action={action}
             icon={toolIcon(action)}

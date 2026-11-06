@@ -381,7 +381,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                     <SidebarMenu
                       role="group"
                       aria-labelledby="settings-nav-advanced"
-                      className="ml-4"
+                      className="ml-4 w-auto"
                     >
                       {advancedItems.map(renderNavItem)}
                     </SidebarMenu>

@@ -30,6 +30,7 @@ export function useProjectTiles(
   const menu = useProjectMenu({
     environmentId,
     cards,
+    ownStar: true,
     onOpen: (card) => void openProject(card.folder, card.threads),
   });
   const tile = (card: ListedProject) => (

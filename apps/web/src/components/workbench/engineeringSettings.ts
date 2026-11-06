@@ -95,7 +95,7 @@ const ENGINEERING_SETTINGS_COPY: ReadonlyMap<string, SettingCopy> = new Map<
   [
     "auto-resume-limited-threads",
     {
-      title: "Auto-resume limited chats",
+      title: "Resume chats after a usage limit",
       description:
         "Carry on at the reported reset time when a chat hits a usage limit. Each chat can cancel it.",
     },
@@ -147,7 +147,7 @@ const ENGINEERING_RESTORE_LABELS: ReadonlyMap<string, string> = new Map([
   ["Visible threads", "Visible chats"],
   ["Auto-settle inactive threads", "Mark inactive chats done"],
   ["Auto-settle merged threads", "Mark merged chats done"],
-  ["Auto-resume limited threads", "Auto-resume limited chats"],
+  ["Auto-resume limited threads", "Resume chats after a usage limit"],
   ["Snooze limited threads", "Snooze limited chats"],
   ["Composer context", "Chat box context"],
   ["Show skills in slash menu", "Show skills when you type /"],

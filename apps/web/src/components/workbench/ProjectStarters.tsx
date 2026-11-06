@@ -50,19 +50,22 @@ export function ProjectStarters(props: {
   return (
     <div className="pointer-events-auto mt-4 flex flex-wrap gap-2">
       {starters.map((starter) => (
-        <Button
-          key={starter.label}
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            const composer = props.composerRef.current;
-            if (!composer) return;
-            composer.insertTextAtEnd(starter.prompt, { ensureLeadingBoundary: true });
-            composer.focusAtEnd();
-          }}
-        >
-          {starter.label}
-        </Button>
+        // A box that can shrink, so a long one wraps in a narrow dock.
+        <div key={starter.label} className="min-w-0">
+          <Button
+            variant="outline"
+            size="sm-multiline"
+            className="text-start"
+            onClick={() => {
+              const composer = props.composerRef.current;
+              if (!composer) return;
+              composer.insertTextAtEnd(starter.prompt, { ensureLeadingBoundary: true });
+              composer.focusAtEnd();
+            }}
+          >
+            {starter.label}
+          </Button>
+        </div>
       ))}
     </div>
   );

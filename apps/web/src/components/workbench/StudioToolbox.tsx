@@ -1,12 +1,20 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { PanelRightCloseIcon, PanelRightOpenIcon } from "lucide-react";
-import { type RefObject, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactElement,
+  type RefObject,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { observeResize } from "~/lib/observeResize";
 import { Button } from "../ui/button";
-import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
+import { Toggle, ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { GROUP_PURPOSES, type HardwareAction, type HardwareActionGroup } from "./hardwareActions";
 import { MENU_ICONS, MENU_TINTS } from "./kinds";
 import { handToChat } from "./handToChat";
@@ -36,13 +44,15 @@ import { usePartJobs } from "./usePartJobs";
  * jobs (`usePartJobs`) of the part in front, else the project's (`usePartForJobs`), as Evaluate,
  * Manufacture and Document (`toolboxGroups`), a tab each, like SolidWorks' CommandManager; the tab
  * left open is remembered on this device. A group with no job for the file in front can't be
- * chosen, and the Toolbox opens on one that has jobs and says what to open for the rest. Every job
+ * chosen, says why on its tooltip, and the Toolbox opens on one that has jobs and says what to open
+ * for the rest. Every job
  * in a group is a tile like every other, nothing folded: the group's purpose over one even grid of
  * tiles, each section's name over its first.
  * A tile press sends its job in the chat for that part, or adds it after a draft being written
  * there for the person to send (`handToChat`). It folds to an edge of the groups' icons, as chosen
  * on this device, and on a narrow panel (`toolboxNarrowRem`: in CAD, one beside a chat) starts
- * folded so the model keeps the room; a group's icon there opens it on that group's tab.
+ * folded so the model keeps the room; a group's icon there, in its jobs' color, opens it on that
+ * group's tab, and the group it would open on is marked as the tab in front is.
  */
 export function StudioToolbox(props: {
   readonly threadRef: ScopedThreadRef;
@@ -98,28 +108,30 @@ export function StudioToolbox(props: {
         className="flex w-10 shrink-0 flex-col items-center gap-2 border-l border-border py-2"
         data-studio-toolbox="folded"
       >
-        <Button
-          variant="ghost-muted"
-          size="icon-sm"
-          aria-label="Open the Toolbox"
-          title="Open the Toolbox"
-          onClick={() => setFolded(false)}
-        >
-          <PanelRightOpenIcon aria-hidden="true" />
-        </Button>
+        <ToolboxTip text="Open the Toolbox" side="left">
+          <Button
+            variant="ghost-muted"
+            size="icon-sm"
+            aria-label="Open the Toolbox"
+            onClick={() => setFolded(false)}
+          >
+            <PanelRightOpenIcon aria-hidden="true" />
+          </Button>
+        </ToolboxTip>
         {groups.map((group) => {
           const Icon = MENU_ICONS[group.group];
           return (
-            <Button
-              key={group.group}
-              variant="ghost"
-              size="icon-sm"
-              aria-label={group.group}
-              title={group.group}
-              onClick={() => openOn(group.group)}
-            >
-              <Icon aria-hidden="true" />
-            </Button>
+            <ToolboxTip key={group.group} text={group.group} side="left">
+              <Toggle
+                variant="segmented-accent"
+                size="sm"
+                aria-label={group.group}
+                pressed={group.group === shown?.group}
+                onPressedChange={() => openOn(group.group)}
+              >
+                <Icon aria-hidden="true" className={MENU_TINTS[group.group]} />
+              </Toggle>
+            </ToolboxTip>
           );
         })}
       </div>
@@ -135,15 +147,16 @@ export function StudioToolbox(props: {
       {/* As tall as the ribbon's tab row beside it, so their hairlines run on as one. */}
       <div className="flex h-7 shrink-0 items-center justify-between gap-2 border-b border-border ps-3 pe-1">
         <h2 className="text-sm font-medium text-foreground">Toolbox</h2>
-        <Button
-          variant="ghost-muted"
-          size="icon-xs"
-          aria-label="Fold the Toolbox"
-          title="Fold the Toolbox"
-          onClick={() => setFolded(true)}
-        >
-          <PanelRightCloseIcon aria-hidden="true" />
-        </Button>
+        <ToolboxTip text="Fold the Toolbox" side="bottom">
+          <Button
+            variant="ghost-muted"
+            size="icon-xs"
+            aria-label="Fold the Toolbox"
+            onClick={() => setFolded(true)}
+          >
+            <PanelRightCloseIcon aria-hidden="true" />
+          </Button>
+        </ToolboxTip>
       </div>
       <div className="shrink-0 border-b border-border p-3">
         {/* Equal thirds, each its group's icon (the folded edge's, in its jobs' color) over its name. */}
@@ -161,16 +174,28 @@ export function StudioToolbox(props: {
         >
           {groups.map((group) => {
             const Icon = MENU_ICONS[group.group];
-            return (
+            const off = ready && jobCount(group) === 0;
+            const item = (
               <ToggleGroupItem
                 key={group.group}
                 value={group.group}
-                disabled={ready && jobCount(group) === 0}
+                disabled={off}
                 className="flex-1 basis-0"
               >
                 <Icon aria-hidden="true" className={MENU_TINTS[group.group]} />
                 {group.group}
               </ToggleGroupItem>
+            );
+            if (!off) return item;
+            // A disabled button takes no pointer, so the tooltip hangs on a box around it.
+            return (
+              <ToolboxTip
+                key={group.group}
+                text={toolboxLeftOut([group], part.kind) ?? group.group}
+                side="bottom"
+              >
+                <span className="flex min-w-0 flex-1 basis-0">{item}</span>
+              </ToolboxTip>
             );
           })}
         </ToggleGroup>
@@ -251,6 +276,20 @@ function useFolding(rootRef: RefObject<HTMLDivElement | null>) {
       writeToolboxFolded(next);
     },
   };
+}
+
+/** A control's tooltip, in the app's own. */
+function ToolboxTip(props: {
+  readonly text: string;
+  readonly side: "left" | "bottom";
+  readonly children: ReactElement;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={props.children} />
+      <TooltipPopup side={props.side}>{props.text}</TooltipPopup>
+    </Tooltip>
+  );
 }
 
 /**

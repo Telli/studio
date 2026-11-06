@@ -672,10 +672,18 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
+function SidebarMenu({
+  className,
+  size,
+  ...props
+}: React.ComponentProps<"ul"> & { size?: "compact" }) {
   return (
     <ul
-      className={cn("flex w-full min-w-0 flex-col gap-1", className)}
+      className={cn(
+        "flex w-full min-w-0 flex-col",
+        size === "compact" ? "gap-0" : "gap-1",
+        className,
+      )}
       data-sidebar="menu"
       data-slot="sidebar-menu"
       {...props}
@@ -705,6 +713,9 @@ const sidebarMenuButtonVariants = cva(
       size: {
         default:
           "h-8 rounded-[var(--control-radius)] px-[var(--sidebar-row-content-inset)] py-1.5 text-sm",
+        // A row of a long nested list: the default's text and inset, closer together.
+        compact:
+          "h-7 rounded-[var(--control-radius)] px-[var(--sidebar-row-content-inset)] py-1 text-sm",
         icon: "size-8 justify-center rounded-[var(--control-radius)] p-0",
         lg: "h-12 rounded-lg p-2 text-sm group-data-[collapsible=icon]:p-0!",
         sm: "h-7 rounded-lg p-2 text-xs",

@@ -19,10 +19,18 @@ import {
 } from "../ui/alert-dialog";
 import { Button } from "../ui/button";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
+import { ChatStandingMark } from "./ChatStandingMark";
 import { chatStanding } from "./chatStanding";
 import { chatLabel } from "./workspaceTitle";
 
 type ChatMenuChoice = "rename" | "delete";
+
+/**
+ * A row's name under its project: regular, in secondary text, so weight as well as indent shows the
+ * level. The row in front (`lit`) keeps the button's own strength.
+ */
+export const childRowClass = (lit: boolean) =>
+  cn("min-w-0 flex-1 truncate", !lit && "font-normal text-muted-foreground");
 
 /**
  * Chats down the sidebar (`StudioSidebar`), each with how it stands (`chatStanding`),
@@ -77,7 +85,7 @@ export function ChatRows(props: {
 
   return (
     <>
-      <SidebarMenu>
+      <SidebarMenu size="compact">
         {props.chats.map((chat) => {
           const current = chat.id === props.currentId;
           const state = chatStanding(chat);
@@ -94,11 +102,12 @@ export function ChatRows(props: {
                     if (event.key === "Enter") event.currentTarget.blur();
                     else if (event.key === "Escape") setRenaming(null);
                   }}
-                  className="h-8 w-full min-w-0 rounded-md bg-background ps-8.5 pe-2 text-sm text-foreground outline-none ring-1 ring-ring ring-inset"
+                  className="h-7 w-full min-w-0 rounded-md bg-background ps-8.5 pe-2 text-sm text-foreground outline-none ring-1 ring-ring ring-inset"
                 />
               ) : (
                 <>
                   <SidebarMenuButton
+                    size="compact"
                     isActive={current && props.chatShows}
                     aria-current={current && props.chatShows ? "page" : undefined}
                     onClick={() => props.onOpen(chat, current)}
@@ -109,15 +118,13 @@ export function ChatRows(props: {
                   >
                     {/* Overview's and New chat's icon slot, so every name starts on one line. */}
                     <span aria-hidden="true" className="size-4 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{chatLabel(chat.title)}</span>
-                    <span
-                      className={cn(
-                        "shrink-0 text-xs font-normal tabular-nums group-hover/chat:invisible group-focus-within/chat:invisible",
-                        state.tone,
-                      )}
-                    >
-                      {state.text}
+                    <span className={childRowClass(current && props.chatShows)}>
+                      {chatLabel(chat.title)}
                     </span>
+                    <ChatStandingMark
+                      standing={state}
+                      className="group-hover/chat:invisible group-focus-within/chat:invisible"
+                    />
                   </SidebarMenuButton>
                   <button
                     type="button"

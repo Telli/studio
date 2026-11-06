@@ -2,6 +2,7 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { HomeIcon, type LucideIcon, SettingsIcon, ToolCaseIcon, Trash2Icon } from "lucide-react";
 
+import { Badge } from "../ui/badge";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "../ui/sidebar";
 import { useAllChats, waitingChats } from "./allChats";
 import { libraryHref } from "./library/librarySearch";
@@ -116,12 +117,9 @@ function PlaceItem(props: {
         <Icon aria-hidden="true" />
         <span className="flex-1">{props.label}</span>
         {count > 0 ? (
-          <span
-            aria-hidden="true"
-            className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-3xs font-semibold text-primary-foreground tabular-nums"
-          >
+          <Badge aria-hidden="true" variant="info" size="sm">
             {count > 9 ? "9+" : count}
-          </span>
+          </Badge>
         ) : null}
       </SidebarMenuButton>
     </SidebarMenuItem>

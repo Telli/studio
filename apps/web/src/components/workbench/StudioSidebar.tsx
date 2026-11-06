@@ -23,8 +23,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "../ui/sidebar";
-import { ChatRows } from "./ChatRows";
-import { useChatScopeStore } from "./chatScope";
+import { ChatRows, childRowClass } from "./ChatRows";
+import { ChatStandingMark } from "./ChatStandingMark";
+import { projectOpen, useChatScopeStore } from "./chatScope";
 import { noProjectChats, useNoProjectFolder } from "./freeformChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { overviewStanding, showOverview } from "./overviewPanel";
@@ -91,9 +92,10 @@ function ProjectActions(props: {
   };
   if (folder === null) return null;
   return (
-    <SidebarMenu>
+    <SidebarMenu size="compact">
       <SidebarMenuItem>
         <SidebarMenuButton
+          size="compact"
           isActive={overview === "alone"}
           aria-current={overview === "alone" ? "page" : undefined}
           onClick={() => {
@@ -103,18 +105,19 @@ function ProjectActions(props: {
           }}
         >
           <LayoutDashboardIcon aria-hidden="true" />
-          <span className={cn(overview === "beside" && "text-sidebar-foreground")}>Overview</span>
+          <span className={childRowClass(overview !== null)}>Overview</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>
         <SidebarMenuButton
+          size="compact"
           onClick={() => {
             done();
             void handleNewThread(scopeProjectRef(folder.environmentId, folder.id));
           }}
         >
           <PlusIcon aria-hidden="true" />
-          <span>New chat</span>
+          <span className={childRowClass(false)}>New chat</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>
@@ -193,20 +196,21 @@ function ProjectRow(props: {
   readonly onMenu: (card: ListedProject, position: { x: number; y: number }) => void;
 }) {
   const { entry, current } = props;
-  const unfolded = useChatScopeStore((store) => store.unfolded.includes(entry.id));
+  const unfolded = useChatScopeStore((store) => projectOpen(store, entry.id, current));
   const toggle = useChatScopeStore((store) => store.toggle);
   const standing = unfolded ? null : foldedStanding(entry.threads);
   const { card } = entry;
   return (
     <>
-      <SidebarMenu>
+      <SidebarMenu size="compact">
         <SidebarMenuItem
           className="group/chat relative"
           {...(current ? { "data-tour": "project" } : {})}
         >
           <SidebarMenuButton
+            size="compact"
             aria-expanded={unfolded}
-            onClick={() => toggle(entry.id)}
+            onClick={() => toggle(entry.id, current)}
             onContextMenu={
               card === null
                 ? undefined
@@ -223,18 +227,14 @@ function ProjectRow(props: {
                 unfolded && "rotate-90",
               )}
             />
-            <span className={cn("min-w-0 flex-1 truncate", current && "font-medium")}>
+            <span className="min-w-0 flex-1 truncate font-medium text-sidebar-foreground">
               {entry.name}
             </span>
             {standing === null ? null : (
-              <span
-                className={cn(
-                  "shrink-0 text-xs font-normal group-hover/chat:invisible group-focus-within/chat:invisible",
-                  standing.tone,
-                )}
-              >
-                {standing.text}
-              </span>
+              <ChatStandingMark
+                standing={standing}
+                className="group-hover/chat:invisible group-focus-within/chat:invisible"
+              />
             )}
           </SidebarMenuButton>
           {card === null ? null : (
@@ -304,14 +304,14 @@ function ProjectsList(props: { readonly environmentId: EnvironmentId }) {
     currentFolderId === null
       ? null
       : (entries.find((entry) => entry.folderIds.includes(currentFolderId))?.id ?? null);
-  const unfold = useChatScopeStore((store) => store.unfold);
+  const arrive = useChatScopeStore((store) => store.arrive);
   useEffect(() => {
-    if (currentId !== null) unfold(currentId);
-  }, [currentId, unfold]);
+    if (currentId !== null) arrive();
+  }, [currentId, arrive]);
 
   return (
     <SidebarGroup aria-label="Projects">
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col">
         <div className="flex h-7 items-center ps-(--sidebar-row-content-inset)">
           <h2 className={headingClass}>Projects</h2>
         </div>

@@ -44,6 +44,7 @@ import {
 } from "../ui/number-field";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { useEngineeringInterface } from "../workbench/studioInterface";
 
 import { GitIcon, JujutsuIcon, type Icon } from "../Icons";
 import { SourceControlHostSettings } from "./SourceControlHostSettings";
@@ -126,16 +127,22 @@ function isProviderDiscoveryItem(
   return "auth" in item;
 }
 
+// As `providerStatus` says it.
+const signedInLabel = (engineering: boolean) => (engineering ? "Signed in" : "Authenticated");
+
 function isVcsNotReady(item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem): boolean {
   return !isProviderDiscoveryItem(item) && !item.implemented;
 }
 
-function authPresentation(auth: SourceControlProviderAuth): {
+function authPresentation(
+  auth: SourceControlProviderAuth,
+  engineering: boolean,
+): {
   readonly label: string;
   readonly badge: "warning" | null;
 } {
   if (auth.status === "authenticated") {
-    return { label: "Authenticated", badge: null };
+    return { label: signedInLabel(engineering), badge: null };
   }
   if (auth.status === "unauthenticated") {
     return { label: "Not authenticated", badge: "warning" };
@@ -199,6 +206,7 @@ function itemSummary({
   readonly auth: SourceControlProviderAuth | null;
   readonly authAccount: string | null;
 }) {
+  const engineering = useEngineeringInterface();
   if (isVcsNotReady(item)) {
     return <span>Support for {item.label} is coming soon.</span>;
   }
@@ -214,7 +222,7 @@ function itemSummary({
       const authDetail = optionLabel(auth.detail);
       return (
         <>
-          <span>Authenticated</span>
+          <span>{signedInLabel(engineering)}</span>
           {authAccount ? (
             <>
               <span aria-hidden>as</span>
@@ -264,12 +272,13 @@ function DiscoveryItemRow({
   readonly item: VcsDiscoveryItem | SourceControlProviderDiscoveryItem;
   readonly children?: ReactNode;
 }) {
+  const engineering = useEngineeringInterface();
   const version = optionLabel(item.version);
   const enabled = isProviderDiscoveryItem(item)
     ? item.status === "available" && item.auth.status === "authenticated"
     : item.status === "available" && item.implemented;
   const auth = isProviderDiscoveryItem(item) ? item.auth : null;
-  const authStatus = auth ? authPresentation(auth) : null;
+  const authStatus = auth ? authPresentation(auth, engineering) : null;
   const authAccount = auth ? optionLabel(auth.account) : null;
   const [isExpanded, setIsExpanded] = useState(false);
   const hasDetails = children !== undefined;

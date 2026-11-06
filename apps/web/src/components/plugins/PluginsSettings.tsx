@@ -15,7 +15,7 @@ import {
   type PluginCatalogEntry,
   type PluginCompatibility,
 } from "@t3tools/contracts";
-import { EllipsisIcon, SearchIcon } from "lucide-react";
+import { CheckIcon, EllipsisIcon, SearchIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { requestConfirmDialog } from "~/confirmDialog";
@@ -58,6 +58,7 @@ function CompatibilityBadge(props: { compatibility: PluginCompatibility }) {
       variant={COMPATIBILITY_BADGE[props.compatibility.level]}
       title={props.compatibility.notes.join("\n") || undefined}
     >
+      {props.compatibility.level === "works" ? <CheckIcon aria-hidden="true" /> : null}
       {props.compatibility.label}
     </Badge>
   );

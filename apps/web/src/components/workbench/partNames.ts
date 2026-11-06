@@ -147,7 +147,7 @@ const ENDINGS: ReadonlyArray<{
   { ending: /\.kicad_sch$/i, kind: "Schematic", suffix: "schematic" },
   { ending: /\.(?:dxf|dwg|svg)$/i, kind: "Drawing", suffix: "drawing" },
   // The engineering drawing's sheet: `bracket_drawing.pdf`, beside its script.
-  { ending: /[._-]drawing\.pdf$/i, kind: "Drawing", suffix: "drawing" },
+  { ending: /(?:^|[._-])drawing\.pdf$/i, kind: "Drawing", suffix: "drawing" },
   { ending: /\.(?:md|mdx|txt|pdf)$/i, kind: "Document", suffix: "" },
   { ending: /\.(?:csv|tsv|xlsx)$/i, kind: "Table", suffix: "" },
   { ending: /\.(?:png|jpe?g|webp|gif|heic)$/i, kind: "Image", suffix: "" },

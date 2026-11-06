@@ -147,7 +147,8 @@ export function SettingsSearchTarget({
 }
 
 /** Layout for the composer model/traits pickers in a settings row: drop the composer's max-width. */
-export const SETTINGS_PICKER_TRIGGER_CLASSNAME = "min-w-0 max-w-none shrink-0";
+export const SETTINGS_PICKER_TRIGGER_CLASSNAME =
+  "min-w-0 max-w-none shrink-0 [&_[data-chat-provider-model-picker-label]]:flex-none";
 
 /** Info affordance explaining how a setting interacts with the shared background policy. */
 export function PolicyTooltip({ children }: { readonly children: string }) {
@@ -489,7 +490,7 @@ export function SettingsRow({
             </span>
           </div>
           {description ? (
-            <p className="max-w-xl text-xs leading-normal text-muted-foreground/80">
+            <p className="max-w-xl text-xs leading-normal text-muted-foreground">
               {engineeringCopy?.description ?? description}
             </p>
           ) : null}

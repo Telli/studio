@@ -183,11 +183,12 @@ const plainText = (line: string) =>
     .map((piece) => piece.text)
     .join("");
 
-/** A document, read from its folder, as a small page (`TextPage`); nothing until it is read. */
+/** A document, read from its folder, as a small page (`view`, else `TextPage`); nothing until it is read. */
 export function Page(props: {
   readonly environmentId: EnvironmentId;
   readonly root: string;
   readonly path: string;
+  readonly view?: (props: { readonly text: string }) => ReactNode;
 }) {
   const file = useEnvironmentQuery(
     projectEnvironment.readFile({
@@ -196,7 +197,8 @@ export function Page(props: {
     }),
   ).data;
   if (!file) return null;
-  return <TextPage text={file.contents} />;
+  const View = props.view ?? TextPage;
+  return <View text={file.contents} />;
 }
 
 /** A document's text as a small page: its title, then its opening lines, as a thumbnail reads. */

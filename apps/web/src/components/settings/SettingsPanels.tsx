@@ -2276,6 +2276,7 @@ export function GeneralSettingsPanel() {
   );
   const engineering = useEngineeringInterface();
   const autoSettleDaysCopy = engineeringSettingCopy("days-before-auto-settle", engineering);
+  const autoResumeCopy = engineeringSettingCopy("auto-resume-limited-threads", engineering);
 
   return (
     <SettingsPageContainer>
@@ -2369,7 +2370,7 @@ export function GeneralSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ autoResumeLimitedThreads: Boolean(checked) })
               }
-              aria-label="Auto-resume limited threads"
+              aria-label={autoResumeCopy?.title ?? "Auto-resume limited threads"}
             />
           }
         />
@@ -2483,6 +2484,7 @@ export function GeneralSettingsPanel() {
             />
             {settings.sidebarAutoSettleAfterDays !== null ? (
               <SettingsRow
+                id="days-before-auto-settle"
                 serverScoped
                 settingKeys={["sidebarAutoSettleAfterDays"]}
                 title={

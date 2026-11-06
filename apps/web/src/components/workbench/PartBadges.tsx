@@ -83,28 +83,27 @@ export function MadeBadges(props: {
 }
 
 /**
- * Under a part's card or row: its checks as badges (or that none has run), then what was made from
- * it, each opening what it names, by its path in the part's folder.
+ * Under a part's card or row: its checks as badges, then what was made from it, each opening what
+ * it names, by its path in the part's folder. No badge means no check has run: the lead part says
+ * so once (`LeadPart`), not every tile again.
  */
 export function PartFooter(props: {
   readonly part: FolderPart;
   readonly onOpen: (path: string) => void;
 }) {
   const { part } = props;
+  const checks = [...part.results, ...part.outdated];
+  if (checks.length + part.drawings.length + part.made.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {part.results.length + part.outdated.length === 0 ? (
-        <span className="text-xs text-muted-foreground">Not checked yet</span>
-      ) : (
-        [...part.results, ...part.outdated].map((result) => (
-          <CheckBadge
-            key={result.path}
-            result={result}
-            outOfDate={checkOutOfDate(result, part.file)}
-            onOpen={() => props.onOpen(result.model)}
-          />
-        ))
-      )}
+      {checks.map((result) => (
+        <CheckBadge
+          key={result.path}
+          result={result}
+          outOfDate={checkOutOfDate(result, part.file)}
+          onOpen={() => props.onOpen(result.model)}
+        />
+      ))}
       <MadeBadges part={part} onOpen={props.onOpen} />
     </div>
   );

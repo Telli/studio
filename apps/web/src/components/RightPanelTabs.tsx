@@ -107,10 +107,11 @@ import {
 import { partLabel } from "./workbench/partNames";
 import { useProjectViewStore } from "./workbench/projectView";
 import { surfaceFile, viewTabTitle } from "./workbench/sameFile";
+import { tabSuffixes } from "./workbench/tabSuffixes";
 import { FileKindIcon } from "./workbench/FileKindIcon";
 import { KIND_ICONS, KIND_TINT } from "./workbench/kinds";
 import { PinnedProjectTab } from "./workbench/PinnedProjectTab";
-import { useModelTitles } from "./workbench/useFolderModels";
+import { knownModelScript, useModelTitles } from "./workbench/useFolderModels";
 import { WORKBENCH_LAYOUT } from "./workbench/workbenchLayout";
 
 interface RightPanelTabsProps {
@@ -943,6 +944,22 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
   const ownsDesktopTitleBar = isElectron && props.mode === "inline";
   const browserProfiles = useBrowserDefaults().profiles;
   const modelTitles = useModelTitles();
+  const titleOf = (surface: RightPanelSurface) =>
+    surfaceTitle(surface, props.previewSessions, props.terminalLabelsById, modelTitles);
+  // Two open tabs never read the same: each of a clash carries what it is, in grey.
+  const suffixes = engineering
+    ? tabSuffixes(
+        tabSurfaces.map((surface) => {
+          const file = surfaceFile(surface);
+          return {
+            id: surface.id,
+            title: titleOf(surface),
+            file,
+            script: file === null ? undefined : knownModelScript(file),
+          };
+        }),
+      )
+    : null;
   const { resolvedTheme } = useTheme();
   const tabListRef = useRef<HTMLDivElement>(null);
   const addSurfaceTriggerRef = useRef<HTMLButtonElement>(null);
@@ -1287,12 +1304,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
               {tabSurfaces.map((surface) => {
                 const active = surface.id === props.activeSurfaceId;
                 const pending = props.pendingSurfaceIds.has(surface.id);
-                const title = surfaceTitle(
-                  surface,
-                  props.previewSessions,
-                  props.terminalLabelsById,
-                  modelTitles,
-                );
+                const title = titleOf(surface);
+                const suffix = suffixes?.get(surface.id);
                 const previewTabId = previewTabIdOf(surface, props.previewSessions);
                 // Desktop state is keyed by the session id, but desktop actions
                 // must be addressed with the runtime id.
@@ -1421,6 +1434,11 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                               onClick={() => props.onActivate(surface)}
                             >
                               <span className="truncate">{title}</span>
+                              {suffix === undefined ? null : (
+                                <span className="ms-1.5 shrink-0 text-muted-foreground">
+                                  {suffix}
+                                </span>
+                              )}
                             </button>
                           }
                         />
@@ -1431,8 +1449,10 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                               environmentId={props.environmentId}
                               title={title}
                             />
-                          ) : (
+                          ) : suffix === undefined ? (
                             title
+                          ) : (
+                            `${title}, ${suffix}`
                           )}
                         </TooltipPopup>
                       </Tooltip>

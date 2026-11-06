@@ -3,6 +3,7 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { ChevronRightIcon, MessageSquareIcon } from "lucide-react";
 
 import { useSidebar } from "../ui/sidebar";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { KIND_TINT } from "./kinds";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 import { StudioNav } from "./StudioTopBar";
@@ -24,7 +25,8 @@ export function useProjectHeading(
  * The start of a project workspace's top bar, in the chat's header row: where the person is, as a
  * path, the project's switcher (`ProjectSwitcher`), then the open chat in it (Google Drive's "My
  * Drive › folder"). With the sidebar folded away (its own toggle or its shortcut), the bar leads
- * with Studio's mark (Home). The panel's toolbar carries the rest (`StudioPanelBar`).
+ * with Studio's mark (Home). The panel's toolbar carries the rest (`StudioPanelBar`). Short of
+ * room the chat gives way first, down to its icon; its name stays on its tooltip.
  */
 export function StudioWorkspaceBar(props: {
   readonly environmentId: EnvironmentId;
@@ -46,13 +48,20 @@ export function StudioWorkspaceBar(props: {
       )}
       <ProjectSwitcher environmentId={props.environmentId} folder={folder} title={title} />
       <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-      <span
-        aria-current="page"
-        className="flex min-w-0 items-center gap-2 px-1 text-sm font-medium text-foreground"
-      >
-        <MessageSquareIcon className={`size-4 shrink-0 ${KIND_TINT}`} aria-hidden="true" />
-        <span className="truncate">{chatLabel(props.chatTitle)}</span>
-      </span>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span
+              aria-current="page"
+              className="flex min-w-6 shrink-[9999] items-center gap-2 overflow-hidden px-1 text-sm font-medium text-foreground"
+            />
+          }
+        >
+          <MessageSquareIcon className={`size-4 shrink-0 ${KIND_TINT}`} aria-hidden="true" />
+          <span className="truncate">{chatLabel(props.chatTitle)}</span>
+        </TooltipTrigger>
+        <TooltipPopup side="bottom">{chatLabel(props.chatTitle)}</TooltipPopup>
+      </Tooltip>
     </nav>
   );
 }

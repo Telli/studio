@@ -23,7 +23,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { Input } from "../ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { Tooltip, TooltipPopup, TooltipRich, TooltipTrigger } from "../ui/tooltip";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { showOverview } from "./overviewPanel";
 import {
@@ -173,7 +173,9 @@ export function ProjectSwitcher(props: {
               aria-hidden="true"
             />
           </TooltipTrigger>
-          <TooltipPopup side="bottom">Switch project (Cmd+O)</TooltipPopup>
+          <TooltipPopup side="bottom">
+            <TooltipRich title={props.title} description="Switch project (Cmd+O)" />
+          </TooltipPopup>
         </Tooltip>
         <PopoverPopup width="md" padding="compact" align="start" initialFocus={input}>
           <section aria-label="This project" className="mb-2 border-b border-border pb-2">

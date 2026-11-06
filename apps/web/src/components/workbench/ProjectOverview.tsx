@@ -108,12 +108,11 @@ function LeadPart(props: {
   return (
     <section aria-label="Lead part" className={SECTION_STACK}>
       <PageTitle title={part.file.title} label={leadKind(part.file)} />
-      {/* Past the page's gutters (`WorkspacePageContainer`) to the panel's edges; beside the README, its left one. */}
       <button
         type="button"
         onClick={props.onOpen}
         aria-label={`Open ${part.file.title} in the viewer`}
-        className="-mx-5 flex aspect-[4/3] max-h-[32rem] items-center justify-center overflow-hidden bg-(--model-ground) outline-none sm:-mx-6 @3xl:mr-0 transition-opacity duration-150 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="flex aspect-[4/3] max-h-80 items-center justify-center overflow-hidden rounded-lg border border-border bg-(--model-ground) outline-none transition-opacity duration-150 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {picture ? (
           <img src={picture} alt="" className="size-full object-contain" />
@@ -126,7 +125,7 @@ function LeadPart(props: {
           ? sentenceCase(STATUS[status].caption)
           : part.outdated.length > 0
             ? "Part changed since its last check"
-            : "Not checked yet"}
+            : "No checks run on this part yet"}
         {props.where === undefined ? "" : ` · ${props.where}`}
       </span>
       {part.drawings.length + part.made.length === 0 ? null : (

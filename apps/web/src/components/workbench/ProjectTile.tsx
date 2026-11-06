@@ -16,9 +16,9 @@ import { chatLabel, workspaceTitle } from "./workspaceTitle";
 /**
  * A project as Home and Projects show it: a picture of its main part (its first assembly, else
  * its first part or board), or its kind's icon until it has one; its name as the sidebar says it
- * (`workspaceTitle`, marked New in grey on its first day, and Needs you in blue while a chat waits
- * on the person); and its latest chat and when, or the chat
- * that waits. A star sits over the picture (shown on hover, and always once starred). With
+ * (`workspaceTitle`, and Needs you in blue while a chat waits on the person); and its latest chat
+ * and when, or the chat that waits. New sits on the picture's corner on its first day, a star on
+ * the other (shown on hover, and always once starred). With
  * `onMenu`, a right-click or the "…" on hover opens its menu, as Drive's on a file (`ProjectMenu`).
  */
 export function ProjectTile(props: {
@@ -74,7 +74,7 @@ export function ProjectTile(props: {
         }
         className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        <span className="flex aspect-[4/3] items-center justify-center overflow-hidden border-b border-border bg-(--model-ground)">
+        <span className="relative flex aspect-[4/3] items-center justify-center overflow-hidden border-b border-border bg-(--model-ground)">
           {picture ? (
             <img src={picture} alt="" className="size-full object-cover" />
           ) : page !== null ? (
@@ -82,25 +82,26 @@ export function ProjectTile(props: {
           ) : (
             <KindIcon className={cn("size-8", fileTint(kind))} aria-hidden="true" />
           )}
+          {first === undefined && activity.isNew ? (
+            <span className="absolute top-2 left-2">
+              <Badge variant="outline">New</Badge>
+            </span>
+          ) : null}
         </span>
         <span
           className={cn(
-            "flex min-w-0 flex-col gap-1 p-3",
+            "flex min-w-0 flex-col gap-1.5 p-3",
             // Room for the "…" at its end, so a long name stops short of it.
             props.onMenu !== undefined && "pe-9",
           )}
         >
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate text-sm font-medium text-foreground">{name}</span>
-            {first !== undefined ? (
-              <Badge variant="info">Needs you</Badge>
-            ) : activity.isNew ? (
-              <span className="shrink-0 text-xs text-muted-foreground">New</span>
-            ) : null}
+            {first !== undefined ? <Badge variant="info">Needs you</Badge> : null}
           </span>
           <span
             className={cn(
-              "truncate text-xs",
+              "truncate text-xs tabular-nums",
               first === undefined ? "text-muted-foreground" : "text-info-foreground",
             )}
           >

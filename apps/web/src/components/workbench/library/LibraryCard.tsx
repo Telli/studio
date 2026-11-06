@@ -40,7 +40,7 @@ export function LibraryCard({
         {props.picture}
       </span>
       <span className="flex min-w-0 flex-col gap-1 p-3">
-        <span className="truncate text-sm font-medium text-foreground">{props.name}</span>
+        <span className="line-clamp-2 text-sm font-medium text-foreground">{props.name}</span>
         {props.blurb === undefined ? null : (
           <span className="line-clamp-2 h-[2lh] text-xs text-muted-foreground">{props.blurb}</span>
         )}
