@@ -1,8 +1,8 @@
 /**
  * Which part of Studio a route shows, for the sidebar and the top bar that replace T3's in the
  * engineering interface. Home, Chats (Needs you is its filter), Projects, the Library (with each
- * example's page, `/library/examples/$id`) and Trash are Studio's pages, Home and Trash linked from
- * the sidebar (`StudioNavLinks`) and the rest from Home and Cmd+K; and a thread or draft is a
+ * example's page, `/library/examples/$id`) and Trash are Studio's pages, Home, the Library and Trash
+ * linked from the sidebar (`StudioNavLinks`) and the rest from Home and Cmd+K; and a thread or draft is a
  * project's workspace. Every other page (settings, usage, pairing) keeps T3's own, though Settings
  * keeps Studio's sidebar around its sections (`studioPlaces`).
  */
