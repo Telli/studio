@@ -1,3 +1,4 @@
+import { plainFailure } from "./components/workbench/plainFailure";
 import { isEngineeringInterface } from "./components/workbench/studioInterface";
 import { resolveThreadWorkingStartedAt } from "@t3tools/client-runtime/state/models";
 import {
@@ -395,14 +396,15 @@ function projectedWorkEntryTone(item: OrchestrationV2TurnItem): WorkLogEntry["to
 export function providerErrorPresentation(
   item: Extract<OrchestrationV2TurnItem, { readonly type: "error" }>,
 ): { readonly label: string; readonly detail: string } {
+  const plain = isEngineeringInterface() ? plainFailure(item.failure.class) : null;
   if (item.retry === undefined) {
     return {
       label:
-        item.failure.class === "usage_limit"
+        plain?.label ??
+        (item.failure.class === "usage_limit"
           ? "Usage limit reached"
-          : item.title?.trim() ||
-            (isEngineeringInterface() ? "The AI agent ran into a problem" : "Provider error"),
-      detail: item.failure.message,
+          : item.title?.trim() || "Provider error"),
+      detail: plain?.detail ?? item.failure.message,
     };
   }
   const progress =
@@ -436,7 +438,7 @@ export function providerErrorPresentation(
       : "";
   return {
     label,
-    detail: `${item.failure.message}${retryDelay}`,
+    detail: `${plain?.detail ?? item.failure.message}${retryDelay}`,
   };
 }
 

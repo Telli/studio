@@ -619,7 +619,8 @@ import { frontTab, useShowWaitingChat } from "./workbench/overviewPanel";
 import { useProjectTabs } from "./workbench/projectTabs";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { StudioPanelBar } from "./workbench/StudioPanelBar";
-import { sendsAtOnce } from "./workbench/handToChat";
+import { handToChat, sendsAtOnce } from "./workbench/handToChat";
+import { plainFailure, TRY_AGAIN_PROMPT } from "./workbench/plainFailure";
 import { StudioToolbox } from "./workbench/StudioToolbox";
 import { ProjectPage } from "./workbench/ProjectPage";
 import { useChatPanelInlineSize } from "./workbench/useWorkbenchPanelSize";
@@ -2286,6 +2287,10 @@ export default function ChatView(props: ChatViewProps) {
     visibleThreadError === serverRuntime.lastError
       ? null
       : visibleThreadError;
+  const timelineErrorClass =
+    localServerError === null && visibleThreadError === serverRuntime?.lastError
+      ? (serverRuntime?.lastErrorClass ?? null)
+      : null;
 
   const [timelineAnchor, setTimelineAnchor] = useState<{
     readonly threadKey: string | null;
@@ -4087,6 +4092,7 @@ export default function ChatView(props: ChatViewProps) {
     },
     [activeThreadRef, retryWorkspacePreparation],
   );
+  const onTryAgain = useCallback(() => handToChat(composerRef, TRY_AGAIN_PROMPT), [composerRef]);
   const onCancelWorktreeSetup = useCallback(() => {
     if (!worktreeSetup || worktreeSetup.phase !== "running") return;
     void cancelWorktreeSetup({
@@ -11722,12 +11728,14 @@ export default function ChatView(props: ChatViewProps) {
                 onOpenProviderSetup={openProviderSetup}
               />
               <ThreadErrorBanner
-                error={timelineThreadError}
-                errorClass={
-                  localServerError === null && visibleThreadError === serverRuntime?.lastError
-                    ? (serverRuntime?.lastErrorClass ?? null)
-                    : null
+                error={
+                  engineeringInterface &&
+                  timelineThreadError !== null &&
+                  timelineErrorClass !== null
+                    ? plainFailure(timelineErrorClass).label
+                    : timelineThreadError
                 }
+                errorClass={timelineErrorClass}
                 onDismiss={() => {
                   setThreadError(activeThread.id, null);
                   dismissThreadErrorBannerForSession(threadErrorBannerKey);
@@ -11765,7 +11773,11 @@ export default function ChatView(props: ChatViewProps) {
                 onCancelWorktreeSetup={onCancelWorktreeSetup}
                 {...(paintOnlyDisplayedTimeline
                   ? {}
-                  : { retryableWorkspacePreparationRunIds, onRetryWorkspacePreparation })}
+                  : {
+                      retryableWorkspacePreparationRunIds,
+                      onRetryWorkspacePreparation,
+                      ...(engineeringInterface ? { onTryAgain } : {}),
+                    })}
                 {...(draftId ? { onWorktreeSetupWorkLocally } : {})}
                 {...(onOpenWorktreeSetupTerminal ? { onOpenWorktreeSetupTerminal } : {})}
                 isPreparingWorktree={!paintOnlyDisplayedTimeline && isPreparingWorktree}
