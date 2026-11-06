@@ -2,17 +2,16 @@ import type { ComponentPropsWithoutRef } from "react";
 
 import { cn } from "../lib/utils";
 
-export type WorkspacePageWidth = "readable" | "wide" | "expanded";
+export type WorkspacePageWidth = "wide" | "expanded";
 
 const WIDTH_CLASS: Record<WorkspacePageWidth, string> = {
-  readable: "max-w-4xl",
   wide: "max-w-5xl",
   expanded: "max-w-6xl",
 };
 
-/** Shared content frame for workspace pages. */
+/** The one content frame for workspace pages: left edge, max width, title position, section gap. */
 export function WorkspacePageContainer({
-  width = "readable",
+  width = "wide",
   className,
   ...props
 }: ComponentPropsWithoutRef<"div"> & { readonly width?: WorkspacePageWidth }) {

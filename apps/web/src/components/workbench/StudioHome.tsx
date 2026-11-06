@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
+import { type KeyboardEvent, useRef, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
 import { useNowMinute } from "~/hooks/useNowMinute";
@@ -13,6 +13,7 @@ import { Button } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import { SidebarInset } from "../ui/sidebar";
 import { Textarea } from "../ui/textarea";
+import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import type { ListedProject } from "./projectList";
 import { ENGINEERING_COMPOSER_PLACEHOLDER } from "./studioInterface";
 import { splitStarred, useStarredStore } from "./starredProjects";
@@ -21,11 +22,13 @@ import { homeLayout } from "./homeStart";
 import { ImportDropZone } from "./ImportDropZone";
 import { ImportMenu } from "./ImportMenu";
 import { NewFilesNotice } from "./NewFilesNotice";
+import { PageTitle } from "./PageTitle";
 import { waitingFirst } from "./ProjectChoices";
 import { ProjectPicker } from "./ProjectPicker";
-import { GetStarted, StartChoices, StartExamples, TILE_GRID } from "./StartChoices";
+import { GetStarted, StartChoices, StartExamples, TileGroup } from "./StartChoices";
 import { canStart, nameOfPath, type StartAttachment } from "./startProject";
 import { droppedPath, readStudioImport } from "./studioImportBridge";
+import { MODULE_HEADING, SECTION_STACK } from "./studioLayout";
 import { StudioNew } from "./StudioNew";
 import { StudioTopBar } from "./StudioTopBar";
 import { useImportActions } from "./useImportActions";
@@ -35,10 +38,6 @@ import { useProjectList } from "./useProjectList";
 import { useProjectTiles } from "./useProjectTiles";
 import { type ProjectStart, useStartOnce } from "./useStartProject";
 import { useExamples } from "./library/useSampleProject";
-
-const SECTION_LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
-/** A group within Your projects, in the project switcher's words: Starred, then Recent. */
-const GROUP_LABEL = "text-xs font-medium text-muted-foreground";
 
 /** Opens the quick find (`StudioQuickFind`): the top bar's search, and Cmd+O on Home. */
 const openFind = () => openCommandPalette();
@@ -53,7 +52,7 @@ function FindButton() {
     <button
       type="button"
       onClick={openFind}
-      className="flex h-8 w-full max-w-72 items-center gap-2 rounded-lg border border-input bg-background px-2.5 text-sm text-muted-foreground shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset dark:bg-input/32"
+      className="flex h-7 w-full max-w-72 items-center gap-2 rounded-lg border border-input bg-background px-2.5 text-sm text-muted-foreground shadow-xs/5 outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset dark:bg-input/32"
     >
       <SearchIcon className="size-4 shrink-0" aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate text-left">Find anything</span>
@@ -125,26 +124,19 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
         </StudioTopBar>
         <ImportDropZone>
           <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-both">
-            <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-8">
-              <div className="flex flex-col gap-6">
-                <h1 className="text-2xl font-semibold text-foreground">
-                  {layout === "start" ? "Where would you like to start?" : "Welcome back"}
-                </h1>
-                <NewFilesNotice environmentId={environmentId} />
-                {layout === "start" ? (
-                  <StartChoices
-                    onNewPart={() => void newPart.create()}
-                    newPartBusy={newPart.busy}
-                    importActions={importActions}
-                  />
-                ) : null}
-                <StartProject
-                  environmentId={environmentId}
-                  cards={cards}
-                  busy={busy}
-                  start={start}
+            <WorkspacePageContainer>
+              <PageTitle
+                title={layout === "start" ? "Where would you like to start?" : "Welcome back"}
+              />
+              <NewFilesNotice environmentId={environmentId} />
+              {layout === "start" ? (
+                <StartChoices
+                  onNewPart={() => void newPart.create()}
+                  newPartBusy={newPart.busy}
+                  importActions={importActions}
                 />
-              </div>
+              ) : null}
+              <StartProject environmentId={environmentId} cards={cards} busy={busy} start={start} />
               {!loaded ? null : layout === "start" ? (
                 <>
                   <StartExamples examples={examples} />
@@ -152,21 +144,19 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                 </>
               ) : (
                 <>
-                  <section aria-label="Your projects" className="flex min-w-0 flex-col gap-3">
+                  <section aria-label="Your projects" className={SECTION_STACK}>
                     {/* New and Import add a project: from a part, board or document, or from files. */}
                     <div className="flex items-center gap-2">
-                      <h2 className={SECTION_LABEL}>Your projects</h2>
+                      <h2 className={MODULE_HEADING}>Your projects</h2>
                       <div className="flex-1" />
                       {importActions === null ? null : <ImportMenu actions={importActions} />}
                       {newProject(false)}
                     </div>
                     {starred.length === 0 ? null : (
-                      <TileGroup label="Starred" action={null}>
-                        {starred.map(tile)}
-                      </TileGroup>
+                      <TileGroup label="Starred">{starred.map(tile)}</TileGroup>
                     )}
                     {recent.length === 0 ? null : (
-                      <TileGroup label={starred.length === 0 ? null : "Recent"} action={null}>
+                      <TileGroup label={starred.length === 0 ? null : "Recent"}>
                         {recent.map(tile)}
                       </TileGroup>
                     )}
@@ -174,36 +164,13 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                   <GetStarted examples={examples} />
                 </>
               )}
-            </div>
+            </WorkspacePageContainer>
           </div>
         </ImportDropZone>
       </div>
       <ImportDialogHost environmentId={environmentId} />
       {dialogs}
     </SidebarInset>
-  );
-}
-
-/**
- * A group of Home's tiles under its label (Starred, Recent), with what its heading offers. With no
- * label it is the only group, which Your projects already names.
- */
-function TileGroup(props: {
-  readonly label: string | null;
-  readonly action: ReactNode;
-  readonly children: ReactNode;
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-3">
-      {props.label === null ? null : (
-        <div className="flex items-center gap-2">
-          <h3 className={GROUP_LABEL}>{props.label}</h3>
-          <div className="flex-1" />
-          {props.action}
-        </div>
-      )}
-      <div className={TILE_GRID}>{props.children}</div>
-    </div>
   );
 }
 
@@ -224,7 +191,7 @@ function AttachedList(props: {
 }) {
   if (props.attachments.length === 0) return null;
   return (
-    <ul aria-label="Attached" className="flex flex-wrap gap-1.5">
+    <ul aria-label="Attached" className="flex flex-wrap gap-2">
       {props.attachments.map((attachment, index) => (
         <li
           key={
@@ -306,7 +273,7 @@ function StartProject(props: {
   const placeholder = chosen === null ? "Describe a new project" : ENGINEERING_COMPOSER_PLACEHOLDER;
 
   return (
-    <section aria-label="Start" className="flex min-w-0 flex-col gap-3">
+    <section aria-label="Start" className={SECTION_STACK}>
       <div
         data-attach-drop=""
         onDragOver={(event) => {
@@ -325,12 +292,12 @@ function StartProject(props: {
           attach(Array.from(event.dataTransfer.files).map(fromFile));
         }}
         className={cn(
-          "relative flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-xs/5 focus-within:border-ring",
+          "relative flex flex-col gap-2 rounded-lg border border-border bg-card p-3 shadow-xs/5 focus-within:border-ring",
           attaching && "border-ring",
         )}
       >
         {attaching ? (
-          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-background/80 text-sm font-medium text-foreground">
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/80 text-sm font-medium text-foreground">
             {bridge === null ? "Drop files to attach" : "Drop files or folders to attach"}
           </div>
         ) : null}

@@ -1469,7 +1469,7 @@ export function KeybindingsSettingsPanel() {
         {...searchableSetting("keybindings")}
         headerAction={!isElectron ? <BrowserKeybindingNotice /> : null}
       >
-        <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
+        <div className="flex flex-wrap items-center gap-2 px-3 py-3">
           <KeybindingsSearchInput query={query} onChange={setQuery} inputRef={searchInputRef} />
           <Button
             type="button"

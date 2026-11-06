@@ -7,8 +7,9 @@ import { Button } from "../ui/button";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { CHECK_STATUS } from "./CheckBadge";
 import { worstStatus } from "./checkResults";
-import { KIND_ICONS, KIND_TINT } from "./kinds";
-import { CARD_GRID, FileCard, MODULE_HEADING, ShowAll } from "./OverviewModules";
+import { fileTint, KIND_ICONS } from "./kinds";
+import { FileCard, ShowAll } from "./OverviewModules";
+import { CARD_GRID, MODULE_HEADING, SECTION_STACK } from "./studioLayout";
 import { type FolderPart, PartFooter } from "./PartBadges";
 import type { ProjectGroup } from "./projectFiles";
 import { byLatest, pictureVersions, type ProjectModel } from "./projectModels";
@@ -51,7 +52,9 @@ const fullPath = (item: FileItem) => `${item.root.replace(/[\\/]+$/, "")}/${item
 /** An item's icon in its kind's color, the way Drive tells a Doc from a Sheet. */
 function KindMark(props: { readonly group: ProjectGroup; readonly className: string }) {
   const Icon = KIND_ICONS[props.group];
-  return <Icon aria-hidden="true" className={cn("shrink-0", KIND_TINT, props.className)} />;
+  return (
+    <Icon aria-hidden="true" className={cn("shrink-0", fileTint(props.group), props.className)} />
+  );
 }
 
 /** One folder's files as cards, pictured where the server can render them; parts with their badges. */
@@ -130,11 +133,11 @@ function ListRows(props: {
         role="row"
         onClick={() => props.onOpenFile(file.root, file.file.path)}
         className={cn(
-          "grid h-11 items-center gap-3 border-b border-border px-2 text-left text-xs outline-none transition-colors duration-150 hover:bg-accent/60 focus-visible:bg-accent/60",
+          "grid items-center gap-3 border-b border-border p-3 text-left text-xs outline-none transition-colors duration-150 hover:bg-accent/60 focus-visible:bg-accent/60",
           LIST_COLUMNS,
         )}
       >
-        <span role="cell" className="flex min-w-0 items-center gap-2.5 text-foreground">
+        <span role="cell" className="flex min-w-0 items-center gap-3 text-sm text-foreground">
           <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)">
             {picture ? (
               <img src={picture} alt="" className="size-full object-cover" />
@@ -205,13 +208,13 @@ export function ProjectEverything(props: {
   const roots = [...new Set(shownFiles.map((item) => item.root))];
 
   return (
-    <section aria-label="Files" className="flex min-w-0 flex-col gap-3">
+    <section aria-label="Files" className={SECTION_STACK}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className={MODULE_HEADING}>
           Files
           <span className="tabular-nums text-muted-foreground">{items.length}</span>
         </h2>
-        <div role="group" aria-label="View" className="flex shrink-0 gap-0.5">
+        <div role="group" aria-label="View" className="flex shrink-0 gap-2">
           <Button
             variant={view === "list" ? "secondary" : "ghost-muted"}
             size="icon-sm"
@@ -256,7 +259,7 @@ export function ProjectEverything(props: {
       )}
 
       {items.length === 0 ? (
-        <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           No files yet. Use New, or describe what to make in the chat, and what the agent makes
           shows up here.
         </p>
@@ -265,7 +268,7 @@ export function ProjectEverything(props: {
           <div
             role="row"
             className={cn(
-              "grid gap-3 border-b border-border px-2 pb-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase",
+              "grid gap-3 border-b border-border px-3 pb-3 text-xs font-medium tracking-widest text-muted-foreground uppercase",
               LIST_COLUMNS,
             )}
           >

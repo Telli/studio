@@ -421,7 +421,7 @@ export function ProviderEnvironmentSection(props: {
       {rows.length > 0 ? (
         <div className="mt-3 min-w-0 space-y-2 pb-2">
           {rows.map((variable, index) => (
-            <div key={variable.id} className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <div key={variable.id} className="flex min-w-0 flex-wrap items-center gap-2">
               <DraftInput
                 size="sm"
                 font="mono"
@@ -552,7 +552,7 @@ function ProjectOverrideInheritance({
         <TooltipPopup side="top">Overridden for this project</TooltipPopup>
       </Tooltip>
       <PopoverPopup align="end" width="md" padding="none">
-        <ol role="list" className="px-3 py-2.5 text-sm">
+        <ol role="list" className="px-3 py-3 text-sm">
           {layers.map((layer) => (
             <li
               key={layer.key}
@@ -571,7 +571,7 @@ function ProjectOverrideInheritance({
               </span>
               <span
                 className={cn(
-                  "flex items-center gap-1.5",
+                  "flex items-center gap-2",
                   layer.effective ? "text-foreground" : "text-muted-foreground",
                 )}
               >
@@ -987,7 +987,7 @@ export function ProviderInstanceCard({
           {onRunVersionAction ? (
             <Button
               type="button"
-              size="xs"
+              size="sm"
               variant="outline"
               className="w-full"
               disabled={isUpdating}
@@ -1013,7 +1013,7 @@ export function ProviderInstanceCard({
             </p>
           ) : null}
           {onRunVersionAction && updateCommand ? (
-            <div className="flex items-center gap-2 text-3xs font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
               <span aria-hidden className="h-px flex-1 bg-border" />
               or, update manually using
               <span aria-hidden className="h-px flex-1 bg-border" />
@@ -1021,7 +1021,7 @@ export function ProviderInstanceCard({
           ) : null}
           {updateCommand ? (
             <div className="flex min-w-0 items-center gap-1 rounded-md border border-border/70 bg-muted/40 py-0.5 pr-0.5 pl-2">
-              <code className="min-w-0 flex-1 truncate font-mono text-2xs text-foreground">
+              <code className="min-w-0 flex-1 truncate font-mono text-xs text-foreground">
                 {updateCommand}
               </code>
               <Tooltip>
@@ -1053,7 +1053,7 @@ export function ProviderInstanceCard({
       <div
         data-slot="settings-row"
         className={cn(
-          "group flex min-h-18 items-center gap-3 px-3 py-3 transition-colors sm:px-4",
+          "group flex min-h-18 items-center gap-3 px-3 py-3 transition-colors",
           selected ? "bg-muted/45" : "hover:bg-muted/25",
         )}
       >
@@ -1081,7 +1081,7 @@ export function ProviderInstanceCard({
               ) : null}
               {versionAdvisoryNode}
             </span>
-            <span className="mt-0.5 flex items-start gap-1.5 text-xs leading-normal text-muted-foreground/80">
+            <span className="mt-0.5 flex items-start gap-2 text-xs leading-normal text-muted-foreground/80">
               {/* The dot describes provider health, not the update in progress. */}
               {statusDotNode && !updateProgress ? (
                 <span className="flex h-[1.45em] shrink-0 items-center">{statusDotNode}</span>
@@ -1132,9 +1132,9 @@ export function ProviderInstanceCard({
   }
 
   const editorHeaderAction = (
-    <div className="flex shrink-0 items-center gap-1.5">
+    <div className="flex shrink-0 items-center gap-2">
       {driverOption?.badgeLabel ? (
-        <Badge variant="warning" size="sm" className="shrink-0">
+        <Badge variant="warning" className="shrink-0">
           {driverOption.badgeLabel}
         </Badge>
       ) : null}
@@ -1149,7 +1149,7 @@ export function ProviderInstanceCard({
         {onDelete ? (
           <Button
             type="button"
-            size="icon-xs"
+            size="icon-sm"
             variant="ghost-destructive"
             disabled={readOnly}
             onClick={onDelete}
@@ -1198,9 +1198,9 @@ export function ProviderInstanceCard({
                 </div>
               </ProviderStatusDiagnostic>
               {urlAuthAction && onAcceptUrlAuth ? (
-                <div className="grid max-w-xl gap-1.5 pt-1 text-xs">
+                <div className="grid max-w-xl gap-2 pt-1 text-xs">
                   <p>{urlAuthAction.message}</p>
-                  <code className="break-all text-2xs">{urlAuthAction.url}</code>
+                  <code className="break-all text-xs">{urlAuthAction.url}</code>
                   <Button
                     render={
                       <a
@@ -1210,7 +1210,7 @@ export function ProviderInstanceCard({
                         onClick={() => onAcceptUrlAuth(urlAuthAction)}
                       />
                     }
-                    size="xs"
+                    size="sm"
                     variant="outline"
                     className="w-fit"
                     disabled={readOnly}
@@ -1321,7 +1321,7 @@ export function ProviderInstanceCard({
 
       {driverOption !== undefined ? (
         <SettingsSection title="Models">
-          <div className="px-3 py-3 sm:px-4">
+          <div className="px-3 py-3">
             <p className="mb-3 text-xs text-muted-foreground">
               Model preferences and custom models are saved on the selected environment and shared
               across connected devices.

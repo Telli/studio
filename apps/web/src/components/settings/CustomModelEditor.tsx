@@ -169,7 +169,7 @@ export function CustomModelEditor({
         className="min-w-0 flex-1"
         aria-label="Choice label"
       />
-      <label className="flex shrink-0 items-center gap-1.5 text-2xs text-muted-foreground">
+      <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
         <Switch
           size="sm"
           checked={choice.isDefault}
@@ -201,7 +201,7 @@ export function CustomModelEditor({
       className="flex flex-col gap-2 rounded-md border border-border/60 bg-background/40 p-2.5"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="w-14 shrink-0 text-2xs text-muted-foreground">Option {index + 1}</span>
+        <span className="w-14 shrink-0 text-xs text-muted-foreground">Option {index + 1}</span>
         {presets.length > 0 ? (
           <Select
             value={idSelectValue(descriptor)}
@@ -269,11 +269,11 @@ export function CustomModelEditor({
         </Button>
       </div>
       {descriptor.type === "select" ? (
-        <div className="flex flex-col gap-1.5 pl-16">
+        <div className="flex flex-col gap-2 pl-16">
           {descriptor.choices.map((choice) => renderChoice(descriptor, choice))}
           <Button
             type="button"
-            size="xs"
+            size="sm"
             variant="ghost-muted"
             className="-ml-2 self-start"
             onClick={() =>
@@ -353,7 +353,7 @@ export function CustomModelEditor({
               <Button
                 key={preset.id}
                 type="button"
-                size="xs"
+                size="sm"
                 variant="ghost-muted"
                 className={cn("-ml-2 first:ml-0")}
                 onClick={() => addDescriptor(descriptorFromPreset(preset))}
@@ -364,7 +364,7 @@ export function CustomModelEditor({
             ))}
           <Button
             type="button"
-            size="xs"
+            size="sm"
             variant="ghost-muted"
             onClick={() => addDescriptor(emptyEditorDescriptor())}
           >

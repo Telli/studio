@@ -215,13 +215,13 @@ function CleanupResults({
         );
       })}
       {report.omittedCount > 0 && (
-        <p className="px-3 py-2.5 text-xs text-muted-foreground sm:px-4">
+        <p className="px-3 py-2.5 text-xs text-muted-foreground">
           {environmentLabel ? `${environmentLabel}: ` : ""}
           {report.omittedCount.toLocaleString()} more results.
         </p>
       )}
       {report.entries.length === 0 && report.omittedCount === 0 && (
-        <p className="px-3 py-2.5 text-xs text-muted-foreground sm:px-4">
+        <p className="px-3 py-2.5 text-xs text-muted-foreground">
           {environmentLabel ? `${environmentLabel}: ` : ""}Nothing needed cleanup.
         </p>
       )}

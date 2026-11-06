@@ -106,7 +106,7 @@ export function CodexSetupSection(props: CodexSetupSectionProps) {
         }
         control={
           existingReady ? (
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success-foreground">
+            <span className="inline-flex items-center gap-2 text-xs font-medium text-success-foreground">
               <CheckIcon className="size-3.5" />
               Ready
             </span>
@@ -715,7 +715,7 @@ function ManagedCodexSetup({
         {!remoteWeb ? (
           <div>
             <Button
-              size="xs"
+              size="sm"
               variant="ghost-muted"
               onClick={() => void ensureLocalApi().shell.openExternal(url)}
             >
@@ -828,7 +828,7 @@ function ManagedCodexSetup({
           }
           control={
             authenticated && !busy ? (
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success-foreground">
+              <span className="inline-flex items-center gap-2 text-xs font-medium text-success-foreground">
                 <CheckIcon className="size-3.5" />
                 Ready
               </span>
@@ -1008,18 +1008,18 @@ function ManagedCodexSetup({
         }
       />
       {authenticated ? (
-        <div className="flex justify-end px-3 py-1 sm:px-4">
+        <div className="flex justify-end px-3 py-1">
           <ChatGptUsageButton />
         </div>
       ) : null}
       {logoutWarning ? (
-        <p role="alert" className="px-3 py-2 text-xs text-muted-foreground sm:px-4">
+        <p role="alert" className="px-3 py-2 text-xs text-muted-foreground">
           {logoutWarning}
         </p>
       ) : null}
-      {callbackFallback ? <div className="px-3 py-3 sm:px-4">{callbackFallback}</div> : null}
+      {callbackFallback ? <div className="px-3 py-3">{callbackFallback}</div> : null}
       {error || authQuery.error || installQuery.error || installation?.phase === "failed" ? (
-        <p role="alert" className="px-3 py-2 text-xs text-destructive sm:px-4">
+        <p role="alert" className="px-3 py-2 text-xs text-destructive">
           {error ??
             (installation?.phase === "failed"
               ? installation.message
@@ -1118,7 +1118,7 @@ function CodexSignInDescription({
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-1.5 rounded-sm text-left leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      className="inline-flex items-center gap-2 rounded-sm text-left leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       aria-label="Having trouble signing in?"
       aria-expanded={expanded}
       aria-controls={controls}

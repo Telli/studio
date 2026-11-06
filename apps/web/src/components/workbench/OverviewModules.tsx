@@ -12,6 +12,7 @@ import { KIND_ICONS, KIND_TINT } from "./kinds";
 import { readmeInline } from "./projectReadme";
 import { filePlaces, type ProjectFile, type ProjectGroup } from "./projectFiles";
 import { useEngineeringInterface } from "./studioInterface";
+import { CARD_GRID, MODULE_HEADING, SECTION_STACK } from "./studioLayout";
 import { usePictures } from "./usePictures";
 
 /** A module shows this many files before "Show all": two rows of cards at most widths. */
@@ -21,12 +22,7 @@ const PHOTO = /\.(?:png|jpe?g|webp|gif)$/i;
 /** Documents shown as a page: their title and how they open. */
 const PAGE = /\.(?:md|mdx|txt)$/i;
 
-/** The card grid every module of files uses. */
-export const CARD_GRID = "grid grid-cols-2 gap-3 @xl:grid-cols-3 @4xl:grid-cols-4";
 const FOLDED_KEY = "studio:overview-folded";
-
-export const MODULE_HEADING =
-  "flex items-baseline gap-2 text-xs font-medium tracking-widest text-muted-foreground uppercase";
 
 function readFolded(): Record<string, ReadonlyArray<string>> {
   try {
@@ -73,7 +69,7 @@ export function ShowAll(props: {
     <button
       type="button"
       onClick={props.onToggle}
-      className="mt-2 self-start text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
+      className="self-start text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
     >
       {props.all ? "Show fewer" : `Show all ${props.count}`}
     </button>
@@ -150,9 +146,7 @@ export function OverviewModule(props: {
         </button>
         {props.folded ? null : props.action}
       </div>
-      {props.folded ? null : (
-        <div className="mt-1.5 flex flex-col border-t border-border">{props.children}</div>
-      )}
+      {props.folded ? null : <div className="mt-3 flex flex-col gap-3">{props.children}</div>}
     </section>
   );
 }
@@ -219,13 +213,13 @@ export function TextPage(props: { readonly text: string }) {
     .map(plainText)
     .join(" ");
   return (
-    <span className="flex size-full flex-col gap-1 overflow-hidden bg-background px-3 py-2.5 text-left">
+    <span className="flex size-full flex-col gap-1 overflow-hidden bg-background p-3 text-left">
       {heading === undefined ? null : (
-        <span className="line-clamp-2 text-2xs font-semibold text-foreground">
+        <span className="line-clamp-2 text-xs font-semibold text-foreground">
           {plainText(heading)}
         </span>
       )}
-      <span className="line-clamp-6 text-2xs leading-snug text-muted-foreground">{body}</span>
+      <span className="line-clamp-6 text-xs leading-snug text-muted-foreground">{body}</span>
     </span>
   );
 }
@@ -249,12 +243,12 @@ export function FileCard(props: {
   const Icon = KIND_ICONS[props.file.group];
   const photo = PHOTO.test(props.file.path);
   return (
-    <div className="flex min-w-0 flex-col gap-1.5">
+    <div className="flex min-w-0 flex-col gap-2">
       <button
         type="button"
         onClick={props.onOpen}
         aria-label={`Open ${props.file.title}`}
-        className="flex aspect-[4/3] min-w-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground) outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="flex aspect-[4/3] min-w-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-(--model-ground) outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {props.picture ? (
           <img src={props.picture} alt="" className="size-full object-contain" />
@@ -272,7 +266,7 @@ export function FileCard(props: {
         )}
       </button>
       <div className="flex min-w-0 flex-col">
-        <span className="truncate text-xs font-medium text-foreground">{props.file.title}</span>
+        <span className="truncate text-sm font-medium text-foreground">{props.file.title}</span>
         <span className="truncate text-xs text-muted-foreground">
           {props.file.kind}
           {props.place === undefined ? "" : ` · ${props.place}`}
@@ -343,7 +337,7 @@ export function FilesModule(props: {
       wide
       {...(props.action === undefined ? {} : { action: props.action })}
     >
-      <div className={cn(CARD_GRID, "pt-3")}>
+      <div className={CARD_GRID}>
         {roots.map((root) => (
           <FolderCards
             key={root}
@@ -369,9 +363,9 @@ export function StartModule(props: {
   readonly onStartPart: (() => void) | null;
 }) {
   return (
-    <section aria-label="Parts" className="flex min-w-0 flex-col">
+    <section aria-label="Parts" className={SECTION_STACK}>
       <h2 className={MODULE_HEADING}>Parts</h2>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border pt-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <p className="text-xs text-muted-foreground">
           {props.byHand
             ? "No part yet. Start a part by hand, or describe it in the chat."
@@ -379,7 +373,7 @@ export function StartModule(props: {
         </p>
         {props.onStartPart === null ? null : (
           <Button
-            size="xs"
+            size="sm"
             variant={props.byHand ? "default" : "outline"}
             onClick={props.onStartPart}
           >

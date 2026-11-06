@@ -3,6 +3,7 @@ import { BoxIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { cn } from "~/lib/utils";
+import { MODULE_HEADING, SECTION_STACK } from "./studioLayout";
 import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
@@ -18,8 +19,6 @@ import {
   volumeLine,
   type Comparison,
 } from "./versions";
-
-const LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
 
 export interface VersionChoice {
   readonly id: string;
@@ -44,8 +43,8 @@ function Picture(props: {
   readonly caption?: string;
 }) {
   return (
-    <figure className="flex min-w-0 flex-col gap-1.5">
-      <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)">
+    <figure className="flex min-w-0 flex-col gap-2">
+      <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-lg border border-border bg-(--model-ground)">
         {props.src ? (
           <img src={props.src} alt={props.alt} className="size-full object-contain" />
         ) : (
@@ -63,8 +62,8 @@ function Picture(props: {
 
 function Facts(props: { readonly title: string; readonly lines: ReadonlyArray<string> }) {
   return (
-    <section className="flex flex-col gap-1.5" aria-label={props.title}>
-      <h4 className={LABEL}>{props.title}</h4>
+    <section className={SECTION_STACK} aria-label={props.title}>
+      <h4 className={MODULE_HEADING}>{props.title}</h4>
       <ul className="flex flex-col gap-1 text-xs text-foreground tabular-nums">
         {props.lines.map((line) => (
           <li key={line} className="break-words">
@@ -224,12 +223,12 @@ export function WhatChanged(props: {
         )}
       </div>
 
-      <div className="grid min-w-0 items-start gap-4 @3xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="grid min-w-0 items-start gap-3 @3xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-2">
           {comparison === null ? (
             <Picture src={undefined} alt="" />
           ) : sideBySide ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <Picture
                 src={pictures.get(comparison.files.older)}
                 alt={props.older.label}
@@ -252,15 +251,15 @@ export function WhatChanged(props: {
               className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"
               aria-hidden="true"
             >
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-2">
                 <span className="size-2.5 rounded-sm bg-success" />
                 Added
               </span>
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-2">
                 <span className="size-2.5 rounded-sm bg-destructive" />
                 Removed
               </span>
-              <span className="flex items-center gap-1.5">
+              <span className="flex items-center gap-2">
                 <span className="size-2.5 rounded-sm bg-muted-foreground/40" />
                 Unchanged
               </span>
@@ -270,14 +269,14 @@ export function WhatChanged(props: {
             <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {note}
               {shape?.status === "failed" || (state?.error ?? null) !== null ? (
-                <Button variant="ghost" size="xs" onClick={retry}>
+                <Button variant="ghost" size="sm" onClick={retry}>
                   Try again
                 </Button>
               ) : null}
             </p>
           )}
         </div>
-        <div className="flex min-w-0 flex-col gap-4">
+        <div className={SECTION_STACK}>
           {sizes === null ? null : (
             <Facts
               title="Dimensions that changed"
@@ -292,7 +291,7 @@ export function WhatChanged(props: {
       {script && comparison?.script ? (
         <pre
           aria-label="The part script's changed lines"
-          className="max-h-72 overflow-auto rounded-md border border-border bg-muted/30 py-2 font-mono text-xs leading-relaxed"
+          className="max-h-72 overflow-auto rounded-lg border border-border bg-muted/30 py-2 font-mono text-xs leading-relaxed"
         >
           {scriptRows(comparison.script.older ?? "", comparison.script.newer ?? "").map((row) =>
             row.kind === "folded" ? (

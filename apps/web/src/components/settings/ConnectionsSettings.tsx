@@ -388,7 +388,7 @@ function formatDesktopSshConnectionError(error: unknown): string {
   return withoutTaggedErrorPrefix.trim() || fallback;
 }
 
-const ENDPOINT_ROW_CLASSNAME = "first:rounded-t-xl last:rounded-b-xl px-3 py-2.5 sm:px-4";
+const ENDPOINT_ROW_CLASSNAME = "first:rounded-t-xl last:rounded-b-xl px-3 py-2.5";
 
 type AccessSectionPresentation = "current" | "endpoint-rail";
 
@@ -399,7 +399,7 @@ function accessRowClassName(_presentation: AccessSectionPresentation) {
 function endpointRowClassName(presentation: AccessSectionPresentation, isAvailable: boolean) {
   if (presentation === "endpoint-rail") {
     return cn(
-      "relative first:rounded-t-xl last:rounded-b-xl px-3 py-3 sm:px-4",
+      "relative first:rounded-t-xl last:rounded-b-xl px-3 py-3",
       !isAvailable && "bg-muted/15",
     );
   }
@@ -3717,7 +3717,7 @@ export function ConnectionsSettings() {
               </>
             ) : null}
             {primaryEnvironment ? (
-              <details className="group px-3 sm:px-4">
+              <details className="group px-3">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                   Permissions
                   <ChevronRightIcon

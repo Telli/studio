@@ -31,13 +31,13 @@ export function LibraryCard({
       type="button"
       onClick={props.onOpen}
       disabled={props.disabled}
-      className="flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-background text-left outline-none transition-colors duration-150 enabled:hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:opacity-64"
+      className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background text-left outline-none transition-colors duration-150 enabled:hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:opacity-64"
     >
       {/* A page's words in the picture would be read out as the name. */}
       <span aria-hidden="true" className="flex flex-col">
         {props.picture}
       </span>
-      <span className="flex min-w-0 flex-col gap-0.5 px-3 py-2">
+      <span className="flex min-w-0 flex-col gap-1 p-3">
         <span className="truncate text-sm font-medium text-foreground">{props.name}</span>
         {props.note === null ? null : (
           <span className="truncate text-xs text-muted-foreground">{props.note}</span>

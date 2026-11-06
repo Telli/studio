@@ -70,7 +70,7 @@ export function ProjectTile(props: {
                 props.onMenu?.({ x: event.clientX, y: event.clientY });
               }
         }
-        className="group flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <span className="flex aspect-[4/3] items-center justify-center overflow-hidden border-b border-border bg-(--model-ground)">
           {picture ? (
@@ -83,7 +83,7 @@ export function ProjectTile(props: {
         </span>
         <span
           className={cn(
-            "flex min-w-0 flex-col gap-1 px-3 py-2.5",
+            "flex min-w-0 flex-col gap-1 p-3",
             // Room for the "…" at its end, so a long name stops short of it.
             props.onMenu !== undefined && "pe-9",
           )}
@@ -91,13 +91,9 @@ export function ProjectTile(props: {
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate text-sm font-medium text-foreground">{project.name}</span>
             {first !== undefined ? (
-              <Badge variant="info" size="sm">
-                Needs you
-              </Badge>
+              <Badge variant="info">Needs you</Badge>
             ) : activity.isNew ? (
-              <Badge variant="info" size="sm">
-                New
-              </Badge>
+              <Badge variant="info">New</Badge>
             ) : null}
           </span>
           <span
@@ -113,7 +109,7 @@ export function ProjectTile(props: {
       <StarButton
         id={props.id}
         name={project.name}
-        className="absolute top-1.5 right-1.5 bg-background/85 opacity-0 group-hover/tile:opacity-100 group-focus-within/tile:opacity-100 data-[starred]:opacity-100"
+        className="absolute top-2 right-2 bg-background/85 opacity-0 group-hover/tile:opacity-100 group-focus-within/tile:opacity-100 data-[starred]:opacity-100"
       />
       {props.onMenu === undefined ? null : (
         <button
@@ -123,7 +119,7 @@ export function ProjectTile(props: {
             const box = event.currentTarget.getBoundingClientRect();
             props.onMenu?.({ x: box.left, y: box.bottom });
           }}
-          className="absolute right-1.5 bottom-2 flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-opacity duration-150 hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset group-hover/tile:opacity-100"
+          className="absolute right-2 bottom-2 flex size-7 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-opacity duration-150 hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset group-hover/tile:opacity-100"
         >
           <EllipsisIcon className="size-4" aria-hidden="true" />
         </button>

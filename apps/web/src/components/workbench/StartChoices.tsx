@@ -1,7 +1,7 @@
 import type { StudioSample } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { DownloadIcon, type LucideIcon } from "lucide-react";
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps, type ReactNode, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import { ExampleCard } from "./examples/ExampleCard";
@@ -9,10 +9,9 @@ import { NEEDS_DESKTOP_APP } from "./examples/examples";
 import { readGetStartedFolded, writeGetStartedFolded } from "./homeStart";
 import { ImportMenu } from "./ImportMenu";
 import { KIND_ICONS, KIND_TINT } from "./kinds";
-import { HeadingLink, MODULE_HEADING, OverviewModule } from "./OverviewModules";
+import { HeadingLink, OverviewModule } from "./OverviewModules";
+import { GROUP_LABEL, MODULE_HEADING, SECTION_STACK, TILE_GRID } from "./studioLayout";
 
-/** Home's tiles, four across on a wide window: the project tiles and the examples line up. */
-export const TILE_GRID = "grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4";
 /** How many examples the Get started strip shows: one row; All examples has every one. */
 const STRIP_EXAMPLES = 4;
 
@@ -44,10 +43,10 @@ function StartChoice({
       {...rest}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
-      className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-4 text-left shadow-xs/5 outline-none transition-colors duration-150 enabled:hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:opacity-64"
+      className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-3 text-left shadow-xs/5 outline-none transition-colors duration-150 enabled:hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:opacity-64"
     >
       <Icon aria-hidden="true" className={cn("size-6", tint ?? "text-foreground/75")} />
-      <span className="flex min-w-0 flex-col gap-0.5">
+      <span className="flex min-w-0 flex-col gap-1">
         <span className="text-sm font-medium text-foreground">{label}</span>
         <span className="text-sm text-muted-foreground">{note}</span>
       </span>
@@ -77,7 +76,7 @@ export function StartChoices(props: {
     />
   );
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <StartChoice
         icon={KIND_ICONS.CAD}
         tint={KIND_TINT}
@@ -95,6 +94,16 @@ export function StartChoices(props: {
       ) : (
         <ImportMenu actions={props.importActions} trigger={importCard} />
       )}
+    </div>
+  );
+}
+
+/** A group of tiles under its label (Starred, Recent); with none it is the only group. */
+export function TileGroup(props: { readonly label: string | null; readonly children: ReactNode }) {
+  return (
+    <div className={SECTION_STACK}>
+      {props.label === null ? null : <h3 className={GROUP_LABEL}>{props.label}</h3>}
+      <div className={TILE_GRID}>{props.children}</div>
     </div>
   );
 }
@@ -119,7 +128,7 @@ function ExampleTiles(props: { readonly examples: ReadonlyArray<StudioSample> })
 export function StartExamples(props: { readonly examples: ReadonlyArray<StudioSample> }) {
   if (props.examples.length === 0) return null;
   return (
-    <section aria-label="Get started" className="flex min-w-0 flex-col gap-3">
+    <section aria-label="Get started" className={SECTION_STACK}>
       <h2 className={MODULE_HEADING}>Get started</h2>
       <ExampleTiles examples={props.examples} />
     </section>
@@ -147,9 +156,7 @@ export function GetStarted(props: { readonly examples: ReadonlyArray<StudioSampl
         <HeadingLink label="All examples" onClick={() => void navigate({ to: "/library" })} />
       }
     >
-      <div className="pt-3">
-        <ExampleTiles examples={props.examples.slice(0, STRIP_EXAMPLES)} />
-      </div>
+      <ExampleTiles examples={props.examples.slice(0, STRIP_EXAMPLES)} />
     </OverviewModule>
   );
 }

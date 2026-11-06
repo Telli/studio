@@ -83,7 +83,7 @@ export function NewFilesNotice(props: { readonly environmentId: EnvironmentId })
   return (
     <div
       role="status"
-      className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-muted/40 px-4 py-3"
+      className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/40 p-3"
     >
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="text-sm font-medium text-foreground">

@@ -90,7 +90,7 @@ function TrashPageFor(props: { readonly environmentId: EnvironmentId }) {
           {entries.map((entry) => (
             <li
               key={entry.id}
-              className="flex min-w-0 items-center gap-3 border-b border-border py-2"
+              className="flex min-w-0 items-center gap-3 border-b border-border p-3"
             >
               <ProjectThumb environmentId={environmentId} project={entry} />
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
@@ -99,22 +99,24 @@ function TrashPageFor(props: { readonly environmentId: EnvironmentId }) {
               <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
                 Moved to Trash {formatRelativeTimeLabel(entry.trashedAt)}
               </span>
-              <Button
-                variant="outline"
-                size="xs"
-                disabled={busy.has(entry.id)}
-                onClick={() => run(entry.id, trash.restoreProject)}
-              >
-                Restore
-              </Button>
-              <Button
-                variant="destructive-outline"
-                size="xs"
-                disabled={busy.has(entry.id)}
-                onClick={() => setDeleting({ id: entry.id, name: entry.name })}
-              >
-                Delete forever
-              </Button>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy.has(entry.id)}
+                  onClick={() => run(entry.id, trash.restoreProject)}
+                >
+                  Restore
+                </Button>
+                <Button
+                  variant="destructive-outline"
+                  size="sm"
+                  disabled={busy.has(entry.id)}
+                  onClick={() => setDeleting({ id: entry.id, name: entry.name })}
+                >
+                  Delete forever
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

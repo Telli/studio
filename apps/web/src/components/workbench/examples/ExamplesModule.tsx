@@ -2,8 +2,8 @@ import type { StudioSample } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { cn } from "~/lib/utils";
-import { CARD_GRID, OverviewModule } from "../OverviewModules";
+import { OverviewModule } from "../OverviewModules";
+import { CARD_GRID } from "../studioLayout";
 import { EXAMPLES_ICON } from "../kinds";
 import { ExampleCard } from "./ExampleCard";
 
@@ -31,11 +31,11 @@ export function ExamplesModule(props: { readonly examples: ReadonlyArray<StudioS
         folded={folded}
         onFold={() => setFolded((value) => !value)}
       >
-        <p className="pt-1 text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Finished projects Studio ships with, view only. Open one to see what it shows, then make a
           copy to edit.
         </p>
-        <div className={cn(CARD_GRID, "pt-3")}>
+        <div className={CARD_GRID}>
           {matching.map((sample) => (
             <ExampleCard
               key={sample.id}

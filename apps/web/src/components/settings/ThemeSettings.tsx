@@ -38,6 +38,7 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { Button } from "../ui/button";
+import { MODULE_HEADING } from "../workbench/studioLayout";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import { ThemeImportDialog } from "./ThemeImportDialog";
@@ -154,7 +155,7 @@ function ThemeLibraryCard({
         render={
           <div
             className={cn(
-              "cursor-pointer overflow-hidden rounded-xl border border-border/70 bg-card/60 transition-colors hover:bg-accent/10",
+              "cursor-pointer overflow-hidden rounded-lg border border-border/70 bg-card/60 transition-colors hover:bg-accent/10",
               isActive && "bg-accent/30",
             )}
             data-theme-library-card={theme.id}
@@ -231,12 +232,12 @@ function ThemeLibraryCard({
                           </button>
                         </ThemeVariantTooltip>
                         <span
-                          className="pointer-events-none absolute bottom-0 left-1/2 inline-flex max-w-24 -translate-x-1/2 items-center gap-1 text-2xs font-medium text-foreground"
+                          className="pointer-events-none absolute bottom-0 left-1/2 inline-flex max-w-24 -translate-x-1/2 items-center gap-1 text-xs font-medium text-foreground"
                           style={{ marginLeft: rootOffsetX }}
                         >
                           <span className="truncate">{selected.option.label}</span>
                           {options.length > 1 ? (
-                            <span className="shrink-0 rounded-full bg-muted px-1 text-3xs text-muted-foreground">
+                            <span className="shrink-0 rounded-full bg-muted px-1 text-xs text-muted-foreground">
                               +{options.length - 1}
                             </span>
                           ) : null}
@@ -301,7 +302,7 @@ function ThemeLibraryCard({
             </div>
             <div className="flex items-center gap-2 px-3 pb-3 pt-2">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <button
                     aria-label={`Use ${variantNavigation ? `${variantNavigation.collectionLabel}, ${theme.label} variant` : `${theme.label} theme`}${isActive ? ", currently active" : ""}`}
                     aria-pressed={isActive}
@@ -324,7 +325,7 @@ function ThemeLibraryCard({
                         render={
                           <Button
                             aria-label={`Duplicate ${theme.label}`}
-                            size="icon-xs"
+                            size="icon-sm"
                             variant="ghost"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -344,7 +345,7 @@ function ThemeLibraryCard({
                         render={
                           <Button
                             aria-label={`Edit ${theme.label}`}
-                            size="icon-xs"
+                            size="icon-sm"
                             variant="ghost"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -364,7 +365,7 @@ function ThemeLibraryCard({
                         render={
                           <Button
                             aria-label={`Export ${theme.label}`}
-                            size="icon-xs"
+                            size="icon-sm"
                             variant="ghost"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -388,7 +389,7 @@ function ThemeLibraryCard({
                                 ? `Remove themes from ${variantNavigation.collectionLabel}`
                                 : `Remove ${theme.label}`
                             }
-                            size="icon-xs"
+                            size="icon-sm"
                             variant="ghost-destructive"
                             onClick={(event) => {
                               event.stopPropagation();
@@ -728,7 +729,7 @@ export function ThemeLibrary({
             aria-label={mode === "system" ? "Follow the system appearance" : `Use ${mode} mode`}
             aria-pressed={isActive}
             className={cn(
-              "flex cursor-pointer flex-col items-stretch gap-1.5 rounded-xl border p-2 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring",
+              "flex cursor-pointer flex-col items-stretch gap-2 rounded-lg border p-2 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring",
               isActive
                 ? "border-transparent bg-accent/30"
                 : "border-border/70 bg-card/60 hover:bg-accent/10",
@@ -886,17 +887,13 @@ export function ThemeLibrary({
 
   return (
     <div className="space-y-3">
-      <h3 className="px-3 text-sm font-normal text-foreground/70 sm:px-4">
-        {searchableSetting("color-scheme").title}
-      </h3>
+      <h3 className={MODULE_HEADING}>{searchableSetting("color-scheme").title}</h3>
       {renderModeTiles()}
-      <div className="flex min-h-8 flex-wrap items-center justify-between gap-3 px-3 pt-2 sm:px-4">
-        <h3 className="text-sm font-normal text-foreground/70">
-          {searchableSetting("theme").title}
-        </h3>
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3">
+        <h3 className={MODULE_HEADING}>{searchableSetting("theme").title}</h3>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onClick={() =>
               openThemeEditor({
@@ -910,7 +907,7 @@ export function ThemeLibrary({
             <PaintbrushIcon />
             Create theme
           </Button>
-          <Button size="xs" variant="outline" onClick={() => onImportOpenChange(true)}>
+          <Button size="sm" variant="outline" onClick={() => onImportOpenChange(true)}>
             <PlusIcon />
             Add theme
           </Button>

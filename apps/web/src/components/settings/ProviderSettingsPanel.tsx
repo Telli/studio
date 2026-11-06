@@ -214,7 +214,7 @@ function ProviderSettingsPlaceholder({
   return (
     <SettingsSection {...searchableSetting("providers")} variant="plain">
       {deviceTabs ? (
-        <div className="flex min-h-11 min-w-0 items-center px-3 sm:px-4">{deviceTabs}</div>
+        <div className="flex min-h-11 min-w-0 items-center px-3">{deviceTabs}</div>
       ) : null}
       <SettingsGroup
         divided={false}
@@ -296,7 +296,7 @@ interface ProviderSettingsTarget {
 export function ProviderSettingsPanel(target: ProviderSettingsTarget) {
   const engineering = useEngineeringInterface();
   return (
-    <SettingsPageContainer className="@container/providers gap-8">
+    <SettingsPageContainer className="@container/providers">
       {/* The engineering composer has no model picker: the model new chats start on is chosen here. */}
       {engineering && target.scoped ? (
         <SettingsSection id="new-chats-model" title="New chats">
@@ -1167,7 +1167,7 @@ export function EnvironmentProviderSettings({
               <TooltipTrigger
                 render={
                   <Button
-                    size="icon-xs"
+                    size="icon-sm"
                     variant="ghost-muted"
                     onClick={() => setIsAddInstanceDialogOpen(true)}
                     aria-label="Add provider"
@@ -1187,7 +1187,7 @@ export function EnvironmentProviderSettings({
               <TooltipTrigger
                 render={
                   <Button
-                    size="xs"
+                    size="sm"
                     variant="ghost-muted"
                     disabled={isRefreshingProviders || !canRefreshProviders}
                     aria-busy={isRefreshingProviders}
@@ -1211,7 +1211,7 @@ export function EnvironmentProviderSettings({
         }
       >
         {deviceTabs ? (
-          <div className="flex min-h-11 min-w-0 items-center gap-2 px-3 sm:px-4">{deviceTabs}</div>
+          <div className="flex min-h-11 min-w-0 items-center gap-2 px-3">{deviceTabs}</div>
         ) : null}
         {readOnly ? (
           <SettingsGroup divided={false} className="overflow-hidden">
@@ -1239,7 +1239,7 @@ export function EnvironmentProviderSettings({
                 {!readOnly ? (
                   <button
                     type="button"
-                    className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-left text-sm text-muted-foreground transition-colors outline-none hover:bg-muted/25 hover:text-foreground focus-visible:bg-muted/25 focus-visible:text-foreground sm:px-4"
+                    className="flex w-full cursor-pointer items-center gap-3 px-3 py-3 text-left text-sm text-muted-foreground transition-colors outline-none hover:bg-muted/25 hover:text-foreground focus-visible:bg-muted/25 focus-visible:text-foreground"
                     onClick={() => setIsAddInstanceDialogOpen(true)}
                   >
                     <PlusIcon className="size-4 shrink-0" />
@@ -1279,7 +1279,7 @@ export function EnvironmentProviderSettings({
         <SettingsRow
           id={searchableSetting("provider-health-check-interval").id}
           title={
-            <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-2">
               {searchableSetting("provider-health-check-interval").title}
               <PolicyTooltip>
                 This interval is configured here, then the shared Background activity policy decides

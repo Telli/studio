@@ -144,6 +144,7 @@ import {
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { StudioInterfaceSetting } from "../workbench/StudioInterfaceSetting";
 import { engineeringSettingCopy } from "../workbench/engineeringSettings";
+import { MODULE_HEADING } from "../workbench/studioLayout";
 import { useEngineeringInterface } from "../workbench/studioInterface";
 import { Switch } from "../ui/switch";
 import { ScopedSwitch } from "./ScopedSwitch";
@@ -304,7 +305,7 @@ function AboutVersionTitle(props: { readonly version?: string | undefined }) {
   return (
     <span className="inline-flex items-baseline gap-2">
       <span>Version</span>
-      <code className="text-2xs font-medium text-muted-foreground">
+      <code className="text-xs font-medium text-muted-foreground">
         {props.version || APP_VERSION}
       </code>
     </span>
@@ -947,7 +948,7 @@ function BackgroundActivityAdvancedDialog({
         <DialogPanel>
           <fieldset
             disabled={!canWriteSettings}
-            className="min-w-0 overflow-hidden rounded-xl border bg-card text-card-foreground"
+            className="min-w-0 overflow-hidden rounded-lg border bg-card text-card-foreground"
           >
             <div className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 space-y-1">
@@ -2160,12 +2161,10 @@ function LegacyFeaturesSection() {
   }, [searchTargetId]);
 
   return (
-    <section id="legacy-features" ref={targetRef} tabIndex={-1} className="space-y-2.5">
+    <section id="legacy-features" ref={targetRef} tabIndex={-1} className="space-y-3">
       <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger className="group flex min-h-8 w-full items-center gap-2 px-3 sm:px-4">
-          <h2 className="text-sm font-normal text-foreground/70 transition-colors group-hover:text-foreground">
-            Legacy features
-          </h2>
+        <CollapsibleTrigger className="group flex w-full items-center gap-2">
+          <h2 className={MODULE_HEADING}>Legacy features</h2>
           <ChevronRightIcon className="size-4 text-muted-foreground transition-transform duration-200 group-data-panel-open:rotate-90" />
         </CollapsibleTrigger>
         <CollapsiblePanel>
@@ -3008,7 +3007,7 @@ export function GeneralSettingsPanel() {
           settingKeys={["backgroundActivity"]}
           id={searchableSetting("background-activity").id}
           title={
-            <span className="inline-flex items-center gap-1.5">
+            <span className="inline-flex items-center gap-2">
               {searchableSetting("background-activity").title}
               <PolicyTooltip>
                 This shared policy gates background work such as Git refreshes and provider health
@@ -3314,7 +3313,7 @@ export function GeneralSettingsPanel() {
                 No text generation providers available.
               </span>
             ) : (
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 <ProviderModelPicker
                   environmentId={environmentId}
                   activeInstanceId={textGenInstanceId}
@@ -3701,7 +3700,7 @@ export function ArchivedThreadsPanel() {
                   <Button
                     type="button"
                     variant="outline"
-                    size="xs"
+                    size="sm"
                     className="shrink-0"
                     onClick={() => {
                       void (async () => {

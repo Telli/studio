@@ -42,7 +42,7 @@ export function CheckBadge(props: { readonly result: CheckResult; readonly onOpe
           />
         }
       >
-        <Badge variant={variant} size="sm">
+        <Badge variant={variant}>
           <Icon aria-hidden="true" />
           {result.check}
         </Badge>

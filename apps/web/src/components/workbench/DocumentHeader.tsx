@@ -27,7 +27,7 @@ function Cell(props: {
     <div
       className={`flex min-w-0 flex-col justify-center gap-0.5 border-r border-border px-3 last:border-r-0 ${props.grow ? "flex-1" : "shrink-0"}`}
     >
-      <dt className="text-2xs leading-none font-medium tracking-widest text-muted-foreground uppercase">
+      <dt className="text-xs leading-none font-medium tracking-widest text-muted-foreground uppercase">
         {props.label}
       </dt>
       <dd className="truncate text-xs leading-tight text-foreground">{props.children}</dd>

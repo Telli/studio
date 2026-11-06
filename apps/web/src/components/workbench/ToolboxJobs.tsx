@@ -10,6 +10,7 @@ import {
 } from "../ui/tooltip";
 import type { HardwareAction } from "./hardwareActions";
 import type { ToolboxSection } from "./toolbox";
+import { GROUP_LABEL, SECTION_STACK } from "./studioLayout";
 import { KIND_TINT } from "./kinds";
 import { toolIcon } from "./toolIcons";
 
@@ -21,11 +22,9 @@ export function SectionJobs(props: {
   readonly onRun: (action: HardwareAction) => void;
 }) {
   return (
-    <section className="flex flex-col gap-1.5">
-      <h4 className="truncate px-1 text-xs font-medium text-muted-foreground">
-        {props.section.title}
-      </h4>
-      <div className="grid grid-cols-2 gap-1.5">
+    <section className={SECTION_STACK}>
+      <h4 className={`${GROUP_LABEL} truncate`}>{props.section.title}</h4>
+      <div className="grid grid-cols-2 gap-2">
         {props.section.actions.map((action) => (
           <ToolTile
             key={action.id}
@@ -65,7 +64,7 @@ function ToolTile(props: {
             disabled={props.disabled}
             onClick={props.onRun}
             aria-describedby={describedBy}
-            className="flex h-15 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-background px-1.5 text-center outline-none transition-[border-color,background-color,scale] duration-150 dark:bg-input/32 enabled:hover:border-foreground/25 enabled:hover:bg-accent/50 dark:enabled:hover:bg-input/64 enabled:active:scale-97 enabled:active:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:opacity-64 motion-reduce:transition-none motion-reduce:enabled:active:scale-100"
+            className="flex h-15 min-w-0 flex-col items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 text-center outline-none transition-[border-color,background-color,scale] duration-150 dark:bg-input/32 enabled:hover:border-foreground/25 enabled:hover:bg-accent/50 dark:enabled:hover:bg-input/64 enabled:active:scale-97 enabled:active:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset disabled:cursor-default disabled:opacity-64 motion-reduce:transition-none motion-reduce:enabled:active:scale-100"
           />
         }
       >

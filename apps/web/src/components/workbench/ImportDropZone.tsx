@@ -54,7 +54,7 @@ export function ImportDropZone(props: {
     >
       {props.children}
       {dragging === null ? null : (
-        <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary/60 bg-primary/[0.035]">
+        <div className="pointer-events-none absolute inset-3 z-40 flex items-center justify-center rounded-lg border-2 border-dashed border-primary/60 bg-primary/[0.035]">
           <div
             role="status"
             className="flex items-center gap-2 rounded-full border border-primary/25 bg-background/95 px-4 py-2.5 text-sm font-medium text-foreground shadow-lg"

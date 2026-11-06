@@ -7,6 +7,7 @@ import type { ComposerHandleRef } from "~/composerHandleContext";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { useEnvironmentScope } from "~/state/session";
 import { Button } from "../ui/button";
+import { MODULE_HEADING } from "./studioLayout";
 import {
   Dialog,
   DialogDescription,
@@ -44,11 +45,8 @@ function SpecRow(props: {
   readonly children: ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3 border-b border-border py-2.5 last:border-b-0">
-      <label
-        htmlFor={props.htmlFor}
-        className="pt-2 text-xs font-medium tracking-widest text-muted-foreground uppercase"
-      >
+    <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3 border-b border-border py-3 last:border-b-0">
+      <label htmlFor={props.htmlFor} className={`${MODULE_HEADING} pt-2`}>
         {props.label}
       </label>
       <div className="min-w-0">{props.children}</div>
@@ -92,7 +90,7 @@ function useSaveBrief(environmentId: EnvironmentId, cwd: string) {
 /** One property of the setup bar: its name, then its control. */
 function Property(props: { readonly label: string; readonly children: ReactNode }) {
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
+    <div className="flex min-w-0 items-center gap-2">
       <span className="text-xs text-muted-foreground">{props.label}</span>
       {props.children}
     </div>
@@ -168,7 +166,7 @@ export function ProjectSetup(props: {
       <div
         role="group"
         aria-label="Project setup"
-        className="flex flex-wrap items-center gap-x-5 gap-y-2 border-y border-border px-2 py-1.5"
+        className="flex flex-wrap items-center gap-x-6 gap-y-2 border-y border-border px-3 py-2"
       >
         <Property label="Units">
           <ToggleGroup
@@ -192,7 +190,7 @@ export function ProjectSetup(props: {
               if (material !== brief.material.trim()) update("material", material);
             }}
             trigger={
-              <Button variant="ghost" size="xs" disabled={!canWrite} aria-label="Material">
+              <Button variant="ghost" size="sm" disabled={!canWrite} aria-label="Material">
                 {brief.material.trim() === "" ? (
                   <span className="text-muted-foreground">Choose</span>
                 ) : (
@@ -212,7 +210,7 @@ export function ProjectSetup(props: {
               if (process && process !== brief.process) update("process", process);
             }}
           >
-            <SelectTrigger size="xs" aria-label="Process">
+            <SelectTrigger size="sm" aria-label="Process">
               <SelectValue>
                 {brief.process === EMPTY_BRIEF.process ? (
                   <span className="text-muted-foreground">Choose</span>
@@ -250,7 +248,7 @@ export function ProjectSetup(props: {
         <div className="ms-auto">
           <Button
             variant={described ? "ghost-muted" : "outline"}
-            size="xs"
+            size="sm"
             onClick={() => {
               setOpened((count) => count + 1);
               setOpen(true);
@@ -369,7 +367,7 @@ function BriefSheet(props: {
             </SpecRow>
             <SpecRow label="References">
               <div
-                className="flex min-h-16 flex-col items-start justify-center gap-1.5 rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground"
+                className="flex min-h-16 flex-col items-start justify-center gap-2 rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={(event) => {
                   event.preventDefault();
@@ -381,7 +379,7 @@ function BriefSheet(props: {
                   {BRIEF_REFERENCES}/ with your next message.
                 </span>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="xs" onClick={() => fileInput.current?.click()}>
+                  <Button variant="outline" size="sm" onClick={() => fileInput.current?.click()}>
                     <PaperclipIcon />
                     Choose files
                   </Button>

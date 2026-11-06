@@ -114,7 +114,25 @@ export const CHAT_ICON: LucideIcon = MessageSquareIcon;
 export const EXAMPLES_ICON: LucideIcon = ShapesIcon;
 
 /**
- * Every kind's color: one quiet grey, so a screen holds one accent (the brand blue on what you can
- * act on) and the status colors alone. Kinds are told apart by their icons.
+ * The quiet grey of a kind's icon on anything you act on: tiles, the Toolbox, New and the menus, so
+ * those screens hold one accent (the brand blue) and the status colors alone.
  */
 export const KIND_TINT = "text-muted-foreground";
+
+/**
+ * A file's mark where files of different formats sit together (tabs, file lists, Find, the chat's
+ * chips): a muted hue of its own for the kinds you scan for, grey for the rest, the icon alone and
+ * never its words. Never red, amber or green, which say failed, warning and passed. The hues are
+ * theme tokens (`brand/theme.css`).
+ */
+const FILE_TINTS: Partial<Record<ProjectGroup | "Setup", string>> = {
+  CAD: "text-(--kind-cad)",
+  Electronics: "text-(--kind-electronics)",
+  Analysis: "text-(--kind-analysis)",
+  Documents: "text-(--kind-document)",
+  Drawings: "text-(--kind-document)",
+};
+
+export function fileTint(key: ProjectGroup | "Setup"): string {
+  return FILE_TINTS[key] ?? KIND_TINT;
+}

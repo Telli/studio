@@ -34,7 +34,7 @@ export function AddFolderMenu(props: {
 
   return (
     <Menu>
-      <MenuTrigger render={<Button variant="outline" size="xs" />}>
+      <MenuTrigger render={<Button variant="outline" size="sm" />}>
         <FolderPlusIcon />
         Add a folder
       </MenuTrigger>

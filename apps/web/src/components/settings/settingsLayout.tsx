@@ -22,9 +22,10 @@ import {
   usePrimarySettingsAvailable,
 } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
-import { WorkspacePageContainer, type WorkspacePageWidth } from "../WorkspacePageContainer";
+import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { useSettingsPageLabel } from "./SettingsBreadcrumb";
 import { useOptionalSettingsScope } from "./SettingsScopeContext";
 import { SettingsScopeSentence } from "./SettingsScopeSentence";
 import {
@@ -36,6 +37,8 @@ import {
 } from "./scopedSettings";
 import { useClearProjectOverrides, useClearScopedSettings } from "./useScopedSettings";
 import { CODE_SETTINGS_ROWS, engineeringSettingCopy } from "../workbench/engineeringSettings";
+import { PageTitle } from "../workbench/PageTitle";
+import { MODULE_HEADING } from "../workbench/studioLayout";
 import { useEngineeringInterface } from "../workbench/studioInterface";
 import {
   SettingInheritance,
@@ -201,23 +204,22 @@ export function SettingsSection({
       {...sectionProps}
       ref={targetRef}
       tabIndex={sectionProps.id ? -1 : sectionProps.tabIndex}
-      className={cn(!hideTitle && "space-y-2.5", className)}
+      className={cn(!hideTitle && "space-y-3", className)}
     >
       {hideTitle ? (
         <h2 className="sr-only">{title}</h2>
       ) : (
-        <div
-          data-settings-scroll-target
-          className="flex min-h-7 items-start justify-between gap-4 px-3 sm:px-4"
-        >
-          <div className="flex min-w-0 items-center gap-1">
-            <h2 className="flex min-h-7 items-center gap-2 text-sm font-normal text-foreground/70">
+        <div data-settings-scroll-target className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className={cn(MODULE_HEADING, "items-center")}>
               {icon}
               {title}
             </h2>
             {titleAction}
           </div>
-          <div className="flex min-h-7 min-w-7 items-center justify-end">{headerAction}</div>
+          {headerAction ? (
+            <div className="flex items-center justify-end">{headerAction}</div>
+          ) : null}
         </div>
       )}
       <SettingsGroup data-settings-scroll-target={hideTitle ? "" : undefined} variant={variant}>
@@ -238,7 +240,7 @@ export function SettingsUnavailableGroup({
 
   return (
     <div className="border-border/60 bg-muted/20 py-1.5">
-      <div className="flex items-start gap-2 px-3 py-2 text-xs leading-relaxed text-muted-foreground sm:px-4">
+      <div className="flex items-start gap-2 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
         <InfoIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
         <p>{message}</p>
       </div>
@@ -256,9 +258,9 @@ export function SettingsUnavailableGroup({
  * Keep descriptions short enough for one line where possible. Allow wrapping
  * for clarity or narrow screens instead of truncating or forcing no-wrap.
  *
- * Control sizing across settings follows three tiers so rows share a baseline:
- * - `control` slot: `size="sm"` (Button, Select, Input, NumberField) or `icon-sm`.
- * - Section `headerAction`s and buttons inside list items, cards, toolbars: `xs` / `icon-xs`.
+ * Control sizing across settings follows two tiers so rows share a baseline:
+ * - Every control, section `headerAction` and button in a list item or card: `size="sm"` (Button,
+ *   Select, Input, NumberField) or `icon-sm`.
  * - Inline affordances (reset arrows, info tooltips, table-cell buttons): `icon-micro`.
  * Dialog footers keep the app-wide default button size.
  */
@@ -468,14 +470,14 @@ export function SettingsRow({
       tabIndex={rowProps.id ? -1 : rowProps.tabIndex}
       data-slot="settings-row"
       className={cn(
-        "@container/settings-row rounded-xl px-3 sm:px-4 aria-disabled:opacity-64 aria-disabled:[&_*]:text-muted-foreground",
+        "@container/settings-row rounded-lg px-3 aria-disabled:opacity-64 aria-disabled:[&_*]:text-muted-foreground",
         children ? "pt-3 pb-1" : "py-3",
         className,
       )}
     >
-      <div className="flex flex-col gap-3 @min-[32rem]/settings-row:grid @min-[32rem]/settings-row:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)] @min-[32rem]/settings-row:items-center @min-[32rem]/settings-row:gap-8">
+      <div className="flex flex-col gap-3 @min-[32rem]/settings-row:grid @min-[32rem]/settings-row:grid-cols-[minmax(0,1fr)_minmax(10rem,auto)] @min-[32rem]/settings-row:items-center @min-[32rem]/settings-row:gap-3">
         <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex min-h-5 items-center gap-1.5">
+          <div className="flex min-h-5 items-center gap-2">
             <h3 className="text-sm font-medium text-foreground">{shownTitle}</h3>
             {renderedInheritance ? (
               <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
@@ -549,13 +551,13 @@ export function SettingResetButton({
 export function SettingsPageContainer({
   children,
   className,
-  width = "readable",
 }: {
   children: ReactNode;
   className?: string;
-  width?: WorkspacePageWidth;
 }) {
   const navigate = useNavigate();
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const title = useSettingsPageLabel(pathname);
   const hash = useLocation({ select: (location) => location.hash });
   const highlightTarget = useLocation({
     select: (location) => location.state.settingsTargetHighlight !== false,
@@ -581,7 +583,8 @@ export function SettingsPageContainer({
         className="topbar-scroll-fade scrollbar-gutter-both flex-1 overflow-y-auto"
         data-settings-page-scroll
       >
-        <WorkspacePageContainer width={width} className={cn("gap-8", className)}>
+        <WorkspacePageContainer className={className}>
+          {title === null ? null : <PageTitle title={title} />}
           <SettingsScopeSentence />
           {children}
         </WorkspacePageContainer>

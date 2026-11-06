@@ -731,10 +731,12 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   drawings) belongs to the part it was made from, as a CAD system keeps a study or a toolpath with
   its part. Each kind has one icon wherever it shows: the sidebar, New, the Overview's modules and
   badges, the Toolbox, the quick find and the chat's change chips
-  (`components/workbench/kinds.ts`), all in one quiet grey: a screen holds one accent, the brand
-  blue on what you can act on, and red, amber and green say how a check went. Kinds are told
-  apart by their icons. The CAD ribbon's, tree's and timeline's icons are one weight of line in
-  the text's own grey, each command a silhouette of its own, and blue shows only on the pressed
+  (`components/workbench/kinds.ts`), in one quiet grey on anything you act on: those screens hold
+  one accent, the brand blue, and red, amber and green say how a check went. Where files of
+  different formats sit together (tabs, file lists, Find, the chat's chips) a file's small mark
+  takes a muted hue of its kind (`fileTint`), the icon alone. The CAD ribbon's, tree's and
+  timeline's icons are solid pictures in the one blue on darker panels of their own
+  (`--cad-ws-panel`), each command a silhouette of its own, and blue shows on the pressed
   command; the rollback bar is grey too, blue only while dragged or focused.
 - **Start from a part.** A new thread offers jobs for the project's most recently used parts,
   boards and studies, each kind of job once (a making check, a strength, fit or mass check, a

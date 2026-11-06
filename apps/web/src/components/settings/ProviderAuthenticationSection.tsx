@@ -187,7 +187,7 @@ export function ProviderAuthenticationSection({
         ) : undefined
       }
       control={
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {!active && (auth?.methods?.length ?? 0) > 1 ? (
             <Select
               value={auth?.methods?.some((method) => method.id === methodId) ? methodId : ""}

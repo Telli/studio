@@ -65,7 +65,7 @@ function LicenseNoticeRow({
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <article>
         <div className="flex min-h-10 items-center hover:bg-muted/35 sm:min-h-9">
-          <CollapsibleTrigger className="group flex min-h-10 min-w-0 flex-1 items-center gap-2.5 px-3 text-left sm:min-h-9 sm:px-4">
+          <CollapsibleTrigger className="group flex min-h-10 min-w-0 flex-1 items-center gap-2 px-3 text-left sm:min-h-9">
             <ChevronRightIcon
               aria-hidden
               className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-panel-open:rotate-90"
@@ -140,7 +140,7 @@ function LicenseHeaderAction({
 }) {
   if (!searchOpen) {
     return (
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2">
         <LicenseCount filteredCount={filteredCount} totalCount={totalCount} />
         <Tooltip>
           <TooltipTrigger
@@ -196,14 +196,14 @@ function LicenseHeaderAction({
 
 function LicenseManifestError({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="flex flex-col items-start gap-3 px-3 py-5 sm:px-4">
+    <div className="flex flex-col items-start gap-3 px-3 py-5">
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-medium text-foreground">Open-source notices are unavailable</h3>
         <p className="max-w-[70ch] text-pretty text-xs leading-normal text-muted-foreground/80">
           {message}
         </p>
       </div>
-      <Button type="button" size="xs" variant="outline" onClick={onRetry}>
+      <Button type="button" size="sm" variant="outline" onClick={onRetry}>
         Try again
       </Button>
     </div>
@@ -276,7 +276,7 @@ export function OpenSourceLicensesPanel() {
                 );
               })
             ) : (
-              <p className="px-3 py-8 text-center text-sm/6 text-muted-foreground sm:px-4">
+              <p className="px-3 py-8 text-center text-sm/6 text-muted-foreground">
                 No licenses match that search.
               </p>
             )}
@@ -284,9 +284,7 @@ export function OpenSourceLicensesPanel() {
         ) : state.status === "error" ? (
           <LicenseManifestError message={state.message} onRetry={retry} />
         ) : (
-          <p className="px-3 py-5 text-sm/6 text-muted-foreground sm:px-4">
-            Loading open-source notices…
-          </p>
+          <p className="px-3 py-5 text-sm/6 text-muted-foreground">Loading open-source notices…</p>
         )}
       </SettingsSection>
     </SettingsPageContainer>

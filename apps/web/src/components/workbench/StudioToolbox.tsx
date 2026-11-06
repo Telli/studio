@@ -95,7 +95,7 @@ export function StudioToolbox(props: {
     return (
       <div
         ref={rootRef}
-        className="flex w-10 shrink-0 flex-col items-center gap-1 border-l border-border py-1.5"
+        className="flex w-10 shrink-0 flex-col items-center gap-2 border-l border-border py-2"
         data-studio-toolbox="folded"
       >
         <Button
@@ -145,7 +145,7 @@ export function StudioToolbox(props: {
           <PanelRightCloseIcon aria-hidden="true" />
         </Button>
       </div>
-      <div className="shrink-0 border-b border-border p-2">
+      <div className="shrink-0 border-b border-border p-3">
         {/* Equal thirds, each its group's icon (the folded edge's, in its jobs' color) over its name. */}
         <ToggleGroup
           aria-label="Toolbox group"
@@ -176,24 +176,24 @@ export function StudioToolbox(props: {
         </ToggleGroup>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-4 p-2.5">
+        <div className="flex flex-col gap-3 p-3">
           {part === null ? (
-            <p className="px-1 text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               The jobs are for a part. Make one in the chat, or import one, to see them.
             </p>
           ) : jobs.status === "loading" ? (
-            <p className="px-1 text-xs text-muted-foreground">Loading jobs…</p>
+            <p className="text-xs text-muted-foreground">Loading jobs…</p>
           ) : jobs.status === "failed" ? (
-            <div className="flex flex-col items-start gap-2 px-1">
+            <div className="flex flex-col items-start gap-2">
               <p className="text-xs text-muted-foreground">Couldn't load the jobs.</p>
-              <Button variant="outline" size="xs" onClick={jobs.retry}>
+              <Button variant="outline" size="sm" onClick={jobs.retry}>
                 Try again
               </Button>
             </div>
           ) : (
             <>
               {composerRef === null ? (
-                <p className="px-1 text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Jobs start in a chat. Open one to use them.
                 </p>
               ) : null}
@@ -269,7 +269,7 @@ function GroupJobs(props: {
   const empty = props.group.sections.length === 0;
   return (
     <section aria-label={props.group.group} className="flex flex-col gap-3">
-      <p className="px-1 text-xs text-muted-foreground">{GROUP_PURPOSES[props.group.group]}</p>
+      <p className="text-xs text-muted-foreground">{GROUP_PURPOSES[props.group.group]}</p>
       {empty ? null : (
         <div className="flex flex-col divide-y divide-border">
           {props.group.sections.map((section) => (
@@ -280,12 +280,12 @@ function GroupJobs(props: {
         </div>
       )}
       {props.leftOut === null ? null : (
-        <p className="px-1 text-xs text-muted-foreground">{props.leftOut}</p>
+        <p className="text-xs text-muted-foreground">{props.leftOut}</p>
       )}
       {empty ? null : (
         // Its padding pulled back so its words start under the sections' titles.
-        <div className="-ms-1">
-          <Button variant="ghost-muted" size="xs" onClick={props.onBrowse}>
+        <div className="-ms-2.5">
+          <Button variant="ghost-muted" size="sm" onClick={props.onBrowse}>
             What each makes…
           </Button>
         </div>

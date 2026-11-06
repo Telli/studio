@@ -54,7 +54,6 @@ const COMPATIBILITY_BADGE = {
 function CompatibilityBadge(props: { compatibility: PluginCompatibility }) {
   return (
     <Badge
-      size="sm"
       variant={COMPATIBILITY_BADGE[props.compatibility.level]}
       title={props.compatibility.notes.join("\n") || undefined}
     >
@@ -209,7 +208,7 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
           <>
             {plugin.updateAvailable ? (
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 disabled={!canManage || busy !== undefined}
                 onClick={() =>
@@ -236,7 +235,7 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
                 render={
                   <Button
                     aria-label={`More actions for ${plugin.displayName}`}
-                    size="icon-xs"
+                    size="icon-sm"
                     variant="ghost-muted"
                   />
                 }
@@ -303,12 +302,12 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
         status={byline || undefined}
         control={
           entry.installedId !== null ? (
-            <Button size="xs" variant="ghost-muted" disabled>
+            <Button size="sm" variant="ghost-muted" disabled>
               Installed
             </Button>
           ) : (
             <Button
-              size="xs"
+              size="sm"
               variant={busy ? "secondary" : "outline"}
               disabled={
                 !canManage || busy !== undefined || entry.compatibility.level === "unavailable"
@@ -362,7 +361,7 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
         title="Browse"
         headerAction={
           <Button
-            size="xs"
+            size="sm"
             variant="ghost-muted"
             disabled={refreshing}
             onClick={() =>
@@ -376,7 +375,7 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
           </Button>
         }
       >
-        <div className="px-3 py-3 sm:px-4">
+        <div className="px-3 py-3">
           <InputGroup>
             <InputGroupAddon>
               <SearchIcon />
@@ -422,8 +421,8 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
           visibleEntries.map(catalogRow)
         )}
         {entries !== null && !showAll && entries.length > INITIAL_CATALOG_ROWS ? (
-          <div className="px-3 py-2 sm:px-4">
-            <Button size="xs" variant="ghost-muted" onClick={() => setShowAll(true)}>
+          <div className="px-3 py-2">
+            <Button size="sm" variant="ghost-muted" onClick={() => setShowAll(true)}>
               Show all {catalog.data?.matchCount ?? entries.length}
             </Button>
           </div>

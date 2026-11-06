@@ -355,7 +355,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                         <span className="block truncate text-sm font-medium text-sidebar-foreground">
                           {item.title}
                         </span>
-                        <span className="block truncate text-2xs text-sidebar-muted-foreground/75">
+                        <span className="block truncate text-xs text-sidebar-muted-foreground/75">
                           {settingsSearchSectionLabel(
                             item.to,
                             SETTINGS_SECTION_LABELS[item.to],
@@ -374,7 +374,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                   <SidebarMenuItem>
                     <h3
                       id="settings-nav-advanced"
-                      className="flex h-8 items-center px-2 text-2xs font-semibold text-sidebar-muted-foreground/75"
+                      className="flex h-8 items-center px-2 text-xs font-semibold text-sidebar-muted-foreground/75"
                     >
                       {ADVANCED_SETTINGS_LABEL}
                     </h3>

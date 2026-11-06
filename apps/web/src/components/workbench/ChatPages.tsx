@@ -9,10 +9,12 @@ import { usePrimaryEnvironmentId } from "~/state/environments";
 import { Input } from "../ui/input";
 import { SidebarInset } from "../ui/sidebar";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
+import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { findChats, useAllChats, waitingChats } from "./allChats";
 import { chatStanding } from "./chatStanding";
 import type { ChatsSearch } from "./chatsSearch";
 import { CHAT_ICON } from "./kinds";
+import { PageTitle } from "./PageTitle";
 import { StudioTopBar } from "./StudioTopBar";
 import { useOpenChat } from "./useOpenChat";
 import { chatLabel } from "./workspaceTitle";
@@ -40,28 +42,15 @@ export function ChatPage(props: {
           )}
         </StudioTopBar>
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-gutter-both">
-          <div className="mx-auto flex max-w-4xl flex-col gap-5 px-6 py-6">
-            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-              <div className="flex min-w-0 flex-col gap-1">
-                <h1 className="text-2xl font-semibold text-foreground">
-                  {props.title}
-                  {props.count === undefined ? null : (
-                    <>
-                      {" "}
-                      <span className="text-base font-normal text-muted-foreground tabular-nums">
-                        {props.count}
-                      </span>
-                    </>
-                  )}
-                </h1>
-                {props.lede === undefined ? null : (
-                  <p className="text-sm text-muted-foreground">{props.lede}</p>
-                )}
-              </div>
-              {props.action}
-            </div>
+          <WorkspacePageContainer>
+            <PageTitle
+              title={props.title}
+              count={props.count}
+              lede={props.lede}
+              action={props.action}
+            />
             {props.children}
-          </div>
+          </WorkspacePageContainer>
         </div>
       </div>
     </SidebarInset>
@@ -89,7 +78,7 @@ function ChatList(props: {
             <button
               type="button"
               onClick={() => openChat(chat)}
-              className="flex w-full min-w-0 items-center gap-3 px-1 py-2.5 text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              className="flex w-full min-w-0 items-center gap-3 p-3 text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
               <CHAT_ICON className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <span className="flex min-w-0 flex-1 flex-col">

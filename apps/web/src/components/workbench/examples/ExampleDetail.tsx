@@ -9,8 +9,8 @@ import { Badge } from "../../ui/badge";
 import { Button } from "../../ui/button";
 import { ChatPage } from "../ChatPages";
 import { useExample, useExamples } from "../library/useSampleProject";
-import { MODULE_HEADING } from "../OverviewModules";
 import { readmeInline, readmeSections } from "../projectReadme";
+import { MODULE_HEADING, SECTION_STACK } from "../studioLayout";
 import { ExamplePicture } from "./ExampleCard";
 import { NEEDS_DESKTOP_APP } from "./examples";
 
@@ -106,14 +106,14 @@ function ExampleContent(props: {
         sampleId={sample.id}
         className="w-full max-w-2xl rounded-lg border border-border"
       />
-      <section className="flex flex-col gap-2">
+      <section className={SECTION_STACK}>
         <h2 className={MODULE_HEADING}>What it is</h2>
         {whatItIs === null ? null : <p className="text-sm text-foreground">{whatItIs}</p>}
       </section>
       {sample.shows.length === 0 ? null : (
-        <section className="flex flex-col gap-2">
+        <section className={SECTION_STACK}>
           <h2 className={MODULE_HEADING}>What it shows</h2>
-          <ul className="flex flex-wrap gap-1.5">
+          <ul className="flex flex-wrap gap-2">
             {sample.shows.map((tag) => (
               <li key={tag}>
                 <Badge variant="outline">{tag}</Badge>

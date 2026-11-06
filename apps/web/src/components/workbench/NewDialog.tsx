@@ -8,6 +8,7 @@ import { cn } from "~/lib/utils";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
+import { MODULE_HEADING } from "./studioLayout";
 import {
   Dialog,
   DialogDescription,
@@ -79,7 +80,6 @@ export interface NewPart {
 }
 
 /** How the panel names what follows: a field's label, or What it covers over its list. */
-const LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
 
 function Field(props: {
   readonly label: string;
@@ -88,7 +88,7 @@ function Field(props: {
 }) {
   return (
     <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3">
-      <label htmlFor={props.htmlFor} className={LABEL}>
+      <label htmlFor={props.htmlFor} className={MODULE_HEADING}>
         {props.label}
       </label>
       <div className="min-w-0">{props.children}</div>
@@ -127,11 +127,11 @@ function TemplatePreview(props: {
       {entry === null ? null : (
         // A glimpse of the example: What it covers and See the example say it in words.
         <div aria-hidden="true" className="w-full shrink-0 sm:w-56">
-          <Suspense fallback={<div className="aspect-[8/5] rounded-md border border-border" />}>
+          <Suspense fallback={<div className="aspect-[8/5] rounded-lg border border-border" />}>
             <LibraryPicture
               entry={entry}
               environmentId={props.environmentId}
-              className="rounded-md border border-border"
+              className="rounded-lg border border-border"
             />
           </Suspense>
         </div>
@@ -147,7 +147,7 @@ function TemplatePreview(props: {
         )}
         {template.outline === undefined ? null : (
           <div className="flex flex-col gap-1.5">
-            <h3 className={LABEL}>What it covers</h3>
+            <h3 className={MODULE_HEADING}>What it covers</h3>
             <ol className="flex list-decimal flex-col gap-0.5 ps-4 text-xs text-foreground marker:text-muted-foreground">
               {template.outline.map((section) => (
                 <li key={section}>{section}</li>
@@ -159,7 +159,7 @@ function TemplatePreview(props: {
           <SeeTheExample
             sampleId={sampleId}
             file={example}
-            size="xs"
+            size="sm"
             onOpened={props.onExampleOpened}
           />
         )}
@@ -380,7 +380,7 @@ export function NewDialog(props: {
                         aria-selected={active}
                         onClick={() => pick(template)}
                         className={cn(
-                          "flex min-w-0 items-start gap-2.5 rounded-md border px-3 py-2.5 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                          "flex min-w-0 items-start gap-3 rounded-lg border p-3 text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                           active
                             ? "border-primary bg-primary/5"
                             : "border-border hover:border-foreground/25",
@@ -418,7 +418,7 @@ export function NewDialog(props: {
                   {props.onAddTemplate ? (
                     <Button
                       variant="outline"
-                      size="xs"
+                      size="sm"
                       onClick={() => void props.onAddTemplate?.()}
                     >
                       <FilePlusIcon />
@@ -428,7 +428,7 @@ export function NewDialog(props: {
                   {props.onShowTemplates ? (
                     <Button
                       variant="ghost"
-                      size="xs"
+                      size="sm"
                       onClick={() => void props.onShowTemplates?.()}
                     >
                       <FolderOpenIcon />

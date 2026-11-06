@@ -174,7 +174,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                     return (
                       <SelectItem key={mode} value={mode} className="min-w-64">
                         <div className="grid gap-0.5">
-                          <span className="inline-flex items-center gap-1.5 font-medium">
+                          <span className="inline-flex items-center gap-2 font-medium">
                             <Icon className="size-3.5 shrink-0 text-muted-foreground" />
                             {runtimeModeCopy[mode].label}
                           </span>

@@ -381,7 +381,7 @@ export function AcpSessionManagementSection(props: {
                       <p className="truncate text-xs text-foreground">
                         {session.title ?? session.sessionId}
                       </p>
-                      <code className="block truncate text-3xs text-muted-foreground">
+                      <code className="block truncate text-xs text-muted-foreground">
                         {session.sessionId}
                       </code>
                     </div>
@@ -442,7 +442,7 @@ export function AcpSessionManagementSection(props: {
       </SettingsRow>
 
       {canConfigureProviders ? (
-        <div className="grid gap-3 border-t border-border/60 px-3 py-3 sm:px-4">
+        <div className="grid gap-3 border-t border-border/60 px-3 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-xs font-medium text-foreground">Agent providers</p>
@@ -507,7 +507,7 @@ export function AcpSessionManagementSection(props: {
                         <p className="truncate text-xs font-medium text-foreground">
                           {provider.providerId}
                         </p>
-                        <p className="text-3xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {provider.current === null ? "Disabled" : "Configured"}
                           {provider.required ? " · Required" : ""}
                         </p>

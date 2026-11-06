@@ -56,7 +56,7 @@ export function MadeBadges(props: {
           aria-label={`Open the drawing of ${part.file.title}`}
           className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         >
-          <Badge variant="outline" size="sm">
+          <Badge variant="outline">
             <DrawingIcon aria-hidden="true" />
             Drawing
           </Badge>
@@ -70,7 +70,7 @@ export function MadeBadges(props: {
           aria-label={`Open the ${lowerName(made.kind)} of ${part.file.title}`}
           className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         >
-          <Badge variant="outline" size="sm">
+          <Badge variant="outline">
             <MadeIcon aria-hidden="true" />
             {made.kind}
           </Badge>
@@ -90,7 +90,7 @@ export function PartFooter(props: {
 }) {
   const { part } = props;
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <div className="flex flex-wrap items-center gap-2">
       {part.results.length === 0 ? (
         <span className="text-xs text-muted-foreground">Not checked yet</span>
       ) : (

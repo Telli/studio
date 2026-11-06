@@ -3,7 +3,6 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { type LucideIcon, PlusIcon, PuzzleIcon } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
-import { cn } from "~/lib/utils";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
@@ -25,7 +24,8 @@ import { useDocumentTemplates } from "../documentTemplates";
 import { MENU_ICONS } from "../kinds";
 import { useNewDialogStore } from "../newDialogStore";
 import type { NewTemplate } from "../newTemplates";
-import { CARD_GRID, OverviewModule } from "../OverviewModules";
+import { OverviewModule } from "../OverviewModules";
+import { CARD_GRID } from "../studioLayout";
 import { useEngineeringInterface } from "../studioInterface";
 import {
   availability,
@@ -196,7 +196,7 @@ function LibraryContent(props: {
       {groups.length === 0 && shownExamples.length === 0 ? (
         <p className="py-6 text-sm text-muted-foreground">Nothing in the library matches that.</p>
       ) : null}
-      <div className="@container flex min-w-0 flex-col gap-8">
+      <div className="@container flex min-w-0 flex-col gap-6">
         <ExamplesModule examples={shownExamples} />
         {groups.map((group) => (
           <div key={group.key} id={groupAnchor(group.key)} className="scroll-mt-6">
@@ -207,7 +207,7 @@ function LibraryContent(props: {
               folded={folded.has(group.key)}
               onFold={() => fold(group.key)}
             >
-              <div className={cn(CARD_GRID, "pt-3")}>
+              <div className={CARD_GRID}>
                 {group.entries.map((entry) => (
                   <LibraryCard
                     key={entry.id}

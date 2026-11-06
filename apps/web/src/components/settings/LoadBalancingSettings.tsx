@@ -85,7 +85,7 @@ export function LoadBalancingSettings({
         />
       }
     >
-      <p className="px-3 py-2.5 text-xs text-muted-foreground sm:px-4">
+      <p className="px-3 py-3 text-xs text-muted-foreground">
         New threads in shared projects start on the machine with the most free CPU and memory,
         weighted by each machine's preference.
       </p>
@@ -113,7 +113,7 @@ export function LoadBalancingSettings({
             }}
           >
             <SelectTrigger
-              size="xs"
+              size="sm"
               className="w-32"
               aria-label={`${environment.label} load preference`}
             >

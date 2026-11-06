@@ -120,7 +120,7 @@ function TelemetryExportForm() {
   return (
     <SettingsSection title="OpenTelemetry export" id="telemetry-export">
       <form
-        className="grid gap-4 px-4 py-4 sm:px-5"
+        className="grid gap-3 p-3"
         onSubmit={async (event) => {
           event.preventDefault();
           if (!environment || saving) return;
@@ -160,9 +160,9 @@ function TelemetryExportForm() {
           const url = values[key].trim();
           const status = canCheck ? endpointStatus(url, checks[key]) : null;
           return (
-            <div key={key} className="grid gap-1.5">
+            <div key={key} className="grid gap-2">
               <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   {status && <ConnectionStatusDot dotClassName={status.dot} />}
                   <Label htmlFor={key}>{label} endpoint</Label>
                 </div>
@@ -217,7 +217,7 @@ function TelemetryExportForm() {
           <div className="flex shrink-0 gap-2">
             <Button
               type="button"
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={!changed || saving || !canEdit}
               onClick={() => {
@@ -232,7 +232,7 @@ function TelemetryExportForm() {
             >
               Discard
             </Button>
-            <Button type="submit" size="xs" disabled={!changed || saving || !canEdit}>
+            <Button type="submit" size="sm" disabled={!changed || saving || !canEdit}>
               {saving ? "Saving…" : "Save"}
             </Button>
           </div>

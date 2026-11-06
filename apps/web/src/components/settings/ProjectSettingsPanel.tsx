@@ -449,7 +449,7 @@ function ProjectDetail({
 
   return (
     <>
-      <SettingsPageContainer className="gap-6">
+      <SettingsPageContainer>
         <Alert variant="info">
           <InfoIcon aria-hidden />
           <AlertDescription>
@@ -458,7 +458,7 @@ function ProjectDetail({
         </Alert>
         <SettingsSection id="project-overview" title="Project" hideTitle>
           {!canEditGroup ? (
-            <p className="px-3 py-2 text-sm text-muted-foreground sm:px-4">
+            <p className="px-3 py-2 text-sm text-muted-foreground">
               {group.memberProjects.length > 1
                 ? "Shared settings require permission to change every checkout in this group."
                 : "This connection cannot change this project."}

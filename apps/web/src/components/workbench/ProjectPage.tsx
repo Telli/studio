@@ -23,6 +23,7 @@ import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { AddFolderMenu } from "./AddFolderMenu";
 import { EMPTY_BRIEF } from "./briefFolder";
 import { useDocumentTemplates } from "./documentTemplates";
@@ -48,6 +49,7 @@ import {
 import { ImportDropZone } from "./ImportDropZone";
 import { useImportIntoProject } from "./importIntoProject";
 import { useEngineeringInterface } from "./studioInterface";
+import { MODULE_HEADING, SECTION_STACK } from "./studioLayout";
 import { folderProject, useEnvironmentFolders } from "./useProjectFolders";
 import { useSimpleView } from "./simpleView";
 import { useOpenFromOverview } from "./useOpenInWorkbench";
@@ -89,7 +91,7 @@ function FileTile(props: {
     <button
       type="button"
       onClick={props.onOpen}
-      className="group flex min-w-0 flex-col overflow-hidden rounded-md border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
     >
       <span className="flex aspect-[4/3] items-center justify-center overflow-hidden border-b border-border bg-(--model-ground)">
         {props.picture ? (
@@ -98,8 +100,8 @@ function FileTile(props: {
           <Icon className="size-7 text-muted-foreground/60" aria-hidden="true" />
         )}
       </span>
-      <span className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">
-        <span className="truncate text-xs font-medium text-foreground">{file.title}</span>
+      <span className="flex min-w-0 flex-col gap-1 p-3">
+        <span className="truncate text-sm font-medium text-foreground">{file.title}</span>
         <span className="truncate text-xs text-muted-foreground">
           {file.kind}
           {props.where === undefined ? "" : ` · ${props.where}`}
@@ -120,11 +122,11 @@ function FileRow(props: {
     <button
       type="button"
       onClick={props.onOpen}
-      className="grid h-8 w-full grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 border-b border-border px-2 text-left text-xs text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      className="grid w-full grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 border-b border-border p-3 text-left text-xs text-muted-foreground outline-none transition-colors duration-150 hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
     >
       <span className="flex min-w-0 items-center gap-2">
-        <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="truncate font-medium text-foreground">{file.title}</span>
+        <Icon className="size-4 shrink-0" aria-hidden="true" />
+        <span className="truncate text-sm font-medium text-foreground">{file.title}</span>
       </span>
       <span className="truncate">{file.kind}</span>
       <span className="truncate text-muted-foreground">{props.where}</span>
@@ -151,7 +153,10 @@ function Section(props: {
           type="button"
           aria-expanded={!folded}
           onClick={() => setFolded((value) => !value)}
-          className="flex w-full items-center gap-2 py-1.5 text-left text-xs font-medium tracking-widest text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          className={cn(
+            MODULE_HEADING,
+            "w-full items-center py-1 text-left outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+          )}
         >
           <ChevronDownIcon
             className={cn("size-3 transition-transform duration-150", folded && "-rotate-90")}
@@ -164,7 +169,7 @@ function Section(props: {
       {folded ? null : (
         <>
           {props.view === "grid" ? (
-            <div className="mt-1.5 grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-2.5">
+            <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-2">
               {files.map((file) => (
                 <FileTile
                   key={file.path}
@@ -176,7 +181,7 @@ function Section(props: {
               ))}
             </div>
           ) : (
-            <div className="mt-1 border-t border-border">
+            <div className="mt-2 border-t border-border">
               {files.map((file) => (
                 <FileRow
                   key={file.path}
@@ -191,7 +196,7 @@ function Section(props: {
             <button
               type="button"
               onClick={() => setAll((value) => !value)}
-              className="mt-2 text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
+              className="mt-3 text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:underline"
             >
               {all ? "Show fewer" : `Show all ${props.files.length}`}
             </button>
@@ -253,11 +258,11 @@ function FolderFiles(props: {
     : new Map(shownFiles.map((file) => [file.path, file.path] as const));
 
   return (
-    <section aria-label={props.label ?? "Files"} className="flex flex-col gap-4">
+    <section aria-label={props.label ?? "Files"} className="flex flex-col gap-6">
       {props.label === null ? null : (
-        <h2 className="flex min-w-0 items-baseline gap-2 border-b border-border pb-1.5">
+        <h2 className="flex min-w-0 items-baseline gap-2 border-b border-border pb-2">
           <FolderIcon
-            className="size-3.5 shrink-0 self-center text-muted-foreground"
+            className="size-4 shrink-0 self-center text-muted-foreground"
             aria-hidden="true"
           />
           <span className="truncate text-sm font-medium text-foreground">{props.label}</span>
@@ -284,7 +289,7 @@ function FolderFiles(props: {
         <p
           className={cn(
             "text-xs text-muted-foreground",
-            props.label === null ? "py-10 text-center" : "py-1",
+            props.label === null ? "py-6 text-center" : "py-1",
           )}
         >
           {listing.data === null
@@ -310,13 +315,8 @@ function FoldersRow(props: {
   readonly className?: string;
 }) {
   return (
-    <div
-      className={cn("flex flex-wrap items-center gap-1.5", props.className)}
-      aria-label="Folders"
-    >
-      <span className="me-1 text-xs font-medium tracking-widest text-muted-foreground uppercase">
-        Folders
-      </span>
+    <div className={cn("flex flex-wrap items-center gap-2", props.className)} aria-label="Folders">
+      <span className={MODULE_HEADING}>Folders</span>
       {props.folders.map((folder) => {
         const own = studioFolderKey(folder) === studioFolderKey(props.cwd);
         const folderName = studioFolderName(folder);
@@ -325,7 +325,7 @@ function FoldersRow(props: {
           <span
             key={folder}
             className={cn(
-              "inline-flex h-6 min-w-0 items-center gap-1.5 rounded-md border border-border ps-2 text-xs text-foreground",
+              "inline-flex h-7 min-w-0 items-center gap-1 rounded-lg border border-border ps-2 text-xs text-foreground",
               own ? "bg-accent/60 pe-2" : "pe-0.5",
             )}
           >
@@ -356,13 +356,11 @@ function FoldersRow(props: {
 /** The links the project's brief gathered, a web address opening in the browser. */
 function LinksList(props: { readonly links: ReadonlyArray<string> }) {
   return (
-    <section aria-label="Links">
-      <h2 className="mb-2 text-xs font-medium tracking-widest text-muted-foreground uppercase">
-        Links
-      </h2>
+    <section aria-label="Links" className={SECTION_STACK}>
+      <h2 className={MODULE_HEADING}>Links</h2>
       <ul className="flex flex-col border-t border-border">
         {props.links.map((link) => (
-          <li key={link} className="truncate border-b border-border py-1.5 text-xs">
+          <li key={link} className="truncate border-b border-border p-3 text-sm">
             {/^https?:\/\//.test(link) ? (
               <a href={link} target="_blank" rel="noopener noreferrer" className="underline">
                 {link}
@@ -561,23 +559,23 @@ export function ProjectPage(props: {
       data-project-page=""
     >
       {/* In Engineering the project is named at the sidebar's top and New is in the panel's row. */}
-      <header className={cn("border-b border-border px-5 pt-5 pb-3", plainWords && "hidden")}>
+      <header className={cn("border-b border-border px-6 pt-6 pb-3", plainWords && "hidden")}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold text-foreground">{name}</h1>
+            <h1 className="truncate text-2xl font-semibold text-foreground">{name}</h1>
             {purpose === "" || plainWords ? null : (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">{purpose}</p>
+              <p className="mt-1 truncate text-sm text-muted-foreground">{purpose}</p>
             )}
           </div>
           <div className="flex items-center gap-2">
             {offers.length === 0 || composerRef === null ? null : (
-              <Button size="xs" onClick={() => openNew()}>
+              <Button size="sm" onClick={() => openNew()}>
                 <PlusIcon />
                 New
               </Button>
             )}
             {plainWords ? null : (
-              <div role="tablist" aria-label="Project contents" className="flex gap-1">
+              <div role="tablist" aria-label="Project contents" className="flex gap-2">
                 {(
                   [
                     ["overview", "Overview"],
@@ -595,7 +593,7 @@ export function ProjectPage(props: {
                     aria-selected={tab === id}
                     onClick={() => setTab(id)}
                     className={cn(
-                      "h-7 rounded-md px-2.5 text-xs outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                      "h-7 rounded-lg px-2.5 text-xs outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                       tab === id
                         ? "bg-accent text-foreground"
                         : "text-muted-foreground hover:text-foreground",
@@ -640,11 +638,12 @@ export function ProjectPage(props: {
                   : "Find a reference"
             }
             aria-label="Find in the project"
+            size="sm"
           />
           <div
             role="group"
             aria-label="View"
-            className={cn("flex shrink-0 gap-0.5", tab === "threads" && "invisible")}
+            className={cn("flex shrink-0 gap-2", tab === "threads" && "invisible")}
           >
             <Button
               variant={view === "grid" ? "secondary" : "ghost-muted"}
@@ -669,9 +668,7 @@ export function ProjectPage(props: {
       </header>
 
       {/* One column in Studio, as Home is, so the README and the files below line up. */}
-      <div
-        className={cn("flex flex-col gap-8 px-5 py-4", plainWords && "mx-auto w-full max-w-5xl")}
-      >
+      <WorkspacePageContainer className={plainWords ? undefined : "mx-0 max-w-none"}>
         {shownTab === "overview" ? (
           <ProjectOverview
             environmentId={environmentId}
@@ -746,10 +743,10 @@ export function ProjectPage(props: {
             cwd={cwd}
             onRemove={studio === null ? null : removeFolder}
             onAdd={addFolder}
-            className="border-t border-border pt-4"
+            className="border-t border-border pt-3"
           />
         ) : null}
-      </div>
+      </WorkspacePageContainer>
       {/* In Engineering New is the panel toolbar's, always there (`StudioNew`). */}
       {composerRef === null || plainWords ? null : (
         <NewDialog

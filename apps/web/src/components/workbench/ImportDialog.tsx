@@ -9,6 +9,7 @@ import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { cn } from "~/lib/utils";
 import { waitForProject } from "~/state/entities";
 import { Button } from "../ui/button";
+import { MODULE_HEADING } from "./studioLayout";
 import { Checkbox } from "../ui/checkbox";
 import {
   Dialog,
@@ -43,8 +44,6 @@ import { readStudioImport, rememberScan } from "./studioImportBridge";
 import { useImportProjects } from "./useImportProjects";
 import { useTrashedProjects } from "./trash/useTrash";
 import { useStudioProjects } from "./useStudioProjects";
-
-const SECTION_LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
 
 const KIND_LABELS: ReadonlyArray<readonly [StudioImportKind, string]> = [
   ["model", "CAD models"],
@@ -306,7 +305,7 @@ function ImportDialog(props: {
             <DialogPanel>
               <div className="grid gap-6 md:grid-cols-2">
                 <section aria-label="Where to look" className="flex min-w-0 flex-col">
-                  <h3 className={`${SECTION_LABEL} border-b border-border pb-2`}>Where to look</h3>
+                  <h3 className={`${MODULE_HEADING} border-b border-border pb-2`}>Where to look</h3>
                   <ul className="flex flex-col">
                     {roots.map((root) => {
                       const found = scans.find((scan) => scan.root === root.path);
@@ -357,7 +356,7 @@ function ImportDialog(props: {
                 </section>
                 <section
                   aria-label="Found so far"
-                  className="flex min-w-0 flex-col gap-3 rounded-xl bg-muted/50 p-4"
+                  className="flex min-w-0 flex-col gap-3 rounded-lg bg-muted/50 p-3"
                 >
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                     {scanning !== null ? <Spinner size="sm" /> : null}
@@ -531,7 +530,7 @@ function ImportDialog(props: {
             <DialogPanel>
               {plan.loose.length === 0 ? null : (
                 <section aria-label="In no project" className="flex flex-col">
-                  <h3 className={`${SECTION_LABEL} border-b border-border pb-2`}>In no project</h3>
+                  <h3 className={`${MODULE_HEADING} border-b border-border pb-2`}>In no project</h3>
                   <ul className="flex flex-col">
                     {plan.loose.map((file) => {
                       const to = placementOf(file);
@@ -596,7 +595,7 @@ function ImportDialog(props: {
               )}
               {lookCount === 0 ? null : (
                 <section aria-label="Needs a look" className="mt-5 flex flex-col">
-                  <h3 className={`${SECTION_LABEL} border-b border-border pb-2`}>Needs a look</h3>
+                  <h3 className={`${MODULE_HEADING} border-b border-border pb-2`}>Needs a look</h3>
                   <ul className="flex flex-col">
                     {[
                       ...look.duplicates.map((file) => ({ file, why: "A copy of a newer file" })),

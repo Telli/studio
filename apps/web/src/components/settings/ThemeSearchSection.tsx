@@ -280,7 +280,7 @@ export function ThemeSearchSection({
               void runSearch(query.trim());
           }}
           placeholder="Search themes..."
-          size="lg"
+          size="sm"
           type="search"
           value={query}
         />
@@ -288,13 +288,13 @@ export function ThemeSearchSection({
 
       {!isSearching || results !== null ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <p className="text-muted-foreground text-xs">Popular</p>
             {SUGGESTED_SEARCHES.map((suggestion) => (
               <Button
                 key={suggestion}
                 disabled={installingId !== null}
-                size="xs"
+                size="sm"
                 variant="ghost"
                 onClick={() => {
                   if (query.trim() === suggestion) {
@@ -356,7 +356,7 @@ export function ThemeSearchSection({
 
       {results ? (
         results.length === 0 ? (
-          <div className="flex min-h-40 flex-col items-center justify-center rounded-2xl border border-dashed text-center">
+          <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed text-center">
             <p className="text-sm font-medium">No supported open-source themes found</p>
             <p className="mt-1 text-muted-foreground text-xs">Try a broader search.</p>
           </div>
@@ -371,7 +371,7 @@ export function ThemeSearchSection({
               const progressAction = isInstalled ? "Updating" : "Installing";
               return (
                 <article
-                  className="group flex min-w-0 flex-col gap-3 rounded-xl border border-border/70 bg-card/60 p-3 transition-colors hover:bg-accent/20"
+                  className="group flex min-w-0 flex-col gap-3 rounded-lg border border-border/70 bg-card/60 p-3 transition-colors hover:bg-accent/20"
                   key={extension.id}
                 >
                   <div className="flex min-w-0 gap-3">
@@ -403,7 +403,7 @@ export function ThemeSearchSection({
                     <Button
                       aria-label={`${isInstalling ? progressAction : action} ${extension.name}`}
                       disabled={installingId !== null}
-                      size="xs"
+                      size="sm"
                       variant="outline"
                       onClick={() => void handleInstall(extension, false)}
                     >

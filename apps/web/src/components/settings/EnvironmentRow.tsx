@@ -82,7 +82,7 @@ export function EnvironmentRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-2.5 sm:px-4",
+        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 px-3 py-2.5",
         dimmed && "opacity-60",
         className,
       )}

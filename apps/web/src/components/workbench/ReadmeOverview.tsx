@@ -19,6 +19,7 @@ import {
 } from "../files/projectFilesQueryState";
 import { useFileSaveCoordinator } from "../files/useFileSaveCoordinator";
 import { OverviewModule, useFoldedModules } from "./OverviewModules";
+import { MODULE_HEADING, SECTION_STACK } from "./studioLayout";
 import {
   isPlainReadmeText,
   type ReadmeBlock,
@@ -33,7 +34,6 @@ import {
   writtenWordDelays,
 } from "./projectReadme";
 
-const SECTION_LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
 /** Past this many decisions the list folds to its heading, so the project's files stay close. */
 const LONG_DECISIONS = 5;
 /** A point of the README, by its depth: each level further in, with its own marker. */
@@ -313,8 +313,8 @@ export function ReadmeOverview(props: {
 
   if (waiting) {
     return (
-      <section aria-label="README" className="flex flex-col gap-1.5">
-        <h2 className={SECTION_LABEL}>What it is</h2>
+      <section aria-label="README" className={SECTION_STACK}>
+        <h2 className={MODULE_HEADING}>What it is</h2>
         <WritingOverview />
       </section>
     );
@@ -324,7 +324,7 @@ export function ReadmeOverview(props: {
     sections.decisions.length === 0 ? (
       <p className="text-sm text-muted-foreground">No decisions yet</p>
     ) : (
-      <ul className="flex flex-col gap-1.5">
+      <ul className="flex flex-col gap-2">
         {sections.decisions.map((decision) => {
           const note = decisionNote(decision);
           return (
@@ -356,10 +356,10 @@ export function ReadmeOverview(props: {
         key={`${file?.contents ?? ""}:${refused}`}
         aria-label="README"
         data-document-editable=""
-        className="flex flex-col gap-5"
+        className="flex flex-col gap-6"
       >
-        <div className="flex flex-col gap-1.5">
-          <h2 className={SECTION_LABEL}>What it is</h2>
+        <div className={SECTION_STACK}>
+          <h2 className={MODULE_HEADING}>What it is</h2>
           {whatItIs === null ? (
             <p className="text-sm text-muted-foreground">
               Not written yet. Studio writes it from the project's chats.
@@ -379,16 +379,16 @@ export function ReadmeOverview(props: {
             folded={!writingIn && !opened.includes("Decisions")}
             onFold={() => toggleSection("Decisions")}
           >
-            <div className="pt-2">{decisions}</div>
+            {decisions}
           </OverviewModule>
         ) : (
-          <div className="flex flex-col gap-1.5">
-            <h2 className={SECTION_LABEL}>Decisions</h2>
+          <div className={SECTION_STACK}>
+            <h2 className={MODULE_HEADING}>Decisions</h2>
             {decisions}
           </div>
         )}
         {sections.more.length === 0 ? null : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-6">
             {sections.more.map((section) => (
               <OverviewModule
                 key={section.heading}
@@ -398,7 +398,7 @@ export function ReadmeOverview(props: {
                 folded={!writingIn && !opened.includes(section.heading)}
                 onFold={() => toggleSection(section.heading)}
               >
-                <div className="flex flex-col gap-1.5 pt-2">
+                <div className="flex flex-col gap-2">
                   <ReadmeBlocks
                     blocks={section.blocks}
                     onSave={save}

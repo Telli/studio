@@ -31,12 +31,11 @@ import { humanName, partName } from "./partNames";
 import { leadHeading, leadPartOf } from "./leadPart";
 import { folderFiles, pictureVersions } from "./projectModels";
 import { type FolderPart, MadeBadges, PartFooter, PartIcon } from "./PartBadges";
+import { CARD_GRID, GROUP_LABEL, MODULE_HEADING, SECTION_STACK } from "./studioLayout";
 import {
-  CARD_GRID,
   FileCard,
   FilesModule,
   HeadingLink,
-  MODULE_HEADING,
   OverviewModule,
   ShowAll,
   StartModule,
@@ -69,8 +68,6 @@ const STATUS_ORDER: Record<CheckStatus | "none", number> = {
 /** The overview shows this many issues and threads before "Show all". */
 const FIRST_ISSUES = 5;
 const RECENT_THREADS = 5;
-
-const headingClass = MODULE_HEADING;
 
 const sentenceCase = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
 
@@ -107,15 +104,15 @@ function LeadPart(props: {
   const picture = pictures.get(part.file.picture ?? part.file.path);
   const status = worstStatus(part.results);
   return (
-    <section aria-label="Lead part" className="flex min-w-0 flex-col gap-2">
-      <h2 className="min-w-0 truncate text-sm font-medium text-foreground">
-        {leadHeading(part.file)}
+    <section aria-label="Lead part" className={SECTION_STACK}>
+      <h2 className={MODULE_HEADING}>
+        <span className="min-w-0 truncate">{leadHeading(part.file)}</span>
       </h2>
       <button
         type="button"
         onClick={props.onOpen}
         aria-label={`Open ${part.file.title} in the viewer`}
-        className="flex aspect-[4/3] max-h-[32rem] items-center justify-center overflow-hidden rounded-md bg-(--model-ground) outline-none transition-opacity duration-150 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="flex aspect-[4/3] max-h-[32rem] items-center justify-center overflow-hidden rounded-lg bg-(--model-ground) outline-none transition-opacity duration-150 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {picture ? (
           <img src={picture} alt="" className="size-full object-contain" />
@@ -128,7 +125,7 @@ function LeadPart(props: {
         {props.where === undefined ? "" : ` · ${props.where}`}
       </span>
       {part.drawings.length + part.made.length === 0 ? null : (
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex flex-wrap items-center gap-2">
           <MadeBadges part={part} onOpen={props.onOpenFile} />
         </div>
       )}
@@ -160,30 +157,30 @@ function OpenIssues(props: {
     composer.focusAtEnd();
   };
   return (
-    <section aria-label="Open issues" className="flex min-w-0 flex-col">
-      <h2 className={headingClass}>
+    <section aria-label="Open issues" className={SECTION_STACK}>
+      <h2 className={MODULE_HEADING}>
         Open issues
         {props.issues.length > 0 ? (
           <span className="tabular-nums text-muted-foreground">{props.issues.length}</span>
         ) : null}
       </h2>
       {props.issues.length === 0 ? (
-        <p className="mt-2 border-t border-border pt-3 text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {props.checked
             ? "Nothing open. Every check that has run passed."
             : "No checks have run yet. Open a part and use Check to run one."}
         </p>
       ) : (
-        <ul className="mt-1.5 flex flex-col border-t border-border">
+        <ul className="flex flex-col border-t border-border">
           {shown.map((entry) => {
             const error = entry.issue.severity === "error";
             return (
               <li
                 key={`${entry.root}\n${entry.result.path}\n${entry.issue.severity}\n${entry.issue.summary}`}
-                className="flex flex-col gap-1.5 border-b border-border py-2.5"
+                className="flex flex-col gap-2 border-b border-border p-3"
               >
                 <div className="flex min-w-0 items-start gap-2">
-                  <Badge variant={error ? "error" : "warning"} size="sm" className="mt-px">
+                  <Badge variant={error ? "error" : "warning"}>
                     {error ? (
                       <CircleXIcon aria-hidden="true" />
                     ) : (
@@ -191,7 +188,7 @@ function OpenIssues(props: {
                     )}
                     {error ? "Fails" : "Warning"}
                   </Badge>
-                  <p className="min-w-0 flex-1 text-xs text-foreground">{entry.issue.summary}</p>
+                  <p className="min-w-0 flex-1 text-sm text-foreground">{entry.issue.summary}</p>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {issuePart(entry)} · {entry.result.check}
@@ -202,13 +199,13 @@ function OpenIssues(props: {
                     {entry.issue.fix}
                   </p>
                 )}
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {props.composerRef === null ? null : (
-                    <Button size="xs" variant="outline" onClick={() => propose(entry)}>
+                    <Button size="sm" variant="outline" onClick={() => propose(entry)}>
                       Propose a fix
                     </Button>
                   )}
-                  <Button size="xs" variant="ghost-muted" onClick={() => props.onShow(entry)}>
+                  <Button size="sm" variant="ghost-muted" onClick={() => props.onShow(entry)}>
                     Show the result
                   </Button>
                 </div>
@@ -425,7 +422,7 @@ export function ProjectOverview(props: {
   const engineering = useEngineeringInterface();
 
   return (
-    <div className="@container flex min-w-0 flex-col gap-8">
+    <div className="@container flex min-w-0 flex-col gap-6">
       {lead === null ? (
         <>
           {props.readme}
@@ -483,7 +480,7 @@ export function ProjectOverview(props: {
         />
       ) : null}
 
-      <div className="grid min-w-0 gap-8 @3xl:grid-cols-2">
+      <div className="grid min-w-0 gap-6 @3xl:grid-cols-2">
         {versioned.length === 0 ? null : (
           <PartVersions
             environmentId={props.environmentId}
@@ -523,13 +520,11 @@ export function ProjectOverview(props: {
                 folded={folded.includes(module.group)}
                 onFold={() => toggle(module.group)}
               >
-                <div className="flex flex-col gap-4 pt-3">
+                <div className={SECTION_STACK}>
                   {module.folders.map((folder) => (
-                    <div key={folder.root} className="flex min-w-0 flex-col gap-2">
+                    <div key={folder.root} className={SECTION_STACK}>
                       {module.folders.length > 1 ? (
-                        <h3 className="truncate text-xs font-medium text-foreground">
-                          {studioFolderName(folder.root)}
-                        </h3>
+                        <h3 className={GROUP_LABEL}>{studioFolderName(folder.root)}</h3>
                       ) : null}
                       <div className={CARD_GRID}>
                         <FolderParts

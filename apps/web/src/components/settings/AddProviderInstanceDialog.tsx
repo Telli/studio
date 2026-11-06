@@ -509,7 +509,7 @@ export function AddProviderInstanceDialog({
                         ) : null}
                       </SettingsGroup>
                       {isAcpRegistry && hasAttemptedSubmit && acpSelectionError ? (
-                        <p className="text-2xs text-destructive">{acpSelectionError}</p>
+                        <p className="text-xs text-destructive">{acpSelectionError}</p>
                       ) : null}
                     </div>
                   ) : (
@@ -524,7 +524,7 @@ export function AddProviderInstanceDialog({
                         onPreparingChange={setIsPreparingRegistryAgent}
                       />
                       {isAcpRegistry && hasAttemptedSubmit && acpSelectionError ? (
-                        <p className="mt-2 text-2xs text-destructive">{acpSelectionError}</p>
+                        <p className="mt-2 text-xs text-destructive">{acpSelectionError}</p>
                       ) : null}
                     </>
                   )}
@@ -541,7 +541,7 @@ export function AddProviderInstanceDialog({
                       v{selectedAcp.version} · {selectedAcp.distribution}
                     </p>
                   </div>
-                  <div className="flex shrink-0 gap-2 text-2xs">
+                  <div className="flex shrink-0 gap-2 text-xs">
                     {selectedAcp.website ? (
                       <a
                         aria-label={`Open documentation for ${selectedAcp.name} (${selectedAcp.id})`}

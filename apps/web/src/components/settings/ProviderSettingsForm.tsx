@@ -217,7 +217,7 @@ function ProviderCommandArguments({
       {rows.length > 0 ? (
         <div className="mt-3 min-w-0 space-y-2 pb-2">
           {rows.map((argument, index) => (
-            <div key={argument.id} className="flex min-w-0 items-center gap-1.5">
+            <div key={argument.id} className="flex min-w-0 items-center gap-2">
               <DraftInput
                 size="sm"
                 font="mono"
@@ -351,7 +351,7 @@ function FieldFrame(props: {
   if (props.variant === "card") {
     return <div>{props.children}</div>;
   }
-  return <div className="grid gap-1.5">{props.children}</div>;
+  return <div className="grid gap-2">{props.children}</div>;
 }
 
 interface ProviderSettingsFieldRowProps {
@@ -372,7 +372,7 @@ function ProviderSettingsFieldRow({
   const inputId = `${idPrefix}-${field.key}`;
   const descriptionClassName =
     variant === "dialog"
-      ? "text-2xs text-muted-foreground"
+      ? "text-xs text-muted-foreground"
       : "mt-1 block text-xs text-muted-foreground";
   const label = <span className="text-xs font-medium text-foreground">{field.label}</span>;
   const description = field.description ? (

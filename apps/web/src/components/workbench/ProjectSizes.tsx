@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import type { ComposerHandleRef } from "~/composerHandleContext";
 import { Button } from "../ui/button";
+import { GROUP_LABEL, SECTION_STACK } from "./studioLayout";
 import { Input } from "../ui/input";
 import { toastManager } from "../ui/toast";
 import { handToChat } from "./handToChat";
@@ -136,7 +137,7 @@ export function ProjectSizes(props: {
         ? {}
         : { action: <HeadingLink label="Add shared size" onClick={() => setAdding(true)} /> })}
     >
-      <div className="flex min-w-0 flex-col gap-5 pt-3">
+      <div className={SECTION_STACK}>
         {read === null ? (
           <p className="text-xs text-muted-foreground">Reading the sizes</p>
         ) : home === null ? (
@@ -153,9 +154,7 @@ export function ProjectSizes(props: {
           shown.map((entry) => (
             <div key={entry.folder} className="flex min-w-0 flex-col gap-3">
               {named ? (
-                <h3 className="truncate text-sm font-medium text-foreground">
-                  {studioFolderName(entry.folder)}
-                </h3>
+                <h3 className={`${GROUP_LABEL} truncate`}>{studioFolderName(entry.folder)}</h3>
               ) : null}
               {entry.sizes.groups.map((group) => (
                 <SizeTable
@@ -211,9 +210,9 @@ function SizeTable(props: {
         : `Shared in ${group.file}`
       : humanName(group.name);
   return (
-    <section aria-label={title} className="flex min-w-0 flex-col gap-1.5">
+    <section aria-label={title} className={SECTION_STACK}>
       <div className="flex min-w-0 items-baseline gap-2">
-        <h3 className="shrink-0 text-xs font-medium text-foreground">{title}</h3>
+        <h3 className={`${GROUP_LABEL} shrink-0`}>{title}</h3>
         {group.kind === "shared" ? (
           <span className="truncate text-xs text-muted-foreground">
             {group.usedBy.length === 0

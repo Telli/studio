@@ -27,7 +27,7 @@ function Cell(props: {
         props.className,
       )}
     >
-      <dt className="text-2xs leading-none font-medium tracking-widest text-muted-foreground uppercase">
+      <dt className="text-xs leading-none font-medium tracking-widest text-muted-foreground uppercase">
         {props.label}
       </dt>
       <dd

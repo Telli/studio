@@ -17,15 +17,21 @@ function settingsBreadcrumbLabel(pathname: string): string | null {
   return SETTINGS_BREADCRUMB_LABELS[normalizedPathname] ?? null;
 }
 
+/** A settings page's name, as its breadcrumb and its title say it; null for an unnamed page. */
+export function useSettingsPageLabel(pathname: string): string | null {
+  const engineering = useEngineeringInterface();
+  const label = settingsBreadcrumbLabel(pathname);
+  return label === null
+    ? null
+    : settingsSectionLabel(pathname.replace(/\/+$/, ""), label, engineering);
+}
+
 /**
  * `Settings / Section`. The scope a change applies to lives at the top of the
  * page content, see `SettingsScopeSentence`.
  */
 export function SettingsBreadcrumb({ pathname }: { pathname: string }) {
-  const engineering = useEngineeringInterface();
-  const label = settingsBreadcrumbLabel(pathname);
-  const sectionLabel =
-    label === null ? null : settingsSectionLabel(pathname.replace(/\/+$/, ""), label, engineering);
+  const sectionLabel = useSettingsPageLabel(pathname);
 
   return (
     <WorkspaceBreadcrumb ariaLabel="Settings breadcrumb">

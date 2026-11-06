@@ -63,7 +63,7 @@ interface SettingsScopeMenuProps {
 }
 
 const SCOPE_LINE =
-  "flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-3 text-base text-muted-foreground sm:px-4";
+  "flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground";
 
 /**
  * "Applying settings for <project> across <environment>" at the top of a settings

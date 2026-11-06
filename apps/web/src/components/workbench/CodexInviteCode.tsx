@@ -249,7 +249,7 @@ export function InviteCodeRow(props: {
   )
     return null;
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background px-4 py-4">
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-background p-3">
       <TicketIcon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <h3 className="text-sm font-medium">Invite code</h3>

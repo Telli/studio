@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Button } from "../ui/button";
+import { MODULE_HEADING } from "./studioLayout";
 import { cardPlace, TOUR_STEPS, tourDone, useTourStore } from "./tourSteps";
 
 interface Box {
@@ -97,10 +98,10 @@ export function StudioTour() {
         ref={card}
         role="dialog"
         aria-label="Studio tour"
-        className="fixed z-50 flex w-80 flex-col gap-2 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg"
+        className="fixed z-50 flex w-80 flex-col gap-2 rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-lg"
         style={{ top: here?.top ?? -9999, left: here?.left ?? -9999 }}
       >
-        <span className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+        <span className={MODULE_HEADING}>
           {step + 1} of {TOUR_STEPS.length}
         </span>
         <h2 className="text-sm font-semibold text-foreground">{current.title}</h2>

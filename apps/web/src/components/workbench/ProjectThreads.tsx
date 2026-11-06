@@ -21,6 +21,7 @@ import { buildThreadRouteParams } from "~/threadRoutes";
 import { formatRelativeTimeLabel, formatShortTimestamp } from "~/timestampFormat";
 import { type HistoryOutcome, historyByDay, historyOutcome } from "./projectHistory";
 import { useEngineeringInterface } from "./studioInterface";
+import { GROUP_LABEL, SECTION_STACK } from "./studioLayout";
 
 /** How a piece of work came out, as its mark and, where it is the news, in words. */
 const OUTCOMES: Record<
@@ -73,7 +74,7 @@ export function ProjectThreads(props: {
 
   if (days.length === 0) {
     return (
-      <p className="py-10 text-center text-xs text-muted-foreground">
+      <p className="py-6 text-center text-xs text-muted-foreground">
         {needle !== ""
           ? "Nothing matches that."
           : plainWords
@@ -85,8 +86,8 @@ export function ProjectThreads(props: {
   return (
     <div className="flex flex-col gap-3" aria-label={plainWords ? "History" : "Threads"}>
       {days.map(({ day, threads }) => (
-        <section key={day} aria-label={day}>
-          <h3 className="pb-1 text-xs font-medium text-muted-foreground">{day}</h3>
+        <section key={day} aria-label={day} className={SECTION_STACK}>
+          <h3 className={GROUP_LABEL}>{day}</h3>
           <ul className="flex flex-col border-t border-border">
             {threads.map((thread) => {
               const current = thread.id === props.currentThreadId;
@@ -106,18 +107,18 @@ export function ProjectThreads(props: {
                       })
                     }
                     className={cn(
-                      "flex w-full min-w-0 items-center gap-2.5 px-1 py-2 text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                      "flex w-full min-w-0 items-center gap-3 p-3 text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                       current && "bg-accent/60",
                     )}
                   >
                     <Icon
                       className={cn(
-                        "size-3.5 shrink-0",
+                        "size-4 shrink-0",
                         plainWords ? outcome.tone : "text-muted-foreground",
                       )}
                       aria-hidden="true"
                     />
-                    <span className="min-w-0 flex-1 truncate text-xs text-foreground">
+                    <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                       {thread.title || (plainWords ? "New work" : "New thread")}
                     </span>
                     {props.folderNames === null ? null : (

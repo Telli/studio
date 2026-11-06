@@ -12,6 +12,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import ReadOnlySourcePreview from "../files/ReadOnlySourcePreview";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { WorkspacePageContainer } from "../WorkspacePageContainer";
 import { toastManager } from "../ui/toast";
 import { aboutFile, isPlainText, openLabel } from "./aboutFile";
 import { CHECK_STATUS } from "./CheckBadge";
@@ -28,7 +29,7 @@ function CheckReport(props: { readonly result: CheckResult; readonly onOpenModel
   return (
     <section
       aria-label="Result"
-      className="flex flex-col gap-3 rounded-lg border border-border p-4"
+      className="flex flex-col gap-3 rounded-lg border border-border p-3"
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={variant}>
@@ -55,7 +56,7 @@ function CheckReport(props: { readonly result: CheckResult; readonly onOpenModel
                       : "mt-0.5 size-4 shrink-0 text-warning-foreground"
                   }
                 />
-                <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="flex min-w-0 flex-col gap-1">
                   <span className="text-foreground">{issue.summary}</span>
                   {issue.fix === null ? null : (
                     <span className="text-muted-foreground">Fix: {issue.fix}</span>
@@ -122,7 +123,7 @@ export function StudioFilePage(props: {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-2">
-          <Button variant="ghost" size="xs" onClick={() => setShowText(false)}>
+          <Button variant="ghost" size="sm" onClick={() => setShowText(false)}>
             <ChevronLeftIcon />
             {partLabel(name)}
           </Button>
@@ -137,13 +138,13 @@ export function StudioFilePage(props: {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scrollbar-gutter-both">
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-8 py-8">
-        <header className="flex items-start gap-4">
+      <WorkspacePageContainer className="max-w-3xl">
+        <header className="flex items-start gap-3">
           <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-muted">
             <FileKindIcon path={relativePath} className="size-6" />
           </span>
           <span className="flex min-w-0 flex-col gap-1">
-            <h1 className="text-lg font-semibold text-balance text-foreground">
+            <h1 className="text-2xl font-semibold text-balance text-foreground">
               {result === null ? partLabel(name) : `${result.check} of ${partLabel(result.part)}`}
             </h1>
             <span className="text-sm text-muted-foreground">
@@ -209,7 +210,7 @@ export function StudioFilePage(props: {
             </Button>
           ) : null}
         </div>
-      </div>
+      </WorkspacePageContainer>
     </div>
   );
 }

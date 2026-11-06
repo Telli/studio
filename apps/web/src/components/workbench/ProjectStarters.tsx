@@ -53,7 +53,7 @@ export function ProjectStarters(props: {
         <Button
           key={starter.label}
           variant="outline"
-          size="compact"
+          size="sm"
           onClick={() => {
             const composer = props.composerRef.current;
             if (!composer) return;

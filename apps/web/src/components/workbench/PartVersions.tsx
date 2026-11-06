@@ -267,7 +267,7 @@ export function PartVersions(props: {
           )
         }
       >
-        <div className="flex flex-col gap-4 pt-3">
+        <div className="flex flex-col gap-3">
           {part === null ? (
             <p className="text-xs text-muted-foreground">No part yet, so no versions.</p>
           ) : listed === null ? (
@@ -319,7 +319,7 @@ export function PartVersions(props: {
                 </button>
               ) : null}
               {newer === null || !restorable ? null : (
-                <div className="flex flex-wrap items-center gap-2 rounded-md border border-border px-3 py-2">
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3">
                   <p className="min-w-0 flex-1 text-xs text-muted-foreground">
                     {newer.label} of {part.file.title}, {newer.detail}
                   </p>
