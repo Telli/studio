@@ -2071,6 +2071,12 @@ const layerWsRpc = (
         [WS_METHODS.pluginsUninstall]: (input) =>
           plugins.uninstall(input.pluginId).pipe(Effect.as({})),
         [WS_METHODS.pluginsUpdate]: (input) => plugins.update(input.pluginId),
+        [WS_METHODS.pluginsSkillRead]: (input) => plugins.readSkill(input),
+        [WS_METHODS.pluginsSkillCreate]: (input) => plugins.createSkill(input),
+        [WS_METHODS.pluginsSkillSave]: (input) => plugins.saveSkill(input),
+        [WS_METHODS.pluginsSkillCopy]: (input) => plugins.copySkill(input),
+        [WS_METHODS.pluginsSkillRemove]: (input) =>
+          plugins.removeSkill(input.skill).pipe(Effect.as({})),
         [WS_METHODS.pluginsOpenView]: (input) => plugins.openView(input),
         [WS_METHODS.pluginsRequest]: (input) =>
           plugins.request(input).pipe(

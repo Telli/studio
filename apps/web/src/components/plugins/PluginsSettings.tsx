@@ -8,11 +8,12 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@t3tools/client-runtime/state/runtime";
-import type {
-  EnvironmentId,
-  InstalledPlugin,
-  PluginCatalogEntry,
-  PluginCompatibility,
+import {
+  type EnvironmentId,
+  type InstalledPlugin,
+  MY_SKILLS_PLUGIN_ID,
+  type PluginCatalogEntry,
+  type PluginCompatibility,
 } from "@t3tools/contracts";
 import { EllipsisIcon, SearchIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -252,21 +253,23 @@ function PluginsSettings({ environmentId }: { environmentId: EnvironmentId }) {
                   </MenuItem>
                 ))}
                 {views.length > 0 ? <MenuSeparator /> : null}
-                <MenuItem
-                  variant="destructive"
-                  disabled={!canManage || busy !== undefined}
-                  onClick={async () => {
-                    const confirmed = await requestConfirmDialog(
-                      `Uninstall ${plugin.displayName}? Its servers stop and its files are removed from this environment.`,
-                    );
-                    if (confirmed !== true) return;
-                    await run(plugin.id, "Uninstalling", () =>
-                      uninstall({ environmentId, input: { pluginId: plugin.id } }),
-                    );
-                  }}
-                >
-                  Uninstall
-                </MenuItem>
+                {plugin.id === MY_SKILLS_PLUGIN_ID ? null : (
+                  <MenuItem
+                    variant="destructive"
+                    disabled={!canManage || busy !== undefined}
+                    onClick={async () => {
+                      const confirmed = await requestConfirmDialog(
+                        `Uninstall ${plugin.displayName}? Its servers stop and its files are removed from this environment.`,
+                      );
+                      if (confirmed !== true) return;
+                      await run(plugin.id, "Uninstalling", () =>
+                        uninstall({ environmentId, input: { pluginId: plugin.id } }),
+                      );
+                    }}
+                  >
+                    Uninstall
+                  </MenuItem>
+                )}
               </MenuPopup>
             </Menu>
           </>

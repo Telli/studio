@@ -13,6 +13,7 @@
  */
 import {
   type InstalledPlugin,
+  MY_SKILLS_PLUGIN_ID,
   type PluginCatalogEntry,
   type PluginCatalogInput,
   type PluginCatalogResult,
@@ -20,7 +21,13 @@ import {
   PluginOperationError,
   type PluginOperationErrorReason,
   type PluginServerStatus,
+  type PluginSkillContent,
+  type PluginSkillCreateInput,
   type PluginSkillDetail,
+  type PluginSkillInput,
+  type PluginSkillReadInput,
+  type PluginSkillResult,
+  type PluginSkillSaveInput,
 } from "@t3tools/contracts";
 import {
   buildCatalog,
@@ -59,6 +66,7 @@ import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 
 import * as ServerConfig from "../config.ts";
+import * as MySkills from "./mySkills.ts";
 import * as PluginFiles from "./pluginFiles.ts";
 import { readSkillDetail } from "./skillDetails.ts";
 
@@ -215,6 +223,22 @@ export class PluginStore extends Context.Service<
     /** Install a plugin again from its marketplace as it is now. */
     readonly update: (id: string) => Effect.Effect<string, PluginOperationError>;
     readonly uninstall: (id: string) => Effect.Effect<void, PluginOperationError>;
+    /** A skill as its files have it, in any installed plugin. */
+    readonly readSkill: (
+      input: PluginSkillReadInput,
+    ) => Effect.Effect<PluginSkillContent, PluginOperationError>;
+    /** Adds a skill to the person's own (`mySkills.ts`). */
+    readonly createSkill: (
+      input: PluginSkillCreateInput,
+    ) => Effect.Effect<PluginSkillResult, PluginOperationError>;
+    readonly saveSkill: (
+      input: PluginSkillSaveInput,
+    ) => Effect.Effect<PluginSkillResult, PluginOperationError>;
+    /** Copies a plugin's skill into the person's own, the way to change one. */
+    readonly copySkill: (
+      input: PluginSkillInput,
+    ) => Effect.Effect<PluginSkillResult, PluginOperationError>;
+    readonly removeSkill: (skill: string) => Effect.Effect<void, PluginOperationError>;
     readonly setEnabled: (
       id: string,
       enabled: boolean,
@@ -664,6 +688,12 @@ const makeWith = (sources: ReadonlyArray<MarketplaceSource>) =>
 
     const uninstall = Effect.fn("PluginStore.uninstall")(function* (id: string) {
       const record = yield* find(id);
+      if (id === MY_SKILLS_PLUGIN_ID) {
+        return yield* fail(
+          "install_failed",
+          "Your own skills stay in the Toolbox: remove them there.",
+        );
+      }
       yield* modify((current) => ({
         ...current,
         plugins: current.plugins.filter((item) => item.id !== id),
@@ -682,6 +712,97 @@ const makeWith = (sources: ReadonlyArray<MarketplaceSource>) =>
         plugins: current.plugins.map((item) => (item.id === id ? { ...item, enabled } : item)),
       }));
       yield* publish;
+    });
+
+    /** A skill's folder in an installed plugin, there or not. */
+    const skillFolder = (id: string, skill: string) =>
+      Effect.gen(function* () {
+        const record = yield* find(id);
+        const read = readInstalled(record);
+        const folder =
+          read instanceof Error || read.skillsDir === null
+            ? null
+            : MySkills.skillFolderIn(path.join(record.root, read.skillsDir), skill);
+        if (folder === null) return yield* fail("not_found", `No skill called ${skill}.`);
+        return folder;
+      });
+
+    /** Runs a change to the skills' files, as a failed write says what stopped it. */
+    const skillChange = <A>(change: () => A) =>
+      Effect.try({
+        try: change,
+        catch: (cause) => fail("install_failed", sentence(cause)),
+      }).pipe(
+        Effect.tap(() => {
+          skillDetailsCache.clear();
+          return publish;
+        }),
+      );
+
+    /** The person's own skills' folder, with the plugin listed once the first one is added. */
+    const mySkillsDir = Effect.gen(function* () {
+      const root = path.join(dataDir, MY_SKILLS_PLUGIN_ID);
+      yield* Effect.try({
+        try: () => MySkills.ensureMySkills(root),
+        catch: (cause) => fail("install_failed", sentence(cause)),
+      });
+      if (!registry.plugins.some((item) => item.id === MY_SKILLS_PLUGIN_ID)) {
+        const installedAt = yield* Clock.currentTimeMillis;
+        yield* modify((current) => ({
+          ...current,
+          plugins: [
+            ...current.plugins,
+            {
+              id: MY_SKILLS_PLUGIN_ID,
+              marketplace: "",
+              entry: MY_SKILLS_PLUGIN_ID,
+              root,
+              commit: null,
+              enabled: true,
+              installedAt,
+              servers: {},
+            },
+          ],
+        }));
+      }
+      return path.join(root, "skills");
+    });
+
+    const readSkill = Effect.fn("PluginStore.readSkill")(function* (input: PluginSkillReadInput) {
+      const folder = yield* skillFolder(input.pluginId, input.skill);
+      const content = MySkills.readSkill(folder, input.file);
+      if (content === null) return yield* fail("not_found", `No skill called ${input.skill}.`);
+      return content;
+    });
+
+    const createSkill = Effect.fn("PluginStore.createSkill")(function* (
+      input: PluginSkillCreateInput,
+    ) {
+      const skillsDir = yield* mySkillsDir;
+      return {
+        skill: yield* skillChange(() =>
+          MySkills.createSkill(skillsDir, input.title, input.description),
+        ),
+      };
+    });
+
+    const saveSkill = Effect.fn("PluginStore.saveSkill")(function* (input: PluginSkillSaveInput) {
+      const folder = yield* skillFolder(MY_SKILLS_PLUGIN_ID, input.skill);
+      yield* skillChange(() => MySkills.saveSkill(folder, input.text));
+      return { skill: input.skill };
+    });
+
+    const copySkill = Effect.fn("PluginStore.copySkill")(function* (input: PluginSkillInput) {
+      const from = yield* skillFolder(input.pluginId, input.skill);
+      const skillsDir = yield* mySkillsDir;
+      return {
+        skill: yield* skillChange(() => MySkills.copySkill(from, skillsDir, input.skill)),
+      };
+    });
+
+    const removeSkill = Effect.fn("PluginStore.removeSkill")(function* (skill: string) {
+      const folder = yield* skillFolder(MY_SKILLS_PLUGIN_ID, skill);
+      yield* skillChange(() => MySkills.removeSkill(folder));
     });
 
     const enabledPlugins = Effect.sync(() =>
@@ -724,6 +845,11 @@ const makeWith = (sources: ReadonlyArray<MarketplaceSource>) =>
       install,
       update,
       uninstall,
+      readSkill,
+      createSkill,
+      saveSkill,
+      copySkill,
+      removeSkill,
       setEnabled,
       enabledPlugins,
       markStarting,

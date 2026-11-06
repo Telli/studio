@@ -88,6 +88,11 @@ export class PluginService extends Context.Service<
     readonly install: (key: string) => Effect.Effect<InstalledPlugin, PluginOperationError>;
     readonly update: (pluginId: string) => Effect.Effect<InstalledPlugin, PluginOperationError>;
     readonly uninstall: (pluginId: string) => Effect.Effect<void, PluginOperationError>;
+    readonly readSkill: PluginStore.PluginStore["Service"]["readSkill"];
+    readonly createSkill: PluginStore.PluginStore["Service"]["createSkill"];
+    readonly saveSkill: PluginStore.PluginStore["Service"]["saveSkill"];
+    readonly copySkill: PluginStore.PluginStore["Service"]["copySkill"];
+    readonly removeSkill: PluginStore.PluginStore["Service"]["removeSkill"];
     readonly setEnabled: (
       pluginId: string,
       enabled: boolean,
@@ -444,6 +449,11 @@ const make = Effect.gen(function* () {
         .pipe(Effect.andThen(store.update(pluginId)), Effect.flatMap(relist)),
     uninstall: (pluginId) =>
       host.closePlugin(pluginId).pipe(Effect.andThen(store.uninstall(pluginId))),
+    readSkill: store.readSkill,
+    createSkill: store.createSkill,
+    saveSkill: store.saveSkill,
+    copySkill: store.copySkill,
+    removeSkill: store.removeSkill,
     setEnabled: (pluginId, enabled) =>
       store
         .setEnabled(pluginId, enabled)

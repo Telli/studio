@@ -382,6 +382,12 @@ import {
   PluginRequestResult,
   PluginSetEnabledInput,
   PluginViewDocument,
+  PluginSkillContent,
+  PluginSkillCreateInput,
+  PluginSkillInput,
+  PluginSkillReadInput,
+  PluginSkillResult,
+  PluginSkillSaveInput,
 } from "./plugins.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
 import {
@@ -521,6 +527,11 @@ export const WS_METHODS = {
   pluginsSetEnabled: "plugins.setEnabled",
   pluginsUninstall: "plugins.uninstall",
   pluginsUpdate: "plugins.update",
+  pluginsSkillRead: "plugins.skillRead",
+  pluginsSkillCreate: "plugins.skillCreate",
+  pluginsSkillSave: "plugins.skillSave",
+  pluginsSkillCopy: "plugins.skillCopy",
+  pluginsSkillRemove: "plugins.skillRemove",
   pluginsOpenView: "plugins.openView",
   pluginsRequest: "plugins.request",
   pluginsModelPictures: "plugins.modelPictures",
@@ -853,6 +864,36 @@ const WsPluginsSetEnabledRpc = Rpc.make(WS_METHODS.pluginsSetEnabled, {
 
 const WsPluginsUninstallRpc = Rpc.make(WS_METHODS.pluginsUninstall, {
   payload: PluginIdInput,
+  success: Schema.Struct({}),
+  error: PluginOperationError,
+});
+
+const WsPluginsSkillReadRpc = Rpc.make(WS_METHODS.pluginsSkillRead, {
+  payload: PluginSkillReadInput,
+  success: PluginSkillContent,
+  error: PluginOperationError,
+});
+
+const WsPluginsSkillCreateRpc = Rpc.make(WS_METHODS.pluginsSkillCreate, {
+  payload: PluginSkillCreateInput,
+  success: PluginSkillResult,
+  error: PluginOperationError,
+});
+
+const WsPluginsSkillSaveRpc = Rpc.make(WS_METHODS.pluginsSkillSave, {
+  payload: PluginSkillSaveInput,
+  success: PluginSkillResult,
+  error: PluginOperationError,
+});
+
+const WsPluginsSkillCopyRpc = Rpc.make(WS_METHODS.pluginsSkillCopy, {
+  payload: PluginSkillInput,
+  success: PluginSkillResult,
+  error: PluginOperationError,
+});
+
+const WsPluginsSkillRemoveRpc = Rpc.make(WS_METHODS.pluginsSkillRemove, {
+  payload: PluginSkillResult,
   success: Schema.Struct({}),
   error: PluginOperationError,
 });
@@ -2042,6 +2083,11 @@ export const WsHostRpcGroup = RpcGroup.make(
   WsPluginsSetEnabledRpc,
   WsPluginsUninstallRpc,
   WsPluginsUpdateRpc,
+  WsPluginsSkillReadRpc,
+  WsPluginsSkillCreateRpc,
+  WsPluginsSkillSaveRpc,
+  WsPluginsSkillCopyRpc,
+  WsPluginsSkillRemoveRpc,
   WsPluginsOpenViewRpc,
   WsPluginsRequestRpc,
   WsPluginsModelPicturesRpc,

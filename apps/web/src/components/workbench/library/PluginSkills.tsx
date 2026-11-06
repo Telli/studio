@@ -8,7 +8,7 @@ import { libraryHref } from "./librarySearch";
 
 /**
  * One installed plugin's skills, listed under its row in Settings › Plugins in the engineering
- * interface: each with its name, its description and In the library, a link to its entry. A
+ * interface: each with its name, its description and In the Toolbox, a link to its entry. A
  * skill is named as the library names it (`skillLabel`: `skillName` among every installed
  * plugin's skills). The library reads the primary environment's plugins, so a skill listed for
  * another environment has no link.
@@ -39,10 +39,10 @@ export function PluginSkills(props: {
             {inLibrary ? (
               <InlineButton
                 tone="muted"
-                aria-label={`${name} in the library`}
+                aria-label={`${name} in the Toolbox`}
                 render={<Link {...libraryHref({ entry: skill.id })} />}
               >
-                In the library
+                In the Toolbox
               </InlineButton>
             ) : null}
           </li>

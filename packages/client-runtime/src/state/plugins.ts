@@ -59,6 +59,33 @@ export function createPluginEnvironmentAtoms<R, E>(
       staleTimeMs: 30_000,
       refreshTrigger: ({ environmentId }) => pluginsRevision(environmentId),
     }),
+    /** A skill as its files have it; read again whenever a skill or plugin changes. */
+    skill: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:plugins:skill",
+      tag: WS_METHODS.pluginsSkillRead,
+      staleTimeMs: 30_000,
+      refreshTrigger: ({ environmentId }) => pluginsRevision(environmentId),
+    }),
+    createSkill: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:plugins:skill-create",
+      tag: WS_METHODS.pluginsSkillCreate,
+      ...lifecycle,
+    }),
+    saveSkill: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:plugins:skill-save",
+      tag: WS_METHODS.pluginsSkillSave,
+      ...lifecycle,
+    }),
+    copySkill: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:plugins:skill-copy",
+      tag: WS_METHODS.pluginsSkillCopy,
+      ...lifecycle,
+    }),
+    removeSkill: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:plugins:skill-remove",
+      tag: WS_METHODS.pluginsSkillRemove,
+      ...lifecycle,
+    }),
     /** Fetches every catalog again (`refresh: true`), then re-reads the list and catalog queries. */
     refreshCatalog: createEnvironmentRpcCommand(runtime, {
       label: "environment-command:plugins:refresh-catalog",

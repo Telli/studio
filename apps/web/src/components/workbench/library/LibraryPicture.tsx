@@ -105,11 +105,11 @@ export function LibraryPicture(props: {
   return (
     <span className={box}>
       <Icon aria-hidden="true" className={cn("size-8 opacity-60", KIND_TINT)} />
-      <span className="px-3 text-center text-xs text-muted-foreground">
-        {entry.kind === "skill"
-          ? "No example ships with this skill."
-          : "No example ships with this document type."}
-      </span>
+      {entry.kind === "skill" ? null : (
+        <span className="px-3 text-center text-xs text-muted-foreground">
+          No example ships with this document type.
+        </span>
+      )}
     </span>
   );
 }

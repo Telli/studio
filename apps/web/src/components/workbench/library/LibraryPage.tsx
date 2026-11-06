@@ -1,4 +1,4 @@
-import type { EnvironmentId, InstalledPlugin } from "@t3tools/contracts";
+import { MY_SKILLS_PLUGIN_ID, type EnvironmentId, type InstalledPlugin } from "@t3tools/contracts";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { PlusIcon, PuzzleIcon } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
@@ -21,7 +21,7 @@ import { ChatPage } from "../ChatPages";
 import { findExamples } from "../examples/examples";
 import { ExamplesModule } from "../examples/ExamplesModule";
 import { useDocumentTemplates } from "../documentTemplates";
-import { EXAMPLES_ICON, fileTint, KIND_TINT, MENU_ICONS, MENU_TINTS } from "../kinds";
+import { EXAMPLES_ICON, fileTint, MENU_ICONS, MENU_TINTS } from "../kinds";
 import { useNewDialogStore } from "../newDialogStore";
 import type { NewTemplate } from "../newTemplates";
 import { useEngineeringInterface } from "../studioInterface";
@@ -37,6 +37,7 @@ import {
   showsUpAs,
   skillName,
 } from "./libraryCatalog";
+import { AddSkillTile } from "./AddSkill";
 import { LibraryCard } from "./LibraryCard";
 import { LibraryPicture } from "./LibraryPicture";
 import { LibraryShelf, ShelfIndex, shelfAnchor, type Shelf } from "./LibraryShelf";
@@ -49,6 +50,7 @@ import {
 } from "./librarySearch";
 import { NeedsSkill, PluginsLink } from "./NeedsSkill";
 import { SeeTheExample } from "./SeeTheExample";
+import { SkillDetail } from "./SkillDetail";
 import { useExamples } from "./useSampleProject";
 
 /** Each group of document types by its place's icon: New's, then each part menu's (`kinds.ts`). */
@@ -77,12 +79,12 @@ const shelfOf = (shelf: Omit<Shelf, "count">, entries: ReadonlyArray<LibraryEntr
 
 /**
  * Studio's Toolbox page (`/library`, the one place on the rail for what Studio ships), laid out as
- * a library: a directory of shelves down its side (`ShelfIndex`), and always-open shelves of covers
- * (`LibraryShelf`). The examples come first (`ExamplesModule`), then every document type Studio
- * makes, shelved where it is found (New, then the part menus Evaluate, Manufacture and Document),
- * then every installed plugin's skills, each a cover with a picture of its real example
- * (`LibraryPicture`) and its name. A cover opens its detail, kept in the URL (`entry`) so Back
- * closes it; `group` scrolls to its shelf. Reached from ⌘K, New, the part menus and
+ * a library of skills: a directory of shelves down its side (`ShelfIndex`), and always-open shelves
+ * of covers (`LibraryShelf`). The person's own skills come first, with Add a skill, then every
+ * installed plugin's, then the examples (`ExamplesModule`) and every document type Studio makes,
+ * shelved where it is found (New, then the part menus Evaluate, Manufacture and Document). A
+ * skill's cover opens it in full (`SkillDetail`), a document type's its detail, kept in the URL
+ * (`entry`) so Back closes it; `group` scrolls to its shelf. Reached from ⌘K, New, the part menus and
  * Settings › Plugins (`libraryHref`).
  */
 export function LibraryPage(props: { readonly search: LibrarySearch }) {
@@ -113,26 +115,37 @@ function LibraryContent(props: {
   const skills = useMemo(() => librarySkills(plugins ?? []), [plugins]);
   const entries = useMemo(() => [...documents, ...skills], [documents, skills]);
   const matching = new Set(filterLibrary(entries, query));
-  const groups: ReadonlyArray<Group> = [
-    ...LIBRARY_GROUPS.map((group) =>
+  const pluginsWithSkills = [
+    ...new Map(skills.map((skill) => [skill.pluginId, skill.pluginName] as const)),
+  ].filter(([pluginId]) => pluginId !== MY_SKILLS_PLUGIN_ID);
+  const mySkills = shelfOf(
+    {
+      key: `plugin:${MY_SKILLS_PLUGIN_ID}`,
+      title: "My skills",
+      icon: PuzzleIcon,
+      tint: fileTint("CAD"),
+    },
+    skills.filter((skill) => skill.pluginId === MY_SKILLS_PLUGIN_ID && matching.has(skill)),
+  );
+  const skillShelves: ReadonlyArray<Group> = pluginsWithSkills
+    .map(([pluginId, pluginName]) =>
       shelfOf(
-        { key: group, title: group, icon: GROUP_ICONS[group], tint: GROUP_TINTS[group] },
-        documents.filter((entry) => libraryGroup(entry) === group && matching.has(entry)),
+        {
+          key: `plugin:${pluginId}`,
+          title: `${pluginName} skills`,
+          icon: PuzzleIcon,
+          tint: fileTint("CAD"),
+        },
+        skills.filter((skill) => skill.pluginId === pluginId && matching.has(skill)),
       ),
+    )
+    .filter((group) => group.entries.length > 0);
+  const documentShelves: ReadonlyArray<Group> = LIBRARY_GROUPS.map((group) =>
+    shelfOf(
+      { key: group, title: group, icon: GROUP_ICONS[group], tint: GROUP_TINTS[group] },
+      documents.filter((entry) => libraryGroup(entry) === group && matching.has(entry)),
     ),
-    ...[...new Map(skills.map((skill) => [skill.pluginId, skill.pluginName] as const))].map(
-      ([pluginId, pluginName]) =>
-        shelfOf(
-          {
-            key: `plugin:${pluginId}`,
-            title: `${pluginName} skills`,
-            icon: PuzzleIcon,
-            tint: KIND_TINT,
-          },
-          skills.filter((skill) => skill.pluginId === pluginId && matching.has(skill)),
-        ),
-    ),
-  ].filter((group) => group.entries.length > 0);
+  ).filter((group) => group.entries.length > 0);
   const examplesShelf: Shelf = {
     key: "examples",
     title: "Examples",
@@ -140,7 +153,15 @@ function LibraryContent(props: {
     tint: fileTint("CAD"),
     count: shownExamples.length,
   };
-  const shelves = [...(shownExamples.length === 0 ? [] : [examplesShelf]), ...groups];
+  // My skills stays on the page with nothing in it, since it holds Add a skill.
+  const showMySkills = query === "" || mySkills.entries.length > 0;
+  const shelves = [
+    ...(showMySkills ? [mySkills] : []),
+    ...skillShelves,
+    ...(shownExamples.length === 0 ? [] : [examplesShelf]),
+    ...documentShelves,
+  ];
+  const nothingFound = shelves.length === 0;
 
   // Every skill on the page by its one name (`skillName`): cards, details, Made by, what it needs.
   const skillLabel = (name: string) => skillName(name, skills);
@@ -180,6 +201,30 @@ function LibraryContent(props: {
     else void navigate({ href: search.from });
   };
 
+  // A skill just added or copied opens on the editor.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const openOwnSkill = (skill: string) => {
+    const id = `skill:${MY_SKILLS_PLUGIN_ID}/${skill}`;
+    setEditingId(id);
+    openEntry(id);
+  };
+  const cover = (entry: LibraryEntry) => (
+    <LibraryCard
+      key={entry.id}
+      picture={
+        <LibraryPicture
+          entry={entry}
+          environmentId={environmentId}
+          className="aspect-square border-b border-border"
+        />
+      }
+      name={entryName(entry, skillLabel)}
+      {...(entry.kind === "skill" ? { blurb: entry.description } : {})}
+      note={offNote(entry)}
+      onOpen={() => openEntry(entry.id)}
+    />
+  );
+
   // Opened on a group: it comes up to the top, unless it shows near the top already.
   useEffect(() => {
     if (search.group === undefined) return;
@@ -193,7 +238,7 @@ function LibraryContent(props: {
     <ChatPage
       title="Toolbox"
       count={entries.length}
-      lede="Open an example, or see what the agent can make."
+      lede="The skills the agent works from, and what it makes with them. Open one to read it, or add your own."
       search={
         <Input
           type="search"
@@ -205,31 +250,28 @@ function LibraryContent(props: {
         />
       }
     >
-      {groups.length === 0 && shownExamples.length === 0 ? (
+      {nothingFound ? (
         <p className="py-6 text-sm text-muted-foreground">Nothing in the Toolbox matches that.</p>
       ) : null}
       <div className="@container min-w-0">
         <div className="flex min-w-0 items-start gap-8">
           <ShelfIndex shelves={shelves} />
           <div className="flex min-w-0 flex-1 flex-col gap-8">
-            <ExamplesModule shelf={examplesShelf} examples={shownExamples} />
-            {groups.map((group) => (
+            {showMySkills ? (
+              <LibraryShelf shelf={mySkills}>
+                <AddSkillTile environmentId={environmentId} onAdded={openOwnSkill} />
+                {mySkills.entries.map(cover)}
+              </LibraryShelf>
+            ) : null}
+            {skillShelves.map((group) => (
               <LibraryShelf key={group.key} shelf={group}>
-                {group.entries.map((entry) => (
-                  <LibraryCard
-                    key={entry.id}
-                    picture={
-                      <LibraryPicture
-                        entry={entry}
-                        environmentId={environmentId}
-                        className="aspect-square border-b border-border"
-                      />
-                    }
-                    name={entryName(entry, skillLabel)}
-                    note={offNote(entry)}
-                    onOpen={() => openEntry(entry.id)}
-                  />
-                ))}
+                {group.entries.map(cover)}
+              </LibraryShelf>
+            ))}
+            <ExamplesModule shelf={examplesShelf} examples={shownExamples} />
+            {documentShelves.map((group) => (
+              <LibraryShelf key={group.key} shelf={group}>
+                {group.entries.map(cover)}
               </LibraryShelf>
             ))}
           </div>
@@ -254,6 +296,9 @@ function LibraryContent(props: {
                 : null
             }
             onMakeOne={search.from !== undefined || engineering ? makeOne : null}
+            startEditing={shown.id === editingId}
+            onOwnSkill={openOwnSkill}
+            onRemoved={closeEntry}
           />
         )}
       </Dialog>
@@ -278,6 +323,10 @@ function EntryDetail(props: {
   readonly exampleId: string | null;
   /** Opens New on a template; null where no New would take it. */
   readonly onMakeOne: ((template: NewTemplate) => void) | null;
+  /** A skill just added or copied: it opens on the editor. */
+  readonly startEditing: boolean;
+  readonly onOwnSkill: (skill: string) => void;
+  readonly onRemoved: () => void;
 }) {
   const { entry, plugins, skillLabel, exampleId, onMakeOne } = props;
   const state =
@@ -314,6 +363,32 @@ function EntryDetail(props: {
               ]),
         ];
 
+  const facts =
+    rows.length === 0 ? null : (
+      <dl className="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+        {rows.map(([label, value]) => (
+          <Fragment key={label}>
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="min-w-0 text-foreground">{value}</dd>
+          </Fragment>
+        ))}
+      </dl>
+    );
+
+  if (entry.kind === "skill") {
+    return (
+      <SkillDetail
+        entry={entry}
+        environmentId={props.environmentId}
+        name={entryName(entry, skillLabel)}
+        startEditing={props.startEditing}
+        facts={facts}
+        onOwn={props.onOwnSkill}
+        onRemoved={props.onRemoved}
+      />
+    );
+  }
+
   return (
     <DialogPopup className="max-w-xl">
       <DialogHeader>
@@ -325,27 +400,11 @@ function EntryDetail(props: {
           environmentId={props.environmentId}
           className="rounded-lg border border-border"
         />
-        <DialogDescription>
-          {entry.kind === "document" ? entry.what : entry.description}
-        </DialogDescription>
-        {rows.length === 0 ? null : (
-          <dl className="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
-            {rows.map(([label, value]) => (
-              <Fragment key={label}>
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="min-w-0 text-foreground">{value}</dd>
-              </Fragment>
-            ))}
-          </dl>
-        )}
+        <DialogDescription>{entry.what}</DialogDescription>
+        {facts}
         {state === null || state.on || plugins === undefined ? null : (
           <NeedsSkill needs={state} plugins={plugins} />
         )}
-        {entry.kind === "skill" && !entry.on ? (
-          <p className="text-sm text-foreground">
-            The {entry.pluginName} plugin is turned off. <PluginsLink />
-          </p>
-        ) : null}
       </DialogPanel>
       {example === null && template === null ? null : (
         <DialogFooter>

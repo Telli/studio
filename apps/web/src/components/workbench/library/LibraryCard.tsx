@@ -17,6 +17,8 @@ export function LibraryCard({
   readonly picture: ReactNode;
   readonly name: string;
   readonly note: string | null;
+  /** Two lines on what it is, a skill's description. */
+  readonly blurb?: string;
   /** Short words under the name: what an example shows. */
   readonly tags?: ReadonlyArray<string>;
   readonly disabled?: boolean;
@@ -39,6 +41,9 @@ export function LibraryCard({
       </span>
       <span className="flex min-w-0 flex-col gap-1 p-3">
         <span className="truncate text-sm font-medium text-foreground">{props.name}</span>
+        {props.blurb === undefined ? null : (
+          <span className="line-clamp-2 h-[2lh] text-xs text-muted-foreground">{props.blurb}</span>
+        )}
         {props.note === null ? null : (
           <span className="truncate text-xs text-muted-foreground">{props.note}</span>
         )}

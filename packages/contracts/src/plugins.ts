@@ -193,6 +193,44 @@ export type PluginInstallInput = typeof PluginInstallInput.Type;
 export const PluginIdInput = Schema.Struct({ pluginId: PluginId });
 export type PluginIdInput = typeof PluginIdInput.Type;
 
+/** The plugin holding the person's own skills, there once they add one. */
+export const MY_SKILLS_PLUGIN_ID = "my-skills";
+
+const SkillName = TrimmedNonEmptyString.check(Schema.isMaxLength(128));
+
+export const PluginSkillInput = Schema.Struct({ pluginId: PluginId, skill: SkillName });
+export type PluginSkillInput = typeof PluginSkillInput.Type;
+
+export const PluginSkillReadInput = Schema.Struct({
+  ...PluginSkillInput.fields,
+  /** One of the skill's other files, by its path in the skill's folder; else its `SKILL.md`. */
+  file: Schema.NullOr(Text(512)),
+});
+export type PluginSkillReadInput = typeof PluginSkillReadInput.Type;
+
+/** A skill as its files have it: the text asked for, and what else the skill holds. */
+export const PluginSkillContent = Schema.Struct({
+  text: Schema.String,
+  files: Schema.Array(Text(512)).check(Schema.isMaxLength(200)),
+});
+export type PluginSkillContent = typeof PluginSkillContent.Type;
+
+export const PluginSkillCreateInput = Schema.Struct({
+  title: TrimmedNonEmptyString.check(Schema.isMaxLength(120)),
+  description: TrimmedNonEmptyString.check(Schema.isMaxLength(400)),
+});
+export type PluginSkillCreateInput = typeof PluginSkillCreateInput.Type;
+
+export const PluginSkillSaveInput = Schema.Struct({
+  skill: SkillName,
+  text: Schema.String.check(Schema.isMaxLength(1024 * 1024)),
+});
+export type PluginSkillSaveInput = typeof PluginSkillSaveInput.Type;
+
+/** Where a skill landed in the person's own: its name in `MY_SKILLS_PLUGIN_ID`. */
+export const PluginSkillResult = Schema.Struct({ skill: SkillName });
+export type PluginSkillResult = typeof PluginSkillResult.Type;
+
 export const PluginSetEnabledInput = Schema.Struct({
   pluginId: PluginId,
   enabled: Schema.Boolean,
