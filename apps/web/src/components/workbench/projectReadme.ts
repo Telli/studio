@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 /**
  * A project's README as its Overview reads it (`ReadmeOverview.tsx`): the title, "What it is",
  * and "Decisions", one line each, which the agent keeps as it works (`studioProjectContext`):
@@ -170,4 +172,69 @@ export function replaceReadmeText(markdown: string, before: string, after: strin
   const match = new RegExp(escaped.replace(/\s+/g, "\\s+")).exec(markdown);
   if (match === null) return null;
   return markdown.slice(0, match.index) + words + markdown.slice(match.index + match[0].length);
+}
+
+/** The longest a first README takes to come in, and the most any one word waits on the last. */
+const WRITE_IN_MS = 1800;
+const WORD_MS = 45;
+
+/** When each of a first README's words comes in: at a writing pace, a long one a little faster. */
+export function writtenWordDelays(words: number): (word: number) => number {
+  const step = Math.min(WORD_MS, WRITE_IN_MS / Math.max(words, 1));
+  return (word) => Math.round(word * step);
+}
+
+/** What the Overview remembers of a new project's README: that it waited, and the words that ended it. */
+export interface ReadmeWriteIn {
+  readonly waited: boolean;
+  readonly first: string | null;
+}
+
+/** `written`: the README's words once it says what the project is; null until then. */
+export function nextReadmeWriteIn(
+  before: ReadmeWriteIn,
+  writing: boolean,
+  written: string | null,
+): ReadmeWriteIn {
+  const waited = before.waited || (writing && written === null);
+  return { waited, first: before.first ?? (waited ? written : null) };
+}
+
+/**
+ * A new project's README as it comes to be. `waiting`: the first chat is on the turn that writes
+ * it and it has no words yet. `writingIn`: the words that ended that wait, shown once as they
+ * arrive; the agent's later changes, and the Overview opened again, read as they are.
+ */
+export function useReadmeWriteIn(input: {
+  readonly writing: boolean;
+  readonly written: string | null;
+}): { readonly waiting: boolean; readonly writingIn: boolean } {
+  const { writing, written } = input;
+  const [memory, setMemory] = useState<ReadmeWriteIn>({ waited: false, first: null });
+  const next = nextReadmeWriteIn(memory, writing, written);
+  if (next.waited !== memory.waited || next.first !== memory.first) setMemory(next);
+  return {
+    waiting: writing && written === null,
+    writingIn: next.first !== null && next.first === written,
+  };
+}
+
+/**
+ * A line of handwriting as one unbroken SVG path, `width` long: the same line for the same seed.
+ * One path because a stroke's dashes start again at each pen lift, and the line draws by its dash.
+ */
+export function scribblePath(width: number, seed: number): string {
+  let state = seed * 7919;
+  const next = (below: number) => {
+    state = (state * 1103 + 12345) % 65536;
+    return state % below;
+  };
+  let path = "M2 8";
+  for (let x = 2, up = true; x < width; up = !up) {
+    const step = 5 + next(5);
+    const height = 3 + next(5);
+    path += `q${step / 2} ${up ? -height : height} ${step} ${next(3) - 1}`;
+    x += step;
+  }
+  return path;
 }

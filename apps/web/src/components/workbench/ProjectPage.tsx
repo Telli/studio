@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { useThreadShellsForProjectRefs } from "~/state/entities";
 import { useComposerHandleContext } from "~/composerHandleContext";
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
 import { cn } from "~/lib/utils";
@@ -32,6 +33,7 @@ import { type Discipline, templateOffers } from "./newTemplates";
 import { ProjectSetup } from "./ProjectBrief";
 import { ProjectOverview } from "./ProjectOverview";
 import { ReadmeOverview } from "./ReadmeOverview";
+import { projectChats } from "./workspaceTitle";
 import { useAddPart } from "./useNewPart";
 import { ProjectThreads } from "./ProjectThreads";
 import { usePictures } from "./usePictures";
@@ -399,6 +401,8 @@ export function ProjectPage(props: {
   readonly projectId: ProjectId | null;
   readonly threadRef: ScopedThreadRef;
   readonly workspaceMutationId: string | null;
+  /** This chat is on its first turn. */
+  readonly firstTurnWorking: boolean;
 }) {
   const { environmentId, cwd, threadRef } = props;
   const [tab, setTab] = useState<"overview" | "files" | "references" | "threads">("overview");
@@ -502,6 +506,7 @@ export function ProjectPage(props: {
         .map((project) => scopeProjectRef(project.environmentId, project.id)),
     [folderKey, knownFolders],
   );
+  const onlyChat = projectChats(useThreadShellsForProjectRefs(projectRefs)).length <= 1;
   const folderNames = useMemo(
     () =>
       folders.length < 2
@@ -690,6 +695,8 @@ export function ProjectPage(props: {
                   environmentId={environmentId}
                   cwd={cwd}
                   purpose={studio?.project.brief.purpose ?? ""}
+                  // A later chat in a project with no README may have no reason to write one.
+                  writing={props.firstTurnWorking && onlyChat}
                   mutationId={props.workspaceMutationId}
                   onOpenPath={(path) => openPath(cwd, path)}
                 />

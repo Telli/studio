@@ -267,7 +267,11 @@ as they were.
 - **The project's overview.** The Project tab (Overview, in Engineering) opens on it: the project's
   README in its folder first, what it is and its decisions (`- <what was decided> (<YYYY-MM-DD>,
 asked)`, or `by hand`; a decision written date first reads too), then every other section the
-  README has as written, its links opening what they name. The agent is told to keep it, and on a
+  README has as written, its links opening what they name. While a new project's only chat is on
+  its first turn and the README has no words yet, the Overview shows lines of writing being drawn;
+  the words that end that wait then come in one by one, once, and later changes read as they are
+  (`useReadmeWriteIn`, `.readme-writing`). A new project's Overview opens beside its first chat so
+  this shows. The agent is told to keep it, and on a
   new project's first turn to name the project, set its setup and write the README before anything
   else, then to make a first draft in that same turn, listing what it assumed, and ask at most one
   question after it (Amy, 2026-10-29: three questions before any part was too many). Every question

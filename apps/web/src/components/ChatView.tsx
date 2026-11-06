@@ -11424,6 +11424,7 @@ export default function ChatView(props: ChatViewProps) {
         projectId={activeProjectIsScratch ? null : activeProject.id}
         threadRef={activeThreadRef}
         workspaceMutationId={workspaceMutationId}
+        firstTurnWorking={isWorking && turnDiffSummaries.length === 0}
       />
     ) : (renderedRightPanelSurface?.kind === "files" ||
         renderedRightPanelSurface?.kind === "file") &&

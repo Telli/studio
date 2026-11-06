@@ -1,7 +1,17 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { type KeyboardEvent, type MouseEvent, type ReactNode, useState } from "react";
+import {
+  createContext,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  useContext,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { useWorkspaceMutationRefresh } from "~/hooks/useWorkspaceMutationRefresh";
+import { observeVisibleAnimation } from "~/lib/visibleAnimation";
 import {
   getOptimisticProjectFileQueryData,
   setProjectFileQueryData,
@@ -14,27 +24,48 @@ import {
   readmeInline,
   readmeSections,
   replaceReadmeText,
+  scribblePath,
+  useReadmeWriteIn,
+  writtenWordDelays,
 } from "./projectReadme";
 
 const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
 const LINK =
   "rounded-sm text-foreground underline decoration-muted-foreground/50 underline-offset-2 outline-none hover:decoration-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
+/** Whether the README on screen is the first one, its words coming in one after another. */
+const WritingIn = createContext(false);
+
+/** Words as they read; in a first README, each its own piece for `.readme-word` to bring in. */
+function Words(props: { readonly text: string }) {
+  if (!useContext(WritingIn)) return props.text;
+  return props.text.split(/(\s+)/).map((word, index) =>
+    index % 2 === 1 || word === "" ? (
+      word
+    ) : (
+      <span key={`${index}-${word}`} data-readme-word="" className="readme-word">
+        {word}
+      </span>
+    ),
+  );
+}
+
 /** README text as it reads: a link opens the file or page it names, and markdown marks drop away. */
 function ReadmeText(props: { readonly text: string; readonly onOpenPath: (path: string) => void }) {
   return readmeInline(props.text).map((piece, index) => {
     const key = `${index}-${piece.kind}`;
+    const words = <Words text={piece.text} />;
     if (piece.kind === "strong") {
       return (
         <strong key={key} className="font-medium">
-          {piece.text}
+          {words}
         </strong>
       );
     }
-    if (piece.kind === "text") return <span key={key}>{piece.text}</span>;
+    if (piece.kind === "text") return <span key={key}>{words}</span>;
     return /^https?:\/\//i.test(piece.target) ? (
       <a key={key} href={piece.target} target="_blank" rel="noreferrer" className={LINK}>
-        {piece.text}
+        {words}
       </a>
     ) : (
       <button
@@ -43,10 +74,37 @@ function ReadmeText(props: { readonly text: string; readonly onOpenPath: (path: 
         onClick={() => props.onOpenPath(piece.target)}
         className={LINK}
       >
-        {piece.text}
+        {words}
       </button>
     );
   });
+}
+
+const SCRIBBLES = [scribblePath(312, 1), scribblePath(276, 2), scribblePath(168, 3)];
+
+/** A new project's Overview while its first chat writes it: lines of writing going down the page. */
+function WritingOverview() {
+  return (
+    <div ref={observeVisibleAnimation} role="status" className="flex flex-col gap-2">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 320 54"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="readme-writing w-full max-w-80 text-muted-foreground"
+      >
+        {SCRIBBLES.map((path, line) => (
+          <path key={path} d={path} pathLength={1} transform={`translate(0 ${line * 18})`} />
+        ))}
+      </svg>
+      <p className="text-sm text-muted-foreground">
+        <span className="live-tool-shine">Writing the overview</span>
+      </p>
+    </div>
+  );
 }
 
 const README = "README.md";
@@ -133,6 +191,8 @@ export function ReadmeOverview(props: {
   readonly environmentId: EnvironmentId;
   readonly cwd: string;
   readonly purpose: string;
+  /** A new project's first chat is at work on its first turn, which writes the README first. */
+  readonly writing: boolean;
   /** Changes when the thread's agent changes files, the README among them. */
   readonly mutationId: string | null;
   /** Opens a file of the project, by its path in the README's folder: the README itself, or a link. */
@@ -169,82 +229,110 @@ export function ReadmeOverview(props: {
   const file = readme.data ?? null;
   const sections = readmeSections(file === null || file.truncated ? null : file.contents);
   const whatItIs = sections.whatItIs ?? (props.purpose.trim() || null);
+  const { waiting, writingIn } = useReadmeWriteIn({
+    writing: props.writing,
+    written: sections.whatItIs === null ? null : (file?.contents ?? null),
+  });
+  const page = useRef<HTMLElement>(null);
+  useLayoutEffect(() => {
+    if (!writingIn) return;
+    const words = page.current?.querySelectorAll<HTMLElement>("[data-readme-word]") ?? [];
+    const delays = writtenWordDelays(words.length);
+    words.forEach((word, index) => {
+      word.style.animationDelay = `${delays(index)}ms`;
+    });
+  }, [writingIn]);
+
+  if (waiting) {
+    return (
+      <section aria-label="README" className="flex flex-col gap-1.5">
+        <h2 className={SECTION_LABEL}>What it is</h2>
+        <WritingOverview />
+      </section>
+    );
+  }
 
   return (
-    <section
-      // Typed words are the file's once saved; a fresh piece shows them (or the old ones back).
-      key={`${file?.contents ?? ""}:${refused}`}
-      aria-label="README"
-      data-document-editable=""
-      className="flex flex-col gap-5"
-    >
-      <div className="flex flex-col gap-1.5">
-        <h2 className={SECTION_LABEL}>What it is</h2>
-        {whatItIs === null ? (
-          <p className="text-sm text-muted-foreground">
-            Not written yet. Studio writes it from the project's chats.
-          </p>
-        ) : (
-          <p className="max-w-[75ch] text-sm leading-relaxed whitespace-pre-line text-foreground">
-            <Typed words={sections.whatItIs} multiline onSave={save}>
-              <ReadmeText text={whatItIs} onOpenPath={props.onOpenPath} />
-            </Typed>
-          </p>
-        )}
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <h2 className={SECTION_LABEL}>Decisions</h2>
-        {sections.decisions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No decisions yet</p>
-        ) : (
-          <ul className="flex flex-col gap-1.5">
-            {sections.decisions.map((decision) => {
-              const note = decisionNote(decision);
-              return (
-                <li
-                  key={`${decision.text}-${decision.when ?? ""}`}
-                  className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground"
-                >
-                  <span>
-                    <Typed words={decision.text} onSave={save}>
-                      <ReadmeText text={decision.text} onOpenPath={props.onOpenPath} />
-                    </Typed>
-                  </span>
-                  {note === null ? null : (
-                    <span className="text-xs text-muted-foreground">{note}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-      {sections.more.map((section) => (
-        <div key={section.heading} className="flex flex-col gap-1.5">
-          <h2 className={SECTION_LABEL}>{section.heading}</h2>
-          {section.paragraphs.map((paragraph) => (
-            <p key={paragraph} className="max-w-[75ch] text-sm leading-relaxed text-foreground">
-              <Typed words={paragraph} multiline onSave={save}>
-                <ReadmeText text={paragraph} onOpenPath={props.onOpenPath} />
+    <WritingIn.Provider value={writingIn}>
+      <section
+        ref={page}
+        // Typed words are the file's once saved; a fresh piece shows them (or the old ones back).
+        key={`${file?.contents ?? ""}:${refused}`}
+        aria-label="README"
+        data-document-editable=""
+        className="flex flex-col gap-5"
+      >
+        <div className="flex flex-col gap-1.5">
+          <h2 className={SECTION_LABEL}>What it is</h2>
+          {whatItIs === null ? (
+            <p className="text-sm text-muted-foreground">
+              Not written yet. Studio writes it from the project's chats.
+            </p>
+          ) : (
+            <p className="max-w-[75ch] text-sm leading-relaxed whitespace-pre-line text-foreground">
+              <Typed words={sections.whatItIs} multiline onSave={save}>
+                <ReadmeText text={whatItIs} onOpenPath={props.onOpenPath} />
               </Typed>
             </p>
-          ))}
-          {section.items.length === 0 ? null : (
-            <ul className="flex list-disc flex-col gap-1 ps-4 text-sm text-foreground">
-              {section.items.map((item) => (
-                <li key={item}>
-                  <Typed words={item} onSave={save}>
-                    <ReadmeText text={item} onOpenPath={props.onOpenPath} />
-                  </Typed>
-                </li>
-              ))}
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <h2 className={SECTION_LABEL}>Decisions</h2>
+          {sections.decisions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No decisions yet</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {sections.decisions.map((decision) => {
+                const note = decisionNote(decision);
+                return (
+                  <li
+                    key={`${decision.text}-${decision.when ?? ""}`}
+                    className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground"
+                  >
+                    <span>
+                      <Typed words={decision.text} onSave={save}>
+                        <ReadmeText text={decision.text} onOpenPath={props.onOpenPath} />
+                      </Typed>
+                    </span>
+                    {note === null ? null : (
+                      <span className="text-xs text-muted-foreground">
+                        <Words text={note} />
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
-      ))}
-      <p className="text-xs text-muted-foreground">
-        Studio writes this from the project's chats and keeps it current. Click a line to change it.
-      </p>
-    </section>
+        {sections.more.map((section) => (
+          <div key={section.heading} className="flex flex-col gap-1.5">
+            <h2 className={SECTION_LABEL}>{section.heading}</h2>
+            {section.paragraphs.map((paragraph) => (
+              <p key={paragraph} className="max-w-[75ch] text-sm leading-relaxed text-foreground">
+                <Typed words={paragraph} multiline onSave={save}>
+                  <ReadmeText text={paragraph} onOpenPath={props.onOpenPath} />
+                </Typed>
+              </p>
+            ))}
+            {section.items.length === 0 ? null : (
+              <ul className="flex list-disc flex-col gap-1 ps-4 text-sm text-foreground">
+                {section.items.map((item) => (
+                  <li key={item}>
+                    <Typed words={item} onSave={save}>
+                      <ReadmeText text={item} onOpenPath={props.onOpenPath} />
+                    </Typed>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+        <p className="text-xs text-muted-foreground">
+          Studio writes this from the project's chats and keeps it current. Click a line to change
+          it.
+        </p>
+      </section>
+    </WritingIn.Provider>
   );
 }

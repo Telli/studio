@@ -1,5 +1,5 @@
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import type { EnvironmentId } from "@t3tools/contracts";
+import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { STUDIO_PROJECT_KINDS } from "@t3tools/shared/studioProjects";
 import { useCallback, useState } from "react";
 
@@ -123,6 +123,10 @@ export function useStartOnce(environmentId: EnvironmentId): {
   return { busy, start };
 }
 
+/** A new project's Overview beside its first chat, where the chat's first turn writes it. */
+const showOverviewBeside = (threadRef: ScopedThreadRef) =>
+  useRightPanelStore.getState().open(threadRef, "files");
+
 export function useStartProject(environmentId: EnvironmentId) {
   const create = useCreateStudioProject(environmentId);
   const handleNewThread = useNewThreadHandler();
@@ -173,6 +177,7 @@ export function useStartProject(environmentId: EnvironmentId) {
           purpose: "",
           folders: [],
           onFolder: (folder) => prepare(folder, true),
+          show: showOverviewBeside,
         });
       }
       const { job } = start;
@@ -185,6 +190,7 @@ export function useStartProject(environmentId: EnvironmentId) {
         purpose: "",
         folders: [],
         onFolder: (folder) => setPendingStart(folder, { prompt: job.prompt, files: [] }),
+        show: showOverviewBeside,
       });
     },
     [create, environmentId, handleNewThread],

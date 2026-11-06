@@ -2,9 +2,13 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   isPlainReadmeText,
+  nextReadmeWriteIn,
   readmeInline,
   readmeSections,
+  type ReadmeWriteIn,
   replaceReadmeText,
+  scribblePath,
+  writtenWordDelays,
 } from "./projectReadme";
 
 const README = `# Lanyard clip
@@ -152,5 +156,34 @@ describe("changing the README where the Overview shows it", () => {
     expect(isPlainReadmeText("Print it in PETG")).toBe(true);
     expect(isPlainReadmeText("See [the drawing](drawings/clip.pdf)")).toBe(false);
     expect(isPlainReadmeText("**Holds** 2 kg")).toBe(false);
+  });
+});
+
+describe("a new project's README coming in", () => {
+  const start: ReadmeWriteIn = { waited: false, first: null };
+
+  it("writes in the words that end a wait, once", () => {
+    const waiting = nextReadmeWriteIn(start, true, null);
+    expect(waiting).toEqual({ waited: true, first: null });
+    const arrived = nextReadmeWriteIn(waiting, true, "first words");
+    expect(arrived.first).toBe("first words");
+    // The agent's later changes do not take its place, so they read as they are.
+    expect(nextReadmeWriteIn(arrived, true, "more words").first).toBe("first words");
+  });
+
+  it("writes nothing in when the README was there all along", () => {
+    expect(nextReadmeWriteIn(start, true, "old words")).toEqual(start);
+    expect(nextReadmeWriteIn(start, false, null)).toEqual(start);
+  });
+
+  it("paces words as writing, and a long README within the same time", () => {
+    expect(writtenWordDelays(10)(4)).toBe(180);
+    expect(writtenWordDelays(600)(599)).toBeLessThanOrEqual(1800);
+  });
+
+  it("draws one unbroken line, the same for the same seed", () => {
+    expect(scribblePath(120, 1)).toBe(scribblePath(120, 1));
+    expect(scribblePath(120, 1)).not.toBe(scribblePath(120, 2));
+    expect(scribblePath(120, 1).match(/M/g)).toHaveLength(1);
   });
 });
