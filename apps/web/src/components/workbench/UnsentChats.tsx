@@ -76,7 +76,7 @@ export function UnsentChatRows(props: { readonly chats: ReadonlyArray<UnsentChat
               void navigate({ to: "/draft/$draftId", params: { draftId } });
             }}
           >
-            <SquarePenIcon aria-hidden className="size-3 shrink-0 text-warning-foreground" />
+            <SquarePenIcon aria-hidden className="size-4 shrink-0 text-warning-foreground" />
             <span className="min-w-0 flex-1 truncate">{preview}</span>
           </SidebarMenuButton>
         </SidebarMenuItem>

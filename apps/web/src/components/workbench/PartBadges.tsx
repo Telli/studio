@@ -92,7 +92,7 @@ export function PartFooter(props: {
   return (
     <div className="flex flex-wrap items-center gap-1">
       {part.results.length === 0 ? (
-        <span className="text-2xs text-muted-foreground">Not checked yet</span>
+        <span className="text-xs text-muted-foreground">Not checked yet</span>
       ) : (
         part.results.map((result) => (
           <CheckBadge key={result.path} result={result} onOpen={() => props.onOpen(result.model)} />

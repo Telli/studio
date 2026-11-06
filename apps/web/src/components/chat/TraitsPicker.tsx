@@ -500,10 +500,13 @@ export function buildTraitsTriggerDisplay(input: {
   ultrathinkPromptControlled: boolean;
   modelSelection?: ModelSelection | null;
   reportedModelSelection?: ModelSelection | null | undefined;
+  /** Says what the pick adjusts, in the menu's own word: "Thinking: Normal". */
+  nameTrait?: boolean | undefined;
 }): { label: string } {
   let fastModeFallbackLabel: string | null = null;
   let speedLabel: string | null = null;
   let reasoningLabelIndex = -1;
+  let reasoningName: string | null = null;
   const labels: Array<string> = [];
   for (const descriptor of input.descriptors) {
     if (descriptor.id === "fastMode" && descriptor.type === "boolean") {
@@ -553,6 +556,7 @@ export function buildTraitsTriggerDisplay(input: {
         ["reasoningEffort", "reasoning", "effort", "variant", "thinking"].includes(descriptor.id)
       ) {
         reasoningLabelIndex = labels.length;
+        reasoningName = descriptor.label;
       }
       labels.push(label);
     }
@@ -562,7 +566,10 @@ export function buildTraitsTriggerDisplay(input: {
   // off an empty label list alone would also catch descriptors that resolved to
   // no label at all, printing a bogus "Normal" for a model without fast mode.
   if (labels.length === 0 && fastModeFallbackLabel !== null) {
-    return { label: fastModeFallbackLabel };
+    return { label: input.nameTrait ? `Speed: ${fastModeFallbackLabel}` : fastModeFallbackLabel };
+  }
+  if (input.nameTrait && reasoningName !== null) {
+    labels[reasoningLabelIndex] = `${reasoningName}: ${labels[reasoningLabelIndex]}`;
   }
   if (speedLabel) {
     if (reasoningLabelIndex >= 0) {
@@ -586,6 +593,7 @@ export const TraitsPicker = memo(function TraitsPicker({
   allowPromptInjectedEffort = true,
   planModeEnabled,
   triggerClassName,
+  nameTrait,
   isComposerOwned,
   size = "sm",
   hidden = false,
@@ -596,6 +604,8 @@ export const TraitsPicker = memo(function TraitsPicker({
     size?: ComposerControlSize;
     hidden?: boolean;
     disabled?: boolean;
+    /** Away from the composer's context: say what the pick adjusts (`buildTraitsTriggerDisplay`). */
+    nameTrait?: boolean;
   }) {
   const composerFloatingLayerProps = useComposerMenuProps();
   const [isMenuOpen, setIsMenuOpen] = useComposerMenuState(hidden || disabled);
@@ -646,6 +656,7 @@ export const TraitsPicker = memo(function TraitsPicker({
     ultrathinkPromptControlled,
     modelSelection: triggerModelSelection,
     reportedModelSelection,
+    nameTrait,
   });
   const isCodexStyle = provider === "codex";
 

@@ -79,7 +79,7 @@ export interface NewPart {
 }
 
 /** How the panel names what follows: a field's label, or What it covers over its list. */
-const LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+const LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
 
 function Field(props: {
   readonly label: string;
@@ -399,7 +399,7 @@ export function NewDialog(props: {
                           >
                             {template.label}
                           </span>
-                          <span className="text-2xs leading-snug text-muted-foreground">
+                          <span className="text-xs leading-snug text-muted-foreground">
                             {template.description}
                           </span>
                           {availability.on ? null : (
@@ -535,7 +535,7 @@ export function NewDialog(props: {
                   )}
                   {/* A part's file is the next name free in its folder, known once it is made. */}
                   {plainWords || !named || isPart || name.trim() === "" ? null : (
-                    <p className="text-2xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       Saved as {(folder.trim() || selected.folder).replace(/\/+$/, "")}/
                       {fileStem(name)}
                       {writesDocument ? ".md" : ""}

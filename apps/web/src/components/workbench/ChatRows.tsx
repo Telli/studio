@@ -36,6 +36,8 @@ type ChatMenuChoice = "rename" | "delete";
 export function ChatRows(props: {
   readonly chats: ReadonlyArray<EnvironmentThreadShell>;
   readonly currentId: string | null;
+  /** False while the open chat is out of sight, its Overview filling the main pane alone. */
+  readonly chatShows: boolean;
   readonly onOpen: (chat: EnvironmentThreadShell, current: boolean) => void;
 }) {
   const { deleteThread } = useThreadActions();
@@ -92,23 +94,25 @@ export function ChatRows(props: {
                     if (event.key === "Enter") event.currentTarget.blur();
                     else if (event.key === "Escape") setRenaming(null);
                   }}
-                  className="h-8 w-full min-w-0 rounded-md bg-background px-2 text-sm text-foreground outline-none ring-1 ring-ring ring-inset"
+                  className="h-8 w-full min-w-0 rounded-md bg-background ps-8.5 pe-2 text-sm text-foreground outline-none ring-1 ring-ring ring-inset"
                 />
               ) : (
                 <>
                   <SidebarMenuButton
-                    isActive={current}
-                    aria-current={current ? "page" : undefined}
+                    isActive={current && props.chatShows}
+                    aria-current={current && props.chatShows ? "page" : undefined}
                     onClick={() => props.onOpen(chat, current)}
                     onContextMenu={(event) => {
                       event.preventDefault();
                       void showMenu(chat, { x: event.clientX, y: event.clientY });
                     }}
                   >
+                    {/* Overview's and New chat's icon slot, so every name starts on one line. */}
+                    <span aria-hidden="true" className="size-4 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">{chatLabel(chat.title)}</span>
                     <span
                       className={cn(
-                        "shrink-0 text-2xs font-normal tabular-nums group-hover/chat:invisible group-focus-within/chat:invisible",
+                        "shrink-0 text-xs font-normal tabular-nums group-hover/chat:invisible group-focus-within/chat:invisible",
                         state.tone,
                       )}
                     >

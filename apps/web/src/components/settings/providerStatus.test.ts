@@ -1,7 +1,12 @@
 import { ProviderDriverKind, ProviderInstanceId, type ServerProvider } from "@t3tools/contracts";
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { getProviderSummary, getProviderVersionAdvisoryPresentation } from "./providerStatus";
+
+const studioInterface = vi.hoisted(() => ({ engineering: false }));
+vi.mock("../workbench/studioInterface", () => ({
+  isEngineeringInterface: () => studioInterface.engineering,
+}));
 
 const provider: ServerProvider = {
   instanceId: ProviderInstanceId.make("codex"),
@@ -141,6 +146,18 @@ it("shows compatibility in the version popover even when the installed version i
 });
 
 describe("provider status copy", () => {
+  it("says signed in, in the engineering interface", () => {
+    studioInterface.engineering = true;
+    try {
+      expect(getProviderSummary(provider).headline).toBe("Signed in · ChatGPT");
+      expect(
+        getProviderSummary({ ...provider, auth: { status: "unauthenticated" } }).headline,
+      ).toBe("Not signed in");
+    } finally {
+      studioInterface.engineering = false;
+    }
+  });
+
   it("surfaces an ACP-advertised authentication method", () => {
     const provider = {
       enabled: true,

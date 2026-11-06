@@ -91,7 +91,7 @@ export function ProjectTile(props: {
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate text-sm font-medium text-foreground">{project.name}</span>
             {first !== undefined ? (
-              <Badge variant="warning" size="sm">
+              <Badge variant="info" size="sm">
                 Needs you
               </Badge>
             ) : activity.isNew ? (
@@ -103,7 +103,7 @@ export function ProjectTile(props: {
           <span
             className={cn(
               "truncate text-xs",
-              first === undefined ? "text-muted-foreground" : "text-warning-foreground",
+              first === undefined ? "text-muted-foreground" : "text-info-foreground",
             )}
           >
             {line}

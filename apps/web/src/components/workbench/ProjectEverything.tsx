@@ -209,7 +209,7 @@ export function ProjectEverything(props: {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className={MODULE_HEADING}>
           Files
-          <span className="tabular-nums text-muted-foreground/70">{items.length}</span>
+          <span className="tabular-nums text-muted-foreground">{items.length}</span>
         </h2>
         <div role="group" aria-label="View" className="flex shrink-0 gap-0.5">
           <Button
@@ -265,7 +265,7 @@ export function ProjectEverything(props: {
           <div
             role="row"
             className={cn(
-              "grid gap-3 border-b border-border px-2 pb-1.5 text-2xs font-medium tracking-wider text-muted-foreground uppercase",
+              "grid gap-3 border-b border-border px-2 pb-1.5 text-xs font-medium tracking-wider text-muted-foreground uppercase",
               LIST_COLUMNS,
             )}
           >

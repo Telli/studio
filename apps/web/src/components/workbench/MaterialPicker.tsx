@@ -65,7 +65,7 @@ export function MaterialPicker(props: {
           )}
           {groups.map(({ family, materials }) => (
             <div key={family} role="group" aria-label={family} className="flex flex-col">
-              <div className="px-2 pb-0.5 text-2xs font-medium text-muted-foreground">{family}</div>
+              <div className="px-2 pb-0.5 text-xs font-medium text-muted-foreground">{family}</div>
               {materials.map((material) => {
                 const current = material === props.value;
                 return (

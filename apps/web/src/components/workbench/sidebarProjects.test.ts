@@ -59,9 +59,9 @@ describe("sidebarProjects", () => {
       currentFolderId: "open-empty",
     });
     expect(entries.map((entry) => entry.name)).toEqual([
-      "bracket",
-      "with-chats",
-      "open-empty",
+      "Bracket",
+      "With chats",
+      "Open empty",
       "No project",
     ]);
     expect(entries.at(-1)?.folder).toBeNull();

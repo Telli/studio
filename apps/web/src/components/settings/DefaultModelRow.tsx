@@ -101,6 +101,12 @@ export function DefaultModelRow() {
     return null;
   }
 
+  const automatic =
+    !unavailable &&
+    !mixedModel &&
+    modelSource !== "project" &&
+    settings.defaultModelSelection === null;
+
   const setModel = (value: ModelSelection | null) => {
     const reason = value ? modelDisabledReason(value.instanceId, value.model) : null;
     if (reason) {
@@ -128,13 +134,6 @@ export function DefaultModelRow() {
           ? "Model for new threads in this project."
           : "Default model for new threads. Projects can override it."
       }
-      status={
-        unavailable || mixedModel || modelSource === "project"
-          ? undefined
-          : settings.defaultModelSelection === null
-            ? "Automatic"
-            : undefined
-      }
       resetAction={
         settings.defaultModelSelection !== null ? (
           <SettingResetButton label="default model" onClick={() => setModel(null)} />
@@ -143,6 +142,7 @@ export function DefaultModelRow() {
       control={
         selection && activeEntry ? (
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+            {automatic ? <span className="text-xs text-muted-foreground">Automatic</span> : null}
             <ProviderModelPicker
               environmentId={representative?.environmentId ?? null}
               activeInstanceId={selection.instanceId}
@@ -174,6 +174,7 @@ export function DefaultModelRow() {
                 modelOptions={selection.options ?? []}
                 allowPromptInjectedEffort={false}
                 planModeEnabled={settings.planModeEnabled}
+                nameTrait={engineering}
                 triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
                 onModelOptionsChange={(options) =>
                   setModel(createModelSelection(selection.instanceId, selection.model, options))

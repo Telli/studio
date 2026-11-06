@@ -46,13 +46,16 @@ const STANDARD_THEME_PREVIEW_COLORS: Record<
     accentSurface: "#f4f4f5",
     messageSurface: "#e4e4e7",
     ...SHARED_STANDARD_THEME_PREVIEW_COLORS.light,
+    messageAction: "#2c7197",
   },
   dark: {
-    sidebar: "#0f0f10",
-    surface: "#121212",
-    accentSurface: "#27272a",
-    messageSurface: "#27272a",
+    sidebar: "#242424",
+    surface: "#303030",
+    accentSurface: "#3a3a3a",
+    messageSurface: "#3a3a3a",
     ...SHARED_STANDARD_THEME_PREVIEW_COLORS.dark,
+    canvas: "#2b2b2b",
+    messageAction: "#62b7ec",
   },
 };
 

@@ -45,8 +45,8 @@ const BRAND_COLORS = {
     text: "#fafafa",
     border: "#3d3d3d",
     input: "#494949",
-    focus: "#94d9fa",
-    messageAction: "#30779d",
+    focus: "#62b7ec",
+    messageAction: "#62b7ec",
   },
 } as const;
 

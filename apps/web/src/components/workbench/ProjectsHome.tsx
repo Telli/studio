@@ -60,10 +60,10 @@ function LooseFolderRow(props: {
       >
         <FolderIcon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="shrink-0 text-xs font-medium text-foreground">{props.folder.title}</span>
-        <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground">
+        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
           {props.folder.workspaceRoot}
         </span>
-        <span className="shrink-0 text-2xs text-muted-foreground tabular-nums">
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {threadCount(props.threads)}
         </span>
       </button>
@@ -161,7 +161,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
                   </h1>
                 ) : (
                   <div>
-                    <div className="text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+                    <div className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
                       Projects
                     </div>
                     <h1 className="mt-1 text-xl font-semibold text-foreground">
@@ -232,7 +232,7 @@ function ProjectsHomeFor(props: { readonly environmentId: EnvironmentId }) {
               )}
               {loose.length === 0 ? null : (
                 <section aria-label="Folders in no project" className="mt-4">
-                  <h2 className="mb-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+                  <h2 className="mb-2 text-xs font-medium tracking-widest text-muted-foreground uppercase">
                     Folders in no project
                   </h2>
                   <ul className="flex flex-col border-t border-border">

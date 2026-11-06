@@ -99,8 +99,7 @@ function ThemeWireframePane({
             <span
               className="block aspect-square h-[26%] rounded-full"
               style={{
-                backgroundColor:
-                  row === 0 ? "#34d399" : row === 1 ? colors.messageAction : "#fbbf24",
+                backgroundColor: row === 1 ? colors.messageAction : line,
                 opacity: 0.55,
               }}
             />

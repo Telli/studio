@@ -283,7 +283,8 @@ function GroupJobs(props: {
         <p className="px-1 text-xs text-muted-foreground">{props.leftOut}</p>
       )}
       {empty ? null : (
-        <div className="px-0.5">
+        // Its padding pulled back so its words start under the sections' titles.
+        <div className="-ms-1">
           <Button variant="ghost-muted" size="xs" onClick={props.onBrowse}>
             What each makes…
           </Button>

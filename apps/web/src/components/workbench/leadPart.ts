@@ -26,6 +26,15 @@ export function sourceParts(parts: ReadonlyArray<ProjectFile>): ProjectFile[] {
 }
 
 /**
+ * What the Overview's lead picture shows, in its kind's word: "Latest part: LED module". Only a
+ * part with a build time can be called the latest.
+ */
+export function leadHeading(file: Pick<ProjectFile, "kind" | "title" | "version">): string {
+  const kind = file.version === undefined ? file.kind : `Latest ${file.kind.toLowerCase()}`;
+  return `${kind}: ${file.title}`;
+}
+
+/**
  * The project's lead part: what was built last (`byLatest`), of the parts not made from another
  * (`sourceParts`), across its folders; with no build times, the first of the first folder that
  * has a part, in the order the project files them. The Overview shows it large, and the workspace

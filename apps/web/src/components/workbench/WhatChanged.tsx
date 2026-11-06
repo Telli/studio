@@ -19,7 +19,7 @@ import {
   type Comparison,
 } from "./versions";
 
-const LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+const LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
 
 export interface VersionChoice {
   readonly id: string;
@@ -53,7 +53,7 @@ function Picture(props: {
         )}
       </div>
       {props.caption === undefined ? null : (
-        <figcaption className="text-center text-2xs text-muted-foreground">
+        <figcaption className="text-center text-xs text-muted-foreground">
           {props.caption}
         </figcaption>
       )}
@@ -249,7 +249,7 @@ export function WhatChanged(props: {
           )}
           {diff !== null && !sideBySide ? (
             <p
-              className="flex flex-wrap gap-x-3 gap-y-1 text-2xs text-muted-foreground"
+              className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground"
               aria-hidden="true"
             >
               <span className="flex items-center gap-1.5">

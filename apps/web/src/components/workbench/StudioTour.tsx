@@ -100,7 +100,7 @@ export function StudioTour() {
         className="fixed z-50 flex w-80 flex-col gap-2 rounded-xl border border-border bg-popover p-4 text-popover-foreground shadow-lg"
         style={{ top: here?.top ?? -9999, left: here?.left ?? -9999 }}
       >
-        <span className="text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+        <span className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
           {step + 1} of {TOUR_STEPS.length}
         </span>
         <h2 className="text-sm font-semibold text-foreground">{current.title}</h2>

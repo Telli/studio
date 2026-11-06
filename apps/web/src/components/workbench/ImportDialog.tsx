@@ -44,7 +44,7 @@ import { useImportProjects } from "./useImportProjects";
 import { useTrashedProjects } from "./trash/useTrash";
 import { useStudioProjects } from "./useStudioProjects";
 
-const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+const SECTION_LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
 
 const KIND_LABELS: ReadonlyArray<readonly [StudioImportKind, string]> = [
   ["model", "CAD models"],
@@ -453,7 +453,7 @@ function ImportDialog(props: {
                       <Tooltip>
                         <TooltipTrigger
                           render={
-                            <span className="truncate text-2xs text-muted-foreground/80">
+                            <span className="truncate text-xs text-muted-foreground">
                               In {placeName(project.folder, scannedRoots)}
                             </span>
                           }
@@ -547,7 +547,7 @@ function ImportDialog(props: {
                             <Tooltip>
                               <TooltipTrigger
                                 render={
-                                  <span className="truncate text-2xs text-muted-foreground">
+                                  <span className="truncate text-xs text-muted-foreground">
                                     In {placeName(file.path, scannedRoots)}
                                   </span>
                                 }
@@ -613,7 +613,7 @@ function ImportDialog(props: {
                           <Tooltip>
                             <TooltipTrigger
                               render={
-                                <span className="truncate text-2xs text-muted-foreground">
+                                <span className="truncate text-xs text-muted-foreground">
                                   In {placeName(file.path, scannedRoots)}
                                 </span>
                               }

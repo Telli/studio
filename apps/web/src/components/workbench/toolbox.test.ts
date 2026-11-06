@@ -119,7 +119,7 @@ describe("the Toolbox on a file that is not a part", () => {
 
   it("opens on a group with jobs where the one left open has none for this kind", () => {
     expect(toolboxShownGroup(groupsFor("CAM job"), "Manufacture")?.group).toBe("Evaluate");
-    expect(labels("Drawing", "Evaluate")).toEqual(["Cut-ready DXF", "Order from SendCutSend"]);
+    expect(labels("Drawing", "Evaluate")).toEqual(["Cut-ready DXF", "Check for SendCutSend"]);
     expect(labels("Document", "Manufacture")).toEqual(["Write up the results"]);
   });
 

@@ -100,7 +100,7 @@ function FileTile(props: {
       </span>
       <span className="flex min-w-0 flex-col gap-0.5 px-2.5 py-2">
         <span className="truncate text-xs font-medium text-foreground">{file.title}</span>
-        <span className="truncate text-2xs text-muted-foreground">
+        <span className="truncate text-xs text-muted-foreground">
           {file.kind}
           {props.where === undefined ? "" : ` · ${props.where}`}
         </span>
@@ -127,7 +127,7 @@ function FileRow(props: {
         <span className="truncate font-medium text-foreground">{file.title}</span>
       </span>
       <span className="truncate">{file.kind}</span>
-      <span className="truncate text-muted-foreground/70">{props.where}</span>
+      <span className="truncate text-muted-foreground">{props.where}</span>
     </button>
   );
 }
@@ -151,14 +151,14 @@ function Section(props: {
           type="button"
           aria-expanded={!folded}
           onClick={() => setFolded((value) => !value)}
-          className="flex w-full items-center gap-2 py-1.5 text-left text-2xs font-medium tracking-widest text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          className="flex w-full items-center gap-2 py-1.5 text-left text-xs font-medium tracking-widest text-muted-foreground uppercase outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         >
           <ChevronDownIcon
             className={cn("size-3 transition-transform duration-150", folded && "-rotate-90")}
             aria-hidden="true"
           />
           {props.group}
-          <span className="tabular-nums text-muted-foreground/70">{props.files.length}</span>
+          <span className="tabular-nums text-muted-foreground">{props.files.length}</span>
         </button>
       </h2>
       {folded ? null : (
@@ -262,9 +262,9 @@ function FolderFiles(props: {
           />
           <span className="truncate text-sm font-medium text-foreground">{props.label}</span>
           {engineering ? null : (
-            <span className="min-w-0 truncate text-2xs text-muted-foreground">{root}</span>
+            <span className="min-w-0 truncate text-xs text-muted-foreground">{root}</span>
           )}
-          <span className="ms-auto shrink-0 text-2xs text-muted-foreground tabular-nums">
+          <span className="ms-auto shrink-0 text-xs text-muted-foreground tabular-nums">
             {count}
           </span>
         </h2>
@@ -314,7 +314,7 @@ function FoldersRow(props: {
       className={cn("flex flex-wrap items-center gap-1.5", props.className)}
       aria-label="Folders"
     >
-      <span className="me-1 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+      <span className="me-1 text-xs font-medium tracking-widest text-muted-foreground uppercase">
         Folders
       </span>
       {props.folders.map((folder) => {
@@ -357,7 +357,7 @@ function FoldersRow(props: {
 function LinksList(props: { readonly links: ReadonlyArray<string> }) {
   return (
     <section aria-label="Links">
-      <h2 className="mb-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase">
+      <h2 className="mb-2 text-xs font-medium tracking-widest text-muted-foreground uppercase">
         Links
       </h2>
       <ul className="flex flex-col border-t border-border">

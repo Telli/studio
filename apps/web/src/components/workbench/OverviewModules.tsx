@@ -26,7 +26,7 @@ export const CARD_GRID = "grid grid-cols-2 gap-3 @xl:grid-cols-3 @4xl:grid-cols-
 const FOLDED_KEY = "studio:overview-folded";
 
 export const MODULE_HEADING =
-  "flex items-baseline gap-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+  "flex items-baseline gap-2 text-xs font-medium tracking-widest text-muted-foreground uppercase";
 
 function readFolded(): Record<string, ReadonlyArray<string>> {
   try {
@@ -133,12 +133,12 @@ export function OverviewModule(props: {
           )}
           {props.title}
           {props.note ? (
-            <span className="font-normal tracking-normal text-muted-foreground/70 normal-case">
+            <span className="font-normal tracking-normal text-muted-foreground normal-case">
               {props.note}
             </span>
           ) : null}
           {props.count === undefined ? null : (
-            <span className="tabular-nums text-muted-foreground/70">{props.count}</span>
+            <span className="tabular-nums text-muted-foreground">{props.count}</span>
           )}
           <ChevronDownIcon
             aria-hidden="true"
@@ -225,7 +225,7 @@ export function TextPage(props: { readonly text: string }) {
           {plainText(heading)}
         </span>
       )}
-      <span className="line-clamp-6 text-3xs leading-snug text-muted-foreground">{body}</span>
+      <span className="line-clamp-6 text-2xs leading-snug text-muted-foreground">{body}</span>
     </span>
   );
 }
@@ -273,7 +273,7 @@ export function FileCard(props: {
       </button>
       <div className="flex min-w-0 flex-col">
         <span className="truncate text-xs font-medium text-foreground">{props.file.title}</span>
-        <span className="truncate text-2xs text-muted-foreground">
+        <span className="truncate text-xs text-muted-foreground">
           {props.file.kind}
           {props.place === undefined ? "" : ` · ${props.place}`}
         </span>

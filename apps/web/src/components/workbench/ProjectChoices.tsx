@@ -124,8 +124,8 @@ export function ProjectChoices(props: {
             <span className="truncate">{card.project.name}</span>
             <span
               className={cn(
-                "truncate text-2xs",
-                standing.waiting ? "text-warning-foreground" : "text-muted-foreground",
+                "truncate text-xs",
+                standing.waiting ? "text-info-foreground" : "text-muted-foreground",
               )}
             >
               {standing.text}

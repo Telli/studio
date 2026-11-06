@@ -28,7 +28,7 @@ import {
 } from "./checkResults";
 import { KIND_ICONS } from "./kinds";
 import { humanName, partName } from "./partNames";
-import { leadPartOf } from "./leadPart";
+import { leadHeading, leadPartOf } from "./leadPart";
 import { folderFiles, pictureVersions } from "./projectModels";
 import { type FolderPart, MadeBadges, PartFooter, PartIcon } from "./PartBadges";
 import {
@@ -72,6 +72,8 @@ const RECENT_THREADS = 5;
 
 const headingClass = MODULE_HEADING;
 
+const sentenceCase = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
+
 interface Issue {
   readonly root: string;
   readonly result: CheckResult;
@@ -106,12 +108,14 @@ function LeadPart(props: {
   const status = worstStatus(part.results);
   return (
     <section aria-label="Lead part" className="flex min-w-0 flex-col gap-2">
-      {part.file.version === undefined ? null : <h2 className={headingClass}>Latest</h2>}
+      <h2 className="min-w-0 truncate text-sm font-medium text-foreground">
+        {leadHeading(part.file)}
+      </h2>
       <button
         type="button"
         onClick={props.onOpen}
         aria-label={`Open ${part.file.title} in the viewer`}
-        className="flex aspect-[4/3] max-h-[32rem] items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground) outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="flex aspect-[4/3] max-h-[32rem] items-center justify-center overflow-hidden rounded-md bg-(--model-ground) outline-none transition-opacity duration-150 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {picture ? (
           <img src={picture} alt="" className="size-full object-contain" />
@@ -119,16 +123,10 @@ function LeadPart(props: {
           <PartIcon file={part.file} className="size-10 text-muted-foreground/50" />
         )}
       </button>
-      <div className="flex min-w-0 items-baseline gap-2">
-        <span className="min-w-0 truncate text-sm font-medium text-foreground">
-          {part.file.title}
-        </span>
-        <span className="min-w-0 truncate text-2xs text-muted-foreground">
-          {part.file.kind}
-          {status === null ? " · not checked yet" : ` · ${STATUS[status].caption}`}
-          {props.where === undefined ? "" : ` · ${props.where}`}
-        </span>
-      </div>
+      <span className="min-w-0 truncate text-xs text-muted-foreground">
+        {status === null ? "Not checked yet" : sentenceCase(STATUS[status].caption)}
+        {props.where === undefined ? "" : ` · ${props.where}`}
+      </span>
       {part.drawings.length + part.made.length === 0 ? null : (
         <div className="flex flex-wrap items-center gap-1">
           <MadeBadges part={part} onOpen={props.onOpenFile} />
@@ -166,7 +164,7 @@ function OpenIssues(props: {
       <h2 className={headingClass}>
         Open issues
         {props.issues.length > 0 ? (
-          <span className="tabular-nums text-muted-foreground/70">{props.issues.length}</span>
+          <span className="tabular-nums text-muted-foreground">{props.issues.length}</span>
         ) : null}
       </h2>
       {props.issues.length === 0 ? (
@@ -195,11 +193,11 @@ function OpenIssues(props: {
                   </Badge>
                   <p className="min-w-0 flex-1 text-xs text-foreground">{entry.issue.summary}</p>
                 </div>
-                <p className="text-2xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {issuePart(entry)} · {entry.result.check}
                 </p>
                 {entry.issue.fix === null ? null : (
-                  <p className="line-clamp-2 text-2xs text-muted-foreground">
+                  <p className="line-clamp-2 text-xs text-muted-foreground">
                     <span className="text-foreground/80">Suggested fix: </span>
                     {entry.issue.fix}
                   </p>

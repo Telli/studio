@@ -1,5 +1,6 @@
 import type { EnvironmentId } from "@t3tools/contracts";
-import { PuzzleIcon } from "lucide-react";
+import { type LucideIcon, PuzzleIcon } from "lucide-react";
+import { useState } from "react";
 
 import { cn } from "~/lib/utils";
 import { KIND_ICONS, KIND_TINT, templateIcon } from "../kinds";
@@ -14,6 +15,33 @@ import { pictureOf } from "./libraryPictures";
  */
 export const PICTURE_BOX =
   "relative flex aspect-[8/5] flex-col items-center justify-center gap-2 overflow-hidden bg-(--model-ground)";
+
+/**
+ * A rendered picture over its kind's neutral glyph, which holds the box until the picture has
+ * loaded (these load as they near the screen) and for good if it cannot, so a box is never empty.
+ */
+export function PictureOrGlyph(props: { readonly url: string; readonly icon: LucideIcon }) {
+  const [state, setState] = useState<"waiting" | "shown" | "failed">("waiting");
+  const Icon = props.icon;
+  return (
+    <>
+      {state === "shown" ? null : (
+        <Icon aria-hidden="true" className={cn("size-8 opacity-60", KIND_TINT)} />
+      )}
+      {state === "failed" ? null : (
+        <img
+          src={props.url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setState("shown")}
+          onError={() => setState("failed")}
+          className="absolute inset-0 size-full object-cover"
+        />
+      )}
+    </>
+  );
+}
 
 /** A file's folder and its name in it. */
 const folderAndName = (file: string) => {
@@ -45,17 +73,12 @@ export function LibraryPicture(props: {
   const { entry } = props;
   const picture = pictureOf(entry.id);
   const box = cn(PICTURE_BOX, props.className);
+  const Icon = entry.kind === "skill" ? PuzzleIcon : documentIcon(entry);
   if (picture?.kind === "image") {
     return (
       <span className={box}>
         {/* The library mounts some forty of these: each loads when it nears the screen. */}
-        <img
-          src={picture.url}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="size-full object-cover"
-        />
+        <PictureOrGlyph url={picture.url} icon={Icon} />
       </span>
     );
   }
@@ -79,11 +102,10 @@ export function LibraryPicture(props: {
       </span>
     );
   }
-  const Icon = entry.kind === "skill" ? PuzzleIcon : documentIcon(entry);
   return (
     <span className={box}>
       <Icon aria-hidden="true" className={cn("size-8 opacity-60", KIND_TINT)} />
-      <span className="px-3 text-center text-2xs text-muted-foreground">
+      <span className="px-3 text-center text-xs text-muted-foreground">
         {entry.kind === "skill"
           ? "No example ships with this skill."
           : "No example ships with this document type."}

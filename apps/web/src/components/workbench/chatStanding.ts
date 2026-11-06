@@ -9,7 +9,7 @@ import { historyOutcome } from "./projectHistory";
  */
 export function chatStanding(chat: EnvironmentThreadShell) {
   const outcome = historyOutcome(chat);
-  if (outcome === "needs-you") return { text: "Needs you", tone: "text-warning-foreground" };
+  if (outcome === "needs-you") return { text: "Needs you", tone: "text-info-foreground" };
   if (outcome === "working") return { text: "Working", tone: "text-foreground" };
   return { text: formatRelativeTimeLabel(chat.updatedAt), tone: "text-muted-foreground" };
 }

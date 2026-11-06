@@ -85,7 +85,7 @@ function PlaceItem(props: {
         {count > 0 ? (
           <span
             aria-hidden="true"
-            className="flex h-4 min-w-4 items-center justify-center rounded-full bg-warning px-1 text-3xs font-semibold text-white tabular-nums"
+            className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-3xs font-semibold text-primary-foreground tabular-nums"
           >
             {count > 9 ? "9+" : count}
           </span>

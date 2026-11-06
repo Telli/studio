@@ -10,7 +10,7 @@ import { isElectron } from "~/env";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
-import { selectActiveRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
+import { useRightPanelStore } from "~/rightPanelStore";
 import { useThreadShell, useThreadShells } from "~/state/entities";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { resolveThreadRouteRef } from "~/threadRoutes";
@@ -27,7 +27,7 @@ import { ChatRows } from "./ChatRows";
 import { useChatScopeStore } from "./chatScope";
 import { noProjectChats, useNoProjectFolder } from "./freeformChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
-import { showOverview } from "./overviewPanel";
+import { overviewStanding, showOverview } from "./overviewPanel";
 import { useProjectMenu } from "./ProjectMenu";
 import type { ListedProject } from "./projectList";
 import {
@@ -70,22 +70,19 @@ function useOpenFromSidebar() {
   };
 }
 
-/** The head of a project's list: Overview (everything it holds) and New chat, in the words of a project's own page. */
+/**
+ * The head of a project's list: Overview (everything it holds) and New chat, in the words of a
+ * project's own page. One row is filled at a time: Overview's only when it fills the main pane
+ * alone; beside a chat, the chat's row keeps the fill and Overview shows in stronger words.
+ */
 function ProjectActions(props: {
   readonly entry: SidebarProject;
-  readonly current: boolean;
-  readonly threadRef: ScopedThreadRef | null;
+  /** The panel of the chat open in this project, if one is. */
+  readonly panelRef: ScopedThreadRef | null;
+  readonly overview: ReturnType<typeof overviewStanding>;
 }) {
-  const { entry, current } = props;
+  const { entry, panelRef, overview } = props;
   const { folder } = entry;
-  // A new chat has no thread in the address yet; the workspace's own ref covers it too.
-  const workspaceRef = useOpenWorkspaceStore((store) => store.workspace?.threadRef ?? null);
-  const panelRef = current ? (props.threadRef ?? workspaceRef) : null;
-  const overviewOpen = useRightPanelStore(
-    (store) =>
-      panelRef !== null &&
-      selectActiveRightPanelSurface(store.byThreadKey, panelRef)?.kind === "files",
-  );
   const handleNewThread = useNewThreadHandler();
   const openProject = useOpenProject();
   const { isMobile, setOpenMobile } = useSidebar();
@@ -97,7 +94,8 @@ function ProjectActions(props: {
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton
-          isActive={overviewOpen}
+          isActive={overview === "alone"}
+          aria-current={overview === "alone" ? "page" : undefined}
           onClick={() => {
             done();
             if (panelRef !== null) showOverview(panelRef);
@@ -105,7 +103,7 @@ function ProjectActions(props: {
           }}
         >
           <LayoutDashboardIcon aria-hidden="true" />
-          <span>Overview</span>
+          <span className={cn(overview === "beside" && "text-sidebar-foreground")}>Overview</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
       <SidebarMenuItem>
@@ -130,6 +128,10 @@ function ProjectChats(props: {
   readonly threadRef: ScopedThreadRef | null;
 }) {
   const { entry, current, threadRef } = props;
+  // A new chat has no thread in the address yet; the workspace's own ref covers it too.
+  const workspaceRef = useOpenWorkspaceStore((store) => store.workspace?.threadRef ?? null);
+  const panelRef = current ? (threadRef ?? workspaceRef) : null;
+  const overview = useRightPanelStore((store) => overviewStanding(store.byThreadKey, panelRef));
   const [all, setAll] = useState(false);
   const currentDraftId = useParams({
     strict: false,
@@ -151,10 +153,15 @@ function ProjectChats(props: {
   const { chats, hidden } = shownChats(entry.threads, currentId, all);
   return (
     <div className="flex flex-col ps-4">
-      <ProjectActions entry={entry} current={current} threadRef={threadRef} />
+      <ProjectActions entry={entry} panelRef={panelRef} overview={overview} />
       {unsent.length === 0 ? null : <UnsentChatRows chats={unsent} />}
       {chats.length === 0 ? null : (
-        <ChatRows chats={chats} currentId={currentId} onOpen={openChat} />
+        <ChatRows
+          chats={chats}
+          currentId={currentId}
+          chatShows={overview !== "alone"}
+          onOpen={openChat}
+        />
       )}
       {hidden > 0 || all ? (
         <button
@@ -163,7 +170,7 @@ function ProjectChats(props: {
           onClick={() => setAll(!all)}
           className={cn(
             headingClass,
-            "h-7 rounded-md px-2 text-left outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+            "h-7 rounded-md ps-8.5 pe-2 text-left outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           )}
         >
           {all ? "Show fewer" : `Show ${hidden} more`}
@@ -222,7 +229,7 @@ function ProjectRow(props: {
             {standing === null ? null : (
               <span
                 className={cn(
-                  "shrink-0 text-2xs font-normal group-hover/chat:invisible group-focus-within/chat:invisible",
+                  "shrink-0 text-xs font-normal group-hover/chat:invisible group-focus-within/chat:invisible",
                   standing.tone,
                 )}
               >

@@ -593,7 +593,7 @@ function QuickFindBody(props: {
                       <span
                         className={cn(
                           "truncate text-xs",
-                          row.waiting ? "text-warning-foreground" : "text-muted-foreground/70",
+                          row.waiting ? "text-info-foreground" : "text-muted-foreground",
                         )}
                       >
                         {row.description}

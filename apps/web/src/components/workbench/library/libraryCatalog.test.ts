@@ -295,7 +295,7 @@ describe("library catalog", () => {
     // A template that works from a part is no New's: the skill shows up in its menus alone.
     expect(showsUpAs("fea")).toEqual(["Evaluate: Strength under load, Explain these results"]);
     expect(showsUpAs("urdf")).toEqual(["New: Robot description", "Document: More documents"]);
-    expect(showsUpAs("sendcutsend")).toEqual(["Manufacture: Order from SendCutSend"]);
+    expect(showsUpAs("sendcutsend")).toEqual(["Manufacture: Check for SendCutSend"]);
     expect(showsUpAs("no-such-skill")).toEqual([]);
   });
 

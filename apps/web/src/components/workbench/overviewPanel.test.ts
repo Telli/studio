@@ -9,6 +9,8 @@ import {
 } from "~/rightPanelStore";
 import {
   frontTab,
+  overviewStanding,
+  showChat,
   showOverview,
   showProject,
   takeOpeningProject,
@@ -32,6 +34,32 @@ const BRACKET: PluginAppSurface = {
 };
 
 const panel = () => selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, THREAD);
+
+describe("overviewStanding", () => {
+  const standing = () => overviewStanding(useRightPanelStore.getState().byThreadKey, THREAD);
+
+  beforeEach(() => {
+    useRightPanelStore.setState({ byThreadKey: {}, threadPanelVisibilityByThreadKey: {} });
+  });
+
+  it("is alone across the window, beside once the chat comes back", () => {
+    expect(standing()).toBeNull();
+
+    showOverview(THREAD);
+    expect(standing()).toBe("alone");
+
+    showChat(THREAD);
+    expect(standing()).toBe("beside");
+  });
+
+  it("is nothing with a part in front, even across the window", () => {
+    useRightPanelStore.getState().openPluginApp(THREAD, BRACKET);
+    useRightPanelStore.getState().setMaximized(THREAD, true);
+
+    expect(standing()).toBeNull();
+    expect(overviewStanding(useRightPanelStore.getState().byThreadKey, null)).toBeNull();
+  });
+});
 
 describe("opening a project", () => {
   beforeEach(() => {

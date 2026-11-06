@@ -47,7 +47,7 @@ function SpecRow(props: {
     <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] items-start gap-3 border-b border-border py-2.5 last:border-b-0">
       <label
         htmlFor={props.htmlFor}
-        className="pt-2 text-2xs font-medium tracking-widest text-muted-foreground uppercase"
+        className="pt-2 text-xs font-medium tracking-widest text-muted-foreground uppercase"
       >
         {props.label}
       </label>
@@ -93,7 +93,7 @@ function useSaveBrief(environmentId: EnvironmentId, cwd: string) {
 function Property(props: { readonly label: string; readonly children: ReactNode }) {
   return (
     <div className="flex min-w-0 items-center gap-1.5">
-      <span className="text-2xs text-muted-foreground">{props.label}</span>
+      <span className="text-xs text-muted-foreground">{props.label}</span>
       {props.children}
     </div>
   );

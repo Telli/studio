@@ -1,14 +1,14 @@
 import type { StudioSample } from "@t3tools/contracts";
 
 import { cn } from "~/lib/utils";
-import { KIND_ICONS } from "../kinds";
+import { KIND_ICONS, KIND_TINT } from "../kinds";
 import { LibraryCard } from "../library/LibraryCard";
-import { PICTURE_BOX } from "../library/LibraryPicture";
+import { PICTURE_BOX, PictureOrGlyph } from "../library/LibraryPicture";
 import { examplePictureOf } from "../library/libraryPictures";
 
 /**
  * An example's picture, bundled with Studio (`examplePictureOf`), in the box the Library's pictures
- * fill; a plain card with the CAD icon for one that has none.
+ * fill; the neutral CAD glyph for one that has none, or while it loads.
  */
 export function ExamplePicture(props: { readonly sampleId: string; readonly className?: string }) {
   const url = examplePictureOf(props.sampleId);
@@ -16,9 +16,9 @@ export function ExamplePicture(props: { readonly sampleId: string; readonly clas
   return (
     <span className={cn(PICTURE_BOX, props.className)}>
       {url === null ? (
-        <CadIcon aria-hidden="true" className="size-8 text-muted-foreground opacity-60" />
+        <CadIcon aria-hidden="true" className={cn("size-8 opacity-60", KIND_TINT)} />
       ) : (
-        <img src={url} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
+        <PictureOrGlyph url={url} icon={CadIcon} />
       )}
     </span>
   );

@@ -29,6 +29,7 @@ import { requestConfirmDialog } from "~/confirmDialog";
 import { isElectron } from "~/env";
 import { useHtmlRenderTheme } from "~/hooks/useHtmlRenderTheme";
 import { observeResize } from "~/lib/observeResize";
+import { useEnvironment } from "~/state/environments";
 import { pluginEnvironment } from "~/state/plugins";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { Button } from "../ui/button";
@@ -167,6 +168,11 @@ export function PluginViewFrame(props: {
 
   const openView = useAtomCommand(pluginEnvironment.openView, { reportFailure: false });
   const request = useAtomCommand(pluginEnvironment.request, { reportFailure: false });
+  // A view restored with its window asks once the app has reached its server, not before: asked
+  // early, it would answer "not connected". Once open, a dropped connection leaves the view as it is.
+  const phase = useEnvironment(target.environmentId)?.connection.phase;
+  const [reached, setReached] = useState(false);
+  if (!reached && (phase === undefined || phase === "connected")) setReached(true);
 
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -184,6 +190,7 @@ export function PluginViewFrame(props: {
 
   const argumentsKey = JSON.stringify(target.arguments);
   useEffect(() => {
+    if (!reached) return;
     let cancelled = false;
     // oxlint-disable-next-line react/set-state-in-effect -- Each (re)open starts from a loading state.
     setLoaded({ _tag: "loading" });
@@ -212,6 +219,7 @@ export function PluginViewFrame(props: {
     };
   }, [
     openView,
+    reached,
     target.environmentId,
     target.threadId,
     target.pluginId,

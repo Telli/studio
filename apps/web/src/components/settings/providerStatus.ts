@@ -64,8 +64,9 @@ export function getProviderSummary(provider: ServerProvider | undefined) {
   }
   if (provider.auth.status === "unauthenticated") {
     const authLabel = provider.auth.label ?? provider.auth.type;
+    const signedOut = engineering ? "Not signed in" : "Not authenticated";
     return {
-      headline: authLabel ? `Not authenticated · ${authLabel}` : "Not authenticated",
+      headline: authLabel ? `${signedOut} · ${authLabel}` : signedOut,
       detail: provider.message ?? null,
     };
   }
@@ -84,8 +85,9 @@ export function getProviderSummary(provider: ServerProvider | undefined) {
   }
   if (provider.auth.status === "authenticated") {
     const authLabel = provider.auth.label ?? provider.auth.type;
+    const signedIn = engineering ? "Signed in" : "Authenticated";
     return {
-      headline: authLabel ? `Authenticated · ${authLabel}` : "Authenticated",
+      headline: authLabel ? `${signedIn} · ${authLabel}` : signedIn,
       detail: provider.message ?? null,
     };
   }

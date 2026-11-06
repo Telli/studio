@@ -214,7 +214,7 @@ export const LIBRARY_DOCUMENTS: ReadonlyArray<LibraryDocument> = [
   }),
   doc({
     id: "doc:order",
-    name: "Order from SendCutSend",
+    name: "Check for SendCutSend",
     templates: [],
     actions: ["sendcutsend"],
     what: "A check of the upload against SendCutSend's own rules, before you order.",

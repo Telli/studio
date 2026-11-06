@@ -66,6 +66,23 @@ function display(descriptors: ReadonlyArray<ProviderOptionDescriptor>) {
 }
 
 describe("buildTraitsTriggerDisplay", () => {
+  it("says what the pick adjusts when asked to, in the menu's word", () => {
+    const named = (descriptors: ReadonlyArray<ProviderOptionDescriptor>) =>
+      buildTraitsTriggerDisplay({
+        provider: CODEX,
+        descriptors,
+        primarySelectDescriptorId: "reasoningEffort",
+        ultrathinkPromptControlled: false,
+        nameTrait: true,
+      }).label;
+
+    expect(named([{ ...EFFORT, label: "Thinking" }, CONTEXT_WINDOW])).toBe("Thinking: High · 1M");
+    expect(named([{ ...EFFORT, label: "Thinking" }, fastModeDescriptor(true)])).toBe(
+      "Thinking: High Fast",
+    );
+    expect(named([fastModeDescriptor(false)])).toBe("Speed: Normal");
+  });
+
   it("omits fast mode from the label entirely when it is off", () => {
     expect(display([EFFORT, fastModeDescriptor(false), CONTEXT_WINDOW])).toEqual({
       label: "High · 1M",

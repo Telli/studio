@@ -24,6 +24,22 @@ export function showOverview(threadRef: ScopedThreadRef): void {
   if (!spread) spreadForOverview.add(scopedThreadKey(threadRef));
 }
 
+/**
+ * How a chat's Overview shows: `alone` when it fills the main pane, where the chat is out of sight
+ * (`showOverview`), `beside` when the chat shows with it, null when it is not in front. The sidebar
+ * fills one row by this: the Overview's when alone, else the chat's.
+ */
+export function overviewStanding(
+  byThreadKey: Parameters<typeof selectThreadRightPanelState>[0],
+  threadRef: ScopedThreadRef | null,
+): "alone" | "beside" | null {
+  if (threadRef === null) return null;
+  if (selectActiveRightPanelSurface(byThreadKey, threadRef)?.kind !== "files") return null;
+  return selectThreadRightPanelState(byThreadKey, threadRef).maximized === true
+    ? "alone"
+    : "beside";
+}
+
 /** The chats whose panel `showOverview` spread across the window, to step back on leaving it. */
 const spreadForOverview = new Set<string>();
 

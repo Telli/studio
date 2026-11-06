@@ -33,7 +33,7 @@ import {
   writtenWordDelays,
 } from "./projectReadme";
 
-const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+const SECTION_LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
 /** Past this many decisions the list folds to its heading, so the project's files stay close. */
 const LONG_DECISIONS = 5;
 /** A point of the README, by its depth: each level further in, with its own marker. */

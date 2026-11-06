@@ -36,7 +36,7 @@ import { useProjectTiles } from "./useProjectTiles";
 import { type ProjectStart, useStartOnce } from "./useStartProject";
 import { useExamples } from "./library/useSampleProject";
 
-const SECTION_LABEL = "text-2xs font-medium tracking-widest text-muted-foreground uppercase";
+const SECTION_LABEL = "text-xs font-medium tracking-widest text-muted-foreground uppercase";
 /** A group within Your projects, in the project switcher's words: Starred, then Recent. */
 const GROUP_LABEL = "text-xs font-medium text-muted-foreground";
 
@@ -111,6 +111,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
       cwd=""
       newProject
       hideButton={hideButton}
+      buttonVariant="outline"
       onCreate={(job) => start({ kind: "new", job })}
       onNewPart={newPart.create}
     />
@@ -165,7 +166,7 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
                       </TileGroup>
                     )}
                     {recent.length === 0 ? null : (
-                      <TileGroup label="Recent" action={null}>
+                      <TileGroup label={starred.length === 0 ? null : "Recent"} action={null}>
                         {recent.map(tile)}
                       </TileGroup>
                     )}
@@ -183,19 +184,24 @@ function StudioHomeFor(props: { readonly environmentId: EnvironmentId }) {
   );
 }
 
-/** A group of Home's tiles under its label (Starred, Recent), with what its heading offers. */
+/**
+ * A group of Home's tiles under its label (Starred, Recent), with what its heading offers. With no
+ * label it is the only group, which Your projects already names.
+ */
 function TileGroup(props: {
-  readonly label: string;
+  readonly label: string | null;
   readonly action: ReactNode;
   readonly children: ReactNode;
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <h3 className={GROUP_LABEL}>{props.label}</h3>
-        <div className="flex-1" />
-        {props.action}
-      </div>
+      {props.label === null ? null : (
+        <div className="flex items-center gap-2">
+          <h3 className={GROUP_LABEL}>{props.label}</h3>
+          <div className="flex-1" />
+          {props.action}
+        </div>
+      )}
       <div className={TILE_GRID}>{props.children}</div>
     </div>
   );
@@ -371,8 +377,14 @@ function StartProject(props: {
             />
           )}
           <div className="flex-1" />
-          <Button size="sm" disabled={!ready} onClick={startNow}>
-            {busy ? "Starting…" : "Start"}
+          {/* Grey until there is something to start: the one solid blue on Home. */}
+          <Button
+            variant={ready ? "default" : "secondary"}
+            size="sm"
+            disabled={!ready}
+            onClick={startNow}
+          >
+            {busy ? "Starting…" : chosen === null ? "Start project" : "Start chat"}
           </Button>
         </div>
       </div>

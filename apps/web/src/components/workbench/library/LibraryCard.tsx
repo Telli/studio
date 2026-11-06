@@ -1,11 +1,13 @@
 import type { ReactNode, Ref } from "react";
 
-import { Badge } from "../../ui/badge";
+/** The tags a card names; the rest are counted, so every card stays one line tall. */
+const TAGS_SHOWN = 3;
 
 /**
  * A card, as Home's project tiles are: a picture over a name, and a note or tags under it. A press
  * opens what it shows; a disabled one says why in its note. The Library's entries, the Toolbox's
- * groups and the examples (`ExampleCard`, with what each shows as tags) are these.
+ * groups and the examples (`ExampleCard`, with what each shows as tags) are these. Tags are one
+ * quiet line, so the name leads.
  */
 export function LibraryCard({
   ref,
@@ -21,6 +23,8 @@ export function LibraryCard({
   readonly onOpen: () => void;
   readonly ref?: Ref<HTMLButtonElement>;
 }) {
+  const tags = props.tags ?? [];
+  const uncounted = tags.length - TAGS_SHOWN;
   return (
     <button
       ref={ref}
@@ -38,13 +42,10 @@ export function LibraryCard({
         {props.note === null ? null : (
           <span className="truncate text-xs text-muted-foreground">{props.note}</span>
         )}
-        {props.tags === undefined || props.tags.length === 0 ? null : (
-          <span className="flex flex-wrap gap-1 pt-1">
-            {props.tags.map((tag) => (
-              <Badge key={tag} variant="outline" size="sm">
-                {tag}
-              </Badge>
-            ))}
+        {tags.length === 0 ? null : (
+          <span className="flex min-w-0 gap-1 text-xs text-muted-foreground">
+            <span className="truncate">{tags.slice(0, TAGS_SHOWN).join(" · ")}</span>
+            {uncounted > 0 ? <span className="shrink-0">+{uncounted}</span> : null}
           </span>
         )}
       </span>

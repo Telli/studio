@@ -420,6 +420,9 @@ function RootRouteErrorView({ error }: ErrorComponentProps) {
         <Button size="sm" onClick={() => void router.invalidate()}>
           Try again
         </Button>
+        <Button size="sm" variant="outline" onClick={() => void router.navigate({ to: "/" })}>
+          Go to Home
+        </Button>
         <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
           Reload app
         </Button>

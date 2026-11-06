@@ -37,6 +37,23 @@ export const SETTINGS_DEVICE_ONLY_PATHS: ReadonlySet<string> = new Set([
   "/settings/connections",
 ]);
 
+/**
+ * Pages with no project-scoped row, kept apart from `SETTINGS_DEVICE_ONLY_PATHS` because those also
+ * skip the scope boundary. Each has no project to pick; what it says instead, and whether its
+ * environment is still a choice. Scheduled tasks and Archived stay off this list: a project picks
+ * what they show.
+ */
+const SETTINGS_NO_PROJECT_PATHS: ReadonlyMap<
+  string,
+  { readonly line: string | null; readonly environment: boolean }
+> = new Map([
+  ["/settings/interface", { line: "This setting applies to every project.", environment: false }],
+  ["/settings/plugins", { line: "These settings apply to every project", environment: true }],
+  ["/settings/keybindings", { line: "These settings apply to every project", environment: true }],
+  ["/settings/diagnostics", { line: null, environment: true }],
+  ["/settings/open-source-licenses", { line: null, environment: false }],
+]);
+
 interface SettingsScopeMenuProps {
   readonly value: SettingsScopeSearch;
   readonly groups: readonly SidebarProjectSnapshot[];
@@ -45,11 +62,15 @@ interface SettingsScopeMenuProps {
   readonly onChange: (next: SettingsScopeSearch) => void;
 }
 
+const SCOPE_LINE =
+  "flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-3 text-base text-muted-foreground sm:px-4";
+
 /**
  * "Applying settings for <project> across <environment>" at the top of a settings
  * page. The two pickers are the targets a change is written to. A project is
  * the same project on every environment, so the environment alone decides
- * where a project override is written.
+ * where a project override is written. A page with no project-scoped row says
+ * so plainly instead (`SETTINGS_NO_PROJECT_PATHS`).
  */
 export function SettingsScopeSentence() {
   const scope = useOptionalSettingsScope();
@@ -66,8 +87,28 @@ export function SettingsScopeSentence() {
     environments,
     onChange: scope.selectScope,
   };
+  const noProject = SETTINGS_NO_PROJECT_PATHS.get(pathname);
+  // An unavailable project still shows the whole sentence, so it can be changed back.
+  if (noProject !== undefined && scope.scope.kind !== "unavailable") {
+    const pickEnvironment = noProject.environment && showEnvironment;
+    if (noProject.line === null && !pickEnvironment) return null;
+    return (
+      <p className={SCOPE_LINE}>
+        {pickEnvironment ? (
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="shrink-0">
+              {noProject.line === null ? "On" : `${noProject.line} on`}
+            </span>
+            <EnvironmentScopeMenu {...props} />
+          </span>
+        ) : (
+          noProject.line
+        )}
+      </p>
+    );
+  }
   return (
-    <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-3 text-base text-muted-foreground sm:px-4">
+    <p className={SCOPE_LINE}>
       {/* Each connective stays with its picker so a wrap never strands "on". */}
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="shrink-0">Applying settings for</span>

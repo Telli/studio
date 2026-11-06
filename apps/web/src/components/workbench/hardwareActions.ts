@@ -316,7 +316,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     id: "sendcutsend",
     group: "Manufacture",
     section: "sheet",
-    label: "Order from SendCutSend",
+    label: "Check for SendCutSend",
     gets: "A preflight against SendCutSend's rules, bends included. Nothing is uploaded or ordered.",
     skill: "sendcutsend",
     kinds: ["Part", "Drawing"],

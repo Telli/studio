@@ -27,7 +27,7 @@ const OUTCOMES: Record<
   HistoryOutcome,
   { readonly Icon: LucideIcon; readonly word: string | null; readonly tone: string }
 > = {
-  "needs-you": { Icon: CircleAlertIcon, word: "Needs you", tone: "text-warning-foreground" },
+  "needs-you": { Icon: CircleAlertIcon, word: "Needs you", tone: "text-info-foreground" },
   working: { Icon: CircleDashedIcon, word: "Working", tone: "text-foreground" },
   failed: { Icon: CircleXIcon, word: "Stopped on an error", tone: "text-destructive" },
   stopped: { Icon: CircleSlashIcon, word: "Stopped", tone: "text-muted-foreground" },
@@ -86,7 +86,7 @@ export function ProjectThreads(props: {
     <div className="flex flex-col gap-3" aria-label={plainWords ? "History" : "Threads"}>
       {days.map(({ day, threads }) => (
         <section key={day} aria-label={day}>
-          <h3 className="pb-1 text-2xs font-medium text-muted-foreground">{day}</h3>
+          <h3 className="pb-1 text-xs font-medium text-muted-foreground">{day}</h3>
           <ul className="flex flex-col border-t border-border">
             {threads.map((thread) => {
               const current = thread.id === props.currentThreadId;
@@ -121,13 +121,13 @@ export function ProjectThreads(props: {
                       {thread.title || (plainWords ? "New work" : "New thread")}
                     </span>
                     {props.folderNames === null ? null : (
-                      <span className="max-w-32 shrink-0 truncate text-2xs text-muted-foreground">
+                      <span className="max-w-32 shrink-0 truncate text-xs text-muted-foreground">
                         {props.folderNames.get(thread.projectId) ?? ""}
                       </span>
                     )}
                     <span
                       className={cn(
-                        "shrink-0 text-2xs tabular-nums",
+                        "shrink-0 text-xs tabular-nums",
                         outcome.word !== null && !current ? outcome.tone : "text-muted-foreground",
                       )}
                     >

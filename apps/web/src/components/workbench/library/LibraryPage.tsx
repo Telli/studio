@@ -181,7 +181,7 @@ function LibraryContent(props: {
     <ChatPage
       title="Library"
       count={entries.length}
-      lede="A document type is what you get; a skill is what the agent knows, and it makes the document. Document types are grouped by where you find them, skills by their plugin."
+      lede="Open an example, or see what the agent can make."
       search={
         <Input
           type="search"

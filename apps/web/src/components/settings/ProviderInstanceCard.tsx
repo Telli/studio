@@ -718,6 +718,7 @@ export function ProviderInstanceCard({
     ? getProviderSummary(liveProvider && { ...liveProvider, enabled: true })
     : { headline: "Disabled", detail: null };
   const authEmail = liveProvider?.auth.email?.trim();
+  const engineering = useEngineeringInterface();
   const isAuthenticated = enabled && liveProvider?.auth.status === "authenticated";
   const authLabel =
     enabled && liveProvider?.auth.status === "authenticated"
@@ -919,7 +920,7 @@ export function ProviderInstanceCard({
     isAuthenticated && authEmail ? (
       <>
         {needsAttention ? statusDotNode : null}
-        <span>Authenticated as</span>
+        <span>{engineering ? "Signed in as" : "Authenticated as"}</span>
         <ProviderAuthEmail email={authEmail} />
         {authLabel ? <span>· {authLabel}</span> : null}
         {inlineStatusDetail ? (
@@ -1277,7 +1278,10 @@ export function ProviderInstanceCard({
         </SettingsSection>
       ) : null}
 
-      {instance.driver === "codex" && readCodexSetupMode(instance.config) === "managed" ? (
+      {/* Choosing a model outranks where the agent's files are, so paths stay folded. */}
+      {(instance.driver === "codex" && readCodexSetupMode(instance.config) === "managed") ||
+      !driverOption ||
+      deriveProviderSettingsFields(driverOption).length > 0 ? (
         <div
           inert={readOnly}
           aria-disabled={readOnly || undefined}
@@ -1292,15 +1296,6 @@ export function ProviderInstanceCard({
             {runtime ?? runtimeFields}
           </FoldedSettingsSection>
         </div>
-      ) : !driverOption || deriveProviderSettingsFields(driverOption).length > 0 ? (
-        <SettingsSection
-          title="Runtime"
-          inert={readOnly}
-          aria-disabled={readOnly || undefined}
-          className={readOnly ? "opacity-50 select-none" : undefined}
-        >
-          {runtimeFields}
-        </SettingsSection>
       ) : null}
 
       <SettingsSection
