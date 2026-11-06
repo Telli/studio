@@ -127,6 +127,7 @@ export function SkillDetail(props: {
               value={draft ?? text}
               onChange={(event) => setDraft(event.target.value)}
               rows={22}
+              style={{ fieldSizing: "fixed", maxHeight: "none" }}
             />
           ) : content.error !== null ? (
             <p className="text-sm text-muted-foreground">
