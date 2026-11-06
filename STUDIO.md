@@ -278,8 +278,8 @@ asked)`, or `by hand`; a decision written date first reads too), then every othe
   it asks puts the answer it recommends first, a failed check comes with the fix it would make, and
   a finished job offers the next one (`RECOMMEND` in `packages/shared/src/studioProjects.ts`). Below it, modules: the lead part large, what was built last (or, with no part yet, Start a part by hand), beside the README with its sections folded to their headings; then, in Engineering, everything in the project in one place, latest first, the
   way Google Drive shows a folder (`components/workbench/ProjectEverything.tsx`): every kind of file
-  together (its chats are down the left), each marked by its kind's icon in its kind's color
-  (`KIND_TINTS`), filtered by type (CAD, Electronics, Analysis, Manufacturing, Documents,
+  together (its chats are down the left), each marked by its kind's icon
+  (`KIND_TINT`), filtered by type (CAD, Electronics, Analysis, Manufacturing, Documents,
   References), as a list (name, kind, how a part's checks went or where a file is) or as cards with
   pictures (a part's with its checks, drawing and manufacturing files); then the parts' versions,
   the project's folders and the brief's links. The sidebar's Overview opens it across the window, as
@@ -727,9 +727,9 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   drawings) belongs to the part it was made from, as a CAD system keeps a study or a toolpath with
   its part. Each kind has one icon wherever it shows: the sidebar, New, the Overview's modules and
   badges, the Toolbox, the quick find and the chat's change chips
-  (`components/workbench/kinds.ts`), in a color of its own: blue CAD (the one blue), violet
-  electronics, magenta documents and drawings, cyan analysis, steel grey manufacturing. Never
-  red, amber or green, which say how a check went.
+  (`components/workbench/kinds.ts`), all in one quiet grey: a screen holds one accent, the brand
+  blue on what you can act on, and red, amber and green say how a check went. Kinds are told
+  apart by their icons, and the CAD ribbon's icons are the same blue on greys.
 - **Start from a part.** A new thread offers jobs for the project's most recently used parts,
   boards and studies, each kind of job once (a making check, a strength, fit or mass check, a
   document, a way to make it), from the same jobs the Toolbox has;
