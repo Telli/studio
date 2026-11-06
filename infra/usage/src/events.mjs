@@ -1,9 +1,10 @@
 /**
  * What Studio's server sends (`apps/server/src/telemetry/AnalyticsService.ts`), checked field by field and
  * turned into rows. Anything outside the contract is refused, not stored: an event not in `EVENTS` (the list
- * README.md's "Usage data" shows, which a test holds this to), a property that is not a plain name, a value
- * that is not a number, a boolean or a short word, or a batch of the wrong shape. Nothing in a row names a
- * person, a file or what they made: a value that reads like a path or a sentence never gets this far.
+ * README.md's "Usage data" shows, which a test holds this to), a property that event does not carry
+ * (`PROPERTIES`, which a test holds to the server's code), a value that is not a number, a boolean or a short
+ * word, or a batch of the wrong shape. Nothing in a row names a person, a file or what they made: a short word
+ * alone could be a file's name, so each value must come under a name kept here.
  *
  * A batch, schema 1:
  *
@@ -16,7 +17,6 @@
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const NAME = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 // A word, a model or version id, a few words of a fixed vocabulary: never a path, a line break or a sentence.
 const WORD = /^[A-Za-z0-9_.+:@,()[\]/ -]{0,80}$/;
 const PATHLIKE = /^[/~]|\\|^[A-Za-z]:|\/\//;
@@ -25,24 +25,72 @@ const MAX_EVENTS = 100;
 const MAX_PROPERTIES = 40;
 export const MAX_BYTES = 256 * 1024;
 
-/** Every event Studio can send, as README.md lists them. */
-export const EVENTS = new Set([
-  "client.connected",
-  "client.thread.started",
-  "client.turn.requested",
-  "provider.turn.completed",
-  "chatgpt.auth.started",
-  "chatgpt.auth.completed",
-  "chatgpt.transfer.started",
-  "chatgpt.transfer.completed",
-  "studio.project.created",
-  "cad.model.opened",
-  "cad.hand_edit",
-  "cad.size.changed",
-  "cad.size.added",
-  "cad.versions.compared",
-  "cad.version.restored",
-]);
+// What the connected client says of itself (`readClientAnalyticsProps` in the server's ws.ts).
+const CLIENT = [
+  "surface",
+  "appVersion",
+  "clientAppVersion",
+  "clientOs",
+  "os",
+  "clientDeviceType",
+  "webDeployment",
+  "clientBrowser",
+  "osMajorVersion",
+  "clientOsMajorVersion",
+  "deviceModel",
+  "clientDeviceModel",
+  "connectionMethod",
+];
+const CHATGPT = ["flow", "intent", "callbackMode"];
+const CHATGPT_DONE = [
+  ...CHATGPT,
+  "outcome",
+  "durationMs",
+  "failureStage",
+  "accountCountScope",
+  "connectedAccountCount",
+  "connectedConnectionCount",
+  "savedConnectionCount",
+  "unidentifiedConnectedConnectionCount",
+];
+
+/** Every event Studio can send, as README.md lists them, and the only properties each may carry. */
+export const PROPERTIES = {
+  "client.connected": CLIENT,
+  "client.thread.started": CLIENT,
+  "client.turn.requested": CLIENT,
+  "provider.turn.completed": [
+    "provider",
+    "terminalStatus",
+    "usageStatus",
+    "usageScope",
+    "hasSubagents",
+    "inputTokens",
+    "cachedInputTokens",
+    "cacheCreationTokens",
+    "outputTokens",
+    "reasoningTokens",
+    "model",
+    "mixedModels",
+    "effort",
+    "runtimeMode",
+    "interactionMode",
+    "durationMs",
+  ],
+  "chatgpt.auth.started": CHATGPT,
+  "chatgpt.auth.completed": CHATGPT_DONE,
+  "chatgpt.transfer.started": CHATGPT,
+  "chatgpt.transfer.completed": CHATGPT_DONE,
+  "studio.project.created": ["template"],
+  "cad.model.opened": [],
+  "cad.hand_edit": [],
+  "cad.size.changed": [],
+  "cad.size.added": [],
+  "cad.versions.compared": [],
+  "cad.version.restored": [],
+};
+
+export const EVENTS = new Set(Object.keys(PROPERTIES));
 
 /** A batch outside the contract: its message names a field's path or a rule, never the value that broke it. */
 export class Invalid extends Error {}
@@ -56,7 +104,7 @@ const word = (value, at) => {
   return value;
 };
 
-function propertiesOf(properties, at) {
+function propertiesOf(properties, allowed, at) {
   if (properties === undefined) return {};
   if (properties === null || typeof properties !== "object" || Array.isArray(properties)) {
     throw new Invalid(`${at} is not an object`);
@@ -65,7 +113,8 @@ function propertiesOf(properties, at) {
   if (entries.length > MAX_PROPERTIES) throw new Invalid(`${at} has too many properties`);
   const out = {};
   for (const [key, value] of entries) {
-    if (!NAME.test(key)) throw new Invalid(`${at} has a property that is not a name`);
+    // Named by the rule, not the key: a refused key is the sender's own text.
+    if (!allowed.includes(key)) throw new Invalid(`${at} has a property this event does not carry`);
     if (value === null || typeof value === "boolean") out[key] = value;
     else if (typeof value === "number") {
       if (!Number.isFinite(value)) throw new Invalid(`${at}.${key} is not a number`);
@@ -124,7 +173,7 @@ export function rowsOf(batch) {
       event: event.event,
       at: event.at,
       ...context,
-      properties: propertiesOf(event.properties, `${at}.properties`),
+      properties: propertiesOf(event.properties, PROPERTIES[event.event], `${at}.properties`),
     };
   });
 }

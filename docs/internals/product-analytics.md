@@ -60,5 +60,7 @@ few tries. Without these limits, one stuck batch was sent every second for days.
 Keep analytics payloads to product metadata and normalized measurements. Do not
 send prompts, authentication material, raw provider payloads, user-assigned device
 names, or conversation identifiers. Client metadata is best effort; invalid values
-must not reject a connection. The receiver refuses any event or property outside its contract,
-so a new event needs its list, the README's and the server's to change together.
+must not reject a connection. The receiver refuses any event, or any property that event does not
+carry, because a short word alone can be a file's name. A new event or property needs the receiver's
+list changed and deployed first (the receiver refuses the whole batch otherwise, and after a few
+tries it is dropped), then the README's and the server's.

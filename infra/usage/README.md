@@ -11,9 +11,10 @@ receiver's address, and only the receiver holds the database key.
 - `POST /v1/events`: one batch, schema 1:
   `{schema, install, version, platform, arch, mode, events: [{id, event, at, properties}]}`
   → `204` once the rows are kept. `install` is the install's random id. Each `event` must be one
-  of README.md's "Usage data" list (a test holds the two together). Each property must be a plain
-  name whose value is a number, a boolean or a short word: a path, a line break or anything longer
-  is refused. Anything outside the contract is `400` and keeps nothing. Each event is one row of
+  of README.md's "Usage data" list (a test holds the two together). Each property must be one that
+  event carries (`PROPERTIES` in `src/events.mjs`), whose value is a number, a boolean or a short
+  word: a path, a line break or anything longer is refused. Anything outside the contract is `400`
+  and keeps nothing. Each event is one row of
   `usage_events` (schema.sql), keyed by its own id, so a batch sent again adds nothing. Beside
   the batch's context it keeps the country Vercel places the request in (`x-vercel-ip-country`),
   never the address.
@@ -45,6 +46,14 @@ It runs at https://studio-usage.vercel.app: the Vercel project `studio-usage` on
 Vercel (`amy-zhous-projects-45e75853`), over the Supabase project `studio-usage`
 (`mlkacarkcdxquuspekdr`, Amy's personal org). The database password is in Amy's Keychain as
 "Supabase studio-usage db password". Redeploy with `vercel deploy --prod` from here.
+
+To see the numbers, from a machine logged in to the Supabase CLI (`supabase login`). It prints
+installs and event counts per day, and nothing else:
+
+```bash
+node infra/usage/numbers.mjs        # the last 14 days
+node infra/usage/numbers.mjs 30
+```
 
 ```bash
 node --test infra/usage/src/*.test.mjs
