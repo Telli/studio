@@ -4,7 +4,7 @@ import type { RefObject } from "react";
 import { cn } from "~/lib/utils";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { Input } from "../ui/input";
-import { KIND_ICONS, KIND_TINTS } from "./kinds";
+import { KIND_ICONS, KIND_TINT } from "./kinds";
 import { type ListedProject, lastTouched } from "./projectList";
 import { waitingChat } from "./recentActivity";
 import { findProjects } from "./recentProjects";
@@ -79,7 +79,7 @@ export function ProjectThumb(props: {
       {picture ? (
         <img src={picture} alt="" className="size-full object-cover" />
       ) : (
-        <KindIcon className={cn("size-3.5 opacity-70", KIND_TINTS[kind])} aria-hidden="true" />
+        <KindIcon className={cn("size-3.5 opacity-70", KIND_TINT)} aria-hidden="true" />
       )}
     </span>
   );

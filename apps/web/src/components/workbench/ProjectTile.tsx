@@ -6,7 +6,7 @@ import { useNowMinute } from "~/hooks/useNowMinute";
 import { cn } from "~/lib/utils";
 import { formatRelativeTimeLabel } from "~/timestampFormat";
 import { Badge } from "../ui/badge";
-import { KIND_ICONS, KIND_TINTS } from "./kinds";
+import { KIND_ICONS, KIND_TINT } from "./kinds";
 import { projectActivity } from "./recentProjects";
 import { StarButton } from "./StarButton";
 import { Page } from "./OverviewModules";
@@ -78,7 +78,7 @@ export function ProjectTile(props: {
           ) : page !== null ? (
             <Page environmentId={environmentId} root={page.root} path={page.path} />
           ) : (
-            <KindIcon className={cn("size-8 opacity-60", KIND_TINTS[kind])} aria-hidden="true" />
+            <KindIcon className={cn("size-8 opacity-60", KIND_TINT)} aria-hidden="true" />
           )}
         </span>
         <span

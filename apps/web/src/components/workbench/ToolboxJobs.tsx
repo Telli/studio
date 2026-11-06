@@ -10,7 +10,8 @@ import {
 } from "../ui/tooltip";
 import type { HardwareAction } from "./hardwareActions";
 import type { ToolboxSection } from "./toolbox";
-import { toolIcon, toolTint } from "./toolIcons";
+import { KIND_TINT } from "./kinds";
+import { toolIcon } from "./toolIcons";
 
 /** A section's title over its jobs as tool tiles, two to a row, always open like every other. */
 export function SectionJobs(props: {
@@ -40,8 +41,8 @@ export function SectionJobs(props: {
 }
 
 /**
- * A job as a tool to pick up: a square raised tile, its own picture (`toolIcon`) large in its
- * color (`toolTint`) over its name. Its name and what it makes show on a pause over it and is the tile's description for
+ * A job as a tool to pick up: a square raised tile, its own picture (`toolIcon`) large over its
+ * name. Its name and what it makes show on a pause over it and is the tile's description for
  * readers. A press sends the job (`onRun`).
  */
 function ToolTile(props: {
@@ -52,7 +53,6 @@ function ToolTile(props: {
   readonly onRun: () => void;
 }) {
   const { action, icon: Icon } = props;
-  const tint = toolTint(action);
   const describedBy = useId();
   return (
     <Tooltip>
@@ -70,7 +70,7 @@ function ToolTile(props: {
       >
         <span
           aria-hidden="true"
-          className={`flex size-11 shrink-0 items-center justify-center rounded-md bg-current/10 dark:bg-current/15 ${tint}`}
+          className={`flex size-11 shrink-0 items-center justify-center rounded-md bg-current/10 dark:bg-current/15 ${KIND_TINT}`}
         >
           <Icon className="size-7" strokeWidth={1.75} />
         </span>

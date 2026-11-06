@@ -114,39 +114,7 @@ export const CHAT_ICON: LucideIcon = MessageSquareIcon;
 export const EXAMPLES_ICON: LucideIcon = ShapesIcon;
 
 /**
- * Each kind's color, as Google Drive colors Docs, Sheets and Slides, so a kind is told at a glance
- * in a list of everything, each kind a hue of its own: blue CAD (the one blue), violet
- * electronics (purple boards), magenta documents and the drawings the Document menu makes, cyan
- * analysis, steel grey manufacturing, and quiet grey for chats and what is gathered for a part.
- * Never red, amber or green, which say a check failed, needs you or passed.
+ * Every kind's color: one quiet grey, so a screen holds one accent (the brand blue on what you can
+ * act on) and the status colors alone. Kinds are told apart by their icons.
  */
-export const KIND_TINTS: Readonly<Record<ProjectGroup | "Chats", string>> = {
-  Chats: "text-slate-500 dark:text-slate-400",
-  CAD: "text-blue-600 dark:text-blue-400",
-  Drawings: "text-fuchsia-600 dark:text-fuchsia-400",
-  "Reference parts": "text-slate-500 dark:text-slate-400",
-  Electronics: "text-violet-600 dark:text-violet-400",
-  Analysis: "text-cyan-600 dark:text-cyan-400",
-  Manufacturing: "text-slate-600 dark:text-slate-300",
-  Documents: "text-fuchsia-600 dark:text-fuchsia-400",
-  Images: "text-slate-500 dark:text-slate-400",
-  References: "text-slate-500 dark:text-slate-400",
-};
-
-/**
- * The top bar's menus' color, the kind their jobs make (as `MENU_ICONS`): the Toolbox tints each
- * job's tile with its group's.
- */
-export const MENU_TINTS: Readonly<Record<HardwareActionGroup, string>> = {
-  Evaluate: KIND_TINTS.Analysis,
-  Manufacture: KIND_TINTS.Manufacturing,
-  Document: KIND_TINTS.Documents,
-};
-
-/** A New template's icon color: its kind's, as the Overview and ⌘K color that kind. */
-export function templateTint(template: NewTemplate): string {
-  if (template.file !== undefined || template.discipline === "Documents")
-    return KIND_TINTS.Documents;
-  if (template.id === "drawing") return KIND_TINTS.Drawings;
-  return template.discipline === "Robotics" ? KIND_TINTS.CAD : KIND_TINTS[template.discipline];
-}
+export const KIND_TINT = "text-muted-foreground";

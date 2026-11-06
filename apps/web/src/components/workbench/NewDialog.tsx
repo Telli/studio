@@ -20,7 +20,7 @@ import {
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Textarea } from "../ui/textarea";
-import { DISCIPLINE_ICONS, templateIcon, templateTint } from "./kinds";
+import { DISCIPLINE_ICONS, KIND_TINT, templateIcon } from "./kinds";
 import {
   entryOfTemplate,
   librarySkills,
@@ -387,10 +387,7 @@ export function NewDialog(props: {
                         )}
                       >
                         <Icon
-                          className={cn(
-                            "mt-0.5 size-4 shrink-0",
-                            availability.on ? templateTint(template) : "text-muted-foreground",
-                          )}
+                          className={cn("mt-0.5 size-4 shrink-0", KIND_TINT)}
                           aria-hidden="true"
                         />
                         <span className="flex min-w-0 flex-col gap-0.5">

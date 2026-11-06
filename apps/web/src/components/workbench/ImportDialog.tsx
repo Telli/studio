@@ -35,7 +35,7 @@ import {
   type ScannedRoot,
   suggestProject,
 } from "./importPlan";
-import { KIND_TINTS } from "./kinds";
+import { KIND_TINT } from "./kinds";
 import { showProject } from "./overviewPanel";
 import { partLabel } from "./partNames";
 import { usePictures } from "./usePictures";
@@ -90,7 +90,7 @@ function FoundPicture(props: {
       {picture ? (
         <img src={picture} alt="" className="size-full object-cover" />
       ) : (
-        <BoxIcon className={cn("size-5 opacity-60", KIND_TINTS.CAD)} aria-hidden="true" />
+        <BoxIcon className={cn("size-5 opacity-60", KIND_TINT)} aria-hidden="true" />
       )}
     </span>
   );

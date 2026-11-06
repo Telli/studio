@@ -8,7 +8,7 @@ import { observeResize } from "~/lib/observeResize";
 import { Button } from "../ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 import { GROUP_PURPOSES, type HardwareAction, type HardwareActionGroup } from "./hardwareActions";
-import { MENU_ICONS, MENU_TINTS } from "./kinds";
+import { KIND_TINT, MENU_ICONS } from "./kinds";
 import { handToChat } from "./handToChat";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
@@ -150,7 +150,7 @@ export function StudioToolbox(props: {
             const Icon = MENU_ICONS[group.group];
             return (
               <ToggleGroupItem key={group.group} value={group.group} className="flex-1 basis-0">
-                <Icon aria-hidden="true" className={MENU_TINTS[group.group]} />
+                <Icon aria-hidden="true" className={KIND_TINT} />
                 {group.group}
               </ToggleGroupItem>
             );

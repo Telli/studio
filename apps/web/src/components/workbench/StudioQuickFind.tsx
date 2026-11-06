@@ -32,7 +32,7 @@ import { chatStanding } from "./chatStanding";
 import { useDocumentTemplates } from "./documentTemplates";
 import { FileKindIcon } from "./FileKindIcon";
 import { type HardwareActionGroup, hardwareActions } from "./hardwareActions";
-import { CHAT_ICON, KIND_ICONS, KIND_TINTS, MENU_ICONS } from "./kinds";
+import { CHAT_ICON, KIND_ICONS, KIND_TINT, MENU_ICONS } from "./kinds";
 import { libraryHref } from "./library/librarySearch";
 import { handToChat } from "./handToChat";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
@@ -69,7 +69,7 @@ const SHOWN_RECENT_CHATS = 4;
 /** A part's, a document's or a chat's row: its kind's icon in its kind's color (`kinds.ts`). */
 function KindIcon(props: { readonly group: ProjectGroup | "Chats" }) {
   const Icon = props.group === "Chats" ? CHAT_ICON : KIND_ICONS[props.group];
-  return <Icon className={cn("size-4 shrink-0", KIND_TINTS[props.group])} />;
+  return <Icon className={cn("size-4 shrink-0", KIND_TINT)} />;
 }
 
 /**

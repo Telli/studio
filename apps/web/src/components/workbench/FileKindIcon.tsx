@@ -1,5 +1,5 @@
 import { cn } from "~/lib/utils";
-import { FILE_ICONS, fileIconKey, KIND_TINTS } from "./kinds";
+import { FILE_ICONS, fileIconKey, KIND_TINT } from "./kinds";
 import { partName } from "./partNames";
 
 /**
@@ -10,14 +10,5 @@ import { partName } from "./partNames";
 export function FileKindIcon(props: { readonly path: string; readonly className?: string }) {
   const key = fileIconKey(partName(props.path)?.kind ?? "Document");
   const Icon = FILE_ICONS[key];
-  return (
-    <Icon
-      aria-hidden="true"
-      className={cn(
-        "shrink-0",
-        key === "Setup" ? "text-muted-foreground" : KIND_TINTS[key],
-        props.className,
-      )}
-    />
-  );
+  return <Icon aria-hidden="true" className={cn("shrink-0", KIND_TINT, props.className)} />;
 }

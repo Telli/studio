@@ -4,7 +4,7 @@ import { type ReactNode, useMemo } from "react";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { type DesignChange, designChanges } from "./designChanges";
-import { FILE_ICONS, fileIconKey, KIND_TINTS } from "./kinds";
+import { FILE_ICONS, fileIconKey, KIND_TINT } from "./kinds";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { showOverview } from "./overviewPanel";
 import { useEngineeringInterface } from "./studioInterface";
@@ -28,7 +28,7 @@ function ChangeChip(props: {
   const key = fileIconKey(change.kind);
   const Icon = FILE_ICONS[key];
   // In its kind's color, as the reply's own file chips and the panel's tabs show it.
-  const tint = key === "Setup" ? "text-muted-foreground" : KIND_TINTS[key];
+  const tint = KIND_TINT;
   // Which of a part's files changed with it (its model, its drawing), said on hover.
   const aspects = change.aspects.length < 2 ? undefined : change.aspects.join(", ");
   const chip =

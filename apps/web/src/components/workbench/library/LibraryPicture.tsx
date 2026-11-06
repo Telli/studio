@@ -2,7 +2,7 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import { PuzzleIcon } from "lucide-react";
 
 import { cn } from "~/lib/utils";
-import { KIND_ICONS, KIND_TINTS, templateIcon, templateTint } from "../kinds";
+import { KIND_ICONS, KIND_TINT, templateIcon } from "../kinds";
 import { DOCUMENT_TEMPLATES, NEW_TEMPLATES } from "../newTemplates";
 import { Page, TextPage } from "../OverviewModules";
 import type { LibraryDocument, LibraryEntry } from "./libraryCatalog";
@@ -23,9 +23,7 @@ function documentIcon(entry: LibraryDocument) {
   const template = [...NEW_TEMPLATES, ...DOCUMENT_TEMPLATES].find(
     (candidate) => candidate.id === entry.templates[0],
   );
-  return template === undefined
-    ? { Icon: KIND_ICONS.Documents, tint: KIND_TINTS.Documents }
-    : { Icon: templateIcon(template), tint: templateTint(template) };
+  return template === undefined ? KIND_ICONS.Documents : templateIcon(template);
 }
 
 /**
@@ -70,10 +68,7 @@ export function LibraryPicture(props: {
     const DocumentsIcon = KIND_ICONS.Documents;
     return (
       <span className={box}>
-        <DocumentsIcon
-          aria-hidden="true"
-          className={cn("size-8 opacity-60", KIND_TINTS.Documents)}
-        />
+        <DocumentsIcon aria-hidden="true" className={cn("size-8 opacity-60", KIND_TINT)} />
         {/* The page covers the icon once the template is read. */}
         <span className="absolute inset-0 flex">
           <Page environmentId={props.environmentId} {...folderAndName(own)} />
@@ -81,13 +76,10 @@ export function LibraryPicture(props: {
       </span>
     );
   }
-  const { Icon, tint } =
-    entry.kind === "skill"
-      ? { Icon: PuzzleIcon, tint: "text-muted-foreground" }
-      : documentIcon(entry);
+  const Icon = entry.kind === "skill" ? PuzzleIcon : documentIcon(entry);
   return (
     <span className={box}>
-      <Icon aria-hidden="true" className={cn("size-8 opacity-60", tint)} />
+      <Icon aria-hidden="true" className={cn("size-8 opacity-60", KIND_TINT)} />
       <span className="px-3 text-center text-2xs text-muted-foreground">
         {entry.kind === "skill"
           ? "No example ships with this skill."

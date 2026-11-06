@@ -8,7 +8,7 @@ import { ExampleCard } from "./examples/ExampleCard";
 import { NEEDS_DESKTOP_APP } from "./examples/examples";
 import { readGetStartedFolded, writeGetStartedFolded } from "./homeStart";
 import { ImportMenu } from "./ImportMenu";
-import { KIND_ICONS, KIND_TINTS } from "./kinds";
+import { KIND_ICONS, KIND_TINT } from "./kinds";
 import { HeadingLink, MODULE_HEADING, OverviewModule } from "./OverviewModules";
 
 /** Home's tiles, four across on a wide window: the project tiles and the examples line up. */
@@ -80,7 +80,7 @@ export function StartChoices(props: {
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <StartChoice
         icon={KIND_ICONS.CAD}
-        tint={KIND_TINTS.CAD}
+        tint={KIND_TINT}
         label="New part"
         note={
           props.newPartBusy

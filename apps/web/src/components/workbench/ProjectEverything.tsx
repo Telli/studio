@@ -7,7 +7,7 @@ import { Button } from "../ui/button";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { CHECK_STATUS } from "./CheckBadge";
 import { worstStatus } from "./checkResults";
-import { KIND_ICONS, KIND_TINTS } from "./kinds";
+import { KIND_ICONS, KIND_TINT } from "./kinds";
 import { CARD_GRID, FileCard, MODULE_HEADING, ShowAll } from "./OverviewModules";
 import { type FolderPart, PartFooter } from "./PartBadges";
 import type { ProjectGroup } from "./projectFiles";
@@ -51,9 +51,7 @@ const fullPath = (item: FileItem) => `${item.root.replace(/[\\/]+$/, "")}/${item
 /** An item's icon in its kind's color, the way Drive tells a Doc from a Sheet. */
 function KindMark(props: { readonly group: ProjectGroup; readonly className: string }) {
   const Icon = KIND_ICONS[props.group];
-  return (
-    <Icon aria-hidden="true" className={cn("shrink-0", KIND_TINTS[props.group], props.className)} />
-  );
+  return <Icon aria-hidden="true" className={cn("shrink-0", KIND_TINT, props.className)} />;
 }
 
 /** One folder's files as cards, pictured where the server can render them; parts with their badges. */
