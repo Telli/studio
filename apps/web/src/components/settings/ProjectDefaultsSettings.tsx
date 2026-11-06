@@ -113,7 +113,9 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
       }
       title={
         category === "general" || category === "project"
-          ? "New threads"
+          ? engineering
+            ? "New chats"
+            : "New threads"
           : category === "integrations"
             ? "Browser"
             : "Repositories"

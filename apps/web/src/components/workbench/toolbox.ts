@@ -104,7 +104,7 @@ export function toolboxLeftOut(groups: ReadonlyArray<ToolboxGroup>, kind: string
 }
 
 /**
- * The footer link "What each makes…": the Library open on the group. Its Make one comes back to
+ * The footer link "See what each makes": the Library open on the group. Its Make one comes back to
  * `from` only while the workspace has a New to take the request (`workspaceOpen`, as ⌘K's Library
  * does); from elsewhere it goes to Home's.
  */

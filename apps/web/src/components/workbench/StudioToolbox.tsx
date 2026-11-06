@@ -289,7 +289,7 @@ function GroupJobs(props: {
         // Its padding pulled back so its words start under the sections' titles.
         <div className="-ms-2.5">
           <Button variant="ghost-muted" size="sm" onClick={props.onBrowse}>
-            What each makes…
+            See what each makes
           </Button>
         </div>
       )}
