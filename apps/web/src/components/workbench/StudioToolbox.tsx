@@ -24,7 +24,7 @@ import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
 import { useSimpleView } from "./simpleView";
 import { usePartForJobs } from "./StudioPanelBar";
-import { SectionJobs, TOOL_GRID } from "./ToolboxJobs";
+import { SectionJobs } from "./ToolboxJobs";
 import {
   readToolboxFolded,
   readToolboxTab,
@@ -286,7 +286,7 @@ function ToolboxTip(props: {
 }
 
 /**
- * The tab in front: what the group is for, then all its sections' tiles in one grid (`TOOL_GRID`),
+ * The tab in front: what the group is for, then its sections, each a title over its tiles (`SectionJobs`),
  * and the Library's word on what each makes.
  */
 function GroupJobs(props: {
@@ -303,7 +303,7 @@ function GroupJobs(props: {
     <section aria-label={props.group.group} className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">{GROUP_PURPOSES[props.group.group]}</p>
       {empty ? null : (
-        <div className={TOOL_GRID}>
+        <div className="flex flex-col gap-4">
           {props.group.sections.map((section) => (
             <SectionJobs
               key={section.title}
