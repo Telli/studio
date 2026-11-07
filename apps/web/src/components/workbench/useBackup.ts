@@ -111,7 +111,11 @@ export function githubChoice(input: {
 }): { readonly available: boolean; readonly note: string | null; readonly signIn: boolean } {
   // In plain words, not the GitHub tool's own hints (its commands): Sign in with GitHub sits below.
   if (!input.signedIn || input.account === null) {
-    return { available: false, note: "Not signed in to GitHub on this Mac yet.", signIn: true };
+    return {
+      available: false,
+      note: "Not signed in to GitHub on this computer yet.",
+      signIn: true,
+    };
   }
   const not = (note: string | null) => ({ available: false, note, signIn: false });
   if (input.folders !== 1) return not("GitHub backup is for a project of one folder.");

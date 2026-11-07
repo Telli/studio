@@ -221,8 +221,8 @@ export function BackupDialog(props: {
         <DialogHeader>
           <DialogTitle>Back up {project.name}</DialogTitle>
           <DialogDescription>
-            {project.name} is a folder on this Mac, and its versions are kept in it. A backup puts a
-            copy somewhere else, so the project is safe if this Mac is not.
+            {project.name} is a folder on this computer, and its versions are kept in it. A backup
+            puts a copy somewhere else, so the project is safe if this computer is not.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>

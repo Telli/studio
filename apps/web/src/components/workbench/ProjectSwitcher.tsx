@@ -271,7 +271,7 @@ export function ProjectSwitcher(props: {
             </div>
             <p className="px-2 pt-1.5 text-xs text-muted-foreground">
               {backup.last === null
-                ? "Only on this Mac. Back up keeps a copy on GitHub or in a folder that syncs."
+                ? "Only on this computer. Back up keeps a copy on GitHub or in a folder that syncs."
                 : `Backed up ${formatRelativeTimeLabel(new Date(backup.last.at).toISOString())} to ${backupPlaceLabel(backup.last.place)}.`}
             </p>
           </section>

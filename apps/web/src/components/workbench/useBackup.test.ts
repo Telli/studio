@@ -72,7 +72,7 @@ describe("backup", () => {
     // Not signed in says so in plain words, and offers Sign in with GitHub.
     expect(githubChoice({ ...ready, signedIn: false, account: null })).toEqual({
       available: false,
-      note: "Not signed in to GitHub on this Mac yet.",
+      note: "Not signed in to GitHub on this computer yet.",
       signIn: true,
     });
     expect(githubChoice({ ...ready, folders: 2 }).available).toBe(false);
