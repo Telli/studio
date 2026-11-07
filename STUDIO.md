@@ -625,9 +625,11 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   (`CodexInviteCode.tsx`, `codexInvite.ts`). The dialog checks the code with Amy's invite server
   (`~/code/studio-invite`, studio-invite.vercel.app, deployed with the Vercel CLI, not on
   GitHub), puts the instance on Studio's own setup for as long as Codex is installed or found (only
-  that setup installs Codex), then saves it as an "existing" instance run from that Codex, with
-  the server as its provider in launch arguments and the code as a sensitive variable. Stop using
-  it puts it back on Studio's own setup. Trap: Codex shows no models from a plain OpenAI model
+  that setup installs Codex; a Codex already working stays where it is, so a failed install cannot
+  sign it out), then saves it as an "existing" instance run from that Codex, with the server as its
+  provider in launch arguments and the code as a sensitive variable. The row stays whatever is
+  signed in. Stop using it puts the instance back on the setup it came from, kept in `beforeInvite`.
+  Trap: Codex shows no models from a plain OpenAI model
   list, so the server answers the model list from Codex's own catalog (`npm run catalog` there).
 - **The workspace reads like SolidWorks** (Amy, 2026-10-26: "SolidWorks names", as the tools now
   behave as SolidWorks' do; from 2026-10-23 it read in NX's words, "really similar to NX", which the
