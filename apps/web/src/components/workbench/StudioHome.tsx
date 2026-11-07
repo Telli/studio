@@ -1,6 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
+import { DraftingCompassIcon, PaperclipIcon, SearchIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, useRef, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
@@ -25,6 +25,7 @@ import { NewFilesNotice } from "./NewFilesNotice";
 import { PageTitle } from "./PageTitle";
 import { waitingFirst } from "./ProjectChoices";
 import { ProjectPicker } from "./ProjectPicker";
+import { SketchDialog } from "./SketchDialog";
 import { GetStarted, StartChoices, StartExamples, TileGroup } from "./StartChoices";
 import { canStart, nameOfPath, type StartAttachment } from "./startProject";
 import { droppedPath, readStudioImport } from "./studioImportBridge";
@@ -237,6 +238,7 @@ function StartProject(props: {
   const [attachments, setAttachments] = useState<StartAttachment[]>([]);
   // A file dropped on the box is attached, as the chat's box attaches it (Home elsewhere imports).
   const [attaching, setAttaching] = useState(false);
+  const [sketching, setSketching] = useState(false);
   // The desktop app: files and folders, by their paths, copied into the project on Start.
   const bridge = readStudioImport();
   const attach = (added: ReadonlyArray<StartAttachment>) =>
@@ -338,6 +340,15 @@ function StartProject(props: {
             <PaperclipIcon />
             Attach
           </Button>
+          <Button variant="ghost" size="sm" onClick={() => setSketching(true)}>
+            <DraftingCompassIcon />
+            Sketch
+          </Button>
+          <SketchDialog
+            open={sketching}
+            onOpenChange={setSketching}
+            onAttach={(files) => attach(files.map(fromFile))}
+          />
           {props.cards.length === 0 ? null : (
             <ProjectPicker
               environmentId={environmentId}

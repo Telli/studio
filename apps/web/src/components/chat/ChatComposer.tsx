@@ -1084,6 +1084,7 @@ import {
   FileIcon,
   BotIcon,
   CircleAlertIcon,
+  DraftingCompassIcon,
   PaperclipIcon,
   PencilRulerIcon,
   PlayIcon,
@@ -1151,6 +1152,7 @@ import {
 import { partLabel } from "../workbench/partNames";
 import { useOpenChatFile } from "../workbench/useOpenInWorkbench";
 import { ENGINEERING_RUNTIME_MODES } from "../workbench/engineeringTraits";
+import { SketchDialog } from "../workbench/SketchDialog";
 
 const WORKSPACE_SNAPSHOT_RETRY_COOLDOWN_MS = 10_000;
 
@@ -2514,6 +2516,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     names: new Set(),
   });
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const [sketchOpen, setSketchOpen] = useState(false);
   const composerFormRef = useRef<HTMLFormElement>(null);
   const composerSurfaceRef = useRef<HTMLDivElement>(null);
   const providerInputRejectedRef = useRef(false);
@@ -7796,6 +7799,33 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         </TooltipTrigger>
                         <TooltipPopup>Attach files</TooltipPopup>
                       </Tooltip>
+                      {engineeringInterface ? (
+                        <>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onPointerDown={(event) => event.preventDefault()}
+                                  onClick={() => setSketchOpen(true)}
+                                  aria-label="Draw a sketch"
+                                />
+                              }
+                            >
+                              <DraftingCompassIcon />
+                            </TooltipTrigger>
+                            <TooltipPopup>Draw a sketch</TooltipPopup>
+                          </Tooltip>
+                          <SketchDialog
+                            key={activeThreadId}
+                            open={sketchOpen}
+                            onOpenChange={setSketchOpen}
+                            onAttach={(files) => void addComposerAttachments(files)}
+                          />
+                        </>
+                      ) : null}
                     </>
                   ) : null}
                   <ComposerFooterPrimaryActions
