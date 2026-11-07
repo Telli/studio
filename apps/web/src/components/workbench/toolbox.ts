@@ -34,6 +34,26 @@ export function toolboxGroups(menus: ReadonlyArray<HardwareActionMenu>): Toolbox
   });
 }
 
+/**
+ * A group's sections in the rail's order: a section of one tile draws the next such section up to
+ * it, so the two share a row wherever they stood (1, 2, 1 comes out 1, 1, 2). The one left over
+ * stays where it was. In the list, not a dense grid, so tab order stays what the rail shows.
+ */
+export function pairLoneSections(
+  sections: ReadonlyArray<ToolboxSection>,
+): ReadonlyArray<ToolboxSection> {
+  const isLone = (section: ToolboxSection) => section.actions.length === 1;
+  const rest = [...sections];
+  const paired: ToolboxSection[] = [];
+  for (let section = rest.shift(); section !== undefined; section = rest.shift()) {
+    paired.push(section);
+    if (!isLone(section)) continue;
+    const next = rest.findIndex(isLone);
+    if (next !== -1) paired.push(...rest.splice(next, 1));
+  }
+  return paired;
+}
+
 const FOLDED_KEY = "studio:toolbox-folded";
 const TAB_KEY = "studio:toolbox-tab";
 

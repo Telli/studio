@@ -124,7 +124,10 @@ function ProjectActions(props: {
   );
 }
 
-/** An unfolded project's list under its row: Overview, New chat, then its chats, newest first. */
+/**
+ * An unfolded project's list under its row: its chats, newest first, under Overview and New chat
+ * where the person is, or where it would open empty. Elsewhere a chat, or Open in its menu, goes in.
+ */
 function ProjectChats(props: {
   readonly entry: SidebarProject;
   readonly current: boolean;
@@ -154,9 +157,12 @@ function ProjectChats(props: {
   const openChat = useOpenFromSidebar();
   const currentId = threadRef?.threadId ?? null;
   const { chats, hidden } = shownChats(entry.threads, currentId, all);
+  const empty = chats.length === 0 && unsent.length === 0;
   return (
     <div className="flex flex-col ps-4">
-      <ProjectActions entry={entry} panelRef={panelRef} overview={overview} />
+      {current || empty ? (
+        <ProjectActions entry={entry} panelRef={panelRef} overview={overview} />
+      ) : null}
       {unsent.length === 0 ? null : <UnsentChatRows chats={unsent} />}
       {chats.length === 0 ? null : (
         <ChatRows
@@ -185,7 +191,7 @@ function ProjectChats(props: {
 
 /**
  * A project down the sidebar: pressed, it folds or unfolds its chats where it stands, as a folder
- * does in Claude's list, and moves the person nowhere: a chat, or Overview, under it does. Folded, it
+ * does in Claude's list, and moves the person nowhere: what is listed under it does. Folded, it
  * says if a chat in it needs the person or is at work. A right-click, or the "…" on its hover, is the
  * project's menu (`useProjectMenu`).
  */
@@ -349,11 +355,15 @@ function ProjectsList(props: { readonly environmentId: EnvironmentId }) {
 
 /**
  * Studio's sidebar, one column: Home at its top (`StudioHomeLink`), then the column the page gives
- * it, and Trash and Settings at its foot. Settings puts its sections there (`AppSidebarLayout`);
- * every other page, where the person is (`StudioSidebar`). It folds away whole from the sidebar's
- * own toggle or its shortcut.
+ * it, and under a hairline its foot: `foot`, then Trash and Settings. Settings puts its sections in
+ * the column (`AppSidebarLayout`); every other page, where the person is (`StudioSidebar`). It
+ * folds away whole from the sidebar's own toggle or its shortcut.
  */
-export function StudioSidebarFrame(props: { readonly children: ReactNode }) {
+export function StudioSidebarFrame(props: {
+  readonly children: ReactNode;
+  /** What stands over Trash and Settings in the foot: the update, say. */
+  readonly foot?: ReactNode;
+}) {
   const environmentId = usePrimaryEnvironmentId();
   return (
     <>
@@ -364,8 +374,11 @@ export function StudioSidebarFrame(props: { readonly children: ReactNode }) {
         </div>
       )}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">{props.children}</div>
-      <div className="px-2 pb-2">
-        <StudioFootLinks />
+      <div className="border-t border-sidebar-border pt-1">
+        {props.foot}
+        <div className="px-2 pb-2">
+          <StudioFootLinks />
+        </div>
       </div>
     </>
   );
@@ -378,11 +391,10 @@ export function StudioSidebarFrame(props: { readonly children: ReactNode }) {
 export function StudioSidebar() {
   const environmentId = usePrimaryEnvironmentId();
   return (
-    <StudioSidebarFrame>
+    <StudioSidebarFrame foot={<SidebarChromeFooter />}>
       <SidebarContent className="min-h-full">
         {environmentId === null ? null : <ProjectsList environmentId={environmentId} />}
       </SidebarContent>
-      <SidebarChromeFooter />
     </StudioSidebarFrame>
   );
 }

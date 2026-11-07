@@ -97,7 +97,7 @@ const STATUS_TONE: Record<CheckStatus, string> = {
   ready: "text-success-foreground",
 };
 
-/** One of the lead part's facts: its label, then its value, on the line under the picture. */
+/** One of the lead part's facts: its label, then its value, on the row under the picture. */
 function LeadFact(props: {
   readonly label: string;
   /** Its value says what it is, so the label is for readers only. */
@@ -176,7 +176,10 @@ function LeadFacts(props: {
   );
 }
 
-/** The project's lead part, large (`leadPartOf`): its picture, facts and what was made from it. */
+/**
+ * The project's lead part, large (`leadPartOf`): its picture, how its checks went, then its facts
+ * with what was made from it at their end. Its name is the page's title, over this and the README.
+ */
 function LeadPart(props: {
   readonly environmentId: EnvironmentId;
   readonly part: FolderPart;
@@ -202,7 +205,6 @@ function LeadPart(props: {
   const StatusIcon = status !== null ? STATUS[status].Icon : outOfDate ? OutOfDateIcon : null;
   return (
     <section aria-label="Lead part" className={SECTION_STACK}>
-      <PageTitle title={name} label={part.file.kind} />
       <button
         type="button"
         onClick={props.onOpen}
@@ -247,17 +249,19 @@ function LeadPart(props: {
             : null}
         </span>
       </p>
-      <LeadFacts
-        part={part}
-        threadRef={props.threadRef}
-        units={props.units}
-        onOpenFile={props.onOpenFile}
-      />
-      {part.drawings.length + part.made.length === 0 ? null : (
-        <div className="flex flex-wrap items-center gap-2">
-          <MadeBadges part={part} onOpen={props.onOpenFile} lead />
-        </div>
-      )}
+      <div className="flex min-w-0 items-center justify-between gap-4">
+        <LeadFacts
+          part={part}
+          threadRef={props.threadRef}
+          units={props.units}
+          onOpenFile={props.onOpenFile}
+        />
+        {part.drawings.length + part.made.length === 0 ? null : (
+          <div className="flex max-w-1/2 shrink-0 flex-wrap items-center justify-end gap-2">
+            <MadeBadges part={part} onOpen={props.onOpenFile} lead />
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -566,29 +570,32 @@ export function ProjectOverview(props: {
           )}
         </>
       ) : (
-        // The part first, large, with what the project is beside it.
-        <div className="grid min-w-0 items-start gap-6 @3xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
-          <LeadPart
-            environmentId={props.environmentId}
-            part={lead}
-            threadRef={props.threadRef}
-            units={props.units}
-            where={engineering ? undefined : lead.file.path}
-            onOpen={() => props.onOpen(lead.root, lead.file.path)}
-            onOpenFile={(path) => props.onOpen(lead.root, path)}
-          />
-          {props.readme === null ? (
-            <OpenIssues
-              issues={issues}
-              checked={checked}
-              composerRef={props.composerRef}
-              linkTo={props.linkTo}
-              onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
-              onShowChat={showChat}
+        // The part first, large, with what the project is beside it, both under its name.
+        <div className={SECTION_STACK}>
+          <PageTitle title={lead.file.title} label={lead.file.kind} />
+          <div className="grid min-w-0 items-start gap-6 @3xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+            <LeadPart
+              environmentId={props.environmentId}
+              part={lead}
+              threadRef={props.threadRef}
+              units={props.units}
+              where={engineering ? undefined : lead.file.path}
+              onOpen={() => props.onOpen(lead.root, lead.file.path)}
+              onOpenFile={(path) => props.onOpen(lead.root, path)}
             />
-          ) : (
-            props.readme
-          )}
+            {props.readme === null ? (
+              <OpenIssues
+                issues={issues}
+                checked={checked}
+                composerRef={props.composerRef}
+                linkTo={props.linkTo}
+                onShow={(entry) => props.onOpen(entry.root, entry.result.model)}
+                onShowChat={showChat}
+              />
+            ) : (
+              props.readme
+            )}
+          </div>
         </div>
       )}
 

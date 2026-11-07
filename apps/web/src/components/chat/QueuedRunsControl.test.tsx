@@ -151,6 +151,48 @@ describe("QueuedRunsControl attachments and edit mode", () => {
     expect(html).toBe("");
   });
 
+  const queuedText = (text: string) => {
+    state.projection = { projection: { messages: [] } };
+    state.workflow = {
+      activeRun: { id: "run:active" },
+      canPromoteToSteer: true,
+      canReorder: true,
+      queuedRuns: [
+        {
+          run: { id: "run:queued", userMessageId: "message:queued" },
+          text,
+          attachments: [],
+        },
+      ],
+    };
+    return renderToStaticMarkup(
+      <QueuedRunsControl
+        environmentId={"environment:test" as never}
+        optimisticMessages={[]}
+        threadId={"thread:test" as never}
+        editingRunId={null}
+        onEditQueuedRun={() => undefined}
+        onCancelEdit={() => undefined}
+      />,
+    );
+  };
+
+  it("names a tile's job with its tool's chip, not the line the agent reads", () => {
+    const html = queuedText("Tool: Strength under load\n\nCheck the bracket at 40 N.");
+
+    expect(html).toContain('data-slot="context-chip"');
+    expect(html).toContain("Strength under load");
+    expect(html).toContain("Check the bracket at 40 N.");
+    expect(html).not.toContain("Tool:");
+  });
+
+  it("leaves words typed by hand as they are", () => {
+    const html = queuedText("Tool: a caliper\n\nMeasure the boss.");
+
+    expect(html).not.toContain('data-slot="context-chip"');
+    expect(html).toContain("Tool: a caliper");
+  });
+
   it("keeps the original queued message visible while editing", () => {
     state.projection = { projection: { messages: [] } };
     state.workflow = workflowWithAttachment();

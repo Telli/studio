@@ -24,8 +24,9 @@ import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
 import { useSimpleView } from "./simpleView";
 import { usePartForJobs } from "./StudioPanelBar";
-import { SectionJobs } from "./ToolboxJobs";
+import { SECTION_GRID, SectionJobs } from "./ToolboxJobs";
 import {
+  pairLoneSections,
   readToolboxFolded,
   readToolboxTab,
   jobCount,
@@ -304,8 +305,8 @@ function GroupJobs(props: {
     <section aria-label={props.group.group} className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">{GROUP_PURPOSES[props.group.group]}</p>
       {empty ? null : (
-        <div className="flex flex-col gap-4">
-          {props.group.sections.map((section) => (
+        <div className={SECTION_GRID}>
+          {pairLoneSections(props.group.sections).map((section) => (
             <SectionJobs
               key={section.title}
               section={section}

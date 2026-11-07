@@ -28,7 +28,9 @@ import {
   type ReadmeDecision,
   readmeHeading,
   readmeInline,
+  readmeRows,
   readmeRuns,
+  type ReadmeSection,
   readmeSections,
   replaceReadmeText,
   scribblePath,
@@ -283,9 +285,9 @@ function FoldedWords(props: { readonly children: ReactNode }) {
  * The top of a project's Overview in the engineering interface: its README, read as an engineer
  * reads one. What it is (the brief's purpose until the README says), the decisions made so far,
  * each with when and whether it was asked of the agent or made by hand (a long list folded to its
- * heading until opened), then every other section the README has (open questions, notes), each
- * folded to its heading until opened, a dated heading with its date quiet beside its title, so the
- * page is as short as the project's picture and the parts stay in view. The agent keeps the README
+ * heading until opened), then every other section the README has, Open actions first (`readmeRows`),
+ * each folded to its heading until opened, a dated heading with its date quiet beside its title, so
+ * the page is as short as the project's picture and the parts stay in view. The agent keeps the README
  * as it works (`studioProjectContext`); the person types into it where it reads (`Typed`), with no
  * Edit button.
  */
@@ -386,6 +388,23 @@ export function ReadmeOverview(props: {
       </ul>
     );
 
+  const rows = readmeRows(sections.more);
+  const row = (section: ReadmeSection) => (
+    <OverviewModule
+      key={section.heading}
+      title={readmeHeading(section.heading).title}
+      note={headingNote(readmeHeading(section.heading))}
+      count={section.blocks.filter((block) => block.kind !== "subheading").length}
+      folded={!writingIn && !opened.includes(section.heading)}
+      onFold={() => toggleSection(section.heading)}
+      row
+    >
+      <div className="flex flex-col gap-2">
+        <ReadmeBlocks blocks={section.blocks} onSave={save} onOpenPath={props.onOpenPath} />
+      </div>
+    </OverviewModule>
+  );
+
   return (
     <WritingIn.Provider value={writingIn}>
       <section
@@ -423,6 +442,7 @@ export function ReadmeOverview(props: {
         )}
         {!longDecisions && sections.more.length === 0 ? null : (
           <div className="flex flex-col gap-1">
+            {rows.first.map(row)}
             {longDecisions ? (
               <OverviewModule
                 title="Decisions"
@@ -434,25 +454,7 @@ export function ReadmeOverview(props: {
                 {decisions}
               </OverviewModule>
             ) : null}
-            {sections.more.map((section) => (
-              <OverviewModule
-                key={section.heading}
-                title={readmeHeading(section.heading).title}
-                note={headingNote(readmeHeading(section.heading))}
-                count={section.blocks.filter((block) => block.kind !== "subheading").length}
-                folded={!writingIn && !opened.includes(section.heading)}
-                onFold={() => toggleSection(section.heading)}
-                row
-              >
-                <div className="flex flex-col gap-2">
-                  <ReadmeBlocks
-                    blocks={section.blocks}
-                    onSave={save}
-                    onOpenPath={props.onOpenPath}
-                  />
-                </div>
-              </OverviewModule>
-            ))}
+            {rows.rest.map(row)}
           </div>
         )}
         <p className="text-xs text-muted-foreground">

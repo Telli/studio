@@ -25,8 +25,9 @@ export function ExamplePicture(props: { readonly sampleId: string; readonly clas
 }
 
 /**
- * An example as a card, as the Library's entries are: its picture, its name and what it shows. A
- * press opens its page (`/library/examples/$id`). The Library and Home list these.
+ * An example as a card, as the Library's entries are: its picture, in the shape of a project
+ * tile's (`ProjectTile`), its name and what it shows. A press opens its page
+ * (`/library/examples/$id`). Home lists these.
  */
 export function ExampleCard(props: { readonly sample: StudioSample; readonly onOpen: () => void }) {
   return (
@@ -34,7 +35,7 @@ export function ExampleCard(props: { readonly sample: StudioSample; readonly onO
       picture={
         <ExamplePicture
           sampleId={props.sample.id}
-          className="aspect-square border-b border-border"
+          className="aspect-[4/3] border-b border-border"
         />
       }
       name={props.sample.name}

@@ -129,6 +129,19 @@ export function readmeHeading(heading: string): {
   };
 }
 
+/** A README's other sections as the Overview lists them: Open actions first, the rest in order. */
+export function readmeRows(more: ReadonlyArray<ReadmeSection>): {
+  readonly first: ReadonlyArray<ReadmeSection>;
+  readonly rest: ReadonlyArray<ReadmeSection>;
+} {
+  const isFirst = (section: ReadmeSection) =>
+    readmeHeading(section.heading).title.toLowerCase() === "open actions";
+  return {
+    first: more.filter((section) => isFirst(section)),
+    rest: more.filter((section) => !isFirst(section)),
+  };
+}
+
 /** A section's blocks with each run of points together, for one list each. */
 export function readmeRuns(
   blocks: ReadonlyArray<ReadmeBlock>,

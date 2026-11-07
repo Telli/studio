@@ -1,6 +1,7 @@
 import { type LucideIcon } from "lucide-react";
 import { useId } from "react";
 
+import { cn } from "~/lib/utils";
 import {
   RICH_TOOLTIP_DELAY,
   Tooltip,
@@ -18,8 +19,15 @@ import { toolIcon } from "./toolIcons";
 const TOOL_GRID = "grid grid-cols-2 gap-x-2 gap-y-3";
 
 /**
- * A section's jobs as tool tiles, under its title across the full width, always open like every
- * other. Sections stack (`StudioToolbox`), so a title never takes a tile's place in a row.
+ * The sections of a group (`StudioToolbox`), on their tiles' two columns, so a tile is one size in
+ * any of them. `pairLoneSections` gives them in the order that fills it.
+ */
+export const SECTION_GRID = "grid min-w-0 grid-cols-2 gap-x-2 gap-y-4";
+
+/**
+ * A section's jobs as tool tiles under its title, always open like every other. It takes the full
+ * width of `SECTION_GRID`; with one tile, only that tile's column, and shares the row with the next
+ * such section. A title on two lines there keeps the tiles of the row level.
  */
 export function SectionJobs(props: {
   readonly section: ToolboxSection;
@@ -27,10 +35,14 @@ export function SectionJobs(props: {
   readonly disabled: boolean;
   readonly onRun: (action: HardwareAction) => void;
 }) {
+  const lone = props.section.actions.length === 1;
   return (
-    <section aria-label={props.section.title} className="flex flex-col gap-2">
+    <section
+      aria-label={props.section.title}
+      className={cn("flex min-w-0 flex-col gap-2", !lone && "col-span-2")}
+    >
       <h4 className={GROUP_LABEL}>{props.section.title}</h4>
-      <div className={TOOL_GRID}>
+      <div className={lone ? "mt-auto grid grid-cols-1" : TOOL_GRID}>
         {props.section.actions.map((action) => (
           <ToolTile
             key={action.id}

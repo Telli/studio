@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { hardwareActions } from "./hardwareActions";
 import {
   jobCount,
+  pairLoneSections,
   readToolboxTab,
   toolboxFolded,
   toolboxNarrowRem,
@@ -15,6 +16,32 @@ import {
 
 const menus = () =>
   hardwareActions("Part", new Set(["fea", "dfm", "dfam-check", "cam"]), "CNC machining");
+
+describe("pairLoneSections", () => {
+  const [tool] = menus().flatMap((menu) => menu.sections.flatMap((section) => section.actions));
+  const sections = (...tiles: ReadonlyArray<number>) =>
+    tiles.map((count, index) => ({
+      title: `${index}`,
+      actions: Array.from({ length: count }, () => tool!),
+    }));
+  const order = (...tiles: ReadonlyArray<number>) =>
+    pairLoneSections(sections(...tiles)).map((section) => section.title);
+
+  it("draws a lone section up to the one before, across a longer one", () => {
+    expect(order(1, 2, 1)).toEqual(["0", "2", "1"]);
+    expect(order(2, 1, 3, 1)).toEqual(["0", "1", "3", "2"]);
+  });
+
+  it("pairs them two by two and leaves the odd one where it was", () => {
+    expect(order(1, 1, 1, 2)).toEqual(["0", "1", "2", "3"]);
+    expect(order(1, 2, 1, 2, 1)).toEqual(["0", "2", "1", "3", "4"]);
+  });
+
+  it("keeps the order of sections with no lone tile to pair", () => {
+    expect(order(2, 3, 4)).toEqual(["0", "1", "2"]);
+    expect(order(2, 1, 2)).toEqual(["0", "1", "2"]);
+  });
+});
 
 describe("toolboxGroups", () => {
   it("always gives the three groups in order, empty when nothing applies", () => {

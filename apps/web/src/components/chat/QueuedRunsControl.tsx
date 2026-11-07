@@ -27,6 +27,8 @@ import { cn } from "~/lib/utils";
 import { ComposerBanner } from "./ComposerBanner";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { ToolChip } from "../workbench/ToolChip";
+import { toolUsed } from "../workbench/toolUsed";
 
 export interface EditQueuedRunRequest {
   readonly runId: RunId;
@@ -276,6 +278,8 @@ export function QueuedRunsControl({
               const previewText = replaceComposerContextReferences(item.text, (reference) =>
                 reference.kind === "image" && item.thumbnails.length > 0 ? "" : reference.label,
               ).trim();
+              // A tile's job reads as the chat shows it; `item.text` stays whole for the agent.
+              const used = toolUsed(previewText);
               const rowRunId = item.runId;
               const rowServerIndex = item.serverIndex;
               const isEditing = rowRunId !== null && rowRunId === props.editingRunId;
@@ -396,11 +400,27 @@ export function QueuedRunsControl({
                       </span>
                     ) : null}
                     <Tooltip>
-                      <TooltipTrigger render={<span className="min-w-0 flex-1 truncate" />}>
-                        {previewText}
+                      <TooltipTrigger
+                        render={
+                          <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden" />
+                        }
+                      >
+                        {used?.tools.map((tool) => (
+                          <ToolChip key={tool.id} tool={tool} />
+                        ))}
+                        <span className="min-w-0 flex-1 truncate">
+                          {used?.message ?? previewText}
+                        </span>
                       </TooltipTrigger>
                       <TooltipPopup side="top" className="max-w-96 break-words">
-                        {previewText}
+                        {used === null ? null : (
+                          <span className="mb-1 flex flex-wrap gap-1">
+                            {used.tools.map((tool) => (
+                              <ToolChip key={tool.id} tool={tool} />
+                            ))}
+                          </span>
+                        )}
+                        {used?.message ?? previewText}
                       </TooltipPopup>
                     </Tooltip>
                   </ComposerBanner.Content>

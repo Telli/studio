@@ -10,15 +10,9 @@ import { readGetStartedFolded, writeGetStartedFolded } from "./homeStart";
 import { ImportMenu } from "./ImportMenu";
 import { fileTint, KIND_ICONS } from "./kinds";
 import { HeadingLink, OverviewModule } from "./OverviewModules";
-import {
-  GROUP_LABEL,
-  MODULE_HEADING,
-  projectTileGrid,
-  SECTION_STACK,
-  TILE_GRID,
-} from "./studioLayout";
+import { GROUP_LABEL, MODULE_HEADING, projectTileGrid, SECTION_STACK } from "./studioLayout";
 
-/** How many examples the Get started strip shows: one row; All examples has every one. */
+/** How many examples the Get started strip shows: under one row; All examples has every one. */
 const STRIP_EXAMPLES = 4;
 
 /** One of the start page's two ways in: a big card, its icon over what it does and a line more. */
@@ -114,11 +108,14 @@ export function TileGroup(props: { readonly label: string | null; readonly child
   );
 }
 
-/** The examples as cards in Home's grid, each opening its page (`/library/examples/$id`). */
+/**
+ * The examples as cards, each opening its page (`/library/examples/$id`), five across at the size
+ * of project tiles, so the person's own work outweighs them.
+ */
 function ExampleTiles(props: { readonly examples: ReadonlyArray<StudioSample> }) {
   const navigate = useNavigate();
   return (
-    <div className={TILE_GRID}>
+    <div className={projectTileGrid(5)}>
       {props.examples.map((sample) => (
         <ExampleCard
           key={sample.id}

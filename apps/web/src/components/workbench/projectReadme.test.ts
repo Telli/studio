@@ -5,6 +5,7 @@ import {
   nextReadmeWriteIn,
   readmeHeading,
   readmeInline,
+  readmeRows,
   readmeRuns,
   readmeSections,
   type ReadmeWriteIn,
@@ -229,6 +230,24 @@ describe("a new project's README coming in", () => {
     expect(scribblePath(120, 1)).toBe(scribblePath(120, 1));
     expect(scribblePath(120, 1)).not.toBe(scribblePath(120, 2));
     expect(scribblePath(120, 1).match(/M/g)).toHaveLength(1);
+  });
+});
+
+describe("readmeRows", () => {
+  const section = (heading: string) => ({ heading, blocks: [] });
+
+  it("lists Open actions first, however it is written, and the rest in README order", () => {
+    const rows = readmeRows([
+      section("Open questions"),
+      section("Notes"),
+      section("OPEN ACTIONS — 2026-11-05"),
+    ]);
+    expect(rows.first.map((row) => row.heading)).toEqual(["OPEN ACTIONS — 2026-11-05"]);
+    expect(rows.rest.map((row) => row.heading)).toEqual(["Open questions", "Notes"]);
+  });
+
+  it("has nothing first in a README without the heading", () => {
+    expect(readmeRows([section("Open actions taken")]).first).toEqual([]);
   });
 });
 
