@@ -74,6 +74,8 @@ export interface HardwareAction {
   readonly group: HardwareActionGroup;
   /** Its section (`ACTION_SECTIONS`). */
   readonly section: string;
+  /** The one way of making it this job is for, where its section holds two. */
+  readonly process?: MakingProcess;
   readonly label: string;
   /**
    * What you get: what its skill makes, its Toolbox tile's tooltip, in the voice of its library
@@ -252,6 +254,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     id: "cnc",
     group: "Manufacture",
     section: "machining",
+    process: "CNC machining",
     label: "Check for CNC machining",
     gets: "Findings for CNC machining, each passing, to fix or to check, with the fix.",
     skill: "dfm",
@@ -265,6 +268,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     id: "toolpaths",
     group: "Manufacture",
     section: "machining",
+    process: "CNC machining",
     label: "G-code for CNC",
     gets: "G-code for each setup, and its toolpaths to look over before cutting.",
     skill: "cam",
@@ -329,6 +333,7 @@ export const HARDWARE_ACTIONS: ReadonlyArray<HardwareAction> = [
     id: "molding",
     group: "Manufacture",
     section: "machining",
+    process: "Injection molding",
     label: "Check for injection molding",
     gets: "Findings for injection molding, each passing, to fix or to check, with the fix.",
     skill: "dfm",
@@ -580,7 +585,9 @@ export function hardwareActions(
     defs
       .map((def) => ({
         title: def.title,
-        actions: offered.filter((action) => action.section === def.id),
+        actions: offered
+          .filter((action) => action.section === def.id)
+          .toSorted((a, b) => Number(b.process === process) - Number(a.process === process)),
       }))
       .filter((section) => section.actions.length > 0);
   return GROUPS.flatMap((group): HardwareActionMenu[] => {

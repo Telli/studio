@@ -33,8 +33,8 @@ const isStudyPicture = (path: string, paths: ReadonlySet<string>) =>
  * A new thread's starters, made from the project rather than fixed: the jobs
  * its lead part (`leadPartOf`, the part the Overview shows), then its most
  * recently used parts, boards and studies take, each kind of job once
- * (a check of how it is made, the brief's way first; strength, fit or mass; a
- * document; a way to make it), each one the installed skills can do. A project with no files yet starts from its brief;
+ * (a check of how it is made, by the brief's way only; strength, fit or mass;
+ * a document; a way to make it), each one the installed skills can do. A project with no files yet starts from its brief;
  * with neither, there is nothing to suggest. `paths` are the recent files as
  * they are, numbers beside pictures included.
  */
@@ -67,12 +67,20 @@ export function projectStarters(
       link: partLink({ path: file.path, name: file.title }),
       label: (action: HardwareAction) =>
         file.path === lead?.path ? action.label : action.short(lowerName(name)),
-      // Every job for the part, its ways of making it included, in menu order. Starters start
-      // work: a write-up (no skill of its own), an export or a bought part is none.
+      // Every job for the part in menu order, and of its ways of making it only the project's
+      // own: a chip never guesses how a part is made, so a project that has not said gets none.
+      // Starters start work: a write-up (no skill of its own), an export or a bought part is none.
       all: hardwareActions(kind, skills, brief?.process)
-        .flatMap((menu) => [...menu.sections, ...menu.others])
+        .flatMap((menu) =>
+          menu.group === "Manufacture" ? menu.sections : [...menu.sections, ...menu.others],
+        )
         .flatMap((section) => section.actions)
-        .filter((action) => action.skill !== null && action.section !== "files"),
+        .filter(
+          (action) =>
+            action.skill !== null &&
+            action.section !== "files" &&
+            (action.process === undefined || action.process === brief?.process),
+        ),
     };
   });
   // Each kind of job once, from the first of them that takes it, so the starters cover the

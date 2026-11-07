@@ -12,7 +12,7 @@ describe("project starters", () => {
     const starters = projectStarters(
       files("parts/STEP/l_bracket.step", "notes/todo.md"),
       new Set(["dfm", "cam", "cad"]),
-      null,
+      { ...EMPTY_BRIEF, process: "CNC machining" },
     );
     expect(starters.map((starter) => starter.label)).toEqual([
       "Check L bracket for CNC machining",
@@ -29,7 +29,7 @@ describe("project starters", () => {
     const starters = projectStarters(
       files("parts/STEP/l_bracket.step"),
       new Set(["dfm", "cam", "cad", "fea", "engineering-drawing"]),
-      null,
+      { ...EMPTY_BRIEF, process: "CNC machining" },
     );
     expect(starters.map((starter) => starter.kind)).toEqual([
       "Manufacturing",
@@ -41,7 +41,7 @@ describe("project starters", () => {
 
   it("starts on the lead part, however recently another was touched", () => {
     const [touched, lead] = files("parts/nema17.step", "parts/motor_plate.step");
-    const starters = projectStarters([touched!, lead!], new Set(["dfm"]), null, undefined, lead);
+    const starters = projectStarters([touched!, lead!], new Set(["cad"]), null, undefined, lead);
     expect(starters[0]?.prompt).toContain("motor_plate.step");
   });
 
@@ -52,7 +52,13 @@ describe("project starters", () => {
       "parts/arm.step",
     );
     const label = (lead: ProjectFile) =>
-      projectStarters([lead, other!], new Set(["dfm"]), null, undefined, lead)[0]?.label;
+      projectStarters(
+        [lead, other!],
+        new Set(["dfm"]),
+        { ...EMPTY_BRIEF, process: "CNC machining" },
+        undefined,
+        lead,
+      )[0]?.label;
     expect(label(plate!)).toBe("Check for CNC machining");
     // A mesh can't be checked for machining, so the job falls to a part that is not the lead.
     expect(label(mesh!)).toBe("Check arm for CNC machining");
@@ -76,11 +82,28 @@ describe("project starters", () => {
     expect(starters.some((starter) => /tip load/i.test(starter.label))).toBe(false);
   });
 
+  it("never guesses how a part is made when the project has not said", () => {
+    const labels = projectStarters(
+      files("parts/case.step"),
+      new Set(["dfm", "dfam-check", "cam", "gcode", "cad"]),
+      null,
+    ).map((starter) => starter.label);
+    expect(labels).toEqual(["Weight of case", "3D PMI for case"]);
+  });
+
+  it("checks a molded part for molding, not for machining", () => {
+    const labels = projectStarters(files("parts/case.step"), new Set(["dfm", "cam"]), {
+      ...EMPTY_BRIEF,
+      process: "Injection molding",
+    }).map((starter) => starter.label);
+    expect(labels).toEqual(["Check case for injection molding"]);
+  });
+
   it("never offers one job on every part", () => {
     const labels = projectStarters(
       files("parts/arm.step", "parts/base.step"),
       new Set(["dfam-check", "gcode", "fea", "engineering-drawing"]),
-      null,
+      { ...EMPTY_BRIEF, process: "3D printing (FDM)" },
     ).map((starter) => starter.label);
     expect(labels.filter((label) => label.endsWith("for FDM printing"))).toHaveLength(1);
     expect(labels.filter((label) => label.startsWith("Slice "))).toHaveLength(1);
@@ -88,9 +111,10 @@ describe("project starters", () => {
 
   it("offers only what the installed skills can do", () => {
     expect(
-      projectStarters(files("parts/STEP/l_bracket.step"), new Set(["gcode"]), null).map(
-        (starter) => starter.label,
-      ),
+      projectStarters(files("parts/STEP/l_bracket.step"), new Set(["gcode"]), {
+        ...EMPTY_BRIEF,
+        process: "3D printing (FDM)",
+      }).map((starter) => starter.label),
     ).toEqual(["Slice L bracket for printing"]);
   });
 
@@ -123,7 +147,7 @@ describe("project starters", () => {
         },
       ],
       new Set(["dfm", "cam"]),
-      null,
+      { ...EMPTY_BRIEF, process: "CNC machining" },
     );
     expect(starters.length).toBeGreaterThan(0);
     for (const starter of starters) expect(starter.prompt).not.toContain(document);
