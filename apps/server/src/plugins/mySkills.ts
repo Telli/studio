@@ -9,8 +9,11 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
 import { MY_SKILLS_PLUGIN_ID } from "@t3tools/contracts";
+import { Document, parseDocument } from "yaml";
 
 const SKILL_FILE = "SKILL.md";
+/** Where a skill keeps its title as typed (`skillDetails` reads it); never shown as one of its files. */
+const FACE_FILE = NodePath.join("agents", "openai.yaml");
 const MAX_LISTED_FILES = 200;
 const MAX_READ_BYTES = 1024 * 1024;
 
@@ -75,12 +78,28 @@ export function newSkillText(name: string, title: string, description: string): 
   ].join("\n");
 }
 
+/** A YAML file's document, or an empty map's where it is missing or does not parse. */
+function yamlDocument(text: string): Document {
+  const document = parseDocument(text);
+  return document.errors.length > 0 || document.contents === null ? new Document({}) : document;
+}
+
+/** Keeps a skill's title as it was typed; only a name with no title gets title-cased. */
+function writeSkillTitle(folder: string, title: string): void {
+  const file = NodePath.join(folder, FACE_FILE);
+  const face = yamlDocument(NodeFS.existsSync(file) ? NodeFS.readFileSync(file, "utf8") : "");
+  face.setIn(["interface", "display_name"], title);
+  NodeFS.mkdirSync(NodePath.dirname(file), { recursive: true });
+  NodeFS.writeFileSync(file, face.toString({ lineWidth: 0 }));
+}
+
 /** Makes a skill from a title and what it is for; answers its name. */
 export function createSkill(skillsDir: string, title: string, description: string): string {
   const name = freeName(skillsDir, skillSlug(title));
   const folder = NodePath.join(skillsDir, name);
   NodeFS.mkdirSync(folder, { recursive: true });
   NodeFS.writeFileSync(NodePath.join(folder, SKILL_FILE), newSkillText(name, title, description));
+  writeSkillTitle(folder, title);
   return name;
 }
 
@@ -110,13 +129,13 @@ export function copySkill(from: string, skillsDir: string, name: string): string
   return copy;
 }
 
-/** Every file a skill holds beside its `SKILL.md`, by its path in the skill's folder. */
+/** Every file a skill holds beside its `SKILL.md` and its face, by its path in the skill's folder. */
 function otherFiles(folder: string): ReadonlyArray<string> {
   const entries = NodeFS.readdirSync(folder, { recursive: true, withFileTypes: true });
   return entries
     .filter((entry) => entry.isFile())
     .map((entry) => NodePath.relative(folder, NodePath.join(entry.parentPath, entry.name)))
-    .filter((file) => file !== SKILL_FILE)
+    .filter((file) => file !== SKILL_FILE && file !== FACE_FILE)
     .toSorted()
     .slice(0, MAX_LISTED_FILES);
 }

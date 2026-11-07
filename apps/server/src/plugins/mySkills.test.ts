@@ -19,6 +19,7 @@ import {
   skillFolderIn,
   skillSlug,
 } from "./mySkills.ts";
+import { readSkillDetail } from "./skillDetails.ts";
 
 const made: Array<string> = [];
 const scratch = () => {
@@ -42,6 +43,16 @@ describe("the person's own skills", () => {
 
     removeSkill(NodePath.join(skills, `${name}-2`));
     expect(readPlugin(nodeFolder(root)).skills).toEqual([name]);
+  });
+
+  it("keeps a title as it was typed, and out of the skill's files", () => {
+    const skills = scratch();
+    const name = createSkill(skills, "Audit test skill", "Checks the library");
+    const folder = NodePath.join(skills, name);
+
+    expect(name).toBe("audit-test-skill");
+    expect(readSkillDetail(folder, name).displayName).toBe("Audit test skill");
+    expect(readSkill(folder, null)?.files).toEqual([]);
   });
 
   it("reads a skill and its files, and saves what is written", () => {
