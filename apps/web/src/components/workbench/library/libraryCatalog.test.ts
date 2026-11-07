@@ -32,11 +32,25 @@ const TEXT_TO_CAD_SKILLS = NodeFS.readdirSync(SKILLS)
   .filter((name) => NodeFS.existsSync(NodePath.join(SKILLS, name, "SKILL.md")))
   .toSorted();
 
+const wordsOf = (text: string) =>
+  text
+    .toLowerCase()
+    .split(/[^\w-]+/)
+    .filter(Boolean);
+
 /** A text-to-cad skill's own name: `interface.display_name` in its agents/openai.yaml. */
 const ownName = (skill: string) =>
   /^\s+display_name:\s*["']?(.*?)["']?\s*$/m.exec(
     NodeFS.readFileSync(NodePath.join(SKILLS, skill, "agents", "openai.yaml"), "utf8"),
   )?.[1] ?? null;
+
+/** The words of a text-to-cad skill's `interface.short_description`, in lower case. */
+const ownWords = (skill: string) =>
+  wordsOf(
+    /^\s+short_description:\s*["']?(.*?)["']?\s*$/m.exec(
+      NodeFS.readFileSync(NodePath.join(SKILLS, skill, "agents", "openai.yaml"), "utf8"),
+    )?.[1] ?? "",
+  );
 
 /** The sample's outputs that could not be made, so their entries show no example. */
 const NOT_MADE = [
@@ -242,6 +256,7 @@ describe("library catalog", () => {
       name: "harness",
       displayName: "Wiring harness",
       description: "Draws wiring harnesses.",
+      blurb: "Draws wiring harnesses.",
       tryAsking: "Draw the harness for the arm.",
       on: true,
       example: null,
@@ -293,6 +308,20 @@ describe("library catalog", () => {
     expect(
       skills.filter((skill) => skill.tryAsking === null || skill.tryAsking === "Use this skill."),
     ).toEqual([]);
+  });
+
+  it("cuts each of text-to-cad's blurbs from its own words, whole, and leaves other plugins' alone", () => {
+    const skills = librarySkills([textToCad(true), plugin("harnesses", true, [detail("harness")])]);
+    const ours = skills.filter((skill) => skill.pluginId === "text-to-cad");
+    expect(ours.filter((skill) => skill.blurb === skill.description)).toEqual([]);
+    expect(
+      ours.flatMap((skill) => {
+        const own = ownWords(skill.name);
+        return wordsOf(skill.blurb).filter((word) => !own.includes(word));
+      }),
+    ).toEqual([]);
+    expect(ours.filter((skill) => /\.$|…/.test(skill.blurb))).toEqual([]);
+    expect(skills.at(-1)?.blurb).toBe("What harness does.");
   });
 
   it("shows each skill where New and the menus offer it", () => {

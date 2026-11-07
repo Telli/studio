@@ -57,6 +57,8 @@ export interface LibrarySkill {
   /** Its name as the chat shows it: its own display name, else its name title-cased. */
   readonly displayName: string;
   readonly description: string;
+  /** What its tile says: `description`, or a shorter cut of it (`SKILL_BLURBS`). */
+  readonly blurb: string;
   readonly tryAsking: string | null;
   /** Its plugin is enabled. */
   readonly on: boolean;
@@ -388,6 +390,29 @@ const JOB_NAMES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * What a tile says of each of text-to-cad's skills: its `agents/openai.yaml` `short_description` in
+ * its own words, cut to a phrase that fits the tile's two lines, so it ends whole and the words
+ * that set it apart show.
+ */
+const SKILL_BLURBS: Readonly<Record<string, string>> = {
+  "bambu-labs": "Send prints to Bambu printers",
+  cad: "Generate CAD artifacts",
+  cam: "3-axis milling and drilling toolpaths",
+  "dfam-check": "Measure meshes against DfAM rules",
+  dfm: "Sheet metal, CNC, or injection molding",
+  dxf: "2D DXF drawings",
+  "engineering-drawing": "Dimensioned PDF of a CAD part",
+  fea: "Linear static stress studies",
+  gcode: "Slice models into G-code",
+  sdf: "SDFormat robot models",
+  sendcutsend: "Review DXF/STEP against specs",
+  srdf: "MoveIt2 SRDF semantics",
+  "step-parts": "Find and download STEP files",
+  urdf: "URDF robot descriptions",
+  "work-instructions": "Step-by-step assembly PDF",
+};
+
+/**
  * text-to-cad's skills as they name themselves (`agents/openai.yaml`'s `display_name`), for where
  * no installed plugin names them, so a skill reads the same whether text-to-cad is installed or not.
  */
@@ -543,6 +568,7 @@ export function librarySkills(plugins: ReadonlyArray<InstalledPlugin>): LibraryS
         displayName:
           (ours ? JOB_NAMES[detail.name] : undefined) ?? chatName(detail.name, detail.displayName),
         description: detail.description,
+        blurb: (ours ? SKILL_BLURBS[detail.name] : undefined) ?? detail.description,
         tryAsking: (ours ? TRY_ASKING[detail.name] : undefined) ?? detail.defaultPrompt,
         on: plugin.enabled,
         ...(ours ? exampleOf(id) : { example: null, exampleIn: null }),

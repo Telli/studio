@@ -242,7 +242,7 @@ function LibraryContent(props: {
         />
       }
       name={entryName(entry, skillLabel)}
-      {...(entry.kind === "skill" ? { blurb: entry.description } : {})}
+      {...(entry.kind === "skill" ? { blurb: entry.blurb } : {})}
       note={offNote(entry)}
       onOpen={() => openEntry(entry.id)}
     />

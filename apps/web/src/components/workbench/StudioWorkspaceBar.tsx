@@ -8,23 +8,23 @@ import { ProjectSwitcher } from "./ProjectSwitcher";
 import { useStudioProjectAt } from "./useStudioProjects";
 import { chatLabel, workspaceTitle } from "./workspaceTitle";
 
-/** How a workspace names its project: its folder and its name. */
+/** How a workspace names its project: its folder and its name, as the sidebar names it. */
 export function useProjectHeading(
   environmentId: EnvironmentId,
   project: EnvironmentProject | null,
 ) {
   const folder = project?.workspaceRoot ?? null;
   const studio = useStudioProjectAt(environmentId, folder);
-  const title = workspaceTitle(studio?.project.name ?? project?.title ?? null, folder);
+  const title = workspaceTitle(studio?.project.name ?? null, folder);
   return { folder, title };
 }
 
 /**
  * The start of a project workspace's top bar, in the chat's header row: where the person is, the
  * project's switcher (`ProjectSwitcher`, which holds Home too), then the open chat in it. The
- * panel's toolbar carries the rest (`StudioPanelBar`). Short of room the switcher keeps its width
- * and the chat gives way first: its name, then its icon, which wraps out of the one row shown
- * rather than clip. Its name stays on its tooltip.
+ * panel's toolbar carries the rest (`StudioPanelBar`). Short of room the switcher stops at about
+ * half the row, truncating its own name, and the chat has the rest: its name gives way, then its
+ * icon, which wraps out of the one row shown rather than clip. Its name stays on its tooltip.
  */
 export function StudioWorkspaceBar(props: {
   readonly environmentId: EnvironmentId;

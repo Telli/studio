@@ -19,7 +19,7 @@ export function LibraryCard({
   readonly picture: ReactNode;
   readonly name: string;
   readonly note: string | null;
-  /** Two lines on what it is, a skill's description. */
+  /** Two lines on what it is, a skill's blurb. */
   readonly blurb?: string;
   /** Short words under the name: what an example shows. */
   readonly tags?: ReadonlyArray<string>;

@@ -105,7 +105,7 @@ function PartThumb(props: {
     versions: pictureVersions([props.file]),
   }).get(path);
   return (
-    <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)">
+    <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)">
       {picture === undefined ? (
         <KindIcon group={props.file.group} />
       ) : (
@@ -123,6 +123,7 @@ function JobIcon(props: { readonly group: HardwareActionGroup }) {
 
 interface Row {
   readonly value: string;
+  /** Sits centred in the row's 32px slot, so every title starts at the same edge. */
   readonly icon: ReactNode;
   readonly title: string;
   readonly description?: string;
@@ -444,7 +445,7 @@ function QuickFindBody(props: {
         const standing = projectStanding(card);
         return {
           value: `project:${card.id}`,
-          icon: <ProjectThumb environmentId={environmentId} project={card.project} size="sm" />,
+          icon: <ProjectThumb environmentId={environmentId} project={card.project} />,
           title: card.project.name,
           description: standing.text,
           waiting: standing.waiting,
@@ -600,7 +601,7 @@ function QuickFindBody(props: {
       {...(groups.length === 0 ? {} : { footerActionLabel: "Choose" })}
       footerTrailing={
         typed || partTitle === null ? null : (
-          <span className="text-xs">Type what to do, like a strength check or G-code</span>
+          <span>Type what to do, like a strength check or G-code</span>
         )
       }
     >
@@ -618,7 +619,7 @@ function QuickFindBody(props: {
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={row.run}
                 >
-                  {row.icon}
+                  <span className="flex w-8 shrink-0 justify-center">{row.icon}</span>
                   <span className="flex min-w-0 flex-1 flex-col">
                     <span className="truncate text-sm text-foreground">{row.title}</span>
                     {row.description ? (

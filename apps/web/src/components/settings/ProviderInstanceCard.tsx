@@ -897,10 +897,6 @@ export function ProviderInstanceCard({
     <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">{headerAction}</span>
   ) : null;
 
-  const versionCodeNode = versionLabel ? (
-    <code className="text-xs text-muted-foreground">{versionLabel}</code>
-  ) : null;
-
   // Healthy and disabled rows read fine from their text; only trouble gets a dot.
   const statusDotNode =
     statusKey === "warning" || statusKey === "error" ? (
@@ -945,19 +941,16 @@ export function ProviderInstanceCard({
               render={
                 <Button
                   type="button"
-                  size={mode === "list" ? "icon-micro" : "icon-xs"}
+                  size="icon-micro"
                   variant="ghost-muted"
-                  className={mode === "list" ? "pointer-events-auto relative shrink-0" : undefined}
+                  className="pointer-events-auto relative shrink-0"
                   aria-label={`${updateProgress ? "Updating" : versionAdvisory.title} — view details`}
                 >
                   {updateProgress ? (
-                    <Spinner tone="muted" {...(mode === "list" ? { size: "sm" as const } : {})} />
+                    <Spinner tone="muted" size="sm" />
                   ) : (
                     <VersionAdvisoryIcon
-                      className={cn(
-                        mode === "list" && "size-3.5",
-                        hasCompatibilityWarning && "text-warning",
-                      )}
+                      className={cn("size-3.5", hasCompatibilityWarning && "text-warning")}
                     />
                   )}
                 </Button>
@@ -1075,9 +1068,9 @@ export function ProviderInstanceCard({
             <span className="flex min-w-0 items-center gap-2">
               <span className="truncate text-sm font-medium text-foreground">{displayName}</span>
               {versionLabel ? (
-                <code className="max-w-24 shrink-0 truncate text-xs text-muted-foreground">
+                <span className="max-w-24 shrink-0 truncate text-xs text-muted-foreground tabular-nums">
                   {versionLabel}
-                </code>
+                </span>
               ) : null}
               {versionAdvisoryNode}
             </span>
@@ -1138,8 +1131,6 @@ export function ProviderInstanceCard({
           {driverOption.badgeLabel}
         </Badge>
       ) : null}
-      {versionCodeNode}
-      {versionAdvisoryNode}
       <span
         inert={readOnly}
         aria-disabled={readOnly || undefined}
@@ -1184,44 +1175,48 @@ export function ProviderInstanceCard({
 
   return (
     <>
-      <SettingsSection title={displayName} icon={titleIconNode} headerAction={editorHeaderAction}>
+      <SettingsSection
+        title={displayName}
+        icon={titleIconNode}
+        headerAction={editorHeaderAction}
+        variant="plain"
+      >
+        {/* How it stands sits under the heading, the rows after it. */}
+        <div className="-mt-2 space-y-2 pb-1 text-xs text-muted-foreground">
+          <ProviderStatusDiagnostic detail={statusDiagnostic}>
+            <div
+              tabIndex={statusDiagnostic ? 0 : undefined}
+              className="flex min-w-0 flex-wrap items-baseline gap-x-1.5"
+            >
+              {editorStatusNode}
+            </div>
+          </ProviderStatusDiagnostic>
+          {urlAuthAction && onAcceptUrlAuth ? (
+            <div className="grid max-w-xl gap-2 pt-1 text-xs">
+              <p>{urlAuthAction.message}</p>
+              <code className="break-all text-xs">{urlAuthAction.url}</code>
+              <Button
+                render={
+                  <a
+                    href={urlAuthAction.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => onAcceptUrlAuth(urlAuthAction)}
+                  />
+                }
+                size="sm"
+                variant="outline"
+                className="w-fit"
+                disabled={readOnly}
+              >
+                <ExternalLinkIcon />
+                Continue authentication
+              </Button>
+            </div>
+          ) : null}
+        </div>
         <SettingsRow
           title="Display name"
-          status={
-            <>
-              <ProviderStatusDiagnostic detail={statusDiagnostic}>
-                <div
-                  tabIndex={statusDiagnostic ? 0 : undefined}
-                  className="flex min-w-0 flex-wrap items-baseline gap-x-1.5"
-                >
-                  {editorStatusNode}
-                </div>
-              </ProviderStatusDiagnostic>
-              {urlAuthAction && onAcceptUrlAuth ? (
-                <div className="grid max-w-xl gap-2 pt-1 text-xs">
-                  <p>{urlAuthAction.message}</p>
-                  <code className="break-all text-xs">{urlAuthAction.url}</code>
-                  <Button
-                    render={
-                      <a
-                        href={urlAuthAction.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => onAcceptUrlAuth(urlAuthAction)}
-                      />
-                    }
-                    size="sm"
-                    variant="outline"
-                    className="w-fit"
-                    disabled={readOnly}
-                  >
-                    <ExternalLinkIcon />
-                    Continue authentication
-                  </Button>
-                </div>
-              ) : null}
-            </>
-          }
           control={
             <div
               inert={readOnly}
@@ -1231,13 +1226,6 @@ export function ProviderInstanceCard({
                 readOnly && "opacity-50 select-none",
               )}
             >
-              <ProviderAccentColorPicker
-                layout="inline"
-                displayName={displayName}
-                value={accentColor}
-                onCommit={updateAccentColor}
-                commitDelayMs={120}
-              />
               <DraftInput
                 id={`provider-instance-${instanceId}-display-name`}
                 size="sm"
@@ -1250,10 +1238,28 @@ export function ProviderInstanceCard({
             </div>
           }
         />
+        <SettingsRow
+          title="Accent color"
+          control={
+            <div
+              inert={readOnly}
+              aria-disabled={readOnly || undefined}
+              className={cn("flex items-center", readOnly && "opacity-50 select-none")}
+            >
+              <ProviderAccentColorPicker
+                layout="inline"
+                displayName={displayName}
+                value={accentColor}
+                onCommit={updateAccentColor}
+                commitDelayMs={120}
+              />
+            </div>
+          }
+        />
       </SettingsSection>
 
       {setup || environmentFields.length > 0 ? (
-        <SettingsSection title="Setup">
+        <SettingsSection title="Setup" variant="plain">
           {setup}
           <div
             inert={readOnly}
@@ -1300,6 +1306,7 @@ export function ProviderInstanceCard({
 
       <SettingsSection
         title="Environment"
+        variant="plain"
         inert={readOnly}
         aria-disabled={readOnly || undefined}
         className={readOnly ? "opacity-50 select-none" : undefined}
@@ -1320,7 +1327,7 @@ export function ProviderInstanceCard({
       ) : null}
 
       {driverOption !== undefined ? (
-        <SettingsSection title="Models">
+        <SettingsSection title="Models" variant="plain">
           <div className="px-3 py-3">
             <p className="mb-3 text-xs text-muted-foreground">
               Model preferences and custom models are saved on the selected environment and shared

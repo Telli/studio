@@ -64,7 +64,7 @@ export function waitingFirst(cards: ReadonlyArray<ListedProject>): ListedProject
 export function ProjectThumb(props: {
   readonly environmentId: EnvironmentId;
   readonly project: StudioProject | null;
-  readonly size?: "xs" | "sm" | "md" | "lg";
+  readonly size?: "xs" | "sm" | "md";
 }) {
   const picture = useProjectCover(props.environmentId, props.project);
   const kind = props.project?.template === "board" ? "Electronics" : "CAD";
@@ -73,22 +73,13 @@ export function ProjectThumb(props: {
     <span
       className={cn(
         "flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-(--model-ground)",
-        props.size === "xs"
-          ? "size-4 rounded-sm"
-          : props.size === "sm"
-            ? "size-6"
-            : props.size === "lg"
-              ? "size-12"
-              : "size-8",
+        props.size === "xs" ? "size-4 rounded-sm" : props.size === "sm" ? "size-6" : "size-8",
       )}
     >
       {picture ? (
         <img src={picture} alt="" className="size-full object-cover" />
       ) : (
-        <KindIcon
-          className={cn(props.size === "lg" ? "size-5" : "size-3.5", fileTint(kind))}
-          aria-hidden="true"
-        />
+        <KindIcon className={cn("size-3.5", fileTint(kind))} aria-hidden="true" />
       )}
     </span>
   );

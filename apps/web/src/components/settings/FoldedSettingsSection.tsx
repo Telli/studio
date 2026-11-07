@@ -60,7 +60,7 @@ export function FoldedSettingsSection({
               {control}
             </div>
             <CollapsiblePanel>
-              <SettingsGroup>{children}</SettingsGroup>
+              <SettingsGroup variant="plain">{children}</SettingsGroup>
             </CollapsiblePanel>
           </div>
         </Collapsible>
