@@ -19,6 +19,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { GROUP_PURPOSES, type HardwareAction, type HardwareActionGroup } from "./hardwareActions";
 import { MENU_ICONS, MENU_TINTS, MENU_WORDS } from "./kinds";
 import { handToChat } from "./handToChat";
+import { withToolLine } from "./toolUsed";
 import { useOpenWorkspaceStore } from "./openWorkspace";
 import { partLink } from "./partLink";
 import { useSimpleView } from "./simpleView";
@@ -93,7 +94,7 @@ export function StudioToolbox(props: {
 
   const run = (action: HardwareAction) => {
     if (composerRef === null || part === null) return;
-    handToChat(composerRef, action.prompt(partLink(part)));
+    handToChat(composerRef, withToolLine(action.label, action.prompt(partLink(part))));
   };
 
   // From the folded edge: open on that group's tab.
@@ -150,7 +151,8 @@ export function StudioToolbox(props: {
         </ToolboxTip>
       </div>
       <div className="shrink-0 border-b border-border p-3">
-        {/* Equal thirds, each its group's icon (the folded edge's, in its jobs' color) over its name. */}
+        {/* Each its group's icon (the folded edge's, in its jobs' color) over its name. Sized by its
+            name with the spare room shared out: at equal thirds Manufacturing fills its own. */}
         <ToggleGroup
           aria-label="Toolbox group"
           value={shown === undefined ? [] : [shown.group]}
@@ -171,7 +173,7 @@ export function StudioToolbox(props: {
                 key={group.group}
                 value={group.group}
                 disabled={off}
-                className="flex-1 basis-0"
+                className="flex-auto"
               >
                 <Icon aria-hidden="true" className={MENU_TINTS[group.group]} />
                 {MENU_WORDS[group.group]}
@@ -185,7 +187,7 @@ export function StudioToolbox(props: {
                 text={toolboxLeftOut([group], part.kind) ?? MENU_WORDS[group.group]}
                 side="bottom"
               >
-                <span className="flex min-w-0 flex-1 basis-0">{item}</span>
+                <span className="flex min-w-0 flex-auto">{item}</span>
               </ToolboxTip>
             );
           })}

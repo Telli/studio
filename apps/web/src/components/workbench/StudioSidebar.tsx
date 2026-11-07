@@ -194,12 +194,24 @@ function ProjectRow(props: {
   readonly current: boolean;
   readonly threadRef: ScopedThreadRef | null;
   readonly onMenu: (card: ListedProject, position: { x: number; y: number }) => void;
+  readonly onFolderMenu: (
+    folder: { readonly name: string; readonly root: string },
+    position: { x: number; y: number },
+  ) => void;
 }) {
   const { entry, current } = props;
   const unfolded = useChatScopeStore((store) => projectOpen(store, entry.id, current));
   const toggle = useChatScopeStore((store) => store.toggle);
   const standing = unfolded ? null : foldedStanding(entry.threads);
-  const { card } = entry;
+  const { card, folder } = entry;
+  // A project's own menu, a loose folder's shorter one, and none for the chats in no project.
+  const menu =
+    card !== null
+      ? (position: { x: number; y: number }) => props.onMenu(card, position)
+      : folder !== null
+        ? (position: { x: number; y: number }) =>
+            props.onFolderMenu({ name: entry.name, root: folder.workspaceRoot }, position)
+        : null;
   return (
     <>
       <SidebarMenu size="compact">
@@ -212,11 +224,11 @@ function ProjectRow(props: {
             aria-expanded={unfolded}
             onClick={() => toggle(entry.id, current)}
             onContextMenu={
-              card === null
+              menu === null
                 ? undefined
                 : (event) => {
                     event.preventDefault();
-                    props.onMenu(card, { x: event.clientX, y: event.clientY });
+                    menu({ x: event.clientX, y: event.clientY });
                   }
             }
           >
@@ -237,13 +249,13 @@ function ProjectRow(props: {
               />
             )}
           </SidebarMenuButton>
-          {card === null ? null : (
+          {menu === null ? null : (
             <button
               type="button"
               aria-label={`More for ${entry.name}`}
               onClick={(event) => {
                 const box = event.currentTarget.getBoundingClientRect();
-                props.onMenu(card, { x: box.left, y: box.bottom });
+                menu({ x: box.left, y: box.bottom });
               }}
               className="absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground opacity-0 outline-none transition-opacity duration-150 hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset group-hover/chat:opacity-100"
             >
@@ -325,6 +337,7 @@ function ProjectsList(props: { readonly environmentId: EnvironmentId }) {
               current={entry.id === currentId}
               threadRef={threadRef}
               onMenu={menu.show}
+              onFolderMenu={menu.showFolder}
             />
           ))
         )}

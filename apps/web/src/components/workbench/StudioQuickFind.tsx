@@ -37,6 +37,7 @@ import { LIBRARY_DOCUMENTS, ownTemplateEntries } from "./library/libraryCatalog"
 import { findInLibrary } from "./library/librarySearch";
 import { useExamples } from "./library/useSampleProject";
 import { handToChat } from "./handToChat";
+import { withToolLine } from "./toolUsed";
 import { DOCUMENT_TEMPLATES, newWorkPrompt } from "./newTemplates";
 import { useOpenedThreads } from "./openedThreads";
 import { useOpenWorkspaceStore } from "./openWorkspace";
@@ -279,7 +280,7 @@ function QuickFindBody(props: {
             icon: <JobIcon group={action.group} />,
             title: action.label,
             description: place,
-            run: () => startWork(action.prompt(partLink(part))),
+            run: () => startWork(withToolLine(action.label, action.prompt(partLink(part)))),
           })),
         };
   const ownerName = (project: ListedProject | null) => project?.project.name ?? "";

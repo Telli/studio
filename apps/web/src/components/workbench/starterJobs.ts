@@ -1,3 +1,4 @@
+import { withToolLine } from "./toolUsed";
 import type { ProjectBrief } from "./briefFolder";
 import { type HardwareAction, hardwareActions } from "./hardwareActions";
 import { MENU_WORDS } from "./kinds";
@@ -87,7 +88,7 @@ export function projectStarters(
         add({
           label: action.short(job.name),
           kind: MENU_WORDS[action.group],
-          prompt: action.prompt(job.link),
+          prompt: withToolLine(action.label, action.prompt(job.link)),
         });
         break;
       }

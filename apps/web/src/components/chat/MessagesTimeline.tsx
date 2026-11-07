@@ -235,6 +235,7 @@ import {
 } from "./MessagesTimeline.logic";
 import { formatCompactElapsedSeconds } from "./AgentElapsed";
 import { TurnDesignChanges } from "../workbench/TurnDesignChanges";
+import { toolUsed } from "../workbench/toolUsed";
 import { offersTryAgain, plainFailure } from "../workbench/plainFailure";
 import { splitSources } from "../workbench/references/answerSources";
 import { AnswerReferences, useShownReferences } from "../workbench/references/AnswerReferences";
@@ -4996,18 +4997,29 @@ const UserMessageBody = memo(function UserMessageBody(props: {
   if (props.text.length === 0) {
     return null;
   }
+  const used = toolUsed(props.text);
   return (
-    <ChatMarkdown
-      text={props.text}
-      cwd={props.markdownCwd}
-      threadRef={ctx.threadRef ?? undefined}
-      skills={props.skills}
-      className="text-foreground"
-      lineBreaks
-      parseRawHtml={false}
-      renderContextReference={props.renderContextReference}
-      headingLevelOffset={MESSAGE_HEADING_LEVEL}
-    />
+    <>
+      {used === null ? null : (
+        <div className="mb-1.5">
+          <ContextChip kind="skill">
+            <SkillChipIcon />
+            <ContextChipLabel>{used.tool}</ContextChipLabel>
+          </ContextChip>
+        </div>
+      )}
+      <ChatMarkdown
+        text={used?.message ?? props.text}
+        cwd={props.markdownCwd}
+        threadRef={ctx.threadRef ?? undefined}
+        skills={props.skills}
+        className="text-foreground"
+        lineBreaks
+        parseRawHtml={false}
+        renderContextReference={props.renderContextReference}
+        headingLevelOffset={MESSAGE_HEADING_LEVEL}
+      />
+    </>
   );
 });
 

@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
+import { EMPTY_STUDIO_BRIEF } from "@t3tools/shared/studioProjects";
 import { type ReactNode, useState } from "react";
 
 import { readLocalApi } from "~/localApi";
@@ -107,6 +108,11 @@ export function useProjectMenu(props: {
   readonly ownStar?: boolean;
 }): {
   readonly show: (card: ListedProject, position: { x: number; y: number }) => void;
+  /** The menu of a folder that holds chats but is in no project: what still applies to one. */
+  readonly showFolder: (
+    folder: { readonly name: string; readonly root: string },
+    position: { x: number; y: number },
+  ) => void;
   readonly dialogs: ReactNode;
 } {
   const { environmentId, cards, onOpen } = props;
@@ -163,6 +169,40 @@ export function useProjectMenu(props: {
       });
   };
 
+  const showFolder = (
+    { name, root }: { readonly name: string; readonly root: string },
+    position: { x: number; y: number },
+  ) => {
+    const api = readLocalApi();
+    if (!api) return;
+    void api.contextMenu
+      .show<"folder" | "trash">(
+        [
+          ...(canShowFolder
+            ? [{ id: "folder" as const, label: folderLabel(serverConfig?.environment.platform.os) }]
+            : []),
+          { id: "trash" as const, label: "Move to Trash", separatorBefore: canShowFolder },
+        ],
+        position,
+      )
+      .then(async (choice) => {
+        if (choice === "folder") {
+          void openInEditor({ environmentId, input: { cwd: root, editor: "file-manager" } });
+        } else if (choice === "trash") {
+          // Trash holds projects: the folder becomes one on its way there, so Undo and Delete
+          // forever work on it as on any other.
+          const id = await save(null, {
+            name,
+            template: null,
+            brief: EMPTY_STUDIO_BRIEF,
+            folders: [root],
+            createdAt: new Date().toISOString(),
+          });
+          if (id !== null) void trashProject(id, name);
+        }
+      });
+  };
+
   const rename = (card: ListedProject, typed: string) => {
     setRenaming(null);
     const name = typed.trim();
@@ -181,5 +221,5 @@ export function useProjectMenu(props: {
       )}
     </>
   );
-  return { show, dialogs };
+  return { show, showFolder, dialogs };
 }
