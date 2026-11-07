@@ -68,13 +68,10 @@ export type LibraryEntry = LibraryDocument | LibrarySkill;
 
 /**
  * Each entry's example: its file in an example Studio ships (`sample`, the servo bracket where it
- * names none), and the file its picture is made from.
+ * names none).
  */
 const EXAMPLES: Readonly<
-  Record<
-    string,
-    { readonly sample?: string; readonly example: string; readonly picture: string } | null
-  >
+  Record<string, { readonly sample?: string; readonly example: string } | null>
 > = libraryExamples;
 
 /** An entry's example file and the example it is in, by the entry's id; nulls where it has none. */

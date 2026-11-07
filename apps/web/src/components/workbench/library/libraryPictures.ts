@@ -1,62 +1,125 @@
 /**
- * Each library entry's picture of its real example in an example Studio ships (`studio-sample/<id>`,
- * the servo bracket where `libraryExamples.json` names no other), as `libraryExamples.json` names it:
- * a picture rendered from the example's file by `scripts/studio-library-pictures.py`, or, for a
- * Markdown example, the document's own text, drawn as a page. `LibraryPicture` draws one.
+ * Each library entry's cover, one family drawn by `scripts/studio-library-pictures.py` from the real
+ * files of the examples Studio ships (`studio-sample/<id>`). A cover shows what the entry's job does:
+ * a model from one camera, or one sheet holding a document's structure. Its neutrals are a picture;
+ * everything with a hue is a mark, in a tone `LibraryPicture` draws from the theme.
  */
 
-import libraryExamples from "./libraryExamples.json";
-import { SAMPLE_ID } from "./sampleProject";
+import coverFile from "./pictures/covers.json";
 
-export type LibraryPictureSource =
-  | { readonly kind: "image"; readonly url: string }
-  | { readonly kind: "page"; readonly text: string };
-
-const EXAMPLES: Readonly<
-  Record<
-    string,
-    { readonly sample?: string; readonly example: string; readonly picture: string } | null
-  >
-> = libraryExamples;
-
-/** The rendered pictures' URLs, by path from this folder. */
-const IMAGES = import.meta.glob<string>("./pictures/*.webp", { eager: true, import: "default" });
-
-/**
- * The servo bracket's Markdown, by path from this folder: `SAMPLE`, then its path in the example.
- * Its READMEs are no entry's example, and no other example's page is, so they stay out of the
- * bundle: a page example is the servo bracket's.
- */
-const PAGES = import.meta.glob<string>(
-  ["../../../../../../studio-sample/servo-bracket/**/*.md", "!**/README.md"],
-  { eager: true, query: "?raw", import: "default" },
-);
-const SAMPLE = "../../../../../../studio-sample/servo-bracket/";
-
-/**
- * A picture's file name in `pictures/`: its path in its example, each "/" as "__", then ".webp";
- * for an example other than the servo bracket, its id and "__" first.
- */
-export function picturePath(samplePath: string, sample: string = SAMPLE_ID): string {
-  const prefix = sample === SAMPLE_ID ? "" : `${sample}__`;
-  return `${prefix}${samplePath.replaceAll("/", "__")}.webp`;
+export interface CoverMark {
+  /** `hue` is the entry's shelf's; the others are status, ink and the ground. */
+  readonly tone: string;
+  readonly d: string;
+  /** A line's width; a mark with none is filled. */
+  readonly width?: number;
+  readonly opacity?: number;
+  readonly dash?: string;
 }
 
+interface CoverInFile {
+  readonly image: boolean;
+  readonly sheet: boolean;
+  readonly marks: ReadonlyArray<CoverMark>;
+  readonly insets: ReadonlyArray<{
+    readonly cover: string;
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+  }>;
+}
+
+export interface LibraryCover {
+  /** The picture under the marks; a sheet has none. */
+  readonly url: string | null;
+  readonly sheet: boolean;
+  readonly marks: ReadonlyArray<CoverMark>;
+  /** Other covers' pictures shown small on this one, where the marks' coordinates put them. */
+  readonly insets: ReadonlyArray<{
+    readonly url: string;
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+  }>;
+}
+
+/** The space marks are drawn in: a cover's picture, so they stay on it at any size or crop. */
+export const COVER_VIEW = "0 0 640 400";
+
+/** The one sheet every document stands on, in `COVER_VIEW`. */
+export const COVER_SHEET = coverFile.sheet;
+
+const COVERS: Readonly<Record<string, CoverInFile>> = coverFile.covers;
+
+/** The covers' pictures' URLs, by path from this folder. */
+const IMAGES = import.meta.glob<string>("./pictures/*.webp", { eager: true, import: "default" });
+
+const imageOf = (cover: string) => IMAGES[`./pictures/${cover}.webp`] ?? null;
+
+/** Which cover each entry shows; a document type and the skill that makes it show the same one. */
+const ENTRY_COVERS: Readonly<Record<string, string>> = {
+  "doc:part": "adapter",
+  "doc:assembly": "mount",
+  "doc:sheet-metal": "bracket",
+  "doc:drawing": "drawing",
+  "doc:simulation": "stress",
+  "doc:fit-mass": "fit",
+  "doc:manufacturing-check": "flags",
+  "doc:cam-job": "toolpaths",
+  "doc:print": "gcode",
+  "doc:pmi": "pmi",
+  "doc:cut-file": "dxf",
+  "doc:order": "nest",
+  "doc:standard-parts": "catalog",
+  "doc:export": "mesh",
+  "doc:parts-list": "parts-list",
+  "doc:instructions": "instructions",
+  "doc:exploded": "exploded",
+  "doc:pictures": "views",
+  "doc:motion-video": "motion",
+  "doc:test-plan": "test-plan",
+  "doc:write-up": "write-up",
+  "doc:robot": "urdf",
+  "doc:prd": "prd",
+  "doc:requirements": "requirements",
+  "doc:fmea": "fmea",
+  "doc:design-review": "design-review",
+  "skill:text-to-cad/bambu-labs": "bambu",
+  "skill:text-to-cad/cad": "bracket",
+  "skill:text-to-cad/cam": "toolpaths",
+  "skill:text-to-cad/dfam-check": "dfam",
+  "skill:text-to-cad/dfm": "flags",
+  "skill:text-to-cad/dxf": "dxf",
+  "skill:text-to-cad/engineering-drawing": "drawing",
+  "skill:text-to-cad/fea": "stress",
+  "skill:text-to-cad/gcode": "gcode",
+  "skill:text-to-cad/sdf": "sdf",
+  "skill:text-to-cad/sendcutsend": "nest",
+  "skill:text-to-cad/srdf": "srdf",
+  "skill:text-to-cad/step-parts": "catalog",
+  "skill:text-to-cad/urdf": "urdf",
+  "skill:text-to-cad/work-instructions": "instructions",
+};
+
 /**
- * An entry's picture, by its id. Null for an entry the sample has no example of (one it could not
- * make, another plugin's skill) and for the person's own templates, which `LibraryPicture` draws
- * from the template itself.
+ * An entry's cover, by its id. Null for another plugin's skill and for the person's own templates,
+ * which `LibraryPicture` draws from the template itself.
  */
-export function pictureOf(entryId: string): LibraryPictureSource | null {
-  const item = EXAMPLES[entryId] ?? null;
-  if (item === null) return null;
-  const sample = item.sample ?? SAMPLE_ID;
-  if (item.picture === "page") {
-    const text = sample === SAMPLE_ID ? PAGES[`${SAMPLE}${item.example}`] : undefined;
-    return text === undefined ? null : { kind: "page", text };
-  }
-  const url = IMAGES[`./pictures/${picturePath(item.picture, sample)}`];
-  return url === undefined ? null : { kind: "image", url };
+export function coverOf(entryId: string): LibraryCover | null {
+  const name = ENTRY_COVERS[entryId];
+  const cover = name === undefined ? undefined : COVERS[name];
+  if (name === undefined || cover === undefined) return null;
+  return {
+    url: cover.image ? imageOf(name) : null,
+    sheet: cover.sheet,
+    marks: cover.marks,
+    insets: cover.insets.flatMap(({ cover: inset, ...place }) => {
+      const url = imageOf(inset);
+      return url === null ? [] : [{ url, ...place }];
+    }),
+  };
 }
 
 /** The examples' pictures' URLs: `pictures/examples/<id>.png`, or `.webp` at the library's size. */

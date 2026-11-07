@@ -46,9 +46,8 @@ const NOT_MADE = [
   "skill:text-to-cad/work-instructions",
 ];
 
-const EXAMPLES: Readonly<
-  Record<string, { sample?: string; example: string; picture: string } | null>
-> = libraryExamples;
+const EXAMPLES: Readonly<Record<string, { sample?: string; example: string } | null>> =
+  libraryExamples;
 
 const doc = (id: string) => LIBRARY_DOCUMENTS.find((entry) => entry.id === id)!;
 
@@ -328,16 +327,9 @@ describe("library catalog", () => {
       NOT_MADE,
     );
     // Each file in the example its entry names, the servo bracket where it names none.
-    const files = [
-      ...entries.flatMap((entry) =>
-        entry.example === null ? [] : [NodePath.join(entry.exampleIn!, entry.example)],
-      ),
-      ...Object.values(EXAMPLES).flatMap((item) =>
-        item === null || item.picture === "page"
-          ? []
-          : [NodePath.join(item.sample ?? "servo-bracket", item.picture)],
-      ),
-    ];
+    const files = entries.flatMap((entry) =>
+      entry.example === null ? [] : [NodePath.join(entry.exampleIn!, entry.example)],
+    );
     expect(files.filter((file) => !NodeFS.existsSync(NodePath.join(SAMPLES, file)))).toEqual([]);
   });
 

@@ -1,13 +1,14 @@
 import type { EnvironmentId } from "@t3tools/contracts";
 import { type LucideIcon, PuzzleIcon } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { cn } from "~/lib/utils";
-import { KIND_ICONS, KIND_TINT, templateIcon } from "../kinds";
+import { fileTint, KIND_ICONS, KIND_TINT, MENU_TINTS, templateIcon } from "../kinds";
 import { DOCUMENT_TEMPLATES, NEW_TEMPLATES } from "../newTemplates";
 import { Page } from "../OverviewModules";
 import type { LibraryDocument, LibraryEntry } from "./libraryCatalog";
-import { pictureOf } from "./libraryPictures";
+import { COVER_SHEET, COVER_VIEW, coverOf, type LibraryCover } from "./libraryPictures";
+import { documentGroup, skillGroup } from "./librarySearch";
 
 /**
  * The box every picture fills, an example's (`ExamplePicture`) too: their own shape, 16:10, on the
@@ -60,11 +61,42 @@ function documentIcon(entry: LibraryDocument) {
 /** How many of a document's lines its sheet draws, and how long a line runs the sheet's width. */
 const SHEET_LINES = 12;
 const FULL_LINE = 64;
+const SHEET_PAD = 22;
+const SHEET_ROW = (COVER_SHEET.h - 2 * SHEET_PAD) / SHEET_LINES;
+
+/** Marks over a picture: the same space, so a crop to the Toolbox's square cuts both alike. */
+function CoverCanvas(props: { readonly children: ReactNode }) {
+  return (
+    <svg
+      viewBox={COVER_VIEW}
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden="true"
+      className="absolute inset-0 size-full"
+    >
+      {props.children}
+    </svg>
+  );
+}
+
+/** The one sheet every document stands on, in both themes. */
+function SheetShape() {
+  return (
+    <rect
+      x={COVER_SHEET.x}
+      y={COVER_SHEET.y}
+      width={COVER_SHEET.w}
+      height={COVER_SHEET.h}
+      rx={COVER_SHEET.r}
+      strokeWidth={2}
+      className="fill-background stroke-border"
+    />
+  );
+}
 
 /**
- * A document as a small dimmed sheet in the picture's well: each of its opening lines a bar as long
- * as the line, a heading's stronger. No words, so a page never reads as a second title beside the
- * tile's name, and nothing is cut off mid-sentence.
+ * The person's own template on the one sheet: each of its opening lines a bar as long as the line, a
+ * heading's stronger. No words, so a page never reads as a second title beside the tile's name, and
+ * nothing is cut off mid-sentence.
  */
 export function DocumentSheet(props: { readonly text: string }) {
   const lines = props.text
@@ -72,29 +104,82 @@ export function DocumentSheet(props: { readonly text: string }) {
     .map((line) => line.replace(/<[^>]*>/g, "").trim())
     .filter((line) => line !== "")
     .slice(0, SHEET_LINES);
+  const room = COVER_SHEET.w - 2 * SHEET_PAD;
   return (
-    <span className="flex aspect-[3/4] h-4/5 flex-col gap-1.5 overflow-hidden rounded-sm border border-border bg-background p-2.5 opacity-80">
+    <CoverCanvas>
+      <SheetShape />
       {lines.map((line, index) => (
-        <span
+        <rect
           key={index}
-          className={cn(
-            "h-1 shrink-0 rounded-full",
-            line.startsWith("#") ? "bg-foreground/35" : "bg-foreground/15",
-          )}
-          style={{ width: `${Math.min(100, Math.round((line.length / FULL_LINE) * 100))}%` }}
+          x={COVER_SHEET.x + SHEET_PAD}
+          y={COVER_SHEET.y + SHEET_PAD + index * SHEET_ROW}
+          width={Math.max(10, Math.min(1, line.length / FULL_LINE) * room)}
+          height={8}
+          rx={4}
+          className={line.startsWith("#") ? "fill-foreground/55" : "fill-foreground/25"}
         />
       ))}
-    </span>
+    </CoverCanvas>
+  );
+}
+
+/** The tones a cover's marks come in, each a theme token; `hue` is the entry's shelf's. */
+const MARK_TONES: Readonly<Record<string, string>> = {
+  ink: "text-foreground",
+  warning: "text-warning",
+  fail: "text-destructive",
+  pass: "text-success",
+  ground: "text-(--model-ground)",
+};
+
+/** The hue of the shelf an entry stands on (`LibraryPage`). */
+function shelfTint(entry: LibraryEntry) {
+  const group = entry.kind === "skill" ? skillGroup(entry.name) : documentGroup(entry);
+  return group === "New" ? fileTint("CAD") : MENU_TINTS[group];
+}
+
+/** A cover's sheet, the other covers' pictures on it, and its marks. */
+function CoverMarks(props: { readonly cover: LibraryCover; readonly hue: string }) {
+  const { cover } = props;
+  return (
+    <CoverCanvas>
+      {cover.sheet ? <SheetShape /> : null}
+      {cover.insets.map((inset) => (
+        <image
+          key={inset.url}
+          href={inset.url}
+          x={inset.x}
+          y={inset.y}
+          width={inset.w}
+          height={inset.h}
+          preserveAspectRatio="xMidYMid slice"
+        />
+      ))}
+      {cover.marks.map((mark) => (
+        <path
+          key={`${mark.tone} ${mark.d}`}
+          d={mark.d}
+          className={mark.tone === "hue" ? props.hue : MARK_TONES[mark.tone]}
+          fill={mark.width === undefined ? "currentColor" : "none"}
+          fillRule="evenodd"
+          fillOpacity={mark.opacity}
+          stroke={mark.width === undefined ? "none" : "currentColor"}
+          strokeWidth={mark.width}
+          strokeOpacity={mark.opacity}
+          strokeDasharray={mark.dash}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </CoverCanvas>
   );
 }
 
 /**
- * An entry's picture of its real example in the sample project (`pictureOf`): the picture rendered
- * from the example's file, or a Markdown example as a small sheet (`DocumentSheet`). One of the
- * person's own templates is its own first page, with the Documents icon until the file is read,
- * and for good if it can't be read as text. An entry with no example (another plugin's skill, or an
- * output the sample could not make) shows its icon alone: a skill its plugin's (the puzzle piece
- * Settings marks plugins with), a document type its template's, as New shows it.
+ * An entry's cover (`coverOf`): its picture and marks, or its sheet. One of the person's own
+ * templates is its own first page, with the Documents icon until the file is read, and for good if
+ * it can't be read as text. Another plugin's skill shows the puzzle piece Settings marks plugins
+ * with, and a document type with no cover its template's icon, as New shows it.
  */
 export function LibraryPicture(props: {
   readonly entry: LibraryEntry;
@@ -102,21 +187,15 @@ export function LibraryPicture(props: {
   readonly className?: string;
 }) {
   const { entry } = props;
-  const picture = pictureOf(entry.id);
+  const cover = coverOf(entry.id);
   const box = cn(PICTURE_BOX, props.className);
   const Icon = entry.kind === "skill" ? PuzzleIcon : documentIcon(entry);
-  if (picture?.kind === "image") {
+  if (cover !== null) {
     return (
       <span className={box}>
         {/* The library mounts some forty of these: each loads when it nears the screen. */}
-        <PictureOrGlyph url={picture.url} icon={Icon} />
-      </span>
-    );
-  }
-  if (picture?.kind === "page") {
-    return (
-      <span className={box}>
-        <DocumentSheet text={picture.text} />
+        {cover.url === null ? null : <PictureOrGlyph url={cover.url} icon={Icon} />}
+        <CoverMarks cover={cover} hue={shelfTint(entry)} />
       </span>
     );
   }

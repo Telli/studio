@@ -1,158 +1,119 @@
 {
   "doc:part": {
-    "example": "parts/horn_adapter.py",
-    "picture": "parts/horn_adapter.step"
+    "example": "parts/horn_adapter.py"
   },
   "doc:assembly": {
-    "example": "assemblies/servo_mount.py",
-    "picture": "assemblies/servo_mount.step"
+    "example": "assemblies/servo_mount.py"
   },
   "doc:sheet-metal": {
-    "example": "parts/servo_bracket.py",
-    "picture": "parts/servo_bracket.step"
+    "example": "parts/servo_bracket.py"
   },
   "doc:drawing": {
-    "example": "drawings/servo_bracket_drawing.pdf",
-    "picture": "drawings/servo_bracket_drawing.pdf"
+    "example": "drawings/servo_bracket_drawing.pdf"
   },
   "doc:simulation": {
-    "example": "studies/servo_bracket.fea.glb",
-    "picture": "studies/servo_bracket.fea.glb"
+    "example": "studies/servo_bracket.fea.glb"
   },
   "doc:fit-mass": {
-    "example": "assemblies/servo_mount_fit.md",
-    "picture": "page"
+    "example": "assemblies/servo_mount_fit.md"
   },
   "doc:manufacturing-check": {
-    "example": "parts/servo_bracket_sheet_metal.md",
-    "picture": "page"
+    "example": "parts/servo_bracket_sheet_metal.md"
   },
   "doc:cam-job": {
-    "sample": "motor-mount",
-    "example": "cam/motor_plate.cam.glb",
-    "picture": "pictures/motor_plate_cam.png"
+    "example": "cam/horn_adapter.cam.glb"
   },
   "doc:print": null,
   "doc:pmi": {
     "sample": "motor-mount",
-    "example": "parts/motor_plate.py",
-    "picture": "pictures/motor_plate_pmi.png"
+    "example": "parts/motor_plate.py"
   },
   "doc:cut-file": {
-    "example": "cut/servo_bracket_cut.dxf",
-    "picture": "cut/servo_bracket_cut.dxf"
+    "example": "cut/servo_bracket_cut.dxf"
   },
   "doc:order": {
-    "example": "cut/servo_bracket_sendcutsend.md",
-    "picture": "page"
+    "example": "cut/servo_bracket_sendcutsend.md"
   },
   "doc:standard-parts": {
-    "example": "parts/imported/iso4762_socket_head_cap_screw_m3x8.step",
-    "picture": "parts/imported/iso4762_socket_head_cap_screw_m3x8.step"
+    "example": "parts/imported/iso4762_socket_head_cap_screw_m3x8.step"
   },
   "doc:export": {
-    "example": "parts/servo_bracket.3mf",
-    "picture": "parts/servo_bracket.3mf"
+    "example": "parts/servo_bracket.3mf"
   },
   "doc:parts-list": {
-    "example": "docs/servo_mount_parts_list.md",
-    "picture": "page"
+    "example": "docs/servo_mount_parts_list.md"
   },
   "doc:instructions": {
     "sample": "desk-lamp",
-    "example": "docs/desk_lamp_work_instructions.pdf",
-    "picture": "docs/desk_lamp_work_instructions.pdf"
+    "example": "docs/desk_lamp_work_instructions.pdf"
   },
   "doc:exploded": {
-    "example": "pictures/servo_mount_exploded.png",
-    "picture": "pictures/servo_mount_exploded.png"
+    "example": "pictures/servo_mount_exploded.png"
   },
   "doc:pictures": {
-    "example": "pictures/servo_mount_angle.png",
-    "picture": "pictures/servo_mount_angle.png"
+    "example": "pictures/servo_mount_angle.png"
   },
   "doc:motion-video": {
-    "example": "pictures/servo_mount_motion.mp4",
-    "picture": "pictures/servo_mount_motion.mp4"
+    "example": "pictures/servo_mount_motion.mp4"
   },
   "doc:test-plan": {
-    "example": "docs/servo_mount_test_plan.md",
-    "picture": "page"
+    "example": "docs/servo_mount_test_plan.md"
   },
   "doc:write-up": {
-    "example": "docs/servo_bracket_strength_report.md",
-    "picture": "page"
+    "example": "docs/servo_bracket_strength_report.md"
   },
   "doc:robot": {
-    "example": "robots/servo_mount.urdf",
-    "picture": "robots/servo_mount.urdf"
+    "example": "robots/servo_mount.urdf"
   },
   "doc:prd": {
-    "example": "docs/prd.md",
-    "picture": "page"
+    "example": "docs/prd.md"
   },
   "doc:requirements": {
-    "example": "docs/engineering_requirements.md",
-    "picture": "page"
+    "example": "docs/engineering_requirements.md"
   },
   "doc:fmea": {
-    "example": "docs/fmea.md",
-    "picture": "page"
+    "example": "docs/fmea.md"
   },
   "doc:design-review": {
-    "example": "docs/design_review.md",
-    "picture": "page"
+    "example": "docs/design_review.md"
   },
   "skill:text-to-cad/bambu-labs": null,
   "skill:text-to-cad/cad": {
-    "example": "parts/servo_bracket.py",
-    "picture": "parts/servo_bracket.step"
+    "example": "parts/servo_bracket.py"
   },
   "skill:text-to-cad/cam": {
-    "sample": "motor-mount",
-    "example": "cam/motor_plate.cam.glb",
-    "picture": "pictures/motor_plate_cam.png"
+    "example": "cam/horn_adapter.cam.glb"
   },
   "skill:text-to-cad/dfam-check": {
-    "example": "parts/cable_clip_fdm.md",
-    "picture": "page"
+    "example": "parts/cable_clip_fdm.md"
   },
   "skill:text-to-cad/dfm": {
-    "example": "parts/servo_bracket_sheet_metal.md",
-    "picture": "page"
+    "example": "parts/servo_bracket_sheet_metal.md"
   },
   "skill:text-to-cad/dxf": {
-    "example": "cut/servo_bracket_cut.dxf",
-    "picture": "cut/servo_bracket_cut.dxf"
+    "example": "cut/servo_bracket_cut.dxf"
   },
   "skill:text-to-cad/engineering-drawing": {
-    "example": "drawings/servo_bracket_drawing.pdf",
-    "picture": "drawings/servo_bracket_drawing.pdf"
+    "example": "drawings/servo_bracket_drawing.pdf"
   },
   "skill:text-to-cad/fea": {
-    "example": "studies/servo_bracket.fea.glb",
-    "picture": "studies/servo_bracket.fea.glb"
+    "example": "studies/servo_bracket.fea.glb"
   },
   "skill:text-to-cad/gcode": null,
   "skill:text-to-cad/sdf": {
-    "example": "robots/servo_mount.sdf",
-    "picture": "robots/servo_mount.sdf"
+    "example": "robots/servo_mount.sdf"
   },
   "skill:text-to-cad/sendcutsend": {
-    "example": "cut/servo_bracket_sendcutsend.md",
-    "picture": "page"
+    "example": "cut/servo_bracket_sendcutsend.md"
   },
   "skill:text-to-cad/srdf": {
-    "example": "robots/servo_mount.srdf",
-    "picture": "robots/servo_mount.srdf"
+    "example": "robots/servo_mount.srdf"
   },
   "skill:text-to-cad/step-parts": {
-    "example": "parts/imported/iso4762_socket_head_cap_screw_m3x8.step",
-    "picture": "parts/imported/iso4762_socket_head_cap_screw_m3x8.step"
+    "example": "parts/imported/iso4762_socket_head_cap_screw_m3x8.step"
   },
   "skill:text-to-cad/urdf": {
-    "example": "robots/servo_mount.urdf",
-    "picture": "robots/servo_mount.urdf"
+    "example": "robots/servo_mount.urdf"
   },
   "skill:text-to-cad/work-instructions": null
 }

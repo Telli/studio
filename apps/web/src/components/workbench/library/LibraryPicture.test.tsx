@@ -51,6 +51,7 @@ describe("DocumentSheet", () => {
     await act(async () => root.render(<DocumentSheet text={text} />));
 
     expect(container.textContent).toBe("");
-    expect(container.firstElementChild?.children).toHaveLength(3);
+    // The sheet, then a bar for each of its three lines.
+    expect(container.firstElementChild?.children).toHaveLength(4);
   });
 });

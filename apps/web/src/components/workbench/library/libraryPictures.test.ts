@@ -1,4 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off - reads the sample project's documents from disk.
+// @effect-diagnostics nodeBuiltinImport:off - checks the examples Studio ships on disk.
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
@@ -6,54 +6,61 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { LIBRARY_DOCUMENTS } from "./libraryCatalog";
 import libraryExamples from "./libraryExamples.json";
-import { examplePictureOf, pictureOf, picturePath } from "./libraryPictures";
+import { COVER_SHEET, coverOf, examplePictureOf } from "./libraryPictures";
+import coverFile from "./pictures/covers.json";
 
 const ROOT = NodePath.join(import.meta.dirname, "..", "..", "..", "..", "..", "..");
-const SAMPLE = NodePath.join(ROOT, "studio-sample", "servo-bracket");
-
-const EXAMPLES: Readonly<
-  Record<string, { sample?: string; example: string; picture: string } | null>
-> = libraryExamples;
 
 /** The document types, then text-to-cad's skills, which the catalog test pins to its folders. */
 const ENTRIES = [
   ...LIBRARY_DOCUMENTS.map((entry) => entry.id),
-  ...Object.keys(EXAMPLES).filter((id) => id.startsWith("skill:text-to-cad/")),
+  ...Object.keys(libraryExamples).filter((id) => id.startsWith("skill:text-to-cad/")),
 ];
 
-describe("library pictures", () => {
-  it("has a picture for every entry", () => {
-    const made = ENTRIES.filter((id) => EXAMPLES[id] !== null);
-    expect(made.filter((id) => pictureOf(id) === null)).toEqual([]);
-    for (const id of made) {
-      const { sample, example, picture } = EXAMPLES[id]!;
-      if (picture === "page") {
-        // A page is drawn from the servo bracket's own text.
-        expect(sample ?? "servo-bracket", id).toBe("servo-bracket");
-        const text = NodeFS.readFileSync(NodePath.join(SAMPLE, example), "utf8");
-        expect(pictureOf(id), id).toEqual({ kind: "page", text });
-        expect(text, id).toMatch(/^# /);
-      } else {
-        expect(pictureOf(id), id).toEqual({
-          kind: "image",
-          url: expect.stringContaining(`/pictures/${picturePath(picture, sample)}`),
-        });
+const COVERS = ENTRIES.map((id) => [id, coverOf(id)] as const);
+
+describe("library covers", () => {
+  it("gives every entry a cover, even one the sample has no example of", () => {
+    expect(COVERS.filter(([, cover]) => cover === null).map(([id]) => id)).toEqual([]);
+    for (const [id, cover] of COVERS) {
+      // Every cover is a picture or a sheet.
+      expect(cover?.url !== null || cover.sheet, id).toBe(true);
+    }
+  });
+
+  it("draws every cover it holds, and only those", () => {
+    const shown = new Set(
+      COVERS.flatMap(([, cover]) => (cover === null ? [] : [JSON.stringify(cover)])),
+    );
+    expect(shown.size).toBe(Object.keys(coverFile.covers).length);
+  });
+
+  it("shows each document type its own cover, so no two read alike", () => {
+    const covers = LIBRARY_DOCUMENTS.map((entry) => JSON.stringify(coverOf(entry.id)));
+    expect(new Set(covers).size).toBe(covers.length);
+  });
+
+  it("keeps every sheet the one sheet, its marks inside it and no words on it", () => {
+    const { x, y, w, h } = COVER_SHEET;
+    for (const [name, cover] of Object.entries(coverFile.covers)) {
+      expect(JSON.stringify(cover.marks), name).not.toMatch(/<text/);
+      if (!cover.sheet) continue;
+      expect(cover.image, name).toBe(false);
+      for (const mark of cover.marks) {
+        const points = [...mark.d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)];
+        for (const [, px, py] of points) {
+          expect(Number(px), name).toBeGreaterThanOrEqual(x);
+          expect(Number(px), name).toBeLessThanOrEqual(x + w);
+          expect(Number(py), name).toBeGreaterThanOrEqual(y);
+          expect(Number(py), name).toBeLessThanOrEqual(y + h);
+        }
       }
     }
-    expect(picturePath("parts/servo_bracket.step")).toBe("parts__servo_bracket.step.webp");
-    // Another example's pictures carry its id, so two examples' files of one path never meet.
-    expect(picturePath("pictures/motor_plate_pmi.png", "motor-mount")).toBe(
-      "motor-mount__pictures__motor_plate_pmi.png.webp",
-    );
   });
 
   it("leaves own templates and other plugins' skills to LibraryPicture", () => {
-    expect(pictureOf("own:/p/Templates/Supplier audit.md")).toBeNull();
-    expect(pictureOf("skill:other/thing")).toBeNull();
-    // An example the sample could not make (its value is null) has no picture either.
-    const notMade = ENTRIES.filter((id) => EXAMPLES[id] === null);
-    expect(notMade).not.toEqual([]);
-    expect(notMade.filter((id) => pictureOf(id) !== null)).toEqual([]);
+    expect(coverOf("own:/p/Templates/Supplier audit.md")).toBeNull();
+    expect(coverOf("skill:other/thing")).toBeNull();
   });
 
   it("has a picture for every example Studio ships, and none for one it does not", () => {
