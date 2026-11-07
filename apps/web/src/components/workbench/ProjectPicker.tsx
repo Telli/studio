@@ -62,7 +62,7 @@ export function ProjectPicker(props: {
       <PopoverPopup width="md" padding="compact" align="start" initialFocus={input}>
         <button
           type="button"
-          className={cn(PROJECT_ROW_CLASS, "mb-1.5 w-full", chosen === null && "bg-accent")}
+          className={cn(PROJECT_ROW_CLASS, "mb-1.5 w-full")}
           onClick={() => choose(null)}
         >
           <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-dashed border-border">

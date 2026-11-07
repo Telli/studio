@@ -87,7 +87,7 @@ function Field(props: {
   readonly children: ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-3">
+    <div className="grid grid-cols-[5rem_minmax(0,1fr)] items-center gap-3">
       <label htmlFor={props.htmlFor} className={MODULE_HEADING}>
         {props.label}
       </label>
@@ -123,10 +123,10 @@ function TemplatePreview(props: {
   if (entry === null && needs === null && template.outline === undefined) return null;
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+    <div className="flex flex-col gap-3">
       {entry === null ? null : (
         // A glimpse of the example: What it covers and See the example say it in words.
-        <div aria-hidden="true" className="w-full shrink-0 sm:w-56">
+        <div aria-hidden="true" className="w-full">
           <Suspense fallback={<div className="aspect-[8/5] rounded-lg border border-border" />}>
             <LibraryPicture
               entry={entry}
@@ -136,7 +136,7 @@ function TemplatePreview(props: {
           </Suspense>
         </div>
       )}
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
+      <div className="flex min-w-0 flex-col gap-3">
         {needs === null ? null : (
           <NeedsSkill
             id={props.needsId}
@@ -168,7 +168,7 @@ function TemplatePreview(props: {
   );
 }
 
-/** The library, open on what New makes; its Make one comes back to this page's New. */
+/** The Toolbox, open on what New makes; its Make one comes back to this page's New. */
 function BrowseLibrary(props: { readonly onBrowse: () => void }) {
   const here = useLocation({ select: (location) => location.href });
   return (
@@ -179,7 +179,7 @@ function BrowseLibrary(props: { readonly onBrowse: () => void }) {
         render={<Link {...libraryHref({ group: "New", from: here })} />}
         onClick={props.onBrowse}
       >
-        Browse the library
+        Browse the Toolbox
       </Button>
     </div>
   );
@@ -193,7 +193,7 @@ function BrowseLibrary(props: { readonly onBrowse: () => void }) {
  * requirements, FMEA, design review), and the person's own files
  * (`documentTemplates.ts`), with Add a template. A template whose skill is off
  * shows dimmed, and its panel names the skill. The selected one's panel opens
- * with its example (`TemplatePreview`), and Browse the library opens the rest.
+ * with its example (`TemplatePreview`), and Browse the Toolbox opens the rest.
  * Create hands the job on (`onCreate`): into the open chat in a project, into a
  * new project's first chat on Home. Part is New part (`onNewPart`), made at once and opened in
  * CAD mode, with no agent turn: on Home with nothing to fill in (it is "Untitled part" until
@@ -330,7 +330,7 @@ export function NewDialog(props: {
 
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogPopup className="max-w-3xl">
+      <DialogPopup className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>New</DialogTitle>
           <DialogDescription>
@@ -342,8 +342,8 @@ export function NewDialog(props: {
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>
-          <div className="grid gap-4 border-t border-border pt-3 sm:grid-cols-[9rem_minmax(0,1fr)]">
-            <nav aria-label="Disciplines" className="flex gap-1 overflow-x-auto sm:flex-col">
+          <div className="grid gap-4 border-t border-border pt-3 md:grid-cols-[8rem_minmax(0,1fr)_18rem]">
+            <nav aria-label="Disciplines" className="flex gap-1 overflow-x-auto md:flex-col">
               {offered.map((entry) => {
                 const Icon = DISCIPLINE_ICONS[entry];
                 return (
@@ -366,7 +366,11 @@ export function NewDialog(props: {
               })}
             </nav>
             <div className="flex min-w-0 flex-col gap-4">
-              <div role="listbox" aria-label="Templates" className="grid gap-2 sm:grid-cols-2">
+              <div
+                role="listbox"
+                aria-label="Templates"
+                className="grid gap-2 sm:grid-cols-2 md:grid-cols-1"
+              >
                 {offers
                   .filter((offer) => offer.template.discipline === discipline)
                   .map(({ template, availability }) => {
@@ -438,113 +442,109 @@ export function NewDialog(props: {
                   ) : null}
                 </div>
               ) : null}
-
-              {selected === null ? null : (
-                <div className="flex flex-col gap-2.5 border-t border-border pt-3">
-                  <TemplatePreview
-                    key={selected.id}
-                    template={selected}
-                    environmentId={props.environmentId}
-                    needs={needs}
-                    needsId={`${id}-needs`}
-                    plugins={plugins ?? []}
-                    onExampleOpened={() => props.onOpenChange(false)}
-                  />
-                  {needsPart ? (
-                    <Field label="Part">
-                      {props.parts.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">
-                          No parts in this project yet. Start with a part.
-                        </span>
-                      ) : (
-                        <Select
-                          value={part ?? ""}
-                          onValueChange={(value) => setPart(value || null)}
-                        >
-                          <SelectTrigger size="sm" className="w-full" aria-label="Part">
-                            <SelectValue>
-                              {part === null ? "Choose a part" : partShown(part)}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectPopup alignItemWithTrigger={false}>
-                            {props.parts.map((path) => (
-                              <SelectItem key={path} hideIndicator value={path}>
-                                {partShown(path)}
-                              </SelectItem>
-                            ))}
-                          </SelectPopup>
-                        </Select>
-                      )}
-                    </Field>
-                  ) : !named ? null : (
-                    <>
-                      <Field label="Name" htmlFor={`${id}-name`}>
-                        <Input
-                          id={`${id}-name`}
-                          value={name}
-                          onChange={(event) => setName(event.target.value)}
-                        />
-                      </Field>
-                      {/* Where the file goes is the agent's to keep tidy in Studio. */}
-                      {plainWords ? null : (
-                        <Field label="Folder" htmlFor={`${id}-folder`}>
-                          <Input
-                            id={`${id}-folder`}
-                            value={folder}
-                            onChange={(event) => setFolder(event.target.value)}
-                          />
-                        </Field>
-                      )}
-                    </>
-                  )}
-                  {writesDocument || isPart ? null : (
-                    <Field label="Units">
-                      <Select
-                        value={units}
-                        onValueChange={(value) => setUnits(value === "in" ? "in" : "mm")}
-                      >
-                        <SelectTrigger size="sm" className="w-40" aria-label="Units">
-                          <SelectValue>{units === "in" ? "Inches" : "Millimeters"}</SelectValue>
+            </div>
+            {selected === null ? null : (
+              <div className="flex min-w-0 flex-col gap-2.5 border-t border-border pt-3 md:border-s md:border-t-0 md:ps-4 md:pt-0">
+                <TemplatePreview
+                  key={selected.id}
+                  template={selected}
+                  environmentId={props.environmentId}
+                  needs={needs}
+                  needsId={`${id}-needs`}
+                  plugins={plugins ?? []}
+                  onExampleOpened={() => props.onOpenChange(false)}
+                />
+                {needsPart ? (
+                  <Field label="Part">
+                    {props.parts.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">
+                        No parts in this project yet. Start with a part.
+                      </span>
+                    ) : (
+                      <Select value={part ?? ""} onValueChange={(value) => setPart(value || null)}>
+                        <SelectTrigger size="sm" className="w-full" aria-label="Part">
+                          <SelectValue>
+                            {part === null ? "Choose a part" : partShown(part)}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectPopup alignItemWithTrigger={false}>
-                          <SelectItem hideIndicator value="mm">
-                            Millimeters
-                          </SelectItem>
-                          <SelectItem hideIndicator value="in">
-                            Inches
-                          </SelectItem>
+                          {props.parts.map((path) => (
+                            <SelectItem key={path} hideIndicator value={path}>
+                              {partShown(path)}
+                            </SelectItem>
+                          ))}
                         </SelectPopup>
                       </Select>
-                    </Field>
-                  )}
-                  {isPart ? null : (
-                    <Field label="What it is" htmlFor={`${id}-description`}>
-                      <Textarea
-                        id={`${id}-description`}
-                        size="sm"
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                        placeholder={
-                          writesDocument
-                            ? "Anything it should say, or leave out"
-                            : needsPart
-                              ? "Anything the agent should know: loads, machine, finish"
-                              : "Size, features, what it attaches to"
-                        }
+                    )}
+                  </Field>
+                ) : !named ? null : (
+                  <>
+                    <Field label="Name" htmlFor={`${id}-name`}>
+                      <Input
+                        id={`${id}-name`}
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
                       />
                     </Field>
-                  )}
-                  {/* A part's file is the next name free in its folder, known once it is made. */}
-                  {plainWords || !named || isPart || name.trim() === "" ? null : (
-                    <p className="text-xs text-muted-foreground">
-                      Saved as {(folder.trim() || selected.folder).replace(/\/+$/, "")}/
-                      {fileStem(name)}
-                      {writesDocument ? ".md" : ""}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
+                    {/* Where the file goes is the agent's to keep tidy in Studio. */}
+                    {plainWords ? null : (
+                      <Field label="Folder" htmlFor={`${id}-folder`}>
+                        <Input
+                          id={`${id}-folder`}
+                          value={folder}
+                          onChange={(event) => setFolder(event.target.value)}
+                        />
+                      </Field>
+                    )}
+                  </>
+                )}
+                {writesDocument || isPart ? null : (
+                  <Field label="Units">
+                    <Select
+                      value={units}
+                      onValueChange={(value) => setUnits(value === "in" ? "in" : "mm")}
+                    >
+                      <SelectTrigger size="sm" className="w-full" aria-label="Units">
+                        <SelectValue>{units === "in" ? "Inches" : "Millimeters"}</SelectValue>
+                      </SelectTrigger>
+                      <SelectPopup alignItemWithTrigger={false}>
+                        <SelectItem hideIndicator value="mm">
+                          Millimeters
+                        </SelectItem>
+                        <SelectItem hideIndicator value="in">
+                          Inches
+                        </SelectItem>
+                      </SelectPopup>
+                    </Select>
+                  </Field>
+                )}
+                {isPart ? null : (
+                  <Field label="What it is" htmlFor={`${id}-description`}>
+                    <Textarea
+                      id={`${id}-description`}
+                      size="sm"
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      placeholder={
+                        writesDocument
+                          ? "Anything it should say, or leave out"
+                          : needsPart
+                            ? "Anything the agent should know: loads, machine, finish"
+                            : "Size, features, what it attaches to"
+                      }
+                    />
+                  </Field>
+                )}
+                {/* A part's file is the next name free in its folder, known once it is made. */}
+                {plainWords || !named || isPart || name.trim() === "" ? null : (
+                  <p className="text-xs text-muted-foreground">
+                    Saved as {(folder.trim() || selected.folder).replace(/\/+$/, "")}/
+                    {fileStem(name)}
+                    {writesDocument ? ".md" : ""}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </DialogPanel>
         <DialogFooter>
