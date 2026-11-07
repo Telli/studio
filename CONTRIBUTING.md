@@ -7,7 +7,12 @@ development commands, tests, and platform-specific desktop packaging prerequisit
 
 ## Read this first
 
-We are not actively seeking outside contributions and have limited review capacity. Opening a PR does
+Studio is two projects. The CAD tools (modeling, drawings, simulation, the skills and the viewer) are
+[text-to-cad](https://github.com/earthtojake/text-to-cad): contribute there, and ask on its
+[Discord](https://discord.gg/5FGB9DwJYU). Studio takes them as they are released. The app around
+them is this repository, and every change here keeps [Studio's laws](AGENTS.md#studios-laws).
+
+We have limited review capacity. Opening a PR does
 not create an obligation to review or merge it. We may close or defer it, ask for a smaller scope, or
 reimplement the idea later. Meeting this guide's requirements makes a PR eligible for deeper review;
 it does not guarantee acceptance.
@@ -19,8 +24,7 @@ the same reasons as a ready PR; converting a PR to draft does not exempt it from
 Focused bug fixes, reliability fixes, performance improvements, and maintenance work are the most
 likely to be accepted. Unsolicited features, opinionated rewrites, and unrelated cleanup are not.
 
-Report bugs in issues. Feature requests and proposals belong in
-[Ideas discussions](https://github.com/pingdotgg/t3code/discussions/categories/ideas).
+Report bugs and propose features in [issues](https://github.com/amywork777/studio/issues).
 Search existing reports, discussions, and documented workflows before starting work.
 
 <a id="prior-approval"></a>

@@ -179,7 +179,12 @@ import {
 } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
 import { reportProblemUrl } from "./reportProblem";
-import { TEXT_TO_CAD_SITE, textToCadVersion } from "./textToCadVersion";
+import {
+  STUDIO_REPOSITORY,
+  TEXT_TO_CAD_DISCORD,
+  TEXT_TO_CAD_REPOSITORY,
+  textToCadVersion,
+} from "./textToCadVersion";
 import { usageDataRestorePatch } from "./usageDataRestore";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { ProjectFavicon } from "../ProjectFavicon";
@@ -315,24 +320,43 @@ function AboutVersionTitle(props: { readonly version?: string | undefined }) {
   );
 }
 
-/** The text-to-cad included in this Studio: a real version from its plugin, or no row at all. */
+function OutsideLink(props: { readonly href: string; readonly children: string }) {
+  return (
+    <Button
+      render={<a href={props.href} target="_blank" rel="noreferrer noopener" />}
+      size="sm"
+      variant="outline"
+    >
+      {props.children}
+    </Button>
+  );
+}
+
+/**
+ * The text-to-cad included in this Studio, a real version from its plugin or no rows at all, and
+ * where each project takes part: a change to the CAD tools goes to text-to-cad, one to the app to Studio.
+ */
 function TextToCadRow(props: { readonly version: string | null }) {
   if (props.version === null) return null;
   return (
-    <SettingsRow
-      id={searchableSetting("text-to-cad").id}
-      title={`text-to-cad ${props.version}, included`}
-      description="The CAD tools inside Studio, with Studio's changes. They update with Studio."
-      control={
-        <Button
-          render={<a href={TEXT_TO_CAD_SITE} target="_blank" rel="noreferrer noopener" />}
-          size="sm"
-          variant="outline"
-        >
-          Original project
-        </Button>
-      }
-    />
+    <>
+      <SettingsRow
+        id={searchableSetting("text-to-cad").id}
+        title={`text-to-cad ${props.version}, included`}
+        description="The CAD tools inside Studio. They update with Studio. To change them, contribute to text-to-cad."
+        control={
+          <>
+            <OutsideLink href={TEXT_TO_CAD_REPOSITORY}>GitHub</OutsideLink>
+            <OutsideLink href={TEXT_TO_CAD_DISCORD}>Discord</OutsideLink>
+          </>
+        }
+      />
+      <SettingsRow
+        {...searchableSetting("studio-source")}
+        description="Studio is open source. To change the app itself, contribute here."
+        control={<OutsideLink href={STUDIO_REPOSITORY}>GitHub</OutsideLink>}
+      />
+    </>
   );
 }
 

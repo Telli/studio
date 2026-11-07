@@ -571,7 +571,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "text-to-cad",
     title: "text-to-cad",
     to: "/settings/general",
-    searchTerms: ["cad tools included engine version original project"],
+    searchTerms: ["cad tools included engine version original project github discord contribute"],
+  },
+  {
+    id: "studio-source",
+    title: "Studio's source code",
+    to: "/settings/general",
+    searchTerms: ["open source github repository contribute code"],
   },
   {
     id: "update-track",

@@ -2,8 +2,10 @@ import type { InstalledPlugin } from "@t3tools/contracts";
 
 import { TEXT_TO_CAD } from "../workbench/library/skillAvailability";
 
-/** The original project's own site, which About links to. */
-export const TEXT_TO_CAD_SITE = "https://www.texttocad.dev";
+/** Where each project lives, which About links to: its code, and how to take part. */
+export const TEXT_TO_CAD_REPOSITORY = "https://github.com/earthtojake/text-to-cad";
+export const TEXT_TO_CAD_DISCORD = "https://discord.gg/5FGB9DwJYU";
+export const STUDIO_REPOSITORY = "https://github.com/amywork777/studio";
 
 /** The text-to-cad this Studio carries, as its plugin names it; null where it names none. */
 export function textToCadVersion(

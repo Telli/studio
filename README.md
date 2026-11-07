@@ -129,7 +129,8 @@ The AUR packaging is maintained in this repository under [`packaging/aur`](./pac
 
 We are very very early in this project. Expect bugs.
 
-We are (mostly) not accepting contributions yet. Small fixes may be considered. Big features will not be.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR. Changes to the CAD tools go to
+[text-to-cad](https://github.com/earthtojake/text-to-cad); changes to the app come here.
 
 ## Documentation
 
