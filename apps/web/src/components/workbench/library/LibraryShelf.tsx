@@ -5,10 +5,10 @@ import { cn } from "~/lib/utils";
 import { MODULE_HEADING } from "../studioLayout";
 
 /** Columns of covers, by the width of the page's `@container`: one rule for every shelf. */
-const SHELF_COLUMNS = "grid-cols-2 @xl:grid-cols-3 @3xl:grid-cols-4 @4xl:grid-cols-6";
+const SHELF_COLUMNS = "grid-cols-2 @xl:grid-cols-3 @3xl:grid-cols-5";
 
 /** How many columns `SHELF_COLUMNS` comes to, at each of its widths. */
-const COLUMN_COUNTS = [2, 3, 4, 6] as const;
+const COLUMN_COUNTS = [2, 3, 5] as const;
 
 /** A shelf's covers across the page's columns. */
 const SHELF_ROW = `grid gap-3 ${SHELF_COLUMNS}`;
@@ -32,7 +32,7 @@ const SHORT_SHELVES: Readonly<
  * on a rule and not a hole. Subgrid keeps its covers on the page's tracks, however wide it spans.
  */
 const ROW_END_SHELF =
-  "grid grid-cols-subgrid content-start gap-y-3 col-span-(--span-of-2) @xl:col-span-(--span-of-3) @3xl:col-span-(--span-of-4) @4xl:col-span-(--span-of-6)";
+  "grid grid-cols-subgrid content-start gap-y-3 col-span-(--span-of-2) @xl:col-span-(--span-of-3) @3xl:col-span-(--span-of-5)";
 
 /** A shelf the page lists: what its index and its heading both show. */
 export interface Shelf {
@@ -149,13 +149,13 @@ export function LibraryShelf(props: {
 
 /**
  * An index of shelves, down a page's side as a library's directory is. A press goes there. The
- * Toolbox does not mount it: its column cost every shelf a cover across.
+ * shelves take the width left beside it, so a cover stays one size on every shelf.
  */
 export function ShelfIndex(props: { readonly shelves: ReadonlyArray<Shelf> }) {
   return (
     <nav
       aria-label="Shelves"
-      className="sticky top-0 hidden w-48 shrink-0 flex-col gap-0.5 @3xl:flex"
+      className="sticky top-0 hidden w-40 shrink-0 flex-col gap-0.5 @3xl:flex"
     >
       {props.shelves.map((shelf, index) => {
         const Icon = shelf.icon;

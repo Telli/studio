@@ -34,7 +34,7 @@ describe("the last short shelf", () => {
   it("runs to the end of the row the short shelves before it leave, at every width", () => {
     expect(rowEnd("New", "Mine", "Analysis", "Manufacturing")).toEqual({
       shelf: "Analysis",
-      spans: { "--span-of-2": 2, "--span-of-3": 1, "--span-of-4": 2, "--span-of-6": 4 },
+      spans: { "--span-of-2": 2, "--span-of-3": 1, "--span-of-5": 3 },
     });
   });
 
@@ -42,14 +42,12 @@ describe("the last short shelf", () => {
     expect(rowEnd("Mine", "Other", "Analysis")?.spans).toEqual({
       "--span-of-2": 1,
       "--span-of-3": 3,
-      "--span-of-4": 1,
-      "--span-of-6": 3,
+      "--span-of-5": 2,
     });
     expect(rowEnd("New", "Mine")?.spans).toEqual({
       "--span-of-2": 2,
       "--span-of-3": 3,
-      "--span-of-4": 4,
-      "--span-of-6": 6,
+      "--span-of-5": 5,
     });
   });
 

@@ -43,6 +43,7 @@ import {
   gatherShortShelves,
   shortRowEnd,
   LibraryShelf,
+  ShelfIndex,
   SHELF_GRID,
   shelfAnchor,
   type Shelf,
@@ -87,7 +88,8 @@ const shelfOf = (shelf: Omit<Shelf, "count">, entries: ReadonlyArray<LibraryEntr
 
 /**
  * Studio's Toolbox page (`/library`, the one place on the rail for what Studio ships), laid out as
- * a library of skills: always-open shelves of covers (`LibraryShelf`). text-to-cad's skills stand on the shelves of the work they do (New,
+ * a library of skills: a directory of shelves down its side (`ShelfIndex`) and always-open shelves
+ * of covers (`LibraryShelf`). text-to-cad's skills stand on the shelves of the work they do (New,
  * then the part menus Analysis, Manufacturing and Documents), each holding what it makes, with the
  * document types no skill makes beside them. Then every other plugin's skills, and the person's own
  * with Add a skill: first once they have one, last until then. A shelf of one or two covers shares
@@ -285,20 +287,25 @@ function LibraryContent(props: {
         <p className="py-6 text-sm text-muted-foreground">Nothing in the Toolbox matches that.</p>
       ) : null}
       <div className="@container min-w-0">
-        <div className={SHELF_GRID}>
-          {placed.map((group) => (
-            <LibraryShelf
-              key={group.key}
-              shelf={group}
-              tiles={tilesOn(group)}
-              rowEnd={group === rowEnd?.shelf ? rowEnd.spans : undefined}
-            >
-              {group === mySkills ? (
-                <AddSkillTile environmentId={environmentId} onAdded={openOwnSkill} />
-              ) : null}
-              {group.entries.map(cover)}
-            </LibraryShelf>
-          ))}
+        <div className="flex min-w-0 items-start gap-8">
+          <ShelfIndex shelves={shelves} />
+          <div className="@container min-w-0 flex-1">
+            <div className={SHELF_GRID}>
+              {placed.map((group) => (
+                <LibraryShelf
+                  key={group.key}
+                  shelf={group}
+                  tiles={tilesOn(group)}
+                  rowEnd={group === rowEnd?.shelf ? rowEnd.spans : undefined}
+                >
+                  {group === mySkills ? (
+                    <AddSkillTile environmentId={environmentId} onAdded={openOwnSkill} />
+                  ) : null}
+                  {group.entries.map(cover)}
+                </LibraryShelf>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
       <Dialog
