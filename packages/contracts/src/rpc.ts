@@ -402,6 +402,8 @@ import {
   StudioGitHubSignInError,
   StudioGitHubSignInStartResult,
   StudioSyncError,
+  StudioSyncRestoreInput,
+  StudioSyncRestoreResult,
   StudioSyncSendInput,
   StudioSyncSendResult,
   StudioSyncStatusInput,
@@ -543,6 +545,7 @@ export const WS_METHODS = {
   studioProjectsSave: "studioProjects.save",
   studioProjectsTrash: "studioProjects.trash",
   studioSyncSend: "studioSync.send",
+  studioSyncRestore: "studioSync.restore",
   studioSyncStatus: "studioSync.status",
   studioGitHubSignInStart: "studioGitHub.signInStart",
   studioGitHubSignInCheck: "studioGitHub.signInCheck",
@@ -961,6 +964,12 @@ const WsStudioGitHubSignInCheckRpc = Rpc.make(WS_METHODS.studioGitHubSignInCheck
 const WsStudioSyncSendRpc = Rpc.make(WS_METHODS.studioSyncSend, {
   payload: StudioSyncSendInput,
   success: StudioSyncSendResult,
+  error: StudioSyncError,
+});
+
+const WsStudioSyncRestoreRpc = Rpc.make(WS_METHODS.studioSyncRestore, {
+  payload: StudioSyncRestoreInput,
+  success: StudioSyncRestoreResult,
   error: StudioSyncError,
 });
 
@@ -2113,6 +2122,7 @@ export const WsHostRpcGroup = RpcGroup.make(
   WsStudioProjectsSaveRpc,
   WsStudioProjectsTrashRpc,
   WsStudioSyncSendRpc,
+  WsStudioSyncRestoreRpc,
   WsStudioSyncStatusRpc,
   WsStudioGitHubSignInStartRpc,
   WsStudioGitHubSignInCheckRpc,

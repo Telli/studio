@@ -143,6 +143,23 @@ export const StudioSyncSendResult = Schema.Struct({
 });
 export type StudioSyncSendResult = typeof StudioSyncSendResult.Type;
 
+/**
+ * Brings a backup back as a new folder in the projects folder: `repository` is the `owner/name` of
+ * an online copy, and `folder` the folder a backup went into, or a folder above it. `name` names
+ * the new folder.
+ */
+export const StudioSyncRestoreInput = Schema.Struct({
+  name: TrimmedNonEmptyString,
+  source: Schema.Union([
+    Schema.Struct({ kind: Schema.Literal("github"), repository: TrimmedNonEmptyString }),
+    Schema.Struct({ kind: Schema.Literal("folder"), folder: TrimmedNonEmptyString }),
+  ]),
+});
+export type StudioSyncRestoreInput = typeof StudioSyncRestoreInput.Type;
+
+export const StudioSyncRestoreResult = Schema.Struct({ folder: TrimmedNonEmptyString });
+export type StudioSyncRestoreResult = typeof StudioSyncRestoreResult.Type;
+
 export const StudioSyncStatusInput = Schema.Struct({ cwd: TrimmedNonEmptyString });
 export type StudioSyncStatusInput = typeof StudioSyncStatusInput.Type;
 
@@ -187,7 +204,8 @@ export class StudioSyncError extends Schema.TaggedError<StudioSyncError>()("Stud
    * `too-large`: a file in the project is over the limit; `too-large-version`: one in a Version
    * is. `make-copy`: the online copy could not be made. `sign-in`: no credential, or it was
    * refused. `changed-elsewhere`: the online copy moved, and nothing forces it back. `prepare`:
-   * git failed on this computer. `send` and `receive`: the transfer failed.
+   * git failed on this computer. `send` and `receive`: the transfer failed. `no-copy`: a restore
+   * named no `owner/name`. `no-backup`: the folder holds no project with Versions.
    */
   failure: Schema.Literals([
     "no-history",
@@ -200,6 +218,8 @@ export class StudioSyncError extends Schema.TaggedError<StudioSyncError>()("Stud
     "prepare",
     "send",
     "receive",
+    "no-copy",
+    "no-backup",
   ]),
   /** The work folder. */
   cwd: Schema.String,
@@ -224,7 +244,7 @@ export class StudioSyncError extends Schema.TaggedError<StudioSyncError>()("Stud
       case "make-copy":
         return "The private copy could not be made.";
       case "sign-in":
-        return "Sign in with GitHub to send this project.";
+        return "Sign in with GitHub first.";
       case "changed-elsewhere":
         return "The online copy has changes from somewhere else, so this project is Not synced. Nothing here was lost.";
       case "prepare":
@@ -232,7 +252,11 @@ export class StudioSyncError extends Schema.TaggedError<StudioSyncError>()("Stud
       case "send":
         return "The project could not be sent, so it is Not synced. Nothing here was lost.";
       case "receive":
-        return "Studio could not bring this project back.";
+        return "Studio could not bring this project back. Check its name on GitHub.";
+      case "no-copy":
+        return "Enter the project as it reads on GitHub: account/name.";
+      case "no-backup":
+        return "Studio found no project there. Choose the project's own folder, inside the one the backup went into. For plain files, use Import.";
     }
   }
 }

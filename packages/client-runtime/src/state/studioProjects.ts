@@ -82,6 +82,12 @@ export function createStudioProjectsEnvironmentAtoms<R, E>(
       onSettled: ({ environmentId }, registry) =>
         Effect.sync(() => registry.update(studioSyncRevision(environmentId), (value) => value + 1)),
     }),
+    /** Brings a backup back as a new folder; a restore can take as long as a first send. */
+    syncRestore: createEnvironmentRpcCommand(runtime, {
+      label: "environment-command:studio-sync:restore",
+      tag: WS_METHODS.studioSyncRestore,
+      scheduler: createAtomCommandScheduler(),
+    }),
     /** Gets the code a person enters at GitHub for Sign in with GitHub. */
     gitHubSignInStart: createEnvironmentRpcCommand(runtime, {
       label: "environment-command:studio-github:sign-in-start",

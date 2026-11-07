@@ -149,6 +149,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.sourceControlCloneRepository]: "source-control",
   [WS_METHODS.sourceControlPublishRepository]: "source-control",
   [WS_METHODS.studioSyncSend]: "source-control",
+  [WS_METHODS.studioSyncRestore]: "source-control",
   [WS_METHODS.studioSyncStatus]: "source-control",
   [WS_METHODS.studioGitHubSignInStart]: "source-control",
   [WS_METHODS.studioGitHubSignInCheck]: "source-control",

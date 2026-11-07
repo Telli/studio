@@ -5,15 +5,20 @@ import { Button } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 
 /**
- * Studio's one Import menu: Files or a folder, and Scan this computer, with the same items and
- * names on Home's start page, Home's projects, the Projects page and the workspace toolbar. The
+ * Studio's one Import menu: Files or a folder, Scan this computer, and Restore a backup, with the
+ * same items and names on Home's start page, Home's projects, the Projects page and the workspace
+ * toolbar, where Restore a backup is left out, as it makes a project of its own. The
  * button is the outline Import by default; the start page passes its big card as `trigger`.
  * Inside a toolbar container a narrow row shows the icon alone. Where the two items land
  * differently (the workspace toolbar: one copies into the open project, one makes projects),
  * `hints` gives each a muted second line, and the trigger says it imports into this project.
  */
 export function ImportMenu(props: {
-  readonly actions: { readonly scan: () => void; readonly pick: () => Promise<void> };
+  readonly actions: {
+    readonly scan: () => void;
+    readonly pick: () => Promise<void>;
+    readonly restore?: () => void;
+  };
   readonly trigger?: ReactElement;
   readonly hints?: { readonly pick: string; readonly scan: string };
 }) {
@@ -41,6 +46,9 @@ export function ImportMenu(props: {
           "Scan this computer"
         )}
       </MenuItem>
+      {hints === undefined && props.actions.restore !== undefined ? (
+        <MenuItem onClick={props.actions.restore}>Restore a backup</MenuItem>
+      ) : null}
     </MenuPopup>
   );
   return props.trigger === undefined ? (

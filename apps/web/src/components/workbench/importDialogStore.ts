@@ -23,3 +23,14 @@ export const useImportDialogStore = create<{
   show: (start) => set((current) => ({ start, count: current.count + 1 })),
   close: () => set({ start: null }),
 }));
+
+/** Whether Restore a backup is open: Import's menu shows it, beside Import's own dialog. */
+export const useRestoreDialogStore = create<{
+  readonly open: boolean;
+  readonly show: () => void;
+  readonly close: () => void;
+}>()((set) => ({
+  open: false,
+  show: () => set({ open: true }),
+  close: () => set({ open: false }),
+}));

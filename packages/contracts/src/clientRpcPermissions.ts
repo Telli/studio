@@ -40,6 +40,7 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.sourceControlCloneRepository]: AuthSourceControlWriteScope,
   [WS_METHODS.sourceControlPublishRepository]: AuthSourceControlWriteScope,
   [WS_METHODS.studioSyncSend]: AuthSourceControlWriteScope,
+  [WS_METHODS.studioSyncRestore]: AuthSourceControlWriteScope,
   [WS_METHODS.studioGitHubSignInStart]: AuthSourceControlWriteScope,
   [WS_METHODS.studioGitHubSignInCheck]: AuthSourceControlWriteScope,
   [WS_METHODS.projectCloneStart]: AuthSourceControlWriteScope,

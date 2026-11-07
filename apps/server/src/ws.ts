@@ -2113,6 +2113,8 @@ const layerWsRpc = (
                 .pipe(Effect.andThen(refreshGitStatus(input.cwd)), Effect.ignore({ log: true })),
             ),
           ),
+        [WS_METHODS.studioSyncRestore]: (input) =>
+          studioSync.restore({ ...input, root: managedFolders.namedProjectsRoot }),
         [WS_METHODS.studioSyncStatus]: (input) => studioSync.status(input),
         [WS_METHODS.studioGitHubSignInStart]: () => studioGitHubSignIn.start,
         [WS_METHODS.studioGitHubSignInCheck]: (input) => studioGitHubSignIn.check(input),

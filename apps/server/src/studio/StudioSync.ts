@@ -13,6 +13,8 @@
 import {
   SourceControlProviderKind,
   StudioSyncError,
+  type StudioSyncRestoreInput,
+  type StudioSyncRestoreResult,
   type StudioSyncSendInput,
   type StudioSyncSendResult,
   type StudioSyncStatusInput,
@@ -20,6 +22,7 @@ import {
 } from "@t3tools/contracts";
 import * as GitHubApi from "@t3tools/source-control-github/server/GitHubApi";
 import { githubGitEnv } from "@t3tools/source-control-github/server/githubGitAuth";
+import { newProjectFolderName } from "@t3tools/shared/path";
 import * as Context from "effect/Context";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -38,6 +41,9 @@ const REMOTE = "origin";
 /** Which online copy Studio made for a folder, in that folder's own git config. */
 const MADE_FOR_KEY = "studio.repository";
 const GITHUB_PROVIDER = SourceControlProviderKind.make("github");
+/** `owner/name` as GitHub allows them: the one thing a restore puts in a URL. */
+const REPOSITORY_NAME = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
+const MAX_FOLDER_ATTEMPTS = 100;
 
 /** GitHub refuses a whole push that holds one file over this. */
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
@@ -87,6 +93,15 @@ export class StudioSync extends Context.Service<
       readonly remote: string;
       readonly folder: string;
     }) => Effect.Effect<void, StudioSyncError>;
+    /**
+     * Brings a backup back into a new folder under `root`, named from `name`: `receive` for an
+     * online copy, or a copy of a folder backup, which keeps the files a Version had not taken
+     * yet. Refuses what holds no project before it makes anything, and leaves no folder behind
+     * when it fails.
+     */
+    readonly restore: (
+      input: StudioSyncRestoreInput & { readonly root: string },
+    ) => Effect.Effect<StudioSyncRestoreResult, StudioSyncError>;
   }
 >()("t3/studio/StudioSync") {}
 
@@ -479,7 +494,86 @@ const make = (maxFileBytes: number) =>
       },
     );
 
-    return StudioSync.of({ send, status, receive });
+    /**
+     * The project in a folder someone picked: the folder itself, or the one folder inside it.
+     * `backUp` writes `<chosen>/<project>/<folder>`, and a person may pick any of those.
+     */
+    const projectIn = (folder: string, levels: number): Effect.Effect<string | undefined> =>
+      Effect.gen(function* () {
+        if (yield* hasHistory(folder)) return folder;
+        if (levels === 0) return undefined;
+        const names = yield* fileSystem
+          .readDirectory(folder)
+          .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
+        const inside = yield* Effect.filter(
+          names.filter((name) => !name.startsWith(".")).map((name) => path.join(folder, name)),
+          (entry) =>
+            fileSystem.stat(entry).pipe(
+              Effect.map((info) => info.type === "Directory"),
+              Effect.orElseSucceed(() => false),
+            ),
+        );
+        const only = inside.length === 1 ? inside[0] : undefined;
+        return only === undefined ? undefined : yield* projectIn(only, levels - 1);
+      });
+
+    /** A new empty folder under `root`, with `-2`, `-3`, ... when the name is taken. */
+    const claimFolder = Effect.fnUntraced(function* (root: string, name: string) {
+      const failed = (cause: unknown) =>
+        new StudioSyncError({ failure: "receive", cwd: root, cause });
+      yield* fileSystem.makeDirectory(root, { recursive: true }).pipe(Effect.mapError(failed));
+      const base = newProjectFolderName(name);
+      for (let attempt = 1; attempt <= MAX_FOLDER_ATTEMPTS; attempt += 1) {
+        const folder = path.join(root, attempt === 1 ? base : `${base}-${attempt}`);
+        const claimed = yield* fileSystem.makeDirectory(folder).pipe(
+          Effect.as(true),
+          Effect.catchTags({
+            PlatformError: (cause) =>
+              cause.reason._tag === "AlreadyExists"
+                ? Effect.succeed(false)
+                : Effect.fail(failed(cause)),
+          }),
+        );
+        if (claimed) return folder;
+      }
+      return yield* failed(new Error("Every folder name is taken."));
+    });
+
+    const restore: StudioSync["Service"]["restore"] = Effect.fn("StudioSync.restore")(
+      function* (input) {
+        const { name, root, source } = input;
+        if (source.kind === "github" && !REPOSITORY_NAME.test(source.repository)) {
+          return yield* new StudioSyncError({ failure: "no-copy", cwd: root });
+        }
+        const backup = source.kind === "folder" ? yield* projectIn(source.folder, 2) : undefined;
+        if (source.kind === "folder" && backup === undefined) {
+          return yield* new StudioSyncError({ failure: "no-backup", cwd: source.folder });
+        }
+        const folder = yield* claimFolder(root, name);
+        const bring =
+          source.kind === "github"
+            ? receive({ remote: `https://github.com/${source.repository}`, folder }).pipe(
+                Effect.andThen(
+                  gitOrFail(folder, ["config", MADE_FOR_KEY, source.repository], "receive"),
+                ),
+              )
+            : fileSystem
+                .copy(backup!, folder, { overwrite: true, preserveTimestamps: true })
+                .pipe(
+                  Effect.mapError(
+                    (cause) => new StudioSyncError({ failure: "receive", cwd: folder, cause }),
+                  ),
+                );
+        yield* bring.pipe(
+          Effect.onError(() =>
+            fileSystem.remove(folder, { recursive: true, force: true }).pipe(Effect.ignore),
+          ),
+        );
+        return { folder };
+      },
+    );
+
+    return StudioSync.of({ send, status, receive, restore });
   });
 
 /** The service with its own limit on one file, for a test that needs no big fixture. */

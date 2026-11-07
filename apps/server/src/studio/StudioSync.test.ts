@@ -104,7 +104,14 @@ const withProject = <A, E>(
     yield* fileSystem.makeDirectory(work);
     yield* git(root, "init", "--quiet", "--bare", "--initial-branch=main", copy);
     yield* git(work, "init", "--quiet", "--initial-branch=main");
-    yield* git(work, "config", `url.${NodeURL.pathToFileURL(copy).href}.insteadOf`, ONLINE);
+    // In the global config, so a folder a restore makes reads the same online copy.
+    yield* git(
+      root,
+      "config",
+      "--global",
+      `url.${NodeURL.pathToFileURL(copy).href}.insteadOf`,
+      ONLINE,
+    );
 
     const write = (file: string, text: string) => {
       const target = path.join(work, file);
@@ -238,6 +245,108 @@ it.effect("sends main, every Version and kept ref, and receive brings them back 
   ),
 );
 
+it.effect("restores an online copy as a new folder that backs up to the same copy", () =>
+  withProject((fixture) =>
+    Effect.gen(function* () {
+      const { work, root, git, version, refs } = fixture;
+      yield* version(`${CHECKPOINTS}/c2NvcGU/ordinal/1`, "part.py", "width = 11\n");
+      yield* send(work);
+      const sync = yield* StudioSync.StudioSync;
+      const input = {
+        name: "Roomba arms",
+        root: `${root}/projects`,
+        source: { kind: "github", repository: REPOSITORY },
+      } as const;
+
+      const { folder } = yield* sync.restore(input);
+      assert.strictEqual(folder, `${root}/projects/roomba-arms`);
+      assert.strictEqual(yield* refs(folder), yield* refs(work));
+      assert.strictEqual(yield* git(folder, "config", "--get", "studio.repository"), REPOSITORY);
+      assert.deepEqual(yield* sync.send({ cwd: folder, repository: REPOSITORY }), {
+        repository: REPOSITORY,
+        sent: false,
+      });
+
+      const again = yield* sync.restore(input);
+      assert.strictEqual(again.folder, `${root}/projects/roomba-arms-2`);
+    }),
+  ),
+);
+
+it.effect("restores a folder backup from any folder a person may pick, unsaved files too", () =>
+  withProject((fixture) =>
+    Effect.gen(function* () {
+      const { work, root, version, write, refs } = fixture;
+      yield* version(`${CHECKPOINTS}/c2NvcGU/ordinal/1`, "part.py", "width = 11\n");
+      yield* write("notes.md", "not in a Version yet\n");
+      const fileSystem = yield* FileSystem.FileSystem;
+      const sync = yield* StudioSync.StudioSync;
+      yield* fileSystem.makeDirectory(`${root}/Drive/Roomba`, { recursive: true });
+      yield* fileSystem.copy(work, `${root}/Drive/Roomba/work`);
+
+      const { folder } = yield* sync.restore({
+        name: "Roomba",
+        root: `${root}/projects`,
+        source: { kind: "folder", folder: `${root}/Drive` },
+      });
+      assert.strictEqual(yield* refs(folder), yield* refs(work));
+      assert.strictEqual(
+        yield* fileSystem.readFileString(`${folder}/notes.md`),
+        "not in a Version yet\n",
+      );
+    }),
+  ),
+);
+
+it.effect("refuses what holds no project, and leaves nothing behind when a transfer fails", () =>
+  withProject((fixture) =>
+    Effect.gen(function* () {
+      const { root } = fixture;
+      const fileSystem = yield* FileSystem.FileSystem;
+      const sync = yield* StudioSync.StudioSync;
+      const projects = `${root}/projects`;
+      yield* fileSystem.makeDirectory(`${root}/Drive/one`, { recursive: true });
+      yield* fileSystem.makeDirectory(`${root}/Drive/two`, { recursive: true });
+
+      const several = yield* sync
+        .restore({
+          name: "Roomba",
+          root: projects,
+          source: { kind: "folder", folder: `${root}/Drive` },
+        })
+        .pipe(Effect.flip);
+      assert.strictEqual(several.failure, "no-backup");
+      const badName = yield* sync
+        .restore({
+          name: "Roomba",
+          root: projects,
+          source: { kind: "github", repository: "https://evil.example/x" },
+        })
+        .pipe(Effect.flip);
+      assert.strictEqual(badName.failure, "no-copy");
+      assert.isFalse(yield* fileSystem.exists(projects));
+
+      const absent = NodeURL.pathToFileURL(`${root}/absent.git`).href;
+      yield* fixture.git(
+        root,
+        "config",
+        "--global",
+        `url.${absent}.insteadOf`,
+        "https://github.com/amy/not-there",
+      );
+      const missing = yield* sync
+        .restore({
+          name: "Roomba",
+          root: projects,
+          source: { kind: "github", repository: "amy/not-there" },
+        })
+        .pipe(Effect.flip);
+      assert.strictEqual(missing.failure, "receive");
+      assert.deepEqual(yield* fileSystem.readDirectory(projects), []);
+    }),
+  ),
+);
+
 it.effect("says Synced only while the online copy holds everything here", () =>
   withProject((fixture) =>
     Effect.gen(function* () {
@@ -265,6 +374,7 @@ it.effect("says Synced only while the online copy holds everything here", () =>
       yield* git(
         work,
         "config",
+        "--global",
         "--unset-all",
         `url.${NodeURL.pathToFileURL(copy).href}.insteadOf`,
       );
@@ -498,7 +608,7 @@ it.effect("goes on sending after a first send that stopped partway", () =>
     Effect.gen(function* () {
       const { work, copy, git, made, refs } = fixture;
       const url = `url.${NodeURL.pathToFileURL(copy).href}.insteadOf`;
-      yield* git(work, "config", "--unset-all", url);
+      yield* git(work, "config", "--global", "--unset-all", url);
       yield* git(
         work,
         "config",

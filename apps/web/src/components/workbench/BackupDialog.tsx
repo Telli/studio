@@ -38,13 +38,14 @@ import {
 } from "./useBackup";
 
 /** An error from the desktop app or the server, in its own words. */
-const plainError = (error: unknown) =>
+export const plainError = (error: unknown) =>
   (error instanceof Error ? error.message : String(error)).replace(
     /^Error invoking remote method '[^']*': (?:Error: )?/,
     "",
   );
 
-function Choice(props: {
+/** One place a backup can be, Back up and Restore a backup alike. */
+export function Choice(props: {
   readonly selected: boolean;
   readonly disabled: boolean;
   readonly onSelect: () => void;

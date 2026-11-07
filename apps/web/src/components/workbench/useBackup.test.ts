@@ -6,6 +6,7 @@ import {
   githubChoice,
   githubDescription,
   githubRepository,
+  restoredName,
 } from "./useBackup";
 
 const ready = {
@@ -17,6 +18,13 @@ const ready = {
 };
 
 describe("backup", () => {
+  it("names a restored project for where it came from", () => {
+    expect(restoredName("motor-mount")).toBe("Motor mount");
+    expect(restoredName("/Users/amy/Drive/Motor mount/")).toBe("Motor mount");
+    expect(restoredName("C:\\Backups\\roomba_arms")).toBe("Roomba arms");
+    expect(restoredName("")).toBe("");
+  });
+
   it("backs a project up into a folder named for it, inside the one chosen", () => {
     expect(backupFolder("/Users/amy/Library/CloudStorage/GoogleDrive-a/My Drive/", "Roomba")).toBe(
       "/Users/amy/Library/CloudStorage/GoogleDrive-a/My Drive/Roomba",

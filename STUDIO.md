@@ -549,8 +549,11 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   git config, so a folder with a repository of its own is left to it. Or a
   folder that syncs (a Google Drive, Dropbox or iCloud folder, or a drive): the desktop app copies
   each of the project's folders there, version history (`.git`) included, then only what changed,
-  and never deletes from it (`backUp` in `apps/desktop/src/studio/studioImportFiles.ts`). Import
-  brings a folder backup back. Not signed in to GitHub is said so, with Set up GitHub (Settings'
+  and never deletes from it (`backUp` in `apps/desktop/src/studio/studioImportFiles.ts`).
+  Restore a backup, on Import's menu (`RestoreDialog.tsx`), is the way back, on this computer or a
+  new one: `StudioSync.restore` brings the GitHub copy or the backup folder into a new project
+  folder, every version with it, and it becomes a project as Import makes one. Only the work
+  folder is in a backup, so the brief and the chats stay behind. Not signed in to GitHub is said so, with Set up GitHub (Settings'
   Source control), never the GitHub tool's commands; a finished backup's toast opens it, on
   GitHub or in Finder. Where and when are remembered on this computer and shown under the
   menu (`useBackup.ts`).

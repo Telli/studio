@@ -78,6 +78,14 @@ export function githubRepository(account: string, projectName: string): string {
   return `${account}/${name}`;
 }
 
+/** A name for a project restored from `account/name` or a folder: "roomba-arms" is "Roomba arms". */
+export function restoredName(source: string): string {
+  const last = source.split(/[\\/]/).filter(Boolean).at(-1) ?? "";
+  if (last.includes(" ")) return last;
+  const words = last.replace(/[-_]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** What the GitHub choice says: where the copy is and, once read, whether it is up to date. */
 export function githubDescription(input: {
   readonly repository: string | null;

@@ -43,6 +43,20 @@ describe("Studio's one Import menu", () => {
     expect(actions.pick).not.toHaveBeenCalled();
   });
 
+  it("offers Restore a backup where it makes a project, not where it imports into one", async () => {
+    const actions = { scan: vi.fn(), pick: vi.fn(async () => undefined), restore: vi.fn() };
+    await act(async () => root.render(<ImportMenu actions={actions} />));
+    await press(container.querySelector("button")!);
+    expect(menuItems()).toEqual(["Files or a folder", "Scan this computer", "Restore a backup"]);
+    await press(document.querySelectorAll('[role="menuitem"]')[2]!);
+    expect(actions.restore).toHaveBeenCalledOnce();
+    await act(async () =>
+      root.render(<ImportMenu actions={actions} hints={{ pick: "Copied", scan: "Scans" }} />),
+    );
+    await press(container.querySelector("button")!);
+    expect(menuItems()).toHaveLength(2);
+  });
+
   it("is what the start page's Import a STEP opens, with the same items, beside New part only", async () => {
     const actions = { scan: vi.fn(), pick: vi.fn(async () => undefined) };
     await act(async () =>

@@ -38,6 +38,7 @@ import {
 } from "./importPlan";
 import { KIND_TINT } from "./kinds";
 import { showProject } from "./overviewPanel";
+import { RestoreDialogHost } from "./RestoreDialog";
 import { partLabel } from "./partNames";
 import { usePictures } from "./usePictures";
 import { readStudioImport, rememberScan } from "./studioImportBridge";
@@ -99,9 +100,18 @@ export function ImportDialogHost(props: { readonly environmentId: EnvironmentId 
   const start = useImportDialogStore((store) => store.start);
   const count = useImportDialogStore((store) => store.count);
   const close = useImportDialogStore((store) => store.close);
-  if (start === null) return null;
   return (
-    <ImportDialog key={count} environmentId={props.environmentId} start={start} onClose={close} />
+    <>
+      {start === null ? null : (
+        <ImportDialog
+          key={count}
+          environmentId={props.environmentId}
+          start={start}
+          onClose={close}
+        />
+      )}
+      <RestoreDialogHost environmentId={props.environmentId} />
+    </>
   );
 }
 
