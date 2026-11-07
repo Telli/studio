@@ -3589,7 +3589,7 @@ export function ArchivedThreadsPanel() {
           toastManager.add(
             stackedThreadToast({
               type: "error",
-              title: "Failed to unarchive thread",
+              title: "Failed to unarchive chat",
               description: error instanceof Error ? error.message : "An error occurred.",
             }),
           );
@@ -3632,16 +3632,16 @@ export function ArchivedThreadsPanel() {
                   <ArchiveIcon className="size-3.5 text-muted-foreground" />
                 )}
                 {isLoadingArchive
-                  ? "Loading archived threads"
+                  ? "Loading archived chats"
                   : archiveError
-                    ? "Could not load archived threads"
-                    : "No archived threads"}
+                    ? "Could not load archived chats"
+                    : "No archived chats"}
               </span>
             }
             description={
               isLoadingArchive
                 ? "Checking connected environments."
-                : (archiveError ?? "Archived threads will appear here.")
+                : (archiveError ?? "Archived chats will appear here.")
             }
           />
         </SettingsSection>
@@ -3709,7 +3709,7 @@ export function ArchivedThreadsPanel() {
                           toastManager.add(
                             stackedThreadToast({
                               type: "error",
-                              title: "Failed to unarchive thread",
+                              title: "Failed to unarchive chat",
                               description:
                                 error instanceof Error ? error.message : "An error occurred.",
                             }),

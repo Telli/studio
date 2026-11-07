@@ -1047,7 +1047,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "archive",
-    title: "Archived threads",
+    title: "Archived chats",
     to: "/settings/archived",
     searchTerms: ["restore reopen deleted history projects"],
   },
