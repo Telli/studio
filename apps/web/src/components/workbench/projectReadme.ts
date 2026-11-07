@@ -4,8 +4,9 @@ import { useState } from "react";
  * A project's README as its Overview reads it (`ReadmeOverview.tsx`): the title, "What it is",
  * and "Decisions", one line each, which the agent keeps as it works (`studioProjectContext`):
  * `- <what was decided> (<YYYY-MM-DD>, asked)`, or `by hand` for a change made by hand. A
- * decision written date first (`- 2026-10-19 — ... Source: ...`) reads too, and every other
- * section is kept as written, so whatever the README holds shows.
+ * decision written date first (`- 2026-10-19 — ... Source: ...`) reads too, as does a line
+ * `Decision: ...` outside that section, and every other section is kept as written, so whatever
+ * the README holds shows.
  */
 
 export interface ReadmeDecision {
@@ -51,6 +52,8 @@ const DATED_HEADING =
   /^(.+?)\s*(?:[—–:-]\s+|\(\s*)(?:([a-z][a-z ]*?)\s+)?(\d{4}-\d{2}-\d{2})\s*\)?$/i;
 
 const withoutStop = (text: string) => text.trim().replace(/\.$/, "");
+
+const LOOSE_DECISION = /^\s*(?:[-*]\s+)?decision:\s*(.+?)\s*$/i;
 
 function readDecision(item: string): ReadmeDecision {
   const plain = { text: item.trim(), when: null, how: null };
@@ -180,15 +183,21 @@ export function readmeSections(markdown: string | null): ReadmeSections {
     sections.find((section) => section.heading.toLowerCase() === name)?.lines;
   const text = (lines: ReadonlyArray<string> | undefined) =>
     lines === undefined ? null : lines.join("\n").trim() || null;
-  const decisions = (named("decisions") ?? []).flatMap((line) => {
-    const item = LIST_ITEM.exec(line)?.[1];
-    return item === undefined ? [] : [readDecision(item)];
-  });
+  const decisions = [
+    ...(named("decisions") ?? []).flatMap((line) => {
+      const item = LIST_ITEM.exec(line)?.[1];
+      return item === undefined ? [] : [readDecision(item)];
+    }),
+    ...intro.flatMap((line) => {
+      const item = LOOSE_DECISION.exec(line)?.[1];
+      return item === undefined ? [] : [readDecision(item)];
+    }),
+  ];
   const more = sections
     .filter(({ heading }) => !["what it is", "decisions"].includes(heading.toLowerCase()))
     .map(({ heading, lines }) => readSection(heading, lines))
     .filter((section) => section.blocks.length > 0);
-  const opening = intro.filter((line) => !STARTING_LINE.test(line));
+  const opening = intro.filter((line) => !STARTING_LINE.test(line) && !LOOSE_DECISION.test(line));
   return { title, whatItIs: text(named("what it is")) ?? text(opening), decisions, more };
 }
 

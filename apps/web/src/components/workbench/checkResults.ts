@@ -19,12 +19,13 @@ export const isCheckResultPath = (path: string) => RESULT_FILE.test(path);
  * Whether the file is a named FEA study's numbers, beside its picture: the FEA
  * skill keeps several studies of a part as `FEA/part.bracket-load.glb` and its
  * `part.bracket-load.json` (or `part.bracket-load.result.json`, as agents on
- * text-to-cad 0.10 save `cad fea solve --json`). `paths` are the folder's files.
+ * text-to-cad 0.10 save `cad fea solve --json`, whose picture may be `.fea.glb`).
+ * `paths` are the folder's files.
  */
 export const isNamedStudyPath = (path: string, paths: ReadonlySet<string>) =>
   /\.json$/i.test(path) &&
   !RESULT_FILE.test(path) &&
-  paths.has(path.replace(/(\.result)?\.json$/i, ".glb"));
+  [".glb", ".fea.glb"].some((picture) => paths.has(path.replace(/(\.result)?\.json$/i, picture)));
 
 /** An FEA study's analysis, in the plain word the FEA skill gives it. */
 const ANALYSIS_WORDS: Record<string, string> = {
@@ -131,13 +132,16 @@ export function parseCheckResult(
       : null;
   const safety = typeof summary?.safety_factor === "number" ? summary.safety_factor : null;
   const name = baseName(path);
+  const namedPicture = path.replace(/(\.result)?\.json$/i, ".fea.glb");
   const folder = path
     .replaceAll("\\", "/")
     .slice(0, path.replaceAll("\\", "/").lastIndexOf("/") + 1);
   return {
     path,
     model: solved
-      ? path.replace(/(\.result)?\.json$/i, ".glb")
+      ? baseName(text(data.glb) ?? "") === baseName(namedPicture)
+        ? namedPicture
+        : path.replace(/(\.result)?\.json$/i, ".glb")
       : fea && picture !== null
         ? `${folder}${baseName(picture)}`
         : path.replace(fea ? /\.json$/i : /\.result\.json$/i, ".glb"),

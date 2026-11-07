@@ -215,6 +215,25 @@ describe("check results", () => {
     ]);
   });
 
+  it("reads a strength check whose picture keeps the solver's .fea.glb name", () => {
+    const folder = new Set(["studies/thumb.result.json", "studies/thumb.fea.glb"]);
+    expect(isNamedStudyPath("studies/thumb.result.json", folder)).toBe(true);
+    const result = parseCheckResult(
+      "studies/thumb.result.json",
+      JSON.stringify({
+        ok: false,
+        document: "parts/flexure_case.step",
+        glb: "studies/thumb.fea.glb",
+        summary: { safety_factor: 0.48 },
+        study: { margin: 2 },
+        findings: [{ check: "fea", severity: "error", summary: "It yields" }],
+      }),
+    )!;
+    expect(result.model).toBe("studies/thumb.fea.glb");
+    expect(result.part).toBe("flexure_case.step");
+    expect(result.status).toBe("fix");
+  });
+
   it("reads a strength check as an agent on text-to-cad 0.10 saves it, for the model it checked", () => {
     // `cad fea solve parts/bracket.step studies/tip-load.glb --study studies/tip-load.json --json`,
     // saved beside its picture; the STEP is exported from the model `parts/bracket.py` makes.

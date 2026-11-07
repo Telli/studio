@@ -64,6 +64,17 @@ describe("readmeSections", () => {
     ]);
   });
 
+  it("reads Decision: lines an agent left outside a Decisions section", () => {
+    const sections = readmeSections(
+      "# Case\n\nA one-piece case.\n\nDecision: Use HP500N (2026-11-06, asked).\n\nDecision: Web 0.25 mm.\n",
+    );
+    expect(sections.whatItIs).toBe("A one-piece case.");
+    expect(sections.decisions).toEqual([
+      { text: "Use HP500N", when: "2026-11-06", how: "asked" },
+      { text: "Web 0.25 mm.", when: null, how: null },
+    ]);
+  });
+
   it("keeps every other section, in order, as written", () => {
     const sections = readmeSections(
       "# Bike wall hook\n\nHolds a bike.\n\n## Open questions\n\nWall construction; bike weight.\n\n## Notes\n\n- Print it on its side\n- Use four screws\n",
