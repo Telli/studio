@@ -2,6 +2,7 @@ import * as NodeURL from "node:url";
 
 import { assert, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { STUDIO_BACKUP_BRIEF_FILE } from "@t3tools/contracts";
 import * as GitHubApi from "@t3tools/source-control-github/server/GitHubApi";
 import * as Effect from "effect/Effect";
 import * as Base64 from "effect/encoding/Base64";
@@ -294,6 +295,55 @@ it.effect("restores a folder backup from any folder a person may pick, unsaved f
         yield* fileSystem.readFileString(`${folder}/notes.md`),
         "not in a Version yet\n",
       );
+    }),
+  ),
+);
+
+const BRIEF = {
+  purpose: "Holds a NEMA 17 motor",
+  requirements: "",
+  units: "mm",
+  material: "6061",
+  process: "CNC",
+  quantity: "10",
+  links: "",
+  notes: "",
+} as const;
+
+it.effect("brings a project's brief back from an online copy", () =>
+  withProject((fixture) =>
+    Effect.gen(function* () {
+      const { work, root, version, write } = fixture;
+      yield* version(`${CHECKPOINTS}/c2NvcGU/ordinal/1`, "part.py", "width = 11\n");
+      yield* write(STUDIO_BACKUP_BRIEF_FILE, JSON.stringify(BRIEF));
+      yield* send(work);
+      const sync = yield* StudioSync.StudioSync;
+
+      const { brief } = yield* sync.restore({
+        name: "Roomba",
+        root: `${root}/projects`,
+        source: { kind: "github", repository: REPOSITORY },
+      });
+      assert.deepStrictEqual(brief, BRIEF);
+    }),
+  ),
+);
+
+it.effect("restores with no brief when a backup has none, or one that can't be read", () =>
+  withProject((fixture) =>
+    Effect.gen(function* () {
+      const { work, root, version, write } = fixture;
+      yield* version(`${CHECKPOINTS}/c2NvcGU/ordinal/1`, "part.py", "width = 11\n");
+      const sync = yield* StudioSync.StudioSync;
+      const restoreFrom = sync.restore({
+        name: "Roomba",
+        root: `${root}/projects`,
+        source: { kind: "folder", folder: work },
+      });
+
+      assert.strictEqual((yield* restoreFrom).brief, null);
+      yield* write(STUDIO_BACKUP_BRIEF_FILE, "not a brief");
+      assert.strictEqual((yield* restoreFrom).brief, null);
     }),
   ),
 );

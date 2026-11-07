@@ -157,7 +157,14 @@ export const StudioSyncRestoreInput = Schema.Struct({
 });
 export type StudioSyncRestoreInput = typeof StudioSyncRestoreInput.Type;
 
-export const StudioSyncRestoreResult = Schema.Struct({ folder: TrimmedNonEmptyString });
+/** Where a backup keeps the project's brief, with forward slashes: Back up writes it, Restore reads it. */
+export const STUDIO_BACKUP_BRIEF_FILE = ".studio/brief.json";
+
+export const StudioSyncRestoreResult = Schema.Struct({
+  folder: TrimmedNonEmptyString,
+  /** The brief the backup kept; null for a backup made before briefs came along. */
+  brief: Schema.NullOr(StudioProjectBrief),
+});
 export type StudioSyncRestoreResult = typeof StudioSyncRestoreResult.Type;
 
 export const StudioSyncStatusInput = Schema.Struct({ cwd: TrimmedNonEmptyString });

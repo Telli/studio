@@ -12,6 +12,8 @@
  */
 import {
   SourceControlProviderKind,
+  STUDIO_BACKUP_BRIEF_FILE,
+  StudioProjectBrief,
   StudioSyncError,
   type StudioSyncRestoreInput,
   type StudioSyncRestoreResult,
@@ -23,11 +25,13 @@ import {
 import * as GitHubApi from "@t3tools/source-control-github/server/GitHubApi";
 import { githubGitEnv } from "@t3tools/source-control-github/server/githubGitAuth";
 import { newProjectFolderName } from "@t3tools/shared/path";
+import { fromLenientJson } from "@t3tools/shared/schemaJson";
 import * as Context from "effect/Context";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import * as Path from "effect/Path";
 
 import { CHECKPOINT_REFS_PREFIX } from "../orchestration-v2/CheckpointService.ts";
@@ -63,6 +67,8 @@ const NEVER_SENT = [
   { ignore: ".env*", tracked: ":(glob)**/.env*" },
 ] as const;
 
+const decodeBrief = Schema.decodeEffect(fromLenientJson(StudioProjectBrief));
+
 /** A person's commit name for a machine with none, like the checkpoint commits have. */
 const FALLBACK_IDENTITY = [
   "-c",
@@ -96,8 +102,8 @@ export class StudioSync extends Context.Service<
     /**
      * Brings a backup back into a new folder under `root`, named from `name`: `receive` for an
      * online copy, or a copy of a folder backup, which keeps the files a Version had not taken
-     * yet. Refuses what holds no project before it makes anything, and leaves no folder behind
-     * when it fails.
+     * yet. Answers the brief the backup kept. Refuses what holds no project before it makes
+     * anything, and leaves no folder behind when it fails.
      */
     readonly restore: (
       input: StudioSyncRestoreInput & { readonly root: string },
@@ -569,7 +575,14 @@ const make = (maxFileBytes: number) =>
             fileSystem.remove(folder, { recursive: true, force: true }).pipe(Effect.ignore),
           ),
         );
-        return { folder };
+        // A backup from before briefs, or a file someone broke, restores with an empty brief.
+        const brief = yield* fileSystem
+          .readFileString(path.join(folder, ...STUDIO_BACKUP_BRIEF_FILE.split("/")))
+          .pipe(
+            Effect.flatMap(decodeBrief),
+            Effect.orElseSucceed(() => null),
+          );
+        return { folder, brief };
       },
     );
 

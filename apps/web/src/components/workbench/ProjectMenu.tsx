@@ -84,7 +84,11 @@ function BackupFor(props: {
       open
       onOpenChange={(open) => !open && props.onClose()}
       environmentId={props.environmentId}
-      project={{ name: props.card.project.name, folders: props.card.project.folders }}
+      project={{
+        name: props.card.project.name,
+        folders: props.card.project.folders,
+        brief: props.card.project.brief,
+      }}
       last={backup.last}
       onBackedUp={backup.remember}
     />

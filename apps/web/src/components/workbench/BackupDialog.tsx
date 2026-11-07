@@ -1,12 +1,17 @@
 import { useAtomValue } from "@effect/atom-react";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
-import type { EnvironmentId } from "@t3tools/contracts";
+import {
+  type EnvironmentId,
+  STUDIO_BACKUP_BRIEF_FILE,
+  type StudioProjectBrief,
+} from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import { GithubIcon, HardDriveUploadIcon } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "~/lib/utils";
 import { readLocalApi } from "~/localApi";
+import { projectEnvironment } from "~/state/projects";
 import { serverEnvironment } from "~/state/server";
 import { shellEnvironment } from "~/state/shell";
 import { sourceControlEnvironment } from "~/state/sourceControl";
@@ -93,6 +98,7 @@ export function BackupDialog(props: {
   readonly project: {
     readonly name: string;
     readonly folders: ReadonlyArray<string>;
+    readonly brief: StudioProjectBrief;
   };
   readonly last: LastBackup | null;
   readonly onBackedUp: (place: BackupPlace) => void;
@@ -114,6 +120,7 @@ export function BackupDialog(props: {
         : studioProjectsEnvironment.syncStatus({ environmentId, input: { cwd: folder } }),
     ).data ?? null;
   const send = useAtomCommand(studioProjectsEnvironment.syncSend, { reportFailure: false });
+  const writeFile = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
   const canSend = useAtomValue(studioProjectsEnvironment.syncSend.permissionAtom(environmentId));
   const bridge = readStudioImport();
   const pickFolder = bridge?.pickFolder;
@@ -176,9 +183,22 @@ export function BackupDialog(props: {
     });
   };
 
+  /** Puts the brief in the work folder, which is all a backup carries. */
+  const keepBrief = async () => {
+    const contents = `${JSON.stringify(project.brief, null, 2)}\n`;
+    for (const cwd of project.folders) {
+      const written = await writeFile({
+        environmentId,
+        input: { cwd, relativePath: STUDIO_BACKUP_BRIEF_FILE, contents },
+      });
+      if (written._tag === "Failure") throw squashAtomCommandFailure(written);
+    }
+  };
+
   const backUpToGitHub = async () => {
     if (account === null || folder === null) return;
     const repository = backedUpTo ?? githubRepository(account, project.name);
+    await keepBrief();
     const result = await send({ environmentId, input: { cwd: folder, repository } });
     if (result._tag === "Failure") throw squashAtomCommandFailure(result);
     finish(
@@ -198,6 +218,7 @@ export function BackupDialog(props: {
       if (picked === null) return;
       target = backupFolder(picked, project.name);
     }
+    await keepBrief();
     const result = await backUpInto(project.folders, target);
     const place = { kind: "folder", folder: result.folder } as const;
     finish(

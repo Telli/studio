@@ -39,7 +39,7 @@ import { useStudioProjects } from "./useStudioProjects";
 /**
  * Restore a backup, from Import's menu: the way back from Back up, on this computer or a new one.
  * The server brings the backup into a new folder (`StudioSync.restore`) and it becomes a project as
- * Import makes one. Only the work folder is in a backup, so the brief and the chats stay behind.
+ * Import makes one, with the brief the backup kept. The chats stay behind.
  */
 function RestoreDialog(props: {
   readonly environmentId: EnvironmentId;
@@ -95,7 +95,14 @@ function RestoreDialog(props: {
     const result = await restore({ environmentId, input: { name: title, source } });
     if (result._tag === "Failure") throw squashAtomCommandFailure(result);
     const { made, first } = await runImport({
-      projects: [{ folder: result.value.folder, name: title, files: [] }],
+      projects: [
+        {
+          folder: result.value.folder,
+          name: title,
+          files: [],
+          ...(result.value.brief === null ? {} : { brief: result.value.brief }),
+        },
+      ],
       placements: [],
       newProjectName: title,
     });
@@ -104,7 +111,10 @@ function RestoreDialog(props: {
     toastManager.add({
       type: "success",
       title: `Restored ${title}`,
-      description: "Every version came with it.",
+      description:
+        result.value.brief === null
+          ? "Every version came with it."
+          : "Its brief and every version came with it.",
     });
     onClose();
     if (first === null) return;
@@ -133,8 +143,8 @@ function RestoreDialog(props: {
         <DialogHeader>
           <DialogTitle>Restore a backup</DialogTitle>
           <DialogDescription>
-            A backed up project comes back as a new project on this computer, with all its versions.
-            Its brief and chats stay on the computer they were made on.
+            A backed up project comes back as a new project on this computer, with its brief and all
+            its versions. Its chats stay on the computer they were made on.
           </DialogDescription>
         </DialogHeader>
         <DialogPanel>

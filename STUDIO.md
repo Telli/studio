@@ -553,7 +553,8 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   Restore a backup, on Import's menu (`RestoreDialog.tsx`), is the way back, on this computer or a
   new one: `StudioSync.restore` brings the GitHub copy or the backup folder into a new project
   folder, every version with it, and it becomes a project as Import makes one. Only the work
-  folder is in a backup, so the brief and the chats stay behind. Not signed in to GitHub is said so, with Set up GitHub (Settings'
+  folder is in a backup, so Back up first writes the brief there (`.studio/brief.json`) and Restore
+  reads it back. The chats stay behind. Not signed in to GitHub is said so, with Set up GitHub (Settings'
   Source control), never the GitHub tool's commands; a finished backup's toast opens it, on
   GitHub or in Finder. Where and when are remembered on this computer and shown under the
   menu (`useBackup.ts`).

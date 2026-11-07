@@ -306,7 +306,11 @@ export function ProjectSwitcher(props: {
           open={backingUp}
           onOpenChange={setBackingUp}
           environmentId={environmentId}
-          project={{ name: current.project.name, folders: current.project.folders }}
+          project={{
+            name: current.project.name,
+            folders: current.project.folders,
+            brief: current.project.brief,
+          }}
           last={backup.last}
           onBackedUp={backup.remember}
         />

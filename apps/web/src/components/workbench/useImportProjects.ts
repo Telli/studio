@@ -1,4 +1,4 @@
-import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectId, StudioProjectBrief } from "@t3tools/contracts";
 import { EMPTY_STUDIO_BRIEF } from "@t3tools/shared/studioProjects";
 import { useCallback } from "react";
 
@@ -12,7 +12,8 @@ import { useSaveStudioProject } from "./useStudioProjects";
 
 /** What the person chose to import: projects in place, and where each loose file goes. */
 export interface ImportChoice {
-  readonly projects: ReadonlyArray<ProposedProject>;
+  /** A brief is a restored project's; the rest start with an empty one. */
+  readonly projects: ReadonlyArray<ProposedProject & { readonly brief?: StudioProjectBrief }>;
   /** A loose file goes to one of `projects` (by index), to a new project, or nowhere. */
   readonly placements: ReadonlyArray<{
     readonly file: ImportFile;
@@ -39,11 +40,16 @@ export function useImportProjects(environmentId: EnvironmentId) {
     ): Promise<{ readonly made: number; readonly first: ProjectId | null }> => {
       let made = 0;
       let first: ProjectId | null = null;
-      const saveProject = async (name: string, folder: string, projectId: ProjectId | null) => {
+      const saveProject = async (
+        name: string,
+        folder: string,
+        projectId: ProjectId | null,
+        brief: StudioProjectBrief = EMPTY_STUDIO_BRIEF,
+      ) => {
         const id = await save(null, {
           name,
           template: "part",
-          brief: EMPTY_STUDIO_BRIEF,
+          brief,
           folders: [folder],
           createdAt: new Date().toISOString(),
         });
@@ -73,7 +79,9 @@ export function useImportProjects(environmentId: EnvironmentId) {
           }
         }
         folders.push(
-          (await saveProject(project.name, project.folder, projectId)) ? project.folder : null,
+          (await saveProject(project.name, project.folder, projectId, project.brief))
+            ? project.folder
+            : null,
         );
       }
 
