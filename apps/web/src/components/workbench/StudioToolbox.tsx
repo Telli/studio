@@ -133,7 +133,7 @@ export function StudioToolbox(props: {
   return (
     <div
       ref={rootRef}
-      className="flex w-64 min-w-0 shrink flex-col border-l border-border"
+      className="flex w-64 shrink-0 flex-col border-l border-border"
       data-studio-toolbox="open"
     >
       {/* As tall as the ribbon's tab row beside it, so their hairlines run on as one. */}
@@ -152,7 +152,8 @@ export function StudioToolbox(props: {
       </div>
       <div className="shrink-0 border-b border-border p-3">
         {/* Each its group's icon (the folded edge's, in its jobs' color) over its name. Sized by its
-            name with the spare room shared out: at equal thirds Manufacturing fills its own. */}
+            name with the spare room shared out, and the panel holds its width (`w-64`) for that room:
+            at equal thirds, or narrower, Manufacturing runs into its neighbours. */}
         <ToggleGroup
           aria-label="Toolbox group"
           value={shown === undefined ? [] : [shown.group]}
