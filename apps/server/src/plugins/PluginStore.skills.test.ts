@@ -48,7 +48,12 @@ describe("the person's own skills", () => {
 
         // A save shows in the list at once.
         const text = "---\nname: check-wall-thickness\ndescription: Changed\n---\n\n# Steps\n";
-        yield* store.saveSkill({ skill: added.skill, text });
+        yield* store.saveSkill({
+          skill: added.skill,
+          title: "Check wall thickness",
+          description: "Changed",
+          instructions: "# Steps\n",
+        });
         const saved = yield* store.get(MY_SKILLS_PLUGIN_ID);
         assert.strictEqual(saved.skillDetails?.[0]?.description, "Changed");
         const read = yield* store.readSkill({

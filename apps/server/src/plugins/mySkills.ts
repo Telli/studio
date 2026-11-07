@@ -84,11 +84,28 @@ function yamlDocument(text: string): Document {
   return document.errors.length > 0 || document.contents === null ? new Document({}) : document;
 }
 
-/** Keeps a skill's title as it was typed; only a name with no title gets title-cased. */
-function writeSkillTitle(folder: string, title: string): void {
+/** The front matter of a skill's file, as a document that keeps its order and comments. */
+function skillHeader(text: string): Document {
+  return yamlDocument(/^---\r?\n([\s\S]*?)\r?\n---/.exec(text)?.[1] ?? "");
+}
+
+/** What a skill's file says it is for; blank when it does not say. */
+function headerDescription(text: string): string {
+  const description: unknown = skillHeader(text).get("description");
+  return typeof description === "string" ? description.trim() : "";
+}
+
+/**
+ * Keeps a skill's title as it was typed; only a name with no title gets title-cased. A copy's face
+ * may carry a short description, which the list prefers, so a changed `description` replaces it.
+ */
+function writeSkillTitle(folder: string, title: string, description?: string): void {
   const file = NodePath.join(folder, FACE_FILE);
   const face = yamlDocument(NodeFS.existsSync(file) ? NodeFS.readFileSync(file, "utf8") : "");
   face.setIn(["interface", "display_name"], title);
+  if (description !== undefined && face.hasIn(["interface", "short_description"])) {
+    face.setIn(["interface", "short_description"], description);
+  }
   NodeFS.mkdirSync(NodePath.dirname(file), { recursive: true });
   NodeFS.writeFileSync(file, face.toString({ lineWidth: 0 }));
 }
@@ -154,16 +171,56 @@ function fileText(file: string): string {
 export function readSkill(
   folder: string,
   file: string | null,
-): { readonly text: string; readonly files: ReadonlyArray<string> } | null {
-  if (!NodeFS.existsSync(NodePath.join(folder, SKILL_FILE))) return null;
+): {
+  readonly text: string;
+  readonly description: string;
+  readonly files: ReadonlyArray<string>;
+} | null {
+  const skillFile = NodePath.join(folder, SKILL_FILE);
+  if (!NodeFS.existsSync(skillFile)) return null;
   const files = otherFiles(folder);
   if (file !== null && !files.includes(file)) return null;
-  return { text: fileText(NodePath.join(folder, file ?? SKILL_FILE)), files };
+  return {
+    text: fileText(NodePath.join(folder, file ?? SKILL_FILE)),
+    description: headerDescription(fileText(skillFile)),
+    files,
+  };
 }
 
-/** Writes a skill's `SKILL.md`. */
-export function saveSkill(folder: string, text: string): void {
-  NodeFS.writeFileSync(NodePath.join(folder, SKILL_FILE), text);
+/** A skill's file with what it is for and its steps replaced, the rest of its header kept. */
+export function editedSkillText(
+  text: string,
+  name: string,
+  description: string,
+  instructions: string,
+): string {
+  const header = skillHeader(text);
+  if (!header.has("name")) header.set("name", name);
+  // A new node, so a value that was folded or quoted does not keep that style.
+  header.set("description", header.createNode(description));
+  return `---\n${header.toString({ lineWidth: 0 })}---\n\n${instructions.trim()}\n`;
+}
+
+/** Saves what the skill editor shows: a skill's title, what it is for and its steps. */
+export function saveSkill(
+  folder: string,
+  edit: {
+    readonly title: string;
+    readonly description: string;
+    readonly instructions: string;
+  },
+): void {
+  const file = NodePath.join(folder, SKILL_FILE);
+  const text = NodeFS.readFileSync(file, "utf8");
+  NodeFS.writeFileSync(
+    file,
+    editedSkillText(text, NodePath.basename(folder), edit.description, edit.instructions),
+  );
+  writeSkillTitle(
+    folder,
+    edit.title,
+    edit.description === headerDescription(text) ? undefined : edit.description,
+  );
 }
 
 /** Takes a skill out with all its files. */

@@ -211,6 +211,8 @@ export type PluginSkillReadInput = typeof PluginSkillReadInput.Type;
 /** A skill as its files have it: the text asked for, and what else the skill holds. */
 export const PluginSkillContent = Schema.Struct({
   text: Schema.String,
+  /** What the skill says it is for, in full: the list's may be shorter. */
+  description: Schema.String,
   files: Schema.Array(Text(512)).check(Schema.isMaxLength(200)),
 });
 export type PluginSkillContent = typeof PluginSkillContent.Type;
@@ -223,7 +225,9 @@ export type PluginSkillCreateInput = typeof PluginSkillCreateInput.Type;
 
 export const PluginSkillSaveInput = Schema.Struct({
   skill: SkillName,
-  text: Schema.String.check(Schema.isMaxLength(1024 * 1024)),
+  title: TrimmedNonEmptyString.check(Schema.isMaxLength(120)),
+  description: TrimmedNonEmptyString.check(Schema.isMaxLength(1024)),
+  instructions: Schema.String.check(Schema.isMaxLength(1024 * 1024)),
 });
 export type PluginSkillSaveInput = typeof PluginSkillSaveInput.Type;
 

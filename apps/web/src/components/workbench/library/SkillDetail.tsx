@@ -1,5 +1,5 @@
 import { MY_SKILLS_PLUGIN_ID, type EnvironmentId } from "@t3tools/contracts";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 
 import { requestConfirmDialog } from "~/confirmDialog";
 import { cn } from "~/lib/utils";
@@ -16,9 +16,18 @@ import {
   DialogPopup,
   DialogTitle,
 } from "../../ui/dialog";
+import { Input } from "../../ui/input";
+import { Label } from "../../ui/label";
 import { Textarea } from "../../ui/textarea";
 import type { LibrarySkill } from "./libraryCatalog";
 import { PluginsLink } from "./NeedsSkill";
+
+/** What the skill editor changes; the file's front matter is never shown. */
+type SkillEdit = {
+  readonly title: string;
+  readonly description: string;
+  readonly instructions: string;
+};
 
 /** What the agent reads of a skill's file, past the front matter that names it. */
 export function skillBody(text: string): string {
@@ -44,10 +53,11 @@ export function SkillDetail(props: {
   readonly onRemoved: () => void;
 }) {
   const { entry, environmentId } = props;
+  const id = useId();
   const own = entry.pluginId === MY_SKILLS_PLUGIN_ID;
   const [file, setFile] = useState<string | null>(null);
   const [editing, setEditing] = useState(props.startEditing);
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraft] = useState<SkillEdit | null>(null);
   const content = useEnvironmentQuery(
     pluginEnvironment.skill({
       environmentId,
@@ -59,11 +69,22 @@ export function SkillDetail(props: {
   const removeSkill = useAtomCommand(pluginEnvironment.removeSkill);
   const text = content.data?.text ?? "";
   const files = content.data?.files ?? [];
+  const fields = draft ?? {
+    title: props.name,
+    description: content.data?.description ?? entry.description,
+    instructions: skillBody(text),
+  };
+  const change = (edit: Partial<SkillEdit>) => setDraft({ ...fields, ...edit });
 
   const save = async () => {
     const saved = await saveSkill({
       environmentId,
-      input: { skill: entry.name, text: draft ?? text },
+      input: {
+        skill: entry.name,
+        title: fields.title.trim(),
+        description: fields.description.trim(),
+        instructions: fields.instructions,
+      },
     });
     if (saved._tag !== "Success") return;
     setEditing(false);
@@ -89,7 +110,7 @@ export function SkillDetail(props: {
     <DialogPopup className="max-w-4xl">
       <DialogHeader>
         <DialogTitle>{props.name}</DialogTitle>
-        <DialogDescription>{entry.description}</DialogDescription>
+        {editing ? null : <DialogDescription>{entry.description}</DialogDescription>}
       </DialogHeader>
       <DialogPanel>
         {props.facts}
@@ -122,13 +143,35 @@ export function SkillDetail(props: {
             </nav>
           )}
           {editing ? (
-            <Textarea
-              aria-label={`Instructions for ${props.name}`}
-              value={draft ?? text}
-              onChange={(event) => setDraft(event.target.value)}
-              rows={22}
-              style={{ fieldSizing: "fixed", maxHeight: "none" }}
-            />
+            <div className="flex min-w-0 flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={`${id}-name`}>Name</Label>
+                <Input
+                  id={`${id}-name`}
+                  value={fields.title}
+                  onChange={(event) => change({ title: event.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={`${id}-for`}>What it is for</Label>
+                <Textarea
+                  id={`${id}-for`}
+                  value={fields.description}
+                  rows={3}
+                  onChange={(event) => change({ description: event.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={`${id}-steps`}>Instructions</Label>
+                <Textarea
+                  id={`${id}-steps`}
+                  value={fields.instructions}
+                  onChange={(event) => change({ instructions: event.target.value })}
+                  rows={16}
+                  style={{ fieldSizing: "fixed", maxHeight: "none" }}
+                />
+              </div>
+            </div>
           ) : content.error !== null ? (
             <p className="text-sm text-muted-foreground">
               Could not read this skill. Restart Studio and try again.
@@ -157,7 +200,15 @@ export function SkillDetail(props: {
             >
               Cancel
             </Button>
-            <Button size="sm" disabled={content.data === null} onClick={() => void save()}>
+            <Button
+              size="sm"
+              disabled={
+                content.data === null ||
+                fields.title.trim() === "" ||
+                fields.description.trim() === ""
+              }
+              onClick={() => void save()}
+            >
               Save
             </Button>
           </>

@@ -788,7 +788,7 @@ const makeWith = (sources: ReadonlyArray<MarketplaceSource>) =>
 
     const saveSkill = Effect.fn("PluginStore.saveSkill")(function* (input: PluginSkillSaveInput) {
       const folder = yield* skillFolder(MY_SKILLS_PLUGIN_ID, input.skill);
-      yield* skillChange(() => MySkills.saveSkill(folder, input.text));
+      yield* skillChange(() => MySkills.saveSkill(folder, input));
       return { skill: input.skill };
     });
 

@@ -11,6 +11,7 @@ import { nodeFolder } from "./pluginFiles.ts";
 import {
   copySkill,
   createSkill,
+  editedSkillText,
   ensureMySkills,
   readSkill,
   removeSkill,
@@ -61,11 +62,75 @@ describe("the person's own skills", () => {
     NodeFS.mkdirSync(NodePath.join(folder, "references"));
     NodeFS.writeFileSync(NodePath.join(folder, "references", "a.md"), "more");
 
-    saveSkill(folder, "changed");
-    expect(readSkill(folder, null)).toEqual({ text: "changed", files: ["references/a.md"] });
+    saveSkill(folder, { title: "Notes", description: "n", instructions: "changed" });
+    expect(readSkill(folder, null)).toEqual({
+      text: "---\nname: notes\ndescription: n\n---\n\nchanged\n",
+      description: "n",
+      files: ["references/a.md"],
+    });
     expect(readSkill(folder, "references/a.md")?.text).toBe("more");
     expect(readSkill(folder, "../other.md")).toBeNull();
     expect(readSkill(NodePath.join(skills, "nothing"), null)).toBeNull();
+  });
+
+  it("saves a name, what it is for and the steps, keeping the rest of the header", () => {
+    const skills = scratch();
+    const folder = NodePath.join(skills, "my-cad");
+    NodeFS.mkdirSync(NodePath.join(folder, "agents"), { recursive: true });
+    NodeFS.writeFileSync(
+      NodePath.join(folder, "SKILL.md"),
+      "---\nname: my-cad\nlicense: MIT\ndescription: >\n  Long\n  words\n---\n\n# Old\n",
+    );
+    NodeFS.writeFileSync(
+      NodePath.join(folder, "agents", "openai.yaml"),
+      'interface:\n  display_name: "CAD (my copy)"\n  short_description: "Old"\n',
+    );
+
+    saveSkill(folder, {
+      title: "Our CAD: house rules",
+      description: "Parts the way we make them",
+      instructions: "# New\n\nSteps\n",
+    });
+
+    expect(readSkill(folder, null)?.text).toBe(
+      "---\nname: my-cad\nlicense: MIT\ndescription: Parts the way we make them\n---\n\n# New\n\nSteps\n",
+    );
+    expect(readSkillDetail(folder, "my-cad")).toMatchObject({
+      displayName: "Our CAD: house rules",
+      description: "Parts the way we make them",
+    });
+  });
+
+  it("keeps a copy's short description when only its name changes", () => {
+    const skills = scratch();
+    const folder = NodePath.join(skills, "my-cad");
+    NodeFS.mkdirSync(NodePath.join(folder, "agents"), { recursive: true });
+    NodeFS.writeFileSync(
+      NodePath.join(folder, "SKILL.md"),
+      "---\nname: my-cad\ndescription: The long words the agent matches on\n---\n\n# Steps\n",
+    );
+    NodeFS.writeFileSync(
+      NodePath.join(folder, "agents", "openai.yaml"),
+      'interface:\n  display_name: "CAD (my copy)"\n  short_description: "Make parts"\n',
+    );
+
+    saveSkill(folder, {
+      title: "Our CAD",
+      description: "The long words the agent matches on",
+      instructions: "# Steps\n",
+    });
+
+    expect(readSkillDetail(folder, "my-cad")).toMatchObject({
+      displayName: "Our CAD",
+      description: "Make parts",
+    });
+    expect(readSkill(folder, null)?.description).toBe("The long words the agent matches on");
+  });
+
+  it("gives a skill with no header one that names it", () => {
+    expect(editedSkillText("# Just steps\n", "notes", "n: for notes", "Steps")).toBe(
+      '---\nname: notes\ndescription: "n: for notes"\n---\n\nSteps\n',
+    );
   });
 
   it("copies a plugin's skill whole, leaving the plugin's as it shipped", () => {
