@@ -553,6 +553,16 @@ export function skillName(name: string, skills: ReadonlyArray<LibrarySkill>): st
   );
 }
 
+/**
+ * A skill's own prompt as a person would say it: "Use $cad to make it" is written for the agent, so
+ * it reads "Make it", and any other `$name` loses its sign.
+ */
+export function plainPrompt(prompt: string): string {
+  return prompt
+    .replace(/^Use \$[\w-]+ to (\p{L})/u, (_, first: string) => first.toUpperCase())
+    .replace(/\$([a-z][\w-]*)/gi, "$1");
+}
+
 /** Every skill of every installed plugin, on while its plugin is enabled. */
 export function librarySkills(plugins: ReadonlyArray<InstalledPlugin>): LibrarySkill[] {
   return plugins.flatMap((plugin) =>
@@ -569,7 +579,9 @@ export function librarySkills(plugins: ReadonlyArray<InstalledPlugin>): LibraryS
           (ours ? JOB_NAMES[detail.name] : undefined) ?? chatName(detail.name, detail.displayName),
         description: detail.description,
         blurb: (ours ? SKILL_BLURBS[detail.name] : undefined) ?? detail.description,
-        tryAsking: (ours ? TRY_ASKING[detail.name] : undefined) ?? detail.defaultPrompt,
+        tryAsking:
+          (ours ? TRY_ASKING[detail.name] : undefined) ??
+          (detail.defaultPrompt === null ? null : plainPrompt(detail.defaultPrompt)),
         on: plugin.enabled,
         ...(ours ? exampleOf(id) : { example: null, exampleIn: null }),
       };

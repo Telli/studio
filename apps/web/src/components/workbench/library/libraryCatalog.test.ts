@@ -20,6 +20,7 @@ import {
   ownTemplateEntries,
   showsUpAs,
   skillName,
+  plainPrompt,
 } from "./libraryCatalog";
 import libraryExamples from "./libraryExamples.json";
 
@@ -373,5 +374,16 @@ describe("library catalog", () => {
     );
     expect(plate).toMatch(/from cadgen\.ap242 import/);
     expect(plate).toMatch(/annotate\(/);
+  });
+});
+
+describe("a skill's own prompt", () => {
+  it("reads as a person would ask, with no raw skill names", () => {
+    expect(plainPrompt("Use $cad to create or edit the CAD model I describe.")).toBe(
+      "Create or edit the CAD model I describe.",
+    );
+    expect(plainPrompt("Check this with $my-fea first.")).toBe("Check this with my-fea first.");
+    expect(plainPrompt("Keep it under $20.")).toBe("Keep it under $20.");
+    expect(plainPrompt("Make a bracket.")).toBe("Make a bracket.");
   });
 });
