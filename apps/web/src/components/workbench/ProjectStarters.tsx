@@ -6,7 +6,7 @@ import { useFilesystemReadAccess } from "~/state/filesystem";
 import { pluginEnvironment } from "~/state/plugins";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
-import { Button } from "../ui/button";
+import { fileTint, KIND_ICONS } from "./kinds";
 import { useStudioProjectAt } from "./useStudioProjects";
 import { folderFiles } from "./projectModels";
 import { projectStarters } from "./starterJobs";
@@ -16,8 +16,9 @@ import { useLeadPart } from "./useLeadPart";
 /**
  * A new thread's starters in Studio, made from the project (`starterJobs.ts`): its lead part, the
  * one the Overview shows, then its most recently used files (the project search's own order) and
- * its brief. A quiet stack, each the dock's width, so none outranks the composer; a long one wraps.
- * Nothing without a project. A pick goes into the composer to edit before sending.
+ * its brief. A quiet stack of the chat's chips (`ChangeChip`), each with the icon and hue of the kind
+ * of work it starts, so none outranks the composer; a long one wraps. Nothing without a project. A
+ * pick goes into the composer to edit before sending.
  */
 export function ProjectStarters(props: {
   readonly environmentId: EnvironmentId;
@@ -51,23 +52,29 @@ export function ProjectStarters(props: {
   if (starters.length === 0) return null;
 
   return (
-    <div className="pointer-events-auto mt-4 flex flex-col gap-1">
-      {starters.map((starter) => (
-        <Button
-          key={starter.label}
-          variant="ghost-muted"
-          size="sm-multiline"
-          className="w-full justify-start text-start"
-          onClick={() => {
-            const composer = props.composerRef.current;
-            if (!composer) return;
-            composer.insertTextAtEnd(starter.prompt, { ensureLeadingBoundary: true });
-            composer.focusAtEnd();
-          }}
-        >
-          {starter.label}
-        </Button>
-      ))}
+    <div className="pointer-events-auto mt-4 flex flex-col items-start gap-1">
+      {starters.map((starter) => {
+        const Icon = KIND_ICONS[starter.kind];
+        return (
+          <button
+            key={starter.label}
+            type="button"
+            className="inline-flex min-h-6 min-w-0 max-w-full items-start gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-start text-xs leading-4.5 text-foreground outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            onClick={() => {
+              const composer = props.composerRef.current;
+              if (!composer) return;
+              composer.insertTextAtEnd(starter.prompt, { ensureLeadingBoundary: true });
+              composer.focusAtEnd();
+            }}
+          >
+            <Icon
+              className={`mt-0.5 size-3.5 shrink-0 ${fileTint(starter.kind)}`}
+              aria-hidden="true"
+            />
+            <span className="min-w-0">{starter.label}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

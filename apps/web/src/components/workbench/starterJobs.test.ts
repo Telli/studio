@@ -25,6 +25,20 @@ describe("project starters", () => {
     );
   });
 
+  it("says what kind of work each starter is, by the menu its job sits in", () => {
+    const starters = projectStarters(
+      files("parts/STEP/l_bracket.step"),
+      new Set(["dfm", "cam", "cad", "fea", "engineering-drawing"]),
+      null,
+    );
+    expect(starters.map((starter) => starter.kind)).toEqual([
+      "Manufacturing",
+      "Analysis",
+      "Documents",
+      "Manufacturing",
+    ]);
+  });
+
   it("starts on the lead part, however recently another was touched", () => {
     const [touched, lead] = files("parts/nema17.step", "parts/motor_plate.step");
     const starters = projectStarters([touched!, lead!], new Set(["dfm"]), null, undefined, lead);
@@ -72,6 +86,7 @@ describe("project starters", () => {
     expect(projectStarters([], new Set(["cad"]), brief)).toEqual([
       {
         label: "Start the design from the brief",
+        kind: "CAD",
         prompt:
           "Design the first part of this project from its brief: A wall bracket for a 5 kg shelf.",
       },

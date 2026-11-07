@@ -194,8 +194,8 @@ function LeadPart(props: {
   const picture = pictures.get(part.file.picture ?? part.file.path);
   const status = worstStatus(part.results);
   const name = part.file.title;
-  const StatusIcon =
-    status !== null ? STATUS[status].Icon : part.outdated.length > 0 ? OutOfDateIcon : null;
+  const outOfDate = status === null && part.outdated.length > 0;
+  const StatusIcon = status !== null ? STATUS[status].Icon : outOfDate ? OutOfDateIcon : null;
   return (
     <section aria-label="Lead part" className={SECTION_STACK}>
       <PageTitle title={name} label={part.file.kind} />
@@ -215,16 +215,13 @@ function LeadPart(props: {
         {StatusIcon === null ? null : (
           <StatusIcon
             aria-hidden="true"
-            className={cn(
-              "mt-0.5 size-4 shrink-0",
-              status === null ? "text-muted-foreground" : STATUS_TONE[status],
-            )}
+            className={cn("mt-0.5 size-4 shrink-0", STATUS_TONE[status ?? "warnings"])}
           />
         )}
-        <span className="min-w-0">
+        <span className={cn("min-w-0", outOfDate && STATUS_TONE.warnings)}>
           {status !== null
             ? `${sentenceCase(STATUS[status].caption)} on ${name}`
-            : part.outdated.length > 0
+            : outOfDate
               ? `${name} changed since its last check`
               : `No checks run on ${name} yet`}
           {props.where === undefined ? "" : ` · ${props.where}`}

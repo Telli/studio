@@ -4,8 +4,8 @@ import { Fragment, type ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { MODULE_HEADING } from "../studioLayout";
 
-/** Covers along a shelf, by the width of the page's `@container`. */
-const SHELF_ROW = "grid grid-cols-2 gap-3 @xl:grid-cols-3 @3xl:grid-cols-4 @5xl:grid-cols-5";
+/** Covers along a shelf, by the width of the page's `@container`: one rule for every shelf. */
+const SHELF_ROW = "grid grid-cols-2 gap-3 @xl:grid-cols-3 @3xl:grid-cols-4 @4xl:grid-cols-5";
 
 /** A shelf the page lists: what its index and its heading both show. */
 export interface Shelf {
@@ -49,7 +49,10 @@ export function LibraryShelf(props: {
   );
 }
 
-/** The page's index of shelves, down its side as a library's directory is. A press goes there. */
+/**
+ * An index of shelves, down a page's side as a library's directory is. A press goes there. The
+ * Toolbox does not mount it: its column cost every shelf a cover across.
+ */
 export function ShelfIndex(props: { readonly shelves: ReadonlyArray<Shelf> }) {
   return (
     <nav

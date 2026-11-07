@@ -1,13 +1,16 @@
 import type { ProjectBrief } from "./briefFolder";
 import { type HardwareAction, hardwareActions } from "./hardwareActions";
+import { MENU_WORDS } from "./kinds";
 import { describePart } from "./partContext";
 import { partLink } from "./partLink";
 import { lowerName } from "./partNames";
-import type { ProjectFile } from "./projectFiles";
+import type { ProjectFile, ProjectGroup } from "./projectFiles";
 
 export interface Starter {
   /** What the chip says: "Check L bracket for CNC machining". */
   readonly label: string;
+  /** The kind of work it starts, which gives the chip its icon and hue (`kinds.ts`). */
+  readonly kind: ProjectGroup;
   /** What goes into the composer, naming the part by a link to its file. */
   readonly prompt: string;
 }
@@ -81,7 +84,11 @@ export function projectStarters(
     for (const job of jobs) {
       const action = job.all.find(isKind);
       if (action) {
-        add({ label: action.short(job.name), prompt: action.prompt(job.link) });
+        add({
+          label: action.short(job.name),
+          kind: MENU_WORDS[action.group],
+          prompt: action.prompt(job.link),
+        });
         break;
       }
     }
@@ -89,6 +96,7 @@ export function projectStarters(
   if (starters.length === 0 && brief !== null && brief.purpose.trim() !== "") {
     add({
       label: "Start the design from the brief",
+      kind: "CAD",
       prompt: `Design the first part of this project from its brief: ${brief.purpose.trim()}`,
     });
   }

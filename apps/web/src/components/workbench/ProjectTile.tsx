@@ -72,7 +72,10 @@ export function ProjectTile(props: {
                 props.onMenu?.({ x: event.clientX, y: event.clientY });
               }
         }
-        className="group flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-background text-left outline-none transition-colors duration-150 hover:border-foreground/25 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className={cn(
+          "group flex min-w-0 flex-col overflow-hidden rounded-lg border bg-background text-left outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+          first === undefined ? "border-border hover:border-foreground/25" : "border-primary",
+        )}
       >
         <span className="relative flex aspect-[4/3] items-center justify-center overflow-hidden border-b border-border bg-(--model-ground)">
           {picture ? (
@@ -84,7 +87,7 @@ export function ProjectTile(props: {
           )}
           {first !== undefined ? (
             <span className="absolute top-2 left-2">
-              <Badge variant="info">Needs you</Badge>
+              <Badge>Needs you</Badge>
             </span>
           ) : null}
         </span>

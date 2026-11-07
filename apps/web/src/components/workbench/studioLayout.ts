@@ -29,5 +29,12 @@ export const SECTION_STACK = "flex min-w-0 flex-col gap-3";
 /** Home's and Projects' tiles, four across on a wide window. */
 export const TILE_GRID = "grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-4";
 
+/**
+ * A group of project tiles: `TILE_GRID`, or five across where four across would leave one tile
+ * alone on its last row (5, 9, 13). By the group, so every project stays and no row is capped.
+ */
+export const projectTileGrid = (tiles: number) =>
+  tiles > 1 && tiles % 4 === 1 ? "grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-5" : TILE_GRID;
+
 /** The card grid every module of files uses, by the width of its `@container`. */
 export const CARD_GRID = "grid grid-cols-2 gap-2 @xl:grid-cols-3 @4xl:grid-cols-4";

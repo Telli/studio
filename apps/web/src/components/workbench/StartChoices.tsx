@@ -1,7 +1,7 @@
 import type { StudioSample } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { DownloadIcon, type LucideIcon } from "lucide-react";
-import { type ComponentProps, type ReactNode, useState } from "react";
+import { Children, type ComponentProps, type ReactNode, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import { ExampleCard } from "./examples/ExampleCard";
@@ -10,7 +10,13 @@ import { readGetStartedFolded, writeGetStartedFolded } from "./homeStart";
 import { ImportMenu } from "./ImportMenu";
 import { fileTint, KIND_ICONS } from "./kinds";
 import { HeadingLink, OverviewModule } from "./OverviewModules";
-import { GROUP_LABEL, MODULE_HEADING, SECTION_STACK, TILE_GRID } from "./studioLayout";
+import {
+  GROUP_LABEL,
+  MODULE_HEADING,
+  projectTileGrid,
+  SECTION_STACK,
+  TILE_GRID,
+} from "./studioLayout";
 
 /** How many examples the Get started strip shows: one row; All examples has every one. */
 const STRIP_EXAMPLES = 4;
@@ -103,7 +109,7 @@ export function TileGroup(props: { readonly label: string | null; readonly child
   return (
     <div className={SECTION_STACK}>
       {props.label === null ? null : <h3 className={GROUP_LABEL}>{props.label}</h3>}
-      <div className={TILE_GRID}>{props.children}</div>
+      <div className={projectTileGrid(Children.count(props.children))}>{props.children}</div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { MY_SKILLS_PLUGIN_ID, type EnvironmentId, type InstalledPlugin } from "@t3tools/contracts";
 import { useNavigate, useRouter } from "@tanstack/react-router";
-import { PlusIcon, PuzzleIcon, UserRoundIcon } from "lucide-react";
+import { PlusIcon, PuzzleIcon, SearchIcon, UserRoundIcon } from "lucide-react";
 import { Fragment, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import { usePrimaryEnvironmentId } from "~/state/environments";
@@ -16,7 +16,7 @@ import {
   DialogPopup,
   DialogTitle,
 } from "../../ui/dialog";
-import { Input } from "../../ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "../../ui/input-group";
 import { ChatPage } from "../ChatPages";
 import { useDocumentTemplates } from "../documentTemplates";
 import { fileTint, MENU_ICONS, MENU_TINTS, MENU_WORDS } from "../kinds";
@@ -39,7 +39,7 @@ import {
 import { AddSkillTile } from "./AddSkill";
 import { LibraryCard } from "./LibraryCard";
 import { LibraryPicture } from "./LibraryPicture";
-import { LibraryShelf, ShelfIndex, shelfAnchor, type Shelf } from "./LibraryShelf";
+import { LibraryShelf, shelfAnchor, type Shelf } from "./LibraryShelf";
 import {
   documentGroup,
   filterLibrary,
@@ -80,8 +80,7 @@ const shelfOf = (shelf: Omit<Shelf, "count">, entries: ReadonlyArray<LibraryEntr
 
 /**
  * Studio's Toolbox page (`/library`, the one place on the rail for what Studio ships), laid out as
- * a library of skills: a directory of shelves down its side (`ShelfIndex`), and always-open shelves
- * of covers (`LibraryShelf`). text-to-cad's skills stand on the shelves of the work they do (New,
+ * a library of skills: always-open shelves of covers (`LibraryShelf`). text-to-cad's skills stand on the shelves of the work they do (New,
  * then the part menus Analysis, Manufacturing and Documents), each holding what it makes, with the
  * document types no skill makes beside them. Then every other plugin's skills, and the person's own
  * with Add a skill: first once they have one, last until then. A skill's cover opens it in full
@@ -255,32 +254,34 @@ function LibraryContent(props: {
       count={shelves.reduce((tiles, shelf) => tiles + shelf.count, 0)}
       lede="The skills the agent works from: text-to-cad's and your own. Open one to read it and see what it makes."
       search={
-        <Input
-          type="search"
-          size="sm"
-          placeholder="Search the Toolbox"
-          aria-label="Search the Toolbox"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        <InputGroup>
+          <InputGroupAddon>
+            <SearchIcon className="size-4 text-muted-foreground opacity-100" aria-hidden="true" />
+          </InputGroupAddon>
+          <InputGroupInput
+            type="search"
+            size="sm"
+            placeholder="Search the Toolbox"
+            aria-label="Search the Toolbox"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </InputGroup>
       }
     >
       {nothingFound ? (
         <p className="py-6 text-sm text-muted-foreground">Nothing in the Toolbox matches that.</p>
       ) : null}
       <div className="@container min-w-0">
-        <div className="flex min-w-0 items-start gap-8">
-          <ShelfIndex shelves={shelves} />
-          <div className="flex min-w-0 flex-1 flex-col gap-8">
-            {shelves.map((group) => (
-              <LibraryShelf key={group.key} shelf={group}>
-                {group === mySkills ? (
-                  <AddSkillTile environmentId={environmentId} onAdded={openOwnSkill} />
-                ) : null}
-                {group.entries.map(cover)}
-              </LibraryShelf>
-            ))}
-          </div>
+        <div className="flex min-w-0 flex-col gap-8">
+          {shelves.map((group) => (
+            <LibraryShelf key={group.key} shelf={group}>
+              {group === mySkills ? (
+                <AddSkillTile environmentId={environmentId} onAdded={openOwnSkill} />
+              ) : null}
+              {group.entries.map(cover)}
+            </LibraryShelf>
+          ))}
         </div>
       </div>
       <Dialog
