@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { ACTION_SECTIONS, HARDWARE_ACTIONS, type HardwareAction } from "./hardwareActions";
-import { MENU_ICONS } from "./kinds";
+import { MENU_ICONS, templateIcon } from "./kinds";
+import { NEW_TEMPLATES } from "./newTemplates";
 import { hasSectionIcon, JOB_ICON_IDS, toolIcon } from "./toolIcons";
 
 /**
@@ -32,6 +33,20 @@ describe("toolIcon", () => {
   it("keys every picture of its own to a real job", () => {
     const ids = new Set(HARDWARE_ACTIONS.map((action) => action.id));
     expect(JOB_ICON_IDS.filter((id) => !ids.has(id))).toEqual([]);
+  });
+
+  it("gives a New template that is a job the job's picture", () => {
+    const jobOf = {
+      "sheet-metal": "sheet-metal",
+      "cam-job": "cnc",
+      print: "fdm",
+      "cut-file": "dxf",
+    };
+    for (const [templateId, jobId] of Object.entries(jobOf)) {
+      const template = NEW_TEMPLATES.find((each) => each.id === templateId)!;
+      const action = HARDWARE_ACTIONS.find((each) => each.id === jobId)!;
+      expect(templateIcon(template)).toBe(toolIcon(action));
+    }
   });
 
   it("tells the tools in a section apart", () => {

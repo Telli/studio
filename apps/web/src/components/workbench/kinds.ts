@@ -2,16 +2,21 @@ import {
   Axis3dIcon,
   BookOpenIcon,
   BoxIcon,
+  BoxesIcon,
   CircuitBoardIcon,
+  DrillIcon,
   FactoryIcon,
   FilePlusIcon,
   FileTextIcon,
+  FoldVerticalIcon,
   GaugeIcon,
   ImageIcon,
   MessageSquareIcon,
   PackageIcon,
   PencilRulerIcon,
+  ScissorsIcon,
   SlidersHorizontalIcon,
+  SpoolIcon,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,10 +55,23 @@ export const DISCIPLINE_ICONS: Readonly<Record<Discipline, LucideIcon>> = {
   Documents: KIND_ICONS.Documents,
 };
 
-/** A New template's icon: the kind of thing it makes, a drawing's own, or a file of the person's. */
+/**
+ * The New templates with a picture of their own, by id, so the ones a discipline offers read apart.
+ * A template that is a Toolbox job takes that job's picture (`toolIcons.ts`).
+ */
+const TEMPLATE_ICONS: Partial<Record<string, LucideIcon>> = {
+  assembly: BoxesIcon,
+  "sheet-metal": FoldVerticalIcon,
+  drawing: KIND_ICONS.Drawings,
+  "cam-job": DrillIcon,
+  print: SpoolIcon,
+  "cut-file": ScissorsIcon,
+};
+
+/** A New template's icon: a file of the person's, its own, or the kind of thing it makes. */
 export function templateIcon(template: NewTemplate) {
   if (template.file !== undefined) return FilePlusIcon;
-  return template.id === "drawing" ? KIND_ICONS.Drawings : DISCIPLINE_ICONS[template.discipline];
+  return TEMPLATE_ICONS[template.id] ?? DISCIPLINE_ICONS[template.discipline];
 }
 
 /**

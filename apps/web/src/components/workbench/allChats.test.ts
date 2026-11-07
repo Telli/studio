@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { allChats, findChats } from "./allChats";
+import { allChats, findChats, waitingChatsFirst } from "./allChats";
 
 const chat = (id: string, updatedAt: string, archivedAt: string | null = null) => ({
   id,
@@ -48,6 +48,29 @@ describe("allChats", () => {
     expect(findChats(chats, projectOf, "drone").map((chat) => chat.id)).toEqual(["b"]);
     expect(findChats(chats, projectOf, "bracket FILLET").map((chat) => chat.id)).toEqual(["a"]);
     expect(findChats(chats, projectOf, "bracket motor")).toEqual([]);
+  });
+
+  it("puts the chats waiting on the person first, each group keeping its order", () => {
+    const shell = (id: string, waiting: boolean) => ({
+      id,
+      runtime: null,
+      latestRun: null,
+      hasPendingApprovals: waiting,
+      hasPendingUserInput: false,
+      hasActionableProposedPlan: false,
+    });
+    const chats = [
+      shell("newest", false),
+      shell("asking", true),
+      shell("older", false),
+      shell("older asking", true),
+    ];
+    expect(waitingChatsFirst(chats).map((each) => each.id)).toEqual([
+      "asking",
+      "older asking",
+      "newest",
+      "older",
+    ]);
   });
 
   it("lists a chat two projects share once, under the first", () => {

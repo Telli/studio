@@ -53,6 +53,14 @@ export function waitingChats<T extends Parameters<typeof historyOutcome>[0]>(
   return chats.filter((chat) => historyOutcome(chat) === "needs-you");
 }
 
+/** The chats waiting on the person first, each group otherwise in its own order: Chats' All. */
+export function waitingChatsFirst<T extends Parameters<typeof historyOutcome>[0]>(
+  chats: ReadonlyArray<T>,
+): T[] {
+  const isWaiting = (chat: T) => Number(historyOutcome(chat) === "needs-you");
+  return chats.toSorted((a, b) => isWaiting(b) - isWaiting(a));
+}
+
 /**
  * Every chat the sidebar can reach: each Studio project's, the older chats in no project, from Home's
  * old Ask, which no longer exists (`freeformChat.ts`), and those in folders in no project.

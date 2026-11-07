@@ -123,7 +123,7 @@ function PlaceItem(props: {
         <Icon aria-hidden="true" />
         <span className="flex-1">{props.label}</span>
         {count > 0 ? (
-          <Badge aria-hidden="true" variant="info" size="sm">
+          <Badge aria-hidden="true" variant="default" size="sm">
             {count > 9 ? "9+" : count}
           </Badge>
         ) : null}

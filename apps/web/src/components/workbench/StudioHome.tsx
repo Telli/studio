@@ -347,7 +347,8 @@ function StartProject(props: {
             />
           )}
           <div className="flex-1" />
-          {/* Grey until there is something to start: the one solid blue on Home. */}
+          {/* Grey until there is something to start: the page's one solid blue. The rail's count
+              is solid blue too, but only while a chat waits on the person. */}
           <Button
             variant={ready ? "default" : "secondary"}
             size="sm"

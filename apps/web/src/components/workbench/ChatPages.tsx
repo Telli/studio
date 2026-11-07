@@ -10,10 +10,9 @@ import { Input } from "../ui/input";
 import { SidebarInset } from "../ui/sidebar";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { WorkspacePageContainer } from "../WorkspacePageContainer";
-import { findChats, useAllChats, waitingChats } from "./allChats";
+import { findChats, useAllChats, waitingChats, waitingChatsFirst } from "./allChats";
 import { chatStanding } from "./chatStanding";
 import type { ChatsSearch } from "./chatsSearch";
-import { CHAT_ICON } from "./kinds";
 import { PageTitle } from "./PageTitle";
 import { StudioTopBar } from "./StudioTopBar";
 import { useOpenChat } from "./useOpenChat";
@@ -57,7 +56,7 @@ export function ChatPage(props: {
   );
 }
 
-/** Chats as a page lists them: each with its project and how it stands, the newest first. */
+/** Chats as a page lists them: each with its project and how it stands, in the order given. */
 function ChatList(props: {
   readonly chats: ReadonlyArray<EnvironmentThreadShell>;
   readonly projectOf: ReadonlyMap<string, string>;
@@ -78,9 +77,8 @@ function ChatList(props: {
             <button
               type="button"
               onClick={() => openChat(chat)}
-              className="flex w-full min-w-0 items-center gap-3 p-3 text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              className="flex w-full min-w-0 items-center gap-3 px-3 py-1 text-left outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             >
-              <CHAT_ICON className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-sm text-foreground">{chatLabel(chat.title)}</span>
                 {project === undefined ? null : (
@@ -105,7 +103,8 @@ function ChatsPageContent(props: {
   const [query, setQuery] = useState("");
   const filter = props.search.filter;
   const waiting = useMemo(() => waitingChats(everyChat.chats), [everyChat.chats]);
-  const listed = filter === "needs-you" ? waiting : everyChat.chats;
+  const all = useMemo(() => waitingChatsFirst(everyChat.chats), [everyChat.chats]);
+  const listed = filter === "needs-you" ? waiting : all;
   const shown = findChats(listed, everyChat.projectOf, query);
   return (
     <ChatPage
@@ -154,9 +153,10 @@ function ChatsPageContent(props: {
 }
 
 /**
- * Studio's Chats page (the rail's Chats): every chat in every project, the newest first, each with
- * its project's name and how it stands, and a box to find one by its name or its project's. The
- * Needs you filter, kept in the URL, keeps the chats waiting on your answer or approval.
+ * Studio's Chats page (the rail's Chats): every chat in every project, those waiting on you first
+ * and otherwise the newest first, each with its project's name and how it stands, and a box to find
+ * one by its name or its project's. The Needs you filter, kept in the URL, keeps the chats waiting
+ * on your answer or approval.
  */
 export function ChatsPage(props: { readonly search: ChatsSearch }) {
   const environmentId = usePrimaryEnvironmentId();
