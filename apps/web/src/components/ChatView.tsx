@@ -620,6 +620,7 @@ import { useProjectTabs } from "./workbench/projectTabs";
 import { PartContextStrip } from "./workbench/PartContextStrip";
 import { StudioPanelBar } from "./workbench/StudioPanelBar";
 import { handToChat, sendsAtOnce } from "./workbench/handToChat";
+import { chatTitleText } from "./workbench/toolUsed";
 import { plainFailure, TRY_AGAIN_PROMPT } from "./workbench/plainFailure";
 import { StudioToolbox } from "./workbench/StudioToolbox";
 import { ProjectPage } from "./workbench/ProjectPage";
@@ -9679,7 +9680,9 @@ export default function ChatView(props: ChatViewProps) {
           ),
         );
         const title = truncate(
-          assistantCitationsToPlainText(stripInlineContextReferences(trimmed)).trim() ||
+          chatTitleText(
+            assistantCitationsToPlainText(stripInlineContextReferences(trimmed)).trim(),
+          ) ||
             composerAttachmentsSnapshot[0]?.name ||
             "New thread",
         );
@@ -10004,7 +10007,9 @@ export default function ChatView(props: ChatViewProps) {
         firstComposerImageName = firstComposerImage.name;
       }
     }
-    let titleSeed = assistantCitationsToPlainText(stripInlineContextReferences(trimmed)).trim();
+    let titleSeed = chatTitleText(
+      assistantCitationsToPlainText(stripInlineContextReferences(trimmed)).trim(),
+    );
     if (!titleSeed) {
       if (firstComposerImageName) {
         titleSeed = `Image: ${firstComposerImageName}`;

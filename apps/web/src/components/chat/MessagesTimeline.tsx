@@ -235,6 +235,8 @@ import {
 } from "./MessagesTimeline.logic";
 import { formatCompactElapsedSeconds } from "./AgentElapsed";
 import { TurnDesignChanges } from "../workbench/TurnDesignChanges";
+import { MENU_TINTS } from "../workbench/kinds";
+import { toolIcon } from "../workbench/toolIcons";
 import { toolUsed } from "../workbench/toolUsed";
 import { offersTryAgain, plainFailure } from "../workbench/plainFailure";
 import { splitSources } from "../workbench/references/answerSources";
@@ -5001,11 +5003,16 @@ const UserMessageBody = memo(function UserMessageBody(props: {
   return (
     <>
       {used === null ? null : (
-        <div className="mb-1.5">
-          <ContextChip kind="skill">
-            <SkillChipIcon />
-            <ContextChipLabel>{used.tool}</ContextChipLabel>
-          </ContextChip>
+        <div className="mb-1.5 flex flex-wrap gap-1">
+          {used.tools.map((tool) => {
+            const Icon = toolIcon(tool);
+            return (
+              <ContextChip key={tool.id}>
+                <Icon aria-hidden="true" className={MENU_TINTS[tool.group]} />
+                <ContextChipLabel>{tool.label}</ContextChipLabel>
+              </ContextChip>
+            );
+          })}
         </div>
       )}
       <ChatMarkdown

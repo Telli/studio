@@ -16,9 +16,9 @@ import { useLeadPart } from "./useLeadPart";
 /**
  * A new thread's starters in Studio, made from the project (`starterJobs.ts`): its lead part, the
  * one the Overview shows, then its most recently used files (the project search's own order) and
- * its brief. A quiet stack of the chat's chips (`ChangeChip`), each with the icon and hue of the kind
- * of work it starts, so none outranks the composer; a long one wraps. Nothing without a project. A
- * pick goes into the composer to edit before sending.
+ * its brief. An even block of the chat's chips (`ChangeChip`), two columns over the composer, each
+ * with the icon and hue of the kind of work it starts, so none outranks it; a long name wraps.
+ * Nothing without a project. A pick goes into the composer to edit before sending.
  */
 export function ProjectStarters(props: {
   readonly environmentId: EnvironmentId;
@@ -52,14 +52,14 @@ export function ProjectStarters(props: {
   if (starters.length === 0) return null;
 
   return (
-    <div className="pointer-events-auto mt-4 flex flex-col items-start gap-1">
+    <div className="pointer-events-auto mt-4 grid grid-cols-2 gap-1">
       {starters.map((starter) => {
         const Icon = KIND_ICONS[starter.kind];
         return (
           <button
             key={starter.label}
             type="button"
-            className="inline-flex min-h-6 min-w-0 max-w-full items-start gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-start text-xs leading-4.5 text-foreground outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className="flex min-h-6 min-w-0 items-start gap-1.5 rounded-md border border-border bg-background px-2 py-0.5 text-start text-xs leading-4.5 text-foreground outline-none transition-colors duration-150 hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             onClick={() => {
               const composer = props.composerRef.current;
               if (!composer) return;

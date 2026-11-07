@@ -8,7 +8,10 @@ import { lowerName } from "./partNames";
 import type { ProjectFile, ProjectGroup } from "./projectFiles";
 
 export interface Starter {
-  /** What the chip says: "Check L bracket for CNC machining". */
+  /**
+   * What the chip says: the Toolbox tile's name for the lead part ("Check for CNC machining"), the
+   * part it means for any other ("Check L bracket for CNC machining").
+   */
   readonly label: string;
   /** The kind of work it starts, which gives the chip its icon and hue (`kinds.ts`). */
   readonly kind: ProjectGroup;
@@ -62,7 +65,8 @@ export function projectStarters(
         : { name: file.title, kind: file.kind };
     return {
       link: partLink({ path: file.path, name: file.title }),
-      name: lowerName(name),
+      label: (action: HardwareAction) =>
+        file.path === lead?.path ? action.label : action.short(lowerName(name)),
       // Every job for the part, its ways of making it included, in menu order. Starters start
       // work: a write-up (no skill of its own), an export or a bought part is none.
       all: hardwareActions(kind, skills, brief?.process)
@@ -86,7 +90,7 @@ export function projectStarters(
       const action = job.all.find(isKind);
       if (action) {
         add({
-          label: action.short(job.name),
+          label: job.label(action),
           kind: MENU_WORDS[action.group],
           prompt: withToolLine(action.label, action.prompt(job.link)),
         });

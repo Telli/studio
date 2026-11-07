@@ -41,14 +41,16 @@ const OUT_OF_DATE = "Part changed since this check";
 /**
  * One check of a part: its name and how it went, its verdict on hover, and its result on a click.
  * A check of a part since changed (`checkOutOfDate`) is an outline, no status color: it no longer
- * passes or fails anything, and its result is still a click away.
+ * passes or fails anything, and its result is still a click away. On a line that already shows
+ * `OutOfDateIcon`, `markedOutOfDate` leaves its own out.
  */
 export function CheckBadge(props: {
   readonly result: CheckResult;
   readonly outOfDate?: boolean;
+  readonly markedOutOfDate?: boolean;
   readonly onOpen: () => void;
 }) {
-  const { result, outOfDate = false } = props;
+  const { result, outOfDate = false, markedOutOfDate = false } = props;
   const { variant, word, Icon } = CHECK_STATUS[result.status];
   return (
     <Tooltip>
@@ -68,7 +70,7 @@ export function CheckBadge(props: {
       >
         {outOfDate ? (
           <Badge variant="outline">
-            <OutOfDateIcon aria-hidden="true" />
+            {markedOutOfDate ? null : <OutOfDateIcon aria-hidden="true" />}
             {result.check}
           </Badge>
         ) : (

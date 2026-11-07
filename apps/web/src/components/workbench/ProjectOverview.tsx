@@ -100,12 +100,16 @@ const STATUS_TONE: Record<CheckStatus, string> = {
 /** One of the lead part's facts: its label, then its value, on the line under the picture. */
 function LeadFact(props: {
   readonly label: string;
+  /** Its value says what it is, so the label is for readers only. */
+  readonly labelHidden?: boolean;
   readonly tone?: keyof typeof TITLE_TONE;
   readonly children: ReactNode;
 }) {
   return (
     <div className="flex min-w-0 items-baseline gap-1.5">
-      <dt className="shrink-0 text-xs text-muted-foreground">{props.label}</dt>
+      <dt className={cn("shrink-0 text-xs text-muted-foreground", props.labelHidden && "sr-only")}>
+        {props.label}
+      </dt>
       <dd className={cn("min-w-0 text-sm font-medium", TITLE_TONE[props.tone ?? "default"])}>
         {props.children}
       </dd>
@@ -139,10 +143,10 @@ function LeadFacts(props: {
         ? null
         : { state: "built", at: Number(part.file.version) * 1000 }),
   );
-  const checks = [...part.results, ...part.outdated];
+  // With every check out of date they stand on the amber line above (`LeadPart`), not here too.
+  const checks = part.results.length === 0 ? [] : [...part.results, ...part.outdated];
   return (
     <dl className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
-      <LeadFact label="Type">{part.file.kind}</LeadFact>
       <LeadFact label="Units">{facts?.units ?? props.units}</LeadFact>
       {material === null ? null : (
         <LeadFact label="Material" tone={material.missing ? "faint" : "default"}>
@@ -150,7 +154,7 @@ function LeadFacts(props: {
         </LeadFact>
       )}
       {build === null ? null : (
-        <LeadFact label="Build" tone={build.failed ? "error" : "default"}>
+        <LeadFact label="Build" labelHidden tone={build.failed ? "error" : "default"}>
           {build.text}
         </LeadFact>
       )}
@@ -218,13 +222,29 @@ function LeadPart(props: {
             className={cn("mt-0.5 size-4 shrink-0", STATUS_TONE[status ?? "warnings"])}
           />
         )}
-        <span className={cn("min-w-0", outOfDate && STATUS_TONE.warnings)}>
+        <span
+          className={cn(
+            "flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1",
+            outOfDate && STATUS_TONE.warnings,
+          )}
+        >
           {status !== null
             ? `${sentenceCase(STATUS[status].caption)} on ${name}`
             : outOfDate
               ? `${name} changed since its last check`
               : `No checks run on ${name} yet`}
           {props.where === undefined ? "" : ` · ${props.where}`}
+          {outOfDate
+            ? part.outdated.map((result) => (
+                <CheckBadge
+                  key={result.path}
+                  result={result}
+                  outOfDate
+                  markedOutOfDate
+                  onOpen={() => props.onOpenFile(result.model)}
+                />
+              ))
+            : null}
         </span>
       </p>
       <LeadFacts

@@ -42,7 +42,20 @@ describe("project starters", () => {
   it("starts on the lead part, however recently another was touched", () => {
     const [touched, lead] = files("parts/nema17.step", "parts/motor_plate.step");
     const starters = projectStarters([touched!, lead!], new Set(["dfm"]), null, undefined, lead);
-    expect(starters[0]?.label).toBe("Check motor plate for CNC machining");
+    expect(starters[0]?.prompt).toContain("motor_plate.step");
+  });
+
+  it("calls the lead part's jobs by their tiles' names, and any other part's by the part", () => {
+    const [plate, mesh, other] = files(
+      "parts/motor_plate.step",
+      "parts/mount.stl",
+      "parts/arm.step",
+    );
+    const label = (lead: ProjectFile) =>
+      projectStarters([lead, other!], new Set(["dfm"]), null, undefined, lead)[0]?.label;
+    expect(label(plate!)).toBe("Check for CNC machining");
+    // A mesh can't be checked for machining, so the job falls to a part that is not the lead.
+    expect(label(mesh!)).toBe("Check arm for CNC machining");
   });
 
   it("checks for the brief's way of making it first, and never offers to make a study's picture", () => {

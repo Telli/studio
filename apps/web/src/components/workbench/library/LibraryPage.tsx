@@ -39,7 +39,13 @@ import {
 import { AddSkillTile } from "./AddSkill";
 import { LibraryCard } from "./LibraryCard";
 import { LibraryPicture } from "./LibraryPicture";
-import { LibraryShelf, shelfAnchor, type Shelf } from "./LibraryShelf";
+import {
+  gatherShortShelves,
+  LibraryShelf,
+  SHELF_GRID,
+  shelfAnchor,
+  type Shelf,
+} from "./LibraryShelf";
 import {
   documentGroup,
   filterLibrary,
@@ -83,7 +89,8 @@ const shelfOf = (shelf: Omit<Shelf, "count">, entries: ReadonlyArray<LibraryEntr
  * a library of skills: always-open shelves of covers (`LibraryShelf`). text-to-cad's skills stand on the shelves of the work they do (New,
  * then the part menus Analysis, Manufacturing and Documents), each holding what it makes, with the
  * document types no skill makes beside them. Then every other plugin's skills, and the person's own
- * with Add a skill: first once they have one, last until then. A skill's cover opens it in full
+ * with Add a skill: first once they have one, last until then. A shelf of one or two covers shares
+ * a row with the next short one (`gatherShortShelves`). A skill's cover opens it in full
  * (`SkillDetail`), a document type's its detail, kept in the URL (`entry`) so Back closes it;
  * `group` scrolls to its shelf. Reached from ⌘K, New, the part menus and
  * Settings › Plugins (`libraryHref`).
@@ -176,6 +183,7 @@ function LibraryContent(props: {
     ...(!haveOwn && query === "" ? [mySkills] : []),
   ];
   const nothingFound = shelves.length === 0;
+  const tilesOn = (group: Group) => group.entries.length + (group === mySkills ? 1 : 0);
 
   // Every skill on the page by its one name (`skillName`): cards, details, Made by, what it needs.
   const skillLabel = (name: string) => skillName(name, skills);
@@ -273,9 +281,9 @@ function LibraryContent(props: {
         <p className="py-6 text-sm text-muted-foreground">Nothing in the Toolbox matches that.</p>
       ) : null}
       <div className="@container min-w-0">
-        <div className="flex min-w-0 flex-col gap-8">
-          {shelves.map((group) => (
-            <LibraryShelf key={group.key} shelf={group}>
+        <div className={SHELF_GRID}>
+          {gatherShortShelves(shelves, tilesOn).map((group) => (
+            <LibraryShelf key={group.key} shelf={group} tiles={tilesOn(group)}>
               {group === mySkills ? (
                 <AddSkillTile environmentId={environmentId} onAdded={openOwnSkill} />
               ) : null}
