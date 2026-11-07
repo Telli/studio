@@ -43,6 +43,19 @@ git clone --quiet --bare --filter=blob:none "$GIT_HOST/$STUDIO_REPO.git" "$work/
 fork() { git -C "$work/fork" "$@"; }
 studio() { git -C "$work/studio" "$@"; }
 
+# Every run proves the token can write to both, not only the day a release needs it. A dry run
+# changes nothing, but GitHub still refuses it without write access. Pull requests stay unproven.
+denied=0
+for copy in fork studio; do
+  if git -C "$work/$copy" push --dry-run --quiet origin HEAD:refs/heads/bump/access-check; then
+    echo "The token can write to the $copy repository."
+  else
+    echo "::error::STUDIO_BUMP_TOKEN cannot write to the $copy repository (STUDIO.md, Releasing)."
+    denied=1
+  fi
+done
+[ "$denied" -eq 0 ] || exit 1
+
 tag="$(gh api "repos/$UPSTREAM_REPO/releases/latest" --jq .tag_name)"
 version="${tag#v}"
 pin="$(studio rev-parse main:text-to-cad)"
