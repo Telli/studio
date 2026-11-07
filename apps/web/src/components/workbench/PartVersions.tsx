@@ -92,7 +92,7 @@ export function PartVersions(props: {
   readonly composerRef?: ComposerHandleRef | null;
 }) {
   useNowMinute();
-  const post = useCadService(props.environmentId, props.threadRef.threadId);
+  const post = useCadService(props.threadRef);
   const [chosenKey, setChosenKey] = useState<string | null>(null);
   const [picked, setPicked] = useState<{
     readonly key: string;

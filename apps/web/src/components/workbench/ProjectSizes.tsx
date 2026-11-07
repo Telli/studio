@@ -49,7 +49,7 @@ export function ProjectSizes(props: {
   readonly folded: boolean;
   readonly onFold: () => void;
 }) {
-  const post = useCadService(props.environmentId, props.threadRef.threadId);
+  const post = useCadService(props.threadRef);
   const [reads, setReads] = useState(0);
   const read = useProjectSizes({
     post,

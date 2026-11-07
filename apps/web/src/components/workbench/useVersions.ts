@@ -1,8 +1,9 @@
 import { pluginFileHandlers } from "@t3tools/client-runtime/state/plugins";
-import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@t3tools/contracts";
 import { useCallback, useEffect, useState } from "react";
 import { create } from "zustand";
 
+import { useThreadShell } from "~/state/entities";
 import { pluginEnvironment } from "~/state/plugins";
 import { useEnvironmentQuery } from "~/state/query";
 import { useAtomCommand } from "~/state/use-atom-command";
@@ -17,14 +18,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 /**
  * Studio's CAD service (text-to-cad's viewer server, `cad_server/viewer/http_app.py`), asked through the
- * CAD plugin's `cad_http` tool for the thread's own server, as the CAD view asks it. Null while the
- * plugins load, when none opens STEP files, or with no thread.
+ * CAD plugin's `cad_http` tool for the thread's own server, as the CAD view asks it. A new chat is a
+ * draft the server has no record of, so it asks the environment's own server instead. Null while
+ * the plugins load, or when none opens STEP files.
  */
-export function useCadService(
-  environmentId: EnvironmentId,
-  threadId: ThreadId | null,
-): CadPost | null {
-  return useCadPost(environmentId, threadId === null ? null : { threadId });
+export function useCadService(threadRef: ScopedThreadRef): CadPost | null {
+  const saved = useThreadShell(threadRef) !== null;
+  return useCadPost(
+    threadRef.environmentId,
+    saved ? { threadId: threadRef.threadId } : ENVIRONMENT_SCOPE,
+  );
 }
 
 /**
