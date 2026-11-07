@@ -601,7 +601,14 @@ sizes import WALL`); a script's imports resolve from its own folder, so that is 
   then "Phone stand 2") and opens it, so the example never changes
   (`components/workbench/examples/`). The Library's and New's See the example open the servo
   bracket's page. The first workspace opened gives a five-step tour, once (`StudioTour.tsx`,
-  `tourSteps.ts`): the project, its Overview, the tabs, the toolbar and the Toolbox.
+  `tourSteps.ts`): the project, its Overview, the tabs, the toolbar and the Toolbox. It waits for a
+  quiet chat, so it never sits over a reply being written or a question.
+- **Attach in a project.** A PRD, a data sheet or anything else but a picture goes in the project's
+  References, as Home's box puts it there: a copy, never over a file there, and the original is not
+  touched. The message links to it and the agent's standing context says where they live. A picture
+  belongs to its message and stays in the chat; the Brief's Attach files pictures too. On a remote
+  project, or with no path on this computer, the file goes with the message and the agent files it
+  (`attachToReferences.ts`).
 - **Chats in no project.** Home's Ask, which made them, is gone (Amy, 2026-10-26: one Start
   box). The chats it made stay: they run in the folder that holds the Studio projects, registered
   as the workspace "No project", and Chats and the sidebar still list them under No project

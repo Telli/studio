@@ -103,6 +103,8 @@ export function StudioPanelBar(props: {
   readonly threadRef: ScopedThreadRef;
   /** The thread's workspace changes: a part the agent just made can be opened. */
   readonly mutationId: string | null;
+  /** The agent is working, or a question waits: the tour holds off (`StudioTour`). */
+  readonly chatBusy: boolean;
 }) {
   const { folder, threadRef } = props;
   usePanelTabShortcuts(threadRef);
@@ -164,7 +166,7 @@ export function StudioPanelBar(props: {
 
   return (
     <div className="flex items-center gap-2" data-studio-toolbar="">
-      <StudioTour />
+      <StudioTour chatBusy={props.chatBusy} />
       {/* The AI | CAD switch, Import and New close the row; Home's Your projects ends in Import and New too. */}
       {toggle === "hidden" ? null : (
         <>
