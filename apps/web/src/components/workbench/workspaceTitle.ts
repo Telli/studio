@@ -32,8 +32,12 @@ export function projectChats<
     .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
+/** A tag, closed or cut off at the end of the line. A bare "<" before a number or space is words. */
+const MARKUP = /<\/?[a-z][^<>]*(?:>|$)/gi;
+
+/** A chat's name as it is shown: never the markup an agent's first message opened with. */
 export function chatLabel(title: string): string {
-  const named = title.trim();
+  const named = title.replace(MARKUP, " ").replace(/\s+/g, " ").trim();
   if (named === "") return "Untitled chat";
   // T3 titles a chat "New thread" until its first message names it.
   return named === "New thread" ? "New chat" : named;

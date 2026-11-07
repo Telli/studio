@@ -110,7 +110,7 @@ function LeadFact(props: {
       <dt className={cn("shrink-0 text-xs text-muted-foreground", props.labelHidden && "sr-only")}>
         {props.label}
       </dt>
-      <dd className={cn("min-w-0 text-sm font-medium", TITLE_TONE[props.tone ?? "default"])}>
+      <dd className={cn("min-w-0 text-xs font-medium", TITLE_TONE[props.tone ?? "default"])}>
         {props.children}
       </dd>
     </div>
@@ -143,7 +143,7 @@ function LeadFacts(props: {
         ? null
         : { state: "built", at: Number(part.file.version) * 1000 }),
   );
-  // With every check out of date they stand on the amber line above (`LeadPart`), not here too.
+  // With every check out of date they stand under the amber line above (`LeadPart`), not here too.
   const checks = part.results.length === 0 ? [] : [...part.results, ...part.outdated];
   return (
     <dl className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
@@ -217,27 +217,25 @@ function LeadPart(props: {
           <PartIcon file={part.file} className="size-10 text-muted-foreground/50" />
         )}
       </button>
-      <p className="flex min-w-0 items-start gap-1.5 text-sm text-foreground">
+      <div className="flex min-w-0 items-start gap-1.5 text-sm text-foreground">
         {StatusIcon === null ? null : (
           <StatusIcon
             aria-hidden="true"
             className={cn("mt-0.5 size-4 shrink-0", STATUS_TONE[status ?? "warnings"])}
           />
         )}
-        <span
-          className={cn(
-            "flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1",
-            outOfDate && STATUS_TONE.warnings,
-          )}
-        >
-          {status !== null
-            ? `${sentenceCase(STATUS[status].caption)} on ${name}`
-            : outOfDate
-              ? `${name} changed since its last check`
-              : `No checks run on ${name} yet`}
-          {props.where === undefined ? "" : ` · ${props.where}`}
-          {outOfDate
-            ? part.outdated.map((result) => (
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <p className={outOfDate ? STATUS_TONE.warnings : undefined}>
+            {status !== null
+              ? `${sentenceCase(STATUS[status].caption)} on ${name}`
+              : outOfDate
+                ? `${name} changed since its last check`
+                : `No checks run on ${name} yet`}
+            {props.where === undefined ? "" : ` · ${props.where}`}
+          </p>
+          {outOfDate ? (
+            <div className="flex min-w-0 flex-wrap gap-x-3">
+              {part.outdated.map((result) => (
                 <CheckBadge
                   key={result.path}
                   result={result}
@@ -245,11 +243,12 @@ function LeadPart(props: {
                   markedOutOfDate
                   onOpen={() => props.onOpenFile(result.model)}
                 />
-              ))
-            : null}
-        </span>
-      </p>
-      <div className="flex min-w-0 items-center justify-between gap-4">
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <LeadFacts
           part={part}
           threadRef={props.threadRef}
@@ -257,7 +256,7 @@ function LeadPart(props: {
           onOpenFile={props.onOpenFile}
         />
         {part.drawings.length + part.made.length === 0 ? null : (
-          <div className="flex max-w-1/2 shrink-0 flex-wrap items-center justify-end gap-2">
+          <div className="flex max-w-full flex-wrap items-center gap-2">
             <MadeBadges part={part} onOpen={props.onOpenFile} lead />
           </div>
         )}

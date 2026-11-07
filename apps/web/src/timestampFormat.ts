@@ -253,6 +253,11 @@ export function formatRelativeTimeLabel(isoDate: string) {
   return relative.suffix ? `${relative.value} ${relative.suffix}` : relative.value;
 }
 
+/** The time alone, for a row with no room for "ago": "46m", "21h", "1d". */
+export function formatRelativeTimeShortLabel(isoDate: string) {
+  return formatRelativeTime(isoDate)?.value ?? "";
+}
+
 export function getRelativeTimeState(isoDate: string | null): RelativeTimeState {
   if (!isoDate) return { status: "missing" };
   const relative = formatRelativeTime(isoDate);

@@ -1,6 +1,6 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 
-import { formatRelativeTimeLabel } from "~/timestampFormat";
+import { formatRelativeTimeShortLabel } from "~/timestampFormat";
 import { historyOutcome } from "./projectHistory";
 
 /**
@@ -14,5 +14,5 @@ export function chatStanding(chat: EnvironmentThreadShell) {
   if (outcome === "working") return { text: "Working", tone: "text-foreground" };
   if (outcome === "failed") return { text: "Failed", tone: "text-destructive" };
   if (outcome === "limited") return { text: "Usage limit", tone: "text-warning-foreground" };
-  return { text: formatRelativeTimeLabel(chat.updatedAt), tone: "text-muted-foreground" };
+  return { text: formatRelativeTimeShortLabel(chat.updatedAt), tone: "text-muted-foreground" };
 }

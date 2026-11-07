@@ -12,8 +12,8 @@ import { fileTint, KIND_ICONS } from "./kinds";
 import { HeadingLink, OverviewModule } from "./OverviewModules";
 import { GROUP_LABEL, MODULE_HEADING, projectTileGrid, SECTION_STACK } from "./studioLayout";
 
-/** How many examples the Get started strip shows: under one row; All examples has every one. */
-const STRIP_EXAMPLES = 4;
+/** How many examples the Get started strip shows: one full row; All examples has any past it. */
+const STRIP_EXAMPLES = 5;
 
 /** One of the start page's two ways in: a big card, its icon over what it does and a line more. */
 function StartChoice({

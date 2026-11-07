@@ -280,135 +280,139 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     );
   };
   return (
-    <>
-      <SidebarContent className="overflow-x-hidden">
-        <SidebarGroup>
-          <div className="flex flex-col gap-2">
-            <div className="flex h-8 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground">
-              <SearchIcon className="size-4 shrink-0 text-sidebar-muted-foreground/80" />
-              <SidebarInput
-                ref={searchInputRef}
-                nativeInput
-                type="search"
-                value={query}
-                onChange={(event) => {
-                  setQuery(event.currentTarget.value);
-                  setActiveResultIndex(0);
-                }}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="Search"
-                aria-label="Search settings"
-                role="combobox"
-                aria-autocomplete="list"
-                aria-expanded={isSearching && hasResults}
-                aria-controls={isSearching && hasResults ? "settings-search-results" : undefined}
-                aria-activedescendant={
-                  isSearching && results[activeResultIndex]
-                    ? `settings-search-result-${results[activeResultIndex].id}`
-                    : undefined
-                }
-                className="min-w-0 flex-1"
-              />
-              {isSearching ? (
-                <Button
-                  type="button"
-                  size="icon-micro"
-                  variant="ghost-muted"
-                  className="shrink-0"
-                  aria-label="Clear settings search"
-                  onClick={() => {
-                    clearSearch();
-                    searchInputRef.current?.focus();
-                  }}
-                >
-                  <XIcon className="size-3" />
-                </Button>
-              ) : (
-                <Kbd>/</Kbd>
-              )}
-            </div>
-            {isSearching && results.length === 0 ? (
-              <p
-                role="status"
-                className="px-2 py-6 text-center text-xs text-sidebar-muted-foreground"
-              >
-                No settings found
-              </p>
-            ) : null}
+    <SidebarContent className="overflow-x-hidden">
+      <SidebarGroup>
+        <div className="flex flex-col gap-2">
+          <div className="flex h-8 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground">
+            <SearchIcon className="size-4 shrink-0 text-sidebar-muted-foreground/80" />
+            <SidebarInput
+              ref={searchInputRef}
+              nativeInput
+              type="search"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.currentTarget.value);
+                setActiveResultIndex(0);
+              }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search"
+              aria-label="Search settings"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={isSearching && hasResults}
+              aria-controls={isSearching && hasResults ? "settings-search-results" : undefined}
+              aria-activedescendant={
+                isSearching && results[activeResultIndex]
+                  ? `settings-search-result-${results[activeResultIndex].id}`
+                  : undefined
+              }
+              className="min-w-0 flex-1"
+            />
             {isSearching ? (
-              <SidebarMenu
-                id={hasResults ? "settings-search-results" : undefined}
-                role={hasResults ? "listbox" : undefined}
-                aria-label={hasResults ? "Settings search results" : undefined}
+              <Button
+                type="button"
+                size="icon-micro"
+                variant="ghost-muted"
+                className="shrink-0"
+                aria-label="Clear settings search"
+                onClick={() => {
+                  clearSearch();
+                  searchInputRef.current?.focus();
+                }}
               >
-                {results.map((item, index) => (
-                  <SidebarMenuItem key={item.id} role="presentation">
-                    <SidebarMenuButton
-                      id={`settings-search-result-${item.id}`}
-                      role="option"
-                      aria-selected={index === activeResultIndex}
-                      tabIndex={-1}
-                      size="sm"
-                      isActive={index === activeResultIndex}
-                      className="h-auto min-h-10 items-start"
-                      onMouseMove={() => setActiveResultIndex(index)}
-                      onClick={() => handleSearchResultClick(item)}
-                    >
-                      <SettingsSectionIcon to={item.to} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-sidebar-foreground">
-                          {item.title}
-                        </span>
-                        <span className="block truncate text-xs text-sidebar-muted-foreground/75">
-                          {settingsSearchSectionLabel(
-                            item.to,
-                            SETTINGS_SECTION_LABELS[item.to],
-                            engineering,
-                          )}
-                        </span>
-                      </span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-              </SidebarMenu>
+                <XIcon className="size-3" />
+              </Button>
             ) : (
-              <SidebarMenu>
-                {navItems.map(renderNavItem)}
-                {advancedItems.length > 0 ? (
-                  <SidebarMenuItem>
-                    <h3
-                      id="settings-nav-advanced"
-                      className="flex h-8 items-center px-2 text-xs font-semibold text-sidebar-muted-foreground/75"
-                    >
-                      {ADVANCED_SETTINGS_LABEL}
-                    </h3>
-                    <SidebarMenu
-                      role="group"
-                      aria-labelledby="settings-nav-advanced"
-                      className="ml-4 w-auto"
-                    >
-                      {advancedItems.map(renderNavItem)}
-                    </SidebarMenu>
-                  </SidebarMenuItem>
-                ) : null}
-              </SidebarMenu>
+              <Kbd>/</Kbd>
             )}
           </div>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter>
-        <Suspense fallback={null}>
-          <T3ConnectSidebarSignIn />
-        </Suspense>
-        <div className="flex items-center gap-1">
-          <div className="min-w-0 flex-1">
-            <SidebarUtilityMenu />
-          </div>
-          <Suspense fallback={null}>
-            <T3ConnectSidebarAvatar />
-          </Suspense>
+          {isSearching && results.length === 0 ? (
+            <p
+              role="status"
+              className="px-2 py-6 text-center text-xs text-sidebar-muted-foreground"
+            >
+              No settings found
+            </p>
+          ) : null}
+          {isSearching ? (
+            <SidebarMenu
+              id={hasResults ? "settings-search-results" : undefined}
+              role={hasResults ? "listbox" : undefined}
+              aria-label={hasResults ? "Settings search results" : undefined}
+            >
+              {results.map((item, index) => (
+                <SidebarMenuItem key={item.id} role="presentation">
+                  <SidebarMenuButton
+                    id={`settings-search-result-${item.id}`}
+                    role="option"
+                    aria-selected={index === activeResultIndex}
+                    tabIndex={-1}
+                    size="sm"
+                    isActive={index === activeResultIndex}
+                    className="h-auto min-h-10 items-start"
+                    onMouseMove={() => setActiveResultIndex(index)}
+                    onClick={() => handleSearchResultClick(item)}
+                  >
+                    <SettingsSectionIcon to={item.to} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-sidebar-foreground">
+                        {item.title}
+                      </span>
+                      <span className="block truncate text-xs text-sidebar-muted-foreground/75">
+                        {settingsSearchSectionLabel(
+                          item.to,
+                          SETTINGS_SECTION_LABELS[item.to],
+                          engineering,
+                        )}
+                      </span>
+                    </span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          ) : (
+            <SidebarMenu>
+              {navItems.map(renderNavItem)}
+              {advancedItems.length > 0 ? (
+                <SidebarMenuItem>
+                  <h3
+                    id="settings-nav-advanced"
+                    className="flex h-8 items-center px-2 text-xs font-semibold text-sidebar-muted-foreground/75"
+                  >
+                    {ADVANCED_SETTINGS_LABEL}
+                  </h3>
+                  <SidebarMenu
+                    role="group"
+                    aria-labelledby="settings-nav-advanced"
+                    className="ml-4 w-auto"
+                  >
+                    {advancedItems.map(renderNavItem)}
+                  </SidebarMenu>
+                </SidebarMenuItem>
+              ) : null}
+            </SidebarMenu>
+          )}
         </div>
-      </SidebarFooter>
-    </>
+      </SidebarGroup>
+    </SidebarContent>
+  );
+}
+
+/** Under Settings' sections: Back and the update, in Studio below the foot's hairline. */
+export function SettingsSidebarFoot() {
+  return (
+    <SidebarFooter>
+      <Suspense fallback={null}>
+        <T3ConnectSidebarSignIn />
+      </Suspense>
+      <div className="flex items-center gap-1">
+        <div className="min-w-0 flex-1">
+          <SidebarUtilityMenu />
+        </div>
+        <Suspense fallback={null}>
+          <T3ConnectSidebarAvatar />
+        </Suspense>
+      </div>
+    </SidebarFooter>
   );
 }

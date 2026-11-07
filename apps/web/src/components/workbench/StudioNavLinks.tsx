@@ -63,8 +63,9 @@ export function StudioHomeLink(props: { readonly environmentId: EnvironmentId })
 }
 
 /**
- * Trash and Settings, at the foot of the column (`StudioHomeLink`). Settings stays plain inside
- * Settings: its section rows, in the column above, say where the person is.
+ * Trash and Settings, at the foot of the column (`StudioHomeLink`). Inside Settings its row goes:
+ * pressing it would do nothing, its section rows in the column above say where the person is, and
+ * Back is the way out.
  */
 export function StudioFootLinks() {
   const { mark, go } = usePlaces();
@@ -76,12 +77,14 @@ export function StudioFootLinks() {
         marked={mark === "trash"}
         onClick={() => go("/trash")}
       />
-      <PlaceItem
-        icon={SettingsIcon}
-        label="Settings"
-        marked={false}
-        onClick={() => go("/settings")}
-      />
+      {mark === "settings" ? null : (
+        <PlaceItem
+          icon={SettingsIcon}
+          label="Settings"
+          marked={false}
+          onClick={() => go("/settings")}
+        />
+      )}
     </SidebarMenu>
   );
 }

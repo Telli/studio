@@ -1,7 +1,7 @@
 import type { ReactNode, Ref } from "react";
 
-/** The tags a card names; the rest are counted, so every card stays one line tall. */
-const TAGS_SHOWN = 3;
+/** The tags a card names, whole; the rest are counted, so its line fits a tile without cutting one. */
+const TAGS_SHOWN = 2;
 
 /**
  * A card, as Home's project tiles are: a picture over a name, and a note or tags under it. A press
@@ -49,7 +49,7 @@ export function LibraryCard({
         )}
         {tags.length === 0 ? null : (
           <span className="flex min-w-0 gap-1 text-xs text-muted-foreground">
-            <span className="truncate">{tags.slice(0, TAGS_SHOWN).join(" · ")}</span>
+            <span className="min-w-0">{tags.slice(0, TAGS_SHOWN).join(" · ")}</span>
             {uncounted > 0 ? <span className="shrink-0">+{uncounted}</span> : null}
           </span>
         )}

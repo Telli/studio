@@ -39,7 +39,7 @@ import { railMark } from "./workbench/studioPlaces";
 import { StudioSidebarFrame } from "./workbench/StudioSidebar";
 import { onFoldSidebarForPart } from "./workbench/sidebarFold";
 import { useEngineeringInterface } from "./workbench/studioInterface";
-import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
+import { SettingsSidebarFoot, SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import { SidebarBrandWidthProbe, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { MainAppLocationTracker } from "./sidebar/mainAppLocation";
 import { useSidebarStageBackdropVariant } from "./SidebarStageBackdrop";
@@ -360,13 +360,14 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           style={windowControlsInsetStyle}
         >
           {isOnSettings && studioShell ? (
-            <StudioSidebarFrame>
+            <StudioSidebarFrame foot={<SettingsSidebarFoot />}>
               <SettingsSidebarNav pathname={pathname} />
             </StudioSidebarFrame>
           ) : isOnSettings ? (
             <>
               <SidebarChromeHeader isElectron={isElectron} />
               <SettingsSidebarNav pathname={pathname} />
+              <SettingsSidebarFoot />
             </>
           ) : legacySidebarEnabled ? (
             <LegacyThreadSidebar />

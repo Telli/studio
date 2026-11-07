@@ -1,5 +1,5 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { waitingChats } from "./allChats";
 import { chatStanding } from "./chatStanding";
@@ -24,6 +24,18 @@ const limited = chat({
 });
 
 describe("chatStanding", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("says when it was last worked on in a word, with no ago", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-01T21:30:00.000Z"));
+    expect(chatStanding(chat({ updatedAt: "2026-11-01T20:44:00.000Z" })).text).toBe("46m");
+    expect(chatStanding(chat({ updatedAt: "2026-11-01T00:30:00.000Z" })).text).toBe("21h");
+    expect(chatStanding(chat({ updatedAt: "2026-10-31T21:00:00.000Z" })).text).toBe("1d");
+  });
+
   it("says a failed chat failed and a limited one hit its limit", () => {
     expect(historyOutcome(limited)).toBe("limited");
     expect(chatStanding(failed).text).toBe("Failed");

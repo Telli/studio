@@ -41,8 +41,8 @@ const OUT_OF_DATE = "Part changed since this check";
 /**
  * One check of a part: its name and how it went, its verdict on hover, and its result on a click.
  * A check of a part since changed (`checkOutOfDate`) is an outline, no status color: it no longer
- * passes or fails anything, and its result is still a click away. On a line that already shows
- * `OutOfDateIcon`, `markedOutOfDate` leaves its own out.
+ * passes or fails anything, and its result is still a click away. Under a line that already shows
+ * `OutOfDateIcon` and says why, `markedOutOfDate` makes it plain quiet words.
  */
 export function CheckBadge(props: {
   readonly result: CheckResult;
@@ -64,13 +64,17 @@ export function CheckBadge(props: {
                 ? `${result.check}: ${OUT_OF_DATE}. Show the result`
                 : `${result.check} ${word}: ${result.headline}. Show the result`
             }
-            className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className="rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           />
         }
       >
-        {outOfDate ? (
+        {markedOutOfDate ? (
+          <span className="text-xs text-muted-foreground hover:text-foreground">
+            {result.check}
+          </span>
+        ) : outOfDate ? (
           <Badge variant="outline">
-            {markedOutOfDate ? null : <OutOfDateIcon aria-hidden="true" />}
+            <OutOfDateIcon aria-hidden="true" />
             {result.check}
           </Badge>
         ) : (

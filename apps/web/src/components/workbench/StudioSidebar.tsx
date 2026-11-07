@@ -361,7 +361,7 @@ function ProjectsList(props: { readonly environmentId: EnvironmentId }) {
  */
 export function StudioSidebarFrame(props: {
   readonly children: ReactNode;
-  /** What stands over Trash and Settings in the foot: the update, say. */
+  /** What stands over Trash and Settings in the foot: the update, and Back inside Settings. */
   readonly foot?: ReactNode;
 }) {
   const environmentId = usePrimaryEnvironmentId();

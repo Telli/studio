@@ -57,4 +57,18 @@ describe("chatLabel", () => {
     expect(chatLabel("Wider opening")).toBe("Wider opening");
     expect(chatLabel("  ")).toBe("Untitled chat");
   });
+
+  it("never shows a tag, closed or cut off", () => {
+    expect(chatLabel("<recommended_skills>Make a bracket</recommended_skills>")).toBe(
+      "Make a bracket",
+    );
+    expect(chatLabel("<recommended_skills>")).toBe("Untitled chat");
+    expect(chatLabel("<recommended_skills")).toBe("Untitled chat");
+    expect(chatLabel('Make a bracket <context name="a')).toBe("Make a bracket");
+  });
+
+  it("keeps a less-than sign that is only words", () => {
+    expect(chatLabel("Keep the wall < 3 mm")).toBe("Keep the wall < 3 mm");
+    expect(chatLabel("Holes <4mm wide")).toBe("Holes <4mm wide");
+  });
 });

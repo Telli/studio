@@ -326,9 +326,9 @@ html.dark {
 /*
  * The panel's tabs are what was opened lately, along its top as a browser's are: the Overview
  * pinned first as its icon alone (`PinnedProjectTab.tsx`), then each file with its kind's colored
- * icon (`FileKindIcon.tsx`). The tab in front lifts onto the surface's ground and carries the
- * brand's underline. The tabs, the panel's toolbar (`StudioPanelBar.tsx`) and its layout icons all
- * centre on one line, 1.75rem high.
+ * icon (`FileKindIcon.tsx`). The tab in front is marked by the brand's underline alone, as a CAD
+ * ribbon's and the Toolbox's are. The tabs, the panel's toolbar (`StudioPanelBar.tsx`) and its layout
+ * icons all centre on one line, 1.75rem high.
  */
 html[data-studio-focus="hardware"] [data-right-panel-tabbar] {
   background: color-mix(in oklab, var(--muted) 55%, var(--background));
@@ -348,7 +348,7 @@ html[data-studio-focus="hardware"] [data-right-panel-tab-list] [data-active-tab=
   color: var(--foreground);
 }
 html[data-studio-focus="hardware"] [data-right-panel-tab-list] [data-active-tab="true"] {
-  background: var(--background);
+  background: transparent;
   color: var(--foreground);
 }
 html[data-studio-focus="hardware"] [data-right-panel-tab-list] [data-active-tab="true"]::after {

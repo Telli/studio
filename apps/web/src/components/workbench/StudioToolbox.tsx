@@ -152,13 +152,14 @@ export function StudioToolbox(props: {
         </ToolboxTip>
       </div>
       <div className="shrink-0 border-b border-border p-3">
-        {/* Each its group's icon (the folded edge's, in its jobs' color) over its name. Sized by its
-            name with the spare room shared out, and the panel holds its width (`w-64`) for that room:
-            at equal thirds, or narrower, Manufacturing runs into its neighbours. */}
+        {/* Each its group's icon (the folded edge's, in its jobs' color) over its name, the one in
+            front marked by the underline alone, so no tray stands behind them. Sized by its name with
+            the spare room shared out, and the panel holds its width (`w-64`) for that room: at equal
+            thirds, or narrower, Manufacturing runs into its neighbours. */}
         <ToggleGroup
           aria-label="Toolbox group"
           value={shown === undefined ? [] : [shown.group]}
-          variant="segmented-accent"
+          variant="underline"
           size="tile"
           className="w-full"
           onValueChange={(value) => {
